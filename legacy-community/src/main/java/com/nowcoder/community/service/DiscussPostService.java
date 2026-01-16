@@ -15,7 +15,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.HtmlUtils;
 
-import javax.annotation.PostConstruct;
+import jakarta.annotation.PostConstruct;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -30,10 +30,10 @@ public class DiscussPostService {
     @Autowired
     private SensitiveFilter sensitiveFilter;
 
-    @Value("${caffeine.posts.max-size}")
+    @Value("${caffeine.posts.max-size:1000}")
     private int maxSize;
 
-    @Value("${caffeine.posts.expire-seconds}")
+    @Value("${caffeine.posts.expire-seconds:180}")
     private int expireSeconds;
 
     // Caffeine核心接口: Cache, LoadingCache, AsyncLoadingCache

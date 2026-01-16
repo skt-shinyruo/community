@@ -89,6 +89,9 @@
 - **UV：** `uv:<yyyyMMdd>`（HyperLogLog）+ `uv:<start>:<end>`（union 结果）
 - **DAU：** `dau:<yyyyMMdd>`（Bitmap）+ `dau:<start>:<end>`（OR 结果）
 - **帖子分数刷新集合：** `post:score`（Set）
+- **auth-service refresh token（迭代 0）：**
+  - `auth:refresh:token:<refreshToken>` -> `<userId>`（String，带 TTL）
+  - `auth:refresh:user:<userId>` -> `<refreshToken>`（String，带 TTL）
 
 ---
 
@@ -97,4 +100,3 @@
 ### discuss_post
 - 索引字段：`title`、`content`、`type`、`score`、`createTime` 等
 - 用途：帖子全文检索 + 高亮
-

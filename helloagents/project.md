@@ -7,15 +7,20 @@
 ## 1. 技术栈
 
 ### 1.1 当前现状（基于代码扫描）
-- **后端：** Spring Boot 2.x（仓库当前 `pom.xml` 为 2.1.5.RELEASE）+ Spring MVC + Thymeleaf
-- **语言：** Java 8（仓库当前 `pom.xml` 指定）
-- **持久化：** MyBatis + MySQL
-- **缓存：** Redis（点赞/关注、登录票据 ticket、验证码、UV/DAU、帖子分数刷新集合等）
-- **消息：** Kafka（评论/点赞/关注/发帖/删帖事件）
-- **搜索：** Elasticsearch（帖子全文检索 + 高亮）
-- **定时：** Quartz（刷新帖子分数）
-- **安全：** Spring Security（授权），自定义 ticket 认证注入 `SecurityContext`
-- **其他：** Caffeine（帖子列表/总数本地缓存）、七牛云（头像上传）、Actuator（健康检查/自定义端点）
+- **后端：** Spring Boot 3.2.6 + 多模块 Maven（父工程 `pom.xml`）
+- **语言：** Java 17（父工程 `pom.xml` 强制门禁）
+- **当前模块：**
+  - `legacy-community`：迁移期单体（Boot 3 + Security 6 + Thymeleaf），用于承载旧功能逐步下线
+  - `common`：统一 `Result<T>` / 错误码 / 全局异常 / traceId（目标态规范基线）
+  - `gateway`：Spring Cloud Gateway（统一入口：CORS/鉴权/trace/错误收敛）
+  - `auth-service`：JWT 登录/刷新/登出（refresh token 旋转，Redis 存储）
+- **持久化：** MyBatis + MySQL（迭代 0 仍复用 legacy 的 user 表）
+- **缓存：** Redis（legacy 的点赞/关注/ticket/kaptcha/UV/DAU 等；auth 的 refresh token 旋转）
+- **安全：** Spring Security 6（gateway/auth/legacy）
+- **服务治理：** Spring Cloud 2023.0.x + Spring Cloud Alibaba 2023.x + Nacos（注册发现/配置中心）
+- **其他：** Actuator（健康检查）、Caffeine（legacy 热帖缓存）、七牛（legacy 头像上传，待迁移）
+
+> 注：legacy 的 Elasticsearch 实现已在迁移期降级移除（后续迭代 1 将以独立 `search-service` 重写）。
 
 ### 1.2 目标态（迁移方向）
 - **后端：** Spring Boot 3.x + Spring Cloud（微服务）+ Spring Cloud Alibaba Nacos（注册发现/配置中心）
@@ -35,13 +40,17 @@
 ### 2.2 配置管理
 - 所有环境配置以 Nacos 为准，禁止把密钥/Token/账号密码写入代码库。
 - 配置按环境隔离（dev/test/prod），并保持可本地启动的最小配置集（可用 mock/本地 docker compose 支撑）。
+- 建议隔离策略（迭代 0 起写入约定）：
+  - namespace：按环境隔离（dev/test/prod）
+  - group：按系统/团队隔离（默认 `DEFAULT_GROUP`，后续可按需要细分）
+  - profile：按服务运行环境（例如 `spring.profiles.active=dev`）
 
 ---
 
 ## 3. API 与错误处理约定
 
 ### 3.1 统一返回结构（建议）
-- 统一返回：`code` / `message` / `data` / `traceId`
+- 统一返回：`code` / `message` / `data` / `traceId` / `timestamp`
 - 错误码按模块分段（例如：`AUTH_****`、`USER_****`、`CONTENT_****`）
 
 ### 3.2 全局异常处理
@@ -53,7 +62,8 @@
 ## 4. 日志与可观测性
 
 ### 4.1 Trace 约定
-- Gateway 生成并透传 `traceId`（例如 header `X-Request-Id`），各服务日志必须输出该字段。
+- Header：`X-Request-Id`（gateway 生成并透传；后端服务写入 MDC 并在响应回传）
+- 约定：所有服务对外响应都应包含同一个 `X-Request-Id`（用于全链路排障）
 
 ### 4.2 日志规范
 - 统一采用结构化日志或固定格式日志（至少包含：时间、等级、服务名、traceId、用户标识、关键业务字段）。
@@ -69,4 +79,3 @@
 
 ### 5.2 交付与回滚
 - 每个服务独立构建与部署；灰度/回滚由 Gateway 路由策略支持。
-

@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -35,13 +35,13 @@ public class UserController implements CommunityConstant {
 
     private static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
-    @Value("${community.path.upload}")
+    @Value("${community.path.upload:}")
     private String uploadPath;
 
-    @Value("${community.path.domain}")
+    @Value("${community.path.domain:http://localhost:8081}")
     private String domain;
 
-    @Value("${server.servlet.context-path}")
+    @Value("${server.servlet.context-path:}")
     private String contextPath;
 
     @Autowired
@@ -56,16 +56,16 @@ public class UserController implements CommunityConstant {
     @Autowired
     private FollowService followService;
 
-    @Value("${qiniu.key.access}")
+    @Value("${qiniu.key.access:}")
     private String accessKey;
 
-    @Value("${qiniu.key.secret}")
+    @Value("${qiniu.key.secret:}")
     private String secretKey;
 
-    @Value("${qiniu.bucket.header.name}")
+    @Value("${qiniu.bucket.header.name:}")
     private String headerBucketName;
 
-    @Value("${quniu.bucket.header.url}")
+    @Value("${quniu.bucket.header.url:}")
     private String headerBucketUrl;
 
     @LoginRequired

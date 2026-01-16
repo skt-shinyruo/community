@@ -2,7 +2,8 @@ package com.nowcoder.community;
 
 import com.nowcoder.community.dao.AlphaDao;
 import com.nowcoder.community.service.AlphaService;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -16,6 +17,7 @@ import java.util.Date;
 
 @SpringBootTest
 @ContextConfiguration(classes = CommunityApplication.class)
+@Disabled("legacy-community 集成测试依赖本地中间件/数据,迁移期默认禁用")
 class CommunityApplicationTests implements ApplicationContextAware {
 
     private ApplicationContext applicationContext;

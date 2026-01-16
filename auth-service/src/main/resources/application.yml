@@ -1,0 +1,53 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: auth-service
+  config:
+    import: optional:nacos:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        file-extension: yaml
+  datasource:
+    url: ${AUTH_DB_URL:jdbc:mysql://127.0.0.1:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${AUTH_DB_USERNAME:community}
+    password: ${AUTH_DB_PASSWORD:community}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${AUTH_REDIS_HOST:127.0.0.1}
+      port: ${AUTH_REDIS_PORT:6379}
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.nowcoder.community.auth.user
+  configuration:
+    map-underscore-to-camel-case: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+security:
+  jwt:
+    hmac-secret: ${AUTH_JWT_HMAC_SECRET:}
+    issuer: community-auth
+    access-token-ttl-seconds: 900
+    refresh-token-ttl-seconds: 604800
+    refresh-cookie-name: refresh_token
+    refresh-cookie-path: /api/auth
+    refresh-cookie-same-site: Lax
+    refresh-cookie-secure: false
+    allowed-origins:
+      - http://localhost:5173
+      - http://localhost:5174
+

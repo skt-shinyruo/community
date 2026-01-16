@@ -5,7 +5,6 @@ import com.nowcoder.community.entity.DiscussPost;
 import com.nowcoder.community.entity.Event;
 import com.nowcoder.community.entity.Message;
 import com.nowcoder.community.service.DiscussPostService;
-import com.nowcoder.community.service.ElasticsearchService;
 import com.nowcoder.community.service.MessageService;
 import com.nowcoder.community.util.CommunityConstant;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -29,9 +28,6 @@ public class EventConsumer implements CommunityConstant {
 
     @Autowired
     private DiscussPostService discussPostService;
-
-    @Autowired
-    private ElasticsearchService elasticsearchService;
 
     @KafkaListener(topics = {TOPIC_COMMENT, TOPIC_LIKE, TOPIC_FOLLOW})
     public void handleCommentMessage(ConsumerRecord record) {
@@ -82,8 +78,13 @@ public class EventConsumer implements CommunityConstant {
             return;
         }
 
+        // 迁移期降级：legacy-community 不再直接写 Elasticsearch（迭代 1 由 search-service 消费事件重建索引）。
         DiscussPost post = discussPostService.findDiscussPostById(event.getEntityId());
-        elasticsearchService.saveDiscussPost(post);
+        if (post == null) {
+            logger.warn("发帖事件未找到帖子, entityId={}", event.getEntityId());
+            return;
+        }
+        logger.info("收到发帖事件, 已跳过 legacy ES 索引写入, entityId={}", event.getEntityId());
     }
 
     // 消费删帖事件
@@ -100,6 +101,7 @@ public class EventConsumer implements CommunityConstant {
             return;
         }
 
-        elasticsearchService.deleteDiscussPost(event.getEntityId());
+        // 迁移期降级：legacy-community 不再直接操作 Elasticsearch（迭代 1 由 search-service 消费事件删除索引）。
+        logger.info("收到删帖事件, 已跳过 legacy ES 索引删除, entityId={}", event.getEntityId());
     }
 }

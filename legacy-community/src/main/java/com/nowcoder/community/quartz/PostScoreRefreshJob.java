@@ -2,7 +2,6 @@ package com.nowcoder.community.quartz;
 
 import com.nowcoder.community.entity.DiscussPost;
 import com.nowcoder.community.service.DiscussPostService;
-import com.nowcoder.community.service.ElasticsearchService;
 import com.nowcoder.community.service.LikeService;
 import com.nowcoder.community.util.CommunityConstant;
 import com.nowcoder.community.util.RedisKeyUtil;
@@ -31,9 +30,6 @@ public class PostScoreRefreshJob implements Job, CommunityConstant {
 
     @Autowired
     private LikeService likeService;
-
-    @Autowired
-    private ElasticsearchService elasticsearchService;
 
     // 牛客纪元
     private static final Date epoch;
@@ -85,9 +81,9 @@ public class PostScoreRefreshJob implements Job, CommunityConstant {
                 + (post.getCreateTime().getTime() - epoch.getTime()) / (1000 * 3600 * 24);
         // 更新帖子分数
         discussPostService.updateScore(postId, score);
-        // 同步搜索数据
-        post.setScore(score);
-        elasticsearchService.saveDiscussPost(post);
+
+        // 迁移期降级：legacy-community 不再直接同步 Elasticsearch（迭代 1 由 search-service 负责）。
+        logger.debug("帖子分数已更新, 已跳过 legacy ES 索引同步, postId={}", postId);
     }
 
 }

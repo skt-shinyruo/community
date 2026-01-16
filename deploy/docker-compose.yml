@@ -1,0 +1,41 @@
+version: "3.8"
+
+services:
+  nacos:
+    image: nacos/nacos-server:v2.3.2
+    container_name: community-nacos
+    environment:
+      - MODE=standalone
+      - PREFER_HOST_MODE=hostname
+    ports:
+      - "8848:8848"
+
+  mysql:
+    image: mysql:8.0
+    container_name: community-mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-community}
+      - MYSQL_USER=${MYSQL_USER:-community}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-community}
+    ports:
+      - "3306:3306"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+00:00
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  redis:
+    image: redis:7-alpine
+    container_name: community-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+
+volumes:
+  mysql_data: {}
+  redis_data: {}

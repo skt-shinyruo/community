@@ -1,6 +1,22 @@
 # 架构设计
 
-## 1. 当前总体架构（单体）
+## 1. 当前总体架构（迭代 0：微服务底座 + legacy 并存）
+
+```mermaid
+flowchart TD
+    SPA[Vue3 SPA] --> GW[Gateway]
+    GW --> Auth[auth-service]
+    GW -. service discovery/config .-> Nacos[(Nacos)]
+    Auth --> MySQL[(MySQL)]
+    Auth --> Redis[(Redis)]
+
+    Legacy[legacy-community\n(迁移期单体)] --> MySQL
+    Legacy --> Redis
+```
+
+---
+
+## 2. 历史架构（单体）
 
 ```mermaid
 flowchart TD
@@ -15,7 +31,7 @@ flowchart TD
 
 ---
 
-## 2. 目标总体架构（Boot 3 + 微服务 + 前后端分离）
+## 3. 目标总体架构（Boot 3 + 微服务 + 前后端分离）
 
 ```mermaid
 flowchart TD
@@ -55,14 +71,14 @@ flowchart TD
 
 ---
 
-## 3. 技术栈
+## 4. 技术栈
 - **Backend：** Java 17 / Spring Boot 3.x / Spring Cloud / Spring Cloud Alibaba Nacos
 - **Frontend：** Vue 3
 - **Data：** MySQL / Redis / Kafka / Elasticsearch / Qiniu
 
 ---
 
-## 4. 核心流程示例（目标态）
+## 5. 核心流程示例（目标态）
 
 ```mermaid
 sequenceDiagram
@@ -91,9 +107,8 @@ sequenceDiagram
 
 ---
 
-## 5. 重大架构决策（ADR 索引）
+## 6. 重大架构决策（ADR 索引）
 
 | adr_id | title | date | status | affected_modules | details |
 |--------|-------|------|--------|------------------|---------|
-| ADR-001 | Boot 3 + Java 17 + Nacos 微服务底座 | 2026-01-16 | ✅Adopted | gateway/auth/user/content/social/message/search/analytics | [Link](../plan/202601161428_boot3_ms_vue3_nacos/how.md#adr-001-boot-3--java-17--nacos-微服务底座) |
-
+| ADR-001 | Boot 3 + Java 17 + Nacos 微服务底座 | 2026-01-16 | ✅Adopted | gateway/auth/user/content/social/message/search/analytics | [Link](../history/2026-01/202601161428_boot3_ms_vue3_nacos/how.md#adr-001-boot-3--java-17--nacos-微服务底座) |

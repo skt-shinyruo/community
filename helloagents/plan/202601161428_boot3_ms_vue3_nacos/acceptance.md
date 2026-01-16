@@ -27,6 +27,16 @@ Directory: `helloagents/plan/202601161428_boot3_ms_vue3_nacos/`
 - ✅ `helloagents/wiki/api.md`、`helloagents/wiki/arch.md`、`helloagents/wiki/data.md` 与实现一致
 - ✅ 事件/接口变更必须同步更新契约与版本策略（向后兼容或明确破坏性变更）
 
+### 0.5 CI 门禁（可执行）
+- ✅ CI 方案：默认采用 GitHub Actions；详细见 `helloagents/plan/202601161428_boot3_ms_vue3_nacos/ci-plan.md`
+- ✅ 工作流文件位置（建议）：`.github/workflows/ci.yml`
+- ✅ Required checks（建议从迭代 0 起强制）：`backend-build`、`backend-test`、`frontend-lint-build`
+- ✅ e2e 门禁（建议从迭代 0 起启用，成本可接受则强制）：`e2e-smoke`（覆盖 I0-001~I0-005）
+
+### 0.6 版本基线（必须可追溯）
+- ✅ 版本矩阵必须落到文件并可回填：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/version-matrix.md`
+- ✅ 每次“升版本/换依赖/换中间件”都要更新版本矩阵并补充 PoC 结论（避免靠记忆/口口相传）
+
 ---
 
 ## 1. 迭代 0 验收（Gateway + Auth + Vue3 + Boot3 迁移底座）
@@ -170,4 +180,3 @@ Directory: `helloagents/plan/202601161428_boot3_ms_vue3_nacos/`
 - 前端开发：`pnpm -C frontend dev`
 - 前端构建：`pnpm -C frontend build`
 - 前端 e2e：`pnpm -C frontend e2e`（建议 Playwright）
-

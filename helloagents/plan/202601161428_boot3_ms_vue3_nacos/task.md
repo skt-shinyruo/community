@@ -4,6 +4,16 @@ Directory: `helloagents/plan/202601161428_boot3_ms_vue3_nacos/`
 
 验收清单（DoD + 用例矩阵）：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/acceptance.md`
 
+版本矩阵与依赖升级清单：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/version-matrix.md`
+
+多模块改造 Runbook：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/multi-module-migration.md`
+
+JWT 策略与权限矩阵：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/auth-jwt-strategy.md`
+
+事件契约与幂等策略：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/event-contract.md`
+
+CI 与回归入口：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/ci-plan.md`
+
 ---
 
 ## 0. 迭代划分（里程碑）
@@ -16,19 +26,30 @@ Directory: `helloagents/plan/202601161428_boot3_ms_vue3_nacos/`
 
 ## 1. 迭代 0：基础设施与规范（Gateway + Auth + Vue3）
 ### 1.0 版本矩阵与迁移基线（先把“能跑通”的最小闭环定义清楚）
-- [ ] 1.1 锁定版本矩阵：Boot 3.x / Spring Cloud / Spring Cloud Alibaba / Nacos（以官方兼容矩阵为准），并把版本决策写入 `helloagents/plan/202601161428_boot3_ms_vue3_nacos/how.md`，verify why.md 中「Requirement: 迭代 0 - 基础设施与规范」
+- [ ] 1.1.1 在 `helloagents/plan/202601161428_boot3_ms_vue3_nacos/version-matrix.md` 固化版本号（Boot/Cloud/Alibaba/Nacos）与选择理由，verify why.md 中「Requirement: 迭代 0 - 基础设施与规范」
+- [ ] 1.1.2 在 `helloagents/plan/202601161428_boot3_ms_vue3_nacos/version-matrix.md` 明确中间件影响范围（MySQL/Redis/Kafka/ES）与升级建议，verify 迭代 0 的 PoC 结论可追溯
+- [ ] 1.1.3 在 `helloagents/plan/202601161428_boot3_ms_vue3_nacos/version-matrix.md` 输出“依赖升级/替代清单”（fastjson/ElasticsearchTemplate/kaptcha 等），verify 迭代 0 不被旧依赖阻塞
+- [ ] 1.1.4 执行版本 PoC：以 `legacy-community` 为载体完成“编译 + 启动”验证，并把阻塞项/替代方案回填 `version-matrix.md`，verify PoC 可复现
 - [ ] 1.2 明确迭代 0 最小可用闭环（MVP）：`Vue3 -> Gateway -> Auth` 登录/刷新/登出 + 受保护接口 401/403，补充到 `helloagents/wiki/api.md`，verify why.md 中「Scenario: Gateway + Auth 登录鉴权闭环」
 - [ ] 1.3 制定“迁移期能力开关/降级策略”（例如：ES/Quartz/站内信/搜索可先不迁移或临时关闭），以降低 Boot 3 迁移一次性改动面，记录在 `helloagents/plan/202601161428_boot3_ms_vue3_nacos/how.md` 的 Security and Performance，verify why.md 中「Requirement: 迭代 0 - 基础设施与规范」
 
 ### 1.1 Maven 多模块改造（为微服务拆分做铺垫）
-- [ ] 1.4 将根 `pom.xml` 改造为父工程（packaging=pom），定义模块清单：`common`、`gateway`、`auth-service`、`legacy-community`（迁移期承载现有单体代码），verify `mvn -q -DskipTests package`
-- [ ] 1.5 新建 `legacy-community/pom.xml` 并迁移现有依赖/插件（原单体从根工程下沉为模块），verify `legacy-community` 可编译
-- [ ] 1.6 移动现有代码与资源：`src/` → `legacy-community/src/`，并修正启动类/资源路径/mapper 路径等，verify `legacy-community` 可启动（允许迁移期开关部分能力）
+- [ ] 1.4.1 先完善迁移 Runbook：补齐小步提交计划/每步验证命令/失败回滚方式，verify `helloagents/plan/202601161428_boot3_ms_vue3_nacos/multi-module-migration.md`
+- [ ] 1.4.2 根 `pom.xml` 改造为父工程（packaging=pom），先只声明模块（可为空壳），verify `mvn -q -DskipTests package`
+- [ ] 1.4.3 创建空模块骨架（不搬代码）：`common`、`gateway`、`auth-service`、`legacy-community` 的 `pom.xml` 与目录，verify 全量构建通过
+- [ ] 1.4.4 添加 Maven 门禁（建议 maven-enforcer）：强制 Java 17 + Maven 版本，避免“本地能跑 CI 失败”，verify 构建报错清晰
+- [ ] 1.5.1 `legacy-community` 先做空壳可编译：最小依赖 + 启动类可运行（不要求业务可用），verify `mvn -q -pl legacy-community -am test`
+- [ ] 1.5.2 迁移 `src/main/java/**` → `legacy-community/src/main/java/**`，verify `mvn -q -pl legacy-community -am test`
+- [ ] 1.5.3 迁移 `src/main/resources/**`（templates/static/mapper/logback），并逐项验证资源可加载（mapper/模板/日志配置），verify `legacy-community` 启动无资源缺失
+- [ ] 1.5.4 迁移 `src/test/**` → `legacy-community/src/test/**`（可先 `-DskipTests` 通过，再逐步修复），verify 测试归位
+- [ ] 1.5.5 根目录清理：确认根 `src/` 不再存在，构建产物路径与 wrapper 正常，verify 全量构建通过
 
 ### 1.2 Boot 3 + Java 17 升级（先让 legacy-community 在 Boot3 下“能编译能启动”）
 - [ ] 1.7 升级 `legacy-community/pom.xml` 到 Java 17 + Spring Boot 3.x，并完成基础依赖升级（MyBatis/Redis/Kafka/Thymeleaf/Actuator 等），verify `mvn -q test`
 - [ ] 1.8 全量 Jakarta 迁移：`javax.* -> jakarta.*`（例如 `@PostConstruct`、Servlet/Validation 等），verify `legacy-community` 启动成功
-- [ ] 1.9 Spring Security 6 迁移：将 `legacy-community` 中的 `SecurityConfig` 从 `WebSecurityConfigurerAdapter` 改为 `SecurityFilterChain`，并保持原授权规则（user/admin/moderator），verify 401/403 行为正确
+- [ ] 1.9.1 按 Security 6 重写 `SecurityConfig`：使用 `SecurityFilterChain`，verify 编译通过
+- [ ] 1.9.2 保持原授权规则（user/admin/moderator）与路径保护（`/discuss/**`、`/data/**` 等）等价，verify 401/403 行为正确
+- [ ] 1.9.3 保持“Ajax vs 页面请求”返回差异（JSON 403 vs redirect），verify 迁移期行为不退化
 - [ ] 1.10 兼容性收敛：对 Jakarta 不兼容依赖（如验证码库、旧 ES 客户端等）做升级替换或临时隔离（符合 1.3 的降级策略），verify `legacy-community` 编译通过
 
 ### 1.3 common 模块（统一 API/错误码/异常/trace）
@@ -47,14 +68,19 @@ Directory: `helloagents/plan/202601161428_boot3_ms_vue3_nacos/`
 - [ ] 1.19 配置路由：`/api/auth/** -> auth-service`（StripPrefix/RewritePath），并预留后续服务路由占位，verify 登录请求可达
 - [ ] 1.20 配置全局 CORS（Vue3 开发态）与统一错误返回结构（与 `common` 的 Result 对齐），verify 前端无跨域错误
 - [ ] 1.21 Gateway 生成并透传 traceId（header + MDC），verify 下游服务日志可按 traceId 串联
-- [ ] 1.22 Gateway 增加鉴权过滤器：白名单（login/refresh）放行，其余 `/api/**` 校验 JWT，verify why.md 中「Scenario: Gateway + Auth 登录鉴权闭环」
+- [ ] 1.22.1 在 `helloagents/plan/202601161428_boot3_ms_vue3_nacos/auth-jwt-strategy.md` 固化：token claim/TTL/存储策略/CSRF+CORS/权限矩阵，verify 迭代 0 决策可追溯
+- [ ] 1.22.2 Gateway 实现 JWT 验签与 roles 解析（从 `Authorization`），并统一 401/403 返回结构（与 common 的 Result 对齐），verify why.md 中「Scenario: Gateway + Auth 登录鉴权闭环」
+- [ ] 1.22.3 Gateway 实现白名单与权限矩阵（至少覆盖 auth 接口与健康检查），verify `acceptance.md` 的 I0-003/I0-006
 
 ### 1.6 auth-service 模块（登录/刷新/登出闭环）
 - [ ] 1.23 新建 `auth-service` 模块（`auth-service/pom.xml`、启动类、Nacos 注册），verify 服务可启动并注册
-- [ ] 1.24 实现 `POST /api/auth/login`：用户名/密码校验后签发 access/refresh token，verify Vue3 可登录
-- [ ] 1.25 密码校验兼容：兼容现有“MD5+salt”存量数据，并制定迁移到 BCrypt 的策略（可作为后续任务），verify 可登录旧数据
-- [ ] 1.26 实现 `POST /api/auth/refresh`：refresh token 旋转刷新；refresh 状态存 Redis（黑名单或 token 家族），verify access 过期可续期
-- [ ] 1.27 实现 `POST /api/auth/logout`：失效 refresh token（及必要黑名单），verify 登出后不可刷新
+- [ ] 1.24.1 实现 `POST /api/auth/login`：按 `auth-jwt-strategy.md` 约定签发 token，并统一错误码（账号不存在/未激活/密码错误/限流），verify Vue3 可登录
+- [ ] 1.24.2 login 响应策略：access token 放 response body；refresh token 写 HttpOnly Cookie（含 SameSite/Secure/Path），verify 刷新链路可用
+- [ ] 1.25.1 密码兼容：支持现有“MD5+salt”存量校验（迁移期），verify 可登录旧数据
+- [ ] 1.25.2 密码升级策略：新增/更新密码使用 BCrypt；登录成功后可选“渐进 rehash”（需要可识别算法/字段策略），verify 不破坏存量用户
+- [ ] 1.26.1 实现 `POST /api/auth/refresh`：refresh token 旋转刷新；refresh 状态存 Redis（黑名单或 token family），verify access 过期可续期
+- [ ] 1.26.2 refresh 安全：校验 Origin/Referer（配合 Gateway CORS），并处理并发刷新（可先禁止并发/或加宽限期），verify 不易被重放
+- [ ] 1.27.1 实现 `POST /api/auth/logout`：失效 refresh token（Redis 标记）并清理 cookie，verify 登出后不可刷新
 - [ ] 1.28 提供 `GET /api/auth/me`（返回 userId/authorities/traceId）用于联调，verify 网关鉴权链路可观测
 
 ### 1.7 Vue3 前端（最小可用：登录 + 自动刷新 + 路由守卫）
@@ -72,11 +98,14 @@ Directory: `helloagents/plan/202601161428_boot3_ms_vue3_nacos/`
 
 ## 2. 迭代 1：旁路服务拆分（search/message/analytics）
 ### 2.0 事件契约与迁移策略（先统一“怎么说话”，再拆服务）
-- [ ] 2.1 输出迭代 1 的事件清单与 Topic 命名规范（publish/delete/comment/like/follow 的新旧映射），并写入 `helloagents/wiki/api.md`（事件作为跨服务契约），verify why.md 中「Requirement: 迭代 1 - 旁路服务拆分（search/message/analytics）」
-- [ ] 2.2 在 `common` 中定义统一事件 envelope（`eventId/type/occurredAt/producer/version/payload`），并约定 payload 版本演进策略（向后兼容），verify how.md 中「事件可靠性」
-- [ ] 2.3 统一 Kafka 序列化方案（JSON/Avro/Protobuf 选型，并记录 ADR；若先用 JSON 需规范字段与时间格式），verify `helloagents/wiki/arch.md` 的 ADR 表
-- [ ] 2.4 为事件增加幂等策略：消费者侧以 `eventId` 去重（先本地存储/Redis 去重，后续可升级），verify why.md 中「Scenario: 点赞/评论/关注后产生通知」
-- [ ] 2.5（可选）规划 Outbox Pattern：确定 outbox 表结构、投递重试与死信策略（先设计不强制落地），verify how.md 中「事件可靠性」
+- [ ] 2.1.1 在 `helloagents/plan/202601161428_boot3_ms_vue3_nacos/event-contract.md` 固化 topic 列表与命名规范，verify why.md 中「Requirement: 迭代 1 - 旁路服务拆分（search/message/analytics）」
+- [ ] 2.1.2 在 `event-contract.md` 固化事件 envelope 字段（eventId/traceId/version…）与版本演进规则（只加不删），verify 可向后兼容
+- [ ] 2.1.3 在 `event-contract.md` 输出字段级 payload（Post/Comment/Like/Follow）并标注必填/可选，verify message/search 消费不靠“约定俗成”
+- [ ] 2.1.4 在 `event-contract.md` 固化 partition key/顺序保证最小约定，verify 同帖事件有序性可解释
+- [ ] 2.2 在 `common` 中落地统一事件模型（Java DTO），并统一 JSON 序列化（Jackson），verify 生产/消费一致
+- [ ] 2.3 Kafka 序列化选型：迭代 1 先用 JSON（配合字段级契约）；后续可升级 Avro/Protobuf，并记录 ADR，verify `helloagents/wiki/arch.md`
+- [ ] 2.4 幂等策略落地：消费者侧基于 `eventId` 去重（优先 DB 表 `consumed_event`，或 Redis Set 作为最小实现），verify 重复投递不重复生效
+- [ ] 2.5 重试与死信：使用 `@RetryableTopic`（或等价方案）+ `<topic>.dlq`，并规定 DLQ payload 必含错误信息，verify 可观测可排障
 
 ### 2.1 search-service（索引与查询，事件驱动更新）
 - [ ] 2.6 新建 `search-service` 模块骨架：Web + Nacos + Kafka + Elasticsearch 依赖，补齐启动与健康检查，verify 服务在 Nacos 可见
@@ -215,4 +244,8 @@ Directory: `helloagents/plan/202601161428_boot3_ms_vue3_nacos/`
 - [ ] 7.8 增加前端 e2e 冒烟（建议 Playwright）：登录 -> 调用受保护 API -> refresh -> logout；后续扩展为“发帖 -> 点赞 -> 搜索”，verify why.md 场景
 
 ### 7.3 CI 与可复现
-- [ ] 7.9 增加 CI 流水线：后端多模块构建 + 单测 +（可选）集成测试；前端 build + lint + e2e（可选），verify PR 可回归
+- [ ] 7.9.1 固化 CI 方案与门禁策略（GitHub Actions），verify `helloagents/plan/202601161428_boot3_ms_vue3_nacos/ci-plan.md`
+- [ ] 7.9.2 新增 `.github/workflows/ci.yml`：`backend-build`（`mvn -q -DskipTests package`）+ `backend-test`（`mvn -q test`），verify 迭代 0 DoD
+- [ ] 7.9.3 新增前端 job：`frontend-lint-build`（pnpm install/lint/build），并固定 Node 版本与缓存策略，verify PR 可回归
+- [ ] 7.9.4 新增 `e2e-smoke`（Playwright）并覆盖 I0-001~I0-005（登录/刷新/登出），verify `acceptance.md` 的迭代 0 用例矩阵
+- [ ] 7.9.5 设置合并门禁 Required checks（与 `acceptance.md` 0.5 对齐），verify 未通过不可合并

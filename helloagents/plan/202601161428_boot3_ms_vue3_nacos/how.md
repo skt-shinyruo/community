@@ -134,3 +134,13 @@ flowchart TD
   - 本地：docker compose 启动 Nacos/MySQL/Redis/Kafka/ES
   - 生产：各服务独立部署，Gateway 支持灰度与回滚
 
+---
+
+## 附录（本方案包的可执行细化）
+
+- 版本矩阵与依赖升级清单：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/version-matrix.md`
+- 多模块改造 Runbook：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/multi-module-migration.md`
+- JWT 策略与权限矩阵（迭代 0）：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/auth-jwt-strategy.md`
+- 事件契约与幂等（迭代 1）：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/event-contract.md`
+- CI 与回归入口（建议 GitHub Actions）：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/ci-plan.md`
+- 验收清单（DoD + 用例矩阵）：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/acceptance.md`

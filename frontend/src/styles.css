@@ -796,6 +796,9 @@ em {
   margin-top: 10px;
   white-space: pre-wrap;
   word-break: break-word;
+  line-height: var(--line-loose);
+  color: var(--text-1);
+}
 
   /* ---------- skeletons ---------- */
 
@@ -836,11 +839,11 @@ em {
     display: none;
   }
 
-  @media (max-width: 768px) {
-    .sidebar-overlay {
-      display: block;
-      position: fixed;
-      inset: 0;
+	  @media (max-width: 768px) {
+	    .sidebar-overlay {
+	      display: block;
+	      position: fixed;
+	      inset: 0;
       background: rgba(0, 0, 0, 0.5);
       z-index: 99;
       opacity: 0;
@@ -851,25 +854,21 @@ em {
     .sidebar-overlay.open {
       opacity: 1;
       pointer-events: auto;
-    }
+	    }
 
-    /* Force sidebar to be fixed on mobile if open */
-    .app-sidebar.mobile-open {
-      position: fixed;
-      left: 0;
+	    /* Force sidebar to be fixed on mobile if open */
+	    .app-sidebar.mobile-open {
+	      position: fixed;
+	      left: 0;
+	      top: 0;
+	      bottom: 0;
+	      width: 240px;
+	      z-index: 100;
+	      box-shadow: var(--shadow-lg);
+	      border-right: none;
+	    }
 
-      .app-sidebar.mobile-open {
-        position: fixed;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        width: 240px;
-        z-index: 100;
-        box-shadow: var(--shadow-lg);
-        border-right: none;
-      }
-    }
-
-    .empty {
-      padding: 12px 0;
-    }
+	    .empty {
+	      padding: 12px 0;
+	    }
+	  }

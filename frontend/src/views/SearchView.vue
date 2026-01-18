@@ -32,7 +32,7 @@
     <div v-if="error" class="error" style="margin-top: 12px">{{ error }}</div>
 
     <!-- Results Feed -->
-    <div style="margin-top: 24px" class="stack" style="gap: 16px">
+	    <div class="stack" style="margin-top: 24px; gap: 16px">
        <UiEmpty v-if="!loading && items.length === 0">No results found.</UiEmpty>
        
        <div v-else class="stack" style="gap: 16px">

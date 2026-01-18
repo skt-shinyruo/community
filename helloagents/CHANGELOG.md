@@ -27,6 +27,7 @@
 - 前端 API service 分层：按域封装 auth/post/social/message/notice/search/analytics/user，支持 Result 解析与 traceId 透传。
 - 前端单测补齐：`Result` 解析、`authGuard`、`http` 拦截器与 refresh 逻辑。
 - auth-service：找回密码 API（`/api/auth/password/reset/request|confirm`），默认验证码强制；本地/测试可回传 resetLink。
+- auth-service：测试分层补齐——新增 `@WebMvcTest` 切片测试（mock 下游依赖）；`@SpringBootTest` 集成测试使用 Testcontainers 启动 Redis，避免 CI 因缺少 Redis 返回 500。
 
 ### Changed
 - 父工程升级到 Spring Boot 3.2.6 + Java 17，并加入 Maven Enforcer 门禁。

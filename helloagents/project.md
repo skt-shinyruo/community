@@ -91,9 +91,10 @@
 ## 5. 测试与交付
 
 ### 5.1 测试分层
-- **单元测试：** 核心领域逻辑（Service、工具类）。
-- **集成测试：** 数据库/Redis/Kafka/ES 关键链路，建议使用 Testcontainers 或 docker compose。
-- **契约测试：** 服务间 API 契约（推荐逐步引入）。
+- **单元测试：** 核心领域逻辑（Service、工具类），对外部依赖（DB/Redis/Kafka/HTTP）使用 mock/stub。
+- **切片测试：** `@WebMvcTest/@DataJpaTest` 等，只验证当前层的配置与行为；对下游依赖使用 mock（例如 `@MockBean`）。
+- **集成测试：** 覆盖 DB/Redis/Kafka/ES 关键链路，**主流做法是使用 Testcontainers**（CI/本地一致）；仅在必要时使用 docker compose 作为开发联调环境。
+- **契约测试：** 服务间 API/事件契约（推荐逐步引入）。
 
 ### 5.2 交付与回滚
 - 每个服务独立构建与部署；灰度/回滚由 Gateway 路由策略支持。

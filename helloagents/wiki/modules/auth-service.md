@@ -61,3 +61,20 @@
 - **找回密码**：
   - request 接口为避免用户枚举，邮箱不存在也返回“已处理”（不回传 token/不发邮件）。
   - resetToken 为一次性消费，建议短 TTL（默认 10 分钟）。
+
+## 5. 测试策略（分层）
+
+### 5.1 切片测试（mock）
+- 目标：只验证 Controller 层的入参/出参/响应头等行为，不依赖 DB/Redis 等外部服务。
+- 示例：`auth-service/src/test/java/com/nowcoder/community/auth/api/AuthControllerWebMvcTest.java`
+  - `@WebMvcTest(AuthController.class)` + `@MockBean(AuthService/RegistrationService/...)`
+  - 适合 CI 快速回归（无需 Docker）。
+
+### 5.2 集成测试（Testcontainers）
+- 目标：覆盖登录/注册/验证码/找回密码等关键链路，允许引入外部依赖（Redis/DB 等）。
+- 示例：`auth-service/src/test/java/com/nowcoder/community/auth/api/AuthControllerTest.java`
+  - 使用 Testcontainers 启动 Redis，并通过 `@DynamicPropertySource` 注入 `spring.data.redis.host/port`。
+
+### 5.3 常用命令
+- 全量跑 `auth-service` 测试（推荐，确保依赖模块一起构建）：`mvn -pl auth-service -am test`
+- 全仓测试（CI backend-test 一致）：`mvn test`

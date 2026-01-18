@@ -1,0 +1,31 @@
+groups:
+  - name: service-health
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 60s
+        labels:
+          severity: critical
+        annotations:
+          summary: "服务不可用: {{ $labels.job }}"
+          description: "Prometheus 无法抓取 {{ $labels.instance }} 的指标（up=0）。"
+
+  - name: gateway-security
+    rules:
+      - alert: GatewayRateLimitBlockedSpike
+        expr: increase(gateway_rate_limit_total{outcome="blocked"}[5m]) > 200
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "网关限流触发异常增高"
+          description: "5 分钟内限流拦截数超过阈值，可能存在暴力破解/刷接口（rule={{ $labels.rule }}）。"
+
+      - alert: GatewayRateLimitRedisError
+        expr: increase(gateway_rate_limit_total{outcome="error"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "网关限流 Redis 异常"
+          description: "网关限流模块出现 Redis 错误（rule={{ $labels.rule }}），请检查 Redis 可用性与网络。"

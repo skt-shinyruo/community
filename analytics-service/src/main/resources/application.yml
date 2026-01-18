@@ -1,0 +1,36 @@
+server:
+  port: 8085
+
+analytics:
+  storage: redis
+  internal-token: ${ANALYTICS_INTERNAL_TOKEN:}
+  max-days-range: 31
+
+spring:
+  application:
+    name: analytics-service
+  config:
+    import: "optional:nacos:${spring.application.name}.yaml"
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        file-extension: yaml
+  data:
+    redis:
+      host: ${ANALYTICS_REDIS_HOST:127.0.0.1}
+      port: ${ANALYTICS_REDIS_PORT:6379}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+security:
+  jwt:
+    hmac-secret: ${JWT_HMAC_SECRET:${AUTH_JWT_HMAC_SECRET:}}

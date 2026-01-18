@@ -1,0 +1,23 @@
+spring:
+  datasource:
+    url: ${CONTENT_DB_URL:jdbc:mysql://mysql:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${MYSQL_USER:community}
+    password: ${MYSQL_PASSWORD:communitypass}
+  data:
+    redis:
+      host: ${CONTENT_REDIS_HOST:redis}
+      port: ${CONTENT_REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+
+security:
+  jwt:
+    hmac-secret: ${JWT_HMAC_SECRET:dev-secret-please-change-at-least-32bytes}
+
+content:
+  events:
+    publisher: kafka
+  score:
+    refresh:
+      enabled: true
+

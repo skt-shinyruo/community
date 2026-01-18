@@ -1,0 +1,15 @@
+package com.nowcoder.community.content.event;
+
+import com.nowcoder.community.common.event.payload.CommentPayload;
+import com.nowcoder.community.common.event.payload.PostPayload;
+
+public interface ContentEventPublisher {
+
+    void publishPostPublished(PostPayload payload);
+
+    void publishPostUpdated(PostPayload payload);
+
+    void publishPostDeleted(PostPayload payload);
+
+    void publishCommentCreated(CommentPayload payload);
+}

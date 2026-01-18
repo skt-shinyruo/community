@@ -1,0 +1,147 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway
+  config:
+    import: "optional:nacos:${spring.application.name}.yaml"
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+        group: ${NACOS_GROUP:DEFAULT_GROUP}
+        file-extension: yaml
+    gateway:
+      default-filters:
+        - PreserveHostHeader
+      routes:
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/auth/**
+        - id: search-service
+          uri: lb://search-service
+          predicates:
+            - Path=/api/search/**
+        - id: message-service
+          uri: lb://message-service
+          predicates:
+            - Path=/api/notices/**,/api/messages/**
+        - id: analytics-service
+          uri: lb://analytics-service
+          predicates:
+            - Path=/api/analytics/**
+        - id: social-service
+          uri: lb://social-service
+          predicates:
+            - Path=/api/likes/**,/api/follows/**
+        - id: user-service
+          uri: lb://user-service
+          predicates:
+            - Path=/api/users/**
+        - id: content-service
+          uri: lb://content-service
+          predicates:
+            - Path=/api/posts/**
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins:
+              - http://localhost:12881
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - PATCH
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+security:
+  jwt:
+    hmac-secret: ${GATEWAY_JWT_HMAC_SECRET:${JWT_HMAC_SECRET:}}
+
+analytics:
+  collect:
+    enabled: true
+    internal-token: ${ANALYTICS_INTERNAL_TOKEN:}
+
+gateway:
+  rate-limit:
+    enabled: true
+    fail-open: true
+    rules:
+      # 登录/注册/验证码：按 IP 限流
+      - id: login
+        methods: [POST]
+        path-patterns: [/api/auth/login]
+        window-seconds: 60
+        max-requests: 30
+        key-strategy: IP
+      - id: register
+        methods: [POST]
+        path-patterns: [/api/auth/register]
+        window-seconds: 60
+        max-requests: 10
+        key-strategy: IP
+      - id: captcha
+        methods: [GET, POST]
+        path-patterns: [/api/auth/captcha, /api/auth/captcha/verify]
+        window-seconds: 60
+        max-requests: 60
+        key-strategy: IP
+      - id: password-reset
+        methods: [POST]
+        path-patterns: [/api/auth/password/reset/request, /api/auth/password/reset/confirm]
+        window-seconds: 60
+        max-requests: 30
+        key-strategy: IP
+
+      # 业务敏感操作：优先按用户，其次按 IP
+      - id: post-create
+        methods: [POST]
+        path-patterns: [/api/posts]
+        window-seconds: 60
+        max-requests: 30
+        key-strategy: USER_OR_IP
+      - id: comment-create
+        methods: [POST]
+        path-patterns: [/api/posts/*/comments]
+        window-seconds: 60
+        max-requests: 60
+        key-strategy: USER_OR_IP
+      - id: message-send
+        methods: [POST]
+        path-patterns: [/api/messages]
+        window-seconds: 60
+        max-requests: 30
+        key-strategy: USER_OR_IP
+      - id: social-actions
+        methods: [POST]
+        path-patterns: [/api/likes, /api/follows]
+        window-seconds: 60
+        max-requests: 120
+        key-strategy: USER_OR_IP
+
+      # 管理/审核：更严格（也便于观测与告警）
+      - id: moderation
+        methods: [POST]
+        path-patterns: [/api/posts/*/top, /api/posts/*/wonderful, /api/posts/*/delete]
+        window-seconds: 60
+        max-requests: 30
+        key-strategy: USER

@@ -1,0 +1,16 @@
+spring:
+  data:
+    redis:
+      host: ${SOCIAL_REDIS_HOST:redis}
+      port: ${SOCIAL_REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+
+security:
+  jwt:
+    hmac-secret: ${JWT_HMAC_SECRET:dev-secret-please-change-at-least-32bytes}
+
+social:
+  events:
+    publisher: kafka
+

@@ -31,3 +31,12 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Local dev secrets ###
+deploy/.env
+deploy/.local/
+deploy/backups/
+
+### Frontend ###
+frontend/node_modules/
+frontend/dist/

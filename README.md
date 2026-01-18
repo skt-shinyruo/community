@@ -27,7 +27,6 @@
 | Redis         | 3.2    | https://redis.io/download         |
 | Elasticsearch | 6.4.3  | https://www.elastic.co/downloads  |
 | Kafka         | 2.3.0  |   https://kafka.apache.org/downloads                                |
-| nginx         | 1.10   | http://nginx.org/en/download.html | 
 ## 运行效果展示
 * 首页
 ![](.images/index.png)
@@ -36,3 +35,16 @@
 ## 后续更新点
 * 增加收藏功能
 * 增强对话框功能
+
+
+## 本地启动（推荐：前端直连 gateway）
+
+1. 准备环境变量：
+   - 复制 `deploy/.env.example` 为 `deploy/.env`
+2. 启动（前端 `12881`，gateway `12882`）：
+   - `docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.frontend-direct.yml --env-file deploy/.env up -d --build`
+3. 访问：
+   - 前端：`http://localhost:12881`
+   - API：`http://localhost:12882`
+
+若 `docker compose ... --build` 偶发失败：先重试一次；仍不行再用 `docker builder prune -af` 清理 BuildKit cache 后重来。

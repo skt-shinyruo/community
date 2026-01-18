@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    url: ${USER_DB_URL:jdbc:mysql://mysql:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${MYSQL_USER:community}
+    password: ${MYSQL_PASSWORD:communitypass}
+
+security:
+  jwt:
+    hmac-secret: ${JWT_HMAC_SECRET:dev-secret-please-change-at-least-32bytes}
+
+qiniu:
+  key:
+    access: ${QINIU_ACCESS_KEY:}
+    secret: ${QINIU_SECRET_KEY:}
+  bucket:
+    header:
+      name: ${QINIU_BUCKET_HEADER_NAME:}
+      url: ${QINIU_BUCKET_HEADER_URL:}
+

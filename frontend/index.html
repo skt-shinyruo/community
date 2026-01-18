@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Community</title>
+    <script>
+      ;(() => {
+        try {
+          const raw = localStorage.getItem('community.ui')
+          if (!raw) return
+          const v = JSON.parse(raw)
+          if (v && (v.theme === 'light' || v.theme === 'dark')) document.documentElement.dataset.theme = v.theme
+          if (v && (v.density === 'compact' || v.density === 'comfortable'))
+            document.documentElement.dataset.density = v.density
+        } catch {}
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

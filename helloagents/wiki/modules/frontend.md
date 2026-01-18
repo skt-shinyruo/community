@@ -89,6 +89,7 @@
 - 启动开发服务器（端口固定 `12881`）：`npm -C frontend run dev`
 - 单测：`npm -C frontend test`
 - 构建：`npm -C frontend run build`
+- 注意：CI 会执行 `npm -C frontend run build`；即使单测通过，Vue 模板/样式语法错误也可能在 build 阶段直接失败（例如重复 attribute、缺失 `}`）。
 
 ### 6.1 Docker Compose：前端直连 gateway（推荐用于本地联调）
 目标：不依赖 Nginx，前端与网关分别暴露两个端口；浏览器访问前端，前端跨端口直连 gateway。

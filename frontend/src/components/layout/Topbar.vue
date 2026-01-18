@@ -2,49 +2,62 @@
 <template>
   <div class="app-topbar">
     <div class="row" style="min-width: 240px">
-      <button class="btn ghost" @click="ui.toggleSidebar" title="折叠/展开侧边栏">☰</button>
+      <button class="btn-icon" @click="ui.toggleSidebar" title="折叠/展开侧边栏">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
       <div class="topbar-title">
         <div class="topbar-title-main">{{ title }}</div>
-        <div v-if="subtitle" class="topbar-title-sub muted">{{ subtitle }}</div>
       </div>
     </div>
 
     <div class="topbar-search">
-      <input
-        ref="searchInputEl"
-        class="input"
-        :placeholder="`搜索…（${isMac ? '⌘' : 'Ctrl'} K）`"
-        v-model.trim="searchKeyword"
-        @keydown.enter="submitSearch"
-      />
+      <div style="position: relative; width: 100%">
+         <span style="position: absolute; left: 10px; top: 10px; color: var(--muted)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+         </span>
+         <input
+          ref="searchInputEl"
+          class="input"
+          style="padding-left: 32px; border-radius: 20px"
+          :placeholder="`Search... (${isMac ? '⌘' : 'Ctrl'} K)`"
+          v-model.trim="searchKeyword"
+          @keydown.enter="submitSearch"
+        />
+      </div>
     </div>
 
-    <div class="row" style="justify-content: flex-end; min-width: 320px">
-      <span v-if="app.traceId" class="muted" style="font-size: 12px">traceId: {{ app.traceId }}</span>
+    <div class="row" style="justify-content: flex-end; min-width: 320px; gap: 8px">
+      <button class="btn-icon" @click="ui.toggleDensity" :title="ui.density === 'compact' ? '切换到舒适' : '切换到紧凑'">
+        <svg v-if="ui.density === 'compact'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line></svg>
+      </button>
+
+      <button class="btn-icon" @click="ui.toggleTheme" :title="ui.theme === 'dark' ? '切换到浅色' : '切换到深色'">
+         <svg v-if="ui.theme === 'dark'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+         <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+      </button>
 
       <button
-        class="btn secondary"
+        class="btn-icon"
         @click="ui.toggleRightPanel"
-        :title="ui.rightPanelOpen ? '隐藏右侧上下文面板' : '显示右侧上下文面板'"
+        :title="ui.rightPanelOpen ? '隐藏侧栏' : '显示侧栏'"
       >
-        {{ ui.rightPanelOpen ? '面板开' : '面板关' }}
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="15" y1="3" x2="15" y2="21"></line></svg>
       </button>
 
-      <button class="btn secondary" @click="ui.toggleDensity" :title="ui.density === 'compact' ? '切换到舒适' : '切换到紧凑'">
-        {{ ui.density === 'compact' ? '紧凑' : '舒适' }}
-      </button>
-      <button class="btn secondary" @click="ui.toggleTheme" :title="ui.theme === 'dark' ? '切换到浅色' : '切换到深色'">
-        {{ ui.theme === 'dark' ? '深色' : '浅色' }}
-      </button>
+      <div style="width: 1px; height: 24px; background: var(--border); margin: 0 4px"></div>
 
       <template v-if="auth.authed">
-        <RouterLink class="btn secondary" v-if="auth.userId" :to="`/users/${auth.userId}`">{{ auth.username || '我的主页' }}</RouterLink>
-        <button class="btn danger secondary" @click="onLogout">登出</button>
+        <RouterLink v-if="auth.userId" :to="`/users/${auth.userId}`">
+           <UiAvatar :src="auth.user?.headerUrl || ''" :name="auth.username || ''" :size="32" />
+        </RouterLink>
+        <button class="btn-icon" @click="onLogout" title="登出">
+           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+        </button>
       </template>
 
       <template v-else>
-        <RouterLink class="btn secondary" to="/auth/login">登录</RouterLink>
-        <RouterLink class="btn" to="/auth/register">注册</RouterLink>
+        <RouterLink class="btn primary" to="/auth/login" style="height: 32px; padding: 0 16px; font-size: 13px">Log In</RouterLink>
       </template>
     </div>
   </div>
@@ -57,6 +70,7 @@ import { useAuthStore } from '../../stores/auth'
 import { useAppStore } from '../../stores/app'
 import { useUiStore } from '../../stores/ui'
 import http from '../../api/http'
+import UiAvatar from '../ui/UiAvatar.vue'
 
 const route = useRoute()
 const router = useRouter()

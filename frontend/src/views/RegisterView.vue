@@ -1,78 +1,91 @@
-<!-- 注册页面：对齐 legacy 的注册入口与交互（最小可行）。 -->
 <template>
-  <UiCard>
-    <UiPageHeader>
-      <template #title>注册</template>
-      <template #subtitle>创建账号后需完成激活</template>
-      <template #actions>
-        <RouterLink class="btn secondary" to="/auth/login">去登录</RouterLink>
-      </template>
-    </UiPageHeader>
-
-    <div class="stack" style="margin-top: 12px">
-      <div v-if="error" class="error">{{ error }}</div>
-      <div v-if="successMsg" class="muted">{{ successMsg }}</div>
-
-      <div class="stack" style="gap: 12px">
-        <div class="stack" style="gap: 8px">
-          <div class="muted" style="font-size: 12px">用户名</div>
-          <UiInput v-model.trim="form.username" placeholder="username" autocomplete="username" />
-        </div>
-        <div class="stack" style="gap: 8px">
-          <div class="muted" style="font-size: 12px">邮箱</div>
-          <UiInput v-model.trim="form.email" placeholder="email" autocomplete="email" />
-        </div>
-        <div class="stack" style="gap: 8px">
-          <div class="muted" style="font-size: 12px">密码</div>
-          <UiInput v-model.trim="form.password" placeholder="password" type="password" autocomplete="new-password" />
-        </div>
-        <div class="stack" style="gap: 10px">
-          <div class="row" style="justify-content: space-between; flex-wrap: wrap">
-            <div class="muted" style="font-size: 12px">验证码</div>
-            <UiButton variant="secondary" @click="refreshCaptcha" :disabled="loading">刷新</UiButton>
-          </div>
-          <div class="row" style="align-items: center; flex-wrap: wrap">
-            <UiInput v-model.trim="form.captcha" placeholder="captcha" autocomplete="off" style="max-width: 180px" />
-            <img
-              v-if="captchaSrc"
-              :src="captchaSrc"
-              alt="captcha"
-              title="点击刷新验证码"
-              style="height: 40px; width: 120px; cursor: pointer; border: 1px solid var(--border); border-radius: 10px"
-              @click="refreshCaptcha"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div class="row" style="justify-content: space-between; flex-wrap: wrap">
-        <div class="row">
-          <UiButton @click="onRegister" :disabled="loading">{{ loading ? '提交中…' : '注册' }}</UiButton>
-          <span class="muted" v-if="resultUserId">userId={{ resultUserId }}</span>
-        </div>
-        <RouterLink class="btn ghost" to="/posts">返回社区</RouterLink>
-      </div>
-
-      <UiCard v-if="activationLink" flat>
-        <div class="stack" style="gap: 10px">
-          <div style="font-weight: 800">本地/测试激活链接</div>
-          <div class="muted" style="word-break: break-all; font-size: 12px">{{ activationLink }}</div>
-          <UiButton variant="secondary" @click="goActivation">打开激活页</UiButton>
-          <div class="muted" style="font-size: 12px">说明：生产环境应通过邮件激活（此链接通常不回传）。</div>
-        </div>
-      </UiCard>
+  <div class="auth-page">
+    <!-- Left: Brand / Visuals -->
+    <div class="auth-visual">
+       <div class="auth-brand">
+         <div class="logo">C</div>
+         <span class="brand-text">Community</span>
+       </div>
+       <div class="auth-quote">
+         <h1>Create your account.</h1>
+         <p>Join thousands of developers sharing their knowledge.</p>
+       </div>
     </div>
-  </UiCard>
+    
+    <!-- Right: Form -->
+    <div class="auth-form-container">
+      <div style="width: 100%; max-width: 400px">
+        <div style="margin-bottom: 32px">
+          <h2 style="font-size: 28px; font-weight: 800; margin-bottom: 8px">Get Started</h2>
+          <div class="muted">Currently open for registration.</div>
+        </div>
+
+        <div class="stack" style="gap: 20px">
+           <div class="stack" style="gap: 8px">
+            <div style="font-size: 14px; font-weight: 600">Username</div>
+            <UiInput v-model.trim="form.username" placeholder="Choose a username" class="auth-input" />
+          </div>
+          
+           <div class="stack" style="gap: 8px">
+            <div style="font-size: 14px; font-weight: 600">Email</div>
+            <UiInput v-model.trim="form.email" placeholder="name@example.com" class="auth-input" />
+          </div>
+
+          <div class="stack" style="gap: 8px">
+            <div style="font-size: 14px; font-weight: 600">Password</div>
+            <UiInput v-model.trim="form.password" placeholder="Create a password" type="password" class="auth-input" />
+          </div>
+
+           <div class="stack" style="gap: 8px">
+             <div style="font-size: 14px; font-weight: 600">Captcha</div>
+              <div class="row" style="gap: 12px">
+                <UiInput v-model.trim="form.captcha" placeholder="Code" class="auth-input" style="flex: 1" />
+                 <img
+                  v-if="captchaSrc"
+                  :src="captchaSrc"
+                  alt="captcha"
+                  @click="refreshCaptcha"
+                  style="height: 44px; border-radius: 8px; cursor: pointer; border: 1px solid var(--border)"
+                />
+              </div>
+          </div>
+
+          <div v-if="error" class="error">{{ error }}</div>
+          <div v-if="successMsg" class="success-msg">{{ successMsg }}</div>
+
+          <UiButton @click="onRegister" :disabled="loading" class="primary" style="height: 48px; font-size: 16px; margin-top: 8px">
+            {{ loading ? 'Creating account...' : 'Create Account' }}
+          </UiButton>
+
+          <div class="row" style="justify-content: center; gap: 4px; font-size: 14px; margin-top: 16px">
+            <span class="muted">Already have an account?</span>
+            <RouterLink to="/auth/login" style="font-weight: 600; color: var(--accent)">Log in</RouterLink>
+          </div>
+           <div style="text-align: center; margin-top: 8px">
+             <RouterLink to="/posts" class="muted" style="font-size: 13px">Back to Home</RouterLink>
+           </div>
+        </div>
+        
+        <!-- Activation Link for Dev -->
+         <UiCard v-if="activationLink" flat style="margin-top: 24px">
+            <div class="stack" style="gap: 10px">
+              <div style="font-weight: 800; font-size: 14px">Dev/Test Activation Link</div>
+              <div class="muted" style="word-break: break-all; font-size: 12px">{{ activationLink }}</div>
+              <UiButton variant="secondary" @click="goActivation" size="sm">Open Activation Page</UiButton>
+            </div>
+          </UiCard>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { register as apiRegister, issueCaptcha } from '../api/services/authService'
-import UiCard from '../components/ui/UiCard.vue'
-import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiButton from '../components/ui/UiButton.vue'
+import UiCard from '../components/ui/UiCard.vue'
 
 const emit = defineEmits(['trace'])
 const router = useRouter()
@@ -107,7 +120,7 @@ async function onRegister() {
   resultUserId.value = 0
 
   if (!form.username || !form.password || !form.email || !form.captcha) {
-    error.value = '请填写用户名/邮箱/密码/验证码'
+    error.value = 'All fields are required'
     return
   }
 
@@ -123,9 +136,9 @@ async function onRegister() {
     emit('trace', traceId || '')
     resultUserId.value = data?.userId ?? 0
     activationLink.value = data?.activationLink || ''
-    successMsg.value = data?.activationIssued ? '注册成功：已生成激活方式，请尽快激活。' : '注册成功'
+    successMsg.value = 'Account created successfully!'
   } catch (e) {
-    error.value = e?.message || '注册失败'
+    error.value = e?.message || 'Registration failed'
     if (e?.code === 10006 || e?.code === 10005) {
       await refreshCaptcha()
     }
@@ -143,9 +156,73 @@ function goActivation() {
     const userId = parts[parts.length - 2]
     router.push({ name: 'activation', params: { userId, code } })
   } catch {
-    error.value = '激活链接格式不正确'
+    error.value = 'Invalid link'
   }
 }
 
 onMounted(refreshCaptcha)
 </script>
+
+<style scoped>
+.auth-page {
+  display: flex;
+  min-height: 100vh;
+  background: var(--surface);
+}
+.auth-visual {
+  flex: 1;
+  background: linear-gradient(135deg, #FF3CAC 0%, #784BA0 50%, #2B86C5 100%);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 40px;
+  position: relative;
+  overflow: hidden;
+}
+.auth-visual::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.1);
+}
+.auth-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 1;
+}
+.logo {
+    width: 40px; height: 40px; background: white; color: black;
+    border-radius: 10px; font-weight: 900; display: flex; align-items: center; justify-content: center; font-size: 20px;
+}
+.brand-text { font-size: 20px; font-weight: 700; z-index: 1;}
+.auth-quote { z-index: 1; }
+.auth-quote h1 { font-size: 48px; line-height: 1.1; margin-bottom: 20px; font-weight: 800; }
+.auth-quote p { font-size: 18px; opacity: 0.9; max-width: 400px; }
+
+.auth-form-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+.success-msg { color: var(--green); margin-bottom: 8px; }
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .auth-visual { display: none; }
+}
+
+:deep(.auth-input input) {
+    height: 48px;
+    background: var(--bg);
+    border: 1px solid transparent;
+}
+:deep(.auth-input input:focus) {
+    background: var(--surface);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(0,113,227,0.1);
+}
+</style>

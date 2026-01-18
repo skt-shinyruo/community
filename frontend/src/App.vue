@@ -7,19 +7,25 @@
   </AuthShell>
 
   <AppShell v-else>
-    <RouterView @trace="app.setTraceId($event)" />
+    <RouterView v-slot="{ Component }">
+      <Transition name="fade" mode="out-in">
+        <component :is="Component" @trace="app.setTraceId($event)" />
+      </Transition>
+    </RouterView>
     <template #right>
       <RightPanel />
     </template>
   </AppShell>
+  
+  <UiToast ref="toastRef" />
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { onMounted, provide, ref } from 'vue'
+import { useRoute, RouterView } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 import { useAppStore } from './stores/app'
-import { me as fetchMe } from './api/services/authService'
+import { me } from './api/services/authService'
 import AppShell from './components/layout/AppShell.vue'
 import AuthShell from './components/layout/AuthShell.vue'
 import RightPanel from './components/layout/RightPanel.vue'
@@ -38,7 +44,7 @@ const isAuthRoute = computed(() => {
 async function refreshMe() {
   if (!auth.accessToken) return
   try {
-    const { data, traceId } = await fetchMe()
+    const { data, traceId } = await me()
     auth.setMe(data)
     if (traceId) {
       app.setTraceId(traceId)

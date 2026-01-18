@@ -15,11 +15,12 @@
   --space-7: 32px;
 
   /* radius / shadow */
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --shadow-md: 0 12px 28px rgba(15, 23, 42, 0.12);
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 
   /* typography */
   --text-xs: 12px;
@@ -28,11 +29,11 @@
   --text-lg: 16px;
   --text-xl: 18px;
   --line-tight: 1.35;
-  --line-normal: 1.55;
-  --line-loose: 1.7;
+  --line-normal: 1.6;
+  --line-loose: 1.75;
 
   /* layout */
-  --topbar-height: 52px;
+  --topbar-height: 56px;
   --sidebar-width: 264px;
   --sidebar-width-collapsed: 72px;
   --rightpanel-width: 320px;
@@ -40,50 +41,53 @@
   --reading-max-width: 860px;
   --content-padding-x: var(--space-6);
   --content-padding-y: var(--space-6);
-  --card-padding: var(--space-4);
+  --card-padding: var(--space-5);
 
   /* controls */
-  --control-height: 36px;
-  --control-padding-x: 12px;
+  --control-height: 38px;
+  --control-padding-x: 14px;
   --control-padding-y: 8px;
 
   /* palette - light */
-  --bg: #f6f6f5;
+  --bg: #f5f5f7;
+  /* Apple-like light gray background */
   --surface: #ffffff;
-  --surface-2: #fbfbfa;
-  --text-1: #111827;
-  --text-2: #374151;
-  --muted: #6b7280;
-  --border: rgba(17, 24, 39, 0.12);
-  --border-strong: rgba(17, 24, 39, 0.18);
-  --accent: #2563eb;
-  --accent-weak: rgba(37, 99, 235, 0.12);
-  --danger: #dc2626;
-  --danger-weak: rgba(220, 38, 38, 0.12);
-  --success: #16a34a;
-  --warning: #d97706;
-  --highlight-bg: rgba(245, 158, 11, 0.18);
+  --surface-2: #f5f5f7;
+  --text-1: #1d1d1f;
+  --text-2: #86868b;
+  --muted: #a1a1a6;
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.12);
+  --accent: #0071e3;
+  /* SF Blue */
+  --accent-weak: rgba(0, 113, 227, 0.12);
+  --danger: #ff3b30;
+  --danger-weak: rgba(255, 59, 48, 0.12);
+  --success: #34c759;
+  --warning: #ff9f0a;
+  --highlight-bg: rgba(255, 159, 10, 0.18);
 
-  --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.22);
+  --focus-ring: 0 0 0 4px rgba(0, 113, 227, 0.16);
 }
 
 html[data-theme='dark'] {
-  --bg: #0b0f14;
-  --surface: #0f1720;
-  --surface-2: #111c28;
-  --text-1: rgba(255, 255, 255, 0.92);
-  --text-2: rgba(255, 255, 255, 0.78);
-  --muted: rgba(255, 255, 255, 0.6);
+  --bg: #000000;
+  --surface: #1c1c1e;
+  --surface-2: #2c2c2e;
+  --text-1: #f5f5f7;
+  --text-2: #86868b;
+  --muted: #6e6e73;
   --border: rgba(255, 255, 255, 0.12);
   --border-strong: rgba(255, 255, 255, 0.18);
-  --accent: #60a5fa;
-  --accent-weak: rgba(96, 165, 250, 0.16);
-  --danger: #f87171;
-  --danger-weak: rgba(248, 113, 113, 0.16);
-  --highlight-bg: rgba(251, 191, 36, 0.18);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
-  --shadow-md: 0 18px 40px rgba(0, 0, 0, 0.45);
-  --focus-ring: 0 0 0 3px rgba(96, 165, 250, 0.3);
+  --accent: #0a84ff;
+  --accent-weak: rgba(10, 132, 255, 0.16);
+  --danger: #ff453a;
+  --danger-weak: rgba(255, 69, 58, 0.16);
+  --highlight-bg: rgba(255, 159, 10, 0.18);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.6);
+  --focus-ring: 0 0 0 4px rgba(10, 132, 255, 0.3);
 }
 
 html[data-density='compact'] {
@@ -97,7 +101,7 @@ html[data-density='compact'] {
   --text-xl: 17px;
   --content-padding-x: 18px;
   --content-padding-y: 18px;
-  --card-padding: 14px;
+  --card-padding: 16px;
 }
 
 * {
@@ -254,6 +258,8 @@ pre {
 
 /* ---------- primitives ---------- */
 
+/* ---------- primitives ---------- */
+
 .row {
   display: flex;
   gap: var(--space-3);
@@ -279,15 +285,29 @@ pre {
   border-radius: var(--radius-md);
   padding: var(--card-padding);
   box-shadow: var(--shadow-sm);
+  transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* More interactive feel for cards */
+.card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
 }
 
 .card.flat {
   box-shadow: none;
+  border-color: transparent;
+  background: transparent;
+  padding: 0;
 }
+
+/* If a card is flat but still needs a background, usage might differ,
+   but here we treat .flat as "layout container" mostly */
 
 .divider {
   height: 1px;
   background: var(--border);
+  margin: var(--space-2) 0;
 }
 
 /* ---------- controls ---------- */
@@ -300,17 +320,28 @@ pre {
   border-radius: var(--radius-sm);
   outline: none;
   background: var(--surface);
+  /* Fallback */
+  background: color-mix(in srgb, var(--bg) 50%, var(--surface) 50%);
   color: var(--text-1);
+  font-size: var(--text-md);
+  transition: all 0.2s ease;
 }
 
 .input.multiline {
   height: auto;
   padding: var(--control-padding-y) var(--control-padding-x);
   line-height: var(--line-normal);
+  min-height: 80px;
+}
+
+.input:hover {
+  border-color: var(--border-strong);
+  background: var(--surface);
 }
 
 .input:focus {
   border-color: var(--accent);
+  background: var(--surface);
   box-shadow: var(--focus-ring);
 }
 
@@ -320,7 +351,8 @@ pre {
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 500;
+  font-size: var(--text-sm);
   background: var(--accent);
   color: #fff;
   display: inline-flex;
@@ -328,50 +360,66 @@ pre {
   justify-content: center;
   gap: var(--space-2);
   user-select: none;
+  transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .btn:hover {
-  filter: brightness(0.98);
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
 }
 
 .btn:active {
   filter: brightness(0.96);
+  transform: translateY(0);
 }
 
 .btn:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .btn.secondary {
   background: var(--surface);
   color: var(--text-1);
   border-color: var(--border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .btn.secondary:hover {
   background: var(--surface-2);
+  border-color: var(--border-strong);
 }
 
 .btn.ghost {
   background: transparent;
   color: var(--text-1);
   border-color: transparent;
+  box-shadow: none;
 }
 
 .btn.ghost:hover {
-  background: color-mix(in srgb, var(--surface) 50%, transparent 50%);
-  text-decoration: none;
+  background: var(--surface-2);
+  color: var(--text-1);
 }
 
 .btn.danger {
   background: var(--danger);
+  color: #fff;
 }
 
 .btn.danger.secondary {
   background: var(--surface);
-  border-color: var(--danger-weak);
+  border-color: var(--border);
   color: var(--danger);
+}
+
+.btn.danger.secondary:hover {
+  background: var(--danger-weak);
+  border-color: var(--danger-weak);
 }
 
 .kbd {
@@ -748,10 +796,80 @@ em {
   margin-top: 10px;
   white-space: pre-wrap;
   word-break: break-word;
-  line-height: var(--line-normal);
-  color: var(--text-1);
-}
 
-.empty {
-  padding: 12px 0;
-}
+  /* ---------- skeletons ---------- */
+
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  .skeleton {
+    background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 37%, var(--surface-2) 63%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    border-radius: var(--radius-sm);
+  }
+
+  .skeleton-text {
+    height: 1em;
+    margin-bottom: 0.5em;
+  }
+
+  .skeleton-card {
+    padding: 16px;
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    display: flex;
+    gap: 16px;
+  }
+
+  /* ---------- mobile sidebar overlay ---------- */
+
+  .sidebar-overlay {
+    display: none;
+  }
+
+  @media (max-width: 768px) {
+    .sidebar-overlay {
+      display: block;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 99;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+
+    .sidebar-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* Force sidebar to be fixed on mobile if open */
+    .app-sidebar.mobile-open {
+      position: fixed;
+      left: 0;
+
+      .app-sidebar.mobile-open {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 240px;
+        z-index: 100;
+        box-shadow: var(--shadow-lg);
+        border-right: none;
+      }
+    }
+
+    .empty {
+      padding: 12px 0;
+    }

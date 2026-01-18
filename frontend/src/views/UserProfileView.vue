@@ -1,62 +1,64 @@
 <template>
-  <div class="page">
-    <UiCard>
-      <UiPageHeader>
-        <template #title>用户主页</template>
-        <template #subtitle>userId={{ userId }}</template>
-        <template #actions>
-          <UiButton variant="secondary" @click="reload" :disabled="loading">{{ loading ? '加载中…' : '刷新' }}</UiButton>
-        </template>
-      </UiPageHeader>
+  <div class="page" style="padding: 0; max-width: 1000px; margin: 0 auto">
+    <div style="background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden">
+      <!-- Cover & Avatar -->
+      <div class="profile-cover"></div>
 
-      <div v-if="error" class="error" style="margin-top: 12px">{{ error }}</div>
-      <UiEmpty v-else-if="!profile" style="margin-top: 12px">暂无数据</UiEmpty>
+      <div style="position: relative; padding-bottom: 24px">
+        <div class="profile-avatar-wrapper">
+          <UiAvatar :src="profile?.headerUrl || ''" :name="profile?.username || ''" :size="120" style="font-size: 48px" />
+        </div>
 
-      <div v-else class="stack" style="margin-top: 12px">
-        <div class="row" style="gap: 12px; align-items: center; flex-wrap: wrap">
-          <UiAvatar :src="profile.headerUrl || ''" :name="profile.username || ''" :size="44" />
-          <div class="stack" style="gap: 6px">
-            <div style="font-weight: 900; font-size: 18px; line-height: 1.35">{{ profile.username || `user#${profile.id}` }}</div>
-            <div class="row muted" style="gap: 8px; flex-wrap: wrap; font-size: 12px">
-              <UiBadge variant="default">获赞 {{ Number(profile.likeCount || 0) }}</UiBadge>
-              <UiBadge variant="default">关注 {{ Number(profile.followeeCount || 0) }}</UiBadge>
-              <UiBadge variant="default">粉丝 {{ Number(profile.followerCount || 0) }}</UiBadge>
-            </div>
+        <!-- Actions -->
+        <div class="row" style="justify-content: flex-end; padding: 16px 24px 0 0; gap: 12px">
+          <template v-if="authed && meUserId && meUserId !== Number(userId)">
+            <UiButton v-if="followStatus === false" @click="doFollow(true)" :disabled="actionLoading" class="primary">Follow</UiButton>
+            <UiButton variant="secondary" v-else-if="followStatus === true" @click="doFollow(false)" :disabled="actionLoading">Unfollow</UiButton>
+            <UiButton variant="secondary" v-else disabled>Querying...</UiButton>
+            <RouterLink class="btn-icon" :to="`/messages`" title="发私信">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+            </RouterLink>
+          </template>
+          <template v-if="authed && meUserId === Number(userId)">
+            <RouterLink class="btn secondary" to="/settings">Edit Profile</RouterLink>
+          </template>
+        </div>
+
+        <!-- Info -->
+        <div style="margin-top: 20px; padding: 0 24px">
+          <h1 style="margin: 0; font-size: 28px; font-weight: 800">{{ profile?.username || `user#${profile?.id}` }}</h1>
+          <div class="muted" style="margin-top: 4px">User ID: {{ userId }} · Joined 2026</div>
+        </div>
+
+        <!-- Stats -->
+        <div class="profile-stats-bar">
+          <div class="profile-stat">
+            <span class="profile-stat-val">{{ profile?.likeCount || 0 }}</span>
+            <span class="profile-stat-label">Likes</span>
+          </div>
+          <div class="profile-stat">
+            <span class="profile-stat-val">{{ profile?.followeeCount || 0 }}</span>
+            <span class="profile-stat-label">Following</span>
+          </div>
+          <div class="profile-stat">
+            <span class="profile-stat-val">{{ profile?.followerCount || 0 }}</span>
+            <span class="profile-stat-label">Followers</span>
           </div>
         </div>
 
-        <div class="row" style="flex-wrap: wrap">
-          <RouterLink class="btn secondary" :to="`/users/${userId}/followees`">关注列表</RouterLink>
-          <RouterLink class="btn secondary" :to="`/users/${userId}/followers`">粉丝列表</RouterLink>
+        <!-- Mock Tabs -->
+        <div class="row" style="padding: 0 24px; gap: 32px; border-bottom: 1px solid var(--border)">
+          <div style="padding: 12px 0; border-bottom: 2px solid var(--accent); font-weight: 600; color: var(--text-1); cursor: pointer">Posts</div>
+          <div style="padding: 12px 0; border-bottom: 2px solid transparent; font-weight: 500; color: var(--muted); cursor: pointer">Comments</div>
+          <div style="padding: 12px 0; border-bottom: 2px solid transparent; font-weight: 500; color: var(--muted); cursor: pointer">Likes</div>
         </div>
 
-        <div class="row" v-if="authed && meUserId && meUserId !== Number(userId)" style="flex-wrap: wrap">
-          <UiButton v-if="followStatus === false" @click="doFollow(true)" :disabled="actionLoading">关注</UiButton>
-          <UiButton variant="secondary" v-else-if="followStatus === true" @click="doFollow(false)" :disabled="actionLoading">取关</UiButton>
-          <UiButton variant="secondary" v-else disabled>关注状态查询中…</UiButton>
-          <UiBadge v-if="followStatus !== null" :variant="followStatus ? 'success' : 'default'">关注：{{ followStatusText }}</UiBadge>
+        <!-- Content Area (Placeholder) -->
+        <div style="padding: 24px; min-height: 200px">
+          <UiEmpty>暂无动态</UiEmpty>
         </div>
       </div>
-    </UiCard>
-
-    <UiCard v-if="authed && meUserId === Number(userId)">
-      <UiPageHeader>
-        <template #title>头像设置</template>
-        <template #subtitle>PUT /api/users/{{ userId }}/avatar</template>
-        <template #actions>
-          <UiButton @click="updateAvatar" :disabled="actionLoading || !avatarFileName">更新</UiButton>
-        </template>
-      </UiPageHeader>
-
-      <div class="row" style="margin-top: 12px; flex-wrap: wrap">
-        <UiInput v-model.trim="avatarFileName" placeholder="fileName（上传到七牛后的 key）" style="min-width: 260px; flex: 1" />
-        <UiButton variant="secondary" @click="loadUploadToken" :disabled="actionLoading">获取上传凭证</UiButton>
-      </div>
-
-      <div v-if="uploadToken" class="muted" style="margin-top: 12px; font-size: 12px">
-        uploadToken 已生成（长度={{ uploadToken.length }}），fileName={{ uploadFileName }}，bucket={{ uploadBucketUrl }}
-      </div>
-    </UiCard>
+    </div>
   </div>
 </template>
 
@@ -67,12 +69,8 @@ import { useAuthStore } from '../stores/auth'
 import http from '../api/http'
 import { getUserProfile } from '../api/services/userService'
 import { followUser, unfollowUser, getFollowStatus } from '../api/services/socialService'
-import UiCard from '../components/ui/UiCard.vue'
-import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
-import UiInput from '../components/ui/UiInput.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
-import UiBadge from '../components/ui/UiBadge.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
 
 const emit = defineEmits(['trace'])
@@ -95,11 +93,6 @@ const avatarFileName = ref('')
 const uploadToken = ref('')
 const uploadFileName = ref('')
 const uploadBucketUrl = ref('')
-
-const followStatusText = computed(() => {
-  if (followStatus.value === null) return '-'
-  return followStatus.value ? '已关注' : '未关注'
-})
 
 async function loadProfile() {
   error.value = ''
@@ -142,36 +135,6 @@ async function doFollow(follow) {
     await loadProfile()
   } catch (e) {
     error.value = e?.message || '关注操作失败'
-  } finally {
-    actionLoading.value = false
-  }
-}
-
-async function loadUploadToken() {
-  actionLoading.value = true
-  try {
-    const resp = await http.get(`/api/users/${userId.value}/avatar/upload-token`)
-    uploadToken.value = resp?.data?.data?.uploadToken || ''
-    uploadFileName.value = resp?.data?.data?.fileName || ''
-    uploadBucketUrl.value = resp?.data?.data?.bucketUrl || ''
-    avatarFileName.value = uploadFileName.value || avatarFileName.value
-    emit('trace', resp?.data?.traceId || '')
-  } catch (e) {
-    error.value = e?.response?.data?.message || '获取上传凭证失败'
-  } finally {
-    actionLoading.value = false
-  }
-}
-
-async function updateAvatar() {
-  if (!avatarFileName.value) return
-  actionLoading.value = true
-  try {
-    const resp = await http.put(`/api/users/${userId.value}/avatar`, { fileName: avatarFileName.value })
-    emit('trace', resp?.data?.traceId || '')
-    await loadProfile()
-  } catch (e) {
-    error.value = e?.response?.data?.message || '更新头像失败'
   } finally {
     actionLoading.value = false
   }

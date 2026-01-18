@@ -1,0 +1,17 @@
+services:
+  # 仅暴露必要端口：观测/日志入口（避免把 Redis/MySQL/ES/Nacos 等内部组件暴露到宿主机）
+  prometheus:
+    ports:
+      - "12885:9090"
+
+  alertmanager:
+    ports:
+      - "12886:9093"
+
+  loki:
+    ports:
+      - "12884:3100"
+
+  grafana:
+    ports:
+      - "12883:3000"

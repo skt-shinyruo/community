@@ -1,0 +1,15 @@
+security:
+  jwt:
+    hmac-secret: test-gateway-secret-please-change-at-least-32b
+
+analytics:
+  collect:
+    enabled: false
+
+spring:
+  cloud:
+    nacos:
+      discovery:
+        enabled: false
+      config:
+        enabled: false

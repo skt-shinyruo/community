@@ -1,11 +1,11 @@
 # search
 
 ## Purpose
-提供帖子全文检索能力，并与发帖/删帖事件联动维护索引。
+提供帖子全文检索能力，并与发帖/删帖事件联动维护索引（迭代 1 起迁移到 `search-service`）。
 
 ## Module Overview
 - **Responsibility：** ES 索引维护（保存/删除）；按关键字搜索；高亮 title/content
-- **Status：** ✅Stable
+- **Status：** 🟡In Progress
 - **Last Updated：** 2026-01-16
 
 ## Specifications
@@ -31,7 +31,9 @@
 - 从 ES 删除帖子
 
 ## API Interfaces（现状）
-- `GET /search?keyword=xxx`
+- `GET /api/search/posts?keyword=xxx`
+- `POST /api/search/internal/reindex`（仅管理员；用于迁移期 reindex）
+- `POST /internal/search/reindex`（服务内部入口：需要 `X-Internal-Token`）
 
 ## Data Models
 ### Elasticsearch: discuss_post
@@ -40,6 +42,7 @@
 ## Dependencies
 - content（帖子数据源）
 - infra（Kafka、Elasticsearch）
+- MySQL（迁移期用于 reindex 冷启动）
 
 ## Change History
 - （暂无）

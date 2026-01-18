@@ -1,100 +1,84 @@
 package com.nowcoder.community.auth.service;
 
-import com.nowcoder.community.common.api.AuthErrorCode;
-import com.nowcoder.community.common.exception.BusinessException;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import com.nowcoder.community.auth.config.JwtProperties;
+import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 
 @Service
 public class RefreshTokenService {
 
-    private static final String TOKEN_KEY_PREFIX = "auth:refresh:token:";
-    private static final String USER_KEY_PREFIX = "auth:refresh:user:";
+    private final JwtProperties jwtProperties;
+    private final RefreshTokenStore refreshTokenStore;
 
-    private final StringRedisTemplate stringRedisTemplate;
-
-    public RefreshTokenService(StringRedisTemplate stringRedisTemplate) {
-        this.stringRedisTemplate = stringRedisTemplate;
+    public RefreshTokenService(JwtProperties jwtProperties, RefreshTokenStore refreshTokenStore) {
+        this.jwtProperties = jwtProperties;
+        this.refreshTokenStore = refreshTokenStore;
     }
 
-    public String issueOrReplace(int userId, Duration ttl) {
-        String userKey = userKey(userId);
-        String oldToken = stringRedisTemplate.opsForValue().get(userKey);
-        if (oldToken != null && !oldToken.isBlank()) {
-            stringRedisTemplate.delete(tokenKey(oldToken));
-        }
-
-        String newToken = generate();
-        stringRedisTemplate.opsForValue().set(tokenKey(newToken), String.valueOf(userId), ttl);
-        stringRedisTemplate.opsForValue().set(userKey, newToken, ttl);
-        return newToken;
+    public IssuedRefreshToken issue(int userId) {
+        String familyId = UUID.randomUUID().toString().replace("-", "");
+        return issue(userId, familyId);
     }
 
-    public int validateAndGetUserId(String refreshToken) {
-        if (refreshToken == null || refreshToken.isBlank()) {
-            throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_MISSING);
-        }
-
-        String userId = stringRedisTemplate.opsForValue().get(tokenKey(refreshToken));
-        if (userId == null || userId.isBlank()) {
-            throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
-        }
-
-        String currentToken = stringRedisTemplate.opsForValue().get(userKey(Integer.parseInt(userId)));
-        if (currentToken == null || !currentToken.equals(refreshToken)) {
-            throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
-        }
-
-        return Integer.parseInt(userId);
+    public IssuedRefreshToken rotate(RefreshTokenStore.StoredRefreshToken existing) {
+        refreshTokenStore.revoke(existing.refreshToken());
+        return issue(existing.userId(), existing.familyId());
     }
 
-    public String rotate(int userId, String refreshToken, Duration ttl) {
-        String currentToken = stringRedisTemplate.opsForValue().get(userKey(userId));
-        if (currentToken == null || !currentToken.equals(refreshToken)) {
-            throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
+    public RefreshTokenStore.StoredRefreshToken find(String refreshToken) {
+        RefreshTokenStore.StoredRefreshToken token = refreshTokenStore.find(refreshToken);
+        if (token == null) {
+            return null;
         }
-
-        stringRedisTemplate.delete(tokenKey(refreshToken));
-
-        String newToken = generate();
-        stringRedisTemplate.opsForValue().set(tokenKey(newToken), String.valueOf(userId), ttl);
-        stringRedisTemplate.opsForValue().set(userKey(userId), newToken, ttl);
-        return newToken;
+        if (token.expiresAt().isBefore(Instant.now())) {
+            refreshTokenStore.revoke(refreshToken);
+            return null;
+        }
+        return token;
     }
 
-    public void revoke(String refreshToken, Integer userId) {
-        if (refreshToken == null || refreshToken.isBlank()) {
-            return;
-        }
+    public void revoke(String refreshToken) {
+        refreshTokenStore.revoke(refreshToken);
+    }
 
-        String mappedUserId = stringRedisTemplate.opsForValue().get(tokenKey(refreshToken));
-        if (mappedUserId != null && !mappedUserId.isBlank()) {
-            stringRedisTemplate.delete(tokenKey(refreshToken));
-            stringRedisTemplate.delete(userKey(Integer.parseInt(mappedUserId)));
-            return;
-        }
-
-        if (userId != null) {
-            String current = stringRedisTemplate.opsForValue().get(userKey(userId));
-            if (refreshToken.equals(current)) {
-                stringRedisTemplate.delete(userKey(userId));
-            }
+    public void revokeFamilyByToken(String refreshToken) {
+        RefreshTokenStore.StoredRefreshToken token = refreshTokenStore.find(refreshToken);
+        refreshTokenStore.revoke(refreshToken);
+        if (token != null) {
+            refreshTokenStore.revokeFamily(token.familyId());
         }
     }
 
-    private static String tokenKey(String refreshToken) {
-        return TOKEN_KEY_PREFIX + refreshToken;
+    public ResponseCookie buildCookie(String refreshToken) {
+        return ResponseCookie.from(jwtProperties.getRefreshCookieName(), refreshToken)
+                .httpOnly(true)
+                .secure(jwtProperties.isRefreshCookieSecure())
+                .path(jwtProperties.getRefreshCookiePath())
+                .sameSite(jwtProperties.getRefreshCookieSameSite())
+                .maxAge(jwtProperties.getRefreshTokenTtlSeconds())
+                .build();
     }
 
-    private static String userKey(int userId) {
-        return USER_KEY_PREFIX + userId;
+    public ResponseCookie clearCookie() {
+        return ResponseCookie.from(jwtProperties.getRefreshCookieName(), "")
+                .httpOnly(true)
+                .secure(jwtProperties.isRefreshCookieSecure())
+                .path(jwtProperties.getRefreshCookiePath())
+                .sameSite(jwtProperties.getRefreshCookieSameSite())
+                .maxAge(0)
+                .build();
     }
 
-    private static String generate() {
-        return UUID.randomUUID().toString().replace("-", "");
+    private IssuedRefreshToken issue(int userId, String familyId) {
+        String tokenValue = UUID.randomUUID().toString().replace("-", "");
+        Instant expiresAt = Instant.now().plusSeconds(jwtProperties.getRefreshTokenTtlSeconds());
+        refreshTokenStore.store(tokenValue, userId, familyId, expiresAt);
+        return new IssuedRefreshToken(tokenValue, buildCookie(tokenValue));
+    }
+
+    public record IssuedRefreshToken(String refreshToken, ResponseCookie cookie) {
     }
 }
-

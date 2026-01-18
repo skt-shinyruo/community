@@ -2,8 +2,6 @@ package com.nowcoder.community.common.api;
 
 import com.nowcoder.community.common.trace.TraceId;
 
-import java.time.Instant;
-
 public class Result<T> {
 
     private int code;
@@ -12,31 +10,36 @@ public class Result<T> {
     private String traceId;
     private long timestamp;
 
-    public Result() {
-    }
-
-    public Result(int code, String message, T data, String traceId, long timestamp) {
-        this.code = code;
-        this.message = message;
-        this.data = data;
-        this.traceId = traceId;
-        this.timestamp = timestamp;
-    }
-
     public static <T> Result<T> ok(T data) {
-        return new Result<>(CommonErrorCode.SUCCESS.code(), CommonErrorCode.SUCCESS.message(), data, TraceId.currentOrNull(), Instant.now().toEpochMilli());
+        Result<T> r = new Result<>();
+        r.code = CommonErrorCode.OK.getCode();
+        r.message = CommonErrorCode.OK.getMessage();
+        r.data = data;
+        r.traceId = TraceId.get();
+        r.timestamp = System.currentTimeMillis();
+        return r;
     }
 
     public static Result<Void> ok() {
         return ok(null);
     }
 
-    public static Result<Void> fail(ErrorCode errorCode) {
-        return new Result<>(errorCode.code(), errorCode.message(), null, TraceId.currentOrNull(), Instant.now().toEpochMilli());
+    public static <T> Result<T> error(ErrorCode errorCode) {
+        Result<T> r = new Result<>();
+        r.code = errorCode.getCode();
+        r.message = errorCode.getMessage();
+        r.traceId = TraceId.get();
+        r.timestamp = System.currentTimeMillis();
+        return r;
     }
 
-    public static Result<Void> fail(int code, String message) {
-        return new Result<>(code, message, null, TraceId.currentOrNull(), Instant.now().toEpochMilli());
+    public static <T> Result<T> error(int code, String message) {
+        Result<T> r = new Result<>();
+        r.code = code;
+        r.message = message;
+        r.traceId = TraceId.get();
+        r.timestamp = System.currentTimeMillis();
+        return r;
     }
 
     public int getCode() {
@@ -79,4 +82,3 @@ public class Result<T> {
         this.timestamp = timestamp;
     }
 }
-

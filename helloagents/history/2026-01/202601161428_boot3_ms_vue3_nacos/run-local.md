@@ -29,8 +29,8 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d
 `gateway` 与 `auth-service` 必须使用同一把 HMAC 密钥（>= 32 字节）：
 
 ```bash
-export GATEWAY_JWT_HMAC_SECRET="dev-change-me-please-at-least-32-bytes"
-export AUTH_JWT_HMAC_SECRET="dev-change-me-please-at-least-32-bytes"
+export AUTH_JWT_HMAC_SECRET="${AUTH_JWT_HMAC_SECRET:?请设置一个 >= 32 字节的随机密钥}"
+export GATEWAY_JWT_HMAC_SECRET="${GATEWAY_JWT_HMAC_SECRET:-$AUTH_JWT_HMAC_SECRET}"
 ```
 
 MySQL/Redis 若使用默认本地端口，可不设置；否则按需设置：
@@ -58,9 +58,15 @@ mvn -pl auth-service -am spring-boot:run
 mvn -pl gateway -am spring-boot:run
 ```
 
+### 3.3（迭代 2）启动 social-service（端口 8086）
+```bash
+mvn -pl social-service -am spring-boot:run
+```
+
 健康检查（示例）：
 - `GET http://localhost:8080/actuator/health`
 - `GET http://localhost:8082/actuator/health`
+- `GET http://localhost:8086/actuator/health`
 
 ---
 
@@ -88,4 +94,3 @@ npm -C frontend run dev
 ```bash
 GATEWAY_URL="http://localhost:8080" USERNAME="aaa" PASSWORD="aaa" scripts/smoke-i0-auth.sh
 ```
-

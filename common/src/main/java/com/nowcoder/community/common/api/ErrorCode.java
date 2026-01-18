@@ -2,8 +2,8 @@ package com.nowcoder.community.common.api;
 
 public interface ErrorCode {
 
-    int code();
+    int getCode();
 
-    String message();
+    String getMessage();
 }
 

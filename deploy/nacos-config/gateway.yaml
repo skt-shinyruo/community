@@ -1,0 +1,17 @@
+spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:nacos:8848}
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:nacos:8848}
+
+security:
+  jwt:
+    hmac-secret: ${JWT_HMAC_SECRET:dev-secret-please-change-at-least-32bytes}
+
+analytics:
+  collect:
+    enabled: true
+    internal-token: ${ANALYTICS_INTERNAL_TOKEN:dev-analytics-internal-token}
+

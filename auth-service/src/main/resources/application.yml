@@ -5,7 +5,7 @@ spring:
   application:
     name: auth-service
   config:
-    import: optional:nacos:
+    import: "optional:nacos:${spring.application.name}.yaml"
   cloud:
     nacos:
       discovery:
@@ -17,8 +17,8 @@ spring:
         file-extension: yaml
   datasource:
     url: ${AUTH_DB_URL:jdbc:mysql://127.0.0.1:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
-    username: ${AUTH_DB_USERNAME:community}
-    password: ${AUTH_DB_PASSWORD:community}
+    username: ${AUTH_DB_USERNAME:${MYSQL_USER:}}
+    password: ${AUTH_DB_PASSWORD:${MYSQL_PASSWORD:}}
     driver-class-name: com.mysql.cj.jdbc.Driver
   data:
     redis:
@@ -35,11 +35,37 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
+
+auth:
+  refresh:
+    store: redis
+  captcha:
+    store: redis
+    ttl-seconds: 60
+    max-failures: 3
+  registration:
+    activation-base-url: ${AUTH_ACTIVATION_BASE_URL:http://localhost:8080}
+    expose-activation-link: ${AUTH_EXPOSE_ACTIVATION_LINK:false}
+    mail:
+      enabled: ${AUTH_MAIL_ENABLED:false}
+      from: ${AUTH_MAIL_FROM:no-reply@community.local}
+      subject: 激活账号
+  password-reset:
+    store: redis
+    ttl-seconds: 600
+    expose-reset-link: ${AUTH_EXPOSE_RESET_LINK:false}
+  login-rate-limit:
+    enabled: true
+    window-seconds: 60
+    max-failures-per-ip: 20
+    max-failures-per-user: 5
+    captcha-required-failures-per-ip: 5
+    captcha-required-failures-per-user: 2
 
 security:
   jwt:
-    hmac-secret: ${AUTH_JWT_HMAC_SECRET:}
+    hmac-secret: ${AUTH_JWT_HMAC_SECRET:${JWT_HMAC_SECRET:}}
     issuer: community-auth
     access-token-ttl-seconds: 900
     refresh-token-ttl-seconds: 604800
@@ -48,6 +74,4 @@ security:
     refresh-cookie-same-site: Lax
     refresh-cookie-secure: false
     allowed-origins:
-      - http://localhost:5173
-      - http://localhost:5174
-
+      - http://localhost:12881

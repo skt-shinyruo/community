@@ -29,9 +29,9 @@
 - 上传完成后更新用户头像 URL
 
 ## API Interfaces（现状）
-- `GET /user/setting`
-- `POST /user/header/url`
-- `GET /user/profile/{userId}`
+- `GET /api/users/{userId}`（公开）
+- `GET /api/users/{userId}/avatar/upload-token`（需要登录，仅本人）
+- `PUT /api/users/{userId}/avatar`（需要登录，仅本人，写入 header_url）
 
 ## Data Models
 ### user

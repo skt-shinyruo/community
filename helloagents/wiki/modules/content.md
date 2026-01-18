@@ -50,10 +50,10 @@
 - Quartz 任务周期刷新分数并同步到搜索
 
 ## API Interfaces（现状）
-- `POST /discuss/add`
-- `GET /discuss/detail/{discussPostId}`
-- `POST /comment/add/{discussPostId}`
-- 管理接口：`POST /discuss/top`、`POST /discuss/wonderful`、`POST /discuss/delete`
+- `GET /api/posts`（order=latest|hot）
+- `POST /api/posts`（敏感词过滤 + XSS 处理 + 发布 PostPublished）
+- `GET /api/posts/{postId}`（包含 likeCount/liked）
+- `GET /api/posts/{postId}/comments`、`POST /api/posts/{postId}/comments`（发布 CommentCreated）
 
 ## Data Models
 ### discuss_post

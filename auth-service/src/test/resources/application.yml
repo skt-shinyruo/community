@@ -1,0 +1,45 @@
+auth:
+  refresh:
+    store: memory
+  captcha:
+    store: memory
+    ttl-seconds: 60
+    max-failures: 3
+  password-reset:
+    store: memory
+    ttl-seconds: 600
+    expose-reset-link: true
+  registration:
+    activation-base-url: http://localhost:8080
+    expose-activation-link: true
+    mail:
+      enabled: false
+  login-rate-limit:
+    captcha-required-failures-per-ip: 5
+    captcha-required-failures-per-user: 2
+
+security:
+  jwt:
+    hmac-secret: test-auth-secret-please-change-at-least-32bytes
+
+spring:
+  cloud:
+    nacos:
+      discovery:
+        enabled: false
+      config:
+        enabled: false
+  datasource:
+    url: jdbc:h2:mem:auth;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;NON_KEYWORDS=USER
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  sql:
+    init:
+      mode: always
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.nowcoder.community.auth.user
+  configuration:
+    map-underscore-to-camel-case: true

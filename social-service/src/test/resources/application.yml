@@ -1,0 +1,17 @@
+social:
+  storage: memory
+  events:
+    publisher: memory
+
+spring:
+  cloud:
+    nacos:
+      discovery:
+        enabled: false
+      config:
+        enabled: false
+
+security:
+  jwt:
+    hmac-secret: test-jwt-secret-please-change-at-least-32bytes
+

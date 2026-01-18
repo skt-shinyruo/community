@@ -1,0 +1,29 @@
+spring:
+  datasource:
+    url: ${AUTH_DB_URL:jdbc:mysql://mysql:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${MYSQL_USER:community}
+    password: ${MYSQL_PASSWORD:communitypass}
+  data:
+    redis:
+      host: ${AUTH_REDIS_HOST:redis}
+      port: ${AUTH_REDIS_PORT:6379}
+
+security:
+  jwt:
+    hmac-secret: ${JWT_HMAC_SECRET:dev-secret-please-change-at-least-32bytes}
+
+auth:
+  captcha:
+    store: redis
+    ttl-seconds: 60
+    max-failures: 3
+  password-reset:
+    store: redis
+    ttl-seconds: 600
+  registration:
+    activation-base-url: ${AUTH_ACTIVATION_BASE_URL:http://localhost:12881}
+    mail:
+      enabled: ${AUTH_MAIL_ENABLED:false}
+  login-rate-limit:
+    captcha-required-failures-per-ip: 5
+    captcha-required-failures-per-user: 2

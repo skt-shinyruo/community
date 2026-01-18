@@ -1,6 +1,6 @@
 # 事件契约与幂等策略（迭代 1 基线）
 
-Directory: `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/`
+Directory: `helloagents/plan/202601161428_boot3_ms_vue3_nacos/`
 
 > 目标：定义字段级事件契约（topic/type/payload），并给出最小可实现的幂等、重试、死信策略，避免演进为“事件泥球”。
 
@@ -8,14 +8,18 @@ Directory: `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/`
 
 ## 1. Topic 命名规范（推荐）
 
-建议按领域拆 topic（便于扩容与权限隔离）：
-- `community.content.post`
-- `community.content.comment`
-- `community.social.like`
-- `community.social.follow`
+### 1.1 命名规范
+
+建议使用统一前缀 + 领域 + 大版本号：
+- `community.event.<domain>.v<major>`
+
+示例（迭代 1 v1 基线）：
+- `community.event.post.v1`
+- `community.event.comment.v1`
+- `community.event.social.v1`
 
 死信 Topic（约定后缀）：
-- `<topic>.dlq`（例如 `community.social.like.dlq`）
+- `<topic>.dlq`（例如 `community.event.post.v1.dlq`）
 
 ---
 
@@ -26,11 +30,11 @@ Directory: `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/`
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | eventId | string | ✅ | 全局唯一，uuid |
-| eventType | string | ✅ | 事件类型，例如 `PostPublished` |
+| type | string | ✅ | 事件类型，例如 `PostPublished` |
 | version | int | ✅ | 事件版本，从 1 开始 |
 | occurredAt | string | ✅ | ISO8601（UTC），例如 `2026-01-16T14:28:00Z` |
 | producer | string | ✅ | 生产者服务名，例如 `content-service` |
-| traceId | string | ✅ | 链路追踪 ID（从 gateway 透传） |
+| traceId | string | ❌ | 链路追踪 ID（从 gateway 透传；无则为空） |
 | payload | object | ✅ | 事件负载（随事件类型不同） |
 
 版本演进规则（最小集）：
@@ -42,57 +46,68 @@ Directory: `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/`
 ## 3. 事件定义（字段级）
 
 ### 3.1 PostPublished（发帖）
-- Topic：`community.content.post`
-- eventType：`PostPublished`
+- Topic：`community.event.post.v1`
+- type：`PostPublished`
 - payload（v1）：
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | postId | int | ✅ | 帖子 ID |
-| authorId | int | ✅ | 作者 ID |
+| userId | int | ✅ | 作者 ID |
 | title | string | ✅ | 标题（可为已转义/过滤版本） |
 | content | string | ✅ | 内容（用于搜索索引；如担心体积可只传摘要并由 search-service 回源拉取） |
 | type | int | ✅ | 置顶等类型 |
 | status | int | ✅ | 精华/删除等状态 |
 | createTime | string | ✅ | ISO8601 |
-| score | double | ✅ | 初始分数（可为 0） |
+| score | double | ❌ | 初始分数（可为 0；缺省表示未知） |
 
 ### 3.2 PostDeleted（删帖）
-- Topic：`community.content.post`
-- eventType：`PostDeleted`
-- payload（v1）：`{ "postId": 123 }`
+- Topic：`community.event.post.v1`
+- type：`PostDeleted`
+- payload（v1）：`{ "postId": 123 }`（其余字段可省略）
 
 ### 3.3 CommentCreated（评论/回复）
-- Topic：`community.content.comment`
-- eventType：`CommentCreated`
+- Topic：`community.event.comment.v1`
+- type：`CommentCreated`
 - payload（v1）：
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | commentId | int | ✅ | 评论 ID |
+| postId | int | ✅ | 所属帖子 ID（方便通知跳转） |
 | userId | int | ✅ | 评论者 |
 | entityType | int | ✅ | 目标实体类型（post/comment） |
 | entityId | int | ✅ | 目标实体 ID |
-| targetUserId | int | ❌ | 回复目标用户（无则 0 或 null） |
-| postId | int | ✅ | 所属帖子 ID（方便通知跳转） |
+| targetUserId | int | ❌ | 回复/通知目标用户（无则为 null） |
+| content | string | ❌ | 评论内容（通知侧可选存储） |
+| createTime | string | ❌ | ISO8601（事件生成时刻或评论创建时刻） |
 
 ### 3.4 LikeCreated（点赞）
-- Topic：`community.social.like`
-- eventType：`LikeCreated`
+- Topic：`community.event.social.v1`
+- type：`LikeCreated`
 - payload（v1）：
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| userId | int | ✅ | 点赞者 |
+| actorUserId | int | ✅ | 点赞者 |
 | entityType | int | ✅ | 目标实体类型 |
 | entityId | int | ✅ | 目标实体 ID |
-| entityOwnerId | int | ✅ | 被点赞对象所属用户（用于通知） |
-| postId | int | ❌ | 若点赞发生在评论上，也可带所属 postId |
+| entityUserId | int | ❌ | 被点赞对象所属用户（用于通知；无则为 null） |
+| postId | int | ❌ | 若点赞发生在评论上，建议带所属 postId（便于顺序/跳转） |
+| createTime | string | ❌ | ISO8601 |
 
 ### 3.5 FollowCreated（关注）
-- Topic：`community.social.follow`
-- eventType：`FollowCreated`
-- payload（v1）：`{ "userId": 1, "targetUserId": 2, "followedAt": "ISO8601" }`
+- Topic：`community.event.social.v1`
+- type：`FollowCreated`
+- payload（v1）：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| actorUserId | int | ✅ | 发起关注的用户 |
+| entityType | int | ✅ | 被关注实体类型（迭代 1 建议仅 user） |
+| entityId | int | ✅ | 被关注实体 ID（例如 userId） |
+| entityUserId | int | ❌ | 被关注对象所属用户（一般同 entityId；用于通知） |
+| createTime | string | ❌ | ISO8601 |
 
 ---
 
@@ -101,7 +116,8 @@ Directory: `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/`
 建议分区键（partition key）：
 - Post 相关：`postId`
 - Comment 相关：`postId`（保证同帖事件大致有序）
-- Like/Follow：`entityId` 或 `targetUserId`（按业务需要选择）
+- Like：优先 `postId`（若为空则退化为 `entityId`）
+- Follow：`entityId`（被关注目标）或 `entityUserId`
 
 ---
 
@@ -114,7 +130,9 @@ Directory: `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/`
   - 处理前先查是否已处理，已处理则直接 ack
 
 ### 5.2 重试（建议）
-- 优先使用 Spring Kafka 的 `@RetryableTopic`（指数退避 + 最大重试次数）
+- 可选实现：
+  - Spring Kafka `@RetryableTopic`（指数退避 + 最大重试次数）
+  - 或 `DefaultErrorHandler + FixedBackOff + 自定义 DLQ recoverer`（迭代 1 当前实现）
 - 重试耗尽进入 DLQ topic：`<topic>.dlq`
 
 ### 5.3 DLQ（必须可观测）

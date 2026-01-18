@@ -30,9 +30,12 @@
 - 触发关注事件（通知）
 
 ## API Interfaces（现状）
-- `POST /like`
-- `POST /follow`、`POST /unfollow`
-- `GET /followees/{userId}`、`GET /followers/{userId}`
+- `POST /api/likes`（显式 liked=true/false，幂等）
+- `GET /api/likes/status`、`GET /api/likes/count`、`GET /api/likes/users/{userId}/count`
+- `POST /api/follows`、`DELETE /api/follows`
+- `GET /api/follows/status`
+- `GET /api/follows/{userId}/followees`、`GET /api/follows/{userId}/followers`
+- `GET /api/follows/{userId}/followees/count`、`GET /api/follows/{userId}/followers/count`
 
 ## Data Models
 ### Redis Keys

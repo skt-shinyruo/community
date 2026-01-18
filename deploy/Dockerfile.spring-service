@@ -1,0 +1,39 @@
+FROM maven:3.9.8-eclipse-temurin-17 AS build
+
+WORKDIR /workspace
+
+# 缓存依赖：先复制根 POM（多模块依赖关系较多，直接全量复制代码后构建）
+COPY pom.xml ./
+
+# 复制所有模块（多模块依赖关系较多，简单起见直接全量复制）
+COPY . .
+
+ARG MODULE
+
+# 说明：
+# - 这里使用 BuildKit cache 复用 Maven 依赖（/root/.m2/repository），大幅加速多模块/多服务构建。
+# - 但在网络波动或中断构建时，cache 里可能残留“损坏/空文件 jar”，导致后续构建持续失败（ZipException）。
+#   为了让 `docker compose up -d --build` 更鲁棒：第一次失败时清空 cache 并重试一次。
+RUN --mount=type=cache,target=/root/.m2/repository,sharing=locked \
+    set -eu; \
+    build_one() { mvn -q -DskipTests -pl "${MODULE}" -am package; }; \
+    if ! build_one; then \
+      echo "[docker-build] Maven build failed. Cleaning /root/.m2/repository cache and retrying once..."; \
+      rm -rf /root/.m2/repository/*; \
+      build_one; \
+    fi; \
+    cp "${MODULE}/target/"*.jar /workspace/app.jar
+
+FROM eclipse-temurin:17-jre-jammy
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY --from=build /workspace/app.jar /app/app.jar
+
+ENV JAVA_OPTS=""
+
+HEALTHCHECK --interval=10s --timeout=3s --retries=30 \
+  CMD curl -fsS "http://localhost:${SERVER_PORT:-8080}/actuator/health" >/dev/null || exit 1
+
+ENTRYPOINT ["bash", "-lc", "java ${JAVA_OPTS} -jar /app/app.jar"]

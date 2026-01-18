@@ -13,12 +13,19 @@
   - `legacy-community`：迁移期单体（Boot 3 + Security 6 + Thymeleaf），用于承载旧功能逐步下线
   - `common`：统一 `Result<T>` / 错误码 / 全局异常 / traceId（目标态规范基线）
   - `gateway`：Spring Cloud Gateway（统一入口：CORS/鉴权/trace/错误收敛）
-  - `auth-service`：JWT 登录/刷新/登出（refresh token 旋转，Redis 存储）
+  - `auth-service`：JWT 登录/刷新/登出（refresh token 旋转，Redis/内存存储可切换）
+  - `user-service`：用户资料与头像（Qiniu）
+  - `content-service`：帖子/评论/热帖/敏感词过滤（MySQL + Redis + Kafka）
+  - `social-service`：点赞/关注（Redis + Kafka）
+  - `message-service`：通知/私信（MySQL + Kafka）
+  - `search-service`：搜索（默认内存实现，支持从 DB reindex；后续可切换 ES）
+  - `analytics-service`：UV/DAU（默认 Redis，gateway 可采集写入）
+  - `frontend`：Vue3 SPA（Vite + Router + Pinia + Axios）
 - **持久化：** MyBatis + MySQL（迭代 0 仍复用 legacy 的 user 表）
-- **缓存：** Redis（legacy 的点赞/关注/ticket/kaptcha/UV/DAU 等；auth 的 refresh token 旋转）
+- **缓存：** Redis（legacy 的点赞/关注/ticket/kaptcha/UV/DAU 等；auth 的 refresh token 旋转默认建议使用 Redis）
 - **安全：** Spring Security 6（gateway/auth/legacy）
 - **服务治理：** Spring Cloud 2023.0.x + Spring Cloud Alibaba 2023.x + Nacos（注册发现/配置中心）
-- **其他：** Actuator（健康检查）、Caffeine（legacy 热帖缓存）、七牛（legacy 头像上传，待迁移）
+- **其他：** Actuator（健康检查）、Caffeine（legacy 热帖缓存）、七牛（user-service/legacy-community 头像上传）
 
 > 注：legacy 的 Elasticsearch 实现已在迁移期降级移除（后续迭代 1 将以独立 `search-service` 重写）。
 
@@ -45,6 +52,17 @@
   - group：按系统/团队隔离（默认 `DEFAULT_GROUP`，后续可按需要细分）
   - profile：按服务运行环境（例如 `spring.profiles.active=dev`）
 
+本地开发约定（推荐）：
+- `deploy/.env.example`：示例环境变量模板（可复制为 `deploy/.env`）。
+- `deploy/.env`：本地私有配置（已加入 `.gitignore`，禁止提交）。
+- `deploy/docker-compose.yml`：本地基础设施（MySQL/Redis/Kafka/ES/Nacos）。启动命令建议使用：
+  - `docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d`
+
+敏感配置清单（必须通过环境变量或 Nacos 注入）：
+- JWT HMAC：`JWT_HMAC_SECRET` / `AUTH_JWT_HMAC_SECRET` / `GATEWAY_JWT_HMAC_SECRET`
+- 内部调用 token：`ANALYTICS_INTERNAL_TOKEN`、`SEARCH_INTERNAL_TOKEN`
+- 对象存储：`QINIU_ACCESS_KEY` / `QINIU_SECRET_KEY` 等
+
 ---
 
 ## 3. API 与错误处理约定
@@ -62,8 +80,8 @@
 ## 4. 日志与可观测性
 
 ### 4.1 Trace 约定
-- Header：`X-Request-Id`（gateway 生成并透传；后端服务写入 MDC 并在响应回传）
-- 约定：所有服务对外响应都应包含同一个 `X-Request-Id`（用于全链路排障）
+- Header：`X-Trace-Id`（gateway 生成并透传；后端服务写入 MDC 并在响应回传）
+- 约定：所有服务对外响应都应包含同一个 `X-Trace-Id`（用于全链路排障）
 
 ### 4.2 日志规范
 - 统一采用结构化日志或固定格式日志（至少包含：时间、等级、服务名、traceId、用户标识、关键业务字段）。

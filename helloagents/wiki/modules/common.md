@@ -10,7 +10,7 @@
   - `com.nowcoder.community.common.api.AuthErrorCode`
 - 业务异常：`com.nowcoder.community.common.exception.BusinessException`
 - traceId：
-  - Header：`X-Request-Id`（常量在 `com.nowcoder.community.common.trace.TraceId`）
+  - Header：`X-Trace-Id`（常量在 `com.nowcoder.community.common.web.TraceIdFilter` / `com.nowcoder.community.gateway.filter.TraceIdGlobalFilter`）
   - Servlet Filter：`com.nowcoder.community.common.web.TraceIdFilter`（仅 Servlet Web 环境生效）
 - 全局异常：
   - `com.nowcoder.community.common.web.GlobalExceptionHandler`
@@ -19,4 +19,3 @@
 ## 3. 约定
 - 服务端统一输出 `Result<T>`，避免 Controller 拼接字符串 JSON。
 - `traceId` 由 gateway 生成并透传；下游服务将其写入 MDC 并在响应头回传。
-

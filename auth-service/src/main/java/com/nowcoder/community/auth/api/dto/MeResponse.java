@@ -5,17 +5,8 @@ import java.util.List;
 public class MeResponse {
 
     private int userId;
-    private List<String> roles;
-    private String traceId;
-
-    public MeResponse() {
-    }
-
-    public MeResponse(int userId, List<String> roles, String traceId) {
-        this.userId = userId;
-        this.roles = roles;
-        this.traceId = traceId;
-    }
+    private String username;
+    private List<String> authorities;
 
     public int getUserId() {
         return userId;
@@ -25,20 +16,20 @@ public class MeResponse {
         this.userId = userId;
     }
 
-    public List<String> getRoles() {
-        return roles;
+    public String getUsername() {
+        return username;
     }
 
-    public void setRoles(List<String> roles) {
-        this.roles = roles;
+    public void setUsername(String username) {
+        this.username = username;
     }
 
-    public String getTraceId() {
-        return traceId;
+    public List<String> getAuthorities() {
+        return authorities;
     }
 
-    public void setTraceId(String traceId) {
-        this.traceId = traceId;
+    public void setAuthorities(List<String> authorities) {
+        this.authorities = authorities;
     }
 }
 

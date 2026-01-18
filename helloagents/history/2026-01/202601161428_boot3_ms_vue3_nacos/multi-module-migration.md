@@ -1,6 +1,6 @@
 # Maven 多模块改造与目录迁移 Runbook（迭代 0）
 
-Directory: `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/`
+Directory: `helloagents/plan/202601161428_boot3_ms_vue3_nacos/`
 
 > 目标：把当前单体仓库改造成 Maven 多模块，为后续微服务拆分提供“可渐进、可回滚”的结构。  
 > 原则：**小步提交、每步可编译、失败可回退**。

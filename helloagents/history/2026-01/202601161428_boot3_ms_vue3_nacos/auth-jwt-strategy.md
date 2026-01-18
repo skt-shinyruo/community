@@ -1,6 +1,6 @@
 # Security 6 + JWT 策略细化（迭代 0）
 
-Directory: `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/`
+Directory: `helloagents/plan/202601161428_boot3_ms_vue3_nacos/`
 
 > 目标：给迭代 0 的 `gateway + auth-service + Vue3` 登录闭环提供明确可实现的“接口 + token 策略 + 权限矩阵”。
 

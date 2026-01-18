@@ -3,11 +3,17 @@ server:
   servlet:
     context-path: /community
 
+legacy:
+  readonly:
+    enabled: true
+  migration:
+    redirect-enabled: true
+
 spring:
   application:
     name: legacy-community
   config:
-    import: optional:nacos:
+    import: "optional:nacos:${spring.application.name}.yaml"
   cloud:
     nacos:
       discovery:
@@ -19,8 +25,8 @@ spring:
         file-extension: yaml
   datasource:
     url: ${LEGACY_DB_URL:jdbc:mysql://127.0.0.1:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
-    username: ${LEGACY_DB_USERNAME:community}
-    password: ${LEGACY_DB_PASSWORD:community}
+    username: ${LEGACY_DB_USERNAME:${MYSQL_USER:}}
+    password: ${LEGACY_DB_PASSWORD:${MYSQL_PASSWORD:}}
     driver-class-name: com.mysql.cj.jdbc.Driver
   data:
     redis:
@@ -65,4 +71,3 @@ management:
     web:
       exposure:
         include: health,info
-

@@ -82,6 +82,52 @@ flowchart TD
 - Redis Session（拒绝原因：服务间耦合与扩展性差，且不利于多语言/跨边界扩展）  
 **Impact:** 需要补齐 token 失效策略、刷新策略与安全风险控制（XSS/CSRF/重放）。
 
+### ADR-003: Kafka 事件序列化（迭代 1）采用 JSON + 字段级契约
+**Context:** 迁移期需要快速拆分旁路服务（search/message/analytics），且事件契约需要可读可调试。  
+**Decision:** 迭代 1 事件序列化采用 JSON，并统一 Envelope 字段（`eventId/traceId/type/version/occurredAt/producer/payload`）。  
+**Rationale:** 便于调试与演进；不强依赖 schema registry；对早期变动更友好。  
+**Alternatives:**  
+- Avro/Protobuf（暂不采用原因：需要引入 schema registry/兼容策略/工具链，前期成本更高）  
+**Impact:** 需要在文档中固化字段级契约与版本演进规则；后续升级到 Avro/Protobuf 时需要并行 topic 或升级版本并双写。  
+
+### ADR-004: UV/DAU 采集（迭代 1）由 Gateway Filter 采集，写入 analytics-service（Redis）
+**Context:** UV/DAU 的采集点需要统一且不侵入各业务服务；同时需要保留服务化边界。  
+**Decision:** Gateway 通过 Filter 采集 UV/DAU，并调用 analytics-service 的 `/internal/analytics/*/record` 写入 Redis；analytics-service 负责查询接口与范围校验。  
+**Rationale:** 采集点集中、实现简单；analytics-service 可独立扩展与限流；避免 Gateway 直接依赖 Redis 的 reactive 写入复杂度。  
+**Alternatives:**  
+- Gateway 直接写 Redis（暂不采用原因：Gateway reactive + Redis 写入/限流/失败处理复杂度更高）  
+**Impact:** analytics-service 需要提供内部写入口并做最小鉴权（internal token）；Gateway 需要配置 internal token 并容忍 analytics-service 不可用时降级。  
+
+### ADR-005: auth-service 与 user-service 职责边界（迭代 3）
+**Context:** 微服务化后需要明确“登录发证”和“用户资料/注册/密码归属”边界，否则容易出现跨服务直连 DB、权限来源不一致、数据归属不清等问题。  
+**Decision:**  
+- `auth-service`：只负责登录校验、签发/刷新 JWT（Access/Refresh），并管理 refresh token 的存储与失效策略。  
+- `user-service`：负责用户创建/注册、用户资料与头像维护、密码存储策略（hash/rehash），以及用户权限/角色来源的“事实数据”。  
+- **迁移期折中：** `auth-service` 可暂时直连 `user` 表用于登录校验；迭代 3 目标态逐步切换为调用 `user-service` 内部接口获取凭据与权限信息。  
+**Rationale:** 将“身份凭据与用户资料”作为 user-service 的数据归属，auth-service 聚焦 token 生命周期，可降低耦合并便于未来接入多端/多语言与权限治理。  
+**Alternatives:**  
+- auth-service 继续拥有 user 表（拒绝原因：与“用户域拆分”目标冲突，且 user/profile/头像逻辑会不断侵入 auth）  
+- 引入第三方 IAM（暂不采用原因：迁移期成本与工程复杂度偏高）  
+**Impact:** 需要补齐 auth-service ↔ user-service 的内部调用契约与超时/降级策略；并在数据拆分阶段规划好“权限来源”的最终一致性。  
+
+### ADR-006: 页面聚合策略（Vue3 直连多服务，经由 Gateway 路由）
+**Context:** 目标态是 Vue3 SPA，面对多服务后，需要决定“前端直接编排”还是引入 BFF 聚合层。  
+**Decision:** 迭代 3 采用“Vue3 直连多服务（统一经由 Gateway）”策略；暂不新增 BFF 聚合服务。  
+**Rationale:** 迭代 0~3 优先完成拆分闭环与服务能力落地，减少新增服务与协议成本；前端在 MVP 阶段可接受多接口编排。  
+**Alternatives:**  
+- BFF（暂不采用原因：需要新增服务与维护成本；早期需求未稳定）  
+**Impact:** 前端需要处理多接口并发与错误聚合；后续若出现“页面组合过重/跨服务聚合频繁”的痛点，可再引入 BFF 并逐步迁移。  
+
+### ADR-007: 数据拆分策略阶段（共享库 → 独立库）
+**Context:** 直接将单体数据库拆成多库会引入迁移、双写、数据一致性与运维复杂度；但不拆库又会造成边界不清。  
+**Decision:** 采用分阶段策略：  
+1) **共享库阶段：** 各服务在同一个 MySQL 库中按“表归属”治理（服务内只操作归属表，跨域通过 API/事件）。  
+2) **独立库阶段：** 当服务稳定后，逐服务迁移到独立数据库（配合数据迁移脚本、灰度、回滚）。  
+**Rationale:** 先把边界与契约跑通，再做物理拆分，降低一次性风险。  
+**Alternatives:**  
+- 一步到位独立库（拒绝原因：迁移与一致性风险过高，且会拖慢迭代 0~3 的交付）  
+**Impact:** 需要在 `helloagents/wiki/data.md` 中持续维护“表归属/Redis key 归属”，并在拆库时提供可回滚的数据迁移方案与验证用例。  
+
 ---
 
 ## API Design（目标态约定）
@@ -132,7 +178,7 @@ flowchart TD
 - **Testing：**
   - 单元测试：领域逻辑
   - 集成测试：Kafka/Redis/ES/DB 关键链路（建议 Testcontainers 或 docker compose）
-  - E2E：Vue3 + Gateway + 核心服务的冒烟链路（登录、发帖、点赞、搜索）
+  - 回归验收：Vue3 + Gateway + 核心服务的冒烟链路（登录、发帖、点赞、搜索）
 - **Deployment：**
   - 本地：docker compose 启动 Nacos/MySQL/Redis/Kafka/ES
   - 生产：各服务独立部署，Gateway 支持灰度与回滚
@@ -141,9 +187,9 @@ flowchart TD
 
 ## 附录（本方案包的可执行细化）
 
-- 版本矩阵与依赖升级清单：`helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/version-matrix.md`
-- 多模块改造 Runbook：`helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/multi-module-migration.md`
-- JWT 策略与权限矩阵（迭代 0）：`helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/auth-jwt-strategy.md`
-- 事件契约与幂等（迭代 1）：`helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/event-contract.md`
-- CI 与回归入口（建议 GitHub Actions）：`helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/ci-plan.md`
-- 验收清单（DoD + 用例矩阵）：`helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/acceptance.md`
+- 版本矩阵与依赖升级清单：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/version-matrix.md`
+- 多模块改造 Runbook：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/multi-module-migration.md`
+- JWT 策略与权限矩阵（迭代 0）：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/auth-jwt-strategy.md`
+- 事件契约与幂等（迭代 1）：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/event-contract.md`
+- CI 与回归入口（建议 GitHub Actions）：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/ci-plan.md`
+- 验收清单（DoD + 用例矩阵）：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/acceptance.md`

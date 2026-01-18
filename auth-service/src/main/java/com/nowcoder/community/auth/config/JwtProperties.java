@@ -9,22 +9,17 @@ import java.util.List;
 public class JwtProperties {
 
     private String hmacSecret;
-
     private String issuer = "community-auth";
 
-    private long accessTokenTtlSeconds = 15 * 60;
-
-    private long refreshTokenTtlSeconds = 7 * 24 * 60 * 60;
+    private long accessTokenTtlSeconds = 900;
+    private long refreshTokenTtlSeconds = 604800;
 
     private String refreshCookieName = "refresh_token";
-
     private String refreshCookiePath = "/api/auth";
-
     private String refreshCookieSameSite = "Lax";
-
     private boolean refreshCookieSecure = false;
 
-    private final List<String> allowedOrigins = new ArrayList<>();
+    private List<String> allowedOrigins = new ArrayList<>();
 
     public String getHmacSecret() {
         return hmacSecret;
@@ -92,6 +87,10 @@ public class JwtProperties {
 
     public List<String> getAllowedOrigins() {
         return allowedOrigins;
+    }
+
+    public void setAllowedOrigins(List<String> allowedOrigins) {
+        this.allowedOrigins = allowedOrigins;
     }
 }
 

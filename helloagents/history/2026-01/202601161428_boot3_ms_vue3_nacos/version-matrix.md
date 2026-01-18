@@ -1,6 +1,6 @@
 # 版本矩阵与依赖升级清单（迭代 0 基线）
 
-Directory: `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/`
+Directory: `helloagents/plan/202601161428_boot3_ms_vue3_nacos/`
 
 > 目的：在开工前把“版本兼容 + 依赖替换 + 中间件升级影响”一次说清，避免在编译期/运行期反复卡住。  
 > 注意：以下为**推荐基线**（偏保守稳定）。若你希望追最新 minor 线，可在 PoC 通过后再上调。

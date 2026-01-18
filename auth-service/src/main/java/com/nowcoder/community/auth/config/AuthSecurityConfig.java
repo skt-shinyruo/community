@@ -1,132 +1,96 @@
 package com.nowcoder.community.auth.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.trace.TraceId;
-import jakarta.servlet.http.HttpServletResponse;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
-import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.util.StringUtils;
 
-import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 
-import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
 
 @Configuration
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, LoginRateLimitProperties.class, RegistrationProperties.class, CaptchaProperties.class, PasswordResetProperties.class})
 public class AuthSecurityConfig {
 
-    private final ObjectMapper objectMapper;
-
-    public AuthSecurityConfig(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
-    }
-
     @Bean
-    public SecretKey jwtSecretKey(JwtProperties properties) {
-        String secret = properties.getHmacSecret();
-        if (secret == null || secret.isBlank()) {
-            throw new IllegalStateException("缺少 JWT HMAC 密钥配置: security.jwt.hmac-secret");
+    public JwtDecoder jwtDecoder(JwtProperties jwtProperties) {
+        if (!StringUtils.hasText(jwtProperties.getHmacSecret())) {
+            throw new BusinessException(INVALID_ARGUMENT, "AUTH_JWT_HMAC_SECRET 未配置");
         }
-
-        byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
-        if (keyBytes.length < 32) {
-            throw new IllegalStateException("JWT HMAC 密钥过短(建议>=32字节): security.jwt.hmac-secret");
+        byte[] secretBytes = jwtProperties.getHmacSecret().getBytes(StandardCharsets.UTF_8);
+        if (secretBytes.length < 32) {
+            throw new BusinessException(INVALID_ARGUMENT, "AUTH_JWT_HMAC_SECRET 长度不足（建议 >= 32 字节）");
         }
-
-        return new SecretKeySpec(keyBytes, "HmacSHA256");
+        SecretKey secretKey = new SecretKeySpec(secretBytes, "HmacSHA256");
+        return NimbusJwtDecoder.withSecretKey(secretKey).macAlgorithm(MacAlgorithm.HS256).build();
     }
 
     @Bean
-    public JwtEncoder jwtEncoder(SecretKey jwtSecretKey) {
-        return new NimbusJwtEncoder(new ImmutableSecret<>(jwtSecretKey));
-    }
-
-    @Bean
-    public JwtDecoder jwtDecoder(SecretKey jwtSecretKey) {
-        return NimbusJwtDecoder.withSecretKey(jwtSecretKey).macAlgorithm(MacAlgorithm.HS256).build();
-    }
-
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtDecoder jwtDecoder) throws Exception {
-        http.csrf(csrf -> csrf.disable());
-        http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
-
-        http.authorizeHttpRequests(authorize -> authorize
-                .requestMatchers("/actuator/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh").permitAll()
-                .anyRequest().authenticated()
-        );
-
-        http.oauth2ResourceServer(oauth2 -> oauth2
-                .jwt(jwt -> jwt
-                        .decoder(jwtDecoder)
-                        .jwtAuthenticationConverter(jwtAuthenticationConverter())
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, SecurityExceptionHandler securityExceptionHandler) throws Exception {
+        return http
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(securityExceptionHandler)
+                        .accessDeniedHandler(securityExceptionHandler)
                 )
-        );
-
-        http.exceptionHandling(exceptionHandling -> exceptionHandling
-                .authenticationEntryPoint((request, response, authException) -> writeJson(response, HttpStatus.UNAUTHORIZED, Result.fail(CommonErrorCode.UNAUTHORIZED)))
-                .accessDeniedHandler((request, response, accessDeniedException) -> writeJson(response, HttpStatus.FORBIDDEN, Result.fail(CommonErrorCode.FORBIDDEN)))
-        );
-
-        http.httpBasic(basic -> basic.disable());
-        http.formLogin(form -> form.disable());
-
-        return http.build();
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.OPTIONS).permitAll()
+                        .requestMatchers("/actuator/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/refresh").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/activation/*/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/captcha").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/captcha/verify").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/password/reset/request", "/api/auth/password/reset/confirm").permitAll()
+                        .anyRequest().authenticated()
+                )
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
+                )
+                .httpBasic(Customizer.withDefaults())
+                .build();
     }
 
     private JwtAuthenticationConverter jwtAuthenticationConverter() {
+        JwtGrantedAuthoritiesConverter defaults = new JwtGrantedAuthoritiesConverter();
+        defaults.setAuthorityPrefix("ROLE_");
+        defaults.setAuthoritiesClaimName("authorities");
+
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(jwt -> {
-            Object roles = jwt.getClaims().get("roles");
-            if (roles instanceof Collection<?> collection) {
-                List<String> roleStrings = collection.stream()
-                        .filter(Objects::nonNull)
+        converter.setJwtGrantedAuthoritiesConverter((Jwt jwt) -> {
+            Object claim = jwt.getClaim("authorities");
+            if (claim instanceof List<?> list) {
+                return list.stream()
                         .map(Object::toString)
-                        .filter(s -> !s.isBlank())
-                        .toList();
-                return roleStrings.stream()
+                        .filter(StringUtils::hasText)
                         .map(SimpleGrantedAuthority::new)
-                        .collect(Collectors.toSet());
+                        .collect(Collectors.toList());
             }
-            return List.<GrantedAuthority>of();
+            Collection<GrantedAuthority> fallback = defaults.convert(jwt);
+            return fallback == null ? List.of() : fallback;
         });
         return converter;
-    }
-
-    private void writeJson(HttpServletResponse response, HttpStatus httpStatus, Result<Void> body) {
-        response.setStatus(httpStatus.value());
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-        String traceId = TraceId.currentOrNull();
-        if (traceId != null && !traceId.isBlank()) {
-            response.setHeader(TraceId.HEADER_NAME, traceId);
-        }
-        try {
-            response.getWriter().write(objectMapper.writeValueAsString(body));
-        } catch (Exception ignored) {
-        }
     }
 }

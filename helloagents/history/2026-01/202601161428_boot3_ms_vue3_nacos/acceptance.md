@@ -1,6 +1,6 @@
 # 验收清单（DoD + 用例矩阵）：Boot 3 + Java 17 + Vue3 + Nacos 微服务化拆分
 
-Directory: `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/`
+Directory: `helloagents/plan/202601161428_boot3_ms_vue3_nacos/`
 
 > 目的：把“功能完善”转化为可验收、可回归、可追溯的标准。  
 > 说明：本清单面向迁移与拆分过程，强调“分迭代闭环 + 门禁（gating）”。每个迭代未达标不得进入下一迭代/切流。
@@ -15,7 +15,7 @@ Directory: `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/`
 - ✅ 配置可复现：提供本地启动方式（docker compose 或等价），新环境按文档可一键启动
 
 ### 0.2 可观测性（Observability）
-- ✅ Gateway 生成并透传 `traceId`（例如 `X-Request-Id`），下游服务日志可按 traceId 串联
+- ✅ Gateway 生成并透传 `traceId`（例如 `X-Trace-Id`），下游服务日志可按 traceId 串联
 - ✅ 关键错误可定位：401/403/500 等响应结构一致，服务端日志含关键信息但不泄露敏感数据
 
 ### 0.3 安全与合规
@@ -28,13 +28,12 @@ Directory: `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/`
 - ✅ 事件/接口变更必须同步更新契约与版本策略（向后兼容或明确破坏性变更）
 
 ### 0.5 CI 门禁（可执行）
-- ✅ CI 方案：默认采用 GitHub Actions；详细见 `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/ci-plan.md`
+- ✅ CI 方案：默认采用 GitHub Actions；详细见 `helloagents/plan/202601161428_boot3_ms_vue3_nacos/ci-plan.md`
 - ✅ 工作流文件位置（建议）：`.github/workflows/ci.yml`
 - ✅ Required checks（建议从迭代 0 起强制）：`backend-build`、`backend-test`、`frontend-lint-build`
-- ✅ e2e 门禁（建议从迭代 0 起启用，成本可接受则强制）：`e2e-smoke`（覆盖 I0-001~I0-005）
 
 ### 0.6 版本基线（必须可追溯）
-- ✅ 版本矩阵必须落到文件并可回填：`helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/version-matrix.md`
+- ✅ 版本矩阵必须落到文件并可回填：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/version-matrix.md`
 - ✅ 每次“升版本/换依赖/换中间件”都要更新版本矩阵并补充 PoC 结论（避免靠记忆/口口相传）
 
 ---
@@ -68,7 +67,7 @@ Directory: `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/`
   - 网关/认证：`mvn -pl gateway -am test`、`mvn -pl auth-service -am test`
   - 前端：`npm -C frontend install`、`npm -C frontend run dev`
   - 冒烟脚本：`scripts/smoke-i0-auth.sh`（需本地已启动 gateway/auth）
-  - 本地启动说明：`helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/run-local.md`
+  - 本地启动说明：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/run-local.md`
 
 ---
 
@@ -76,11 +75,11 @@ Directory: `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/`
 
 | Case ID | 场景 | 前置条件 | 步骤（概要） | 期望结果 | 自动化级别 | 回归入口（建议） |
 |---------|------|----------|--------------|----------|------------|------------------|
-| I0-001 | 登录成功 | 用户存在/密码正确 | Vue3 登录提交 | 返回 token；跳转成功 | e2e/手工 | `frontend` e2e（后续补） |
+| I0-001 | 登录成功 | 用户存在/密码正确 | Vue3 登录提交 | 返回 token；跳转成功 | 手工 | 手工验收 |
 | I0-002 | 登录失败（错误密码） | 用户存在 | 提交错误密码 | 返回业务错误码；前端提示 | 单测/手工 | `auth-service` 测试 |
 | I0-003 | 缺失 token 访问保护接口 | 无 token | GET 受保护 API | 401 + 统一结构 | 集成 | `gateway` 测试 |
-| I0-004 | token 过期自动刷新 | access 过期/refresh 有效 | 调用受保护 API | 自动 refresh 并重试成功 | e2e | `frontend` e2e |
-| I0-005 | refresh 失效回登录 | refresh 无效 | 调用受保护 API | refresh 失败，跳转登录 | e2e | `frontend` e2e |
+| I0-004 | token 过期自动刷新 | access 过期/refresh 有效 | 调用受保护 API | 自动 refresh 并重试成功 | 手工 | 手工验收 |
+| I0-005 | refresh 失效回登录 | refresh 无效 | 调用受保护 API | refresh 失败，跳转登录 | 手工 | 手工验收 |
 | I0-006 | CORS 预检 | 浏览器环境 | OPTIONS 请求 | 预检通过 | 集成 | `gateway` 测试 |
 | I0-007 | traceId 贯穿 | 正常请求 | 访问任一 API | 响应/日志可定位 traceId | 手工/集成 | 日志检查/测试 |
 | I0-008 | Nacos 注册可见 | Nacos 启动 | 启动服务 | 控制台可见实例 | 手工 | 启动脚本 |
@@ -118,7 +117,7 @@ Directory: `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/`
 
 | Case ID | 场景 | 前置条件 | 步骤（概要） | 期望结果 | 自动化级别 | 回归入口（建议） |
 |---------|------|----------|--------------|----------|------------|------------------|
-| I1-001 | 发帖后可搜索命中 | 发布事件可达 | 发帖 -> 搜索 | 结果命中且高亮 | 集成/e2e | content+search 联调 |
+| I1-001 | 发帖后可搜索命中 | 发布事件可达 | 发帖 -> 搜索 | 结果命中且高亮 | 集成 | content+search 联调 |
 | I1-002 | 删帖后索引移除 | delete 事件 | 删帖 -> 搜索 | 结果不再出现 | 集成 | search 测试 |
 | I1-003 | 点赞产生通知 | like 事件 | 点赞 -> 查通知 | 通知生成，字段完整 | 集成 | message 测试 |
 | I1-004 | 评论产生通知 | comment 事件 | 评论 -> 查通知 | 通知生成 | 集成 | message 测试 |
@@ -166,9 +165,9 @@ Directory: `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/`
 
 | Case ID | 场景 | 前置条件 | 步骤（概要） | 期望结果 | 自动化级别 | 回归入口（建议） |
 |---------|------|----------|--------------|----------|------------|------------------|
-| I3-001 | 端到端：发帖->搜索 | 全链路可用 | 登录->发帖->搜索 | 搜索命中且排序正确 | e2e | Playwright |
-| I3-002 | 端到端：评论->通知 | message 可用 | 评论->查通知 | 通知生成且可已读 | e2e/集成 | e2e+message 测试 |
-| I3-003 | 用户主页数据 | social/user 可用 | 关注/点赞后访问主页 | 统计数据正确 | e2e | Playwright |
+| I3-001 | 端到端：发帖->搜索 | 全链路可用 | 登录->发帖->搜索 | 搜索命中且排序正确 | 手工 | 手工验收 |
+| I3-002 | 端到端：评论->通知 | message 可用 | 评论->查通知 | 通知生成且可已读 | 集成/手工 | 手工验收 + message 联调 |
+| I3-003 | 用户主页数据 | social/user 可用 | 关注/点赞后访问主页 | 统计数据正确 | 手工 | 手工验收 |
 | I3-004 | 旧接口下线 | 切流完成 | 访问旧 URL | 301/404/转发符合策略 | 手工/集成 | gateway 测试 |
 
 ---
@@ -181,4 +180,3 @@ Directory: `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/`
 - 模块测试（示例）：`mvn -pl gateway -am test` / `mvn -pl auth-service -am test`
 - 前端开发：`npm -C frontend run dev`
 - 前端构建：`npm -C frontend run build`
-- 前端 e2e：`npm -C frontend run e2e`（建议 Playwright，后续迭代补）

@@ -1,11 +1,11 @@
 # auth
 
 ## Purpose
-提供注册、激活、登录、登出、验证码与鉴权相关能力（当前位于单体应用中）。
+legacy-community 中的旧认证模块：提供注册、激活、登录、登出、验证码与 ticket 登录态等能力（迁移期保留，目标态由 `auth-service` 替代）。
 
 ## Module Overview
 - **Responsibility：** 注册/登录/退出；邮箱激活；验证码；登录态（ticket）管理；权限授权入口
-- **Status：** ✅Stable
+- **Status：** 🟡Migration
 - **Last Updated：** 2026-01-16
 
 ## Specifications

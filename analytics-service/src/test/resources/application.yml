@@ -1,0 +1,17 @@
+analytics:
+  storage: memory
+  internal-token: test-internal
+  max-days-range: 31
+
+security:
+  jwt:
+    hmac-secret: test-jwt-secret-please-change-at-least-32bytes
+
+spring:
+  cloud:
+    nacos:
+      discovery:
+        enabled: false
+      config:
+        enabled: false
+

@@ -5,7 +5,7 @@
 
 ## Module Overview
 - **Responsibility：** 私信会话列表/详情/发送；通知列表/详情/未读数；Kafka 消费评论/点赞/关注事件写入通知
-- **Status：** ✅Stable
+- **Status：** 🟡In Progress
 - **Last Updated：** 2026-01-16
 
 ## Specifications
@@ -32,11 +32,14 @@
 - 通知内容包含触发者与目标实体信息
 
 ## API Interfaces（现状）
-- `GET /letter/list`
-- `GET /letter/detail/{conversationId}`
-- `POST /letter/send`
-- `GET /notice/list`
-- `GET /notice/detail/{topic}`
+- `GET /api/messages/conversations`
+- `GET /api/messages/conversations/{conversationId}`
+- `POST /api/messages`
+- `GET /api/messages/unread-count`
+- `PUT /api/messages/read`
+- `GET /api/notices?topic=like|comment|follow`
+- `GET /api/notices/unread-count`
+- `PUT /api/notices/read`
 
 ## Data Models
 ### message

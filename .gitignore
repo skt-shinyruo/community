@@ -35,6 +35,7 @@ build/
 ### Local dev secrets ###
 deploy/.env
 deploy/.local/
+deploy/backups/
 
 ### Frontend ###
 frontend/node_modules/

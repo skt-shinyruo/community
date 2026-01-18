@@ -1,6 +1,6 @@
 # CI 与回归入口细化（建议：GitHub Actions）
 
-Directory: `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/`
+Directory: `helloagents/plan/202601161428_boot3_ms_vue3_nacos/`
 
 > 目标：把 CI 从“方向”落到“可执行门禁”，并与 `acceptance.md` 的 DoD 对齐。  
 > 默认选择：GitHub Actions（若你的仓库在 GitLab，可按同样结构映射到 `.gitlab-ci.yml`）。
@@ -39,12 +39,7 @@ Directory: `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/`
 
 ## 3. 可选但强烈推荐 Jobs（迭代 0 后逐步打开）
 
-### 3.1 e2e-smoke（建议从迭代 0 开始）
-- 框架：Playwright
-- 用例：登录 -> 调用受保护 API -> refresh -> logout（对齐 `acceptance.md` 的 I0-001~I0-005）
-- 依赖：需要可启动 gateway/auth（可用 docker compose 或 CI service container）
-
-### 3.2 integration（迭代 1 起逐步打开）
+### 3.1 integration（迭代 1 起逐步打开）
 - 方案 A：Testcontainers（推荐，隔离性好）
 - 方案 B：docker compose（更直观，但 CI 环境差异更大）
 - 覆盖：
@@ -60,7 +55,6 @@ Directory: `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/`
 - `backend-build`
 - `backend-test`
 - `frontend-lint-build`
-- `e2e-smoke`（若 CI 成本可接受）
 
 ---
 
@@ -68,4 +62,3 @@ Directory: `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/`
 
 - Maven 缓存：`~/.m2/repository`
 - pnpm 缓存：`~/.pnpm-store`（或 actions/cache）
-- Playwright 浏览器缓存：按 runner 支持情况缓存

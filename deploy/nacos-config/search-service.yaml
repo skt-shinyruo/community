@@ -1,0 +1,18 @@
+spring:
+  datasource:
+    url: ${SEARCH_DB_URL:jdbc:mysql://mysql:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${MYSQL_USER:community}
+    password: ${MYSQL_PASSWORD:communitypass}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://elasticsearch:9200}
+
+security:
+  jwt:
+    hmac-secret: ${JWT_HMAC_SECRET:dev-secret-please-change-at-least-32bytes}
+
+search:
+  storage: es
+  internal-token: ${SEARCH_INTERNAL_TOKEN:dev-search-internal-token}
+

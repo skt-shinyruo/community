@@ -1,34 +1,28 @@
 package com.nowcoder.community.common.trace;
 
-import org.slf4j.MDC;
-
 import java.util.UUID;
 
 public final class TraceId {
 
-    public static final String HEADER_NAME = "X-Request-Id";
-    public static final String MDC_KEY = "traceId";
+    private static final ThreadLocal<String> CURRENT = new ThreadLocal<>();
 
     private TraceId() {
     }
 
-    public static String generate() {
-        return UUID.randomUUID().toString().replace("-", "");
+    public static String get() {
+        return CURRENT.get();
     }
 
-    public static String currentOrNull() {
-        return MDC.get(MDC_KEY);
-    }
-
-    public static void put(String traceId) {
-        if (traceId == null || traceId.isBlank()) {
-            return;
-        }
-        MDC.put(MDC_KEY, traceId);
+    public static void set(String traceId) {
+        CURRENT.set(traceId);
     }
 
     public static void clear() {
-        MDC.remove(MDC_KEY);
+        CURRENT.remove();
+    }
+
+    public static String generate() {
+        return UUID.randomUUID().toString().replace("-", "");
     }
 }
 

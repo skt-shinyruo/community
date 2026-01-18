@@ -1,60 +1,51 @@
 package com.nowcoder.community.common.web;
 
 import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.api.ErrorCode;
 import com.nowcoder.community.common.api.Result;
 import com.nowcoder.community.common.exception.BusinessException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
-@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class GlobalExceptionHandler {
 
-    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<Result<Void>> handleBusinessException(BusinessException e) {
-        ErrorCode errorCode = e.getErrorCode();
-        if (errorCode == null) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Result.fail(CommonErrorCode.BAD_REQUEST));
-        }
-
-        return ResponseEntity.status(resolveHttpStatus(errorCode)).body(Result.fail(errorCode.code(), e.getMessage()));
+    public ResponseEntity<Result<Void>> handleBusiness(BusinessException e) {
+        int code = e.getErrorCode() == null ? CommonErrorCode.INTERNAL_ERROR.getCode() : e.getErrorCode().getCode();
+        Result<Void> body = Result.error(code, e.getMessage());
+        return ResponseEntity.status(httpStatusOf(code)).body(body);
     }
 
     @ExceptionHandler({MethodArgumentNotValidException.class, BindException.class})
-    public ResponseEntity<Result<Void>> handleBindException(Exception e) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Result.fail(CommonErrorCode.BAD_REQUEST));
+    public ResponseEntity<Result<Void>> handleValidation(Exception e) {
+        return ResponseEntity.status(httpStatusOf(CommonErrorCode.INVALID_ARGUMENT.getCode()))
+                .body(Result.error(CommonErrorCode.INVALID_ARGUMENT));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Result<Void>> handleBadJson(HttpMessageNotReadableException e) {
+        return ResponseEntity.status(httpStatusOf(CommonErrorCode.INVALID_ARGUMENT.getCode()))
+                .body(Result.error(CommonErrorCode.INVALID_ARGUMENT));
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Result<Void>> handleException(Exception e) {
-        logger.error("未捕获异常", e);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Result.fail(CommonErrorCode.INTERNAL_ERROR));
+    public ResponseEntity<Result<Void>> handleGeneric(Exception e) {
+        return ResponseEntity.status(httpStatusOf(CommonErrorCode.INTERNAL_ERROR.getCode()))
+                .body(Result.error(CommonErrorCode.INTERNAL_ERROR));
     }
 
-    private HttpStatus resolveHttpStatus(ErrorCode errorCode) {
-        int code = errorCode.code();
-        if (code >= 40100 && code < 40200) {
-            return HttpStatus.UNAUTHORIZED;
+    private HttpStatus httpStatusOf(int code) {
+        if (code >= 400 && code < 600) {
+            try {
+                return HttpStatus.valueOf(code);
+            } catch (Exception ignored) {
+            }
         }
-        if (code >= 40300 && code < 40400) {
-            return HttpStatus.FORBIDDEN;
-        }
-        if (code >= 40400 && code < 40500) {
-            return HttpStatus.NOT_FOUND;
-        }
-        if (code >= 40000 && code < 50000) {
-            return HttpStatus.BAD_REQUEST;
-        }
-        return HttpStatus.INTERNAL_SERVER_ERROR;
+        return HttpStatus.OK;
     }
 }

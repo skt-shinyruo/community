@@ -5,7 +5,7 @@
 
 ## Module Overview
 - **Responsibility：** 记录 UV（HyperLogLog）；记录 DAU（Bitmap）；按日期区间统计；提供统计页面/接口
-- **Status：** ✅Stable
+- **Status：** 🟡In Progress
 - **Last Updated：** 2026-01-16
 
 ## Specifications
@@ -31,9 +31,11 @@
 - 对日期范围做 OR 运算并返回 bitCount
 
 ## API Interfaces（现状）
-- `GET/POST /data`
-- `POST /data/uv`
-- `POST /data/dau`
+- `GET /api/analytics/uv?start=YYYY-MM-DD&end=YYYY-MM-DD`（管理员/版主）
+- `GET /api/analytics/dau?start=YYYY-MM-DD&end=YYYY-MM-DD`（管理员/版主）
+- `GET /api/analytics/me`（联调用，需要登录）
+- `POST /internal/analytics/uv/record`（gateway 内部调用：需要 `X-Internal-Token`）
+- `POST /internal/analytics/dau/record`（gateway 内部调用：需要 `X-Internal-Token`）
 
 ## Data Models
 ### Redis Keys

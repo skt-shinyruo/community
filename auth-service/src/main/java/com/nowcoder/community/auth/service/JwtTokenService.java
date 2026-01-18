@@ -22,17 +22,17 @@ public class JwtTokenService {
         this.jwtProperties = jwtProperties;
     }
 
-    public String issueAccessToken(int userId, String username, List<String> roles) {
+    public String createAccessToken(int userId, String username, List<String> authorities) {
         Instant now = Instant.now();
-        Instant expiresAt = now.plusSeconds(jwtProperties.getAccessTokenTtlSeconds());
+        Instant exp = now.plusSeconds(jwtProperties.getAccessTokenTtlSeconds());
 
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(jwtProperties.getIssuer())
                 .issuedAt(now)
-                .expiresAt(expiresAt)
+                .expiresAt(exp)
                 .subject(String.valueOf(userId))
                 .claim("username", username)
-                .claim("roles", roles)
+                .claim("authorities", authorities)
                 .build();
 
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();

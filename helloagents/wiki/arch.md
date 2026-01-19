@@ -45,9 +45,9 @@ flowchart TD
     Prom -. scrape .-> Ana
 ```
 
-## 1.1 legacy-community 的定位（仅保留源码）
+## 1.1 历史单体说明（已归档）
 
-本仓库保留 `legacy-community/` 源码用于对照与迁移参考，但不再在 docker compose 中引入 legacy-community，也不再提供入口切流/回滚脚本。
+历史单体源码已从仓库主干移除；历史决策/迁移记录保留在 `helloagents/history/`，用于追溯与对照。
 
 建议的验证路径：
 - 全依赖启动：`deploy/docker-compose.yml`
@@ -157,7 +157,7 @@ sequenceDiagram
 
 幂等与去重策略（最低要求）：
 
-- **事件 envelope 统一携带 `eventId` / `traceId` / `version`**（详见 `helloagents/plan/202601161428_boot3_ms_vue3_nacos/event-contract.md`）。
+- **事件 envelope 统一携带 `eventId` / `traceId` / `version`**（详见 `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/event-contract.md`）。
 - **消费端幂等：** message-service 采用 `consumed_event` 表记录已消费 `eventId`，避免重复通知/重复副作用。
 - **索引重建：** search-service 提供 reindex 能力用于迁移期冷启动与修复（`/api/search/internal/reindex` / `/internal/search/reindex`），重建数据通过 content-service 内部 API 拉取。
 
@@ -169,11 +169,12 @@ sequenceDiagram
 
 | adr_id | title | date | status | affected_modules | details |
 |--------|-------|------|--------|------------------|---------|
-| ADR-001 | Boot 3 + Java 17 + Nacos 微服务底座 | 2026-01-16 | ✅Adopted | gateway/auth/user/content/social/message/search/analytics | [Link](../plan/202601161428_boot3_ms_vue3_nacos/how.md#adr-001-boot-3--java-17--nacos-微服务底座) |
-| ADR-002 | SPA 鉴权采用 JWT + Refresh Token，网关统一校验 | 2026-01-16 | ✅Adopted | gateway/auth | [Link](../plan/202601161428_boot3_ms_vue3_nacos/how.md#adr-002-spa-鉴权采用-jwt--refresh-token网关统一校验) |
-| ADR-003 | Kafka 事件序列化（迭代 1）采用 JSON + 字段级契约 | 2026-01-16 | ✅Adopted | content/search/message/social | [Link](../plan/202601161428_boot3_ms_vue3_nacos/how.md#adr-003-kafka-事件序列化迭代-1采用-json--字段级契约) |
-| ADR-004 | UV/DAU 采集（迭代 1）由 Gateway Filter 采集，写入 analytics-service | 2026-01-16 | ✅Adopted | gateway/analytics | [Link](../plan/202601161428_boot3_ms_vue3_nacos/how.md#adr-004-uvdau-采集迭代-1由-gateway-filter-采集写入-analytics-service-redis) |
-| ADR-005 | auth-service 与 user-service 职责边界（迭代 3） | 2026-01-16 | ✅Adopted | auth/user | [Link](../plan/202601161428_boot3_ms_vue3_nacos/how.md#adr-005-auth-service-与-user-service-职责边界迭代-3) |
-| ADR-006 | 页面聚合策略：Vue3 直连多服务，经由 Gateway 路由 | 2026-01-16 | ✅Adopted | frontend/gateway | [Link](../plan/202601161428_boot3_ms_vue3_nacos/how.md#adr-006-页面聚合策略vue3-直连多服务经由-gateway-路由) |
-| ADR-007 | 数据拆分策略阶段（共享库 → 独立库） | 2026-01-16 | ✅Adopted | user/content/social/message/search/auth | [Link](../plan/202601161428_boot3_ms_vue3_nacos/how.md#adr-007-数据拆分策略阶段共享库--独立库) |
+| ADR-001 | Boot 3 + Java 17 + Nacos 微服务底座 | 2026-01-16 | ✅Adopted | gateway/auth/user/content/social/message/search/analytics | [Link](../history/2026-01/202601161428_boot3_ms_vue3_nacos/how.md#adr-001-boot-3--java-17--nacos-微服务底座) |
+| ADR-002 | SPA 鉴权采用 JWT + Refresh Token，网关统一校验 | 2026-01-16 | ✅Adopted | gateway/auth | [Link](../history/2026-01/202601161428_boot3_ms_vue3_nacos/how.md#adr-002-spa-鉴权采用-jwt--refresh-token网关统一校验) |
+| ADR-003 | Kafka 事件序列化（迭代 1）采用 JSON + 字段级契约 | 2026-01-16 | ✅Adopted | content/search/message/social | [Link](../history/2026-01/202601161428_boot3_ms_vue3_nacos/how.md#adr-003-kafka-事件序列化迭代-1采用-json--字段级契约) |
+| ADR-004 | UV/DAU 采集（迭代 1）由 Gateway Filter 采集，写入 analytics-service | 2026-01-16 | ✅Adopted | gateway/analytics | [Link](../history/2026-01/202601161428_boot3_ms_vue3_nacos/how.md#adr-004-uvdau-采集迭代-1由-gateway-filter-采集写入-analytics-service-redis) |
+| ADR-005 | auth-service 与 user-service 职责边界（迭代 3） | 2026-01-16 | ✅Adopted | auth/user | [Link](../history/2026-01/202601161428_boot3_ms_vue3_nacos/how.md#adr-005-auth-service-与-user-service-职责边界迭代-3) |
+| ADR-006 | 页面聚合策略：Vue3 直连多服务，经由 Gateway 路由 | 2026-01-16 | ✅Adopted | frontend/gateway | [Link](../history/2026-01/202601161428_boot3_ms_vue3_nacos/how.md#adr-006-页面聚合策略vue3-直连多服务经由-gateway-路由) |
+| ADR-007 | 数据拆分策略阶段（共享库 → 独立库） | 2026-01-16 | ✅Adopted | user/content/social/message/search/auth | [Link](../history/2026-01/202601161428_boot3_ms_vue3_nacos/how.md#adr-007-数据拆分策略阶段共享库--独立库) |
 | ADR-008 | P0 选择 After-Commit 而非 Outbox（先止血） | 2026-01-18 | ✅Adopted | common/content/social/message | [Link](../history/2026-01/202601182111_prod_hardening_p0/how.md#adr-008-p0-选择-after-commit-而非-outbox先止血) |
+| ADR-009 | 从仓库主干移除历史单体模块源码（微服务终局） | 2026-01-19 | ✅Adopted | build/knowledge-base | [Link](../history/2026-01/202601191556_remove_legacy_community/how.md) |

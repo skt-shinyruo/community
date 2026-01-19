@@ -93,8 +93,6 @@ flowchart TD
 - 统一响应结构 `Result<T>`、错误码、全局异常处理
 - traceId 工具与 Filter（便于跨服务关联日志）
 
-### 2.5 legacy-community（`legacy-community/`）
-- 仅保留源码用于对照与迁移参考，不参与 docker compose 运行路径。
 
 ---
 

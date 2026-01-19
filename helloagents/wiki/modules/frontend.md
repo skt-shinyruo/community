@@ -4,7 +4,7 @@
 - Vite + Vue3 + Vue Router + Pinia + Axios
 
 ## 2. 信息架构（路由分层）
-> 目标：对齐 legacy-community 的“用户可点可用”体验，并为后续逐页打磨提供稳定路由骨架。
+> 目标：对齐 历史单体 的“用户可点可用”体验，并为后续逐页打磨提供稳定路由骨架。
 
 ### 2.1 认证域（/auth/*）
 - `/auth/login`（alias：`/login`）

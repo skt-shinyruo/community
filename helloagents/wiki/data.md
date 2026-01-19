@@ -26,7 +26,6 @@
 
 > 表归属（共享库阶段建议）：
 > - `community.user`：user-service（auth-service 迁移期可只读访问以完成登录校验）
-> - `community_content.discuss_post` / `community_content.comment`：content-service（legacy-community 迁移期逐步下线写入口）
 > - `community_message.message` / `community_message.consumed_event`：message-service
 > - `community_search.search_consumed_event`：search-service（幂等去重表）
 
@@ -122,8 +121,6 @@
 
 > 具体 key 生成逻辑见 `RedisKeyUtil`。
 
-- **登录凭证（legacy 迁移期/Deprecated）：** `ticket:<ticket>`（归属：legacy-community）
-- **验证码（legacy 迁移期/Deprecated）：** `kaptcha:<owner>`（归属：legacy-community）
 - **实体点赞集合：** `like:entity:<entityType>:<entityId>`（Set，归属：social-service）
 - **用户被赞计数：** `like:user:<userId>`（String counter，归属：social-service）
 - **关注列表：** `followee:<userId>:<entityType>`（ZSet，归属：social-service）
@@ -131,7 +128,6 @@
 - **UV：** `uv:<yyyy-MM-dd>`（HyperLogLog）+ `uv:<start>:<end>`（union 结果，归属：analytics-service）
 - **DAU：** `dau:<yyyy-MM-dd>`（Bitmap）+ `dau:<start>:<end>`（OR 结果，归属：analytics-service）
 - **帖子分数刷新集合：** `post:score`（Set，归属：content-service）
-- **验证码（auth-service）：**
   - `captcha:<captchaId>`（String，归属：auth-service）
   - `captcha:fail:<captchaId>`（String counter + TTL，归属：auth-service）
 - **登录失败限流（auth-service）：** `auth:login:fail:ip:<ip>` / `auth:login:fail:user:<username>`（String counter + TTL）

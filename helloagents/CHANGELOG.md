@@ -7,7 +7,7 @@
 ## [Unreleased]
 
 ### Added
-- Maven 多模块工程：`legacy-community`、`common`、`gateway`、`auth-service`。
+- Maven 多模块微服务工程：`common`、`gateway`、`auth-service`、`user-service`、`content-service`、`social-service`、`message-service`、`search-service`、`analytics-service`（见根 `pom.xml`）。
 - `common` 统一返回 `Result<T>` / 错误码 / 全局异常 / traceId Filter。
 - `gateway`：JWT 验签 + 路由 `/api/auth/** -> auth-service` + CORS + traceId 透传。
 - `auth-service`：`/api/auth/login|refresh|logout|me`（JWT access + refresh cookie 旋转，Redis 存储）。
@@ -35,7 +35,6 @@
 
 ### Changed
 - 父工程升级到 Spring Boot 3.2.6 + Java 17，并加入 Maven Enforcer 门禁。
-- `legacy-community` 完成 Jakarta 迁移与 Security 6 适配，迁移期默认不自动启动 Kafka Listener。
 - `gateway` 增加 `spring-cloud-starter-loadbalancer` 依赖，修复 `lb://` 路由无法解析实例导致的 503（`Unable to find instance`）。
 - `deploy/docker-compose.yml` Kafka 镜像调整为 `confluentinc/cp-kafka` + `cp-zookeeper`（替代不可用的 bitnami/kafka 标签）。
 - `deploy/docker-compose.yml` 不再包含 `community-edge`（Nginx），基础 compose 默认不提供“前端统一入口”容器；新增可选端口映射覆盖文件 `deploy/docker-compose.ports.yml`。
@@ -62,8 +61,8 @@
 - 修复 `scripts/smoke-i0-auth.sh` 在 zsh 环境下无法通过 `USERNAME` 覆盖账号、且错误打印 Python 片段导致脚本中断的问题（改用 `SMOKE_USERNAME/SMOKE_PASSWORD` + 直接输出响应）。
 
 ### Removed
-- `legacy-community` 中的 Elasticsearch 旧实现（迁移期降级，后续迭代 1 由 `search-service` 重写）。
-- 移除 legacy 切流/回滚相关 docker compose 与脚本（`deploy/docker-compose.cutover.yml`、`scripts/cutover/*`）；legacy-community 仅保留源码对照。
+- 移除历史单体切流/回滚相关 docker compose 与脚本（`deploy/docker-compose.cutover.yml`、`scripts/cutover/*`）。
+- 移除历史单体模块源码与 Maven module（微服务终局收敛）。
 - 移除 `community-edge`（Nginx）容器与相关配置（`deploy/Dockerfile.edge`、`deploy/edge/*`），本地入口统一采用“前端直连 gateway”模式。
 - 移除 API 级自动化回归工程与相关 CI job（Playwright request），仓库默认不再提供端到端自动回归门禁。
 

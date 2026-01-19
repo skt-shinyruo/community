@@ -8,6 +8,7 @@
 
 | Timestamp | Feature Name | Type | Status | Solution Package Path |
 |-----------|--------------|------|--------|----------------------|
+| 202601191556 | remove_legacy_community | Refactor | ✅Completed | [202601191556_remove_legacy_community](2026-01/202601191556_remove_legacy_community/) |
 | 2026-01-16 14:28 | boot3_ms_vue3_nacos | Development Implementation | ✅ Completed | helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos |
 | 2026-01-17 09:35 | legacy_cutover_prod_parity | Development Implementation | ✅ Completed | helloagents/history/2026-01/202601170935_legacy_cutover_prod_parity |
 | 2026-01-17 16:22 | ui_rebuild_parity | Development Implementation | ✅ Completed | helloagents/history/2026-01/202601171622_ui_rebuild_parity |
@@ -29,6 +30,7 @@
 ## Archive by Month
 
 ### 2026-01
+- [202601191556_remove_legacy_community](2026-01/202601191556_remove_legacy_community/) - 移除历史单体模块源码与构建入口（微服务终局）
 - 202601161428_boot3_ms_vue3_nacos
 - 202601170935_legacy_cutover_prod_parity
 - 202601171622_ui_rebuild_parity

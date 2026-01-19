@@ -9,11 +9,12 @@
 ### 背景与目标
 该项目是一个“讨论社区”Web 应用，核心能力包括：注册/登录、发帖、评论/回复、点赞、关注、私信与系统通知、全局搜索、UV/DAU 统计、热帖分数刷新等。
 
-当前仓库同时包含：
-- **legacy-community（旧单体源码）**：仅保留源码用于对照与迁移参考（不再纳入 docker compose 部署与切流）。
-- **目标态微服务体系（gateway + 多服务 + Vue3）**：作为生产交付目标，支持全依赖（Nacos/MySQL/Redis/Kafka/Elasticsearch）、可观测（Metrics/Logs/Trace）、灰度/回滚与备份/恢复。
+当前仓库以 **微服务 + 前后端分离** 为唯一主路径：
+- **后端：** `gateway` + 各领域 `*-service`
+- **前端：** Vue3 SPA（`frontend/`）
+- **本地环境：** `deploy/` 目录提供 docker compose 一键拉起全依赖与全链路
 
-目标是：在完成 **旧单体 100% 功能等价** 与生产级运维能力补齐后，逐步 **下线 legacy-community（仅保留源码存档）**。
+> 说明：历史单体（迁移期模块）已从仓库主干移除；历史决策/迁移记录保留在 `helloagents/history/`，用于追溯与对照。
 
 ### Scope
 - **In scope：**
@@ -37,14 +38,13 @@
 |-------------|----------------|--------|---------------|
 | common | 统一 Result/错误码/异常处理/traceId | ✅Stable | [common](modules/common.md) |
 | gateway | 统一入口：路由/CORS/鉴权/trace/错误收敛 | ✅Stable | [gateway](modules/gateway.md) |
-| auth-service | 登录/刷新/登出闭环（JWT + Redis refresh rotation） | ✅Stable | [auth-service](modules/auth-service.md) |
-| search-service | 搜索服务（Kafka 消费 + ES 索引 + 高亮 + reindex） | ✅Stable | [search](modules/search.md) |
-| message-service | 通知/私信服务（Kafka 消费 + MySQL，含聚合接口） | ✅Stable | [message](modules/message.md) |
-| analytics-service | 统计服务（UV/DAU，Redis；网关采集写入） | ✅Stable | [analytics](modules/analytics.md) |
+| auth-service | 登录/刷新/登出闭环（JWT + refresh rotation） | ✅Stable | [auth-service](modules/auth-service.md) |
 | user-service | 用户资料与头像（Qiniu） | ✅Stable | [user](modules/user.md) |
 | content-service | 帖子/评论/热帖/敏感词过滤（Kafka + Redis + MySQL） | ✅Stable | [content](modules/content.md) |
 | social-service | 点赞/关注/粉丝（Redis + Kafka） | ✅Stable | [social](modules/social.md) |
-| legacy-community | 旧单体源码（仅对照/迁移参考，不部署） | 🟡Reference | [legacy-community](modules/legacy-community.md) |
+| message-service | 通知/私信服务（Kafka 消费 + MySQL，含聚合接口） | ✅Stable | [message](modules/message.md) |
+| search-service | 搜索服务（Kafka 消费 + ES 索引 + 高亮 + reindex） | ✅Stable | [search](modules/search.md) |
+| analytics-service | 统计服务（UV/DAU，Redis；网关采集写入） | ✅Stable | [analytics](modules/analytics.md) |
 | frontend | Vue3 SPA（Vite + Router + Pinia + Axios） | ✅Stable | [frontend](modules/frontend.md) |
 
 > 注：生产级交付相关操作入口见：`deploy/`、`scripts/`、`helloagents/wiki/runbooks/`。

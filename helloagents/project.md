@@ -10,7 +10,6 @@
 - **后端：** Spring Boot 3.2.6 + 多模块 Maven（父工程 `pom.xml`）
 - **语言：** Java 17（父工程 `pom.xml` 强制门禁）
 - **当前模块：**
-  - `legacy-community`：迁移期单体（Boot 3 + Security 6 + Thymeleaf），用于承载旧功能逐步下线
   - `common`：统一 `Result<T>` / 错误码 / 全局异常 / traceId（目标态规范基线）
   - `gateway`：Spring Cloud Gateway（统一入口：CORS/鉴权/trace/错误收敛）
   - `auth-service`：JWT 登录/刷新/登出（refresh token 旋转，Redis/内存存储可切换）
@@ -22,10 +21,9 @@
   - `analytics-service`：UV/DAU（默认 Redis，gateway 可采集写入）
   - `frontend`：Vue3 SPA（Vite + Router + Pinia + Axios）
 - **持久化：** MyBatis + MySQL（迭代 0 仍复用 legacy 的 user 表）
-- **缓存：** Redis（legacy 的点赞/关注/ticket/kaptcha/UV/DAU 等；auth 的 refresh token 旋转默认建议使用 Redis）
+- **缓存：** Redis（auth refresh token、social 点赞/关注、analytics UV/DAU 等）
 - **安全：** Spring Security 6（gateway/auth/legacy）
 - **服务治理：** Spring Cloud 2023.0.x + Spring Cloud Alibaba 2023.x + Nacos（注册发现/配置中心）
-- **其他：** Actuator（健康检查）、Caffeine（legacy 热帖缓存）、七牛（user-service/legacy-community 头像上传）
 
 > 注：legacy 的 Elasticsearch 实现已在迁移期降级移除（后续迭代 1 将以独立 `search-service` 重写）。
 

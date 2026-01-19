@@ -29,3 +29,14 @@ groups:
         annotations:
           summary: "网关限流 Redis 异常"
           description: "网关限流模块出现 Redis 错误（rule={{ $labels.rule }}），请检查 Redis 可用性与网络。"
+
+  - name: kafka-dlq
+    rules:
+      - alert: KafkaDlqPublished
+        expr: sum by (job, original_topic) (increase(kafka_dlq_published_total[5m])) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kafka DLQ 有新增消息: {{ $labels.job }}"
+          description: "近 5 分钟内 DLQ 产生了新消息（original_topic={{ $labels.original_topic }}）。请结合服务日志定位失败原因，并评估是否需要回放。"

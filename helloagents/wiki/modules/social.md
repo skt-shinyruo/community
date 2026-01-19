@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 点赞/取消点赞；统计实体点赞数；关注/取关；关注列表/粉丝列表
 - **Status：** ✅Stable
-- **Last Updated：** 2026-01-16
+- **Last Updated：** 2026-01-18
 
 ## Specifications
 
@@ -18,7 +18,7 @@
 前置条件：用户已登录
 - Redis 记录点赞关系
 - 更新被赞用户的获赞计数
-- 触发点赞事件（通知）
+- 触发点赞事件（通知；若处于事务中则 After-Commit 发送，避免幽灵事件）
 
 ### Requirement: 关注/粉丝
 **Module:** social
@@ -27,7 +27,7 @@
 #### Scenario: 关注用户
 前置条件：用户已登录
 - ZSet 记录关注时间
-- 触发关注事件（通知）
+- 触发关注事件（通知；若处于事务中则 After-Commit 发送，避免幽灵事件）
 
 ## API Interfaces（现状）
 - `POST /api/likes`（显式 liked=true/false，幂等）
@@ -47,4 +47,4 @@
 - infra（Redis/Kafka）
 
 ## Change History
-- （暂无）
+- 2026-01-18：Kafka 事件发布统一 After-Commit 策略（在事务活跃时 commit 后发送），并补齐发布失败指标用于观测。

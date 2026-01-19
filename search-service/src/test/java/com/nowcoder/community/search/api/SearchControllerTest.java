@@ -6,6 +6,7 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,6 +18,8 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -28,6 +31,9 @@ class SearchControllerTest {
     @Autowired
     MockMvc mockMvc;
 
+    @MockBean
+    com.nowcoder.community.search.service.ContentServiceClient contentServiceClient;
+
     @Test
     void searchPostsShouldBePublic() throws Exception {
         mockMvc.perform(get("/api/search/posts").param("keyword", "k"))
@@ -36,6 +42,24 @@ class SearchControllerTest {
 
     @Test
     void reindexThenSearchShouldHighlight() throws Exception {
+        com.nowcoder.community.search.api.dto.ContentPostScanResponse page1 = new com.nowcoder.community.search.api.dto.ContentPostScanResponse();
+        com.nowcoder.community.common.event.payload.PostPayload post = new com.nowcoder.community.common.event.payload.PostPayload();
+        post.setPostId(1);
+        post.setUserId(1);
+        post.setTitle("hello title");
+        post.setContent("hello content");
+        post.setCreateTime(Instant.now());
+        page1.setItems(List.of(post));
+        page1.setNextAfterId(1);
+        page1.setHasMore(false);
+
+        com.nowcoder.community.search.api.dto.ContentPostScanResponse page2 = new com.nowcoder.community.search.api.dto.ContentPostScanResponse();
+        page2.setItems(List.of());
+        page2.setNextAfterId(1);
+        page2.setHasMore(false);
+
+        when(contentServiceClient.scanPosts(anyInt(), anyInt())).thenReturn(page1, page2);
+
         SignedJWT jwt = new SignedJWT(
                 new JWSHeader(JWSAlgorithm.HS256),
                 new JWTClaimsSet.Builder()

@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 发帖；帖子详情；评论/回复；敏感词过滤；热帖分数刷新；与搜索/通知联动
 - **Status：** ✅Stable
-- **Last Updated：** 2026-01-16
+- **Last Updated：** 2026-01-19
 
 ## Specifications
 
@@ -17,7 +17,7 @@
 #### Scenario: 发布帖子
 前置条件：用户已登录
 - 发布成功
-- 触发发帖事件（用于搜索索引/通知等）
+- 触发发帖事件（用于搜索索引/通知等；DB 事务提交后 After-Commit 发送，避免幽灵事件）
 
 #### Scenario: 浏览帖子详情
 前置条件：帖子存在
@@ -32,7 +32,7 @@
 前置条件：用户已登录
 - 评论写入数据库
 - 更新帖子评论数
-- 触发评论事件（通知）
+- 触发评论事件（通知；DB 事务提交后 After-Commit 发送，避免幽灵事件）
 
 ### Requirement: 敏感词过滤
 **Module:** content
@@ -46,7 +46,7 @@
 根据精华/评论数/点赞数/时间计算帖子分数，并周期刷新。
 
 #### Scenario: 帖子被点赞/评论后进入刷新集合
-- Redis `post:score` 集合写入帖子 ID
+- Redis `post:score` 集合写入帖子 ID（在 DB 事务提交后执行，避免回滚仍触发刷新）
 - Quartz 任务周期刷新分数并同步到搜索
 
 ## API Interfaces（现状）
@@ -54,6 +54,7 @@
 - `POST /api/posts`（敏感词过滤 + XSS 处理 + 发布 PostPublished）
 - `GET /api/posts/{postId}`（包含 likeCount/liked）
 - `GET /api/posts/{postId}/comments`、`POST /api/posts/{postId}/comments`（发布 CommentCreated）
+- `GET /internal/content/posts`（内部接口：需要 `X-Internal-Token`；供 search-service 重建索引扫描帖子）
 
 ## Data Models
 ### discuss_post
@@ -70,4 +71,5 @@
 - infra（Quartz、Redis、Kafka）
 
 ## Change History
-- （暂无）
+- 2026-01-18：写路径事件发布改为 After-Commit（避免 DB 回滚仍发事件），并将热度刷新 enqueue 延后到事务提交后执行。
+- 2026-01-19：补充内部帖子扫描接口（`/internal/content/posts`），用于支持 search-service 在严格 schema 隔离下完成 reindex 冷启动。

@@ -28,6 +28,10 @@
 - 前端单测补齐：`Result` 解析、`authGuard`、`http` 拦截器与 refresh 逻辑。
 - auth-service：找回密码 API（`/api/auth/password/reset/request|confirm`），默认验证码强制；本地/测试可回传 resetLink。
 - auth-service：测试分层补齐——新增 `@WebMvcTest` 切片测试（mock 下游依赖）；`@SpringBootTest` 集成测试使用 Testcontainers 启动 Redis，避免 CI 因缺少 Redis 返回 500。
+- `common`：新增事务提交后执行工具 `AfterCommitExecutor`（P0 用于消除幽灵事件）。
+- `deploy/mysql-init/`：支持 MySQL 同实例多 schema + 最小权限账号（非身份域先拆：content/message/search）。
+- Kafka DLQ 运维：新增 `kafka_dlq_published_total` 指标/告警与 `scripts/kafka-replay-dlq.sh` 回放脚本（默认 dry-run + 限量/限速）。
+- content-service：新增内部帖子扫描接口 `GET /internal/content/posts`（`X-Internal-Token`），供 search-service 在严格 schema 隔离下完成 reindex 冷启动与修复。
 
 ### Changed
 - 父工程升级到 Spring Boot 3.2.6 + Java 17，并加入 Maven Enforcer 门禁。
@@ -46,6 +50,16 @@
 - `frontend` 工作区体验细节增强：新增右侧上下文面板（可持久化开关）、Topbar 搜索 query 回填联动，以及密度 tokens（card/content padding、字号层级）精细化。
 - 验证码流程对齐业界最佳实践：`GET /api/auth/captcha` 由 PNG+cookie 改为 `captchaId + imageBase64`（JSON）；校验支持一次性失效 + 失败次数阈值作废；登录改为风险触发强制验证码，注册/找回密码默认强制。
 - 安全检查脚本优化：`scripts/secret-scan.sh` 改为仅扫描 git tracked 文件，避免本地 `deploy/.env`（gitignored）阻断 `scripts/security-check.sh`，同时仍会阻止 `deploy/.env` 被提交。
+- Kafka 生产端（content/social）：在事务活跃时改为 After-Commit 发送，避免 DB 回滚但事件已发出。
+- Kafka 消费端（message）：幂等与业务写入合并为同事务提交，listener 仅在成功后 ack。
+
+### Fixed
+- 修复 message-service 消费端“自调用导致事务不生效 + 幂等记录先写导致永久丢通知”的高风险路径。
+- 修复 content-service/social-service 写路径“事务内直接 send Kafka”导致的幽灵事件风险（After-Commit）。
+- 修复同步调用缺少超时/降级导致的级联雪崩风险（user-service -> social-service）。
+- 修复 search-service 在 Elasticsearch 读路径因 `Instant createTime` 映射不一致导致“有命中即 500”的问题（改为以 epoch millis 存储/读取）。
+- 修复 search-service `/internal/search/reindex` 在多 schema 模式下的重建流程：改为调用 content-service 内部 API 扫描帖子数据，移除对 `community_content.*` 的跨 schema 直读与额外 SELECT 授权依赖。
+- 修复 `scripts/smoke-i0-auth.sh` 在 zsh 环境下无法通过 `USERNAME` 覆盖账号、且错误打印 Python 片段导致脚本中断的问题（改用 `SMOKE_USERNAME/SMOKE_PASSWORD` + 直接输出响应）。
 
 ### Removed
 - `legacy-community` 中的 Elasticsearch 旧实现（迁移期降级，后续迭代 1 由 `search-service` 重写）。

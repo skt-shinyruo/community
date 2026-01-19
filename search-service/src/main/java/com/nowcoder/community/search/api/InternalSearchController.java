@@ -27,7 +27,7 @@ public class InternalSearchController {
     @PostMapping("/reindex")
     public Result<ReindexResponse> reindex(@RequestHeader(name = "X-Internal-Token", required = false) String token) {
         assertInternalToken(token);
-        int count = postSearchService.clearAndReindexFromDb();
+        int count = postSearchService.clearAndReindexFromContentService();
         return Result.ok(new ReindexResponse(count));
     }
 

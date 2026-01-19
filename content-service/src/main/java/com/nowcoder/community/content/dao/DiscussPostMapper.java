@@ -11,6 +11,11 @@ public interface DiscussPostMapper {
 
     List<DiscussPost> selectDiscussPosts(int userId, int offset, int limit, int orderMode);
 
+    /**
+     * 供内部重建索引等后台任务使用：按主键游标向后扫描帖子，避免 offset 分页在大表上的性能问题。
+     */
+    List<DiscussPost> selectDiscussPostsAfterId(@Param("afterId") int afterId, @Param("limit") int limit);
+
     int selectDiscussPostRows(@Param("userId") int userId);
 
     int insertDiscussPost(DiscussPost discussPost);

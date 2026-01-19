@@ -2,12 +2,15 @@ package com.nowcoder.community.content.service;
 
 import com.nowcoder.community.common.event.payload.CommentPayload;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import com.nowcoder.community.content.dao.CommentMapper;
 import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.event.ContentEventPublisher;
 import com.nowcoder.community.content.score.PostScoreQueue;
 import com.nowcoder.community.content.util.SensitiveFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.util.HtmlUtils;
@@ -24,6 +27,8 @@ public class CommentService {
 
     public static final int ENTITY_TYPE_POST = 1;
     public static final int ENTITY_TYPE_COMMENT = 2;
+
+    private static final Logger log = LoggerFactory.getLogger(CommentService.class);
 
     private final CommentMapper commentMapper;
     private final PostService postService;
@@ -107,7 +112,15 @@ public class CommentService {
         if (type == ENTITY_TYPE_POST) {
             int commentCount = commentMapper.selectCountByEntity(ENTITY_TYPE_POST, postId);
             postService.updateCommentCount(postId, commentCount);
-            postScoreQueue.add(postId);
+
+            // 热度刷新属于非 DB 副作用：延后到事务提交后，避免回滚仍触发刷新。
+            AfterCommitExecutor.runAfterCommit(() -> {
+                try {
+                    postScoreQueue.add(postId);
+                } catch (Exception e) {
+                    log.warn("[post-score] enqueue failed after commit (postId={}): {}", postId, e.toString());
+                }
+            });
         }
 
         CommentPayload payload = new CommentPayload();

@@ -800,75 +800,109 @@ em {
   color: var(--text-1);
 }
 
-  /* ---------- skeletons ---------- */
+/* ---------- skeletons ---------- */
 
-  @keyframes shimmer {
-    0% {
-      background-position: -200% 0;
-    }
-
-    100% {
-      background-position: 200% 0;
-    }
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
   }
 
-  .skeleton {
-    background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 37%, var(--surface-2) 63%);
-    background-size: 200% 100%;
-    animation: shimmer 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-    border-radius: var(--radius-sm);
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 37%, var(--surface-2) 63%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-text {
+  height: 1em;
+  margin-bottom: 0.5em;
+}
+
+.skeleton-card {
+  padding: 16px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  gap: 16px;
+}
+
+/* ---------- mobile sidebar overlay ---------- */
+/* ---------- skeletons ---------- */
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
   }
 
-  .skeleton-text {
-    height: 1em;
-    margin-bottom: 0.5em;
+  100% {
+    background-position: 200% 0;
   }
+}
 
-  .skeleton-card {
-    padding: 16px;
-    border-radius: var(--radius-md);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    display: flex;
-    gap: 16px;
-  }
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 37%, var(--surface-2) 63%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  border-radius: var(--radius-sm);
+}
 
-  /* ---------- mobile sidebar overlay ---------- */
+.skeleton-text {
+  height: 1em;
+  margin-bottom: 0.5em;
+}
 
+.skeleton-card {
+  padding: 16px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  gap: 16px;
+}
+
+/* ---------- mobile sidebar overlay ---------- */
+
+.sidebar-overlay {
+  display: none;
+}
+
+@media (max-width: 768px) {
   .sidebar-overlay {
-    display: none;
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 99;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
   }
 
-	  @media (max-width: 768px) {
-	    .sidebar-overlay {
-	      display: block;
-	      position: fixed;
-	      inset: 0;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: 99;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.2s;
-    }
+  .sidebar-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
 
-    .sidebar-overlay.open {
-      opacity: 1;
-      pointer-events: auto;
-	    }
+  /* Force sidebar to be fixed on mobile if open */
+  .app-sidebar.mobile-open {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 240px;
+    z-index: 100;
+    box-shadow: var(--shadow-lg);
+    border-right: none;
+  }
+}
 
-	    /* Force sidebar to be fixed on mobile if open */
-	    .app-sidebar.mobile-open {
-	      position: fixed;
-	      left: 0;
-	      top: 0;
-	      bottom: 0;
-	      width: 240px;
-	      z-index: 100;
-	      box-shadow: var(--shadow-lg);
-	      border-right: none;
-	    }
-
-	    .empty {
-	      padding: 12px 0;
-	    }
-	  }
+.empty {
+  padding: 12px 0;
+}

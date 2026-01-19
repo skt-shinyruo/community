@@ -2,9 +2,9 @@
 <template>
   <UiToast :type="app.toast.type" :message="app.toast.message" @close="app.clearToast()" />
 
-  <AuthShell v-if="isAuthRoute">
+  <div v-if="isAuthRoute" style="min-height: 100vh; background: var(--bg)">
     <RouterView @trace="app.setTraceId($event)" />
-  </AuthShell>
+  </div>
 
   <AppShell v-else>
     <RouterView v-slot="{ Component }">
@@ -18,10 +18,11 @@
   </AppShell>
   
   <UiToast ref="toastRef" />
+  <UiScrollTop />
 </template>
 
 <script setup>
-import { onMounted, provide, ref } from 'vue'
+import { computed, onMounted, provide, ref } from 'vue'
 import { useRoute, RouterView } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 import { useAppStore } from './stores/app'
@@ -30,6 +31,7 @@ import AppShell from './components/layout/AppShell.vue'
 import AuthShell from './components/layout/AuthShell.vue'
 import RightPanel from './components/layout/RightPanel.vue'
 import UiToast from './components/ui/UiToast.vue'
+import UiScrollTop from './components/ui/UiScrollTop.vue'
 
 const auth = useAuthStore()
 const app = useAppStore()

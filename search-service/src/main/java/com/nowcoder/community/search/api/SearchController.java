@@ -33,7 +33,7 @@ public class SearchController {
 
     @PostMapping("/internal/reindex")
     public Result<ReindexResponse> reindex() {
-        int count = postSearchService.clearAndReindexFromDb();
+        int count = postSearchService.clearAndReindexFromContentService();
         return Result.ok(new ReindexResponse(count));
     }
 }

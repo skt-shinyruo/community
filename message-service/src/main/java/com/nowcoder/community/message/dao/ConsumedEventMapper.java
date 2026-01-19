@@ -10,6 +10,10 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface ConsumedEventMapper {
 
+    /**
+     * 仅用于排查/测试：生产消费逻辑应使用 insert-first（以唯一约束为准），避免 count->insert 的竞态窗口。
+     */
+    @Deprecated
     @Select("select count(1) from consumed_event where event_id = #{eventId}")
     int countByEventId(@Param("eventId") String eventId);
 

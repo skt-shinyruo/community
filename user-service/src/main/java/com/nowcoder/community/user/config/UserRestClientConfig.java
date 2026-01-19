@@ -11,8 +11,10 @@ public class UserRestClientConfig {
 
     @Bean
     @LoadBalanced
-    public RestTemplate loadBalancedRestTemplate(RestTemplateBuilder builder) {
-        return builder.build();
+    public RestTemplate loadBalancedRestTemplate(RestTemplateBuilder builder, SocialServiceClientProperties properties) {
+        return builder
+                .setConnectTimeout(properties.getConnectTimeout())
+                .setReadTimeout(properties.getReadTimeout())
+                .build();
     }
 }
-

@@ -20,7 +20,7 @@ function resolveApiBaseUrl() {
     if ((loc.hostname === 'localhost' || loc.hostname === '127.0.0.1') && loc.port === '12881') {
       return `${loc.protocol}//${loc.hostname}:12882`
     }
-  } catch {}
+  } catch { }
 
   return ''
 }
@@ -49,7 +49,19 @@ http.interceptors.response.use(
     const original = error?.config || {}
     const url = original?.url || ''
 
-    const isAuthEndpoint = url.includes('/api/auth/login') || url.includes('/api/auth/refresh')
+    const isAuthEndpoint = url.includes('/api/auth/login') || url.includes('/api/auth/refresh') || url.includes('/api/auth/register')
+
+    // Global Error Toast for 5xx or Network Errors
+    if (status >= 500 || error.code === 'ERR_NETWORK') {
+      if (typeof window !== 'undefined' && window.$toast) {
+        window.$toast({
+          type: 'error',
+          title: 'System Error',
+          text: error.message || 'Server error, please try again later.'
+        })
+      }
+    }
+
     if (status === 401 && !original._retry && !isAuthEndpoint) {
       original._retry = true
       try {
@@ -73,7 +85,7 @@ http.interceptors.response.use(
           if (typeof globalThis !== 'undefined' && globalThis.location) {
             globalThis.location.href = '/#/auth/login'
           }
-        } catch {}
+        } catch { }
         return Promise.reject(e)
       }
     }

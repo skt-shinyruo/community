@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 用户资料查询；个人主页展示所需数据；头像上传（七牛）与头像 URL 回写
 - **Status：** ✅Stable
-- **Last Updated：** 2026-01-16
+- **Last Updated：** 2026-01-18
 
 ## Specifications
 
@@ -18,6 +18,9 @@
 前置条件：用户存在
 - 返回用户资料与统计信息
 - 登录态存在时返回是否关注该用户
+
+> P0 生产可用：个人主页聚合依赖 social-service，同步调用必须具备超时 + 降级 + 可观测，
+> 避免下游短暂不可用拖垮上游线程池与网关链路。
 
 ### Requirement: 用户头像设置
 **Module:** user
@@ -43,4 +46,4 @@
 - external: Qiniu
 
 ## Change History
-- （暂无）
+- 2026-01-18：补齐 user-service -> social-service 同步调用韧性（强制超时、降级返回默认值、指标可观测）。

@@ -14,6 +14,7 @@ import org.springframework.data.elasticsearch.core.query.Query;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
 import java.util.List;
 
 @Repository
@@ -38,7 +39,7 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
         doc.setContent(post.getContent());
         doc.setType(post.getType());
         doc.setStatus(post.getStatus());
-        doc.setCreateTime(post.getCreateTime());
+        doc.setCreateTime(post.getCreateTime() == null ? null : post.getCreateTime().toEpochMilli());
         doc.setScore(post.getScore());
         operations.save(doc);
     }
@@ -87,7 +88,7 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
         if (doc != null) {
             item.setPostId(doc.getPostId() == null ? 0 : doc.getPostId());
             item.setTitle(doc.getTitle());
-            item.setCreateTime(doc.getCreateTime());
+            item.setCreateTime(doc.getCreateTime() == null ? null : Instant.ofEpochMilli(doc.getCreateTime()));
             item.setScore(doc.getScore());
             if (StringUtils.hasText(keyword)) {
                 item.setHighlightedTitle(highlight(doc.getTitle(), keyword));
@@ -104,4 +105,3 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
         return text.replace(keyword, "<em>" + keyword + "</em>");
     }
 }
-

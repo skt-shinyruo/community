@@ -11,13 +11,29 @@
     <div class="sidebar-scroll" style="padding: 0 12px">
       <div class="nav-group">
         <div class="nav-group-title" v-if="!ui.sidebarCollapsed">Explore</div>
-        <RouterLink class="nav-item" to="/posts" title="帖子" @click="isMobile ? ui.setSidebarCollapsed(true) : null">
+        <RouterLink class="nav-item" to="/posts" title="全站">
           <span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg></span>
-          <span class="nav-text" v-if="!ui.sidebarCollapsed">Feed</span>
+          <span class="nav-text" v-if="!ui.sidebarCollapsed">All Posts</span>
         </RouterLink>
-        <RouterLink class="nav-item" to="/search" title="搜索" @click="isMobile ? ui.setSidebarCollapsed(true) : null">
+         <RouterLink class="nav-item" to="/search" title="搜索">
            <span class="nav-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></span>
           <span class="nav-text" v-if="!ui.sidebarCollapsed">Search</span>
+        </RouterLink>
+      </div>
+
+       <div class="nav-group" style="margin-top: 24px">
+        <div class="nav-group-title" v-if="!ui.sidebarCollapsed">Boards</div>
+        <RouterLink class="nav-item" to="/posts?type=tech" title="技术">
+          <span class="nav-icon"><span style="font-size: 14px">💻</span></span>
+          <span class="nav-text" v-if="!ui.sidebarCollapsed">Tech</span>
+        </RouterLink>
+        <RouterLink class="nav-item" to="/posts?type=life" title="生活">
+          <span class="nav-icon"><span style="font-size: 14px">☕</span></span>
+          <span class="nav-text" v-if="!ui.sidebarCollapsed">Life</span>
+        </RouterLink>
+        <RouterLink class="nav-item" to="/posts?type=feedback" title="反馈">
+          <span class="nav-icon"><span style="font-size: 14px">📢</span></span>
+          <span class="nav-text" v-if="!ui.sidebarCollapsed">Feedback</span>
         </RouterLink>
       </div>
       
@@ -51,8 +67,13 @@
     </div>
 
     <!-- Bottom User Area -->
-    <div class="sidebar-footer" style="padding: 16px; border-top: 1px solid var(--border)">
-       <button class="btn-icon" @click="ui.toggleSidebar" style="margin: 0 auto">
+    <div class="sidebar-footer row" style="padding: 16px; border-top: 1px solid var(--border); justify-content: space-between">
+       <button class="btn-icon" @click="toggleTheme" title="切换主题">
+          <span v-if="theme === 'dark'">☀️</span>
+          <span v-else>🌙</span>
+       </button>
+
+       <button class="btn-icon" @click="ui.toggleSidebar">
          <svg v-if="ui.sidebarCollapsed" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"/></svg>
          <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
        </button>

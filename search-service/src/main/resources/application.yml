@@ -29,7 +29,7 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
   datasource:
-    url: ${SEARCH_DB_URL:jdbc:mysql://127.0.0.1:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
+    url: ${SEARCH_DB_URL:jdbc:mysql://127.0.0.1:3306/community_search?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
     username: ${SEARCH_DB_USERNAME:${MYSQL_USER:}}
     password: ${SEARCH_DB_PASSWORD:${MYSQL_PASSWORD:}}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -38,7 +38,13 @@ spring:
 
 search:
   storage: es
-  internal-token: ${SEARCH_INTERNAL_TOKEN:}
+  internal-token: ${SEARCH_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+  content-client:
+    base-url: ${CONTENT_SERVICE_BASE_URL:http://content-service:8088}
+    internal-token: ${CONTENT_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+    connect-timeout: 200ms
+    read-timeout: 5s
+    page-size: 500
 
 management:
   endpoints:

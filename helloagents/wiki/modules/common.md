@@ -15,6 +15,8 @@
 - 全局异常：
   - `com.nowcoder.community.common.web.GlobalExceptionHandler`
   - `com.nowcoder.community.common.web.SecurityExceptionHandler`（仅在存在 Security 类时启用）
+- 事务工具：
+  - `com.nowcoder.community.common.tx.AfterCommitExecutor`：在事务提交后执行非 DB 副作用（Kafka 发送、缓存刷新等），用于 P0 消除“幽灵事件”。
 
 ## 3. 约定
 - 服务端统一输出 `Result<T>`，避免 Controller 拼接字符串 JSON。

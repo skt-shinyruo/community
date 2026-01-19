@@ -16,7 +16,7 @@ spring:
         group: ${NACOS_GROUP:DEFAULT_GROUP}
         file-extension: yaml
   datasource:
-    url: ${MESSAGE_DB_URL:jdbc:mysql://127.0.0.1:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
+    url: ${MESSAGE_DB_URL:jdbc:mysql://127.0.0.1:3306/community_message?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
     username: ${MESSAGE_DB_USERNAME:${MYSQL_USER:}}
     password: ${MESSAGE_DB_PASSWORD:${MYSQL_PASSWORD:}}
     driver-class-name: com.mysql.cj.jdbc.Driver

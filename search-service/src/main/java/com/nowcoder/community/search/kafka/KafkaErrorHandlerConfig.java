@@ -2,6 +2,8 @@ package com.nowcoder.community.search.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.event.EventTopics;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tags;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,8 +18,16 @@ import java.time.Instant;
 public class KafkaErrorHandlerConfig {
 
     @Bean
-    public DefaultErrorHandler kafkaErrorHandler(KafkaTemplate<String, String> kafkaTemplate, ObjectMapper objectMapper) {
+    public DefaultErrorHandler kafkaErrorHandler(KafkaTemplate<String, String> kafkaTemplate, ObjectMapper objectMapper, MeterRegistry meterRegistry) {
         ConsumerRecordRecoverer recoverer = (ConsumerRecord<?, ?> record, Exception ex) -> {
+            meterRegistry.counter(
+                    "kafka_dlq_published_total",
+                    Tags.of(
+                            "original_topic", record.topic(),
+                            "error_type", ex.getClass().getSimpleName()
+                    )
+            ).increment();
+
             KafkaDlqRecord dlq = new KafkaDlqRecord();
             dlq.setOriginalTopic(record.topic());
             dlq.setOriginalPartition(record.partition());
@@ -38,4 +48,3 @@ public class KafkaErrorHandlerConfig {
         return new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3L));
     }
 }
-

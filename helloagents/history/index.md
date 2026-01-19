@@ -21,6 +21,8 @@
 | 2026-01-18 11:51 | captcha_id_best_practice | Development Implementation | ✅ Completed | helloagents/history/2026-01/202601181151_captcha_id_best_practice |
 | 2026-01-18 14:48 | origin_lock_frontend_12881 | Lightweight Iteration | ✅ Completed | helloagents/history/2026-01/202601181448_origin_lock_frontend_12881 |
 | 2026-01-18 16:38 | testcontainers_auth_tests | Lightweight Iteration | ✅ Completed | helloagents/history/2026-01/202601181638_testcontainers_auth_tests |
+| 2026-01-18 21:11 | prod_hardening_p0 | Development Implementation | ✅ Completed | helloagents/history/2026-01/202601182111_prod_hardening_p0 |
+| 2026-01-19 12:23 | search_schema_isolation | Development Implementation | ✅ Completed | helloagents/history/2026-01/202601191223_search_schema_isolation |
 
 ---
 
@@ -40,3 +42,5 @@
 - 202601181151_captcha_id_best_practice
 - 202601181448_origin_lock_frontend_12881
 - 202601181638_testcontainers_auth_tests
+- 202601182111_prod_hardening_p0
+- 202601191223_search_schema_isolation

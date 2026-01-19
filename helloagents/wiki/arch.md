@@ -151,6 +151,7 @@ sequenceDiagram
 本项目的搜索/通知/统计等能力属于“旁路能力”，核心原则是 **最终一致**，而不是强一致：
 
 - **写路径（核心域）：** `content-service` / `social-service` 在写入主存储后发布事件（Kafka）。
+- **P0 修复（幽灵事件）：** 当写路径处于 DB 事务中时，Kafka 发送必须延后到事务提交后（After-Commit），避免“DB 回滚但事件已发出”。
 - **读路径（旁路域）：** `search-service` / `message-service` / `analytics-service` 消费事件或由 gateway 采集写入，异步更新旁路数据。
 - **最终一致窗口：** 允许短时间内“已发帖但搜索未命中”“已点赞但通知稍后到达”等现象，通过重试/重建索引等手段补偿。
 
@@ -158,7 +159,7 @@ sequenceDiagram
 
 - **事件 envelope 统一携带 `eventId` / `traceId` / `version`**（详见 `helloagents/plan/202601161428_boot3_ms_vue3_nacos/event-contract.md`）。
 - **消费端幂等：** message-service 采用 `consumed_event` 表记录已消费 `eventId`，避免重复通知/重复副作用。
-- **索引重建：** search-service 提供 reindex 能力用于迁移期冷启动与修复（`/api/search/internal/reindex` / `/internal/search/reindex`）。
+- **索引重建：** search-service 提供 reindex 能力用于迁移期冷启动与修复（`/api/search/internal/reindex` / `/internal/search/reindex`），重建数据通过 content-service 内部 API 拉取。
 
 > 进一步增强（可选）：引入 Outbox Pattern（业务表 + outbox 表同事务写入，异步投递 Kafka），可提升“写入与发事件”的一致性。
 
@@ -175,3 +176,4 @@ sequenceDiagram
 | ADR-005 | auth-service 与 user-service 职责边界（迭代 3） | 2026-01-16 | ✅Adopted | auth/user | [Link](../plan/202601161428_boot3_ms_vue3_nacos/how.md#adr-005-auth-service-与-user-service-职责边界迭代-3) |
 | ADR-006 | 页面聚合策略：Vue3 直连多服务，经由 Gateway 路由 | 2026-01-16 | ✅Adopted | frontend/gateway | [Link](../plan/202601161428_boot3_ms_vue3_nacos/how.md#adr-006-页面聚合策略vue3-直连多服务经由-gateway-路由) |
 | ADR-007 | 数据拆分策略阶段（共享库 → 独立库） | 2026-01-16 | ✅Adopted | user/content/social/message/search/auth | [Link](../plan/202601161428_boot3_ms_vue3_nacos/how.md#adr-007-数据拆分策略阶段共享库--独立库) |
+| ADR-008 | P0 选择 After-Commit 而非 Outbox（先止血） | 2026-01-18 | ✅Adopted | common/content/social/message | [Link](../history/2026-01/202601182111_prod_hardening_p0/how.md#adr-008-p0-选择-after-commit-而非-outbox先止血) |

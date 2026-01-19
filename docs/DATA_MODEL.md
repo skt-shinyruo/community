@@ -7,19 +7,31 @@
 ## 1. MySQL（最小表结构）
 
 本地使用的最小 schema 位于：
-- `deploy/mysql-init/001_schema.sql`
-- `deploy/mysql-init/002_seed.sql`
+- `deploy/mysql-init/001_create_databases.sh`（建库 + 最小权限账号）
+- `deploy/mysql-init/010_schema_identity.sql`（身份域：user 表，P0 暂留在 `community`）
+- `deploy/mysql-init/020_schema_content.sql`（内容域：`community_content`）
+- `deploy/mysql-init/030_schema_message.sql`（消息域：`community_message`）
+- `deploy/mysql-init/040_schema_search.sql`（搜索域：`community_search`）
+- `deploy/mysql-init/090_seed_identity.sql`（本地种子数据）
+
+> P0 策略：同实例多 schema，先拆非身份域（content/message/search），降低迁移风险。
 
 ### 1.1 主要表
-- `user`：用户基础信息（迁移期与 legacy 共用）
-- `discuss_post`：帖子
-- `comment`：评论/回复
-- `message`：私信/站内信（含 conversationId）
-- `consumed_event`：消息服务消费幂等（eventId 去重）
-- `search_consumed_event`：搜索服务消费幂等（eventId 去重）
+- `community.user`：身份域用户基础信息（P0 仍为 auth/user 共享）
+- `community_content.discuss_post`：帖子
+- `community_content.comment`：评论/回复
+- `community_message.message`：私信/站内信（含 conversationId）
+- `community_message.consumed_event`：message-service 消费幂等（eventId 去重）
+- `community_search.search_consumed_event`：search-service 消费幂等（eventId 去重）
 
 ### 1.2 本地种子数据
-`deploy/mysql-init/002_seed.sql` 提供演示用户（仅本地开发用途）。
+`deploy/mysql-init/090_seed_identity.sql` 提供演示用户（仅本地开发用途）。
+
+### 1.3 最小权限账号（P0）
+mysql init 会为各服务创建独立账号（仅授权自身 schema），避免“全服务共享账号”带来的误写风险：
+- content-service：`${CONTENT_DB_USER}` → `${CONTENT_DB_NAME}`
+- message-service：`${MESSAGE_DB_USER}` → `${MESSAGE_DB_NAME}`
+- search-service：`${SEARCH_DB_USER}` → `${SEARCH_DB_NAME}`
 
 ---
 
@@ -76,4 +88,3 @@ Redis 主要用于：
 
 ### 4.2 初始化
 `deploy/docker-compose.yml` 的 `es-init` 会在 ES 启动后自动创建该索引（如不存在）。
-

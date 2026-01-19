@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class NoticeEventConsumerIntegrationTest {
 
     @Autowired
-    NoticeEventConsumer consumer;
+    NoticeEventProcessor processor;
 
     @Autowired
     ObjectMapper objectMapper;
@@ -50,21 +50,23 @@ class NoticeEventConsumerIntegrationTest {
                         "actorUserId", 2,
                         "entityType", 1,
                         "entityId", 100,
-                        "entityUserId", 1,
+                        "entityUserId", 42,
                         "postId", 100,
                         "createTime", Instant.now().toString()
                 )
         ));
 
-        consumer.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k1", payload));
+        // 重复投递/重试场景：同 eventId 不应产生重复通知
+        processor.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k1", payload));
+        processor.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 1L, "k1", payload));
 
         SignedJWT jwt = new SignedJWT(
                 new JWSHeader(JWSAlgorithm.HS256),
                 new JWTClaimsSet.Builder()
-                        .subject("1")
+                        .subject("42")
                         .issueTime(java.util.Date.from(Instant.now()))
                         .expirationTime(java.util.Date.from(Instant.now().plusSeconds(600)))
-                        .claim("username", "u1")
+                        .claim("username", "u42")
                         .claim("authorities", List.of("ROLE_USER"))
                         .build()
         );
@@ -73,6 +75,8 @@ class NoticeEventConsumerIntegrationTest {
 
         String resp = mockMvc.perform(get("/api/notices")
                         .param("topic", "like")
+                        .param("page", "0")
+                        .param("size", "10")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
                 .andReturn()
@@ -80,6 +84,6 @@ class NoticeEventConsumerIntegrationTest {
                 .getContentAsString();
 
         assertThat(resp).contains("e1");
+        assertThat(resp.split("e1", -1).length - 1).isEqualTo(1);
     }
 }
-

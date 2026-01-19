@@ -1,0 +1,32 @@
+/* Utility Classes */
+
+.row {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.stack {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.error {
+  color: var(--danger);
+}
+
+.empty {
+  padding: 12px 0;
+}
+
+/* Search Highlight */
+em {
+  font-style: normal;
+  background: var(--highlight-bg);
+  padding: 0 2px;
+  border-radius: 4px;
+}

@@ -45,3 +45,8 @@ qiniu:
     header:
       name: ${QINIU_BUCKET_HEADER_NAME:}
       url: ${QINIU_BUCKET_HEADER_URL:}
+
+user:
+  social-client:
+    connect-timeout: 200ms
+    read-timeout: 800ms

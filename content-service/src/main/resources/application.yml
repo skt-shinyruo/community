@@ -5,6 +5,7 @@ content:
   storage: redis
   events:
     publisher: kafka
+  internal-token: ${CONTENT_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
   score:
     refresh:
       enabled: true
@@ -25,7 +26,7 @@ spring:
         group: ${NACOS_GROUP:DEFAULT_GROUP}
         file-extension: yaml
   datasource:
-    url: ${CONTENT_DB_URL:jdbc:mysql://127.0.0.1:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
+    url: ${CONTENT_DB_URL:jdbc:mysql://127.0.0.1:3306/community_content?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
     username: ${CONTENT_DB_USERNAME:${MYSQL_USER:}}
     password: ${CONTENT_DB_PASSWORD:${MYSQL_PASSWORD:}}
     driver-class-name: com.mysql.cj.jdbc.Driver

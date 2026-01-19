@@ -3,7 +3,6 @@ package com.nowcoder.community.search.repo;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.Document;
 
-import java.time.Instant;
 
 @Document(indexName = "community_posts")
 public class EsPostDocument {
@@ -16,7 +15,10 @@ public class EsPostDocument {
     private String content;
     private Integer type;
     private Integer status;
-    private Instant createTime;
+    /**
+     * 存储为 epoch millis，避免 Spring Data Elasticsearch 对 Instant 的读写转换不一致导致查询报错。
+     */
+    private Long createTime;
     private Double score;
 
     public Integer getPostId() {
@@ -67,11 +69,11 @@ public class EsPostDocument {
         this.status = status;
     }
 
-    public Instant getCreateTime() {
+    public Long getCreateTime() {
         return createTime;
     }
 
-    public void setCreateTime(Instant createTime) {
+    public void setCreateTime(Long createTime) {
         this.createTime = createTime;
     }
 
@@ -83,4 +85,3 @@ public class EsPostDocument {
         this.score = score;
     }
 }
-

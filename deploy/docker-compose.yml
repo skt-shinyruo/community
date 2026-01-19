@@ -20,6 +20,16 @@ services:
       - MYSQL_DATABASE=${MYSQL_DATABASE}
       - MYSQL_USER=${MYSQL_USER}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      # P0: per-service schemas/users (same instance, different schema)
+      - CONTENT_DB_NAME=${CONTENT_DB_NAME:-community_content}
+      - CONTENT_DB_USER=${CONTENT_DB_USER:-community_content}
+      - CONTENT_DB_PASSWORD=${CONTENT_DB_PASSWORD:-community_contentpass}
+      - MESSAGE_DB_NAME=${MESSAGE_DB_NAME:-community_message}
+      - MESSAGE_DB_USER=${MESSAGE_DB_USER:-community_message}
+      - MESSAGE_DB_PASSWORD=${MESSAGE_DB_PASSWORD:-community_messagepass}
+      - SEARCH_DB_NAME=${SEARCH_DB_NAME:-community_search}
+      - SEARCH_DB_USER=${SEARCH_DB_USER:-community_search}
+      - SEARCH_DB_PASSWORD=${SEARCH_DB_PASSWORD:-community_searchpass}
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
@@ -302,9 +312,11 @@ services:
       - SERVER_PORT=8088
       - NACOS_SERVER_ADDR=nacos:8848
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
-      - CONTENT_DB_URL=jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
-      - MYSQL_USER=${MYSQL_USER}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - INTERNAL_TOKEN=${INTERNAL_TOKEN:-}
+      - CONTENT_INTERNAL_TOKEN=${CONTENT_INTERNAL_TOKEN:-}
+      - CONTENT_DB_URL=jdbc:mysql://mysql:3306/${CONTENT_DB_NAME:-community_content}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+      - CONTENT_DB_USERNAME=${CONTENT_DB_USER:-community_content}
+      - CONTENT_DB_PASSWORD=${CONTENT_DB_PASSWORD:-community_contentpass}
       - CONTENT_REDIS_HOST=redis
       - CONTENT_REDIS_PORT=6379
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
@@ -329,9 +341,11 @@ services:
       - SERVER_PORT=8083
       - NACOS_SERVER_ADDR=nacos:8848
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
-      - SEARCH_DB_URL=jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
-      - MYSQL_USER=${MYSQL_USER}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - INTERNAL_TOKEN=${INTERNAL_TOKEN:-}
+      - CONTENT_INTERNAL_TOKEN=${CONTENT_INTERNAL_TOKEN:-}
+      - SEARCH_DB_URL=jdbc:mysql://mysql:3306/${SEARCH_DB_NAME:-community_search}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+      - SEARCH_DB_USERNAME=${SEARCH_DB_USER:-community_search}
+      - SEARCH_DB_PASSWORD=${SEARCH_DB_PASSWORD:-community_searchpass}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - ELASTICSEARCH_URIS=http://elasticsearch:9200
       - SEARCH_INTERNAL_TOKEN=${SEARCH_INTERNAL_TOKEN}
@@ -356,9 +370,9 @@ services:
       - SERVER_PORT=8084
       - NACOS_SERVER_ADDR=nacos:8848
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
-      - MESSAGE_DB_URL=jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
-      - MYSQL_USER=${MYSQL_USER}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MESSAGE_DB_URL=jdbc:mysql://mysql:3306/${MESSAGE_DB_NAME:-community_message}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+      - MESSAGE_DB_USERNAME=${MESSAGE_DB_USER:-community_message}
+      - MESSAGE_DB_PASSWORD=${MESSAGE_DB_PASSWORD:-community_messagepass}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
     depends_on:
       mysql:

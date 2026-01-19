@@ -10,7 +10,9 @@
   - 前端直连（推荐）：`deploy/docker-compose.frontend-direct.yml`（对外暴露前端 `12881` + gateway `12882`，浏览器访问前端、前端跨端口直连 gateway，不依赖 Nginx）
   - 观测端口映射（可选）：`deploy/docker-compose.ports.yml`（仅暴露 Grafana/Loki/Prometheus/Alertmanager，端口 `12883+`）
   - 容器化：`deploy/Dockerfile.spring-service`（统一构建/健康检查）
+  - MySQL 初始化：`deploy/mysql-init/`（同实例多 schema + 最小权限账号；支持清卷重建）
   - 备份/恢复：`scripts/mysql-backup.sh`、`scripts/mysql-restore.sh`、`scripts/redis-backup.sh`、`scripts/es-reset-index.sh`、`scripts/kafka-reset-topics.sh`
+  - Kafka 运维：`scripts/kafka-replay-dlq.sh`（DLQ 回放，含白名单/限量/限速/默认 dry-run）
   - 安全门禁：`scripts/secret-scan.sh` + `scripts/security-check.sh`
     - 说明：`secret-scan` 仅扫描 git tracked 文件，避免本地未跟踪的 `deploy/.env`（gitignored）阻断安全检查；如误将 `deploy/.env` 加入版本控制会直接失败。
   - 质量门禁：CI（backend-test/frontend-lint-build）+ 冒烟脚本（可选：`scripts/smoke-i0-auth.sh`）
@@ -49,3 +51,4 @@
 - 2026-01-18：移除 API 级自动化回归脚本与 CI job，仓库默认不再提供端到端回归门禁。
 - 2026-01-18：`secret-scan` 改为仅扫描 git tracked 文件，避免本地 `deploy/.env` 阻断 `security-check`（仍会阻止 `deploy/.env` 被提交）。
 - 2026-01-18：为 Nacos 增加健康检查，并将各服务对 Nacos 的依赖条件改为 `service_healthy`，避免首次启动时服务注册偶发失败（如 `analytics-service` 退出）。
+- 2026-01-18：P0 生产可用加固：MySQL 同实例多 schema（非身份域先拆）+ 备份/恢复支持多库 + DLQ 指标/告警与回放脚本。

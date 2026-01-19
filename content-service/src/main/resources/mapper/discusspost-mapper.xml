@@ -28,6 +28,15 @@
         limit #{offset}, #{limit}
     </select>
 
+    <select id="selectDiscussPostsAfterId" resultType="DiscussPost">
+        select <include refid="selectFields"></include>
+        from discuss_post
+        where status != 2
+          and id &gt; #{afterId}
+        order by id asc
+        limit #{limit}
+    </select>
+
     <select id="selectDiscussPostRows" resultType="int">
         select count(id)
         from discuss_post

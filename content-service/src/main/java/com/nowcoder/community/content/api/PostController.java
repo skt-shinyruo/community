@@ -14,6 +14,7 @@ import com.nowcoder.community.content.event.ContentEventPublisher;
 import com.nowcoder.community.content.like.LikeQueryService;
 import com.nowcoder.community.content.score.PostScoreQueue;
 import com.nowcoder.community.content.service.CommentService;
+import com.nowcoder.community.content.service.PostCommandService;
 import com.nowcoder.community.content.service.PostService;
 import com.nowcoder.community.content.util.SensitiveFilter;
 import jakarta.validation.Valid;
@@ -31,7 +32,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.HtmlUtils;
 
 import java.time.Instant;
-import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -51,6 +51,7 @@ public class PostController {
     private final LikeQueryService likeQueryService;
     private final PostScoreQueue postScoreQueue;
     private final ContentEventPublisher eventPublisher;
+    private final PostCommandService postCommandService;
 
     public PostController(
             PostService postService,
@@ -58,7 +59,8 @@ public class PostController {
             SensitiveFilter sensitiveFilter,
             LikeQueryService likeQueryService,
             PostScoreQueue postScoreQueue,
-            ContentEventPublisher eventPublisher
+            ContentEventPublisher eventPublisher,
+            PostCommandService postCommandService
     ) {
         this.postService = postService;
         this.commentService = commentService;
@@ -66,6 +68,7 @@ public class PostController {
         this.likeQueryService = likeQueryService;
         this.postScoreQueue = postScoreQueue;
         this.eventPublisher = eventPublisher;
+        this.postCommandService = postCommandService;
     }
 
     @GetMapping
@@ -90,30 +93,7 @@ public class PostController {
         title = sensitiveFilter.filter(title);
         content = sensitiveFilter.filter(content);
 
-        DiscussPost post = new DiscussPost();
-        post.setUserId(userId);
-        post.setTitle(title);
-        post.setContent(content);
-        post.setType(0);
-        post.setStatus(0);
-        post.setCreateTime(new Date());
-        post.setCommentCount(0);
-        post.setScore(0.0);
-
-        int postId = postService.create(post);
-
-        postScoreQueue.add(postId);
-
-        PostPayload payload = new PostPayload();
-        payload.setPostId(postId);
-        payload.setUserId(userId);
-        payload.setTitle(title);
-        payload.setContent(content);
-        payload.setType(post.getType());
-        payload.setStatus(post.getStatus());
-        payload.setCreateTime(post.getCreateTime() == null ? null : post.getCreateTime().toInstant());
-        payload.setScore(post.getScore());
-        eventPublisher.publishPostPublished(payload);
+        int postId = postCommandService.createPost(userId, title, content);
 
         CreatePostResponse resp = new CreatePostResponse();
         resp.setPostId(postId);

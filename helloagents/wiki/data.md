@@ -7,21 +7,28 @@
 ### 1.1 数据归属与拆分阶段（迭代 3 策略）
 为降低一次性拆库风险，本项目采用“共享库 → 独立库”的分阶段策略（详见 `helloagents/plan/202601161428_boot3_ms_vue3_nacos/how.md` 的 ADR-007）。
 
-**共享库阶段：**
-- **MySQL：** 仍使用同一 `community` 库，但以“表归属”治理：服务内只操作归属表；跨服务只走 API/事件。
+**P0 当前默认（同实例多 schema）：**
+- **MySQL：** 同一 MySQL 实例，按业务域拆为多个 schema（降低耦合与误写风险）：
+  - `community`：身份域（`user`），P0 暂由 auth-service/user-service 共享访问
+  - `community_content`：内容域（`discuss_post`、`comment`）
+  - `community_message`：消息域（`message`、`consumed_event`）
+  - `community_search`：搜索域（`search_consumed_event`）
+- **最小权限：** 每服务使用独立 MySQL 用户，仅授权自己的 schema（root 仅用于初始化/演练恢复）。
 - **Redis：** 以 Key 前缀与命名空间划分归属（见第 3 节）。
 
-**独立库阶段：**
-- 各服务逐步迁移到独立数据库（需要迁移脚本、灰度与回滚方案），并保持事件与 API 契约稳定。
+**后续演进（P1+）：**
+- 身份域彻底解耦：auth-service 不再直连 `community.user`，改为调用 user-service 内部 API。
+- 事件可靠投递：在写路径引入 Outbox Pattern（同事务写 outbox + 后台可靠投递 + 可观测堆积）。
 
 ---
 
 ## 2. MySQL 表（基于 MyBatis Mapper 推断）
 
 > 表归属（共享库阶段建议）：
-> - `user`：user-service（auth-service 迁移期可只读访问以完成登录校验）
-> - `discuss_post` / `comment`：content-service（legacy-community 迁移期逐步下线写入口）
-> - `message` / `consumed_event`：message-service
+> - `community.user`：user-service（auth-service 迁移期可只读访问以完成登录校验）
+> - `community_content.discuss_post` / `community_content.comment`：content-service（legacy-community 迁移期逐步下线写入口）
+> - `community_message.message` / `community_message.consumed_event`：message-service
+> - `community_search.search_consumed_event`：search-service（幂等去重表）
 
 ### 2.1 user
 

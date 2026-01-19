@@ -5,8 +5,8 @@
 
 ## Module Overview
 - **Responsibility：** ES 索引维护（保存/删除）；按关键字搜索；高亮 title/content
-- **Status：** 🟡In Progress
-- **Last Updated：** 2026-01-16
+- **Status：** ✅Stable
+- **Last Updated：** 2026-01-19
 
 ## Specifications
 
@@ -25,10 +25,12 @@
 #### Scenario: 消费发帖事件写入索引
 - Kafka 消费 publish 事件
 - 保存帖子到 ES
+ - 通过 `community_search.search_consumed_event` 做 eventId 幂等去重，避免重复索引副作用
 
 #### Scenario: 消费删帖事件删除索引
 - Kafka 消费 delete 事件
 - 从 ES 删除帖子
+ - 通过 `community_search.search_consumed_event` 做 eventId 幂等去重
 
 ## API Interfaces（现状）
 - `GET /api/search/posts?keyword=xxx`
@@ -40,9 +42,10 @@
 （详见 `helloagents/wiki/data.md` 的 “Elasticsearch 索引” 小节）
 
 ## Dependencies
-- content（帖子数据源）
+- content（帖子数据源；reindex 通过 content-service 内部 API 拉取）
 - infra（Kafka、Elasticsearch）
-- MySQL（迁移期用于 reindex 冷启动）
+- MySQL（仅 `community_search` schema：幂等去重表 `search_consumed_event`；不再跨 schema 直读内容域）
 
 ## Change History
-- （暂无）
+- 2026-01-18：DLQ 指标与告警补齐（`kafka_dlq_published_total`），并将 search-service 幂等表归属迁移到独立 schema（`community_search`）。
+- 2026-01-19：reindex 从“跨 schema 直读 content 表”升级为“调用 content-service 内部 API 扫描帖子”，支持严格的“每服务仅访问本 schema”。

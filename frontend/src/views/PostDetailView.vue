@@ -1,6 +1,9 @@
 <template>
   <div class="page reading">
     <UiCard>
+      <div style="padding: 12px 16px 0 16px">
+         <UiBreadcrumb :items="[{ label: 'Boards', to: '/posts' }, { label: 'Post Detail' }]" />
+      </div>
       <UiPageHeader>
         <template #title>
            <UiButton v-if="true" variant="ghost" @click="$router.back()" style="padding-left: 0; margin-left: -8px; color: var(--muted)">
@@ -31,121 +34,143 @@
                </button>
              </div>
 
-             <div style="flex: 1">
-               <h1 style="font-weight: 800; font-size: 24px; line-height: 1.3; margin: 0 0 8px 0; color: var(--text-1)">
-                 {{ post.title }}
-               </h1>
-               <div class="row muted" style="gap: 8px; flex-wrap: wrap; font-size: 13px">
-                 <UiBadge v-if="post.type === 1" variant="accent">置顶</UiBadge>
-                  <UiBadge v-if="post.status === 1" variant="success">加精</UiBadge>
-                  <UiBadge v-if="post.status === 2" variant="danger">已删除</UiBadge>
-                  <UiAvatar :src="postAuthor?.headerUrl || ''" :name="postAuthor?.username || ''" :size="20" />
-                  <RouterLink :to="{ name: 'userProfile', params: { userId: String(post.userId) } }" style="font-weight: 600; color: var(--text-1)">
-                    {{ postAuthor?.username || `user#${post.userId}` }}
-                  </RouterLink>
-                  <span>发布于 {{ formatTime(post.createTime) }}</span>
-               </div>
-             </div>
-           </div>
-
-           <div class="divider"></div>
-
-           <div class="post-body" style="font-size: 16px; line-height: 1.8; color: var(--text-1)">{{ post.content }}</div>
-        </div>
-
-        <!-- Ops -->
-        <div class="row" style="gap: 8px; flex-wrap: wrap; margin-top: 16px">
-          <template v-if="authed && post.userId !== meUserId">
-            <UiButton v-if="followStatus === false" @click="follow(true)" :disabled="actionLoading">关注作者</UiButton>
-            <UiButton v-else-if="followStatus === true" variant="secondary" @click="follow(false)" :disabled="actionLoading">
-              取关作者
-            </UiButton>
-          </template>
-
-          <template v-if="authed && auth.isAdminOrModerator">
-            <UiButton variant="secondary" @click="confirmModeration('top')" :disabled="actionLoading || post.type === 1">
-              {{ post.type === 1 ? '已置顶' : '置顶' }}
-            </UiButton>
-            <UiButton variant="secondary" @click="confirmModeration('wonderful')" :disabled="actionLoading || post.status === 1">
-              {{ post.status === 1 ? '已加精' : '加精' }}
-            </UiButton>
-            <UiButton variant="dangerSecondary" @click="confirmModeration('delete')" :disabled="actionLoading || post.status === 2">
-              {{ post.status === 2 ? '已删除' : '删除' }}
-            </UiButton>
-          </template>
-        </div>
-      </div>
-    </UiCard>
-
-    <UiCard>
-      <UiPageHeader>
-        <template #title>评论 {{ post?.commentCount || 0 }}</template>
-        <template #actions>
-          <UiButton variant="secondary" @click="reloadComments" :disabled="commentsLoading">
-            {{ commentsLoading ? '加载中…' : '刷新' }}
-          </UiButton>
-        </template>
-      </UiPageHeader>
-
-      <div style="margin-top: 12px">
-        <UiPagination :page="commentsPage" :has-next="commentsHasNext" @prev="prevCommentsPage" @next="nextCommentsPage" />
-      </div>
-
-      <div v-if="commentsError" class="error" style="margin-top: 12px">{{ commentsError }}</div>
-
-      <div style="margin-top: 12px">
-        <UiEmpty v-if="comments.length === 0">暂无评论</UiEmpty>
-        <div v-else class="stack" style="gap: 16px"> <!-- Increased gap for threads -->
-          <div class="comment-thread" v-for="c in comments" :key="c.id" style="position: relative">
-             <!-- Thread Line (Visual) -->
-             <div class="thread-line" v-if="c._repliesExpanded && c._replies.length > 0"></div>
-
-             <div class="row" style="justify-content: space-between; align-items: flex-start;">
-               <div class="row" style="align-items: center; gap: 8px;">
-                  <UiAvatar :src="c.user?.headerUrl || ''" :name="c.user?.username || ''" :size="28" />
-                  <div class="stack" style="gap: 0">
-                     <RouterLink :to="`/users/${c.userId}`" style="font-weight: 700; font-size: 13px">
-                      {{ c.user?.username || `user#${c.userId}` }}
-                    </RouterLink>
-                    <span class="muted" style="font-size: 11px">{{ formatTime(c.createTime) }}</span>
-                  </div>
-               </div>
-             </div>
-
-             <div class="comment-content" style="padding-left: 36px">
-                <div class="comment-body">{{ c.content }}</div>
-                
-                <div class="row muted" style="gap: 12px; margin-top: 8px; font-size: 12px">
-                   <div style="cursor: pointer; display: flex; align-items: center; gap: 4px" @click="toggleCommentLike(c)">
-                      <span :class="{ 'red-text': c.liked }">❤️</span> {{ c.likeCount || 0 }}
-                   </div>
-                   <div style="cursor: pointer" @click="startReply(c)">回复</div>
-                   <div style="cursor: pointer" v-if="!c._repliesExpanded && (c.replyCount || 0) > 0" @click="toggleReplies(c)">
-                      展开 {{ c.replyCount || 0 }} 条回复
-                   </div>
-                   <div style="cursor: pointer" v-if="c._repliesExpanded" @click="toggleReplies(c)">收起</div>
-                </div>
-
-                <!-- Reply Input -->
-                <div v-if="c._replying" class="card flat" style="padding: 10px; margin-top: 10px; background: var(--surface-2)">
-                   <UiTextarea v-model.trim="c._replyDraft" :rows="3" placeholder="回复..." />
-                   <div class="row" style="justify-content: flex-end; margin-top: 8px; gap: 8px">
-                      <UiButton variant="secondary" @click="cancelReply(c)" :disabled="c._replySubmitting">取消</UiButton>
-                      <UiButton @click="submitReply(c)" :disabled="c._replySubmitting">提交</UiButton>
-                   </div>
-                </div>
-
-                <!-- Replies List -->
-                <div v-if="c._repliesExpanded" style="margin-top: 12px; display: grid; gap: 12px">
-                   <div class="muted" v-if="c._repliesLoading">加载中...</div>
-                   <div v-else-if="c._replies.length === 0" class="muted">暂无回复</div>
-                   <div v-else v-for="r in c._replies" :key="r.id" class="reply-item">
-                      <div class="row" style="align-items: center; gap: 8px">
-                         <UiAvatar :src="r.user?.headerUrl || ''" :name="r.user?.username || ''" :size="20" />
-                         <span style="font-weight: 600; font-size: 12px">{{ r.user?.username || `user#${r.userId}` }}</span>
-                         <span class="muted" style="font-size: 12px">回复 {{ r.targetUser?.username || '楼主' }}</span>
-                         <span class="muted" style="font-size: 12px">· {{ formatTime(r.createTime) }}</span>
+               <div style="flex: 1">
+                 <h1 style="font-weight: 800; font-size: 24px; line-height: 1.3; margin: 0 0 8px 0; color: var(--text-1)">
+                   {{ post.title }}
+                 </h1>
+                 <div class="row muted" style="gap: 8px; flex-wrap: wrap; font-size: 13px; align-items: center">
+                   <UiBadge v-if="post.type === 1" variant="accent">置顶</UiBadge>
+                    <UiBadge v-if="post.status === 1" variant="success">加精</UiBadge>
+                    
+                    <UiUserCard :user="postAuthor">
+                      <div class="row" style="gap: 6px; cursor: pointer">
+                        <UiAvatar :src="postAuthor?.headerUrl || ''" :name="postAuthor?.username || ''" :size="20" />
+                        <span style="font-weight: 600; color: var(--text-1)">{{ postAuthor?.username || `user#${post.userId}` }}</span>
                       </div>
+                    </UiUserCard>
+                    
+                    <UiBadge v-if="postAuthor?.type === 1" variant="accent" style="height: 18px; font-size: 11px">ADMIN</UiBadge>
+                    <span style="background: var(--surface-2); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600">LV {{ Math.floor((postAuthor?.score || 0) / 100) + 1 }}</span>
+
+                    <span>发布于 {{ formatTime(post.createTime) }}</span>
+                 </div>
+               </div>
+             </div>
+ 
+             <div class="divider"></div>
+ 
+             <UiMarkdown :content="post.content" />
+          </div>
+ 
+          <!-- Ops -->
+          <div class="row" style="gap: 8px; flex-wrap: wrap; margin-top: 16px">
+            <template v-if="authed && post.userId !== meUserId">
+              <UiButton v-if="followStatus === false" @click="follow(true)" :disabled="actionLoading">关注作者</UiButton>
+              <UiButton v-else-if="followStatus === true" variant="secondary" @click="follow(false)" :disabled="actionLoading">
+                取关作者
+              </UiButton>
+            </template>
+ 
+            <template v-if="authed && auth.isAdminOrModerator">
+              <UiButton variant="secondary" @click="confirmModeration('top')" :disabled="actionLoading || post.type === 1">
+                {{ post.type === 1 ? '已置顶' : '置顶' }}
+              </UiButton>
+              <UiButton variant="secondary" @click="confirmModeration('wonderful')" :disabled="actionLoading || post.status === 1">
+                {{ post.status === 1 ? '已加精' : '加精' }}
+              </UiButton>
+              <UiButton variant="dangerSecondary" @click="confirmModeration('delete')" :disabled="actionLoading || post.status === 2">
+                {{ post.status === 2 ? '已删除' : '删除' }}
+              </UiButton>
+            </template>
+          </div>
+        </div>
+      </UiCard>
+ 
+      <UiCard>
+        <UiPageHeader>
+          <template #title>评论 {{ post?.commentCount || 0 }}</template>
+          <template #actions>
+            <UiButton variant="secondary" @click="reloadComments" :disabled="commentsLoading">
+              {{ commentsLoading ? '加载中…' : '刷新' }}
+            </UiButton>
+          </template>
+        </UiPageHeader>
+ 
+        <div style="margin-top: 12px">
+          <UiPagination :page="commentsPage" :has-next="commentsHasNext" @prev="prevCommentsPage" @next="nextCommentsPage" />
+        </div>
+ 
+        <div v-if="commentsError" class="error" style="margin-top: 12px">{{ commentsError }}</div>
+ 
+        <div style="margin-top: 12px">
+          <UiEmpty v-if="comments.length === 0">暂无评论</UiEmpty>
+          <div v-else class="stack" style="gap: 16px"> <!-- Increased gap for threads -->
+            <div class="comment-thread" v-for="c in comments" :key="c.id" style="position: relative">
+               <!-- Thread Line (Visual) -->
+               <div class="thread-line" v-if="c._repliesExpanded && c._replies.length > 0"></div>
+ 
+               <div class="row" style="justify-content: space-between; align-items: flex-start;">
+                 <div class="row" style="align-items: center; gap: 8px;">
+                    <UiUserCard :user="c.user">
+                       <UiAvatar :src="c.user?.headerUrl || ''" :name="c.user?.username || ''" :size="28" style="cursor: pointer" />
+                    </UiUserCard>
+                    
+                    <div class="stack" style="gap: 0">
+                       <div class="row" style="gap: 6px; align-items: center">
+                           <UiUserCard :user="c.user">
+                             <router-link :to="`/users/${c.userId}`" style="font-weight: 700; font-size: 13px; color: var(--text-1)">
+                               {{ c.user?.username || `user#${c.userId}` }}
+                             </router-link>
+                           </UiUserCard>
+                           
+                           <UiBadge v-if="c.userId === post.userId" variant="secondary" style="height: 16px; font-size: 10px">OP</UiBadge>
+                           <UiBadge v-if="c.user?.type === 1" variant="accent" style="height: 16px; font-size: 10px">ADMIN</UiBadge>
+                       </div>
+                       <span class="muted" style="font-size: 11px">{{ formatTime(c.createTime) }}</span>
+                    </div>
+                 </div>
+               </div>
+ 
+               <div class="comment-content" style="padding-left: 36px">
+                  <div class="comment-body" style="white-space: pre-wrap">{{ c.content }}</div>
+                  
+                  <div class="row muted" style="gap: 12px; margin-top: 8px; font-size: 12px">
+                     <div style="cursor: pointer; display: flex; align-items: center; gap: 4px" @click="toggleCommentLike(c)">
+                        <span :class="{ 'red-text': c.liked }">❤️</span> {{ c.likeCount || 0 }}
+                     </div>
+                     <div style="cursor: pointer" @click="startReply(c)">回复</div>
+                     <div style="cursor: pointer" v-if="!c._repliesExpanded && (c.replyCount || 0) > 0" @click="toggleReplies(c)">
+                        展开 {{ c.replyCount || 0 }} 条回复
+                     </div>
+                     <div style="cursor: pointer" v-if="c._repliesExpanded" @click="toggleReplies(c)">收起</div>
+                  </div>
+ 
+                  <!-- Reply Input -->
+                  <div v-if="c._replying" class="card flat" style="padding: 10px; margin-top: 10px; background: var(--surface-2)">
+                     <UiTextarea v-model.trim="c._replyDraft" :rows="3" placeholder="回复... (支持 Markdown)" />
+                     <div class="row" style="justify-content: flex-end; margin-top: 8px; gap: 8px">
+                        <UiButton variant="secondary" @click="cancelReply(c)" :disabled="c._replySubmitting">取消</UiButton>
+                        <UiButton @click="submitReply(c)" :disabled="c._replySubmitting">提交</UiButton>
+                     </div>
+                  </div>
+ 
+                  <!-- Replies List -->
+                  <div v-if="c._repliesExpanded" style="margin-top: 12px; display: grid; gap: 12px">
+                     <div class="muted" v-if="c._repliesLoading">加载中...</div>
+                     <div v-else-if="c._replies.length === 0" class="muted">暂无回复</div>
+                     <div v-else v-for="r in c._replies" :key="r.id" class="reply-item">
+                        <div class="row" style="align-items: center; gap: 8px">
+                           <UiUserCard :user="r.user">
+                             <UiAvatar :src="r.user?.headerUrl || ''" :name="r.user?.username || ''" :size="20" />
+                           </UiUserCard>
+                           
+                           <span style="font-weight: 600; font-size: 12px">{{ r.user?.username || `user#${r.userId}` }}</span>
+                           
+                           <UiBadge v-if="r.userId === post.userId" variant="secondary" style="height: 16px; font-size: 10px">OP</UiBadge>
+                           
+                           <span class="muted" style="font-size: 12px">回复 {{ r.targetUser?.username || '楼主' }}</span>
+                           <span class="muted" style="font-size: 12px">· {{ formatTime(r.createTime) }}</span>
+                        </div>
                       <div class="comment-body" style="font-size: 13px; margin-top: 4px; padding-left: 28px">{{ r.content }}</div>
                       
                       <div class="row muted" style="gap: 12px; margin-top: 4px; padding-left: 28px; font-size: 12px">
@@ -200,6 +225,9 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
+import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
+import UiUserCard from '../components/ui/UiUserCard.vue'
+import UiMarkdown from '../components/ui/UiMarkdown.vue'
 import UiPagination from '../components/ui/UiPagination.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
 import UiButton from '../components/ui/UiButton.vue'

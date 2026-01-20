@@ -1,9 +1,11 @@
-/* Layout Styles */
+/* ---------- layout ---------- */
+
 .app-shell {
   min-height: 100vh;
   display: grid;
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   background: var(--bg);
+  /* The layout itself handles background separation */
 }
 
 .app-shell.has-right {
@@ -22,10 +24,15 @@
   position: sticky;
   top: 0;
   height: 100vh;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: var(--surface);
+  /* 侧边栏作为独立层级，使用 surface 提升对比与质感 */
   border-right: 1px solid var(--border);
 }
+
+/* If we want a "floating card" look for main content, sidebar stays on bg */
+/* Actually, standard SaaS: Sidebar is on var(--bg), Main Content is often on var(--bg) but with Card containers */
 
 .app-right {
   position: sticky;
@@ -34,86 +41,115 @@
   overflow: auto;
   background: var(--surface);
   border-left: 1px solid var(--border);
+  /* 右侧面板内部自行处理 padding，这里避免重复缩进导致不对齐 */
 }
 
 .app-main {
   min-width: 0;
-  display: grid;
-  grid-template-rows: var(--topbar-height) 1fr;
+  display: flex;
+  flex-direction: column;
 }
 
 .app-topbar {
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 40;
   height: var(--topbar-height);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
-  padding: 0 var(--space-4);
-  background: color-mix(in srgb, var(--bg) 78%, var(--surface) 22%);
+  gap: var(--space-4);
+  padding: 0 var(--space-6);
+  background: var(--topbar-bg);
   border-bottom: 1px solid var(--border);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: border-color 0.2s;
 }
+
+/* When scrolling, we might want a border. For now simple. */
 
 .topbar-title {
   min-width: 0;
-  display: grid;
-  gap: 2px;
+  display: flex;
+  flex-direction: column;
 }
 
 .topbar-title-main {
-  font-weight: 700;
+  font-weight: 600;
+  font-size: var(--text-md);
+  color: var(--text-1);
   line-height: var(--line-tight);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .topbar-title-sub {
   font-size: var(--text-xs);
-  line-height: var(--line-tight);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--text-3);
 }
 
 .topbar-search {
   flex: 1;
-  max-width: 560px;
+  max-width: 480px;
 }
 
 .app-content {
   padding: var(--content-padding-y) var(--content-padding-x);
+  flex: 1;
+  width: 100%;
 }
 
 .page {
   max-width: var(--page-max-width);
   margin: 0 auto;
-  display: grid;
-  gap: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
 }
 
 .page.reading {
   max-width: var(--reading-max-width);
 }
 
-@media (max-width: 980px) {
-  .app-shell {
-    grid-template-columns: var(--sidebar-width-collapsed) minmax(0, 1fr);
+@media (max-width: 1024px) {
+  .app-right {
+    display: none;
   }
 
   .app-shell.has-right {
-    grid-template-columns: var(--sidebar-width-collapsed) minmax(0, 1fr);
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .app-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: min(var(--sidebar-width), 86vw);
+    z-index: 100;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .app-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .app-shell.has-right,
+  .app-shell.sidebar-collapsed,
+  .app-shell.sidebar-collapsed.has-right {
+    grid-template-columns: 1fr;
   }
 
   .app-content {
-    padding: var(--space-5) var(--space-4);
-  }
-
-  .app-right {
-    display: none;
+    padding: var(--space-4);
+    padding-bottom: calc(var(--space-4) + 76px);
   }
 }
 
@@ -172,7 +208,7 @@
 
 .nav-group-title {
   font-size: var(--text-xs);
-  color: var(--muted);
+  color: var(--text-3);
   margin: 0 0 var(--space-2) 0;
   padding: 0 var(--space-2);
   letter-spacing: 0.5px;
@@ -191,7 +227,7 @@
   text-decoration: none;
 }
 
-.nav-item.router-link-active {
+.nav-item.is-active {
   background: var(--accent-weak);
   color: var(--accent);
 }
@@ -209,7 +245,7 @@
   border: 1px solid var(--border);
 }
 
-.nav-item.router-link-active .nav-icon {
+.nav-item.is-active .nav-icon {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 22%, var(--border) 78%);
   background: var(--surface);
@@ -325,17 +361,5 @@
   .sidebar-overlay.open {
     opacity: 1;
     pointer-events: auto;
-  }
-
-  /* Force sidebar to be fixed on mobile if open */
-  .app-sidebar.mobile-open {
-    position: fixed;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 240px;
-    z-index: 100;
-    box-shadow: var(--shadow-lg);
-    border-right: none;
   }
 }

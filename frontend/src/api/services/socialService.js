@@ -7,6 +7,10 @@ const likeCountCache = new Map()
 const likeStatusCache = new Map()
 const followStatusCache = new Map()
 
+const likeCountInflight = new Map()
+const likeStatusInflight = new Map()
+const followStatusInflight = new Map()
+
 function likeKey(entityType, entityId) {
   return `${entityType}:${entityId}`
 }
@@ -28,10 +32,24 @@ export async function getLikeCount(entityType, entityId, { force = false } = {})
   if (!force && likeCountCache.has(k)) {
     return { data: Number(likeCountCache.get(k) || 0), traceId: '' }
   }
-  const resp = await http.get('/api/likes/count', { params: { entityType, entityId } })
-  const { data, traceId } = unwrapResultBody(resp.data, '查询点赞数')
-  likeCountCache.set(k, Number(data || 0))
-  return { data: Number(data || 0), traceId }
+
+  if (likeCountInflight.has(k)) {
+    return likeCountInflight.get(k)
+  }
+
+  const p = (async () => {
+    const resp = await http.get('/api/likes/count', { params: { entityType, entityId } })
+    const { data, traceId } = unwrapResultBody(resp.data, '查询点赞数')
+    likeCountCache.set(k, Number(data || 0))
+    return { data: Number(data || 0), traceId }
+  })()
+
+  likeCountInflight.set(k, p)
+  try {
+    return await p
+  } finally {
+    if (likeCountInflight.get(k) === p) likeCountInflight.delete(k)
+  }
 }
 
 export async function getLikeStatus(entityType, entityId, { force = false } = {}) {
@@ -39,10 +57,24 @@ export async function getLikeStatus(entityType, entityId, { force = false } = {}
   if (!force && likeStatusCache.has(k)) {
     return { data: !!likeStatusCache.get(k), traceId: '' }
   }
-  const resp = await http.get('/api/likes/status', { params: { entityType, entityId } })
-  const { data, traceId } = unwrapResultBody(resp.data, '查询点赞状态')
-  likeStatusCache.set(k, !!data)
-  return { data: !!data, traceId }
+
+  if (likeStatusInflight.has(k)) {
+    return likeStatusInflight.get(k)
+  }
+
+  const p = (async () => {
+    const resp = await http.get('/api/likes/status', { params: { entityType, entityId } })
+    const { data, traceId } = unwrapResultBody(resp.data, '查询点赞状态')
+    likeStatusCache.set(k, !!data)
+    return { data: !!data, traceId }
+  })()
+
+  likeStatusInflight.set(k, p)
+  try {
+    return await p
+  } finally {
+    if (likeStatusInflight.get(k) === p) likeStatusInflight.delete(k)
+  }
 }
 
 export async function getUserLikeCount(userId) {
@@ -70,10 +102,24 @@ export async function getFollowStatus(entityType, entityId, { force = false } = 
   if (!force && followStatusCache.has(k)) {
     return { data: !!followStatusCache.get(k), traceId: '' }
   }
-  const resp = await http.get('/api/follows/status', { params: { entityType, entityId } })
-  const { data, traceId } = unwrapResultBody(resp.data, '查询关注状态')
-  followStatusCache.set(k, !!data)
-  return { data: !!data, traceId }
+
+  if (followStatusInflight.has(k)) {
+    return followStatusInflight.get(k)
+  }
+
+  const p = (async () => {
+    const resp = await http.get('/api/follows/status', { params: { entityType, entityId } })
+    const { data, traceId } = unwrapResultBody(resp.data, '查询关注状态')
+    followStatusCache.set(k, !!data)
+    return { data: !!data, traceId }
+  })()
+
+  followStatusInflight.set(k, p)
+  try {
+    return await p
+  } finally {
+    if (followStatusInflight.get(k) === p) followStatusInflight.delete(k)
+  }
 }
 
 export async function listFollowees(userId, { page = 0, size = 10, entityType = 3 } = {}) {

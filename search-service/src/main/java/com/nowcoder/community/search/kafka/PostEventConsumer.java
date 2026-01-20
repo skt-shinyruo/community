@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.event.EventTopics;
 import com.nowcoder.community.common.event.EventTypes;
 import com.nowcoder.community.common.event.payload.PostPayload;
+import com.nowcoder.community.common.kafka.KafkaTraceSupport;
 import com.nowcoder.community.search.repo.PostSearchRepository;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -26,7 +27,7 @@ public class PostEventConsumer {
 
     @KafkaListener(topics = EventTopics.POST_EVENTS_V1, groupId = "search-service")
     public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) throws Exception {
-        handleRecord(record);
+        KafkaTraceSupport.runWithTraceId(objectMapper, record.value(), () -> handleRecord(record));
         ack.acknowledge();
     }
 

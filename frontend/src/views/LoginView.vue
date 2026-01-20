@@ -7,8 +7,8 @@
          <span class="brand-text">Community</span>
        </div>
        <div class="auth-quote">
-         <h1>Join the conversation.</h1>
-         <p>Experience a new way of connecting with people.</p>
+         <h1>加入讨论。</h1>
+         <p>与你感兴趣的人和内容建立连接。</p>
        </div>
     </div>
     
@@ -16,29 +16,30 @@
     <div class="auth-form-container">
       <div style="width: 100%; max-width: 400px">
         <div style="margin-bottom: 32px">
-          <h2 style="font-size: 28px; font-weight: 800; margin-bottom: 8px">Welcome back</h2>
-          <div class="muted">Enter your details to access your account.</div>
+          <h2 style="font-size: 28px; font-weight: 800; margin-bottom: 8px">欢迎回来</h2>
+          <div class="muted">输入账号信息以继续。</div>
         </div>
 
         <div class="stack" style="gap: 20px">
           <div class="stack" style="gap: 8px">
-            <div style="font-size: 14px; font-weight: 600">Username</div>
-            <UiInput v-model.trim="form.username" placeholder="Enter your username" autocomplete="username" class="auth-input" />
+            <div style="font-size: 14px; font-weight: 600">用户名</div>
+            <UiInput v-model.trim="form.username" placeholder="请输入用户名" autocomplete="username" class="auth-input" />
           </div>
 
           <div class="stack" style="gap: 8px">
-            <div style="font-size: 14px; font-weight: 600">Password</div>
-            <UiInput v-model.trim="form.password" placeholder="Enter your password" type="password" autocomplete="current-password" class="auth-input" />
+            <div style="font-size: 14px; font-weight: 600">密码</div>
+            <UiInput v-model.trim="form.password" placeholder="请输入密码" type="password" autocomplete="current-password" class="auth-input" />
           </div>
 
            <div v-if="captchaRequired" class="stack" style="gap: 8px">
-             <div style="font-size: 14px; font-weight: 600">Captcha</div>
+             <div style="font-size: 14px; font-weight: 600">验证码</div>
               <div class="row" style="gap: 12px">
-                <UiInput v-model.trim="form.captcha" placeholder="Code" class="auth-input" style="flex: 1" />
+                <UiInput v-model.trim="form.captcha" placeholder="请输入验证码" class="auth-input" style="flex: 1" autocomplete="off" />
                  <img
                   v-if="captchaSrc"
                   :src="captchaSrc"
-                  alt="captcha"
+                  alt="验证码"
+                  title="点击刷新验证码"
                   @click="refreshCaptcha"
                   style="height: 44px; border-radius: 8px; cursor: pointer; border: 1px solid var(--border)"
                 />
@@ -48,16 +49,16 @@
           <div v-if="error" class="error">{{ error }}</div>
 
           <UiButton @click="onLogin" :disabled="loading" class="primary" style="height: 48px; font-size: 16px; margin-top: 8px">
-            {{ loading ? 'Signing in...' : 'Sign In' }}
+            {{ loading ? '登录中…' : '登录' }}
           </UiButton>
 
           <div class="row" style="justify-content: center; gap: 4px; font-size: 14px; margin-top: 16px">
-            <span class="muted">Don't have an account?</span>
-            <RouterLink to="/auth/register" style="font-weight: 600; color: var(--accent)">Sign up</RouterLink>
+            <span class="muted">还没有账号？</span>
+            <RouterLink to="/auth/register" style="font-weight: 600; color: var(--accent)">去注册</RouterLink>
           </div>
           
            <div style="text-align: center; margin-top: 8px">
-             <RouterLink to="/posts" class="muted" style="font-size: 13px">Back to Home</RouterLink>
+             <RouterLink to="/posts" class="muted" style="font-size: 13px">返回社区</RouterLink>
            </div>
         </div>
       </div>
@@ -100,11 +101,11 @@ async function refreshCaptcha() {
 async function onLogin() {
   error.value = ''
   if (!form.username || !form.password) {
-    error.value = 'Please enter username and password'
+    error.value = '请输入用户名和密码'
     return
   }
   if (captchaRequired.value && !form.captcha) {
-     error.value = 'Please enter the captcha'
+     error.value = '请输入验证码'
      return
   }
 
@@ -128,10 +129,10 @@ async function onLogin() {
     const code = e?.code
     if (code === 10005 || code === 10006) {
       captchaRequired.value = true
-      error.value = e?.message || 'Captcha required'
+      error.value = e?.message || '需要验证码'
       await refreshCaptcha()
     } else {
-      error.value = e?.message || 'Login failed'
+      error.value = e?.message || '登录失败'
     }
   } finally {
     loading.value = false
@@ -192,14 +193,13 @@ async function onLogin() {
   .auth-visual { display: none; }
 }
 
-:deep(.auth-input input) {
-    height: 48px;
-    background: var(--bg);
-    border: 1px solid transparent;
+.auth-input {
+  height: 48px;
+  background: var(--bg);
+  border: 1px solid transparent;
 }
-:deep(.auth-input input:focus) {
-    background: var(--surface);
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px rgba(0,113,227,0.1);
+.auth-input:focus {
+  background: var(--surface);
+  border-color: var(--accent);
 }
 </style>

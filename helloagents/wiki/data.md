@@ -9,7 +9,7 @@
 
 **P0 当前默认（同实例多 schema）：**
 - **MySQL：** 同一 MySQL 实例，按业务域拆为多个 schema（降低耦合与误写风险）：
-  - `community`：身份域（`user`），P0 暂由 auth-service/user-service 共享访问
+  - `community`：身份域（`user`），由 user-service 持有（auth-service 不再直连 MySQL）
   - `community_content`：内容域（`discuss_post`、`comment`）
   - `community_message`：消息域（`message`、`consumed_event`）
   - `community_search`：搜索域（`search_consumed_event`）
@@ -17,7 +17,7 @@
 - **Redis：** 以 Key 前缀与命名空间划分归属（见第 3 节）。
 
 **后续演进（P1+）：**
-- 身份域彻底解耦：auth-service 不再直连 `community.user`，改为调用 user-service 内部 API。
+- 身份域彻底解耦（已完成）：auth-service 不再直连 `community.user`，改为调用 user-service 内部 API。
 - 事件可靠投递：在写路径引入 Outbox Pattern（同事务写 outbox + 后台可靠投递 + 可观测堆积）。
 
 ---
@@ -25,7 +25,7 @@
 ## 2. MySQL 表（基于 MyBatis Mapper 推断）
 
 > 表归属（共享库阶段建议）：
-> - `community.user`：user-service（auth-service 迁移期可只读访问以完成登录校验）
+> - `community.user`：user-service（auth-service 通过 user-service internal API 完成鉴权/注册/激活/重置密码）
 > - `community_message.message` / `community_message.consumed_event`：message-service
 > - `community_search.search_consumed_event`：search-service（幂等去重表）
 
@@ -37,8 +37,8 @@
 |-------|------|-------------|-------------|
 | id | int | PK | 用户 ID |
 | username | varchar | Unique | 用户名 |
-| password | varchar | Not Null | 加盐哈希后的密码 |
-| salt | varchar | Not Null | 盐 |
+| password | varchar |  | 密码哈希（legacy: MD5+salt；新用户/重置后: BCrypt） |
+| salt | varchar |  | legacy 盐（BCrypt 不需要，可为空/空字符串） |
 | email | varchar | Unique | 邮箱 |
 | type | int | Not Null | 用户类型（普通/管理员/版主） |
 | status | int | Not Null | 激活状态 |
@@ -54,6 +54,7 @@
 |-------|------|-------------|-------------|
 | id | int | PK | 帖子 ID |
 | user_id | int | FK(user.id) | 作者 |
+| category_id | int |  | 分类 ID（可为空，指向 `category.id`） |
 | title | varchar |  | 标题 |
 | content | text |  | 内容 |
 | type | int |  | 置顶标识等 |
@@ -61,6 +62,48 @@
 | create_time | datetime |  | 创建时间 |
 | comment_count | int |  | 评论数 |
 | score | double |  | 热度分数 |
+
+### 2.2.1 category
+
+**Description：** 分类字典（Discourse-like taxonomy）。
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | int | PK | 分类 ID |
+| name | varchar | Unique | 分类名 |
+| description | varchar |  | 描述 |
+| position | int |  | 排序（越小越靠前） |
+| create_time | datetime |  | 创建时间 |
+
+**Indexes：**
+- `uk_category_name(name)`
+
+### 2.2.2 tag
+
+**Description：** 标签字典（唯一）。
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | int | PK | 标签 ID |
+| name | varchar | Unique | 标签名 |
+| create_time | datetime |  | 创建时间 |
+
+**Indexes：**
+- `uk_tag_name(name)`
+
+### 2.2.3 post_tag
+
+**Description：** 帖子-标签关联表（多对多）。
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| post_id | int | PK(post_id, tag_id) | 帖子 ID |
+| tag_id | int | PK(post_id, tag_id) | 标签 ID |
+| create_time | datetime |  | 创建时间 |
+
+**Indexes：**
+- `idx_post_tag_post_id(post_id)`
+- `idx_post_tag_tag_id(tag_id)`
 
 ### 2.3 comment
 
@@ -210,11 +253,12 @@ CommentCreated（`type=CommentCreated`）：
 ## 5. Elasticsearch 索引
 
 ### discuss_post
-- 索引字段（建议）：`postId`、`userId`、`title`、`content`、`type`、`status`、`createTime`、`score`
+- 索引字段（建议）：`postId`、`userId`、`title`、`content`、`type`、`status`、`createTime`、`score`、`categoryId`、`tags`
 - 用途：帖子全文检索 + 高亮
 - 映射策略（建议）：
   - `title/content`：text（可选 analyzer：`standard` 或 `ik_smart/ik_max_word`，取决于 ES 是否安装 IK）
-  - `postId/userId/type/status`：keyword/number
+  - `postId/userId/type/status/categoryId`：keyword/number
   - `createTime`：date
   - `score`：double（用于热帖/相关性排序）
+  - `tags`：keyword（数组；用于按标签过滤/聚合展示）
 - 高亮字段：`title`、`content`（标签建议：`<em>...</em>`）

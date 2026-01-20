@@ -1,11 +1,14 @@
 package com.nowcoder.community.common.event.payload;
 
 import java.time.Instant;
+import java.util.List;
 
 public class PostPayload {
 
     private int postId;
     private int userId;
+    private Integer categoryId;
+    private List<String> tags;
     private String title;
     private String content;
     private int type;
@@ -27,6 +30,22 @@ public class PostPayload {
 
     public void setUserId(int userId) {
         this.userId = userId;
+    }
+
+    public Integer getCategoryId() {
+        return categoryId;
+    }
+
+    public void setCategoryId(Integer categoryId) {
+        this.categoryId = categoryId;
+    }
+
+    public List<String> getTags() {
+        return tags;
+    }
+
+    public void setTags(List<String> tags) {
+        this.tags = tags;
     }
 
     public String getTitle() {
@@ -77,4 +96,3 @@ public class PostPayload {
         this.score = score;
     }
 }
-

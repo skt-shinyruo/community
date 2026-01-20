@@ -2,8 +2,6 @@ package com.nowcoder.community.auth.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-import java.util.ArrayList;
-import java.util.List;
 
 @ConfigurationProperties(prefix = "security.jwt")
 public class JwtProperties {
@@ -19,7 +17,6 @@ public class JwtProperties {
     private String refreshCookieSameSite = "Lax";
     private boolean refreshCookieSecure = false;
 
-    private List<String> allowedOrigins = new ArrayList<>();
 
     public String getHmacSecret() {
         return hmacSecret;
@@ -85,12 +82,4 @@ public class JwtProperties {
         this.refreshCookieSecure = refreshCookieSecure;
     }
 
-    public List<String> getAllowedOrigins() {
-        return allowedOrigins;
-    }
-
-    public void setAllowedOrigins(List<String> allowedOrigins) {
-        this.allowedOrigins = allowedOrigins;
-    }
 }
-

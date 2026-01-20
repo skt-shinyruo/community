@@ -47,6 +47,7 @@ qiniu:
       url: ${QINIU_BUCKET_HEADER_URL:}
 
 user:
+  internal-token: ${USER_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
   social-client:
     connect-timeout: 200ms
     read-timeout: 800ms

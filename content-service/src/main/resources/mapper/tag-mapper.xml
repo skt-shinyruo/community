@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nowcoder.community.content.dao.TagMapper">
+
+    <sql id="selectFields">
+        id, name, create_time
+    </sql>
+
+    <select id="selectTagByName" resultType="Tag">
+        select <include refid="selectFields"></include>
+        from tag
+        where name = #{name}
+        limit 1
+    </select>
+
+    <insert id="insertTag" parameterType="Tag" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        insert into tag(name, create_time)
+        values(#{name}, #{createTime})
+    </insert>
+
+    <select id="selectHotTags" resultType="HotTag">
+        select
+            t.name as name,
+            count(*) as use_count
+        from post_tag pt
+        join tag t on pt.tag_id = t.id
+        group by t.id, t.name
+        order by use_count desc, t.id asc
+        limit #{limit}
+    </select>
+
+    <select id="selectSuggestTags" resultType="HotTag">
+        select
+            t.name as name,
+            coalesce(cnt.use_count, 0) as use_count
+        from tag t
+        left join (
+            select tag_id, count(*) as use_count
+            from post_tag
+            group by tag_id
+        ) cnt on t.id = cnt.tag_id
+        where t.name like concat(#{q}, '%')
+        order by cnt.use_count desc, t.id asc
+        limit #{limit}
+    </select>
+
+</mapper>

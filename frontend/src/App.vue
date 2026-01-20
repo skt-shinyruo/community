@@ -1,9 +1,12 @@
 <!-- 应用入口：接入 AppShell（Notion 风格工作区骨架）与全局 Toast。 -->
 <template>
-  <UiToast :type="app.toast.type" :message="app.toast.message" @close="app.clearToast()" />
+  <UiToast ref="toastRef" />
 
   <div v-if="isAuthRoute" style="min-height: 100vh; background: var(--bg)">
-    <RouterView @trace="app.setTraceId($event)" />
+    <AuthShell v-if="useAuthShell">
+      <RouterView @trace="app.setTraceId($event)" />
+    </AuthShell>
+    <RouterView v-else @trace="app.setTraceId($event)" />
   </div>
 
   <AppShell v-else>
@@ -16,8 +19,7 @@
       <RightPanel />
     </template>
   </AppShell>
-  
-  <UiToast ref="toastRef" />
+
   <UiScrollTop />
 </template>
 
@@ -36,11 +38,32 @@ import UiScrollTop from './components/ui/UiScrollTop.vue'
 const auth = useAuthStore()
 const app = useAppStore()
 const route = useRoute()
+const toastRef = ref(null)
+
+// 统一全局 Toast 入口：页面通过 inject('showToast') 使用。
+const showToast = (payload) => {
+  toastRef.value?.show?.(payload || {})
+}
+
+provide('showToast', showToast)
+
+// 兼容历史调用：Axios 拦截器会尝试使用 window.$toast。
+if (typeof window !== 'undefined') {
+  window.$toast = showToast
+}
+
 const isAuthRoute = computed(() => {
   const name = String(route.name || '')
   if (name === 'login' || name === 'register' || name === 'activation') return true
   const path = String(route.path || '')
   return path.startsWith('/auth/')
+})
+
+const useAuthShell = computed(() => {
+  const name = String(route.name || '')
+  // 登录/注册页面自带 full-bleed 视觉区块，其余认证页使用统一 AuthShell。
+  if (name === 'login' || name === 'register') return false
+  return true
 })
 
 async function refreshMe() {

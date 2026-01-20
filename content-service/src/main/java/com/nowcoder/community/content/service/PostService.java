@@ -22,9 +22,18 @@ public class PostService {
     }
 
     public List<DiscussPost> listPosts(int page, int size, int orderMode) {
+        return listPosts(page, size, orderMode, null, null);
+    }
+
+    public List<DiscussPost> listPosts(int page, int size, int orderMode, Integer categoryId, String tag) {
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
-        return discussPostMapper.selectDiscussPosts(0, p * s, s, orderMode);
+        String safeTag = tag == null ? null : tag.trim();
+        if (safeTag != null && safeTag.isBlank()) {
+            safeTag = null;
+        }
+        Integer safeCategoryId = (categoryId != null && categoryId > 0) ? categoryId : null;
+        return discussPostMapper.selectDiscussPosts(0, safeCategoryId, safeTag, p * s, s, orderMode);
     }
 
     public DiscussPost getById(int postId) {

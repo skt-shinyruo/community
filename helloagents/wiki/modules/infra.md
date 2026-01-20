@@ -18,7 +18,7 @@
   - 质量门禁：CI（backend-test/frontend-lint-build）+ 冒烟脚本（可选：`scripts/smoke-i0-auth.sh`）
   - 压测：`loadtest/`（k6 脚本与容量阈值/记录模板）
 - **Status：** ✅Stable
-- **Last Updated：** 2026-01-18
+- **Last Updated：** 2026-01-20
 
 ## Specifications（交付门禁）
 
@@ -26,6 +26,7 @@
 - MySQL/Redis/Kafka/Elasticsearch/Nacos 均启用且服务健康（`/actuator/health`）。
 - CI 侧以单元测试/构建为基础门禁；全链路集成验证建议在本地按需执行（docker compose + curl）。
 - Zookeeper 状态持久化（`zookeeper_data/zookeeper_log`），避免 Kafka 因 clusterId 不一致而启动失败。
+- Kafka 增加 compose healthcheck + `restart: on-failure`，并将依赖 Kafka 的服务统一为等待 `service_healthy`，避免首次启动时 Kafka 因 ZK 会话未过期窗口偶发退出导致级联失败。
 
 ### Requirement: 构建可重复、可恢复
 - `deploy/Dockerfile.spring-service` 使用 BuildKit cache 复用 Maven 依赖（`/root/.m2/repository`）以加速构建。
@@ -52,3 +53,5 @@
 - 2026-01-18：`secret-scan` 改为仅扫描 git tracked 文件，避免本地 `deploy/.env` 阻断 `security-check`（仍会阻止 `deploy/.env` 被提交）。
 - 2026-01-18：为 Nacos 增加健康检查，并将各服务对 Nacos 的依赖条件改为 `service_healthy`，避免首次启动时服务注册偶发失败（如 `analytics-service` 退出）。
 - 2026-01-18：P0 生产可用加固：MySQL 同实例多 schema（非身份域先拆）+ 备份/恢复支持多库 + DLQ 指标/告警与回放脚本。
+- 2026-01-20：Kafka 增加 healthcheck + `restart: on-failure`，并将依赖 Kafka 的启动条件改为等待 `service_healthy`，修复首次启动偶发 NodeExists 导致的 Kafka/业务服务退出。
+- 2026-01-20：docker compose project name 固定为 `community`；Nacos 控制台端口默认绑定到宿主机 `127.0.0.1:${NACOS_UI_PORT:-8848}`，便于通过 UI 修改配置。

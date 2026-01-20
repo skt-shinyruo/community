@@ -3,7 +3,7 @@
   <UiCard>
     <UiPageHeader>
       <template #title>账号激活</template>
-      <template #subtitle>userId={{ userId }} · code={{ code }}</template>
+      <template #subtitle>验证激活码并完成账号激活</template>
       <template #actions>
         <RouterLink class="btn secondary" to="/auth/login">去登录</RouterLink>
       </template>

@@ -3,7 +3,7 @@
 ## 1. 职责（迭代 0）
 - 提供登录/刷新/登出闭环：`/api/auth/login`、`/api/auth/refresh`、`/api/auth/logout`，以及联调用的 `GET /api/auth/me`。
 - 签发 JWT access token（HS256），refresh token 默认使用 **HttpOnly Cookie** 并支持 **旋转刷新（rotation）**。
-- 登录校验兼容 legacy 的 `MD5(password + salt)`（迁移期与 legacy 共用 `user` 表）。
+- 身份域数据所有权收敛到 `user-service`：用户名密码校验、用户状态/角色查询、密码渐进升级（legacy→BCrypt）均通过 `user-service` 的 `/internal/users/**` 完成；`auth-service` **不再直连 MySQL**。
 - 提供验证码与账号安全防护：
   - `GET /api/auth/captcha`（captchaId + imageBase64）
   - `POST /api/auth/captcha/verify`（一次性 + TTL + 失败次数阈值作废）
@@ -14,7 +14,7 @@
   - `POST /api/auth/password/reset/confirm`
 - 安全增强：
   - 支持按 **IP/账号维度** 的登录失败限流（防爆破）。
-  - 支持按 `Origin` 白名单校验（防止被非预期站点发起跨站请求）。
+- 同站不同源（HTTP）场景下的 Origin 白名单校验由 **gateway OriginGuard** 统一负责（login/refresh/logout），避免多点配置漂移。
 
 ## 2. 关键文件
 - 启动类：`auth-service/src/main/java/com/nowcoder/community/auth/AuthServiceApplication.java`
@@ -22,6 +22,11 @@
 - JWT 签发：`auth-service/src/main/java/com/nowcoder/community/auth/config/JwtCryptoConfig.java`
 - 业务入口：`auth-service/src/main/java/com/nowcoder/community/auth/api/AuthController.java`
 - 核心服务：`auth-service/src/main/java/com/nowcoder/community/auth/service/AuthService.java`
+- user-service internal client（身份域 SSOT）：
+  - 配置：`auth-service/src/main/java/com/nowcoder/community/auth/config/UserServiceClientProperties.java`
+  - RestTemplate：`auth-service/src/main/java/com/nowcoder/community/auth/config/AuthRestClientConfig.java`
+  - 客户端：`auth-service/src/main/java/com/nowcoder/community/auth/service/UserServiceInternalClient.java`
+  - DTO：`auth-service/src/main/java/com/nowcoder/community/auth/service/dto/*`
 - 验证码：
   - 配置：`auth-service/src/main/java/com/nowcoder/community/auth/config/CaptchaProperties.java`
   - 逻辑：`auth-service/src/main/java/com/nowcoder/community/auth/service/CaptchaService.java`
@@ -42,7 +47,6 @@
 - 登录限流：
   - 配置：`auth-service/src/main/java/com/nowcoder/community/auth/config/LoginRateLimitProperties.java`
   - 逻辑：`auth-service/src/main/java/com/nowcoder/community/auth/service/LoginRateLimitService.java`
-- MyBatis mapper：`auth-service/src/main/resources/mapper/user_mapper.xml`
 - 配置：`auth-service/src/main/resources/application.yml`
 
 ## 3. refresh token Redis Key
@@ -54,6 +58,7 @@
 - **refresh cookie**：默认 `SameSite=Lax`、`Path=/api/auth`；生产环境建议启用 `Secure=true` 并按部署形态评估 `SameSite` 策略。
 - **refresh token 存储**：通过 `auth.refresh.store=redis|memory` 切换（默认 memory，生产建议 redis）。
 - **登出语义**：登出会按 refresh token 的 `familyId` 做“家族级”失效，避免同一会话族残留 token。
+- **user-service internal token**：`auth.user-client.internal-token` 必须与 `user-service` 的 `user.internal-token` 匹配（header：`X-Internal-Token`）。推荐统一用 `INTERNAL_TOKEN`（或单独 `USER_INTERNAL_TOKEN`）。
 - **验证码（captchaId）**：
   - `GET /api/auth/captcha` 返回 `{ captchaId, imageBase64, ttlSeconds }`，验证码与失败计数在服务端存储（Redis/memory）。
   - 校验成功一次性失效；失败达到阈值作废并要求重新获取（默认失败 3 次）。
@@ -66,14 +71,11 @@
 
 ### 5.1 切片测试（mock）
 - 目标：只验证 Controller 层的入参/出参/响应头等行为，不依赖 DB/Redis 等外部服务。
-- 示例：`auth-service/src/test/java/com/nowcoder/community/auth/api/AuthControllerWebMvcTest.java`
-  - `@WebMvcTest(AuthController.class)` + `@MockBean(AuthService/RegistrationService/...)`
-  - 适合 CI 快速回归（无需 Docker）。
+- 建议：新增 `@WebMvcTest(AuthController.class)` 覆盖 login/refresh/logout/register/password-reset 等关键接口。
 
 ### 5.2 集成测试（Testcontainers）
 - 目标：覆盖登录/注册/验证码/找回密码等关键链路，允许引入外部依赖（Redis/DB 等）。
-- 示例：`auth-service/src/test/java/com/nowcoder/community/auth/api/AuthControllerTest.java`
-  - 使用 Testcontainers 启动 Redis，并通过 `@DynamicPropertySource` 注入 `spring.data.redis.host/port`。
+- 建议：使用 Testcontainers 启动 Redis，并以 mock/stub 方式替代 `user-service internal`（或在 compose 环境跑端到端 smoke）。
 
 ### 5.3 常用命令
 - 全量跑 `auth-service` 测试（推荐，确保依赖模块一起构建）：`mvn -pl auth-service -am test`

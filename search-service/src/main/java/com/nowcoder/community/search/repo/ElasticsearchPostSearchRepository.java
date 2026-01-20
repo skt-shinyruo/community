@@ -35,6 +35,8 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
         EsPostDocument doc = new EsPostDocument();
         doc.setPostId(post.getPostId());
         doc.setUserId(post.getUserId());
+        doc.setCategoryId(post.getCategoryId());
+        doc.setTags(post.getTags() == null ? List.of() : post.getTags());
         doc.setTitle(post.getTitle());
         doc.setContent(post.getContent());
         doc.setType(post.getType());
@@ -53,18 +55,32 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
     }
 
     @Override
-    public List<SearchPostItem> search(String keyword, int page, int size) {
+    public List<SearchPostItem> search(String keyword, Integer categoryId, String tag, int page, int size) {
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
 
-        Query query;
         String k = StringUtils.hasText(keyword) ? keyword.trim() : "";
-        if (!StringUtils.hasText(k)) {
-            query = Query.findAll();
+
+        Criteria criteria;
+        if (StringUtils.hasText(k)) {
+            criteria = new Criteria("title").contains(k).or(new Criteria("content").contains(k));
         } else {
-            Criteria criteria = new Criteria("title").contains(k).or(new Criteria("content").contains(k));
-            query = new CriteriaQuery(criteria);
+            // match-all baseline：便于叠加 taxonomy 过滤
+            criteria = new Criteria("postId").exists();
         }
+
+        if (categoryId != null && categoryId > 0) {
+            criteria = criteria.and(new Criteria("categoryId").is(categoryId));
+        }
+        String safeTag = StringUtils.hasText(tag) ? tag.trim() : "";
+        if (safeTag.startsWith("#")) {
+            safeTag = safeTag.substring(1).trim();
+        }
+        if (StringUtils.hasText(safeTag)) {
+            criteria = criteria.and(new Criteria("tags").is(safeTag));
+        }
+
+        Query query = new CriteriaQuery(criteria);
 
         query.setPageable(PageRequest.of(p, s));
         query.addSort(Sort.by(Sort.Order.desc("score"), Sort.Order.desc("createTime")));
@@ -87,6 +103,8 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
         SearchPostItem item = new SearchPostItem();
         if (doc != null) {
             item.setPostId(doc.getPostId() == null ? 0 : doc.getPostId());
+            item.setCategoryId(doc.getCategoryId());
+            item.setTags(doc.getTags() == null ? List.of() : doc.getTags());
             item.setTitle(doc.getTitle());
             item.setCreateTime(doc.getCreateTime() == null ? null : Instant.ofEpochMilli(doc.getCreateTime()));
             item.setScore(doc.getScore());

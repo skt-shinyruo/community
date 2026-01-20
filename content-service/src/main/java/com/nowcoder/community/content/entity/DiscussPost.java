@@ -6,6 +6,7 @@ public class DiscussPost {
 
     private int id;
     private int userId;
+    private Integer categoryId;
     private String title;
     private String content;
     private int type;
@@ -28,6 +29,14 @@ public class DiscussPost {
 
     public void setUserId(int userId) {
         this.userId = userId;
+    }
+
+    public Integer getCategoryId() {
+        return categoryId;
+    }
+
+    public void setCategoryId(Integer categoryId) {
+        this.categoryId = categoryId;
     }
 
     public String getTitle() {
@@ -86,4 +95,3 @@ public class DiscussPost {
         this.score = score;
     }
 }
-

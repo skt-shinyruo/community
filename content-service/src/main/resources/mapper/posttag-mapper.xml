@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nowcoder.community.content.dao.PostTagMapper">
+
+    <insert id="insertPostTag">
+        insert into post_tag(post_id, tag_id, create_time)
+        values(#{postId}, #{tagId}, #{createTime})
+    </insert>
+
+    <select id="selectTagNamesByPostIds" resultType="PostTagName">
+        select
+            pt.post_id as post_id,
+            t.name as name
+        from post_tag pt
+        join tag t on pt.tag_id = t.id
+        where pt.post_id in
+        <foreach collection="postIds" item="pid" open="(" separator="," close=")">
+            #{pid}
+        </foreach>
+        order by pt.post_id asc, t.name asc
+    </select>
+
+</mapper>
+

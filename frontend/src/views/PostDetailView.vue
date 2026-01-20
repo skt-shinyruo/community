@@ -2,11 +2,11 @@
   <div class="page reading">
     <UiCard>
       <div style="padding: 12px 16px 0 16px">
-         <UiBreadcrumb :items="[{ label: 'Boards', to: '/posts' }, { label: 'Post Detail' }]" />
+         <UiBreadcrumb />
       </div>
       <UiPageHeader>
         <template #title>
-           <UiButton v-if="true" variant="ghost" @click="$router.back()" style="padding-left: 0; margin-left: -8px; color: var(--muted)">
+           <UiButton variant="ghost" class="post-detail-back" @click="$router.back()">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
               返回
            </UiButton>
@@ -25,11 +25,11 @@
         <div class="stack" style="gap: 12px">
            <div class="row" style="gap: 8px; flex-wrap: wrap; align-items: center">
              <div class="vote-box-detail">
-               <button class="vote-btn-d up" :class="{ active: post.liked }" @click="togglePostLike">
+               <button class="vote-btn-d up" :class="{ active: post.liked }" aria-label="点赞" @click="togglePostLike">
                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
                </button>
                <span class="vote-count-d">{{ post.likeCount || 0 }}</span>
-               <button class="vote-btn-d down">
+               <button class="vote-btn-d down" aria-label="点踩（占位）">
                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
                </button>
              </div>
@@ -41,6 +41,25 @@
                  <div class="row muted" style="gap: 8px; flex-wrap: wrap; font-size: 13px; align-items: center">
                    <UiBadge v-if="post.type === 1" variant="accent">置顶</UiBadge>
                     <UiBadge v-if="post.status === 1" variant="success">加精</UiBadge>
+
+                    <RouterLink
+                      v-if="Number(post.categoryId || 0) > 0"
+                      class="taxonomy-link"
+                      :to="{ name: 'posts', query: { categoryId: String(post.categoryId) } }"
+                      :title="`查看分类 ${categoryLabel(post.categoryId)}`"
+                    >
+                      <span class="tag topic-category">{{ categoryLabel(post.categoryId) }}</span>
+                    </RouterLink>
+
+                    <RouterLink
+                      v-for="t in (Array.isArray(post.tags) ? post.tags : [])"
+                      :key="t"
+                      class="taxonomy-link"
+                      :to="{ name: 'posts', query: { tag: t } }"
+                      :title="`查看标签 ${t}`"
+                    >
+                      <span class="tag">#{{ t }}</span>
+                    </RouterLink>
                     
                     <UiUserCard :user="postAuthor">
                       <div class="row" style="gap: 6px; cursor: pointer">
@@ -49,7 +68,7 @@
                       </div>
                     </UiUserCard>
                     
-                    <UiBadge v-if="postAuthor?.type === 1" variant="accent" style="height: 18px; font-size: 11px">ADMIN</UiBadge>
+                    <UiRoleBadge :user="postAuthor" size="md" />
                     <span style="background: var(--surface-2); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600">LV {{ Math.floor((postAuthor?.score || 0) / 100) + 1 }}</span>
 
                     <span>发布于 {{ formatTime(post.createTime) }}</span>
@@ -69,6 +88,8 @@
               <UiButton v-else-if="followStatus === true" variant="secondary" @click="follow(false)" :disabled="actionLoading">
                 取关作者
               </UiButton>
+              <UiButton variant="secondary" disabled title="即将上线">举报</UiButton>
+              <UiButton variant="secondary" disabled title="即将上线">屏蔽</UiButton>
             </template>
  
             <template v-if="authed && auth.isAdminOrModerator">
@@ -103,97 +124,146 @@
         <div v-if="commentsError" class="error" style="margin-top: 12px">{{ commentsError }}</div>
  
         <div style="margin-top: 12px">
-          <UiEmpty v-if="comments.length === 0">暂无评论</UiEmpty>
-          <div v-else class="stack" style="gap: 16px"> <!-- Increased gap for threads -->
-            <div class="comment-thread" v-for="c in comments" :key="c.id" style="position: relative">
-               <!-- Thread Line (Visual) -->
-               <div class="thread-line" v-if="c._repliesExpanded && c._replies.length > 0"></div>
- 
-               <div class="row" style="justify-content: space-between; align-items: flex-start;">
-                 <div class="row" style="align-items: center; gap: 8px;">
-                    <UiUserCard :user="c.user">
-                       <UiAvatar :src="c.user?.headerUrl || ''" :name="c.user?.username || ''" :size="28" style="cursor: pointer" />
-                    </UiUserCard>
-                    
-                    <div class="stack" style="gap: 0">
-                       <div class="row" style="gap: 6px; align-items: center">
-                           <UiUserCard :user="c.user">
-                             <router-link :to="`/users/${c.userId}`" style="font-weight: 700; font-size: 13px; color: var(--text-1)">
-                               {{ c.user?.username || `user#${c.userId}` }}
-                             </router-link>
-                           </UiUserCard>
-                           
-                           <UiBadge v-if="c.userId === post.userId" variant="secondary" style="height: 16px; font-size: 10px">OP</UiBadge>
-                           <UiBadge v-if="c.user?.type === 1" variant="accent" style="height: 16px; font-size: 10px">ADMIN</UiBadge>
-                       </div>
-                       <span class="muted" style="font-size: 11px">{{ formatTime(c.createTime) }}</span>
+          <UiEmpty v-if="!commentsLoading && comments.length === 0 && !commentsError">暂无评论</UiEmpty>
+          <div v-else-if="commentsLoading && comments.length === 0" class="muted">加载中…</div>
+          <div v-else class="stack" style="gap: 16px">
+            <div
+              v-for="c in comments"
+              :key="c.id"
+              class="comment-thread"
+              :id="commentAnchorId(c.id)"
+              style="position: relative"
+            >
+              <!-- Thread Line (Visual) -->
+              <div class="thread-line" v-if="c._repliesExpanded && c._replies.length > 0"></div>
+
+              <div class="row" style="justify-content: space-between; align-items: flex-start">
+                <div class="row" style="align-items: center; gap: 8px">
+                  <UiUserCard :user="c.user">
+                    <UiAvatar :src="c.user?.headerUrl || ''" :name="c.user?.username || ''" :size="28" style="cursor: pointer" />
+                  </UiUserCard>
+
+                  <div class="stack" style="gap: 0">
+                    <div class="row" style="gap: 6px; align-items: center">
+                      <UiUserCard :user="c.user">
+                        <router-link :to="`/users/${c.userId}`" style="font-weight: 700; font-size: 13px; color: var(--text-1)">
+                          {{ c.user?.username || `user#${c.userId}` }}
+                        </router-link>
+                      </UiUserCard>
+
+                      <UiBadge v-if="c.userId === post.userId" variant="secondary" style="height: 16px; font-size: 10px">OP</UiBadge>
+                      <UiRoleBadge :user="c.user" />
                     </div>
-                 </div>
-               </div>
- 
-               <div class="comment-content" style="padding-left: 36px">
-                  <div class="comment-body" style="white-space: pre-wrap">{{ c.content }}</div>
-                  
-                  <div class="row muted" style="gap: 12px; margin-top: 8px; font-size: 12px">
-                     <div style="cursor: pointer; display: flex; align-items: center; gap: 4px" @click="toggleCommentLike(c)">
-                        <span :class="{ 'red-text': c.liked }">❤️</span> {{ c.likeCount || 0 }}
-                     </div>
-                     <div style="cursor: pointer" @click="startReply(c)">回复</div>
-                     <div style="cursor: pointer" v-if="!c._repliesExpanded && (c.replyCount || 0) > 0" @click="toggleReplies(c)">
-                        展开 {{ c.replyCount || 0 }} 条回复
-                     </div>
-                     <div style="cursor: pointer" v-if="c._repliesExpanded" @click="toggleReplies(c)">收起</div>
+                    <span class="muted" style="font-size: 11px">{{ formatTime(c.createTime) }}</span>
                   </div>
- 
-                  <!-- Reply Input -->
-                  <div v-if="c._replying" class="card flat" style="padding: 10px; margin-top: 10px; background: var(--surface-2)">
-                     <UiTextarea v-model.trim="c._replyDraft" :rows="3" placeholder="回复... (支持 Markdown)" />
-                     <div class="row" style="justify-content: flex-end; margin-top: 8px; gap: 8px">
-                        <UiButton variant="secondary" @click="cancelReply(c)" :disabled="c._replySubmitting">取消</UiButton>
-                        <UiButton @click="submitReply(c)" :disabled="c._replySubmitting">提交</UiButton>
-                     </div>
-                  </div>
- 
-                  <!-- Replies List -->
-                  <div v-if="c._repliesExpanded" style="margin-top: 12px; display: grid; gap: 12px">
-                     <div class="muted" v-if="c._repliesLoading">加载中...</div>
-                     <div v-else-if="c._replies.length === 0" class="muted">暂无回复</div>
-                     <div v-else v-for="r in c._replies" :key="r.id" class="reply-item">
-                        <div class="row" style="align-items: center; gap: 8px">
-                           <UiUserCard :user="r.user">
-                             <UiAvatar :src="r.user?.headerUrl || ''" :name="r.user?.username || ''" :size="20" />
-                           </UiUserCard>
-                           
-                           <span style="font-weight: 600; font-size: 12px">{{ r.user?.username || `user#${r.userId}` }}</span>
-                           
-                           <UiBadge v-if="r.userId === post.userId" variant="secondary" style="height: 16px; font-size: 10px">OP</UiBadge>
-                           
-                           <span class="muted" style="font-size: 12px">回复 {{ r.targetUser?.username || '楼主' }}</span>
-                           <span class="muted" style="font-size: 12px">· {{ formatTime(r.createTime) }}</span>
-                        </div>
-                      <div class="comment-body" style="font-size: 13px; margin-top: 4px; padding-left: 28px">{{ r.content }}</div>
-                      
-                      <div class="row muted" style="gap: 12px; margin-top: 4px; padding-left: 28px; font-size: 12px">
-                         <div style="cursor: pointer" @click="toggleReplyLike(c, r)">
-                           <span :class="{ 'red-text': r.liked }">❤️</span> {{ r.likeCount || 0 }}
-                         </div>
-                         <div style="cursor: pointer" @click="startReply(c, r)">回复</div>
-                      </div>
-                   </div>
-                   
-                   <UiPagination
-                      v-if="repliesHasNext(c) || c._repliesPage > 0"
-                      :page="c._repliesPage"
-                      :has-next="repliesHasNext(c)"
-                      @prev="prevRepliesPage(c)"
-                      @next="nextRepliesPage(c)"
-                      style="margin-top: 8px"
-                    />
                 </div>
-             </div>
+              </div>
+
+              <div class="comment-content" style="padding-left: 36px">
+                <UiMarkdown variant="compact" :content="c.content" />
+
+                <div class="row muted comment-actions" style="gap: 12px; margin-top: 8px; font-size: 12px">
+                  <button
+                    class="comment-action"
+                    type="button"
+                    :aria-label="c.liked ? '取消点赞评论' : '点赞评论'"
+                    @click="toggleCommentLike(c)"
+                  >
+                    <span aria-hidden="true" :class="{ 'red-text': c.liked }">❤️</span>
+                    <span>{{ c.likeCount || 0 }}</span>
+                  </button>
+
+                  <button class="comment-action" type="button" aria-label="回复评论" @click="startReply(c)">回复</button>
+
+                  <button
+                    v-if="(c.replyCount || 0) > 0 || c._repliesExpanded"
+                    class="comment-action"
+                    type="button"
+                    :aria-label="c._repliesExpanded ? '收起回复' : `展开 ${c.replyCount || 0} 条回复`"
+                    @click="toggleReplies(c)"
+                  >
+                    {{ c._repliesExpanded ? '收起回复' : `展开 ${c.replyCount || 0} 条回复` }}
+                  </button>
+                </div>
+
+                <!-- Reply Input -->
+                <div v-if="c._replying" class="card flat reply-editor">
+                  <div v-if="c._replyQuote" class="reply-quote">
+                    <div class="row" style="justify-content: space-between; gap: 8px">
+                      <div class="muted" style="font-size: 12px">
+                        引用 {{ c._replyQuote?.username || `user#${c._replyQuote?.userId || ''}` }}
+                      </div>
+                      <button class="btn-icon sm" type="button" aria-label="取消引用" title="取消引用" @click="clearReplyQuote(c)">
+                        ×
+                      </button>
+                    </div>
+                    <div class="reply-quote-content">{{ c._replyQuote?.preview || '' }}</div>
+                  </div>
+
+                  <UiTextarea
+                    :model-value="c._replyDraft"
+                    :model-modifiers="{ trim: true }"
+                    :rows="3"
+                    placeholder="回复…（支持 Markdown）"
+                    @update:modelValue="(v) => setReplyDraft(c, v)"
+                  />
+                  <div v-if="c._replyError" class="error" style="margin-top: 6px; font-size: 12px">{{ c._replyError }}</div>
+                  <div class="row" style="justify-content: flex-end; margin-top: 8px; gap: 8px">
+                    <UiButton variant="secondary" @click="cancelReply(c)" :disabled="c._replySubmitting">收起</UiButton>
+                    <UiButton @click="submitReply(c)" :disabled="c._replySubmitting">提交</UiButton>
+                  </div>
+                </div>
+
+                <!-- Replies List -->
+                <div v-if="c._repliesExpanded" style="margin-top: 12px; display: grid; gap: 12px">
+                  <div class="muted" v-if="c._repliesLoading">加载中…</div>
+                  <div v-else-if="c._replies.length === 0" class="muted">暂无回复</div>
+                  <div v-else v-for="r in c._replies" :key="r.id" class="reply-item" :id="replyAnchorId(r.id)">
+                    <div class="row" style="align-items: center; gap: 8px">
+                      <UiUserCard :user="r.user">
+                        <UiAvatar :src="r.user?.headerUrl || ''" :name="r.user?.username || ''" :size="20" />
+                      </UiUserCard>
+
+                      <span style="font-weight: 600; font-size: 12px">{{ r.user?.username || `user#${r.userId}` }}</span>
+
+                      <UiBadge v-if="r.userId === post.userId" variant="secondary" style="height: 16px; font-size: 10px">OP</UiBadge>
+                      <UiRoleBadge :user="r.user" />
+
+                      <span class="muted" style="font-size: 12px">回复 {{ r.targetUser?.username || '楼主' }}</span>
+                      <span class="muted" style="font-size: 12px">· {{ formatTime(r.createTime) }}</span>
+                    </div>
+
+                    <div style="margin-top: 4px; padding-left: 28px">
+                      <UiMarkdown variant="compact" :content="r.content" />
+                    </div>
+
+                    <div class="row muted comment-actions" style="gap: 12px; margin-top: 6px; padding-left: 28px; font-size: 12px">
+                      <button
+                        class="comment-action"
+                        type="button"
+                        :aria-label="r.liked ? '取消点赞回复' : '点赞回复'"
+                        @click="toggleReplyLike(c, r)"
+                      >
+                        <span aria-hidden="true" :class="{ 'red-text': r.liked }">❤️</span>
+                        <span>{{ r.likeCount || 0 }}</span>
+                      </button>
+                      <button class="comment-action" type="button" aria-label="回复该回复" @click="startReply(c, r)">回复</button>
+                    </div>
+                  </div>
+
+                  <UiPagination
+                    v-if="repliesHasNext(c) || c._repliesPage > 0"
+                    :page="c._repliesPage"
+                    :has-next="repliesHasNext(c)"
+                    @prev="prevRepliesPage(c)"
+                    @next="nextRepliesPage(c)"
+                    style="margin-top: 8px"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
     </UiCard>
 
     <UiCard v-if="authed">
@@ -206,7 +276,13 @@
       </UiPageHeader>
 
       <div class="stack" style="margin-top: 12px">
-        <UiTextarea v-model.trim="newComment" placeholder="写下你的观点…" :rows="4" />
+        <UiTextarea
+          :model-value="newComment"
+          :model-modifiers="{ trim: true }"
+          placeholder="写下你的观点…（支持 Markdown）"
+          :rows="4"
+          @update:modelValue="setNewComment"
+        />
         <div v-if="commentError" class="error">{{ commentError }}</div>
       </div>
     </UiCard>
@@ -215,14 +291,23 @@
       <UiEmpty>登录后可点赞、评论、回复与关注。</UiEmpty>
     </UiCard>
 
-    <UiModalConfirm v-if="confirmOpen" :title="confirmTitle" :message="confirmMessage" @cancel="closeConfirm" @confirm="runConfirm" />
+    <UiModalConfirm
+      v-if="confirmOpen"
+      :title="confirmTitle"
+      :message="confirmMessage"
+      :confirm-text="confirmOkText"
+      :confirm-variant="confirmVariant"
+      @cancel="closeConfirm"
+      @confirm="runConfirm"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useTaxonomyStore } from '../stores/taxonomy'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
@@ -233,9 +318,12 @@ import UiEmpty from '../components/ui/UiEmpty.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiBadge from '../components/ui/UiBadge.vue'
+import UiRoleBadge from '../components/ui/UiRoleBadge.vue'
 import UiTextarea from '../components/ui/UiTextarea.vue'
 import UiModalConfirm from '../components/ui/UiModalConfirm.vue'
 import { formatTime } from '../utils/time'
+import { markPostRead } from '../utils/readTracker'
+import { scrollToAnchor } from '../utils/scrollToAnchor'
 import { getUserProfile } from '../api/services/userService'
 import { setLike, getLikeCount, getLikeStatus, followUser, unfollowUser, getFollowStatus } from '../api/services/socialService'
 import {
@@ -253,6 +341,14 @@ const emit = defineEmits(['trace'])
 const route = useRoute()
 const auth = useAuthStore()
 const authed = computed(() => !!auth.accessToken)
+const taxonomy = useTaxonomyStore()
+
+function categoryLabel(id) {
+  const cid = Number(id || 0)
+  if (!cid) return ''
+  const c = taxonomy.categoriesById.get(cid)
+  return c?.name || `分类#${cid}`
+}
 
 const postId = computed(() => String(route.params.postId || ''))
 
@@ -270,6 +366,92 @@ const newComment = ref('')
 const commenting = ref(false)
 const commentError = ref('')
 
+// 草稿：按 postId 隔离，避免跨帖污染（同时便于安全检查时确认键空间隔离）。
+function safeStorageGet(key) {
+  if (typeof window === 'undefined') return ''
+  try {
+    return window.localStorage.getItem(key) || ''
+  } catch {
+    return ''
+  }
+}
+
+function safeStorageSet(key, value) {
+  if (typeof window === 'undefined') return
+  const v = String(value || '')
+  try {
+    if (!v) window.localStorage.removeItem(key)
+    else window.localStorage.setItem(key, v)
+  } catch {
+    // ignore
+  }
+}
+
+function commentDraftKey() {
+  return `community.draft.posts.${String(postId.value || '')}.comment`
+}
+
+function replyDraftKey(commentId) {
+  return `community.draft.posts.${String(postId.value || '')}.reply.${Number(commentId || 0)}`
+}
+
+function setNewComment(v) {
+  newComment.value = String(v || '')
+  safeStorageSet(commentDraftKey(), newComment.value)
+}
+
+function setReplyDraft(c, v) {
+  if (!c) return
+  c._replyDraft = String(v || '')
+  safeStorageSet(replyDraftKey(c.id), c._replyDraft)
+}
+
+function commentAnchorId(id) {
+  return `c-${Number(id || 0)}`
+}
+
+function replyAnchorId(id) {
+  return `r-${Number(id || 0)}`
+}
+
+function buildQuotePreview(text) {
+  const s = String(text || '').replace(/\s+/g, ' ').trim()
+  if (!s) return ''
+  return s.length > 120 ? `${s.slice(0, 120)}…` : s
+}
+
+function buildQuoteMarkdown(quote) {
+  const raw = String(quote?.raw || '').trim()
+  if (!raw) return ''
+
+  const username = String(quote?.username || '').trim()
+  const userId = Number(quote?.userId || 0)
+  const who = username ? `@${username}` : userId ? `user#${userId}` : '用户'
+
+  const lines = raw
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .slice(0, 6)
+
+  const header = `> 引用 ${who}`
+  const body = lines.map((l) => `> ${l}`).join('\n')
+  return body ? `${header}\n${body}` : header
+}
+
+function composeReplyContent(draft, quote) {
+  const d = String(draft || '').trim()
+  const q = quote ? buildQuoteMarkdown(quote) : ''
+  if (!q) return d
+  if (!d) return q
+  return `${q}\n\n${d}`
+}
+
+function clearReplyQuote(c) {
+  if (!c) return
+  c._replyQuote = null
+}
+
 const followStatusText = computed(() => (followStatus.value === null ? '-' : followStatus.value ? '已关注' : '未关注'))
 
 const comments = ref([])
@@ -283,6 +465,9 @@ const confirmOpen = ref(false)
 const confirmTitle = ref('')
 const confirmMessage = ref('')
 const confirmAction = ref('') // top|wonderful|delete
+
+const confirmVariant = computed(() => (confirmAction.value === 'delete' ? 'danger' : 'primary'))
+const confirmOkText = computed(() => (confirmAction.value === 'delete' ? '删除' : '确认'))
 
 function closeConfirm() {
   confirmOpen.value = false
@@ -431,6 +616,7 @@ async function hydrateComment(raw) {
     _replySubmitting: false,
     _replyTargetId: 0,
     _replyTargetUser: null,
+    _replyQuote: null,
 
     _repliesExpanded: false,
     _replies: [],
@@ -463,6 +649,38 @@ async function hydrateReply(raw) {
   }
 }
 
+async function maybeScrollFromRoute() {
+  // 1) 优先使用 hash（例如：#c-123 / #r-456）
+  const rawHash = String(route.hash || '').trim()
+  const anchor = rawHash.startsWith('#') ? rawHash.slice(1) : ''
+  if (anchor) {
+    await nextTick()
+    if (scrollToAnchor(anchor)) return
+  }
+
+  // 2) query 模式（便于“回复定位”：?commentId=1&replyId=2）
+  const commentId = Number(route.query?.commentId || 0)
+  const replyId = Number(route.query?.replyId || 0)
+  if (!commentId) return
+
+  await nextTick()
+  scrollToAnchor(commentAnchorId(commentId))
+
+  if (!replyId) return
+
+  const c = comments.value.find((x) => Number(x?.id || 0) === commentId)
+  if (!c) return
+
+  if (!c._repliesExpanded) c._repliesExpanded = true
+  if (Array.isArray(c._replies) && c._replies.length === 0) {
+    c._repliesPage = 0
+    await loadReplies(c)
+  }
+
+  await nextTick()
+  scrollToAnchor(replyAnchorId(replyId))
+}
+
 async function loadComments() {
   commentsError.value = ''
   commentsLoading.value = true
@@ -470,6 +688,7 @@ async function loadComments() {
     const resp = await apiListComments(postId.value, { page: commentsPage.value, size: commentsSize.value })
     emit('trace', resp?.traceId || '')
     comments.value = await Promise.all((resp?.data || []).map((c) => hydrateComment(c)))
+    await maybeScrollFromRoute()
   } catch (e) {
     commentsError.value = e?.message || '加载评论失败'
   } finally {
@@ -527,43 +746,66 @@ function startReply(c, reply) {
   if (!authed.value || !c) return
   c._replying = true
   c._replyError = ''
+
+  // 恢复草稿（按 postId + commentId 隔离）。
+  c._replyDraft = safeStorageGet(replyDraftKey(c.id))
+
+  // 引用内容：回复回复时引用 reply；回复评论时引用 comment。
   if (reply && reply.userId) {
     c._replyTargetId = Number(reply.userId)
     c._replyTargetUser = reply.user || null
+    c._replyQuote = {
+      sourceType: 'reply',
+      sourceId: Number(reply.id || 0),
+      userId: Number(reply.userId || 0),
+      username: String(reply.user?.username || ''),
+      raw: String(reply.content || ''),
+      preview: buildQuotePreview(reply.content)
+    }
   } else {
     c._replyTargetId = Number(c.userId || 0)
     c._replyTargetUser = c.user || null
+    c._replyQuote = {
+      sourceType: 'comment',
+      sourceId: Number(c.id || 0),
+      userId: Number(c.userId || 0),
+      username: String(c.user?.username || ''),
+      raw: String(c.content || ''),
+      preview: buildQuotePreview(c.content)
+    }
   }
 }
 
 function cancelReply(c) {
   if (!c) return
   c._replying = false
-  c._replyDraft = ''
   c._replyError = ''
   c._replySubmitting = false
   c._replyTargetId = 0
   c._replyTargetUser = null
+  c._replyQuote = null
 }
 
 async function submitReply(c) {
   if (!authed.value || !c) return
   c._replyError = ''
-  if (!c._replyDraft) {
+  if (!String(c._replyDraft || '').trim()) {
     c._replyError = '回复内容不能为空'
     return
   }
   c._replySubmitting = true
   try {
     const resp = await apiAddComment(postId.value, {
-      content: c._replyDraft,
+      content: composeReplyContent(c._replyDraft, c._replyQuote),
       entityType: 2,
       entityId: c.id,
       targetId: c._replyTargetId || undefined
     })
     emit('trace', resp?.traceId || '')
     c._replyDraft = ''
+    safeStorageSet(replyDraftKey(c.id), '')
     c._replying = false
+    c._replyQuote = null
     if (!c._repliesExpanded) {
       c._repliesExpanded = true
     }
@@ -620,7 +862,7 @@ async function toggleReplyLike(c, r) {
 
 async function addComment() {
   commentError.value = ''
-  if (!newComment.value) {
+  if (!String(newComment.value || '').trim()) {
     commentError.value = '评论不能为空'
     return
   }
@@ -628,7 +870,7 @@ async function addComment() {
   try {
     const resp = await apiAddComment(postId.value, { content: newComment.value })
     emit('trace', resp?.traceId || '')
-    newComment.value = ''
+    setNewComment('')
     commentsPage.value = 0
     await loadComments()
     await loadPost()
@@ -663,6 +905,14 @@ async function reload() {
 }
 
 watch(
+  () => [route.hash, route.query?.commentId, route.query?.replyId],
+  () => {
+    if (commentsLoading.value) return
+    maybeScrollFromRoute()
+  }
+)
+
+watch(
   () => route.params.postId,
   () => {
     post.value = null
@@ -671,11 +921,19 @@ watch(
     commentsPage.value = 0
     followStatus.value = null
     closeConfirm()
+    // 恢复当前帖子草稿（进入新帖子时才触发）
+    newComment.value = safeStorageGet(commentDraftKey())
+    if (authed.value) markPostRead(postId.value)
     reload()
   }
 )
 
-onMounted(reload)
+onMounted(() => {
+  taxonomy.ensureCategories()
+  newComment.value = safeStorageGet(commentDraftKey())
+  if (authed.value) markPostRead(postId.value)
+  reload()
+})
 </script>
 
 <style scoped>
@@ -689,16 +947,21 @@ onMounted(reload)
   padding: 4px;
 }
 
+.post-detail-back {
+  padding-left: 0;
+  margin-left: -8px;
+}
+
 .vote-btn-d {
   background: none;
   border: none;
   cursor: pointer;
   padding: 6px;
-  color: var(--muted);
+  color: var(--text-3);
   border-radius: 4px;
 }
 .vote-btn-d:hover {
-  background: rgba(0,0,0,0.05);
+  background: var(--hover-bg);
   color: var(--accent);
 }
 .vote-btn-d.up.active {
@@ -709,6 +972,16 @@ onMounted(reload)
   font-weight: 800;
   margin: 4px 0;
   color: var(--text-1);
+}
+
+.taxonomy-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.taxonomy-link:hover {
+  text-decoration: none;
 }
 
 .thread-line {
@@ -724,7 +997,67 @@ onMounted(reload)
   background: var(--border-strong);
 }
 
+.comment-thread {
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 78%, var(--bg) 22%);
+}
+
+.comment-actions {
+  flex-wrap: wrap;
+}
+
+.comment-action {
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 4px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--text-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: inherit;
+}
+
+.comment-action:hover {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+
+.comment-action:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.reply-item {
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.reply-editor {
+  padding: 10px;
+  margin-top: 10px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent 30%);
+}
+
+.reply-quote {
+  border-left: 3px solid var(--border-strong);
+  padding-left: 10px;
+  margin-bottom: 10px;
+}
+
+.reply-quote-content {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
 .red-text {
-  color: #ff453a;
+  color: var(--danger);
 }
 </style>

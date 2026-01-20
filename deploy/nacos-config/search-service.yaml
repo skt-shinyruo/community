@@ -14,5 +14,4 @@ security:
 
 search:
   storage: es
-  internal-token: ${SEARCH_INTERNAL_TOKEN:dev-search-internal-token}
-
+  internal-token: ${SEARCH_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}

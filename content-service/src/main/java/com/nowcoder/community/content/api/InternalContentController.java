@@ -7,6 +7,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.api.dto.InternalPostScanResponse;
 import com.nowcoder.community.content.dao.DiscussPostMapper;
 import com.nowcoder.community.content.entity.DiscussPost;
+import com.nowcoder.community.content.service.TagService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,13 +26,16 @@ import java.util.List;
 public class InternalContentController {
 
     private final DiscussPostMapper discussPostMapper;
+    private final TagService tagService;
     private final String internalToken;
 
     public InternalContentController(
             DiscussPostMapper discussPostMapper,
+            TagService tagService,
             @Value("${content.internal-token:}") String internalToken
     ) {
         this.discussPostMapper = discussPostMapper;
+        this.tagService = tagService;
         this.internalToken = internalToken;
     }
 
@@ -52,7 +56,11 @@ public class InternalContentController {
         int l = limit == null ? 500 : Math.min(1000, Math.max(1, limit));
 
         List<DiscussPost> posts = discussPostMapper.selectDiscussPostsAfterId(a, l);
-        List<PostPayload> items = posts.stream().map(this::toPostPayload).toList();
+        List<Integer> postIds = posts.stream().map(DiscussPost::getId).toList();
+        var tagsByPostId = tagService.getTagsByPostIds(postIds);
+        List<PostPayload> items = posts.stream()
+                .map(p -> toPostPayload(p, tagsByPostId.getOrDefault(p.getId(), List.of())))
+                .toList();
 
         InternalPostScanResponse resp = new InternalPostScanResponse();
         resp.setItems(items);
@@ -68,10 +76,12 @@ public class InternalContentController {
         return Result.ok(resp);
     }
 
-    private PostPayload toPostPayload(DiscussPost post) {
+    private PostPayload toPostPayload(DiscussPost post, List<String> tags) {
         PostPayload payload = new PostPayload();
         payload.setPostId(post.getId());
         payload.setUserId(post.getUserId());
+        payload.setCategoryId(post.getCategoryId());
+        payload.setTags(tags);
         payload.setTitle(post.getTitle());
         payload.setContent(post.getContent());
         payload.setType(post.getType());
@@ -90,4 +100,3 @@ public class InternalContentController {
         }
     }
 }
-

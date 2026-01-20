@@ -34,11 +34,15 @@
 ## 3. CORS / Origin（前端直连的前提）
 
 本地直连模式下：
-- 前端 origin 为 `http://localhost:12881`
-- gateway 与 auth-service 都配置了允许的 origin 白名单，并允许携带凭证（cookie）
+- 前端 origin 默认为 `http://localhost:12881`（也可能因本地端口调整变为 `http://localhost:12888` 等）
+- Origin/CORS allowlist 以 **gateway 为 SSOT**：
+  - **gateway CORS**：负责浏览器跨端口直连时的 CORS 响应头（是否允许带 cookie / 预检等）
+  - **gateway OriginGuard**：对敏感接口（`/api/auth/login|refresh|logout`）执行 Origin 白名单校验（服务端硬拦截）
+- auth-service 不再维护 Origin 白名单（假设 auth-service 为内网-only，对外入口统一由 gateway 管理）
 
 注意：
 - 若用 `127.0.0.1` 访问前端，会导致 origin 变化，需要同步调整 allowlist（或统一用 `localhost`）。
+- 若前端端口变化，需要同步更新 gateway allowlist（CORS 与 OriginGuard 复用同一份列表）。
 
 ---
 
@@ -67,9 +71,11 @@ gateway 对写请求会记录审计日志：
 
 ## 6. 内部 token（服务间内部接口）
 
-部分内部接口通过“内部 token”保护（用于避免被普通用户调用）：
-- `ANALYTICS_INTERNAL_TOKEN`
-- `SEARCH_INTERNAL_TOKEN`
+内部接口通过“内部 token”保护（用于避免被普通用户调用）：
+- 统一约定：所有服务的 `/internal/**` 由 `common` 层 `InternalTokenFilter` 强制校验 `X-Internal-Token`（fail-closed）。
+- 配置优先级建议：
+  1) 分服务 token：`USER_INTERNAL_TOKEN` / `CONTENT_INTERNAL_TOKEN` / `SEARCH_INTERNAL_TOKEN` / `ANALYTICS_INTERNAL_TOKEN`
+  2) 全局兜底：`INTERNAL_TOKEN`（开发/演练环境可统一一个 token，减少漂移）
 
 本地示例值见：
 - `deploy/.env.example`
@@ -80,4 +86,3 @@ gateway 对写请求会记录审计日志：
 - 修改 `.env` 中的 `JWT_HMAC_SECRET`（>= 32 字节），不要长期用默认值
 - 不要把 `.env`（含真实密钥）提交到版本库
 - 默认不暴露内部依赖端口到宿主机；需要时再用 overlay 显式开启
-

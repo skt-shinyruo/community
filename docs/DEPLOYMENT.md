@@ -48,7 +48,7 @@
 1. 复制示例：`cp deploy/.env.example deploy/.env`
 2. 按需修改：
    - `JWT_HMAC_SECRET`：开发环境也建议改成自己的一串 >= 32 字节密钥（auth-service 签发、gateway 验签需要一致）
-   - `ANALYTICS_INTERNAL_TOKEN` / `SEARCH_INTERNAL_TOKEN`：内部接口 token（本地默认即可）
+   - `INTERNAL_TOKEN`：内部接口全局 token（本地/演练推荐统一一个，减少漂移；生产可按服务拆分为 `*_INTERNAL_TOKEN`）
 
 ### 3.2 启动（前端直连网关）
 ```bash
@@ -78,7 +78,7 @@ docker compose -f deploy/docker-compose.yml \
 2. runtime 阶段：使用 `vite preview` 启动静态站点服务
 
 关键点：
-- 前端对外监听固定为 `12881`（同时用于 `vite dev` 与 `vite preview`），避免端口漂移导致 CORS/Origin 规则变复杂。
+- 前端对外监听默认 `12881`（容器 `vite preview`）；本地 `vite dev` 也默认 `12881`，但可通过 env 覆盖（若变更端口，需要同步调整 gateway allowlist：CORS + OriginGuard）。
 - 不需要 Nginx：本地开发与联调，Vite preview 足够承担“静态站点服务”角色。
 
 ---
@@ -111,4 +111,3 @@ docker compose -f deploy/docker-compose.yml \
   -f deploy/docker-compose.frontend-direct.yml \
   --env-file deploy/.env down -v
 ```
-

@@ -38,6 +38,9 @@ class SearchControllerTest {
     void searchPostsShouldBePublic() throws Exception {
         mockMvc.perform(get("/api/search/posts").param("keyword", "k"))
                 .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/search/posts").param("keyword", "k").param("categoryId", "1").param("tag", "Java"))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -46,6 +49,8 @@ class SearchControllerTest {
         com.nowcoder.community.common.event.payload.PostPayload post = new com.nowcoder.community.common.event.payload.PostPayload();
         post.setPostId(1);
         post.setUserId(1);
+        post.setCategoryId(1);
+        post.setTags(List.of("Java", "Spring"));
         post.setTitle("hello title");
         post.setContent("hello content");
         post.setCreateTime(Instant.now());

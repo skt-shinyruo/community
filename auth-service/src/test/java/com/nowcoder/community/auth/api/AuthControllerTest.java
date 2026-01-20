@@ -5,10 +5,19 @@ import com.nowcoder.community.auth.api.dto.RegisterRequest;
 import com.nowcoder.community.auth.service.CaptchaStore;
 import com.nowcoder.community.auth.api.dto.LoginRequest;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.nowcoder.community.auth.service.UserServiceInternalClient;
+import com.nowcoder.community.auth.service.dto.UserInternalAuthenticateResponse;
+import com.nowcoder.community.auth.service.dto.UserInternalRegisterResponse;
+import com.nowcoder.community.auth.service.dto.UserInternalSessionProfileResponse;
+import com.nowcoder.community.auth.service.dto.UserInternalUserByEmailResponse;
+import com.nowcoder.community.common.api.AuthErrorCode;
+import com.nowcoder.community.common.exception.BusinessException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -19,7 +28,16 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
@@ -48,6 +66,134 @@ class AuthControllerTest {
 
     @Autowired
     CaptchaStore captchaStore;
+
+    @MockBean
+    UserServiceInternalClient userServiceInternalClient;
+
+    private final Map<String, TestUser> usersByUsername = new ConcurrentHashMap<>();
+    private final Map<Integer, TestUser> usersById = new ConcurrentHashMap<>();
+    private final Map<String, Integer> userIdByEmail = new ConcurrentHashMap<>();
+    private final AtomicInteger userIdSeq = new AtomicInteger(1000);
+
+    @BeforeEach
+    void setupUserServiceStubs() {
+        usersByUsername.clear();
+        usersById.clear();
+        userIdByEmail.clear();
+
+        // 预置用户（对齐 deploy/mysql-init/090_seed_identity.sql 的默认账号）
+        TestUser aaa = new TestUser(1, "aaa", "aaa", "aaa@example.com", 1, List.of("ROLE_USER"));
+        usersByUsername.put(aaa.username, aaa);
+        usersById.put(aaa.userId, aaa);
+        userIdByEmail.put(aaa.email, aaa.userId);
+
+        when(userServiceInternalClient.authenticate(anyString(), anyString())).thenAnswer(invocation -> {
+            String username = invocation.getArgument(0);
+            String password = invocation.getArgument(1);
+            TestUser user = usersByUsername.get(username);
+            if (user == null || user.userId <= 0) {
+                throw new BusinessException(AuthErrorCode.LOGIN_FAILED);
+            }
+            if (user.status == 0) {
+                throw new BusinessException(AuthErrorCode.USER_DISABLED);
+            }
+            if (!user.password.equals(password)) {
+                throw new BusinessException(AuthErrorCode.LOGIN_FAILED);
+            }
+            UserInternalAuthenticateResponse resp = new UserInternalAuthenticateResponse();
+            resp.setUserId(user.userId);
+            resp.setUsername(user.username);
+            resp.setStatus(user.status);
+            resp.setAuthorities(user.authorities);
+            return resp;
+        });
+
+        when(userServiceInternalClient.sessionProfile(anyInt())).thenAnswer(invocation -> {
+            int userId = invocation.getArgument(0);
+            TestUser user = usersById.get(userId);
+            if (user == null) {
+                throw new BusinessException(AuthErrorCode.USER_DISABLED);
+            }
+            UserInternalSessionProfileResponse resp = new UserInternalSessionProfileResponse();
+            resp.setUserId(user.userId);
+            resp.setUsername(user.username);
+            resp.setStatus(user.status);
+            resp.setAuthorities(user.authorities);
+            return resp;
+        });
+
+        when(userServiceInternalClient.register(anyString(), anyString(), anyString())).thenAnswer(invocation -> {
+            String username = invocation.getArgument(0);
+            String password = invocation.getArgument(1);
+            String email = invocation.getArgument(2);
+
+            if (usersByUsername.containsKey(username)) {
+                throw new BusinessException(AuthErrorCode.LOGIN_FAILED, "该账号已存在");
+            }
+            if (userIdByEmail.containsKey(email)) {
+                throw new BusinessException(AuthErrorCode.LOGIN_FAILED, "该邮箱已被注册");
+            }
+
+            int userId = userIdSeq.incrementAndGet();
+            String activationCode = "ac-" + userId;
+
+            TestUser user = new TestUser(userId, username, password, email, 0, List.of("ROLE_USER"));
+            user.activationCode = activationCode;
+            usersByUsername.put(username, user);
+            usersById.put(userId, user);
+            userIdByEmail.put(email, userId);
+
+            UserInternalRegisterResponse resp = new UserInternalRegisterResponse();
+            resp.setUserId(userId);
+            resp.setActivationCode(activationCode);
+            return resp;
+        });
+
+        when(userServiceInternalClient.activate(anyInt(), anyString())).thenAnswer(invocation -> {
+            int userId = invocation.getArgument(0);
+            String code = invocation.getArgument(1);
+            TestUser user = usersById.get(userId);
+            if (user == null) {
+                return 2;
+            }
+            if (user.status == 1) {
+                return 1;
+            }
+            if (user.activationCode != null && user.activationCode.equals(code)) {
+                user.status = 1;
+                return 0;
+            }
+            return 2;
+        });
+
+        when(userServiceInternalClient.findByEmailOrNull(anyString())).thenAnswer(invocation -> {
+            String email = invocation.getArgument(0);
+            Integer userId = userIdByEmail.get(email);
+            if (userId == null) {
+                return null;
+            }
+            TestUser user = usersById.get(userId);
+            if (user == null) {
+                return null;
+            }
+            UserInternalUserByEmailResponse resp = new UserInternalUserByEmailResponse();
+            resp.setUserId(user.userId);
+            resp.setUsername(user.username);
+            resp.setEmail(user.email);
+            resp.setStatus(user.status);
+            return resp;
+        });
+
+        doAnswer(invocation -> {
+            int userId = invocation.getArgument(0);
+            String newPassword = invocation.getArgument(1);
+            TestUser user = usersById.get(userId);
+            if (user != null) {
+                user.password = newPassword;
+            }
+            return null;
+        }).when(userServiceInternalClient).updatePassword(anyInt(), anyString());
+    }
 
     @Test
     void loginRefreshLogoutFlowShouldWork() throws Exception {
@@ -286,5 +432,24 @@ class AuthControllerTest {
                         .content("{\"resetToken\":\"bad-token\",\"newPassword\":\"new_pwd\",\"captchaId\":\"" + captchaId3 + "\",\"captchaCode\":\"" + captchaCode3 + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(result -> assertThat(result.getResponse().getContentAsString()).contains("\"code\":10007"));
+    }
+
+    private static class TestUser {
+        private final int userId;
+        private final String username;
+        private String password;
+        private final String email;
+        private int status;
+        private final List<String> authorities;
+        private String activationCode;
+
+        private TestUser(int userId, String username, String password, String email, int status, List<String> authorities) {
+            this.userId = userId;
+            this.username = username;
+            this.password = password;
+            this.email = email;
+            this.status = status;
+            this.authorities = authorities;
+        }
     }
 }

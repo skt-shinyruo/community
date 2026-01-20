@@ -25,10 +25,12 @@ public class SearchController {
     @GetMapping("/posts")
     public Result<List<SearchPostItem>> searchPosts(
             @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) String tag,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        return Result.ok(postSearchService.search(keyword, page, size));
+        return Result.ok(postSearchService.search(keyword, categoryId, tag, page, size));
     }
 
     @PostMapping("/internal/reindex")

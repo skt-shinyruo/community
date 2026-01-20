@@ -1,6 +1,7 @@
 <!-- 粉丝列表页：对齐 legacy /followers/{userId} 页面能力（分页 + 用户摘要）。 -->
 <template>
   <div class="page">
+    <UiBreadcrumb />
     <UiCard>
       <UiPageHeader>
         <template #title>粉丝列表</template>
@@ -9,7 +10,6 @@
           <UiButton variant="secondary" @click="load" :disabled="loading">{{ loading ? '加载中…' : '刷新' }}</UiButton>
         </template>
       </UiPageHeader>
-      <div v-if="error" class="error" style="margin-top: 12px">{{ error }}</div>
     </UiCard>
 
     <UiCard>
@@ -17,7 +17,9 @@
         <UiPagination :page="page" :has-next="hasNext" @prev="prevPage" @next="nextPage" />
       </div>
 
-      <UiEmpty v-if="items.length === 0">暂无数据</UiEmpty>
+      <UiEmpty v-if="error && items.length === 0" type="error">{{ error }}</UiEmpty>
+      <div v-else-if="loading && items.length === 0" class="muted" style="padding: 12px; text-align: center">加载中…</div>
+      <UiEmpty v-else-if="items.length === 0">暂无数据</UiEmpty>
       <div v-else class="stack" style="gap: 8px">
         <div class="card flat" v-for="it in items" :key="it.targetId" style="padding: 12px">
           <div class="row" style="justify-content: space-between; align-items: flex-start; flex-wrap: wrap">
@@ -48,6 +50,7 @@ import { listFollowers, getFollowStatus, followUser, unfollowUser } from '../api
 import { getUserProfile } from '../api/services/userService'
 import { formatTime } from '../utils/time'
 import UiCard from '../components/ui/UiCard.vue'
+import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiPagination from '../components/ui/UiPagination.vue'

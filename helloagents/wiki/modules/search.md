@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** ES 索引维护（保存/删除）；按关键字搜索；高亮 title/content
 - **Status：** ✅Stable
-- **Last Updated：** 2026-01-19
+- **Last Updated：** 2026-01-20
 
 ## Specifications
 
@@ -33,7 +33,7 @@
  - 通过 `community_search.search_consumed_event` 做 eventId 幂等去重
 
 ## API Interfaces（现状）
-- `GET /api/search/posts?keyword=xxx`
+- `GET /api/search/posts?keyword=xxx&categoryId=&tag=`（支持 taxonomy 过滤；返回 `categoryId/tags[]` 供前端展示/二次筛选）
 - `POST /api/search/internal/reindex`（仅管理员；用于迁移期 reindex）
 - `POST /internal/search/reindex`（服务内部入口：需要 `X-Internal-Token`）
 
@@ -49,3 +49,4 @@
 ## Change History
 - 2026-01-18：DLQ 指标与告警补齐（`kafka_dlq_published_total`），并将 search-service 幂等表归属迁移到独立 schema（`community_search`）。
 - 2026-01-19：reindex 从“跨 schema 直读 content 表”升级为“调用 content-service 内部 API 扫描帖子”，支持严格的“每服务仅访问本 schema”。
+- 2026-01-20：索引与搜索联动 taxonomy：ES 文档增加 `categoryId/tags`，`/api/search/posts` 支持 `categoryId/tag` 过滤，前端搜索页可按分类/标签缩小范围。

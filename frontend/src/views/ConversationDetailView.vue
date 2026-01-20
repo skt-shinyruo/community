@@ -3,21 +3,21 @@
     <!-- Chat Header -->
     <div style="padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--surface); display: flex; justify-content: space-between; align-items: center">
        <div class="row" style="gap: 12px">
-          <RouterLink to="/messages" class="btn-icon" style="margin-left: -8px">
+          <RouterLink to="/messages" class="btn-icon" style="margin-left: -8px" aria-label="返回会话列表" title="返回">
              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
           </RouterLink>
           <div class="stack" style="gap: 2px">
              <div style="font-weight: 700; font-size: 16px">{{ displayTitle }}</div>
-             <div class="muted" style="font-size: 12px">Conversation Details</div>
+             <div class="muted" style="font-size: 12px">会话详情</div>
           </div>
        </div>
-       <UiButton variant="secondary" @click="load" :disabled="loading" size="sm">Refresh</UiButton>
+       <UiButton variant="secondary" @click="load" :disabled="loading">刷新</UiButton>
     </div>
 
     <!-- Messages Area -->
     <div class="chat-area" ref="chatArea">
-       <div v-if="loading && items.length === 0" class="muted" style="text-align: center; margin-top: 20px">Loading...</div>
-       <UiEmpty v-else-if="items.length === 0">No messages yet. Say hello!</UiEmpty>
+       <div v-if="loading && items.length === 0" class="muted" style="text-align: center; margin-top: 20px">加载中…</div>
+       <UiEmpty v-else-if="items.length === 0">暂无消息，打个招呼吧。</UiEmpty>
        
        <div v-else class="message-list">
           <div 
@@ -37,11 +37,11 @@
        <textarea 
           class="chat-input" 
           v-model="content" 
-          placeholder="Type a message..." 
+          placeholder="输入消息…" 
           @keydown.enter.prevent="send"
           rows="1"
        ></textarea>
-       <button class="send-btn" @click="send" :disabled="sending || !content.trim()">
+       <button class="send-btn" type="button" aria-label="发送消息" title="发送" @click="send" :disabled="sending || !content.trim()">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
        </button>
     </div>
@@ -49,7 +49,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { listLetters, markRead, sendMessage } from '../api/services/messageService'
 import UiButton from '../components/ui/UiButton.vue'
@@ -67,11 +67,12 @@ const sending = ref(false)
 const chatArea = ref(null)
 
 const conversationId = computed(() => props.conversationId || '')
+const targetId = computed(() => parseTargetId())
 
 // Try to guess other user name or just show Conversation ID
 const displayTitle = computed(() => {
-   // Ideally we would have user info, but for now reuse conversationId logic or what we have
-   return 'Chat' 
+   if (targetId.value) return `与用户 #${targetId.value} 的对话`
+   return '私信'
 })
 
 const sortedItems = computed(() => {
@@ -116,7 +117,7 @@ async function load() {
 
 async function send() {
   if (!content.value.trim()) return
-  const toId = parseTargetId()
+  const toId = targetId.value
   if (!toId) return
   
   sending.value = true
@@ -189,7 +190,7 @@ onMounted(load)
 
 .message-time {
    font-size: 11px;
-   color: var(--muted);
+   color: var(--text-3);
    margin-top: 4px;
    padding: 0 4px;
 }
@@ -215,7 +216,7 @@ onMounted(load)
    min-height: 44px;
 }
 .chat-input:focus {
-   box-shadow: 0 0 0 2px rgba(0,113,227,0.1);
+   box-shadow: var(--focus-ring);
 }
 .send-btn {
    width: 44px; height: 44px;

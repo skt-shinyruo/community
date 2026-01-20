@@ -17,7 +17,7 @@ security:
 content:
   events:
     publisher: kafka
+  internal-token: ${CONTENT_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
   score:
     refresh:
       enabled: true
-

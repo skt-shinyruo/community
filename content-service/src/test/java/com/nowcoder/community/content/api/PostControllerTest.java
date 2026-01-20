@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -57,12 +58,40 @@ class PostControllerTest {
     }
 
     @Test
+    void categoriesAndHotTagsShouldBePublic() throws Exception {
+        String categoriesResp = mockMvc.perform(get("/api/categories"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        Map<?, ?> categories = objectMapper.readValue(categoriesResp, Map.class);
+        List<?> categoryItems = (List<?>) categories.get("data");
+        assertThat(categoryItems).isNotEmpty();
+
+        String hotTagsResp = mockMvc.perform(get("/api/tags/hot").param("limit", "8"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        Map<?, ?> hotTags = objectMapper.readValue(hotTagsResp, Map.class);
+        List<?> hotItems = (List<?>) hotTags.get("data");
+        assertThat(hotItems).isNotNull();
+
+        mockMvc.perform(get("/api/tags/suggest").param("q", "Ja").param("limit", "8"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void createThenQueryShouldWork() throws Exception {
         String token = tokenForUser(1);
 
         CreatePostRequest req = new CreatePostRequest();
         req.setTitle("hello<script>alert(1)</script>");
         req.setContent("badword <b>bold</b>");
+        req.setCategoryId(1);
+        req.setTags(List.of("Java", "Spring"));
 
         String createResp = mockMvc.perform(post("/api/posts")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
@@ -89,6 +118,22 @@ class PostControllerTest {
         assertThat(String.valueOf(detailData.get("title"))).contains("&lt;script&gt;");
         assertThat(String.valueOf(detailData.get("content"))).doesNotContain("<b>").contains("&lt;b&gt;");
         assertThat(String.valueOf(detailData.get("content"))).contains("***");
+        assertThat(((Number) detailData.get("categoryId")).intValue()).isEqualTo(1);
+        assertThat((List<?>) detailData.get("tags")).isNotEmpty();
+        assertThat(((List<?>) detailData.get("tags")).stream().map(String::valueOf).toList()).contains("Java", "Spring");
+
+        // 列表：category/tag 过滤应生效
+        String listResp = mockMvc.perform(get("/api/posts").param("categoryId", "1").param("tag", "Java"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        Map<?, ?> list = objectMapper.readValue(listResp, Map.class);
+        List<?> listItems = (List<?>) list.get("data");
+        assertThat(listItems).isNotEmpty();
+        Map<?, ?> firstPost = (Map<?, ?>) listItems.get(0);
+        assertThat(((Number) firstPost.get("categoryId")).intValue()).isEqualTo(1);
+        assertThat(((List<?>) firstPost.get("tags")).stream().map(String::valueOf).toList()).contains("Java");
 
         CreateCommentRequest c = new CreateCommentRequest();
         c.setContent("<img src=x onerror=alert(1)> badword");
@@ -109,6 +154,17 @@ class PostControllerTest {
         assertThat(items).isNotEmpty();
         Map<?, ?> first = (Map<?, ?>) items.get(0);
         assertThat(String.valueOf(first.get("content"))).contains("&lt;img").contains("***");
+
+        // 热门标签：应聚合出刚写入的 tags
+        String hotTagsResp2 = mockMvc.perform(get("/api/tags/hot").param("limit", "10"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        Map<?, ?> hotTags2 = objectMapper.readValue(hotTagsResp2, Map.class);
+        List<?> hotItems2 = (List<?>) hotTags2.get("data");
+        assertThat(hotItems2).extracting(m -> ((Map<?, ?>) m).get("name"), m -> ((Map<?, ?>) m).get("useCount"))
+                .contains(tuple("Java", 1), tuple("Spring", 1));
     }
 
     private String tokenForUser(int userId) throws Exception {

@@ -4,22 +4,11 @@ import { defineStore } from 'pinia'
 
 export const useAppStore = defineStore('app', {
   state: () => ({
-    traceId: '',
-    toast: { type: '', message: '' }
+    traceId: ''
   }),
   actions: {
     setTraceId(traceId) {
       this.traceId = traceId || ''
-    },
-    toastInfo(message) {
-      this.toast = { type: 'info', message: message || '' }
-    },
-    toastError(message) {
-      this.toast = { type: 'error', message: message || '' }
-    },
-    clearToast() {
-      this.toast = { type: '', message: '' }
     }
   }
 })
-

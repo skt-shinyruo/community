@@ -7,8 +7,8 @@
          <span class="brand-text">Community</span>
        </div>
        <div class="auth-quote">
-         <h1>Create your account.</h1>
-         <p>Join thousands of developers sharing their knowledge.</p>
+         <h1>创建你的账号。</h1>
+         <p>加入社区，与大家一起交流与分享。</p>
        </div>
     </div>
     
@@ -16,34 +16,35 @@
     <div class="auth-form-container">
       <div style="width: 100%; max-width: 400px">
         <div style="margin-bottom: 32px">
-          <h2 style="font-size: 28px; font-weight: 800; margin-bottom: 8px">Get Started</h2>
-          <div class="muted">Currently open for registration.</div>
+          <h2 style="font-size: 28px; font-weight: 800; margin-bottom: 8px">开始注册</h2>
+          <div class="muted">欢迎加入社区。</div>
         </div>
 
         <div class="stack" style="gap: 20px">
            <div class="stack" style="gap: 8px">
-            <div style="font-size: 14px; font-weight: 600">Username</div>
-            <UiInput v-model.trim="form.username" placeholder="Choose a username" class="auth-input" />
+            <div style="font-size: 14px; font-weight: 600">用户名</div>
+            <UiInput v-model.trim="form.username" placeholder="请输入用户名" class="auth-input" autocomplete="username" />
           </div>
           
            <div class="stack" style="gap: 8px">
-            <div style="font-size: 14px; font-weight: 600">Email</div>
-            <UiInput v-model.trim="form.email" placeholder="name@example.com" class="auth-input" />
+            <div style="font-size: 14px; font-weight: 600">邮箱</div>
+            <UiInput v-model.trim="form.email" placeholder="name@example.com" class="auth-input" autocomplete="email" />
           </div>
 
           <div class="stack" style="gap: 8px">
-            <div style="font-size: 14px; font-weight: 600">Password</div>
-            <UiInput v-model.trim="form.password" placeholder="Create a password" type="password" class="auth-input" />
+            <div style="font-size: 14px; font-weight: 600">密码</div>
+            <UiInput v-model.trim="form.password" placeholder="请输入密码" type="password" class="auth-input" autocomplete="new-password" />
           </div>
 
            <div class="stack" style="gap: 8px">
-             <div style="font-size: 14px; font-weight: 600">Captcha</div>
+             <div style="font-size: 14px; font-weight: 600">验证码</div>
               <div class="row" style="gap: 12px">
-                <UiInput v-model.trim="form.captcha" placeholder="Code" class="auth-input" style="flex: 1" />
+                <UiInput v-model.trim="form.captcha" placeholder="请输入验证码" class="auth-input" style="flex: 1" autocomplete="off" />
                  <img
                   v-if="captchaSrc"
                   :src="captchaSrc"
-                  alt="captcha"
+                  alt="验证码"
+                  title="点击刷新验证码"
                   @click="refreshCaptcha"
                   style="height: 44px; border-radius: 8px; cursor: pointer; border: 1px solid var(--border)"
                 />
@@ -51,27 +52,27 @@
           </div>
 
           <div v-if="error" class="error">{{ error }}</div>
-          <div v-if="successMsg" class="success-msg">{{ successMsg }}</div>
+          <div v-if="successMsg" class="success">{{ successMsg }}</div>
 
           <UiButton @click="onRegister" :disabled="loading" class="primary" style="height: 48px; font-size: 16px; margin-top: 8px">
-            {{ loading ? 'Creating account...' : 'Create Account' }}
+            {{ loading ? '注册中…' : '注册' }}
           </UiButton>
 
           <div class="row" style="justify-content: center; gap: 4px; font-size: 14px; margin-top: 16px">
-            <span class="muted">Already have an account?</span>
-            <RouterLink to="/auth/login" style="font-weight: 600; color: var(--accent)">Log in</RouterLink>
+            <span class="muted">已有账号？</span>
+            <RouterLink to="/auth/login" style="font-weight: 600; color: var(--accent)">去登录</RouterLink>
           </div>
            <div style="text-align: center; margin-top: 8px">
-             <RouterLink to="/posts" class="muted" style="font-size: 13px">Back to Home</RouterLink>
+             <RouterLink to="/posts" class="muted" style="font-size: 13px">返回社区</RouterLink>
            </div>
         </div>
         
         <!-- Activation Link for Dev -->
          <UiCard v-if="activationLink" flat style="margin-top: 24px">
             <div class="stack" style="gap: 10px">
-              <div style="font-weight: 800; font-size: 14px">Dev/Test Activation Link</div>
+              <div style="font-weight: 800; font-size: 14px">开发/测试激活链接</div>
               <div class="muted" style="word-break: break-all; font-size: 12px">{{ activationLink }}</div>
-              <UiButton variant="secondary" @click="goActivation" size="sm">Open Activation Page</UiButton>
+              <UiButton variant="secondary" @click="goActivation">打开激活页</UiButton>
             </div>
           </UiCard>
       </div>
@@ -120,7 +121,7 @@ async function onRegister() {
   resultUserId.value = 0
 
   if (!form.username || !form.password || !form.email || !form.captcha) {
-    error.value = 'All fields are required'
+    error.value = '请填写完整信息'
     return
   }
 
@@ -136,9 +137,9 @@ async function onRegister() {
     emit('trace', traceId || '')
     resultUserId.value = data?.userId ?? 0
     activationLink.value = data?.activationLink || ''
-    successMsg.value = 'Account created successfully!'
+    successMsg.value = '注册成功，请前往邮箱完成激活'
   } catch (e) {
-    error.value = e?.message || 'Registration failed'
+    error.value = e?.message || '注册失败'
     if (e?.code === 10006 || e?.code === 10005) {
       await refreshCaptcha()
     }
@@ -156,7 +157,7 @@ function goActivation() {
     const userId = parts[parts.length - 2]
     router.push({ name: 'activation', params: { userId, code } })
   } catch {
-    error.value = 'Invalid link'
+    error.value = '链接解析失败'
   }
 }
 
@@ -208,21 +209,19 @@ onMounted(refreshCaptcha)
   justify-content: center;
   padding: 40px;
 }
-.success-msg { color: var(--green); margin-bottom: 8px; }
 
 /* Mobile Responsive */
 @media (max-width: 768px) {
   .auth-visual { display: none; }
 }
 
-:deep(.auth-input input) {
-    height: 48px;
-    background: var(--bg);
-    border: 1px solid transparent;
+.auth-input {
+  height: 48px;
+  background: var(--bg);
+  border: 1px solid transparent;
 }
-:deep(.auth-input input:focus) {
-    background: var(--surface);
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px rgba(0,113,227,0.1);
+.auth-input:focus {
+  background: var(--surface);
+  border-color: var(--accent);
 }
 </style>

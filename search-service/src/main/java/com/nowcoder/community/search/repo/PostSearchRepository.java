@@ -11,8 +11,7 @@ public interface PostSearchRepository {
 
     void delete(int postId);
 
-    List<SearchPostItem> search(String keyword, int page, int size);
+    List<SearchPostItem> search(String keyword, Integer categoryId, String tag, int page, int size);
 
     void clear();
 }
-

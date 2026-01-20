@@ -1,7 +1,11 @@
+name: community
+
 services:
   nacos:
     image: nacos/nacos-server:v2.3.2
     container_name: community-nacos
+    ports:
+      - "127.0.0.1:${NACOS_UI_PORT:-8848}:8848"
     environment:
       - MODE=standalone
       - PREFER_HOST_MODE=hostname
@@ -69,8 +73,15 @@ services:
   kafka:
     image: confluentinc/cp-kafka:7.6.1
     container_name: community-kafka
+    restart: on-failure
     depends_on:
       - zookeeper
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
     environment:
       - KAFKA_BROKER_ID=1
       - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
@@ -91,7 +102,7 @@ services:
     container_name: community-kafka-init
     depends_on:
       kafka:
-        condition: service_started
+        condition: service_healthy
     entrypoint: ["/bin/bash", "-lc"]
     # NOTE: 必须确保整个脚本作为“单一参数”传给 bash -lc；
     # 否则会退化为只执行 `set`，导致 topic 未创建。
@@ -213,6 +224,7 @@ services:
       - SERVER_PORT=8080
       - NACOS_SERVER_ADDR=nacos:8848
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+      - INTERNAL_TOKEN=${INTERNAL_TOKEN:-}
       - ANALYTICS_INTERNAL_TOKEN=${ANALYTICS_INTERNAL_TOKEN}
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
@@ -224,7 +236,7 @@ services:
       nacos:
         condition: service_healthy
       kafka:
-        condition: service_started
+        condition: service_healthy
       elasticsearch:
         condition: service_started
 
@@ -239,17 +251,14 @@ services:
       - SERVER_PORT=8082
       - NACOS_SERVER_ADDR=nacos:8848
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
-      - AUTH_DB_URL=jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
-      - MYSQL_USER=${MYSQL_USER}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - INTERNAL_TOKEN=${INTERNAL_TOKEN:-}
+      - USER_INTERNAL_TOKEN=${USER_INTERNAL_TOKEN:-}
       - AUTH_REDIS_HOST=redis
       - AUTH_REDIS_PORT=6379
       - AUTH_ACTIVATION_BASE_URL=http://localhost:12881
       - AUTH_MAIL_ENABLED=false
       - AUTH_EXPOSE_ACTIVATION_LINK=${AUTH_EXPOSE_ACTIVATION_LINK:-false}
     depends_on:
-      mysql:
-        condition: service_healthy
       redis:
         condition: service_healthy
       nacos:
@@ -266,6 +275,8 @@ services:
       - SERVER_PORT=8087
       - NACOS_SERVER_ADDR=nacos:8848
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+      - INTERNAL_TOKEN=${INTERNAL_TOKEN:-}
+      - USER_INTERNAL_TOKEN=${USER_INTERNAL_TOKEN:-}
       - USER_DB_URL=jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
       - MYSQL_USER=${MYSQL_USER}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
@@ -299,7 +310,7 @@ services:
       nacos:
         condition: service_healthy
       kafka:
-        condition: service_started
+        condition: service_healthy
 
   content-service:
     build:
@@ -328,7 +339,7 @@ services:
       nacos:
         condition: service_healthy
       kafka:
-        condition: service_started
+        condition: service_healthy
 
   search-service:
     build:
@@ -355,7 +366,7 @@ services:
       nacos:
         condition: service_healthy
       kafka:
-        condition: service_started
+        condition: service_healthy
       elasticsearch:
         condition: service_started
 
@@ -380,7 +391,7 @@ services:
       nacos:
         condition: service_healthy
       kafka:
-        condition: service_started
+        condition: service_healthy
 
   analytics-service:
     build:
@@ -393,6 +404,7 @@ services:
       - SERVER_PORT=8085
       - NACOS_SERVER_ADDR=nacos:8848
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+      - INTERNAL_TOKEN=${INTERNAL_TOKEN:-}
       - ANALYTICS_REDIS_HOST=redis
       - ANALYTICS_REDIS_PORT=6379
       - ANALYTICS_INTERNAL_TOKEN=${ANALYTICS_INTERNAL_TOKEN}

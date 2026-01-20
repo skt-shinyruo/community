@@ -9,6 +9,7 @@ import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -29,10 +30,39 @@ public class InMemoryPostSearchRepository implements PostSearchRepository {
     }
 
     @Override
-    public List<SearchPostItem> search(String keyword, int page, int size) {
+    public List<SearchPostItem> search(String keyword, Integer categoryId, String tag, int page, int size) {
         String k = keyword == null ? "" : keyword.trim();
+        Integer cid = categoryId != null && categoryId > 0 ? categoryId : null;
+        String safeTag = tag == null ? "" : tag.trim();
+        if (safeTag.startsWith("#")) {
+            safeTag = safeTag.substring(1).trim();
+        }
+        String tagKey = safeTag.isBlank() ? "" : safeTag.toLowerCase(Locale.ROOT);
+
         List<PostPayload> matched = new ArrayList<>();
         for (PostPayload post : store.values()) {
+            if (cid != null) {
+                Integer pc = post.getCategoryId();
+                if (pc == null || !cid.equals(pc)) {
+                    continue;
+                }
+            }
+            if (!tagKey.isBlank()) {
+                List<String> tags = post.getTags();
+                boolean ok = false;
+                if (tags != null) {
+                    for (String t : tags) {
+                        if (t != null && t.toLowerCase(Locale.ROOT).equals(tagKey)) {
+                            ok = true;
+                            break;
+                        }
+                    }
+                }
+                if (!ok) {
+                    continue;
+                }
+            }
+
             if (!StringUtils.hasText(k)) {
                 matched.add(post);
                 continue;
@@ -48,6 +78,8 @@ public class InMemoryPostSearchRepository implements PostSearchRepository {
         for (PostPayload post : matched.subList(from, to)) {
             SearchPostItem item = new SearchPostItem();
             item.setPostId(post.getPostId());
+            item.setCategoryId(post.getCategoryId());
+            item.setTags(post.getTags() == null ? List.of() : post.getTags());
             item.setTitle(post.getTitle());
             item.setCreateTime(post.getCreateTime());
             item.setScore(post.getScore());
@@ -72,4 +104,3 @@ public class InMemoryPostSearchRepository implements PostSearchRepository {
         return text.replace(keyword, "<em>" + keyword + "</em>");
     }
 }
-

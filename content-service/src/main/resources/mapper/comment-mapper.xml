@@ -41,4 +41,74 @@
         where id = #{id}
     </select>
 
+    <!--
+      查询指定帖子集合的“最后活动”（包含：直接评论 + 回复评论）。
+      说明：返回结果映射到 Comment，其中 entity_id 被复用为 postId。
+
+      - 直接评论：comment(entity_type=1, entity_id=postId)
+      - 回复评论：comment(entity_type=2, entity_id=commentId) 通过 join parent comment(entity_type=1) 归属到 postId
+    -->
+    <select id="selectLatestPostActivitiesByPostIds" resultType="Comment">
+        select
+            u.cid as id,
+            u.user_id as user_id,
+            1 as entity_type,
+            u.post_id as entity_id,
+            0 as target_id,
+            '' as content,
+            0 as status,
+            u.create_time as create_time
+        from (
+            select c.entity_id as post_id, c.user_id as user_id, c.create_time as create_time, c.id as cid
+            from comment c
+            where c.status = 0
+              and c.entity_type = 1
+              and c.entity_id in
+              <foreach collection="postIds" item="pid" open="(" separator="," close=")">
+                  #{pid}
+              </foreach>
+
+            union all
+
+            select p.entity_id as post_id, r.user_id as user_id, r.create_time as create_time, r.id as cid
+            from comment r
+            join comment p on r.entity_type = 2 and r.entity_id = p.id
+            where r.status = 0
+              and p.status = 0
+              and p.entity_type = 1
+              and p.entity_id in
+              <foreach collection="postIds" item="pid" open="(" separator="," close=")">
+                  #{pid}
+              </foreach>
+        ) u
+        inner join (
+            select post_id, max(create_time) as max_time
+            from (
+                select c.entity_id as post_id, c.create_time as create_time
+                from comment c
+                where c.status = 0
+                  and c.entity_type = 1
+                  and c.entity_id in
+                  <foreach collection="postIds" item="pid" open="(" separator="," close=")">
+                      #{pid}
+                  </foreach>
+
+                union all
+
+                select p.entity_id as post_id, r.create_time as create_time
+                from comment r
+                join comment p on r.entity_type = 2 and r.entity_id = p.id
+                where r.status = 0
+                  and p.status = 0
+                  and p.entity_type = 1
+                  and p.entity_id in
+                  <foreach collection="postIds" item="pid" open="(" separator="," close=")">
+                      #{pid}
+                  </foreach>
+            ) t
+            group by post_id
+        ) m on u.post_id = m.post_id and u.create_time = m.max_time
+        order by u.post_id asc, u.cid desc
+    </select>
+
 </mapper>

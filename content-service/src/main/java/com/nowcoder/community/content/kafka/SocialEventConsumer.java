@@ -5,15 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.event.EventTopics;
 import com.nowcoder.community.common.event.EventTypes;
 import com.nowcoder.community.common.event.payload.LikePayload;
+import com.nowcoder.community.common.kafka.KafkaTraceSupport;
 import com.nowcoder.community.content.score.PostScoreQueue;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
-
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 @Component
 public class SocialEventConsumer {
@@ -23,13 +20,6 @@ public class SocialEventConsumer {
     private final ObjectMapper objectMapper;
     private final PostScoreQueue postScoreQueue;
 
-    private final Map<String, Boolean> seenEventIds = Collections.synchronizedMap(new LinkedHashMap<>() {
-        @Override
-        protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
-            return size() > 10_000;
-        }
-    });
-
     public SocialEventConsumer(ObjectMapper objectMapper, PostScoreQueue postScoreQueue) {
         this.objectMapper = objectMapper;
         this.postScoreQueue = postScoreQueue;
@@ -37,7 +27,11 @@ public class SocialEventConsumer {
 
     @KafkaListener(topics = EventTopics.SOCIAL_EVENTS_V1, groupId = "content-service")
     public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) throws Exception {
-        handleRecord(record);
+        KafkaTraceSupport.runWithTraceId(
+                objectMapper,
+                record.value(),
+                (KafkaTraceSupport.ThrowingRunnable) () -> handleRecord(record)
+        );
         ack.acknowledge();
     }
 
@@ -51,10 +45,6 @@ public class SocialEventConsumer {
         }
         if (type == null || type.isBlank()) {
             throw new IllegalArgumentException("type 缺失");
-        }
-
-        if (seenEventIds.putIfAbsent(eventId, Boolean.TRUE) != null) {
-            return;
         }
 
         if (!EventTypes.LIKE_CREATED.equals(type)) {
@@ -85,4 +75,3 @@ public class SocialEventConsumer {
         return s == null || s.isBlank() ? null : s;
     }
 }
-

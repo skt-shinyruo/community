@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 发帖；帖子详情；评论/回复；敏感词过滤；热帖分数刷新；与搜索/通知联动
 - **Status：** ✅Stable
-- **Last Updated：** 2026-01-19
+- **Last Updated：** 2026-01-20
 
 ## Specifications
 
@@ -50,15 +50,21 @@
 - Quartz 任务周期刷新分数并同步到搜索
 
 ## API Interfaces（现状）
-- `GET /api/posts`（order=latest|hot）
-- `POST /api/posts`（敏感词过滤 + XSS 处理 + 发布 PostPublished）
-- `GET /api/posts/{postId}`（包含 likeCount/liked）
+- `GET /api/categories`（分类列表；包含 `postCount` 用于侧栏展示）
+- `GET /api/tags/hot?limit=`（热门标签 Top-N；返回 `useCount` 聚合值）
+- `GET /api/tags/suggest?q=&limit=`（标签建议：前缀匹配 + 热门兜底；用于发帖/搜索的自动补全）
+- `GET /api/posts`（order=latest|hot；支持 `categoryId`/`tag` 过滤；列表返回补齐 `lastReplyUserId/lastReplyTime/lastActivityTime`，用于 Discourse-like topic list：活动列与未读判断）
+- `POST /api/posts`（敏感词过滤 + XSS 处理 + 发布 PostPublished；请求体支持可选 `categoryId`/`tags[]`）
+- `GET /api/posts/{postId}`（包含 likeCount/liked；返回 `categoryId`/`tags[]`）
 - `GET /api/posts/{postId}/comments`、`POST /api/posts/{postId}/comments`（发布 CommentCreated）
 - `GET /internal/content/posts`（内部接口：需要 `X-Internal-Token`；供 search-service 重建索引扫描帖子）
 
 ## Data Models
 ### discuss_post
 （详见 `helloagents/wiki/data.md` 的 “discuss_post” 小节）
+
+### category / tag / post_tag
+（详见 `helloagents/wiki/data.md` 的 taxonomy 小节：`category`、`tag`、`post_tag`）
 
 ### comment
 （详见 `helloagents/wiki/data.md` 的 “comment” 小节）
@@ -73,3 +79,6 @@
 ## Change History
 - 2026-01-18：写路径事件发布改为 After-Commit（避免 DB 回滚仍发事件），并将热度刷新 enqueue 延后到事务提交后执行。
 - 2026-01-19：补充内部帖子扫描接口（`/internal/content/posts`），用于支持 search-service 在严格 schema 隔离下完成 reindex 冷启动。
+- 2026-01-20：`/api/posts` 列表返回补齐“最后回复/最后活动”字段（包含评论与回复评论），支撑前端 Discourse 风格 topic list（活动列 + 未读提示）。
+- 2026-01-20：引入 taxonomy（分类/标签）：新增 `category/tag/post_tag` 表，发帖支持 `categoryId/tags[]`，列表支持按分类/标签过滤，支撑 Discourse-like 信息架构与侧栏聚合。
+- 2026-01-20：新增 `GET /api/tags/suggest` 标签建议接口，支撑 Discourse-like 标签输入体验（autocomplete）。

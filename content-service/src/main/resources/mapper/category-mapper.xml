@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nowcoder.community.content.dao.CategoryMapper">
+
+    <sql id="selectFields">
+        id, name, description, position, create_time
+    </sql>
+
+    <select id="selectCategories" resultType="Category">
+        select
+            c.id as id,
+            c.name as name,
+            c.description as description,
+            c.position as position,
+            c.create_time as create_time,
+            coalesce(cnt.post_count, 0) as post_count
+        from category c
+        left join (
+            select category_id, count(*) as post_count
+            from discuss_post
+            where status != 2
+              and category_id is not null
+            group by category_id
+        ) cnt on c.id = cnt.category_id
+        order by c.position asc, c.id asc
+    </select>
+
+    <select id="selectCategoryById" resultType="Category">
+        select <include refid="selectFields"></include>
+        from category
+        where id = #{id}
+    </select>
+
+</mapper>
+

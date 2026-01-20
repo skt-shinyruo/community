@@ -15,11 +15,11 @@ function resolveApiBaseUrl() {
     // 这种情况下走相对路径即可，由反代（edge）或同域网关处理。
     if (loc.port === '8080') return ''
 
-    // 本地“前端直连 gateway”模式：前端端口与网关端口分离（例如 12881 -> 12882）。
-    // 仅在 localhost/127.0.0.1 下做默认推导，避免影响非本地部署场景。
-    if ((loc.hostname === 'localhost' || loc.hostname === '127.0.0.1') && loc.port === '12881') {
-      return `${loc.protocol}//${loc.hostname}:12882`
-    }
+  // 本地“前端直连 gateway”模式：前端端口与网关端口分离（例如 5173/12881 -> 12882）。
+  // 仅在 localhost/127.0.0.1 下做默认推导，避免影响非本地部署场景。
+  if ((loc.hostname === 'localhost' || loc.hostname === '127.0.0.1') && (loc.port === '5173' || loc.port === '12881')) {
+    return `${loc.protocol}//${loc.hostname}:12882`
+  }
   } catch { }
 
   return ''
@@ -56,8 +56,8 @@ http.interceptors.response.use(
       if (typeof window !== 'undefined' && window.$toast) {
         window.$toast({
           type: 'error',
-          title: 'System Error',
-          text: error.message || 'Server error, please try again later.'
+          title: '系统错误',
+          text: error.message || '服务异常，请稍后重试。'
         })
       }
     }

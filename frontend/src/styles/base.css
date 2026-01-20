@@ -17,6 +17,13 @@ body {
   background: var(--bg);
 }
 
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -29,6 +36,11 @@ a:hover {
 code,
 pre {
   font-family: var(--font-mono);
+}
+
+/* Focus: component styles provide focus ring; base removes default outline. */
+:where(a, button, input, textarea, select):focus-visible {
+  outline: none;
 }
 
 /* Custom Scrollbar */

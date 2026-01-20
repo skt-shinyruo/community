@@ -56,6 +56,8 @@ public class ContentSecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         // 内部接口不走 JWT，依赖 X-Internal-Token 进行保护
                         .requestMatchers("/internal/content/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/categories", "/api/categories/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/tags/hot", "/api/tags/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/posts", "/api/posts/*", "/api/posts/*/comments", "/api/posts/*/comments/*/replies").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/posts/*/top", "/api/posts/*/wonderful", "/api/posts/*/delete").hasAnyRole("ADMIN", "MODERATOR")
                         .anyRequest().authenticated()

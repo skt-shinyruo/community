@@ -54,6 +54,8 @@ public class UserSecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS).permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        // 内部接口不走 JWT，依赖 X-Internal-Token 进行保护
+                        .requestMatchers("/internal/users/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/users/*").permitAll()
                         .anyRequest().authenticated()
                 )

@@ -1,0 +1,5 @@
+services: {}
+
+# Deprecated:
+# - `deploy/docker-compose.yml` 现已默认将 Nacos 控制台端口绑定到宿主机 `127.0.0.1:${NACOS_UI_PORT:-8848}`；
+# - 为避免重复端口映射冲突，本 overlay 保留为 no-op（兼容历史文档/命令），可安全忽略。

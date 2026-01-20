@@ -3,14 +3,20 @@
 import http from '../http'
 import { unwrapResultBody } from '../result'
 
-export async function listPosts({ order = 'latest', page = 0, size = 10 } = {}) {
-  const resp = await http.get('/api/posts', { params: { order, page, size } })
+export async function listPosts({ order = 'latest', page = 0, size = 10, categoryId, tag } = {}) {
+  const params = { order, page, size }
+  if (categoryId != null && Number(categoryId) > 0) params.categoryId = Number(categoryId)
+  if (tag != null && String(tag).trim()) params.tag = String(tag).trim()
+  const resp = await http.get('/api/posts', { params })
   const { data, traceId } = unwrapResultBody(resp.data, '查询帖子列表')
   return { data: Array.isArray(data) ? data : [], traceId }
 }
 
-export async function createPost({ title, content }) {
-  const resp = await http.post('/api/posts', { title, content })
+export async function createPost({ title, content, categoryId, tags } = {}) {
+  const payload = { title, content }
+  if (categoryId != null && Number(categoryId) > 0) payload.categoryId = Number(categoryId)
+  if (Array.isArray(tags) && tags.length > 0) payload.tags = tags
+  const resp = await http.post('/api/posts', payload)
   const { data, traceId } = unwrapResultBody(resp.data, '发帖')
   return { data, traceId }
 }
@@ -60,4 +66,3 @@ export async function moderationDelete(postId) {
   const { traceId } = unwrapResultBody(resp.data, '删除')
   return { traceId }
 }
-

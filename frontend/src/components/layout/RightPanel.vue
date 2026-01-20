@@ -2,47 +2,105 @@
 <template>
   <div class="right-panel">
     <div class="right-panel-header">
-      <div style="font-weight: 700; font-size: 16px">探索</div>
+      <div class="right-panel-title">探索</div>
     </div>
 
     <div class="right-panel-body">
-      <!-- Trending Section -->
-      <div class="card flat">
-        <div class="stack" style="gap: 12px">
-          <div style="font-weight: 600; font-size: 14px; color: var(--text-2)">热门话题</div>
-          <div class="stack" style="gap: 8px">
-            <div v-for="i in 4" :key="i" class="row topic-item" style="gap: 10px; cursor: pointer">
-              <div class="topic-rank">{{ i }}</div>
-              <div style="flex: 1; font-weight: 500">#社区设计规范讨论</div>
-              <div class="muted" style="font-size: 12px">230 讨</div>
-            </div>
-          </div>
+      <!-- Quick Filters -->
+      <section class="card right-card">
+        <div class="right-card-header">
+          <div class="right-card-title">快速筛选</div>
         </div>
-      </div>
+        <div class="quick-links">
+          <RouterLink class="quick-link" :to="{ name: 'posts' }">最新</RouterLink>
+          <RouterLink class="quick-link" :to="{ name: 'posts', query: { order: 'hot' } }">热门</RouterLink>
+          <RouterLink v-if="auth.authed" class="quick-link" :to="{ name: 'posts', query: { type: 'unread' } }">未读</RouterLink>
+          <RouterLink class="quick-link" :to="{ name: 'posts', query: { type: 'top' } }">置顶</RouterLink>
+          <RouterLink class="quick-link" :to="{ name: 'posts', query: { type: 'wonderful' } }">精华</RouterLink>
+        </div>
+      </section>
 
-      <div class="divider"></div>
+      <!-- Trending Section -->
+      <section class="card right-card">
+        <div class="right-card-header">
+          <div class="right-card-title">热门话题</div>
+        </div>
+        <div class="right-card-list">
+          <button v-for="i in 4" :key="i" class="topic-item" type="button">
+            <span class="topic-rank">{{ i }}</span>
+            <span class="topic-title">#社区设计规范讨论</span>
+            <span class="topic-meta">230 讨论</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Categories -->
+      <section class="card right-card">
+        <div class="right-card-header">
+          <div class="right-card-title">分类</div>
+        </div>
+        <div class="right-card-list" v-if="categories.length > 0">
+          <RouterLink
+            v-for="c in categories"
+            :key="c.id"
+            class="category-item"
+            :to="{ name: 'posts', query: { categoryId: String(c.id) } }"
+            :title="c.description || c.name"
+          >
+            <span class="category-name">{{ c.name }}</span>
+            <span class="category-meta">{{ Number(c.postCount || 0) }}</span>
+          </RouterLink>
+        </div>
+        <div v-else class="muted" style="font-size: 12px">暂无分类</div>
+      </section>
+
+      <!-- Tags / Keywords -->
+      <section class="card right-card">
+        <div class="right-card-header">
+          <div class="right-card-title">热门标签</div>
+        </div>
+        <div class="tag-cloud">
+          <RouterLink
+            v-for="t in hotTags"
+            :key="t.name"
+            class="tag-pill"
+            :to="{ name: 'posts', query: { tag: t.name } }"
+            :title="`${t.useCount || 0} 使用`"
+          >
+            #{{ t.name }}
+          </RouterLink>
+        </div>
+        <div class="muted" style="font-size: 12px; margin-top: 10px">点击标签将过滤帖子列表。</div>
+      </section>
 
       <!-- Guidelines -->
-      <div class="card flat">
-        <div class="stack" style="gap: 12px">
-          <div style="font-weight: 600; font-size: 14px; color: var(--text-2)">社区规范</div>
-          <div class="stack" style="gap: 8px; font-size: 13px; color: var(--text-1)">
-            <div class="row" style="align-items: flex-start">
-              <span>📌</span>
-              <span style="line-height: 1.4">友善交流，理性讨论，共建优质社区氛围。</span>
-            </div>
-            <div class="row" style="align-items: flex-start">
-              <span>🚫</span>
-              <span style="line-height: 1.4">禁止发布广告、灌水及违规内容。</span>
-            </div>
+      <section class="card right-card">
+        <div class="right-card-header">
+          <div class="right-card-title">社区规范</div>
+        </div>
+        <div class="guidelines">
+          <div class="guideline-row">
+            <span class="guideline-icon" aria-hidden="true">📌</span>
+            <span class="guideline-text">友善交流，理性讨论，共建优质社区氛围。</span>
+          </div>
+          <div class="guideline-row">
+            <span class="guideline-icon" aria-hidden="true">🚫</span>
+            <span class="guideline-text">禁止发布广告、灌水及违规内容。</span>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div class="divider"></div>
+      <section v-if="auth.isAdminOrModerator" class="card right-card">
+        <div class="right-card-header">
+          <div class="right-card-title">管理</div>
+        </div>
+        <div class="admin-links">
+          <RouterLink class="admin-link" :to="{ name: 'analytics' }">统计面板</RouterLink>
+        </div>
+      </section>
 
       <!-- Footer/Copyright -->
-      <div class="muted" style="font-size: 12px; line-height: 1.6">
+      <div class="right-footer muted">
         © 2026 Community Inc.<br />
         <a href="#" style="text-decoration: underline">Privacy</a> · <a href="#" style="text-decoration: underline">Terms</a>
       </div>
@@ -51,23 +109,251 @@
 </template>
 
 <script setup>
-// Static content for now
+import { computed, onMounted } from 'vue'
+import { useAuthStore } from '../../stores/auth'
+import { useTaxonomyStore } from '../../stores/taxonomy'
+import { RouterLink } from 'vue-router'
+
+const auth = useAuthStore()
+const taxonomy = useTaxonomyStore()
+
+const categories = computed(() => (Array.isArray(taxonomy.categories) ? taxonomy.categories : []))
+const hotTags = computed(() => (Array.isArray(taxonomy.hotTags) ? taxonomy.hotTags : []))
+
+onMounted(() => {
+  taxonomy.ensureCategories()
+  taxonomy.ensureHotTags(8)
+})
 </script>
 
 <style scoped>
+.right-panel-title {
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: 0.2px;
+}
+
+.right-card {
+  padding: 14px 14px;
+}
+
+.right-card:hover {
+  transform: none;
+  box-shadow: var(--shadow-sm);
+  border-color: var(--border);
+}
+
+.right-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.right-card-title {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.quick-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.quick-link {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.quick-link:hover {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+  color: var(--text-1);
+  text-decoration: none;
+}
+
+.tag-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface) 94%);
+  color: var(--text-1);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.tag-pill:hover {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface) 90%);
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--border) 82%);
+  color: var(--text-1);
+  text-decoration: none;
+}
+
+.admin-links {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: var(--surface);
+  color: var(--text-1);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.admin-link:hover {
+  background: var(--surface-2);
+  border-color: var(--border);
+  text-decoration: none;
+}
+
+.right-card-list {
+  display: grid;
+  gap: 6px;
+}
+
 .topic-item {
-  padding: 6px 0;
-  transition: opacity 0.2s;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.18s ease-out;
+  text-align: left;
 }
 .topic-item:hover {
-  opacity: 0.8;
+  background: var(--surface-2);
+  border-color: var(--border);
 }
 
 .topic-rank {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.topic-title {
+  font-weight: 600;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topic-meta {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.topic-item:nth-child(1) .topic-rank {
+  background: #fef08a; /* Goldish */
+  color: #854d0e;
+}
+
+.topic-item:nth-child(2) .topic-rank {
+  background: #e2e8f0; /* Silver */
+  color: #475569;
+}
+
+.topic-item:nth-child(3) .topic-rank {
+  background: #fed7aa; /* Bronze */
+  color: #9a3412;
+}
+
+.category-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.18s ease-out;
+  text-align: left;
+  text-decoration: none;
+  color: inherit;
+}
+
+.category-item:hover {
+  background: var(--surface-2);
+  border-color: var(--border);
+  text-decoration: none;
+}
+
+.category-name {
+  font-weight: 600;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-meta {
+  font-size: 12px;
+  color: var(--text-3);
   font-weight: 700;
-  color: var(--accent);
-  width: 16px;
-  text-align: center;
+}
+
+.guidelines {
+  display: grid;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-1);
+}
+
+.guideline-row {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.guideline-text {
+  line-height: 1.5;
+}
+
+.right-footer {
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 2px 4px;
 }
 </style>
-

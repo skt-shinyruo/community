@@ -18,14 +18,14 @@
       <div v-if="mode === 'request'" class="stack" style="gap: 12px">
         <div class="stack" style="gap: 8px">
           <div class="muted" style="font-size: 12px">邮箱</div>
-          <UiInput v-model.trim="form.email" placeholder="email" autocomplete="email" />
+          <UiInput v-model.trim="form.email" placeholder="name@example.com" autocomplete="email" />
         </div>
       </div>
 
       <div v-else class="stack" style="gap: 12px">
         <div class="stack" style="gap: 8px">
           <div class="muted" style="font-size: 12px">新密码</div>
-          <UiInput v-model.trim="form.newPassword" placeholder="new password" type="password" autocomplete="new-password" />
+          <UiInput v-model.trim="form.newPassword" placeholder="请输入新密码" type="password" autocomplete="new-password" />
         </div>
         <div class="muted" style="font-size: 12px">resetToken：{{ shortToken }}</div>
       </div>
@@ -36,11 +36,11 @@
           <UiButton variant="secondary" @click="refreshCaptcha" :disabled="loading">刷新</UiButton>
         </div>
         <div class="row" style="align-items: center; flex-wrap: wrap">
-          <UiInput v-model.trim="form.captcha" placeholder="captcha" autocomplete="off" style="max-width: 180px" />
+          <UiInput v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" style="max-width: 180px" />
           <img
             v-if="captchaSrc"
             :src="captchaSrc"
-            alt="captcha"
+            alt="验证码"
             title="点击刷新验证码"
             style="height: 40px; width: 120px; cursor: pointer; border: 1px solid var(--border); border-radius: 10px"
             @click="refreshCaptcha"

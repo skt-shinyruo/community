@@ -12,11 +12,41 @@
 }
 
 .muted {
-  color: var(--muted);
+  color: var(--text-3);
 }
 
 .error {
   color: var(--danger);
+}
+
+.success {
+  color: var(--success);
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.hover-underline:hover {
+  text-decoration: underline;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .empty {
@@ -29,4 +59,12 @@ em {
   background: var(--highlight-bg);
   padding: 0 2px;
   border-radius: 4px;
+}
+
+/* Anchor Highlight（评论/回复定位） */
+.anchor-highlight {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);
+  border-radius: 12px;
+  transition: box-shadow 0.2s ease;
 }

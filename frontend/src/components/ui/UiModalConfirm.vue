@@ -6,8 +6,8 @@
         <div style="font-weight: 700">{{ title }}</div>
         <div class="muted">{{ message }}</div>
         <div class="row" style="justify-content: flex-end">
-          <button class="btn secondary" @click="$emit('cancel')">取消</button>
-          <button class="btn" @click="$emit('confirm')">确认</button>
+          <UiButton variant="secondary" @click="$emit('cancel')">取消</UiButton>
+          <UiButton :variant="confirmVariant" @click="$emit('confirm')">{{ confirmText }}</UiButton>
         </div>
       </div>
     </div>
@@ -15,11 +15,14 @@
 </template>
 
 <script setup>
+import UiButton from './UiButton.vue'
+
 defineProps({
   title: { type: String, default: '确认操作' },
-  message: { type: String, default: '是否继续？' }
+  message: { type: String, default: '是否继续？' },
+  confirmText: { type: String, default: '确认' },
+  confirmVariant: { type: String, default: 'primary' } // primary | danger
 })
 
 defineEmits(['confirm', 'cancel'])
 </script>
-

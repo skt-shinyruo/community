@@ -9,5 +9,4 @@ security:
     hmac-secret: ${JWT_HMAC_SECRET:dev-secret-please-change-at-least-32bytes}
 
 analytics:
-  internal-token: ${ANALYTICS_INTERNAL_TOKEN:dev-analytics-internal-token}
-
+  internal-token: ${ANALYTICS_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}

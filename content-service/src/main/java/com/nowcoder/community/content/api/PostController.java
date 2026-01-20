@@ -13,6 +13,7 @@ import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.event.ContentEventPublisher;
 import com.nowcoder.community.content.like.LikeQueryService;
 import com.nowcoder.community.content.score.PostScoreQueue;
+import com.nowcoder.community.content.service.TagService;
 import com.nowcoder.community.content.service.CommentService;
 import com.nowcoder.community.content.service.PostCommandService;
 import com.nowcoder.community.content.service.PostService;
@@ -33,6 +34,7 @@ import org.springframework.web.util.HtmlUtils;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
@@ -52,6 +54,7 @@ public class PostController {
     private final PostScoreQueue postScoreQueue;
     private final ContentEventPublisher eventPublisher;
     private final PostCommandService postCommandService;
+    private final TagService tagService;
 
     public PostController(
             PostService postService,
@@ -60,7 +63,8 @@ public class PostController {
             LikeQueryService likeQueryService,
             PostScoreQueue postScoreQueue,
             ContentEventPublisher eventPublisher,
-            PostCommandService postCommandService
+            PostCommandService postCommandService,
+            TagService tagService
     ) {
         this.postService = postService;
         this.commentService = commentService;
@@ -69,18 +73,29 @@ public class PostController {
         this.postScoreQueue = postScoreQueue;
         this.eventPublisher = eventPublisher;
         this.postCommandService = postCommandService;
+        this.tagService = tagService;
     }
 
     @GetMapping
     public Result<List<PostSummaryResponse>> list(
             @RequestParam(required = false) String order,
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) String tag,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
         int p = page == null ? 0 : page;
         int s = size == null ? 10 : size;
         int orderMode = "hot".equalsIgnoreCase(order) ? PostService.ORDER_HOT : PostService.ORDER_LATEST;
-        List<PostSummaryResponse> items = postService.listPosts(p, s, orderMode).stream().map(this::toSummary).collect(Collectors.toList());
+
+        List<DiscussPost> posts = postService.listPosts(p, s, orderMode, categoryId, tag);
+        List<Integer> postIds = posts.stream().map(DiscussPost::getId).toList();
+        Map<Integer, Comment> lastActivities = commentService.getLatestPostActivitiesByPostIds(postIds);
+        Map<Integer, List<String>> tagsByPostId = tagService.getTagsByPostIds(postIds);
+
+        List<PostSummaryResponse> items = posts.stream()
+                .map(post -> toSummary(post, lastActivities.get(post.getId()), tagsByPostId.get(post.getId())))
+                .collect(Collectors.toList());
         return Result.ok(items);
     }
 
@@ -93,7 +108,7 @@ public class PostController {
         title = sensitiveFilter.filter(title);
         content = sensitiveFilter.filter(content);
 
-        int postId = postCommandService.createPost(userId, title, content);
+        int postId = postCommandService.createPost(userId, title, content, request.getCategoryId(), request.getTags());
 
         CreatePostResponse resp = new CreatePostResponse();
         resp.setPostId(postId);
@@ -122,6 +137,8 @@ public class PostController {
         resp.setCreateTime(post.getCreateTime());
         resp.setCommentCount(post.getCommentCount());
         resp.setScore(post.getScore());
+        resp.setCategoryId(post.getCategoryId());
+        resp.setTags(tagService.getTagsByPostIds(List.of(postId)).getOrDefault(postId, List.of()));
         resp.setLikeCount(likeQueryService.countPostLikes(postId));
         resp.setLiked(likeQueryService.hasLikedPost(currentUserId, postId));
         return Result.ok(resp);
@@ -165,10 +182,13 @@ public class PostController {
         int actorUserId = currentUserId(authentication);
         postService.updateType(postId, 1);
         DiscussPost post = postService.getById(postId);
+        List<String> tags = tagService.getTagsByPostIds(List.of(postId)).getOrDefault(postId, List.of());
 
         PostPayload payload = new PostPayload();
         payload.setPostId(postId);
         payload.setUserId(post.getUserId());
+        payload.setCategoryId(post.getCategoryId());
+        payload.setTags(tags);
         payload.setTitle(post.getTitle());
         payload.setContent(post.getContent());
         payload.setType(post.getType());
@@ -188,10 +208,13 @@ public class PostController {
         postService.updateStatus(postId, 1);
         postScoreQueue.add(postId);
         DiscussPost post = postService.getById(postId);
+        List<String> tags = tagService.getTagsByPostIds(List.of(postId)).getOrDefault(postId, List.of());
 
         PostPayload payload = new PostPayload();
         payload.setPostId(postId);
         payload.setUserId(post.getUserId());
+        payload.setCategoryId(post.getCategoryId());
+        payload.setTags(tags);
         payload.setTitle(post.getTitle());
         payload.setContent(post.getContent());
         payload.setType(post.getType());
@@ -210,10 +233,13 @@ public class PostController {
         int actorUserId = currentUserId(authentication);
         postService.updateStatus(postId, 2);
         DiscussPost post = postService.getById(postId);
+        List<String> tags = tagService.getTagsByPostIds(List.of(postId)).getOrDefault(postId, List.of());
 
         PostPayload payload = new PostPayload();
         payload.setPostId(postId);
         payload.setUserId(post.getUserId());
+        payload.setCategoryId(post.getCategoryId());
+        payload.setTags(tags);
         payload.setTitle(post.getTitle());
         payload.setContent(post.getContent());
         payload.setType(post.getType());
@@ -226,16 +252,34 @@ public class PostController {
         return Result.ok();
     }
 
-    private PostSummaryResponse toSummary(DiscussPost post) {
+    private PostSummaryResponse toSummary(DiscussPost post, Comment lastActivity, List<String> tags) {
         PostSummaryResponse r = new PostSummaryResponse();
         r.setId(post.getId());
         r.setUserId(post.getUserId());
+        r.setCategoryId(post.getCategoryId());
+        r.setTags(tags == null ? List.of() : tags);
         r.setTitle(post.getTitle());
         r.setType(post.getType());
         r.setStatus(post.getStatus());
         r.setCreateTime(post.getCreateTime());
         r.setCommentCount(post.getCommentCount());
         r.setScore(post.getScore());
+
+        if (lastActivity != null && lastActivity.getUserId() > 0 && lastActivity.getCreateTime() != null) {
+            r.setLastReplyUserId(lastActivity.getUserId());
+            r.setLastReplyTime(lastActivity.getCreateTime());
+        }
+
+        // lastActivityTime：用于列表的“活动”列与未读判断（优先最后回复时间，否则 fallback 到发帖时间）。
+        if (r.getLastReplyTime() != null) {
+            if (r.getCreateTime() == null || r.getLastReplyTime().after(r.getCreateTime())) {
+                r.setLastActivityTime(r.getLastReplyTime());
+            } else {
+                r.setLastActivityTime(r.getCreateTime());
+            }
+        } else {
+            r.setLastActivityTime(r.getCreateTime());
+        }
         return r;
     }
 

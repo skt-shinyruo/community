@@ -1,50 +1,39 @@
 package com.nowcoder.community.auth.service;
 
-import com.nowcoder.community.auth.config.JwtProperties;
-import com.nowcoder.community.auth.user.User;
-import com.nowcoder.community.auth.user.UserMapper;
 import com.nowcoder.community.common.api.AuthErrorCode;
-import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
-import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Service
 public class AuthService {
 
-    private final UserMapper userMapper;
+    private final UserServiceInternalClient userServiceInternalClient;
     private final JwtTokenService jwtTokenService;
     private final RefreshTokenService refreshTokenService;
     private final LoginRateLimitService loginRateLimitService;
     private final CaptchaService captchaService;
-    private final JwtProperties jwtProperties;
 
     public AuthService(
-            UserMapper userMapper,
+            UserServiceInternalClient userServiceInternalClient,
             JwtTokenService jwtTokenService,
             RefreshTokenService refreshTokenService,
             LoginRateLimitService loginRateLimitService,
-            CaptchaService captchaService,
-            JwtProperties jwtProperties
+            CaptchaService captchaService
     ) {
-        this.userMapper = userMapper;
+        this.userServiceInternalClient = userServiceInternalClient;
         this.jwtTokenService = jwtTokenService;
         this.refreshTokenService = refreshTokenService;
         this.loginRateLimitService = loginRateLimitService;
         this.captchaService = captchaService;
-        this.jwtProperties = jwtProperties;
     }
 
     public LoginResult login(String username, String password, String captchaId, String captchaCode, HttpServletRequest request) {
-        assertAllowedOrigin(request);
-
         String ip = clientIp(request);
         loginRateLimitService.assertNotBlocked(username, ip);
 
@@ -65,32 +54,26 @@ public class AuthService {
             throw new BusinessException(AuthErrorCode.LOGIN_FAILED);
         }
 
-        User user = userMapper.selectByName(username);
-        if (user == null) {
-            loginRateLimitService.recordFailure(username, ip);
-            throw new BusinessException(AuthErrorCode.LOGIN_FAILED);
-        }
-        if (user.getStatus() == 0) {
-            loginRateLimitService.recordFailure(username, ip);
-            throw new BusinessException(AuthErrorCode.USER_DISABLED);
-        }
-
-        String encrypted = md5(password + user.getSalt());
-        if (!encrypted.equals(user.getPassword())) {
-            loginRateLimitService.recordFailure(username, ip);
-            throw new BusinessException(AuthErrorCode.LOGIN_FAILED);
+        com.nowcoder.community.auth.service.dto.UserInternalAuthenticateResponse user;
+        try {
+            user = userServiceInternalClient.authenticate(username, password);
+        } catch (BusinessException e) {
+            int code = e.getErrorCode() == null ? 0 : e.getErrorCode().getCode();
+            if (code == AuthErrorCode.LOGIN_FAILED.getCode() || code == AuthErrorCode.USER_DISABLED.getCode()) {
+                loginRateLimitService.recordFailure(username, ip);
+            }
+            throw e;
         }
 
         loginRateLimitService.reset(username, ip);
 
-        List<String> authorities = authoritiesOf(user);
-        String accessToken = jwtTokenService.createAccessToken(user.getId(), user.getUsername(), authorities);
-        RefreshTokenService.IssuedRefreshToken refreshToken = refreshTokenService.issue(user.getId());
+        List<String> authorities = user.getAuthorities() == null ? List.of() : user.getAuthorities();
+        String accessToken = jwtTokenService.createAccessToken(user.getUserId(), user.getUsername(), authorities);
+        RefreshTokenService.IssuedRefreshToken refreshToken = refreshTokenService.issue(user.getUserId());
         return new LoginResult(accessToken, refreshToken.cookie());
     }
 
     public RefreshResult refresh(HttpServletRequest request) {
-        assertAllowedOrigin(request);
         String refreshToken = readCookie(request, refreshTokenService.buildCookie("").getName());
         if (!StringUtils.hasText(refreshToken)) {
             throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
@@ -101,18 +84,18 @@ public class AuthService {
             throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
         }
 
-        User user = userMapper.selectById(stored.userId());
-        if (user == null || user.getStatus() == 0) {
+        com.nowcoder.community.auth.service.dto.UserInternalSessionProfileResponse profile = userServiceInternalClient.sessionProfile(stored.userId());
+        if (profile == null || profile.getStatus() == 0) {
             throw new BusinessException(AuthErrorCode.USER_DISABLED);
         }
 
         RefreshTokenService.IssuedRefreshToken rotated = refreshTokenService.rotate(stored);
-        String accessToken = jwtTokenService.createAccessToken(user.getId(), user.getUsername(), authoritiesOf(user));
+        List<String> authorities = profile.getAuthorities() == null ? List.of() : profile.getAuthorities();
+        String accessToken = jwtTokenService.createAccessToken(profile.getUserId(), profile.getUsername(), authorities);
         return new RefreshResult(accessToken, rotated.cookie());
     }
 
     public void logout(HttpServletRequest request) {
-        assertAllowedOrigin(request);
         String refreshToken = readCookie(request, refreshTokenService.buildCookie("").getName());
         if (StringUtils.hasText(refreshToken)) {
             refreshTokenService.revokeFamilyByToken(refreshToken);
@@ -134,36 +117,6 @@ public class AuthService {
             }
         }
         return null;
-    }
-
-    private String md5(String input) {
-        return DigestUtils.md5DigestAsHex(input.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private List<String> authoritiesOf(User user) {
-        if (user.getType() == 1) {
-            return List.of("ROLE_ADMIN");
-        }
-        if (user.getType() == 2) {
-            return List.of("ROLE_MODERATOR");
-        }
-        return List.of("ROLE_USER");
-    }
-
-    private void assertAllowedOrigin(HttpServletRequest request) {
-        if (request == null) {
-            return;
-        }
-        String origin = request.getHeader("Origin");
-        if (!StringUtils.hasText(origin)) {
-            return;
-        }
-        if (jwtProperties.getAllowedOrigins() == null || jwtProperties.getAllowedOrigins().isEmpty()) {
-            return;
-        }
-        if (!jwtProperties.getAllowedOrigins().contains(origin)) {
-            throw new BusinessException(CommonErrorCode.FORBIDDEN, "Origin 不被允许");
-        }
     }
 
     private String clientIp(HttpServletRequest request) {

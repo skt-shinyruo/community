@@ -32,16 +32,23 @@
 - `deploy/mysql-init/`：支持 MySQL 同实例多 schema + 最小权限账号（非身份域先拆：content/message/search）。
 - Kafka DLQ 运维：新增 `kafka_dlq_published_total` 指标/告警与 `scripts/kafka-replay-dlq.sh` 回放脚本（默认 dry-run + 限量/限速）。
 - content-service：新增内部帖子扫描接口 `GET /internal/content/posts`（`X-Internal-Token`），供 search-service 在严格 schema 隔离下完成 reindex 冷启动与修复。
+- `deploy/docker-compose.yml` 默认将 Nacos 控制台端口绑定到宿主机 `127.0.0.1:8848`（可用 `NACOS_UI_PORT` 覆盖，仅建议本地/测试使用），便于直接在 UI 上维护配置。
+- `common`：新增 internal-token Filter（对 `/internal/**` 强制校验 `X-Internal-Token`）与 Kafka 消费 traceId 注入工具 `KafkaTraceSupport`，并补齐 RestTemplate traceId 透传拦截器。
+- `user-service`：新增身份域 internal API（`/internal/users/**`），并支持 legacy（MD5+salt）密码在登录成功后渐进升级为 BCrypt。
 
 ### Changed
 - 父工程升级到 Spring Boot 3.2.6 + Java 17，并加入 Maven Enforcer 门禁。
 - `gateway` 增加 `spring-cloud-starter-loadbalancer` 依赖，修复 `lb://` 路由无法解析实例导致的 503（`Unable to find instance`）。
 - `deploy/docker-compose.yml` Kafka 镜像调整为 `confluentinc/cp-kafka` + `cp-zookeeper`（替代不可用的 bitnami/kafka 标签）。
 - `deploy/docker-compose.yml` 不再包含 `community-edge`（Nginx），基础 compose 默认不提供“前端统一入口”容器；新增可选端口映射覆盖文件 `deploy/docker-compose.ports.yml`。
+- `deploy/docker-compose.yml` 固定 compose project name 为 `community`（避免 Docker Desktop 默认显示为 `deploy` 造成歧义）。
+- `deploy/docker-compose.nacos-ui.yml` 调整为历史兼容 no-op（避免重复端口映射冲突）。
 - `deploy/docker-compose.yml` 为 Zookeeper 增加持久化数据卷，避免 Kafka 因 `InconsistentClusterIdException`（clusterId 不一致）启动失败。
+- `deploy/docker-compose.yml` 为 Kafka 增加 healthcheck + `restart: on-failure`，并将依赖 Kafka 的服务启动条件统一为等待 `service_healthy`，避免首次启动 Kafka 因 ZK 会话未过期窗口偶发退出导致级联失败。
 - 新增“前端直连 gateway”本地部署模式：前端 `12881`（Node + Vite preview，无 Nginx）+ gateway `12882`（见 `deploy/docker-compose.frontend-direct.yml` / `deploy/Dockerfile.frontend`）。
-- `gateway` CORS 默认允许 `http://localhost:12881`，支持前端跨端口直连。
-- `frontend` Vite dev 端口固定为 `12881`（与 docker preview 对齐），同时 gateway CORS 与 auth-service `Origin` 白名单默认仅允许 `http://localhost:12881`，避免端口漂移导致 403。
+- `gateway` CORS 默认允许 `http://localhost:12881` / `http://localhost:12888`，支持前端跨端口直连。
+- `gateway` 增加 OriginGuard：对 `/api/auth/login|refresh|logout` 执行 Origin allowlist 校验（服务端硬拦截），并与 CORS allowlist 复用同一份列表。
+- `frontend` Vite dev/preview 端口默认 `12881`，支持通过 env 覆盖；端口变化时只需调整 gateway allowlist，避免多服务配置漂移导致 403。
 - `frontend` http client 支持 `VITE_API_BASE_URL`，并在本地 `localhost/127.0.0.1` 场景下默认推导到 `http://<host>:12882`。
 - `frontend/src/api/http.js` refresh 失败跳转改为硬跳转（避免 router 循环依赖），并兼容无 `location` 的测试环境。
 - `frontend/src/api/services/socialService.js` 缓存命中时返回结构统一为 `{ data, traceId }`，避免调用方分支处理。
@@ -51,6 +58,18 @@
 - 安全检查脚本优化：`scripts/secret-scan.sh` 改为仅扫描 git tracked 文件，避免本地 `deploy/.env`（gitignored）阻断 `scripts/security-check.sh`，同时仍会阻止 `deploy/.env` 被提交。
 - Kafka 生产端（content/social）：在事务活跃时改为 After-Commit 发送，避免 DB 回滚但事件已发出。
 - Kafka 消费端（message）：幂等与业务写入合并为同事务提交，listener 仅在成功后 ack。
+- `auth-service`：移除对 MySQL/MyBatis 的依赖，改为通过 `user-service` internal API 完成登录/刷新状态校验/注册/激活/找回密码等身份域能力。
+- `frontend` UI 体验系统化优化：补齐 design tokens（hover/active/topbar bg 等）、新增 `pages.css` 页面通用结构样式、路由 meta 驱动 Topbar 标题/副标题、修复移动端侧边栏抽屉行为、统一 Toast 单入口（inject + window.$toast），并对 posts/search/messages/settings/auth 等核心页面做一致性收敛。
+- `frontend` BBS UI 打磨：引入导航配置 SSOT（`router/navigation.js`）并重构 Sidebar/MobileNav；posts 列表增加 FeedToolbar（排序/筛选 chips + URL query 同步）与补水并发治理；帖子详情补齐评论/回复锚点定位、高亮、引用回复与草稿；统一角色徽章（ADMIN/MOD）并补齐关键 icon button 的可访问性属性。
+- `frontend` 视觉细节再打磨：工作区左右栏分层（Sidebar/RightPanel 使用 `surface`）、FeedToolbar 工具栏卡片化、`UiEmpty` 空态卡片 + CTA slot、RightPanel 分区卡片化与 hover 细节收敛。
+- `frontend` BBS 风格收敛：默认密度改为 `compact`（新用户）；帖子列表与搜索结果改为 topic list（紧凑行 + 分隔线/浅底）；card/button/chips hover 去位移动画，整体更贴近 GitHub Discussions 的专业克制风格。
+- `frontend` 更 Discourse 一点：posts 列表升级为四列 topic list（含表头），补齐本地未读提示（基于 `lastActivityTime` + `localStorage`），并在 Activity 列展示最后回复人/时间。
+- `frontend` 信息架构增强：posts 筛选新增「未读」（chips + Sidebar 入口），RightPanel 增加“快速筛选/热门标签（关键词）”卡片，继续向 Discourse 的侧栏与过滤体验靠拢。
+- `content-service`：`GET /api/posts` 列表返回补齐 `lastReplyUserId/lastReplyTime/lastActivityTime`（包含评论与回复评论），支撑前端 Discourse 风格“活动/未读”。
+- taxonomy（分类/标签）全链路落地：content-service 新增 `GET /api/categories`、`GET /api/tags/hot`，发帖支持 `categoryId/tags[]`，列表支持按 `categoryId/tag` 过滤；frontend 发帖/列表/详情展示分类与标签，RightPanel 展示分类与热门标签并跳转过滤；gateway 路由与公共 GET 放行补齐；deploy MySQL schema 增加 `category/tag/post_tag` 与 `discuss_post.category_id`。
+- taxonomy 体验补齐：content-service 新增 `GET /api/tags/suggest`（标签自动补全）；search-service ES 文档与搜索 API 补齐 `categoryId/tags[]` 并支持 `categoryId/tag` 过滤；frontend 发帖标签输入升级为 chips + suggest，Posts 列表增加“自上次访问后新增 / 上次看到这里”提示，搜索页增加分类/标签过滤。
+- `deploy/README.md` 补充前端样式分层与静态资源/文件访问（头像等）策略说明，便于本地与部署排查。
+- `deploy/nacos-config/gateway.yaml` 补齐 gateway CORS allowlist 与 OriginGuard allowlist 示例，支持通过 Nacos UI 管理并覆盖默认配置。
 
 ### Fixed
 - 修复 message-service 消费端“自调用导致事务不生效 + 幂等记录先写导致永久丢通知”的高风险路径。
@@ -59,6 +78,9 @@
 - 修复 search-service 在 Elasticsearch 读路径因 `Instant createTime` 映射不一致导致“有命中即 500”的问题（改为以 epoch millis 存储/读取）。
 - 修复 search-service `/internal/search/reindex` 在多 schema 模式下的重建流程：改为调用 content-service 内部 API 扫描帖子数据，移除对 `community_content.*` 的跨 schema 直读与额外 SELECT 授权依赖。
 - 修复 `scripts/smoke-i0-auth.sh` 在 zsh 环境下无法通过 `USERNAME` 覆盖账号、且错误打印 Python 片段导致脚本中断的问题（改用 `SMOKE_USERNAME/SMOKE_PASSWORD` + 直接输出响应）。
+- 修复前端移动端（≤768px）侧边栏不可见的问题（抽屉与遮罩行为对齐）。
+- 修复 internal API token 配置漂移导致的 403：internal-token 校验统一下沉到 `InternalTokenFilter` 并支持按 `/internal/{segment}` 映射到 `{segment}.internal-token`（同时允许 `INTERNAL_TOKEN` 全局兜底）。
+- 修复 content-service Kafka 消费端进程内去重在多实例/重启场景下不可靠的问题：移除 JVM `seenEventIds`，并对齐 DefaultErrorHandler+DLQ 与消费端 traceId 注入。
 
 ### Removed
 - 移除历史单体切流/回滚相关 docker compose 与脚本（`deploy/docker-compose.cutover.yml`、`scripts/cutover/*`）。

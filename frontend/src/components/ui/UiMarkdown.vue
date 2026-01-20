@@ -1,19 +1,53 @@
 <template>
-  <div class="markdown-body" v-html="rendered"></div>
+  <div class="markdown-body" :class="{ compact: variant === 'compact' }" v-html="rendered"></div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
 
 const props = defineProps({
-  content: { type: String, default: '' }
+  content: { type: String, default: '' },
+  // default：正文阅读模式；compact：评论/卡片内的紧凑渲染。
+  variant: { type: String, default: 'default' }
 })
+
+function escapeHtml(text) {
+  return String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function sanitizeUrl(raw) {
+  const url = String(raw || '').trim()
+  if (!url) return ''
+  const lower = url.toLowerCase()
+
+  // 仅放行常见安全协议与相对路径，避免 javascript: 等注入。
+  if (lower.startsWith('http://')) return url
+  if (lower.startsWith('https://')) return url
+  if (lower.startsWith('mailto:')) return url
+  if (lower.startsWith('tel:')) return url
+  if (url.startsWith('/') || url.startsWith('./') || url.startsWith('../') || url.startsWith('#')) return url
+  return ''
+}
 
 const rendered = computed(() => {
   let text = props.content || ''
-  
-  // Escape HTML first to prevent XSS (basic)
-  text = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+
+  // 代码块先提取，避免后续的换行替换破坏 <pre> 内部格式。
+  const codeBlocks = []
+  text = text.replace(/```([\s\S]*?)```/gim, (_m, code) => {
+    const escaped = escapeHtml(code)
+    const idx = codeBlocks.length
+    codeBlocks.push(`<pre><code>${escaped}</code></pre>`)
+    return `@@CODEBLOCK_${idx}@@`
+  })
+
+  // 先整体转义（再逐步放行/生成可控标签）。
+  text = escapeHtml(text)
 
   // Headers
   text = text.replace(/^### (.*$)/gim, '<h3>$1</h3>')
@@ -23,20 +57,19 @@ const rendered = computed(() => {
   // Blockquote
   text = text.replace(/^\> (.*$)/gim, '<blockquote>$1</blockquote>')
 
-  // Bold
-  text = text.replace(/\*\*(.*)\*\*/gim, '<b>$1</b>')
-  
-  // Italic
-  text = text.replace(/\*(.*)\*/gim, '<i>$1</i>')
-
-  // Code Block
-  text = text.replace(/```([\s\S]*?)```/gim, '<pre><code>$1</code></pre>')
+  // Bold / Italic（尽量避免贪婪跨行）
+  text = text.replace(/\*\*([^*]+)\*\*/gim, '<b>$1</b>')
+  text = text.replace(/\*([^*]+)\*/gim, '<i>$1</i>')
 
   // Inline Code
   text = text.replace(/`([^`]+)`/gim, '<code>$1</code>')
 
   // Links
-  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/gim, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/gim, (_m, label, url) => {
+    const safe = sanitizeUrl(url)
+    if (!safe) return label
+    return `<a href="${safe}" target="_blank" rel="noopener noreferrer">${label}</a>`
+  })
 
   // Unordered Lists
   text = text.replace(/^\s*-\s+(.*)/gim, '<li>$1</li>')
@@ -46,6 +79,9 @@ const rendered = computed(() => {
 
   // Line breaks
   text = text.replace(/\n/gim, '<br />')
+
+  // Restore code blocks (after line breaks)
+  text = text.replace(/@@CODEBLOCK_(\d+)@@/gim, (_m, idx) => codeBlocks[Number(idx)] || '')
   
   return text
 })
@@ -56,6 +92,11 @@ const rendered = computed(() => {
   font-size: 16px;
   line-height: 1.6;
   color: var(--text-1);
+}
+
+.markdown-body.compact {
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 :deep(h1), :deep(h2), :deep(h3) {

@@ -23,11 +23,19 @@ public class PostSearchService {
         this.scanPageSize = Math.min(1000, Math.max(1, properties.getPageSize()));
     }
 
-    public List<SearchPostItem> search(String keyword, Integer page, Integer size) {
+    public List<SearchPostItem> search(String keyword, Integer categoryId, String tag, Integer page, Integer size) {
         int p = page == null ? 0 : Math.max(0, page);
         int s = size == null ? 10 : Math.min(50, Math.max(1, size));
         String k = StringUtils.hasText(keyword) ? keyword.trim() : "";
-        return postSearchRepository.search(k, p, s);
+        Integer cid = categoryId != null && categoryId > 0 ? categoryId : null;
+        String safeTag = StringUtils.hasText(tag) ? tag.trim() : "";
+        if (safeTag.startsWith("#")) {
+            safeTag = safeTag.substring(1).trim();
+        }
+        if (!StringUtils.hasText(safeTag)) {
+            safeTag = null;
+        }
+        return postSearchRepository.search(k, cid, safeTag, p, s);
     }
 
     public int clearAndReindexFromContentService() {

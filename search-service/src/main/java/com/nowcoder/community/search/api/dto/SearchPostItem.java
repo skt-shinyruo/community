@@ -1,10 +1,13 @@
 package com.nowcoder.community.search.api.dto;
 
 import java.time.Instant;
+import java.util.List;
 
 public class SearchPostItem {
 
     private int postId;
+    private Integer categoryId;
+    private List<String> tags;
     private String title;
     private String highlightedTitle;
     private String highlightedContent;
@@ -17,6 +20,22 @@ public class SearchPostItem {
 
     public void setPostId(int postId) {
         this.postId = postId;
+    }
+
+    public Integer getCategoryId() {
+        return categoryId;
+    }
+
+    public void setCategoryId(Integer categoryId) {
+        this.categoryId = categoryId;
+    }
+
+    public List<String> getTags() {
+        return tags;
+    }
+
+    public void setTags(List<String> tags) {
+        this.tags = tags;
     }
 
     public String getTitle() {
@@ -59,4 +78,3 @@ public class SearchPostItem {
         this.score = score;
     }
 }
-

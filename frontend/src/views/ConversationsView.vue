@@ -1,14 +1,18 @@
 <template>
   <div class="page" style="max-width: 800px; margin: 0 auto">
     <UiPageHeader>
-        <template #title>Messages</template>
+        <template #title>私信</template>
         <template #actions>
-           <UiButton variant="secondary" @click="load" :disabled="loading">Refresh</UiButton>
+           <UiButton variant="secondary" @click="load" :disabled="loading">刷新</UiButton>
         </template>
     </UiPageHeader>
 
+    <div v-if="error && items.length > 0" class="error" style="margin-top: 12px">{{ error }}</div>
+
     <UiCard style="margin-top: 12px; padding: 0; overflow: hidden">
-       <UiEmpty v-if="items.length === 0 && !loading" style="padding: 40px">No conversations yet.</UiEmpty>
+       <UiEmpty v-if="error && items.length === 0" type="error" style="padding: 40px">{{ error }}</UiEmpty>
+       <div v-else-if="loading && items.length === 0" class="muted" style="padding: 40px; text-align: center">加载中…</div>
+       <UiEmpty v-else-if="items.length === 0" style="padding: 40px">暂无会话</UiEmpty>
        
        <div class="conv-list">
           <RouterLink 
@@ -26,7 +30,7 @@
                    <span class="conv-time" v-if="c.lastMessage">{{ formatTimeShort(c.lastMessage.createTime) }}</span>
                 </div>
                 <div class="conv-bottom">
-                   <span class="conv-preview">{{ c.lastMessage?.content || '(No messages)' }}</span>
+                   <span class="conv-preview">{{ c.lastMessage?.content || '（暂无消息）' }}</span>
                    <span v-if="c.unreadCount > 0" class="unread-badge">{{ c.unreadCount }}</span>
                 </div>
              </div>
@@ -39,6 +43,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { listConversationItems } from '../api/services/messageService'
+import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
@@ -69,7 +74,7 @@ async function load() {
     items.value = data
     emit('trace', traceId || '')
   } catch (e) {
-    error.value = e?.message || 'Failed to load conversations'
+    error.value = e?.message || '加载会话失败'
   } finally {
     loading.value = false
   }
@@ -101,10 +106,10 @@ onMounted(load)
 .conv-content { flex: 1; min-width: 0; }
 .conv-top { display: flex; justify-content: space-between; margin-bottom: 4px; }
 .conv-name { font-weight: 600; font-size: 15px; }
-.conv-time { font-size: 12px; color: var(--muted); }
+.conv-time { font-size: 12px; color: var(--text-3); }
 
 .conv-bottom { display: flex; justify-content: space-between; align-items: center; }
-.conv-preview { font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90%; }
+.conv-preview { font-size: 14px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90%; }
 .conv-item.unread .conv-preview { color: var(--text-1); font-weight: 500; }
 
 .unread-badge {

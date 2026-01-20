@@ -9,3 +9,18 @@ export function formatTime(value) {
   }
 }
 
+// 相对时间：用于列表页“活动/最后回复”快速扫读。
+export function formatTimeAgo(value) {
+  if (!value) return '-'
+  const t = new Date(value).getTime()
+  if (!Number.isFinite(t)) return formatTime(value)
+
+  const diff = Date.now() - t
+  if (!Number.isFinite(diff)) return formatTime(value)
+
+  if (diff < 60 * 1000) return '刚刚'
+  if (diff < 60 * 60 * 1000) return `${Math.floor(diff / (60 * 1000))} 分钟前`
+  if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / (60 * 60 * 1000))} 小时前`
+  if (diff < 7 * 24 * 60 * 60 * 1000) return `${Math.floor(diff / (24 * 60 * 60 * 1000))} 天前`
+  return new Date(t).toLocaleDateString()
+}

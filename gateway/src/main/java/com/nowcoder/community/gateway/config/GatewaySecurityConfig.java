@@ -27,7 +27,7 @@ import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT
 
 @Configuration
 @EnableWebFluxSecurity
-@EnableConfigurationProperties({JwtProperties.class, AnalyticsCollectProperties.class, GatewayRateLimitProperties.class})
+@EnableConfigurationProperties({JwtProperties.class, AnalyticsCollectProperties.class, GatewayRateLimitProperties.class, OriginGuardProperties.class})
 public class GatewaySecurityConfig {
 
     @Bean
@@ -62,6 +62,8 @@ public class GatewaySecurityConfig {
                         .pathMatchers(HttpMethod.POST, "/api/auth/captcha/verify").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/password/reset/request", "/api/auth/password/reset/confirm").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/users/*").permitAll()
+                        .pathMatchers(HttpMethod.GET, "/api/categories", "/api/categories/**").permitAll()
+                        .pathMatchers(HttpMethod.GET, "/api/tags/hot", "/api/tags/**").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/posts", "/api/posts/**").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/posts/*/top", "/api/posts/*/wonderful", "/api/posts/*/delete").hasAnyRole("ADMIN", "MODERATOR")
                         .pathMatchers(HttpMethod.GET, "/api/search/posts").permitAll()

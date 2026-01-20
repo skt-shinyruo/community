@@ -8,6 +8,9 @@ security:
   jwt:
     hmac-secret: ${JWT_HMAC_SECRET:dev-secret-please-change-at-least-32bytes}
 
+user:
+  internal-token: ${USER_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+
 qiniu:
   key:
     access: ${QINIU_ACCESS_KEY:}
@@ -16,4 +19,3 @@ qiniu:
     header:
       name: ${QINIU_BUCKET_HEADER_NAME:}
       url: ${QINIU_BUCKET_HEADER_URL:}
-

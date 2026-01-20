@@ -50,12 +50,14 @@ spring:
         - id: content-service
           uri: lb://content-service
           predicates:
-            - Path=/api/posts/**
+            - Path=/api/posts/**,/api/categories/**,/api/tags/**
       globalcors:
         corsConfigurations:
           '[/**]':
-            allowedOrigins:
+            allowedOrigins: &frontend_origins
+              - http://localhost:5173
               - http://localhost:12881
+              - http://localhost:12888
             allowedMethods:
               - GET
               - POST
@@ -79,9 +81,12 @@ security:
 analytics:
   collect:
     enabled: true
-    internal-token: ${ANALYTICS_INTERNAL_TOKEN:}
+    internal-token: ${ANALYTICS_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
 
 gateway:
+  origin-guard:
+    enabled: true
+    allowed-origins: *frontend_origins
   rate-limit:
     enabled: true
     fail-open: true

@@ -49,3 +49,8 @@ management:
 security:
   jwt:
     hmac-secret: ${JWT_HMAC_SECRET:${AUTH_JWT_HMAC_SECRET:}}
+
+message:
+  user-client:
+    connect-timeout: 200ms
+    read-timeout: 800ms

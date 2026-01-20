@@ -19,7 +19,7 @@ function clampEnum(value, allowed, fallback) {
 export const useUiStore = defineStore('ui', {
   state: () => ({
     theme: 'light', // light | dark
-    density: 'comfortable', // comfortable | compact
+    density: 'compact', // comfortable | compact
     sidebarCollapsed: false,
     rightPanelOpen: true
   }),
@@ -32,7 +32,8 @@ export const useUiStore = defineStore('ui', {
 
       const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches
       const theme = clampEnum(parsed?.theme, ['light', 'dark'], prefersDark ? 'dark' : 'light')
-      const density = clampEnum(parsed?.density, ['comfortable', 'compact'], 'comfortable')
+      // 技术社区默认更偏紧凑（PC 主场景信息密度更高）；老用户以 localStorage 为准不受影响。
+      const density = clampEnum(parsed?.density, ['comfortable', 'compact'], 'compact')
       const sidebarCollapsed = typeof parsed?.sidebarCollapsed === 'boolean' ? parsed.sidebarCollapsed : window.innerWidth < 980
       const rightPanelOpen =
         typeof parsed?.rightPanelOpen === 'boolean'

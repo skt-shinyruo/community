@@ -4,6 +4,7 @@ import http from '../http'
 import { unwrapResultBody } from '../result'
 
 const userCache = new Map()
+const userInflight = new Map()
 
 export async function getUserProfile(userId, { force = false } = {}) {
   const uid = Number(userId || 0)
@@ -11,11 +12,24 @@ export async function getUserProfile(userId, { force = false } = {}) {
     return userCache.get(uid)
   }
 
-  const resp = await http.get(`/api/users/${uid}`)
-  const { data, traceId } = unwrapResultBody(resp.data, '获取用户信息')
-  const value = { ...data, _traceId: traceId }
-  userCache.set(uid, value)
-  return value
+  if (userInflight.has(uid)) {
+    return userInflight.get(uid)
+  }
+
+  const p = (async () => {
+    const resp = await http.get(`/api/users/${uid}`)
+    const { data, traceId } = unwrapResultBody(resp.data, '获取用户信息')
+    const value = { ...data, _traceId: traceId }
+    userCache.set(uid, value)
+    return value
+  })()
+
+  userInflight.set(uid, p)
+  try {
+    return await p
+  } finally {
+    if (userInflight.get(uid) === p) userInflight.delete(uid)
+  }
 }
 
 export async function resolveUserByUsername(username) {
@@ -23,4 +37,3 @@ export async function resolveUserByUsername(username) {
   const { data, traceId } = unwrapResultBody(resp.data, '按用户名查询用户')
   return { ...data, _traceId: traceId }
 }
-

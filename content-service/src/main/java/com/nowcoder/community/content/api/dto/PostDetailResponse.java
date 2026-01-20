@@ -1,6 +1,7 @@
 package com.nowcoder.community.content.api.dto;
 
 import java.util.Date;
+import java.util.List;
 
 public class PostDetailResponse {
 
@@ -13,6 +14,9 @@ public class PostDetailResponse {
     private Date createTime;
     private int commentCount;
     private double score;
+
+    private Integer categoryId;
+    private List<String> tags;
 
     private long likeCount;
     private boolean liked;
@@ -89,6 +93,22 @@ public class PostDetailResponse {
         this.score = score;
     }
 
+    public Integer getCategoryId() {
+        return categoryId;
+    }
+
+    public void setCategoryId(Integer categoryId) {
+        this.categoryId = categoryId;
+    }
+
+    public List<String> getTags() {
+        return tags;
+    }
+
+    public void setTags(List<String> tags) {
+        this.tags = tags;
+    }
+
     public long getLikeCount() {
         return likeCount;
     }
@@ -105,4 +125,3 @@ public class PostDetailResponse {
         this.liked = liked;
     }
 }
-

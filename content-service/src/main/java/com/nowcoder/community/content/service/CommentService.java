@@ -17,7 +17,9 @@ import org.springframework.web.util.HtmlUtils;
 
 import java.time.Instant;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.common.api.CommonErrorCode.NOT_FOUND;
@@ -60,6 +62,31 @@ public class CommentService {
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
         return commentMapper.selectCommentsByEntity(ENTITY_TYPE_COMMENT, commentId, p * s, s);
+    }
+
+    /**
+     * 批量查询帖子“最后活动”（包含直接评论 + 回复评论）。
+     * 返回 Map 的 key 为 postId（通过 Comment.entityId 复用承载）。
+     */
+    public Map<Integer, Comment> getLatestPostActivitiesByPostIds(List<Integer> postIds) {
+        Map<Integer, Comment> map = new HashMap<>();
+        if (postIds == null || postIds.isEmpty()) {
+            return map;
+        }
+
+        List<Comment> rows = commentMapper.selectLatestPostActivitiesByPostIds(postIds);
+        if (rows == null || rows.isEmpty()) {
+            return map;
+        }
+
+        // SQL 已按 post_id asc, cid desc 排序：每个 post_id 的第一条即为 tie-break 后的最终结果。
+        for (Comment c : rows) {
+            if (c == null) continue;
+            int postId = c.getEntityId();
+            if (postId <= 0) continue;
+            map.putIfAbsent(postId, c);
+        }
+        return map;
     }
 
     @Transactional

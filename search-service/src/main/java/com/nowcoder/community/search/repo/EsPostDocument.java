@@ -2,7 +2,10 @@ package com.nowcoder.community.search.repo;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.Document;
+import org.springframework.data.elasticsearch.annotations.Field;
+import org.springframework.data.elasticsearch.annotations.FieldType;
 
+import java.util.List;
 
 @Document(indexName = "community_posts")
 public class EsPostDocument {
@@ -11,6 +14,10 @@ public class EsPostDocument {
     private Integer postId;
 
     private Integer userId;
+    private Integer categoryId;
+
+    @Field(type = FieldType.Keyword)
+    private List<String> tags;
     private String title;
     private String content;
     private Integer type;
@@ -35,6 +42,22 @@ public class EsPostDocument {
 
     public void setUserId(Integer userId) {
         this.userId = userId;
+    }
+
+    public Integer getCategoryId() {
+        return categoryId;
+    }
+
+    public void setCategoryId(Integer categoryId) {
+        this.categoryId = categoryId;
+    }
+
+    public List<String> getTags() {
+        return tags;
+    }
+
+    public void setTags(List<String> tags) {
+        this.tags = tags;
     }
 
     public String getTitle() {

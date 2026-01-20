@@ -5,6 +5,24 @@ spring:
         server-addr: ${NACOS_SERVER_ADDR:nacos:8848}
       config:
         server-addr: ${NACOS_SERVER_ADDR:nacos:8848}
+    gateway:
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            # 本地前端常用：5173（Vite 默认）/12881（compose 前端直连）/12888（自定义 dev 端口）
+            allowedOrigins:
+              - http://localhost:5173
+              - http://localhost:12881
+              - http://localhost:12888
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - PATCH
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
 
 security:
   jwt:
@@ -13,5 +31,12 @@ security:
 analytics:
   collect:
     enabled: true
-    internal-token: ${ANALYTICS_INTERNAL_TOKEN:dev-analytics-internal-token}
+    internal-token: ${ANALYTICS_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
 
+gateway:
+  origin-guard:
+    enabled: true
+    allowed-origins:
+      - http://localhost:5173
+      - http://localhost:12881
+      - http://localhost:12888

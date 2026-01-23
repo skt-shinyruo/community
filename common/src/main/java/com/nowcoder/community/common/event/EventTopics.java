@@ -8,7 +8,7 @@ public final class EventTopics {
     public static final String POST_EVENTS_V1 = "community.event.post.v1";
     public static final String COMMENT_EVENTS_V1 = "community.event.comment.v1";
     public static final String SOCIAL_EVENTS_V1 = "community.event.social.v1";
+    public static final String MODERATION_EVENTS_V1 = "community.event.moderation.v1";
 
     public static final String DLQ_SUFFIX = ".dlq";
 }
-

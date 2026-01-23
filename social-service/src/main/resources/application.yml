@@ -5,6 +5,7 @@ social:
   storage: redis
   events:
     publisher: kafka
+  internal-token: ${SOCIAL_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
 
 spring:
   application:

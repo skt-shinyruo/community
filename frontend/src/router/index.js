@@ -18,6 +18,9 @@ import AnalyticsView from '../views/AnalyticsView.vue'
 import SettingsView from '../views/SettingsView.vue'
 import FolloweesView from '../views/FolloweesView.vue'
 import FollowersView from '../views/FollowersView.vue'
+import BookmarksView from '../views/BookmarksView.vue'
+import LeaderboardView from '../views/LeaderboardView.vue'
+import ModerationView from '../views/ModerationView.vue'
 import ForbiddenView from '../views/ForbiddenView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 
@@ -115,12 +118,36 @@ const router = createRouter({
       }
     },
     {
+      path: '/bookmarks',
+      name: 'bookmarks',
+      component: BookmarksView,
+      meta: { title: '收藏', subtitle: '我收藏的帖子', navGroup: 'me', requiresAuth: true }
+    },
+    {
+      path: '/leaderboard',
+      name: 'leaderboard',
+      component: LeaderboardView,
+      meta: { title: '排行榜', subtitle: '按积分排序', navGroup: 'explore' }
+    },
+    {
       path: '/analytics',
       name: 'analytics',
       component: AnalyticsView,
       meta: {
         title: '统计',
         subtitle: '管理员/版主可见',
+        navGroup: 'admin',
+        requiresAuth: true,
+        roles: ['ROLE_ADMIN', 'ROLE_MODERATOR']
+      }
+    },
+    {
+      path: '/moderation',
+      name: 'moderation',
+      component: ModerationView,
+      meta: {
+        title: '治理后台',
+        subtitle: '举报队列与处置审计',
         navGroup: 'admin',
         requiresAuth: true,
         roles: ['ROLE_ADMIN', 'ROLE_MODERATOR']

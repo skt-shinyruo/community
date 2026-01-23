@@ -85,6 +85,8 @@
       <FeedToolbar
         :order="order"
         :filter="filter"
+        :subscribed="subscribed"
+        :show-subscribed-toggle="authed"
         :category-id="categoryId"
         :tag="tag"
         :categories="categories"
@@ -95,6 +97,7 @@
         :disabled="loading"
         @update:order="setOrder"
         @update:filter="setFilter"
+        @update:subscribed="setSubscribed"
         @update:categoryId="setCategoryId"
         @update:tag="setTag"
         @refresh="reload"
@@ -119,6 +122,10 @@
     <div v-else-if="error" class="error">{{ error }}</div>
 
     <div class="stack" style="gap: 16px">
+      <div v-if="blockedHiddenCount > 0" class="muted" style="font-size: 12px">
+        已隐藏 {{ blockedHiddenCount }} 条来自已屏蔽用户的帖子
+      </div>
+
       <UiEmpty v-if="!loading && items.length === 0 && !error">
         暂无内容
         <template #description>
@@ -296,6 +303,7 @@
 import { computed, inject, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useSocialPrefsStore } from '../stores/socialPrefs'
 import UiEmpty from '../components/ui/UiEmpty.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiInput from '../components/ui/UiInput.vue'
@@ -306,18 +314,19 @@ import FeedToolbar from '../components/posts/FeedToolbar.vue'
 import { listPosts, createPost as apiCreatePost } from '../api/services/postService'
 import { getUserProfile } from '../api/services/userService'
 import { getLikeCount, getLikeStatus, setLike } from '../api/services/socialService'
-	import { suggestTags as apiSuggestTags } from '../api/services/taxonomyService'
-	import { formatTime, formatTimeAgo } from '../utils/time'
-	import { getPostReadAt, getPostsListBaselineAt, markPostRead, touchPostsListSeen } from '../utils/readTracker'
-	import { useTaxonomyStore } from '../stores/taxonomy'
-	import {
-	  POSTS_FILTER,
-	  POSTS_FILTER_OPTIONS,
-	  POSTS_ORDER,
+import { suggestTags as apiSuggestTags } from '../api/services/taxonomyService'
+import { formatTime, formatTimeAgo } from '../utils/time'
+import { getPostReadAt, getPostsListBaselineAt, markPostRead, touchPostsListSeen } from '../utils/readTracker'
+import { useTaxonomyStore } from '../stores/taxonomy'
+import {
+  POSTS_FILTER,
+  POSTS_FILTER_OPTIONS,
+  POSTS_ORDER,
   POSTS_ORDER_OPTIONS,
   normalizePostsCategoryId,
   normalizePostsFilter,
-  normalizePostsOrder
+  normalizePostsOrder,
+  normalizePostsSubscribed
 } from '../router/navigation'
 
 const emit = defineEmits(['trace'])
@@ -331,6 +340,7 @@ const me = computed(() => auth.me || {})
 
 const order = computed(() => normalizePostsOrder(route.query?.order))
 const filter = computed(() => normalizePostsFilter(route.query?.type))
+const subscribed = computed(() => normalizePostsSubscribed(route.query?.subscribed))
 const categoryId = computed(() => normalizePostsCategoryId(route.query?.categoryId))
 const tag = computed(() => {
   const raw = String(route.query?.tag || '').trim()
@@ -354,9 +364,14 @@ const showClear = computed(
   () =>
     order.value !== POSTS_ORDER.LATEST ||
     filter.value !== POSTS_FILTER.ALL ||
+    subscribed.value === true ||
     categoryId.value > 0 ||
     !!tag.value
 )
+
+const socialPrefs = useSocialPrefsStore()
+const blockedSet = computed(() => socialPrefs.blockedSet)
+const blockedHiddenCount = ref(0)
 
 function replaceQuery(partial) {
   const next = { ...(route.query || {}) }
@@ -386,6 +401,12 @@ function replaceQuery(partial) {
     else next.tag = nextTag
   }
 
+  if (Object.prototype.hasOwnProperty.call(partial, 'subscribed')) {
+    const nextSubscribed = normalizePostsSubscribed(partial.subscribed)
+    if (!nextSubscribed) delete next.subscribed
+    else next.subscribed = '1'
+  }
+
   router.replace({ name: 'posts', query: next })
 }
 
@@ -405,8 +426,12 @@ function setTag(v) {
   replaceQuery({ tag: v })
 }
 
+function setSubscribed(v) {
+  replaceQuery({ subscribed: v })
+}
+
 function clearQuery() {
-  replaceQuery({ order: POSTS_ORDER.LATEST, filter: POSTS_FILTER.ALL, categoryId: 0, tag: '' })
+  replaceQuery({ order: POSTS_ORDER.LATEST, filter: POSTS_FILTER.ALL, subscribed: false, categoryId: 0, tag: '' })
 }
 
 const page = ref(0)
@@ -680,10 +705,27 @@ async function load(append = false) {
   if (!append) error.value = ''
   loading.value = true
   try {
+    if (authed.value) {
+      try {
+        await socialPrefs.ensureBlocked()
+      } catch {
+        // ignore：拉黑列表失败不阻塞列表查询
+      }
+    } else {
+      socialPrefs.clear()
+    }
+
+    if (subscribed.value === true && !authed.value) {
+      showToast({ type: 'warning', text: '登录后可查看订阅内容' })
+      setSubscribed(false)
+      return
+    }
+
     const resp = await listPosts({
       order: order.value,
       page: page.value,
       size: size.value,
+      subscribed: subscribed.value === true,
       categoryId: categoryId.value,
       tag: tag.value
     })
@@ -698,7 +740,9 @@ async function load(append = false) {
       likeCount: Number(p?.likeCount || 0)
     }))
 
-    const newItems = applyFilter(base)
+    const afterBlocked = blockedSet.value.size > 0 ? base.filter((p) => !blockedSet.value.has(Number(p?.userId || 0))) : base
+    blockedHiddenCount.value = Math.max(0, base.length - afterBlocked.length)
+    const newItems = applyFilter(afterBlocked)
     
     if ((resp?.data || []).length < size.value) hasNext.value = false
     else hasNext.value = true
@@ -789,28 +833,28 @@ async function createPost() {
   }
 }
 
-watch([order, filter, categoryId, tag], () => {
+watch([order, filter, subscribed, categoryId, tag], () => {
   newHintDismissed.value = false
   reload()
 })
 
-	onMounted(() => {
-	  taxonomy.ensureCategories()
-	  taxonomy.ensureHotTags(12)
-	  seenBaselineAt.value = getPostsListBaselineAt()
-	  if (isLatestView.value && !touchedLatestOnce) {
-	    touchedLatestOnce = true
-	    seenBaselineAt.value = touchPostsListSeen()
-	  }
-	  reload()
-	})
+onMounted(() => {
+  taxonomy.ensureCategories()
+  taxonomy.ensureHotTags(12)
+  seenBaselineAt.value = getPostsListBaselineAt()
+  if (isLatestView.value && !touchedLatestOnce) {
+    touchedLatestOnce = true
+    seenBaselineAt.value = touchPostsListSeen()
+  }
+  reload()
+})
 
-	watch(isLatestView, (v) => {
-	  if (v && !touchedLatestOnce) {
-	    touchedLatestOnce = true
-	    seenBaselineAt.value = touchPostsListSeen()
-	  }
-	})
+watch(isLatestView, (v) => {
+  if (v && !touchedLatestOnce) {
+    touchedLatestOnce = true
+    seenBaselineAt.value = touchPostsListSeen()
+  }
+})
 </script>
 
 <style scoped>

@@ -71,14 +71,28 @@ function formatNotice(msg) {
   if (type === 'FOLLOW_CREATED') {
     return `有人关注了你：userId=${payload?.actorUserId ?? '-'}`
   }
+  if (type === 'MODERATION_ACTION_APPLIED') {
+    const action = payload?.action ?? '-'
+    const reason = payload?.reason ?? ''
+    const duration = payload?.durationSeconds
+    const extra = duration ? ` duration=${duration}s` : ''
+    const targetType = payload?.targetType ?? '-'
+    const targetId = payload?.targetId ?? '-'
+    return `治理结果：action=${action}${extra} targetType=${targetType} targetId=${targetId}${reason ? ` reason=${reason}` : ''}`
+  }
   return `通知：${type || 'unknown'}`
 }
 
 function noticePostId(msg) {
   const raw = safeJsonParse(msg?.content, null)
+  const type = raw?.type || ''
   const payload = raw?.payload || {}
   const pid = payload?.postId
-  return pid ? Number(pid) : 0
+  if (pid) return Number(pid)
+  if (type === 'MODERATION_ACTION_APPLIED' && Number(payload?.targetType || 0) === 1) {
+    return Number(payload?.targetId || 0)
+  }
+  return 0
 }
 
 async function load() {

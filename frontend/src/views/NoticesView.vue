@@ -25,6 +25,7 @@
                 <svg v-if="it.topic === 'like'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
                 <svg v-else-if="it.topic === 'comment'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
                 <svg v-else-if="it.topic === 'follow'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
+                <svg v-else-if="it.topic === 'moderation'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l7 4v6c0 5-3 9-7 10-4-1-7-5-7-10V6l7-4z"></path></svg>
                 <span v-else>#</span>
              </div>
              
@@ -60,7 +61,8 @@ function getTopicTitle(topic) {
   const map = {
     'like': 'Likes',
     'comment': 'Comments',
-    'follow': 'New Followers'
+    'follow': 'New Followers',
+    'moderation': 'Moderation'
   }
   return map[topic] || topic
 }
@@ -117,6 +119,7 @@ onMounted(load)
 .inbox-icon.like { background: #FF3B3015; color: #FF3B30; }
 .inbox-icon.comment { background: #007AFF15; color: #007AFF; }
 .inbox-icon.follow { background: #34C75915; color: #34C759; }
+.inbox-icon.moderation { background: #FF950015; color: #FF9500; }
 
 .inbox-content { flex: 1; }
 .inbox-title { font-weight: 700; margin-bottom: 2px; }

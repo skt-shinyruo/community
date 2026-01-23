@@ -17,6 +17,16 @@
         @update:model-value="$emit('update:filter', $event)"
       />
 
+      <label v-if="showSubscribedToggle" class="subscribed-toggle" :class="{ disabled: disabled }" title="仅显示你订阅的分类">
+        <input
+          type="checkbox"
+          :disabled="disabled"
+          :checked="!!subscribed"
+          @change="$emit('update:subscribed', !!$event?.target?.checked)"
+        />
+        <span>仅看订阅</span>
+      </label>
+
       <div class="taxonomy-controls" v-if="categories.length > 0">
         <select
           class="input taxonomy-select"
@@ -75,6 +85,8 @@ import UiInput from '../ui/UiInput.vue'
 const props = defineProps({
   order: { type: String, default: 'latest' },
   filter: { type: String, default: '' },
+  subscribed: { type: Boolean, default: false },
+  showSubscribedToggle: { type: Boolean, default: false },
   categoryId: { type: [String, Number], default: '' },
   tag: { type: String, default: '' },
   categories: { type: Array, default: () => [] },
@@ -85,7 +97,7 @@ const props = defineProps({
   disabled: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['update:order', 'update:filter', 'update:categoryId', 'update:tag', 'refresh', 'clear'])
+const emit = defineEmits(['update:order', 'update:filter', 'update:subscribed', 'update:categoryId', 'update:tag', 'refresh', 'clear'])
 
 const tagDraft = ref(String(props.tag || ''))
 const tagDatalistId = 'posts-tag-suggest'
@@ -126,6 +138,35 @@ function commitTag() {
 .taxonomy-controls {
   display: inline-flex;
   align-items: center;
+}
+
+.subscribed-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 700;
+  user-select: none;
+}
+
+.subscribed-toggle input {
+  accent-color: var(--accent);
+}
+
+.subscribed-toggle:hover {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+  color: var(--text-1);
+}
+
+.subscribed-toggle.disabled {
+  opacity: 0.6;
 }
 
 .taxonomy-select {

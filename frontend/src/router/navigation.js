@@ -33,21 +33,29 @@ export function normalizePostsFilter(value) {
   return POSTS_FILTER.ALL
 }
 
+export function normalizePostsSubscribed(value) {
+  if (value === true) return true
+  const s = String(value || '').trim().toLowerCase()
+  return s === '1' || s === 'true' || s === 'yes'
+}
+
 export function normalizePostsQuery(query) {
   const q = query && typeof query === 'object' ? query : {}
   return {
     order: normalizePostsOrder(q.order),
     filter: normalizePostsFilter(q.type),
     categoryId: normalizePostsCategoryId(q.categoryId),
-    tag: normalizePostsTag(q.tag)
+    tag: normalizePostsTag(q.tag),
+    subscribed: normalizePostsSubscribed(q.subscribed)
   }
 }
 
-export function buildPostsQuery({ order, filter, categoryId, tag } = {}) {
+export function buildPostsQuery({ order, filter, categoryId, tag, subscribed } = {}) {
   const normalizedOrder = normalizePostsOrder(order)
   const normalizedFilter = normalizePostsFilter(filter)
   const normalizedCategoryId = normalizePostsCategoryId(categoryId)
   const normalizedTag = normalizePostsTag(tag)
+  const normalizedSubscribed = normalizePostsSubscribed(subscribed)
 
   const next = {}
   // 默认值不写入 URL，减少噪音；由 normalizePostsQuery 兜底。
@@ -55,6 +63,7 @@ export function buildPostsQuery({ order, filter, categoryId, tag } = {}) {
   if (normalizedFilter) next.type = normalizedFilter
   if (normalizedCategoryId > 0) next.categoryId = String(normalizedCategoryId)
   if (normalizedTag) next.tag = normalizedTag
+  if (normalizedSubscribed) next.subscribed = '1'
   return next
 }
 
@@ -152,6 +161,13 @@ const NAV_DEFS = Object.freeze([
         icon: 'search',
         to: () => ({ name: 'search' }),
         activeNames: ['search']
+      },
+      {
+        key: 'leaderboard',
+        label: '排行榜',
+        icon: 'trophy',
+        to: () => ({ name: 'leaderboard' }),
+        activeNames: ['leaderboard']
       }
     ]
   },
@@ -170,6 +186,19 @@ const NAV_DEFS = Object.freeze([
           if (name !== 'posts') return false
           const { filter } = normalizePostsQuery(getRouteQuery(route))
           return filter === POSTS_FILTER.UNREAD
+        }
+      },
+      {
+        key: 'postsSubscribed',
+        label: '订阅',
+        icon: 'star',
+        requiresAuth: true,
+        to: () => ({ name: 'posts', query: { subscribed: '1' } }),
+        isActive: (route) => {
+          const name = getRouteName(route)
+          if (name !== 'posts') return false
+          const { subscribed } = normalizePostsQuery(getRouteQuery(route))
+          return subscribed === true
         }
       },
       {
@@ -202,6 +231,14 @@ const NAV_DEFS = Object.freeze([
     key: 'me',
     title: '我的',
     items: [
+      {
+        key: 'bookmarks',
+        label: '收藏',
+        icon: 'bookmark',
+        requiresAuth: true,
+        to: () => ({ name: 'bookmarks' }),
+        activeNames: ['bookmarks']
+      },
       {
         key: 'notices',
         label: '通知',
@@ -241,6 +278,15 @@ const NAV_DEFS = Object.freeze([
     key: 'admin',
     title: '管理',
     items: [
+      {
+        key: 'moderation',
+        label: '治理后台',
+        icon: 'shield',
+        requiresAuth: true,
+        roles: ['ROLE_ADMIN', 'ROLE_MODERATOR'],
+        to: () => ({ name: 'moderation' }),
+        activeNames: ['moderation']
+      },
       {
         key: 'analytics',
         label: '统计',

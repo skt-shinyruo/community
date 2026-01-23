@@ -41,6 +41,7 @@
                  <div class="row muted" style="gap: 8px; flex-wrap: wrap; font-size: 13px; align-items: center">
                    <UiBadge v-if="post.type === 1" variant="accent">置顶</UiBadge>
                     <UiBadge v-if="post.status === 1" variant="success">加精</UiBadge>
+                    <UiBadge v-if="post.status === 2" variant="danger">已删除</UiBadge>
 
                     <RouterLink
                       v-if="Number(post.categoryId || 0) > 0"
@@ -72,6 +73,7 @@
                     <span style="background: var(--surface-2); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600">LV {{ Math.floor((postAuthor?.score || 0) / 100) + 1 }}</span>
 
                     <span>发布于 {{ formatTime(post.createTime) }}</span>
+                    <span v-if="Number(post.editCount || 0) > 0" :title="post.updateTime ? formatTime(post.updateTime) : ''">· 已编辑</span>
                  </div>
                </div>
              </div>
@@ -83,13 +85,35 @@
  
           <!-- Ops -->
           <div class="row" style="gap: 8px; flex-wrap: wrap; margin-top: 16px">
+            <template v-if="authed">
+              <UiButton variant="secondary" @click="toggleBookmark" :disabled="actionLoading">
+                {{ post.bookmarked ? '已收藏' : '收藏' }}
+              </UiButton>
+            </template>
+
+            <template v-if="authed && post.userId === meUserId">
+              <UiButton
+                variant="secondary"
+                :disabled="actionLoading || !canEditPost"
+                :title="canEditPost ? '' : '仅发布后 24 小时内可编辑'"
+                @click="openEditPost"
+              >
+                编辑
+              </UiButton>
+              <UiButton variant="dangerSecondary" :disabled="actionLoading || post.status === 2" @click="confirmAuthorDelete">
+                {{ post.status === 2 ? '已删除' : '删除' }}
+              </UiButton>
+            </template>
+
             <template v-if="authed && post.userId !== meUserId">
               <UiButton v-if="followStatus === false" @click="follow(true)" :disabled="actionLoading">关注作者</UiButton>
               <UiButton v-else-if="followStatus === true" variant="secondary" @click="follow(false)" :disabled="actionLoading">
                 取关作者
               </UiButton>
-              <UiButton variant="secondary" disabled title="即将上线">举报</UiButton>
-              <UiButton variant="secondary" disabled title="即将上线">屏蔽</UiButton>
+              <UiButton variant="secondary" :disabled="actionLoading" @click="openReportPost">举报</UiButton>
+              <UiButton :variant="isBlockedAuthor ? 'dangerSecondary' : 'secondary'" :disabled="actionLoading" @click="toggleBlockAuthor">
+                {{ isBlockedAuthor ? '已屏蔽' : '屏蔽' }}
+              </UiButton>
             </template>
  
             <template v-if="authed && auth.isAdminOrModerator">
@@ -154,15 +178,19 @@
                       <UiBadge v-if="c.userId === post.userId" variant="secondary" style="height: 16px; font-size: 10px">OP</UiBadge>
                       <UiRoleBadge :user="c.user" />
                     </div>
-                    <span class="muted" style="font-size: 11px">{{ formatTime(c.createTime) }}</span>
+                    <span class="muted" style="font-size: 11px">
+                      {{ formatTime(c.createTime) }}
+                      <span v-if="Number(c.editCount || 0) > 0" :title="c.updateTime ? formatTime(c.updateTime) : ''">· 已编辑</span>
+                    </span>
                   </div>
                 </div>
               </div>
 
               <div class="comment-content" style="padding-left: 36px">
-                <UiMarkdown variant="compact" :content="c.content" />
+                <div v-if="isBlockedUser(c.userId)" class="muted blocked-placeholder">已屏蔽该用户内容</div>
+                <UiMarkdown v-else variant="compact" :content="c.content" />
 
-                <div class="row muted comment-actions" style="gap: 12px; margin-top: 8px; font-size: 12px">
+                <div v-if="!isBlockedUser(c.userId)" class="row muted comment-actions" style="gap: 12px; margin-top: 8px; font-size: 12px">
                   <button
                     class="comment-action"
                     type="button"
@@ -174,6 +202,10 @@
                   </button>
 
                   <button class="comment-action" type="button" aria-label="回复评论" @click="startReply(c)">回复</button>
+
+                  <button v-if="canEditComment(c)" class="comment-action" type="button" aria-label="编辑评论" @click="openEditComment(c)">
+                    编辑
+                  </button>
 
                   <button
                     v-if="(c.replyCount || 0) > 0 || c._repliesExpanded"
@@ -187,7 +219,7 @@
                 </div>
 
                 <!-- Reply Input -->
-                <div v-if="c._replying" class="card flat reply-editor">
+                <div v-if="!isBlockedUser(c.userId) && c._replying" class="card flat reply-editor">
                   <div v-if="c._replyQuote" class="reply-quote">
                     <div class="row" style="justify-content: space-between; gap: 8px">
                       <div class="muted" style="font-size: 12px">
@@ -215,7 +247,7 @@
                 </div>
 
                 <!-- Replies List -->
-                <div v-if="c._repliesExpanded" style="margin-top: 12px; display: grid; gap: 12px">
+                <div v-if="!isBlockedUser(c.userId) && c._repliesExpanded" style="margin-top: 12px; display: grid; gap: 12px">
                   <div class="muted" v-if="c._repliesLoading">加载中…</div>
                   <div v-else-if="c._replies.length === 0" class="muted">暂无回复</div>
                   <div v-else v-for="r in c._replies" :key="r.id" class="reply-item" :id="replyAnchorId(r.id)">
@@ -230,14 +262,18 @@
                       <UiRoleBadge :user="r.user" />
 
                       <span class="muted" style="font-size: 12px">回复 {{ r.targetUser?.username || '楼主' }}</span>
-                      <span class="muted" style="font-size: 12px">· {{ formatTime(r.createTime) }}</span>
+                      <span class="muted" style="font-size: 12px">
+                        · {{ formatTime(r.createTime) }}
+                        <span v-if="Number(r.editCount || 0) > 0" :title="r.updateTime ? formatTime(r.updateTime) : ''">· 已编辑</span>
+                      </span>
                     </div>
 
                     <div style="margin-top: 4px; padding-left: 28px">
-                      <UiMarkdown variant="compact" :content="r.content" />
+                      <div v-if="isBlockedUser(r.userId)" class="muted blocked-placeholder">已屏蔽该用户内容</div>
+                      <UiMarkdown v-else variant="compact" :content="r.content" />
                     </div>
 
-                    <div class="row muted comment-actions" style="gap: 12px; margin-top: 6px; padding-left: 28px; font-size: 12px">
+                    <div v-if="!isBlockedUser(r.userId)" class="row muted comment-actions" style="gap: 12px; margin-top: 6px; padding-left: 28px; font-size: 12px">
                       <button
                         class="comment-action"
                         type="button"
@@ -248,6 +284,9 @@
                         <span>{{ r.likeCount || 0 }}</span>
                       </button>
                       <button class="comment-action" type="button" aria-label="回复该回复" @click="startReply(c, r)">回复</button>
+                      <button v-if="canEditComment(r)" class="comment-action" type="button" aria-label="编辑回复" @click="openEditComment(r)">
+                        编辑
+                      </button>
                     </div>
                   </div>
 
@@ -300,13 +339,32 @@
       @cancel="closeConfirm"
       @confirm="runConfirm"
     />
+
+    <ReportModal
+      v-if="reportOpen"
+      target-type="post"
+      :target-id="Number(post?.id || 0)"
+      @close="reportOpen = false"
+      @submitted="reportOpen = false"
+    />
+
+    <EditContentModal
+      v-if="editOpen"
+      :mode="editMode"
+      :loading="actionLoading"
+      :initial-title="editInitialTitle"
+      :initial-content="editInitialContent"
+      @close="closeEdit"
+      @submit="submitEdit"
+    />
   </div>
 </template>
 
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { useSocialPrefsStore } from '../stores/socialPrefs'
 import { useTaxonomyStore } from '../stores/taxonomy'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
@@ -321,16 +379,23 @@ import UiBadge from '../components/ui/UiBadge.vue'
 import UiRoleBadge from '../components/ui/UiRoleBadge.vue'
 import UiTextarea from '../components/ui/UiTextarea.vue'
 import UiModalConfirm from '../components/ui/UiModalConfirm.vue'
+import ReportModal from '../components/modals/ReportModal.vue'
+import EditContentModal from '../components/modals/EditContentModal.vue'
 import { formatTime } from '../utils/time'
 import { markPostRead } from '../utils/readTracker'
 import { scrollToAnchor } from '../utils/scrollToAnchor'
 import { getUserProfile } from '../api/services/userService'
 import { setLike, getLikeCount, getLikeStatus, followUser, unfollowUser, getFollowStatus } from '../api/services/socialService'
+import { bookmarkPost, unbookmarkPost } from '../api/services/bookmarkService'
+import { blockUser, unblockUser } from '../api/services/blockService'
 import {
   getPostDetail,
   listComments as apiListComments,
   listReplies as apiListReplies,
   addComment as apiAddComment,
+  updatePost as apiUpdatePost,
+  deletePostByAuthor as apiDeletePostByAuthor,
+  updateComment as apiUpdateComment,
   moderationTop,
   moderationWonderful,
   moderationDelete
@@ -339,7 +404,9 @@ import {
 const emit = defineEmits(['trace'])
 
 const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
+const prefs = useSocialPrefsStore()
 const authed = computed(() => !!auth.accessToken)
 const taxonomy = useTaxonomyStore()
 
@@ -358,9 +425,25 @@ const loading = ref(false)
 const error = ref('')
 
 const actionLoading = ref(false)
+const reportOpen = ref(false)
 
 const meUserId = computed(() => Number(auth.userId || 0))
 const followStatus = ref(null) // Boolean|null
+
+const isBlockedAuthor = computed(() => {
+  const uid = Number(post.value?.userId || 0)
+  if (!uid) return false
+  return prefs.blockedSet.has(uid)
+})
+
+const canEditPost = computed(() => {
+  if (!authed.value || !post.value) return false
+  if (Number(post.value.userId || 0) !== meUserId.value) return false
+  if (Number(post.value.status || 0) === 2) return false
+  const t = new Date(post.value.createTime).getTime()
+  if (!Number.isFinite(t) || t <= 0) return false
+  return Date.now() - t <= 24 * 3600 * 1000
+})
 
 const newComment = ref('')
 const commenting = ref(false)
@@ -464,10 +547,10 @@ const commentsHasNext = computed(() => comments.value.length === Number(comments
 const confirmOpen = ref(false)
 const confirmTitle = ref('')
 const confirmMessage = ref('')
-const confirmAction = ref('') // top|wonderful|delete
+const confirmAction = ref('') // top|wonderful|delete|authorDelete
 
-const confirmVariant = computed(() => (confirmAction.value === 'delete' ? 'danger' : 'primary'))
-const confirmOkText = computed(() => (confirmAction.value === 'delete' ? '删除' : '确认'))
+const confirmVariant = computed(() => (confirmAction.value === 'delete' || confirmAction.value === 'authorDelete' ? 'danger' : 'primary'))
+const confirmOkText = computed(() => (confirmAction.value === 'delete' || confirmAction.value === 'authorDelete' ? '删除' : '确认'))
 
 function closeConfirm() {
   confirmOpen.value = false
@@ -489,10 +572,17 @@ function confirmModeration(type) {
   } else if (type === 'delete') {
     confirmTitle.value = '确认删除'
     confirmMessage.value = `是否删除帖子 #${post.value.id}？删除后列表将不再展示。`
+  } else if (type === 'authorDelete') {
+    confirmTitle.value = '确认删除'
+    confirmMessage.value = `是否删除帖子 #${post.value.id}？该操作会将帖子标记为已删除。`
   } else {
     confirmTitle.value = '确认操作'
     confirmMessage.value = '是否继续？'
   }
+}
+
+function confirmAuthorDelete() {
+  confirmModeration('authorDelete')
 }
 
 async function runConfirm() {
@@ -510,6 +600,11 @@ async function runConfirm() {
     } else if (type === 'delete') {
       const r = await moderationDelete(post.value.id)
       emit('trace', r?.traceId || '')
+    } else if (type === 'authorDelete') {
+      const r = await apiDeletePostByAuthor(post.value.id)
+      emit('trace', r?.traceId || '')
+      router.push({ name: 'posts' })
+      return
     }
     await reload()
   } catch (e) {
@@ -589,6 +684,130 @@ async function follow(doFollow) {
     }
   } catch (e) {
     error.value = e?.message || '关注操作失败'
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+function isBlockedUser(userId) {
+  return prefs.blockedSet.has(Number(userId || 0))
+}
+
+async function toggleBookmark() {
+  if (!authed.value || !post.value) return
+  actionLoading.value = true
+  try {
+    if (post.value.bookmarked) {
+      const r = await unbookmarkPost(post.value.id)
+      emit('trace', r?.traceId || '')
+      post.value.bookmarked = false
+    } else {
+      const r = await bookmarkPost(post.value.id)
+      emit('trace', r?.traceId || '')
+      post.value.bookmarked = true
+    }
+  } catch (e) {
+    error.value = e?.message || '收藏操作失败'
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+function openReportPost() {
+  if (!authed.value) return
+  reportOpen.value = true
+}
+
+async function toggleBlockAuthor() {
+  if (!authed.value || !post.value) return
+  const uid = Number(post.value.userId || 0)
+  if (!uid || uid === meUserId.value) return
+  actionLoading.value = true
+  try {
+    if (isBlockedAuthor.value) {
+      await unblockUser(uid)
+      if (typeof window !== 'undefined' && window.$toast) window.$toast({ type: 'success', text: '已解除屏蔽' })
+    } else {
+      await blockUser(uid)
+      if (typeof window !== 'undefined' && window.$toast) window.$toast({ type: 'success', text: '已屏蔽该用户' })
+    }
+    await prefs.ensureBlocked(true)
+  } catch (e) {
+    error.value = e?.message || '屏蔽操作失败'
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+function canEditComment(c) {
+  if (!authed.value) return false
+  const uid = Number(c?.userId || 0)
+  if (!uid || uid !== meUserId.value) return false
+  if (Number(c?.status || 0) !== 0) return false
+  const t = new Date(c?.createTime).getTime()
+  if (!Number.isFinite(t) || t <= 0) return false
+  return Date.now() - t <= 15 * 60 * 1000
+}
+
+const editOpen = ref(false)
+const editMode = ref('post') // post | comment
+const editInitialTitle = ref('')
+const editInitialContent = ref('')
+const editCommentId = ref(0)
+
+function closeEdit() {
+  editOpen.value = false
+  editMode.value = 'post'
+  editInitialTitle.value = ''
+  editInitialContent.value = ''
+  editCommentId.value = 0
+}
+
+function openEditPost() {
+  if (!post.value || !canEditPost.value) return
+  editMode.value = 'post'
+  editInitialTitle.value = String(post.value.title || '')
+  editInitialContent.value = String(post.value.content || '')
+  editCommentId.value = 0
+  editOpen.value = true
+}
+
+function openEditComment(c) {
+  if (!c || !canEditComment(c)) return
+  const cid = Number(c?.id || 0)
+  if (!cid) return
+  editMode.value = 'comment'
+  editInitialTitle.value = ''
+  editInitialContent.value = String(c?.content || '')
+  editCommentId.value = cid
+  editOpen.value = true
+}
+
+async function submitEdit(payload) {
+  if (!post.value) return
+  actionLoading.value = true
+  try {
+    if (editMode.value === 'post') {
+      const r = await apiUpdatePost(post.value.id, {
+        title: String(payload?.title || '').trim(),
+        content: String(payload?.content || '').trim(),
+        categoryId: post.value.categoryId,
+        tags: Array.isArray(post.value.tags) ? post.value.tags : []
+      })
+      emit('trace', r?.traceId || '')
+      if (typeof window !== 'undefined' && window.$toast) window.$toast({ type: 'success', text: '已保存' })
+      closeEdit()
+      await loadPost()
+    } else {
+      const cid = Number(editCommentId.value || 0)
+      const r = await apiUpdateComment(post.value.id, cid, { content: String(payload?.content || '').trim() })
+      emit('trace', r?.traceId || '')
+      if (typeof window !== 'undefined' && window.$toast) window.$toast({ type: 'success', text: '已保存' })
+      closeEdit()
+      await loadComments()
+    }
+  } catch (e) {
+    if (typeof window !== 'undefined' && window.$toast) window.$toast({ type: 'error', text: e?.message || '保存失败' })
   } finally {
     actionLoading.value = false
   }
@@ -899,6 +1118,15 @@ async function reloadComments() {
 }
 
 async function reload() {
+  if (authed.value) {
+    try {
+      await prefs.ensureBlocked()
+    } catch {
+      // ignore：拉黑列表失败不阻塞页面加载
+    }
+  } else {
+    prefs.clear()
+  }
   await loadPost()
   await loadComments()
   await loadFollowStatus()
@@ -920,6 +1148,8 @@ watch(
     comments.value = []
     commentsPage.value = 0
     followStatus.value = null
+    reportOpen.value = false
+    closeEdit()
     closeConfirm()
     // 恢复当前帖子草稿（进入新帖子时才触发）
     newComment.value = safeStorageGet(commentDraftKey())
@@ -1059,5 +1289,12 @@ onMounted(() => {
 
 .red-text {
   color: var(--danger);
+}
+
+.blocked-placeholder {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+  background: var(--surface-2);
 }
 </style>

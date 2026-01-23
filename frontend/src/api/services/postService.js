@@ -3,10 +3,11 @@
 import http from '../http'
 import { unwrapResultBody } from '../result'
 
-export async function listPosts({ order = 'latest', page = 0, size = 10, categoryId, tag } = {}) {
+export async function listPosts({ order = 'latest', page = 0, size = 10, categoryId, tag, subscribed = false } = {}) {
   const params = { order, page, size }
   if (categoryId != null && Number(categoryId) > 0) params.categoryId = Number(categoryId)
   if (tag != null && String(tag).trim()) params.tag = String(tag).trim()
+  if (subscribed === true) params.subscribed = true
   const resp = await http.get('/api/posts', { params })
   const { data, traceId } = unwrapResultBody(resp.data, '查询帖子列表')
   return { data: Array.isArray(data) ? data : [], traceId }
@@ -25,6 +26,23 @@ export async function getPostDetail(postId) {
   const resp = await http.get(`/api/posts/${postId}`)
   const { data, traceId } = unwrapResultBody(resp.data, '获取帖子详情')
   return { data, traceId }
+}
+
+export async function updatePost(postId, { title, content, categoryId, tags } = {}) {
+  const pid = Number(postId || 0)
+  const payload = { title, content }
+  if (categoryId != null && Number(categoryId) > 0) payload.categoryId = Number(categoryId)
+  if (Array.isArray(tags) && tags.length > 0) payload.tags = tags
+  const resp = await http.put(`/api/posts/${pid}`, payload)
+  const { traceId } = unwrapResultBody(resp.data, '编辑帖子')
+  return { traceId }
+}
+
+export async function deletePostByAuthor(postId) {
+  const pid = Number(postId || 0)
+  const resp = await http.delete(`/api/posts/${pid}`)
+  const { traceId } = unwrapResultBody(resp.data, '删除帖子')
+  return { traceId }
 }
 
 export async function listComments(postId, { page = 0, size = 10 } = {}) {
@@ -47,6 +65,15 @@ export async function addComment(postId, { content, entityType, entityId, target
   const resp = await http.post(`/api/posts/${postId}/comments`, payload)
   const { data, traceId } = unwrapResultBody(resp.data, '发表评论')
   return { data, traceId }
+}
+
+export async function updateComment(postId, commentId, { content } = {}) {
+  const pid = Number(postId || 0)
+  const cid = Number(commentId || 0)
+  const payload = { content }
+  const resp = await http.put(`/api/posts/${pid}/comments/${cid}`, payload)
+  const { traceId } = unwrapResultBody(resp.data, '编辑评论')
+  return { traceId }
 }
 
 export async function moderationTop(postId) {

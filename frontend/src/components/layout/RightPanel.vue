@@ -40,16 +40,48 @@
           <div class="right-card-title">分类</div>
         </div>
         <div class="right-card-list" v-if="categories.length > 0">
-          <RouterLink
-            v-for="c in categories"
-            :key="c.id"
-            class="category-item"
-            :to="{ name: 'posts', query: { categoryId: String(c.id) } }"
-            :title="c.description || c.name"
-          >
-            <span class="category-name">{{ c.name }}</span>
-            <span class="category-meta">{{ Number(c.postCount || 0) }}</span>
-          </RouterLink>
+          <div v-for="c in categories" :key="c.id" class="category-row">
+            <RouterLink
+              class="category-item"
+              :to="{ name: 'posts', query: { categoryId: String(c.id) } }"
+              :title="c.description || c.name"
+            >
+              <span class="category-name">{{ c.name }}</span>
+              <span class="category-meta">{{ Number(c.postCount || 0) }}</span>
+            </RouterLink>
+
+            <button
+              v-if="auth.authed"
+              class="btn-icon sm"
+              type="button"
+              :aria-label="isSubscribedCategory(c.id) ? '取消订阅分类' : '订阅分类'"
+              :title="isSubscribedCategory(c.id) ? '已订阅：点击取消' : '订阅该分类'"
+              @click.stop="toggleSubscribeCategory(c.id)"
+            >
+              <svg
+                v-if="isSubscribedCategory(c.id)"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path d="M12 2l3 7h7l-5.5 4.5L18.5 21 12 16.8 5.5 21l2-7.5L2 9h7z" />
+              </svg>
+              <svg
+                v-else
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <polygon points="12 2 15 9 22 9 16.5 13.5 18.5 21 12 16.8 5.5 21 7.5 13.5 2 9 9 9" />
+              </svg>
+            </button>
+          </div>
         </div>
         <div v-else class="muted" style="font-size: 12px">暂无分类</div>
       </section>
@@ -95,6 +127,7 @@
           <div class="right-card-title">管理</div>
         </div>
         <div class="admin-links">
+          <RouterLink class="admin-link" :to="{ name: 'moderation' }">治理后台</RouterLink>
           <RouterLink class="admin-link" :to="{ name: 'analytics' }">统计面板</RouterLink>
         </div>
       </section>
@@ -109,23 +142,55 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useTaxonomyStore } from '../../stores/taxonomy'
+import { useSocialPrefsStore } from '../../stores/socialPrefs'
+import { subscribeCategory, unsubscribeCategory } from '../../api/services/subscriptionService'
 import { RouterLink } from 'vue-router'
 
 const auth = useAuthStore()
 const taxonomy = useTaxonomyStore()
+const prefs = useSocialPrefsStore()
 
 const categories = computed(() => (Array.isArray(taxonomy.categories) ? taxonomy.categories : []))
 const hotTags = computed(() => (Array.isArray(taxonomy.hotTags) ? taxonomy.hotTags : []))
 
+function isSubscribedCategory(categoryId) {
+  return prefs.subscribedCategorySet.has(Number(categoryId || 0))
+}
+
+async function toggleSubscribeCategory(categoryId) {
+  const cid = Number(categoryId || 0)
+  if (!cid) return
+  try {
+    if (isSubscribedCategory(cid)) {
+      await unsubscribeCategory(cid)
+    } else {
+      await subscribeCategory(cid)
+    }
+    await prefs.ensureSubscribedCategories(true)
+  } catch (e) {
+    if (typeof window !== 'undefined' && window.$toast) {
+      window.$toast({ type: 'error', title: '订阅失败', text: e?.message || '操作失败' })
+    }
+  }
+}
+
 onMounted(() => {
   taxonomy.ensureCategories()
   taxonomy.ensureHotTags(8)
+  if (auth.authed) prefs.ensureSubscribedCategories()
 })
-</script>
 
+watch(
+  () => auth.authed,
+  (v) => {
+    if (v) prefs.ensureSubscribedCategories(true)
+    else prefs.clear()
+  }
+)
+</script>
 <style scoped>
 .right-panel-title {
   font-weight: 800;
@@ -237,6 +302,13 @@ onMounted(() => {
 
 .right-card-list {
   display: grid;
+  gap: 6px;
+}
+
+.category-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 6px;
 }
 

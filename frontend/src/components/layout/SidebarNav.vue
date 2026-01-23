@@ -64,6 +64,58 @@
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
 
+            <svg
+              v-else-if="item.icon === 'star'"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <polygon points="12 2 15 9 22 9 16.5 13.5 18.5 21 12 16.8 5.5 21 7.5 13.5 2 9 9 9" />
+            </svg>
+
+            <svg
+              v-else-if="item.icon === 'bookmark'"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M6 3h12a1 1 0 0 1 1 1v18l-7-4-7 4V4a1 1 0 0 1 1-1z" />
+            </svg>
+
+            <svg
+              v-else-if="item.icon === 'trophy'"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M8 21h8" />
+              <path d="M12 17v4" />
+              <path d="M7 4h10v5a5 5 0 0 1-10 0V4z" />
+              <path d="M5 5H3v2a5 5 0 0 0 5 5" />
+              <path d="M19 5h2v2a5 5 0 0 1-5 5" />
+            </svg>
+
+            <svg
+              v-else-if="item.icon === 'shield'"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M12 2l7 4v6c0 5-3 9-7 10-4-1-7-5-7-10V6l7-4z" />
+            </svg>
+
             <span v-else-if="item.icon === 'pin'">📌</span>
             <span v-else-if="item.icon === 'sparkle'">✨</span>
             <span v-else-if="item.icon === 'dot'">●</span>

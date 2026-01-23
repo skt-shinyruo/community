@@ -34,14 +34,16 @@ describe('router/navigation', () => {
       order: POSTS_ORDER.HOT,
       filter: POSTS_FILTER.TOP,
       categoryId: 0,
-      tag: ''
+      tag: '',
+      subscribed: false
     })
 
     expect(normalizePostsQuery({ order: 'unknown', type: 'unknown' })).toEqual({
       order: POSTS_ORDER.LATEST,
       filter: POSTS_FILTER.ALL,
       categoryId: 0,
-      tag: ''
+      tag: '',
+      subscribed: false
     })
   })
 
@@ -51,6 +53,7 @@ describe('router/navigation', () => {
     expect(buildPostsQuery({ order: 'hot', filter: '' })).toEqual({ order: 'hot' })
     expect(buildPostsQuery({ order: 'latest', filter: 'top' })).toEqual({ type: 'top' })
     expect(buildPostsQuery({ order: 'hot', filter: 'wonderful' })).toEqual({ order: 'hot', type: 'wonderful' })
+    expect(buildPostsQuery({ subscribed: true })).toEqual({ subscribed: '1' })
   })
 
   it('canAccessNavItem should enforce auth and roles', () => {
@@ -90,12 +93,14 @@ describe('router/navigation', () => {
 
     const posts = allItems.find((it) => it.key === 'posts')
     const unread = allItems.find((it) => it.key === 'postsUnread')
+    const subscribed = allItems.find((it) => it.key === 'postsSubscribed')
     const top = allItems.find((it) => it.key === 'postsTop')
     const wonderful = allItems.find((it) => it.key === 'postsWonderful')
 
     expect(isNavItemActive({ name: 'posts', query: {} }, posts)).toBe(true)
     expect(isNavItemActive({ name: 'posts', query: { type: 'top' } }, posts)).toBe(false)
     expect(isNavItemActive({ name: 'posts', query: { type: 'unread' } }, unread)).toBe(true)
+    expect(isNavItemActive({ name: 'posts', query: { subscribed: '1' } }, subscribed)).toBe(true)
     expect(isNavItemActive({ name: 'posts', query: { type: 'top' } }, top)).toBe(true)
     expect(isNavItemActive({ name: 'posts', query: { type: 'wonderful' } }, wonderful)).toBe(true)
     expect(isNavItemActive({ name: 'postDetail', query: { type: 'top' } }, posts)).toBe(true)

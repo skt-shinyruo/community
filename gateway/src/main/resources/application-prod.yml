@@ -1,0 +1,8 @@
+gateway:
+  # 生产建议：Redis 不可用时不要放行限流（避免被刷爆），至少覆盖登录/注册/验证码等敏感入口。
+  rate-limit:
+    fail-open: false
+
+  # 生产建议：OriginGuard allowlist 为空时 fail-closed，避免误配置导致敏感接口被静默放行。
+  origin-guard:
+    fail-open-when-allowlist-empty: false

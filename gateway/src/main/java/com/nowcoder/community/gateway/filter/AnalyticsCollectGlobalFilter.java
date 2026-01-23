@@ -20,6 +20,13 @@ import java.time.LocalDate;
 @Component
 public class AnalyticsCollectGlobalFilter implements GlobalFilter, Ordered {
 
+    private static final int MAX_UV_KEYS_PER_DAY = 200_000;
+    private static final int MAX_DAU_KEYS_PER_DAY = 200_000;
+
+    private static volatile LocalDate currentDay = LocalDate.now();
+    private static final java.util.Set<String> seenUvKeys = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static final java.util.Set<String> seenDauKeys = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     private final AnalyticsCollectProperties properties;
     private final WebClient.Builder webClientBuilder;
 
@@ -39,30 +46,81 @@ public class AnalyticsCollectGlobalFilter implements GlobalFilter, Ordered {
         if (path == null || !path.startsWith("/api/") || path.startsWith("/api/auth/")) {
             return chain.filter(exchange);
         }
+        // 浏览器预检会显著放大采集流量，且不代表真实访问。
+        if (request.getMethod() == null || org.springframework.http.HttpMethod.OPTIONS.equals(request.getMethod())) {
+            return chain.filter(exchange);
+        }
+
+        LocalDate today = LocalDate.now();
+        maybeRotateDay(today);
 
         String ip = extractClientIp(request);
-        recordUv(ip);
+        if (shouldRecordUv(today, ip)) {
+            recordUv(ip, today);
+        }
 
         return exchange.getPrincipal()
                 .flatMap(principal -> {
                     if (principal instanceof JwtAuthenticationToken token) {
                         String userId = token.getToken().getSubject();
-                        recordDau(userId);
+                        if (shouldRecordDau(today, userId)) {
+                            recordDau(userId, today);
+                        }
                     }
                     return chain.filter(exchange);
                 })
                 .switchIfEmpty(chain.filter(exchange));
     }
 
-    private void recordUv(String ip) {
+    private static void maybeRotateDay(LocalDate today) {
+        LocalDate d = currentDay;
+        if (d.equals(today)) {
+            return;
+        }
+        synchronized (AnalyticsCollectGlobalFilter.class) {
+            if (!currentDay.equals(today)) {
+                currentDay = today;
+                seenUvKeys.clear();
+                seenDauKeys.clear();
+            }
+        }
+    }
+
+    private boolean shouldRecordUv(LocalDate today, String ip) {
         if (!StringUtils.hasText(ip)) {
+            return false;
+        }
+        // 同一 gateway 实例内做“当天去重”，避免每个请求都打 analytics-service。
+        String key = today.toString() + ":" + ip.trim();
+        boolean first = seenUvKeys.add(key);
+        if (seenUvKeys.size() > MAX_UV_KEYS_PER_DAY) {
+            // 防御性：避免异常流量导致内存膨胀。超过阈值时退化为“少量重复采集”。
+            seenUvKeys.clear();
+        }
+        return first;
+    }
+
+    private boolean shouldRecordDau(LocalDate today, String userId) {
+        if (!StringUtils.hasText(userId)) {
+            return false;
+        }
+        String key = today.toString() + ":" + userId.trim();
+        boolean first = seenDauKeys.add(key);
+        if (seenDauKeys.size() > MAX_DAU_KEYS_PER_DAY) {
+            seenDauKeys.clear();
+        }
+        return first;
+    }
+
+    private void recordUv(String ip, LocalDate date) {
+        if (!StringUtils.hasText(ip) || date == null) {
             return;
         }
         webClientBuilder.build()
                 .post()
                 .uri("lb://analytics-service/internal/analytics/uv/record")
                 .header("X-Internal-Token", properties.getInternalToken())
-                .body(BodyInserters.fromFormData("ip", ip).with("date", LocalDate.now().toString()))
+                .body(BodyInserters.fromFormData("ip", ip).with("date", date.toString()))
                 .header(HttpHeaders.CONTENT_TYPE, "application/x-www-form-urlencoded")
                 .retrieve()
                 .bodyToMono(Void.class)
@@ -70,15 +128,15 @@ public class AnalyticsCollectGlobalFilter implements GlobalFilter, Ordered {
                 .subscribe();
     }
 
-    private void recordDau(String userId) {
-        if (!StringUtils.hasText(userId)) {
+    private void recordDau(String userId, LocalDate date) {
+        if (!StringUtils.hasText(userId) || date == null) {
             return;
         }
         webClientBuilder.build()
                 .post()
                 .uri("lb://analytics-service/internal/analytics/dau/record")
                 .header("X-Internal-Token", properties.getInternalToken())
-                .body(BodyInserters.fromFormData("userId", userId).with("date", LocalDate.now().toString()))
+                .body(BodyInserters.fromFormData("userId", userId).with("date", date.toString()))
                 .header(HttpHeaders.CONTENT_TYPE, "application/x-www-form-urlencoded")
                 .retrieve()
                 .bodyToMono(Void.class)

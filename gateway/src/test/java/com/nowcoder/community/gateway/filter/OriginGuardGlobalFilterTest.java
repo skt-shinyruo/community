@@ -94,5 +94,37 @@ class OriginGuardGlobalFilterTest {
         assertThat(called).isTrue();
         assertThat(exchange.getResponse().getStatusCode()).isNull();
     }
+
+    @Test
+    void shouldRejectWhenAllowlistEmptyAndFailClosed() {
+        OriginGuardProperties props = new OriginGuardProperties();
+        props.setEnabled(true);
+        props.setFailOpenWhenAllowlistEmpty(false);
+        props.setAllowedOrigins(List.of());
+
+        OriginGuardGlobalFilter filter = new OriginGuardGlobalFilter(props, new ObjectMapper());
+
+        MockServerHttpRequest request = MockServerHttpRequest.post("/api/auth/login")
+                .header("Origin", "http://localhost:12881")
+                .header(TraceIdGlobalFilter.HEADER_TRACE_ID, "0123456789abcdef0123456789abcdef")
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        AtomicBoolean called = new AtomicBoolean(false);
+        GatewayFilterChain chain = webExchange -> {
+            called.set(true);
+            return Mono.empty();
+        };
+
+        filter.filter(exchange, chain).block();
+
+        assertThat(called).isFalse();
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        String body = exchange.getResponse().getBodyAsString().block();
+        assertThat(body).contains("\"code\":403");
+        assertThat(body).contains("Origin allowlist 未配置");
+        assertThat(body).contains("0123456789abcdef0123456789abcdef");
+    }
 }
 

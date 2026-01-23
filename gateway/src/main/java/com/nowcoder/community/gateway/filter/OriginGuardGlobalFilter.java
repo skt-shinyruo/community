@@ -57,11 +57,16 @@ public class OriginGuardGlobalFilter implements GlobalFilter, Ordered {
 
         List<String> allowed = properties.getAllowedOrigins();
         if (allowed == null || allowed.isEmpty()) {
-            // fail-open：避免误配置导致全站不可用
-            if (warnedEmptyAllowlist.compareAndSet(false, true)) {
-                log.warn("[origin-guard] allowed-origins 为空，已退化为 fail-open（建议在配置中心补齐 allowlist）");
+            if (properties.isFailOpenWhenAllowlistEmpty()) {
+                // fail-open：避免误配置导致全站不可用
+                if (warnedEmptyAllowlist.compareAndSet(false, true)) {
+                    log.warn("[origin-guard] allowed-origins 为空，已退化为 fail-open（建议在配置中心补齐 allowlist）");
+                }
+                return chain.filter(exchange);
             }
-            return chain.filter(exchange);
+
+            // fail-closed（生产建议）：避免 allowlist 漏配后敏感接口被静默放行
+            return forbidden(exchange, "Origin allowlist 未配置");
         }
 
         if (allowed.contains(origin)) {

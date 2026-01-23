@@ -17,10 +17,15 @@ public class OriginGuardProperties {
 
     /**
      * 允许的 Origin 列表（精确匹配）。
-     *
-     * 为空时默认放行（与旧 auth-service 行为保持一致，避免误配置导致全站不可用）。
      */
     private List<String> allowedOrigins = new ArrayList<>();
+
+    /**
+     * allowed-origins 为空时的行为：
+     * - true：fail-open（兼容开发/演练环境，避免误配置导致全站不可用）
+     * - false：fail-closed（建议生产启用，至少覆盖 login/refresh/logout）
+     */
+    private boolean failOpenWhenAllowlistEmpty = true;
 
     public boolean isEnabled() {
         return enabled;
@@ -36,6 +41,14 @@ public class OriginGuardProperties {
 
     public void setAllowedOrigins(List<String> allowedOrigins) {
         this.allowedOrigins = allowedOrigins;
+    }
+
+    public boolean isFailOpenWhenAllowlistEmpty() {
+        return failOpenWhenAllowlistEmpty;
+    }
+
+    public void setFailOpenWhenAllowlistEmpty(boolean failOpenWhenAllowlistEmpty) {
+        this.failOpenWhenAllowlistEmpty = failOpenWhenAllowlistEmpty;
     }
 }
 

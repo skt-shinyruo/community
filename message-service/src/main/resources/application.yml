@@ -54,3 +54,8 @@ message:
   user-client:
     connect-timeout: 200ms
     read-timeout: 800ms
+
+clients:
+  social:
+    base-url: ${SOCIAL_SERVICE_BASE_URL:http://social-service}
+    internal-token: ${SOCIAL_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}

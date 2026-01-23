@@ -6,6 +6,7 @@ import com.nowcoder.community.common.event.EventTypes;
 import com.nowcoder.community.common.event.payload.CommentPayload;
 import com.nowcoder.community.common.event.payload.FollowPayload;
 import com.nowcoder.community.common.event.payload.LikePayload;
+import com.nowcoder.community.common.event.payload.ModerationPayload;
 import com.nowcoder.community.message.dao.ConsumedEventMapper;
 import com.nowcoder.community.message.service.NoticeService;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -53,7 +54,8 @@ public class NoticeEventProcessor {
         // 不支持的事件类型：按约定标记已消费（避免无限重试占用消费能力），不产生业务副作用。
         if (!EventTypes.COMMENT_CREATED.equals(type)
                 && !EventTypes.LIKE_CREATED.equals(type)
-                && !EventTypes.FOLLOW_CREATED.equals(type)) {
+                && !EventTypes.FOLLOW_CREATED.equals(type)
+                && !EventTypes.MODERATION_ACTION_APPLIED.equals(type)) {
             markConsumedIfFirstTime(eventId);
             return;
         }
@@ -82,6 +84,11 @@ public class NoticeEventProcessor {
             payload = p;
             topic = "follow";
             toUserId = p.getEntityUserId() == null ? 0 : p.getEntityUserId();
+        } else if (EventTypes.MODERATION_ACTION_APPLIED.equals(type)) {
+            ModerationPayload p = objectMapper.treeToValue(root.get("payload"), ModerationPayload.class);
+            payload = p;
+            topic = "moderation";
+            toUserId = p.getToUserId() == null ? 0 : p.getToUserId();
         }
 
         if (toUserId <= 0) {
@@ -119,4 +126,3 @@ public class NoticeEventProcessor {
         return s == null || s.isBlank() ? null : s;
     }
 }
-

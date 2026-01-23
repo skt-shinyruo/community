@@ -15,10 +15,12 @@ public class PrivateMessageService {
 
     private final MessageMapper messageMapper;
     private final UserServiceClient userServiceClient;
+    private final SocialServiceClient socialServiceClient;
 
-    public PrivateMessageService(MessageMapper messageMapper, UserServiceClient userServiceClient) {
+    public PrivateMessageService(MessageMapper messageMapper, UserServiceClient userServiceClient, SocialServiceClient socialServiceClient) {
         this.messageMapper = messageMapper;
         this.userServiceClient = userServiceClient;
+        this.socialServiceClient = socialServiceClient;
     }
 
     public List<Message> listConversations(int userId, int page, int size) {
@@ -58,6 +60,7 @@ public class PrivateMessageService {
     }
 
     public void send(int fromId, int toId, String content) {
+        socialServiceClient.assertNotBlocked(fromId, toId);
         Message msg = new Message();
         msg.setFromId(fromId);
         msg.setToId(toId);

@@ -49,8 +49,8 @@ public class NoticeService {
     }
 
     public List<NoticeTopicSummaryResponse> topicSummary(int userId) {
-        // 旧单体固定三类 topic：comment/like/follow
-        return List.of("comment", "like", "follow").stream().map(topic -> {
+        // v1 topics：comment/like/follow + moderation（治理通知）
+        return List.of("comment", "like", "follow", "moderation").stream().map(topic -> {
             NoticeTopicSummaryResponse r = new NoticeTopicSummaryResponse();
             r.setTopic(topic);
             List<Message> latest = messageMapper.selectNotices(userId, topic, 0, 1);

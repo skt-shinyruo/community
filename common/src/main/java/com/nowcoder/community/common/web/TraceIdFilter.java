@@ -65,11 +65,13 @@ public class TraceIdFilter implements Filter {
         }
         for (int i = 0; i < traceId.length(); i++) {
             char c = traceId.charAt(i);
-            boolean ok = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+            boolean ok = (c >= '0' && c <= '9')
+                    || (c >= 'a' && c <= 'f')
+                    || (c >= 'A' && c <= 'F');
             if (!ok) {
                 return null;
             }
         }
-        return traceId;
+        return traceId.toLowerCase();
     }
 }

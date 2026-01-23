@@ -18,19 +18,21 @@ public class TraceIdGlobalFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        String traceId = exchange.getRequest().getHeaders().getFirst(HEADER_TRACE_ID);
-        String traceparent = exchange.getRequest().getHeaders().getFirst(HEADER_TRACEPARENT);
+        String traceIdRaw = exchange.getRequest().getHeaders().getFirst(HEADER_TRACE_ID);
+        String traceparentRaw = exchange.getRequest().getHeaders().getFirst(HEADER_TRACEPARENT);
 
-        if (traceId == null || traceId.isBlank()) {
-            traceId = extractTraceIdFromTraceparent(traceparent);
+        String traceId = normalizeTraceId(traceIdRaw);
+        String traceparentTraceId = extractTraceIdFromTraceparent(traceparentRaw);
+
+        if (traceId == null) {
+            traceId = traceparentTraceId;
         }
-        if (traceId == null || traceId.isBlank()) {
+        if (traceId == null) {
             traceId = UUID.randomUUID().toString().replace("-", "");
         }
 
-        if (traceparent == null || traceparent.isBlank() || extractTraceIdFromTraceparent(traceparent) == null) {
-            traceparent = buildTraceparent(traceId);
-        }
+        // 始终输出/透传规范化的 traceparent，避免上游 traceparent 使用大写 hex 导致断链路。
+        String traceparent = buildTraceparent(traceId);
 
         exchange.getResponse().getHeaders().set(HEADER_TRACE_ID, traceId);
         exchange.getResponse().getHeaders().set(HEADER_TRACEPARENT, traceparent);
@@ -43,6 +45,26 @@ public class TraceIdGlobalFilter implements GlobalFilter, Ordered {
         return chain.filter(exchange.mutate().request(mutatedRequest).build());
     }
 
+    private String normalizeTraceId(String traceId) {
+        if (traceId == null || traceId.isBlank()) {
+            return null;
+        }
+        String t = traceId.trim();
+        if (t.length() != 32) {
+            return null;
+        }
+        for (int i = 0; i < t.length(); i++) {
+            char c = t.charAt(i);
+            boolean ok = (c >= '0' && c <= '9')
+                    || (c >= 'a' && c <= 'f')
+                    || (c >= 'A' && c <= 'F');
+            if (!ok) {
+                return null;
+            }
+        }
+        return t.toLowerCase();
+    }
+
     private String extractTraceIdFromTraceparent(String traceparent) {
         if (traceparent == null || traceparent.isBlank()) {
             return null;
@@ -51,22 +73,17 @@ public class TraceIdGlobalFilter implements GlobalFilter, Ordered {
         if (parts.length != 4) {
             return null;
         }
-        String traceId = parts[1];
-        if (traceId == null || traceId.length() != 32) {
-            return null;
-        }
-        for (int i = 0; i < traceId.length(); i++) {
-            char c = traceId.charAt(i);
-            boolean ok = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
-            if (!ok) {
-                return null;
-            }
-        }
-        return traceId;
+        return normalizeTraceId(parts[1]);
     }
 
     private String buildTraceparent(String traceId) {
         // 00-<trace-id>-<span-id>-01
+        String t = normalizeTraceId(traceId);
+        if (t == null) {
+            // defensive: should never happen (traceId is always generated/normalized before calling)
+            t = UUID.randomUUID().toString().replace("-", "");
+        }
+
         String spanId = Long.toHexString(UUID.randomUUID().getMostSignificantBits());
         spanId = spanId.replace("-", "");
         if (spanId.length() < 16) {
@@ -74,7 +91,8 @@ public class TraceIdGlobalFilter implements GlobalFilter, Ordered {
         } else if (spanId.length() > 16) {
             spanId = spanId.substring(spanId.length() - 16);
         }
-        return "00-" + traceId + "-" + spanId + "-01";
+        spanId = spanId.toLowerCase();
+        return "00-" + t + "-" + spanId + "-01";
     }
 
     @Override

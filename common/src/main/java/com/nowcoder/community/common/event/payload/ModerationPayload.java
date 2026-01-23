@@ -1,4 +1,4 @@
-// 治理通知事件负载：用于把“举报/处置/处罚”等结果以站内通知的形式投递给相关用户。
+// Moderation notification event payload (report/action/punishment -> user notice).
 package com.nowcoder.community.common.event.payload;
 
 import java.time.Instant;

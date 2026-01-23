@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 私信会话列表/详情/发送；通知列表/详情/未读数；Kafka 消费评论/点赞/关注事件写入通知；消费失败重试与 DLQ
 - **Status：** ✅Stable
-- **Last Updated：** 2026-01-18
+- **Last Updated：** 2026-01-23
 
 ## Specifications
 
@@ -21,6 +21,7 @@
 #### Scenario: 发送私信
 前置条件：目标用户存在
 - 私信写入数据库
+  - 发送前通过 `social-service` internal API 校验拉黑关系（命中则拒绝发送）
 
 ### Requirement: 系统通知
 **Module:** message
@@ -30,6 +31,7 @@
 前置条件：Kafka 收到事件
 - 写入 message 表（from_id=系统用户）
 - 通知内容包含触发者与目标实体信息
+  - 支持治理通知（moderation topic），用于回传治理处置结果给用户
 
 ### Requirement: 消费端幂等 + 事务 + ack（P0）
 **Module:** message
@@ -53,7 +55,7 @@
 - `POST /api/messages`
 - `GET /api/messages/unread-count`
 - `PUT /api/messages/read`
-- `GET /api/notices?topic=like|comment|follow`
+- `GET /api/notices?topic=like|comment|follow|moderation`
 - `GET /api/notices/unread-count`
 - `PUT /api/notices/read`
 
@@ -67,3 +69,4 @@
 
 ## Change History
 - 2026-01-18：消费端幂等/事务/ack 正确性修复（insert-first + 同事务提交），并补齐 DLQ 指标/告警与回放脚本。
+- 2026-01-23：私信写路径补齐拉黑校验；通知消费端新增治理事件（moderation topic）支持。

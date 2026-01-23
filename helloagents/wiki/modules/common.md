@@ -24,6 +24,9 @@
   - `com.nowcoder.community.common.tx.AfterCommitExecutor`：在事务提交后执行非 DB 副作用（Kafka 发送、缓存刷新等），用于 P0 消除“幽灵事件”。
 - Kafka 消费辅助：
   - `com.nowcoder.community.common.kafka.KafkaTraceSupport`：消费端从 envelope 读取 `traceId` 注入 MDC，并在 finally 清理。
+- 事件契约常量（跨服务边界）：
+  - `com.nowcoder.community.common.event.EventTopics`：topic 统一定义（post/comment/social/moderation v1 + `.dlq`）
+  - `com.nowcoder.community.common.event.EventTypes`：type 统一定义（PostPublished/CommentCreated/LikeCreated/ModerationActionApplied 等）
 
 ## 3. 约定
 - 服务端统一输出 `Result<T>`，避免 Controller 拼接字符串 JSON。

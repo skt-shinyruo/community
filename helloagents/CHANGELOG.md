@@ -70,6 +70,12 @@
 - taxonomy 体验补齐：content-service 新增 `GET /api/tags/suggest`（标签自动补全）；search-service ES 文档与搜索 API 补齐 `categoryId/tags[]` 并支持 `categoryId/tag` 过滤；frontend 发帖标签输入升级为 chips + suggest，Posts 列表增加“自上次访问后新增 / 上次看到这里”提示，搜索页增加分类/标签过滤。
 - `deploy/README.md` 补充前端样式分层与静态资源/文件访问（头像等）策略说明，便于本地与部署排查。
 - `deploy/nacos-config/gateway.yaml` 补齐 gateway CORS allowlist 与 OriginGuard allowlist 示例，支持通过 Nacos UI 管理并覆盖默认配置。
+- BBS 核心运营能力（治理 + 内容生命周期 + 收藏订阅 + 成长体系）：
+  - 举报与治理闭环：`report/moderation_action` 表 + `/api/reports` + `/api/moderation/**`（网关仅 MOD/ADMIN），并通过 Kafka `community.event.moderation.v1` 投递治理通知。
+  - 反骚扰：`social-service` 拉黑 API（`/api/blocks/**`）+ internal 关系查询，`message-service` 私信发送前校验拉黑关系。
+  - 内容生命周期：帖子/评论编辑窗口（24h/15min）+ 作者软删（PostDeleted）+ 收藏（post_bookmark）+ 分类订阅与“仅看订阅”（user_subscription_category）。
+  - 成长体系：积分流水（user_score_log）+ 用户主页展示积分/等级 + `/api/users/leaderboard` 榜单。
+  - 本地 compose 修复：补齐 `user-service` 的 `KAFKA_BOOTSTRAP_SERVERS=kafka:9092`，保证容器内积分消费者可连 Kafka。
 
 ### Fixed
 - 修复 message-service 消费端“自调用导致事务不生效 + 幂等记录先写导致永久丢通知”的高风险路径。

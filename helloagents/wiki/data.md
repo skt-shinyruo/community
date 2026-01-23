@@ -45,6 +45,22 @@
 | activation_code | varchar |  | 激活码 |
 | header_url | varchar |  | 头像 URL |
 | create_time | datetime |  | 创建时间 |
+| score | int | Not Null | 成长积分（用于等级/榜单） |
+| mute_until | datetime |  | 禁言到期时间（可为空；大于当前时间表示禁言中） |
+| ban_until | datetime |  | 封禁到期时间（可为空；大于当前时间表示封禁中） |
+
+### 2.1.1 user_score_log
+
+**Description：** 成长积分流水（消费端幂等 + 反作弊：按 eventId 去重）。
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | bigint | PK | 自增 ID |
+| user_id | int | FK(user.id) | 用户 ID |
+| event_id | varchar | Unique | 事件 ID（eventId） |
+| type | varchar |  | 事件类型（例如 `PostPublished`/`CommentCreated`/`LikeCreated`） |
+| delta | int |  | 积分增量（可为负） |
+| created_at | datetime |  | 记账时间 |
 
 ### 2.2 discuss_post
 
@@ -60,6 +76,11 @@
 | type | int |  | 置顶标识等 |
 | status | int |  | 状态（精华/删除等） |
 | create_time | datetime |  | 创建时间 |
+| update_time | datetime |  | 更新时间 |
+| edit_count | int |  | 编辑次数（用于显示/风控） |
+| deleted_by | int |  | 删除操作者（作者软删/版主删；0 表示无） |
+| deleted_reason | varchar |  | 删除原因（可为空/空字符串） |
+| deleted_time | datetime |  | 删除时间 |
 | comment_count | int |  | 评论数 |
 | score | double |  | 热度分数 |
 
@@ -105,6 +126,57 @@
 - `idx_post_tag_post_id(post_id)`
 - `idx_post_tag_tag_id(tag_id)`
 
+### 2.2.4 report
+
+**Description：** 举报单（帖子/评论/用户），用于治理闭环（提交 → 审核 → 处置）。
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | bigint | PK | 举报 ID |
+| reporter_id | int |  | 举报人 |
+| target_type | varchar |  | 目标类型（POST/COMMENT/USER） |
+| target_id | int |  | 目标 ID（userId/postId/commentId） |
+| reason_code | varchar |  | 举报原因码（前端枚举） |
+| reason_text | varchar |  | 补充说明（可为空） |
+| status | varchar |  | 状态（OPEN/RESOLVED/REJECTED） |
+| created_at | datetime |  | 创建时间 |
+| resolved_at | datetime |  | 完结时间（可为空） |
+
+### 2.2.5 moderation_action
+
+**Description：** 治理处置审计表（谁在什么时间对哪个目标做了什么动作，具备可追溯性）。
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | bigint | PK | 处置动作 ID |
+| report_id | bigint |  | 对应的举报单（可为空：直接处置） |
+| moderator_id | int |  | 版主/管理员 |
+| action_type | varchar |  | 动作类型（DELETE_POST/DELETE_COMMENT/MUTE_USER/BAN_USER/NO_ACTION 等） |
+| target_type | varchar |  | 目标类型（POST/COMMENT/USER） |
+| target_id | int |  | 目标 ID |
+| action_payload | text |  | 动作参数（JSON；例如禁言/封禁到期时间、原因） |
+| created_at | datetime |  | 执行时间 |
+
+### 2.2.6 post_bookmark
+
+**Description：** 帖子收藏（用户-帖子多对多）。
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| user_id | int | PK(user_id, post_id) | 用户 ID |
+| post_id | int | PK(user_id, post_id) | 帖子 ID |
+| created_at | datetime |  | 收藏时间 |
+
+### 2.2.7 user_subscription_category
+
+**Description：** 分类订阅（用户-分类多对多，用于“仅看订阅”）。
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| user_id | int | PK(user_id, category_id) | 用户 ID |
+| category_id | int | PK(user_id, category_id) | 分类 ID |
+| created_at | datetime |  | 订阅时间 |
+
 ### 2.3 comment
 
 **Description：** 评论与回复（通过 entity_type/entity_id 关联目标实体）。
@@ -119,6 +191,11 @@
 | content | text |  | 内容 |
 | status | int |  | 状态 |
 | create_time | datetime |  | 创建时间 |
+| update_time | datetime |  | 更新时间 |
+| edit_count | int |  | 编辑次数 |
+| deleted_by | int |  | 删除操作者（作者软删/版主删；0 表示无） |
+| deleted_reason | varchar |  | 删除原因（可为空/空字符串） |
+| deleted_time | datetime |  | 删除时间 |
 
 ### 2.4 message
 
@@ -168,6 +245,7 @@
 - **用户被赞计数：** `like:user:<userId>`（String counter，归属：social-service）
 - **关注列表：** `followee:<userId>:<entityType>`（ZSet，归属：social-service）
 - **粉丝列表：** `follower:<entityType>:<entityId>`（ZSet，归属：social-service）
+- **拉黑集合：** `block:<userId>`（Set，被拉黑用户 ID 列表，归属：social-service）
 - **UV：** `uv:<yyyy-MM-dd>`（HyperLogLog）+ `uv:<start>:<end>`（union 结果，归属：analytics-service）
 - **DAU：** `dau:<yyyy-MM-dd>`（Bitmap）+ `dau:<start>:<end>`（OR 结果，归属：analytics-service）
 - **帖子分数刷新集合：** `post:score`（Set，归属：content-service）
@@ -186,6 +264,13 @@
 
 > 旁路服务（search/message 等）的数据一致性以“最终一致”为主，事件契约是跨服务协作的边界。  
 > 详细约定见方案包：`helloagents/plan/202601161428_boot3_ms_vue3_nacos/event-contract.md`。
+
+### 4.0 Topics（v1）
+
+- `community.event.post.v1`：`PostPublished` / `PostUpdated` / `PostDeleted`
+- `community.event.comment.v1`：`CommentCreated`
+- `community.event.social.v1`：`LikeCreated` / `FollowCreated`
+- `community.event.moderation.v1`：`ModerationActionApplied`
 
 ### 4.1 Envelope（统一外层）
 所有事件统一使用 `EventEnvelope<T>`：

@@ -16,7 +16,10 @@
 - `/api/auth/**` → `auth-service`
 - `/api/users/**` → `user-service`
 - `/api/posts/**` → `content-service`
+- `/api/reports/**`、`/api/moderation/**` → `content-service`
+- `/api/bookmarks/**`、`/api/subscriptions/**` → `content-service`
 - `/api/likes/**`、`/api/follows/**` → `social-service`
+- `/api/blocks/**` → `social-service`
 - `/api/messages/**`、`/api/notices/**` → `message-service`
 - `/api/search/**` → `search-service`
 - `/api/analytics/**` → `analytics-service`
@@ -30,6 +33,11 @@ Token 通过环境变量或 Nacos 注入（见 `deploy/.env.example` 与 `deploy
 
 - **content-service**
   - `GET /internal/content/posts`：供 search-service 扫描帖子数据以完成 reindex（严格 schema 隔离下不允许跨库直读）。
+- **social-service**
+  - `GET /internal/social/blocks/relation?userIdA=&userIdB=`：查询 A/B 的拉黑关系（互斥私信等写路径校验）。
+- **user-service**
+  - `GET /internal/users/{userId}/moderation-status`：查询用户禁言/封禁状态（content-service 写路径前置校验）。
+  - `POST /internal/users/{userId}/moderation`：应用禁言/封禁（治理动作落地，供 content-service 治理动作转发调用）。
 - **search-service**
   - `POST /internal/search/reindex`：管理员触发的重建索引入口（同逻辑也暴露为 `/api/search/internal/reindex`）。
 - **analytics-service**
@@ -42,12 +50,19 @@ Token 通过环境变量或 Nacos 注入（见 `deploy/.env.example` 与 `deploy
 
 - **auth-service**：`auth-service/src/main/java/com/nowcoder/community/auth/api/AuthController.java`
 - **user-service**：`user-service/src/main/java/com/nowcoder/community/user/api/UserController.java`
+- **user-service**：`user-service/src/main/java/com/nowcoder/community/user/api/LeaderboardController.java`
 - **content-service**：
   - `content-service/src/main/java/com/nowcoder/community/content/api/PostController.java`
+  - `content-service/src/main/java/com/nowcoder/community/content/api/BookmarkController.java`
+  - `content-service/src/main/java/com/nowcoder/community/content/api/SubscriptionController.java`
+  - `content-service/src/main/java/com/nowcoder/community/content/api/ReportController.java`
+  - `content-service/src/main/java/com/nowcoder/community/content/api/ModerationController.java`
   - `content-service/src/main/java/com/nowcoder/community/content/api/InternalContentController.java`
 - **social-service**：
   - `social-service/src/main/java/com/nowcoder/community/social/like/LikeController.java`
   - `social-service/src/main/java/com/nowcoder/community/social/follow/FollowController.java`
+  - `social-service/src/main/java/com/nowcoder/community/social/block/BlockController.java`
+  - `social-service/src/main/java/com/nowcoder/community/social/block/InternalBlockController.java`
 - **message-service**：
   - `message-service/src/main/java/com/nowcoder/community/message/api/MessageController.java`
   - `message-service/src/main/java/com/nowcoder/community/message/api/NoticeController.java`

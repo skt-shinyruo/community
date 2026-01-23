@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 用户资料查询；个人主页展示所需数据；头像上传（七牛）与头像 URL 回写；internal 身份鉴权/注册/激活/密码更新接口
 - **Status：** ✅Stable
-- **Last Updated：** 2026-01-18
+- **Last Updated：** 2026-01-23
 
 ## Specifications
 
@@ -31,8 +31,24 @@
 - 返回上传 token 与 fileName
 - 上传完成后更新用户头像 URL
 
+### Requirement: 成长体系（积分/等级/榜单）
+**Module:** user
+通过消费跨服务事件（发帖/评论/点赞等）生成积分流水，并在用户主页展示等级与积分，同时提供榜单接口。
+
+#### Scenario: 消费事件记账（幂等）
+- 消费 `community.event.post.v1` / `community.event.comment.v1` / `community.event.social.v1`
+- 以 `user_score_log.event_id` 做幂等去重（避免重复消费导致积分膨胀）
+
+#### Scenario: 查询榜单
+- 返回 Top-N 用户（按 score 降序）
+
+### Requirement: 禁言/封禁（治理落地）
+**Module:** user
+提供用户禁言/封禁状态字段与 internal API，供 content-service 在写路径前置校验与治理动作落地。
+
 ## API Interfaces（现状）
-- `GET /api/users/{userId}`（公开）
+- `GET /api/users/{userId}`（公开；返回增加 `score/level`）
+- `GET /api/users/leaderboard?limit=`（公开；Top 用户榜单）
 - `GET /api/users/{userId}/avatar/upload-token`（需要登录，仅本人）
 - `PUT /api/users/{userId}/avatar`（需要登录，仅本人，写入 header_url）
 - internal（仅服务间调用，要求 `X-Internal-Token`，不走 JWT）：
@@ -42,13 +58,19 @@
   - `POST /internal/users/{userId}/activate`
   - `GET /internal/users/by-email`
   - `POST /internal/users/{userId}/password`
+  - `GET /internal/users/{userId}/moderation-status`
+  - `POST /internal/users/{userId}/moderation`
 
 ## Data Models
 ### user
 （详见 `helloagents/wiki/data.md` 的 “user” 小节）
 
+### user_score_log
+（详见 `helloagents/wiki/data.md` 的 “user_score_log” 小节）
+
 ## Dependencies
 - social（关注/粉丝关系）
+- kafka（消费内容/社交事件以生成积分）
 - infra（登录态/权限控制）
 - external: Qiniu
 - auth-service（通过 internal API 调用 user-service 作为身份域 SSOT）
@@ -56,3 +78,4 @@
 ## Change History
 - 2026-01-18：补齐 user-service -> social-service 同步调用韧性（强制超时、降级返回默认值、指标可观测）。
 - 2026-01-20：新增 `/internal/users/**` 作为身份域 internal API，并在登录成功后对 legacy 密码做渐进 rehash（MD5+salt -> BCrypt）。
+- 2026-01-23：新增成长体系（积分/等级/榜单）与治理落地字段（禁言/封禁），并补齐 internal moderation API 供 content-service 调用。

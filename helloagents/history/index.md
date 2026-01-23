@@ -8,6 +8,7 @@
 
 | Timestamp | Feature Name | Type | Status | Solution Package Path |
 |-----------|--------------|------|--------|----------------------|
+| 202601231154 | bbs_core_1to4_mvp | Development Implementation | ✅Completed | [202601231154_bbs_core_1to4_mvp](2026-01/202601231154_bbs_core_1to4_mvp/) |
 | 202601201820 | bbs_discourse_new_tag_suggest_search | Development Implementation | ✅Completed | [202601201820_bbs_discourse_new_tag_suggest_search](2026-01/202601201820_bbs_discourse_new_tag_suggest_search/) |
 | 202601201714 | bbs_taxonomy | Development Implementation | ✅Completed | [202601201714_bbs_taxonomy](2026-01/202601201714_bbs_taxonomy/) |
 | 202601201640 | bbs_discourse_filters_panel | Lightweight Iteration | ✅Completed | [202601201640_bbs_discourse_filters_panel](2026-01/202601201640_bbs_discourse_filters_panel/) |
@@ -40,6 +41,7 @@
 ## Archive by Month
 
 ### 2026-01
+- [202601231154_bbs_core_1to4_mvp](2026-01/202601231154_bbs_core_1to4_mvp/) - 核心运营能力（治理/反骚扰/收藏订阅/成长体系）
 - [202601201820_bbs_discourse_new_tag_suggest_search](2026-01/202601201820_bbs_discourse_new_tag_suggest_search/) - Discourse 体验增强（新内容提示条 + 标签自动补全 + 搜索 taxonomy 过滤）
 - [202601201714_bbs_taxonomy](2026-01/202601201714_bbs_taxonomy/) - taxonomy（分类/标签）全链路：发帖可选、列表过滤、RightPanel 聚合展示
 - [202601201640_bbs_discourse_filters_panel](2026-01/202601201640_bbs_discourse_filters_panel/) - 信息架构增强（未读筛选入口 + RightPanel 快速筛选/热门标签），继续向 Discourse 靠拢

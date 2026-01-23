@@ -24,8 +24,11 @@
 - `/api/notices/**`、`/api/messages/**` -> `lb://message-service`
 - `/api/analytics/**` -> `lb://analytics-service`
 - `/api/likes/**`、`/api/follows/**` -> `lb://social-service`
+- `/api/blocks/**` -> `lb://social-service`
 - `/api/users/**` -> `lb://user-service`
 - `/api/posts/**` -> `lb://content-service`
+- `/api/reports/**`、`/api/moderation/**` -> `lb://content-service`
+- `/api/bookmarks/**`、`/api/subscriptions/**` -> `lb://content-service`
 - `/api/categories/**`、`/api/tags/**` -> `lb://content-service`
 
 ## 4. 本地运行（示例）
@@ -43,6 +46,7 @@
 ## 5. 关键行为说明
 - 限流触发时返回 HTTP 429，并附带 `X-RateLimit-*` 响应头（Limit/Remaining/Reset/Rule）。
 - 审计日志：gateway 记录非 GET 的 `/api/**` 操作（跳过 `/api/auth/login`），包含 `status/costMs/userId/traceId`，用于 Loki/日志系统检索。
+- 权限矩阵：治理后台接口 `/api/moderation/**` 仅允许 `ROLE_ADMIN/ROLE_MODERATOR`（其余用户返回 403）。
 
 ## 6. 常见问题排查
 - **503 Service Unavailable（Unable to find instance）**：若 gateway 日志提示 `Unable to find instance for {service}`，通常表示 `lb://{service}` 未解析到任何实例：

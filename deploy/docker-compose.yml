@@ -118,9 +118,11 @@ services:
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic community.event.post.v1 --replication-factor 1 --partitions 1
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic community.event.comment.v1 --replication-factor 1 --partitions 1
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic community.event.social.v1 --replication-factor 1 --partitions 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic community.event.moderation.v1 --replication-factor 1 --partitions 1
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic community.event.post.v1.dlq --replication-factor 1 --partitions 1
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic community.event.comment.v1.dlq --replication-factor 1 --partitions 1
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic community.event.social.v1.dlq --replication-factor 1 --partitions 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic community.event.moderation.v1.dlq --replication-factor 1 --partitions 1
         echo "[kafka-init] done."
     restart: "no"
 
@@ -284,6 +286,7 @@ services:
       - QINIU_SECRET_KEY=${QINIU_SECRET_KEY:-}
       - QINIU_BUCKET_HEADER_NAME=${QINIU_BUCKET_HEADER_NAME:-}
       - QINIU_BUCKET_HEADER_URL=${QINIU_BUCKET_HEADER_URL:-}
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
     depends_on:
       mysql:
         condition: service_healthy
@@ -301,6 +304,7 @@ services:
       - SERVER_PORT=8086
       - NACOS_SERVER_ADDR=nacos:8848
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+      - INTERNAL_TOKEN=${INTERNAL_TOKEN:-}
       - SOCIAL_REDIS_HOST=redis
       - SOCIAL_REDIS_PORT=6379
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
@@ -381,6 +385,7 @@ services:
       - SERVER_PORT=8084
       - NACOS_SERVER_ADDR=nacos:8848
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+      - INTERNAL_TOKEN=${INTERNAL_TOKEN:-}
       - MESSAGE_DB_URL=jdbc:mysql://mysql:3306/${MESSAGE_DB_NAME:-community_message}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
       - MESSAGE_DB_USERNAME=${MESSAGE_DB_USER:-community_message}
       - MESSAGE_DB_PASSWORD=${MESSAGE_DB_PASSWORD:-community_messagepass}

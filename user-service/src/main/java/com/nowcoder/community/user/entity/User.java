@@ -14,6 +14,9 @@ public class User {
     private String activationCode;
     private String headerUrl;
     private Date createTime;
+    private int score;
+    private Date muteUntil;
+    private Date banUntil;
 
     public int getId() {
         return id;
@@ -94,5 +97,28 @@ public class User {
     public void setCreateTime(Date createTime) {
         this.createTime = createTime;
     }
-}
 
+    public int getScore() {
+        return score;
+    }
+
+    public void setScore(int score) {
+        this.score = score;
+    }
+
+    public Date getMuteUntil() {
+        return muteUntil;
+    }
+
+    public void setMuteUntil(Date muteUntil) {
+        this.muteUntil = muteUntil;
+    }
+
+    public Date getBanUntil() {
+        return banUntil;
+    }
+
+    public void setBanUntil(Date banUntil) {
+        this.banUntil = banUntil;
+    }
+}

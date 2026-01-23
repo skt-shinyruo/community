@@ -10,6 +10,8 @@ public class UserProfileResponse {
     private int type;
     private int status;
     private Date createTime;
+    private int score;
+    private int level;
 
     // 对齐旧单体“用户主页”展示字段：获赞/关注/粉丝/关注状态
     private long likeCount;
@@ -63,6 +65,22 @@ public class UserProfileResponse {
 
     public void setCreateTime(Date createTime) {
         this.createTime = createTime;
+    }
+
+    public int getScore() {
+        return score;
+    }
+
+    public void setScore(int score) {
+        this.score = score;
+    }
+
+    public int getLevel() {
+        return level;
+    }
+
+    public void setLevel(int level) {
+        this.level = level;
     }
 
     public long getLikeCount() {

@@ -4,6 +4,8 @@ import com.nowcoder.community.user.entity.User;
 import org.apache.ibatis.annotations.Mapper;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+
 @Repository
 @Mapper
 public interface UserMapper {
@@ -21,5 +23,10 @@ public interface UserMapper {
     int updateHeader(int id, String headerUrl);
 
     int updatePassword(int id, String password);
-}
 
+    int updateModerationUntil(int id, java.util.Date muteUntil, java.util.Date banUntil);
+
+    int addScore(int id, int delta);
+
+    List<User> selectTopByScore(int limit);
+}

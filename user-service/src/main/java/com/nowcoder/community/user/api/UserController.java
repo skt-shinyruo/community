@@ -8,6 +8,7 @@ import com.nowcoder.community.user.api.dto.UserProfileResponse;
 import com.nowcoder.community.user.api.dto.UserResolveResponse;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.service.AvatarService;
+import com.nowcoder.community.user.service.PointsService;
 import com.nowcoder.community.user.service.SocialServiceClient;
 import com.nowcoder.community.user.service.UserService;
 import jakarta.validation.Valid;
@@ -31,11 +32,13 @@ public class UserController {
     private final UserService userService;
     private final AvatarService avatarService;
     private final SocialServiceClient socialServiceClient;
+    private final PointsService pointsService;
 
-    public UserController(UserService userService, AvatarService avatarService, SocialServiceClient socialServiceClient) {
+    public UserController(UserService userService, AvatarService avatarService, SocialServiceClient socialServiceClient, PointsService pointsService) {
         this.userService = userService;
         this.avatarService = avatarService;
         this.socialServiceClient = socialServiceClient;
+        this.pointsService = pointsService;
     }
 
     @GetMapping("/{userId}")
@@ -48,6 +51,8 @@ public class UserController {
         resp.setType(user.getType());
         resp.setStatus(user.getStatus());
         resp.setCreateTime(user.getCreateTime());
+        resp.setScore(user.getScore());
+        resp.setLevel(pointsService.levelForScore(user.getScore()));
 
         // 对齐旧单体“用户主页”展示：获赞/关注/粉丝 + 是否已关注（可选，未登录时为 false）
         resp.setLikeCount(socialServiceClient.safeUserLikeCount(userId));

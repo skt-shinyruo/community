@@ -11,6 +11,7 @@ import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.Random;
@@ -166,6 +167,107 @@ public class InternalUserService {
         return List.of("ROLE_USER");
     }
 
+    public ModerationStatus moderationStatus(int userId) {
+        if (userId <= 0) {
+            throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
+        }
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(CommonErrorCode.NOT_FOUND, "用户不存在");
+        }
+
+        ModerationStatus s = new ModerationStatus();
+        s.setUserId(user.getId());
+        s.setMuteUntil(user.getMuteUntil() == null ? null : user.getMuteUntil().toInstant());
+        s.setBanUntil(user.getBanUntil() == null ? null : user.getBanUntil().toInstant());
+        return s;
+    }
+
+    public ModerationStatus applyModeration(int userId, String action, int durationSeconds) {
+        if (userId <= 0) {
+            throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
+        }
+        String act = safeTrim(action).toLowerCase();
+        if (!StringUtils.hasText(act)) {
+            throw new BusinessException(INVALID_ARGUMENT, "action 不能为空");
+        }
+
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(CommonErrorCode.NOT_FOUND, "用户不存在");
+        }
+
+        Instant now = Instant.now();
+        Instant muteUntil = user.getMuteUntil() == null ? null : user.getMuteUntil().toInstant();
+        Instant banUntil = user.getBanUntil() == null ? null : user.getBanUntil().toInstant();
+
+        int seconds = clampDurationSeconds(durationSeconds);
+
+        if ("mute".equals(act)) {
+            muteUntil = seconds <= 0 ? null : now.plusSeconds(seconds);
+        } else if ("ban".equals(act)) {
+            banUntil = seconds <= 0 ? null : now.plusSeconds(seconds);
+        } else if ("unmute".equals(act)) {
+            muteUntil = null;
+        } else if ("unban".equals(act)) {
+            banUntil = null;
+        } else {
+            throw new BusinessException(INVALID_ARGUMENT, "action 非法");
+        }
+
+        int updated = userMapper.updateModerationUntil(
+                userId,
+                muteUntil == null ? null : Date.from(muteUntil),
+                banUntil == null ? null : Date.from(banUntil)
+        );
+        if (updated <= 0) {
+            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "更新处罚状态失败");
+        }
+
+        ModerationStatus resp = new ModerationStatus();
+        resp.setUserId(userId);
+        resp.setMuteUntil(muteUntil);
+        resp.setBanUntil(banUntil);
+        return resp;
+    }
+
+    private int clampDurationSeconds(int seconds) {
+        // 防止误传超大值导致溢出或超长期处罚；MVP 先限制在 365 天内。
+        int max = 365 * 24 * 3600;
+        int s = Math.max(0, seconds);
+        return Math.min(max, s);
+    }
+
+    public static class ModerationStatus {
+        private int userId;
+        private Instant muteUntil;
+        private Instant banUntil;
+
+        public int getUserId() {
+            return userId;
+        }
+
+        public void setUserId(int userId) {
+            this.userId = userId;
+        }
+
+        public Instant getMuteUntil() {
+            return muteUntil;
+        }
+
+        public void setMuteUntil(Instant muteUntil) {
+            this.muteUntil = muteUntil;
+        }
+
+        public Instant getBanUntil() {
+            return banUntil;
+        }
+
+        public void setBanUntil(Instant banUntil) {
+            this.banUntil = banUntil;
+        }
+    }
+
     private boolean passwordMatches(User user, String rawPassword) {
         if (user == null || !StringUtils.hasText(rawPassword)) {
             return false;
@@ -221,4 +323,3 @@ public class InternalUserService {
         return s == null ? "" : s.trim();
     }
 }
-

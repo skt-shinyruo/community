@@ -1,46 +1,31 @@
-## 项目介绍
-一个仿照牛客网实现的讨论社区，不仅实现了基本的注册，登录，发帖，评论，点赞，回复功能，同时使用前缀树实现敏感词过滤，使用wkhtmltopdf生成长图和pdf，实现网站UV和DAU统计，并将用户头像等信息存于七牛云服务器。
-## 其他项目
-* 计算机类电子书仓库：https://github.com/cosen1024/awesome-cs-books
-* Java面试题仓库：https://github.com/cosen1024/Java-Interview
-## 项目演示
-演示地址: http://47.99.167.178:8081/community/index <br>
-账号密码: aaa/aaa
-## 技术选型
-![](.images/arc.png)
+# community
 
-## 功能简介
-* 使用Spring Security 做权限控制，替代拦截器的拦截控制，并使用自己的认证方案替代Security 认证流程，使权限认证和控制更加方便灵活。
-* 使用Redis的set实现点赞，zset实现关注，并使用Redis存储登录ticket和验证码，解决分布式session问题。 
-* 使用Redis高级数据类型HyperLogLog统计UV(Unique Visitor),使用Bitmap统计DAU(Daily Active User)。
-* 使用Kafka处理发送评论、点赞和关注等系统通知，并使用事件进行封装，构建了强大的异步消息系统。 
-* 使用Elasticsearch做全局搜索，并通过事件封装，增加关键词高亮显示等功能。 
-* 对热帖排行模块，使用分布式缓存Redis和本地缓存Caffeine作为多级缓存，避免了缓存雪崩，将QPS提升了20倍(10-200)，大大提升了网站访问速度。并使用Quartz定时更新热帖排行。 
+## 项目介绍（现状 / SSOT）
+本仓库为一个“讨论社区”微服务工程（Spring Boot 3 + Java 17 + Vue3），默认本地运行模式为“前端直连 gateway”。
 
+模块（以根 `pom.xml` 与 `docs/ARCHITECTURE.md` 为准）：
+- `frontend/`：Vue3 SPA（Vite + Router + Pinia + Axios）
+- `gateway/`：Spring Cloud Gateway（统一入口 `/api/**`：鉴权/CORS/traceId/审计/限流）
+- `auth-service/`：登录/刷新/登出/验证码/注册激活/找回密码（JWT access + refresh cookie）
+- `user-service/`：用户资料、头像上传（七牛）、成长/榜单等
+- `content-service/`：帖子/评论、分类/标签、收藏/订阅、内容生命周期
+- `social-service/`：点赞/关注/拉黑
+- `message-service/`：私信/通知（Kafka 消费生成通知）
+- `search-service/`：Elasticsearch 搜索 + reindex
+- `analytics-service/`：UV/DAU 统计
+- `common/`：Result/错误码/traceId/internal-token 等公共库
 
-## 开发环境
-
-| 工具          | 版本号 | 下载                              |
-| ------------- | ------ | --------------------------------- |
-| JDK           | 11     | https://openjdk.java.net/install/ |
-| Mysql         | 5.7    | https://www.mysql.com/            |
-| Redis         | 3.2    | https://redis.io/download         |
-| Elasticsearch | 6.4.3  | https://www.elastic.co/downloads  |
-| Kafka         | 2.3.0  |   https://kafka.apache.org/downloads                                |
-## 运行效果展示
-* 首页
-![](.images/index.png)
-* 消息
-![](.images/message.png)
-## 后续更新点
-* 增加收藏功能
-* 增强对话框功能
-
+文档（建议从这里开始）：
+- `docs/ARCHITECTURE.md`
+- `docs/DEPLOYMENT.md`
+- `docs/SECURITY.md`
+- `docs/DATA_MODEL.md`
+- `docs/OBSERVABILITY.md`
 
 ## 本地启动（推荐：前端直连 gateway）
 
 1. 准备环境变量：
-   - 复制 `deploy/.env.example` 为 `deploy/.env`
+   - `cp deploy/.env.example deploy/.env`
 2. 启动（前端 `12881`，gateway `12882`）：
    - `docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.frontend-direct.yml --env-file deploy/.env up -d --build`
 3. 访问：
@@ -48,3 +33,28 @@
    - API：`http://localhost:12882`
 
 若 `docker compose ... --build` 偶发失败：先重试一次；仍不行再用 `docker builder prune -af` 清理 BuildKit cache 后重来。
+
+## 版本与依赖（以代码/compose 为准）
+- Backend：Java 17 + Spring Boot 3.2.6（见根 `pom.xml`）
+- Frontend：Vue 3 + Vite（见 `frontend/package.json`）
+- Infra（`deploy/docker-compose.yml`）：
+  - Nacos：`nacos/nacos-server:v2.3.2`
+  - MySQL：`mysql:8.0`
+  - Redis：`redis:7-alpine`
+  - Kafka/Zookeeper：`confluentinc/cp-kafka:7.6.1` / `confluentinc/cp-zookeeper:7.6.1`
+  - Elasticsearch：`elasticsearch:8.12.2`
+  - Observability：Prometheus `v2.51.2` / Grafana `10.4.5` / Loki&Promtail `2.9.4` / Alertmanager `0.27.0`
+
+## 本地默认账号（仅开发/演示）
+- 普通用户：`aaa/aaa`
+- 管理员：`admin/aaa`
+
+数据种子：`deploy/mysql-init/090_seed_identity.sql`
+
+## 历史说明（Legacy）
+仓库早期版本来自单体社区实现，README 中曾出现 JDK11/MySQL5.7/ES6/Kafka2.3 以及 wkhtmltopdf/Caffeine/Quartz 等描述。
+当前仓库已收敛为 Boot3 + Java17 的多模块微服务实现；如发现文档与代码不一致，请以 `docs/` + `deploy/` + 各模块 `application.yml` 为准。
+
+## 其他项目
+- 计算机类电子书仓库：https://github.com/cosen1024/awesome-cs-books
+- Java 面试题仓库：https://github.com/cosen1024/Java-Interview

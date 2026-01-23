@@ -61,6 +61,7 @@ public class GatewaySecurityConfig {
                         .pathMatchers(HttpMethod.GET, "/api/auth/captcha").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/captcha/verify").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/password/reset/request", "/api/auth/password/reset/confirm").permitAll()
+                        .pathMatchers("/api/moderation/**").hasAnyRole("ADMIN", "MODERATOR")
                         .pathMatchers(HttpMethod.GET, "/api/users/*").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/categories", "/api/categories/**").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/tags/hot", "/api/tags/**").permitAll()

@@ -42,7 +42,7 @@ spring:
         - id: social-service
           uri: lb://social-service
           predicates:
-            - Path=/api/likes/**,/api/follows/**
+            - Path=/api/likes/**,/api/follows/**,/api/blocks/**
         - id: user-service
           uri: lb://user-service
           predicates:
@@ -50,7 +50,7 @@ spring:
         - id: content-service
           uri: lb://content-service
           predicates:
-            - Path=/api/posts/**,/api/categories/**,/api/tags/**
+            - Path=/api/posts/**,/api/categories/**,/api/tags/**,/api/reports/**,/api/moderation/**,/api/bookmarks/**,/api/subscriptions/**
       globalcors:
         corsConfigurations:
           '[/**]':

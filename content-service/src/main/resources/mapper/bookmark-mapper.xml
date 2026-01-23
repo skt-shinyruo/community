@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nowcoder.community.content.dao.BookmarkMapper">
+
+    <insert id="insertBookmark">
+        insert ignore into post_bookmark(user_id, post_id, create_time)
+        values(#{userId}, #{postId}, #{createTime})
+    </insert>
+
+    <delete id="deleteBookmark">
+        delete from post_bookmark
+        where user_id = #{userId}
+          and post_id = #{postId}
+    </delete>
+
+    <select id="existsBookmark" resultType="int">
+        select count(*)
+        from post_bookmark
+        where user_id = #{userId}
+          and post_id = #{postId}
+    </select>
+
+    <select id="selectBookmarkedPosts" resultType="DiscussPost">
+        select
+            p.id as id,
+            p.user_id as user_id,
+            p.category_id as category_id,
+            p.title as title,
+            p.content as content,
+            p.type as type,
+            p.status as status,
+            p.create_time as create_time,
+            p.update_time as update_time,
+            p.edit_count as edit_count,
+            p.deleted_by as deleted_by,
+            p.deleted_reason as deleted_reason,
+            p.deleted_time as deleted_time,
+            p.comment_count as comment_count,
+            p.score as score
+        from post_bookmark b
+        join discuss_post p on b.post_id = p.id
+        where b.user_id = #{userId}
+          and p.status != 2
+        order by b.create_time desc, p.id desc
+        limit #{offset}, #{limit}
+    </select>
+
+</mapper>
+

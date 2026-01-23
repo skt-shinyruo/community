@@ -12,6 +12,11 @@ create table if not exists discuss_post (
   type int,
   status int,
   create_time timestamp,
+  update_time timestamp,
+  edit_count int default 0,
+  deleted_by int,
+  deleted_reason varchar(255),
+  deleted_time timestamp,
   comment_count int,
   score double
 );
@@ -24,7 +29,12 @@ create table if not exists comment (
   target_id int,
   content text,
   status int,
-  create_time timestamp
+  create_time timestamp,
+  update_time timestamp,
+  edit_count int default 0,
+  deleted_by int,
+  deleted_reason varchar(255),
+  deleted_time timestamp
 );
 
 create table if not exists category (

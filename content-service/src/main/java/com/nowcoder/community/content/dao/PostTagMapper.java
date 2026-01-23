@@ -13,5 +13,6 @@ public interface PostTagMapper {
     int insertPostTag(@Param("postId") int postId, @Param("tagId") int tagId, @Param("createTime") Date createTime);
 
     List<PostTagName> selectTagNamesByPostIds(@Param("postIds") List<Integer> postIds);
-}
 
+    int deleteTagsByPostId(@Param("postId") int postId);
+}

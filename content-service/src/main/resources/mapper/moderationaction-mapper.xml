@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nowcoder.community.content.dao.ModerationActionMapper">
+
+    <sql id="selectFields">
+        id, report_id, actor_id, action, reason, duration_seconds, create_time
+    </sql>
+
+    <sql id="insertFields">
+        report_id, actor_id, action, reason, duration_seconds, create_time
+    </sql>
+
+    <insert id="insertAction" parameterType="ModerationAction" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        insert into moderation_action(<include refid="insertFields"></include>)
+        values(#{reportId}, #{actorId}, #{action}, #{reason}, #{durationSeconds}, #{createTime})
+    </insert>
+
+    <select id="selectActionsByReportId" resultType="ModerationAction">
+        select <include refid="selectFields"></include>
+        from moderation_action
+        where report_id = #{reportId}
+        order by create_time asc, id asc
+    </select>
+
+    <select id="selectActions" resultType="ModerationAction">
+        select <include refid="selectFields"></include>
+        from moderation_action
+        where 1=1
+        <if test="actorId != null">
+            and actor_id = #{actorId}
+        </if>
+        order by create_time desc, id desc
+        limit #{offset}, #{limit}
+    </select>
+
+</mapper>
+

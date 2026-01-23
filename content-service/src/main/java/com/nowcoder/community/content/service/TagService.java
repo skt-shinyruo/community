@@ -115,6 +115,15 @@ public class TagService {
         return tags;
     }
 
+    public List<String> replaceTagsForPost(int postId, List<String> rawTags) {
+        if (postId <= 0) {
+            throw new BusinessException(INVALID_ARGUMENT, "postId 非法");
+        }
+        // 先删除再绑定：MVP 采用“全量替换”，后续可优化为 diff 更新。
+        postTagMapper.deleteTagsByPostId(postId);
+        return bindTagsToPost(postId, rawTags);
+    }
+
     public List<String> normalizeTags(List<String> rawTags) {
         if (rawTags == null || rawTags.isEmpty()) {
             return List.of();

@@ -5,7 +5,7 @@
 <mapper namespace="com.nowcoder.community.content.dao.DiscussPostMapper">
 
     <sql id="selectFields">
-        id, user_id, category_id, title, content, type, status, create_time, comment_count, score
+        id, user_id, category_id, title, content, type, status, create_time, update_time, edit_count, deleted_by, deleted_reason, deleted_time, comment_count, score
     </sql>
 
     <sql id="insertFields">
@@ -21,6 +21,12 @@
         </if>
         <if test="categoryId != null">
             and category_id = #{categoryId}
+        </if>
+        <if test="categoryIds != null and categoryIds.size() &gt; 0">
+            and category_id in
+            <foreach collection="categoryIds" item="cid" open="(" separator="," close=")">
+                #{cid}
+            </foreach>
         </if>
         <if test="tag != null and tag != ''">
             and exists (
@@ -83,6 +89,25 @@
 
     <update id="updateScore">
         update discuss_post set score = #{score} where id = #{id}
+    </update>
+
+    <update id="updatePostContent">
+        update discuss_post
+        set title = #{title},
+            content = #{content},
+            category_id = #{categoryId},
+            update_time = #{updateTime},
+            edit_count = edit_count + 1
+        where id = #{id}
+    </update>
+
+    <update id="updateModerationDeleteMeta">
+        update discuss_post
+        set status = #{status},
+            deleted_by = #{deletedBy},
+            deleted_reason = #{deletedReason},
+            deleted_time = #{deletedTime}
+        where id = #{id}
     </update>
 
 </mapper>

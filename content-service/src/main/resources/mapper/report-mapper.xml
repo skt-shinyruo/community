@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nowcoder.community.content.dao.ReportMapper">
+
+    <sql id="selectFields">
+        id, reporter_id, target_type, target_id, reason, detail, status, create_time
+    </sql>
+
+    <sql id="insertFields">
+        reporter_id, target_type, target_id, reason, detail, status, create_time
+    </sql>
+
+    <insert id="insertReport" parameterType="Report" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        insert into report(<include refid="insertFields"></include>)
+        values(#{reporterId}, #{targetType}, #{targetId}, #{reason}, #{detail}, #{status}, #{createTime})
+    </insert>
+
+    <select id="selectReportIdByDedupeKey" resultType="int">
+        select id
+        from report
+        where reporter_id = #{reporterId}
+          and target_type = #{targetType}
+          and target_id = #{targetId}
+        limit 1
+    </select>
+
+    <select id="selectReportById" resultType="Report">
+        select <include refid="selectFields"></include>
+        from report
+        where id = #{id}
+    </select>
+
+    <select id="selectReports" resultType="Report">
+        select <include refid="selectFields"></include>
+        from report
+        where 1=1
+        <if test="status != null">
+            and status = #{status}
+        </if>
+        <if test="targetType != null">
+            and target_type = #{targetType}
+        </if>
+        <if test="reporterId != null">
+            and reporter_id = #{reporterId}
+        </if>
+        order by create_time desc, id desc
+        limit #{offset}, #{limit}
+    </select>
+
+    <update id="updateStatus">
+        update report set status = #{status} where id = #{id}
+    </update>
+
+</mapper>
+

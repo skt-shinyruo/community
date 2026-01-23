@@ -5,6 +5,7 @@ import com.nowcoder.community.common.event.EventEnvelope;
 import com.nowcoder.community.common.event.EventTopics;
 import com.nowcoder.community.common.event.EventTypes;
 import com.nowcoder.community.common.event.payload.CommentPayload;
+import com.nowcoder.community.common.event.payload.ModerationPayload;
 import com.nowcoder.community.common.event.payload.PostPayload;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -51,6 +52,13 @@ public class KafkaContentEventPublisher implements ContentEventPublisher {
     @Override
     public void publishCommentCreated(CommentPayload payload) {
         publish(EventTopics.COMMENT_EVENTS_V1, EventTypes.COMMENT_CREATED, "comment:" + payload.getCommentId(), payload);
+    }
+
+    @Override
+    public void publishModerationActionApplied(ModerationPayload payload) {
+        int toUserId = payload == null || payload.getToUserId() == null ? 0 : payload.getToUserId();
+        String key = "moderation:" + (payload == null ? "0" : String.valueOf(payload.getReportId())) + ":to:" + toUserId;
+        publish(EventTopics.MODERATION_EVENTS_V1, EventTypes.MODERATION_ACTION_APPLIED, key, payload);
     }
 
     private void publish(String topic, String type, String key, Object payload) {

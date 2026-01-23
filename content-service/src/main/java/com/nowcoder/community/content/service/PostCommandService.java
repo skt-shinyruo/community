@@ -10,8 +10,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.Date;
 import java.util.List;
+
+import static com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN;
+import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.api.CommonErrorCode.NOT_FOUND;
 
 /**
  * 帖子写路径命令服务：
@@ -28,23 +33,30 @@ public class PostCommandService {
     private final ContentEventPublisher eventPublisher;
     private final CategoryService categoryService;
     private final TagService tagService;
+    private final UserModerationClient userModerationClient;
 
     public PostCommandService(
             PostService postService,
             PostScoreQueue postScoreQueue,
             ContentEventPublisher eventPublisher,
             CategoryService categoryService,
-            TagService tagService
+            TagService tagService,
+            UserModerationClient userModerationClient
     ) {
         this.postService = postService;
         this.postScoreQueue = postScoreQueue;
         this.eventPublisher = eventPublisher;
         this.categoryService = categoryService;
         this.tagService = tagService;
+        this.userModerationClient = userModerationClient;
     }
 
     @Transactional
     public int createPost(int userId, String title, String content, Integer categoryId, List<String> tags) {
+        if (userId <= 0) {
+            throw new com.nowcoder.community.common.exception.BusinessException(INVALID_ARGUMENT, "userId 非法");
+        }
+        assertCanSpeak(userId);
         categoryService.assertExists(categoryId);
 
         DiscussPost post = new DiscussPost();
@@ -87,5 +99,97 @@ public class PostCommandService {
         });
 
         return postId;
+    }
+
+    private void assertCanSpeak(int userId) {
+        UserModerationClient.ModerationStatus status = userModerationClient.getStatus(userId);
+        Instant now = Instant.now();
+        if (status != null && status.getBanUntil() != null && status.getBanUntil().isAfter(now)) {
+            throw new com.nowcoder.community.common.exception.BusinessException(FORBIDDEN, "账号已被封禁，无法发帖");
+        }
+        if (status != null && status.getMuteUntil() != null && status.getMuteUntil().isAfter(now)) {
+            throw new com.nowcoder.community.common.exception.BusinessException(FORBIDDEN, "你已被禁言，暂时无法发帖");
+        }
+    }
+
+    @Transactional
+    public void updatePost(int actorUserId, int postId, String title, String content, Integer categoryId, List<String> tags) {
+        if (actorUserId <= 0 || postId <= 0) {
+            throw new com.nowcoder.community.common.exception.BusinessException(INVALID_ARGUMENT, "actorUserId/postId 非法");
+        }
+        assertCanSpeak(actorUserId);
+        categoryService.assertExists(categoryId);
+
+        DiscussPost existed = postService.getByIdAllowDeleted(postId);
+        if (existed.getStatus() == 2) {
+            throw new com.nowcoder.community.common.exception.BusinessException(NOT_FOUND, "帖子不存在");
+        }
+        if (existed.getUserId() != actorUserId) {
+            throw new com.nowcoder.community.common.exception.BusinessException(FORBIDDEN, "只能编辑自己的帖子");
+        }
+
+        Date now = new Date();
+        if (existed.getCreateTime() == null) {
+            throw new com.nowcoder.community.common.exception.BusinessException(INVALID_ARGUMENT, "帖子时间非法");
+        }
+        long windowMillis = 24L * 3600 * 1000;
+        if (now.getTime() - existed.getCreateTime().getTime() > windowMillis) {
+            throw new com.nowcoder.community.common.exception.BusinessException(FORBIDDEN, "已超过可编辑时间（24h）");
+        }
+
+        postService.updatePostContent(postId, title, content, categoryId, now);
+        List<String> normalizedTags = tagService.replaceTagsForPost(postId, tags);
+
+        PostPayload payload = new PostPayload();
+        payload.setPostId(postId);
+        payload.setUserId(existed.getUserId());
+        payload.setCategoryId(categoryId);
+        payload.setTags(normalizedTags);
+        payload.setTitle(title);
+        payload.setContent(content);
+        payload.setType(existed.getType());
+        payload.setStatus(existed.getStatus());
+        payload.setCreateTime(existed.getCreateTime() == null ? null : existed.getCreateTime().toInstant());
+        payload.setScore(existed.getScore());
+
+        eventPublisher.publishPostUpdated(payload);
+        AfterCommitExecutor.runAfterCommit(() -> {
+            try {
+                postScoreQueue.add(postId);
+            } catch (Exception e) {
+                log.warn("[post-score] enqueue failed after commit (postId={}): {}", postId, e.toString());
+            }
+        });
+    }
+
+    @Transactional
+    public void deletePostByAuthor(int actorUserId, int postId) {
+        if (actorUserId <= 0 || postId <= 0) {
+            throw new com.nowcoder.community.common.exception.BusinessException(INVALID_ARGUMENT, "actorUserId/postId 非法");
+        }
+        DiscussPost existed = postService.getByIdAllowDeleted(postId);
+        if (existed.getStatus() == 2) {
+            throw new com.nowcoder.community.common.exception.BusinessException(NOT_FOUND, "帖子不存在");
+        }
+        if (existed.getUserId() != actorUserId) {
+            throw new com.nowcoder.community.common.exception.BusinessException(FORBIDDEN, "只能删除自己的帖子");
+        }
+        postService.updateModerationDeleteMeta(postId, 2, actorUserId, "author_delete", new Date());
+
+        List<String> tags = tagService.getTagsByPostIds(List.of(postId)).getOrDefault(postId, List.of());
+
+        PostPayload payload = new PostPayload();
+        payload.setPostId(postId);
+        payload.setUserId(existed.getUserId());
+        payload.setCategoryId(existed.getCategoryId());
+        payload.setTags(tags);
+        payload.setTitle(existed.getTitle());
+        payload.setContent(existed.getContent());
+        payload.setType(existed.getType());
+        payload.setStatus(2);
+        payload.setCreateTime(Instant.now());
+        payload.setScore(existed.getScore());
+
+        eventPublisher.publishPostDeleted(payload);
     }
 }

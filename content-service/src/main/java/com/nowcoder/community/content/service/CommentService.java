@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.common.api.CommonErrorCode.NOT_FOUND;
 
@@ -37,19 +38,25 @@ public class CommentService {
     private final SensitiveFilter sensitiveFilter;
     private final PostScoreQueue postScoreQueue;
     private final ContentEventPublisher eventPublisher;
+    private final SocialBlockClient socialBlockClient;
+    private final UserModerationClient userModerationClient;
 
     public CommentService(
             CommentMapper commentMapper,
             PostService postService,
             SensitiveFilter sensitiveFilter,
             PostScoreQueue postScoreQueue,
-            ContentEventPublisher eventPublisher
+            ContentEventPublisher eventPublisher,
+            SocialBlockClient socialBlockClient,
+            UserModerationClient userModerationClient
     ) {
         this.commentMapper = commentMapper;
         this.postService = postService;
         this.sensitiveFilter = sensitiveFilter;
         this.postScoreQueue = postScoreQueue;
         this.eventPublisher = eventPublisher;
+        this.socialBlockClient = socialBlockClient;
+        this.userModerationClient = userModerationClient;
     }
 
     public List<Comment> listByPost(int postId, int page, int size) {
@@ -95,6 +102,8 @@ public class CommentService {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId/postId 非法");
         }
 
+        assertCanSpeak(actorUserId);
+
         int type = entityType == null ? ENTITY_TYPE_POST : entityType;
         int eid;
         Integer targetUserId;
@@ -120,6 +129,11 @@ public class CommentService {
             }
         } else {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
+        }
+
+        // 反骚扰：双方任意一方拉黑另一方，都禁止互动（评论/回复）。
+        if (targetUserId != null && targetUserId > 0) {
+            socialBlockClient.assertNotBlocked(actorUserId, targetUserId);
         }
 
         String safe = HtmlUtils.htmlEscape(content == null ? "" : content.trim());
@@ -162,5 +176,69 @@ public class CommentService {
         eventPublisher.publishCommentCreated(payload);
 
         return comment.getId();
+    }
+
+    @Transactional
+    public void updateComment(int actorUserId, int postId, int commentId, String content) {
+        if (actorUserId <= 0 || postId <= 0 || commentId <= 0) {
+            throw new BusinessException(INVALID_ARGUMENT, "actorUserId/postId/commentId 非法");
+        }
+
+        assertCanSpeak(actorUserId);
+
+        // postId 先做存在性校验（避免跨帖编辑）
+        postService.getById(postId);
+
+        Comment existed = commentMapper.selectCommentById(commentId);
+        if (existed == null || existed.getId() <= 0) {
+            throw new BusinessException(NOT_FOUND, "评论不存在");
+        }
+        if (existed.getStatus() != 0) {
+            throw new BusinessException(NOT_FOUND, "评论不存在");
+        }
+        if (existed.getUserId() != actorUserId) {
+            throw new BusinessException(FORBIDDEN, "只能编辑自己的评论");
+        }
+
+        // 15 分钟窗口
+        Date now = new Date();
+        if (existed.getCreateTime() == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "评论时间非法");
+        }
+        long windowMillis = 15L * 60 * 1000;
+        if (now.getTime() - existed.getCreateTime().getTime() > windowMillis) {
+            throw new BusinessException(FORBIDDEN, "已超过可编辑时间（15min）");
+        }
+
+        // 跨帖校验：直接评论 / 回复评论
+        if (existed.getEntityType() == ENTITY_TYPE_POST) {
+            if (existed.getEntityId() != postId) {
+                throw new BusinessException(INVALID_ARGUMENT, "commentId 不属于该帖子");
+            }
+        } else if (existed.getEntityType() == ENTITY_TYPE_COMMENT) {
+            Comment parent = commentMapper.selectCommentById(existed.getEntityId());
+            if (parent == null || parent.getId() <= 0 || parent.getEntityType() != ENTITY_TYPE_POST || parent.getEntityId() != postId) {
+                throw new BusinessException(INVALID_ARGUMENT, "commentId 不属于该帖子");
+            }
+        }
+
+        String safe = HtmlUtils.htmlEscape(content == null ? "" : content.trim());
+        safe = sensitiveFilter.filter(safe);
+
+        int updated = commentMapper.updateCommentContent(commentId, safe, now);
+        if (updated <= 0) {
+            throw new BusinessException(INVALID_ARGUMENT, "更新评论失败");
+        }
+    }
+
+    private void assertCanSpeak(int userId) {
+        UserModerationClient.ModerationStatus status = userModerationClient.getStatus(userId);
+        Instant now = Instant.now();
+        if (status != null && status.getBanUntil() != null && status.getBanUntil().isAfter(now)) {
+            throw new BusinessException(FORBIDDEN, "账号已被封禁，无法发言");
+        }
+        if (status != null && status.getMuteUntil() != null && status.getMuteUntil().isAfter(now)) {
+            throw new BusinessException(FORBIDDEN, "你已被禁言，暂时无法发言");
+        }
     }
 }

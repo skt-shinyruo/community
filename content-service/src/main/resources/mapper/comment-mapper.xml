@@ -5,7 +5,7 @@
 <mapper namespace="com.nowcoder.community.content.dao.CommentMapper">
 
     <sql id="selectFields">
-        id, user_id, entity_type, entity_id, target_id, content, status, create_time
+        id, user_id, entity_type, entity_id, target_id, content, status, create_time, update_time, edit_count, deleted_by, deleted_reason, deleted_time
     </sql>
 
     <sql id="insertFields">
@@ -57,7 +57,12 @@
             0 as target_id,
             '' as content,
             0 as status,
-            u.create_time as create_time
+            u.create_time as create_time,
+            null as update_time,
+            0 as edit_count,
+            0 as deleted_by,
+            '' as deleted_reason,
+            null as deleted_time
         from (
             select c.entity_id as post_id, c.user_id as user_id, c.create_time as create_time, c.id as cid
             from comment c
@@ -110,5 +115,22 @@
         ) m on u.post_id = m.post_id and u.create_time = m.max_time
         order by u.post_id asc, u.cid desc
     </select>
+
+    <update id="updateCommentContent">
+        update comment
+        set content = #{content},
+            update_time = #{updateTime},
+            edit_count = edit_count + 1
+        where id = #{id}
+    </update>
+
+    <update id="updateModerationDeleteMeta">
+        update comment
+        set status = #{status},
+            deleted_by = #{deletedBy},
+            deleted_reason = #{deletedReason},
+            deleted_time = #{deletedTime}
+        where id = #{id}
+    </update>
 
 </mapper>

@@ -12,6 +12,8 @@ public class PostDetailResponse {
     private int type;
     private int status;
     private Date createTime;
+    private Date updateTime;
+    private int editCount;
     private int commentCount;
     private double score;
 
@@ -20,6 +22,7 @@ public class PostDetailResponse {
 
     private long likeCount;
     private boolean liked;
+    private boolean bookmarked;
 
     public int getId() {
         return id;
@@ -77,6 +80,22 @@ public class PostDetailResponse {
         this.createTime = createTime;
     }
 
+    public Date getUpdateTime() {
+        return updateTime;
+    }
+
+    public void setUpdateTime(Date updateTime) {
+        this.updateTime = updateTime;
+    }
+
+    public int getEditCount() {
+        return editCount;
+    }
+
+    public void setEditCount(int editCount) {
+        this.editCount = editCount;
+    }
+
     public int getCommentCount() {
         return commentCount;
     }
@@ -123,5 +142,13 @@ public class PostDetailResponse {
 
     public void setLiked(boolean liked) {
         this.liked = liked;
+    }
+
+    public boolean isBookmarked() {
+        return bookmarked;
+    }
+
+    public void setBookmarked(boolean bookmarked) {
+        this.bookmarked = bookmarked;
     }
 }

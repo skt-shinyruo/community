@@ -12,6 +12,7 @@ public interface DiscussPostMapper {
     List<DiscussPost> selectDiscussPosts(
             @Param("userId") int userId,
             @Param("categoryId") Integer categoryId,
+            @Param("categoryIds") java.util.List<Integer> categoryIds,
             @Param("tag") String tag,
             @Param("offset") int offset,
             @Param("limit") int limit,
@@ -36,4 +37,20 @@ public interface DiscussPostMapper {
     int updateStatus(@Param("id") int id, @Param("status") int status);
 
     int updateScore(int id, double score);
+
+    int updatePostContent(
+            @Param("id") int id,
+            @Param("title") String title,
+            @Param("content") String content,
+            @Param("categoryId") Integer categoryId,
+            @Param("updateTime") java.util.Date updateTime
+    );
+
+    int updateModerationDeleteMeta(
+            @Param("id") int id,
+            @Param("status") int status,
+            @Param("deletedBy") int deletedBy,
+            @Param("deletedReason") String deletedReason,
+            @Param("deletedTime") java.util.Date deletedTime
+    );
 }

@@ -8,24 +8,30 @@ import com.nowcoder.community.content.api.dto.CreatePostRequest;
 import com.nowcoder.community.content.api.dto.CreatePostResponse;
 import com.nowcoder.community.content.api.dto.PostDetailResponse;
 import com.nowcoder.community.content.api.dto.PostSummaryResponse;
+import com.nowcoder.community.content.api.dto.UpdateCommentRequest;
+import com.nowcoder.community.content.api.dto.UpdatePostRequest;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.event.ContentEventPublisher;
 import com.nowcoder.community.content.like.LikeQueryService;
 import com.nowcoder.community.content.score.PostScoreQueue;
+import com.nowcoder.community.content.service.BookmarkService;
 import com.nowcoder.community.content.service.TagService;
 import com.nowcoder.community.content.service.CommentService;
 import com.nowcoder.community.content.service.PostCommandService;
 import com.nowcoder.community.content.service.PostService;
+import com.nowcoder.community.content.service.SubscriptionService;
 import com.nowcoder.community.content.util.SensitiveFilter;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -55,6 +61,8 @@ public class PostController {
     private final ContentEventPublisher eventPublisher;
     private final PostCommandService postCommandService;
     private final TagService tagService;
+    private final BookmarkService bookmarkService;
+    private final SubscriptionService subscriptionService;
 
     public PostController(
             PostService postService,
@@ -64,7 +72,9 @@ public class PostController {
             PostScoreQueue postScoreQueue,
             ContentEventPublisher eventPublisher,
             PostCommandService postCommandService,
-            TagService tagService
+            TagService tagService,
+            BookmarkService bookmarkService,
+            SubscriptionService subscriptionService
     ) {
         this.postService = postService;
         this.commentService = commentService;
@@ -74,13 +84,17 @@ public class PostController {
         this.eventPublisher = eventPublisher;
         this.postCommandService = postCommandService;
         this.tagService = tagService;
+        this.bookmarkService = bookmarkService;
+        this.subscriptionService = subscriptionService;
     }
 
     @GetMapping
     public Result<List<PostSummaryResponse>> list(
+            Authentication authentication,
             @RequestParam(required = false) String order,
             @RequestParam(required = false) Integer categoryId,
             @RequestParam(required = false) String tag,
+            @RequestParam(required = false) Boolean subscribed,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
@@ -88,7 +102,15 @@ public class PostController {
         int s = size == null ? 10 : size;
         int orderMode = "hot".equalsIgnoreCase(order) ? PostService.ORDER_HOT : PostService.ORDER_LATEST;
 
-        List<DiscussPost> posts = postService.listPosts(p, s, orderMode, categoryId, tag);
+        List<DiscussPost> posts;
+        if (Boolean.TRUE.equals(subscribed)) {
+            int userId = currentUserId(authentication);
+            List<Integer> subscribedCategoryIds = subscriptionService.listSubscribedCategoryIds(userId);
+            posts = postService.listSubscribedPosts(userId, subscribedCategoryIds, p, s, orderMode, categoryId, tag);
+        } else {
+            posts = postService.listPosts(p, s, orderMode, categoryId, tag);
+        }
+
         List<Integer> postIds = posts.stream().map(DiscussPost::getId).toList();
         Map<Integer, Comment> lastActivities = commentService.getLatestPostActivitiesByPostIds(postIds);
         Map<Integer, List<String>> tagsByPostId = tagService.getTagsByPostIds(postIds);
@@ -135,12 +157,19 @@ public class PostController {
         resp.setType(post.getType());
         resp.setStatus(post.getStatus());
         resp.setCreateTime(post.getCreateTime());
+        resp.setUpdateTime(post.getUpdateTime());
+        resp.setEditCount(post.getEditCount());
         resp.setCommentCount(post.getCommentCount());
         resp.setScore(post.getScore());
         resp.setCategoryId(post.getCategoryId());
         resp.setTags(tagService.getTagsByPostIds(List.of(postId)).getOrDefault(postId, List.of()));
         resp.setLikeCount(likeQueryService.countPostLikes(postId));
         resp.setLiked(likeQueryService.hasLikedPost(currentUserId, postId));
+        if (currentUserId > 0) {
+            resp.setBookmarked(bookmarkService.hasBookmarked(currentUserId, postId));
+        } else {
+            resp.setBookmarked(false);
+        }
         return Result.ok(resp);
     }
 
@@ -160,6 +189,39 @@ public class PostController {
         int userId = currentUserId(authentication);
         int id = commentService.addComment(userId, postId, request.getEntityType(), request.getEntityId(), request.getTargetId(), request.getContent());
         return Result.ok(id);
+    }
+
+    @PutMapping("/{postId}")
+    public Result<Void> updatePost(Authentication authentication, @PathVariable int postId, @Valid @RequestBody UpdatePostRequest request) {
+        int userId = currentUserId(authentication);
+
+        String title = HtmlUtils.htmlEscape(request.getTitle().trim());
+        String content = HtmlUtils.htmlEscape(request.getContent().trim());
+        title = sensitiveFilter.filter(title);
+        content = sensitiveFilter.filter(content);
+
+        postCommandService.updatePost(userId, postId, title, content, request.getCategoryId(), request.getTags());
+        return Result.ok();
+    }
+
+    @DeleteMapping("/{postId}")
+    public Result<Void> deleteByAuthor(Authentication authentication, @PathVariable int postId) {
+        int userId = currentUserId(authentication);
+        postCommandService.deletePostByAuthor(userId, postId);
+        log.info("[audit] action=post_delete_author actorUserId={} postId={}", userId, postId);
+        return Result.ok();
+    }
+
+    @PutMapping("/{postId}/comments/{commentId}")
+    public Result<Void> updateComment(
+            Authentication authentication,
+            @PathVariable int postId,
+            @PathVariable int commentId,
+            @Valid @RequestBody UpdateCommentRequest request
+    ) {
+        int userId = currentUserId(authentication);
+        commentService.updateComment(userId, postId, commentId, request.getContent());
+        return Result.ok();
     }
 
     @GetMapping("/{postId}/comments/{commentId}/replies")

@@ -8,10 +8,13 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.nowcoder.community.content.api.dto.CreateCommentRequest;
 import com.nowcoder.community.content.api.dto.CreatePostRequest;
+import com.nowcoder.community.content.service.UserModerationClient;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -23,6 +26,8 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -50,6 +55,21 @@ class PostControllerTest {
 
     @Autowired
     ObjectMapper objectMapper;
+
+    @MockBean
+    UserModerationClient userModerationClient;
+
+    @BeforeEach
+    void stubUserModerationClient() {
+        when(userModerationClient.getStatus(anyInt())).thenAnswer(invocation -> {
+            Integer userId = invocation.getArgument(0, Integer.class);
+            UserModerationClient.ModerationStatus status = new UserModerationClient.ModerationStatus();
+            status.setUserId(userId == null ? 0 : userId);
+            status.setMuteUntil(null);
+            status.setBanUntil(null);
+            return status;
+        });
+    }
 
     @Test
     void listShouldBePublic() throws Exception {

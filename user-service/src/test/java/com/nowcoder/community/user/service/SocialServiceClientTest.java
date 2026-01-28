@@ -2,6 +2,7 @@ package com.nowcoder.community.user.service;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
+import com.nowcoder.community.user.config.SocialServiceClientProperties;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -20,7 +21,11 @@ class SocialServiceClientTest {
     void safeMethodsShouldDegradeAndEmitMetricsWhenDownstreamFails() {
         RestTemplate restTemplate = mock(RestTemplate.class);
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
-        SocialServiceClient client = new SocialServiceClient(restTemplate, registry);
+        SocialServiceClientProperties properties = new SocialServiceClientProperties();
+        properties.setBaseUrl("http://social-service");
+        properties.setInternalToken("t");
+        properties.setFailOpen(true);
+        SocialServiceClient client = new SocialServiceClient(restTemplate, registry, properties);
 
         when(restTemplate.exchange(
                 anyString(),
@@ -32,7 +37,7 @@ class SocialServiceClientTest {
         assertThat(client.safeUserLikeCount(1)).isEqualTo(0);
         assertThat(client.safeFolloweeCount(1)).isEqualTo(0);
         assertThat(client.safeFollowerCount(1)).isEqualTo(0);
-        assertThat(client.safeHasFollowed("Bearer t", 2)).isFalse();
+        assertThat(client.safeHasFollowed(1, 2)).isFalse();
 
         assertThat(registry.find("user_social_client_requests_total")
                 .tags("api", "userLikeCount", "outcome", "degraded")

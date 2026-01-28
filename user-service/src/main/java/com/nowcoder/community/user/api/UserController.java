@@ -59,17 +59,15 @@ public class UserController {
         resp.setFolloweeCount(socialServiceClient.safeFolloweeCount(userId));
         resp.setFollowerCount(socialServiceClient.safeFollowerCount(userId));
 
-        String tokenValue = null;
         int currentUserId = 0;
         if (authentication != null && authentication.getPrincipal() instanceof Jwt jwt) {
-            tokenValue = jwt.getTokenValue();
             try {
                 currentUserId = Integer.parseInt(jwt.getSubject());
             } catch (Exception ignored) {
             }
         }
-        if (currentUserId > 0 && currentUserId != userId && tokenValue != null) {
-            resp.setHasFollowed(socialServiceClient.safeHasFollowed("Bearer " + tokenValue, userId));
+        if (currentUserId > 0 && currentUserId != userId) {
+            resp.setHasFollowed(socialServiceClient.safeHasFollowed(currentUserId, userId));
         } else {
             resp.setHasFollowed(false);
         }

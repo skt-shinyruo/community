@@ -1,5 +1,6 @@
 package com.nowcoder.community.search.repo;
 
+// ES 帖子索引文档：通过固定 alias 访问，真实索引使用版本号区分。
 import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
@@ -7,8 +8,12 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
 
 import java.util.List;
 
-@Document(indexName = "community_posts")
+@Document(indexName = EsPostDocument.INDEX_ALIAS)
 public class EsPostDocument {
+
+    public static final String INDEX_ALIAS = "community_posts_alias";
+    public static final String LEGACY_INDEX = "community_posts";
+    public static final String INDEX_PREFIX = "community_posts_v";
 
     @Id
     private Integer postId;

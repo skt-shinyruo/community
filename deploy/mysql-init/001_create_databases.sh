@@ -19,6 +19,10 @@ SEARCH_DB_NAME="${SEARCH_DB_NAME:-community_search}"
 SEARCH_DB_USER="${SEARCH_DB_USER:-community_search}"
 SEARCH_DB_PASSWORD="${SEARCH_DB_PASSWORD:-community_searchpass}"
 
+SOCIAL_DB_NAME="${SOCIAL_DB_NAME:-community_social}"
+SOCIAL_DB_USER="${SOCIAL_DB_USER:-community_social}"
+SOCIAL_DB_PASSWORD="${SOCIAL_DB_PASSWORD:-community_socialpass}"
+
 if [[ -z "${MYSQL_ROOT_PASSWORD}" ]]; then
   echo "[mysql-init] missing env: MYSQL_ROOT_PASSWORD" >&2
   exit 1
@@ -43,6 +47,10 @@ create database if not exists \`${SEARCH_DB_NAME}\`
   default character set utf8mb4
   default collate utf8mb4_unicode_ci;
 
+create database if not exists \`${SOCIAL_DB_NAME}\`
+  default character set utf8mb4
+  default collate utf8mb4_unicode_ci;
+
 create user if not exists '${CONTENT_DB_USER}'@'%' identified by '${CONTENT_DB_PASSWORD}';
 grant select, insert, update, delete on \`${CONTENT_DB_NAME}\`.* to '${CONTENT_DB_USER}'@'%';
 
@@ -51,6 +59,9 @@ grant select, insert, update, delete on \`${MESSAGE_DB_NAME}\`.* to '${MESSAGE_D
 
 create user if not exists '${SEARCH_DB_USER}'@'%' identified by '${SEARCH_DB_PASSWORD}';
 grant select, insert, update, delete on \`${SEARCH_DB_NAME}\`.* to '${SEARCH_DB_USER}'@'%';
+
+create user if not exists '${SOCIAL_DB_USER}'@'%' identified by '${SOCIAL_DB_PASSWORD}';
+grant select, insert, update, delete on \`${SOCIAL_DB_NAME}\`.* to '${SOCIAL_DB_USER}'@'%';
 
 flush privileges;
 SQL

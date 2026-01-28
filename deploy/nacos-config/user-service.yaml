@@ -9,7 +9,17 @@ security:
     hmac-secret: ${JWT_HMAC_SECRET:dev-secret-please-change-at-least-32bytes}
 
 user:
-  internal-token: ${USER_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+  # internal 接口令牌：建议按服务隔离，避免全局 token 泄露扩大爆炸半径。
+  internal-token: ${USER_INTERNAL_TOKEN:}
+  # 轮转窗口：灰度期间允许 previous 继续访问（配合 common/InternalTokenFilter）。
+  internal-token-previous: ${USER_INTERNAL_TOKEN_PREVIOUS:}
+
+  # user-service -> social-service 聚合调用配置（internal read API + internal-token）。
+  social-client:
+    base-url: ${SOCIAL_SERVICE_BASE_URL:http://social-service}
+    internal-token: ${SOCIAL_INTERNAL_TOKEN:}
+    # 用户主页展示类读路径允许降级（避免 social-service 抖动影响主页面）。
+    fail-open: true
 
 qiniu:
   key:

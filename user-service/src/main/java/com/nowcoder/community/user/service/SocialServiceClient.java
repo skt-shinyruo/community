@@ -1,6 +1,8 @@
 package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.common.web.internalclient.InternalClientSupport;
+import com.nowcoder.community.user.config.SocialServiceClientProperties;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.slf4j.Logger;
@@ -14,23 +16,31 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+/**
+ * user-service -> social-service 聚合展示客户端：
+ * - 仅用于用户主页等读路径的“计数/状态”聚合；
+ * - 通过 internal-token 调用 social-service internal read API，避免跨服务透传 Authorization。
+ */
 @Service
 public class SocialServiceClient {
 
     private static final Logger log = LoggerFactory.getLogger(SocialServiceClient.class);
-
-    private static final String BASE_URL = "http://social-service";
+    private static final String SERVICE_NAME = "social-service";
+    private static final int USER_ENTITY_TYPE = 3;
 
     private final RestTemplate restTemplate;
     private final MeterRegistry meterRegistry;
+    private final SocialServiceClientProperties properties;
 
-    public SocialServiceClient(RestTemplate restTemplate, MeterRegistry meterRegistry) {
+    public SocialServiceClient(RestTemplate restTemplate, MeterRegistry meterRegistry, SocialServiceClientProperties properties) {
         this.restTemplate = restTemplate;
         this.meterRegistry = meterRegistry;
+        this.properties = properties;
     }
 
     public long safeUserLikeCount(int userId) {
@@ -45,8 +55,8 @@ public class SocialServiceClient {
         return call("followerCount", () -> followerCountInternal(userId), () -> 0L);
     }
 
-    public boolean safeHasFollowed(String authorizationHeader, int targetUserId) {
-        Boolean v = call("hasFollowed", () -> hasFollowedInternal(authorizationHeader, targetUserId), () -> Boolean.FALSE);
+    public boolean safeHasFollowed(int actorUserId, int targetUserId) {
+        Boolean v = call("hasFollowed", () -> hasFollowedInternal(actorUserId, targetUserId), () -> Boolean.FALSE);
         return Boolean.TRUE.equals(v);
     }
 
@@ -54,68 +64,95 @@ public class SocialServiceClient {
         return call("userLikeCount", () -> userLikeCountInternal(userId), null);
     }
 
-    private long userLikeCountInternal(int userId) {
-        String url = BASE_URL + "/api/likes/users/" + userId + "/count";
-        Result<Long> result = get(url, new ParameterizedTypeReference<Result<Long>>() {
-        });
-        Long data = result == null ? null : result.getData();
-        return data == null ? 0 : data;
-    }
-
     public long followeeCount(int userId) {
         return call("followeeCount", () -> followeeCountInternal(userId), null);
-    }
-
-    private long followeeCountInternal(int userId) {
-        String url = BASE_URL + "/api/follows/" + userId + "/followees/count?entityType=3";
-        Result<Long> result = get(url, new ParameterizedTypeReference<Result<Long>>() {
-        });
-        Long data = result == null ? null : result.getData();
-        return data == null ? 0 : data;
     }
 
     public long followerCount(int userId) {
         return call("followerCount", () -> followerCountInternal(userId), null);
     }
 
-    private long followerCountInternal(int userId) {
-        String url = BASE_URL + "/api/follows/" + userId + "/followers/count?entityType=3";
-        Result<Long> result = get(url, new ParameterizedTypeReference<Result<Long>>() {
+    public Boolean hasFollowed(int actorUserId, int targetUserId) {
+        return call("hasFollowed", () -> hasFollowedInternal(actorUserId, targetUserId), null);
+    }
+
+    private long userLikeCountInternal(int userId) {
+        if (userId <= 0) {
+            return 0;
+        }
+        String baseUrl = properties.getBaseUrl();
+        String url = baseUrl + "/internal/social/read/likes/users/" + userId + "/count";
+        Result<Long> result = exchange(url, HttpMethod.GET, new HttpEntity<>(headers()), new ParameterizedTypeReference<Result<Long>>() {
         });
-        Long data = result == null ? null : result.getData();
+        Long data = InternalClientSupport.unwrap(result, SERVICE_NAME);
         return data == null ? 0 : data;
     }
 
-    public Boolean hasFollowed(String authorizationHeader, int targetUserId) {
-        return call("hasFollowed", () -> hasFollowedInternal(authorizationHeader, targetUserId), null);
+    private long followeeCountInternal(int userId) {
+        if (userId <= 0) {
+            return 0;
+        }
+        String url = UriComponentsBuilder
+                .fromHttpUrl(properties.getBaseUrl() + "/internal/social/read/follows/" + userId + "/followees/count")
+                .queryParam("entityType", USER_ENTITY_TYPE)
+                .toUriString();
+        Result<Long> result = exchange(url, HttpMethod.GET, new HttpEntity<>(headers()), new ParameterizedTypeReference<Result<Long>>() {
+        });
+        Long data = InternalClientSupport.unwrap(result, SERVICE_NAME);
+        return data == null ? 0 : data;
     }
 
-    private Boolean hasFollowedInternal(String authorizationHeader, int targetUserId) {
-        if (!StringUtils.hasText(authorizationHeader)) {
+    private long followerCountInternal(int userId) {
+        if (userId <= 0) {
+            return 0;
+        }
+        String url = UriComponentsBuilder
+                .fromHttpUrl(properties.getBaseUrl() + "/internal/social/read/follows/" + userId + "/followers/count")
+                .queryParam("entityType", USER_ENTITY_TYPE)
+                .toUriString();
+        Result<Long> result = exchange(url, HttpMethod.GET, new HttpEntity<>(headers()), new ParameterizedTypeReference<Result<Long>>() {
+        });
+        Long data = InternalClientSupport.unwrap(result, SERVICE_NAME);
+        return data == null ? 0 : data;
+    }
+
+    private Boolean hasFollowedInternal(int actorUserId, int targetUserId) {
+        if (actorUserId <= 0 || targetUserId <= 0 || actorUserId == targetUserId) {
             return false;
         }
-        String url = BASE_URL + "/api/follows/status?entityType=3&entityId=" + targetUserId;
-        HttpHeaders headers = new HttpHeaders();
-        headers.set(HttpHeaders.AUTHORIZATION, authorizationHeader);
-        HttpEntity<Void> entity = new HttpEntity<>(headers);
-        Result<Boolean> result = exchange(url, HttpMethod.GET, entity, new ParameterizedTypeReference<Result<Boolean>>() {
+        String url = UriComponentsBuilder
+                .fromHttpUrl(properties.getBaseUrl() + "/internal/social/read/follows/status")
+                .queryParam("userId", actorUserId)
+                .queryParam("entityType", USER_ENTITY_TYPE)
+                .queryParam("entityId", targetUserId)
+                .toUriString();
+
+        Result<Boolean> result = exchange(url, HttpMethod.GET, new HttpEntity<>(headers()), new ParameterizedTypeReference<Result<Boolean>>() {
         });
-        return result == null ? null : result.getData();
+        return InternalClientSupport.unwrap(result, SERVICE_NAME);
+    }
+
+    private HttpHeaders headers() {
+        String baseUrl = properties.getBaseUrl();
+        if (!StringUtils.hasText(baseUrl)) {
+            throw new IllegalArgumentException("user.social-client.base-url 未配置");
+        }
+        return InternalClientSupport.jsonHeaders(properties.getInternalToken(), SERVICE_NAME);
     }
 
     private <T> T call(String api, Supplier<T> supplier, Supplier<T> fallback) {
         long start = System.nanoTime();
         try {
             T v = supplier.get();
-            record(api, "success", start);
+            record(api, InternalClientSupport.OUTCOME_SUCCESS, start);
             return v;
         } catch (Exception e) {
-            if (fallback != null) {
-                record(api, "degraded", start);
+            if (fallback != null && properties.isFailOpen()) {
+                record(api, InternalClientSupport.OUTCOME_DEGRADED, start);
                 log.warn("[social-client] degraded (api={}): {}", api, e.toString());
                 return fallback.get();
             }
-            record(api, "error", start);
+            record(api, InternalClientSupport.OUTCOME_ERROR, start);
             if (e instanceof RuntimeException re) {
                 throw re;
             }
@@ -124,13 +161,12 @@ public class SocialServiceClient {
     }
 
     private void record(String api, String outcome, long startNanos) {
+        if (meterRegistry == null) {
+            return;
+        }
         Tags tags = Tags.of("api", api, "outcome", outcome);
         meterRegistry.counter("user_social_client_requests_total", tags).increment();
         meterRegistry.timer("user_social_client_latency", tags).record(System.nanoTime() - startNanos, TimeUnit.NANOSECONDS);
-    }
-
-    private <T> Result<T> get(String url, ParameterizedTypeReference<Result<T>> typeRef) {
-        return exchange(url, HttpMethod.GET, HttpEntity.EMPTY, typeRef);
     }
 
     private <T> Result<T> exchange(String url, HttpMethod method, HttpEntity<?> entity, ParameterizedTypeReference<Result<T>> typeRef) {
@@ -142,3 +178,4 @@ public class SocialServiceClient {
         }
     }
 }
+

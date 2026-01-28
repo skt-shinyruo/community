@@ -37,6 +37,20 @@ create table if not exists comment (
   deleted_time timestamp
 );
 
+create table if not exists outbox_event (
+  id bigint auto_increment primary key,
+  event_id varchar(64) unique,
+  topic varchar(128),
+  event_key varchar(128),
+  payload text,
+  status varchar(16),
+  retry_count int default 0,
+  next_retry_at timestamp,
+  last_error varchar(255),
+  created_at timestamp null default current_timestamp,
+  updated_at timestamp null default current_timestamp
+);
+
 create table if not exists category (
   id int primary key auto_increment,
   name varchar(64),

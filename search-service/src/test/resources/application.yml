@@ -1,6 +1,9 @@
 search:
   storage: memory
   internal-token: test-search-internal-token
+  idempotency:
+    cleanup-enabled: false
+    retention-days: 1
 
 security:
   jwt:

@@ -79,6 +79,12 @@
         update discuss_post set comment_count = #{commentCount} where id = #{id}
     </update>
 
+    <update id="incrementCommentCount">
+        update discuss_post
+        set comment_count = coalesce(comment_count, 0) + #{delta}
+        where id = #{id}
+    </update>
+
     <update id="updateType">
         update discuss_post set type = #{type} where id = #{id}
     </update>

@@ -24,6 +24,8 @@ import org.springframework.core.env.Environment;
 import org.springframework.util.StringUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
@@ -53,14 +55,14 @@ public class InternalTokenFilter implements Filter {
         }
 
         String segment = extractFirstPathSegment(path);
-        String expected = resolveExpectedToken(segment);
-        if (!StringUtils.hasText(expected)) {
+        List<String> expectedTokens = resolveExpectedTokens(segment);
+        if (expectedTokens.isEmpty()) {
             forbidden(resp, "internal-token 未配置");
             return;
         }
 
         String token = req.getHeader(HEADER_INTERNAL_TOKEN);
-        if (!StringUtils.hasText(token) || !expected.equals(token)) {
+        if (!StringUtils.hasText(token) || !matchesAny(token, expectedTokens)) {
             forbidden(resp, "internal-token 无效");
             return;
         }
@@ -81,32 +83,55 @@ public class InternalTokenFilter implements Filter {
         return segment == null ? "" : segment.trim();
     }
 
-    private String resolveExpectedToken(String segment) {
+    private boolean matchesAny(String token, List<String> expectedTokens) {
+        if (!StringUtils.hasText(token) || expectedTokens == null || expectedTokens.isEmpty()) {
+            return false;
+        }
+        String t = token.trim();
+        for (String expected : expectedTokens) {
+            if (!StringUtils.hasText(expected)) {
+                continue;
+            }
+            if (expected.equals(t)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<String> resolveExpectedTokens(String segment) {
         // 1) service 专用 token：<segment>.internal-token（例如 content.internal-token）
         // 2) alias：users -> user.internal-token（历史/命名兼容）
         // 3) 全局 token：internal.token（等价 env: INTERNAL_TOKEN）
+        //
+        // 轮转支持：
+        // - <segment>.internal-token-previous / user.internal-token-previous
+        // - internal.token.previous
+        //
+        // 说明：轮转窗口内允许 current/previous 两个 token 同时生效，避免升级时调用中断。
 
-        String v;
+        List<String> tokens = new ArrayList<>(4);
 
         if (StringUtils.hasText(segment)) {
-            v = getPropertyTrimmed(segment + ".internal-token");
-            if (StringUtils.hasText(v)) {
-                return v;
-            }
+            addIfPresent(tokens, segment + ".internal-token");
+            addIfPresent(tokens, segment + ".internal-token-previous");
             if ("users".equals(segment)) {
-                v = getPropertyTrimmed("user.internal-token");
-                if (StringUtils.hasText(v)) {
-                    return v;
-                }
+                addIfPresent(tokens, "user.internal-token");
+                addIfPresent(tokens, "user.internal-token-previous");
             }
         }
 
-        v = getPropertyTrimmed("internal.token");
-        if (StringUtils.hasText(v)) {
-            return v;
-        }
+        addIfPresent(tokens, "internal.token");
+        addIfPresent(tokens, "internal.token.previous");
+        return tokens;
+    }
 
-        return "";
+    private void addIfPresent(List<String> list, String key) {
+        String v = getPropertyTrimmed(key);
+        if (!StringUtils.hasText(v)) {
+            return;
+        }
+        list.add(v);
     }
 
     private String getPropertyTrimmed(String key) {

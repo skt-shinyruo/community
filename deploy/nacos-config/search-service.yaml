@@ -15,3 +15,13 @@ security:
 search:
   storage: es
   internal-token: ${SEARCH_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+  idempotency:
+    cleanup-enabled: true
+    retention-days: 7
+    cleanup-interval-ms: 21600000
+  index:
+    prefix: community_posts_v
+    keep-history: 2
+  content-client:
+    base-url: ${CONTENT_SERVICE_BASE_URL:http://content-service:8088}
+    internal-token: ${CONTENT_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}

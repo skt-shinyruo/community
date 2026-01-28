@@ -1,10 +1,15 @@
 package com.nowcoder.community.gateway.filter;
 
+// 网关 UV/DAU 采集过滤器：基于可信代理模型解析客户端 IP，减少伪造风险。
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.nowcoder.community.gateway.config.AnalyticsCollectProperties;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tags;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
-import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
@@ -14,25 +19,42 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 import org.springframework.web.reactive.function.BodyInserters;
 
-import java.net.InetSocketAddress;
+import java.time.Duration;
 import java.time.LocalDate;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
 public class AnalyticsCollectGlobalFilter implements GlobalFilter, Ordered {
 
-    private static final int MAX_UV_KEYS_PER_DAY = 200_000;
-    private static final int MAX_DAU_KEYS_PER_DAY = 200_000;
-
-    private static volatile LocalDate currentDay = LocalDate.now();
-    private static final java.util.Set<String> seenUvKeys = java.util.concurrent.ConcurrentHashMap.newKeySet();
-    private static final java.util.Set<String> seenDauKeys = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    // in-process 去重缓存：只用于“降噪”，最终以 analytics-service Redis 去重/聚合为准。
+    private final Object dayLock = new Object();
+    private volatile LocalDate currentDay = LocalDate.now();
+    private final Cache<String, Boolean> seenUvKeys;
+    private final Cache<String, Boolean> seenDauKeys;
 
     private final AnalyticsCollectProperties properties;
-    private final WebClient.Builder webClientBuilder;
+    private final WebClient webClient;
+    private final ClientIpResolver clientIpResolver;
+    private final MeterRegistry meterRegistry;
+    private final AtomicInteger inflight = new AtomicInteger();
 
-    public AnalyticsCollectGlobalFilter(AnalyticsCollectProperties properties, WebClient.Builder webClientBuilder) {
+    public AnalyticsCollectGlobalFilter(
+            AnalyticsCollectProperties properties,
+            WebClient.Builder webClientBuilder,
+            ClientIpResolver clientIpResolver,
+            MeterRegistry meterRegistry
+    ) {
         this.properties = properties;
-        this.webClientBuilder = webClientBuilder;
+        this.webClient = webClientBuilder.build();
+        this.clientIpResolver = clientIpResolver;
+        this.meterRegistry = meterRegistry;
+
+        Duration ttl = Duration.ofSeconds(Math.max(1, properties.getDedupTtlSeconds()));
+        long uvMaxSize = Math.max(1, properties.getUvCacheMaxSize());
+        long dauMaxSize = Math.max(1, properties.getDauCacheMaxSize());
+        this.seenUvKeys = Caffeine.newBuilder().expireAfterWrite(ttl).maximumSize(uvMaxSize).build();
+        this.seenDauKeys = Caffeine.newBuilder().expireAfterWrite(ttl).maximumSize(dauMaxSize).build();
     }
 
     @Override
@@ -54,17 +76,20 @@ public class AnalyticsCollectGlobalFilter implements GlobalFilter, Ordered {
         LocalDate today = LocalDate.now();
         maybeRotateDay(today);
 
-        String ip = extractClientIp(request);
+        String traceId = request.getHeaders().getFirst(TraceIdSupport.HEADER_TRACE_ID);
+        String traceparent = request.getHeaders().getFirst(TraceIdSupport.HEADER_TRACEPARENT);
+
+        String ip = clientIpResolver.resolve(request);
         if (shouldRecordUv(today, ip)) {
-            recordUv(ip, today);
+            recordUv(ip, today, traceId, traceparent);
         }
 
         return exchange.getPrincipal()
                 .flatMap(principal -> {
                     if (principal instanceof JwtAuthenticationToken token) {
-                        String userId = token.getToken().getSubject();
-                        if (shouldRecordDau(today, userId)) {
-                            recordDau(userId, today);
+                        Integer userId = parseUserId(token.getToken().getSubject());
+                        if (userId != null && shouldRecordDau(today, userId)) {
+                            recordDau(userId, today, traceId, traceparent);
                         }
                     }
                     return chain.filter(exchange);
@@ -72,16 +97,16 @@ public class AnalyticsCollectGlobalFilter implements GlobalFilter, Ordered {
                 .switchIfEmpty(chain.filter(exchange));
     }
 
-    private static void maybeRotateDay(LocalDate today) {
+    private void maybeRotateDay(LocalDate today) {
         LocalDate d = currentDay;
         if (d.equals(today)) {
             return;
         }
-        synchronized (AnalyticsCollectGlobalFilter.class) {
+        synchronized (dayLock) {
             if (!currentDay.equals(today)) {
                 currentDay = today;
-                seenUvKeys.clear();
-                seenDauKeys.clear();
+                seenUvKeys.invalidateAll();
+                seenDauKeys.invalidateAll();
             }
         }
     }
@@ -90,73 +115,118 @@ public class AnalyticsCollectGlobalFilter implements GlobalFilter, Ordered {
         if (!StringUtils.hasText(ip)) {
             return false;
         }
-        // 同一 gateway 实例内做“当天去重”，避免每个请求都打 analytics-service。
-        String key = today.toString() + ":" + ip.trim();
-        boolean first = seenUvKeys.add(key);
-        if (seenUvKeys.size() > MAX_UV_KEYS_PER_DAY) {
-            // 防御性：避免异常流量导致内存膨胀。超过阈值时退化为“少量重复采集”。
-            seenUvKeys.clear();
+        if (!properties.isDedupEnabled()) {
+            return true;
         }
-        return first;
+        // 同一 gateway 实例内做“当天去重”，避免每个请求都打 analytics-service。
+        String key = ip.trim();
+        return seenUvKeys.asMap().putIfAbsent(key, Boolean.TRUE) == null;
     }
 
-    private boolean shouldRecordDau(LocalDate today, String userId) {
-        if (!StringUtils.hasText(userId)) {
+    private boolean shouldRecordDau(LocalDate today, int userId) {
+        if (userId <= 0) {
             return false;
         }
-        String key = today.toString() + ":" + userId.trim();
-        boolean first = seenDauKeys.add(key);
-        if (seenDauKeys.size() > MAX_DAU_KEYS_PER_DAY) {
-            seenDauKeys.clear();
+        if (!properties.isDedupEnabled()) {
+            return true;
         }
-        return first;
+        String key = String.valueOf(userId);
+        return seenDauKeys.asMap().putIfAbsent(key, Boolean.TRUE) == null;
     }
 
-    private void recordUv(String ip, LocalDate date) {
+    private void recordUv(String ip, LocalDate date, String traceId, String traceparent) {
         if (!StringUtils.hasText(ip) || date == null) {
             return;
         }
-        webClientBuilder.build()
-                .post()
-                .uri("lb://analytics-service/internal/analytics/uv/record")
-                .header("X-Internal-Token", properties.getInternalToken())
-                .body(BodyInserters.fromFormData("ip", ip).with("date", date.toString()))
-                .header(HttpHeaders.CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .retrieve()
-                .bodyToMono(Void.class)
-                .onErrorResume(e -> Mono.empty())
-                .subscribe();
+        submitAsync(
+                "uv",
+                webClient.post()
+                        .uri("lb://analytics-service/internal/analytics/uv/record")
+                        .header("X-Internal-Token", properties.getInternalToken())
+                        .headers(h -> {
+                            if (StringUtils.hasText(traceId)) {
+                                h.set(TraceIdSupport.HEADER_TRACE_ID, traceId);
+                            }
+                            if (StringUtils.hasText(traceparent)) {
+                                h.set(TraceIdSupport.HEADER_TRACEPARENT, traceparent);
+                            }
+                        })
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .body(BodyInserters.fromFormData("ip", ip).with("date", date.toString()))
+                        .retrieve()
+                        .bodyToMono(Void.class)
+        );
     }
 
-    private void recordDau(String userId, LocalDate date) {
-        if (!StringUtils.hasText(userId) || date == null) {
+    private void recordDau(int userId, LocalDate date, String traceId, String traceparent) {
+        if (userId <= 0 || date == null) {
             return;
         }
-        webClientBuilder.build()
-                .post()
-                .uri("lb://analytics-service/internal/analytics/dau/record")
-                .header("X-Internal-Token", properties.getInternalToken())
-                .body(BodyInserters.fromFormData("userId", userId).with("date", date.toString()))
-                .header(HttpHeaders.CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .retrieve()
-                .bodyToMono(Void.class)
+        submitAsync(
+                "dau",
+                webClient.post()
+                        .uri("lb://analytics-service/internal/analytics/dau/record")
+                        .header("X-Internal-Token", properties.getInternalToken())
+                        .headers(h -> {
+                            if (StringUtils.hasText(traceId)) {
+                                h.set(TraceIdSupport.HEADER_TRACE_ID, traceId);
+                            }
+                            if (StringUtils.hasText(traceparent)) {
+                                h.set(TraceIdSupport.HEADER_TRACEPARENT, traceparent);
+                            }
+                        })
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .body(BodyInserters.fromFormData("userId", String.valueOf(userId)).with("date", date.toString()))
+                        .retrieve()
+                        .bodyToMono(Void.class)
+        );
+    }
+
+    private Integer parseUserId(String subject) {
+        if (!StringUtils.hasText(subject)) {
+            return null;
+        }
+        try {
+            int id = Integer.parseInt(subject.trim());
+            return id > 0 ? id : null;
+        } catch (Exception ignored) {
+            meterRegistry.counter("gateway_analytics_collect_total", Tags.of("metric", "dau", "outcome", "skipped_bad_subject")).increment();
+            return null;
+        }
+    }
+
+    private void submitAsync(String metric, Mono<Void> call) {
+        if (call == null) {
+            return;
+        }
+        int max = Math.max(1, properties.getMaxConcurrency());
+        int current = inflight.incrementAndGet();
+        if (current > max) {
+            inflight.decrementAndGet();
+            meterRegistry.counter("gateway_analytics_collect_total", Tags.of("metric", metric, "outcome", "skipped_concurrency")).increment();
+            return;
+        }
+
+        long startNanos = System.nanoTime();
+        meterRegistry.counter("gateway_analytics_collect_total", Tags.of("metric", metric, "outcome", "attempt")).increment();
+
+        long timeoutMs = Math.max(50, properties.getTimeoutMs());
+        call.timeout(Duration.ofMillis(timeoutMs))
+                .doOnSuccess(v -> meterRegistry.counter("gateway_analytics_collect_total", Tags.of("metric", metric, "outcome", "ok")).increment())
+                .doOnError(ex -> meterRegistry.counter("gateway_analytics_collect_total", Tags.of("metric", metric, "outcome", outcomeOf(ex))).increment())
+                .doFinally(sig -> {
+                    inflight.decrementAndGet();
+                    meterRegistry.timer("gateway_analytics_collect_latency", Tags.of("metric", metric)).record(System.nanoTime() - startNanos, java.util.concurrent.TimeUnit.NANOSECONDS);
+                })
                 .onErrorResume(e -> Mono.empty())
                 .subscribe();
     }
 
-    private String extractClientIp(ServerHttpRequest request) {
-        String forwarded = request.getHeaders().getFirst("X-Forwarded-For");
-        if (StringUtils.hasText(forwarded)) {
-            String first = forwarded.split(",")[0].trim();
-            if (StringUtils.hasText(first)) {
-                return first;
-            }
+    private String outcomeOf(Throwable ex) {
+        if (ex instanceof TimeoutException) {
+            return "timeout";
         }
-        InetSocketAddress addr = request.getRemoteAddress();
-        if (addr == null || addr.getAddress() == null) {
-            return null;
-        }
-        return addr.getAddress().getHostAddress();
+        return "error";
     }
 
     @Override

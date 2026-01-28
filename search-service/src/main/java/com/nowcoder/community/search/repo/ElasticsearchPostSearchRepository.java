@@ -1,5 +1,6 @@
 package com.nowcoder.community.search.repo;
 
+// ES 实现：基于 alias 写入/查询，并支持指定索引写入。
 import com.nowcoder.community.common.event.payload.PostPayload;
 import com.nowcoder.community.search.api.dto.SearchPostItem;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -8,6 +9,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
+import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
 import org.springframework.data.elasticsearch.core.query.Criteria;
 import org.springframework.data.elasticsearch.core.query.CriteriaQuery;
 import org.springframework.data.elasticsearch.core.query.Query;
@@ -29,21 +31,24 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
 
     @Override
     public void upsert(PostPayload post) {
-        if (post == null || post.getPostId() <= 0) {
+        EsPostDocument doc = toDocument(post);
+        if (doc == null) {
             return;
         }
-        EsPostDocument doc = new EsPostDocument();
-        doc.setPostId(post.getPostId());
-        doc.setUserId(post.getUserId());
-        doc.setCategoryId(post.getCategoryId());
-        doc.setTags(post.getTags() == null ? List.of() : post.getTags());
-        doc.setTitle(post.getTitle());
-        doc.setContent(post.getContent());
-        doc.setType(post.getType());
-        doc.setStatus(post.getStatus());
-        doc.setCreateTime(post.getCreateTime() == null ? null : post.getCreateTime().toEpochMilli());
-        doc.setScore(post.getScore());
         operations.save(doc);
+    }
+
+    @Override
+    public void upsertToIndex(PostPayload post, String indexName) {
+        EsPostDocument doc = toDocument(post);
+        if (doc == null) {
+            return;
+        }
+        if (!StringUtils.hasText(indexName)) {
+            operations.save(doc);
+            return;
+        }
+        operations.save(doc, IndexCoordinates.of(indexName));
     }
 
     @Override
@@ -52,6 +57,18 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
             return;
         }
         operations.delete(String.valueOf(postId), EsPostDocument.class);
+    }
+
+    @Override
+    public void deleteFromIndex(int postId, String indexName) {
+        if (postId <= 0) {
+            return;
+        }
+        if (!StringUtils.hasText(indexName)) {
+            operations.delete(String.valueOf(postId), EsPostDocument.class);
+            return;
+        }
+        operations.delete(String.valueOf(postId), IndexCoordinates.of(indexName));
     }
 
     @Override
@@ -98,6 +115,20 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
         indexOps.createWithMapping();
     }
 
+    @Override
+    public void clearIndex(String indexName) {
+        if (!StringUtils.hasText(indexName)) {
+            clear();
+            return;
+        }
+        var indexOps = operations.indexOps(IndexCoordinates.of(indexName));
+        if (indexOps.exists()) {
+            indexOps.delete();
+        }
+        indexOps.create();
+        indexOps.putMapping(operations.indexOps(EsPostDocument.class).createMapping());
+    }
+
     private SearchPostItem toItem(SearchHit<EsPostDocument> hit, String keyword) {
         EsPostDocument doc = hit.getContent();
         SearchPostItem item = new SearchPostItem();
@@ -121,5 +152,23 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
             return text;
         }
         return text.replace(keyword, "<em>" + keyword + "</em>");
+    }
+
+    private EsPostDocument toDocument(PostPayload post) {
+        if (post == null || post.getPostId() <= 0) {
+            return null;
+        }
+        EsPostDocument doc = new EsPostDocument();
+        doc.setPostId(post.getPostId());
+        doc.setUserId(post.getUserId());
+        doc.setCategoryId(post.getCategoryId());
+        doc.setTags(post.getTags() == null ? List.of() : post.getTags());
+        doc.setTitle(post.getTitle());
+        doc.setContent(post.getContent());
+        doc.setType(post.getType());
+        doc.setStatus(post.getStatus());
+        doc.setCreateTime(post.getCreateTime() == null ? null : post.getCreateTime().toEpochMilli());
+        doc.setScore(post.getScore());
+        return doc;
     }
 }

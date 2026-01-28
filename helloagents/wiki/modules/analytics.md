@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 记录 UV（HyperLogLog）；记录 DAU（Bitmap）；按日期区间统计；提供统计页面/接口
 - **Status：** 🟡In Progress
-- **Last Updated：** 2026-01-16
+- **Last Updated：** 2026-01-28
 
 ## Specifications
 
@@ -36,6 +36,8 @@
 - `GET /api/analytics/me`（联调用，需要登录）
 - `POST /internal/analytics/uv/record`（gateway 内部调用：需要 `X-Internal-Token`）
 - `POST /internal/analytics/dau/record`（gateway 内部调用：需要 `X-Internal-Token`）
+
+> 说明：gateway 侧采集链路应做到“不影响主业务链路”，并保证可观测（超时/并发限制/降噪/指标）。gateway → analytics-service 的内部调用建议透传 `X-Trace-Id/traceparent` 便于排障。
 
 ## Data Models
 ### Redis Keys

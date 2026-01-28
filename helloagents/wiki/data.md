@@ -10,7 +10,7 @@
 **P0 当前默认（同实例多 schema）：**
 - **MySQL：** 同一 MySQL 实例，按业务域拆为多个 schema（降低耦合与误写风险）：
   - `community`：身份域（`user`），由 user-service 持有（auth-service 不再直连 MySQL）
-  - `community_content`：内容域（`discuss_post`、`comment`）
+  - `community_content`：内容域（`discuss_post`、`comment`、`outbox_event`）
   - `community_message`：消息域（`message`、`consumed_event`）
   - `community_search`：搜索域（`search_consumed_event`）
 - **最小权限：** 每服务使用独立 MySQL 用户，仅授权自己的 schema（root 仅用于初始化/演练恢复）。
@@ -28,6 +28,7 @@
 > - `community.user`：user-service（auth-service 通过 user-service internal API 完成鉴权/注册/激活/重置密码）
 > - `community_message.message` / `community_message.consumed_event`：message-service
 > - `community_search.search_consumed_event`：search-service（幂等去重表）
+> - `community_content.outbox_event`：content-service（Outbox 可靠投递）
 
 ### 2.1 user
 
@@ -197,7 +198,28 @@
 | deleted_reason | varchar |  | 删除原因（可为空/空字符串） |
 | deleted_time | datetime |  | 删除时间 |
 
-### 2.4 message
+### 2.4 outbox_event
+
+**Description：** content-service Outbox 事件表（同事务写入，后台可靠投递 Kafka）。
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | bigint | PK | 自增 ID |
+| event_id | varchar | Unique | 事件 ID（eventId） |
+| topic | varchar |  | Kafka topic |
+| event_key | varchar |  | Kafka key |
+| payload | text |  | 事件 JSON |
+| status | varchar |  | NEW/SENDING/RETRY/SENT/FAILED |
+| retry_count | int |  | 重试次数 |
+| next_retry_at | datetime |  | 下次重试时间 |
+| last_error | varchar |  | 最近一次错误 |
+| created_at | datetime |  | 创建时间 |
+| updated_at | datetime |  | 更新时间 |
+
+**Indexes：**
+- `idx_outbox_status_next(status, next_retry_at)`
+
+### 2.5 message
 
 **Description：** 私信与系统通知（系统通知用 from_id=1 + conversation_id=topic）。
 
@@ -211,7 +233,7 @@
 | status | int |  | 状态（未读/已读/删除等） |
 | create_time | datetime |  | 创建时间 |
 
-### 2.5 consumed_event
+### 2.6 consumed_event
 
 **Description：** 消费端幂等去重表（按 eventId 记录已消费事件，避免重复通知/重复副作用）。
 
@@ -221,7 +243,10 @@
 | event_id | varchar | Unique | 事件 ID（eventId） |
 | consumed_at | datetime |  | 消费时间 |
 
-### 2.6 search_consumed_event
+**Indexes：**
+- `idx_consumed_event_at(consumed_at)`
+
+### 2.7 search_consumed_event
 
 **Description：** search-service 消费端幂等去重表（按 eventId 记录已消费事件，避免重复索引副作用）。
 
@@ -231,7 +256,10 @@
 | event_id | varchar | Unique | 事件 ID（eventId） |
 | consumed_at | datetime |  | 消费时间 |
 
-### 2.7 login_ticket（Deprecated）
+**Indexes：**
+- `idx_search_consumed_at(consumed_at)`
+
+### 2.8 login_ticket（Deprecated）
 
 **Description：** 早期登录票据表，当前实现已迁移到 Redis（代码中 Mapper 标记为 `@Deprecated`）。
 

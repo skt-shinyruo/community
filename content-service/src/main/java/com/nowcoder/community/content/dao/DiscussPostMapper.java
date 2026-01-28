@@ -1,5 +1,6 @@
 package com.nowcoder.community.content.dao;
 
+// 帖子数据访问层：负责帖子查询与状态/计数等更新操作。
 import com.nowcoder.community.content.entity.DiscussPost;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -31,6 +32,11 @@ public interface DiscussPostMapper {
     DiscussPost selectDiscussPostById(int id);
 
     int updateCommentCount(int id, int commentCount);
+
+    /**
+     * 原子增量更新 comment_count，避免并发覆盖。
+     */
+    int incrementCommentCount(@Param("id") int id, @Param("delta") int delta);
 
     int updateType(@Param("id") int id, @Param("type") int type);
 

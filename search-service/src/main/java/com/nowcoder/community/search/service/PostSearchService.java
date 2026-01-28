@@ -1,10 +1,13 @@
 package com.nowcoder.community.search.service;
 
+// 帖子搜索服务：支持基于 alias 的零停机重建。
 import com.nowcoder.community.search.api.dto.SearchPostItem;
 import com.nowcoder.community.search.api.dto.ContentPostScanResponse;
 import com.nowcoder.community.search.config.ContentServiceClientProperties;
 import com.nowcoder.community.search.repo.PostSearchRepository;
+import com.nowcoder.community.search.repo.PostIndexManager;
 import com.nowcoder.community.common.event.payload.PostPayload;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -16,11 +19,18 @@ public class PostSearchService {
     private final PostSearchRepository postSearchRepository;
     private final ContentServiceClient contentServiceClient;
     private final int scanPageSize;
+    private final ObjectProvider<PostIndexManager> postIndexManagerProvider;
 
-    public PostSearchService(PostSearchRepository postSearchRepository, ContentServiceClient contentServiceClient, ContentServiceClientProperties properties) {
+    public PostSearchService(
+            PostSearchRepository postSearchRepository,
+            ContentServiceClient contentServiceClient,
+            ContentServiceClientProperties properties,
+            ObjectProvider<PostIndexManager> postIndexManagerProvider
+    ) {
         this.postSearchRepository = postSearchRepository;
         this.contentServiceClient = contentServiceClient;
         this.scanPageSize = Math.min(1000, Math.max(1, properties.getPageSize()));
+        this.postIndexManagerProvider = postIndexManagerProvider;
     }
 
     public List<SearchPostItem> search(String keyword, Integer categoryId, String tag, Integer page, Integer size) {
@@ -39,7 +49,14 @@ public class PostSearchService {
     }
 
     public int clearAndReindexFromContentService() {
-        postSearchRepository.clear();
+        PostIndexManager indexManager = postIndexManagerProvider.getIfAvailable();
+        String targetIndex = null;
+        if (indexManager != null) {
+            indexManager.ensureAliasReady();
+            targetIndex = indexManager.createNewIndex();
+        } else {
+            postSearchRepository.clear();
+        }
 
         int total = 0;
         int afterId = 0;
@@ -51,7 +68,11 @@ public class PostSearchService {
             }
 
             for (PostPayload post : page.getItems()) {
-                postSearchRepository.upsert(post);
+                if (targetIndex == null) {
+                    postSearchRepository.upsert(post);
+                } else {
+                    postSearchRepository.upsertToIndex(post, targetIndex);
+                }
                 total++;
             }
 
@@ -65,6 +86,11 @@ public class PostSearchService {
             if (!page.isHasMore()) {
                 break;
             }
+        }
+
+        if (indexManager != null && targetIndex != null) {
+            indexManager.switchAliasTo(targetIndex);
+            indexManager.cleanupOldIndices();
         }
 
         return total;

@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 发帖；帖子详情；评论/回复；敏感词过滤；热帖分数刷新；与搜索/通知联动
 - **Status：** ✅Stable
-- **Last Updated：** 2026-01-23
+- **Last Updated：** 2026-01-28
 
 ## Specifications
 
@@ -17,7 +17,7 @@
 #### Scenario: 发布帖子
 前置条件：用户已登录
 - 发布成功
-- 触发发帖事件（用于搜索索引/通知等；DB 事务提交后 After-Commit 发送，避免幽灵事件）
+- 触发发帖事件（用于搜索索引/通知等；支持 Outbox 模式：事务内写 outbox + relay 投递；未启用时仍走 After-Commit 发送）
 
 #### Scenario: 浏览帖子详情
 前置条件：帖子存在
@@ -32,7 +32,7 @@
 前置条件：用户已登录
 - 评论写入数据库
 - 更新帖子评论数
-- 触发评论事件（通知；DB 事务提交后 After-Commit 发送，避免幽灵事件）
+- 触发评论事件（通知；支持 Outbox 模式；未启用时仍走 After-Commit 发送）
 
 ### Requirement: 敏感词过滤
 **Module:** content

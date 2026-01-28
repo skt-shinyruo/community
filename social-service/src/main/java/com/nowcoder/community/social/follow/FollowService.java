@@ -6,6 +6,7 @@ import com.nowcoder.community.social.event.SocialEventPublisher;
 import com.nowcoder.community.social.follow.dto.FollowItem;
 import com.nowcoder.community.social.follow.dto.FollowRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -23,6 +24,7 @@ public class FollowService {
         this.eventPublisher = eventPublisher;
     }
 
+    @Transactional
     public void follow(int actorUserId, FollowRequest request) {
         if (actorUserId <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId 非法");
@@ -46,6 +48,7 @@ public class FollowService {
         }
     }
 
+    @Transactional
     public void unfollow(int actorUserId, int entityType, int entityId) {
         if (actorUserId <= 0 || entityType <= 0 || entityId <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "参数错误");
@@ -86,4 +89,3 @@ public class FollowService {
         return followRepository.listFollowers(entityType, entityId, p * s, s);
     }
 }
-

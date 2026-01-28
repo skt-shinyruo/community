@@ -7,6 +7,8 @@ import com.nowcoder.community.common.event.EventTypes;
 import com.nowcoder.community.common.event.payload.FollowPayload;
 import com.nowcoder.community.common.event.payload.LikePayload;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
+import com.nowcoder.community.social.outbox.OutboxEventService;
+import com.nowcoder.community.social.outbox.SocialOutboxProperties;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.slf4j.Logger;
@@ -26,11 +28,21 @@ public class KafkaSocialEventPublisher implements SocialEventPublisher {
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
     private final MeterRegistry meterRegistry;
+    private final SocialOutboxProperties outboxProperties;
+    private final OutboxEventService outboxEventService;
 
-    public KafkaSocialEventPublisher(KafkaTemplate<String, String> kafkaTemplate, ObjectMapper objectMapper, MeterRegistry meterRegistry) {
+    public KafkaSocialEventPublisher(
+            KafkaTemplate<String, String> kafkaTemplate,
+            ObjectMapper objectMapper,
+            MeterRegistry meterRegistry,
+            SocialOutboxProperties outboxProperties,
+            OutboxEventService outboxEventService
+    ) {
         this.kafkaTemplate = kafkaTemplate;
         this.objectMapper = objectMapper;
         this.meterRegistry = meterRegistry;
+        this.outboxProperties = outboxProperties;
+        this.outboxEventService = outboxEventService;
     }
 
     @Override
@@ -47,6 +59,15 @@ public class KafkaSocialEventPublisher implements SocialEventPublisher {
         try {
             EventEnvelope<Object> envelope = EventEnvelope.of(type, 1, "social-service", payload);
             String json = objectMapper.writeValueAsString(envelope);
+
+            if (outboxProperties.isEnabled()) {
+                outboxEventService.enqueue(envelope.getEventId(), EventTopics.SOCIAL_EVENTS_V1, key, json);
+                meterRegistry.counter(
+                        "social_event_outbox_total",
+                        Tags.of("topic", EventTopics.SOCIAL_EVENTS_V1, "type", type, "outcome", "queued")
+                ).increment();
+                return;
+            }
 
             // 与 content-service 统一约定：若处于事务中，则在 commit 后发送，避免幽灵事件。
             AfterCommitExecutor.runAfterCommit(() -> sendAsync(EventTopics.SOCIAL_EVENTS_V1, key, json, type));

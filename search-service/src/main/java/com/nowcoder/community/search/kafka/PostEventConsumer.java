@@ -1,5 +1,6 @@
 package com.nowcoder.community.search.kafka;
 
+// 帖子事件消费者：insert-first 幂等后执行业务索引写入。
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.event.EventTopics;
@@ -44,14 +45,13 @@ public class PostEventConsumer {
             throw new IllegalArgumentException("type 缺失");
         }
 
-        // 幂等：记录消费过的 eventId（DB），避免重复索引副作用
-        if (consumedEventStore.hasConsumed(eventId)) {
+        // 幂等：insert-first，重复事件直接跳过
+        if (!consumedEventStore.markConsumedIfFirst(eventId)) {
             return;
         }
 
         // 仅支持 v1 envelope；其他版本先跳过（由 reindex/回放兜底）
         if (version != 1) {
-            consumedEventStore.markConsumed(eventId);
             return;
         }
 
@@ -62,7 +62,6 @@ public class PostEventConsumer {
 
         if (EventTypes.POST_DELETED.equals(type)) {
             postSearchRepository.delete(payload.getPostId());
-            consumedEventStore.markConsumed(eventId);
             return;
         }
 
@@ -70,7 +69,6 @@ public class PostEventConsumer {
             postSearchRepository.upsert(payload);
         }
 
-        consumedEventStore.markConsumed(eventId);
     }
 
     private String text(JsonNode root, String field) {

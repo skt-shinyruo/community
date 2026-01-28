@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** ES 索引维护（保存/删除）；按关键字搜索；高亮 title/content
 - **Status：** ✅Stable
-- **Last Updated：** 2026-01-20
+- **Last Updated：** 2026-01-28
 
 ## Specifications
 
@@ -25,12 +25,18 @@
 #### Scenario: 消费发帖事件写入索引
 - Kafka 消费 publish 事件
 - 保存帖子到 ES
- - 通过 `community_search.search_consumed_event` 做 eventId 幂等去重，避免重复索引副作用
+ - 通过 `community_search.search_consumed_event` 做 eventId 幂等去重（insert-first），避免重复索引副作用
+ - 幂等表按 `consumed_at` 定期清理（可配置 retention-days）
 
 #### Scenario: 消费删帖事件删除索引
 - Kafka 消费 delete 事件
 - 从 ES 删除帖子
  - 通过 `community_search.search_consumed_event` 做 eventId 幂等去重
+
+#### Scenario: 零停机 reindex（alias/蓝绿）
+- alias 固定：`community_posts_alias`
+- 实际索引命名：`community_posts_v{yyyyMMddHHmmss}`（保留 N 个历史索引）
+- 流程：创建新索引 → 扫描 content-service 回填 → alias 切换 → 清理旧索引
 
 ## API Interfaces（现状）
 - `GET /api/search/posts?keyword=xxx&categoryId=&tag=`（支持 taxonomy 过滤；返回 `categoryId/tags[]` 供前端展示/二次筛选）
@@ -50,3 +56,4 @@
 - 2026-01-18：DLQ 指标与告警补齐（`kafka_dlq_published_total`），并将 search-service 幂等表归属迁移到独立 schema（`community_search`）。
 - 2026-01-19：reindex 从“跨 schema 直读 content 表”升级为“调用 content-service 内部 API 扫描帖子”，支持严格的“每服务仅访问本 schema”。
 - 2026-01-20：索引与搜索联动 taxonomy：ES 文档增加 `categoryId/tags`，`/api/search/posts` 支持 `categoryId/tag` 过滤，前端搜索页可按分类/标签缩小范围。
+- 2026-01-28：search-service 幂等改为 insert-first + 定时清理；reindex 引入 alias/蓝绿切换并支持清理旧索引。

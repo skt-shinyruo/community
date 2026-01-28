@@ -161,7 +161,10 @@ sequenceDiagram
 - **消费端幂等：** message-service 采用 `consumed_event` 表记录已消费 `eventId`，避免重复通知/重复副作用。
 - **索引重建：** search-service 提供 reindex 能力用于迁移期冷启动与修复（`/api/search/internal/reindex` / `/internal/search/reindex`），重建数据通过 content-service 内部 API 拉取。
 
-> 进一步增强（可选）：引入 Outbox Pattern（业务表 + outbox 表同事务写入，异步投递 Kafka），可提升“写入与发事件”的一致性。
+治理补充（2026-01-28）：
+- **Outbox Pattern（推荐默认开启）：** content-service / social-service 已具备 outbox 表与 relay job，部署侧建议默认开启 outbox，使“DB 提交后事件可重试投递”成为默认安全态；保留开关可回滚到 after-commit 直发。
+- **internal 聚合收敛：** 跨服务聚合展示（例如 user-service 用户主页的获赞/关注/粉丝/是否关注）应优先走 `/internal/**` + `X-Internal-Token`，避免跨服务透传 Authorization 造成鉴权耦合。
+- **gateway analytics 有界化：** 网关侧 UV/DAU 去重仅用于降噪，应使用有界 TTL 缓存（多实例不共享），最终以 analytics-service Redis 去重/聚合为准；并确保采集失败可观测且不影响主业务链路。
 
 ---
 

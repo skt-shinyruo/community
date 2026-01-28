@@ -1,5 +1,6 @@
 package com.nowcoder.community.gateway.config;
 
+// Gateway 安全配置：JWT 验签 + 授权矩阵 + 统一异常处理。
 import com.nowcoder.community.common.exception.BusinessException;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -27,7 +28,13 @@ import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT
 
 @Configuration
 @EnableWebFluxSecurity
-@EnableConfigurationProperties({JwtProperties.class, AnalyticsCollectProperties.class, GatewayRateLimitProperties.class, OriginGuardProperties.class})
+@EnableConfigurationProperties({
+        JwtProperties.class,
+        AnalyticsCollectProperties.class,
+        GatewayRateLimitProperties.class,
+        OriginGuardProperties.class,
+        TrustedProxyProperties.class
+})
 public class GatewaySecurityConfig {
 
     @Bean

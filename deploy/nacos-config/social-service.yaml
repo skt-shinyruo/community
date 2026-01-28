@@ -1,4 +1,8 @@
 spring:
+  datasource:
+    url: ${SOCIAL_DB_URL:jdbc:mysql://mysql:3306/community_social?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${SOCIAL_DB_USERNAME:community_social}
+    password: ${SOCIAL_DB_PASSWORD:community_socialpass}
   data:
     redis:
       host: ${SOCIAL_REDIS_HOST:redis}
@@ -11,6 +15,20 @@ security:
     hmac-secret: ${JWT_HMAC_SECRET:dev-secret-please-change-at-least-32bytes}
 
 social:
+  storage: db
   events:
     publisher: kafka
-
+    outbox:
+      # 默认开启：可靠投递作为默认安全态（可通过开关回滚到 after-commit 直发）。
+      enabled: true
+      relay-enabled: true
+      batch-size: 200
+      max-retries: 10
+      base-delay-ms: 1000
+      max-delay-ms: 60000
+      relay-interval-ms: 5000
+      send-timeout-ms: 3000
+  # internal 接口令牌：建议按服务隔离，避免全局 token 泄露扩大爆炸半径。
+  internal-token: ${SOCIAL_INTERNAL_TOKEN:}
+  # 轮转窗口：灰度期间允许 previous 继续访问（配合 common/InternalTokenFilter）。
+  internal-token-previous: ${SOCIAL_INTERNAL_TOKEN_PREVIOUS:}

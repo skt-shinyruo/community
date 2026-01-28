@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Set;
 
 @Repository
-@ConditionalOnProperty(name = "social.storage", havingValue = "redis", matchIfMissing = true)
+@ConditionalOnProperty(name = "social.storage", havingValue = "redis")
 public class RedisFollowRepository implements FollowRepository {
 
     private final StringRedisTemplate redisTemplate;
@@ -104,4 +104,3 @@ public class RedisFollowRepository implements FollowRepository {
         return "follower:" + entityType + ":" + entityId;
     }
 }
-

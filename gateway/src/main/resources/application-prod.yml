@@ -1,4 +1,11 @@
 gateway:
+  # 生产建议：只有当上游网关/Ingress 写入 XFF 时才启用，并配置可信代理网段。
+  trusted-proxy:
+    enabled: true
+    cidrs:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
   # 生产建议：Redis 不可用时不要放行限流（避免被刷爆），至少覆盖登录/注册/验证码等敏感入口。
   rate-limit:
     fail-open: false

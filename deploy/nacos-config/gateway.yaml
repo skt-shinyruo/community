@@ -32,8 +32,13 @@ analytics:
   collect:
     enabled: true
     internal-token: ${ANALYTICS_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+    timeout-ms: 300
+    max-concurrency: 50
 
 gateway:
+  trusted-proxy:
+    enabled: false
+    cidrs: []
   origin-guard:
     enabled: true
     allowed-origins:

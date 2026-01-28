@@ -82,8 +82,18 @@ analytics:
   collect:
     enabled: true
     internal-token: ${ANALYTICS_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+    timeout-ms: 300
+    max-concurrency: 50
+    # 网关侧 in-process 去重（有界 TTL 缓存）。注意：多实例不共享，最终以 analytics-service 侧 Redis 去重为准。
+    dedup-enabled: true
+    uv-cache-max-size: 200000
+    dau-cache-max-size: 200000
+    dedup-ttl-seconds: 86400
 
 gateway:
+  trusted-proxy:
+    enabled: false
+    cidrs: []
   origin-guard:
     enabled: true
     allowed-origins: *frontend_origins

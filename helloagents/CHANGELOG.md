@@ -7,6 +7,28 @@
 ## [Unreleased]
 
 ### Added
+- social-service：新增 internal 社交读取 API（计数/关注状态等），供 user-service 聚合读取，减少 /api + Authorization 透传。
+- content-service：新增 outbox 内部运维接口（health/replay）并补齐可观测指标（backlog/failed）。
+- 运行手册：新增 internal-token 轮转/回滚 runbook，并补齐本次安全审阅结论。
+
+### Changed
+- social-service：存储默认值固化为 DB（SSOT），Redis/Memory 仅显式启用；补齐 storage 模式边界说明。
+- deploy/nacos-config：content/social 默认开启 outbox；internal-token 配置收敛到按服务 token（减少全局兜底）。
+- user-service：SocialServiceClient 改为 internal-token 调用 social-service internal read API（移除 Authorization 透传与硬编码 BASE_URL）。
+
+### Fixed
+- gateway：统计采集去重改为有界 TTL 缓存，并补齐对 analytics 内部调用的 traceId 透传。
+
+## [0.0.2] - 2026-01-28
+
+### Added
+- gateway：补齐 TraceIdWebFilter/TraceIdSupport、可信代理配置与 ClientIpResolver，401/403/429 响应体回填 traceId。
+- content-service：评论数原子增量 + 并发回归测试；提供 comment_count 回填脚本。
+- search-service：幂等 insert-first + 定时清理；alias/蓝绿 reindex 能力与索引管理器。
+- message-service：consumed_event 过期清理任务与索引。
+- content-service：Outbox（outbox_event 表 + relay 投递 + 参数开关）。
+- internal client：新增 `InternalClientSupport` 并统一 headers/错误映射/指标；客户端增加 fail-open 开关。
+- deploy/nacos-config：补齐 trusted-proxy、idempotency、outbox、索引参数等配置。
 - Maven 多模块微服务工程：`common`、`gateway`、`auth-service`、`user-service`、`content-service`、`social-service`、`message-service`、`search-service`、`analytics-service`（见根 `pom.xml`）。
 - `common` 统一返回 `Result<T>` / 错误码 / 全局异常 / traceId Filter。
 - `gateway`：JWT 验签 + 路由 `/api/auth/** -> auth-service` + CORS + traceId 透传。
@@ -37,6 +59,8 @@
 - `user-service`：新增身份域 internal API（`/internal/users/**`），并支持 legacy（MD5+salt）密码在登录成功后渐进升级为 BCrypt。
 
 ### Changed
+- search-service 重建索引流程由“删除旧索引”调整为“新索引回填 + alias 切换”。
+- 内部调用统一使用 `internal_client_requests_total/internal_client_latency` 指标与 tags。
 - 父工程升级到 Spring Boot 3.2.6 + Java 17，并加入 Maven Enforcer 门禁。
 - `gateway` 增加 `spring-cloud-starter-loadbalancer` 依赖，修复 `lb://` 路由无法解析实例导致的 503（`Unable to find instance`）。
 - `deploy/docker-compose.yml` Kafka 镜像调整为 `confluentinc/cp-kafka` + `cp-zookeeper`（替代不可用的 bitnami/kafka 标签）。
@@ -80,6 +104,7 @@
 - `frontend` 视觉精修与 CSS 清理：移除历史未用样式入口 `frontend/src/styles.css`；删除确认无引用的遗留选择器（`.post-body/.comment-body`）；补齐 `.btn.sm` 小尺寸变体并以 design tokens 收敛零散间距（更好适配 density）。
 
 ### Fixed
+- 修复评论并发写入时 comment_count 丢更新问题。
 - 修复 message-service 消费端“自调用导致事务不生效 + 幂等记录先写导致永久丢通知”的高风险路径。
 - 修复 content-service/social-service 写路径“事务内直接 send Kafka”导致的幽灵事件风险（After-Commit）。
 - 修复同步调用缺少超时/降级导致的级联雪崩风险（user-service -> social-service）。

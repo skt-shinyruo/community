@@ -54,8 +54,13 @@ message:
   user-client:
     connect-timeout: 200ms
     read-timeout: 800ms
+  idempotency:
+    cleanup-enabled: true
+    retention-days: 7
+    cleanup-interval-ms: 21600000
 
 clients:
   social:
     base-url: ${SOCIAL_SERVICE_BASE_URL:http://social-service}
     internal-token: ${SOCIAL_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+    fail-open: false

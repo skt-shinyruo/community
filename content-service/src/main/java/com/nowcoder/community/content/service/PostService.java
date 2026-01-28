@@ -1,5 +1,6 @@
 package com.nowcoder.community.content.service;
 
+// 帖子领域服务：封装帖子查询与状态/计数更新等操作。
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.dao.DiscussPostMapper;
 import com.nowcoder.community.content.entity.DiscussPost;
@@ -90,6 +91,10 @@ public class PostService {
 
     public void updateCommentCount(int postId, int commentCount) {
         discussPostMapper.updateCommentCount(postId, commentCount);
+    }
+
+    public void incrementCommentCount(int postId, int delta) {
+        discussPostMapper.incrementCommentCount(postId, delta);
     }
 
     public void updateType(int postId, int type) {

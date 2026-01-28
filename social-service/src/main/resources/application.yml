@@ -2,9 +2,22 @@ server:
   port: 8086
 
 social:
-  storage: redis
+  # 社交关系存储模式：
+  # - db: MySQL 为 SSOT（默认推荐）
+  # - redis: 仅用于本地/压测/演示（非 SSOT，不推荐在 prod 使用）
+  # - memory: 仅用于单测/演示
+  storage: db
   events:
     publisher: kafka
+    outbox:
+      enabled: false
+      relay-enabled: true
+      batch-size: 200
+      max-retries: 10
+      base-delay-ms: 1000
+      max-delay-ms: 60000
+      relay-interval-ms: 5000
+      send-timeout-ms: 3000
   internal-token: ${SOCIAL_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
 
 spring:
@@ -25,6 +38,11 @@ spring:
     redis:
       host: ${SOCIAL_REDIS_HOST:127.0.0.1}
       port: ${SOCIAL_REDIS_PORT:6379}
+  datasource:
+    url: ${SOCIAL_DB_URL:jdbc:mysql://127.0.0.1:3306/community_social?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${SOCIAL_DB_USERNAME:${SOCIAL_DB_USER:community_social}}
+    password: ${SOCIAL_DB_PASSWORD:community_socialpass}
+    driver-class-name: com.mysql.cj.jdbc.Driver
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:127.0.0.1:9092}
     producer:

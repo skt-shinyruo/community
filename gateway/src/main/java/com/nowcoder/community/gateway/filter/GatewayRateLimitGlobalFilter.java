@@ -1,5 +1,6 @@
 package com.nowcoder.community.gateway.filter;
 
+// 网关限流过滤器：支持多策略限流并统一写出 traceId。
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.api.Result;
@@ -23,7 +24,6 @@ import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
-import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -43,18 +43,21 @@ public class GatewayRateLimitGlobalFilter implements GlobalFilter, Ordered {
     private final ReactiveStringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final MeterRegistry meterRegistry;
+    private final ClientIpResolver clientIpResolver;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     public GatewayRateLimitGlobalFilter(
             GatewayRateLimitProperties properties,
             ReactiveStringRedisTemplate redisTemplate,
             ObjectMapper objectMapper,
-            MeterRegistry meterRegistry
+            MeterRegistry meterRegistry,
+            ClientIpResolver clientIpResolver
     ) {
         this.properties = properties;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.meterRegistry = meterRegistry;
+        this.clientIpResolver = clientIpResolver;
     }
 
     @Override
@@ -134,14 +137,14 @@ public class GatewayRateLimitGlobalFilter implements GlobalFilter, Ordered {
     private Mono<String> resolveKey(ServerWebExchange exchange, ServerHttpRequest request, GatewayRateLimitProperties.KeyStrategy strategy) {
         GatewayRateLimitProperties.KeyStrategy resolved = strategy == null ? GatewayRateLimitProperties.KeyStrategy.IP : strategy;
         return switch (resolved) {
-            case IP -> Mono.justOrEmpty(extractClientIp(request));
+            case IP -> Mono.justOrEmpty(clientIpResolver.resolve(request));
             case USER -> exchange.getPrincipal()
                     .map(principal -> principal instanceof JwtAuthenticationToken token ? token.getToken().getSubject() : null)
                     .filter(StringUtils::hasText);
             case USER_OR_IP -> exchange.getPrincipal()
                     .map(principal -> principal instanceof JwtAuthenticationToken token ? token.getToken().getSubject() : null)
                     .filter(StringUtils::hasText)
-                    .switchIfEmpty(Mono.justOrEmpty(extractClientIp(request)));
+                    .switchIfEmpty(Mono.justOrEmpty(clientIpResolver.resolve(request)));
         };
     }
 
@@ -214,6 +217,10 @@ public class GatewayRateLimitGlobalFilter implements GlobalFilter, Ordered {
     private Mono<Void> write(ServerWebExchange exchange, HttpStatus status, Result<?> body) {
         exchange.getResponse().setStatusCode(status);
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
+        String traceId = TraceIdSupport.resolveTraceId(exchange.getRequest().getHeaders());
+        body.setTraceId(traceId);
+        exchange.getResponse().getHeaders().set(TraceIdSupport.HEADER_TRACE_ID, traceId);
+        exchange.getResponse().getHeaders().set(TraceIdSupport.HEADER_TRACEPARENT, TraceIdSupport.buildTraceparent(traceId));
         try {
             byte[] bytes = objectMapper.writeValueAsBytes(body);
             return exchange.getResponse().writeWith(Mono.just(exchange.getResponse().bufferFactory().wrap(bytes)));
@@ -222,25 +229,9 @@ public class GatewayRateLimitGlobalFilter implements GlobalFilter, Ordered {
         }
     }
 
-    private String extractClientIp(ServerHttpRequest request) {
-        String forwarded = request.getHeaders().getFirst("X-Forwarded-For");
-        if (StringUtils.hasText(forwarded)) {
-            String first = forwarded.split(",")[0].trim();
-            if (StringUtils.hasText(first)) {
-                return first;
-            }
-        }
-        InetSocketAddress addr = request.getRemoteAddress();
-        if (addr == null || addr.getAddress() == null) {
-            return null;
-        }
-        return addr.getAddress().getHostAddress();
-    }
-
     @Override
     public int getOrder() {
         // 尽量靠前：在路由转发前拦截；但要晚于 trace 注入
         return Ordered.HIGHEST_PRECEDENCE + 20;
     }
 }
-

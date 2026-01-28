@@ -1,14 +1,16 @@
-// social-service 内部拉黑关系查询客户端：用于写路径校验（评论/私信等）。
 package com.nowcoder.community.content.service;
 
 import com.nowcoder.community.common.api.Result;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.web.internalclient.InternalClientSupport;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -20,23 +22,32 @@ import static com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.common.api.CommonErrorCode.SERVICE_UNAVAILABLE;
 
+// social-service 内部拉黑关系查询客户端：用于写路径校验（评论/私信等）。
+
 @Service
 public class SocialBlockClient {
 
-    private static final String HEADER_INTERNAL_TOKEN = "X-Internal-Token";
+    private static final Logger log = LoggerFactory.getLogger(SocialBlockClient.class);
+    private static final String SERVICE_NAME = "social-service";
 
     private final RestTemplate restTemplate;
+    private final MeterRegistry meterRegistry;
     private final String baseUrl;
     private final String internalToken;
+    private final boolean failOpen;
 
     public SocialBlockClient(
             RestTemplate restTemplate,
+            MeterRegistry meterRegistry,
             @Value("${clients.social.base-url:http://social-service}") String baseUrl,
-            @Value("${clients.social.internal-token:${INTERNAL_TOKEN:}}") String internalToken
+            @Value("${clients.social.internal-token:${INTERNAL_TOKEN:}}") String internalToken,
+            @Value("${clients.social.fail-open:false}") boolean failOpen
     ) {
         this.restTemplate = restTemplate;
+        this.meterRegistry = meterRegistry;
         this.baseUrl = baseUrl;
         this.internalToken = internalToken;
+        this.failOpen = failOpen;
     }
 
     public void assertNotBlocked(int userIdA, int userIdB) {
@@ -53,8 +64,8 @@ public class SocialBlockClient {
         if (userIdA <= 0 || userIdB <= 0 || userIdA == userIdB) {
             return false;
         }
-        if (!StringUtils.hasText(internalToken)) {
-            throw new BusinessException(FORBIDDEN, "internal-token 未配置（请设置 env: INTERNAL_TOKEN）");
+        if (!StringUtils.hasText(baseUrl)) {
+            throw new BusinessException(INVALID_ARGUMENT, "social-service base-url 未配置");
         }
 
         String url = UriComponentsBuilder
@@ -63,20 +74,26 @@ public class SocialBlockClient {
                 .queryParam("userIdB", userIdB)
                 .toUriString();
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setAccept(MediaType.parseMediaTypes(MediaType.APPLICATION_JSON_VALUE));
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set(HEADER_INTERNAL_TOKEN, internalToken);
-
-        Result<Boolean> result = exchange(url, HttpMethod.GET, new HttpEntity<>(headers), new ParameterizedTypeReference<Result<Boolean>>() {
-        });
-        if (result == null) {
-            throw new BusinessException(SERVICE_UNAVAILABLE, "social-service 响应为空");
+        HttpHeaders headers = InternalClientSupport.jsonHeaders(internalToken, SERVICE_NAME);
+        long start = System.nanoTime();
+        try {
+            Result<Boolean> result = exchange(url, HttpMethod.GET, new HttpEntity<>(headers), new ParameterizedTypeReference<Result<Boolean>>() {
+            });
+            Boolean data = InternalClientSupport.unwrap(result, SERVICE_NAME);
+            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "isEitherBlocked", InternalClientSupport.OUTCOME_SUCCESS, start);
+            return data;
+        } catch (Exception e) {
+            if (failOpen) {
+                InternalClientSupport.record(meterRegistry, SERVICE_NAME, "isEitherBlocked", InternalClientSupport.OUTCOME_DEGRADED, start);
+                log.warn("[social-client] degraded (api=isEitherBlocked): {}", e.toString());
+                return false;
+            }
+            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "isEitherBlocked", InternalClientSupport.OUTCOME_ERROR, start);
+            if (e instanceof BusinessException be) {
+                throw be;
+            }
+            throw new BusinessException(SERVICE_UNAVAILABLE, "social-service 不可用");
         }
-        if (result.getCode() != 0) {
-            throw new BusinessException(INVALID_ARGUMENT, "social-service 返回错误：" + result.getMessage());
-        }
-        return result.getData();
     }
 
     private <T> Result<T> exchange(String url, HttpMethod method, HttpEntity<?> entity, ParameterizedTypeReference<Result<T>> typeRef) {
@@ -88,4 +105,3 @@ public class SocialBlockClient {
         }
     }
 }
-

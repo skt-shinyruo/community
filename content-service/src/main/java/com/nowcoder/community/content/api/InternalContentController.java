@@ -1,17 +1,12 @@
 package com.nowcoder.community.content.api;
 
-import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.api.Result;
 import com.nowcoder.community.common.event.payload.PostPayload;
-import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.api.dto.InternalPostScanResponse;
 import com.nowcoder.community.content.dao.DiscussPostMapper;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.service.TagService;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,16 +22,13 @@ public class InternalContentController {
 
     private final DiscussPostMapper discussPostMapper;
     private final TagService tagService;
-    private final String internalToken;
 
     public InternalContentController(
             DiscussPostMapper discussPostMapper,
-            TagService tagService,
-            @Value("${content.internal-token:}") String internalToken
+            TagService tagService
     ) {
         this.discussPostMapper = discussPostMapper;
         this.tagService = tagService;
-        this.internalToken = internalToken;
     }
 
     /**
@@ -46,12 +38,9 @@ public class InternalContentController {
      */
     @GetMapping("/posts")
     public Result<InternalPostScanResponse> scanPosts(
-            @RequestHeader(name = "X-Internal-Token", required = false) String token,
             @RequestParam(required = false) Integer afterId,
             @RequestParam(required = false) Integer limit
     ) {
-        assertInternalToken(token);
-
         int a = afterId == null ? 0 : Math.max(0, afterId);
         int l = limit == null ? 500 : Math.min(1000, Math.max(1, limit));
 
@@ -89,14 +78,5 @@ public class InternalContentController {
         payload.setCreateTime(post.getCreateTime() == null ? null : post.getCreateTime().toInstant());
         payload.setScore(post.getScore());
         return payload;
-    }
-
-    private void assertInternalToken(String token) {
-        if (!StringUtils.hasText(internalToken)) {
-            throw new BusinessException(CommonErrorCode.FORBIDDEN, "internal-token 未配置");
-        }
-        if (!StringUtils.hasText(token) || !internalToken.equals(token)) {
-            throw new BusinessException(CommonErrorCode.FORBIDDEN, "internal-token 无效");
-        }
     }
 }

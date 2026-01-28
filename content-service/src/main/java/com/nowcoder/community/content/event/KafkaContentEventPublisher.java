@@ -1,5 +1,6 @@
 package com.nowcoder.community.content.event;
 
+// Kafka 事件发布器：支持直发与 Outbox 两种模式。
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.event.EventEnvelope;
 import com.nowcoder.community.common.event.EventTopics;
@@ -8,6 +9,8 @@ import com.nowcoder.community.common.event.payload.CommentPayload;
 import com.nowcoder.community.common.event.payload.ModerationPayload;
 import com.nowcoder.community.common.event.payload.PostPayload;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
+import com.nowcoder.community.content.outbox.ContentOutboxProperties;
+import com.nowcoder.community.content.outbox.OutboxEventService;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.slf4j.Logger;
@@ -27,11 +30,21 @@ public class KafkaContentEventPublisher implements ContentEventPublisher {
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
     private final MeterRegistry meterRegistry;
+    private final ContentOutboxProperties outboxProperties;
+    private final OutboxEventService outboxEventService;
 
-    public KafkaContentEventPublisher(KafkaTemplate<String, String> kafkaTemplate, ObjectMapper objectMapper, MeterRegistry meterRegistry) {
+    public KafkaContentEventPublisher(
+            KafkaTemplate<String, String> kafkaTemplate,
+            ObjectMapper objectMapper,
+            MeterRegistry meterRegistry,
+            ContentOutboxProperties outboxProperties,
+            OutboxEventService outboxEventService
+    ) {
         this.kafkaTemplate = kafkaTemplate;
         this.objectMapper = objectMapper;
         this.meterRegistry = meterRegistry;
+        this.outboxProperties = outboxProperties;
+        this.outboxEventService = outboxEventService;
     }
 
     @Override
@@ -65,6 +78,15 @@ public class KafkaContentEventPublisher implements ContentEventPublisher {
         try {
             EventEnvelope<Object> envelope = EventEnvelope.of(type, 1, "content-service", payload);
             String json = objectMapper.writeValueAsString(envelope);
+
+            if (outboxProperties.isEnabled()) {
+                outboxEventService.enqueue(envelope.getEventId(), topic, key, json);
+                meterRegistry.counter(
+                        "content_event_outbox_total",
+                        Tags.of("topic", topic, "type", type, "outcome", "queued")
+                ).increment();
+                return;
+            }
 
             // 事务提交后再发送，避免 DB 回滚但事件已发出（幽灵事件）。
             AfterCommitExecutor.runAfterCommit(() -> sendAsync(topic, key, json, type));

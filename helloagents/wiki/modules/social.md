@@ -1,12 +1,12 @@
 # social
 
 ## Purpose
-提供点赞、关注/粉丝等社交关系能力（主要基于 Redis）。
+提供点赞、关注/粉丝、拉黑等社交关系能力。
 
 ## Module Overview
-- **Responsibility：** 点赞/取消点赞；统计实体点赞数；关注/取关；关注列表/粉丝列表
+- **Responsibility：** 点赞/取消点赞；统计实体点赞数；关注/取关；关注列表/粉丝列表；拉黑/解除拉黑
 - **Status：** ✅Stable
-- **Last Updated：** 2026-01-23
+- **Last Updated：** 2026-01-28
 
 ## Specifications
 
@@ -16,9 +16,9 @@
 
 #### Scenario: 点赞帖子
 前置条件：用户已登录
-- Redis 记录点赞关系
-- 更新被赞用户的获赞计数
-- 触发点赞事件（通知；若处于事务中则 After-Commit 发送，避免幽灵事件）
+- MySQL 作为关系 SSOT（默认）；Redis 可选作为缓存/计数加速层（非 SSOT）
+- 更新被赞用户的获赞计数（DB 侧具备唯一约束兜底幂等）
+- 触发点赞事件：优先使用 Outbox 可靠投递（可通过开关回滚到 After-Commit 直发）
 
 ### Requirement: 关注/粉丝
 **Module:** social
@@ -26,15 +26,15 @@
 
 #### Scenario: 关注用户
 前置条件：用户已登录
-- ZSet 记录关注时间
-- 触发关注事件（通知；若处于事务中则 After-Commit 发送，避免幽灵事件）
+- MySQL 作为关系 SSOT（默认）；Redis 可选作为缓存/加速层
+- 触发关注事件：优先使用 Outbox 可靠投递（可通过开关回滚到 After-Commit 直发）
 
 ### Requirement: 拉黑/反骚扰
 **Module:** social
 用户可拉黑/解除拉黑对方，用于反骚扰与私信/回复等写路径约束。
 
 #### Scenario: 拉黑用户
-- Redis Set 记录拉黑关系（`block:<userId>`）
+- MySQL 作为关系 SSOT（默认）；Redis 可选作为缓存/加速层
 - 提供内部接口查询 A/B 拉黑关系，供 message-service/content-service 写路径校验
 
 ## API Interfaces（现状）
@@ -50,10 +50,23 @@
 - `GET /api/blocks/status?userId=`（查询是否已拉黑）
 - internal（仅服务间调用，要求 `X-Internal-Token`）：
   - `GET /internal/social/blocks/relation?userIdA=&userIdB=`
+  - internal read（供聚合展示，避免跨服务透传 Authorization）：
+    - `GET /internal/social/read/likes/users/{userId}/count`
+    - `GET /internal/social/read/follows/{userId}/followees/count?entityType=3`
+    - `GET /internal/social/read/follows/{userId}/followers/count?entityType=3`
+    - `GET /internal/social/read/follows/status?userId=&entityType=3&entityId=`
+  - outbox 运维：
+    - `GET /internal/social/outbox/health`
+    - `POST /internal/social/outbox/replay?limit=200`
 
 ## Data Models
+### Storage Modes（重要）
+- `social.storage=db`：默认推荐，MySQL 为 SSOT（生产建议）
+- `social.storage=redis`：仅用于本地/压测/演示（非 SSOT，不推荐在 prod 使用）
+- `social.storage=memory`：仅用于单测/演示
+
 ### Redis Keys
-（详见 `helloagents/wiki/data.md` 的 “Redis Key 设计” 小节）
+（详见 `helloagents/wiki/data.md` 的 “Redis Key 设计” 小节；注意：Redis 不再作为 SSOT）
 
 ## Dependencies
 - user（用户资料用于列表展示）
@@ -63,3 +76,4 @@
 ## Change History
 - 2026-01-18：Kafka 事件发布统一 After-Commit 策略（在事务活跃时 commit 后发送），并补齐发布失败指标用于观测。
 - 2026-01-23：新增拉黑/反骚扰能力（Redis Set 存储 + 对外 API + internal 关系查询）。
+- 2026-01-28：固化 DB 为默认 SSOT（避免 Redis-only 误启用）；补齐 internal read API；Outbox 默认开启（部署侧）。

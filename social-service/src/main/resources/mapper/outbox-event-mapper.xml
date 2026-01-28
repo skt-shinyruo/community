@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nowcoder.community.social.outbox.OutboxEventMapper">
+
+    <sql id="selectFields">
+        id, event_id, topic, event_key, payload, status, retry_count, next_retry_at, last_error, created_at, updated_at
+    </sql>
+
+    <insert id="insert" parameterType="com.nowcoder.community.social.outbox.OutboxEvent" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        insert into outbox_event(event_id, topic, event_key, payload, status, retry_count, next_retry_at, last_error, created_at, updated_at)
+        values(#{eventId}, #{topic}, #{eventKey}, #{payload}, #{status}, #{retryCount}, #{nextRetryAt}, #{lastError}, now(), now())
+    </insert>
+
+    <select id="selectCandidateIds" resultType="long">
+        select id
+        from outbox_event
+        where status in ('NEW', 'RETRY')
+          and (next_retry_at is null or next_retry_at &lt;= #{now})
+        order by id asc
+        limit #{limit}
+        for update
+    </select>
+
+    <update id="markSending">
+        update outbox_event
+        set status = 'SENDING',
+            updated_at = #{now}
+        where id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          and status in ('NEW', 'RETRY')
+    </update>
+
+    <select id="selectByIds" resultType="com.nowcoder.community.social.outbox.OutboxEvent">
+        select <include refid="selectFields"/>
+        from outbox_event
+        where id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        order by id asc
+    </select>
+
+    <update id="markSent">
+        update outbox_event
+        set status = 'SENT',
+            last_error = null,
+            updated_at = #{now}
+        where id = #{id}
+    </update>
+
+    <update id="markRetry">
+        update outbox_event
+        set status = 'RETRY',
+            retry_count = #{retryCount},
+            next_retry_at = #{nextRetryAt},
+            last_error = #{lastError},
+            updated_at = #{now}
+        where id = #{id}
+    </update>
+
+    <update id="markFailed">
+        update outbox_event
+        set status = 'FAILED',
+            last_error = #{lastError},
+            updated_at = #{now}
+        where id = #{id}
+    </update>
+
+    <select id="countByStatus" resultType="int">
+        select count(1)
+        from outbox_event
+        where status = #{status}
+    </select>
+
+    <select id="selectFailedIds" resultType="long">
+        select id
+        from outbox_event
+        where status = 'FAILED'
+        order by id asc
+        limit #{limit}
+    </select>
+
+    <update id="markRetryByIds">
+        update outbox_event
+        set status = 'RETRY',
+            next_retry_at = null,
+            updated_at = #{now}
+        where id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          and status = 'FAILED'
+    </update>
+
+</mapper>
+

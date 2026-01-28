@@ -3,6 +3,7 @@ package com.nowcoder.community.social.block;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -17,6 +18,7 @@ public class BlockService {
         this.repository = repository;
     }
 
+    @Transactional
     public void block(int userId, int targetUserId) {
         if (userId <= 0 || targetUserId <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "userId/targetUserId 非法");
@@ -27,6 +29,7 @@ public class BlockService {
         repository.block(userId, targetUserId);
     }
 
+    @Transactional
     public void unblock(int userId, int targetUserId) {
         if (userId <= 0 || targetUserId <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "userId/targetUserId 非法");
@@ -58,4 +61,3 @@ public class BlockService {
         return repository.listBlockedUserIds(userId);
     }
 }
-

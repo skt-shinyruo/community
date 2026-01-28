@@ -1,8 +1,10 @@
 package com.nowcoder.community.gateway.config;
 
+// Reactive 安全异常处理：确保 401/403 响应体携带 traceId。
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.gateway.filter.TraceIdSupport;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
@@ -35,6 +37,10 @@ public class ReactiveSecurityExceptionHandler implements ServerAuthenticationEnt
     private Mono<Void> write(ServerWebExchange exchange, HttpStatus status, Result<?> body) {
         exchange.getResponse().setStatusCode(status);
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
+        String traceId = TraceIdSupport.resolveTraceId(exchange.getRequest().getHeaders());
+        body.setTraceId(traceId);
+        exchange.getResponse().getHeaders().set(TraceIdSupport.HEADER_TRACE_ID, traceId);
+        exchange.getResponse().getHeaders().set(TraceIdSupport.HEADER_TRACEPARENT, TraceIdSupport.buildTraceparent(traceId));
         try {
             byte[] bytes = objectMapper.writeValueAsBytes(body);
             return exchange.getResponse().writeWith(Mono.just(exchange.getResponse().bufferFactory().wrap(bytes)));
@@ -43,4 +49,3 @@ public class ReactiveSecurityExceptionHandler implements ServerAuthenticationEnt
         }
     }
 }
-

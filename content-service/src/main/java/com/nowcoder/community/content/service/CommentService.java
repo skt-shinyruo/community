@@ -1,5 +1,6 @@
 package com.nowcoder.community.content.service;
 
+// 评论领域服务：负责评论写入与基础校验、评论事件发布。
 import com.nowcoder.community.common.event.payload.CommentPayload;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
@@ -151,8 +152,7 @@ public class CommentService {
         commentMapper.insertComment(comment);
 
         if (type == ENTITY_TYPE_POST) {
-            int commentCount = commentMapper.selectCountByEntity(ENTITY_TYPE_POST, postId);
-            postService.updateCommentCount(postId, commentCount);
+            postService.incrementCommentCount(postId, 1);
 
             // 热度刷新属于非 DB 副作用：延后到事务提交后，避免回滚仍触发刷新。
             AfterCommitExecutor.runAfterCommit(() -> {

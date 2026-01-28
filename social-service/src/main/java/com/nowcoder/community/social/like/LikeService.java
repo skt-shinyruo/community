@@ -6,6 +6,7 @@ import com.nowcoder.community.social.event.SocialEventPublisher;
 import com.nowcoder.community.social.like.dto.LikeRequest;
 import com.nowcoder.community.social.like.dto.LikeResponse;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 
@@ -22,6 +23,7 @@ public class LikeService {
         this.eventPublisher = eventPublisher;
     }
 
+    @Transactional
     public LikeResponse setLike(int actorUserId, LikeRequest request) {
         if (actorUserId <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId 非法");

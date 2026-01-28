@@ -18,6 +18,7 @@ create table if not exists consumed_event (
   consumed_at timestamp null default current_timestamp
 );
 
+create index idx_consumed_event_at on consumed_event(consumed_at);
+
 create index idx_message_conversation on message(conversation_id);
 create index idx_message_to_status on message(to_id, status);
-

@@ -368,6 +368,33 @@ prepare stmt from @sql;
 execute stmt;
 deallocate prepare stmt;
 
+-- Outbox events (idempotent)
+create table if not exists outbox_event (
+  id bigint auto_increment primary key,
+  event_id varchar(64) unique,
+  topic varchar(128),
+  event_key varchar(128),
+  payload text,
+  status varchar(16),
+  retry_count int default 0,
+  next_retry_at timestamp null,
+  last_error varchar(255),
+  created_at timestamp null default current_timestamp,
+  updated_at timestamp null default current_timestamp
+);
+
+set @idx_outbox_status_next := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'outbox_event'
+    and index_name = 'idx_outbox_status_next'
+);
+set @sql := if(@idx_outbox_status_next = 0, 'create index idx_outbox_status_next on outbox_event(status, next_retry_at)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
 -- Default categories for dev (idempotent)
 insert ignore into category(name, description, position) values
   ('公告', '官方公告/规则', 0),

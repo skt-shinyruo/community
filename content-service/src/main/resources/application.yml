@@ -5,6 +5,15 @@ content:
   storage: redis
   events:
     publisher: kafka
+    outbox:
+      enabled: false
+      relay-enabled: true
+      batch-size: 200
+      max-retries: 10
+      base-delay-ms: 1000
+      max-delay-ms: 60000
+      relay-interval-ms: 5000
+      send-timeout-ms: 3000
   internal-token: ${CONTENT_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
   score:
     refresh:
@@ -63,3 +72,13 @@ management:
 security:
   jwt:
     hmac-secret: ${JWT_HMAC_SECRET:${AUTH_JWT_HMAC_SECRET:}}
+
+clients:
+  user:
+    base-url: ${USER_SERVICE_BASE_URL:http://user-service}
+    internal-token: ${USER_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+    fail-open: false
+  social:
+    base-url: ${SOCIAL_SERVICE_BASE_URL:http://social-service}
+    internal-token: ${SOCIAL_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+    fail-open: false

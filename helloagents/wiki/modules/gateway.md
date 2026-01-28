@@ -11,7 +11,10 @@
 - 启动类：`gateway/src/main/java/com/nowcoder/community/gateway/GatewayApplication.java`
 - 安全配置（JWT 验签 + 权限矩阵）：`gateway/src/main/java/com/nowcoder/community/gateway/config/GatewaySecurityConfig.java`
 - OriginGuard 配置：`gateway/src/main/java/com/nowcoder/community/gateway/config/OriginGuardProperties.java`（`gateway.origin-guard.*`）
-- traceId：`gateway/src/main/java/com/nowcoder/community/gateway/filter/TraceIdGlobalFilter.java`
+- traceId：`gateway/src/main/java/com/nowcoder/community/gateway/filter/TraceIdWebFilter.java`、`gateway/src/main/java/com/nowcoder/community/gateway/filter/TraceIdGlobalFilter.java`、`gateway/src/main/java/com/nowcoder/community/gateway/filter/TraceIdSupport.java`
+- 安全异常响应：`gateway/src/main/java/com/nowcoder/community/gateway/config/ReactiveSecurityExceptionHandler.java`
+- 可信代理配置：`gateway/src/main/java/com/nowcoder/community/gateway/config/TrustedProxyProperties.java`（`gateway.trusted-proxy.*`）
+- 客户端 IP 解析：`gateway/src/main/java/com/nowcoder/community/gateway/filter/ClientIpResolver.java`
 - 限流：`gateway/src/main/java/com/nowcoder/community/gateway/filter/GatewayRateLimitGlobalFilter.java`
 - 审计：`gateway/src/main/java/com/nowcoder/community/gateway/filter/AuditLogGlobalFilter.java`
 - UV/DAU 采集：`gateway/src/main/java/com/nowcoder/community/gateway/filter/AnalyticsCollectGlobalFilter.java`
@@ -34,9 +37,11 @@
 ## 4. 本地运行（示例）
 - 需要设置 `GATEWAY_JWT_HMAC_SECRET`（>=32 字节）并确保与 `AUTH_JWT_HMAC_SECRET` 一致。
 - 若启用统计采集（`analytics.collect.enabled=true`），需要配置 `ANALYTICS_INTERNAL_TOKEN`，用于 gateway 调用 analytics-service 的 `/internal/**` 写入口。
+  - 去重/降噪参数：`analytics.collect.dedup-enabled`、`analytics.collect.uv-cache-max-size`、`analytics.collect.dau-cache-max-size`、`analytics.collect.dedup-ttl-seconds`（网关单实例内生效）。
 - 若启用限流（默认开启），需要 Redis 可用（`spring.data.redis.host/port`）。
 - 若采用“前端直连 gateway”模式（前端 `12881` + gateway `12882`），需要在 gateway allowlist 中允许对应 Origin（默认包含 `http://localhost:12881` / `http://localhost:12888`）。
 - 若本地前端端口调整（例如 `12888` -> 其他端口），只需在 gateway 中更新 allowlist（CORS + OriginGuard），auth-service 不再单独维护 Origin 白名单。
+- 若部署在反向代理/Ingress 后，默认 **不信任** `X-Forwarded-For`；需显式配置 `gateway.trusted-proxy.enabled=true` + `gateway.trusted-proxy.cidrs` 才会解析 XFF。
 - 若启用 Nacos Config：
   - Data ID：`gateway.yaml`（YAML）
   - 配置入口：`spring.cloud.gateway.globalcors.corsConfigurations.[/**].allowedOrigins` 与 `gateway.origin-guard.allowed-origins`
@@ -45,8 +50,10 @@
 
 ## 5. 关键行为说明
 - 限流触发时返回 HTTP 429，并附带 `X-RateLimit-*` 响应头（Limit/Remaining/Reset/Rule）。
+- 401/403/429/503 等错误响应统一回填 `traceId`（响应体 `Result.traceId` + 响应头 `X-Trace-Id/traceparent`）。
 - 审计日志：gateway 记录非 GET 的 `/api/**` 操作（跳过 `/api/auth/login`），包含 `status/costMs/userId/traceId`，用于 Loki/日志系统检索。
 - 权限矩阵：治理后台接口 `/api/moderation/**` 仅允许 `ROLE_ADMIN/ROLE_MODERATOR`（其余用户返回 403）。
+- UV/DAU 采集链路：网关侧仅做“有界降噪”（TTL + 最大容量），最终以 analytics-service Redis 去重/聚合为准；网关调用 analytics-service 时会透传 `X-Trace-Id/traceparent` 便于排障。
 
 ## 6. 常见问题排查
 - **503 Service Unavailable（Unable to find instance）**：若 gateway 日志提示 `Unable to find instance for {service}`，通常表示 `lb://{service}` 未解析到任何实例：

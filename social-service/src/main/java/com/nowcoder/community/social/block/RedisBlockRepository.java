@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Set;
 
 @Repository
-@ConditionalOnProperty(name = "social.storage", havingValue = "redis", matchIfMissing = true)
+@ConditionalOnProperty(name = "social.storage", havingValue = "redis")
 public class RedisBlockRepository implements BlockRepository {
 
     private final StringRedisTemplate redisTemplate;
@@ -61,4 +61,3 @@ public class RedisBlockRepository implements BlockRepository {
         return "block:" + userId;
     }
 }
-

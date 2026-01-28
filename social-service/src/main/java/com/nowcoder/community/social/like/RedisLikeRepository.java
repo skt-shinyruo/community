@@ -5,7 +5,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
 
 @Repository
-@ConditionalOnProperty(name = "social.storage", havingValue = "redis", matchIfMissing = true)
+@ConditionalOnProperty(name = "social.storage", havingValue = "redis")
 public class RedisLikeRepository implements LikeRepository {
 
     private final StringRedisTemplate redisTemplate;
@@ -65,4 +65,3 @@ public class RedisLikeRepository implements LikeRepository {
         return "like:user:" + userId;
     }
 }
-

@@ -2,6 +2,16 @@ security:
   jwt:
     hmac-secret: test-jwt-secret-please-change-at-least-32bytes
 
+clients:
+  social:
+    internal-token: test-internal-token
+    fail-open: true
+
+message:
+  idempotency:
+    cleanup-enabled: false
+    retention-days: 1
+
 spring:
   cloud:
     nacos:

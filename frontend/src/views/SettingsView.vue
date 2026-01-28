@@ -1,56 +1,56 @@
 <template>
-  <div class="page" style="padding: 0; max-width: 1000px; margin: 0 auto; min-height: 80vh;">
-    <div class="settings-layout">
-       <!-- Left Sidebar -->
-       <div class="settings-sidebar">
-          <div class="settings-title">设置</div>
+  <div class="page">
+    <UiCard>
+      <UiPageHeader>
+        <template #title>设置</template>
+        <template #subtitle>账号与偏好</template>
+      </UiPageHeader>
+
+      <div class="settings-layout">
+        <!-- Left Sidebar -->
+        <div class="settings-sidebar">
           <div class="settings-nav">
-             <div class="settings-nav-item active">资料</div>
-             <div class="settings-nav-item">账号</div>
-             <div class="settings-nav-item">隐私</div>
+            <div class="settings-nav-item active">资料</div>
+            <div class="settings-nav-item">账号</div>
+            <div class="settings-nav-item">隐私</div>
           </div>
-       </div>
-       
-       <!-- Right Content -->
-       <div class="settings-content">
+        </div>
+
+        <!-- Right Content -->
+        <div class="settings-content">
           <div class="settings-header">
-             <h2 style="margin: 0">公开资料</h2>
-             <p class="muted">更新头像等公开信息。</p>
+            <div style="font-weight: 800; font-size: 16px">公开资料</div>
+            <div class="muted" style="font-size: 13px">更新头像等公开信息。</div>
           </div>
 
-          <div style="margin-top: 24px">
-             <!-- Avatar Section -->
-             <div style="display: flex; align-items: flex-start; gap: 24px">
-                 <UiAvatar 
-                  :src="avatarUrl" 
-                  :name="auth.username || ''" 
-                  :size="80" 
-                  style="font-size: 32px" 
-                />
-                 <div class="stack" style="gap: 12px; flex: 1">
-                    <div style="font-weight: 600">头像</div>
-                    <div class="row" style="gap: 8px">
-                       <UiButton variant="secondary" @click="loadToken" :disabled="loading">
-                         {{ loading ? '获取中…' : '获取上传 Token' }}
-                       </UiButton>
-                    </div>
-                    
-                    <div v-if="token.uploadToken" class="upload-area">
-                        <div class="muted" style="font-size: 12px; margin-bottom: 8px">Token 已生成，可以开始上传。</div>
-                        <div class="row" style="gap: 8px">
-                           <input type="file" accept="image/*" @change="onPickFile" class="input" style="padding: 8px" />
-                           <UiButton @click="uploadAndUpdate" :disabled="loading || !pickedFile">
-                             {{ loading ? '上传中…' : '上传并保存' }}
-                           </UiButton>
-                        </div>
-                    </div>
-                    <div v-if="error" class="error">{{ error }}</div>
-                    <div v-if="successMsg" class="success">{{ successMsg }}</div>
-                 </div>
-             </div>
+          <div class="settings-section">
+            <div class="settings-avatar-row">
+              <UiAvatar :src="avatarUrl" :name="auth.username || ''" :size="80" style="font-size: 32px" />
+              <div class="stack" style="gap: 12px; flex: 1">
+                <div style="font-weight: 700">头像</div>
+                <div class="row" style="gap: 8px; flex-wrap: wrap">
+                  <UiButton variant="secondary" @click="loadToken" :disabled="loading">
+                    {{ loading ? '获取中…' : '获取上传 Token' }}
+                  </UiButton>
+                </div>
+
+                <div v-if="token.uploadToken" class="upload-area">
+                  <div class="muted" style="font-size: 12px; margin-bottom: 8px">Token 已生成，可以开始上传。</div>
+                  <div class="row" style="gap: 8px; flex-wrap: wrap">
+                    <input type="file" accept="image/*" @change="onPickFile" class="input file-input" />
+                    <UiButton @click="uploadAndUpdate" :disabled="loading || !pickedFile">
+                      {{ loading ? '上传中…' : '上传并保存' }}
+                    </UiButton>
+                  </div>
+                </div>
+                <div v-if="error" class="error">{{ error }}</div>
+                <div v-if="successMsg" class="success">{{ successMsg }}</div>
+              </div>
+            </div>
           </div>
-       </div>
-    </div>
+        </div>
+      </div>
+    </UiCard>
   </div>
 </template>
 
@@ -59,8 +59,10 @@ import { computed, reactive, ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import http from '../api/http'
 import { unwrapResultBody } from '../api/result'
+import UiCard from '../components/ui/UiCard.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiButton from '../components/ui/UiButton.vue'
+import UiPageHeader from '../components/ui/UiPageHeader.vue'
 
 const emit = defineEmits(['trace'])
 const auth = useAuthStore()
@@ -159,20 +161,17 @@ async function uploadAndUpdate() {
 <style scoped>
 .settings-layout {
   display: flex;
-  min-height: 500px;
-  background: var(--surface);
+  gap: 0;
+  margin-top: 16px;
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
 .settings-sidebar {
   width: 240px;
-  background: var(--bg);
+  background: color-mix(in srgb, var(--bg) 78%, var(--surface) 22%);
   padding: 24px 16px;
   border-right: 1px solid var(--border);
-}
-.settings-title {
-  font-size: 20px; font-weight: 800; margin-bottom: 24px; padding-left: 12px;
 }
 .settings-nav-item {
   padding: 10px 12px;
@@ -187,13 +186,62 @@ async function uploadAndUpdate() {
 
 .settings-content {
   flex: 1;
-  padding: 40px;
+  padding: 28px;
 }
 .settings-header { border-bottom: 1px solid var(--border); padding-bottom: 24px; }
+
+.settings-section {
+  margin-top: 24px;
+}
+
+.settings-avatar-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.file-input {
+  padding: 8px;
+  height: auto;
+}
 
 .upload-area {
     background: var(--bg);
     padding: 12px;
     border-radius: 8px;
+}
+
+@media (max-width: 900px) {
+  .settings-layout {
+    flex-direction: column;
+  }
+
+  .settings-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 12px;
+  }
+
+  .settings-nav {
+    display: flex;
+    gap: 6px;
+    overflow: auto;
+    padding-bottom: 4px;
+  }
+
+  .settings-nav-item {
+    margin-bottom: 0;
+    white-space: nowrap;
+  }
+
+  .settings-content {
+    padding: 18px;
+  }
+
+  .settings-avatar-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 </style>

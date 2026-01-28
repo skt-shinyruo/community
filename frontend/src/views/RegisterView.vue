@@ -1,92 +1,78 @@
 <template>
-  <div class="auth-page">
-    <!-- Left: Brand / Visuals -->
-    <div class="auth-visual">
-       <div class="auth-brand">
-         <div class="logo">C</div>
-         <span class="brand-text">Community</span>
-       </div>
-       <div class="auth-quote">
-         <h1>创建你的账号。</h1>
-         <p>加入社区，与大家一起交流与分享。</p>
-       </div>
-    </div>
-    
-    <!-- Right: Form -->
-    <div class="auth-form-container">
-      <div style="width: 100%; max-width: 400px">
-        <div style="margin-bottom: 32px">
-          <h2 style="font-size: 28px; font-weight: 800; margin-bottom: 8px">开始注册</h2>
-          <div class="muted">欢迎加入社区。</div>
+  <UiCard>
+    <UiPageHeader>
+      <template #title>注册</template>
+      <template #subtitle>创建账号 · 加入社区参与讨论</template>
+    </UiPageHeader>
+
+    <div class="stack auth-form">
+      <div class="stack" style="gap: 8px">
+        <div class="field-label">用户名</div>
+        <UiInput v-model.trim="form.username" placeholder="请输入用户名" autocomplete="username" />
+      </div>
+
+      <div class="stack" style="gap: 8px">
+        <div class="field-label">邮箱</div>
+        <UiInput v-model.trim="form.email" placeholder="name@example.com" autocomplete="email" />
+      </div>
+
+      <div class="stack" style="gap: 8px">
+        <div class="field-label">密码</div>
+        <UiInput v-model.trim="form.password" placeholder="请输入密码" type="password" autocomplete="new-password" />
+      </div>
+
+      <div class="stack" style="gap: 8px">
+        <div class="field-label">验证码</div>
+        <div class="row captcha-row">
+          <UiInput v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" style="flex: 1" />
+          <img
+            v-if="captchaSrc"
+            :src="captchaSrc"
+            alt="验证码"
+            title="点击刷新验证码"
+            class="captcha-img"
+            @click="refreshCaptcha"
+          />
         </div>
+      </div>
 
-        <div class="stack" style="gap: 20px">
-           <div class="stack" style="gap: 8px">
-            <div style="font-size: 14px; font-weight: 600">用户名</div>
-            <UiInput v-model.trim="form.username" placeholder="请输入用户名" class="auth-input" autocomplete="username" />
-          </div>
-          
-           <div class="stack" style="gap: 8px">
-            <div style="font-size: 14px; font-weight: 600">邮箱</div>
-            <UiInput v-model.trim="form.email" placeholder="name@example.com" class="auth-input" autocomplete="email" />
-          </div>
+      <div v-if="error" class="error">{{ error }}</div>
+      <div v-if="successMsg" class="success">{{ successMsg }}</div>
 
-          <div class="stack" style="gap: 8px">
-            <div style="font-size: 14px; font-weight: 600">密码</div>
-            <UiInput v-model.trim="form.password" placeholder="请输入密码" type="password" class="auth-input" autocomplete="new-password" />
-          </div>
+      <UiButton @click="onRegister" :disabled="loading" style="height: 44px; font-size: 15px">
+        {{ loading ? '注册中…' : '注册' }}
+      </UiButton>
 
-           <div class="stack" style="gap: 8px">
-             <div style="font-size: 14px; font-weight: 600">验证码</div>
-              <div class="row" style="gap: 12px">
-                <UiInput v-model.trim="form.captcha" placeholder="请输入验证码" class="auth-input" style="flex: 1" autocomplete="off" />
-                 <img
-                  v-if="captchaSrc"
-                  :src="captchaSrc"
-                  alt="验证码"
-                  title="点击刷新验证码"
-                  @click="refreshCaptcha"
-                  style="height: 44px; border-radius: 8px; cursor: pointer; border: 1px solid var(--border)"
-                />
-              </div>
-          </div>
-
-          <div v-if="error" class="error">{{ error }}</div>
-          <div v-if="successMsg" class="success">{{ successMsg }}</div>
-
-          <UiButton @click="onRegister" :disabled="loading" class="primary" style="height: 48px; font-size: 16px; margin-top: 8px">
-            {{ loading ? '注册中…' : '注册' }}
-          </UiButton>
-
-          <div class="row" style="justify-content: center; gap: 4px; font-size: 14px; margin-top: 16px">
-            <span class="muted">已有账号？</span>
-            <RouterLink to="/auth/login" style="font-weight: 600; color: var(--accent)">去登录</RouterLink>
-          </div>
-           <div style="text-align: center; margin-top: 8px">
-             <RouterLink to="/posts" class="muted" style="font-size: 13px">返回社区</RouterLink>
-           </div>
-        </div>
-        
-        <!-- Activation Link for Dev -->
-         <UiCard v-if="activationLink" flat style="margin-top: 24px">
-            <div class="stack" style="gap: 10px">
-              <div style="font-weight: 800; font-size: 14px">开发/测试激活链接</div>
-              <div class="muted" style="word-break: break-all; font-size: 12px">{{ activationLink }}</div>
-              <UiButton variant="secondary" @click="goActivation">打开激活页</UiButton>
-            </div>
-          </UiCard>
+      <div class="row auth-links">
+        <span class="muted">已有账号？</span>
+        <RouterLink to="/auth/login" class="auth-link">去登录</RouterLink>
+        <span class="muted">·</span>
+        <RouterLink to="/posts" class="muted">返回社区</RouterLink>
       </div>
     </div>
-  </div>
+
+    <template v-if="activationLink">
+      <UiDivider />
+      <div class="stack" style="gap: 10px">
+        <div style="font-weight: 800; font-size: 13px">开发/测试激活链接</div>
+        <div class="muted" style="word-break: break-all; font-size: 12px">{{ activationLink }}</div>
+        <div class="row" style="justify-content: flex-end">
+          <UiButton variant="secondary" @click="goActivation">打开激活页</UiButton>
+        </div>
+      </div>
+    </template>
+  </UiCard>
 </template>
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { register as apiRegister, issueCaptcha } from '../api/services/authService'
+import UiCard from '../components/ui/UiCard.vue'
+import UiDivider from '../components/ui/UiDivider.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiButton from '../components/ui/UiButton.vue'
-import UiCard from '../components/ui/UiCard.vue'
+import UiPageHeader from '../components/ui/UiPageHeader.vue'
 
 const emit = defineEmits(['trace'])
 const router = useRouter()
@@ -165,63 +151,43 @@ onMounted(refreshCaptcha)
 </script>
 
 <style scoped>
-.auth-page {
-  display: flex;
-  min-height: 100vh;
-  background: var(--surface);
+.auth-form {
+  margin-top: 14px;
+  gap: 14px;
 }
-.auth-visual {
-  flex: 1;
-  background: linear-gradient(135deg, #FF3CAC 0%, #784BA0 50%, #2B86C5 100%);
-  color: white;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 40px;
-  position: relative;
-  overflow: hidden;
-}
-.auth-visual::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.1);
-}
-.auth-brand {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    z-index: 1;
-}
-.logo {
-    width: 40px; height: 40px; background: white; color: black;
-    border-radius: 10px; font-weight: 900; display: flex; align-items: center; justify-content: center; font-size: 20px;
-}
-.brand-text { font-size: 20px; font-weight: 700; z-index: 1;}
-.auth-quote { z-index: 1; }
-.auth-quote h1 { font-size: 48px; line-height: 1.1; margin-bottom: 20px; font-weight: 800; }
-.auth-quote p { font-size: 18px; opacity: 0.9; max-width: 400px; }
 
-.auth-form-container {
-  flex: 1;
-  display: flex;
+.field-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.captcha-row {
+  gap: 12px;
   align-items: center;
+}
+
+.captcha-img {
+  height: 40px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+}
+
+.auth-links {
   justify-content: center;
-  padding: 40px;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  margin-top: 2px;
 }
 
-/* Mobile Responsive */
-@media (max-width: 768px) {
-  .auth-visual { display: none; }
+.auth-link {
+  font-weight: 700;
+  color: var(--accent);
 }
 
-.auth-input {
-  height: 48px;
-  background: var(--bg);
-  border: 1px solid transparent;
-}
-.auth-input:focus {
-  background: var(--surface);
-  border-color: var(--accent);
+.auth-link:hover {
+  text-decoration: underline;
 }
 </style>

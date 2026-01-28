@@ -76,6 +76,8 @@
   - 内容生命周期：帖子/评论编辑窗口（24h/15min）+ 作者软删（PostDeleted）+ 收藏（post_bookmark）+ 分类订阅与“仅看订阅”（user_subscription_category）。
   - 成长体系：积分流水（user_score_log）+ 用户主页展示积分/等级 + `/api/users/leaderboard` 榜单。
   - 本地 compose 修复：补齐 `user-service` 的 `KAFKA_BOOTSTRAP_SERVERS=kafka:9092`，保证容器内积分消费者可连 Kafka。
+- `frontend` 内容优先 UI 全站一致性：提升文本对比度（`--text-3`）与 PageHeader 标题层级；topic list 行补齐 `focus-visible`；`UiMarkdown` 渲染升级为段落/列表/引用语义；认证页（含登录/注册）统一收敛到 AuthShell；消息详情/设置/用户主页/通知汇总等页收敛到 `UiCard + UiPageHeader` 模式。
+- `frontend` 视觉精修与 CSS 清理：移除历史未用样式入口 `frontend/src/styles.css`；删除确认无引用的遗留选择器（`.post-body/.comment-body`）；补齐 `.btn.sm` 小尺寸变体并以 design tokens 收敛零散间距（更好适配 density）。
 
 ### Fixed
 - 修复 message-service 消费端“自调用导致事务不生效 + 幂等记录先写导致永久丢通知”的高风险路径。

@@ -34,69 +34,156 @@ function sanitizeUrl(raw) {
   return ''
 }
 
-const rendered = computed(() => {
-  let text = props.content || ''
+function renderInline(escapedText) {
+  let text = String(escapedText || '')
 
-  // 代码块先提取，避免后续的换行替换破坏 <pre> 内部格式。
-  const codeBlocks = []
-  text = text.replace(/```([\s\S]*?)```/gim, (_m, code) => {
-    const escaped = escapeHtml(code)
-    const idx = codeBlocks.length
-    codeBlocks.push(`<pre><code>${escaped}</code></pre>`)
-    return `@@CODEBLOCK_${idx}@@`
+  // Inline code：先占位，避免后续 bold/italic 影响 code 内容。
+  const inlineCodes = []
+  text = text.replace(/`([^`]+)`/gim, (_m, code) => {
+    const idx = inlineCodes.length
+    inlineCodes.push(`<code>${code}</code>`)
+    return `@@INLINECODE_${idx}@@`
   })
 
-  // 先整体转义（再逐步放行/生成可控标签）。
-  text = escapeHtml(text)
-
-  // Headers
-  text = text.replace(/^### (.*$)/gim, '<h3>$1</h3>')
-  text = text.replace(/^## (.*$)/gim, '<h2>$1</h2>')
-  text = text.replace(/^# (.*$)/gim, '<h1>$1</h1>')
-
-  // Blockquote
-  text = text.replace(/^\> (.*$)/gim, '<blockquote>$1</blockquote>')
-
-  // Bold / Italic（尽量避免贪婪跨行）
-  text = text.replace(/\*\*([^*]+)\*\*/gim, '<b>$1</b>')
-  text = text.replace(/\*([^*]+)\*/gim, '<i>$1</i>')
-
-  // Inline Code
-  text = text.replace(/`([^`]+)`/gim, '<code>$1</code>')
-
-  // Links
+  // Links（label/url 均已 escape；href 需二次 sanitize）
   text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/gim, (_m, label, url) => {
     const safe = sanitizeUrl(url)
     if (!safe) return label
     return `<a href="${safe}" target="_blank" rel="noopener noreferrer">${label}</a>`
   })
 
-  // Unordered Lists
-  text = text.replace(/^\s*-\s+(.*)/gim, '<li>$1</li>')
-  text = text.replace(/(<li>.*<\/li>)/gim, '<ul>$1</ul>')
-  // Fix nested uls (regex hack)
-  text = text.replace(/<\/ul>\n<ul>/gim, '\n')
+  // Bold / Italic（尽量避免贪婪跨行）
+  text = text.replace(/\*\*([^*]+)\*\*/gim, '<b>$1</b>')
+  text = text.replace(/\*([^*]+)\*/gim, '<i>$1</i>')
 
-  // Line breaks
-  text = text.replace(/\n/gim, '<br />')
-
-  // Restore code blocks (after line breaks)
-  text = text.replace(/@@CODEBLOCK_(\d+)@@/gim, (_m, idx) => codeBlocks[Number(idx)] || '')
-  
+  // Restore inline codes
+  text = text.replace(/@@INLINECODE_(\d+)@@/gim, (_m, idx) => inlineCodes[Number(idx)] || '')
   return text
+}
+
+function isCodePlaceholder(line) {
+  return /^@@CODEBLOCK_\d+@@$/.test(String(line || '').trim())
+}
+
+const rendered = computed(() => {
+  let raw = String(props.content || '')
+
+  // 代码块先提取，避免后续处理破坏 <pre> 内部格式。
+  const codeBlocks = []
+  raw = raw.replace(/```([\s\S]*?)```/gim, (_m, code) => {
+    const escaped = escapeHtml(code)
+    const idx = codeBlocks.length
+    codeBlocks.push(`<pre><code>${escaped}</code></pre>`)
+    // 保证占位符独立成行，避免 <pre> 被包进 <p> 或 <li> 里。
+    return `\n@@CODEBLOCK_${idx}@@\n`
+  })
+
+  // 先整体转义（再逐步放行/生成可控标签）。
+  const text = escapeHtml(raw).replace(/\r\n?/g, '\n')
+  const lines = text.split('\n')
+
+  const blocks = []
+  let paragraph = []
+
+  function flushParagraph() {
+    if (paragraph.length === 0) return
+    const body = renderInline(paragraph.join('\n')).replace(/\n/g, '<br />')
+    blocks.push(`<p>${body}</p>`)
+    paragraph = []
+  }
+
+  let i = 0
+  while (i < lines.length) {
+    const line = lines[i]
+    const trimmed = String(line || '').trim()
+
+    if (!trimmed) {
+      flushParagraph()
+      i += 1
+      continue
+    }
+
+    if (isCodePlaceholder(trimmed)) {
+      flushParagraph()
+      blocks.push(trimmed)
+      i += 1
+      continue
+    }
+
+    if (trimmed.startsWith('### ')) {
+      flushParagraph()
+      blocks.push(`<h3>${renderInline(trimmed.slice(4))}</h3>`)
+      i += 1
+      continue
+    }
+    if (trimmed.startsWith('## ')) {
+      flushParagraph()
+      blocks.push(`<h2>${renderInline(trimmed.slice(3))}</h2>`)
+      i += 1
+      continue
+    }
+    if (trimmed.startsWith('# ')) {
+      flushParagraph()
+      blocks.push(`<h1>${renderInline(trimmed.slice(2))}</h1>`)
+      i += 1
+      continue
+    }
+
+    // Blockquote: 由于已整体 escape，这里匹配 &gt; 前缀。
+    if (trimmed.startsWith('&gt; ')) {
+      flushParagraph()
+      const quoteLines = []
+      while (i < lines.length) {
+        const l = String(lines[i] || '')
+        const t = l.trim()
+        if (!t) break
+        if (!t.startsWith('&gt; ')) break
+        quoteLines.push(t.slice(5))
+        i += 1
+      }
+      const quoteBody = renderInline(quoteLines.join('\n')).replace(/\n/g, '<br />')
+      blocks.push(`<blockquote><p>${quoteBody}</p></blockquote>`)
+      continue
+    }
+
+    // Unordered list
+    if (/^\s*-\s+/.test(trimmed)) {
+      flushParagraph()
+      const items = []
+      while (i < lines.length) {
+        const l = String(lines[i] || '')
+        const t = l.trim()
+        if (!t) break
+        if (!/^\s*-\s+/.test(t)) break
+        items.push(t.replace(/^\s*-\s+/, ''))
+        i += 1
+      }
+      const listBody = items.map((it) => `<li>${renderInline(it)}</li>`).join('')
+      blocks.push(`<ul>${listBody}</ul>`)
+      continue
+    }
+
+    paragraph.push(trimmed)
+    i += 1
+  }
+
+  flushParagraph()
+
+  const html = blocks.join('\n')
+  return html.replace(/@@CODEBLOCK_(\d+)@@/gim, (_m, idx) => codeBlocks[Number(idx)] || '')
 })
 </script>
 
 <style scoped>
 .markdown-body {
-  font-size: 16px;
-  line-height: 1.6;
+  font-size: var(--text-md);
+  line-height: var(--line-loose);
   color: var(--text-1);
 }
 
 .markdown-body.compact {
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: var(--text-sm);
+  line-height: var(--line-normal);
 }
 
 :deep(h1), :deep(h2), :deep(h3) {
@@ -109,7 +196,7 @@ const rendered = computed(() => {
 :deep(h2) { font-size: 1.5em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
 :deep(h3) { font-size: 1.25em; }
 
-:deep(p) { margin-bottom: 1em; }
+:deep(p) { margin: 0 0 1em 0; }
 :deep(ul) { margin-bottom: 1em; padding-left: 20px; }
 :deep(li) { margin-bottom: 0.25em; list-style-type: disc; }
 
@@ -124,13 +211,14 @@ const rendered = computed(() => {
   background: var(--surface-2);
   padding: 12px;
   border-radius: 8px;
+  border: 1px solid var(--border);
   overflow-x: auto;
   margin: 1em 0;
 }
 :deep(code) {
   font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
   font-size: 0.9em;
-  background: rgba(0,0,0,0.05);
+  background: var(--hover-bg);
   padding: 2px 4px;
   border-radius: 4px;
 }

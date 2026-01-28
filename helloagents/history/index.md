@@ -8,6 +8,8 @@
 
 | Timestamp | Feature Name | Type | Status | Solution Package Path |
 |-----------|--------------|------|--------|----------------------|
+| 202601251248 | ui_visual_polish_css_cleanup | Development Implementation | ✅Completed | [202601251248_ui_visual_polish_css_cleanup](2026-01/202601251248_ui_visual_polish_css_cleanup/) |
+| 202601251205 | ui_content_first_fullsite | Development Implementation | ✅Completed | [202601251205_ui_content_first_fullsite](2026-01/202601251205_ui_content_first_fullsite/) |
 | 202601231154 | bbs_core_1to4_mvp | Development Implementation | ✅Completed | [202601231154_bbs_core_1to4_mvp](2026-01/202601231154_bbs_core_1to4_mvp/) |
 | 202601201820 | bbs_discourse_new_tag_suggest_search | Development Implementation | ✅Completed | [202601201820_bbs_discourse_new_tag_suggest_search](2026-01/202601201820_bbs_discourse_new_tag_suggest_search/) |
 | 202601201714 | bbs_taxonomy | Development Implementation | ✅Completed | [202601201714_bbs_taxonomy](2026-01/202601201714_bbs_taxonomy/) |
@@ -41,6 +43,8 @@
 ## Archive by Month
 
 ### 2026-01
+- [202601251248_ui_visual_polish_css_cleanup](2026-01/202601251248_ui_visual_polish_css_cleanup/) - 视觉精修 + 清理遗留样式/未用 CSS（补齐 btn.sm / 删除历史 styles.css / tokens 收敛）
+- [202601251205_ui_content_first_fullsite](2026-01/202601251205_ui_content_first_fullsite/) - 内容优先 UI 全站一致性（AuthShell 收敛 / Markdown 语义 / 页面结构统一）
 - [202601231154_bbs_core_1to4_mvp](2026-01/202601231154_bbs_core_1to4_mvp/) - 核心运营能力（治理/反骚扰/收藏订阅/成长体系）
 - [202601201820_bbs_discourse_new_tag_suggest_search](2026-01/202601201820_bbs_discourse_new_tag_suggest_search/) - Discourse 体验增强（新内容提示条 + 标签自动补全 + 搜索 taxonomy 过滤）
 - [202601201714_bbs_taxonomy](2026-01/202601201714_bbs_taxonomy/) - taxonomy（分类/标签）全链路：发帖可选、列表过滤、RightPanel 聚合展示

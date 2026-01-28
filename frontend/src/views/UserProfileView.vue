@@ -1,21 +1,36 @@
 <template>
-  <div class="page" style="max-width: 1000px; margin: 0 auto">
+  <div class="page">
     <UiBreadcrumb />
 
-    <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
-    <div v-else-if="loading" class="muted" style="padding: 24px">加载中…</div>
+    <UiCard flat>
+      <UiPageHeader>
+        <template #title>个人主页</template>
+        <template #subtitle>资料与互动概览</template>
+        <template #actions>
+          <UiButton variant="secondary" :disabled="loading" @click="reload">刷新</UiButton>
+        </template>
+      </UiPageHeader>
+    </UiCard>
 
-    <div v-else style="background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden">
+    <UiCard v-if="error">
+      <UiEmpty type="error">{{ error }}</UiEmpty>
+    </UiCard>
+
+    <UiCard v-else-if="loading">
+      <div class="muted">加载中…</div>
+    </UiCard>
+
+    <UiCard v-else class="profile-card">
       <!-- Cover & Avatar -->
       <div class="profile-cover"></div>
 
-      <div style="position: relative; padding-bottom: 24px">
+      <div class="profile-body">
         <div class="profile-avatar-wrapper">
           <UiAvatar :src="profile?.headerUrl || ''" :name="profile?.username || ''" :size="120" style="font-size: 48px" />
         </div>
 
         <!-- Actions -->
-        <div class="row" style="justify-content: flex-end; padding: 16px 24px 0 0; gap: 12px">
+        <div class="row profile-actions">
           <template v-if="authed && meUserId && meUserId !== Number(userId)">
             <UiButton v-if="followStatus === false" @click="doFollow(true)" :disabled="actionLoading" class="primary">关注</UiButton>
             <UiButton variant="secondary" v-else-if="followStatus === true" @click="doFollow(false)" :disabled="actionLoading">取消关注</UiButton>
@@ -39,9 +54,9 @@
         </div>
 
         <!-- Info -->
-        <div style="margin-top: 20px; padding: 0 24px">
-          <div class="row" style="gap: 8px; align-items: center">
-            <h1 style="margin: 0; font-size: 28px; font-weight: 800">{{ profile?.username || `user#${profile?.id}` }}</h1>
+        <div class="profile-info">
+          <div class="row profile-name-row">
+            <h1 class="profile-name">{{ profile?.username || `user#${profile?.id}` }}</h1>
             <UiRoleBadge :user="profile" size="md" />
             <span class="tag" title="等级（基于积分）">LV {{ Number(profile?.level || 1) }}</span>
             <span class="tag" title="积分">{{ Number(profile?.score || 0) }} 分</span>
@@ -80,7 +95,7 @@
           <UiEmpty>暂无动态</UiEmpty>
         </div>
       </div>
-    </div>
+    </UiCard>
   </div>
 
   <ReportModal
@@ -97,14 +112,15 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useSocialPrefsStore } from '../stores/socialPrefs'
-import http from '../api/http'
 import { getUserProfile } from '../api/services/userService'
 import { followUser, unfollowUser, getFollowStatus } from '../api/services/socialService'
 import { blockUser, unblockUser } from '../api/services/blockService'
+import UiCard from '../components/ui/UiCard.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiRoleBadge from '../components/ui/UiRoleBadge.vue'
 import ReportModal from '../components/modals/ReportModal.vue'
 
@@ -135,11 +151,6 @@ const joinedYear = computed(() => {
   const y = d.getFullYear()
   return Number.isFinite(y) ? String(y) : ''
 })
-
-const avatarFileName = ref('')
-const uploadToken = ref('')
-const uploadFileName = ref('')
-const uploadBucketUrl = ref('')
 
 async function loadProfile() {
   error.value = ''
@@ -229,3 +240,111 @@ async function toggleBlock() {
   }
 }
 </script>
+
+<style scoped>
+.profile-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.profile-cover {
+  height: 160px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 22%, var(--surface) 78%),
+    color-mix(in srgb, var(--accent) 10%, var(--bg) 90%)
+  );
+  border-bottom: 1px solid var(--border);
+}
+
+.profile-body {
+  position: relative;
+  margin-top: -56px;
+  padding-bottom: 24px;
+}
+
+.profile-avatar-wrapper {
+  padding-left: 24px;
+}
+
+.profile-avatar-wrapper :deep(.avatar) {
+  border: 4px solid var(--surface);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.profile-actions {
+  justify-content: flex-end;
+  padding: 16px 24px 0 0;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.profile-info {
+  margin-top: 20px;
+  padding: 0 24px;
+}
+
+.profile-name-row {
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.profile-name {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.profile-stats-bar {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 85%, var(--bg) 15%);
+}
+
+.profile-stat {
+  padding: 14px 10px;
+  text-align: center;
+}
+
+.profile-stat + .profile-stat {
+  border-left: 1px solid var(--border);
+}
+
+.profile-stat-val {
+  display: block;
+  font-weight: 800;
+  color: var(--text-1);
+  line-height: var(--line-tight);
+}
+
+.profile-stat-label {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+@media (max-width: 768px) {
+  .profile-body {
+    margin-top: -48px;
+  }
+
+  .profile-avatar-wrapper {
+    padding-left: 16px;
+  }
+
+  .profile-actions {
+    padding: 12px 16px 0 16px;
+    justify-content: flex-start;
+  }
+
+  .profile-info {
+    padding: 0 16px;
+  }
+}
+</style>

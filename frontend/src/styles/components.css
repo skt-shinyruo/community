@@ -88,6 +88,12 @@
   box-shadow: var(--shadow-sm);
 }
 
+.btn.sm {
+  height: clamp(28px, calc(var(--control-height) - 4px), 36px);
+  padding: 0 calc(var(--control-padding-x) - 4px);
+  font-size: var(--text-xs);
+}
+
 .btn:hover {
   background: var(--accent-hover);
   box-shadow: var(--shadow-sm);
@@ -302,12 +308,12 @@
 .page-header-left {
   min-width: 0;
   display: grid;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .page-title {
   font-weight: 800;
-  font-size: var(--text-lg);
+  font-size: var(--text-xl);
   line-height: var(--line-tight);
 }
 
@@ -391,22 +397,6 @@
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text-2);
-}
-
-/* Post/Comment Bodies */
-.post-body {
-  white-space: pre-wrap;
-  word-break: break-word;
-  line-height: var(--line-loose);
-  color: var(--text-1);
-}
-
-.comment-body {
-  margin-top: 10px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  line-height: var(--line-loose);
-  color: var(--text-1);
 }
 
 /* Skeletons */

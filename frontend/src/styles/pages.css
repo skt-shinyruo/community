@@ -56,6 +56,11 @@
   background: var(--surface-2);
 }
 
+.topic-row:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: -2px;
+}
+
 .topic-row.is-unread {
   position: relative;
 }

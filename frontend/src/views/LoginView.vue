@@ -1,78 +1,65 @@
 <template>
-  <div class="auth-page">
-    <!-- Left: Brand / Visuals -->
-    <div class="auth-visual">
-       <div class="auth-brand">
-         <div class="logo">C</div>
-         <span class="brand-text">Community</span>
-       </div>
-       <div class="auth-quote">
-         <h1>加入讨论。</h1>
-         <p>与你感兴趣的人和内容建立连接。</p>
-       </div>
-    </div>
-    
-    <!-- Right: Form -->
-    <div class="auth-form-container">
-      <div style="width: 100%; max-width: 400px">
-        <div style="margin-bottom: 32px">
-          <h2 style="font-size: 28px; font-weight: 800; margin-bottom: 8px">欢迎回来</h2>
-          <div class="muted">输入账号信息以继续。</div>
-        </div>
+  <UiCard>
+    <UiPageHeader>
+      <template #title>登录</template>
+      <template #subtitle>欢迎回来 · 输入账号信息以继续</template>
+    </UiPageHeader>
 
-        <div class="stack" style="gap: 20px">
-          <div class="stack" style="gap: 8px">
-            <div style="font-size: 14px; font-weight: 600">用户名</div>
-            <UiInput v-model.trim="form.username" placeholder="请输入用户名" autocomplete="username" class="auth-input" />
-          </div>
+    <div class="stack auth-form">
+      <div class="stack" style="gap: 8px">
+        <div class="field-label">用户名</div>
+        <UiInput v-model.trim="form.username" placeholder="请输入用户名" autocomplete="username" />
+      </div>
 
-          <div class="stack" style="gap: 8px">
-            <div style="font-size: 14px; font-weight: 600">密码</div>
-            <UiInput v-model.trim="form.password" placeholder="请输入密码" type="password" autocomplete="current-password" class="auth-input" />
-          </div>
+      <div class="stack" style="gap: 8px">
+        <div class="field-label">密码</div>
+        <UiInput v-model.trim="form.password" placeholder="请输入密码" type="password" autocomplete="current-password" />
+      </div>
 
-           <div v-if="captchaRequired" class="stack" style="gap: 8px">
-             <div style="font-size: 14px; font-weight: 600">验证码</div>
-              <div class="row" style="gap: 12px">
-                <UiInput v-model.trim="form.captcha" placeholder="请输入验证码" class="auth-input" style="flex: 1" autocomplete="off" />
-                 <img
-                  v-if="captchaSrc"
-                  :src="captchaSrc"
-                  alt="验证码"
-                  title="点击刷新验证码"
-                  @click="refreshCaptcha"
-                  style="height: 44px; border-radius: 8px; cursor: pointer; border: 1px solid var(--border)"
-                />
-              </div>
-          </div>
-
-          <div v-if="error" class="error">{{ error }}</div>
-
-          <UiButton @click="onLogin" :disabled="loading" class="primary" style="height: 48px; font-size: 16px; margin-top: 8px">
-            {{ loading ? '登录中…' : '登录' }}
-          </UiButton>
-
-          <div class="row" style="justify-content: center; gap: 4px; font-size: 14px; margin-top: 16px">
-            <span class="muted">还没有账号？</span>
-            <RouterLink to="/auth/register" style="font-weight: 600; color: var(--accent)">去注册</RouterLink>
-          </div>
-          
-           <div style="text-align: center; margin-top: 8px">
-             <RouterLink to="/posts" class="muted" style="font-size: 13px">返回社区</RouterLink>
-           </div>
+      <div v-if="captchaRequired" class="stack" style="gap: 8px">
+        <div class="field-label">验证码</div>
+        <div class="row captcha-row">
+          <UiInput v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" style="flex: 1" />
+          <img
+            v-if="captchaSrc"
+            :src="captchaSrc"
+            alt="验证码"
+            title="点击刷新验证码"
+            class="captcha-img"
+            @click="refreshCaptcha"
+          />
         </div>
       </div>
+
+      <div v-if="error" class="error">{{ error }}</div>
+
+      <div class="row" style="justify-content: flex-end; margin-top: 6px">
+        <RouterLink class="btn ghost" to="/auth/password/reset">忘记密码？</RouterLink>
+      </div>
+
+      <UiButton @click="onLogin" :disabled="loading" style="height: 44px; font-size: 15px">
+        {{ loading ? '登录中…' : '登录' }}
+      </UiButton>
+
+      <div class="row auth-links">
+        <span class="muted">还没有账号？</span>
+        <RouterLink to="/auth/register" class="auth-link">去注册</RouterLink>
+        <span class="muted">·</span>
+        <RouterLink to="/posts" class="muted">返回社区</RouterLink>
+      </div>
     </div>
-  </div>
+  </UiCard>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { login as apiLogin, me as apiMe, issueCaptcha } from '../api/services/authService'
+import UiCard from '../components/ui/UiCard.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiButton from '../components/ui/UiButton.vue'
+import UiPageHeader from '../components/ui/UiPageHeader.vue'
 
 const emit = defineEmits(['trace'])
 const route = useRoute()
@@ -141,65 +128,43 @@ async function onLogin() {
 </script>
 
 <style scoped>
-.auth-page {
-  display: flex;
-  min-height: 100vh;
-  background: var(--surface);
+.auth-form {
+  margin-top: 14px;
+  gap: 14px;
 }
-.auth-visual {
-  flex: 1;
-  background: linear-gradient(135deg, #0d0d0d 0%, #1a1a1a 100%);
-  color: white;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 40px;
-  position: relative;
-  overflow: hidden;
-}
-.auth-visual::before {
-  content: '';
-  position: absolute;
-  top: -20%;
-  right: -20%;
-  width: 80%;
-  height: 80%;
-  background: radial-gradient(circle, rgba(0,113,227,0.2) 0%, transparent 60%);
-  filter: blur(60px);
-}
-.auth-brand {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-.logo {
-    width: 40px; height: 40px; background: white; color: black;
-    border-radius: 10px; font-weight: 900; display: flex; align-items: center; justify-content: center; font-size: 20px;
-}
-.brand-text { font-size: 20px; font-weight: 700; }
-.auth-quote h1 { font-size: 48px; line-height: 1.1; margin-bottom: 20px; font-weight: 800; }
-.auth-quote p { font-size: 18px; opacity: 0.7; max-width: 400px; }
 
-.auth-form-container {
-  flex: 1;
-  display: flex;
+.field-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.captcha-row {
+  gap: 12px;
   align-items: center;
+}
+
+.captcha-img {
+  height: 40px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+}
+
+.auth-links {
   justify-content: center;
-  padding: 40px;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  margin-top: 2px;
 }
 
-/* Mobile Responsive */
-@media (max-width: 768px) {
-  .auth-visual { display: none; }
+.auth-link {
+  font-weight: 700;
+  color: var(--accent);
 }
 
-.auth-input {
-  height: 48px;
-  background: var(--bg);
-  border: 1px solid transparent;
-}
-.auth-input:focus {
-  background: var(--surface);
-  border-color: var(--accent);
+.auth-link:hover {
+  text-decoration: underline;
 }
 </style>

@@ -3,10 +3,9 @@
   <UiToast ref="toastRef" />
 
   <div v-if="isAuthRoute" style="min-height: 100vh; background: var(--bg)">
-    <AuthShell v-if="useAuthShell">
+    <AuthShell>
       <RouterView @trace="app.setTraceId($event)" />
     </AuthShell>
-    <RouterView v-else @trace="app.setTraceId($event)" />
   </div>
 
   <AppShell v-else>
@@ -57,13 +56,6 @@ const isAuthRoute = computed(() => {
   if (name === 'login' || name === 'register' || name === 'activation') return true
   const path = String(route.path || '')
   return path.startsWith('/auth/')
-})
-
-const useAuthShell = computed(() => {
-  const name = String(route.name || '')
-  // 登录/注册页面自带 full-bleed 视觉区块，其余认证页使用统一 AuthShell。
-  if (name === 'login' || name === 'register') return false
-  return true
 })
 
 async function refreshMe() {

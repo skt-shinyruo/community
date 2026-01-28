@@ -1,50 +1,66 @@
 <template>
-  <div class="page" style="padding: 0; height: calc(100vh - 80px); display: flex; flex-direction: column; max-width: 900px; margin: 0 auto">
-    <!-- Chat Header -->
-    <div style="padding: 16px 24px; border-bottom: 1px solid var(--border); background: var(--surface); display: flex; justify-content: space-between; align-items: center">
-       <div class="row" style="gap: 12px">
-          <RouterLink to="/messages" class="btn-icon" style="margin-left: -8px" aria-label="返回会话列表" title="返回">
-             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
-          </RouterLink>
-          <div class="stack" style="gap: 2px">
-             <div style="font-weight: 700; font-size: 16px">{{ displayTitle }}</div>
-             <div class="muted" style="font-size: 12px">会话详情</div>
-          </div>
-       </div>
-       <UiButton variant="secondary" @click="load" :disabled="loading">刷新</UiButton>
-    </div>
+  <div class="page chat-page">
+    <UiCard class="chat-card">
+      <!-- Header -->
+      <div class="chat-header">
+        <UiPageHeader>
+          <template #title>
+            <div class="row" style="gap: 10px; align-items: center">
+              <RouterLink to="/messages" class="btn-icon" aria-label="返回会话列表" title="返回">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+              </RouterLink>
+              <span>{{ displayTitle }}</span>
+            </div>
+          </template>
+          <template #subtitle>会话详情</template>
+          <template #actions>
+            <UiButton variant="secondary" @click="load" :disabled="loading">刷新</UiButton>
+          </template>
+        </UiPageHeader>
+      </div>
 
-    <!-- Messages Area -->
-    <div class="chat-area" ref="chatArea">
-       <div v-if="loading && items.length === 0" class="muted" style="text-align: center; margin-top: 20px">加载中…</div>
-       <UiEmpty v-else-if="items.length === 0">暂无消息，打个招呼吧。</UiEmpty>
-       
-       <div v-else class="message-list">
-          <div 
-             v-for="m in sortedItems" 
-             :key="m.id" 
-             class="message-row"
-             :class="{ 'mine': m.fromId === meId }"
-          >
-             <div class="message-bubble">{{ m.content }}</div>
-             <div class="message-time">{{ formatTimeShort(m.createTime) }}</div>
-          </div>
-       </div>
-    </div>
+      <UiDivider />
 
-    <!-- Input Area -->
-    <div class="chat-input-area">
-       <textarea 
-          class="chat-input" 
-          v-model="content" 
-          placeholder="输入消息…" 
+      <!-- Messages Area -->
+      <div class="chat-area" ref="chatArea">
+        <UiEmpty v-if="error && items.length === 0" type="error">{{ error }}</UiEmpty>
+        <div v-else-if="loading && items.length === 0" class="muted" style="text-align: center; margin-top: 20px">加载中…</div>
+        <UiEmpty v-else-if="items.length === 0">暂无消息，打个招呼吧。</UiEmpty>
+
+        <div v-else class="message-list">
+          <div v-for="m in sortedItems" :key="m.id" class="message-row" :class="{ mine: m.fromId === meId }">
+            <div class="message-bubble">{{ m.content }}</div>
+            <div class="message-time">{{ formatTimeShort(m.createTime) }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Input Area -->
+      <div class="chat-input-area">
+        <textarea
+          class="chat-input"
+          v-model="content"
+          placeholder="输入消息…"
           @keydown.enter.prevent="send"
           rows="1"
-       ></textarea>
-       <button class="send-btn" type="button" aria-label="发送消息" title="发送" @click="send" :disabled="sending || !content.trim()">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-       </button>
-    </div>
+        ></textarea>
+        <button
+          class="send-btn"
+          type="button"
+          aria-label="发送消息"
+          title="发送"
+          @click="send"
+          :disabled="sending || !content.trim()"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
+    </UiCard>
   </div>
 </template>
 
@@ -52,8 +68,11 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { listLetters, markRead, sendMessage } from '../api/services/messageService'
+import UiCard from '../components/ui/UiCard.vue'
 import UiButton from '../components/ui/UiButton.vue'
+import UiDivider from '../components/ui/UiDivider.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiPageHeader from '../components/ui/UiPageHeader.vue'
 
 const emit = defineEmits(['trace'])
 const props = defineProps({ conversationId: String })
@@ -62,6 +81,7 @@ const meId = computed(() => Number(auth.userId || 0))
 
 const loading = ref(false)
 const items = ref([])
+const error = ref('')
 const content = ref('')
 const sending = ref(false)
 const chatArea = ref(null)
@@ -93,6 +113,7 @@ function parseTargetId() {
 }
 
 async function load() {
+  error.value = ''
   loading.value = true
   try {
     const { data, traceId } = await listLetters(conversationId.value, { page: 0, size: 50 })
@@ -109,7 +130,7 @@ async function load() {
     
     scrollToBottom()
   } catch (e) {
-    console.error(e)
+    error.value = e?.message || '加载失败'
   } finally {
     loading.value = false
   }
@@ -126,7 +147,7 @@ async function send() {
     content.value = ''
     await load()
   } catch (e) {
-    console.error(e)
+    error.value = e?.message || '发送失败'
   } finally {
     sending.value = false
   }
@@ -144,6 +165,22 @@ onMounted(load)
 </script>
 
 <style scoped>
+.chat-page {
+  gap: var(--space-4);
+}
+
+.chat-card {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 72vh;
+}
+
+.chat-header {
+  padding: 14px 16px;
+}
+
 .chat-area {
    flex: 1;
    background: var(--bg);
@@ -232,4 +269,18 @@ onMounted(load)
 }
 .send-btn:active { transform: scale(0.95); }
 .send-btn:disabled { opacity: 0.5; cursor: default; }
+
+@media (max-width: 768px) {
+  .chat-header {
+    padding: 12px;
+  }
+
+  .chat-area {
+    padding: 16px;
+  }
+
+  .chat-input-area {
+    padding: 12px;
+  }
+}
 </style>

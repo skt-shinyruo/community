@@ -1,26 +1,27 @@
 <template>
-  <div class="page" style="max-width: 800px; margin: 0 auto">
-    <UiPageHeader>
-        <template #title>Analytics Dashboard</template>
-        <template #subtitle>Overview of community growth.</template>
+  <div class="page reading">
+    <UiCard>
+      <UiPageHeader>
+        <template #title>统计</template>
+        <template #subtitle>社区增长概览</template>
         <template #actions>
-           <UiButton @click="query" :disabled="loading">{{ loading ? 'Loading...' : 'Refresh' }}</UiButton>
+          <UiButton variant="secondary" @click="query" :disabled="loading">{{ loading ? '加载中…' : '刷新' }}</UiButton>
         </template>
-    </UiPageHeader>
+      </UiPageHeader>
 
-    <div v-if="!auth.isAdminOrModerator" class="error" style="margin-top: 12px">Access Denied.</div>
-    
-    <div v-else style="margin-top: 24px">
+      <UiEmpty v-if="!auth.isAdminOrModerator" type="error" style="margin-top: 12px">无权限访问</UiEmpty>
+
+      <div v-else style="margin-top: 16px">
         <!-- Date Filter -->
         <UiCard style="margin-bottom: 24px">
            <div class="row" style="align-items: center; gap: 16px; flex-wrap: wrap">
               <div class="stack" style="gap: 4px; flex: 1">
-                 <div class="muted" style="font-size: 12px">Start Date</div>
+                 <div class="muted" style="font-size: 12px">开始日期</div>
                  <UiInput type="date" v-model="start" style="width: 100%" />
               </div>
               <div class="arrow">→</div>
               <div class="stack" style="gap: 4px; flex: 1">
-                 <div class="muted" style="font-size: 12px">End Date</div>
+                 <div class="muted" style="font-size: 12px">结束日期</div>
                  <UiInput type="date" v-model="end" style="width: 100%" />
               </div>
            </div>
@@ -35,7 +36,7 @@
               </div>
               <div class="stat-main">
                  <div class="stat-num">{{ uvResult }}</div>
-                 <div class="stat-name">Total Unique Visitors</div>
+                 <div class="stat-name">UV（独立访客）</div>
               </div>
            </div>
 
@@ -46,27 +47,29 @@
               </div>
               <div class="stat-main">
                  <div class="stat-num">{{ dauResult }}</div>
-                 <div class="stat-name">Daily Active Users</div>
+                 <div class="stat-name">DAU（日活）</div>
               </div>
            </div>
         </div>
         
         <!-- Placeholder Chart -->
-        <UiCard style="margin-top: 24px; min-height: 300px; display: flex; align-items: center; justify-content: center; background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%)">
-           <div class="muted" style="font-size: 14px; opacity: 0.5">Chart Visualization Placeholder</div>
+        <UiCard style="margin-top: 24px; min-height: 260px; display: flex; align-items: center; justify-content: center">
+           <div class="muted" style="font-size: 14px">图表占位（待接入）</div>
         </UiCard>
-    </div>
+      </div>
+    </UiCard>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { uv, dau } from '../api/services/analyticsService'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiInput from '../components/ui/UiInput.vue'
+import UiEmpty from '../components/ui/UiEmpty.vue'
 
 const emit = defineEmits(['trace'])
 const auth = useAuthStore()
@@ -91,8 +94,8 @@ async function query() {
     dResult.value = dauResp?.data ?? 0
     emit('trace', uvResp?.traceId || dauResp?.traceId || '')
   } catch (e) {
-    uResult.value = 'Err'
-    dResult.value = 'Err'
+    uResult.value = '—'
+    dResult.value = '—'
   } finally {
     loading.value = false
   }

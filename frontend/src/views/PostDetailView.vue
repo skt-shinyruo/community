@@ -70,7 +70,7 @@
                     </UiUserCard>
                     
                     <UiRoleBadge :user="postAuthor" size="md" />
-                    <span style="background: var(--surface-2); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600">LV {{ Math.floor((postAuthor?.score || 0) / 100) + 1 }}</span>
+                    <UiBadge style="height: 18px; font-size: 11px">LV {{ Math.floor((postAuthor?.score || 0) / 100) + 1 }}</UiBadge>
 
                     <span>发布于 {{ formatTime(post.createTime) }}</span>
                     <span v-if="Number(post.editCount || 0) > 0" :title="post.updateTime ? formatTime(post.updateTime) : ''">· 已编辑</span>

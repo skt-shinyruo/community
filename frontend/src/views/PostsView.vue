@@ -1,7 +1,19 @@
 <template>
   <div class="page">
+    <UiCard flat>
+      <UiPageHeader>
+        <template #title>帖子</template>
+        <template #subtitle>内容优先 · 高信息密度浏览</template>
+        <template #actions>
+          <UiButton variant="secondary" :disabled="loading" @click="reload">刷新</UiButton>
+          <UiButton v-if="authed" :disabled="creating" @click="isPublishFocused = true">发帖</UiButton>
+          <UiButton v-else variant="ghost" @click="goLogin">登录</UiButton>
+        </template>
+      </UiPageHeader>
+    </UiCard>
+
     <!-- Publish Area -->
-    <div v-if="authed" class="card" :class="{ 'focused': isPublishFocused }" style="transition: all 0.3s ease">
+    <UiCard v-if="authed" class="posts-composer" :class="{ focused: isPublishFocused }">
       <div v-if="!isPublishFocused" @click="isPublishFocused = true" class="row cursor-pointer" style="padding: 4px 0">
         <UiAvatar :src="me?.headerUrl" :name="me?.username || ''" :size="32" />
         <div class="input-fake muted" style="flex: 1">
@@ -78,10 +90,10 @@
           </div>
         </div>
       </div>
-    </div>
+    </UiCard>
 
     <!-- Feed Toolbar -->
-    <div style="margin-top: 8px; margin-bottom: 8px">
+    <div class="posts-toolbar">
       <FeedToolbar
         :order="order"
         :filter="filter"
@@ -138,7 +150,7 @@
           <UiButton
             v-if="!authed"
             variant="ghost"
-            @click="router.push({ name: 'login', query: { redirect: route.fullPath || '/posts' } })"
+            @click="goLogin"
           >
             登录
           </UiButton>
@@ -304,12 +316,14 @@ import { computed, inject, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useSocialPrefsStore } from '../stores/socialPrefs'
+import UiCard from '../components/ui/UiCard.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiTextarea from '../components/ui/UiTextarea.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiBadge from '../components/ui/UiBadge.vue'
+import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import FeedToolbar from '../components/posts/FeedToolbar.vue'
 import { listPosts, createPost as apiCreatePost } from '../api/services/postService'
 import { getUserProfile } from '../api/services/userService'
@@ -372,6 +386,10 @@ const showClear = computed(
 const socialPrefs = useSocialPrefsStore()
 const blockedSet = computed(() => socialPrefs.blockedSet)
 const blockedHiddenCount = ref(0)
+
+function goLogin() {
+  router.push({ name: 'login', query: { redirect: route.fullPath || '/posts' } })
+}
 
 function replaceQuery(partial) {
   const next = { ...(route.query || {}) }
@@ -453,11 +471,11 @@ const newTagError = ref('')
 
 const composerTagDatalistId = 'composer-tag-suggest'
 const composerTagSuggest = ref([])
-	const creating = ref(false)
-	const createError = ref('')
-	
-	const seenBaselineAt = ref(0)
-	let touchedLatestOnce = false
+const creating = ref(false)
+const createError = ref('')
+
+const seenBaselineAt = ref(0)
+let touchedLatestOnce = false
 
 let lastLoadToken = 0
 
@@ -858,6 +876,15 @@ watch(isLatestView, (v) => {
 </script>
 
 <style scoped>
+.posts-composer {
+  transition: box-shadow 0.18s ease-out, border-color 0.18s ease-out;
+}
+
+.posts-toolbar {
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
 .input-fake {
   background: var(--surface); /* White background for better contrast */
   padding: 10px 16px;

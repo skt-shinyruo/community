@@ -116,8 +116,30 @@
               <path d="M12 2l7 4v6c0 5-3 9-7 10-4-1-7-5-7-10V6l7-4z" />
             </svg>
 
-            <span v-else-if="item.icon === 'pin'">📌</span>
-            <span v-else-if="item.icon === 'sparkle'">✨</span>
+            <svg
+              v-else-if="item.icon === 'pin'"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+
+            <svg
+              v-else-if="item.icon === 'sparkle'"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M12 2l2.2 6.8H21l-5.6 4.1 2.1 7-5.5-4-5.5 4 2.1-7L3 8.8h6.8z" />
+            </svg>
             <span v-else-if="item.icon === 'dot'">●</span>
 
             <svg

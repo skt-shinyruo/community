@@ -61,6 +61,7 @@
 - 布局骨架（工作区三栏）：`frontend/src/components/layout/*`（AppShell/SidebarNav/Topbar/AuthShell）
 - 移动端底部导航（可选增强）：`frontend/src/components/layout/MobileNav.vue`
 - 右侧上下文面板：`frontend/src/components/layout/RightPanel.vue`（可开关，桌面端默认开启）
+- 全局样式入口（SSOT）：`frontend/src/styles/index.css`（唯一入口；分层导入 variables/base/utils/layout/components/pages）
 - 页面级通用结构样式：`frontend/src/styles/pages.css`（非业务逻辑，例如帖子卡片结构）
 - Vite proxy：`frontend/vite.config.js`（默认转发 `/api` 到 `http://localhost:12882`，可用 `VITE_DEV_PROXY_TARGET` 覆盖；dev/preview 端口默认 `12881`，可用 `VITE_DEV_PORT` / `VITE_PREVIEW_PORT` / `VITE_PORT` 覆盖）
 - 评论/回复锚点定位工具：`frontend/src/utils/scrollToAnchor.js`（hash/query 定位 + 高亮）
@@ -80,7 +81,7 @@
   - Design Tokens：在 `frontend/src/styles/variables.css` 基于 CSS Variables 统一颜色/字体/间距/圆角/阴影；入口为 `frontend/src/styles/index.css`。
   - 主题切换：通过 `html[data-theme="light|dark"]` 切换变量集，偏好持久化到 `community.ui`。
   - 密度切换：通过 `html[data-density="compact|comfortable"]` 调整控件高度与间距，偏好持久化到 `community.ui`。
-  - 全局布局：AppShell 三栏（左导航/顶栏/内容）对齐桌面优先体验；认证页使用 AuthShell 简化骨架。
+  - 全局布局：AppShell 三栏（左导航/顶栏/内容）对齐桌面优先体验；认证页统一使用 AuthShell 简化骨架（含登录/注册/找回/激活）。
   - 右侧面板：RightPanel 提供快捷键/提示/页面上下文信息，可通过 Topbar 开关并持久化 `rightPanelOpen`。
 
 ## 7. BBS UI 维护约定（新增）
@@ -103,6 +104,7 @@
   - hash 模式：`#c-<commentId>` / `#r-<replyId>`
   - query 模式：`?commentId=<id>&replyId=<id>`（用于需要先展开回复再定位的场景）
 - 引用回复 MVP：回复时在提交内容中插入 Markdown blockquote（`> ...`），并用 `UiMarkdown` 渲染（评论/回复使用 `variant="compact"`）。
+- `UiMarkdown` 渲染策略：先 escape，再白名单生成可控标签（段落/列表/引用/代码块/链接），确保可读性与安全性兼顾；正文使用 default（更松行距），评论/卡片使用 compact（更紧凑）。
 - 草稿：评论/回复草稿使用 `localStorage`，按 `postId` 隔离（键空间统一为 `community.draft.posts.<postId>.*`）。
 
 ### 7.4 可访问性（A11y）
@@ -117,6 +119,13 @@
 ### 7.6 技术社区列表风格（GitHub Discussions × Discourse）
 - 默认密度：新用户默认 `compact`（`frontend/src/stores/ui.js`），更适合 PC 主场景的高信息密度浏览；用户仍可在 Topbar/Sidebar 切换到 `comfortable`。
 - 列表视觉：帖子/搜索结果推荐使用「紧凑行 + 分隔线 + 轻 hover」的 topic list（样式在 `frontend/src/styles/pages.css`：`topic-list/topic-row/*`）。
+
+### 7.7 样式入口与清理约定（SSOT + 未用 CSS 清理）
+- 全局样式只允许通过 `frontend/src/styles/index.css` 引入，避免出现多个入口导致的维护歧义（历史 `frontend/src/styles.css` 已移除）。
+- 样式分层：`variables.css`（tokens）→ `base.css`（重置/基础排版）→ `utils.css`（工具类）→ `layout.css`（骨架布局）→ `components.css`（组件样式）→ `pages.css`（页面通用结构）。
+- 页面 `scoped` 样式仅保留“与该页面强绑定”的部分；通用模式优先沉淀到 `frontend/src/styles/*` 对应分层。
+- 清理策略（保守）：仅删除“确认无引用”的文件/选择器；对动态 class/条件渲染相关样式默认保留；清理后必须通过 `npm -C frontend test` + `npm -C frontend run build` 验证。
+- 尽量避免零散 `style=""`；若为临时排障或 MVP，后续应收敛到 scoped 或全局分层，保持可维护性。
 - 交互收敛：`card/button/chips` hover 不做 `translate/scale` 位移动画，优先使用 `border/background/shadow` 的轻变化，保持“专业、克制、不浮夸”的 BBS 观感。
 
 ### 7.7 Discourse-like topic list（列布局 / 未读 / 最后回复）

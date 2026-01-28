@@ -112,11 +112,35 @@
         </div>
         <div class="guidelines">
           <div class="guideline-row">
-            <span class="guideline-icon" aria-hidden="true">📌</span>
+            <svg
+              class="guideline-icon"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              aria-hidden="true"
+            >
+              <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
             <span class="guideline-text">友善交流，理性讨论，共建优质社区氛围。</span>
           </div>
           <div class="guideline-row">
-            <span class="guideline-icon" aria-hidden="true">🚫</span>
+            <svg
+              class="guideline-icon"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+            </svg>
             <span class="guideline-text">禁止发布广告、灌水及违规内容。</span>
           </div>
         </div>
@@ -417,6 +441,10 @@ watch(
   grid-template-columns: 18px 1fr;
   gap: 10px;
   align-items: start;
+}
+
+.guideline-icon {
+  color: var(--text-2);
 }
 
 .guideline-text {

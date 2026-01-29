@@ -2,15 +2,19 @@ package com.nowcoder.community.message.api.dto;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import com.nowcoder.community.common.validation.ValidationLimits;
 
 public class SendMessageRequest {
 
     @Min(1)
     private Integer toId;
 
+    @Size(max = ValidationLimits.USERNAME_MAX)
     private String toName;
 
     @NotBlank
+    @Size(max = ValidationLimits.MESSAGE_CONTENT_MAX)
     private String content;
 
     public Integer getToId() {

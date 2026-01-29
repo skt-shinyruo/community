@@ -2,6 +2,7 @@
 package com.nowcoder.community.content.config;
 
 import com.nowcoder.community.common.web.TraceIdClientHttpRequestInterceptor;
+import com.nowcoder.community.common.web.internalclient.InternalClientSupport;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
@@ -20,7 +21,7 @@ public class ContentRestClientConfig {
                 .setConnectTimeout(Duration.ofMillis(300))
                 .setReadTimeout(Duration.ofMillis(1000))
                 .additionalInterceptors(new TraceIdClientHttpRequestInterceptor())
+                .errorHandler(InternalClientSupport.passThroughResponseErrorHandler())
                 .build();
     }
 }
-

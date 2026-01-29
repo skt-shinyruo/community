@@ -73,4 +73,21 @@
         limit #{limit}
     </select>
 
+    <select id="selectModerationUsersAfterId" resultType="User">
+        select id, mute_until, ban_until
+        from user
+        where id &gt; #{afterId}
+        order by id asc
+        limit #{limit}
+    </select>
+
+    <select id="selectUserSummariesByIds" resultType="User">
+        select id, username, header_url
+        from user
+        where id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
 </mapper>

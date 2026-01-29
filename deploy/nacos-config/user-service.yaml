@@ -3,16 +3,25 @@ spring:
     url: ${USER_DB_URL:jdbc:mysql://mysql:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
     username: ${MYSQL_USER:community}
     password: ${MYSQL_PASSWORD:communitypass}
+  data:
+    redis:
+      host: ${USER_REDIS_HOST:redis}
+      port: ${USER_REDIS_PORT:6379}
 
 security:
   jwt:
-    hmac-secret: ${JWT_HMAC_SECRET:dev-secret-please-change-at-least-32bytes}
+    hmac-secret: ${JWT_HMAC_SECRET}
 
 user:
   # internal 接口令牌：建议按服务隔离，避免全局 token 泄露扩大爆炸半径。
   internal-token: ${USER_INTERNAL_TOKEN:}
   # 轮转窗口：灰度期间允许 previous 继续访问（配合 common/InternalTokenFilter）。
   internal-token-previous: ${USER_INTERNAL_TOKEN_PREVIOUS:}
+
+  # 高权限 internal 写接口分域 token（最小权限）：/internal/users/{id}/password、/internal/users/{id}/moderation
+  ops:
+    internal-token: ${USER_OPS_INTERNAL_TOKEN:}
+    internal-token-previous: ${USER_OPS_INTERNAL_TOKEN_PREVIOUS:}
 
   # user-service -> social-service 聚合调用配置（internal read API + internal-token）。
   social-client:

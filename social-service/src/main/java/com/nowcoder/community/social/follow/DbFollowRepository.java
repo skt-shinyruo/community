@@ -2,7 +2,7 @@ package com.nowcoder.community.social.follow;
 
 import com.nowcoder.community.social.follow.dto.FollowItem;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -28,7 +28,7 @@ public class DbFollowRepository implements FollowRepository {
         Date createdAt = followTimeMillis > 0 ? new Date(followTimeMillis) : new Date();
         try {
             return mapper.insertFollow(userId, entityType, entityId, createdAt) > 0;
-        } catch (DataAccessException ignored) {
+        } catch (DuplicateKeyException ignored) {
             // 幂等：重复关注视为 false
             return false;
         }
@@ -36,38 +36,22 @@ public class DbFollowRepository implements FollowRepository {
 
     @Override
     public boolean unfollow(int userId, int entityType, int entityId) {
-        try {
-            return mapper.deleteFollow(userId, entityType, entityId) > 0;
-        } catch (DataAccessException ignored) {
-            return false;
-        }
+        return mapper.deleteFollow(userId, entityType, entityId) > 0;
     }
 
     @Override
     public boolean hasFollowed(int userId, int entityType, int entityId) {
-        try {
-            return mapper.countFollow(userId, entityType, entityId) > 0;
-        } catch (DataAccessException ignored) {
-            return false;
-        }
+        return mapper.countFollow(userId, entityType, entityId) > 0;
     }
 
     @Override
     public long countFollowees(int userId, int entityType) {
-        try {
-            return mapper.countFollowees(userId, entityType);
-        } catch (DataAccessException ignored) {
-            return 0;
-        }
+        return mapper.countFollowees(userId, entityType);
     }
 
     @Override
     public long countFollowers(int entityType, int entityId) {
-        try {
-            return mapper.countFollowers(entityType, entityId);
-        } catch (DataAccessException ignored) {
-            return 0;
-        }
+        return mapper.countFollowers(entityType, entityId);
     }
 
     @Override

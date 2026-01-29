@@ -55,7 +55,11 @@ public class InternalTokenFilter implements Filter {
         }
 
         String segment = extractFirstPathSegment(path);
-        List<String> expectedTokens = resolveExpectedTokens(segment);
+        if (!StringUtils.hasText(segment) || !isValidSegment(segment)) {
+            forbidden(resp, "internal 路径不合法");
+            return;
+        }
+        List<String> expectedTokens = resolveExpectedTokens(segment, path);
         if (expectedTokens.isEmpty()) {
             forbidden(resp, "internal-token 未配置");
             return;
@@ -83,6 +87,24 @@ public class InternalTokenFilter implements Filter {
         return segment == null ? "" : segment.trim();
     }
 
+    private boolean isValidSegment(String segment) {
+        if (!StringUtils.hasText(segment)) {
+            return false;
+        }
+        for (int i = 0; i < segment.length(); i++) {
+            char c = segment.charAt(i);
+            boolean ok = (c >= 'a' && c <= 'z')
+                    || (c >= 'A' && c <= 'Z')
+                    || (c >= '0' && c <= '9')
+                    || c == '-'
+                    || c == '_';
+            if (!ok) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private boolean matchesAny(String token, List<String> expectedTokens) {
         if (!StringUtils.hasText(token) || expectedTokens == null || expectedTokens.isEmpty()) {
             return false;
@@ -99,20 +121,31 @@ public class InternalTokenFilter implements Filter {
         return false;
     }
 
-    private List<String> resolveExpectedTokens(String segment) {
+    private List<String> resolveExpectedTokens(String segment, String path) {
         // 1) service 专用 token：<segment>.internal-token（例如 content.internal-token）
         // 2) alias：users -> user.internal-token（历史/命名兼容）
-        // 3) 全局 token：internal.token（等价 env: INTERNAL_TOKEN）
         //
         // 轮转支持：
         // - <segment>.internal-token-previous / user.internal-token-previous
-        // - internal.token.previous
         //
         // 说明：轮转窗口内允许 current/previous 两个 token 同时生效，避免升级时调用中断。
 
         List<String> tokens = new ArrayList<>(4);
 
         if (StringUtils.hasText(segment)) {
+            // 最小权限分域（user-service 内部高权限写接口）：
+            // - /internal/users/{id}/password
+            // - /internal/users/{id}/moderation
+            //
+            // 这些入口禁止回退到 users.internal-token（避免“通用 token 泄露扩大爆炸半径”）。
+            if ("users".equals(segment) && isUserOpsEndpoint(path)) {
+                addIfPresent(tokens, "users.ops.internal-token");
+                addIfPresent(tokens, "users.ops.internal-token-previous");
+                addIfPresent(tokens, "user.ops.internal-token");
+                addIfPresent(tokens, "user.ops.internal-token-previous");
+                return tokens;
+            }
+
             addIfPresent(tokens, segment + ".internal-token");
             addIfPresent(tokens, segment + ".internal-token-previous");
             if ("users".equals(segment)) {
@@ -120,10 +153,18 @@ public class InternalTokenFilter implements Filter {
                 addIfPresent(tokens, "user.internal-token-previous");
             }
         }
-
-        addIfPresent(tokens, "internal.token");
-        addIfPresent(tokens, "internal.token.previous");
         return tokens;
+    }
+
+    private boolean isUserOpsEndpoint(String path) {
+        if (!StringUtils.hasText(path)) {
+            return false;
+        }
+        // 精确匹配关键写入口，避免误伤 users 读路径。
+        // /internal/users/{userId}/password
+        // /internal/users/{userId}/moderation
+        return path.matches("^/internal/users/\\d+/password$")
+                || path.matches("^/internal/users/\\d+/moderation$");
     }
 
     private void addIfPresent(List<String> list, String key) {

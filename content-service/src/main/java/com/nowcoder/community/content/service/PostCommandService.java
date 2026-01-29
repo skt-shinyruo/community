@@ -4,6 +4,7 @@ import com.nowcoder.community.common.event.payload.PostPayload;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.event.ContentEventPublisher;
+import com.nowcoder.community.content.projection.UserModerationProjectionRepository;
 import com.nowcoder.community.content.score.PostScoreQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,7 +34,8 @@ public class PostCommandService {
     private final ContentEventPublisher eventPublisher;
     private final CategoryService categoryService;
     private final TagService tagService;
-    private final UserModerationClient userModerationClient;
+    private final UserModerationProjectionRepository projectionRepository;
+    private final UserModerationGuard moderationGuard;
 
     public PostCommandService(
             PostService postService,
@@ -41,14 +43,16 @@ public class PostCommandService {
             ContentEventPublisher eventPublisher,
             CategoryService categoryService,
             TagService tagService,
-            UserModerationClient userModerationClient
+            UserModerationProjectionRepository projectionRepository,
+            UserModerationGuard moderationGuard
     ) {
         this.postService = postService;
         this.postScoreQueue = postScoreQueue;
         this.eventPublisher = eventPublisher;
         this.categoryService = categoryService;
         this.tagService = tagService;
-        this.userModerationClient = userModerationClient;
+        this.projectionRepository = projectionRepository;
+        this.moderationGuard = moderationGuard;
     }
 
     @Transactional
@@ -102,14 +106,8 @@ public class PostCommandService {
     }
 
     private void assertCanSpeak(int userId) {
-        UserModerationClient.ModerationStatus status = userModerationClient.getStatus(userId);
-        Instant now = Instant.now();
-        if (status != null && status.getBanUntil() != null && status.getBanUntil().isAfter(now)) {
-            throw new com.nowcoder.community.common.exception.BusinessException(FORBIDDEN, "账号已被封禁，无法发帖");
-        }
-        if (status != null && status.getMuteUntil() != null && status.getMuteUntil().isAfter(now)) {
-            throw new com.nowcoder.community.common.exception.BusinessException(FORBIDDEN, "你已被禁言，暂时无法发帖");
-        }
+        // 与 CommentService 统一：写路径不依赖 user-service 实时可用，改为读取本地投影（最终一致）
+        moderationGuard.assertCanSpeak(userId);
     }
 
     @Transactional

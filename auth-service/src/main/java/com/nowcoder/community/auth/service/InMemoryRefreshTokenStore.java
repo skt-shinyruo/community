@@ -8,7 +8,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
-@ConditionalOnProperty(name = "auth.refresh.store", havingValue = "memory", matchIfMissing = true)
+@ConditionalOnProperty(name = "auth.refresh.store", havingValue = "memory", matchIfMissing = false)
 public class InMemoryRefreshTokenStore implements RefreshTokenStore {
 
     private final Map<String, StoredRefreshToken> tokens = new ConcurrentHashMap<>();
@@ -33,4 +33,3 @@ public class InMemoryRefreshTokenStore implements RefreshTokenStore {
         tokens.entrySet().removeIf(e -> familyId.equals(e.getValue().familyId()));
     }
 }
-

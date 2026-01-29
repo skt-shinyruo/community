@@ -6,7 +6,7 @@ spring:
 
 security:
   jwt:
-    hmac-secret: ${JWT_HMAC_SECRET:dev-secret-please-change-at-least-32bytes}
+    hmac-secret: ${JWT_HMAC_SECRET}
 
 analytics:
-  internal-token: ${ANALYTICS_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+  internal-token: ${ANALYTICS_INTERNAL_TOKEN}

@@ -86,7 +86,7 @@ flowchart TD
 - content-service：帖子/评论等内容域；并负责发布内容相关事件
 - social-service：点赞/关注关系等社交域（Redis 为主要存储介质之一）
 - message-service：私信与通知（消费事件，生成通知）
-- search-service：搜索域（Elasticsearch 索引 + reindex 能力；消费事件更新索引）
+- search-service：搜索域（Elasticsearch 索引 + reindex 能力；消费事件更新索引；默认 `search.storage=es`，CI/本地测试可显式切到 `memory`）
 - analytics-service：UV/DAU 等统计能力（由 gateway 采集或事件驱动写入）
 
 ### 2.4 common（`common/`）

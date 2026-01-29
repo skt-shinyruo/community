@@ -3,12 +3,16 @@ spring:
     url: ${MESSAGE_DB_URL:jdbc:mysql://mysql:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
     username: ${MYSQL_USER:community}
     password: ${MYSQL_PASSWORD:communitypass}
+  data:
+    redis:
+      host: ${MESSAGE_REDIS_HOST:redis}
+      port: ${MESSAGE_REDIS_PORT:6379}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
 
 security:
   jwt:
-    hmac-secret: ${JWT_HMAC_SECRET:dev-secret-please-change-at-least-32bytes}
+    hmac-secret: ${JWT_HMAC_SECRET}
 
 message:
   idempotency:
@@ -17,7 +21,11 @@ message:
     cleanup-interval-ms: 21600000
 
 clients:
+  user:
+    base-url: ${USER_SERVICE_BASE_URL:http://user-service}
+    internal-token: ${USER_INTERNAL_TOKEN}
+    fail-open: false
   social:
     base-url: ${SOCIAL_SERVICE_BASE_URL:http://social-service}
-    internal-token: ${SOCIAL_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+    internal-token: ${SOCIAL_INTERNAL_TOKEN}
     fail-open: false

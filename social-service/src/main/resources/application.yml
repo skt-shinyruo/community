@@ -18,7 +18,7 @@ social:
       max-delay-ms: 60000
       relay-interval-ms: 5000
       send-timeout-ms: 3000
-  internal-token: ${SOCIAL_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+  internal-token: ${SOCIAL_INTERNAL_TOKEN:}
 
 spring:
   application:
@@ -54,6 +54,12 @@ management:
     web:
       exposure:
         include: health,info,prometheus
+
+community:
+  metrics:
+    basic-auth:
+      username: ${METRICS_BASIC_AUTH_USERNAME:prometheus}
+      password: ${METRICS_BASIC_AUTH_PASSWORD:dev-prometheus-pass}
 
 security:
   jwt:

@@ -90,7 +90,7 @@ public class UserController {
         if (currentUserId != userId) {
             throw new BusinessException(FORBIDDEN, "只能操作自己的头像");
         }
-        return Result.ok(avatarService.createUploadToken());
+        return Result.ok(avatarService.createUploadToken(userId));
     }
 
     @PutMapping("/{userId}/avatar")
@@ -99,6 +99,7 @@ public class UserController {
         if (currentUserId != userId) {
             throw new BusinessException(FORBIDDEN, "只能操作自己的头像");
         }
+        avatarService.assertAndConsumeUploadTicket(userId, request.getFileName());
         String url = avatarService.buildAvatarUrl(request.getFileName());
         userService.updateHeaderUrl(userId, url);
         return Result.ok();

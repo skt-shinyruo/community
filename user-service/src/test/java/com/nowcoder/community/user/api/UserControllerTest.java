@@ -7,18 +7,32 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.nowcoder.community.user.api.dto.UpdateAvatarRequest;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -47,6 +61,27 @@ class UserControllerTest {
     @Autowired
     ObjectMapper objectMapper;
 
+    @MockBean
+    StringRedisTemplate redisTemplate;
+
+    private final Map<String, String> redis = new ConcurrentHashMap<>();
+
+    @BeforeEach
+    void setupRedisMock() {
+        ValueOperations<String, String> ops = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(ops);
+
+        doAnswer(invocation -> {
+            String key = invocation.getArgument(0);
+            String value = invocation.getArgument(1);
+            redis.put(key, value);
+            return null;
+        }).when(ops).set(anyString(), anyString(), anyLong(), eq(TimeUnit.SECONDS));
+
+        when(ops.getAndDelete(anyString())).thenAnswer(invocation -> redis.remove(invocation.getArgument(0)));
+        when(ops.get(anyString())).thenAnswer(invocation -> redis.get(invocation.getArgument(0)));
+    }
+
     @Test
     void getUserShouldBePublic() throws Exception {
         mockMvc.perform(get("/api/users/1"))
@@ -65,8 +100,17 @@ class UserControllerTest {
     void updateAvatarThenGetUserShouldReturnNewHeaderUrl() throws Exception {
         String token = tokenForUser(1);
 
+        String uploadJson = mockMvc.perform(get("/api/users/1/avatar/upload-token")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String fileName = objectMapper.readTree(uploadJson).path("data").path("fileName").asText();
+        assertThat(fileName).startsWith("avatar/");
+
         UpdateAvatarRequest req = new UpdateAvatarRequest();
-        req.setFileName("f1");
+        req.setFileName(fileName);
 
         mockMvc.perform(put("/api/users/1/avatar")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
@@ -74,8 +118,13 @@ class UserControllerTest {
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/users/1"))
-                .andExpect(status().isOk());
+        String userJson = mockMvc.perform(get("/api/users/1"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String headerUrl = objectMapper.readTree(userJson).path("data").path("headerUrl").asText();
+        assertThat(headerUrl).isEqualTo("http://bucket.local/" + fileName);
     }
 
     private String tokenForUser(int userId) throws Exception {

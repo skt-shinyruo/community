@@ -1,6 +1,7 @@
 package com.nowcoder.community.social.like;
 
 import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.common.domain.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.social.like.dto.LikeRequest;
 import com.nowcoder.community.social.like.dto.LikeResponse;
@@ -30,6 +31,9 @@ public class LikeController {
     @PostMapping
     public Result<LikeResponse> setLike(Authentication authentication, @Valid @RequestBody LikeRequest request) {
         int userId = currentUserId(authentication);
+        if (!EntityTypes.isValid(request.getEntityType())) {
+            throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
+        }
         return Result.ok(likeService.setLike(userId, request));
     }
 
@@ -40,11 +44,17 @@ public class LikeController {
             @RequestParam int entityId
     ) {
         int userId = currentUserId(authentication);
+        if (!EntityTypes.isValid(entityType)) {
+            throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
+        }
         return Result.ok(likeService.isLiked(userId, entityType, entityId));
     }
 
     @GetMapping("/count")
     public Result<Long> count(@RequestParam int entityType, @RequestParam int entityId) {
+        if (!EntityTypes.isValid(entityType)) {
+            throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
+        }
         return Result.ok(likeService.count(entityType, entityId));
     }
 
@@ -66,4 +76,3 @@ public class LikeController {
         }
     }
 }
-

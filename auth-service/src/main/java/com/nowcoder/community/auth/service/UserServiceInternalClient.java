@@ -56,7 +56,7 @@ public class UserServiceInternalClient {
             Result<UserInternalAuthenticateResponse> result = exchange(
                     url,
                     HttpMethod.POST,
-                    new HttpEntity<>(req, jsonHeaders()),
+                    new HttpEntity<>(req, jsonHeaders(properties.getInternalToken())),
                     new ParameterizedTypeReference<Result<UserInternalAuthenticateResponse>>() {
                     }
             );
@@ -70,7 +70,7 @@ public class UserServiceInternalClient {
             Result<UserInternalSessionProfileResponse> result = exchange(
                     url,
                     HttpMethod.GET,
-                    new HttpEntity<>(jsonHeaders()),
+                    new HttpEntity<>(jsonHeaders(properties.getInternalToken())),
                     new ParameterizedTypeReference<Result<UserInternalSessionProfileResponse>>() {
                     }
             );
@@ -88,7 +88,7 @@ public class UserServiceInternalClient {
             Result<UserInternalRegisterResponse> result = exchange(
                     url,
                     HttpMethod.POST,
-                    new HttpEntity<>(req, jsonHeaders()),
+                    new HttpEntity<>(req, jsonHeaders(properties.getInternalToken())),
                     new ParameterizedTypeReference<Result<UserInternalRegisterResponse>>() {
                     }
             );
@@ -104,7 +104,7 @@ public class UserServiceInternalClient {
             Result<UserInternalActivationResponse> result = exchange(
                     url,
                     HttpMethod.POST,
-                    new HttpEntity<>(req, jsonHeaders()),
+                    new HttpEntity<>(req, jsonHeaders(properties.getInternalToken())),
                     new ParameterizedTypeReference<Result<UserInternalActivationResponse>>() {
                     }
             );
@@ -122,7 +122,7 @@ public class UserServiceInternalClient {
             Result<UserInternalUserByEmailResponse> result = exchange(
                     url,
                     HttpMethod.GET,
-                    new HttpEntity<>(jsonHeaders()),
+                    new HttpEntity<>(jsonHeaders(properties.getInternalToken())),
                     new ParameterizedTypeReference<Result<UserInternalUserByEmailResponse>>() {
                     }
             );
@@ -133,13 +133,16 @@ public class UserServiceInternalClient {
 
     public void updatePassword(int userId, String newPassword) {
         call("updatePassword", () -> {
+            if (!StringUtils.hasText(properties.getOpsInternalToken())) {
+                throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "auth.user-client.ops-internal-token 未配置");
+            }
             UserInternalUpdatePasswordRequest req = new UserInternalUpdatePasswordRequest();
             req.setNewPassword(newPassword);
             String url = properties.getBaseUrl() + "/internal/users/" + userId + "/password";
             Result<Void> result = exchange(
                     url,
                     HttpMethod.POST,
-                    new HttpEntity<>(req, jsonHeaders()),
+                    new HttpEntity<>(req, jsonHeaders(properties.getOpsInternalToken())),
                     new ParameterizedTypeReference<Result<Void>>() {
                     }
             );
@@ -148,11 +151,11 @@ public class UserServiceInternalClient {
         });
     }
 
-    private HttpHeaders jsonHeaders() {
+    private HttpHeaders jsonHeaders(String internalToken) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(MediaType.parseMediaTypes(MediaType.APPLICATION_JSON_VALUE));
-        headers.set(HEADER_INTERNAL_TOKEN, properties.getInternalToken());
+        headers.set(HEADER_INTERNAL_TOKEN, internalToken);
         return headers;
     }
 
@@ -208,4 +211,3 @@ public class UserServiceInternalClient {
         }
     }
 }
-

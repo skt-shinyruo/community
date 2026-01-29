@@ -143,13 +143,9 @@ async function uploadAndUpdate() {
 
   loading.value = true
   try {
-    try {
-        await uploadToQiniu({ file: pickedFile.value, key: token.fileName, uploadToken: token.uploadToken })
-    } catch(e) {
-        console.warn('Real upload failed, maybe local dev? Proceeding to update avatar anyway for demo.')
-    }
+    await uploadToQiniu({ file: pickedFile.value, key: token.fileName, uploadToken: token.uploadToken })
     await updateAvatar(token.fileName)
-    successMsg.value = '头像已更新（或在本地模式下模拟更新）。'
+    successMsg.value = '头像已更新。'
   } catch (e) {
     error.value = e?.message || '更新失败'
   } finally {

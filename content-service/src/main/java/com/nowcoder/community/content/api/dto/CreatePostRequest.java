@@ -1,22 +1,27 @@
 package com.nowcoder.community.content.api.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import com.nowcoder.community.common.validation.ValidationLimits;
 
 import java.util.List;
 
 public class CreatePostRequest {
 
     @NotBlank
+    @Size(max = ValidationLimits.POST_TITLE_MAX)
     private String title;
 
     @NotBlank
+    @Size(max = ValidationLimits.POST_CONTENT_MAX)
     private String content;
 
     // 可选：分类（Discourse-like taxonomy）。
     private Integer categoryId;
 
     // 可选：标签（由服务端做归一化与数量限制）。
-    private List<String> tags;
+    @Size(max = ValidationLimits.TAGS_MAX)
+    private List<@Size(max = ValidationLimits.TAG_MAX) String> tags;
 
     public String getTitle() {
         return title;

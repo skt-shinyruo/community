@@ -1,6 +1,7 @@
 // 治理服务：处理举报审核与处置动作（隐藏/删除/警告/禁言/封禁），并记录审计与通知。
 package com.nowcoder.community.content.service;
 
+import com.nowcoder.community.common.event.payload.ModerationCommandPayload;
 import com.nowcoder.community.common.event.payload.ModerationPayload;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.dao.CommentMapper;
@@ -39,7 +40,6 @@ public class ModerationService {
     private final ModerationActionMapper actionMapper;
     private final DiscussPostMapper discussPostMapper;
     private final CommentMapper commentMapper;
-    private final UserModerationClient userModerationClient;
     private final ContentEventPublisher eventPublisher;
 
     public ModerationService(
@@ -47,14 +47,12 @@ public class ModerationService {
             ModerationActionMapper actionMapper,
             DiscussPostMapper discussPostMapper,
             CommentMapper commentMapper,
-            UserModerationClient userModerationClient,
             ContentEventPublisher eventPublisher
     ) {
         this.reportService = reportService;
         this.actionMapper = actionMapper;
         this.discussPostMapper = discussPostMapper;
         this.commentMapper = commentMapper;
-        this.userModerationClient = userModerationClient;
         this.eventPublisher = eventPublisher;
     }
 
@@ -131,7 +129,7 @@ public class ModerationService {
 
         if (ACTION_MUTE.equals(act)) {
             int seconds = durationSeconds == null || durationSeconds <= 0 ? DEFAULT_MUTE_SECONDS : durationSeconds;
-            userModerationClient.mute(target.targetUserId, seconds);
+            publishModerationCommand(actorId, reportId, target.targetUserId, ACTION_MUTE, seconds, rsn);
             reportService.markStatus(reportId, ReportService.STATUS_PROCESSED);
             row.setDurationSeconds(seconds);
             publishNotices(report, row, target, "to_target", target.targetUserId);
@@ -141,7 +139,7 @@ public class ModerationService {
 
         if (ACTION_BAN.equals(act)) {
             int seconds = durationSeconds == null || durationSeconds <= 0 ? DEFAULT_BAN_SECONDS : durationSeconds;
-            userModerationClient.ban(target.targetUserId, seconds);
+            publishModerationCommand(actorId, reportId, target.targetUserId, ACTION_BAN, seconds, rsn);
             reportService.markStatus(reportId, ReportService.STATUS_PROCESSED);
             row.setDurationSeconds(seconds);
             publishNotices(report, row, target, "to_target", target.targetUserId);
@@ -204,6 +202,20 @@ public class ModerationService {
         eventPublisher.publishModerationActionApplied(payload);
     }
 
+    private void publishModerationCommand(int actorUserId, int reportId, int targetUserId, String action, int durationSeconds, String reason) {
+        if (targetUserId <= 0) {
+            return;
+        }
+        ModerationCommandPayload cmd = new ModerationCommandPayload();
+        cmd.setUserId(targetUserId);
+        cmd.setAction(action);
+        cmd.setDurationSeconds(Math.max(0, durationSeconds));
+        cmd.setActorUserId(actorUserId <= 0 ? null : actorUserId);
+        cmd.setReportId(reportId <= 0 ? null : reportId);
+        cmd.setReason(reason);
+        eventPublisher.publishModerationCommandRequested(cmd);
+    }
+
     private Target resolveTarget(Report report) {
         int type = report.getTargetType();
         int targetId = report.getTargetId();
@@ -264,4 +276,3 @@ public class ModerationService {
     private record Target(int targetType, int targetId, int targetUserId) {
     }
 }
-

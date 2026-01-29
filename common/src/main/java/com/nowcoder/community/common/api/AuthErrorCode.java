@@ -2,22 +2,24 @@ package com.nowcoder.community.common.api;
 
 public enum AuthErrorCode implements ErrorCode {
 
-    LOGIN_FAILED(10001, "用户名或密码错误"),
-    USER_DISABLED(10002, "账号未激活或已禁用"),
-    TOKEN_INVALID(10003, "令牌无效或已过期"),
-    REFRESH_TOKEN_INVALID(10004, "刷新令牌无效或已过期"),
+    LOGIN_FAILED(10001, "用户名或密码错误", 401),
+    USER_DISABLED(10002, "账号未激活或已禁用", 403),
+    TOKEN_INVALID(10003, "令牌无效或已过期", 401),
+    REFRESH_TOKEN_INVALID(10004, "刷新令牌无效或已过期", 401),
 
-    CAPTCHA_REQUIRED(10005, "需要验证码"),
-    CAPTCHA_INVALID(10006, "验证码不正确或已失效"),
+    CAPTCHA_REQUIRED(10005, "需要验证码", 400),
+    CAPTCHA_INVALID(10006, "验证码不正确或已失效", 400),
 
-    PASSWORD_RESET_INVALID(10007, "重置凭证无效或已过期");
+    PASSWORD_RESET_INVALID(10007, "重置凭证无效或已过期", 400);
 
     private final int code;
     private final String message;
+    private final int httpStatus;
 
-    AuthErrorCode(int code, String message) {
+    AuthErrorCode(int code, String message, int httpStatus) {
         this.code = code;
         this.message = message;
+        this.httpStatus = httpStatus;
     }
 
     @Override
@@ -28,5 +30,10 @@ public enum AuthErrorCode implements ErrorCode {
     @Override
     public String getMessage() {
         return message;
+    }
+
+    @Override
+    public int getHttpStatus() {
+        return httpStatus;
     }
 }

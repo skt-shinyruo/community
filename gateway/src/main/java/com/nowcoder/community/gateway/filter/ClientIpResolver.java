@@ -13,6 +13,9 @@ import java.util.List;
 @Component
 public class ClientIpResolver {
 
+    public static final String SOURCE_REMOTE = "remote";
+    public static final String SOURCE_XFF = "xff";
+
     private final TrustedProxyProperties properties;
 
     public ClientIpResolver(TrustedProxyProperties properties) {
@@ -20,17 +23,25 @@ public class ClientIpResolver {
     }
 
     public String resolve(ServerHttpRequest request) {
+        ResolvedClientIp resolved = resolveWithSource(request);
+        return resolved == null ? null : resolved.ip();
+    }
+
+    public ResolvedClientIp resolveWithSource(ServerHttpRequest request) {
         if (request == null) {
-            return null;
+            return new ResolvedClientIp(null, SOURCE_REMOTE);
         }
         String remoteIp = extractRemoteIp(request);
         if (!shouldTrustForwarded(remoteIp)) {
-            return remoteIp;
+            return new ResolvedClientIp(remoteIp, SOURCE_REMOTE);
         }
         String forwarded = request.getHeaders().getFirst("X-Forwarded-For");
         String candidate = firstIp(forwarded);
         String normalized = normalizeIp(candidate);
-        return StringUtils.hasText(normalized) ? normalized : remoteIp;
+        if (StringUtils.hasText(normalized)) {
+            return new ResolvedClientIp(normalized, SOURCE_XFF);
+        }
+        return new ResolvedClientIp(remoteIp, SOURCE_REMOTE);
     }
 
     private boolean shouldTrustForwarded(String remoteIp) {
@@ -135,5 +146,8 @@ public class ClientIpResolver {
         } catch (Exception ignored) {
             return false;
         }
+    }
+
+    public record ResolvedClientIp(String ip, String source) {
     }
 }

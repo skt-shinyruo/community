@@ -46,6 +46,12 @@ management:
       exposure:
         include: health,info,prometheus
 
+community:
+  metrics:
+    basic-auth:
+      username: ${METRICS_BASIC_AUTH_USERNAME:prometheus}
+      password: ${METRICS_BASIC_AUTH_PASSWORD:dev-prometheus-pass}
+
 security:
   jwt:
     hmac-secret: ${JWT_HMAC_SECRET:${AUTH_JWT_HMAC_SECRET:}}
@@ -60,7 +66,11 @@ message:
     cleanup-interval-ms: 21600000
 
 clients:
+  user:
+    base-url: ${USER_SERVICE_BASE_URL:http://user-service}
+    internal-token: ${USER_INTERNAL_TOKEN:}
+    fail-open: false
   social:
     base-url: ${SOCIAL_SERVICE_BASE_URL:http://social-service}
-    internal-token: ${SOCIAL_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+    internal-token: ${SOCIAL_INTERNAL_TOKEN:}
     fail-open: false

@@ -51,6 +51,21 @@ create table if not exists outbox_event (
   updated_at timestamp null default current_timestamp
 );
 
+create table if not exists user_moderation_projection (
+  user_id int primary key,
+  mute_until timestamp,
+  ban_until timestamp,
+  updated_at timestamp default current_timestamp
+);
+
+create table if not exists user_block_projection (
+  blocker_user_id int not null,
+  blocked_user_id int not null,
+  blocked int default 1,
+  updated_at timestamp default current_timestamp,
+  primary key (blocker_user_id, blocked_user_id)
+);
+
 create table if not exists category (
   id int primary key auto_increment,
   name varchar(64),
@@ -78,9 +93,15 @@ delete from comment;
 delete from post_tag;
 delete from tag;
 delete from category;
+delete from user_moderation_projection;
+delete from user_block_projection;
 
 insert into user(id, username) values (1, 'u1');
 insert into user(id, username) values (2, 'u2');
+
+-- 处罚/拉黑投影初始化（避免写路径因投影缺失被 fail-closed）
+insert into user_moderation_projection(user_id, mute_until, ban_until, updated_at) values (1, null, null, current_timestamp());
+insert into user_moderation_projection(user_id, mute_until, ban_until, updated_at) values (2, null, null, current_timestamp());
 
 insert into category(id, name, description, position, create_time) values (1, '技术', '技术讨论', 10, current_timestamp());
 insert into category(id, name, description, position, create_time) values (2, '兴趣', '兴趣分享', 20, current_timestamp());

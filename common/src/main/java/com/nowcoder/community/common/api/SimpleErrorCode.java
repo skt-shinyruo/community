@@ -7,10 +7,16 @@ public class SimpleErrorCode implements ErrorCode {
 
     private final int code;
     private final String message;
+    private final int httpStatus;
 
     public SimpleErrorCode(int code, String message) {
+        this(code, message, defaultHttpStatus(code));
+    }
+
+    public SimpleErrorCode(int code, String message, int httpStatus) {
         this.code = code;
         this.message = message;
+        this.httpStatus = httpStatus;
     }
 
     @Override
@@ -22,5 +28,16 @@ public class SimpleErrorCode implements ErrorCode {
     public String getMessage() {
         return message;
     }
-}
 
+    @Override
+    public int getHttpStatus() {
+        return httpStatus;
+    }
+
+    private static int defaultHttpStatus(int code) {
+        if (code >= 400 && code < 600) {
+            return code;
+        }
+        return 500;
+    }
+}

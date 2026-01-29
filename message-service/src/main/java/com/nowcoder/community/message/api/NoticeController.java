@@ -56,8 +56,10 @@ public class NoticeController {
     }
 
     @PutMapping("/read")
-    public Result<Void> markRead(@Valid @RequestBody MarkReadRequest request) {
-        noticeService.markRead(request.getIds());
+    public Result<Void> markRead(Authentication authentication, @Valid @RequestBody MarkReadRequest request) {
+        Jwt jwt = (Jwt) authentication.getPrincipal();
+        int userId = Integer.parseInt(jwt.getSubject());
+        noticeService.markRead(userId, request.getIds());
         return Result.ok();
     }
 }

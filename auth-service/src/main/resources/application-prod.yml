@@ -1,0 +1,10 @@
+spring:
+  config:
+    # 生产环境 fail-closed：配置中心不可用/缺失配置时必须失败，禁止静默退化到本地默认值。
+    # 约定：${spring.application.name}.yaml 为基础必需；${spring.application.name}-prod.yaml 可选用于 prod 专用覆盖。
+    import: "nacos:${spring.application.name}.yaml,optional:nacos:${spring.application.name}-prod.yaml"
+
+security:
+  jwt:
+    # 生产默认：refresh cookie 必须 Secure=true（HTTPS）。若误配置为 false，StartupValidation 将阻断启动。
+    refresh-cookie-secure: true

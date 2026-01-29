@@ -27,6 +27,14 @@ spring:
           uri: lb://auth-service
           predicates:
             - Path=/api/auth/**
+        - id: search-reindex
+          uri: lb://search-service
+          predicates:
+            - Method=POST
+            - Path=/api/search/internal/reindex
+          filters:
+            - SetPath=/internal/search/reindex
+            - AddRequestHeader=X-Internal-Token, ${SEARCH_INTERNAL_TOKEN:}
         - id: search-service
           uri: lb://search-service
           predicates:
@@ -78,10 +86,16 @@ security:
   jwt:
     hmac-secret: ${GATEWAY_JWT_HMAC_SECRET:${JWT_HMAC_SECRET:}}
 
+community:
+  metrics:
+    basic-auth:
+      username: ${METRICS_BASIC_AUTH_USERNAME:prometheus}
+      password: ${METRICS_BASIC_AUTH_PASSWORD:dev-prometheus-pass}
+
 analytics:
   collect:
     enabled: true
-    internal-token: ${ANALYTICS_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+    internal-token: ${ANALYTICS_INTERNAL_TOKEN:}
     timeout-ms: 300
     max-concurrency: 50
     # 网关侧 in-process 去重（有界 TTL 缓存）。注意：多实例不共享，最终以 analytics-service 侧 Redis 去重为准。
@@ -91,15 +105,24 @@ analytics:
     dedup-ttl-seconds: 86400
 
 gateway:
+  request-size-limit:
+    enabled: true
+    # 1 MiB：覆盖绝大多数 JSON 写请求；头像上传走对象存储直传，不应走网关
+    max-bytes: 1048576
+    # 缺失 Content-Length 时默认放行（兼容性更好）；生产可考虑打开 fail-closed
+    fail-closed-when-unknown: false
   trusted-proxy:
     enabled: false
     cidrs: []
   origin-guard:
     enabled: true
     allowed-origins: *frontend_origins
+    # 生产建议 fail-closed：allowlist 漏配时拒绝敏感 cookie 会话入口（login/refresh/logout）。
+    fail-open-when-allowlist-empty: false
   rate-limit:
     enabled: true
-    fail-open: true
+    # 生产建议 fail-closed：限流依赖（Redis）不可用时返回 503，避免静默放行导致风控失效。
+    fail-open: false
     rules:
       # 登录/注册/验证码：按 IP 限流
       - id: login
@@ -159,4 +182,11 @@ gateway:
         path-patterns: [/api/posts/*/top, /api/posts/*/wonderful, /api/posts/*/delete]
         window-seconds: 60
         max-requests: 30
+        key-strategy: USER
+      # 高成本运维操作：严格限流，避免误触发/滥用（可通过配置中心临时调小/关闭）
+      - id: search-reindex
+        methods: [POST]
+        path-patterns: [/api/search/internal/reindex]
+        window-seconds: 60
+        max-requests: 2
         key-strategy: USER

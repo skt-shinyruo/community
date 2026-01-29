@@ -9,6 +9,7 @@
 
 ## 2. 关键文件
 - 启动类：`gateway/src/main/java/com/nowcoder/community/gateway/GatewayApplication.java`
+- common 自动装配（跨服务一致能力）：`common/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
 - 安全配置（JWT 验签 + 权限矩阵）：`gateway/src/main/java/com/nowcoder/community/gateway/config/GatewaySecurityConfig.java`
 - OriginGuard 配置：`gateway/src/main/java/com/nowcoder/community/gateway/config/OriginGuardProperties.java`（`gateway.origin-guard.*`）
 - traceId：`gateway/src/main/java/com/nowcoder/community/gateway/filter/TraceIdWebFilter.java`、`gateway/src/main/java/com/nowcoder/community/gateway/filter/TraceIdGlobalFilter.java`、`gateway/src/main/java/com/nowcoder/community/gateway/filter/TraceIdSupport.java`
@@ -40,7 +41,8 @@
   - 去重/降噪参数：`analytics.collect.dedup-enabled`、`analytics.collect.uv-cache-max-size`、`analytics.collect.dau-cache-max-size`、`analytics.collect.dedup-ttl-seconds`（网关单实例内生效）。
 - 若启用限流（默认开启），需要 Redis 可用（`spring.data.redis.host/port`）。
 - 若采用“前端直连 gateway”模式（前端 `12881` + gateway `12882`），需要在 gateway allowlist 中允许对应 Origin（默认包含 `http://localhost:12881` / `http://localhost:12888`）。
-- 若本地前端端口调整（例如 `12888` -> 其他端口），只需在 gateway 中更新 allowlist（CORS + OriginGuard），auth-service 不再单独维护 Origin 白名单。
+- 若本地前端端口调整（例如 `12888` -> 其他端口），需要同步更新 allowlist（CORS + OriginGuard），并确保 gateway 与 auth-service 的 OriginGuard allowlist 保持一致（建议在配置中心统一维护同一套值）。
+- 旁路防护：auth-service 同样启用 OriginGuard，配置键与 gateway 对齐（`gateway.origin-guard.*`），避免绕过网关直连 auth-service 时降低安全性。
 - 若部署在反向代理/Ingress 后，默认 **不信任** `X-Forwarded-For`；需显式配置 `gateway.trusted-proxy.enabled=true` + `gateway.trusted-proxy.cidrs` 才会解析 XFF。
 - 若启用 Nacos Config：
   - Data ID：`gateway.yaml`（YAML）

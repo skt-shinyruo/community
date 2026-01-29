@@ -10,6 +10,11 @@ public class GatewayRateLimitProperties {
 
     private boolean enabled = true;
     private boolean failOpen = true;
+    /**
+     * 运维/高风险入口关闭开关：匹配到的路径直接按 404 拒绝（降低攻击面）。
+     * <p>说明：这是“强关闭”，与限流规则 enabled=false 不同；常用于临时下线 reindex / replay 等高成本操作。</p>
+     */
+    private List<String> blockedPathPatterns = new ArrayList<>();
     private List<Rule> rules = new ArrayList<>();
 
     public boolean isEnabled() {
@@ -26,6 +31,14 @@ public class GatewayRateLimitProperties {
 
     public void setFailOpen(boolean failOpen) {
         this.failOpen = failOpen;
+    }
+
+    public List<String> getBlockedPathPatterns() {
+        return blockedPathPatterns;
+    }
+
+    public void setBlockedPathPatterns(List<String> blockedPathPatterns) {
+        this.blockedPathPatterns = blockedPathPatterns == null ? new ArrayList<>() : blockedPathPatterns;
     }
 
     public List<Rule> getRules() {
@@ -108,4 +121,3 @@ public class GatewayRateLimitProperties {
         USER_OR_IP
     }
 }
-

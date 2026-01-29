@@ -14,7 +14,7 @@ content:
       max-delay-ms: 60000
       relay-interval-ms: 5000
       send-timeout-ms: 3000
-  internal-token: ${CONTENT_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+  internal-token: ${CONTENT_INTERNAL_TOKEN:}
   score:
     refresh:
       enabled: true
@@ -69,6 +69,12 @@ management:
       exposure:
         include: health,info,prometheus
 
+community:
+  metrics:
+    basic-auth:
+      username: ${METRICS_BASIC_AUTH_USERNAME:prometheus}
+      password: ${METRICS_BASIC_AUTH_PASSWORD:dev-prometheus-pass}
+
 security:
   jwt:
     hmac-secret: ${JWT_HMAC_SECRET:${AUTH_JWT_HMAC_SECRET:}}
@@ -76,9 +82,9 @@ security:
 clients:
   user:
     base-url: ${USER_SERVICE_BASE_URL:http://user-service}
-    internal-token: ${USER_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+    internal-token: ${USER_INTERNAL_TOKEN:}
     fail-open: false
   social:
     base-url: ${SOCIAL_SERVICE_BASE_URL:http://social-service}
-    internal-token: ${SOCIAL_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+    internal-token: ${SOCIAL_INTERNAL_TOKEN:}
     fail-open: false

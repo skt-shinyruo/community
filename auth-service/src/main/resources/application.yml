@@ -26,10 +26,16 @@ management:
       exposure:
         include: health,info,prometheus
 
+community:
+  metrics:
+    basic-auth:
+      username: ${METRICS_BASIC_AUTH_USERNAME:prometheus}
+      password: ${METRICS_BASIC_AUTH_PASSWORD:dev-prometheus-pass}
+
 auth:
   user-client:
     base-url: ${USER_SERVICE_BASE_URL:http://user-service}
-    internal-token: ${USER_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+    internal-token: ${USER_INTERNAL_TOKEN:}
     connect-timeout: 200ms
     read-timeout: 800ms
   refresh:
@@ -65,5 +71,15 @@ security:
     refresh-token-ttl-seconds: 604800
     refresh-cookie-name: refresh_token
     refresh-cookie-path: /api/auth
-    refresh-cookie-same-site: Lax
-    refresh-cookie-secure: false
+    refresh-cookie-same-site: ${AUTH_REFRESH_COOKIE_SAME_SITE:Lax}
+    refresh-cookie-secure: ${AUTH_REFRESH_COOKIE_SECURE:false}
+
+gateway:
+  origin-guard:
+    enabled: true
+    allowed-origins:
+      - http://localhost:5173
+      - http://localhost:12881
+      - http://localhost:12888
+    # 生产建议 fail-closed：allowlist 漏配时拒绝敏感 cookie 会话入口（login/refresh/logout）。
+    fail-open-when-allowlist-empty: false

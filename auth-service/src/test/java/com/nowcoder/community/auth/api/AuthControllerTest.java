@@ -56,6 +56,9 @@ class AuthControllerTest {
     static void registerRedisProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.data.redis.host", redis::getHost);
         registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
+        // 让 MockMvc 的 X-Forwarded-For 在测试中生效，避免所有请求落到 127.0.0.1 导致风控/限流状态跨用例污染
+        registry.add("gateway.trusted-proxy.enabled", () -> "true");
+        registry.add("gateway.trusted-proxy.cidrs", () -> "127.0.0.1/32");
     }
 
     @Autowired
@@ -248,13 +251,15 @@ class AuthControllerTest {
         req.setPassword("wrong");
         String body = objectMapper.writeValueAsString(req);
 
-        // 前 4 次失败仍返回业务错误（HTTP 200 + code=10001）；第 5 次触发 429
+        // 前 2 次失败：LOGIN_FAILED（HTTP 401 + code=10001）
+        // 之后触发验证码要求：CAPTCHA_REQUIRED（HTTP 400 + code=10005）
+        // 第 5 次达到阈值：TOO_MANY_REQUESTS（HTTP 429）
         for (int i = 0; i < 4; i++) {
             mockMvc.perform(post("/api/auth/login")
                             .header("X-Forwarded-For", ip)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
-                    .andExpect(status().isOk());
+                    .andExpect(i < 2 ? status().isUnauthorized() : status().isBadRequest());
         }
 
         mockMvc.perform(post("/api/auth/login")
@@ -430,7 +435,7 @@ class AuthControllerTest {
         mockMvc.perform(post("/api/auth/password/reset/confirm")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"resetToken\":\"bad-token\",\"newPassword\":\"new_pwd\",\"captchaId\":\"" + captchaId3 + "\",\"captchaCode\":\"" + captchaCode3 + "\"}"))
-                .andExpect(status().isOk())
+                .andExpect(status().isBadRequest())
                 .andExpect(result -> assertThat(result.getResponse().getContentAsString()).contains("\"code\":10007"));
     }
 

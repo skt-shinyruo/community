@@ -48,13 +48,30 @@ export async function deletePostByAuthor(postId) {
 export async function listComments(postId, { page = 0, size = 10 } = {}) {
   const resp = await http.get(`/api/posts/${postId}/comments`, { params: { page, size } })
   const { data, traceId } = unwrapResultBody(resp.data, '查询评论')
-  return { data: Array.isArray(data) ? data : [], traceId }
+  const list = Array.isArray(data) ? data : []
+  return { data: list.map(pickCommentFields), traceId }
 }
 
 export async function listReplies(postId, commentId, { page = 0, size = 10 } = {}) {
   const resp = await http.get(`/api/posts/${postId}/comments/${commentId}/replies`, { params: { page, size } })
   const { data, traceId } = unwrapResultBody(resp.data, '查询回复')
-  return { data: Array.isArray(data) ? data : [], traceId }
+  const list = Array.isArray(data) ? data : []
+  return { data: list.map(pickCommentFields), traceId }
+}
+
+function pickCommentFields(raw) {
+  const r = raw || {}
+  return {
+    id: Number(r.id || 0),
+    userId: Number(r.userId || 0),
+    entityType: Number(r.entityType || 0),
+    entityId: Number(r.entityId || 0),
+    targetId: Number(r.targetId || 0),
+    content: r.content == null ? '' : String(r.content),
+    createTime: r.createTime,
+    updateTime: r.updateTime,
+    editCount: Number(r.editCount || 0)
+  }
 }
 
 export async function addComment(postId, { content, entityType, entityId, targetId }) {

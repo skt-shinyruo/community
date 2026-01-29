@@ -1,7 +1,7 @@
 package com.nowcoder.community.social.like;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
 /**
@@ -23,7 +23,7 @@ public class DbLikeRepository implements LikeRepository {
     public boolean addLike(int userId, int entityType, int entityId) {
         try {
             return mapper.insertLike(userId, entityType, entityId) > 0;
-        } catch (DataAccessException ignored) {
+        } catch (DuplicateKeyException ignored) {
             // 唯一约束冲突视为幂等重复
             return false;
         }
@@ -31,29 +31,17 @@ public class DbLikeRepository implements LikeRepository {
 
     @Override
     public boolean removeLike(int userId, int entityType, int entityId) {
-        try {
-            return mapper.deleteLike(userId, entityType, entityId) > 0;
-        } catch (DataAccessException ignored) {
-            return false;
-        }
+        return mapper.deleteLike(userId, entityType, entityId) > 0;
     }
 
     @Override
     public boolean isLiked(int userId, int entityType, int entityId) {
-        try {
-            return mapper.countLike(userId, entityType, entityId) > 0;
-        } catch (DataAccessException ignored) {
-            return false;
-        }
+        return mapper.countLike(userId, entityType, entityId) > 0;
     }
 
     @Override
     public long countEntityLikes(int entityType, int entityId) {
-        try {
-            return mapper.countEntityLikes(entityType, entityId);
-        } catch (DataAccessException ignored) {
-            return 0;
-        }
+        return mapper.countEntityLikes(entityType, entityId);
     }
 
     @Override
@@ -61,21 +49,13 @@ public class DbLikeRepository implements LikeRepository {
         if (delta == 0) {
             return getUserLikeCount(userId);
         }
-        try {
-            mapper.incrementUserLikeCount(userId, delta);
-        } catch (DataAccessException ignored) {
-            // ignore
-        }
+        mapper.incrementUserLikeCount(userId, delta);
         return getUserLikeCount(userId);
     }
 
     @Override
     public long getUserLikeCount(int userId) {
-        try {
-            Long v = mapper.getUserLikeCount(userId);
-            return v == null ? 0 : v;
-        } catch (DataAccessException ignored) {
-            return 0;
-        }
+        Long v = mapper.getUserLikeCount(userId);
+        return v == null ? 0 : v;
     }
 }

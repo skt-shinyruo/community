@@ -1,6 +1,7 @@
 package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.common.domain.EntityTypes;
 import com.nowcoder.community.common.web.internalclient.InternalClientSupport;
 import com.nowcoder.community.user.config.SocialServiceClientProperties;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -14,10 +15,12 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.net.SocketTimeoutException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -31,7 +34,7 @@ public class SocialServiceClient {
 
     private static final Logger log = LoggerFactory.getLogger(SocialServiceClient.class);
     private static final String SERVICE_NAME = "social-service";
-    private static final int USER_ENTITY_TYPE = 3;
+    private static final int USER_ENTITY_TYPE = EntityTypes.USER;
 
     private final RestTemplate restTemplate;
     private final MeterRegistry meterRegistry;
@@ -82,9 +85,9 @@ public class SocialServiceClient {
         }
         String baseUrl = properties.getBaseUrl();
         String url = baseUrl + "/internal/social/read/likes/users/" + userId + "/count";
-        Result<Long> result = exchange(url, HttpMethod.GET, new HttpEntity<>(headers()), new ParameterizedTypeReference<Result<Long>>() {
+        ResponseEntity<Result<Long>> resp = exchange(url, HttpMethod.GET, new HttpEntity<>(headers()), new ParameterizedTypeReference<Result<Long>>() {
         });
-        Long data = InternalClientSupport.unwrap(result, SERVICE_NAME);
+        Long data = InternalClientSupport.unwrap(resp, SERVICE_NAME);
         return data == null ? 0 : data;
     }
 
@@ -96,9 +99,9 @@ public class SocialServiceClient {
                 .fromHttpUrl(properties.getBaseUrl() + "/internal/social/read/follows/" + userId + "/followees/count")
                 .queryParam("entityType", USER_ENTITY_TYPE)
                 .toUriString();
-        Result<Long> result = exchange(url, HttpMethod.GET, new HttpEntity<>(headers()), new ParameterizedTypeReference<Result<Long>>() {
+        ResponseEntity<Result<Long>> resp = exchange(url, HttpMethod.GET, new HttpEntity<>(headers()), new ParameterizedTypeReference<Result<Long>>() {
         });
-        Long data = InternalClientSupport.unwrap(result, SERVICE_NAME);
+        Long data = InternalClientSupport.unwrap(resp, SERVICE_NAME);
         return data == null ? 0 : data;
     }
 
@@ -110,9 +113,9 @@ public class SocialServiceClient {
                 .fromHttpUrl(properties.getBaseUrl() + "/internal/social/read/follows/" + userId + "/followers/count")
                 .queryParam("entityType", USER_ENTITY_TYPE)
                 .toUriString();
-        Result<Long> result = exchange(url, HttpMethod.GET, new HttpEntity<>(headers()), new ParameterizedTypeReference<Result<Long>>() {
+        ResponseEntity<Result<Long>> resp = exchange(url, HttpMethod.GET, new HttpEntity<>(headers()), new ParameterizedTypeReference<Result<Long>>() {
         });
-        Long data = InternalClientSupport.unwrap(result, SERVICE_NAME);
+        Long data = InternalClientSupport.unwrap(resp, SERVICE_NAME);
         return data == null ? 0 : data;
     }
 
@@ -127,9 +130,9 @@ public class SocialServiceClient {
                 .queryParam("entityId", targetUserId)
                 .toUriString();
 
-        Result<Boolean> result = exchange(url, HttpMethod.GET, new HttpEntity<>(headers()), new ParameterizedTypeReference<Result<Boolean>>() {
+        ResponseEntity<Result<Boolean>> resp = exchange(url, HttpMethod.GET, new HttpEntity<>(headers()), new ParameterizedTypeReference<Result<Boolean>>() {
         });
-        return InternalClientSupport.unwrap(result, SERVICE_NAME);
+        return InternalClientSupport.unwrap(resp, SERVICE_NAME);
     }
 
     private HttpHeaders headers() {
@@ -147,17 +150,39 @@ public class SocialServiceClient {
             record(api, InternalClientSupport.OUTCOME_SUCCESS, start);
             return v;
         } catch (Exception e) {
+            String outcome = classifyOutcome(e);
             if (fallback != null && properties.isFailOpen()) {
                 record(api, InternalClientSupport.OUTCOME_DEGRADED, start);
                 log.warn("[social-client] degraded (api={}): {}", api, e.toString());
                 return fallback.get();
             }
-            record(api, InternalClientSupport.OUTCOME_ERROR, start);
+            record(api, outcome, start);
             if (e instanceof RuntimeException re) {
                 throw re;
             }
             throw new IllegalStateException("social-service 调用失败(api=" + api + ")", e);
         }
+    }
+
+    private String classifyOutcome(Throwable t) {
+        if (isTimeout(t)) {
+            return InternalClientSupport.OUTCOME_TIMEOUT;
+        }
+        return InternalClientSupport.OUTCOME_ERROR;
+    }
+
+    private boolean isTimeout(Throwable t) {
+        if (t instanceof ResourceAccessException) {
+            return true;
+        }
+        Throwable cur = t;
+        while (cur != null) {
+            if (cur instanceof SocketTimeoutException) {
+                return true;
+            }
+            cur = cur.getCause();
+        }
+        return false;
     }
 
     private void record(String api, String outcome, long startNanos) {
@@ -169,13 +194,11 @@ public class SocialServiceClient {
         meterRegistry.timer("user_social_client_latency", tags).record(System.nanoTime() - startNanos, TimeUnit.NANOSECONDS);
     }
 
-    private <T> Result<T> exchange(String url, HttpMethod method, HttpEntity<?> entity, ParameterizedTypeReference<Result<T>> typeRef) {
+    private <T> ResponseEntity<Result<T>> exchange(String url, HttpMethod method, HttpEntity<?> entity, ParameterizedTypeReference<Result<T>> typeRef) {
         try {
-            ResponseEntity<Result<T>> resp = restTemplate.exchange(url, method, entity, typeRef);
-            return resp.getBody();
+            return restTemplate.exchange(url, method, entity, typeRef);
         } catch (RestClientException e) {
             throw e;
         }
     }
 }
-

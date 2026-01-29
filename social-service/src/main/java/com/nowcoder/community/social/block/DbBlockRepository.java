@@ -1,7 +1,7 @@
 package com.nowcoder.community.social.block;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -23,7 +23,7 @@ public class DbBlockRepository implements BlockRepository {
     public boolean block(int userId, int targetUserId) {
         try {
             return mapper.insertBlock(userId, targetUserId) > 0;
-        } catch (DataAccessException ignored) {
+        } catch (DuplicateKeyException ignored) {
             // 幂等：重复拉黑视为 false
             return false;
         }
@@ -31,29 +31,17 @@ public class DbBlockRepository implements BlockRepository {
 
     @Override
     public boolean unblock(int userId, int targetUserId) {
-        try {
-            return mapper.deleteBlock(userId, targetUserId) > 0;
-        } catch (DataAccessException ignored) {
-            return false;
-        }
+        return mapper.deleteBlock(userId, targetUserId) > 0;
     }
 
     @Override
     public boolean hasBlocked(int userId, int targetUserId) {
-        try {
-            return mapper.countBlock(userId, targetUserId) > 0;
-        } catch (DataAccessException ignored) {
-            return false;
-        }
+        return mapper.countBlock(userId, targetUserId) > 0;
     }
 
     @Override
     public List<Integer> listBlockedUserIds(int userId) {
-        try {
-            List<Integer> list = mapper.listBlockedUserIds(userId);
-            return list == null ? List.of() : list;
-        } catch (DataAccessException ignored) {
-            return List.of();
-        }
+        List<Integer> list = mapper.listBlockedUserIds(userId);
+        return list == null ? List.of() : list;
     }
 }

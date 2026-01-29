@@ -1,0 +1,5 @@
+com.nowcoder.community.common.autoconfig.CommonAutoConfiguration
+com.nowcoder.community.common.autoconfig.ServletOnlyAutoConfiguration
+com.nowcoder.community.common.autoconfig.ReactiveOnlyAutoConfiguration
+com.nowcoder.community.common.autoconfig.KafkaDlqPublisherAutoConfiguration
+

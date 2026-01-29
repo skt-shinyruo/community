@@ -1,6 +1,15 @@
 # Nacos Config 示例（本地/开发）
 
-本目录提供各服务的 `Data ID = ${spring.application.name}.yaml` 的示例内容，便于在本地/测试环境快速初始化 Nacos 配置中心。
+本目录提供各服务的 Nacos 配置示例，便于在本地/测试环境快速初始化 Nacos 配置中心。
+
+## Data ID 命名约定（SSOT）
+
+- 基础配置（必需）：`Data ID = ${spring.application.name}.yaml`（例如 `auth-service.yaml`）
+- prod 覆盖（可选）：`Data ID = ${spring.application.name}-prod.yaml`（例如 `auth-service-prod.yaml`）
+
+说明：
+- `prod` profile 下，服务会 **required** 导入 `${spring.application.name}.yaml`（fail-fast）并 **optional** 导入 `${spring.application.name}-prod.yaml`（仅用于 prod 专用覆盖）。
+- 这样可以把“所有环境都需要的关键配置”放在基础文件里，而把“仅 prod 需要的覆盖项”（例如可信代理 CIDR、限流阈值、更严格开关）放在 `*-prod.yaml`。
 
 ## 使用步骤（docker compose）
 

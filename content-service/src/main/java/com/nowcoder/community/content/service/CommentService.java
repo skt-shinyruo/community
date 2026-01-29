@@ -2,8 +2,10 @@ package com.nowcoder.community.content.service;
 
 // 评论领域服务：负责评论写入与基础校验、评论事件发布。
 import com.nowcoder.community.common.event.payload.CommentPayload;
+import com.nowcoder.community.common.domain.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
+import com.nowcoder.community.content.projection.UserModerationProjectionRepository;
 import com.nowcoder.community.content.dao.CommentMapper;
 import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.entity.DiscussPost;
@@ -29,8 +31,8 @@ import static com.nowcoder.community.common.api.CommonErrorCode.NOT_FOUND;
 @Service
 public class CommentService {
 
-    public static final int ENTITY_TYPE_POST = 1;
-    public static final int ENTITY_TYPE_COMMENT = 2;
+    public static final int ENTITY_TYPE_POST = EntityTypes.POST;
+    public static final int ENTITY_TYPE_COMMENT = EntityTypes.COMMENT;
 
     private static final Logger log = LoggerFactory.getLogger(CommentService.class);
 
@@ -39,8 +41,8 @@ public class CommentService {
     private final SensitiveFilter sensitiveFilter;
     private final PostScoreQueue postScoreQueue;
     private final ContentEventPublisher eventPublisher;
-    private final SocialBlockClient socialBlockClient;
-    private final UserModerationClient userModerationClient;
+    private final UserModerationProjectionRepository projectionRepository;
+    private final UserModerationGuard moderationGuard;
 
     public CommentService(
             CommentMapper commentMapper,
@@ -48,16 +50,16 @@ public class CommentService {
             SensitiveFilter sensitiveFilter,
             PostScoreQueue postScoreQueue,
             ContentEventPublisher eventPublisher,
-            SocialBlockClient socialBlockClient,
-            UserModerationClient userModerationClient
+            UserModerationProjectionRepository projectionRepository,
+            UserModerationGuard moderationGuard
     ) {
         this.commentMapper = commentMapper;
         this.postService = postService;
         this.sensitiveFilter = sensitiveFilter;
         this.postScoreQueue = postScoreQueue;
         this.eventPublisher = eventPublisher;
-        this.socialBlockClient = socialBlockClient;
-        this.userModerationClient = userModerationClient;
+        this.projectionRepository = projectionRepository;
+        this.moderationGuard = moderationGuard;
     }
 
     public List<Comment> listByPost(int postId, int page, int size) {
@@ -70,6 +72,18 @@ public class CommentService {
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
         return commentMapper.selectCommentsByEntity(ENTITY_TYPE_COMMENT, commentId, p * s, s);
+    }
+
+    public void assertCommentBelongsToPost(int postId, int commentId) {
+        if (postId <= 0 || commentId <= 0) {
+            throw new BusinessException(INVALID_ARGUMENT, "postId/commentId 非法");
+        }
+        // 先校验帖子存在（避免通过 commentId 侧信道探测帖子状态）
+        postService.getById(postId);
+        int count = commentMapper.existsPostComment(postId, commentId);
+        if (count <= 0) {
+            throw new BusinessException(NOT_FOUND, "资源不存在");
+        }
     }
 
     /**
@@ -134,7 +148,7 @@ public class CommentService {
 
         // 反骚扰：双方任意一方拉黑另一方，都禁止互动（评论/回复）。
         if (targetUserId != null && targetUserId > 0) {
-            socialBlockClient.assertNotBlocked(actorUserId, targetUserId);
+            projectionRepository.assertNotBlocked(actorUserId, targetUserId);
         }
 
         String safe = HtmlUtils.htmlEscape(content == null ? "" : content.trim());
@@ -232,13 +246,6 @@ public class CommentService {
     }
 
     private void assertCanSpeak(int userId) {
-        UserModerationClient.ModerationStatus status = userModerationClient.getStatus(userId);
-        Instant now = Instant.now();
-        if (status != null && status.getBanUntil() != null && status.getBanUntil().isAfter(now)) {
-            throw new BusinessException(FORBIDDEN, "账号已被封禁，无法发言");
-        }
-        if (status != null && status.getMuteUntil() != null && status.getMuteUntil().isAfter(now)) {
-            throw new BusinessException(FORBIDDEN, "你已被禁言，暂时无法发言");
-        }
+        moderationGuard.assertCanSpeak(userId);
     }
 }

@@ -38,11 +38,11 @@
 - Origin/CORS allowlist 以 **gateway 为 SSOT**：
   - **gateway CORS**：负责浏览器跨端口直连时的 CORS 响应头（是否允许带 cookie / 预检等）
   - **gateway OriginGuard**：对敏感接口（`/api/auth/login|refresh|logout`）执行 Origin 白名单校验（服务端硬拦截）
-- auth-service 不再维护 Origin 白名单（假设 auth-service 为内网-only，对外入口统一由 gateway 管理）
+- **auth-service OriginGuard（旁路兜底）**：同样覆盖 `login/refresh/logout`，并复用同一套 allowlist 配置键（`gateway.origin-guard.*`），避免绕过网关直连 auth-service 时降低安全性
 
 注意：
 - 若用 `127.0.0.1` 访问前端，会导致 origin 变化，需要同步调整 allowlist（或统一用 `localhost`）。
-- 若前端端口变化，需要同步更新 gateway allowlist（CORS 与 OriginGuard 复用同一份列表）。
+- 若前端端口变化，需要同步更新 allowlist（gateway CORS / gateway OriginGuard / auth-service OriginGuard）。
 
 ---
 
@@ -73,12 +73,31 @@ gateway 对写请求会记录审计日志：
 
 内部接口通过“内部 token”保护（用于避免被普通用户调用）：
 - 统一约定：所有服务的 `/internal/**` 由 `common` 层 `InternalTokenFilter` 强制校验 `X-Internal-Token`（fail-closed）。
-- 配置优先级建议：
-  1) 分服务 token：`USER_INTERNAL_TOKEN` / `CONTENT_INTERNAL_TOKEN` / `SEARCH_INTERNAL_TOKEN` / `ANALYTICS_INTERNAL_TOKEN`
-  2) 全局兜底：`INTERNAL_TOKEN`（开发/演练环境可统一一个 token，减少漂移）
+- token 分域建议：
+  1) 按 internal segment 分域：`USER_INTERNAL_TOKEN` / `CONTENT_INTERNAL_TOKEN` / `SEARCH_INTERNAL_TOKEN` / `ANALYTICS_INTERNAL_TOKEN` / `SOCIAL_INTERNAL_TOKEN`
+  2) **不推荐**使用全局 `INTERNAL_TOKEN` 兜底（会扩大爆炸半径，且与 fail-closed 的默认安全态相冲突）
+- 最小权限补充（user-service 高权限写入口分域 token）：
+  - `/internal/users/{id}/password`、`/internal/users/{id}/moderation` 需要 **独立 token**：`user.ops.internal-token`
+  - 调用方需分别配置：
+    - auth-service：`auth.user-client.ops-internal-token`
+    - content-service：`clients.user.ops-internal-token`
 
 本地示例值见：
 - `deploy/.env.example`
+
+### 6.2 internal OPS 运维入口（break-glass + allowlist + X-Ops-Token）
+
+对于极高风险的 internal 运维动作（如 search reindex / outbox replay），额外引入 `X-Ops-Token` 强保护：
+- `common` 层 `InternalOpsGuardFilter` 默认 deny（break-glass 关闭时直接拒绝）
+- 必须同时满足：
+  - `X-Internal-Token`（基础 internal token）
+  - `X-Ops-Token`（ops-token，按 segment 分域：`ops.<segment>.token`）
+  - `ops.guard.<op>.enabled=true`（临时开启）
+  - `ops.guard.<op>.allowlist` 命中（来源 IP/CIDR）
+  - Redis 可用（用于 rate limit + single-flight；不可用时 fail-closed 返回 503）
+
+运维流程与回滚步骤见：
+- `helloagents/wiki/runbooks/internal-ops.md`
 
 ---
 
@@ -86,3 +105,25 @@ gateway 对写请求会记录审计日志：
 - 修改 `.env` 中的 `JWT_HMAC_SECRET`（>= 32 字节），不要长期用默认值
 - 不要把 `.env`（含真实密钥）提交到版本库
 - 默认不暴露内部依赖端口到宿主机；需要时再用 overlay 显式开启
+
+---
+
+## 8. 头像上传（user-service + 对象存储直传）
+
+### 8.1 风险点
+- 头像更新链路属于“写接口”，若缺乏约束容易被滥用（大文件 DoS、上传任意类型、覆盖他人对象、绕过上传直接改头像 URL 等）
+
+### 8.2 约定（fail-closed）
+- 签发上传 token 时，服务侧绑定 `fileName -> userId`（Redis TTL），并在更新头像时 **一次性消费**（防重放/防越权）
+- `PUT /api/users/{userId}/avatar` 必须校验：
+  - `fileName` 必须为 `avatar/{userId}/...` 前缀
+  - Redis 中存在对应 ticket 且归属当前用户
+  - ticket 只能使用一次（GETDEL/消费后删除）
+- 对象存储上传 token 限制：
+  - 最大体积：2 MiB
+  - MIME 白名单：`image/jpeg,image/png,image/webp,image/gif`
+  - `insertOnly=1`（避免覆盖已有对象）
+
+### 8.3 前端约定
+- 上传失败必须视为失败（不允许“上传失败仍更新头像”的 demo 兜底逻辑）
+- 建议在前端也做文件类型/大小预校验（用户体验更好）

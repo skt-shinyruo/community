@@ -41,11 +41,11 @@ public class NoticeService {
         return messageMapper.selectNoticeUnreadCount(userId, topic);
     }
 
-    public void markRead(List<Integer> ids) {
+    public void markRead(int userId, List<Integer> ids) {
         if (ids == null || ids.isEmpty()) {
             return;
         }
-        messageMapper.updateStatus(ids, STATUS_READ);
+        messageMapper.updateNoticesStatusForRecipient(ids, STATUS_READ, userId);
     }
 
     public List<NoticeTopicSummaryResponse> topicSummary(int userId) {

@@ -6,12 +6,29 @@ spring:
 
 security:
   jwt:
-    hmac-secret: ${JWT_HMAC_SECRET:dev-secret-please-change-at-least-32bytes}
+    hmac-secret: ${JWT_HMAC_SECRET}
+    refresh-cookie-same-site: ${AUTH_REFRESH_COOKIE_SAME_SITE:Lax}
+    # 生产默认强制 Secure=true（避免 HTTPS 下 refresh cookie 被降级或被中间人窃取）。
+    # 本地/测试若使用 http，可显式设置 AUTH_REFRESH_COOKIE_SECURE=false。
+    refresh-cookie-secure: ${AUTH_REFRESH_COOKIE_SECURE:true}
+
+gateway:
+  trusted-proxy:
+    # 生产/演练建议：仅在可信代理链路中信任 XFF（remoteAddr ∈ CIDR 才解析 X-Forwarded-For）。
+    enabled: true
+    cidrs:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
 
 auth:
+  refresh:
+    store: redis
   user-client:
     base-url: ${USER_SERVICE_BASE_URL:http://user-service}
-    internal-token: ${USER_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+    internal-token: ${USER_INTERNAL_TOKEN}
+    # user-service 内部高权限写接口分域 token（例如 /internal/users/{id}/password）。
+    ops-internal-token: ${USER_OPS_INTERNAL_TOKEN:}
     connect-timeout: 200ms
     read-timeout: 800ms
   captcha:

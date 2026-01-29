@@ -26,22 +26,35 @@ spring:
 
 security:
   jwt:
-    hmac-secret: ${JWT_HMAC_SECRET:dev-secret-please-change-at-least-32bytes}
+    hmac-secret: ${JWT_HMAC_SECRET}
 
 analytics:
   collect:
     enabled: true
-    internal-token: ${ANALYTICS_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+    internal-token: ${ANALYTICS_INTERNAL_TOKEN}
     timeout-ms: 300
     max-concurrency: 50
 
 gateway:
   trusted-proxy:
-    enabled: false
-    cidrs: []
+    # 生产/演练建议：仅在可信代理链路中信任 XFF（remoteAddr ∈ CIDR 才解析 X-Forwarded-For）。
+    # 若你的 ingress/gateway 使用公网 IP 直连，请按实际网段收敛 cidrs。
+    enabled: true
+    cidrs:
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 192.168.0.0/16
   origin-guard:
     enabled: true
+    # 生产建议 fail-closed：allowlist 漏配时拒绝敏感入口（login/refresh/logout）。
+    fail-open-when-allowlist-empty: false
     allowed-origins:
       - http://localhost:5173
       - http://localhost:12881
       - http://localhost:12888
+  rate-limit:
+    # 生产建议 fail-closed：限流依赖不可用时返回 503，避免静默放行导致风控失效。
+    fail-open: false
+    # 运维/高风险入口关闭开关：匹配到的路径按 404 直接拒绝（降低攻击面）。
+    # 示例：临时关闭索引重建入口 -> ["/api/search/internal/reindex"]
+    blocked-path-patterns: []

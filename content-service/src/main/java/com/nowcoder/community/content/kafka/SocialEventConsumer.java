@@ -1,28 +1,48 @@
 package com.nowcoder.community.content.kafka;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.domain.EntityTypes;
+import com.nowcoder.community.common.event.EventEnvelopeParser;
 import com.nowcoder.community.common.event.EventTopics;
 import com.nowcoder.community.common.event.EventTypes;
+import com.nowcoder.community.common.event.UnknownEventAction;
 import com.nowcoder.community.common.event.payload.LikePayload;
 import com.nowcoder.community.common.kafka.KafkaTraceSupport;
 import com.nowcoder.community.content.score.PostScoreQueue;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
 @Component
 public class SocialEventConsumer {
 
-    private static final int ENTITY_TYPE_POST = 1;
+    private static final Logger log = LoggerFactory.getLogger(SocialEventConsumer.class);
+    private static final Set<String> LOGGED_UNKNOWN_TYPES = ConcurrentHashMap.newKeySet();
+
+    private static final int ENTITY_TYPE_POST = EntityTypes.POST;
 
     private final ObjectMapper objectMapper;
     private final PostScoreQueue postScoreQueue;
+    private final UnknownEventAction unknownTypeAction;
+    private final UnknownEventAction unsupportedVersionAction;
 
-    public SocialEventConsumer(ObjectMapper objectMapper, PostScoreQueue postScoreQueue) {
+    public SocialEventConsumer(
+            ObjectMapper objectMapper,
+            PostScoreQueue postScoreQueue,
+            @Value("${community.kafka.consumer.unknown-type-action:SKIP}") String unknownTypeAction,
+            @Value("${community.kafka.consumer.unsupported-version-action:DLQ}") String unsupportedVersionAction
+    ) {
         this.objectMapper = objectMapper;
         this.postScoreQueue = postScoreQueue;
+        this.unknownTypeAction = UnknownEventAction.parseOrDefault(unknownTypeAction, UnknownEventAction.SKIP);
+        this.unsupportedVersionAction = UnknownEventAction.parseOrDefault(unsupportedVersionAction, UnknownEventAction.DLQ);
     }
 
     @KafkaListener(topics = EventTopics.SOCIAL_EVENTS_V1, groupId = "content-service")
@@ -36,22 +56,30 @@ public class SocialEventConsumer {
     }
 
     void handleRecord(ConsumerRecord<String, String> record) throws Exception {
-        JsonNode root = objectMapper.readTree(record.value());
-        String eventId = text(root, "eventId");
-        String type = text(root, "type");
+        EventEnvelopeParser.ParsedEnvelope env = EventEnvelopeParser.parse(objectMapper, record.value());
+        String eventId = env.getEventId();
+        String type = env.getType();
+        int version = env.getVersion();
 
-        if (eventId == null || eventId.isBlank()) {
-            throw new IllegalArgumentException("eventId 缺失");
-        }
-        if (type == null || type.isBlank()) {
-            throw new IllegalArgumentException("type 缺失");
+        if (version != 1) {
+            if (unsupportedVersionAction == UnknownEventAction.SKIP) {
+                log.warn("skip unsupported envelope version: {}, eventId={}, type={}", version, eventId, type);
+                return;
+            }
+            throw new IllegalArgumentException("unsupported envelope version: " + version);
         }
 
         if (!EventTypes.LIKE_CREATED.equals(type)) {
-            return;
+            if (unknownTypeAction == UnknownEventAction.SKIP) {
+                if (LOGGED_UNKNOWN_TYPES.add(type)) {
+                    log.warn("skip unsupported event type: {}, example eventId={}", type, eventId);
+                }
+                return;
+            }
+            throw new IllegalArgumentException("unsupported event type: " + type);
         }
 
-        LikePayload payload = objectMapper.treeToValue(root.get("payload"), LikePayload.class);
+        LikePayload payload = objectMapper.treeToValue(env.getPayload(), LikePayload.class);
         if (payload == null) {
             return;
         }
@@ -64,14 +92,5 @@ public class SocialEventConsumer {
             return;
         }
         postScoreQueue.add(postId);
-    }
-
-    private String text(JsonNode root, String field) {
-        JsonNode node = root.get(field);
-        if (node == null || node.isNull()) {
-            return null;
-        }
-        String s = node.asText();
-        return s == null || s.isBlank() ? null : s;
     }
 }

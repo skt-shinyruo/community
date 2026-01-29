@@ -1,9 +1,15 @@
-package com.nowcoder.community.search.kafka;
+package com.nowcoder.community.common.kafka.dlq;
 
 import java.time.Instant;
 
+/**
+ * Kafka DLQ 记录（统一 schema，便于跨服务排障与回放）。
+ *
+ * <p>注意：payload 可能包含敏感信息，生产建议在发布前做裁剪/脱敏（本实现默认做长度裁剪）。</p>
+ */
 public class KafkaDlqRecord {
 
+    private String traceId;
     private String originalTopic;
     private int originalPartition;
     private long originalOffset;
@@ -12,6 +18,14 @@ public class KafkaDlqRecord {
     private String errorType;
     private String errorMessage;
     private Instant failedAt;
+
+    public String getTraceId() {
+        return traceId;
+    }
+
+    public void setTraceId(String traceId) {
+        this.traceId = traceId;
+    }
 
     public String getOriginalTopic() {
         return originalTopic;

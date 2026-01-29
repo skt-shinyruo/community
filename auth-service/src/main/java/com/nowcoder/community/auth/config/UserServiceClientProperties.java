@@ -27,6 +27,13 @@ public class UserServiceClientProperties {
      */
     private String internalToken = "";
 
+    /**
+     * user-service 高权限写 internal API 访问令牌（X-Internal-Token）。
+     *
+     * <p>用途：/internal/users/{id}/password 等高风险入口需要分域 token（最小权限）。</p>
+     */
+    private String opsInternalToken = "";
+
     public String getBaseUrl() {
         return baseUrl;
     }
@@ -59,6 +66,14 @@ public class UserServiceClientProperties {
         this.internalToken = internalToken;
     }
 
+    public String getOpsInternalToken() {
+        return opsInternalToken;
+    }
+
+    public void setOpsInternalToken(String opsInternalToken) {
+        this.opsInternalToken = opsInternalToken;
+    }
+
     @PostConstruct
     public void validate() {
         if (!StringUtils.hasText(internalToken)) {
@@ -69,4 +84,3 @@ public class UserServiceClientProperties {
         }
     }
 }
-

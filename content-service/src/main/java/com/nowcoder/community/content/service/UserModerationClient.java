@@ -13,12 +13,14 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.SocketTimeoutException;
 import java.time.Instant;
+import java.util.List;
 
-import static com.nowcoder.community.common.api.CommonErrorCode.INTERNAL_ERROR;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.common.api.CommonErrorCode.SERVICE_UNAVAILABLE;
 
@@ -34,19 +36,22 @@ public class UserModerationClient {
     private final MeterRegistry meterRegistry;
     private final String baseUrl;
     private final String internalToken;
+    private final String opsInternalToken;
     private final boolean failOpen;
 
     public UserModerationClient(
             RestTemplate restTemplate,
             MeterRegistry meterRegistry,
             @Value("${clients.user.base-url:http://user-service}") String baseUrl,
-            @Value("${clients.user.internal-token:${INTERNAL_TOKEN:}}") String internalToken,
+            @Value("${clients.user.internal-token:}") String internalToken,
+            @Value("${clients.user.ops-internal-token:}") String opsInternalToken,
             @Value("${clients.user.fail-open:false}") boolean failOpen
     ) {
         this.restTemplate = restTemplate;
         this.meterRegistry = meterRegistry;
         this.baseUrl = baseUrl;
         this.internalToken = internalToken;
+        this.opsInternalToken = opsInternalToken;
         this.failOpen = failOpen;
     }
 
@@ -60,9 +65,9 @@ public class UserModerationClient {
         String url = baseUrl + "/internal/users/" + userId + "/moderation-status";
         long start = System.nanoTime();
         try {
-            Result<ModerationStatus> result = exchange(url, HttpMethod.GET, new HttpEntity<>(InternalClientSupport.jsonHeaders(internalToken, SERVICE_NAME)), new ParameterizedTypeReference<Result<ModerationStatus>>() {
+            ResponseEntity<Result<ModerationStatus>> resp = exchange(url, HttpMethod.GET, new HttpEntity<>(InternalClientSupport.jsonHeaders(internalToken, SERVICE_NAME)), new ParameterizedTypeReference<Result<ModerationStatus>>() {
             });
-            ModerationStatus data = InternalClientSupport.unwrap(result, SERVICE_NAME);
+            ModerationStatus data = InternalClientSupport.unwrap(resp, SERVICE_NAME);
             InternalClientSupport.record(meterRegistry, SERVICE_NAME, "getStatus", InternalClientSupport.OUTCOME_SUCCESS, start);
             return data;
         } catch (Exception e) {
@@ -75,7 +80,45 @@ public class UserModerationClient {
                 status.setBanUntil(null);
                 return status;
             }
-            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "getStatus", InternalClientSupport.OUTCOME_ERROR, start);
+            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "getStatus", classifyOutcome(e), start);
+            if (e instanceof BusinessException be) {
+                throw be;
+            }
+            throw new BusinessException(SERVICE_UNAVAILABLE, "user-service 不可用");
+        }
+    }
+
+    /**
+     * internal 投影回填/纠偏：按主键游标批量扫描用户处罚状态。
+     *
+     * <p>用途：content-service 本地投影冷启动基线构建，避免投影缺失导致写路径不可用。</p>
+     */
+    public List<ModerationStatus> scanStatuses(int afterId, int limit) {
+        int a = Math.max(0, afterId);
+        int l = Math.min(500, Math.max(1, limit));
+        if (!StringUtils.hasText(baseUrl)) {
+            throw new BusinessException(INVALID_ARGUMENT, "user-service base-url 未配置");
+        }
+        String url = baseUrl + "/internal/users/moderation-scan?afterId=" + a + "&limit=" + l;
+        long start = System.nanoTime();
+        try {
+            ResponseEntity<Result<List<ModerationStatus>>> resp = exchange(
+                    url,
+                    HttpMethod.GET,
+                    new HttpEntity<>(InternalClientSupport.jsonHeaders(internalToken, SERVICE_NAME)),
+                    new ParameterizedTypeReference<Result<List<ModerationStatus>>>() {
+                    }
+            );
+            List<ModerationStatus> data = InternalClientSupport.unwrap(resp, SERVICE_NAME);
+            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "scanStatuses", InternalClientSupport.OUTCOME_SUCCESS, start);
+            return data == null ? List.of() : data;
+        } catch (Exception e) {
+            if (failOpen) {
+                InternalClientSupport.record(meterRegistry, SERVICE_NAME, "scanStatuses", InternalClientSupport.OUTCOME_DEGRADED, start);
+                log.warn("[user-client] degraded (api=scanStatuses): {}", e.toString());
+                return List.of();
+            }
+            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "scanStatuses", classifyOutcome(e), start);
             if (e instanceof BusinessException be) {
                 throw be;
             }
@@ -101,6 +144,9 @@ public class UserModerationClient {
         if (!StringUtils.hasText(baseUrl)) {
             throw new BusinessException(INVALID_ARGUMENT, "user-service base-url 未配置");
         }
+        if (!StringUtils.hasText(opsInternalToken)) {
+            throw new BusinessException(INVALID_ARGUMENT, "user-service ops-internal-token 未配置");
+        }
         int seconds = Math.max(0, durationSeconds);
 
         ModerationApplyRequest req = new ModerationApplyRequest();
@@ -110,17 +156,17 @@ public class UserModerationClient {
         String url = baseUrl + "/internal/users/" + userId + "/moderation";
         long start = System.nanoTime();
         try {
-            Result<ModerationStatus> result = exchange(
+            ResponseEntity<Result<ModerationStatus>> resp = exchange(
                     url,
                     HttpMethod.POST,
-                    new HttpEntity<>(req, InternalClientSupport.jsonHeaders(internalToken, SERVICE_NAME)),
+                    new HttpEntity<>(req, InternalClientSupport.jsonHeaders(opsInternalToken, SERVICE_NAME)),
                     new ParameterizedTypeReference<Result<ModerationStatus>>() {
                     }
             );
-            requireOk(result);
+            InternalClientSupport.unwrap(resp, SERVICE_NAME);
             InternalClientSupport.record(meterRegistry, SERVICE_NAME, "apply:" + action, InternalClientSupport.OUTCOME_SUCCESS, start);
         } catch (Exception e) {
-            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "apply:" + action, InternalClientSupport.OUTCOME_ERROR, start);
+            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "apply:" + action, classifyOutcome(e), start);
             if (e instanceof BusinessException be) {
                 throw be;
             }
@@ -128,25 +174,35 @@ public class UserModerationClient {
         }
     }
 
-    private <T> T requireOk(Result<T> result) {
-        if (result == null) {
-            throw new BusinessException(SERVICE_UNAVAILABLE, "user-service 响应为空");
+    private String classifyOutcome(Throwable t) {
+        if (isTimeout(t)) {
+            return InternalClientSupport.OUTCOME_TIMEOUT;
         }
-        if (result.getCode() != 0) {
-            throw new BusinessException(INTERNAL_ERROR, "user-service 返回错误：" + result.getMessage());
-        }
-        return result.getData();
+        return InternalClientSupport.OUTCOME_ERROR;
     }
 
-    private <T> Result<T> exchange(String url, HttpMethod method, HttpEntity<?> entity, ParameterizedTypeReference<Result<T>> typeRef) {
+    private boolean isTimeout(Throwable t) {
+        if (t instanceof ResourceAccessException) {
+            return true;
+        }
+        Throwable cur = t;
+        while (cur != null) {
+            if (cur instanceof SocketTimeoutException) {
+                return true;
+            }
+            cur = cur.getCause();
+        }
+        return false;
+    }
+
+    private <T> ResponseEntity<Result<T>> exchange(String url, HttpMethod method, HttpEntity<?> entity, ParameterizedTypeReference<Result<T>> typeRef) {
         if (!StringUtils.hasText(url)) {
             throw new BusinessException(INVALID_ARGUMENT, "url 不能为空");
         }
         try {
-            ResponseEntity<Result<T>> resp = restTemplate.exchange(url, method, entity, typeRef);
-            return resp.getBody();
+            return restTemplate.exchange(url, method, entity, typeRef);
         } catch (RestClientException e) {
-            throw new BusinessException(SERVICE_UNAVAILABLE, "user-service 不可用");
+            throw e;
         }
     }
 

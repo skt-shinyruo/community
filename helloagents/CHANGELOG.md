@@ -10,11 +10,17 @@
 - social-service：新增 internal 社交读取 API（计数/关注状态等），供 user-service 聚合读取，减少 /api + Authorization 透传。
 - content-service：新增 outbox 内部运维接口（health/replay）并补齐可观测指标（backlog/failed）。
 - 运行手册：新增 internal-token 轮转/回滚 runbook，并补齐本次安全审阅结论。
+- common：新增事件治理工具（`EventEnvelopeParser` + `UnknownEventAction`），统一消费端 required fields/version 校验，并提供 unknown type/version 的可配置策略。
+- common：新增关键写接口幂等保护（`IdempotencyGuard` + Redis store），并提供“存储不可用时 503 fail-closed”的安全默认态。
+- common：新增 internal 运维/高风险入口强保护（`InternalOpsGuardFilter`）：break-glass + allowlist + `X-Ops-Token` + 并发(single-flight)/频率限制（Redis 不可用时 503 fail-closed）。
+- frontend：关键写请求自动携带并短窗口复用 `Idempotency-Key`，减少重复提交导致的重复写入风险。
 
 ### Changed
 - social-service：存储默认值固化为 DB（SSOT），Redis/Memory 仅显式启用；补齐 storage 模式边界说明。
 - deploy/nacos-config：content/social 默认开启 outbox；internal-token 配置收敛到按服务 token（减少全局兜底）。
 - user-service：SocialServiceClient 改为 internal-token 调用 social-service internal read API（移除 Authorization 透传与硬编码 BASE_URL）。
+- internal-token：清理各服务 `application.yml` 与 internal client 的 `${...:${INTERNAL_TOKEN:}}` 兜底路径，仅允许按服务 token；同步更新 `scripts/search-reindex.sh` 与 auth-service 文档。
+- Kafka 消费端：统一 version/type unknown handling（默认版本不匹配进入 DLQ；未知 type 默认 SKIP 并按 type 去重告警，避免 DLQ 噪音）。
 
 ### Fixed
 - gateway：统计采集去重改为有界 TTL 缓存，并补齐对 analytics 内部调用的 traceId 透传。
@@ -112,7 +118,7 @@
 - 修复 search-service `/internal/search/reindex` 在多 schema 模式下的重建流程：改为调用 content-service 内部 API 扫描帖子数据，移除对 `community_content.*` 的跨 schema 直读与额外 SELECT 授权依赖。
 - 修复 `scripts/smoke-i0-auth.sh` 在 zsh 环境下无法通过 `USERNAME` 覆盖账号、且错误打印 Python 片段导致脚本中断的问题（改用 `SMOKE_USERNAME/SMOKE_PASSWORD` + 直接输出响应）。
 - 修复前端移动端（≤768px）侧边栏不可见的问题（抽屉与遮罩行为对齐）。
-- 修复 internal API token 配置漂移导致的 403：internal-token 校验统一下沉到 `InternalTokenFilter` 并支持按 `/internal/{segment}` 映射到 `{segment}.internal-token`（同时允许 `INTERNAL_TOKEN` 全局兜底）。
+- 修复 internal API token 配置漂移导致的 403：internal-token 校验统一下沉到 `InternalTokenFilter` 并支持按 `/internal/{segment}` 映射到 `{segment}.internal-token`（不再允许 `INTERNAL_TOKEN` 全局兜底，避免爆炸半径扩大）。
 - 修复 content-service Kafka 消费端进程内去重在多实例/重启场景下不可靠的问题：移除 JVM `seenEventIds`，并对齐 DefaultErrorHandler+DLQ 与消费端 traceId 注入。
 
 ### Removed

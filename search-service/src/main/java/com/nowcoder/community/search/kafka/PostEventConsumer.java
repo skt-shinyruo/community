@@ -1,6 +1,6 @@
 package com.nowcoder.community.search.kafka;
 
-// 帖子事件消费者：insert-first 幂等后执行业务索引写入。
+// 帖子事件消费者：先执行业务索引副作用（幂等 upsert/delete），成功后再写入幂等表，避免丢更新窗口。
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.event.EventTopics;
@@ -45,13 +45,13 @@ public class PostEventConsumer {
             throw new IllegalArgumentException("type 缺失");
         }
 
-        // 幂等：insert-first，重复事件直接跳过
-        if (!consumedEventStore.markConsumedIfFirst(eventId)) {
-            return;
+        // 仅支持 v1 envelope；其他版本直接进入错误处理（DLQ），避免 silent drop。
+        if (version != 1) {
+            throw new IllegalArgumentException("unsupported envelope version: " + version);
         }
 
-        // 仅支持 v1 envelope；其他版本先跳过（由 reindex/回放兜底）
-        if (version != 1) {
+        // 幂等：已消费过的 eventId 直接跳过（避免重复索引副作用）
+        if (consumedEventStore.isConsumed(eventId)) {
             return;
         }
 
@@ -62,13 +62,19 @@ public class PostEventConsumer {
 
         if (EventTypes.POST_DELETED.equals(type)) {
             postSearchRepository.delete(payload.getPostId());
+            // 索引副作用成功后再标记已消费（幂等点位后移）
+            consumedEventStore.markConsumedIfFirst(eventId);
             return;
         }
 
         if (EventTypes.POST_PUBLISHED.equals(type) || EventTypes.POST_UPDATED.equals(type)) {
             postSearchRepository.upsert(payload);
+            consumedEventStore.markConsumedIfFirst(eventId);
+            return;
         }
 
+        // 未知 type：进入错误处理（DLQ）
+        throw new IllegalArgumentException("unsupported event type: " + type);
     }
 
     private String text(JsonNode root, String field) {

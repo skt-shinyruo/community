@@ -12,7 +12,7 @@ spring:
 
 security:
   jwt:
-    hmac-secret: ${JWT_HMAC_SECRET:dev-secret-please-change-at-least-32bytes}
+    hmac-secret: ${JWT_HMAC_SECRET}
 
 social:
   storage: db
@@ -32,3 +32,19 @@ social:
   internal-token: ${SOCIAL_INTERNAL_TOKEN:}
   # 轮转窗口：灰度期间允许 previous 继续访问（配合 common/InternalTokenFilter）。
   internal-token-previous: ${SOCIAL_INTERNAL_TOKEN_PREVIOUS:}
+
+# internal 运维入口强保护（default deny + break-glass）。
+ops:
+  social:
+    token: ${OPS_SOCIAL_TOKEN:}
+    token-previous: ${OPS_SOCIAL_TOKEN_PREVIOUS:}
+  guard:
+    outbox-replay:
+      enabled: ${OPS_OUTBOX_REPLAY_ENABLED:false}
+      # 默认仅允许本机/回环（生产请改为堡垒机/内网管理网段）。
+      allowlist: ${OPS_OUTBOX_REPLAY_ALLOWLIST:127.0.0.1,::1}
+    rate:
+      window-seconds: ${OPS_RATE_WINDOW_SECONDS:60}
+      max: ${OPS_RATE_MAX:3}
+    lock:
+      ttl-seconds: ${OPS_LOCK_TTL_SECONDS:600}

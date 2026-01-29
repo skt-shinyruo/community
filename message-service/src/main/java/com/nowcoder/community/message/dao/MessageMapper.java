@@ -1,6 +1,7 @@
 package com.nowcoder.community.message.dao;
 
 import com.nowcoder.community.message.entity.Message;
+import com.nowcoder.community.message.service.dto.ConversationStats;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
@@ -15,9 +16,11 @@ public interface MessageMapper {
 
     List<Message> selectConversations(@Param("userId") int userId, @Param("offset") int offset, @Param("limit") int limit);
 
+    List<ConversationStats> selectConversationStats(@Param("userId") int userId, @Param("conversationIds") List<String> conversationIds);
+
     int selectConversationCount(@Param("userId") int userId);
 
-    List<Message> selectLetters(@Param("conversationId") String conversationId, @Param("offset") int offset, @Param("limit") int limit);
+    List<Message> selectLetters(@Param("userId") int userId, @Param("conversationId") String conversationId, @Param("offset") int offset, @Param("limit") int limit);
 
     int selectLetterCount(@Param("conversationId") String conversationId);
 
@@ -29,5 +32,7 @@ public interface MessageMapper {
 
     int selectNoticeUnreadCount(@Param("userId") int userId, @Param("topic") String topic);
 
-    int updateStatus(@Param("ids") List<Integer> ids, @Param("status") int status);
+    int updateLettersStatusForRecipient(@Param("ids") List<Integer> ids, @Param("status") int status, @Param("userId") int userId);
+
+    int updateNoticesStatusForRecipient(@Param("ids") List<Integer> ids, @Param("status") int status, @Param("userId") int userId);
 }

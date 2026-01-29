@@ -84,17 +84,25 @@ public class AnalyticsCollectGlobalFilter implements GlobalFilter, Ordered {
             recordUv(ip, today, traceId, traceparent);
         }
 
-        return exchange.getPrincipal()
-                .flatMap(principal -> {
+        // analytics 采集必须“与转发链路隔离”：不能因为采集失败/鉴权上下文异常而影响请求转发。
+        exchange.getPrincipal()
+                .onErrorResume(e -> {
+                    if (meterRegistry != null) {
+                        meterRegistry.counter("gateway_analytics_collect_total", Tags.of("metric", "dau", "outcome", "skipped_principal_error")).increment();
+                    }
+                    return Mono.empty();
+                })
+                .doOnNext(principal -> {
                     if (principal instanceof JwtAuthenticationToken token) {
                         Integer userId = parseUserId(token.getToken().getSubject());
                         if (userId != null && shouldRecordDau(today, userId)) {
                             recordDau(userId, today, traceId, traceparent);
                         }
                     }
-                    return chain.filter(exchange);
                 })
-                .switchIfEmpty(chain.filter(exchange));
+                .subscribe();
+
+        return chain.filter(exchange);
     }
 
     private void maybeRotateDay(LocalDate today) {
@@ -190,7 +198,9 @@ public class AnalyticsCollectGlobalFilter implements GlobalFilter, Ordered {
             int id = Integer.parseInt(subject.trim());
             return id > 0 ? id : null;
         } catch (Exception ignored) {
-            meterRegistry.counter("gateway_analytics_collect_total", Tags.of("metric", "dau", "outcome", "skipped_bad_subject")).increment();
+            if (meterRegistry != null) {
+                meterRegistry.counter("gateway_analytics_collect_total", Tags.of("metric", "dau", "outcome", "skipped_bad_subject")).increment();
+            }
             return null;
         }
     }

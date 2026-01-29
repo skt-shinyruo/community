@@ -2,6 +2,7 @@ package com.nowcoder.community.auth.service;
 
 import com.nowcoder.community.common.api.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.net.ClientIpResolver;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseCookie;
@@ -18,39 +19,45 @@ public class AuthService {
     private final RefreshTokenService refreshTokenService;
     private final LoginRateLimitService loginRateLimitService;
     private final CaptchaService captchaService;
+    private final ClientIpResolver clientIpResolver;
 
     public AuthService(
             UserServiceInternalClient userServiceInternalClient,
             JwtTokenService jwtTokenService,
             RefreshTokenService refreshTokenService,
             LoginRateLimitService loginRateLimitService,
-            CaptchaService captchaService
+            CaptchaService captchaService,
+            ClientIpResolver clientIpResolver
     ) {
         this.userServiceInternalClient = userServiceInternalClient;
         this.jwtTokenService = jwtTokenService;
         this.refreshTokenService = refreshTokenService;
         this.loginRateLimitService = loginRateLimitService;
         this.captchaService = captchaService;
+        this.clientIpResolver = clientIpResolver;
     }
 
     public LoginResult login(String username, String password, String captchaId, String captchaCode, HttpServletRequest request) {
-        String ip = clientIp(request);
-        loginRateLimitService.assertNotBlocked(username, ip);
+        ClientIpResolver.ResolvedClientIp resolved = clientIpResolver.resolve(request);
+        String ip = resolved == null ? null : resolved.ip();
+        String ipSource = resolved == null ? null : resolved.source();
+
+        loginRateLimitService.assertNotBlocked(username, ip, ipSource);
 
         if (loginRateLimitService.isCaptchaRequired(username, ip)) {
             if (!StringUtils.hasText(captchaId) || !StringUtils.hasText(captchaCode)) {
-                loginRateLimitService.recordFailure(username, ip);
+                loginRateLimitService.recordFailure(username, ip, ipSource);
                 throw new BusinessException(AuthErrorCode.CAPTCHA_REQUIRED);
             }
             boolean ok = captchaService.verify(captchaId, captchaCode);
             if (!ok) {
-                loginRateLimitService.recordFailure(username, ip);
+                loginRateLimitService.recordFailure(username, ip, ipSource);
                 throw new BusinessException(AuthErrorCode.CAPTCHA_INVALID);
             }
         }
 
         if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) {
-            loginRateLimitService.recordFailure(username, ip);
+            loginRateLimitService.recordFailure(username, ip, ipSource);
             throw new BusinessException(AuthErrorCode.LOGIN_FAILED);
         }
 
@@ -60,7 +67,7 @@ public class AuthService {
         } catch (BusinessException e) {
             int code = e.getErrorCode() == null ? 0 : e.getErrorCode().getCode();
             if (code == AuthErrorCode.LOGIN_FAILED.getCode() || code == AuthErrorCode.USER_DISABLED.getCode()) {
-                loginRateLimitService.recordFailure(username, ip);
+                loginRateLimitService.recordFailure(username, ip, ipSource);
             }
             throw e;
         }
@@ -117,20 +124,6 @@ public class AuthService {
             }
         }
         return null;
-    }
-
-    private String clientIp(HttpServletRequest request) {
-        if (request == null) {
-            return null;
-        }
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (StringUtils.hasText(forwarded)) {
-            String first = forwarded.split(",")[0].trim();
-            if (StringUtils.hasText(first)) {
-                return first;
-            }
-        }
-        return request.getRemoteAddr();
     }
 
     public record LoginResult(String accessToken, ResponseCookie refreshCookie) {

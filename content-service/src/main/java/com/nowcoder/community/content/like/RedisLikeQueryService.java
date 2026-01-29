@@ -1,5 +1,6 @@
 package com.nowcoder.community.content.like;
 
+import com.nowcoder.community.common.domain.EntityTypes;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -8,7 +9,7 @@ import org.springframework.stereotype.Component;
 @ConditionalOnProperty(name = "content.storage", havingValue = "redis", matchIfMissing = true)
 public class RedisLikeQueryService implements LikeQueryService {
 
-    private static final int ENTITY_TYPE_POST = 1;
+    private static final int ENTITY_TYPE_POST = EntityTypes.POST;
 
     private final StringRedisTemplate redisTemplate;
 
@@ -35,4 +36,3 @@ public class RedisLikeQueryService implements LikeQueryService {
         return "like:entity:" + entityType + ":" + entityId;
     }
 }
-

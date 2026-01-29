@@ -25,13 +25,14 @@
 #### Scenario: 消费发帖事件写入索引
 - Kafka 消费 publish 事件
 - 保存帖子到 ES
- - 通过 `community_search.search_consumed_event` 做 eventId 幂等去重（insert-first），避免重复索引副作用
+ - 通过 `community_search.search_consumed_event` 做 eventId 幂等去重（先判定是否已消费），避免重复索引副作用
+ - 幂等点位：ES upsert/delete 成功后再写入 consumed 表，避免 ES 故障导致“已标记但未更新”的丢失窗口
  - 幂等表按 `consumed_at` 定期清理（可配置 retention-days）
 
 #### Scenario: 消费删帖事件删除索引
 - Kafka 消费 delete 事件
 - 从 ES 删除帖子
- - 通过 `community_search.search_consumed_event` 做 eventId 幂等去重
+ - 通过 `community_search.search_consumed_event` 做 eventId 幂等去重（delete 成功后再标记 consumed）
 
 #### Scenario: 零停机 reindex（alias/蓝绿）
 - alias 固定：`community_posts_alias`
@@ -42,6 +43,11 @@
 - `GET /api/search/posts?keyword=xxx&categoryId=&tag=`（支持 taxonomy 过滤；返回 `categoryId/tags[]` 供前端展示/二次筛选）
 - `POST /api/search/internal/reindex`（仅管理员；用于迁移期 reindex）
 - `POST /internal/search/reindex`（服务内部入口：需要 `X-Internal-Token`）
+
+## Configuration Notes
+- `search.storage=es|memory`
+  - 默认推荐：`es`（生产/部署）
+  - 测试/演示：可显式切到 `memory`（如 `search-service/src/test/resources/application.yml`）
 
 ## Data Models
 ### Elasticsearch: discuss_post

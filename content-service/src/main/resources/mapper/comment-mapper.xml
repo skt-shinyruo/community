@@ -42,6 +42,19 @@
     </select>
 
     <!--
+      校验 commentId 是否属于 postId（仅针对“直接评论”）：
+      - replies 接口中，commentId 表示父评论，必须满足 entity_type=POST 且 entity_id=postId
+    -->
+    <select id="existsPostComment" resultType="int">
+        select count(1)
+        from comment
+        where status = 0
+          and id = #{commentId}
+          and entity_type = 1
+          and entity_id = #{postId}
+    </select>
+
+    <!--
       查询指定帖子集合的“最后活动”（包含：直接评论 + 回复评论）。
       说明：返回结果映射到 Comment，其中 entity_id 被复用为 postId。
 

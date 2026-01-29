@@ -7,9 +7,9 @@
 ## 背景与机制（SSOT=代码）
 - internal 接口统一以 `/internal/<segment>/**` 作为路径前缀。
 - `common` 模块的 `InternalTokenFilter` 会对 `/internal/**` 强制校验 `X-Internal-Token`。
-- token 查找优先级（按 segment）：`<segment>.internal-token` → `<segment>.internal-token-previous` →（兼容 alias）→ `internal.token` → `internal.token.previous`。
+- token 查找优先级（按 segment）：`<segment>.internal-token` → `<segment>.internal-token-previous` →（兼容 alias）→ `user.internal-token` / `user.internal-token-previous`（仅当 segment 为 `users`）。
 
-> 注意：若运行环境仍设置了环境变量 `INTERNAL_TOKEN`，Spring Boot 会映射为 `internal.token`，从而可能仍被 Filter 接受。生产环境建议逐步移除该全局 env，改为按服务 token。
+> 注意：当前 `InternalTokenFilter` **不再读取** `internal.token`（即使设置环境变量 `INTERNAL_TOKEN` 也不会被接受）。仍建议在生产环境逐步移除该全局 env，避免误解与错误配置扩散。
 
 ## 轮转流程（推荐）
 以轮转 social-service 的 token 为例（segment= `social`）：

@@ -18,6 +18,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.net.URI;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -54,6 +55,10 @@ public class OriginGuardGlobalFilter implements GlobalFilter, Ordered {
             // 与旧 auth-service 行为保持一致：无 Origin 头直接放行（兼容非浏览器客户端）
             return chain.filter(exchange);
         }
+        // 同源请求应始终放行：避免“edge/同源部署”因未配置 allowlist 而误阻断登录/刷新。
+        if (isSameOrigin(request, origin)) {
+            return chain.filter(exchange);
+        }
 
         List<String> allowed = properties.getAllowedOrigins();
         if (allowed == null || allowed.isEmpty()) {
@@ -74,6 +79,63 @@ public class OriginGuardGlobalFilter implements GlobalFilter, Ordered {
         }
 
         return forbidden(exchange, "Origin 不被允许");
+    }
+
+    private boolean isSameOrigin(ServerHttpRequest request, String origin) {
+        if (request == null || !StringUtils.hasText(origin)) {
+            return false;
+        }
+        URI requestUri = request.getURI();
+        URI originUri;
+        try {
+            originUri = URI.create(origin.trim());
+        } catch (Exception ignored) {
+            return false;
+        }
+
+        String oScheme = originUri.getScheme();
+        String oHost = originUri.getHost();
+        int oPort = normalizePort(originUri.getScheme(), originUri.getPort());
+        if (!StringUtils.hasText(oScheme) || !StringUtils.hasText(oHost)) {
+            return false;
+        }
+
+        String rScheme = requestUri == null ? "" : requestUri.getScheme();
+        String rHost = requestUri == null ? "" : requestUri.getHost();
+        int rPort = normalizePort(rScheme, requestUri == null ? -1 : requestUri.getPort());
+
+        if (!StringUtils.hasText(rScheme) || !StringUtils.hasText(rHost)) {
+            // 兜底：使用 Host header（格式可能为 host:port）
+            String hostHeader = request.getHeaders().getFirst("Host");
+            if (!StringUtils.hasText(hostHeader)) {
+                return false;
+            }
+            String h = hostHeader.trim();
+            int idx = h.indexOf(':');
+            if (idx > 0) {
+                rHost = h.substring(0, idx);
+                try {
+                    rPort = normalizePort(rScheme, Integer.parseInt(h.substring(idx + 1)));
+                } catch (Exception ignored) {
+                    rPort = normalizePort(rScheme, -1);
+                }
+            } else {
+                rHost = h;
+                rPort = normalizePort(rScheme, -1);
+            }
+        }
+
+        return oScheme.equalsIgnoreCase(rScheme) && oHost.equalsIgnoreCase(rHost) && oPort == rPort;
+    }
+
+    private int normalizePort(String scheme, int port) {
+        if (port > 0) {
+            return port;
+        }
+        if ("https".equalsIgnoreCase(scheme)) {
+            return 443;
+        }
+        return 80;
     }
 
     private boolean shouldCheck(HttpMethod method, String path) {

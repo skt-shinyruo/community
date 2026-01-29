@@ -14,7 +14,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Repository
-@ConditionalOnProperty(name = "search.storage", havingValue = "memory", matchIfMissing = true)
+@ConditionalOnProperty(name = "search.storage", havingValue = "memory", matchIfMissing = false)
 public class InMemoryPostSearchRepository implements PostSearchRepository {
 
     private final Map<Integer, PostPayload> store = new ConcurrentHashMap<>();

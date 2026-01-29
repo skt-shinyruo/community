@@ -2,21 +2,28 @@ package com.nowcoder.community.auth.api.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import com.nowcoder.community.common.validation.ValidationLimits;
 
 public class RegisterRequest {
 
     @NotBlank
+    @Size(max = ValidationLimits.USERNAME_MAX)
     private String username;
 
     @NotBlank
+    @Size(max = ValidationLimits.PASSWORD_MAX)
     private String password;
 
     @NotBlank
     @Email
+    @Size(max = ValidationLimits.EMAIL_MAX)
     private String email;
 
+    @Size(max = ValidationLimits.CAPTCHA_ID_MAX)
     private String captchaId;
 
+    @Size(max = ValidationLimits.CAPTCHA_CODE_MAX)
     private String captchaCode;
 
     public String getUsername() {

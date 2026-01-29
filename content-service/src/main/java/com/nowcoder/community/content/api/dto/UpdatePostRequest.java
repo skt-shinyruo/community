@@ -2,20 +2,25 @@
 package com.nowcoder.community.content.api.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import com.nowcoder.community.common.validation.ValidationLimits;
 
 import java.util.List;
 
 public class UpdatePostRequest {
 
     @NotBlank
+    @Size(max = ValidationLimits.POST_TITLE_MAX)
     private String title;
 
     @NotBlank
+    @Size(max = ValidationLimits.POST_CONTENT_MAX)
     private String content;
 
     private Integer categoryId;
 
-    private List<String> tags;
+    @Size(max = ValidationLimits.TAGS_MAX)
+    private List<@Size(max = ValidationLimits.TAG_MAX) String> tags;
 
     public String getTitle() {
         return title;
@@ -49,4 +54,3 @@ public class UpdatePostRequest {
         this.tags = tags;
     }
 }
-

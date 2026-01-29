@@ -22,6 +22,19 @@
 - search-service：搜索（消费事件写 ES 索引；提供 reindex 用于冷启动/修复，重建通过 content-service 内部 API 拉取数据）
 - analytics-service：统计（可由 gateway 采集或事件驱动写入）
 
+### 1.4 配置中心与 profile（fail-closed）
+
+本项目通过 profile 明确区分“开发便捷”与“生产安全默认态”：
+
+- dev/local：允许 `spring.config.import=optional:nacos:...`，便于不接入 Nacos 的本地启动与单测。
+- prod：必须显式启用 `prod` profile，此时：
+  - `spring.config.import` 对 `${spring.application.name}.yaml` 为 **required/fail-fast**（配置中心不可用直接失败，禁止静默退化）。
+  - 可选导入 `${spring.application.name}-prod.yaml` 作为 prod 专用覆盖（例如可信代理 CIDR、更严格开关/阈值）。
+- 启动期校验（Startup Validation）：`common` 在 `prod` 下启用启动校验，关键密钥/内部 token 缺失会直接阻断启动（fail-closed），避免“带着默认值上线”。
+
+运维约定：
+- 生产部署入口必须显式设置 `SPRING_PROFILES_ACTIVE=prod`（避免 dev/default 默认值误用）。
+
 ---
 
 ## 2. 同步 API：读写分离的基本形态
@@ -36,8 +49,53 @@
 2. gateway 统一鉴权/限流/审计
 3. 目标服务写入主存储（DB/Redis）并发布事件
 
+### 2.3 错误协议（HTTP status + Result.code）
+本项目对外（以及内部）统一返回 `Result<T>` 结构，但同时要求：
+- **HTTP status：表达错误类别**（4xx/5xx，便于网关/监控/前端统一处理）
+- **Result.code：表达业务细分**（如 `AuthErrorCode` 10001+）
+
+基本约定：
+- 参数错误：HTTP 400 + `Result.code=400`
+- 未登录/令牌无效：HTTP 401 + `Result.code=10003/401`（业务码优先表达细分）
+- 无权限：HTTP 403
+- 依赖故障（DB/Redis/Kafka/下游服务不可用）：HTTP 503（fail-closed）
+- 未捕获异常：HTTP 500
+
+前端 Axios 约定：
+- 对非 2xx 响应仍尝试解析 `Result` 并展示 message/traceId
+- 401 的 refresh 逻辑需区分“可刷新/不可刷新”，避免登录失败误触发 refresh
+
 > P0 生产可用优先：对于“DB 事务 + Kafka 事件”的场景，事件发布必须在事务提交后执行（After-Commit），
 > 避免出现“DB 回滚但事件已发出”的幽灵事件。
+
+### 2.4 refresh cookie 与 CSRF（SameSite + OriginGuard）
+
+本项目 refresh token 采用 **HttpOnly cookie** 存储（防止被 JS 读取），因此需要同时关注：
+- cookie 级别的 `SameSite`/`Secure` 策略
+- 请求级别的 Origin 校验（OriginGuard）来降低 CSRF/旁路风险
+
+策略约定（SSOT）：
+- **同源部署（推荐）**：
+  - refresh cookie：`SameSite=Lax`（或 Strict，视业务跳转而定）
+  - prod：refresh cookie `Secure=true`（HTTPS）
+  - gateway/auth-service：启用 OriginGuard，但同源请求始终放行
+- **跨站部署（谨慎）**：
+  - refresh cookie：必须 `SameSite=None` 且 `Secure=true`
+  - gateway/auth-service：OriginGuard allowlist 必须配置且在 prod 下 allowlist 为空时 **fail-closed**
+  - CORS：必须 `allowCredentials=true` 且 `allowedOrigins` 精确匹配（禁止 `*`）
+
+详细说明与运维清单见：`helloagents/wiki/runbooks/cookie-and-csrf.md`。
+
+### 2.5 API DTO 与契约测试（字段白名单）
+
+为避免“直接返回 entity 导致字段泄露/契约被数据库结构绑定”，公共接口应返回 DTO（字段白名单）。
+
+约定：
+- 公共读接口（例如评论/回复列表）不得暴露治理字段（如 `status`、`deletedReason` 等）
+- 契约通过回归测试固化，避免后续重构/联表扩展时不小心把字段带出
+
+示例：
+- `content-service/src/test/java/com/nowcoder/community/content/api/PostControllerTest.java`
 
 ---
 
@@ -60,9 +118,35 @@
 - `producer`：生产者服务名
 - `payload`：具体数据（避免敏感字段）
 
+#### 3.2.1 版本治理与 unknown handling（fail-closed + 可控降噪）
+消费端必须对 envelope 做统一校验（required fields + version）：
+- **unsupported envelope version**：默认进入错误处理（重试/DLQ），避免 silent drop（fail-closed）
+- **unknown event type**：由于 topic 按 domain 聚合（如 `social.v1` 同时包含 Like/Follow/Block），单个 consumer 可能只关心子集 type；默认允许 **SKIP** 并按 type 去重告警，避免 DLQ 噪音
+
+unknown handling 为可配置策略（服务级别）：
+- `community.kafka.consumer.unsupported-version-action`：`DLQ`（默认）/ `SKIP`
+- `community.kafka.consumer.unknown-type-action`：`SKIP`（默认）/ `DLQ`
+
 ### 3.3 典型消费方
 - message-service：消费评论/社交事件，生成通知（最终一致）
 - search-service：消费帖子事件，更新 ES 索引（最终一致）
+
+### 3.4 写路径解耦：本地投影（Read Model）+ 事件同步
+为降低跨服务同步耦合与级联失败风险，关键写路径遵循：
+- **写路径只读本地投影**：不在写接口中同步依赖 user-service/social-service 的实时可用性
+- **SSOT 在源服务**：处罚状态 SSOT 在 user-service；拉黑关系 SSOT 在 social-service
+- **最终一致**：通过事件与回填/纠偏机制，让状态在可接受窗口内传播到各写服务投影
+
+投影范围（示例）：
+- content-service/message-service：`user_moderation_projection`（mute/ban）与 `user_block_projection`（block/unblock）
+
+传播链路（示例）：
+- content-service 处罚处置：发布 `ModerationCommandRequested` → user-service 消费并写库 → 发布 `ModerationStatusChanged` → 下游投影消费者更新本地投影
+- social-service 拉黑：写库后发布 `BlockRelationChanged` → 下游投影消费者更新本地投影
+
+冷启动/纠偏（建议）：
+- 提供 internal 扫描接口（按主键游标）用于下游建立投影基线
+- 必要时提供定时纠偏 job（可关闭），用于补齐历史数据或处理事件丢失/延迟导致的缺口
 
 ---
 
@@ -98,6 +182,20 @@ P0 修复策略：
 > 注意：After-Commit 只能解决“回滚却发事件”的硬伤，不能解决“提交成功但发送失败导致下游缺数据”的一致性缺口。
 > 该缺口需要在 P1 引入 Outbox Pattern（同事务写 outbox 表 + 后台可靠投递 + 可观测堆积）来彻底解决。
 
+### 4.5 消费幂等点位（避免“已 ack 但副作用未落地”）
+消费端的幂等表写入点位建议：
+- 对“幂等副作用”（如 ES upsert/delete）：**先执行业务副作用，再写入 consumed 表**
+  - 副作用失败时允许 Kafka 重试
+  - consumed 表写入异常必须触发重试/DLQ（不能吞掉伪装为重复）
+
+### 4.6 事件版本与未知类型/版本处理
+事件演进需要显式约定：
+- 消费端必须校验 `version` 与 `type`
+- 对“不支持版本/未知类型”：
+  - 不应写入 consumed 表（避免未来升级后无法回放）
+  - 不支持版本：默认进入 DLQ（fail-closed，便于排查与离线回放）
+  - 未知类型：由于 topic 按 domain 聚合，默认允许 SKIP 并按 type 去重告警；若该 consumer 订阅的是“单一职责 topic”，可配置为 DLQ
+
 ---
 
 ## 5. 演进建议（契约优先）
@@ -106,3 +204,13 @@ P0 修复策略：
 - 通过 `version` 做向后兼容（先双写/双读，再切换）
 - payload 避免敏感字段（密码/邮箱等）
 - 生产端与消费端都要对“未知类型/未知版本”容错（可跳过并记录）
+- `entityType/targetType` 等关键枚举值必须以 `common` 的 SSOT 为准：`com.nowcoder.community.common.domain.EntityTypes`
+
+---
+
+## 6. 验收口径（关键约束）
+本轮治理的验收建议（可逐步完善为自动化测试/监控告警）：
+- 错误协议：全链路（gateway/服务端/前端）对 4xx/5xx 的 status 与 `Result` 载荷处理一致
+- fail-closed：关键安全能力（Origin allowlist、internal-token、限流依赖故障）在缺失/故障时默认拒绝并可观测
+- 最终一致：处罚/拉黑状态可在“最终一致窗口”内传播到写服务投影；缺口可通过 internal 扫描/纠偏补齐
+- 幂等与失败处理：消费端不会出现“幂等已标记但副作用未落地”的丢失窗口；未知事件不会 silent drop

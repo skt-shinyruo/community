@@ -27,6 +27,8 @@ public interface CommentMapper {
 
     Comment selectCommentById(int id);
 
+    int existsPostComment(@Param("postId") int postId, @Param("commentId") int commentId);
+
     int updateCommentContent(
             @Param("id") int id,
             @Param("content") String content,

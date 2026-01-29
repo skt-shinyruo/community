@@ -227,10 +227,14 @@ services:
     container_name: community-gateway
     environment:
       - SERVER_PORT=8080
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
       - NACOS_SERVER_ADDR=nacos:8848
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - INTERNAL_TOKEN=${INTERNAL_TOKEN:-}
       - ANALYTICS_INTERNAL_TOKEN=${ANALYTICS_INTERNAL_TOKEN}
+      - SEARCH_INTERNAL_TOKEN=${SEARCH_INTERNAL_TOKEN}
+      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
     depends_on:
@@ -254,10 +258,15 @@ services:
     container_name: community-auth-service
     environment:
       - SERVER_PORT=8082
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
       - NACOS_SERVER_ADDR=nacos:8848
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - INTERNAL_TOKEN=${INTERNAL_TOKEN:-}
       - USER_INTERNAL_TOKEN=${USER_INTERNAL_TOKEN:-}
+      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
+      - AUTH_REFRESH_COOKIE_SECURE=${AUTH_REFRESH_COOKIE_SECURE:-false}
+      - AUTH_REFRESH_COOKIE_SAME_SITE=${AUTH_REFRESH_COOKIE_SAME_SITE:-Lax}
       - AUTH_REDIS_HOST=redis
       - AUTH_REDIS_PORT=6379
       - AUTH_ACTIVATION_BASE_URL=http://localhost:12881
@@ -278,10 +287,14 @@ services:
     container_name: community-user-service
     environment:
       - SERVER_PORT=8087
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
       - NACOS_SERVER_ADDR=nacos:8848
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - INTERNAL_TOKEN=${INTERNAL_TOKEN:-}
       - USER_INTERNAL_TOKEN=${USER_INTERNAL_TOKEN:-}
+      - SOCIAL_INTERNAL_TOKEN=${SOCIAL_INTERNAL_TOKEN:-}
+      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
       - USER_DB_URL=jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
       - MYSQL_USER=${MYSQL_USER}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
@@ -305,9 +318,13 @@ services:
     container_name: community-social-service
     environment:
       - SERVER_PORT=8086
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
       - NACOS_SERVER_ADDR=nacos:8848
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - INTERNAL_TOKEN=${INTERNAL_TOKEN:-}
+      - SOCIAL_INTERNAL_TOKEN=${SOCIAL_INTERNAL_TOKEN:-}
+      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
       - SOCIAL_REDIS_HOST=redis
       - SOCIAL_REDIS_PORT=6379
       - SOCIAL_DB_URL=jdbc:mysql://mysql:3306/${SOCIAL_DB_NAME:-community_social}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
@@ -333,10 +350,15 @@ services:
     container_name: community-content-service
     environment:
       - SERVER_PORT=8088
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
       - NACOS_SERVER_ADDR=nacos:8848
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - INTERNAL_TOKEN=${INTERNAL_TOKEN:-}
       - CONTENT_INTERNAL_TOKEN=${CONTENT_INTERNAL_TOKEN:-}
+      - USER_INTERNAL_TOKEN=${USER_INTERNAL_TOKEN:-}
+      - SOCIAL_INTERNAL_TOKEN=${SOCIAL_INTERNAL_TOKEN:-}
+      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
       - CONTENT_DB_URL=jdbc:mysql://mysql:3306/${CONTENT_DB_NAME:-community_content}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
       - CONTENT_DB_USERNAME=${CONTENT_DB_USER:-community_content}
       - CONTENT_DB_PASSWORD=${CONTENT_DB_PASSWORD:-community_contentpass}
@@ -362,10 +384,13 @@ services:
     container_name: community-search-service
     environment:
       - SERVER_PORT=8083
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
       - NACOS_SERVER_ADDR=nacos:8848
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - INTERNAL_TOKEN=${INTERNAL_TOKEN:-}
       - CONTENT_INTERNAL_TOKEN=${CONTENT_INTERNAL_TOKEN:-}
+      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
       - SEARCH_DB_URL=jdbc:mysql://mysql:3306/${SEARCH_DB_NAME:-community_search}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
       - SEARCH_DB_USERNAME=${SEARCH_DB_USER:-community_search}
       - SEARCH_DB_PASSWORD=${SEARCH_DB_PASSWORD:-community_searchpass}
@@ -391,9 +416,14 @@ services:
     container_name: community-message-service
     environment:
       - SERVER_PORT=8084
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
       - NACOS_SERVER_ADDR=nacos:8848
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - INTERNAL_TOKEN=${INTERNAL_TOKEN:-}
+      - USER_INTERNAL_TOKEN=${USER_INTERNAL_TOKEN:-}
+      - SOCIAL_INTERNAL_TOKEN=${SOCIAL_INTERNAL_TOKEN:-}
+      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
       - MESSAGE_DB_URL=jdbc:mysql://mysql:3306/${MESSAGE_DB_NAME:-community_message}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
       - MESSAGE_DB_USERNAME=${MESSAGE_DB_USER:-community_message}
       - MESSAGE_DB_PASSWORD=${MESSAGE_DB_PASSWORD:-community_messagepass}
@@ -415,12 +445,15 @@ services:
     container_name: community-analytics-service
     environment:
       - SERVER_PORT=8085
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
       - NACOS_SERVER_ADDR=nacos:8848
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - INTERNAL_TOKEN=${INTERNAL_TOKEN:-}
       - ANALYTICS_REDIS_HOST=redis
       - ANALYTICS_REDIS_PORT=6379
       - ANALYTICS_INTERNAL_TOKEN=${ANALYTICS_INTERNAL_TOKEN}
+      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
     depends_on:
       redis:
         condition: service_healthy

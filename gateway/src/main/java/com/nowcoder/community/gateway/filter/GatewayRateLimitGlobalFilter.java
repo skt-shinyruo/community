@@ -39,6 +39,8 @@ public class GatewayRateLimitGlobalFilter implements GlobalFilter, Ordered {
     private static final String HEADER_RATE_LIMIT_RESET = "X-RateLimit-Reset";
     private static final String HEADER_RATE_LIMIT_RULE = "X-RateLimit-Rule";
 
+    private static final String ATTR_IP_SOURCE = "gateway.ip_source";
+
     private final GatewayRateLimitProperties properties;
     private final ReactiveStringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
@@ -62,13 +64,18 @@ public class GatewayRateLimitGlobalFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        if (!properties.isEnabled() || properties.getRules() == null || properties.getRules().isEmpty()) {
-            return chain.filter(exchange);
-        }
-
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getURI().getPath();
         HttpMethod method = request.getMethod();
+
+        if (StringUtils.hasText(path) && method != null && !HttpMethod.OPTIONS.equals(method) && isBlockedPath(path)) {
+            // “可关闭开关”：按 404 隐藏入口（避免暴露运维/高风险能力）
+            return write(exchange, HttpStatus.NOT_FOUND, Result.error(CommonErrorCode.NOT_FOUND));
+        }
+
+        if (!properties.isEnabled() || properties.getRules() == null || properties.getRules().isEmpty()) {
+            return chain.filter(exchange);
+        }
 
         if (!StringUtils.hasText(path) || method == null) {
             return chain.filter(exchange);
@@ -85,6 +92,22 @@ public class GatewayRateLimitGlobalFilter implements GlobalFilter, Ordered {
         return resolveKey(exchange, request, rule.getKeyStrategy())
                 .defaultIfEmpty("anonymous")
                 .flatMap(key -> checkAndApply(exchange, chain, rule, key, windowSeconds, maxRequests));
+    }
+
+    private boolean isBlockedPath(String path) {
+        List<String> patterns = properties.getBlockedPathPatterns();
+        if (patterns == null || patterns.isEmpty() || !StringUtils.hasText(path)) {
+            return false;
+        }
+        for (String pattern : patterns) {
+            if (!StringUtils.hasText(pattern)) {
+                continue;
+            }
+            if (pathMatcher.match(pattern.trim(), path)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private GatewayRateLimitProperties.Rule matchRule(HttpMethod method, String path) {
@@ -137,14 +160,24 @@ public class GatewayRateLimitGlobalFilter implements GlobalFilter, Ordered {
     private Mono<String> resolveKey(ServerWebExchange exchange, ServerHttpRequest request, GatewayRateLimitProperties.KeyStrategy strategy) {
         GatewayRateLimitProperties.KeyStrategy resolved = strategy == null ? GatewayRateLimitProperties.KeyStrategy.IP : strategy;
         return switch (resolved) {
-            case IP -> Mono.justOrEmpty(clientIpResolver.resolve(request));
+            case IP -> Mono.defer(() -> {
+                ClientIpResolver.ResolvedClientIp ip = clientIpResolver.resolveWithSource(request);
+                exchange.getAttributes().put(ATTR_IP_SOURCE, ip == null ? "unknown" : ip.source());
+                return Mono.justOrEmpty(ip == null ? null : ip.ip());
+            });
             case USER -> exchange.getPrincipal()
+                    .doOnNext(p -> exchange.getAttributes().put(ATTR_IP_SOURCE, "na"))
                     .map(principal -> principal instanceof JwtAuthenticationToken token ? token.getToken().getSubject() : null)
                     .filter(StringUtils::hasText);
             case USER_OR_IP -> exchange.getPrincipal()
+                    .doOnNext(p -> exchange.getAttributes().put(ATTR_IP_SOURCE, "na"))
                     .map(principal -> principal instanceof JwtAuthenticationToken token ? token.getToken().getSubject() : null)
                     .filter(StringUtils::hasText)
-                    .switchIfEmpty(Mono.justOrEmpty(clientIpResolver.resolve(request)));
+                    .switchIfEmpty(Mono.defer(() -> {
+                        ClientIpResolver.ResolvedClientIp ip = clientIpResolver.resolveWithSource(request);
+                        exchange.getAttributes().put(ATTR_IP_SOURCE, ip == null ? "unknown" : ip.source());
+                        return Mono.justOrEmpty(ip == null ? null : ip.ip());
+                    }));
         };
     }
 
@@ -174,27 +207,29 @@ public class GatewayRateLimitGlobalFilter implements GlobalFilter, Ordered {
                     return Mono.just(current);
                 })
                 .flatMap(current -> {
+                    String ipSource = String.valueOf(exchange.getAttributes().getOrDefault(ATTR_IP_SOURCE, "na"));
                     long remaining = Math.max(0, maxRequests - current);
                     setRateLimitHeaders(exchange, ruleId, maxRequests, remaining, resetAt);
 
                     if (current > maxRequests) {
                         meterRegistry.counter(
                                 "gateway_rate_limit_total",
-                                Tags.of("rule", ruleId, "outcome", "blocked")
+                                Tags.of("rule", ruleId, "outcome", "blocked", "ip_source", ipSource)
                         ).increment();
                         return write(exchange, HttpStatus.TOO_MANY_REQUESTS, Result.error(CommonErrorCode.TOO_MANY_REQUESTS));
                     }
 
                     meterRegistry.counter(
                             "gateway_rate_limit_total",
-                            Tags.of("rule", ruleId, "outcome", "allowed")
+                            Tags.of("rule", ruleId, "outcome", "allowed", "ip_source", ipSource)
                     ).increment();
                     return chain.filter(exchange);
                 })
                 .onErrorResume(ex -> {
+                    String ipSource = String.valueOf(exchange.getAttributes().getOrDefault(ATTR_IP_SOURCE, "na"));
                     meterRegistry.counter(
                             "gateway_rate_limit_total",
-                            Tags.of("rule", ruleId, "outcome", "error")
+                            Tags.of("rule", ruleId, "outcome", "error", "ip_source", ipSource)
                     ).increment();
 
                     if (properties.isFailOpen()) {

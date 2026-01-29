@@ -6,6 +6,7 @@ import com.nowcoder.community.common.event.EventEnvelope;
 import com.nowcoder.community.common.event.EventTopics;
 import com.nowcoder.community.common.event.EventTypes;
 import com.nowcoder.community.common.event.payload.CommentPayload;
+import com.nowcoder.community.common.event.payload.ModerationCommandPayload;
 import com.nowcoder.community.common.event.payload.ModerationPayload;
 import com.nowcoder.community.common.event.payload.PostPayload;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
@@ -72,6 +73,14 @@ public class KafkaContentEventPublisher implements ContentEventPublisher {
         int toUserId = payload == null || payload.getToUserId() == null ? 0 : payload.getToUserId();
         String key = "moderation:" + (payload == null ? "0" : String.valueOf(payload.getReportId())) + ":to:" + toUserId;
         publish(EventTopics.MODERATION_EVENTS_V1, EventTypes.MODERATION_ACTION_APPLIED, key, payload);
+    }
+
+    @Override
+    public void publishModerationCommandRequested(ModerationCommandPayload payload) {
+        int userId = payload == null || payload.getUserId() == null ? 0 : payload.getUserId();
+        String reportId = payload == null || payload.getReportId() == null ? "0" : String.valueOf(payload.getReportId());
+        String key = "moderation-cmd:user:" + userId + ":report:" + reportId;
+        publish(EventTopics.MODERATION_EVENTS_V1, EventTypes.MODERATION_COMMAND_REQUESTED, key, payload);
     }
 
     private void publish(String topic, String type, String key, Object payload) {

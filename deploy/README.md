@@ -20,6 +20,9 @@
 
 ## 启动教程（推荐：前端直连 gateway）
 1. 准备环境变量：`cp deploy/.env.example deploy/.env`
+   - 必填项：`SPRING_PROFILES_ACTIVE`（本地建议 `dev`；生产必须 `prod`）
+   - 必填项：`JWT_HMAC_SECRET`（>=32 bytes）、各服务 internal token（`USER_INTERNAL_TOKEN`/`CONTENT_INTERNAL_TOKEN`/`SOCIAL_INTERNAL_TOKEN`/`SEARCH_INTERNAL_TOKEN`/`ANALYTICS_INTERNAL_TOKEN`）
+   - 说明：本项目默认不再使用全局 `INTERNAL_TOKEN` 兜底，避免 token 泄露扩大爆炸半径
 2. 启动全栈（含前端与网关端口暴露）：
    - `docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.frontend-direct.yml --env-file deploy/.env up -d --build`
 3. 访问：

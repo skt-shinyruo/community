@@ -9,8 +9,13 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.ResponseErrorHandler;
+import org.springframework.web.client.RestClientException;
 import org.springframework.util.StringUtils;
+import org.springframework.http.client.ClientHttpResponse;
 
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 public final class InternalClientSupport {
@@ -37,6 +42,24 @@ public final class InternalClientSupport {
         return headers;
     }
 
+    /**
+     * RestTemplate 默认会在 4xx/5xx 时抛异常，导致调用方拿不到统一的 Result 错误体。
+     * internal client 场景下，我们需要“非 2xx 也读取 body”，再由 unwrap 做语义保真与异常映射。
+     */
+    public static ResponseErrorHandler passThroughResponseErrorHandler() {
+        return new ResponseErrorHandler() {
+            @Override
+            public boolean hasError(ClientHttpResponse response) throws IOException {
+                return false;
+            }
+
+            @Override
+            public void handleError(ClientHttpResponse response) throws IOException {
+                // no-op
+            }
+        };
+    }
+
     public static <T> T unwrap(Result<T> result, String serviceName) {
         if (result == null) {
             throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, serviceName + " 响应为空");
@@ -52,6 +75,32 @@ public final class InternalClientSupport {
             throw new BusinessException(new SimpleErrorCode(code, msg), detail);
         }
         return result.getData();
+    }
+
+    public static <T> T unwrap(ResponseEntity<Result<T>> response, String serviceName) {
+        if (response == null) {
+            throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, serviceName + " 响应为空");
+        }
+        Result<T> result = response.getBody();
+        if (result == null) {
+            throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, serviceName + " 响应为空");
+        }
+        int code = result.getCode();
+        if (code != CommonErrorCode.OK.getCode()) {
+            String msg = result.getMessage();
+            String traceId = result.getTraceId();
+            String detail = serviceName + " 返回错误：" + (StringUtils.hasText(msg) ? msg : "unknown");
+            if (StringUtils.hasText(traceId)) {
+                detail += " (traceId=" + traceId + ")";
+            }
+            int httpStatus = response.getStatusCode() == null ? 500 : response.getStatusCode().value();
+            throw new BusinessException(new SimpleErrorCode(code, msg, httpStatus), detail);
+        }
+        return result.getData();
+    }
+
+    public static boolean isTimeout(Throwable t) {
+        return t instanceof RestClientException && String.valueOf(t.getMessage()).toLowerCase().contains("timed out");
     }
 
     public static void record(MeterRegistry meterRegistry, String client, String api, String outcome, long startNanos) {

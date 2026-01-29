@@ -3,7 +3,7 @@ server:
 
 analytics:
   storage: redis
-  internal-token: ${ANALYTICS_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+  internal-token: ${ANALYTICS_INTERNAL_TOKEN:}
   max-days-range: 31
 
 spring:
@@ -30,6 +30,12 @@ management:
     web:
       exposure:
         include: health,info,prometheus
+
+community:
+  metrics:
+    basic-auth:
+      username: ${METRICS_BASIC_AUTH_USERNAME:prometheus}
+      password: ${METRICS_BASIC_AUTH_PASSWORD:dev-prometheus-pass}
 
 security:
   jwt:

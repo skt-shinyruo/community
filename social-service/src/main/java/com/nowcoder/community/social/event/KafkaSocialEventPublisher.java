@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.event.EventEnvelope;
 import com.nowcoder.community.common.event.EventTopics;
 import com.nowcoder.community.common.event.EventTypes;
+import com.nowcoder.community.common.event.payload.BlockPayload;
 import com.nowcoder.community.common.event.payload.FollowPayload;
 import com.nowcoder.community.common.event.payload.LikePayload;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
@@ -53,6 +54,13 @@ public class KafkaSocialEventPublisher implements SocialEventPublisher {
     @Override
     public void publishFollowCreated(FollowPayload payload) {
         publish(EventTypes.FOLLOW_CREATED, "follow:" + payload.getEntityType() + ":" + payload.getEntityId(), payload);
+    }
+
+    @Override
+    public void publishBlockRelationChanged(BlockPayload payload) {
+        int blocker = payload == null || payload.getBlockerUserId() == null ? 0 : payload.getBlockerUserId();
+        int blocked = payload == null || payload.getBlockedUserId() == null ? 0 : payload.getBlockedUserId();
+        publish(EventTypes.BLOCK_RELATION_CHANGED, "block:" + blocker + ":" + blocked, payload);
     }
 
     private void publish(String type, String key, Object payload) {

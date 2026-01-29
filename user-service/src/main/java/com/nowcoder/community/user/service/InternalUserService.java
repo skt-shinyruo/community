@@ -2,16 +2,20 @@ package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.api.AuthErrorCode;
 import com.nowcoder.community.common.api.CommonErrorCode;
+import com.nowcoder.community.common.event.payload.ModerationStatusPayload;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.event.UserEventPublisher;
 import com.nowcoder.community.user.dao.UserMapper;
 import com.nowcoder.community.user.entity.User;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Random;
@@ -27,10 +31,12 @@ public class InternalUserService {
     public static final int ACTIVATION_FAILURE = 2;
 
     private final UserMapper userMapper;
+    private final UserEventPublisher eventPublisher;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    public InternalUserService(UserMapper userMapper) {
+    public InternalUserService(UserMapper userMapper, UserEventPublisher eventPublisher) {
         this.userMapper = userMapper;
+        this.eventPublisher = eventPublisher;
     }
 
     public User authenticate(String username, String password) {
@@ -128,6 +134,12 @@ public class InternalUserService {
         }
         if (activationCode.equals(user.getActivationCode())) {
             userMapper.updateStatus(userId, 1);
+            // 冷启动/投影回填：激活成功后发布一次“当前处罚状态”（通常为空），便于下游建立基线。
+            ModerationStatus baseline = new ModerationStatus();
+            baseline.setUserId(userId);
+            baseline.setMuteUntil(user.getMuteUntil() == null ? null : user.getMuteUntil().toInstant());
+            baseline.setBanUntil(user.getBanUntil() == null ? null : user.getBanUntil().toInstant());
+            publishModerationStatusChanged(baseline);
             return ACTIVATION_SUCCESS;
         }
         return ACTIVATION_FAILURE;
@@ -183,6 +195,46 @@ public class InternalUserService {
         return s;
     }
 
+    /**
+     * internal 投影回填/纠偏：按主键游标向后扫描用户处罚状态（SSOT=user-service）。
+     */
+    public List<ModerationStatus> scanModerationStatusesAfterId(int afterId, int limit) {
+        int a = Math.max(0, afterId);
+        int l = Math.min(500, Math.max(1, limit));
+        List<User> users = userMapper.selectModerationUsersAfterId(a, l);
+        if (users == null || users.isEmpty()) {
+            return List.of();
+        }
+        List<ModerationStatus> list = new ArrayList<>(users.size());
+        for (User u : users) {
+            if (u == null || u.getId() <= 0) {
+                continue;
+            }
+            ModerationStatus s = new ModerationStatus();
+            s.setUserId(u.getId());
+            s.setMuteUntil(u.getMuteUntil() == null ? null : u.getMuteUntil().toInstant());
+            s.setBanUntil(u.getBanUntil() == null ? null : u.getBanUntil().toInstant());
+            list.add(s);
+        }
+        return list;
+    }
+
+    /**
+     * internal 批量用户摘要：用于下游聚合接口避免 N+1 RPC。
+     */
+    public List<User> batchGetUserSummaries(List<Integer> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return List.of();
+        }
+        List<Integer> ids = userIds.stream().filter(id -> id != null && id > 0).distinct().limit(200).toList();
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        List<User> users = userMapper.selectUserSummariesByIds(ids);
+        return users == null ? List.of() : users;
+    }
+
+    @Transactional
     public ModerationStatus applyModeration(int userId, String action, int durationSeconds) {
         if (userId <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
@@ -228,7 +280,21 @@ public class InternalUserService {
         resp.setUserId(userId);
         resp.setMuteUntil(muteUntil);
         resp.setBanUntil(banUntil);
+
+        // 投影更新的 SSOT：user-service 处罚状态变更必须发布事件（最终一致）。
+        publishModerationStatusChanged(resp);
         return resp;
+    }
+
+    private void publishModerationStatusChanged(ModerationStatus status) {
+        if (status == null) {
+            return;
+        }
+        ModerationStatusPayload payload = new ModerationStatusPayload();
+        payload.setUserId(status.getUserId());
+        payload.setMuteUntil(status.getMuteUntil());
+        payload.setBanUntil(status.getBanUntil());
+        eventPublisher.publishModerationStatusChanged(payload);
     }
 
     private int clampDurationSeconds(int seconds) {

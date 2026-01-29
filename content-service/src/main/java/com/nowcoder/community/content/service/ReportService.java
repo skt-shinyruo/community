@@ -2,6 +2,7 @@
 package com.nowcoder.community.content.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.domain.EntityTypes;
 import com.nowcoder.community.content.dao.CommentMapper;
 import com.nowcoder.community.content.dao.ReportMapper;
 import com.nowcoder.community.content.entity.Comment;
@@ -19,9 +20,9 @@ import static com.nowcoder.community.common.api.CommonErrorCode.NOT_FOUND;
 @Service
 public class ReportService {
 
-    public static final int TARGET_TYPE_POST = 1;
-    public static final int TARGET_TYPE_COMMENT = 2;
-    public static final int TARGET_TYPE_USER = 3;
+    public static final int TARGET_TYPE_POST = EntityTypes.POST;
+    public static final int TARGET_TYPE_COMMENT = EntityTypes.COMMENT;
+    public static final int TARGET_TYPE_USER = EntityTypes.USER;
 
     public static final int STATUS_PENDING = 0;
     public static final int STATUS_PROCESSED = 1;
@@ -128,4 +129,3 @@ public class ReportService {
         return s == null ? "" : s.trim();
     }
 }
-

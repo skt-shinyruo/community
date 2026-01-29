@@ -2,9 +2,11 @@ package com.nowcoder.community.gateway.config;
 
 // Gateway 安全配置：JWT 验签 + 授权矩阵 + 统一异常处理。
 import com.nowcoder.community.common.exception.BusinessException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
@@ -15,7 +17,12 @@ import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverterAdapter;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.ReactiveUserDetailsService;
+import org.springframework.security.core.userdetails.MapReactiveUserDetailsService;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatchers;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -33,9 +40,24 @@ import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT
         AnalyticsCollectProperties.class,
         GatewayRateLimitProperties.class,
         OriginGuardProperties.class,
-        TrustedProxyProperties.class
+        TrustedProxyProperties.class,
+        RequestSizeLimitProperties.class
 })
 public class GatewaySecurityConfig {
+
+    @Bean
+    public ReactiveUserDetailsService prometheusUserDetailsService(
+            @Value("${community.metrics.basic-auth.username:prometheus}") String username,
+            @Value("${community.metrics.basic-auth.password:dev-prometheus-pass}") String password
+    ) {
+        String u = StringUtils.hasText(username) ? username.trim() : "prometheus";
+        String p = StringUtils.hasText(password) ? password : "dev-prometheus-pass";
+        UserDetails user = User.withUsername(u)
+                .password("{noop}" + p)
+                .roles("PROMETHEUS")
+                .build();
+        return new MapReactiveUserDetailsService(user);
+    }
 
     @Bean
     public ReactiveJwtDecoder jwtDecoder(JwtProperties jwtProperties) {
@@ -52,7 +74,24 @@ public class GatewaySecurityConfig {
     }
 
     @Bean
-    public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http, ReactiveSecurityExceptionHandler securityExceptionHandler) {
+    @Order(1)
+    public SecurityWebFilterChain actuatorSecurityWebFilterChain(ServerHttpSecurity http) {
+        return http
+                .securityMatcher(ServerWebExchangeMatchers.pathMatchers("/actuator/**"))
+                .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .authorizeExchange(exchanges -> exchanges
+                        .pathMatchers(HttpMethod.OPTIONS).permitAll()
+                        .pathMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .pathMatchers("/actuator/prometheus").hasRole("PROMETHEUS")
+                        .anyExchange().denyAll()
+                )
+                .httpBasic(Customizer.withDefaults())
+                .build();
+    }
+
+    @Bean
+    @Order(2)
+    public SecurityWebFilterChain apiSecurityWebFilterChain(ServerHttpSecurity http, ReactiveSecurityExceptionHandler securityExceptionHandler) {
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .exceptionHandling(ex -> ex
@@ -61,7 +100,6 @@ public class GatewaySecurityConfig {
                 )
                 .authorizeExchange(exchanges -> exchanges
                         .pathMatchers(HttpMethod.OPTIONS).permitAll()
-                        .pathMatchers("/actuator/health", "/actuator/info").permitAll()
                         .pathMatchers("/api/auth/login", "/api/auth/refresh").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/auth/activation/**").permitAll()

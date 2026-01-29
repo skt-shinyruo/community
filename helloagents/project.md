@@ -12,12 +12,12 @@
 - **当前模块：**
   - `common`：统一 `Result<T>` / 错误码 / 全局异常 / traceId（目标态规范基线）
   - `gateway`：Spring Cloud Gateway（统一入口：CORS/鉴权/trace/错误收敛）
-  - `auth-service`：JWT 登录/刷新/登出（refresh token 旋转，Redis/内存存储可切换）
+  - `auth-service`：JWT 登录/刷新/登出（refresh token 旋转；默认 Redis 存储，内存实现需显式启用）
   - `user-service`：用户资料与头像（Qiniu）
   - `content-service`：帖子/评论/热帖/敏感词过滤（MySQL + Redis + Kafka）
-  - `social-service`：点赞/关注（Redis + Kafka）
+  - `social-service`：点赞/关注/拉黑（MySQL 为 SSOT + Kafka 事件；Redis 仅作为可选加速层演进）
   - `message-service`：通知/私信（MySQL + Kafka）
-  - `search-service`：搜索（默认内存实现，支持从 DB reindex；后续可切换 ES）
+  - `search-service`：搜索（默认 ES；支持通过 internal reindex 冷启动/纠偏，测试环境可切换 memory）
   - `analytics-service`：UV/DAU（默认 Redis，gateway 可采集写入）
   - `frontend`：Vue3 SPA（Vite + Router + Pinia + Axios）
 - **持久化：** MyBatis + MySQL（迭代 0 仍复用 legacy 的 user 表）
@@ -58,8 +58,16 @@
 
 敏感配置清单（必须通过环境变量或 Nacos 注入）：
 - JWT HMAC：`JWT_HMAC_SECRET` / `AUTH_JWT_HMAC_SECRET` / `GATEWAY_JWT_HMAC_SECRET`
-- 内部调用 token：`ANALYTICS_INTERNAL_TOKEN`、`SEARCH_INTERNAL_TOKEN`
+- 内部调用 token（按服务隔离，禁止全局兜底）：`USER_INTERNAL_TOKEN`、`CONTENT_INTERNAL_TOKEN`、`SOCIAL_INTERNAL_TOKEN`、`SEARCH_INTERNAL_TOKEN`、`ANALYTICS_INTERNAL_TOKEN`
 - 对象存储：`QINIU_ACCESS_KEY` / `QINIU_SECRET_KEY` 等
+
+### 2.3 头像上传约定（SSOT）
+- 上传方式：对象存储直传（前端拿到 upload token 后直接上传，不走 gateway）
+- key 前缀：`avatar/{userId}/...`（服务侧强校验，避免任意 key 注入）
+- 限额（服务侧兜底 + 存储侧拒绝）：
+  - 最大体积：2 MiB
+  - MIME 白名单：`image/jpeg,image/png,image/webp,image/gif`
+- 防重放/防越权：upload-token 签发时绑定 `fileName -> userId`（Redis TTL=600s），更新头像时一次性消费（ticket 被消费后再次使用将被拒绝）
 
 ---
 
@@ -68,6 +76,7 @@
 ### 3.1 统一返回结构（建议）
 - 统一返回：`code` / `message` / `data` / `traceId` / `timestamp`
 - 错误码按模块分段（例如：`AUTH_****`、`USER_****`、`CONTENT_****`）
+- 错误协议：HTTP status 表达“错误类别”，`Result.code` 表达“业务细分”（详见 `docs/SYSTEM_DESIGN.md`）
 
 ### 3.2 全局异常处理
 - 由 `@RestControllerAdvice` 统一收敛异常，禁止在 Controller 中返回拼接字符串 JSON。

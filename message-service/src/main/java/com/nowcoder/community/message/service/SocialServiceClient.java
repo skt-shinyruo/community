@@ -42,7 +42,7 @@ public class SocialServiceClient {
             RestTemplate restTemplate,
             MeterRegistry meterRegistry,
             @Value("${clients.social.base-url:http://social-service}") String baseUrl,
-            @Value("${clients.social.internal-token:${INTERNAL_TOKEN:}}") String internalToken,
+            @Value("${clients.social.internal-token:}") String internalToken,
             @Value("${clients.social.fail-open:false}") boolean failOpen
     ) {
         this.restTemplate = restTemplate;

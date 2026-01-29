@@ -1,5 +1,6 @@
 package com.nowcoder.community.user.config;
 
+import com.nowcoder.community.common.web.internalclient.InternalClientSupport;
 import com.nowcoder.community.common.web.TraceIdClientHttpRequestInterceptor;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
@@ -17,6 +18,7 @@ public class UserRestClientConfig {
                 .setConnectTimeout(properties.getConnectTimeout())
                 .setReadTimeout(properties.getReadTimeout())
                 .additionalInterceptors(new TraceIdClientHttpRequestInterceptor())
+                .errorHandler(InternalClientSupport.passThroughResponseErrorHandler())
                 .build();
     }
 }

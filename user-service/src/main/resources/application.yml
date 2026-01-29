@@ -28,6 +28,9 @@ spring:
       enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
     listener:
       ack-mode: manual
 
@@ -43,6 +46,12 @@ management:
       exposure:
         include: health,info,prometheus
 
+community:
+  metrics:
+    basic-auth:
+      username: ${METRICS_BASIC_AUTH_USERNAME:prometheus}
+      password: ${METRICS_BASIC_AUTH_PASSWORD:dev-prometheus-pass}
+
 security:
   jwt:
     hmac-secret: ${JWT_HMAC_SECRET:${AUTH_JWT_HMAC_SECRET:}}
@@ -57,10 +66,21 @@ qiniu:
       url: ${QINIU_BUCKET_HEADER_URL:}
 
 user:
-  internal-token: ${USER_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+  internal-token: ${USER_INTERNAL_TOKEN:}
+  events:
+    publisher: kafka
+    outbox:
+      enabled: false
+      relay-enabled: true
+      batch-size: 200
+      max-retries: 10
+      base-delay-ms: 1000
+      max-delay-ms: 60000
+      relay-interval-ms: 5000
+      send-timeout-ms: 3000
   social-client:
     base-url: ${SOCIAL_SERVICE_BASE_URL:http://social-service}
-    internal-token: ${SOCIAL_INTERNAL_TOKEN:${INTERNAL_TOKEN:}}
+    internal-token: ${SOCIAL_INTERNAL_TOKEN:}
     # 用户主页展示类读路径允许降级（避免 social-service 抖动影响主页面）。
     fail-open: true
     connect-timeout: 200ms

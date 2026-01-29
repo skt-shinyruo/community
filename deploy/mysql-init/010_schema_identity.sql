@@ -57,3 +57,29 @@ set @sql := if(@has_ban_until = 0, 'alter table user add column ban_until timest
 prepare stmt from @sql;
 execute stmt;
 deallocate prepare stmt;
+
+-- user-service Kafka 消费幂等（处罚命令等）：以 event_id 唯一约束为准（insert-first）。
+create table if not exists user_consumed_event (
+  id bigint auto_increment primary key,
+  event_id varchar(64) not null,
+  consumed_at timestamp not null default current_timestamp,
+  unique key uk_user_consumed_event_id (event_id),
+  index idx_user_consumed_event_at (consumed_at)
+);
+
+-- user-service Outbox（可靠投递事件：ModerationStatusChanged 等）。
+create table if not exists outbox_event (
+  id bigint auto_increment primary key,
+  event_id varchar(64) not null,
+  topic varchar(255) not null,
+  event_key varchar(255) not null,
+  payload mediumtext not null,
+  status varchar(32) not null,
+  retry_count int not null default 0,
+  next_retry_at timestamp null default null,
+  last_error varchar(255),
+  created_at timestamp not null default current_timestamp,
+  updated_at timestamp not null default current_timestamp on update current_timestamp,
+  unique key uk_outbox_event_id (event_id),
+  index idx_outbox_status_next (status, next_retry_at, id)
+);

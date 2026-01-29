@@ -2,6 +2,7 @@ package com.nowcoder.community.message.api;
 
 import com.nowcoder.community.common.api.Result;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.message.api.dto.MarkReadRequest;
 import com.nowcoder.community.message.api.dto.SendMessageRequest;
 import com.nowcoder.community.message.api.dto.ConversationItemResponse;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -29,13 +31,15 @@ import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT
 @RequestMapping("/api/messages")
 public class MessageController {
 
-    private final PrivateMessageService privateMessageService;
-    private final UserServiceClient userServiceClient;
+	    private final PrivateMessageService privateMessageService;
+	    private final UserServiceClient userServiceClient;
+	    private final IdempotencyGuard idempotencyGuard;
 
-    public MessageController(PrivateMessageService privateMessageService, UserServiceClient userServiceClient) {
-        this.privateMessageService = privateMessageService;
-        this.userServiceClient = userServiceClient;
-    }
+	    public MessageController(PrivateMessageService privateMessageService, UserServiceClient userServiceClient, IdempotencyGuard idempotencyGuard) {
+	        this.privateMessageService = privateMessageService;
+	        this.userServiceClient = userServiceClient;
+	        this.idempotencyGuard = idempotencyGuard;
+	    }
 
     @GetMapping("/conversations")
     public Result<List<Message>> conversations(
@@ -70,9 +74,11 @@ public class MessageController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
+        Jwt jwt = (Jwt) authentication.getPrincipal();
+        int userId = Integer.parseInt(jwt.getSubject());
         int p = page == null ? 0 : Math.max(0, page);
         int s = size == null ? 10 : Math.min(50, Math.max(1, size));
-        return Result.ok(privateMessageService.listLetters(conversationId, p, s));
+        return Result.ok(privateMessageService.listLetters(userId, conversationId, p, s));
     }
 
     @GetMapping("/unread-count")
@@ -82,29 +88,40 @@ public class MessageController {
         return Result.ok(privateMessageService.unreadCount(userId, conversationId));
     }
 
-    @PostMapping
-    public Result<Void> send(Authentication authentication, @Valid @RequestBody SendMessageRequest request) {
-        Jwt jwt = (Jwt) authentication.getPrincipal();
-        int fromId = Integer.parseInt(jwt.getSubject());
+	    @PostMapping
+	    public Result<Void> send(
+	            Authentication authentication,
+	            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
+	            @Valid @RequestBody SendMessageRequest request
+	    ) {
+	        Jwt jwt = (Jwt) authentication.getPrincipal();
+	        int fromId = Integer.parseInt(jwt.getSubject());
 
-        Integer toId = request.getToId();
-        String toName = request.getToName();
+	        Integer toId = request.getToId();
+	        String toName = request.getToName();
         if ((toId == null || toId <= 0) && !StringUtils.hasText(toName)) {
             throw new BusinessException(INVALID_ARGUMENT, "toId/toName 至少提供一个");
         }
-        if (toId == null || toId <= 0) {
-            toId = userServiceClient.safeResolveUserIdByUsername(toName);
-            if (toId == null || toId <= 0) {
-                throw new BusinessException(INVALID_ARGUMENT, "目标用户不存在");
-            }
-        }
-        privateMessageService.send(fromId, toId, request.getContent());
-        return Result.ok();
-    }
+	        if (toId == null || toId <= 0) {
+	            toId = userServiceClient.safeResolveUserIdByUsername(toName);
+	            if (toId == null || toId <= 0) {
+	                throw new BusinessException(INVALID_ARGUMENT, "目标用户不存在");
+		            }
+		        }
+		        int resolvedToId = toId;
+		        String content = request.getContent();
+		        idempotencyGuard.executeRequired("send_message", fromId, idempotencyKey, Void.class, () -> {
+		            privateMessageService.send(fromId, resolvedToId, content);
+		            return null;
+		        });
+		        return Result.ok();
+		    }
 
     @PutMapping("/read")
-    public Result<Void> markRead(@Valid @RequestBody MarkReadRequest request) {
-        privateMessageService.markRead(request.getIds());
+    public Result<Void> markRead(Authentication authentication, @Valid @RequestBody MarkReadRequest request) {
+        Jwt jwt = (Jwt) authentication.getPrincipal();
+        int userId = Integer.parseInt(jwt.getSubject());
+        privateMessageService.markRead(userId, request.getIds());
         return Result.ok();
     }
 }

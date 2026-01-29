@@ -35,11 +35,79 @@ const http = axios.create({
 
 let refreshingPromise = null
 
+const IDEMPOTENCY_HEADER = 'Idempotency-Key'
+const IDEMPOTENCY_WINDOW_MS = 10000
+const recentIdempotencyKeys = new Map()
+
+function shouldAttachIdempotencyKey(config) {
+  const method = String(config?.method || '').toLowerCase()
+  const url = String(config?.url || '')
+  if (method !== 'post') return false
+
+  if (url === '/api/posts') return true
+  if (url === '/api/messages') return true
+  if (/^\/api\/posts\/[^/]+\/comments$/.test(url)) return true
+
+  return false
+}
+
+function generateIdempotencyKey() {
+  try {
+    const cryptoObj = globalThis?.crypto
+    if (cryptoObj?.randomUUID) return cryptoObj.randomUUID()
+  } catch { }
+
+  const rand = Math.random().toString(36).slice(2)
+  const now = Date.now().toString(36)
+  return `idem_${now}_${rand}`
+}
+
+function safeStringify(data) {
+  if (data == null) return ''
+  if (typeof data === 'string') return data
+  try {
+    return JSON.stringify(data)
+  } catch {
+    return ''
+  }
+}
+
+function hashString(str) {
+  const s = String(str || '')
+  let h = 5381
+  for (let i = 0; i < s.length; i += 1) {
+    h = ((h << 5) + h) ^ s.charCodeAt(i)
+  }
+  return (h >>> 0).toString(36)
+}
+
+function getOrReuseIdempotencyKey(fingerprint) {
+  const now = Date.now()
+  const existing = recentIdempotencyKeys.get(fingerprint)
+  if (existing && existing.expiresAt > now && typeof existing.key === 'string' && existing.key) {
+    return existing.key
+  }
+
+  const key = generateIdempotencyKey()
+  recentIdempotencyKeys.set(fingerprint, { key, expiresAt: now + IDEMPOTENCY_WINDOW_MS })
+  return key
+}
+
 http.interceptors.request.use((config) => {
   const auth = useAuthStore()
   if (auth.accessToken) {
     config.headers = config.headers || {}
     config.headers.Authorization = `Bearer ${auth.accessToken}`
+  }
+
+  if (shouldAttachIdempotencyKey(config)) {
+    config.headers = config.headers || {}
+    if (!config.headers[IDEMPOTENCY_HEADER]) {
+      const url = String(config?.url || '')
+      const body = safeStringify(config?.data)
+      const fingerprint = `post:${url}:${hashString(body)}`
+      config.headers[IDEMPOTENCY_HEADER] = getOrReuseIdempotencyKey(fingerprint)
+    }
   }
   return config
 })
@@ -50,16 +118,21 @@ http.interceptors.response.use(
     const status = error?.response?.status
     const original = error?.config || {}
     const url = original?.url || ''
+    const result = error?.response?.data
+    const resultMessage = typeof result?.message === 'string' ? result.message : ''
+    const traceId = typeof result?.traceId === 'string' ? result.traceId : ''
 
     const isAuthEndpoint = url.includes('/api/auth/login') || url.includes('/api/auth/refresh') || url.includes('/api/auth/register')
 
-    // Global Error Toast for 5xx or Network Errors
+    // Global Error Toast for non-2xx / network errors (prefer backend Result.message + traceId)
     if (status >= 500 || error.code === 'ERR_NETWORK') {
       if (typeof window !== 'undefined' && window.$toast) {
+        const text = resultMessage || error.message || '服务异常，请稍后重试。'
+        const traceSuffix = traceId ? ` (traceId=${traceId})` : ''
         window.$toast({
           type: 'error',
           title: '系统错误',
-          text: error.message || '服务异常，请稍后重试。'
+          text: `${text}${traceSuffix}`
         })
       }
     }
@@ -90,6 +163,18 @@ http.interceptors.response.use(
         } catch { }
         return Promise.reject(e)
       }
+    }
+
+    // 对 4xx 也尽量展示后端 message/traceId，便于定位（但避免影响 refresh 重试逻辑）
+    if (status >= 400 && status < 500 && typeof window !== 'undefined' && window.$toast) {
+      const title = status === 401 ? '未登录或登录失效' : '请求失败'
+      const text = resultMessage || error.message || '请求失败'
+      const traceSuffix = traceId ? ` (traceId=${traceId})` : ''
+      window.$toast({
+        type: 'error',
+        title,
+        text: `${text}${traceSuffix}`
+      })
     }
 
     return Promise.reject(error)

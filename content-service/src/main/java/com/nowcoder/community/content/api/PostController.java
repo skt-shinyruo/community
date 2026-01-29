@@ -1,8 +1,11 @@
 package com.nowcoder.community.content.api;
 
 import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.common.domain.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.event.payload.PostPayload;
+import com.nowcoder.community.common.idempotency.IdempotencyGuard;
+import com.nowcoder.community.content.api.dto.CommentResponse;
 import com.nowcoder.community.content.api.dto.CreateCommentRequest;
 import com.nowcoder.community.content.api.dto.CreatePostRequest;
 import com.nowcoder.community.content.api.dto.CreatePostResponse;
@@ -33,6 +36,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -49,7 +53,7 @@ import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT
 @RequestMapping("/api/posts")
 public class PostController {
 
-    private static final int ENTITY_TYPE_POST = 1;
+    private static final int ENTITY_TYPE_POST = EntityTypes.POST;
 
     private static final Logger log = LoggerFactory.getLogger(PostController.class);
 
@@ -59,34 +63,37 @@ public class PostController {
     private final LikeQueryService likeQueryService;
     private final PostScoreQueue postScoreQueue;
     private final ContentEventPublisher eventPublisher;
-    private final PostCommandService postCommandService;
-    private final TagService tagService;
-    private final BookmarkService bookmarkService;
-    private final SubscriptionService subscriptionService;
+	    private final PostCommandService postCommandService;
+	    private final TagService tagService;
+	    private final BookmarkService bookmarkService;
+	    private final SubscriptionService subscriptionService;
+	    private final IdempotencyGuard idempotencyGuard;
 
-    public PostController(
-            PostService postService,
-            CommentService commentService,
-            SensitiveFilter sensitiveFilter,
+	    public PostController(
+	            PostService postService,
+	            CommentService commentService,
+	            SensitiveFilter sensitiveFilter,
             LikeQueryService likeQueryService,
             PostScoreQueue postScoreQueue,
             ContentEventPublisher eventPublisher,
-            PostCommandService postCommandService,
-            TagService tagService,
-            BookmarkService bookmarkService,
-            SubscriptionService subscriptionService
-    ) {
-        this.postService = postService;
-        this.commentService = commentService;
-        this.sensitiveFilter = sensitiveFilter;
-        this.likeQueryService = likeQueryService;
-        this.postScoreQueue = postScoreQueue;
-        this.eventPublisher = eventPublisher;
-        this.postCommandService = postCommandService;
-        this.tagService = tagService;
-        this.bookmarkService = bookmarkService;
-        this.subscriptionService = subscriptionService;
-    }
+	            PostCommandService postCommandService,
+	            TagService tagService,
+	            BookmarkService bookmarkService,
+	            SubscriptionService subscriptionService,
+	            IdempotencyGuard idempotencyGuard
+	    ) {
+	        this.postService = postService;
+	        this.commentService = commentService;
+	        this.sensitiveFilter = sensitiveFilter;
+	        this.likeQueryService = likeQueryService;
+	        this.postScoreQueue = postScoreQueue;
+	        this.eventPublisher = eventPublisher;
+	        this.postCommandService = postCommandService;
+	        this.tagService = tagService;
+	        this.bookmarkService = bookmarkService;
+	        this.subscriptionService = subscriptionService;
+	        this.idempotencyGuard = idempotencyGuard;
+	    }
 
     @GetMapping
     public Result<List<PostSummaryResponse>> list(
@@ -121,21 +128,27 @@ public class PostController {
         return Result.ok(items);
     }
 
-    @PostMapping
-    public Result<CreatePostResponse> create(Authentication authentication, @Valid @RequestBody CreatePostRequest request) {
-        int userId = currentUserId(authentication);
+	    @PostMapping
+	    public Result<CreatePostResponse> create(
+	            Authentication authentication,
+	            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
+	            @Valid @RequestBody CreatePostRequest request
+	    ) {
+	        int userId = currentUserId(authentication);
 
-        String title = HtmlUtils.htmlEscape(request.getTitle().trim());
-        String content = HtmlUtils.htmlEscape(request.getContent().trim());
-        title = sensitiveFilter.filter(title);
-        content = sensitiveFilter.filter(content);
+	        return Result.ok(idempotencyGuard.executeRequired("create_post", userId, idempotencyKey, CreatePostResponse.class, () -> {
+	            String title = HtmlUtils.htmlEscape(request.getTitle().trim());
+	            String content = HtmlUtils.htmlEscape(request.getContent().trim());
+	            title = sensitiveFilter.filter(title);
+	            content = sensitiveFilter.filter(content);
 
-        int postId = postCommandService.createPost(userId, title, content, request.getCategoryId(), request.getTags());
+	            int postId = postCommandService.createPost(userId, title, content, request.getCategoryId(), request.getTags());
 
-        CreatePostResponse resp = new CreatePostResponse();
-        resp.setPostId(postId);
-        return Result.ok(resp);
-    }
+	            CreatePostResponse resp = new CreatePostResponse();
+	            resp.setPostId(postId);
+	            return resp;
+	        }));
+	    }
 
     @GetMapping("/{postId}")
     public Result<PostDetailResponse> detail(Authentication authentication, @PathVariable int postId) {
@@ -174,22 +187,30 @@ public class PostController {
     }
 
     @GetMapping("/{postId}/comments")
-    public Result<List<Comment>> comments(
+    public Result<List<CommentResponse>> comments(
             @PathVariable int postId,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
         int p = page == null ? 0 : page;
         int s = size == null ? 10 : size;
-        return Result.ok(commentService.listByPost(postId, p, s));
+        List<Comment> rows = commentService.listByPost(postId, p, s);
+        List<CommentResponse> resp = (rows == null ? List.<CommentResponse>of() : rows.stream().map(CommentResponse::from).filter(r -> r != null).collect(Collectors.toList()));
+        return Result.ok(resp);
     }
 
-    @PostMapping("/{postId}/comments")
-    public Result<Integer> addComment(Authentication authentication, @PathVariable int postId, @Valid @RequestBody CreateCommentRequest request) {
-        int userId = currentUserId(authentication);
-        int id = commentService.addComment(userId, postId, request.getEntityType(), request.getEntityId(), request.getTargetId(), request.getContent());
-        return Result.ok(id);
-    }
+	    @PostMapping("/{postId}/comments")
+	    public Result<Integer> addComment(
+	            Authentication authentication,
+	            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
+	            @PathVariable int postId,
+	            @Valid @RequestBody CreateCommentRequest request
+	    ) {
+	        int userId = currentUserId(authentication);
+	        Integer id = idempotencyGuard.executeRequired("create_comment", userId, idempotencyKey, Integer.class,
+	                () -> commentService.addComment(userId, postId, request.getEntityType(), request.getEntityId(), request.getTargetId(), request.getContent()));
+	        return Result.ok(id);
+	    }
 
     @PutMapping("/{postId}")
     public Result<Void> updatePost(Authentication authentication, @PathVariable int postId, @Valid @RequestBody UpdatePostRequest request) {
@@ -225,17 +246,19 @@ public class PostController {
     }
 
     @GetMapping("/{postId}/comments/{commentId}/replies")
-    public Result<List<Comment>> replies(
+    public Result<List<CommentResponse>> replies(
             @PathVariable int postId,
             @PathVariable int commentId,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        // postId 仅用于路径对齐与基本校验（避免跨帖乱查）
-        postService.getById(postId);
+        // 路径语义校验：避免 replies 跨帖枚举
+        commentService.assertCommentBelongsToPost(postId, commentId);
         int p = page == null ? 0 : page;
         int s = size == null ? 10 : size;
-        return Result.ok(commentService.listReplies(commentId, p, s));
+        List<Comment> rows = commentService.listReplies(commentId, p, s);
+        List<CommentResponse> resp = (rows == null ? List.<CommentResponse>of() : rows.stream().map(CommentResponse::from).filter(r -> r != null).collect(Collectors.toList()));
+        return Result.ok(resp);
     }
 
     // 置顶（type=1）

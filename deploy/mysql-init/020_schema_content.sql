@@ -395,6 +395,22 @@ prepare stmt from @sql;
 execute stmt;
 deallocate prepare stmt;
 
+-- content-service 本地投影（最终一致）：处罚状态（来自 user-service）与拉黑关系（来自 social-service）
+create table if not exists user_moderation_projection (
+  user_id int primary key,
+  mute_until timestamp null default null,
+  ban_until timestamp null default null,
+  updated_at timestamp null default current_timestamp
+);
+
+create table if not exists user_block_projection (
+  blocker_user_id int not null,
+  blocked_user_id int not null,
+  blocked tinyint not null default 1,
+  updated_at timestamp null default current_timestamp,
+  primary key (blocker_user_id, blocked_user_id)
+);
+
 -- Default categories for dev (idempotent)
 insert ignore into category(name, description, position) values
   ('公告', '官方公告/规则', 0),

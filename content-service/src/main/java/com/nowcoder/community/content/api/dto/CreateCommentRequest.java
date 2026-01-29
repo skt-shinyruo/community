@@ -2,10 +2,13 @@ package com.nowcoder.community.content.api.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
+import com.nowcoder.community.common.validation.ValidationLimits;
 
 public class CreateCommentRequest {
 
     @NotBlank
+    @Size(max = ValidationLimits.COMMENT_CONTENT_MAX)
     private String content;
 
     /**

@@ -1,5 +1,6 @@
 package com.nowcoder.community.social.event;
 
+import com.nowcoder.community.common.event.payload.BlockPayload;
 import com.nowcoder.community.common.event.payload.FollowPayload;
 import com.nowcoder.community.common.event.payload.LikePayload;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -25,10 +26,14 @@ public class InMemorySocialEventPublisher implements SocialEventPublisher {
         events.add(payload);
     }
 
+    @Override
+    public void publishBlockRelationChanged(BlockPayload payload) {
+        events.add(payload);
+    }
+
     public List<Object> snapshot() {
         synchronized (events) {
             return List.copyOf(events);
         }
     }
 }
-

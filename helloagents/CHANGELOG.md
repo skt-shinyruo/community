@@ -14,6 +14,9 @@
 - common：新增关键写接口幂等保护（`IdempotencyGuard` + Redis store），并提供“存储不可用时 503 fail-closed”的安全默认态。
 - common：新增 internal 运维/高风险入口强保护（`InternalOpsGuardFilter`）：break-glass + allowlist + `X-Ops-Token` + 并发(single-flight)/频率限制（Redis 不可用时 503 fail-closed）。
 - frontend：关键写请求自动携带并短窗口复用 `Idempotency-Key`，减少重复提交导致的重复写入风险。
+- gateway：新增对外运维入口 `POST /api/ops/search/reindex`（经网关转发到 `/internal/search/reindex`，由下游 internal 保护器执行 break-glass + allowlist + `X-Ops-Token` 校验）。
+- gateway/search-service：补齐 reindex 兼容窗口回归测试（`gateway/GatewaySecurityConfigTest`、`search-service/SearchControllerTest`）。
+- content-service：补齐帖子/评论公共读接口 DTO 字段白名单回归测试，防止治理字段对外泄露。
 
 ### Changed
 - social-service：存储默认值固化为 DB（SSOT），Redis/Memory 仅显式启用；补齐 storage 模式边界说明。
@@ -21,6 +24,9 @@
 - user-service：SocialServiceClient 改为 internal-token 调用 social-service internal read API（移除 Authorization 透传与硬编码 BASE_URL）。
 - internal-token：清理各服务 `application.yml` 与 internal client 的 `${...:${INTERNAL_TOKEN:}}` 兜底路径，仅允许按服务 token；同步更新 `scripts/search-reindex.sh` 与 auth-service 文档。
 - Kafka 消费端：统一 version/type unknown handling（默认版本不匹配进入 DLQ；未知 type 默认 SKIP 并按 type 去重告警，避免 DLQ 噪音）。
+- gateway：显式拒绝 `/internal/**`，并将历史入口 `POST /api/search/internal/reindex` 纳入弃用窗口（`Deprecation: true`，引导迁移到 `/api/ops/**`）。
+- deploy/mysql-init：补齐 identity（user-service）账号最小权限 grant；compose 透传 `USER_DB_USERNAME/USER_DB_PASSWORD` 供初始化脚本创建账号。
+- deploy/nacos-config：content-service datasource 默认指向 `community_content`，并使用 `CONTENT_DB_USERNAME/CONTENT_DB_PASSWORD`（不再复用 `MYSQL_USER/MYSQL_PASSWORD`）。
 
 ### Fixed
 - gateway：统计采集去重改为有界 TTL 缓存，并补齐对 analytics 内部调用的 traceId 透传。

@@ -23,6 +23,7 @@
 - `/api/messages/**`、`/api/notices/**` → `message-service`
 - `/api/search/**` → `search-service`
 - `/api/analytics/**` → `analytics-service`
+- `/api/ops/**` → 运维入口（默认仅管理员可访问，且通常需要额外 `X-Ops-Token`；具体以网关路由与下游保护器为准）
 
 ---
 
@@ -39,7 +40,9 @@ Token 通过环境变量或 Nacos 注入（见 `deploy/.env.example` 与 `deploy
   - `GET /internal/users/{userId}/moderation-status`：查询用户禁言/封禁状态（content-service 写路径前置校验）。
   - `POST /internal/users/{userId}/moderation`：应用禁言/封禁（治理动作落地，供 content-service 治理动作转发调用）。
 - **search-service**
-  - `POST /internal/search/reindex`：管理员触发的重建索引入口（同逻辑也暴露为 `/api/search/internal/reindex`）。
+  - `POST /internal/search/reindex`：重建索引内部入口（受 `X-Internal-Token` + ops-guard 强保护）。
+    - 对外运维入口（推荐）：`POST /api/ops/search/reindex`
+    - 历史兼容入口（弃用中）：`POST /api/search/internal/reindex`
 - **analytics-service**
   - `POST /internal/analytics/uv/record`
   - `POST /internal/analytics/dau/record`

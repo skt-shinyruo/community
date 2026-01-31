@@ -8,6 +8,7 @@
 
 | Timestamp | Feature Name | Type | Status | Solution Package Path |
 |-----------|--------------|------|--------|----------------------|
+| 202601311900 | compose_boundaries_resilience | Development Implementation | ✅Completed | [202601311900_compose_boundaries_resilience](2026-01/202601311900_compose_boundaries_resilience/) |
 | 202601291027 | backend_arch_5issues_solution | Development Implementation | ✅Completed | [202601291027_backend_arch_5issues_solution](2026-01/202601291027_backend_arch_5issues_solution/) |
 | 202601281336 | backend_arch_governance_5issues | Development Implementation | ✅Completed | [202601281336_backend_arch_governance_5issues](2026-01/202601281336_backend_arch_governance_5issues/) |
 | 202601281122 | backend_arch_upgrade_5issues | Development Implementation | ✅Completed | [202601281122_backend_arch_upgrade_5issues](2026-01/202601281122_backend_arch_upgrade_5issues/) |
@@ -46,6 +47,7 @@
 ## Archive by Month
 
 ### 2026-01
+- [202601311900_compose_boundaries_resilience](2026-01/202601311900_compose_boundaries_resilience/) - 微服务边界与韧性治理（Docker Compose）：/api/ops 运维入口、/internal 默认拒绝、reindex 弃用窗口、DB 最小权限与回归测试
 - [202601291027_backend_arch_5issues_solution](2026-01/202601291027_backend_arch_5issues_solution/) - 后端架构治理（幂等写接口/运维 break-glass/可信代理 XFF 边界/内部 token 分域/错误协议与回归测试）
 - [202601281336_backend_arch_governance_5issues](2026-01/202601281336_backend_arch_governance_5issues/) - 后端架构治理（社交持久化 SSOT/Outbox 默认开启/内部调用收敛/gateway 统计链路有界化/internal-token 安全）
 - [202601281122_backend_arch_upgrade_5issues](2026-01/202601281122_backend_arch_upgrade_5issues/) - 后端架构升级（评论计数原子化/traceId 完整性/可信代理/IP/内部调用治理/幂等清理/ES alias/Outbox）

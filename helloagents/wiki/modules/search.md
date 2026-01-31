@@ -41,7 +41,8 @@
 
 ## API Interfaces（现状）
 - `GET /api/search/posts?keyword=xxx&categoryId=&tag=`（支持 taxonomy 过滤；返回 `categoryId/tags[]` 供前端展示/二次筛选）
-- `POST /api/search/internal/reindex`（仅管理员；用于迁移期 reindex）
+- `POST /api/ops/search/reindex`（仅管理员；高风险运维入口，通常需要额外 `X-Ops-Token` + allowlist 才允许执行）
+- `POST /api/search/internal/reindex`（历史兼容入口：弃用中）
 - `POST /internal/search/reindex`（服务内部入口：需要 `X-Internal-Token`）
 
 ## Configuration Notes

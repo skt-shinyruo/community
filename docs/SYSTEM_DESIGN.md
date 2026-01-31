@@ -8,8 +8,20 @@
 
 ### 1.1 统一入口：gateway
 - 浏览器唯一后端入口：`/api/**`
+- 对外运维入口：`/api/ops/**`（高风险操作，强保护；默认不应由前端 UI 直接触发）
+- 内部接口：`/internal/**`（仅服务间调用；**网关显式拒绝**，同时在部署层默认不对宿主机暴露端口）
 - 统一能力：鉴权、CORS、限流、审计、traceId
 - 路由：按路径前缀转发到各微服务（见 `gateway/src/main/resources/application.yml`）
+
+边界与弃用窗口（SSOT）：
+- External（对外业务）：`/api/**`
+- Ops（对外运维）：`/api/ops/**`
+  - 默认要求：管理员角色（ADMIN）+ `X-Ops-Token`（break-glass）+ allowlist/频率限制（fail-closed）
+- Internal（服务间调用）：`/internal/**`
+  - 默认要求：`X-Internal-Token`（按服务分域，禁止全局 token 兜底）
+  - 原则：internal 不对外暴露（即便在本地联调也应优先通过 gateway 转发或容器内网络访问）
+- 历史遗留路径（示例）：`/api/search/internal/reindex`
+  - 仅用于短期兼容；新入口为 `/api/ops/search/reindex`
 
 ### 1.2 身份与会话：auth-service
 - 登录/刷新/登出闭环
@@ -170,6 +182,9 @@ unknown handling 为可配置策略（服务级别）：
 当消费端处理失败（反序列化/业务异常等）：
 - 通过统一的错误处理器将消息投递到 `<topic>.dlq`
 - 便于离线排查与人工/脚本回放
+
+Runbook（SSOT）：
+- `helloagents/wiki/runbooks/kafka-dlq-replay.md`
 
 ### 4.4 生产侧“事务内直接发 Kafka”的风险与 P0 修复（After-Commit）
 在事务内直接发送 Kafka 会导致：

@@ -56,5 +56,5 @@ gateway:
     # 生产建议 fail-closed：限流依赖不可用时返回 503，避免静默放行导致风控失效。
     fail-open: false
     # 运维/高风险入口关闭开关：匹配到的路径按 404 直接拒绝（降低攻击面）。
-    # 示例：临时关闭索引重建入口 -> ["/api/search/internal/reindex"]
+    # 示例：临时关闭索引重建入口 -> ["/api/ops/search/reindex", "/api/search/internal/reindex"]
     blocked-path-patterns: []

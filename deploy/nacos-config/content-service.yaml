@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: ${CONTENT_DB_URL:jdbc:mysql://mysql:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
-    username: ${MYSQL_USER:community}
-    password: ${MYSQL_PASSWORD:communitypass}
+    url: ${CONTENT_DB_URL:jdbc:mysql://mysql:3306/community_content?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${CONTENT_DB_USERNAME:community_content}
+    password: ${CONTENT_DB_PASSWORD:community_contentpass}
   data:
     redis:
       host: ${CONTENT_REDIS_HOST:redis}

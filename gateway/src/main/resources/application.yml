@@ -27,6 +27,15 @@ spring:
           uri: lb://auth-service
           predicates:
             - Path=/api/auth/**
+        - id: search-ops-reindex
+          uri: lb://search-service
+          predicates:
+            - Method=POST
+            - Path=/api/ops/search/reindex
+          filters:
+            - SetPath=/internal/search/reindex
+            - AddRequestHeader=X-Internal-Token, ${SEARCH_INTERNAL_TOKEN:}
+            - AddRequestHeader=X-External-Path, /api/ops/search/reindex
         - id: search-reindex
           uri: lb://search-service
           predicates:
@@ -35,6 +44,9 @@ spring:
           filters:
             - SetPath=/internal/search/reindex
             - AddRequestHeader=X-Internal-Token, ${SEARCH_INTERNAL_TOKEN:}
+            - AddRequestHeader=X-External-Path, /api/search/internal/reindex
+            # 对外 internal 命名属于历史遗留入口：保留短期兼容，但明确标记弃用。
+            - AddResponseHeader=Deprecation, true
         - id: search-service
           uri: lb://search-service
           predicates:
@@ -186,7 +198,7 @@ gateway:
       # 高成本运维操作：严格限流，避免误触发/滥用（可通过配置中心临时调小/关闭）
       - id: search-reindex
         methods: [POST]
-        path-patterns: [/api/search/internal/reindex]
+        path-patterns: [/api/search/internal/reindex, /api/ops/search/reindex]
         window-seconds: 60
         max-requests: 2
         key-strategy: USER

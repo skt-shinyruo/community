@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: ${MESSAGE_DB_URL:jdbc:mysql://mysql:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
-    username: ${MYSQL_USER:community}
-    password: ${MYSQL_PASSWORD:communitypass}
+    url: ${MESSAGE_DB_URL:jdbc:mysql://mysql:3306/community_message?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${MESSAGE_DB_USERNAME:community_message}
+    password: ${MESSAGE_DB_PASSWORD:community_messagepass}
   data:
     redis:
       host: ${MESSAGE_REDIS_HOST:redis}
@@ -24,7 +24,8 @@ clients:
   user:
     base-url: ${USER_SERVICE_BASE_URL:http://user-service}
     internal-token: ${USER_INTERNAL_TOKEN}
-    fail-open: false
+    # 聚合读接口允许降级：避免 user-service 抖动影响会话/通知列表等展示。
+    fail-open: true
   social:
     base-url: ${SOCIAL_SERVICE_BASE_URL:http://social-service}
     internal-token: ${SOCIAL_INTERNAL_TOKEN}

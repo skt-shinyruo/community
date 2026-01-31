@@ -37,6 +37,9 @@ services:
       - SOCIAL_DB_NAME=${SOCIAL_DB_NAME:-community_social}
       - SOCIAL_DB_USER=${SOCIAL_DB_USER:-community_social}
       - SOCIAL_DB_PASSWORD=${SOCIAL_DB_PASSWORD:-community_socialpass}
+      # user-service（identity DB）专用账号：用于 init 脚本创建最小权限用户（避免依赖 MYSQL_USER 语义）。
+      - USER_DB_USERNAME=${USER_DB_USERNAME:-community}
+      - USER_DB_PASSWORD=${USER_DB_PASSWORD:-communitypass}
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
@@ -296,8 +299,8 @@ services:
       - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
       - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
       - USER_DB_URL=jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
-      - MYSQL_USER=${MYSQL_USER}
-      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - USER_DB_USERNAME=${USER_DB_USERNAME:-community}
+      - USER_DB_PASSWORD=${USER_DB_PASSWORD:-communitypass}
       - QINIU_ACCESS_KEY=${QINIU_ACCESS_KEY:-}
       - QINIU_SECRET_KEY=${QINIU_SECRET_KEY:-}
       - QINIU_BUCKET_HEADER_NAME=${QINIU_BUCKET_HEADER_NAME:-}

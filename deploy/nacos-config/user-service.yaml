@@ -1,8 +1,8 @@
 spring:
   datasource:
     url: ${USER_DB_URL:jdbc:mysql://mysql:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
-    username: ${MYSQL_USER:community}
-    password: ${MYSQL_PASSWORD:communitypass}
+    username: ${USER_DB_USERNAME:community}
+    password: ${USER_DB_PASSWORD:communitypass}
   data:
     redis:
       host: ${USER_REDIS_HOST:redis}
@@ -22,6 +22,19 @@ user:
   ops:
     internal-token: ${USER_OPS_INTERNAL_TOKEN:}
     internal-token-previous: ${USER_OPS_INTERNAL_TOKEN_PREVIOUS:}
+
+  events:
+    publisher: kafka
+    outbox:
+      # 默认开启：可靠投递作为默认安全态（可通过开关回滚到 after-commit 直发）。
+      enabled: true
+      relay-enabled: true
+      batch-size: 200
+      max-retries: 10
+      base-delay-ms: 1000
+      max-delay-ms: 60000
+      relay-interval-ms: 5000
+      send-timeout-ms: 3000
 
   # user-service -> social-service 聚合调用配置（internal read API + internal-token）。
   social-client:

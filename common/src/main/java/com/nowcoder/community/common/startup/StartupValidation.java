@@ -61,8 +61,9 @@ public class StartupValidation {
             }
             case "gateway" -> {
                 // 网关作为“运维入口”，需要持有下游 internal-token。
-                boolean reindexBlocked = isPathBlocked(environment, "/api/search/internal/reindex");
-                if (!reindexBlocked) {
+                boolean legacyReindexBlocked = isPathBlocked(environment, "/api/search/internal/reindex");
+                boolean opsReindexBlocked = isPathBlocked(environment, "/api/ops/search/reindex");
+                if (!legacyReindexBlocked || !opsReindexBlocked) {
                     requireNonBlank(environment, errors, "SEARCH_INTERNAL_TOKEN", "设置环境变量 SEARCH_INTERNAL_TOKEN（用于 gateway -> search /internal/search/reindex）");
                 }
                 boolean analyticsEnabled = environment.getProperty("analytics.collect.enabled", Boolean.class, Boolean.TRUE);

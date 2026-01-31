@@ -100,6 +100,8 @@ public class GatewaySecurityConfig {
                 )
                 .authorizeExchange(exchanges -> exchanges
                         .pathMatchers(HttpMethod.OPTIONS).permitAll()
+                        // internal 接口仅用于服务间调用：网关显式拒绝，避免误配路由导致对外暴露。
+                        .pathMatchers("/internal/**").denyAll()
                         .pathMatchers("/api/auth/login", "/api/auth/refresh").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/auth/activation/**").permitAll()
@@ -107,6 +109,8 @@ public class GatewaySecurityConfig {
                         .pathMatchers(HttpMethod.POST, "/api/auth/captcha/verify").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/password/reset/request", "/api/auth/password/reset/confirm").permitAll()
                         .pathMatchers("/api/moderation/**").hasAnyRole("ADMIN", "MODERATOR")
+                        // 对外运维入口：在网关侧先做角色收敛；ops-token/allowlist/single-flight 由下游 internal 保护器兜底。
+                        .pathMatchers("/api/ops/**").hasRole("ADMIN")
                         .pathMatchers(HttpMethod.GET, "/api/users/*").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/categories", "/api/categories/**").permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/tags/hot", "/api/tags/**").permitAll()

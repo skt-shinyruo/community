@@ -4,7 +4,6 @@ import com.nowcoder.community.common.api.Result;
 import com.nowcoder.community.common.web.internalclient.InternalClientSupport;
 import com.nowcoder.community.message.service.dto.UserSummary;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Tags;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,13 +21,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 @Service
 public class UserServiceClient {
 
     private static final Logger log = LoggerFactory.getLogger(UserServiceClient.class);
+    private static final String METRIC_CLIENT = "message-service:user-service";
 
     private final RestTemplate restTemplate;
     private final MeterRegistry meterRegistry;
@@ -126,29 +125,21 @@ public class UserServiceClient {
         long start = System.nanoTime();
         try {
             T v = supplier.get();
-            record(api, "success", start);
+            InternalClientSupport.record(meterRegistry, METRIC_CLIENT, api, InternalClientSupport.OUTCOME_SUCCESS, start);
             return v;
         } catch (Exception e) {
             if (fallback != null && failOpen) {
-                record(api, "degraded", start);
+                InternalClientSupport.record(meterRegistry, METRIC_CLIENT, api, InternalClientSupport.OUTCOME_DEGRADED, start);
                 log.warn("[user-client] degraded (api={}): {}", api, e.toString());
                 return fallback.get();
             }
-            record(api, "error", start);
+            String outcome = InternalClientSupport.isTimeout(e) ? InternalClientSupport.OUTCOME_TIMEOUT : InternalClientSupport.OUTCOME_ERROR;
+            InternalClientSupport.record(meterRegistry, METRIC_CLIENT, api, outcome, start);
             if (e instanceof RuntimeException re) {
                 throw re;
             }
             throw new IllegalStateException("user-service 调用失败(api=" + api + ")", e);
         }
-    }
-
-    private void record(String api, String outcome, long startNanos) {
-        if (meterRegistry == null) {
-            return;
-        }
-        Tags tags = Tags.of("api", api, "outcome", outcome);
-        meterRegistry.counter("message_user_client_requests_total", tags).increment();
-        meterRegistry.timer("message_user_client_latency", tags).record(System.nanoTime() - startNanos, TimeUnit.NANOSECONDS);
     }
 
     private <T> Result<T> exchange(String url, HttpMethod method, HttpEntity<?> entity, ParameterizedTypeReference<Result<T>> typeRef) {

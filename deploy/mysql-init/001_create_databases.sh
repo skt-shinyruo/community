@@ -6,6 +6,8 @@ set -euo pipefail
 
 MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-}"
 MYSQL_DATABASE="${MYSQL_DATABASE:-community}"
+MYSQL_USER="${MYSQL_USER:-}"
+MYSQL_PASSWORD="${MYSQL_PASSWORD:-}"
 
 CONTENT_DB_NAME="${CONTENT_DB_NAME:-community_content}"
 CONTENT_DB_USER="${CONTENT_DB_USER:-community_content}"
@@ -22,6 +24,10 @@ SEARCH_DB_PASSWORD="${SEARCH_DB_PASSWORD:-community_searchpass}"
 SOCIAL_DB_NAME="${SOCIAL_DB_NAME:-community_social}"
 SOCIAL_DB_USER="${SOCIAL_DB_USER:-community_social}"
 SOCIAL_DB_PASSWORD="${SOCIAL_DB_PASSWORD:-community_socialpass}"
+
+USER_DB_NAME="${USER_DB_NAME:-${MYSQL_DATABASE}}"
+USER_DB_USERNAME="${USER_DB_USERNAME:-${MYSQL_USER:-community}}"
+USER_DB_PASSWORD="${USER_DB_PASSWORD:-${MYSQL_PASSWORD:-communitypass}}"
 
 if [[ -z "${MYSQL_ROOT_PASSWORD}" ]]; then
   echo "[mysql-init] missing env: MYSQL_ROOT_PASSWORD" >&2
@@ -62,6 +68,9 @@ grant select, insert, update, delete on \`${SEARCH_DB_NAME}\`.* to '${SEARCH_DB_
 
 create user if not exists '${SOCIAL_DB_USER}'@'%' identified by '${SOCIAL_DB_PASSWORD}';
 grant select, insert, update, delete on \`${SOCIAL_DB_NAME}\`.* to '${SOCIAL_DB_USER}'@'%';
+
+create user if not exists '${USER_DB_USERNAME}'@'%' identified by '${USER_DB_PASSWORD}';
+grant select, insert, update, delete on \`${USER_DB_NAME}\`.* to '${USER_DB_USERNAME}'@'%';
 
 flush privileges;
 SQL

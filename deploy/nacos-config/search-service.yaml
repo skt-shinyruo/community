@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: ${SEARCH_DB_URL:jdbc:mysql://mysql:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
-    username: ${MYSQL_USER:community}
-    password: ${MYSQL_PASSWORD:communitypass}
+    url: ${SEARCH_DB_URL:jdbc:mysql://mysql:3306/community_search?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${SEARCH_DB_USERNAME:community_search}
+    password: ${SEARCH_DB_PASSWORD:community_searchpass}
   data:
     redis:
       host: ${SEARCH_REDIS_HOST:redis}

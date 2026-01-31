@@ -70,5 +70,33 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.data[0].deletedReason").doesNotExist())
                 .andExpect(jsonPath("$.data[0].deletedTime").doesNotExist());
     }
-}
 
+    @Test
+    void postListShouldNotExposeGovernanceFields() throws Exception {
+        mockMvc.perform(get("/api/posts").param("page", "0").param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data[0].id").value(1))
+                .andExpect(jsonPath("$.data[0].userId").value(1))
+                .andExpect(jsonPath("$.data[0].title").value("t1"))
+                .andExpect(jsonPath("$.data[0].createTime").exists())
+                .andExpect(jsonPath("$.data[0].deletedBy").doesNotExist())
+                .andExpect(jsonPath("$.data[0].deletedReason").doesNotExist())
+                .andExpect(jsonPath("$.data[0].deletedTime").doesNotExist());
+    }
+
+    @Test
+    void postDetailShouldNotExposeGovernanceFields() throws Exception {
+        mockMvc.perform(get("/api/posts/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.id").value(1))
+                .andExpect(jsonPath("$.data.userId").value(1))
+                .andExpect(jsonPath("$.data.title").value("t1"))
+                .andExpect(jsonPath("$.data.content").value("c1"))
+                .andExpect(jsonPath("$.data.createTime").exists())
+                .andExpect(jsonPath("$.data.deletedBy").doesNotExist())
+                .andExpect(jsonPath("$.data.deletedReason").doesNotExist())
+                .andExpect(jsonPath("$.data.deletedTime").doesNotExist());
+    }
+}

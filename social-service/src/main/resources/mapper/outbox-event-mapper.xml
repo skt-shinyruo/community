@@ -96,5 +96,41 @@
           and status = 'FAILED'
     </update>
 
-</mapper>
+    <select id="selectStuckSendingIds" resultType="long">
+        select id
+        from outbox_event
+        where status = 'SENDING'
+          and updated_at &lt;= #{before}
+        order by id asc
+        limit #{limit}
+    </select>
 
+    <update id="markRetrySendingByIds">
+        update outbox_event
+        set status = 'RETRY',
+            next_retry_at = null,
+            last_error = #{lastError},
+            updated_at = #{now}
+        where id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          and status = 'SENDING'
+    </update>
+
+    <delete id="deleteSentBefore">
+        delete from outbox_event
+        where id in (
+            select id
+            from (
+                select id
+                from outbox_event
+                where status = 'SENT'
+                  and created_at &lt;= #{before}
+                order by id asc
+                limit #{limit}
+            ) t
+        )
+    </delete>
+
+</mapper>

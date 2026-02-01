@@ -65,7 +65,10 @@
 
     <update id="addScore">
         update user
-        set score = score + #{delta}
+        set score = case
+            when score + #{delta} &lt; 0 then 0
+            else score + #{delta}
+        end
         where id = #{id}
     </update>
 

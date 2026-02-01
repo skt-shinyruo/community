@@ -59,6 +59,7 @@ public class OutboxRelayJob {
             return;
         }
         refreshBacklogMetrics();
+        recoverStuckSending();
         List<OutboxEvent> events = outboxEventService.claimBatch(properties.getBatchSize());
         if (events == null || events.isEmpty()) {
             return;
@@ -112,6 +113,32 @@ public class OutboxRelayJob {
         }
     }
 
+    private void recoverStuckSending() {
+        try {
+            int recovered = outboxEventService.recoverStuckSending(properties.getSendingStaleMs(), properties.getRecoverBatchSize());
+            if (recovered > 0 && meterRegistry != null) {
+                meterRegistry.counter("user_outbox_recovered_total").increment(recovered);
+            }
+        } catch (Exception ignored) {
+            // recover 不应影响主链路
+        }
+    }
+
+    @Scheduled(fixedDelayString = "${user.events.outbox.cleanup-interval-ms:21600000}")
+    public void cleanupSent() {
+        if (!properties.isEnabled() || !properties.isCleanupEnabled()) {
+            return;
+        }
+        try {
+            int deleted = outboxEventService.cleanupSent(properties.getSentRetentionDays(), properties.getCleanupBatchSize());
+            if (deleted > 0 && meterRegistry != null) {
+                meterRegistry.counter("user_outbox_cleanup_total", Tags.of("status", "SENT")).increment(deleted);
+            }
+        } catch (Exception ignored) {
+            // cleanup 不应影响主链路
+        }
+    }
+
     private long nextDelayMs(int retryCount) {
         long base = Math.max(100, properties.getBaseDelayMs());
         long max = Math.max(base, properties.getMaxDelayMs());
@@ -128,4 +155,3 @@ public class OutboxRelayJob {
         return msg.length() > 200 ? msg.substring(0, 200) : msg;
     }
 }
-

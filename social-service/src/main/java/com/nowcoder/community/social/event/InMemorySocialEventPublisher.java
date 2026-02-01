@@ -22,6 +22,11 @@ public class InMemorySocialEventPublisher implements SocialEventPublisher {
     }
 
     @Override
+    public void publishLikeRemoved(LikePayload payload) {
+        events.add(payload);
+    }
+
+    @Override
     public void publishFollowCreated(FollowPayload payload) {
         events.add(payload);
     }

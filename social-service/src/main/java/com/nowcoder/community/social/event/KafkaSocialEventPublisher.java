@@ -52,6 +52,11 @@ public class KafkaSocialEventPublisher implements SocialEventPublisher {
     }
 
     @Override
+    public void publishLikeRemoved(LikePayload payload) {
+        publish(EventTypes.LIKE_REMOVED, "like:" + payload.getEntityType() + ":" + payload.getEntityId(), payload);
+    }
+
+    @Override
     public void publishFollowCreated(FollowPayload payload) {
         publish(EventTypes.FOLLOW_CREATED, "follow:" + payload.getEntityType() + ":" + payload.getEntityId(), payload);
     }

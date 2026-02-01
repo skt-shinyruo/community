@@ -93,6 +93,15 @@ public class PointsEventConsumer {
             return;
         }
 
+        if (EventTypes.LIKE_REMOVED.equals(type)) {
+            LikePayload p = objectMapper.treeToValue(env.getPayload(), LikePayload.class);
+            int toUserId = p.getEntityUserId() == null ? 0 : p.getEntityUserId();
+            if (toUserId > 0 && toUserId != p.getActorUserId()) {
+                pointsService.applyPoints(toUserId, eventId, type, -1);
+            }
+            return;
+        }
+
         if (unknownTypeAction == UnknownEventAction.SKIP) {
             if (LOGGED_UNKNOWN_TYPES.add(type)) {
                 log.warn("skip unsupported event type: {}, example eventId={}", type, eventId);

@@ -50,6 +50,7 @@ public class InternalOpsGuardFilter implements Filter {
 
     private static final String OP_OUTBOX_REPLAY = "outbox-replay";
     private static final String OP_SEARCH_REINDEX = "search-reindex";
+    private static final String OP_LIKE_BACKFILL = "like-backfill";
 
     private final Environment environment;
     private final ObjectMapper objectMapper;
@@ -151,6 +152,9 @@ public class InternalOpsGuardFilter implements Filter {
         }
         if ("/internal/search/reindex".equals(path)) {
             return new OpsRoute(OP_SEARCH_REINDEX);
+        }
+        if (path.endsWith("/likes/backfill")) {
+            return new OpsRoute(OP_LIKE_BACKFILL);
         }
         return null;
     }

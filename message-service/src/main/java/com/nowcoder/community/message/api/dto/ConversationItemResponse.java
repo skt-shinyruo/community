@@ -1,11 +1,9 @@
 package com.nowcoder.community.message.api.dto;
 
-import com.nowcoder.community.message.entity.Message;
-
 public class ConversationItemResponse {
 
     private String conversationId;
-    private Message lastMessage;
+    private LetterItemResponse lastMessage;
     private int letterCount;
     private int unreadCount;
     private UserSummaryResponse targetUser;
@@ -18,11 +16,11 @@ public class ConversationItemResponse {
         this.conversationId = conversationId;
     }
 
-    public Message getLastMessage() {
+    public LetterItemResponse getLastMessage() {
         return lastMessage;
     }
 
-    public void setLastMessage(Message lastMessage) {
+    public void setLastMessage(LetterItemResponse lastMessage) {
         this.lastMessage = lastMessage;
     }
 
@@ -50,4 +48,3 @@ public class ConversationItemResponse {
         this.targetUser = targetUser;
     }
 }
-

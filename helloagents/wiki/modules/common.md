@@ -24,6 +24,9 @@
 - internal API 最小权限：
   - `com.nowcoder.community.common.internal.InternalTokenFilter`：对 `/internal/**` 强制校验 `X-Internal-Token`（按 `/internal/{segment}` 映射到 `{segment}.internal-token`）
   - 轮转窗口：支持 `{segment}.internal-token-previous`（current + previous 并存）
+- internal 运维入口强保护（break-glass）：
+  - `com.nowcoder.community.common.internal.InternalOpsGuardFilter`：对 `/internal/**` 中的高风险运维动作进行二次校验（`X-Ops-Token` + allowlist + 限流），默认关闭
+  - 当前覆盖：`/internal/*/outbox/replay`、`/internal/search/reindex`、`/internal/*/likes/backfill`
 - 事务工具：
   - `com.nowcoder.community.common.tx.AfterCommitExecutor`：在事务提交后执行非 DB 副作用（Kafka 发送、缓存刷新等），用于 P0 消除“幽灵事件”。
 - Kafka 消费辅助：

@@ -7,6 +7,10 @@
 ## [Unreleased]
 
 ### Added
+- social-service：新增 `LikeRemoved`（取消点赞）事件，并提供 internal likes scan 接口用于下游回填点赞投影。
+- content-service：消费 `LikeCreated/LikeRemoved` 维护 Redis `like:entity:*` 投影；新增 internal entity resolve（供社交写路径构造可信 payload）与 internal likes backfill（冷启动/纠偏）。
+- user-service：积分消费者支持 `LikeRemoved` 触发积分回退，并对 `user.score` 做非负保护，降低“点赞开关刷分”风险。
+- common：ops-guard 新增覆盖 `/internal/*/likes/backfill`，统一 break-glass + allowlist + `X-Ops-Token` 保护策略。
 - social-service：新增 internal 社交读取 API（计数/关注状态等），供 user-service 聚合读取，减少 /api + Authorization 透传。
 - content-service：新增 outbox 内部运维接口（health/replay）并补齐可观测指标（backlog/failed）。
 - 运行手册：新增 internal-token 轮转/回滚 runbook，并补齐本次安全审阅结论。
@@ -24,9 +28,14 @@
 - social-service：新增批量点赞计数/状态 API（`GET /api/likes/counts`、`GET /api/likes/statuses`），配合 feed 批量补水渲染。
 - frontend：feed 列表改为 batch 拉取用户/点赞元信息，并新增 TTL 缓存（60s）；新增 `/#/ops`（Ops Console）与 `/#/admin/users`（用户管理）页面入口。
 - scripts：新增 `bootstrap-admin.sh`（管理员角色初始化/修复）与 `smoke-i1-avatar.sh`（local avatar 上传/读取冒烟）。
+- content-service/social-service/user-service：补齐 outbox 的 SENDING lease 回收与 SENT 清理策略单测，确保 H2/MySQL 下行为一致。
 
 ### Changed
+- content-service/social-service/user-service：Outbox 默认开启（配置与 properties 默认值对齐），并补强 relay 的 SENDING lease 回收 + SENT 保留期清理（默认关闭）与索引。
+- message-service：私信写路径拉黑校验改为“投影优先 + 缺失回源 + 回填”，消除投影缺失/滞后导致的 fail-open 窗口；对外私信接口逐步迁移为 DTO 输出（避免直接暴露实体）。
+- social-service：点赞写路径不再信任客户端注入的 `entityUserId/postId`，改为通过 content internal resolve 生成可信 payload 并校验 entity 存在性；follow 写路径收敛仅支持 USER。
 - social-service：存储默认值固化为 DB（SSOT），Redis/Memory 仅显式启用；补齐 storage 模式边界说明。
+- content-service/social-service/user-service：outbox 的 `deleteSentBefore` SQL 改为 derived table 形式，兼容 H2（单测）与 MySQL（生产）。
 - deploy/nacos-config：content/social 默认开启 outbox；internal-token 配置收敛到按服务 token（减少全局兜底）。
 - user-service：SocialServiceClient 改为 internal-token 调用 social-service internal read API（移除 Authorization 透传与硬编码 BASE_URL）。
 - internal-token：清理各服务 `application.yml` 与 internal client 的 `${...:${INTERNAL_TOKEN:}}` 兜底路径，仅允许按服务 token；同步更新 `scripts/search-reindex.sh` 与 auth-service 文档。
@@ -39,8 +48,14 @@
 - user-service：管理员角色变更改为显式 `reason + confirm`，并禁止管理员自降级以避免锁死；设置页头像上传逻辑兼容 local/qiniu 两种 provider。
 
 ### Fixed
+- 修复“事件发布默认不可靠（best-effort）导致下游永久不一致”的默认配置问题：写侧入 outbox，relay 重试直至成功或进入 FAILED，可观测且可重放。
+- 修复“点赞/热帖分数链路数据源不一致”导致点赞展示与分数计算偏离真实值的问题：用社交事件驱动维护 Redis 点赞投影，并补齐取消点赞事件。
+- 修复“拉黑关系投影缺失/滞后时 fail-open 放过写操作”的问题：投影缺失时回源 SSOT 并回填。
+- 修复 `post:score` 刷新队列 pop 后异常导致 postId 永久丢失的问题：失败回补重试并补齐指标。
 - gateway：统计采集去重改为有界 TTL 缓存，并补齐对 analytics 内部调用的 traceId 透传。
 - frontend：修复 search reindex 进度展示误用 `count` 字段的问题（改用 `indexedCount`）。
+- social-service：修复未显式加载 `mapper/*.xml` 导致 outbox mapper 运行时 `BindingException` 的问题，并补齐 `map-underscore-to-camel-case`。
+- message-service：修复 `NoticeEventConsumerIntegrationTest` 通过 substring 统计 eventId 导致的偶发失败（traceId 字段可能包含相同子串），改为解析 JSON 精确计数。
 
 ## [0.0.2] - 2026-01-28
 

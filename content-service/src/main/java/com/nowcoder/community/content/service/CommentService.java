@@ -43,6 +43,7 @@ public class CommentService {
     private final ContentEventPublisher eventPublisher;
     private final UserModerationProjectionRepository projectionRepository;
     private final UserModerationGuard moderationGuard;
+    private final SocialBlockClient socialBlockClient;
 
     public CommentService(
             CommentMapper commentMapper,
@@ -51,7 +52,8 @@ public class CommentService {
             PostScoreQueue postScoreQueue,
             ContentEventPublisher eventPublisher,
             UserModerationProjectionRepository projectionRepository,
-            UserModerationGuard moderationGuard
+            UserModerationGuard moderationGuard,
+            SocialBlockClient socialBlockClient
     ) {
         this.commentMapper = commentMapper;
         this.postService = postService;
@@ -60,6 +62,7 @@ public class CommentService {
         this.eventPublisher = eventPublisher;
         this.projectionRepository = projectionRepository;
         this.moderationGuard = moderationGuard;
+        this.socialBlockClient = socialBlockClient;
     }
 
     public List<Comment> listByPost(int postId, int page, int size) {
@@ -148,7 +151,20 @@ public class CommentService {
 
         // 反骚扰：双方任意一方拉黑另一方，都禁止互动（评论/回复）。
         if (targetUserId != null && targetUserId > 0) {
-            projectionRepository.assertNotBlocked(actorUserId, targetUserId);
+            UserModerationProjectionRepository.BlockCheck check = projectionRepository.checkEitherBlocked(actorUserId, targetUserId);
+            if (check == UserModerationProjectionRepository.BlockCheck.BLOCKED) {
+                throw new BusinessException(FORBIDDEN, "双方存在拉黑关系，无法执行该操作");
+            }
+            if (check == UserModerationProjectionRepository.BlockCheck.UNKNOWN) {
+                // 冷启动/漏消息/滞后：回源 social-service SSOT（internal）避免 fail-open，并回填投影减少后续回源
+                boolean blocked = Boolean.TRUE.equals(socialBlockClient.isEitherBlocked(actorUserId, targetUserId));
+                Instant now = Instant.now();
+                projectionRepository.upsertBlockRelation(actorUserId, targetUserId, blocked, now);
+                projectionRepository.upsertBlockRelation(targetUserId, actorUserId, blocked, now);
+                if (blocked) {
+                    throw new BusinessException(FORBIDDEN, "双方存在拉黑关系，无法执行该操作");
+                }
+            }
         }
 
         String safe = HtmlUtils.htmlEscape(content == null ? "" : content.trim());

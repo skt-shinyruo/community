@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 
+import static com.nowcoder.community.common.domain.EntityTypes.USER;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
@@ -34,6 +35,12 @@ public class FollowService {
         if (entityType <= 0 || entityId <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType/entityId 非法");
         }
+        if (entityType != USER) {
+            throw new BusinessException(INVALID_ARGUMENT, "follow 仅支持 USER");
+        }
+        if (actorUserId == entityId) {
+            throw new BusinessException(INVALID_ARGUMENT, "不能关注自己");
+        }
 
         long now = System.currentTimeMillis();
         boolean created = followRepository.follow(actorUserId, entityType, entityId, now);
@@ -42,7 +49,7 @@ public class FollowService {
             payload.setActorUserId(actorUserId);
             payload.setEntityType(entityType);
             payload.setEntityId(entityId);
-            payload.setEntityUserId(request.getEntityUserId());
+            payload.setEntityUserId(entityId);
             payload.setCreateTime(Instant.ofEpochMilli(now));
             eventPublisher.publishFollowCreated(payload);
         }
@@ -53,12 +60,18 @@ public class FollowService {
         if (actorUserId <= 0 || entityType <= 0 || entityId <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "参数错误");
         }
+        if (entityType != USER) {
+            throw new BusinessException(INVALID_ARGUMENT, "unfollow 仅支持 USER");
+        }
         followRepository.unfollow(actorUserId, entityType, entityId);
     }
 
     public boolean hasFollowed(int actorUserId, int entityType, int entityId) {
         if (actorUserId <= 0 || entityType <= 0 || entityId <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "参数错误");
+        }
+        if (entityType != USER) {
+            return false;
         }
         return followRepository.hasFollowed(actorUserId, entityType, entityId);
     }
@@ -67,6 +80,9 @@ public class FollowService {
         if (userId <= 0 || entityType <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "参数错误");
         }
+        if (entityType != USER) {
+            return 0;
+        }
         return followRepository.countFollowees(userId, entityType);
     }
 
@@ -74,18 +90,27 @@ public class FollowService {
         if (entityType <= 0 || entityId <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "参数错误");
         }
+        if (entityType != USER) {
+            return 0;
+        }
         return followRepository.countFollowers(entityType, entityId);
     }
 
     public List<FollowItem> listFollowees(int userId, int entityType, int page, int size) {
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
+        if (entityType != USER) {
+            return List.of();
+        }
         return followRepository.listFollowees(userId, entityType, p * s, s);
     }
 
     public List<FollowItem> listFollowers(int entityType, int entityId, int page, int size) {
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
+        if (entityType != USER) {
+            return List.of();
+        }
         return followRepository.listFollowers(entityType, entityId, p * s, s);
     }
 }

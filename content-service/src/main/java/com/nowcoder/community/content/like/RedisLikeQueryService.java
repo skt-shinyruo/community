@@ -19,7 +19,7 @@ public class RedisLikeQueryService implements LikeQueryService {
 
     @Override
     public long countPostLikes(int postId) {
-        Long size = redisTemplate.opsForSet().size(entityKey(ENTITY_TYPE_POST, postId));
+        Long size = redisTemplate.opsForSet().size(LikeRedisKeys.entityKey(ENTITY_TYPE_POST, postId));
         return size == null ? 0 : size;
     }
 
@@ -28,11 +28,7 @@ public class RedisLikeQueryService implements LikeQueryService {
         if (userId <= 0) {
             return false;
         }
-        Boolean member = redisTemplate.opsForSet().isMember(entityKey(ENTITY_TYPE_POST, postId), String.valueOf(userId));
+        Boolean member = redisTemplate.opsForSet().isMember(LikeRedisKeys.entityKey(ENTITY_TYPE_POST, postId), String.valueOf(userId));
         return member != null && member;
-    }
-
-    private String entityKey(int entityType, int entityId) {
-        return "like:entity:" + entityType + ":" + entityId;
     }
 }

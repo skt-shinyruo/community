@@ -46,4 +46,8 @@ create table if not exists outbox_event (
   constraint uk_outbox_event_id unique (event_id)
 );
 
+create index if not exists idx_outbox_status_next on outbox_event(status, next_retry_at, id);
+create index if not exists idx_outbox_status_updated on outbox_event(status, updated_at, id);
+create index if not exists idx_outbox_status_created on outbox_event(status, created_at, id);
+
 merge into user (id, username, password, salt, email, type, status, activation_code, header_url, create_time, score) key(id) values (1, 'u1', 'p', 's', 'u1@example.com', 0, 1, 'ac', 'http://old.local/a.png', CURRENT_TIMESTAMP(), 0);

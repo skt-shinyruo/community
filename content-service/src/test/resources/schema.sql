@@ -51,6 +51,10 @@ create table if not exists outbox_event (
   updated_at timestamp null default current_timestamp
 );
 
+create index if not exists idx_outbox_status_next on outbox_event(status, next_retry_at);
+create index if not exists idx_outbox_status_updated on outbox_event(status, updated_at, id);
+create index if not exists idx_outbox_status_created on outbox_event(status, created_at, id);
+
 create table if not exists user_moderation_projection (
   user_id int primary key,
   mute_until timestamp,

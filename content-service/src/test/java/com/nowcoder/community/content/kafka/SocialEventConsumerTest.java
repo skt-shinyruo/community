@@ -55,4 +55,28 @@ class SocialEventConsumerTest {
         Integer postId = postScoreQueue.pop();
         assertThat(postId).isEqualTo(123);
     }
+
+    @Test
+    void likeRemovedShouldEnqueuePostScoreRefresh() throws Exception {
+        String payload = objectMapper.writeValueAsString(Map.of(
+                "eventId", "e-like-2",
+                "type", EventTypes.LIKE_REMOVED,
+                "version", 1,
+                "occurredAt", Instant.now().toString(),
+                "producer", "social-service",
+                "payload", Map.of(
+                        "actorUserId", 1,
+                        "entityType", 1,
+                        "entityId", 123,
+                        "entityUserId", 2,
+                        "postId", 123,
+                        "createTime", Instant.now().toString()
+                )
+        ));
+
+        consumer.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k2", payload));
+
+        Integer postId = postScoreQueue.pop();
+        assertThat(postId).isEqualTo(123);
+    }
 }

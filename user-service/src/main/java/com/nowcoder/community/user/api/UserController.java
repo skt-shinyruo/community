@@ -35,6 +35,7 @@ import java.util.Map;
 
 import static com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.api.CommonErrorCode.UNAUTHORIZED;
 
 @RestController
 @RequestMapping("/api/users")
@@ -174,7 +175,7 @@ public class UserController {
 
     private int currentUserId(Authentication authentication) {
         if (authentication == null || authentication.getPrincipal() == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "未获取到认证信息");
+            throw new BusinessException(UNAUTHORIZED, "未获取到认证信息");
         }
         Jwt jwt = (Jwt) authentication.getPrincipal();
         String sub = jwt.getSubject();

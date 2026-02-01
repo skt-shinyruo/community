@@ -6,6 +6,8 @@ create table if not exists social_like (
   primary key (user_id, entity_type, entity_id)
 );
 
+create index if not exists idx_like_entity_user on social_like(entity_type, entity_id, user_id);
+
 create table if not exists social_user_like_count (
   user_id int not null primary key,
   like_count bigint not null default 0,
@@ -40,3 +42,7 @@ create table if not exists outbox_event (
   created_at timestamp null default current_timestamp,
   updated_at timestamp null default current_timestamp
 );
+
+create index if not exists idx_outbox_status_next on outbox_event(status, next_retry_at);
+create index if not exists idx_outbox_status_updated on outbox_event(status, updated_at, id);
+create index if not exists idx_outbox_status_created on outbox_event(status, created_at, id);

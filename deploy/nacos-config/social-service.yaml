@@ -33,6 +33,12 @@ social:
   # 轮转窗口：灰度期间允许 previous 继续访问（配合 common/InternalTokenFilter）。
   internal-token-previous: ${SOCIAL_INTERNAL_TOKEN_PREVIOUS:}
 
+clients:
+  content:
+    base-url: ${CONTENT_SERVICE_BASE_URL:http://content-service}
+    internal-token: ${CONTENT_INTERNAL_TOKEN:}
+    fail-open: false
+
 # internal 运维入口强保护（default deny + break-glass）。
 ops:
   social:

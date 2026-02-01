@@ -18,7 +18,8 @@
 前置条件：用户已登录
 - MySQL 作为关系 SSOT（默认）；Redis 可选作为缓存/计数加速层（非 SSOT）
 - 更新被赞用户的获赞计数（DB 侧具备唯一约束兜底幂等）
-- 触发点赞事件：优先使用 Outbox 可靠投递（可通过开关回滚到 After-Commit 直发）
+- 写路径契约可信：服务端通过 content-service internal resolve 解析 entity 的 owner/postId 并校验存在性（禁止信任客户端注入字段）
+- 触发社交事件：`LikeCreated/LikeRemoved`，默认使用 Outbox 可靠投递（可通过开关回滚到 After-Commit 直发）
 
 ### Requirement: 关注/粉丝
 **Module:** social
@@ -27,6 +28,7 @@
 #### Scenario: 关注用户
 前置条件：用户已登录
 - MySQL 作为关系 SSOT（默认）；Redis 可选作为缓存/加速层
+- follow 写路径收敛：当前仅支持关注 USER（避免跨域 entity 造成信任边界与脏关系问题）
 - 触发关注事件：优先使用 Outbox 可靠投递（可通过开关回滚到 After-Commit 直发）
 
 ### Requirement: 拉黑/反骚扰
@@ -51,6 +53,7 @@
 - `GET /api/blocks/status?userId=`（查询是否已拉黑）
 - internal（仅服务间调用，要求 `X-Internal-Token`）：
   - `GET /internal/social/blocks/relation?userIdA=&userIdB=`
+  - `GET /internal/social/likes/scan?entityType=&afterEntityId=&afterUserId=&limit=`（供 content-service 回填 Redis 点赞投影）
   - internal read（供聚合展示，避免跨服务透传 Authorization）：
     - `GET /internal/social/read/likes/users/{userId}/count`
     - `GET /internal/social/read/follows/{userId}/followees/count?entityType=3`
@@ -71,6 +74,7 @@
 
 ## Dependencies
 - user（用户资料用于列表展示）
+- content-service internal（resolve entity 元信息：owner/postId/存在性；用于点赞写路径与事件 payload 可信化）
 - message（点赞/关注通知）
 - infra（Redis/Kafka）
 
@@ -78,3 +82,4 @@
 - 2026-01-18：Kafka 事件发布统一 After-Commit 策略（在事务活跃时 commit 后发送），并补齐发布失败指标用于观测。
 - 2026-01-23：新增拉黑/反骚扰能力（Redis Set 存储 + 对外 API + internal 关系查询）。
 - 2026-01-28：固化 DB 为默认 SSOT（避免 Redis-only 误启用）；补齐 internal read API；Outbox 默认开启（部署侧）。
+- 2026-02-01：新增 `LikeRemoved` 事件并发布；点赞写路径改为服务端 resolve entity 元信息（禁止客户端注入、校验存在性）；新增 internal likes scan 供下游回填投影；follow 写路径收敛仅支持 USER；补齐 MyBatis `mapper-locations`/`map-underscore-to-camel-case` 以确保 outbox XML mapper 生效。

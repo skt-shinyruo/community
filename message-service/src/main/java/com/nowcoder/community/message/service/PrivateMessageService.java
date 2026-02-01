@@ -2,6 +2,7 @@ package com.nowcoder.community.message.service;
 
 import com.nowcoder.community.message.dao.MessageMapper;
 import com.nowcoder.community.message.api.dto.ConversationItemResponse;
+import com.nowcoder.community.message.api.dto.LetterItemResponse;
 import com.nowcoder.community.message.api.dto.UserSummaryResponse;
 import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.service.dto.ConversationStats;
@@ -11,6 +12,7 @@ import com.nowcoder.community.common.security.OwnerGuard;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -23,6 +25,7 @@ public class PrivateMessageService {
 
     private final MessageMapper messageMapper;
     private final UserServiceClient userServiceClient;
+    private final SocialServiceClient socialServiceClient;
     private final UserModerationProjectionRepository projectionRepository;
     private final UserModerationGuard moderationGuard;
     private final OwnerGuard ownerGuard;
@@ -30,12 +33,14 @@ public class PrivateMessageService {
     public PrivateMessageService(
             MessageMapper messageMapper,
             UserServiceClient userServiceClient,
+            SocialServiceClient socialServiceClient,
             UserModerationProjectionRepository projectionRepository,
             UserModerationGuard moderationGuard,
             OwnerGuard ownerGuard
     ) {
         this.messageMapper = messageMapper;
         this.userServiceClient = userServiceClient;
+        this.socialServiceClient = socialServiceClient;
         this.projectionRepository = projectionRepository;
         this.moderationGuard = moderationGuard;
         this.ownerGuard = ownerGuard;
@@ -79,7 +84,7 @@ public class PrivateMessageService {
         return latest.stream().map(m -> {
             ConversationItemResponse item = new ConversationItemResponse();
             item.setConversationId(m.getConversationId());
-            item.setLastMessage(m);
+            item.setLastMessage(toLetterItem(m));
             ConversationStats s = statsMap.get(m.getConversationId());
             item.setLetterCount(s == null ? 0 : s.getLetterCount());
             item.setUnreadCount(s == null ? 0 : s.getUnreadCount());
@@ -109,7 +114,26 @@ public class PrivateMessageService {
 
     public void send(int fromId, int toId, String content) {
         moderationGuard.assertCanSendMessage(fromId);
-        projectionRepository.assertNotBlocked(fromId, toId);
+        UserModerationProjectionRepository.BlockCheck check = projectionRepository.checkEitherBlocked(fromId, toId);
+        if (check == UserModerationProjectionRepository.BlockCheck.BLOCKED) {
+            throw new com.nowcoder.community.common.exception.BusinessException(
+                    com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN,
+                    "双方存在拉黑关系，无法发送私信"
+            );
+        }
+        if (check == UserModerationProjectionRepository.BlockCheck.UNKNOWN) {
+            // 冷启动/漏消息/滞后：回源 social-service SSOT（internal）避免 fail-open，并回填投影减少后续回源
+            boolean blocked = Boolean.TRUE.equals(socialServiceClient.isEitherBlocked(fromId, toId));
+            Instant now = Instant.now();
+            projectionRepository.upsertBlockRelation(fromId, toId, blocked, now);
+            projectionRepository.upsertBlockRelation(toId, fromId, blocked, now);
+            if (blocked) {
+                throw new com.nowcoder.community.common.exception.BusinessException(
+                        com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN,
+                        "双方存在拉黑关系，无法发送私信"
+                );
+            }
+        }
         Message msg = new Message();
         msg.setFromId(fromId);
         msg.setToId(toId);
@@ -131,5 +155,20 @@ public class PrivateMessageService {
         int small = Math.min(fromId, toId);
         int large = Math.max(fromId, toId);
         return small + "_" + large;
+    }
+
+    private LetterItemResponse toLetterItem(Message m) {
+        if (m == null) {
+            return null;
+        }
+        LetterItemResponse r = new LetterItemResponse();
+        r.setId(m.getId());
+        r.setFromId(m.getFromId());
+        r.setToId(m.getToId());
+        r.setConversationId(m.getConversationId());
+        r.setContent(m.getContent());
+        r.setStatus(m.getStatus());
+        r.setCreateTime(m.getCreateTime());
+        return r;
     }
 }

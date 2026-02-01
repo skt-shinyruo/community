@@ -3,6 +3,7 @@ package com.nowcoder.community.message.api;
 import com.nowcoder.community.common.api.Result;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
+import com.nowcoder.community.message.api.dto.LetterItemResponse;
 import com.nowcoder.community.message.api.dto.MarkReadRequest;
 import com.nowcoder.community.message.api.dto.SendMessageRequest;
 import com.nowcoder.community.message.api.dto.ConversationItemResponse;
@@ -42,7 +43,7 @@ public class MessageController {
 	    }
 
     @GetMapping("/conversations")
-    public Result<List<Message>> conversations(
+    public Result<List<LetterItemResponse>> conversations(
             Authentication authentication,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
@@ -51,7 +52,8 @@ public class MessageController {
         int userId = Integer.parseInt(jwt.getSubject());
         int p = page == null ? 0 : Math.max(0, page);
         int s = size == null ? 10 : Math.min(50, Math.max(1, size));
-        return Result.ok(privateMessageService.listConversations(userId, p, s));
+        List<Message> list = privateMessageService.listConversations(userId, p, s);
+        return Result.ok(list == null ? List.of() : list.stream().map(this::toLetterItem).toList());
     }
 
     @GetMapping("/conversations/detail")
@@ -68,7 +70,7 @@ public class MessageController {
     }
 
     @GetMapping("/conversations/{conversationId}")
-    public Result<List<Message>> letters(
+    public Result<List<LetterItemResponse>> letters(
             Authentication authentication,
             @PathVariable String conversationId,
             @RequestParam(required = false) Integer page,
@@ -78,7 +80,8 @@ public class MessageController {
         int userId = Integer.parseInt(jwt.getSubject());
         int p = page == null ? 0 : Math.max(0, page);
         int s = size == null ? 10 : Math.min(50, Math.max(1, size));
-        return Result.ok(privateMessageService.listLetters(userId, conversationId, p, s));
+        List<Message> list = privateMessageService.listLetters(userId, conversationId, p, s);
+        return Result.ok(list == null ? List.of() : list.stream().map(this::toLetterItem).toList());
     }
 
     @GetMapping("/unread-count")
@@ -123,5 +126,20 @@ public class MessageController {
         int userId = Integer.parseInt(jwt.getSubject());
         privateMessageService.markRead(userId, request.getIds());
         return Result.ok();
+    }
+
+    private LetterItemResponse toLetterItem(Message m) {
+        if (m == null) {
+            return null;
+        }
+        LetterItemResponse r = new LetterItemResponse();
+        r.setId(m.getId());
+        r.setFromId(m.getFromId());
+        r.setToId(m.getToId());
+        r.setConversationId(m.getConversationId());
+        r.setContent(m.getContent());
+        r.setStatus(m.getStatus());
+        r.setCreateTime(m.getCreateTime());
+        return r;
     }
 }

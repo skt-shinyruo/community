@@ -22,3 +22,8 @@ spring:
 security:
   jwt:
     hmac-secret: test-jwt-secret-please-change-at-least-32bytes
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true

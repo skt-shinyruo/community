@@ -59,6 +59,7 @@ public class OutboxRelayJob {
             return;
         }
         refreshBacklogMetrics();
+        recoverStuckSending();
         List<OutboxEvent> events = outboxEventService.claimBatch(properties.getBatchSize());
         if (events == null || events.isEmpty()) {
             return;
@@ -104,6 +105,32 @@ public class OutboxRelayJob {
             failedCountGauge.set(outboxEventService.countByStatus("FAILED"));
         } catch (Exception ignored) {
             // metrics 不应影响主链路
+        }
+    }
+
+    private void recoverStuckSending() {
+        try {
+            int recovered = outboxEventService.recoverStuckSending(properties.getSendingStaleMs(), properties.getRecoverBatchSize());
+            if (recovered > 0 && meterRegistry != null) {
+                meterRegistry.counter("social_outbox_recovered_total").increment(recovered);
+            }
+        } catch (Exception ignored) {
+            // recover 不应影响主链路
+        }
+    }
+
+    @Scheduled(fixedDelayString = "${social.events.outbox.cleanup-interval-ms:21600000}")
+    public void cleanupSent() {
+        if (!properties.isEnabled() || !properties.isCleanupEnabled()) {
+            return;
+        }
+        try {
+            int deleted = outboxEventService.cleanupSent(properties.getSentRetentionDays(), properties.getCleanupBatchSize());
+            if (deleted > 0 && meterRegistry != null) {
+                meterRegistry.counter("social_outbox_cleanup_total", Tags.of("status", "SENT")).increment(deleted);
+            }
+        } catch (Exception ignored) {
+            // cleanup 不应影响主链路
         }
     }
 

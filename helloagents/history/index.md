@@ -8,6 +8,7 @@
 
 | Timestamp | Feature Name | Type | Status | Solution Package Path |
 |-----------|--------------|------|--------|----------------------|
+| 202602011327 | event_consistency_hardening | Development Implementation | ✅Completed | [202602011327_event_consistency_hardening](2026-02/202602011327_event_consistency_hardening/) |
 | 202601312154 | product_readiness | Development Implementation | ✅Completed | [202601312154_product_readiness](2026-02/202601312154_product_readiness/) |
 | 202601311900 | compose_boundaries_resilience | Development Implementation | ✅Completed | [202601311900_compose_boundaries_resilience](2026-01/202601311900_compose_boundaries_resilience/) |
 | 202601291027 | backend_arch_5issues_solution | Development Implementation | ✅Completed | [202601291027_backend_arch_5issues_solution](2026-01/202601291027_backend_arch_5issues_solution/) |
@@ -47,8 +48,11 @@
 
 ## Archive by Month
 
-### 2026-01
+### 2026-02
+- [202602011327_event_consistency_hardening](2026-02/202602011327_event_consistency_hardening/) - 事件一致性与契约治理：Outbox 默认开启、LikeRemoved + Redis 投影、拉黑校验消除 fail-open、鉴权语义 401 化、API DTO 化、post:score 回补、消费者 unknown handling 对齐
 - [202601312154_product_readiness](2026-02/202601312154_product_readiness/) - 产品体验闭环与可运营性提升：R1 onboarding（dev link / prod fail-closed）、R2 头像自托管（local/qiniu + /files）、R3 feed batch 补水（TTL 缓存）、R4 Ops Console（X-Ops-Token）、R5 角色管理（bootstrap + UI）
+
+### 2026-01
 - [202601311900_compose_boundaries_resilience](2026-01/202601311900_compose_boundaries_resilience/) - 微服务边界与韧性治理（Docker Compose）：/api/ops 运维入口、/internal 默认拒绝、reindex 弃用窗口、DB 最小权限与回归测试
 - [202601291027_backend_arch_5issues_solution](2026-01/202601291027_backend_arch_5issues_solution/) - 后端架构治理（幂等写接口/运维 break-glass/可信代理 XFF 边界/内部 token 分域/错误协议与回归测试）
 - [202601281336_backend_arch_governance_5issues](2026-01/202601281336_backend_arch_governance_5issues/) - 后端架构治理（社交持久化 SSOT/Outbox 默认开启/内部调用收敛/gateway 统计链路有界化/internal-token 安全）

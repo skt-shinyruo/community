@@ -64,36 +64,65 @@ public class UserModerationProjectionRepository {
     }
 
     public boolean isEitherBlocked(int userIdA, int userIdB) {
-        int a = Math.max(0, userIdA);
-        int b = Math.max(0, userIdB);
-        if (a <= 0 || b <= 0 || a == b) {
-            return false;
-        }
-        List<Integer> ab = jdbcTemplate.queryForList(
-                "select blocked from user_block_projection where blocker_user_id = ? and blocked_user_id = ?",
-                Integer.class,
-                a,
-                b
-        );
-        if (!ab.isEmpty() && ab.get(0) == 1) {
-            return true;
-        }
-        List<Integer> ba = jdbcTemplate.queryForList(
-                "select blocked from user_block_projection where blocker_user_id = ? and blocked_user_id = ?",
-                Integer.class,
-                b,
-                a
-        );
-        return !ba.isEmpty() && ba.get(0) == 1;
+        return checkEitherBlocked(userIdA, userIdB) == BlockCheck.BLOCKED;
     }
 
     public void assertNotBlocked(int userIdA, int userIdB) {
-        if (isEitherBlocked(userIdA, userIdB)) {
+        BlockCheck check = checkEitherBlocked(userIdA, userIdB);
+        if (check == BlockCheck.UNKNOWN) {
+            throw new com.nowcoder.community.common.exception.BusinessException(
+                    com.nowcoder.community.common.api.CommonErrorCode.SERVICE_UNAVAILABLE,
+                    "拉黑关系投影缺失"
+            );
+        }
+        if (check == BlockCheck.BLOCKED) {
             throw new com.nowcoder.community.common.exception.BusinessException(
                     com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN,
                     "双方存在拉黑关系，无法执行该操作"
             );
         }
+    }
+
+    /**
+     * 拉黑关系投影查询（区分 UNKNOWN vs NOT_BLOCKED）：
+     * - BLOCKED：任意方向 blocked=1
+     * - NOT_BLOCKED：至少存在一条投影记录，且无 blocked=1
+     * - UNKNOWN：两条方向记录都不存在（冷启动/滞后/漏消费时需要回源 SSOT）
+     */
+    public BlockCheck checkEitherBlocked(int userIdA, int userIdB) {
+        int a = Math.max(0, userIdA);
+        int b = Math.max(0, userIdB);
+        if (a <= 0 || b <= 0 || a == b) {
+            return BlockCheck.NOT_BLOCKED;
+        }
+        List<Integer> list = jdbcTemplate.queryForList(
+                """
+                        select blocked
+                        from user_block_projection
+                        where (blocker_user_id = ? and blocked_user_id = ?)
+                           or (blocker_user_id = ? and blocked_user_id = ?)
+                        """,
+                Integer.class,
+                a,
+                b,
+                b,
+                a
+        );
+        if (list == null || list.isEmpty()) {
+            return BlockCheck.UNKNOWN;
+        }
+        for (Integer v : list) {
+            if (v != null && v == 1) {
+                return BlockCheck.BLOCKED;
+            }
+        }
+        return BlockCheck.NOT_BLOCKED;
+    }
+
+    public enum BlockCheck {
+        UNKNOWN,
+        NOT_BLOCKED,
+        BLOCKED
     }
 
     public void assertCanSendMessage(int userId) {
@@ -148,4 +177,3 @@ public class UserModerationProjectionRepository {
         private Instant updatedAt;
     }
 }
-

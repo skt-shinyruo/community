@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 发帖；帖子详情；评论/回复；敏感词过滤；热帖分数刷新；与搜索/通知联动
 - **Status：** ✅Stable
-- **Last Updated：** 2026-01-28
+- **Last Updated：** 2026-02-01
 
 ## Specifications
 
@@ -17,12 +17,12 @@
 #### Scenario: 发布帖子
 前置条件：用户已登录
 - 发布成功
-- 触发发帖事件（用于搜索索引/通知等；支持 Outbox 模式：事务内写 outbox + relay 投递；未启用时仍走 After-Commit 发送）
+- 触发发帖事件（用于搜索索引/通知等；默认走 Outbox：事务内写 outbox + relay 投递；应急情况下可切回 After-Commit 发送）
 
 #### Scenario: 浏览帖子详情
 前置条件：帖子存在
 - 返回帖子、作者、评论/回复列表
-- 返回点赞数量与点赞状态
+- 返回点赞数量与点赞状态（读 Redis `like:entity:*` 投影；由 social 事件驱动维护，允许短暂最终一致窗口）
 
 ### Requirement: 评论与回复
 **Module:** content
@@ -47,7 +47,7 @@
 
 #### Scenario: 帖子被点赞/评论后进入刷新集合
 - Redis `post:score` 集合写入帖子 ID（在 DB 事务提交后执行，避免回滚仍触发刷新）
-- Quartz 任务周期刷新分数并同步到搜索
+- Quartz 任务周期刷新分数并同步到搜索；刷新失败会回补重试（至少一次语义），避免异常导致 postId 永久丢失
 
 ### Requirement: 内容生命周期（编辑/软删）
 **Module:** content
@@ -100,6 +100,8 @@
 - `GET /api/subscriptions/categories`（我的分类订阅列表）
 - `GET /api/posts?subscribed=true`（仅看订阅：按订阅分类过滤）
 - `GET /internal/content/posts`（内部接口：需要 `X-Internal-Token`；供 search-service 重建索引扫描帖子）
+- `GET /internal/content/entities/resolve`（内部接口：需要 `X-Internal-Token`；供 social-service 在写路径解析 POST/COMMENT 的 owner/postId，构造可信事件 payload）
+- `POST /internal/content/likes/backfill`（内部运维接口：默认关闭；回填 Redis 点赞投影；受 `X-Internal-Token` + ops-guard + endpoint-enabled 共同保护）
 
 ## Data Models
 ### discuss_post
@@ -116,7 +118,8 @@
 
 ## Dependencies
 - user（作者信息）
-- social（点赞信息/状态）
+- social（点赞 SSOT 与事件来源；由 social 事件驱动维护 content 的 Redis 点赞投影）
+- social-service internal（likes scan：用于冷启动/纠偏回填 Redis 点赞投影）
 - social-service internal（拉黑关系：评论/回复写路径前置校验）
 - user-service internal（禁言/封禁状态：发帖/评论写路径前置校验；治理动作落地）
 - message（评论/点赞/关注通知）
@@ -130,3 +133,7 @@
 - 2026-01-20：引入 taxonomy（分类/标签）：新增 `category/tag/post_tag` 表，发帖支持 `categoryId/tags[]`，列表支持按分类/标签过滤，支撑 Discourse-like 信息架构与侧栏聚合。
 - 2026-01-20：新增 `GET /api/tags/suggest` 标签建议接口，支撑 Discourse-like 标签输入体验（autocomplete）。
 - 2026-01-23：新增举报/治理闭环（report/moderation_action + /api/reports + /api/moderation/**），补齐内容生命周期（编辑窗口/作者软删）、收藏/订阅与“仅看订阅”。
+- 2026-02-01：Outbox 默认开启（可靠投递作为默认安全态），并补齐 relay 的 SENDING 回收 + SENT 清理与索引。
+- 2026-02-01：消费 `LikeCreated/LikeRemoved` 维护 Redis `like:entity:*` 投影，帖子详情与热帖分数读源一致，且支持取消点赞回落。
+- 2026-02-01：评论/回复写路径拉黑校验改为“投影优先 + 缺失回源 + 回填”，消除投影缺失 fail-open 窗口。
+- 2026-02-01：新增 internal entity resolve 与 likes backfill 运维入口，用于跨域写路径契约可信与冷启动纠偏。

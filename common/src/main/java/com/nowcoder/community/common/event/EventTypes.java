@@ -12,6 +12,7 @@ public final class EventTypes {
     public static final String COMMENT_CREATED = "CommentCreated";
 
     public static final String LIKE_CREATED = "LikeCreated";
+    public static final String LIKE_REMOVED = "LikeRemoved";
     public static final String FOLLOW_CREATED = "FollowCreated";
 
     public static final String MODERATION_ACTION_APPLIED = "ModerationActionApplied";

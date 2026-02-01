@@ -6,14 +6,18 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.nowcoder.community.common.internal.dto.EntityResolveResponse;
+import com.nowcoder.community.social.service.ContentServiceClient;
 import com.nowcoder.community.social.like.dto.LikeRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.mockito.Mockito;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -37,6 +41,9 @@ class SocialControllerTest {
     @Autowired
     ObjectMapper objectMapper;
 
+    @MockBean
+    ContentServiceClient contentServiceClient;
+
     @Test
     void likeApisShouldRequireAuth() throws Exception {
         mockMvc.perform(get("/api/likes/status").param("entityType", "1").param("entityId", "1"))
@@ -46,6 +53,13 @@ class SocialControllerTest {
     @Test
     void likeThenStatusShouldWork() throws Exception {
         String token = tokenForUser(1);
+
+        EntityResolveResponse resolved = new EntityResolveResponse();
+        resolved.setEntityType(1);
+        resolved.setEntityId(100);
+        resolved.setEntityUserId(2);
+        resolved.setPostId(100);
+        Mockito.when(contentServiceClient.resolveEntity(1, 100)).thenReturn(resolved);
 
         LikeRequest req = new LikeRequest();
         req.setEntityType(1);
@@ -81,4 +95,3 @@ class SocialControllerTest {
         return jwt.serialize();
     }
 }
-

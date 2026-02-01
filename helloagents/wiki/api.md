@@ -34,8 +34,11 @@ Token 通过环境变量或 Nacos 注入（见 `deploy/.env.example` 与 `deploy
 
 - **content-service**
   - `GET /internal/content/posts`：供 search-service 扫描帖子数据以完成 reindex（严格 schema 隔离下不允许跨库直读）。
+  - `GET /internal/content/entities/resolve?entityType=&entityId=`：解析 POST/COMMENT 的 owner/postId（供 social 写路径构造可信事件 payload，禁止信任客户端注入）。
+  - `POST /internal/content/likes/backfill?entityType=&maxItems=&batchSize=`：回填 Redis 点赞投影（运维入口，默认关闭；受 `X-Internal-Token` + ops-guard + endpoint-enabled 共同保护）。
 - **social-service**
   - `GET /internal/social/blocks/relation?userIdA=&userIdB=`：查询 A/B 的拉黑关系（互斥私信等写路径校验）。
+  - `GET /internal/social/likes/scan?entityType=&afterEntityId=&afterUserId=&limit=`：按游标扫描点赞关系（供 content-service 回填 Redis 点赞投影使用）。
 - **user-service**
   - `GET /internal/users/{userId}/moderation-status`：查询用户禁言/封禁状态（content-service 写路径前置校验）。
   - `POST /internal/users/{userId}/moderation`：应用禁言/封禁（治理动作落地，供 content-service 治理动作转发调用）。
@@ -86,3 +89,5 @@ Token 通过环境变量或 Nacos 注入（见 `deploy/.env.example` 与 `deploy
 - **安全：**
   - 对外接口统一走网关鉴权与 CORS。
   - 内部接口使用 `X-Internal-Token` 做最小保护（生产可进一步升级为 mTLS/内网隔离）。
+  - 运维高风险入口额外使用 ops-guard（`X-Ops-Token` + allowlist + 限流，默认 break-glass 关闭），典型场景：`/internal/*/outbox/replay`、`/internal/*/likes/backfill`、`/internal/search/reindex`。
+  - 未认证（Authentication 缺失）统一返回 401（`UNAUTHORIZED`），避免把鉴权问题伪装成参数错误（400）。

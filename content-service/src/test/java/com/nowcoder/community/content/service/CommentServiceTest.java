@@ -34,9 +34,12 @@ class CommentServiceTest {
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
         UserModerationProjectionRepository projectionRepository = mock(UserModerationProjectionRepository.class);
         UserModerationClient userModerationClient = mock(UserModerationClient.class);
+        SocialBlockClient socialBlockClient = mock(SocialBlockClient.class);
 
         // 投影存在：assertCanSpeak 直接通过，不应触发下游 user-service 访问
         doNothing().when(projectionRepository).assertCanSpeak(anyInt());
+        when(projectionRepository.checkEitherBlocked(anyInt(), anyInt()))
+                .thenReturn(UserModerationProjectionRepository.BlockCheck.NOT_BLOCKED);
         UserModerationGuard moderationGuard = new UserModerationGuard(projectionRepository, userModerationClient);
 
         CommentService service = new CommentService(
@@ -46,7 +49,8 @@ class CommentServiceTest {
                 postScoreQueue,
                 eventPublisher,
                 projectionRepository,
-                moderationGuard
+                moderationGuard,
+                socialBlockClient
         );
 
         DiscussPost post = new DiscussPost();
@@ -54,7 +58,6 @@ class CommentServiceTest {
         post.setUserId(2);
         when(postService.getById(100)).thenReturn(post);
 
-        doNothing().when(projectionRepository).assertNotBlocked(anyInt(), anyInt());
         when(sensitiveFilter.filter(any())).thenAnswer(invocation -> invocation.getArgument(0));
         doNothing().when(postScoreQueue).add(anyInt());
         doNothing().when(eventPublisher).publishCommentCreated(any());
@@ -79,11 +82,14 @@ class CommentServiceTest {
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
         UserModerationProjectionRepository projectionRepository = mock(UserModerationProjectionRepository.class);
         UserModerationClient userModerationClient = mock(UserModerationClient.class);
+        SocialBlockClient socialBlockClient = mock(SocialBlockClient.class);
 
         // 投影缺失：触发 bootstrap 回填；但下游不可用时必须 fail-closed 返回 503
         doThrow(new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "处罚状态投影缺失"))
                 .when(projectionRepository)
                 .assertCanSpeak(anyInt());
+        when(projectionRepository.checkEitherBlocked(anyInt(), anyInt()))
+                .thenReturn(UserModerationProjectionRepository.BlockCheck.NOT_BLOCKED);
         doThrow(new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "user-service 不可用"))
                 .when(userModerationClient)
                 .getStatus(anyInt());
@@ -97,7 +103,8 @@ class CommentServiceTest {
                 postScoreQueue,
                 eventPublisher,
                 projectionRepository,
-                moderationGuard
+                moderationGuard,
+                socialBlockClient
         );
 
         DiscussPost post = new DiscussPost();

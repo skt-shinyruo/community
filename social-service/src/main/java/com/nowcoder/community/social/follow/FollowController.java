@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.api.CommonErrorCode.UNAUTHORIZED;
 
 @RestController
 @RequestMapping("/api/follows")
@@ -36,11 +37,8 @@ public class FollowController {
     @PostMapping
     public Result<Void> follow(Authentication authentication, @Valid @RequestBody FollowRequest request) {
         int userId = currentUserId(authentication);
-        if (!EntityTypes.isValid(request.getEntityType())) {
-            throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
-        }
-        if (request.getEntityUserId() == null && request.getEntityType() == ENTITY_TYPE_USER) {
-            request.setEntityUserId(request.getEntityId());
+        if (request.getEntityType() != ENTITY_TYPE_USER) {
+            throw new BusinessException(INVALID_ARGUMENT, "follow 仅支持 USER");
         }
         followService.follow(userId, request);
         return Result.ok();
@@ -49,8 +47,8 @@ public class FollowController {
     @DeleteMapping
     public Result<Void> unfollow(Authentication authentication, @RequestParam int entityType, @RequestParam int entityId) {
         int userId = currentUserId(authentication);
-        if (!EntityTypes.isValid(entityType)) {
-            throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
+        if (entityType != ENTITY_TYPE_USER) {
+            throw new BusinessException(INVALID_ARGUMENT, "unfollow 仅支持 USER");
         }
         followService.unfollow(userId, entityType, entityId);
         return Result.ok();
@@ -59,7 +57,7 @@ public class FollowController {
     @GetMapping("/status")
     public Result<Boolean> status(Authentication authentication, @RequestParam int entityType, @RequestParam int entityId) {
         int userId = currentUserId(authentication);
-        if (!EntityTypes.isValid(entityType)) {
+        if (entityType != ENTITY_TYPE_USER) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
         }
         return Result.ok(followService.hasFollowed(userId, entityType, entityId));
@@ -117,7 +115,7 @@ public class FollowController {
 
     private int currentUserId(Authentication authentication) {
         if (authentication == null || authentication.getPrincipal() == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "未获取到认证信息");
+            throw new BusinessException(UNAUTHORIZED, "未获取到认证信息");
         }
         Jwt jwt = (Jwt) authentication.getPrincipal();
         String sub = jwt.getSubject();

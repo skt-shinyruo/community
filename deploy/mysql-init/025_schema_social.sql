@@ -11,6 +11,19 @@ create table if not exists social_like (
   index idx_like_entity (entity_type, entity_id)
 );
 
+-- social_like 扫描索引（idempotent）：用于按 (entity_type, entity_id, user_id) keyset 分页回填下游投影
+set @idx_like_entity_user := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'social_like'
+    and index_name = 'idx_like_entity_user'
+);
+set @sql := if(@idx_like_entity_user = 0, 'create index idx_like_entity_user on social_like(entity_type, entity_id, user_id)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
 -- 用户获赞数（计数 SSOT）：由写路径在“新增点赞/取消点赞”时原子增减。
 create table if not exists social_user_like_count (
   user_id bigint not null primary key,
@@ -52,3 +65,28 @@ create table if not exists outbox_event (
   unique key uk_outbox_event_id (event_id),
   index idx_outbox_status_next (status, next_retry_at, id)
 );
+
+-- Outbox lease recover / cleanup indexes（idempotent）
+set @idx_outbox_status_updated := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'outbox_event'
+    and index_name = 'idx_outbox_status_updated'
+);
+set @sql := if(@idx_outbox_status_updated = 0, 'create index idx_outbox_status_updated on outbox_event(status, updated_at, id)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
+set @idx_outbox_status_created := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'outbox_event'
+    and index_name = 'idx_outbox_status_created'
+);
+set @sql := if(@idx_outbox_status_created = 0, 'create index idx_outbox_status_created on outbox_event(status, created_at, id)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;

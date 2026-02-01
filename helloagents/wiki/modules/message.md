@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 私信会话列表/详情/发送；通知列表/详情/未读数；Kafka 消费评论/点赞/关注事件写入通知；消费失败重试与 DLQ
 - **Status：** ✅Stable
-- **Last Updated：** 2026-01-23
+- **Last Updated：** 2026-02-01
 
 ## Specifications
 
@@ -21,7 +21,7 @@
 #### Scenario: 发送私信
 前置条件：目标用户存在
 - 私信写入数据库
-  - 发送前通过 `social-service` internal API 校验拉黑关系（命中则拒绝发送）
+  - 发送前校验拉黑关系（双向）：优先查询本地投影；投影缺失时回源 `social-service` internal 关系查询并回填，避免冷启动/漏消息导致的 fail-open 窗口期
 
 ### Requirement: 系统通知
 **Module:** message
@@ -50,8 +50,9 @@
 - 通过 `scripts/kafka-replay-dlq.sh` 在演练/受控窗口回放
 
 ## API Interfaces（现状）
-- `GET /api/messages/conversations`
-- `GET /api/messages/conversations/{conversationId}`
+- `GET /api/messages/conversations`（会话列表，返回 DTO：`LetterItemResponse`）
+- `GET /api/messages/conversations/detail`（会话聚合列表，返回 DTO：`ConversationItemResponse`，包含 targetUser + lastMessage）
+- `GET /api/messages/conversations/{conversationId}`（会话详情，返回 DTO：`LetterItemResponse` 列表）
 - `POST /api/messages`
 - `GET /api/messages/unread-count`
 - `PUT /api/messages/read`
@@ -65,8 +66,10 @@
 
 ## Dependencies
 - user（目标用户信息）
+- social-service internal（拉黑关系 SSOT 查询：投影缺失时回源；并回填 message 投影）
 - infra（Kafka、Security/登录态）
 
 ## Change History
 - 2026-01-18：消费端幂等/事务/ack 正确性修复（insert-first + 同事务提交），并补齐 DLQ 指标/告警与回放脚本。
 - 2026-01-23：私信写路径补齐拉黑校验；通知消费端新增治理事件（moderation topic）支持。
+- 2026-02-01：私信拉黑校验消除 fail-open：投影缺失时回源 social SSOT 并回填；对外私信接口返回 DTO，避免直接暴露实体契约。

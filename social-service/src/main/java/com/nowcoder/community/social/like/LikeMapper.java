@@ -57,4 +57,24 @@ public interface LikeMapper {
             </script>
             """)
     List<Integer> selectLikedEntityIds(@Param("userId") int userId, @Param("entityType") int entityType, @Param("entityIds") List<Integer> entityIds);
+
+    /**
+     * internal 扫描 likes：用于下游投影 backfill（keyset pagination）。
+     *
+     * <p>返回按 (entity_id asc, user_id asc) 排序的边列表。</p>
+     */
+    @Select("""
+            select entity_id as entityId, user_id as userId
+            from social_like
+            where entity_type = #{entityType}
+              and (entity_id > #{afterEntityId} or (entity_id = #{afterEntityId} and user_id > #{afterUserId}))
+            order by entity_id asc, user_id asc
+            limit #{limit}
+            """)
+    List<LikeScanRow> scanLikes(
+            @Param("entityType") int entityType,
+            @Param("afterEntityId") long afterEntityId,
+            @Param("afterUserId") long afterUserId,
+            @Param("limit") int limit
+    );
 }

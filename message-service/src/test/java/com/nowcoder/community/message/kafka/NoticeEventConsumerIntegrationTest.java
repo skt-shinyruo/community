@@ -1,6 +1,7 @@
 package com.nowcoder.community.message.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.common.event.EventTopics;
 import com.nowcoder.community.common.event.EventTypes;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -83,7 +84,21 @@ class NoticeEventConsumerIntegrationTest {
                 .getResponse()
                 .getContentAsString();
 
-        assertThat(resp).contains("e1");
-        assertThat(resp.split("e1", -1).length - 1).isEqualTo(1);
+        JsonNode root = objectMapper.readTree(resp);
+        JsonNode data = root.get("data");
+        assertThat(data).isNotNull();
+
+        int eventIdCount = 0;
+        for (JsonNode n : data) {
+            String content = n.path("content").asText("");
+            if (content.isBlank()) {
+                continue;
+            }
+            JsonNode contentJson = objectMapper.readTree(content);
+            if ("e1".equals(contentJson.path("eventId").asText())) {
+                eventIdCount++;
+            }
+        }
+        assertThat(eventIdCount).isEqualTo(1);
     }
 }

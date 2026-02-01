@@ -120,4 +120,45 @@ class PointsEventConsumerTest {
         User u1 = userMapper.selectById(1);
         assertThat(u1.getScore()).isEqualTo(0);
     }
+
+    @Test
+    void likeRemovedShouldSubtractPointsToEntityUserId() throws Exception {
+        String created = objectMapper.writeValueAsString(Map.of(
+                "eventId", "l3",
+                "type", EventTypes.LIKE_CREATED,
+                "version", 1,
+                "occurredAt", Instant.now().toString(),
+                "producer", "social-service",
+                "payload", Map.of(
+                        "actorUserId", 2,
+                        "entityType", 1,
+                        "entityId", 100,
+                        "entityUserId", 1,
+                        "postId", 100,
+                        "createTime", Instant.now().toString()
+                )
+        ));
+        String removed = objectMapper.writeValueAsString(Map.of(
+                "eventId", "l4",
+                "type", EventTypes.LIKE_REMOVED,
+                "version", 1,
+                "occurredAt", Instant.now().toString(),
+                "producer", "social-service",
+                "payload", Map.of(
+                        "actorUserId", 2,
+                        "entityType", 1,
+                        "entityId", 100,
+                        "entityUserId", 1,
+                        "postId", 100,
+                        "createTime", Instant.now().toString()
+                )
+        ));
+
+        consumer.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k1", created));
+        assertThat(userMapper.selectById(1).getScore()).isEqualTo(1);
+
+        consumer.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 1L, "k1", removed));
+        consumer.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 2L, "k1", removed));
+        assertThat(userMapper.selectById(1).getScore()).isEqualTo(0);
+    }
 }

@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.api.CommonErrorCode.UNAUTHORIZED;
 
 @RestController
 @RequestMapping("/api")
@@ -49,7 +50,7 @@ public class SubscriptionController {
 
     private int currentUserId(Authentication authentication) {
         if (authentication == null || authentication.getPrincipal() == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "未获取到认证信息");
+            throw new BusinessException(UNAUTHORIZED, "未获取到认证信息");
         }
         Jwt jwt = (Jwt) authentication.getPrincipal();
         String sub = jwt.getSubject();
@@ -60,4 +61,3 @@ public class SubscriptionController {
         }
     }
 }
-

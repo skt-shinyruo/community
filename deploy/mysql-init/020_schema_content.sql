@@ -395,6 +395,31 @@ prepare stmt from @sql;
 execute stmt;
 deallocate prepare stmt;
 
+-- Outbox lease recover / cleanup indexes
+set @idx_outbox_status_updated := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'outbox_event'
+    and index_name = 'idx_outbox_status_updated'
+);
+set @sql := if(@idx_outbox_status_updated = 0, 'create index idx_outbox_status_updated on outbox_event(status, updated_at, id)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
+set @idx_outbox_status_created := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'outbox_event'
+    and index_name = 'idx_outbox_status_created'
+);
+set @sql := if(@idx_outbox_status_created = 0, 'create index idx_outbox_status_created on outbox_event(status, created_at, id)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
 -- content-service 本地投影（最终一致）：处罚状态（来自 user-service）与拉黑关系（来自 social-service）
 create table if not exists user_moderation_projection (
   user_id int primary key,

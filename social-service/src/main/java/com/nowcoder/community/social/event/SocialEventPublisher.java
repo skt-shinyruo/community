@@ -8,6 +8,8 @@ public interface SocialEventPublisher {
 
     void publishLikeCreated(LikePayload payload);
 
+    void publishLikeRemoved(LikePayload payload);
+
     void publishFollowCreated(FollowPayload payload);
 
     void publishBlockRelationChanged(BlockPayload payload);

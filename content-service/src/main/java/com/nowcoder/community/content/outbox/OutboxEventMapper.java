@@ -35,4 +35,14 @@ public interface OutboxEventMapper {
     List<Long> selectFailedIds(@Param("limit") int limit);
 
     int markRetryByIds(@Param("ids") List<Long> ids, @Param("now") Date now);
+
+    List<Long> selectStuckSendingIds(@Param("before") Date before, @Param("limit") int limit);
+
+    int markRetrySendingByIds(
+            @Param("ids") List<Long> ids,
+            @Param("now") Date now,
+            @Param("lastError") String lastError
+    );
+
+    int deleteSentBefore(@Param("before") Date before, @Param("limit") int limit);
 }

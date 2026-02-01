@@ -40,6 +40,7 @@
 #### Scenario: 消费事件记账（幂等）
 - 消费 `community.event.post.v1` / `community.event.comment.v1` / `community.event.social.v1`
 - 以 `user_score_log.event_id` 做幂等去重（避免重复消费导致积分膨胀）
+- 对 `LikeRemoved` 做对称处理（扣减积分）以对齐“点赞可逆事件”，避免通过“点赞开关”刷分；积分在 SQL 层做非负保护
 
 #### Scenario: 查询榜单
 - 返回 Top-N 用户（按 score 降序）
@@ -87,3 +88,4 @@
 - 2026-01-18：补齐 user-service -> social-service 同步调用韧性（强制超时、降级返回默认值、指标可观测）。
 - 2026-01-20：新增 `/internal/users/**` 作为身份域 internal API，并在登录成功后对 legacy 密码做渐进 rehash（MD5+salt -> BCrypt）。
 - 2026-01-23：新增成长体系（积分/等级/榜单）与治理落地字段（禁言/封禁），并补齐 internal moderation API 供 content-service 调用。
+- 2026-02-01：积分链路支持 `LikeRemoved` 触发回退，并对 `user.score` 做非负保护（防刷分与边界值安全）。

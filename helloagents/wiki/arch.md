@@ -138,7 +138,7 @@ sequenceDiagram
     U->>FE: 发布帖子
     FE->>GW: POST /api/posts (Authorization: Bearer)
     GW->>CT: 转发请求
-    CT-->>KC: 发布 PostPublished 事件
+    CT-->>KC: 通过 Outbox relay 发布 PostPublished 事件
     KC-->>MS: 消费事件并生成通知
     CT-->>GW: 发布成功
     GW-->>FE: 发布成功
@@ -161,8 +161,12 @@ sequenceDiagram
 - **消费端幂等：** message-service 采用 `consumed_event` 表记录已消费 `eventId`，避免重复通知/重复副作用。
 - **索引重建：** search-service 提供 reindex 能力用于迁移期冷启动与修复（对外运维入口：`/api/ops/search/reindex`；内部入口：`/internal/search/reindex`；历史兼容：`/api/search/internal/reindex`），重建数据通过 content-service 内部 API 拉取。
 
-治理补充（2026-01-28）：
-- **Outbox Pattern（推荐默认开启）：** content-service / social-service 已具备 outbox 表与 relay job，部署侧建议默认开启 outbox，使“DB 提交后事件可重试投递”成为默认安全态；保留开关可回滚到 after-commit 直发。
+治理补充（2026-02-01）：
+- **Outbox Pattern（默认开启）：** content-service / social-service / user-service 默认启用 outbox，使“DB 提交后事件可重试投递”成为默认安全态；保留开关可回滚到 after-commit 直发（应急止血用途）。
+- **点赞一致性（Like 投影 + LikeRemoved）：** social-service 发布 `LikeCreated/LikeRemoved`；content-service 消费并维护 Redis `like:entity:*` 投影，帖子详情与热帖分数使用同一数据源且支持取消点赞回落。
+- **反骚扰一致性（消除 fail-open）：** message/content 在“投影缺失”场景采用“投影优先 + SSOT 回源 + 回填”的策略，避免冷启动/漏消息窗口期绕过拉黑校验。
+- **事件契约可信（信任边界收口）：** social 写路径不再信任客户端注入的 `entityUserId/postId`，改为调用 content internal resolve 生成可信 payload，并校验 entity 存在性，避免脏关系与下游污染。
+- **unknown-handling 对齐：** search-service 等消费者统一采用 `EventEnvelopeParser` + `UnknownEventAction`，降低版本演进时的 DLQ 噪声与阻塞风险。
 - **internal 聚合收敛：** 跨服务聚合展示（例如 user-service 用户主页的获赞/关注/粉丝/是否关注）应优先走 `/internal/**` + `X-Internal-Token`，避免跨服务透传 Authorization 造成鉴权耦合。
 - **gateway analytics 有界化：** 网关侧 UV/DAU 去重仅用于降噪，应使用有界 TTL 缓存（多实例不共享），最终以 analytics-service Redis 去重/聚合为准；并确保采集失败可观测且不影响主业务链路。
 
@@ -181,3 +185,11 @@ sequenceDiagram
 | ADR-007 | 数据拆分策略阶段（共享库 → 独立库） | 2026-01-16 | ✅Adopted | user/content/social/message/search/auth | [Link](../history/2026-01/202601161428_boot3_ms_vue3_nacos/how.md#adr-007-数据拆分策略阶段共享库--独立库) |
 | ADR-008 | P0 选择 After-Commit 而非 Outbox（先止血） | 2026-01-18 | ✅Adopted | common/content/social/message | [Link](../history/2026-01/202601182111_prod_hardening_p0/how.md#adr-008-p0-选择-after-commit-而非-outbox先止血) |
 | ADR-009 | 从仓库主干移除历史单体模块源码（微服务终局） | 2026-01-19 | ✅Adopted | build/knowledge-base | [Link](../history/2026-01/202601191556_remove_legacy_community/how.md) |
+| ADR-010 | Outbox 默认开启（可靠投递作为默认安全态） | 2026-02-01 | ✅Adopted | content/social/user | [Link](../history/2026-02/202602011327_event_consistency_hardening/how.md#adr-010-outbox-默认开启可靠投递作为默认安全态) |
+| ADR-011 | Like 事件契约可逆化（LikeCreated + LikeRemoved） | 2026-02-01 | ✅Adopted | social/content/user/message | [Link](../history/2026-02/202602011327_event_consistency_hardening/how.md#adr-011-like-事件契约可逆化likecreated--likeremoved) |
+| ADR-012 | message 拉黑校验采用“投影优先 + SSOT 回源” | 2026-02-01 | ✅Adopted | message/social | [Link](../history/2026-02/202602011327_event_consistency_hardening/how.md#adr-012-message-service-拉黑校验采用投影优先--ssot-回源) |
+| ADR-013 | 对外 API 禁止直接暴露实体；错误语义统一 | 2026-02-01 | ✅Adopted | message/social/user/content | [Link](../history/2026-02/202602011327_event_consistency_hardening/how.md#adr-013-对外-api-禁止直接暴露实体错误语义统一) |
+| ADR-014 | Outbox relay 采用 lease + 回收机制，避免 SENDING 永久卡死 | 2026-02-01 | ✅Adopted | content/social/user | [Link](../history/2026-02/202602011327_event_consistency_hardening/how.md#adr-014-outbox-relay-采用-lease--回收机制避免-sending-永久卡死) |
+| ADR-015 | 互动写路径拉黑校验统一为“投影优先 + 缺失回源 + 回填” | 2026-02-01 | ✅Adopted | content/message/social | [Link](../history/2026-02/202602011327_event_consistency_hardening/how.md#adr-015-互动写路径的拉黑校验统一为投影优先--缺失回源--回填) |
+| ADR-016 | 社交事件 payload 禁止信任客户端注入字段（服务端解析为准） | 2026-02-01 | ✅Adopted | social/content/user/message | [Link](../history/2026-02/202602011327_event_consistency_hardening/how.md#adr-016-社交事件-payload-禁止信任客户端注入字段服务端解析为准) |
+| ADR-017 | post:score 刷新队列至少一次语义（避免异常丢失） | 2026-02-01 | ✅Adopted | content | [Link](../history/2026-02/202602011327_event_consistency_hardening/how.md#adr-017-postscore-刷新队列至少一次语义避免异常丢失) |

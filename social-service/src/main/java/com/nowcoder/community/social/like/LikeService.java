@@ -1,7 +1,9 @@
 package com.nowcoder.community.social.like;
 
 import com.nowcoder.community.common.event.payload.LikePayload;
+import com.nowcoder.community.common.internal.dto.EntityResolveResponse;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.social.service.ContentServiceClient;
 import com.nowcoder.community.social.event.SocialEventPublisher;
 import com.nowcoder.community.social.like.dto.LikeRequest;
 import com.nowcoder.community.social.like.dto.LikeResponse;
@@ -12,6 +14,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import static com.nowcoder.community.common.domain.EntityTypes.COMMENT;
+import static com.nowcoder.community.common.domain.EntityTypes.POST;
+import static com.nowcoder.community.common.domain.EntityTypes.USER;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
@@ -19,10 +24,12 @@ public class LikeService {
 
     private final LikeRepository likeRepository;
     private final SocialEventPublisher eventPublisher;
+    private final ContentServiceClient contentServiceClient;
 
-    public LikeService(LikeRepository likeRepository, SocialEventPublisher eventPublisher) {
+    public LikeService(LikeRepository likeRepository, SocialEventPublisher eventPublisher, ContentServiceClient contentServiceClient) {
         this.likeRepository = likeRepository;
         this.eventPublisher = eventPublisher;
+        this.contentServiceClient = contentServiceClient;
     }
 
     @Transactional
@@ -44,29 +51,38 @@ public class LikeService {
             // 兼容 set 语义：liked=true/false 代表目标状态（幂等）
             liked = Boolean.TRUE.equals(request.getLiked());
         }
-        Integer entityUserId = request.getEntityUserId();
 
         if (liked) {
             boolean added = likeRepository.addLike(actorUserId, entityType, entityId);
             if (added) {
-                if (entityUserId != null && entityUserId > 0) {
-                    likeRepository.incrementUserLikeCount(entityUserId, 1);
+                ResolvedEntity resolved = resolveEntityForPayload(entityType, entityId);
+                if (resolved.entityUserId > 0) {
+                    likeRepository.incrementUserLikeCount(resolved.entityUserId, 1);
                 }
                 LikePayload payload = new LikePayload();
                 payload.setActorUserId(actorUserId);
                 payload.setEntityType(entityType);
                 payload.setEntityId(entityId);
-                payload.setEntityUserId(entityUserId);
-                payload.setPostId(request.getPostId());
+                payload.setEntityUserId(resolved.entityUserId <= 0 ? null : resolved.entityUserId);
+                payload.setPostId(resolved.postId <= 0 ? null : resolved.postId);
                 payload.setCreateTime(Instant.now());
                 eventPublisher.publishLikeCreated(payload);
             }
         } else {
             boolean removed = likeRepository.removeLike(actorUserId, entityType, entityId);
             if (removed) {
-                if (entityUserId != null && entityUserId > 0) {
-                    likeRepository.incrementUserLikeCount(entityUserId, -1);
+                ResolvedEntity resolved = resolveEntityForPayload(entityType, entityId);
+                if (resolved.entityUserId > 0) {
+                    likeRepository.incrementUserLikeCount(resolved.entityUserId, -1);
                 }
+                LikePayload payload = new LikePayload();
+                payload.setActorUserId(actorUserId);
+                payload.setEntityType(entityType);
+                payload.setEntityId(entityId);
+                payload.setEntityUserId(resolved.entityUserId <= 0 ? null : resolved.entityUserId);
+                payload.setPostId(resolved.postId <= 0 ? null : resolved.postId);
+                payload.setCreateTime(Instant.now());
+                eventPublisher.publishLikeRemoved(payload);
             }
         }
 
@@ -74,6 +90,32 @@ public class LikeService {
         resp.setLiked(likeRepository.isLiked(actorUserId, entityType, entityId));
         resp.setLikeCount(likeRepository.countEntityLikes(entityType, entityId));
         return resp;
+    }
+
+    private ResolvedEntity resolveEntityForPayload(int entityType, int entityId) {
+        if (entityType == USER) {
+            // user 类型的 like（如未来启用）：由 entityId 自洽推导，避免信任客户端注入字段。
+            ResolvedEntity r = new ResolvedEntity();
+            r.entityUserId = entityId;
+            r.postId = 0;
+            return r;
+        }
+        if (entityType == POST || entityType == COMMENT) {
+            EntityResolveResponse resolved = contentServiceClient.resolveEntity(entityType, entityId);
+            if (resolved == null) {
+                throw new BusinessException(INVALID_ARGUMENT, "entity resolve 结果为空");
+            }
+            ResolvedEntity r = new ResolvedEntity();
+            r.entityUserId = resolved.getEntityUserId();
+            r.postId = resolved.getPostId();
+            return r;
+        }
+        throw new BusinessException(INVALID_ARGUMENT, "entityType 不支持");
+    }
+
+    private static class ResolvedEntity {
+        private int entityUserId;
+        private int postId;
     }
 
     public boolean isLiked(int actorUserId, int entityType, int entityId) {

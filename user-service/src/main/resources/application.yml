@@ -74,7 +74,7 @@ user:
   events:
     publisher: kafka
     outbox:
-      enabled: false
+      enabled: true
       relay-enabled: true
       batch-size: 200
       max-retries: 10

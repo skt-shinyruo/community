@@ -6,6 +6,7 @@ import com.nowcoder.community.message.dao.MessageMapper;
 import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.projection.UserModerationProjectionRepository;
 import com.nowcoder.community.message.service.PrivateMessageService;
+import com.nowcoder.community.message.service.SocialServiceClient;
 import com.nowcoder.community.message.service.UserModerationGuard;
 import com.nowcoder.community.message.service.UserServiceClient;
 import com.nowcoder.community.message.service.dto.ConversationStats;
@@ -30,6 +31,7 @@ class MessageControllerTest {
     void conversationItemsShouldBatchUserLookupAndAvoidNPlusOne() {
         MessageMapper messageMapper = mock(MessageMapper.class);
         UserServiceClient userServiceClient = mock(UserServiceClient.class);
+        SocialServiceClient socialServiceClient = mock(SocialServiceClient.class);
         UserModerationProjectionRepository projectionRepository = mock(UserModerationProjectionRepository.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         OwnerGuard ownerGuard = mock(OwnerGuard.class);
@@ -37,6 +39,7 @@ class MessageControllerTest {
         PrivateMessageService service = new PrivateMessageService(
                 messageMapper,
                 userServiceClient,
+                socialServiceClient,
                 projectionRepository,
                 moderationGuard,
                 ownerGuard
@@ -84,4 +87,3 @@ class MessageControllerTest {
         verify(messageMapper, times(1)).selectConversationStats(anyInt(), any());
     }
 }
-

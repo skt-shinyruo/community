@@ -65,3 +65,4 @@
 - 2026-01-19：reindex 从“跨 schema 直读 content 表”升级为“调用 content-service 内部 API 扫描帖子”，支持严格的“每服务仅访问本 schema”。
 - 2026-01-20：索引与搜索联动 taxonomy：ES 文档增加 `categoryId/tags`，`/api/search/posts` 支持 `categoryId/tag` 过滤，前端搜索页可按分类/标签缩小范围。
 - 2026-01-28：search-service 幂等改为 insert-first + 定时清理；reindex 引入 alias/蓝绿切换并支持清理旧索引。
+- 2026-02-01：Kafka consumer 统一使用 `EventEnvelopeParser` + `UnknownEventAction`（unknown type/version 可配置 + 降噪），降低事件契约演进带来的 DLQ 噪声与阻塞风险。

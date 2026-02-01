@@ -1,10 +1,15 @@
 package com.nowcoder.community.content.score;
 
 import com.nowcoder.community.common.event.payload.PostPayload;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.event.ContentEventPublisher;
 import com.nowcoder.community.content.like.LikeQueryService;
 import com.nowcoder.community.content.service.PostService;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tags;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -13,15 +18,19 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 
+import static com.nowcoder.community.common.api.CommonErrorCode.NOT_FOUND;
+
 @Component
 public class PostScoreRefresher {
 
+    private static final Logger log = LoggerFactory.getLogger(PostScoreRefresher.class);
     private static final LocalDateTime EPOCH = LocalDateTime.of(2014, 8, 1, 0, 0);
 
     private final PostScoreQueue scoreQueue;
     private final PostService postService;
     private final LikeQueryService likeQueryService;
     private final ContentEventPublisher eventPublisher;
+    private final MeterRegistry meterRegistry;
 
     private final boolean enabled;
     private final int batchSize;
@@ -31,6 +40,7 @@ public class PostScoreRefresher {
             PostService postService,
             LikeQueryService likeQueryService,
             ContentEventPublisher eventPublisher,
+            MeterRegistry meterRegistry,
             @Value("${content.score.refresh.enabled:true}") boolean enabled,
             @Value("${content.score.refresh.batch-size:200}") int batchSize
     ) {
@@ -38,6 +48,7 @@ public class PostScoreRefresher {
         this.postService = postService;
         this.likeQueryService = likeQueryService;
         this.eventPublisher = eventPublisher;
+        this.meterRegistry = meterRegistry;
         this.enabled = enabled;
         this.batchSize = Math.max(1, Math.min(2000, batchSize));
     }
@@ -52,8 +63,42 @@ public class PostScoreRefresher {
             if (postId == null) {
                 return;
             }
-            refresh(postId);
+            refreshSafely(postId);
         }
+    }
+
+    void refreshSafely(int postId) {
+        int pid = Math.max(0, postId);
+        if (pid <= 0) {
+            meterRegistry.counter("content_post_score_refresh_total", Tags.of("outcome", "drop_invalid")).increment();
+            return;
+        }
+        try {
+            refresh(pid);
+            meterRegistry.counter("content_post_score_refresh_total", Tags.of("outcome", "success")).increment();
+        } catch (BusinessException e) {
+            if (e.getErrorCode() == NOT_FOUND) {
+                // 资源已不存在：认为无需再刷新，直接丢弃（避免死循环）
+                meterRegistry.counter("content_post_score_refresh_total", Tags.of("outcome", "drop_not_found")).increment();
+                return;
+            }
+            meterRegistry.counter("content_post_score_refresh_total", Tags.of("outcome", "failed")).increment();
+            reenqueue(pid, e);
+        } catch (Exception e) {
+            meterRegistry.counter("content_post_score_refresh_total", Tags.of("outcome", "failed")).increment();
+            reenqueue(pid, e);
+        }
+    }
+
+    private void reenqueue(int postId, Exception e) {
+        try {
+            scoreQueue.add(postId);
+            meterRegistry.counter("content_post_score_refresh_total", Tags.of("outcome", "reenqueue")).increment();
+        } catch (Exception ex) {
+            meterRegistry.counter("content_post_score_refresh_total", Tags.of("outcome", "reenqueue_failed")).increment();
+            log.warn("[post-score] re-enqueue failed (postId={}): {}", postId, ex.toString());
+        }
+        log.warn("[post-score] refresh failed, re-enqueued (postId={}): {}", postId, e.toString());
     }
 
     void refresh(int postId) {

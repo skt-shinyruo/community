@@ -10,7 +10,7 @@ social:
   events:
     publisher: kafka
     outbox:
-      enabled: false
+      enabled: true
       relay-enabled: true
       batch-size: 200
       max-retries: 10
@@ -64,3 +64,14 @@ community:
 security:
   jwt:
     hmac-secret: ${JWT_HMAC_SECRET:${AUTH_JWT_HMAC_SECRET:}}
+
+clients:
+  content:
+    base-url: ${CONTENT_SERVICE_BASE_URL:http://content-service}
+    internal-token: ${CONTENT_INTERNAL_TOKEN:}
+    fail-open: false
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true

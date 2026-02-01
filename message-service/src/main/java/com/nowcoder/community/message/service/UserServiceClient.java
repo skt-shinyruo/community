@@ -40,7 +40,7 @@ public class UserServiceClient {
             MeterRegistry meterRegistry,
             @Value("${clients.user.base-url:http://user-service}") String baseUrl,
             @Value("${clients.user.internal-token:}") String internalToken,
-            @Value("${clients.user.fail-open:true}") boolean failOpen
+            @Value("${clients.user.fail-open:false}") boolean failOpen
     ) {
         this.restTemplate = restTemplate;
         this.meterRegistry = meterRegistry;

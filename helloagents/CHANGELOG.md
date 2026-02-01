@@ -17,6 +17,13 @@
 - gateway：新增对外运维入口 `POST /api/ops/search/reindex`（经网关转发到 `/internal/search/reindex`，由下游 internal 保护器执行 break-glass + allowlist + `X-Ops-Token` 校验）。
 - gateway/search-service：补齐 reindex 兼容窗口回归测试（`gateway/GatewaySecurityConfigTest`、`search-service/SearchControllerTest`）。
 - content-service：补齐帖子/评论公共读接口 DTO 字段白名单回归测试，防止治理字段对外泄露。
+- auth-service：新增 `application-dev.yml` 以支持本地/联调冒烟：固定 captcha、可选回传 activation/reset link。
+- deploy：新增 `docker-compose.mailhog.yml`，支持本地以 SMTP 路径演练（模拟 prod fail-closed，不依赖回传 link）。
+- user-service/gateway：新增本地头像上传与访问链路（multipart 上传 + `/files/**` 静态访问路由），并提供 `user.avatar.*` 配置以支持 local/qiniu 存储切换。
+- user-service：新增 batch 用户摘要 API（`POST /api/users/batch-summary`）供 feed 聚合补水，降低 N+1 请求风暴。
+- social-service：新增批量点赞计数/状态 API（`GET /api/likes/counts`、`GET /api/likes/statuses`），配合 feed 批量补水渲染。
+- frontend：feed 列表改为 batch 拉取用户/点赞元信息，并新增 TTL 缓存（60s）；新增 `/#/ops`（Ops Console）与 `/#/admin/users`（用户管理）页面入口。
+- scripts：新增 `bootstrap-admin.sh`（管理员角色初始化/修复）与 `smoke-i1-avatar.sh`（local avatar 上传/读取冒烟）。
 
 ### Changed
 - social-service：存储默认值固化为 DB（SSOT），Redis/Memory 仅显式启用；补齐 storage 模式边界说明。
@@ -27,9 +34,13 @@
 - gateway：显式拒绝 `/internal/**`，并将历史入口 `POST /api/search/internal/reindex` 纳入弃用窗口（`Deprecation: true`，引导迁移到 `/api/ops/**`）。
 - deploy/mysql-init：补齐 identity（user-service）账号最小权限 grant；compose 透传 `USER_DB_USERNAME/USER_DB_PASSWORD` 供初始化脚本创建账号。
 - deploy/nacos-config：content-service datasource 默认指向 `community_content`，并使用 `CONTENT_DB_USERNAME/CONTENT_DB_PASSWORD`（不再复用 `MYSQL_USER/MYSQL_PASSWORD`）。
+- auth-service：prod profile 启动校验升级为 fail-closed：禁止回传 activation/reset link、强制 mail.enabled=true 且校验 `spring.mail.host`/`activationBaseUrl` 等关键配置。
+- frontend：注册/找回密码在不回传 link 时给出更清晰提示；reindex UI 对齐后端字段（`indexedCount/jobId`）并支持透传 `X-Ops-Token`。
+- user-service：管理员角色变更改为显式 `reason + confirm`，并禁止管理员自降级以避免锁死；设置页头像上传逻辑兼容 local/qiniu 两种 provider。
 
 ### Fixed
 - gateway：统计采集去重改为有界 TTL 缓存，并补齐对 analytics 内部调用的 traceId 透传。
+- frontend：修复 search reindex 进度展示误用 `count` 字段的问题（改用 `indexedCount`）。
 
 ## [0.0.2] - 2026-01-28
 

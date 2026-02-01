@@ -6,6 +6,8 @@ import com.nowcoder.community.user.entity.User;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.List;
+
 import static com.nowcoder.community.common.api.CommonErrorCode.NOT_FOUND;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
 
@@ -39,5 +41,12 @@ public class UserService {
 
     public void updateHeaderUrl(int userId, String headerUrl) {
         userMapper.updateHeader(userId, headerUrl);
+    }
+
+    public List<User> listUserSummariesByIds(List<Integer> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return userMapper.selectUserSummariesByIds(ids);
     }
 }

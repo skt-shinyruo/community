@@ -23,11 +23,51 @@
    - 必填项：`SPRING_PROFILES_ACTIVE`（本地建议 `dev`；生产必须 `prod`）
    - 必填项：`JWT_HMAC_SECRET`（>=32 bytes）、各服务 internal token（`USER_INTERNAL_TOKEN`/`CONTENT_INTERNAL_TOKEN`/`SOCIAL_INTERNAL_TOKEN`/`SEARCH_INTERNAL_TOKEN`/`ANALYTICS_INTERNAL_TOKEN`）
    - 说明：本项目默认不再使用全局 `INTERNAL_TOKEN` 兜底，避免 token 泄露扩大爆炸半径
+   - 用户体验闭环（dev 推荐）：`AUTH_EXPOSE_ACTIVATION_LINK=true`、`AUTH_EXPOSE_RESET_LINK=true`（无 SMTP 也能跑通注册/找回密码）
+   - 头像自托管（dev 默认）：`USER_AVATAR_STORAGE=local` + `USER_FILES_BASE_DIR=/data/files` + `USER_PUBLIC_BASE_URL=http://localhost:12881`
 2. 启动全栈（含前端与网关端口暴露）：
    - `docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.frontend-direct.yml --env-file deploy/.env up -d --build`
 3. 访问：
    - 前端：`http://localhost:12881`
    - API（gateway）：`http://localhost:12882`
+
+## Onboarding：注册/激活/找回密码闭环（自托管友好）
+
+### dev（无 SMTP 也可用）
+- 默认 `SPRING_PROFILES_ACTIVE=dev` 时：
+  - 注册会回传 `activationLink`（前端注册页可直接打开激活页）
+  - 找回密码会回传 `resetLink`（前端找回密码页可直接打开重置页）
+- `deploy/.env.example` 已默认开启：
+  - `AUTH_EXPOSE_ACTIVATION_LINK=true`
+  - `AUTH_EXPOSE_RESET_LINK=true`
+
+> 提示：dev profile 下验证码固定为 `0000`（用于冒烟/联调），对应脚本见 `scripts/smoke-i0-auth.sh`（设置 `SMOKE_ONBOARDING=true`）。
+
+### staging/演练（更贴近生产体验）
+使用 MailHog 接收邮件，并关闭 link 回传（建议）：
+- 启动（追加 overlay）：  
+  - `docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.frontend-direct.yml -f deploy/docker-compose.mailhog.yml --env-file deploy/.env up -d --build`
+- 访问 MailHog UI：`http://localhost:8025`（查看激活/重置邮件）
+
+### prod（默认安全态，fail-closed）
+- `prod` 环境默认：
+  - 禁止回传 `activationLink/resetLink`
+  - 必须启用 SMTP 邮件发送（否则会导致敏感链接落到日志/或用户无法完成闭环）
+- `common` 的 `StartupValidation` 会在 `prod` profile 下做强校验（不满足则阻断启动）。
+
+## 角色与运维入口
+
+### Ops Console（仅管理员）
+- 前端入口：`http://localhost:12881/#/ops`
+- 需要管理员权限（ROLE_ADMIN）；执行 reindex 等高风险动作通常需要额外 `X-Ops-Token` + allowlist + enabled（break-glass）。
+
+### 用户管理（仅管理员）
+- 前端入口：`http://localhost:12881/#/admin/users`
+- 支持搜索用户并授予/回收角色（USER/MODERATOR/ADMIN），要求填写 reason，且禁止自降级避免锁死管理入口。
+
+### 无管理员时的 bootstrap
+- 可用脚本直连 MySQL 修改 user.type：`scripts/bootstrap-admin.sh`
+  - 示例：`./scripts/bootstrap-admin.sh --username aaa --set admin --reason "initial bootstrap"`
 
 ### 可选：使用本地 Vite dev（HMR），默认端口 12881（可改）
 > 说明：默认推荐保持 `12881`，避免 `Origin` allowlist 与端口漂移导致 403；若改为其它端口，需要同步调整 gateway allowlist（CORS + OriginGuard）。

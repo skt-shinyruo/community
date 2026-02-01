@@ -43,6 +43,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.datasource.username=sa",
         "spring.datasource.password=",
         "security.jwt.hmac-secret=test-jwt-secret-please-change-at-least-32bytes",
+        "user.avatar.storage=qiniu",
         "qiniu.key.access=test-ak",
         "qiniu.key.secret=test-sk",
         "qiniu.bucket.header.name=test-bucket",

@@ -21,6 +21,8 @@ import FollowersView from '../views/FollowersView.vue'
 import BookmarksView from '../views/BookmarksView.vue'
 import LeaderboardView from '../views/LeaderboardView.vue'
 import ModerationView from '../views/ModerationView.vue'
+import OpsConsoleView from '../views/OpsConsoleView.vue'
+import UserManagementView from '../views/UserManagementView.vue'
 import ForbiddenView from '../views/ForbiddenView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 
@@ -151,6 +153,30 @@ const router = createRouter({
         navGroup: 'admin',
         requiresAuth: true,
         roles: ['ROLE_ADMIN', 'ROLE_MODERATOR']
+      }
+    },
+    {
+      path: '/ops',
+      name: 'opsConsole',
+      component: OpsConsoleView,
+      meta: {
+        title: 'Ops Console',
+        subtitle: '高风险运维入口',
+        navGroup: 'admin',
+        requiresAuth: true,
+        roles: ['ROLE_ADMIN']
+      }
+    },
+    {
+      path: '/admin/users',
+      name: 'userManagement',
+      component: UserManagementView,
+      meta: {
+        title: '用户管理',
+        subtitle: '授予/回收角色（仅管理员）',
+        navGroup: 'admin',
+        requiresAuth: true,
+        roles: ['ROLE_ADMIN']
       }
     },
     {

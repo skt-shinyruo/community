@@ -145,3 +145,34 @@ export async function countFollowers(userId, { entityType = 3 } = {}) {
   const { data, traceId } = unwrapResultBody(resp.data, '查询粉丝数')
   return { data: Number(data || 0), traceId }
 }
+
+function normalizeEntityIds(entityIds, { max = 200 } = {}) {
+  const raw = Array.isArray(entityIds) ? entityIds : []
+  const dedup = []
+  const seen = new Set()
+  for (const id of raw) {
+    const v = Number(id || 0)
+    if (!v || v <= 0) continue
+    if (seen.has(v)) continue
+    seen.add(v)
+    dedup.push(v)
+    if (dedup.length >= max) break
+  }
+  return dedup
+}
+
+export async function getLikeCounts(entityType, entityIds) {
+  const ids = normalizeEntityIds(entityIds)
+  if (ids.length === 0) return { data: {}, traceId: '' }
+  const resp = await http.get('/api/likes/counts', { params: { entityType, entityIds: ids.join(',') } })
+  const { data, traceId } = unwrapResultBody(resp.data, '批量查询点赞数')
+  return { data: data && typeof data === 'object' ? data : {}, traceId }
+}
+
+export async function getLikeStatuses(entityType, entityIds) {
+  const ids = normalizeEntityIds(entityIds)
+  if (ids.length === 0) return { data: {}, traceId: '' }
+  const resp = await http.get('/api/likes/statuses', { params: { entityType, entityIds: ids.join(',') } })
+  const { data, traceId } = unwrapResultBody(resp.data, '批量查询点赞状态')
+  return { data: data && typeof data === 'object' ? data : {}, traceId }
+}

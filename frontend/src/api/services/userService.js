@@ -37,3 +37,25 @@ export async function resolveUserByUsername(username) {
   const { data, traceId } = unwrapResultBody(resp.data, '按用户名查询用户')
   return { ...data, _traceId: traceId }
 }
+
+export async function batchUserSummary(userIds) {
+  const raw = Array.isArray(userIds) ? userIds : []
+  const dedup = []
+  const seen = new Set()
+  for (const id of raw) {
+    const uid = Number(id || 0)
+    if (!uid || uid <= 0) continue
+    if (seen.has(uid)) continue
+    seen.add(uid)
+    dedup.push(uid)
+    if (dedup.length >= 200) break
+  }
+
+  if (dedup.length === 0) {
+    return { data: [], traceId: '' }
+  }
+
+  const resp = await http.post('/api/users/batch-summary', { userIds: dedup })
+  const { data, traceId } = unwrapResultBody(resp.data, '批量用户摘要')
+  return { data: Array.isArray(data) ? data : [], traceId }
+}

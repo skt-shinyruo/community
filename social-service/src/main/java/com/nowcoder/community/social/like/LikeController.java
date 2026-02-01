@@ -16,6 +16,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
 
 @RestController
@@ -58,6 +63,25 @@ public class LikeController {
         return Result.ok(likeService.count(entityType, entityId));
     }
 
+    @GetMapping("/counts")
+    public Result<Map<Integer, Long>> counts(@RequestParam int entityType, @RequestParam String entityIds) {
+        if (!EntityTypes.isValid(entityType)) {
+            throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
+        }
+        List<Integer> ids = parseEntityIds(entityIds, 200);
+        return Result.ok(likeService.counts(entityType, ids));
+    }
+
+    @GetMapping("/statuses")
+    public Result<Map<Integer, Boolean>> statuses(Authentication authentication, @RequestParam int entityType, @RequestParam String entityIds) {
+        int userId = currentUserId(authentication);
+        if (!EntityTypes.isValid(entityType)) {
+            throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
+        }
+        List<Integer> ids = parseEntityIds(entityIds, 200);
+        return Result.ok(likeService.statuses(userId, entityType, ids));
+    }
+
     @GetMapping("/users/{userId}/count")
     public Result<Long> userLikeCount(@PathVariable int userId) {
         return Result.ok(likeService.userLikeCount(userId));
@@ -74,5 +98,37 @@ public class LikeController {
         } catch (Exception e) {
             throw new BusinessException(INVALID_ARGUMENT, "token subject 非法");
         }
+    }
+
+    private List<Integer> parseEntityIds(String raw, int limit) {
+        if (raw == null) {
+            return List.of();
+        }
+        String trimmed = raw.trim();
+        if (trimmed.isEmpty()) {
+            return List.of();
+        }
+
+        LinkedHashSet<Integer> set = new LinkedHashSet<>();
+        for (String part : trimmed.split(",")) {
+            if (set.size() >= Math.max(1, limit)) {
+                break;
+            }
+            String p = part == null ? "" : part.trim();
+            if (p.isEmpty()) {
+                continue;
+            }
+            try {
+                int id = Integer.parseInt(p);
+                if (id > 0) {
+                    set.add(id);
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        if (set.isEmpty()) {
+            return List.of();
+        }
+        return new ArrayList<>(set);
     }
 }

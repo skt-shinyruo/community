@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
 
@@ -93,5 +95,22 @@ public class LikeService {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         return likeRepository.getUserLikeCount(userId);
+    }
+
+    public Map<Integer, Long> counts(int entityType, List<Integer> entityIds) {
+        if (entityType <= 0) {
+            throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
+        }
+        return likeRepository.countEntityLikesBatch(entityType, entityIds);
+    }
+
+    public Map<Integer, Boolean> statuses(int actorUserId, int entityType, List<Integer> entityIds) {
+        if (actorUserId <= 0) {
+            throw new BusinessException(INVALID_ARGUMENT, "actorUserId 非法");
+        }
+        if (entityType <= 0) {
+            throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
+        }
+        return likeRepository.likedStatusesBatch(actorUserId, entityType, entityIds);
     }
 }

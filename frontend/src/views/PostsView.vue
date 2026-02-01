@@ -326,12 +326,12 @@ import UiBadge from '../components/ui/UiBadge.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import FeedToolbar from '../components/posts/FeedToolbar.vue'
 import { listPosts, createPost as apiCreatePost } from '../api/services/postService'
-import { getUserProfile } from '../api/services/userService'
-import { getLikeCount, getLikeStatus, setLike } from '../api/services/socialService'
+import { setLike } from '../api/services/socialService'
 import { suggestTags as apiSuggestTags } from '../api/services/taxonomyService'
 import { formatTime, formatTimeAgo } from '../utils/time'
 import { getPostReadAt, getPostsListBaselineAt, markPostRead, touchPostsListSeen } from '../utils/readTracker'
 import { useTaxonomyStore } from '../stores/taxonomy'
+import { usePostMetaCacheStore } from '../stores/postMetaCache'
 import {
   POSTS_FILTER,
   POSTS_FILTER_OPTIONS,
@@ -351,6 +351,7 @@ const route = useRoute()
 const router = useRouter()
 const authed = computed(() => !!auth.accessToken)
 const me = computed(() => auth.me || {})
+const postMetaCache = usePostMetaCacheStore()
 
 const order = computed(() => normalizePostsOrder(route.query?.order))
 const filter = computed(() => normalizePostsFilter(route.query?.type))
@@ -664,36 +665,79 @@ function openPost(p) {
   router.push({ name: 'postDetail', params: { postId: String(p.id) } })
 }
 
-async function hydratePostMeta(p) {
-  if (!p) return
-  const userId = Number(p?.userId || 0)
-  const postId = Number(p?.id || 0)
-  const lastReplyUserId = Number(p?.lastReplyUserId || 0)
+function collectBatchIds(list) {
+  const userIds = []
+  const postIds = []
+  const seenUsers = new Set()
+  const seenPosts = new Set()
 
-  const [author, like, liked, lastReplyAuthor] = await Promise.all([
-    userId ? getUserProfile(userId).catch(() => null) : Promise.resolve(null),
-    postId ? getLikeCount(1, postId).catch(() => ({ data: 0 })) : Promise.resolve({ data: 0 }),
-    authed.value && postId ? getLikeStatus(1, postId).catch(() => ({ data: false })) : Promise.resolve({ data: false }),
-    lastReplyUserId > 0 ? getUserProfile(lastReplyUserId).catch(() => null) : Promise.resolve(null)
-  ])
+  for (const p of Array.isArray(list) ? list : []) {
+    const uid = Number(p?.userId || 0)
+    const lr = Number(p?.lastReplyUserId || 0)
+    const pid = Number(p?.id || 0)
 
-  p.author = author
-  p.likeCount = Number(like?.data || 0)
-  p.liked = !!liked?.data
-  p.lastReplyAuthor = lastReplyAuthor || null
+    if (uid > 0 && !seenUsers.has(uid)) {
+      seenUsers.add(uid)
+      userIds.push(uid)
+    }
+    if (lr > 0 && !seenUsers.has(lr)) {
+      seenUsers.add(lr)
+      userIds.push(lr)
+    }
+    if (pid > 0 && !seenPosts.has(pid)) {
+      seenPosts.add(pid)
+      postIds.push(pid)
+    }
+
+    // 后端建议 max=200，这里前置截断，避免请求体/URL 过大。
+    if (userIds.length >= 200 && postIds.length >= 200) break
+  }
+  return { userIds, postIds }
 }
 
-async function runPool(tasks, limit, token) {
-  const queue = Array.isArray(tasks) ? [...tasks] : []
-  const workers = Array.from({ length: Math.max(1, Number(limit || 1)) }).map(async () => {
-    while (queue.length > 0) {
-      if (token !== lastLoadToken) return
-      const fn = queue.shift()
-      if (typeof fn !== 'function') continue
-      await fn()
+async function hydrateBatch(list, token) {
+  if (!Array.isArray(list) || list.length === 0) return
+
+  const { userIds, postIds } = collectBatchIds(list)
+  let users = {}
+  let counts = {}
+  let statuses = {}
+
+  try {
+    users = await postMetaCache.ensureUserSummaries(userIds)
+  } catch {
+    users = {}
+  }
+  try {
+    counts = await postMetaCache.ensureLikeCounts(1, postIds)
+  } catch {
+    counts = {}
+  }
+  if (authed.value) {
+    try {
+      statuses = await postMetaCache.ensureLikeStatuses(1, postIds)
+    } catch {
+      statuses = {}
     }
-  })
-  await Promise.all(workers)
+  }
+
+  if (token !== lastLoadToken) return
+
+  for (const p of list) {
+    if (!p) continue
+    const uid = Number(p?.userId || 0)
+    const lr = Number(p?.lastReplyUserId || 0)
+    const pid = Number(p?.id || 0)
+
+    p.author = users?.[uid] || null
+    p.lastReplyAuthor = lr > 0 ? (users?.[lr] || null) : null
+
+    const likeCount = counts?.[pid]
+    p.likeCount = typeof likeCount === 'number' ? likeCount : 0
+
+    const liked = statuses?.[pid]
+    p.liked = !!liked
+  }
 }
 
 function scheduleHydrate(list, token) {
@@ -702,8 +746,7 @@ function scheduleHydrate(list, token) {
   // 让首屏先渲染：异步补水作者/点赞数，避免阻塞列表展示。
   setTimeout(() => {
     if (token !== lastLoadToken) return
-    const tasks = list.map((p) => () => hydratePostMeta(p))
-    runPool(tasks, 6, token)
+    hydrateBatch(list, token)
   }, 0)
 }
 
@@ -805,8 +848,14 @@ async function togglePostLike(p) {
       liked: null
     })
      emit('trace', resp?.traceId || '')
-     if (typeof resp?.data?.likeCount === 'number') p.likeCount = resp.data.likeCount
-     if (typeof resp?.data?.liked === 'boolean') p.liked = resp.data.liked
+     if (typeof resp?.data?.likeCount === 'number') {
+       p.likeCount = resp.data.likeCount
+       postMetaCache.setLikeCount(1, Number(p.id), p.likeCount)
+     }
+     if (typeof resp?.data?.liked === 'boolean') {
+       p.liked = resp.data.liked
+       postMetaCache.setLikeStatus(1, Number(p.id), p.liked)
+     }
   } catch (e) {
     showToast({ type: 'error', text: e?.message || '点赞失败' })
   }
@@ -850,6 +899,20 @@ async function createPost() {
     creating.value = false
   }
 }
+
+watch(
+  () => auth.accessToken,
+  () => {
+    // 点赞状态与登录态相关：切换账号/退出登录时清理缓存并刷新 UI。
+    postMetaCache.clearLikeStatuses()
+    if (!authed.value) {
+      for (const p of Array.isArray(items.value) ? items.value : []) {
+        if (p) p.liked = false
+      }
+    }
+    scheduleHydrate(items.value, lastLoadToken)
+  }
+)
 
 watch([order, filter, subscribed, categoryId, tag], () => {
   newHintDismissed.value = false

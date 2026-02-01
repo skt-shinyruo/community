@@ -130,7 +130,7 @@
 
 ### 7.7 Discourse-like topic list（列布局 / 未读 / 最后回复）
 - 列布局：`PostsView.vue` 使用 topic list 四列布局（Title / Replies / Likes / Activity），包含表头（`topic-head`），更接近 Discourse 的扫读体验。
-- 最后回复：列表的 Activity 列展示“最后回复人 + 时间”，用户信息复用 `getUserProfile` 缓存；时间展示使用 `formatTimeAgo`（`frontend/src/utils/time.js`）。
+- 最后回复：列表的 Activity 列展示“最后回复人 + 时间”；列表补水采用 batch API（用户摘要/点赞计数/点赞状态）并使用 TTL 缓存（`frontend/src/stores/postMetaCache.js`）。
 - 未读提示（轻量版）：
   - 不依赖后端“已读时间线”，使用本地 `localStorage` 追踪（键：`community.read.posts.v1`，实现：`frontend/src/utils/readTracker.js`）。
   - 列表首次访问不强制全量未读；后续根据 `lastActivityTime` 与本地 `readAt/baseline` 比较决定是否显示未读点。
@@ -156,15 +156,21 @@
 - `PostsView.vue`：
   - `GET /api/posts`（分页；支持 `categoryId/tag` 过滤）+ `POST /api/posts`（支持 `categoryId/tags[]`）
   - taxonomy：`GET /api/categories`（分类下拉/列表映射）、`GET /api/tags/hot`（热门标签）、`GET /api/tags/suggest`（标签自动补全）
-  - 作者信息来自 `/api/users/{userId}`；点赞数来自 `/api/likes/count`。
+  - 列表补水预算（建议 3~4 个请求/次）：
+    - `POST /api/users/batch-summary`
+    - `GET /api/likes/counts`
+    - `GET /api/likes/statuses`（仅登录态）
+    - 前端缓存：`frontend/src/stores/postMetaCache.js`（TTL=60s）
 - `PostDetailView.vue`：帖子详情 + taxonomy（分类/标签跳转过滤） + 点赞/关注 + 评论/回复树；管理员/版主可执行 `/api/posts/{postId}/top|wonderful|delete`（二次确认）。
 - `UserProfileView.vue`：用户主页（含获赞/关注/粉丝统计）+ 关注/取关 + 关注/粉丝列表入口。
 - `FolloweesView.vue` / `FollowersView.vue`：关注/粉丝列表（分页 + 用户摘要 + 关注状态）。
 - `ConversationsView.vue` / `ConversationDetailView.vue`：私信会话与详情（分页 + 已读）。
 - `NoticesView.vue` / `NoticeDetailView.vue`：通知汇总与详情（分页 + 已读）。
-- `SearchView.vue`：搜索与高亮；支持分类/标签过滤（`/api/search/posts?keyword&categoryId&tag`）；标签输入支持 `tags suggest`；管理员重建索引带确认弹窗。
+- `SearchView.vue`：搜索与高亮；支持分类/标签过滤（`/api/search/posts?keyword&categoryId&tag`）；管理员重建索引支持输入 `X-Ops-Token`（`POST /api/ops/search/reindex`）。
 - `AnalyticsView.vue`：UV/DAU 查询（管理员/版主）。
-- `SettingsView.vue`：头像上传 token（七牛）与回写。
+- `SettingsView.vue`：头像上传（local/qiniu）与回写。
+- `OpsConsoleView.vue`：运维控制台（仅管理员）：集中高风险动作并提供配置引导。
+- `UserManagementView.vue`：用户管理（仅管理员）：搜索用户并修改角色（USER/MODERATOR/ADMIN）。
 
 ## 6. 本地运行（示例）
 - 安装依赖：`npm -C frontend ci`

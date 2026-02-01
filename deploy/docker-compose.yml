@@ -272,9 +272,10 @@ services:
       - AUTH_REFRESH_COOKIE_SAME_SITE=${AUTH_REFRESH_COOKIE_SAME_SITE:-Lax}
       - AUTH_REDIS_HOST=redis
       - AUTH_REDIS_PORT=6379
-      - AUTH_ACTIVATION_BASE_URL=http://localhost:12881
-      - AUTH_MAIL_ENABLED=false
+      - AUTH_ACTIVATION_BASE_URL=${AUTH_ACTIVATION_BASE_URL:-http://localhost:12881}
+      - AUTH_MAIL_ENABLED=${AUTH_MAIL_ENABLED:-false}
       - AUTH_EXPOSE_ACTIVATION_LINK=${AUTH_EXPOSE_ACTIVATION_LINK:-false}
+      - AUTH_EXPOSE_RESET_LINK=${AUTH_EXPOSE_RESET_LINK:-false}
     depends_on:
       redis:
         condition: service_healthy
@@ -305,7 +306,12 @@ services:
       - QINIU_SECRET_KEY=${QINIU_SECRET_KEY:-}
       - QINIU_BUCKET_HEADER_NAME=${QINIU_BUCKET_HEADER_NAME:-}
       - QINIU_BUCKET_HEADER_URL=${QINIU_BUCKET_HEADER_URL:-}
+      - USER_AVATAR_STORAGE=${USER_AVATAR_STORAGE:-local}
+      - USER_FILES_BASE_DIR=${USER_FILES_BASE_DIR:-/data/files}
+      - USER_PUBLIC_BASE_URL=${USER_PUBLIC_BASE_URL:-http://localhost:12881}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    volumes:
+      - user_files:/data/files
     depends_on:
       mysql:
         condition: service_healthy
@@ -466,6 +472,7 @@ services:
 volumes:
   mysql_data: {}
   redis_data: {}
+  user_files: {}
   zookeeper_data: {}
   zookeeper_log: {}
   kafka_data: {}

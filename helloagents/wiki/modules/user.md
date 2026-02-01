@@ -4,9 +4,9 @@
 提供用户资料、个人主页与头像设置能力，并作为 **身份域 SSOT** 提供 internal 鉴权能力（供 auth-service 调用）。
 
 ## Module Overview
-- **Responsibility：** 用户资料查询；个人主页展示所需数据；头像上传（七牛）与头像 URL 回写；internal 身份鉴权/注册/激活/密码更新接口
+- **Responsibility：** 用户资料查询；个人主页展示所需数据；头像上传（local/qiniu）与头像 URL 回写；internal 身份鉴权/注册/激活/密码更新接口；管理员用户角色管理
 - **Status：** ✅Stable
-- **Last Updated：** 2026-01-23
+- **Last Updated：** 2026-02-01
 
 ## Specifications
 
@@ -24,12 +24,14 @@
 
 ### Requirement: 用户头像设置
 **Module:** user
-通过对象存储（七牛）更新头像。
+支持可插拔存储（默认 local filesystem，自托管友好；可选 qiniu）。
 
 #### Scenario: 获取上传凭证并更新头像 URL
 前置条件：用户已登录
-- 返回上传 token 与 fileName
-- 上传完成后更新用户头像 URL
+- 返回 provider + fileName，以及不同 provider 的上传契约：
+  - local：返回 uploadUrl/uploadMethod（服务端接收 multipart 并落盘）
+  - qiniu：返回 uploadToken/bucketUrl（客户端直传）
+- 上传完成后调用 `PUT /api/users/{userId}/avatar` 写入 header_url
 
 ### Requirement: 成长体系（积分/等级/榜单）
 **Module:** user
@@ -50,7 +52,13 @@
 - `GET /api/users/{userId}`（公开；返回增加 `score/level`）
 - `GET /api/users/leaderboard?limit=`（公开；Top 用户榜单）
 - `GET /api/users/{userId}/avatar/upload-token`（需要登录，仅本人）
+- `POST /api/users/{userId}/avatar/upload`（需要登录，仅本人；local provider）
 - `PUT /api/users/{userId}/avatar`（需要登录，仅本人，写入 header_url）
+- `POST /api/users/batch-summary`（公开；仅返回公开字段，用于 Feed 聚合读避免 N+1）
+- `GET /files/**`（公开；仅 local provider 生效，限制 avatar 前缀并防路径穿越）
+- admin（仅管理员，JWT ROLE_ADMIN）：
+  - `GET /api/users/admin/search?userId=&username=&email=`（搜索用户）
+  - `POST /api/users/admin/role`（修改用户 type：USER/ADMIN/MODERATOR，要求 reason+confirm）
 - internal（仅服务间调用，要求 `X-Internal-Token`，不走 JWT）：
   - `POST /internal/users/authenticate`
   - `GET /internal/users/{userId}/session-profile`
@@ -72,7 +80,7 @@
 - social（关注/粉丝关系）
 - kafka（消费内容/社交事件以生成积分）
 - infra（登录态/权限控制）
-- external: Qiniu
+- external: Qiniu（可选）
 - auth-service（通过 internal API 调用 user-service 作为身份域 SSOT）
 
 ## Change History

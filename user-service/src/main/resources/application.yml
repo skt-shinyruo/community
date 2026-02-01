@@ -67,6 +67,10 @@ qiniu:
 
 user:
   internal-token: ${USER_INTERNAL_TOKEN:}
+  avatar:
+    storage: ${USER_AVATAR_STORAGE:local}
+    files-base-dir: ${USER_FILES_BASE_DIR:/tmp/community-files}
+    public-base-url: ${USER_PUBLIC_BASE_URL:http://localhost:12881}
   events:
     publisher: kafka
     outbox:

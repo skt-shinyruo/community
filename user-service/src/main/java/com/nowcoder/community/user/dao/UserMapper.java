@@ -25,6 +25,8 @@ public interface UserMapper {
 
     int updatePassword(int id, String password);
 
+    int updateType(@Param("id") int id, @Param("type") int type);
+
     int updateModerationUntil(int id, java.util.Date muteUntil, java.util.Date banUntil);
 
     /**

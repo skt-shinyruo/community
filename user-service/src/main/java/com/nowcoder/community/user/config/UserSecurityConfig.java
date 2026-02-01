@@ -93,7 +93,13 @@ public class UserSecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS).permitAll()
                         // 内部接口不走 JWT，依赖 X-Internal-Token 进行保护
                         .requestMatchers("/internal/users/**").permitAll()
+                        // 头像公开资源（local provider）：允许匿名读取
+                        .requestMatchers(HttpMethod.GET, "/files/**").permitAll()
+                        // 管理员入口：用户角色管理（必须在服务侧强制 ADMIN）
+                        .requestMatchers("/api/users/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/users/*").permitAll()
+                        // Feed 聚合读：批量用户摘要（仅公开字段）
+                        .requestMatchers(HttpMethod.POST, "/api/users/batch-summary").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())))

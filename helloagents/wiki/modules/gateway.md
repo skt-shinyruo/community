@@ -30,6 +30,7 @@
 - `/api/likes/**`、`/api/follows/**` -> `lb://social-service`
 - `/api/blocks/**` -> `lb://social-service`
 - `/api/users/**` -> `lb://user-service`
+- `/files/**` -> `lb://user-service`（头像等公开文件访问，local provider）
 - `/api/posts/**` -> `lb://content-service`
 - `/api/reports/**`、`/api/moderation/**` -> `lb://content-service`
 - `/api/bookmarks/**`、`/api/subscriptions/**` -> `lb://content-service`
@@ -55,6 +56,7 @@
 - 401/403/429/503 等错误响应统一回填 `traceId`（响应体 `Result.traceId` + 响应头 `X-Trace-Id/traceparent`）。
 - 审计日志：gateway 记录非 GET 的 `/api/**` 操作（跳过 `/api/auth/login`），包含 `status/costMs/userId/traceId`，用于 Loki/日志系统检索。
 - 权限矩阵：治理后台接口 `/api/moderation/**` 仅允许 `ROLE_ADMIN/ROLE_MODERATOR`（其余用户返回 403）。
+- 文件访问：`GET /files/**` 允许匿名访问，但仅用于公开头像资源（下游 user-service 仍会做前缀与路径校验）。
 - UV/DAU 采集链路：网关侧仅做“有界降噪”（TTL + 最大容量），最终以 analytics-service Redis 去重/聚合为准；网关调用 analytics-service 时会透传 `X-Trace-Id/traceparent` 便于排障。
 
 ## 6. 常见问题排查

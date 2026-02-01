@@ -132,7 +132,11 @@ async function onRequestReset() {
     })
     emit('trace', traceId || '')
     debugResetLink.value = data?.resetLink || ''
-    successMsg.value = data?.issued ? '已提交：若邮箱存在，将发送重置方式。' : '提交失败'
+    if (debugResetLink.value) {
+      successMsg.value = '已生成本地/测试重置链接（见下方），请继续完成重置。'
+    } else {
+      successMsg.value = data?.issued ? '已提交：若邮箱存在，将发送重置邮件；若长时间未收到，请联系管理员。' : '提交失败'
+    }
     await refreshCaptcha()
   } catch (e) {
     error.value = e?.message || '提交失败'

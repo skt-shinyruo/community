@@ -123,7 +123,11 @@ async function onRegister() {
     emit('trace', traceId || '')
     resultUserId.value = data?.userId ?? 0
     activationLink.value = data?.activationLink || ''
-    successMsg.value = '注册成功，请前往邮箱完成激活'
+    if (activationLink.value) {
+      successMsg.value = '注册成功：请使用下方链接完成激活（仅本地/测试环境回传）。'
+    } else {
+      successMsg.value = '注册成功：请前往邮箱完成激活；若长时间未收到邮件，请联系管理员。'
+    }
   } catch (e) {
     error.value = e?.message || '注册失败'
     if (e?.code === 10006 || e?.code === 10005) {

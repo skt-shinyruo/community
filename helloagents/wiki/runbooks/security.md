@@ -27,3 +27,74 @@
 - [ ] internal OPS 运维入口具备 `X-Ops-Token` + allowlist + single-flight/rate-limit，且 Redis 不可用时 fail-closed 返回 503
 - [ ] 可信代理与 `X-Forwarded-For` 解析规则已配置（只在可信链路信任 XFF）
 - [ ] 审计/错误日志不得打印敏感信息（token/密码/邮箱等），仅允许 traceId/用户 ID 等低敏字段
+
+---
+
+## Feed 请求预算自检（R3 / N+1 防回归）
+
+### 目标
+
+在上线/发版前，用“可执行”的方式快速确认 Feed（帖子列表）不会出现明显的性能与安全回归：
+- ✅ 不发生 N+1 请求风暴（用户信息/点赞元信息走 batch）
+- ✅ 匿名态不调用需要登录的 batch statuses 接口
+- ✅ 前端 TTL 缓存（60 秒）在短窗口内生效，减少重复补水请求
+
+### 适用范围
+
+- 页面：`/#/` 或 `/#/posts`（帖子列表 / Feed）
+- 关键接口（本次重点）：
+  - `POST /api/users/batch-summary`（批量用户摘要）
+  - `GET /api/likes/counts`（批量点赞计数，公开）
+  - `GET /api/likes/statuses`（批量点赞状态，需要登录）
+
+### 前置条件
+
+1) 本地环境已启动（Docker Compose 或同等能力）
+- gateway 默认：`http://localhost:12882`
+
+2) 浏览器 DevTools 可用
+
+3) 如需验证登录态：准备一个可登录账号
+- 可先跑 `scripts/smoke-i0-auth.sh` 获取/验证账号链路（dev profile 下可开 onboarding 流程）
+
+### 检查步骤（浏览器 Network）
+
+Step 1：打开页面与 Network 面板
+1) 打开 `/#/posts`
+2) 打开 DevTools -> Network
+3) 勾选 `Preserve log`（保留跳转日志）
+4) 过滤建议：`Fetch/XHR` + Filter 输入 `/api/`
+
+Step 2：验证“请求预算”是否稳定
+- 重点观察是否出现反模式：
+  - ❌ 对每一条帖子逐条调用 `GET /api/users/{id}`（用户信息 N+1）
+  - ❌ 对每一条帖子逐条调用点赞接口（点赞元信息 N+1）
+- 期望行为（同一批次补水）：
+  - ✅ `POST /api/users/batch-summary`：最多 1 次（每次列表刷新/翻页可出现 1 次）
+  - ✅ `GET /api/likes/counts`：最多 1 次（每次列表刷新/翻页可出现 1 次）
+  - ✅ `GET /api/likes/statuses`：
+    - 匿名态：不应出现
+    - 登录态：最多 1 次（每次列表刷新/翻页可出现 1 次）
+
+> 注：帖子列表本身的“内容接口”（例如 posts list）不在此预算统计范围内；这里关注的是 **附加补水请求是否线性膨胀**。
+
+Step 3：验证 TTL 缓存是否生效（60 秒窗口）
+1) 保持页面停留在 Feed
+2) 在 60 秒内做一次“进入详情后返回”或“路由切换后回到 Feed”
+3) 观察短窗口内不应反复触发同一批次的用户/点赞补水请求（除非列表内容发生变化或强制刷新）
+
+### 失败时排查建议
+
+- 观察到大量 `GET /api/users/{id}`：
+  - 优先确认前端是否已升级为 batch 补水版本（PostsView）
+  - 确认网关/安全配置已放行 `POST /api/users/batch-summary`
+- batch 接口返回 403/404：
+  - 检查 gateway 路由与 security 白名单
+  - 检查服务是否启动/注册到 discovery（若使用 Nacos）
+
+### 记录与验收
+
+建议在一次发版前至少保留以下信息（截图或文本均可）：
+- Feed 初次加载时 Network 截图（可看到 batch 请求数量）
+- 登录态与匿名态各 1 次的接口行为对比
+- 如触发问题：记录具体 path、返回码、traceId（如有）

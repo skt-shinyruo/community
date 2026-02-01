@@ -4,6 +4,10 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 /**
  * MySQL 持久化实现：以 DB 为 SSOT（source of truth）。
  *
@@ -57,5 +61,58 @@ public class DbLikeRepository implements LikeRepository {
     public long getUserLikeCount(int userId) {
         Long v = mapper.getUserLikeCount(userId);
         return v == null ? 0 : v;
+    }
+
+    @Override
+    public Map<Integer, Long> countEntityLikesBatch(int entityType, List<Integer> entityIds) {
+        Map<Integer, Long> out = new HashMap<>();
+        if (entityIds == null || entityIds.isEmpty()) {
+            return out;
+        }
+        for (Integer id : entityIds) {
+            if (id != null && id > 0) {
+                out.put(id, 0L);
+            }
+        }
+        if (out.isEmpty()) {
+            return out;
+        }
+        List<EntityLikeCountRow> rows = mapper.countEntityLikesByEntityIds(entityType, entityIds);
+        if (rows == null || rows.isEmpty()) {
+            return out;
+        }
+        for (EntityLikeCountRow r : rows) {
+            if (r == null || r.getEntityId() <= 0) {
+                continue;
+            }
+            out.put(r.getEntityId(), Math.max(0, r.getLikeCount()));
+        }
+        return out;
+    }
+
+    @Override
+    public Map<Integer, Boolean> likedStatusesBatch(int userId, int entityType, List<Integer> entityIds) {
+        Map<Integer, Boolean> out = new HashMap<>();
+        if (entityIds == null || entityIds.isEmpty()) {
+            return out;
+        }
+        for (Integer id : entityIds) {
+            if (id != null && id > 0) {
+                out.put(id, Boolean.FALSE);
+            }
+        }
+        if (out.isEmpty()) {
+            return out;
+        }
+        List<Integer> liked = mapper.selectLikedEntityIds(userId, entityType, entityIds);
+        if (liked == null || liked.isEmpty()) {
+            return out;
+        }
+        for (Integer id : liked) {
+            if (id != null && id > 0) {
+                out.put(id, Boolean.TRUE);
+            }
+        }
+        return out;
     }
 }

@@ -52,6 +52,10 @@
         update user set password = #{password} where id = #{id}
     </update>
 
+    <update id="updateType">
+        update user set type = #{type} where id = #{id}
+    </update>
+
     <update id="updateModerationUntil">
         update user
         set mute_until = #{muteUntil},
@@ -82,7 +86,7 @@
     </select>
 
     <select id="selectUserSummariesByIds" resultType="User">
-        select id, username, header_url
+        select id, username, header_url, type
         from user
         where id in
         <foreach collection="ids" item="id" open="(" separator="," close=")">

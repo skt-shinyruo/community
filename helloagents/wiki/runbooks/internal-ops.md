@@ -14,6 +14,13 @@
 - `POST /internal/content/outbox/replay`（content-service：重放失败 outbox）
 - `POST /internal/social/outbox/replay`（social-service：重放失败 outbox）
 
+对外入口（经网关转发，仍受相同 break-glass 保护）：
+- `POST /api/ops/search/reindex`（gateway -> search-service `/internal/search/reindex`，仅管理员）
+
+前端体验入口（仅管理员）：
+- `/#/ops`（Ops Console：输入 `X-Ops-Token` 后可触发 reindex）
+- `/#/search`（搜索页“重建索引”入口：同样会携带 `X-Ops-Token`）
+
 ## 2. 前置条件（必须满足）
 
 1) **确定调用源 IP**
@@ -95,4 +102,3 @@
 - 人 B：持有并输入 `X-Ops-Token` + 负责开启/关闭 break-glass
 
 即使某一类 token 泄露，也无法在默认关闭与 allowlist 约束下直接触发高风险运维操作。
-

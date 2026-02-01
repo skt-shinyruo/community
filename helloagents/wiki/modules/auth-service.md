@@ -12,6 +12,7 @@
 - 提供找回密码（迭代 0 增量）：
   - `POST /api/auth/password/reset/request`
   - `POST /api/auth/password/reset/confirm`
+  - dev/联调环境可选择在响应中回传 `resetLink`（形成闭环）；prod 默认禁止回传（安全默认态）。
 - 安全增强：
   - 支持按 **IP/账号维度** 的登录失败限流（防爆破）。
 - 同站不同源（HTTP）场景下的 Origin 白名单校验由 **gateway OriginGuard** 统一负责（login/refresh/logout），避免多点配置漂移。
@@ -66,6 +67,19 @@
 - **找回密码**：
   - request 接口为避免用户枚举，邮箱不存在也返回“已处理”（不回传 token/不发邮件）。
   - resetToken 为一次性消费，建议短 TTL（默认 10 分钟）。
+
+### 4.1 Onboarding（注册/激活/找回密码闭环）
+- **激活链接 base URL**：`auth.registration.activation-base-url`（env：`AUTH_ACTIVATION_BASE_URL`）
+  - 用途：生成注册激活链接 `/api/auth/activation/{userId}/{code}` 与找回密码重置链接 `/#/auth/password/reset?token=...`
+- **dev/联调：回传链接（可选，提升开箱即用）**
+  - `auth.registration.expose-activation-link=true`（env：`AUTH_EXPOSE_ACTIVATION_LINK=true`）
+  - `auth.password-reset.expose-reset-link=true`（env：`AUTH_EXPOSE_RESET_LINK=true`）
+  - 默认配置见：`auth-service/src/main/resources/application-dev.yml`
+- **prod：默认安全态（必须）**
+  - `auth.registration.expose-activation-link=false`
+  - `auth.password-reset.expose-reset-link=false`
+  - `auth.registration.mail.enabled=true` + `spring.mail.*` 配置可用
+  - `common` 的 `StartupValidation` 会在 prod profile 下强制校验上述项（不满足则 fail-closed 阻断启动）。
 
 ## 5. 测试策略（分层）
 

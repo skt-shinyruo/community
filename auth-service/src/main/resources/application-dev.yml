@@ -1,0 +1,15 @@
+auth:
+  captcha:
+    # dev-only：便于自动化冒烟/联调（生产环境不要开启）
+    fixed-code: "0000"
+  registration:
+    # 本地/联调默认：直接在注册响应中回传激活链接，避免无 SMTP 环境下 onboarding 断裂。
+    expose-activation-link: true
+    # 默认指向“前端直连 gateway”的本地入口（deploy/README.md 推荐端口 12881）。
+    activation-base-url: http://localhost:12881
+    mail:
+      # dev 默认不依赖 SMTP，保持 log-only 降级即可。
+      enabled: false
+  password-reset:
+    # 本地/联调默认：在找回密码响应中回传 resetLink，形成闭环。
+    expose-reset-link: true

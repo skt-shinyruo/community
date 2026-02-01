@@ -25,17 +25,22 @@
 
           <div class="settings-section">
             <div class="settings-avatar-row">
-              <UiAvatar :src="avatarUrl" :name="auth.username || ''" :size="80" style="font-size: 32px" />
+              <UiAvatar :src="displayAvatarUrl" :name="auth.username || ''" :size="80" style="font-size: 32px" />
               <div class="stack" style="gap: 12px; flex: 1">
                 <div style="font-weight: 700">头像</div>
                 <div class="row" style="gap: 8px; flex-wrap: wrap">
                   <UiButton variant="secondary" @click="loadToken" :disabled="loading">
-                    {{ loading ? '获取中…' : '获取上传 Token' }}
+                    {{ loading ? '获取中…' : '获取上传参数' }}
                   </UiButton>
                 </div>
 
-                <div v-if="token.uploadToken" class="upload-area">
-                  <div class="muted" style="font-size: 12px; margin-bottom: 8px">Token 已生成，可以开始上传。</div>
+                <div v-if="token.fileName" class="upload-area">
+                  <div class="muted" style="font-size: 12px; margin-bottom: 8px">
+                    <span v-if="token.provider === 'local'">当前存储：本地上传（文件会先上传到服务器）。</span>
+                    <span v-else-if="token.provider === 'qiniu'">当前存储：对象存储直传（需要可用的 uploadToken）。</span>
+                    <span v-else>当前存储：未知（请联系管理员）。</span>
+                    <span v-if="token.maxBytes"> · 限制 {{ Math.round(token.maxBytes / 1024) }}KB</span>
+                  </div>
                   <div class="row" style="gap: 8px; flex-wrap: wrap">
                     <input type="file" accept="image/*" @change="onPickFile" class="input file-input" />
                     <UiButton @click="uploadAndUpdate" :disabled="loading || !pickedFile">
@@ -57,6 +62,7 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { me as apiMe } from '../api/services/authService'
 import http from '../api/http'
 import { unwrapResultBody } from '../api/result'
 import UiCard from '../components/ui/UiCard.vue'
@@ -70,19 +76,43 @@ const auth = useAuthStore()
 const loading = ref(false)
 const error = ref('')
 const successMsg = ref('')
-const token = reactive({ uploadToken: '', fileName: '', bucketUrl: '' })
+const token = reactive({
+  provider: '',
+  uploadToken: '',
+  fileName: '',
+  bucketUrl: '',
+  uploadUrl: '',
+  uploadMethod: '',
+  maxBytes: 0,
+  mimeLimit: ''
+})
 
 const pickedFile = ref(null)
 
-const avatarUrl = computed(() => {
-  const fileName = String(token.fileName || '').trim()
-  if (!fileName) return ''
+const currentAvatarUrl = computed(() => String(auth?.me?.headerUrl || '').trim())
 
-  const base = String(http?.defaults?.baseURL || '').trim()
-  // edge/同源模式：baseURL 为空，直接使用相对路径。
-  if (!base) return `/files/${encodeURIComponent(fileName)}`
-  return `${base.replace(/\/$/, '')}/files/${encodeURIComponent(fileName)}`
+const previewUrl = computed(() => {
+  const provider = String(token.provider || '').trim()
+  const fileName = String(token.fileName || '').trim()
+  if (!provider || !fileName) return ''
+
+  if (provider === 'local') {
+    const base = String(http?.defaults?.baseURL || '').trim()
+    // edge/同源模式：baseURL 为空，直接使用相对路径。
+    if (!base) return `/files/${encodeURIComponent(fileName)}`
+    return `${base.replace(/\/$/, '')}/files/${encodeURIComponent(fileName)}`
+  }
+
+  if (provider === 'qiniu') {
+    const bucketUrl = String(token.bucketUrl || '').trim()
+    if (!bucketUrl) return ''
+    return bucketUrl.endsWith('/') ? `${bucketUrl}${fileName}` : `${bucketUrl}/${fileName}`
+  }
+
+  return ''
 })
+
+const displayAvatarUrl = computed(() => previewUrl.value || currentAvatarUrl.value)
 
 async function loadToken() {
   error.value = ''
@@ -93,9 +123,14 @@ async function loadToken() {
     const resp = await http.get(`/api/users/${auth.userId}/avatar/upload-token`)
     const { data, traceId } = unwrapResultBody(resp.data, 'Get Token')
     emit('trace', traceId || '')
+    token.provider = data?.provider || ''
     token.uploadToken = data?.uploadToken || ''
     token.fileName = data?.fileName || ''
     token.bucketUrl = data?.bucketUrl || ''
+    token.uploadUrl = data?.uploadUrl || ''
+    token.uploadMethod = data?.uploadMethod || ''
+    token.maxBytes = data?.maxBytes || 0
+    token.mimeLimit = data?.mimeLimit || ''
   } catch (e) {
     error.value = e?.message || '获取上传 Token 失败'
   } finally {
@@ -109,25 +144,26 @@ function onPickFile(e) {
 }
 
 async function uploadToQiniu({ file, key, uploadToken }) {
-  // Mock upload if no real Qiniu (fallback for dev)
-  // Check if we are in a dev environment with no real qiniu config
-  // For now, assume simple fetch like before
   const url = 'https://upload.qiniup.com'
   const form = new FormData()
   form.append('token', uploadToken)
   form.append('key', key)
   form.append('file', file)
   
-  // Try real upload, if fails, we might just skip to simulated update in local dev?
-  // But let's keep it real.
   const resp = await fetch(url, { method: 'POST', body: form })
   if (!resp.ok) {
-     // In local dev without internet or valid token, this will fail.
-     // For this UI demo, we might want to skip this if it fails?
-     // Let's throw for now.
     throw new Error(`Upload failed: ${resp.status}`)
   }
   return resp.text()
+}
+
+async function uploadToLocal({ file, fileName, uploadUrl }) {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('fileName', fileName)
+  const resp = await http.post(uploadUrl, form)
+  const { traceId } = unwrapResultBody(resp.data, 'Upload Avatar')
+  emit('trace', traceId || '')
 }
 
 async function updateAvatar(fileName) {
@@ -139,12 +175,33 @@ async function updateAvatar(fileName) {
 async function uploadAndUpdate() {
   error.value = ''
   successMsg.value = ''
-  if (!pickedFile.value || !token.uploadToken) return
+  if (!pickedFile.value || !token.fileName) return
 
   loading.value = true
   try {
-    await uploadToQiniu({ file: pickedFile.value, key: token.fileName, uploadToken: token.uploadToken })
+    const provider = String(token.provider || '').trim()
+    if (provider === 'local') {
+      if (!token.uploadUrl) {
+        throw new Error('uploadUrl 缺失，请重新获取上传参数')
+      }
+      await uploadToLocal({ file: pickedFile.value, fileName: token.fileName, uploadUrl: token.uploadUrl })
+    } else if (provider === 'qiniu') {
+      if (!token.uploadToken) {
+        throw new Error('uploadToken 缺失，请检查对象存储配置')
+      }
+      await uploadToQiniu({ file: pickedFile.value, key: token.fileName, uploadToken: token.uploadToken })
+    } else {
+      throw new Error('未知存储策略，请联系管理员')
+    }
+
     await updateAvatar(token.fileName)
+    try {
+      const { data, traceId } = await apiMe()
+      emit('trace', traceId || '')
+      auth.setMe(data)
+    } catch {
+      // ignore: 头像已更新，页面可通过刷新/重新进入触发 me 拉取。
+    }
     successMsg.value = '头像已更新。'
   } catch (e) {
     error.value = e?.message || '更新失败'

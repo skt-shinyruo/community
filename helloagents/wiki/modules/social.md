@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 点赞/取消点赞；统计实体点赞数；关注/取关；关注列表/粉丝列表；拉黑/解除拉黑
 - **Status：** ✅Stable
-- **Last Updated：** 2026-01-28
+- **Last Updated：** 2026-02-01
 
 ## Specifications
 
@@ -40,6 +40,7 @@
 ## API Interfaces（现状）
 - `POST /api/likes`（显式 liked=true/false，幂等）
 - `GET /api/likes/status`、`GET /api/likes/count`、`GET /api/likes/users/{userId}/count`
+- batch（用于 Feed 聚合读避免 N+1）：`GET /api/likes/counts`、`GET /api/likes/statuses`
 - `POST /api/follows`、`DELETE /api/follows`
 - `GET /api/follows/status`
 - `GET /api/follows/{userId}/followees`、`GET /api/follows/{userId}/followers`

@@ -39,6 +39,11 @@ public class StartupValidation {
                 requireNonBlank(environment, errors, "auth.user-client.internal-token", "设置环境变量 USER_INTERNAL_TOKEN（用于 auth -> user internal 调用）");
                 requireTrue(environment, errors, "security.jwt.refresh-cookie-secure", "生产环境必须 Secure=true（HTTPS），请设置 AUTH_REFRESH_COOKIE_SECURE=true");
                 requireOneOf(environment, errors, "security.jwt.refresh-cookie-same-site", List.of("Lax", "Strict", "None"), "请设置 AUTH_REFRESH_COOKIE_SAME_SITE（Lax/Strict/None）");
+                requireNonBlank(environment, errors, "auth.registration.activation-base-url", "设置环境变量 AUTH_ACTIVATION_BASE_URL（指向公网可访问入口，例如 https://community.example.com）");
+                requireFalse(environment, errors, "auth.registration.expose-activation-link", "生产环境禁止回传激活链接，请设置 AUTH_EXPOSE_ACTIVATION_LINK=false");
+                requireFalse(environment, errors, "auth.password-reset.expose-reset-link", "生产环境禁止回传重置链接，请设置 AUTH_EXPOSE_RESET_LINK=false");
+                requireTrue(environment, errors, "auth.registration.mail.enabled", "生产环境必须启用 SMTP 邮件发送，请设置 AUTH_MAIL_ENABLED=true 并配置 spring.mail.*");
+                requireNonBlank(environment, errors, "spring.mail.host", "配置 spring.mail.host（SMTP 主机）");
             }
             case "user-service" -> {
                 requireNonBlank(environment, errors, "user.internal-token", "设置环境变量 USER_INTERNAL_TOKEN（用于 /internal/users/**）");
@@ -141,6 +146,13 @@ public class StartupValidation {
         Boolean v = env == null ? null : env.getProperty(key, Boolean.class);
         if (v == null || !v) {
             errors.add("配置不安全：" + key + "=false（" + hint + "）");
+        }
+    }
+
+    private void requireFalse(Environment env, List<String> errors, String key, String hint) {
+        Boolean v = env == null ? null : env.getProperty(key, Boolean.class, Boolean.FALSE);
+        if (v != null && v) {
+            errors.add("配置不安全：" + key + "=true（" + hint + "）");
         }
     }
 

@@ -67,6 +67,10 @@ spring:
           uri: lb://user-service
           predicates:
             - Path=/api/users/**
+        - id: user-files
+          uri: lb://user-service
+          predicates:
+            - Path=/files/**
         - id: content-service
           uri: lb://content-service
           predicates:
@@ -119,8 +123,8 @@ analytics:
 gateway:
   request-size-limit:
     enabled: true
-    # 1 MiB：覆盖绝大多数 JSON 写请求；头像上传走对象存储直传，不应走网关
-    max-bytes: 1048576
+    # 3 MiB：覆盖绝大多数 JSON 写请求，同时兼容 local avatar upload（<=2 MiB + multipart 开销）
+    max-bytes: 3145728
     # 缺失 Content-Length 时默认放行（兼容性更好）；生产可考虑打开 fail-closed
     fail-closed-when-unknown: false
   trusted-proxy:

@@ -6,6 +6,8 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Delete;
 
+import java.util.List;
+
 @Mapper
 public interface LikeMapper {
 
@@ -27,4 +29,32 @@ public interface LikeMapper {
 
     @Select("select like_count from social_user_like_count where user_id = #{userId}")
     Long getUserLikeCount(@Param("userId") int userId);
+
+    @Select("""
+            <script>
+            select entity_id as entityId, count(1) as likeCount
+            from social_like
+            where entity_type = #{entityType}
+              and entity_id in
+              <foreach collection="entityIds" item="id" open="(" separator="," close=")">
+                #{id}
+              </foreach>
+            group by entity_id
+            </script>
+            """)
+    List<EntityLikeCountRow> countEntityLikesByEntityIds(@Param("entityType") int entityType, @Param("entityIds") List<Integer> entityIds);
+
+    @Select("""
+            <script>
+            select entity_id
+            from social_like
+            where user_id = #{userId}
+              and entity_type = #{entityType}
+              and entity_id in
+              <foreach collection="entityIds" item="id" open="(" separator="," close=")">
+                #{id}
+              </foreach>
+            </script>
+            """)
+    List<Integer> selectLikedEntityIds(@Param("userId") int userId, @Param("entityType") int entityType, @Param("entityIds") List<Integer> entityIds);
 }

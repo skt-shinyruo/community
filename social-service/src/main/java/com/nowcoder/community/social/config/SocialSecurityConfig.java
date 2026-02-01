@@ -93,7 +93,7 @@ public class SocialSecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS).permitAll()
                         // 内部接口不走 JWT，依赖 X-Internal-Token 进行保护
                         .requestMatchers("/internal/social/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/likes/count", "/api/likes/users/*/count").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/likes/count", "/api/likes/counts", "/api/likes/users/*/count").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/follows/*/followees", "/api/follows/*/followers").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/follows/*/followees/count", "/api/follows/*/followers/count").permitAll()
                         .anyRequest().authenticated()

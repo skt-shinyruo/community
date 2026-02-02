@@ -70,17 +70,20 @@
         <!-- Stats -->
         <div class="profile-stats-bar">
           <div class="profile-stat">
-            <span class="profile-stat-val">{{ profile?.likeCount || 0 }}</span>
+            <span class="profile-stat-val">{{ socialDegraded ? '—' : (profile?.likeCount || 0) }}</span>
             <span class="profile-stat-label">获赞</span>
           </div>
           <div class="profile-stat">
-            <span class="profile-stat-val">{{ profile?.followeeCount || 0 }}</span>
+            <span class="profile-stat-val">{{ socialDegraded ? '—' : (profile?.followeeCount || 0) }}</span>
             <span class="profile-stat-label">关注</span>
           </div>
           <div class="profile-stat">
-            <span class="profile-stat-val">{{ profile?.followerCount || 0 }}</span>
+            <span class="profile-stat-val">{{ socialDegraded ? '—' : (profile?.followerCount || 0) }}</span>
             <span class="profile-stat-label">粉丝</span>
           </div>
+        </div>
+        <div v-if="socialDegraded" class="muted" style="padding: 0 24px; margin-top: 8px; font-size: 12px">
+          统计暂不可用（下游服务降级），可稍后刷新。
         </div>
 
         <!-- Mock Tabs -->
@@ -135,6 +138,7 @@ const userId = computed(() => String(route.params.userId || ''))
 const profile = ref(null)
 const loading = ref(false)
 const error = ref('')
+const socialDegraded = computed(() => !!profile.value?.socialDegraded)
 
 const meUserId = computed(() => Number(auth.userId || 0))
 const actionLoading = ref(false)

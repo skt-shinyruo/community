@@ -39,6 +39,7 @@ Token 通过环境变量或 Nacos 注入（见 `deploy/.env.example` 与 `deploy
 - **social-service**
   - `GET /internal/social/blocks/relation?userIdA=&userIdB=`：查询 A/B 的拉黑关系（互斥私信等写路径校验）。
   - `GET /internal/social/likes/scan?entityType=&afterEntityId=&afterUserId=&limit=`：按游标扫描点赞关系（供 content-service 回填 Redis 点赞投影使用）。
+  - `GET /internal/social/read/users/{userId}/profile-stats?viewerId=`：用户主页聚合只读接口（一次返回获赞/关注/粉丝/是否关注；供 user-service 聚合展示，降低 fan-out）。
 - **user-service**
   - `GET /internal/users/{userId}/moderation-status`：查询用户禁言/封禁状态（content-service 写路径前置校验）。
   - `POST /internal/users/{userId}/moderation`：应用禁言/封禁（治理动作落地，供 content-service 治理动作转发调用）。

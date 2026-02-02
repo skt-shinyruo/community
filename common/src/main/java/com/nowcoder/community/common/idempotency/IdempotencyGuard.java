@@ -36,11 +36,18 @@ public class IdempotencyGuard {
     private final ObjectMapper objectMapper;
     private final IdempotencyStore store;
     private final ObjectProvider<MeterRegistry> meterRegistryProvider;
+    private final IdempotencyProperties properties;
 
-    public IdempotencyGuard(ObjectMapper objectMapper, StringRedisTemplate redisTemplate, ObjectProvider<MeterRegistry> meterRegistryProvider) {
+    public IdempotencyGuard(
+            ObjectMapper objectMapper,
+            StringRedisTemplate redisTemplate,
+            ObjectProvider<MeterRegistry> meterRegistryProvider,
+            IdempotencyProperties properties
+    ) {
         this.objectMapper = objectMapper;
         this.store = new RedisIdempotencyStore(redisTemplate);
         this.meterRegistryProvider = meterRegistryProvider;
+        this.properties = properties == null ? new IdempotencyProperties() : properties;
     }
 
     public <T> T executeRequired(String operation, int userId, String idempotencyKey, Class<T> type, Supplier<T> supplier) {
@@ -56,7 +63,10 @@ public class IdempotencyGuard {
         }
         if (!StringUtils.hasText(idempotencyKey)) {
             record(operation, "missing_key");
-            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, HEADER_IDEMPOTENCY_KEY + " 不能为空");
+            throw new BusinessException(
+                    CommonErrorCode.INVALID_ARGUMENT,
+                    HEADER_IDEMPOTENCY_KEY + " 不能为空（写请求必须携带幂等键；可参考 docs/SECURITY.md 或 scripts/curl-idempotent-post.sh）"
+            );
         }
         String key = normalizeKey(idempotencyKey);
         if (key.length() > 128) {
@@ -68,8 +78,8 @@ public class IdempotencyGuard {
         }
 
         String storeKey = buildStoreKey(operation, userId, key);
-        Duration processingTtl = Duration.ofSeconds(30);
-        Duration successTtl = Duration.ofHours(24);
+        Duration processingTtl = safeDuration(properties == null ? null : properties.getProcessingTtl(), Duration.ofSeconds(30));
+        Duration successTtl = safeDuration(properties == null ? null : properties.getSuccessTtl(), Duration.ofHours(24));
 
         try {
             boolean acquired = store.tryAcquireProcessing(storeKey, processingTtl);
@@ -164,6 +174,16 @@ public class IdempotencyGuard {
         }
     }
 
+    private Duration safeDuration(Duration v, Duration fallback) {
+        if (v == null) {
+            return fallback;
+        }
+        if (v.isNegative() || v.isZero()) {
+            return fallback;
+        }
+        return v;
+    }
+
     private void record(String operation, String outcome) {
         MeterRegistry meterRegistry = meterRegistryProvider == null ? null : meterRegistryProvider.getIfAvailable();
         if (meterRegistry == null) {
@@ -174,4 +194,3 @@ public class IdempotencyGuard {
         meterRegistry.counter(METRIC, Tags.of("op", op, "outcome", oc)).increment();
     }
 }
-

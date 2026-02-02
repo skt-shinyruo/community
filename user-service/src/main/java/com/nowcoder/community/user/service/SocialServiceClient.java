@@ -46,6 +46,15 @@ public class SocialServiceClient {
         this.properties = properties;
     }
 
+    /**
+     * 用户主页聚合：一次性获取获赞/关注/粉丝/关注状态。
+     *
+     * <p>注意：该方法用于“展示类读路径”，因此允许按配置 fail-open（降级为 0/false，并标记 degraded）。</p>
+     */
+    public UserProfileStats safeUserProfileStats(int userId, int viewerId) {
+        return call("profileStats", () -> userProfileStatsInternal(userId, viewerId), UserProfileStats::degradedFallback);
+    }
+
     public long safeUserLikeCount(int userId) {
         return call("userLikeCount", () -> userLikeCountInternal(userId), () -> 0L);
     }
@@ -77,6 +86,23 @@ public class SocialServiceClient {
 
     public Boolean hasFollowed(int actorUserId, int targetUserId) {
         return call("hasFollowed", () -> hasFollowedInternal(actorUserId, targetUserId), null);
+    }
+
+    private UserProfileStats userProfileStatsInternal(int userId, int viewerId) {
+        if (userId <= 0) {
+            return UserProfileStats.empty();
+        }
+
+        UriComponentsBuilder builder = UriComponentsBuilder
+                .fromHttpUrl(properties.getBaseUrl() + "/internal/social/read/users/" + userId + "/profile-stats");
+        if (viewerId > 0 && viewerId != userId) {
+            builder.queryParam("viewerId", viewerId);
+        }
+        String url = builder.toUriString();
+        ResponseEntity<Result<UserProfileStats>> resp = exchange(url, HttpMethod.GET, new HttpEntity<>(headers()), new ParameterizedTypeReference<Result<UserProfileStats>>() {
+        });
+        UserProfileStats data = InternalClientSupport.unwrap(resp, SERVICE_NAME);
+        return data == null ? UserProfileStats.empty() : data;
     }
 
     private long userLikeCountInternal(int userId) {
@@ -199,6 +225,65 @@ public class SocialServiceClient {
             return restTemplate.exchange(url, method, entity, typeRef);
         } catch (RestClientException e) {
             throw e;
+        }
+    }
+
+    public static class UserProfileStats {
+
+        private long likeCount;
+        private long followeeCount;
+        private long followerCount;
+        private boolean hasFollowed;
+        private boolean degraded;
+
+        public static UserProfileStats empty() {
+            return new UserProfileStats();
+        }
+
+        public static UserProfileStats degradedFallback() {
+            UserProfileStats v = new UserProfileStats();
+            v.setDegraded(true);
+            return v;
+        }
+
+        public long getLikeCount() {
+            return likeCount;
+        }
+
+        public void setLikeCount(long likeCount) {
+            this.likeCount = likeCount;
+        }
+
+        public long getFolloweeCount() {
+            return followeeCount;
+        }
+
+        public void setFolloweeCount(long followeeCount) {
+            this.followeeCount = followeeCount;
+        }
+
+        public long getFollowerCount() {
+            return followerCount;
+        }
+
+        public void setFollowerCount(long followerCount) {
+            this.followerCount = followerCount;
+        }
+
+        public boolean isHasFollowed() {
+            return hasFollowed;
+        }
+
+        public void setHasFollowed(boolean hasFollowed) {
+            this.hasFollowed = hasFollowed;
+        }
+
+        public boolean isDegraded() {
+            return degraded;
+        }
+
+        public void setDegraded(boolean degraded) {
+            this.degraded = degraded;
         }
     }
 }

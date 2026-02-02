@@ -57,6 +57,9 @@
 	      <div class="muted" style="font-size: 12px; margin-top: 10px">
 	        提示：也可使用顶栏快捷键 {{ isMac ? '⌘' : 'Ctrl' }} K 进行全局搜索。
 	      </div>
+	      <div class="muted" style="font-size: 12px; margin-top: 6px">
+	        说明：搜索索引为最终一致，发帖/编辑后结果可能延迟数秒到数十秒；如长时间未更新，可尝试刷新或联系管理员重建索引/排查消费滞后。
+	      </div>
 	    </UiCard>
 
     <UiEmpty v-if="error && items.length === 0" type="error" style="margin-top: 12px">{{ error }}</UiEmpty>

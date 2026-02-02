@@ -2,7 +2,11 @@ import { defineStore } from 'pinia'
 import { batchUserSummary } from '../api/services/userService'
 import { getLikeCounts, getLikeStatuses } from '../api/services/socialService'
 
-const TTL_MS = 60 * 1000
+// TTL 约定：
+// - 用户摘要：变化相对不频繁，可缓存更久
+// - 点赞计数/状态：为了减少“写后立即刷新看到旧投影”的感知不一致，TTL 保持更短
+const USER_TTL_MS = 60 * 1000
+const LIKE_TTL_MS = 30 * 1000
 
 function nowMs() {
   return Date.now()
@@ -67,11 +71,11 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
     },
     setLikeCount(entityType, entityId, value) {
       const k = likeKey(entityType, entityId)
-      this.likeCounts[k] = { value: Number(value || 0), expiresAt: nowMs() + TTL_MS }
+      this.likeCounts[k] = { value: Number(value || 0), expiresAt: nowMs() + LIKE_TTL_MS }
     },
     setLikeStatus(entityType, entityId, value) {
       const k = likeKey(entityType, entityId)
-      this.likeStatuses[k] = { value: !!value, expiresAt: nowMs() + TTL_MS }
+      this.likeStatuses[k] = { value: !!value, expiresAt: nowMs() + LIKE_TTL_MS }
     },
 
     async ensureUserSummaries(userIds) {
@@ -90,7 +94,7 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
           for (const u of data) {
             const id = Number(u?.id || 0)
             if (!id) continue
-            this.users[id] = { value: u, expiresAt: t + TTL_MS }
+            this.users[id] = { value: u, expiresAt: t + USER_TTL_MS }
           }
         }
       }
@@ -118,7 +122,7 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
         const t = nowMs()
         for (const id of missing) {
           const v = Number(data?.[String(id)] || 0)
-          this.likeCounts[likeKey(entityType, id)] = { value: v, expiresAt: t + TTL_MS }
+          this.likeCounts[likeKey(entityType, id)] = { value: v, expiresAt: t + LIKE_TTL_MS }
         }
       }
 
@@ -145,7 +149,7 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
         const t = nowMs()
         for (const id of missing) {
           const v = !!data?.[String(id)]
-          this.likeStatuses[likeKey(entityType, id)] = { value: v, expiresAt: t + TTL_MS }
+          this.likeStatuses[likeKey(entityType, id)] = { value: v, expiresAt: t + LIKE_TTL_MS }
         }
       }
 

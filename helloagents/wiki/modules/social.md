@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 点赞/取消点赞；统计实体点赞数；关注/取关；关注列表/粉丝列表；拉黑/解除拉黑
 - **Status：** ✅Stable
-- **Last Updated：** 2026-02-01
+- **Last Updated：** 2026-02-02
 
 ## Specifications
 
@@ -59,6 +59,7 @@
     - `GET /internal/social/read/follows/{userId}/followees/count?entityType=3`
     - `GET /internal/social/read/follows/{userId}/followers/count?entityType=3`
     - `GET /internal/social/read/follows/status?userId=&entityType=3&entityId=`
+    - `GET /internal/social/read/users/{userId}/profile-stats?viewerId=`（用户主页聚合，一次返回获赞/关注/粉丝/关注状态）
   - outbox 运维：
     - `GET /internal/social/outbox/health`
     - `POST /internal/social/outbox/replay?limit=200`
@@ -83,3 +84,4 @@
 - 2026-01-23：新增拉黑/反骚扰能力（Redis Set 存储 + 对外 API + internal 关系查询）。
 - 2026-01-28：固化 DB 为默认 SSOT（避免 Redis-only 误启用）；补齐 internal read API；Outbox 默认开启（部署侧）。
 - 2026-02-01：新增 `LikeRemoved` 事件并发布；点赞写路径改为服务端 resolve entity 元信息（禁止客户端注入、校验存在性）；新增 internal likes scan 供下游回填投影；follow 写路径收敛仅支持 USER；补齐 MyBatis `mapper-locations`/`map-underscore-to-camel-case` 以确保 outbox XML mapper 生效。
+- 2026-02-02：新增 internal 用户主页聚合 read API（profile-stats），供 user-service 单次调用获取获赞/关注/粉丝/关注状态，降低 fan-out。

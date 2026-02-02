@@ -21,7 +21,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
+import java.time.Duration;
 
 @Service
 public class UserServiceClient {
@@ -35,18 +37,27 @@ public class UserServiceClient {
     private final String internalToken;
     private final boolean failOpen;
 
+    // username -> userId 解析：用于 toName 写路径的依赖放大控制（短 TTL、容量受控）。
+    private final Duration resolveCacheTtl;
+    private final int resolveCacheMaxSize;
+    private final ConcurrentHashMap<String, ResolveCacheEntry> resolveCache = new ConcurrentHashMap<>();
+
     public UserServiceClient(
             RestTemplate restTemplate,
             MeterRegistry meterRegistry,
             @Value("${clients.user.base-url:http://user-service}") String baseUrl,
             @Value("${clients.user.internal-token:}") String internalToken,
-            @Value("${clients.user.fail-open:false}") boolean failOpen
+            @Value("${clients.user.fail-open:false}") boolean failOpen,
+            @Value("${clients.user.resolve-cache.ttl:60s}") Duration resolveCacheTtl,
+            @Value("${clients.user.resolve-cache.max-size:5000}") int resolveCacheMaxSize
     ) {
         this.restTemplate = restTemplate;
         this.meterRegistry = meterRegistry;
         this.baseUrl = baseUrl;
         this.internalToken = internalToken;
         this.failOpen = failOpen;
+        this.resolveCacheTtl = resolveCacheTtl == null || resolveCacheTtl.isNegative() ? Duration.ofSeconds(60) : resolveCacheTtl;
+        this.resolveCacheMaxSize = Math.max(0, resolveCacheMaxSize);
     }
 
     public Integer safeResolveUserIdByUsername(String username) {
@@ -61,15 +72,26 @@ public class UserServiceClient {
     }
 
     public UserSummary resolveByUsername(String username) {
-        if (!StringUtils.hasText(username)) {
+        String key = normalizeUsernameKey(username);
+        if (!StringUtils.hasText(key)) {
             return null;
         }
+
+        UserSummary cached = getResolveCache(key);
+        if (cached != null) {
+            return cached;
+        }
+
         String url = UriComponentsBuilder.fromHttpUrl(baseUrl + "/api/users/resolve")
-                .queryParam("username", username)
+                .queryParam("username", key)
                 .toUriString();
         Result<UserSummary> result = exchange(url, HttpMethod.GET, HttpEntity.EMPTY, new ParameterizedTypeReference<Result<UserSummary>>() {
         });
-        return result == null ? null : result.getData();
+        UserSummary data = result == null ? null : result.getData();
+        if (data != null && data.getId() > 0) {
+            putResolveCache(key, data);
+        }
+        return data;
     }
 
     public UserSummary getById(int userId) {
@@ -161,5 +183,54 @@ public class UserServiceClient {
         public void setUserIds(List<Integer> userIds) {
             this.userIds = userIds;
         }
+    }
+
+    private String normalizeUsernameKey(String username) {
+        return StringUtils.hasText(username) ? username.trim() : "";
+    }
+
+    private UserSummary getResolveCache(String key) {
+        if (!StringUtils.hasText(key) || resolveCacheMaxSize <= 0) {
+            return null;
+        }
+        ResolveCacheEntry entry = resolveCache.get(key);
+        if (entry == null) {
+            return null;
+        }
+        if (entry.expiresAtEpochMs <= System.currentTimeMillis()) {
+            resolveCache.remove(key);
+            return null;
+        }
+        return entry.value;
+    }
+
+    private void putResolveCache(String key, UserSummary value) {
+        if (!StringUtils.hasText(key) || value == null || value.getId() <= 0) {
+            return;
+        }
+        if (resolveCacheMaxSize <= 0) {
+            return;
+        }
+        if (resolveCache.size() >= resolveCacheMaxSize) {
+            // 容量上限触发时，先尽力清理过期项；仍超限则直接清空（避免复杂 LRU 带来额外依赖）。
+            cleanupResolveCache();
+            if (resolveCache.size() >= resolveCacheMaxSize) {
+                resolveCache.clear();
+            }
+        }
+        long ttlMs = Math.max(0L, resolveCacheTtl.toMillis());
+        long expiresAt = System.currentTimeMillis() + ttlMs;
+        resolveCache.put(key, new ResolveCacheEntry(value, expiresAt));
+    }
+
+    private void cleanupResolveCache() {
+        if (resolveCache.isEmpty()) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        resolveCache.entrySet().removeIf(e -> e == null || e.getValue() == null || e.getValue().expiresAtEpochMs <= now);
+    }
+
+    private record ResolveCacheEntry(UserSummary value, long expiresAtEpochMs) {
     }
 }

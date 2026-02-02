@@ -34,10 +34,25 @@ class SocialServiceClientTest {
                 any(ParameterizedTypeReference.class)
         )).thenThrow(new RestClientException("downstream error"));
 
+        SocialServiceClient.UserProfileStats stats = client.safeUserProfileStats(1, 2);
+        assertThat(stats).isNotNull();
+        assertThat(stats.isDegraded()).isTrue();
+        assertThat(stats.getLikeCount()).isEqualTo(0);
+        assertThat(stats.getFolloweeCount()).isEqualTo(0);
+        assertThat(stats.getFollowerCount()).isEqualTo(0);
+
         assertThat(client.safeUserLikeCount(1)).isEqualTo(0);
         assertThat(client.safeFolloweeCount(1)).isEqualTo(0);
         assertThat(client.safeFollowerCount(1)).isEqualTo(0);
         assertThat(client.safeHasFollowed(1, 2)).isFalse();
+
+        assertThat(registry.find("user_social_client_requests_total")
+                .tags("api", "profileStats", "outcome", "degraded")
+                .counter()).isNotNull();
+        assertThat(registry.find("user_social_client_requests_total")
+                .tags("api", "profileStats", "outcome", "degraded")
+                .counter()
+                .count()).isEqualTo(1.0);
 
         assertThat(registry.find("user_social_client_requests_total")
                 .tags("api", "userLikeCount", "outcome", "degraded")

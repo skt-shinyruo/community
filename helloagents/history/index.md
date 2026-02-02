@@ -8,6 +8,7 @@
 
 | Timestamp | Feature Name | Type | Status | Solution Package Path |
 |-----------|--------------|------|--------|----------------------|
+| 202602021224 | consistency_gap_solution | Development Implementation | ✅Completed | [202602021224_consistency_gap_solution](2026-02/202602021224_consistency_gap_solution/) |
 | 202602011327 | event_consistency_hardening | Development Implementation | ✅Completed | [202602011327_event_consistency_hardening](2026-02/202602011327_event_consistency_hardening/) |
 | 202601312154 | product_readiness | Development Implementation | ✅Completed | [202601312154_product_readiness](2026-02/202601312154_product_readiness/) |
 | 202601311900 | compose_boundaries_resilience | Development Implementation | ✅Completed | [202601311900_compose_boundaries_resilience](2026-01/202601311900_compose_boundaries_resilience/) |
@@ -49,6 +50,7 @@
 ## Archive by Month
 
 ### 2026-02
+- [202602021224_consistency_gap_solution](2026-02/202602021224_consistency_gap_solution/) - 一致性缺口与依赖耦合治理：Perceived Consistency（点赞短 TTL 覆盖 + 搜索最终一致提示）、user 主页 fan-out 收敛（internal 聚合 + socialDegraded）、幂等 TTL 配置化与脚本、doctor 配置自检
 - [202602011327_event_consistency_hardening](2026-02/202602011327_event_consistency_hardening/) - 事件一致性与契约治理：Outbox 默认开启、LikeRemoved + Redis 投影、拉黑校验消除 fail-open、鉴权语义 401 化、API DTO 化、post:score 回补、消费者 unknown handling 对齐
 - [202601312154_product_readiness](2026-02/202601312154_product_readiness/) - 产品体验闭环与可运营性提升：R1 onboarding（dev link / prod fail-closed）、R2 头像自托管（local/qiniu + /files）、R3 feed batch 补水（TTL 缓存）、R4 Ops Console（X-Ops-Token）、R5 角色管理（bootstrap + UI）
 

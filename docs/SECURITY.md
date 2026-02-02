@@ -101,6 +101,28 @@ gateway 对写请求会记录审计日志：
 
 ---
 
+## 6.3 写接口幂等（Idempotency-Key）
+
+为避免浏览器重复点击/网络重试导致的重复副作用，本项目对部分 **HTTP 写接口** 启用幂等保护：
+- header：`Idempotency-Key: <unique-key>`
+- 幂等维度：`userId + operation + Idempotency-Key`
+- 行为：
+  - 首次请求：执行业务副作用并缓存响应
+  - 重复请求：直接复用缓存响应（避免重复写入/重复通知等副作用）
+  - 并发同 key：返回 `409`（提示“处理中，可重试”）
+
+强约束（fail-closed）：
+- 对“必须幂等”的入口，缺失 `Idempotency-Key` 会直接返回 `400`，以避免非预期重复副作用。
+- 脚本/第三方客户端请务必显式携带该 header；示例见 `scripts/curl-idempotent-post.sh`。
+
+TTL 配置（可按环境调整）：
+- `http.idempotency.processing-ttl`（默认 `30s`）：并发互斥的 processing 锁 TTL
+- `http.idempotency.success-ttl`（默认 `24h`）：成功响应缓存 TTL
+
+> 提示：当链路可能超过 30s（慢 DB/慢下游）时，可适当提高 `processing-ttl`，降低“锁过期后二次执行”的理论风险。
+
+---
+
 ## 7. 本地安全建议（即便是开发环境）
 - 修改 `.env` 中的 `JWT_HMAC_SECRET`（>= 32 字节），不要长期用默认值
 - 不要把 `.env`（含真实密钥）提交到版本库

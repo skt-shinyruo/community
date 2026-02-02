@@ -143,6 +143,14 @@ unknown handling 为可配置策略（服务级别）：
 - message-service：消费评论/社交事件，生成通知（最终一致）
 - search-service：消费帖子事件，更新 ES 索引（最终一致）
 
+补充：搜索属于“事件驱动投影”，因此天然是最终一致：
+- 发帖/编辑成功后，到可搜索通常存在秒级延迟（事件传播 + 消费处理 + ES refresh）
+- 用户体验层面需要明确提示（前端已在搜索页做延迟说明），避免“写成功但搜索不到”被误解为丢数据
+- 若出现“长时间缺失/冷启动缺口”，建议按以下顺序排查与修复：
+  1) Kafka 消费滞后与 DLQ：查看 lag/错误日志，必要时回放 DLQ（见 `scripts/kafka-replay-dlq.sh`）
+  2) ES 索引健康：检查索引是否存在、mapping 是否兼容、写入是否报错
+  3) 冷启动/纠偏：必要时执行 reindex（`scripts/search-reindex.sh` 或 `/api/ops/search/reindex`）
+
 ### 3.4 写路径解耦：本地投影（Read Model）+ 事件同步
 为降低跨服务同步耦合与级联失败风险，关键写路径遵循：
 - **写路径只读本地投影**：不在写接口中同步依赖 user-service/social-service 的实时可用性

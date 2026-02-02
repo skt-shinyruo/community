@@ -1,6 +1,7 @@
 package com.nowcoder.community.common.autoconfig;
 
 import com.nowcoder.community.common.startup.StartupValidationAutoConfig;
+import com.nowcoder.community.common.idempotency.IdempotencyProperties;
 import com.nowcoder.community.common.net.TrustedProxyProperties;
 import com.nowcoder.community.common.web.CommonJacksonConfig;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -14,7 +15,8 @@ import org.springframework.context.annotation.Import;
  */
 @AutoConfiguration
 @EnableConfigurationProperties({
-        TrustedProxyProperties.class
+        TrustedProxyProperties.class,
+        IdempotencyProperties.class
 })
 @Import({
         CommonJacksonConfig.class,

@@ -7,6 +7,12 @@
 ## [Unreleased]
 
 ### Added
+- frontend：PostDetail 点赞 read-your-writes 覆盖（短 TTL），降低“写成功但刷新读到旧投影”的可见不一致；SearchView 增加“搜索索引最终一致”提示以管理预期。
+- social-service：新增 internal 聚合只读接口 `/internal/social/read/users/{userId}/profile-stats`（一次返回获赞/关注/粉丝/关注状态），供 user-service 收敛主页 fan-out。
+- user-service：用户主页聚合改为单次调用 social profile-stats，并在 `/api/users/{userId}` 响应中增加 `socialDegraded`，区分“真实为 0”与“依赖降级占位”。
+- message-service：私信 toName 场景的 username→userId resolve 增加短 TTL + 有界容量缓存，降低同步依赖放大与尾延迟。
+- common：`IdempotencyGuard` 支持 processing/success TTL 配置化（`http.idempotency.*`），并优化缺失 `Idempotency-Key` 的错误提示与指引。
+- scripts：新增 `scripts/doctor.sh`（部署前配置自检，不输出敏感值）与 `scripts/curl-idempotent-post.sh`（幂等写请求示例）。
 - social-service：新增 `LikeRemoved`（取消点赞）事件，并提供 internal likes scan 接口用于下游回填点赞投影。
 - content-service：消费 `LikeCreated/LikeRemoved` 维护 Redis `like:entity:*` 投影；新增 internal entity resolve（供社交写路径构造可信 payload）与 internal likes backfill（冷启动/纠偏）。
 - user-service：积分消费者支持 `LikeRemoved` 触发积分回退，并对 `user.score` 做非负保护，降低“点赞开关刷分”风险。

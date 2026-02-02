@@ -160,13 +160,14 @@
     - `POST /api/users/batch-summary`
     - `GET /api/likes/counts`
     - `GET /api/likes/statuses`（仅登录态）
-    - 前端缓存：`frontend/src/stores/postMetaCache.js`（TTL=60s）
+    - 前端缓存：`frontend/src/stores/postMetaCache.js`（用户摘要 60s；点赞计数/状态 30s，用于降低“写后刷新读旧投影”的感知不一致）
 - `PostDetailView.vue`：帖子详情 + taxonomy（分类/标签跳转过滤） + 点赞/关注 + 评论/回复树；管理员/版主可执行 `/api/posts/{postId}/top|wonderful|delete`（二次确认）。
-- `UserProfileView.vue`：用户主页（含获赞/关注/粉丝统计）+ 关注/取关 + 关注/粉丝列表入口。
+- `PostDetailView.vue`（一致性体验补充）：点赞/取消点赞成功后写入短 TTL 覆盖；刷新/重载时优先合并覆盖（read-your-writes），降低事件投影尚未收敛时的可见不一致。
+- `UserProfileView.vue`：用户主页（含获赞/关注/粉丝统计）+ 关注/取关 + 关注/粉丝列表入口；当后端标记 `socialDegraded=true` 时展示占位并提示可刷新。
 - `FolloweesView.vue` / `FollowersView.vue`：关注/粉丝列表（分页 + 用户摘要 + 关注状态）。
 - `ConversationsView.vue` / `ConversationDetailView.vue`：私信会话与详情（分页 + 已读）。
 - `NoticesView.vue` / `NoticeDetailView.vue`：通知汇总与详情（分页 + 已读）。
-- `SearchView.vue`：搜索与高亮；支持分类/标签过滤（`/api/search/posts?keyword&categoryId&tag`）；管理员重建索引支持输入 `X-Ops-Token`（`POST /api/ops/search/reindex`）。
+- `SearchView.vue`：搜索与高亮；支持分类/标签过滤（`/api/search/posts?keyword&categoryId&tag`）；提示“搜索索引最终一致，可能延迟”；管理员重建索引支持输入 `X-Ops-Token`（`POST /api/ops/search/reindex`）。
 - `AnalyticsView.vue`：UV/DAU 查询（管理员/版主）。
 - `SettingsView.vue`：头像上传（local/qiniu）与回写。
 - `OpsConsoleView.vue`：运维控制台（仅管理员）：集中高风险动作并提供配置引导。

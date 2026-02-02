@@ -48,7 +48,14 @@
 1. 复制示例：`cp deploy/.env.example deploy/.env`
 2. 按需修改：
    - `JWT_HMAC_SECRET`：开发环境也建议改成自己的一串 >= 32 字节密钥（auth-service 签发、gateway 验签需要一致）
-   - `INTERNAL_TOKEN`：内部接口全局 token（本地/演练推荐统一一个，减少漂移；生产可按服务拆分为 `*_INTERNAL_TOKEN`）
+   - `*_INTERNAL_TOKEN`：内部接口 token（建议按服务分域，即便本地也不要用“全局兜底”）
+     - `USER_INTERNAL_TOKEN` / `CONTENT_INTERNAL_TOKEN` / `SOCIAL_INTERNAL_TOKEN` / `SEARCH_INTERNAL_TOKEN` / `ANALYTICS_INTERNAL_TOKEN`
+     - `USER_OPS_INTERNAL_TOKEN`：user-service 高权限 internal 写入口分域 token（仅在需要调用 `/internal/users/*/password|moderation` 时配置）
+   - 运行自检（推荐）：`bash scripts/doctor.sh`（不输出敏感值，仅提示缺失项与建议）
+
+生产提示（避免误配）：
+- 生产部署必须显式设置 `SPRING_PROFILES_ACTIVE=prod`（prod 下启用 StartupValidation fail-closed）。
+- prod profile 下 `spring.config.import` 会对 Nacos 配置变为 required/fail-fast，请确保 `NACOS_SERVER_ADDR` 与配置中心可用。
 
 ### 3.2 启动（前端直连网关）
 ```bash

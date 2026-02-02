@@ -168,6 +168,9 @@ sequenceDiagram
 - **事件契约可信（信任边界收口）：** social 写路径不再信任客户端注入的 `entityUserId/postId`，改为调用 content internal resolve 生成可信 payload，并校验 entity 存在性，避免脏关系与下游污染。
 - **unknown-handling 对齐：** search-service 等消费者统一采用 `EventEnvelopeParser` + `UnknownEventAction`，降低版本演进时的 DLQ 噪声与阻塞风险。
 - **internal 聚合收敛：** 跨服务聚合展示（例如 user-service 用户主页的获赞/关注/粉丝/是否关注）应优先走 `/internal/**` + `X-Internal-Token`，避免跨服务透传 Authorization 造成鉴权耦合。
+- **感知一致性（Perceived Consistency）：** 对“点赞/搜索”等对用户敏感的链路，在前端做短 TTL 覆盖与预期管理（read-your-writes + 最终一致提示），降低“写成功但读侧未更新”的可见不一致。
+- **幂等 TTL 可配置：** `IdempotencyGuard` 的 processing/success TTL 支持按环境配置，降低慢链路下锁过期的重复副作用风险；同时提供脚本示例帮助第三方正确传递 `Idempotency-Key`。
+- **配置护栏（doctor）：** 提供 `scripts/doctor.sh` 进行部署前自检（不输出敏感值），快速发现 internal-token/JWT/prod profile 等误配。
 - **gateway analytics 有界化：** 网关侧 UV/DAU 去重仅用于降噪，应使用有界 TTL 缓存（多实例不共享），最终以 analytics-service Redis 去重/聚合为准；并确保采集失败可观测且不影响主业务链路。
 
 ---

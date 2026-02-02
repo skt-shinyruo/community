@@ -66,11 +66,6 @@ public class UserController {
         resp.setScore(user.getScore());
         resp.setLevel(pointsService.levelForScore(user.getScore()));
 
-        // 对齐旧单体“用户主页”展示：获赞/关注/粉丝 + 是否已关注（可选，未登录时为 false）
-        resp.setLikeCount(socialServiceClient.safeUserLikeCount(userId));
-        resp.setFolloweeCount(socialServiceClient.safeFolloweeCount(userId));
-        resp.setFollowerCount(socialServiceClient.safeFollowerCount(userId));
-
         int currentUserId = 0;
         if (authentication != null && authentication.getPrincipal() instanceof Jwt jwt) {
             try {
@@ -78,11 +73,15 @@ public class UserController {
             } catch (Exception ignored) {
             }
         }
-        if (currentUserId > 0 && currentUserId != userId) {
-            resp.setHasFollowed(socialServiceClient.safeHasFollowed(currentUserId, userId));
-        } else {
-            resp.setHasFollowed(false);
-        }
+        int viewerId = (currentUserId > 0 && currentUserId != userId) ? currentUserId : 0;
+
+        // 对齐旧单体“用户主页”展示：获赞/关注/粉丝 + 是否已关注（可选，未登录时为 false）
+        SocialServiceClient.UserProfileStats stats = socialServiceClient.safeUserProfileStats(userId, viewerId);
+        resp.setLikeCount(stats.getLikeCount());
+        resp.setFolloweeCount(stats.getFolloweeCount());
+        resp.setFollowerCount(stats.getFollowerCount());
+        resp.setSocialDegraded(stats.isDegraded());
+        resp.setHasFollowed(viewerId > 0 ? stats.isHasFollowed() : false);
         return Result.ok(resp);
     }
 

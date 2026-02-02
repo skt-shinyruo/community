@@ -27,6 +27,11 @@
 - internal 运维入口强保护（break-glass）：
   - `com.nowcoder.community.common.internal.InternalOpsGuardFilter`：对 `/internal/**` 中的高风险运维动作进行二次校验（`X-Ops-Token` + allowlist + 限流），默认关闭
   - 当前覆盖：`/internal/*/outbox/replay`、`/internal/search/reindex`、`/internal/*/likes/backfill`
+- HTTP 写接口幂等保护：
+  - `com.nowcoder.community.common.idempotency.IdempotencyGuard`：基于 Redis 的 Idempotency-Key 幂等（缺失 key 时 fail-closed 返回 400；存储不可用时对 required 入口返回 503）
+  - TTL 配置（可按环境调整）：
+    - `http.idempotency.processing-ttl`（默认 30s）
+    - `http.idempotency.success-ttl`（默认 24h）
 - 事务工具：
   - `com.nowcoder.community.common.tx.AfterCommitExecutor`：在事务提交后执行非 DB 副作用（Kafka 发送、缓存刷新等），用于 P0 消除“幽灵事件”。
 - Kafka 消费辅助：

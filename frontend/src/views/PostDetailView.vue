@@ -366,6 +366,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useSocialPrefsStore } from '../stores/socialPrefs'
 import { useTaxonomyStore } from '../stores/taxonomy'
+import { usePostMetaCacheStore } from '../stores/postMetaCache'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
@@ -409,6 +410,7 @@ const auth = useAuthStore()
 const prefs = useSocialPrefsStore()
 const authed = computed(() => !!auth.accessToken)
 const taxonomy = useTaxonomyStore()
+const postMetaCache = usePostMetaCacheStore()
 
 function categoryLabel(id) {
   const cid = Number(id || 0)
@@ -622,6 +624,8 @@ async function loadPost() {
     post.value = resp?.data || null
     emit('trace', resp?.traceId || '')
 
+    applyPostLikeOverlay()
+
     if (post.value?.userId) {
       postAuthor.value = await getUserProfile(post.value.userId).catch(() => null)
     } else {
@@ -631,6 +635,28 @@ async function loadPost() {
     error.value = e?.message || '加载失败'
   } finally {
     loading.value = false
+  }
+}
+
+function applyPostLikeOverlay() {
+  if (!post.value) return
+  const pid = Number(postId.value || 0)
+  if (!pid) return
+
+  // 计数是全局读模型：短 TTL 覆盖用于减轻“写后刷新读旧投影”的感知不一致。
+  const cachedCount = postMetaCache.getLikeCount(1, pid)
+  if (typeof cachedCount === 'number') {
+    post.value.likeCount = cachedCount
+  }
+
+  // liked 与登录态相关：未登录时强制为 false，避免跨账号/退出登录后误展示。
+  if (!authed.value) {
+    post.value.liked = false
+    return
+  }
+  const cachedLiked = postMetaCache.getLikeStatus(1, pid)
+  if (typeof cachedLiked === 'boolean') {
+    post.value.liked = cachedLiked
   }
 }
 
@@ -660,8 +686,14 @@ async function togglePostLike() {
       liked: null
     })
     emit('trace', resp?.traceId || '')
-    if (typeof resp?.data?.likeCount === 'number') post.value.likeCount = resp.data.likeCount
-    if (typeof resp?.data?.liked === 'boolean') post.value.liked = resp.data.liked
+    if (typeof resp?.data?.likeCount === 'number') {
+      post.value.likeCount = resp.data.likeCount
+      postMetaCache.setLikeCount(1, Number(postId.value), post.value.likeCount)
+    }
+    if (typeof resp?.data?.liked === 'boolean') {
+      post.value.liked = resp.data.liked
+      postMetaCache.setLikeStatus(1, Number(postId.value), post.value.liked)
+    }
   } catch (e) {
     error.value = e?.message || '点赞操作失败'
   } finally {
@@ -1137,6 +1169,15 @@ watch(
   () => {
     if (commentsLoading.value) return
     maybeScrollFromRoute()
+  }
+)
+
+watch(
+  () => auth.accessToken,
+  () => {
+    // 点赞状态与登录态强相关：切换账号/退出登录时清理覆盖，避免误展示。
+    postMetaCache.clearLikeStatuses()
+    applyPostLikeOverlay()
   }
 )
 

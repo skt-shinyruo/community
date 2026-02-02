@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 用户资料查询；个人主页展示所需数据；头像上传（local/qiniu）与头像 URL 回写；internal 身份鉴权/注册/激活/密码更新接口；管理员用户角色管理
 - **Status：** ✅Stable
-- **Last Updated：** 2026-02-01
+- **Last Updated：** 2026-02-02
 
 ## Specifications
 
@@ -20,7 +20,7 @@
 - 登录态存在时返回是否关注该用户
 
 > P0 生产可用：个人主页聚合依赖 social-service，同步调用必须具备超时 + 降级 + 可观测，
-> 避免下游短暂不可用拖垮上游线程池与网关链路。
+> 避免下游短暂不可用拖垮上游线程池与网关链路；同时需要能区分“真实为 0”与“依赖降级占位”，避免误导用户。
 
 ### Requirement: 用户头像设置
 **Module:** user
@@ -50,7 +50,7 @@
 提供用户禁言/封禁状态字段与 internal API，供 content-service 在写路径前置校验与治理动作落地。
 
 ## API Interfaces（现状）
-- `GET /api/users/{userId}`（公开；返回增加 `score/level`）
+- `GET /api/users/{userId}`（公开；返回用户资料 + 获赞/关注/粉丝 + hasFollowed；并提供 `socialDegraded` 区分降级占位）
 - `GET /api/users/leaderboard?limit=`（公开；Top 用户榜单）
 - `GET /api/users/{userId}/avatar/upload-token`（需要登录，仅本人）
 - `POST /api/users/{userId}/avatar/upload`（需要登录，仅本人；local provider）
@@ -89,3 +89,4 @@
 - 2026-01-20：新增 `/internal/users/**` 作为身份域 internal API，并在登录成功后对 legacy 密码做渐进 rehash（MD5+salt -> BCrypt）。
 - 2026-01-23：新增成长体系（积分/等级/榜单）与治理落地字段（禁言/封禁），并补齐 internal moderation API 供 content-service 调用。
 - 2026-02-01：积分链路支持 `LikeRemoved` 触发回退，并对 `user.score` 做非负保护（防刷分与边界值安全）。
+- 2026-02-02：用户主页聚合改为单次调用 social-service internal 聚合接口（profile-stats），并在响应中提供 `socialDegraded`，避免把下游故障伪装为 0。

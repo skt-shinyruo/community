@@ -2,6 +2,8 @@
 package com.nowcoder.community.social.api;
 
 import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.common.domain.EntityTypes;
+import com.nowcoder.community.social.api.dto.InternalUserProfileStatsResponse;
 import com.nowcoder.community.social.follow.FollowService;
 import com.nowcoder.community.social.like.LikeService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +18,7 @@ public class InternalSocialReadController {
 
     private final LikeService likeService;
     private final FollowService followService;
+    private static final int USER_ENTITY_TYPE = EntityTypes.USER;
 
     public InternalSocialReadController(LikeService likeService, FollowService followService) {
         this.likeService = likeService;
@@ -45,5 +48,24 @@ public class InternalSocialReadController {
     ) {
         return Result.ok(followService.hasFollowed(userId, entityType, entityId));
     }
-}
 
+    @GetMapping("/users/{userId}/profile-stats")
+    public Result<InternalUserProfileStatsResponse> userProfileStats(
+            @PathVariable int userId,
+            @RequestParam(required = false) Integer viewerId
+    ) {
+        InternalUserProfileStatsResponse resp = new InternalUserProfileStatsResponse();
+        resp.setLikeCount(likeService.userLikeCount(userId));
+        resp.setFolloweeCount(followService.followeeCount(userId, USER_ENTITY_TYPE));
+        resp.setFollowerCount(followService.followerCount(USER_ENTITY_TYPE, userId));
+
+        boolean hasFollowed = false;
+        int v = viewerId == null ? 0 : viewerId;
+        if (v > 0 && v != userId) {
+            hasFollowed = followService.hasFollowed(v, USER_ENTITY_TYPE, userId);
+        }
+        resp.setHasFollowed(hasFollowed);
+        resp.setDegraded(false);
+        return Result.ok(resp);
+    }
+}

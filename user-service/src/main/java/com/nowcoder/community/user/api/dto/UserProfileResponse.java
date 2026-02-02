@@ -19,6 +19,13 @@ public class UserProfileResponse {
     private long followerCount;
     private Boolean hasFollowed;
 
+    /**
+     * social 聚合读路径是否发生降级（fail-open）。
+     *
+     * <p>用于区分“真实为 0”与“依赖故障/超时导致的占位 0”，避免误导用户。</p>
+     */
+    private boolean socialDegraded;
+
     public int getId() {
         return id;
     }
@@ -113,5 +120,13 @@ public class UserProfileResponse {
 
     public void setHasFollowed(Boolean hasFollowed) {
         this.hasFollowed = hasFollowed;
+    }
+
+    public boolean isSocialDegraded() {
+        return socialDegraded;
+    }
+
+    public void setSocialDegraded(boolean socialDegraded) {
+        this.socialDegraded = socialDegraded;
     }
 }

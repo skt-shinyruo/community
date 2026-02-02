@@ -3,26 +3,22 @@ package com.nowcoder.community.gateway.filter;
 // 网关 UV/DAU 采集过滤器：基于可信代理模型解析客户端 IP，减少伪造风险。
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.nowcoder.community.gateway.analytics.AnalyticsCollectDispatcher;
 import com.nowcoder.community.gateway.config.AnalyticsCollectProperties;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
-import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
-import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
-import org.springframework.web.reactive.function.BodyInserters;
 
 import java.time.Duration;
 import java.time.LocalDate;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
 public class AnalyticsCollectGlobalFilter implements GlobalFilter, Ordered {
@@ -34,21 +30,20 @@ public class AnalyticsCollectGlobalFilter implements GlobalFilter, Ordered {
     private final Cache<String, Boolean> seenDauKeys;
 
     private final AnalyticsCollectProperties properties;
-    private final WebClient webClient;
     private final ClientIpResolver clientIpResolver;
     private final MeterRegistry meterRegistry;
-    private final AtomicInteger inflight = new AtomicInteger();
+    private final AnalyticsCollectDispatcher dispatcher;
 
     public AnalyticsCollectGlobalFilter(
             AnalyticsCollectProperties properties,
-            WebClient.Builder webClientBuilder,
             ClientIpResolver clientIpResolver,
-            MeterRegistry meterRegistry
+            MeterRegistry meterRegistry,
+            AnalyticsCollectDispatcher dispatcher
     ) {
         this.properties = properties;
-        this.webClient = webClientBuilder.build();
         this.clientIpResolver = clientIpResolver;
         this.meterRegistry = meterRegistry;
+        this.dispatcher = dispatcher;
 
         Duration ttl = Duration.ofSeconds(Math.max(1, properties.getDedupTtlSeconds()));
         long uvMaxSize = Math.max(1, properties.getUvCacheMaxSize());
@@ -146,48 +141,18 @@ public class AnalyticsCollectGlobalFilter implements GlobalFilter, Ordered {
         if (!StringUtils.hasText(ip) || date == null) {
             return;
         }
-        submitAsync(
-                "uv",
-                webClient.post()
-                        .uri("lb://analytics-service/internal/analytics/uv/record")
-                        .header("X-Internal-Token", properties.getInternalToken())
-                        .headers(h -> {
-                            if (StringUtils.hasText(traceId)) {
-                                h.set(TraceIdSupport.HEADER_TRACE_ID, traceId);
-                            }
-                            if (StringUtils.hasText(traceparent)) {
-                                h.set(TraceIdSupport.HEADER_TRACEPARENT, traceparent);
-                            }
-                        })
-                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                        .body(BodyInserters.fromFormData("ip", ip).with("date", date.toString()))
-                        .retrieve()
-                        .bodyToMono(Void.class)
-        );
+        if (dispatcher != null) {
+            dispatcher.trySubmitUv(ip, date, traceId, traceparent);
+        }
     }
 
     private void recordDau(int userId, LocalDate date, String traceId, String traceparent) {
         if (userId <= 0 || date == null) {
             return;
         }
-        submitAsync(
-                "dau",
-                webClient.post()
-                        .uri("lb://analytics-service/internal/analytics/dau/record")
-                        .header("X-Internal-Token", properties.getInternalToken())
-                        .headers(h -> {
-                            if (StringUtils.hasText(traceId)) {
-                                h.set(TraceIdSupport.HEADER_TRACE_ID, traceId);
-                            }
-                            if (StringUtils.hasText(traceparent)) {
-                                h.set(TraceIdSupport.HEADER_TRACEPARENT, traceparent);
-                            }
-                        })
-                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                        .body(BodyInserters.fromFormData("userId", String.valueOf(userId)).with("date", date.toString()))
-                        .retrieve()
-                        .bodyToMono(Void.class)
-        );
+        if (dispatcher != null) {
+            dispatcher.trySubmitDau(userId, date, traceId, traceparent);
+        }
     }
 
     private Integer parseUserId(String subject) {
@@ -203,40 +168,6 @@ public class AnalyticsCollectGlobalFilter implements GlobalFilter, Ordered {
             }
             return null;
         }
-    }
-
-    private void submitAsync(String metric, Mono<Void> call) {
-        if (call == null) {
-            return;
-        }
-        int max = Math.max(1, properties.getMaxConcurrency());
-        int current = inflight.incrementAndGet();
-        if (current > max) {
-            inflight.decrementAndGet();
-            meterRegistry.counter("gateway_analytics_collect_total", Tags.of("metric", metric, "outcome", "skipped_concurrency")).increment();
-            return;
-        }
-
-        long startNanos = System.nanoTime();
-        meterRegistry.counter("gateway_analytics_collect_total", Tags.of("metric", metric, "outcome", "attempt")).increment();
-
-        long timeoutMs = Math.max(50, properties.getTimeoutMs());
-        call.timeout(Duration.ofMillis(timeoutMs))
-                .doOnSuccess(v -> meterRegistry.counter("gateway_analytics_collect_total", Tags.of("metric", metric, "outcome", "ok")).increment())
-                .doOnError(ex -> meterRegistry.counter("gateway_analytics_collect_total", Tags.of("metric", metric, "outcome", outcomeOf(ex))).increment())
-                .doFinally(sig -> {
-                    inflight.decrementAndGet();
-                    meterRegistry.timer("gateway_analytics_collect_latency", Tags.of("metric", metric)).record(System.nanoTime() - startNanos, java.util.concurrent.TimeUnit.NANOSECONDS);
-                })
-                .onErrorResume(e -> Mono.empty())
-                .subscribe();
-    }
-
-    private String outcomeOf(Throwable ex) {
-        if (ex instanceof TimeoutException) {
-            return "timeout";
-        }
-        return "error";
     }
 
     @Override

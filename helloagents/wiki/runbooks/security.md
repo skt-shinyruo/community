@@ -25,7 +25,10 @@
 - [ ] user-service 高权限 internal 写入口已分域 token：`user.ops.internal-token`（改密码/治理处置），调用方已切换对应 token
 - [ ] internal OPS 运维入口默认关闭（break-glass），需要时按 runbook 临时开启：`helloagents/wiki/runbooks/internal-ops.md`
 - [ ] internal OPS 运维入口具备 `X-Ops-Token` + allowlist + single-flight/rate-limit，且 Redis 不可用时 fail-closed 返回 503
-- [ ] 可信代理与 `X-Forwarded-For` 解析规则已配置（只在可信链路信任 XFF）
+- [ ] 可信代理与 `X-Forwarded-For` 解析规则已配置（只在可信链路信任 XFF）：
+  - `gateway.trusted-proxy.enabled=true` 时必须配置 `gateway.trusted-proxy.cidrs`（CIDR allowlist）
+  - 禁止 `0.0.0.0/0` / `::/0`（全量信任会导致 XFF 伪造）
+  - prod profile 下 `StartupValidation` 会对危险配置 fail-closed 阻断启动
 - [ ] 审计/错误日志不得打印敏感信息（token/密码/邮箱等），仅允许 traceId/用户 ID 等低敏字段
 
 ---

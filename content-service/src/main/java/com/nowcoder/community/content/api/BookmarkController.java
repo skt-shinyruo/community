@@ -9,6 +9,7 @@ import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.service.BookmarkService;
 import com.nowcoder.community.content.service.CommentService;
 import com.nowcoder.community.content.service.TagService;
+import com.nowcoder.community.content.text.ContentTextCodec;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -33,11 +34,13 @@ public class BookmarkController {
     private final BookmarkService bookmarkService;
     private final CommentService commentService;
     private final TagService tagService;
+    private final ContentTextCodec textCodec;
 
-    public BookmarkController(BookmarkService bookmarkService, CommentService commentService, TagService tagService) {
+    public BookmarkController(BookmarkService bookmarkService, CommentService commentService, TagService tagService, ContentTextCodec textCodec) {
         this.bookmarkService = bookmarkService;
         this.commentService = commentService;
         this.tagService = tagService;
+        this.textCodec = textCodec;
     }
 
     @PutMapping("/posts/{postId}/bookmark")
@@ -81,7 +84,7 @@ public class BookmarkController {
         r.setUserId(post.getUserId());
         r.setCategoryId(post.getCategoryId());
         r.setTags(tags == null ? List.of() : tags);
-        r.setTitle(post.getTitle());
+        r.setTitle(textCodec.decodeOnRead(post.getTitle()));
         r.setType(post.getType());
         r.setStatus(post.getStatus());
         r.setCreateTime(post.getCreateTime());

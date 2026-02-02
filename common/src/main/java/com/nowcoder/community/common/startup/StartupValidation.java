@@ -33,6 +33,9 @@ public class StartupValidation {
             errors.add("配置不安全：security.jwt.hmac-secret 长度不足（建议 >= 32 字节）");
         }
 
+        // 1.5) trusted-proxy（可选）：启用后必须配置 CIDR allowlist，避免信任 XFF 造成伪造风险。
+        validateTrustedProxy(environment, errors);
+
         // 2) internal-token：按服务校验（最小权限 / 防旁路）
         switch (appName) {
             case "auth-service" -> {
@@ -168,6 +171,108 @@ public class StartupValidation {
             }
         }
         errors.add("配置不合法：" + key + "=" + v + "（允许值=" + allowed + "；" + hint + "）");
+    }
+
+    private void validateTrustedProxy(Environment environment, List<String> errors) {
+        if (environment == null) {
+            return;
+        }
+        Boolean enabled = environment.getProperty("gateway.trusted-proxy.enabled", Boolean.class, Boolean.FALSE);
+        if (enabled == null || !enabled) {
+            return;
+        }
+
+        List<String> cidrs = readList(environment, "gateway.trusted-proxy.cidrs");
+        if (cidrs.isEmpty()) {
+            errors.add("配置不安全：gateway.trusted-proxy.enabled=true 但 gateway.trusted-proxy.cidrs 为空（必须配置可信代理 CIDR allowlist，例如 10.0.0.0/8）");
+            return;
+        }
+
+        for (int i = 0; i < cidrs.size(); i++) {
+            String cidr = cidrs.get(i);
+            if (!StringUtils.hasText(cidr)) {
+                errors.add("配置不合法：gateway.trusted-proxy.cidrs[" + i + "] 为空");
+                continue;
+            }
+            String trimmed = cidr.trim();
+            if ("0.0.0.0/0".equals(trimmed) || "::/0".equals(trimmed)) {
+                errors.add("配置不安全：gateway.trusted-proxy.cidrs[" + i + "]=" + trimmed + "（禁止使用全量信任 CIDR）");
+                continue;
+            }
+            if (!isValidCidr(trimmed)) {
+                errors.add("配置不合法：gateway.trusted-proxy.cidrs[" + i + "]=" + trimmed + "（CIDR 格式应为 ip/prefix，例如 10.0.0.0/8）");
+            }
+        }
+    }
+
+    private List<String> readList(Environment environment, String key) {
+        List<String> items = new ArrayList<>(8);
+        if (environment == null || !StringUtils.hasText(key)) {
+            return items;
+        }
+
+        // 1) 标准 YAML list：key[0..N]
+        for (int i = 0; i < 64; i++) {
+            String v = getTrimmed(environment, key + "[" + i + "]");
+            if (!StringUtils.hasText(v)) {
+                // 遇到第一个空直接 break：避免无意义遍历
+                break;
+            }
+            items.add(v);
+        }
+
+        if (!items.isEmpty()) {
+            return items;
+        }
+
+        // 2) 兼容：单行逗号分隔（便于 Nacos/Env 临时覆盖）
+        String configured = getTrimmed(environment, key);
+        if (!StringUtils.hasText(configured)) {
+            return items;
+        }
+        String normalized = configured.replace("[", "").replace("]", "");
+        for (String raw : normalized.split(",")) {
+            String it = raw == null ? "" : raw.trim();
+            if (!StringUtils.hasText(it)) {
+                continue;
+            }
+            items.add(it);
+        }
+        return items;
+    }
+
+    private boolean isValidCidr(String cidr) {
+        if (!StringUtils.hasText(cidr) || !cidr.contains("/")) {
+            return false;
+        }
+        String[] parts = cidr.split("/", 2);
+        if (parts.length != 2) {
+            return false;
+        }
+        String base = parts[0] == null ? "" : parts[0].trim();
+        String prefixStr = parts[1] == null ? "" : parts[1].trim();
+        if (!StringUtils.hasText(base) || !StringUtils.hasText(prefixStr)) {
+            return false;
+        }
+
+        int prefix;
+        try {
+            prefix = Integer.parseInt(prefixStr);
+        } catch (Exception e) {
+            return false;
+        }
+
+        try {
+            java.net.InetAddress addr = java.net.InetAddress.getByName(base);
+            byte[] bytes = addr == null ? null : addr.getAddress();
+            if (bytes == null || bytes.length == 0) {
+                return false;
+            }
+            int totalBits = bytes.length * 8;
+            return prefix >= 0 && prefix <= totalBits;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private String getTrimmed(Environment env, String key) {

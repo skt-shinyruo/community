@@ -14,9 +14,19 @@ public class AnalyticsCollectProperties {
     private int timeoutMs = 300;
 
     /**
-     * 采集并发上限（in-flight）。超过上限时跳过采集并计入指标。
+     * 采集并发上限（worker in-flight）。
+     *
+     * <p>说明：当并发达到上限时，采集事件会在网关侧队列中排队；队列满则丢弃。</p>
      */
     private int maxConcurrency = 50;
+
+    /**
+     * 网关侧采集队列容量（有界）。
+     *
+     * <p>说明：采集链路必须与业务转发隔离，因此当下游不可用/积压时允许丢弃采集事件，
+     * 通过指标观测并在必要时调小/关闭。</p>
+     */
+    private int queueCapacity = 10_000;
 
     /**
      * 是否启用网关侧 in-process 去重（有界 TTL 缓存）。默认开启，用于降噪与降低下游压力。
@@ -68,6 +78,14 @@ public class AnalyticsCollectProperties {
 
     public void setMaxConcurrency(int maxConcurrency) {
         this.maxConcurrency = maxConcurrency;
+    }
+
+    public int getQueueCapacity() {
+        return queueCapacity;
+    }
+
+    public void setQueueCapacity(int queueCapacity) {
+        this.queueCapacity = queueCapacity;
     }
 
     public boolean isDedupEnabled() {

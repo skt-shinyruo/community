@@ -10,7 +10,6 @@
 - `docker-compose.yml`：基础全栈（Nacos/MySQL/Redis/Kafka/ES/观测 + 全服务），默认仅映射必要入口端口；Nacos 控制台端口默认绑定到宿主机 `127.0.0.1:8848`（可用 `NACOS_UI_PORT` 覆盖），其余依赖端口不映射到宿主机。
 - `docker-compose.frontend-direct.yml`：本地入口覆盖：暴露 `12881/12882` + 启动 `frontend`，并将激活链接默认指向 `http://localhost:12881`。
 - `docker-compose.ports.yml`：可选端口映射（仅暴露观测/日志入口：Grafana/Loki/Prometheus/Alertmanager；使用 `12883+` 端口段，避免与 `12881/12882` 冲突）。
-- `docker-compose.nacos-ui.yml`：历史兼容（no-op）。Nacos 控制台端口已在 `docker-compose.yml` 默认绑定到宿主机，无需再追加该 overlay。
 - `.env.example`：环境变量示例（复制为 `.env` 使用）。
 - `.env`：本地环境变量（不要提交包含敏感信息的版本）。
 - `mysql-init/`：MySQL 初始化脚本（建表 + 种子数据）。
@@ -30,6 +29,21 @@
 3. 访问：
    - 前端：`http://localhost:12881`
    - API（gateway）：`http://localhost:12882`
+
+## 常用 docker compose 命令速查（从项目根目录执行）
+- 启动前配置：确认 `deploy/.env` 已存在；若没有先复制：`cp deploy/.env.example deploy/.env`
+- 最简单启动（仅基础全栈，不额外暴露入口端口）：
+  - `docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build`
+- 推荐启动（前端直连 gateway，暴露 `12881/12882`）：
+  - `docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.frontend-direct.yml --env-file deploy/.env up -d --build`
+- 按需叠加 overlay（示例：开启观测端口 + MailHog）：
+  - `docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.frontend-direct.yml -f deploy/docker-compose.ports.yml -f deploy/docker-compose.mailhog.yml --env-file deploy/.env up -d --build`
+- 查看状态/日志：
+  - `docker compose -f deploy/docker-compose.yml ps`
+  - `docker compose -f deploy/docker-compose.yml logs -f --tail=200`
+- 停止与清理：
+  - 停止：`docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.frontend-direct.yml --env-file deploy/.env down`
+  - 完全重置：`docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.frontend-direct.yml --env-file deploy/.env down -v`（⚠️ 会删除数据卷/本地数据，谨慎使用）
 
 ## Onboarding：注册/激活/找回密码闭环（自托管友好）
 

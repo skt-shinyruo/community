@@ -6,6 +6,7 @@ import com.nowcoder.community.content.api.dto.InternalPostScanResponse;
 import com.nowcoder.community.content.dao.DiscussPostMapper;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.service.TagService;
+import com.nowcoder.community.content.text.ContentTextCodec;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -22,13 +23,16 @@ public class InternalContentController {
 
     private final DiscussPostMapper discussPostMapper;
     private final TagService tagService;
+    private final ContentTextCodec textCodec;
 
     public InternalContentController(
             DiscussPostMapper discussPostMapper,
-            TagService tagService
+            TagService tagService,
+            ContentTextCodec textCodec
     ) {
         this.discussPostMapper = discussPostMapper;
         this.tagService = tagService;
+        this.textCodec = textCodec;
     }
 
     /**
@@ -71,8 +75,8 @@ public class InternalContentController {
         payload.setUserId(post.getUserId());
         payload.setCategoryId(post.getCategoryId());
         payload.setTags(tags);
-        payload.setTitle(post.getTitle());
-        payload.setContent(post.getContent());
+        payload.setTitle(textCodec.decodeOnRead(post.getTitle()));
+        payload.setContent(textCodec.decodeOnRead(post.getContent()));
         payload.setType(post.getType());
         payload.setStatus(post.getStatus());
         payload.setCreateTime(post.getCreateTime() == null ? null : post.getCreateTime().toInstant());

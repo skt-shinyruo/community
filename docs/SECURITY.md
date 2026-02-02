@@ -56,6 +56,27 @@ gateway 支持基于 Redis 的规则化限流：
 - 被限流时返回 `429 Too Many Requests`
 - 同时记录指标 `gateway_rate_limit_total`（带 `rule`、`outcome` 标签）
 
+### 4.1 可信代理与真实客户端 IP（X-Forwarded-For）
+
+默认安全态（fail-closed）：
+- **默认不信任** `X-Forwarded-For` / `X-Real-IP`（防止客户端伪造转发头绕过风控/限流/统计）。
+
+当生产部署在 Nginx/Ingress/Load Balancer 后时，建议显式启用可信代理模式：
+- 配置键（网关与服务侧共享同一份键名，避免“网关正确但服务侧错误”）：
+  - `gateway.trusted-proxy.enabled=true`
+  - `gateway.trusted-proxy.cidrs=[10.0.0.0/8,192.168.0.0/16,...]`
+- 行为约定：
+  - 仅当 `remoteAddr ∈ cidrs allowlist` 才解析 `X-Forwarded-For` 的第一个 IP 作为客户端 IP；
+  - 否则严格使用 `remoteAddr`（避免 XFF 伪造）。
+
+强约束（prod 下）：
+- 当 `SPRING_PROFILES_ACTIVE=prod` 且 `gateway.trusted-proxy.enabled=true`：
+  - `gateway.trusted-proxy.cidrs` 为空会 **阻断启动**（避免 silent misconfig）；
+  - 禁止使用 `0.0.0.0/0` 或 `::/0`（全量信任会带来 XFF 伪造风险）。
+
+本地/示例配置见：
+- `deploy/.env.example`
+
 ---
 
 ## 5. 审计日志（写路径）

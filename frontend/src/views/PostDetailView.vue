@@ -827,7 +827,15 @@ async function submitEdit(payload) {
         tags: Array.isArray(post.value.tags) ? post.value.tags : []
       })
       emit('trace', r?.traceId || '')
-      if (typeof window !== 'undefined' && window.$toast) window.$toast({ type: 'success', text: '已保存' })
+      const q = String(payload?.title || '').trim()
+      if (typeof window !== 'undefined' && window.$toast) window.$toast({
+        type: 'success',
+        title: '已保存',
+        text: '帖子已更新。搜索结果更新为最终一致，可能延迟数秒到数十秒。',
+        duration: 6000,
+        actionText: '去搜索',
+        onAction: () => router.push({ name: 'search', query: q ? { q } : {} })
+      })
       closeEdit()
       await loadPost()
     } else {

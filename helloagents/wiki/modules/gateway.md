@@ -19,6 +19,7 @@
 - 限流：`gateway/src/main/java/com/nowcoder/community/gateway/filter/GatewayRateLimitGlobalFilter.java`
 - 审计：`gateway/src/main/java/com/nowcoder/community/gateway/filter/AuditLogGlobalFilter.java`
 - UV/DAU 采集：`gateway/src/main/java/com/nowcoder/community/gateway/filter/AnalyticsCollectGlobalFilter.java`
+- UV/DAU 采集异步调度：`gateway/src/main/java/com/nowcoder/community/gateway/analytics/AnalyticsCollectDispatcher.java`（有界队列 + worker）
 - OriginGuard（敏感接口 Origin 白名单）：`gateway/src/main/java/com/nowcoder/community/gateway/filter/OriginGuardGlobalFilter.java`
 - 配置：`gateway/src/main/resources/application.yml`
 
@@ -40,6 +41,8 @@
 - 需要设置 `GATEWAY_JWT_HMAC_SECRET`（>=32 字节）并确保与 `AUTH_JWT_HMAC_SECRET` 一致。
 - 若启用统计采集（`analytics.collect.enabled=true`），需要配置 `ANALYTICS_INTERNAL_TOKEN`，用于 gateway 调用 analytics-service 的 `/internal/**` 写入口。
   - 去重/降噪参数：`analytics.collect.dedup-enabled`、`analytics.collect.uv-cache-max-size`、`analytics.collect.dau-cache-max-size`、`analytics.collect.dedup-ttl-seconds`（网关单实例内生效）。
+  - 隔离/背压参数：`analytics.collect.queue-capacity`（有界队列）、`analytics.collect.max-concurrency`（worker 并发）、`analytics.collect.timeout-ms`（采集超时）。
+  - Runbook：`helloagents/wiki/runbooks/gateway-analytics-collect.md`
 - 若启用限流（默认开启），需要 Redis 可用（`spring.data.redis.host/port`）。
 - 若采用“前端直连 gateway”模式（前端 `12881` + gateway `12882`），需要在 gateway allowlist 中允许对应 Origin（默认包含 `http://localhost:12881` / `http://localhost:12888`）。
 - 若本地前端端口调整（例如 `12888` -> 其他端口），需要同步更新 allowlist（CORS + OriginGuard），并确保 gateway 与 auth-service 的 OriginGuard allowlist 保持一致（建议在配置中心统一维护同一套值）。
@@ -58,6 +61,7 @@
 - 权限矩阵：治理后台接口 `/api/moderation/**` 仅允许 `ROLE_ADMIN/ROLE_MODERATOR`（其余用户返回 403）。
 - 文件访问：`GET /files/**` 允许匿名访问，但仅用于公开头像资源（下游 user-service 仍会做前缀与路径校验）。
 - UV/DAU 采集链路：网关侧仅做“有界降噪”（TTL + 最大容量），最终以 analytics-service Redis 去重/聚合为准；网关调用 analytics-service 时会透传 `X-Trace-Id/traceparent` 便于排障。
+- UV/DAU 采集链路（隔离版）：filter 仅采集字段并投递到有界队列；异步 worker 执行 WebClient 调用；队列满允许丢弃并通过指标观测（`gateway_analytics_collect_total{metric,outcome}` + `gateway_analytics_collect_latency{metric}`）。
 
 ## 6. 常见问题排查
 - **503 Service Unavailable（Unable to find instance）**：若 gateway 日志提示 `Unable to find instance for {service}`，通常表示 `lb://{service}` 未解析到任何实例：

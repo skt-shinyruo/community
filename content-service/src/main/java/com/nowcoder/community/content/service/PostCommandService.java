@@ -6,6 +6,7 @@ import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.event.ContentEventPublisher;
 import com.nowcoder.community.content.projection.UserModerationProjectionRepository;
 import com.nowcoder.community.content.score.PostScoreQueue;
+import com.nowcoder.community.content.text.ContentTextCodec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -36,6 +37,7 @@ public class PostCommandService {
     private final TagService tagService;
     private final UserModerationProjectionRepository projectionRepository;
     private final UserModerationGuard moderationGuard;
+    private final ContentTextCodec textCodec;
 
     public PostCommandService(
             PostService postService,
@@ -44,7 +46,8 @@ public class PostCommandService {
             CategoryService categoryService,
             TagService tagService,
             UserModerationProjectionRepository projectionRepository,
-            UserModerationGuard moderationGuard
+            UserModerationGuard moderationGuard,
+            ContentTextCodec textCodec
     ) {
         this.postService = postService;
         this.postScoreQueue = postScoreQueue;
@@ -53,6 +56,7 @@ public class PostCommandService {
         this.tagService = tagService;
         this.projectionRepository = projectionRepository;
         this.moderationGuard = moderationGuard;
+        this.textCodec = textCodec;
     }
 
     @Transactional
@@ -84,8 +88,8 @@ public class PostCommandService {
         payload.setUserId(userId);
         payload.setCategoryId(categoryId);
         payload.setTags(normalizedTags);
-        payload.setTitle(title);
-        payload.setContent(content);
+        payload.setTitle(textCodec.decodeOnRead(title));
+        payload.setContent(textCodec.decodeOnRead(content));
         payload.setType(post.getType());
         payload.setStatus(post.getStatus());
         payload.setCreateTime(post.getCreateTime() == null ? null : post.getCreateTime().toInstant());
@@ -143,8 +147,8 @@ public class PostCommandService {
         payload.setUserId(existed.getUserId());
         payload.setCategoryId(categoryId);
         payload.setTags(normalizedTags);
-        payload.setTitle(title);
-        payload.setContent(content);
+        payload.setTitle(textCodec.decodeOnRead(title));
+        payload.setContent(textCodec.decodeOnRead(content));
         payload.setType(existed.getType());
         payload.setStatus(existed.getStatus());
         payload.setCreateTime(existed.getCreateTime() == null ? null : existed.getCreateTime().toInstant());
@@ -181,8 +185,8 @@ public class PostCommandService {
         payload.setUserId(existed.getUserId());
         payload.setCategoryId(existed.getCategoryId());
         payload.setTags(tags);
-        payload.setTitle(existed.getTitle());
-        payload.setContent(existed.getContent());
+        payload.setTitle(textCodec.decodeOnRead(existed.getTitle()));
+        payload.setContent(textCodec.decodeOnRead(existed.getContent()));
         payload.setType(existed.getType());
         payload.setStatus(2);
         payload.setCreateTime(Instant.now());

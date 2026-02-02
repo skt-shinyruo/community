@@ -18,6 +18,8 @@
 - 内部调用治理：
   - headers/错误映射/指标：`com.nowcoder.community.common.web.internalclient.InternalClientSupport`
   - 指标统一：`internal_client_requests_total` / `internal_client_latency`（tags：client/api/outcome）
+- 文本兼容工具：
+  - `com.nowcoder.community.common.text.HtmlEntityCodec`：基础 HTML entity 白名单编解码（用于历史内容兼容，避免二次转义可见问题）
 - 全局异常：
   - `com.nowcoder.community.common.web.GlobalExceptionHandler`
   - `com.nowcoder.community.common.web.SecurityExceptionHandler`（仅在存在 Security 类时启用）
@@ -34,6 +36,8 @@
     - `http.idempotency.success-ttl`（默认 24h）
 - 事务工具：
   - `com.nowcoder.community.common.tx.AfterCommitExecutor`：在事务提交后执行非 DB 副作用（Kafka 发送、缓存刷新等），用于 P0 消除“幽灵事件”。
+- prod 启动期 fail-closed 校验：
+  - `com.nowcoder.community.common.startup.StartupValidation` + `StartupValidationAutoConfig`：在 `prod` profile 下校验关键配置（JWT/internal-token/trusted-proxy 等），避免 silent fallback。
 - Kafka 消费辅助：
   - `com.nowcoder.community.common.kafka.KafkaTraceSupport`：消费端从 envelope 读取 `traceId` 注入 MDC，并在 finally 清理。
 - 事件 envelope 解析：

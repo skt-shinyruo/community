@@ -27,6 +27,7 @@
   - 配置：`auth-service/src/main/java/com/nowcoder/community/auth/config/UserServiceClientProperties.java`
   - RestTemplate：`auth-service/src/main/java/com/nowcoder/community/auth/config/AuthRestClientConfig.java`
   - 客户端：`auth-service/src/main/java/com/nowcoder/community/auth/service/UserServiceInternalClient.java`
+  - 统一支撑：复用 `common` 的 `InternalClientSupport`（headers/错误语义保真/metrics 统一）
   - DTO：`auth-service/src/main/java/com/nowcoder/community/auth/service/dto/*`
 - 验证码：
   - 配置：`auth-service/src/main/java/com/nowcoder/community/auth/config/CaptchaProperties.java`

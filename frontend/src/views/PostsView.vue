@@ -882,8 +882,17 @@ async function createPost() {
       tags: newTags.value
     })
     emit('trace', resp?.traceId || '')
-    
-    showToast({ type: 'success', title: '发布成功', text: '你的帖子已发布' })
+
+    const createdPostId = Number(resp?.data?.postId || 0)
+    const hasPostId = Number.isFinite(createdPostId) && createdPostId > 0
+    showToast({
+      type: 'success',
+      title: '发布成功',
+      text: '你的帖子已发布。搜索/通知为最终一致，结果可能延迟数秒到数十秒。',
+      duration: 6000,
+      actionText: hasPostId ? '立即查看帖子' : '',
+      onAction: hasPostId ? () => router.push({ name: 'postDetail', params: { postId: String(createdPostId) } }) : null
+    })
     
     newTitle.value = ''
     newContent.value = ''

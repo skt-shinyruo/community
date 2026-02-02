@@ -6,13 +6,29 @@
 ## Module Overview
 - **Responsibility：** 发帖；帖子详情；评论/回复；敏感词过滤；热帖分数刷新；与搜索/通知联动
 - **Status：** ✅Stable
-- **Last Updated：** 2026-02-01
+- **Last Updated：** 2026-02-02
 
 ## Specifications
 
 ### Requirement: 发帖与浏览帖子
 **Module:** content
 用户发布帖子后可在首页与详情页浏览。
+
+### Requirement: 内容渲染契约（store-raw + render-safe）
+**Module:** content
+目标：避免二次转义，同时保持 XSS 安全与历史数据兼容（不做全量 DB 迁移也能读对）。
+
+约定（推荐理解方式）：
+- API 返回 `title/content` 为“text 语义”（展示侧负责 escape + Markdown 白名单渲染）
+- 历史数据兼容：对外响应/事件 payload 在读路径做一次性基础 entity 解码（白名单、单次）
+- 写入阶段：不再做全量 htmlEscape；仅按配置对 `&` 做最小化 escape（防止用户输入 literal entity（如 `&lt;`）在解码后语义变化）
+
+配置开关（content-service）：
+- `content.render.legacy-entity-unescape-enabled`（默认 true）：读路径对历史 entity 进行基础解码
+- `content.render.escape-ampersand-on-write-enabled`（默认 true）：写入阶段仅对 `&` 做最小化 escape
+
+Runbook：
+- `helloagents/wiki/runbooks/content-rendering-migration.md`
 
 #### Scenario: 发布帖子
 前置条件：用户已登录
@@ -84,11 +100,11 @@
 - `GET /api/tags/hot?limit=`（热门标签 Top-N；返回 `useCount` 聚合值）
 - `GET /api/tags/suggest?q=&limit=`（标签建议：前缀匹配 + 热门兜底；用于发帖/搜索的自动补全）
 - `GET /api/posts`（order=latest|hot；支持 `categoryId`/`tag` 过滤；列表返回补齐 `lastReplyUserId/lastReplyTime/lastActivityTime`，用于 Discourse-like topic list：活动列与未读判断）
-- `POST /api/posts`（敏感词过滤 + XSS 处理 + 发布 PostPublished；请求体支持可选 `categoryId`/`tags[]`）
+- `POST /api/posts`（敏感词过滤 + 最小化 escape（仅 `&`，可配置）+ 发布 PostPublished；请求体支持可选 `categoryId`/`tags[]`）
 - `PUT /api/posts/{postId}`（作者 24h 内编辑；发布 PostUpdated；更新 `update_time/edit_count`）
 - `DELETE /api/posts/{postId}`（作者软删；发布 PostDeleted；写入 `deleted_*`）
 - `GET /api/posts/{postId}`（包含 likeCount/liked；返回 `categoryId`/`tags[]`）
-- `GET /api/posts/{postId}/comments`、`POST /api/posts/{postId}/comments`（发布 CommentCreated）
+- `GET /api/posts/{postId}/comments`、`POST /api/posts/{postId}/comments`（敏感词过滤 + 最小化 escape（仅 `&`，可配置）+ 发布 CommentCreated）
 - `PUT /api/posts/{postId}/comments/{commentId}`（作者 15min 内编辑；更新 `update_time/edit_count`）
 - `POST /api/reports`（提交举报：POST/COMMENT/USER）
 - `GET /api/moderation/reports`（治理后台：举报列表；仅 MOD/ADMIN）
@@ -137,3 +153,4 @@
 - 2026-02-01：消费 `LikeCreated/LikeRemoved` 维护 Redis `like:entity:*` 投影，帖子详情与热帖分数读源一致，且支持取消点赞回落。
 - 2026-02-01：评论/回复写路径拉黑校验改为“投影优先 + 缺失回源 + 回填”，消除投影缺失 fail-open 窗口。
 - 2026-02-01：新增 internal entity resolve 与 likes backfill 运维入口，用于跨域写路径契约可信与冷启动纠偏。
+- 2026-02-02：内容渲染契约收敛：写入停止全量 htmlEscape（仅对 `&` 最小化 escape 可配置），读路径对历史 entity 做一次性白名单解码（可配置），避免出现 `&amp;lt;` 二次转义可见问题，并保持 XSS 安全边界清晰。

@@ -11,31 +11,26 @@ import com.nowcoder.community.auth.service.dto.UserInternalSessionProfileRespons
 import com.nowcoder.community.auth.service.dto.UserInternalUpdatePasswordRequest;
 import com.nowcoder.community.auth.service.dto.UserInternalUserByEmailResponse;
 import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.api.SimpleErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.common.web.internalclient.InternalClientSupport;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Tags;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 @Service
 public class UserServiceInternalClient {
 
-    private static final String HEADER_INTERNAL_TOKEN = "X-Internal-Token";
+    private static final String METRIC_CLIENT = "auth-service:user-service";
 
     private final RestTemplate restTemplate;
     private final MeterRegistry meterRegistry;
@@ -53,28 +48,28 @@ public class UserServiceInternalClient {
             req.setUsername(username);
             req.setPassword(password);
             String url = properties.getBaseUrl() + "/internal/users/authenticate";
-            Result<UserInternalAuthenticateResponse> result = exchange(
+            ResponseEntity<Result<UserInternalAuthenticateResponse>> resp = restTemplate.exchange(
                     url,
                     HttpMethod.POST,
-                    new HttpEntity<>(req, jsonHeaders(properties.getInternalToken())),
+                    new HttpEntity<>(req, InternalClientSupport.jsonHeaders(properties.getInternalToken(), "user-service")),
                     new ParameterizedTypeReference<Result<UserInternalAuthenticateResponse>>() {
                     }
             );
-            return requireOk(result);
+            return InternalClientSupport.unwrap(resp, "user-service");
         });
     }
 
     public UserInternalSessionProfileResponse sessionProfile(int userId) {
         return call("sessionProfile", () -> {
             String url = properties.getBaseUrl() + "/internal/users/" + userId + "/session-profile";
-            Result<UserInternalSessionProfileResponse> result = exchange(
+            ResponseEntity<Result<UserInternalSessionProfileResponse>> resp = restTemplate.exchange(
                     url,
                     HttpMethod.GET,
-                    new HttpEntity<>(jsonHeaders(properties.getInternalToken())),
+                    new HttpEntity<>(InternalClientSupport.jsonHeaders(properties.getInternalToken(), "user-service")),
                     new ParameterizedTypeReference<Result<UserInternalSessionProfileResponse>>() {
                     }
             );
-            return requireOk(result);
+            return InternalClientSupport.unwrap(resp, "user-service");
         });
     }
 
@@ -85,14 +80,14 @@ public class UserServiceInternalClient {
             req.setPassword(password);
             req.setEmail(email);
             String url = properties.getBaseUrl() + "/internal/users/register";
-            Result<UserInternalRegisterResponse> result = exchange(
+            ResponseEntity<Result<UserInternalRegisterResponse>> resp = restTemplate.exchange(
                     url,
                     HttpMethod.POST,
-                    new HttpEntity<>(req, jsonHeaders(properties.getInternalToken())),
+                    new HttpEntity<>(req, InternalClientSupport.jsonHeaders(properties.getInternalToken(), "user-service")),
                     new ParameterizedTypeReference<Result<UserInternalRegisterResponse>>() {
                     }
             );
-            return requireOk(result);
+            return InternalClientSupport.unwrap(resp, "user-service");
         });
     }
 
@@ -101,15 +96,15 @@ public class UserServiceInternalClient {
             UserInternalActivateRequest req = new UserInternalActivateRequest();
             req.setActivationCode(activationCode);
             String url = properties.getBaseUrl() + "/internal/users/" + userId + "/activate";
-            Result<UserInternalActivationResponse> result = exchange(
+            ResponseEntity<Result<UserInternalActivationResponse>> resp = restTemplate.exchange(
                     url,
                     HttpMethod.POST,
-                    new HttpEntity<>(req, jsonHeaders(properties.getInternalToken())),
+                    new HttpEntity<>(req, InternalClientSupport.jsonHeaders(properties.getInternalToken(), "user-service")),
                     new ParameterizedTypeReference<Result<UserInternalActivationResponse>>() {
                     }
             );
-            UserInternalActivationResponse resp = requireOk(result);
-            return resp == null ? 2 : resp.getResult();
+            UserInternalActivationResponse data = InternalClientSupport.unwrap(resp, "user-service");
+            return data == null ? 2 : data.getResult();
         });
     }
 
@@ -119,15 +114,15 @@ public class UserServiceInternalClient {
                     .fromHttpUrl(properties.getBaseUrl() + "/internal/users/by-email")
                     .queryParam("email", email)
                     .toUriString();
-            Result<UserInternalUserByEmailResponse> result = exchange(
+            ResponseEntity<Result<UserInternalUserByEmailResponse>> resp = restTemplate.exchange(
                     url,
                     HttpMethod.GET,
-                    new HttpEntity<>(jsonHeaders(properties.getInternalToken())),
+                    new HttpEntity<>(InternalClientSupport.jsonHeaders(properties.getInternalToken(), "user-service")),
                     new ParameterizedTypeReference<Result<UserInternalUserByEmailResponse>>() {
                     }
             );
             // 约定：不存在时 data=null（仍为 OK）
-            return requireOk(result);
+            return InternalClientSupport.unwrap(resp, "user-service");
         });
     }
 
@@ -139,75 +134,34 @@ public class UserServiceInternalClient {
             UserInternalUpdatePasswordRequest req = new UserInternalUpdatePasswordRequest();
             req.setNewPassword(newPassword);
             String url = properties.getBaseUrl() + "/internal/users/" + userId + "/password";
-            Result<Void> result = exchange(
+            ResponseEntity<Result<Void>> resp = restTemplate.exchange(
                     url,
                     HttpMethod.POST,
-                    new HttpEntity<>(req, jsonHeaders(properties.getOpsInternalToken())),
+                    new HttpEntity<>(req, InternalClientSupport.jsonHeaders(properties.getOpsInternalToken(), "user-service")),
                     new ParameterizedTypeReference<Result<Void>>() {
                     }
             );
-            requireOk(result);
+            InternalClientSupport.unwrap(resp, "user-service");
             return null;
         });
-    }
-
-    private HttpHeaders jsonHeaders(String internalToken) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setAccept(MediaType.parseMediaTypes(MediaType.APPLICATION_JSON_VALUE));
-        headers.set(HEADER_INTERNAL_TOKEN, internalToken);
-        return headers;
-    }
-
-    private <T> T requireOk(Result<T> result) {
-        if (result == null) {
-            throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "user-service 响应为空");
-        }
-        if (result.getCode() != CommonErrorCode.OK.getCode()) {
-            throw new BusinessException(new SimpleErrorCode(result.getCode(), result.getMessage()), result.getMessage());
-        }
-        return result.getData();
     }
 
     private <T> T call(String api, Supplier<T> supplier) {
         long start = System.nanoTime();
         try {
             T v = supplier.get();
-            record(api, "success", start);
+            InternalClientSupport.record(meterRegistry, METRIC_CLIENT, api, InternalClientSupport.OUTCOME_SUCCESS, start);
             return v;
         } catch (BusinessException e) {
-            record(api, "biz_error", start);
+            InternalClientSupport.record(meterRegistry, METRIC_CLIENT, api, "biz_error", start);
             throw e;
-        } catch (HttpClientErrorException.Forbidden e) {
-            record(api, "error", start);
-            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "user-service internal 调用被拒绝（请检查 internal-token 配置）");
         } catch (RestClientException e) {
-            record(api, "error", start);
+            String outcome = InternalClientSupport.isTimeout(e) ? InternalClientSupport.OUTCOME_TIMEOUT : InternalClientSupport.OUTCOME_ERROR;
+            InternalClientSupport.record(meterRegistry, METRIC_CLIENT, api, outcome, start);
             throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "user-service 不可用");
         } catch (Exception e) {
-            record(api, "error", start);
+            InternalClientSupport.record(meterRegistry, METRIC_CLIENT, api, InternalClientSupport.OUTCOME_ERROR, start);
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "user-service 调用失败");
-        }
-    }
-
-    private void record(String api, String outcome, long startNanos) {
-        if (meterRegistry == null) {
-            return;
-        }
-        Tags tags = Tags.of("api", api, "outcome", outcome);
-        meterRegistry.counter("auth_user_client_requests_total", tags).increment();
-        meterRegistry.timer("auth_user_client_latency", tags).record(System.nanoTime() - startNanos, TimeUnit.NANOSECONDS);
-    }
-
-    private <T> Result<T> exchange(String url, HttpMethod method, HttpEntity<?> entity, ParameterizedTypeReference<Result<T>> typeRef) {
-        if (!StringUtils.hasText(url)) {
-            throw new IllegalArgumentException("url 不能为空");
-        }
-        try {
-            ResponseEntity<Result<T>> resp = restTemplate.exchange(url, method, entity, typeRef);
-            return resp.getBody();
-        } catch (RestClientException e) {
-            throw e;
         }
     }
 }

@@ -6,8 +6,10 @@ import com.nowcoder.community.content.dao.CommentMapper;
 import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.event.ContentEventPublisher;
+import com.nowcoder.community.content.config.ContentRenderProperties;
 import com.nowcoder.community.content.projection.UserModerationProjectionRepository;
 import com.nowcoder.community.content.score.PostScoreQueue;
+import com.nowcoder.community.content.text.ContentTextCodec;
 import com.nowcoder.community.content.util.SensitiveFilter;
 import org.junit.jupiter.api.Test;
 
@@ -41,6 +43,7 @@ class CommentServiceTest {
         when(projectionRepository.checkEitherBlocked(anyInt(), anyInt()))
                 .thenReturn(UserModerationProjectionRepository.BlockCheck.NOT_BLOCKED);
         UserModerationGuard moderationGuard = new UserModerationGuard(projectionRepository, userModerationClient);
+        ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
 
         CommentService service = new CommentService(
                 commentMapper,
@@ -50,7 +53,8 @@ class CommentServiceTest {
                 eventPublisher,
                 projectionRepository,
                 moderationGuard,
-                socialBlockClient
+                socialBlockClient,
+                textCodec
         );
 
         DiscussPost post = new DiscussPost();
@@ -95,6 +99,7 @@ class CommentServiceTest {
                 .getStatus(anyInt());
 
         UserModerationGuard moderationGuard = new UserModerationGuard(projectionRepository, userModerationClient);
+        ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
 
         CommentService service = new CommentService(
                 commentMapper,
@@ -104,7 +109,8 @@ class CommentServiceTest {
                 eventPublisher,
                 projectionRepository,
                 moderationGuard,
-                socialBlockClient
+                socialBlockClient,
+                textCodec
         );
 
         DiscussPost post = new DiscussPost();

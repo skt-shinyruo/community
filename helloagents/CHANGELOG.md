@@ -35,6 +35,10 @@
 - frontend：feed 列表改为 batch 拉取用户/点赞元信息，并新增 TTL 缓存（60s）；新增 `/#/ops`（Ops Console）与 `/#/admin/users`（用户管理）页面入口。
 - scripts：新增 `bootstrap-admin.sh`（管理员角色初始化/修复）与 `smoke-i1-avatar.sh`（local avatar 上传/读取冒烟）。
 - content-service/social-service/user-service：补齐 outbox 的 SENDING lease 回收与 SENT 清理策略单测，确保 H2/MySQL 下行为一致。
+- common：新增 `HtmlEntityCodec`（基础 HTML entity 白名单编解码），用于历史内容兼容与避免二次转义可见问题。
+- gateway：analytics 采集新增 `AnalyticsCollectDispatcher`（有界队列 + 异步 worker + 指标），采集链路与主转发隔离。
+- frontend：`UiToast` 支持可选 action（`actionText/onAction`），用于发帖/编辑成功后提供快捷入口。
+- runbooks：新增内容渲染迁移与网关采集排障手册（`helloagents/wiki/runbooks/content-rendering-migration.md`、`helloagents/wiki/runbooks/gateway-analytics-collect.md`）。
 
 ### Changed
 - content-service/social-service/user-service：Outbox 默认开启（配置与 properties 默认值对齐），并补强 relay 的 SENDING lease 回收 + SENT 保留期清理（默认关闭）与索引。
@@ -52,6 +56,9 @@
 - auth-service：prod profile 启动校验升级为 fail-closed：禁止回传 activation/reset link、强制 mail.enabled=true 且校验 `spring.mail.host`/`activationBaseUrl` 等关键配置。
 - frontend：注册/找回密码在不回传 link 时给出更清晰提示；reindex UI 对齐后端字段（`indexedCount/jobId`）并支持透传 `X-Ops-Token`。
 - user-service：管理员角色变更改为显式 `reason + confirm`，并禁止管理员自降级以避免锁死；设置页头像上传逻辑兼容 local/qiniu 两种 provider。
+- content-service：内容渲染契约收敛：写入停止全量 htmlEscape（仅对 `&` 最小化 escape，可配置），读路径对历史 entity 做一次性白名单解码（可配置），并对事件 payload/内部扫描接口输出保持一致。
+- gateway：analytics 采集链路重构为“filter 投递 + 异步 worker 调用”，队列满允许丢弃且可观测（不影响主请求转发）。
+- frontend：发帖/编辑成功提示补齐“搜索/通知最终一致延迟”，并通过 Toast action 提供“立即查看/去搜索”入口。
 
 ### Fixed
 - 修复“事件发布默认不可靠（best-effort）导致下游永久不一致”的默认配置问题：写侧入 outbox，relay 重试直至成功或进入 FAILED，可观测且可重放。
@@ -62,6 +69,9 @@
 - frontend：修复 search reindex 进度展示误用 `count` 字段的问题（改用 `indexedCount`）。
 - social-service：修复未显式加载 `mapper/*.xml` 导致 outbox mapper 运行时 `BindingException` 的问题，并补齐 `map-underscore-to-camel-case`。
 - message-service：修复 `NoticeEventConsumerIntegrationTest` 通过 substring 统计 eventId 导致的偶发失败（traceId 字段可能包含相同子串），改为解析 JSON 精确计数。
+- 修复内容渲染二次转义可见问题：历史数据读路径一次性 entity 解码 + 写入停止全量 htmlEscape（仅 `&` 最小化 escape）。
+- 修复 trusted-proxy 误配置导致的潜在 XFF 伪造风险：prod profile 下启用启动期 fail-closed 校验（enabled 但 CIDR allowlist 为空/全量信任时阻断启动）。
+- 修复 auth-service -> user-service internal client `activate()` 结果返回错误（对齐下游 `result` 字段语义）。
 
 ## [0.0.2] - 2026-01-28
 
@@ -110,7 +120,6 @@
 - `deploy/docker-compose.yml` Kafka 镜像调整为 `confluentinc/cp-kafka` + `cp-zookeeper`（替代不可用的 bitnami/kafka 标签）。
 - `deploy/docker-compose.yml` 不再包含 `community-edge`（Nginx），基础 compose 默认不提供“前端统一入口”容器；新增可选端口映射覆盖文件 `deploy/docker-compose.ports.yml`。
 - `deploy/docker-compose.yml` 固定 compose project name 为 `community`（避免 Docker Desktop 默认显示为 `deploy` 造成歧义）。
-- `deploy/docker-compose.nacos-ui.yml` 调整为历史兼容 no-op（避免重复端口映射冲突）。
 - `deploy/docker-compose.yml` 为 Zookeeper 增加持久化数据卷，避免 Kafka 因 `InconsistentClusterIdException`（clusterId 不一致）启动失败。
 - `deploy/docker-compose.yml` 为 Kafka 增加 healthcheck + `restart: on-failure`，并将依赖 Kafka 的服务启动条件统一为等待 `service_healthy`，避免首次启动 Kafka 因 ZK 会话未过期窗口偶发退出导致级联失败。
 - 新增“前端直连 gateway”本地部署模式：前端 `12881`（Node + Vite preview，无 Nginx）+ gateway `12882`（见 `deploy/docker-compose.frontend-direct.yml` / `deploy/Dockerfile.frontend`）。
@@ -161,6 +170,7 @@
 
 ### Removed
 - 移除历史单体切流/回滚相关 docker compose 与脚本（`deploy/docker-compose.cutover.yml`、`scripts/cutover/*`）。
+- 移除 `deploy/docker-compose.nacos-ui.yml`（废弃 overlay；Nacos 控制台端口已在 `deploy/docker-compose.yml` 默认绑定到宿主机，避免重复端口映射冲突）。
 - 移除历史单体模块源码与 Maven module（微服务终局收敛）。
 - 移除 `community-edge`（Nginx）容器与相关配置（`deploy/Dockerfile.edge`、`deploy/edge/*`），本地入口统一采用“前端直连 gateway”模式。
 - 移除 API 级自动化回归工程与相关 CI job（Playwright request），仓库默认不再提供端到端自动回归门禁。

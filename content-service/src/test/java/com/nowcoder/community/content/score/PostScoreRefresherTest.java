@@ -1,9 +1,11 @@
 package com.nowcoder.community.content.score;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.content.config.ContentRenderProperties;
 import com.nowcoder.community.content.event.ContentEventPublisher;
 import com.nowcoder.community.content.like.LikeQueryService;
 import com.nowcoder.community.content.service.PostService;
+import com.nowcoder.community.content.text.ContentTextCodec;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -22,6 +24,7 @@ class PostScoreRefresherTest {
         PostService postService = Mockito.mock(PostService.class);
         LikeQueryService likeQueryService = Mockito.mock(LikeQueryService.class);
         ContentEventPublisher publisher = Mockito.mock(ContentEventPublisher.class);
+        ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
 
         PostScoreRefresher refresher = new PostScoreRefresher(
                 queue,
@@ -29,6 +32,7 @@ class PostScoreRefresherTest {
                 likeQueryService,
                 publisher,
                 new SimpleMeterRegistry(),
+                textCodec,
                 true,
                 1
         );
@@ -45,6 +49,7 @@ class PostScoreRefresherTest {
         PostService postService = Mockito.mock(PostService.class);
         LikeQueryService likeQueryService = Mockito.mock(LikeQueryService.class);
         ContentEventPublisher publisher = Mockito.mock(ContentEventPublisher.class);
+        ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
 
         PostScoreRefresher refresher = new PostScoreRefresher(
                 queue,
@@ -52,6 +57,7 @@ class PostScoreRefresherTest {
                 likeQueryService,
                 publisher,
                 new SimpleMeterRegistry(),
+                textCodec,
                 true,
                 1
         );
@@ -76,4 +82,3 @@ class PostScoreRefresherTest {
         }
     }
 }
-

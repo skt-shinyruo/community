@@ -6,6 +6,7 @@ import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.event.ContentEventPublisher;
 import com.nowcoder.community.content.like.LikeQueryService;
 import com.nowcoder.community.content.service.PostService;
+import com.nowcoder.community.content.text.ContentTextCodec;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.slf4j.Logger;
@@ -31,6 +32,7 @@ public class PostScoreRefresher {
     private final LikeQueryService likeQueryService;
     private final ContentEventPublisher eventPublisher;
     private final MeterRegistry meterRegistry;
+    private final ContentTextCodec textCodec;
 
     private final boolean enabled;
     private final int batchSize;
@@ -41,6 +43,7 @@ public class PostScoreRefresher {
             LikeQueryService likeQueryService,
             ContentEventPublisher eventPublisher,
             MeterRegistry meterRegistry,
+            ContentTextCodec textCodec,
             @Value("${content.score.refresh.enabled:true}") boolean enabled,
             @Value("${content.score.refresh.batch-size:200}") int batchSize
     ) {
@@ -49,6 +52,7 @@ public class PostScoreRefresher {
         this.likeQueryService = likeQueryService;
         this.eventPublisher = eventPublisher;
         this.meterRegistry = meterRegistry;
+        this.textCodec = textCodec;
         this.enabled = enabled;
         this.batchSize = Math.max(1, Math.min(2000, batchSize));
     }
@@ -120,8 +124,8 @@ public class PostScoreRefresher {
         PostPayload payload = new PostPayload();
         payload.setPostId(postId);
         payload.setUserId(post.getUserId());
-        payload.setTitle(post.getTitle());
-        payload.setContent(post.getContent());
+        payload.setTitle(textCodec.decodeOnRead(post.getTitle()));
+        payload.setContent(textCodec.decodeOnRead(post.getContent()));
         payload.setType(post.getType());
         payload.setStatus(post.getStatus());
         payload.setScore(score);

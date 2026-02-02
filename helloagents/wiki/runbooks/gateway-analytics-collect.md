@@ -1,0 +1,78 @@
+# Runbook：gateway analytics 采集（隔离/背压/排障）
+
+## 目标
+- analytics 采集属于“可丢弃链路”：任何情况下都不应影响主请求转发成功率与延迟。
+- 采集失败要可观测（metrics/log），便于快速定位“analytics-service 不可用/鉴权错误/超时/队列积压”。
+
+## 关键设计（现状）
+- gateway filter 仅做字段收集与去重（TTL 缓存）：
+  - `gateway/src/main/java/com/nowcoder/community/gateway/filter/AnalyticsCollectGlobalFilter.java`
+- filter 不直接远程调用；统一投递到有界队列：
+  - `gateway/src/main/java/com/nowcoder/community/gateway/analytics/AnalyticsCollectDispatcher.java`
+- 异步 worker 消费队列并调用 analytics-service internal API（带 timeout/并发上限）。
+
+## 配置项（SSOT）
+前提：必须配置 internal token，否则采集会被视为未启用。
+
+- `analytics.collect.enabled`（默认 false）
+- `analytics.collect.internal-token`（env：`ANALYTICS_INTERNAL_TOKEN`）
+- `analytics.collect.timeout-ms`（默认 300）：单次采集请求超时
+- `analytics.collect.max-concurrency`（默认 50）：worker in-flight 上限
+- `analytics.collect.queue-capacity`（默认 10000）：网关侧有界队列容量（满则丢弃）
+- `analytics.collect.dedup-enabled`（默认 true）：网关单实例内去重开关（降噪）
+- `analytics.collect.dedup-ttl-seconds`（默认 86400）：去重 TTL（秒）
+- `analytics.collect.uv-cache-max-size` / `analytics.collect.dau-cache-max-size`：去重缓存容量（单实例）
+
+## 观测指标（Metrics）
+### 1) 计数：`gateway_analytics_collect_total`
+tags：
+- `metric`：`uv` / `dau`
+- `outcome`：
+  - `queued`：成功入队
+  - `dropped`：队列满或投递失败（可丢弃链路）
+  - `attempt`：worker 开始尝试调用
+  - `ok`：调用成功
+  - `timeout`：调用超时（见 `analytics.collect.timeout-ms`）
+  - `error` / `worker_error`：调用失败或 worker 异常
+  - `skipped_bad_subject`：JWT subject 非数字，跳过 DAU
+  - `skipped_principal_error`：获取 principal 失败，跳过 DAU
+
+### 2) 延迟：`gateway_analytics_collect_latency`
+tags：
+- `metric`：`uv` / `dau`
+
+## 常见问题与处理
+### 1) `dropped` 持续增长
+含义：网关侧队列满/投递失败（采集链路被背压保护）。
+
+排查与处理：
+1) 先确认业务链路是否正常（采集不应影响主链路）
+2) 查看 `ok/timeout/error` 比例：
+   - timeout 高：下游慢或不可用 → 调小 `timeout-ms` 或先修复 analytics-service
+   - error 高：检查 internal token / discovery / 路由
+3) 调整参数（建议按优先级）：
+   - 降低 `max-concurrency`（减少对下游冲击）
+   - 增大 `queue-capacity`（仅在确认内存余量足够且确有必要时）
+   - 直接 `analytics.collect.enabled=false`（高压期临时关闭采集）
+
+### 2) `error` 增长但 `timeout` 不高
+常见原因：
+- `ANALYTICS_INTERNAL_TOKEN` 配置错误导致 403
+- `lb://analytics-service` 无实例（discovery 问题）
+- analytics-service internal API 变更/路由不通
+
+建议：
+- 用网关容器内 curl/日志验证：是否能访问 `lb://analytics-service/internal/analytics/*`
+- 对齐 internal-token 配置与轮转（见 `helloagents/wiki/runbooks/internal-token-rotation.md`）
+
+### 3) DAU 一直为 0
+常见原因：
+- 用户未登录（无 JWT principal）
+- JWT subject 不是数字（subject 解析失败会计入 `skipped_bad_subject`）
+- 被浏览器预检 OPTIONS 放大（已在 filter 中跳过 OPTIONS）
+
+## 建议的验收口径
+- 主链路 P95/P99 不应因采集启用显著波动
+- `dropped` 在可控范围内（可接受，采集链路可丢弃）
+- `timeout/error` 可快速定位并具备清晰修复路径
+

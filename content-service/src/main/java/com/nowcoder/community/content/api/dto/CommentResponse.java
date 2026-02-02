@@ -3,6 +3,7 @@ package com.nowcoder.community.content.api.dto;
 import com.nowcoder.community.content.entity.Comment;
 
 import java.util.Date;
+import java.util.function.Function;
 
 /**
  * 评论/回复公共响应 DTO（字段白名单）。
@@ -22,6 +23,10 @@ public class CommentResponse {
     private int editCount;
 
     public static CommentResponse from(Comment c) {
+        return from(c, null);
+    }
+
+    public static CommentResponse from(Comment c, Function<String, String> contentDecoder) {
         if (c == null) {
             return null;
         }
@@ -31,7 +36,8 @@ public class CommentResponse {
         r.entityType = c.getEntityType();
         r.entityId = c.getEntityId();
         r.targetId = c.getTargetId();
-        r.content = c.getContent();
+        String raw = c.getContent();
+        r.content = contentDecoder == null ? raw : contentDecoder.apply(raw);
         r.createTime = c.getCreateTime();
         r.updateTime = c.getUpdateTime();
         r.editCount = c.getEditCount();
@@ -110,4 +116,3 @@ public class CommentResponse {
         this.editCount = editCount;
     }
 }
-

@@ -11,12 +11,12 @@ import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.event.ContentEventPublisher;
 import com.nowcoder.community.content.score.PostScoreQueue;
+import com.nowcoder.community.content.text.ContentTextCodec;
 import com.nowcoder.community.content.util.SensitiveFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.util.HtmlUtils;
 
 import java.time.Instant;
 import java.util.Date;
@@ -44,6 +44,7 @@ public class CommentService {
     private final UserModerationProjectionRepository projectionRepository;
     private final UserModerationGuard moderationGuard;
     private final SocialBlockClient socialBlockClient;
+    private final ContentTextCodec textCodec;
 
     public CommentService(
             CommentMapper commentMapper,
@@ -53,7 +54,8 @@ public class CommentService {
             ContentEventPublisher eventPublisher,
             UserModerationProjectionRepository projectionRepository,
             UserModerationGuard moderationGuard,
-            SocialBlockClient socialBlockClient
+            SocialBlockClient socialBlockClient,
+            ContentTextCodec textCodec
     ) {
         this.commentMapper = commentMapper;
         this.postService = postService;
@@ -63,6 +65,7 @@ public class CommentService {
         this.projectionRepository = projectionRepository;
         this.moderationGuard = moderationGuard;
         this.socialBlockClient = socialBlockClient;
+        this.textCodec = textCodec;
     }
 
     public List<Comment> listByPost(int postId, int page, int size) {
@@ -167,7 +170,7 @@ public class CommentService {
             }
         }
 
-        String safe = HtmlUtils.htmlEscape(content == null ? "" : content.trim());
+        String safe = textCodec.escapeOnWrite(content == null ? "" : content.trim());
         safe = sensitiveFilter.filter(safe);
 
         Comment comment = new Comment();
@@ -201,7 +204,7 @@ public class CommentService {
         payload.setEntityType(type);
         payload.setEntityId(eid);
         payload.setTargetUserId(targetUserId);
-        payload.setContent(safe);
+        payload.setContent(textCodec.decodeOnRead(safe));
         payload.setCreateTime(Instant.now());
         eventPublisher.publishCommentCreated(payload);
 
@@ -252,7 +255,7 @@ public class CommentService {
             }
         }
 
-        String safe = HtmlUtils.htmlEscape(content == null ? "" : content.trim());
+        String safe = textCodec.escapeOnWrite(content == null ? "" : content.trim());
         safe = sensitiveFilter.filter(safe);
 
         int updated = commentMapper.updateCommentContent(commentId, safe, now);

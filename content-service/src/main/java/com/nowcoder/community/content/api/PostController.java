@@ -24,6 +24,7 @@ import com.nowcoder.community.content.service.CommentService;
 import com.nowcoder.community.content.service.PostCommandService;
 import com.nowcoder.community.content.service.PostService;
 import com.nowcoder.community.content.service.SubscriptionService;
+import com.nowcoder.community.content.text.ContentTextCodec;
 import com.nowcoder.community.content.util.SensitiveFilter;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -40,7 +41,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.util.HtmlUtils;
 
 import java.time.Instant;
 import java.util.List;
@@ -69,6 +69,7 @@ public class PostController {
 	    private final BookmarkService bookmarkService;
 	    private final SubscriptionService subscriptionService;
 	    private final IdempotencyGuard idempotencyGuard;
+        private final ContentTextCodec textCodec;
 
 	    public PostController(
 	            PostService postService,
@@ -81,7 +82,8 @@ public class PostController {
 	            TagService tagService,
 	            BookmarkService bookmarkService,
 	            SubscriptionService subscriptionService,
-	            IdempotencyGuard idempotencyGuard
+	            IdempotencyGuard idempotencyGuard,
+                ContentTextCodec textCodec
 	    ) {
 	        this.postService = postService;
 	        this.commentService = commentService;
@@ -94,6 +96,7 @@ public class PostController {
 	        this.bookmarkService = bookmarkService;
 	        this.subscriptionService = subscriptionService;
 	        this.idempotencyGuard = idempotencyGuard;
+            this.textCodec = textCodec;
 	    }
 
     @GetMapping
@@ -138,8 +141,8 @@ public class PostController {
 	        int userId = currentUserId(authentication);
 
 	        return Result.ok(idempotencyGuard.executeRequired("create_post", userId, idempotencyKey, CreatePostResponse.class, () -> {
-	            String title = HtmlUtils.htmlEscape(request.getTitle().trim());
-	            String content = HtmlUtils.htmlEscape(request.getContent().trim());
+	            String title = textCodec.escapeOnWrite(request.getTitle().trim());
+	            String content = textCodec.escapeOnWrite(request.getContent().trim());
 	            title = sensitiveFilter.filter(title);
 	            content = sensitiveFilter.filter(content);
 
@@ -166,8 +169,8 @@ public class PostController {
         PostDetailResponse resp = new PostDetailResponse();
         resp.setId(post.getId());
         resp.setUserId(post.getUserId());
-        resp.setTitle(post.getTitle());
-        resp.setContent(post.getContent());
+        resp.setTitle(textCodec.decodeOnRead(post.getTitle()));
+        resp.setContent(textCodec.decodeOnRead(post.getContent()));
         resp.setType(post.getType());
         resp.setStatus(post.getStatus());
         resp.setCreateTime(post.getCreateTime());
@@ -196,7 +199,10 @@ public class PostController {
         int p = page == null ? 0 : page;
         int s = size == null ? 10 : size;
         List<Comment> rows = commentService.listByPost(postId, p, s);
-        List<CommentResponse> resp = (rows == null ? List.<CommentResponse>of() : rows.stream().map(CommentResponse::from).filter(r -> r != null).collect(Collectors.toList()));
+        List<CommentResponse> resp = (rows == null ? List.<CommentResponse>of() : rows.stream()
+                .map(c -> CommentResponse.from(c, textCodec::decodeOnRead))
+                .filter(r -> r != null)
+                .collect(Collectors.toList()));
         return Result.ok(resp);
     }
 
@@ -217,8 +223,8 @@ public class PostController {
     public Result<Void> updatePost(Authentication authentication, @PathVariable int postId, @Valid @RequestBody UpdatePostRequest request) {
         int userId = currentUserId(authentication);
 
-        String title = HtmlUtils.htmlEscape(request.getTitle().trim());
-        String content = HtmlUtils.htmlEscape(request.getContent().trim());
+        String title = textCodec.escapeOnWrite(request.getTitle().trim());
+        String content = textCodec.escapeOnWrite(request.getContent().trim());
         title = sensitiveFilter.filter(title);
         content = sensitiveFilter.filter(content);
 
@@ -258,7 +264,10 @@ public class PostController {
         int p = page == null ? 0 : page;
         int s = size == null ? 10 : size;
         List<Comment> rows = commentService.listReplies(commentId, p, s);
-        List<CommentResponse> resp = (rows == null ? List.<CommentResponse>of() : rows.stream().map(CommentResponse::from).filter(r -> r != null).collect(Collectors.toList()));
+        List<CommentResponse> resp = (rows == null ? List.<CommentResponse>of() : rows.stream()
+                .map(c -> CommentResponse.from(c, textCodec::decodeOnRead))
+                .filter(r -> r != null)
+                .collect(Collectors.toList()));
         return Result.ok(resp);
     }
 
@@ -275,8 +284,8 @@ public class PostController {
         payload.setUserId(post.getUserId());
         payload.setCategoryId(post.getCategoryId());
         payload.setTags(tags);
-        payload.setTitle(post.getTitle());
-        payload.setContent(post.getContent());
+        payload.setTitle(textCodec.decodeOnRead(post.getTitle()));
+        payload.setContent(textCodec.decodeOnRead(post.getContent()));
         payload.setType(post.getType());
         payload.setStatus(post.getStatus());
         payload.setScore(post.getScore());
@@ -301,8 +310,8 @@ public class PostController {
         payload.setUserId(post.getUserId());
         payload.setCategoryId(post.getCategoryId());
         payload.setTags(tags);
-        payload.setTitle(post.getTitle());
-        payload.setContent(post.getContent());
+        payload.setTitle(textCodec.decodeOnRead(post.getTitle()));
+        payload.setContent(textCodec.decodeOnRead(post.getContent()));
         payload.setType(post.getType());
         payload.setStatus(post.getStatus());
         payload.setScore(post.getScore());
@@ -326,8 +335,8 @@ public class PostController {
         payload.setUserId(post.getUserId());
         payload.setCategoryId(post.getCategoryId());
         payload.setTags(tags);
-        payload.setTitle(post.getTitle());
-        payload.setContent(post.getContent());
+        payload.setTitle(textCodec.decodeOnRead(post.getTitle()));
+        payload.setContent(textCodec.decodeOnRead(post.getContent()));
         payload.setType(post.getType());
         payload.setStatus(post.getStatus());
         payload.setScore(post.getScore());
@@ -344,7 +353,7 @@ public class PostController {
         r.setUserId(post.getUserId());
         r.setCategoryId(post.getCategoryId());
         r.setTags(tags == null ? List.of() : tags);
-        r.setTitle(post.getTitle());
+        r.setTitle(textCodec.decodeOnRead(post.getTitle()));
         r.setType(post.getType());
         r.setStatus(post.getStatus());
         r.setCreateTime(post.getCreateTime());

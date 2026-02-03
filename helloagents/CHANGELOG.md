@@ -42,8 +42,13 @@
 - user-service：补齐 outbox 运维入口 `/internal/users/outbox/health|replay`，与 content/social 对齐；默认受 internal-token + ops-guard（break-glass）保护。
 - search-service：reindex single-flight 锁增加续租/心跳（owner=jobId + 原子 renew + owner 校验释放），避免长任务锁过期导致并发重建压垮 ES/下游。
 - docs：新增 `docs/DEV_ONLY.md`，集中说明默认演示账号/固定验证码等 dev-only 便捷能力，并在根 README 做生产禁用提示。
+- common：新增 `SingleFlightTaskGuard`（基于 Redis 的分布式 single-flight），用于 @Scheduled cleanup/reconcile 在多实例部署下避免重复执行。
+- scripts：新增 `scripts/mysql-migrate-ops-harden-schema.sql`（三库预检 + 去重指导 + 条件 DDL），用于 Outbox/幂等表的唯一约束与关键索引对齐。
 
 ### Changed
+- deploy/mysql-init：对齐 Outbox/幂等表索引形态（`idx_outbox_status_next(status, next_retry_at, id)`、`idx_consumed_event_at(consumed_at, id)`、`idx_search_consumed_at(consumed_at, id)`），并增加 schema drift 自修复以避免历史版本索引缺列导致轮询/清理退化为扫表。
+- message-service/search-service：幂等表清理任务改为分批 delete（`order by + limit`）并支持可选 single-flight，降低多实例竞争与下游压力放大风险。
+- deploy：修复 `deploy/docker-compose.yml` Tab 缩进，恢复 `docker compose ... config` 校验可用性（`scripts/security-check.sh`）。
 - content-service/social-service/user-service：Outbox 默认开启（配置与 properties 默认值对齐），并补强 relay 的 SENDING lease 回收 + SENT 保留期清理（默认关闭）与索引。
 - message-service：私信写路径拉黑校验改为“投影优先 + 缺失回源 + 回填”，消除投影缺失/滞后导致的 fail-open 窗口；对外私信接口逐步迁移为 DTO 输出（避免直接暴露实体）。
 - social-service：点赞写路径不再信任客户端注入的 `entityUserId/postId`，改为通过 content internal resolve 生成可信 payload 并校验 entity 存在性；follow 写路径收敛仅支持 USER。

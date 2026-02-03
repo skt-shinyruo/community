@@ -8,4 +8,4 @@ create table if not exists search_consumed_event (
   consumed_at timestamp null default current_timestamp
 );
 
-create index idx_search_consumed_at on search_consumed_event(consumed_at);
+create index idx_search_consumed_at on search_consumed_event(consumed_at, id);

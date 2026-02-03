@@ -1,40 +1,35 @@
-# Task List: 运维与一致性加固（Outbox 并发 + Reindex 单飞 + internal/ops 护栏）
+# Task List: ops_hardening_outbox_reindex
 
 Directory: `helloagents/plan/202602031035_ops_hardening_outbox_reindex/`
 
 ---
 
-## 1. Outbox 并发认领与吞吐（content/social/user）
-- [√] 1.1 content-service：outbox 认领 SQL 支持 `SKIP LOCKED`（保留回退开关），验证 why.md#requirement-outbox-认领并发与吞吐outbox-claim-concurrency-scenario-多实例-relay-并发时不头阻塞skip-locked
-- [√] 1.2 social-service：outbox 认领 SQL 支持 `SKIP LOCKED`（保留回退开关），验证 why.md#requirement-outbox-认领并发与吞吐outbox-claim-concurrency-scenario-多实例-relay-并发时不头阻塞skip-locked
-- [√] 1.3 user-service：outbox 认领 SQL 支持 `SKIP LOCKED`（保留回退开关），验证 why.md#requirement-outbox-认领并发与吞吐outbox-claim-concurrency-scenario-多实例-relay-并发时不头阻塞skip-locked
+## 1. Schema 对齐（Outbox / Consumed Event）
+- [√] 1.1 补齐 content-service outbox 索引/唯一约束：更新 `deploy/mysql-init/020_schema_content.sql`，对齐 `outbox_event` 的 `uk_outbox_event_id(event_id)` 与 `idx_outbox_status_next(status, next_retry_at, id)`（verify why.md#core-scenarios -> Outbox 轮询不扫表）
+  > Note: `event_id` 已存在 unique 约束；本次重点修复 `idx_outbox_status_next` 形态，并增加 drift 重建逻辑（历史索引缺列时 drop+recreate）。
+- [√] 1.2 补齐 message-service 幂等表唯一约束与清理索引：更新 `deploy/mysql-init/030_schema_message.sql`，为 `consumed_event` 增加 `uk_consumed_event_id(event_id)` 与 `idx_consumed_event_at(consumed_at, id)`（verify why.md#core-scenarios -> Kafka 重复投递不产生重复副作用）
+  > Note: `event_id` 已存在 unique 约束；本次将清理索引调整为 `(consumed_at, id)` 以匹配分批删除与避免扫表。
+- [√] 1.3 补齐 search-service 幂等表唯一约束与清理索引：更新 `deploy/mysql-init/040_schema_search.sql`，为 `search_consumed_event` 增加 `uk_search_consumed_event_id(event_id)` 与 `idx_search_consumed_event_at(consumed_at, id)`（verify why.md#core-scenarios -> Kafka 重复投递不产生重复副作用）
+  > Note: `event_id` 已存在 unique 约束；本次将清理索引调整为 `(consumed_at, id)` 以匹配分批删除与避免扫表。
+- [√] 1.4 提供已有环境迁移脚本：新增 `scripts/mysql-migrate-ops-harden-schema.sql`（包含重复数据预检、去重策略、ALTER TABLE 以及回滚提示），并在 `scripts/doctor.sh` 增加入口提示（depends on 1.1-1.3）
 
-## 2. Outbox 运维能力一致性（user-service 补齐）
-- [√] 2.1 user-service：新增 outbox 运维入口 `/internal/users/outbox/health|replay`，与 content/social 对齐，验证 why.md#requirement-outbox-运维能力一致性outbox-ops-parity-scenario-三个服务均支持-outbox-healthreplay-且受-break-glass-保护ops-endpoints-parity
-- [√] 2.2 deploy：补齐 user-service 的 ops 配置模板（`ops.users.token` + `ops.guard.outbox-replay.*`），并更新 `deploy/.env.example` 增加 `OPS_USERS_TOKEN*`，验证 why.md#requirement-internalops-配置一致性与启动校验internal-ops-config-drift-scenario-break-glass-开关开启但关键配置缺失时-fail-fastfail-fast-when-enabled
-- [√] 2.3 scripts：更新 `scripts/doctor.sh` 增加 `OPS_USERS_TOKEN` 检查与提示，验证 why.md#requirement-internalops-配置一致性与启动校验internal-ops-config-drift-scenario-break-glass-开关开启但关键配置缺失时-fail-fastfail-fast-when-enabled
+## 2. internal 运维入口治理（break-glass + 审计）
+- [√] 2.1 统一运维入口清单与路径规范：校验 `/internal/search/reindex`、`/internal/*/outbox/replay`、`/internal/*/likes/backfill` 均被 `common/.../InternalOpsGuardFilter.java` 覆盖；必要时补齐分类规则与日志字段（verify why.md#core-scenarios -> internal 运维入口默认关闭且可控开启）
+  > Note: 路径规范与 guard 分类规则已覆盖上述三类高风险入口；like backfill 入口为 `/internal/content/likes/backfill`，符合 `endsWith(\"/likes/backfill\")`。
+- [√] 2.2 gateway 侧 legacy 路由兜底：确认 `POST /api/search/internal/reindex` 默认禁用并返回 410（如未实现则补齐），并确保 `POST /api/ops/search/reindex` 走管理员鉴权（verify runbook：`helloagents/wiki/runbooks/internal-ops.md`）
+  > Note: gateway 已实现 `410 Gone` 提示迁移（legacy `/api/search/internal/reindex`）并对 `/api/ops/**` 做 ADMIN 鉴权收敛。
 
-## 3. Reindex single-flight 锁续租（search-service）
-- [√] 3.1 search-service：为 `ReindexJobService` 增加锁续租/心跳（owner=jobId + 原子续租），验证 why.md#requirement-reindex-single-flight-锁续租reindex-lock-renewal-scenario-reindex-运行超过-30-分钟也不会并发重建lock-renewal
-- [√] 3.2 search-service：补齐单测/冒烟（并发触发返回 409 + jobId；长任务续租不失效；崩溃后 TTL 兜底），验证 why.md#requirement-reindex-single-flight-锁续租reindex-lock-renewal-scenario-reindex-运行超过-30-分钟也不会并发重建lock-renewal
+## 3. 定时任务治理（多实例可控）
+- [√] 3.1 message/search 幂等清理任务分批化：更新 `message-service/.../ConsumedEventCleanupJob.java` 与 `search-service/.../SearchConsumedEventCleanupJob.java`，将 `delete where consumed_at < ?` 改为“分批 delete + limit + 循环”，并暴露删除计数指标（depends on 1.2-1.3）
+- [√] 3.2 选择 single-flight 锁方案并落地（ADR-001）：在 `common` 新增轻量锁组件（优先复用 MySQL 或按需使用 Redis），对“必须 single-flight”的 reconcile/cleanup 任务加锁开关（verify how.md#adr-001-scheduled-single-flight-方案）
+  > Note: 选用 Redis single-flight（setIfAbsent + TTL + compare-and-del 释放），并接入 message/search cleanup 与 content/message projection reconcile。
 
-## 4. internal/ops 护栏：配置漂移治理（common + deploy/scripts）
-- [√] 4.1 common：补齐启动校验（当 `OPS_OUTBOX_REPLAY_ENABLED/OPS_SEARCH_REINDEX_ENABLED` 开启时强校验 allowlist/token/Redis），验证 why.md#requirement-internalops-配置一致性与启动校验internal-ops-config-drift-scenario-break-glass-开关开启但关键配置缺失时-fail-fastfail-fast-when-enabled
-- [√] 4.2 deploy：清理/收敛无效或误导配置（例如 docker-compose 中多处透传但实际不生效的 `INTERNAL_TOKEN`），验证 why.md#requirement-internalops-配置一致性与启动校验internal-ops-config-drift-scenario-break-glass-开关开启但关键配置缺失时-fail-fastfail-fast-when-enabled
+## 4. Security Check
+- [√] 4.1 执行安全检查（G9）：确认迁移脚本不会泄露敏感信息；internal ops 日志不输出 token；break-glass 默认关闭且 fail-closed；配置项由 `StartupValidation` 在 prod 下校验。
+  > Note: `deploy/docker-compose.yml` Tab 缩进已修复，`docker compose ... config` 可通过；全量 `mvn test` 仍存在 `auth-service` 的既有用例失败，本次以改动相关模块测试为主（见 6.1）。
 
-## 5. Legacy 入口收敛（gateway/search/scripts/docs）
-- [√] 5.1 gateway：默认禁用 `POST /api/search/internal/reindex` 并返回明确迁移提示（保留短期开关可启用兼容），验证 why.md#requirement-legacy-对外入口收敛legacy-search-internal-reindex-scenario-legacy-路径默认不可用且给出迁移引导disable-and-guide
-- [√] 5.2 scripts：更新 `scripts/search-reindex.sh` 统一使用 `/api/ops/search/reindex` 并提示 ops guard 前置条件，验证 why.md#requirement-legacy-对外入口收敛legacy-search-internal-reindex-scenario-legacy-路径默认不可用且给出迁移引导disable-and-guide
-- [√] 5.3 docs/KB：同步更新 `docs/*` 与 `helloagents/wiki/*`（弃用窗口、运维 runbook、迁移指引），验证 why.md#requirement-legacy-对外入口收敛legacy-search-internal-reindex-scenario-legacy-路径默认不可用且给出迁移引导disable-and-guide
+## 5. Documentation Update
+- [√] 5.1 更新知识库：补充 schema 对齐与迁移 runbook（更新 `helloagents/wiki/data.md`、`helloagents/wiki/runbooks/backend-upgrade-rollback.md`），并在 `helloagents/wiki/runbooks/security-review-*.md` 记录本次加固点；同步更新模块变更记录与 `helloagents/CHANGELOG.md`。
 
-## 6. dev/prod 护栏（auth-service + docs）
-- [√] 6.1 auth-service：prod profile 下禁止固定验证码与敏感链接回传（fail-fast），验证 why.md#requirement-devprod-护栏dev-prod-guardrails-scenario-prod-下禁止固定验证码与敏感链接回传prod-guardrails
-- [√] 6.2 docs：收敛默认演示账号/口令说明到 dev-only 文档，并在根 README 强提示“生产不可用”，验证 why.md#requirement-devprod-护栏dev-prod-guardrails-scenario-prod-下禁止固定验证码与敏感链接回传prod-guardrails
-
-## 7. Security Check
-- [√] 7.1 执行安全检查（按 G9：权限与 token、allowlist、legacy 路径暴露面、EHRB 风险），并记录关键结论到变更说明（how.md）
-
-## 8. Testing
-- [?] 8.1 outbox：验证 Kafka down → outbox 入库不丢 → 恢复后补发；多实例 relay 并发下无明显阻塞（需联调环境）
-- [√] 8.2 reindex：验证长任务续租、并发冲突 409、崩溃 TTL 兜底
-- [?] 8.3 回归：已运行 `mvn test` + `scripts/doctor.sh`；`scripts/smoke-*` 需服务启动后验证
+## 6. Testing
+- [√] 6.1 幂等语义回归测试：`message-service`/`search-service` 已覆盖“重复 eventId 不产生重复副作用”与“失败不应提前标记 consumed”场景（H2/Mock 组合）；并已执行 `mvn -pl common,content-service,message-service,search-service -am test` 验证通过。

@@ -217,7 +217,7 @@
 | updated_at | datetime |  | 更新时间 |
 
 **Indexes：**
-- `idx_outbox_status_next(status, next_retry_at)`
+- `idx_outbox_status_next(status, next_retry_at, id)`
 
 ### 2.5 message
 
@@ -244,7 +244,7 @@
 | consumed_at | datetime |  | 消费时间 |
 
 **Indexes：**
-- `idx_consumed_event_at(consumed_at)`
+- `idx_consumed_event_at(consumed_at, id)`
 
 ### 2.7 search_consumed_event
 
@@ -257,7 +257,7 @@
 | consumed_at | datetime |  | 消费时间 |
 
 **Indexes：**
-- `idx_search_consumed_at(consumed_at)`
+- `idx_search_consumed_at(consumed_at, id)`
 
 ### 2.8 login_ticket（Deprecated）
 

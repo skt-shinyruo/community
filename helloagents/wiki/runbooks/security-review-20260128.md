@@ -21,3 +21,9 @@
 ## 验证建议
 - 演练 internal-token 轮转：current + previous 灰度窗口 → 调用方逐步切换 → 清理 previous。
 - 演练 outbox：Kafka 短暂不可用 → 写入不丢 → 恢复后补发 → failed 可观测可重放。
+
+## 补充记录：2026-02-03（Outbox/幂等/定时任务加固）
+1. **Schema drift 修复**：对齐 Outbox/幂等表关键索引形态（`idx_outbox_status_next(status, next_retry_at, id)`、`idx_consumed_event_at(consumed_at, id)`、`idx_search_consumed_at(consumed_at, id)`），并增加 drift 自修复，避免轮询/清理退化为扫表。
+2. **消费幂等语义落地**：消费侧以 `event_id` 唯一约束为准（insert-first），重复投递只会被数据库约束吸收，副作用不重复执行。
+3. **多实例定时任务风险收敛**：新增 Redis single-flight 工具 `SingleFlightTaskGuard`，并在 cleanup/reconcile 类任务上提供可选开关，降低多实例重复执行放大下游压力的风险。
+4. **迁移路径**：提供 `scripts/mysql-migrate-ops-harden-schema.sql` 用于上线前预检/去重指导/条件 DDL，避免在已有数据上直接加唯一约束导致失败或长时间锁表。

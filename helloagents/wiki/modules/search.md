@@ -67,3 +67,4 @@
 - 2026-01-28：search-service 幂等改为 insert-first + 定时清理；reindex 引入 alias/蓝绿切换并支持清理旧索引。
 - 2026-02-01：Kafka consumer 统一使用 `EventEnvelopeParser` + `UnknownEventAction`（unknown type/version 可配置 + 降噪），降低事件契约演进带来的 DLQ 噪声与阻塞风险。
 - 2026-02-03：reindex single-flight 增加锁续租（owner=jobId + 原子 renew）避免长任务锁过期并发重建；legacy `/api/search/internal/reindex` 默认禁用并返回迁移提示，降低误用与攻击面。
+- 2026-02-03：`search_consumed_event` 清理任务改为分批 delete（`order by consumed_at, id limit N`），并支持可选 single-flight（多实例避免重复执行）；索引对齐为 `idx_search_consumed_at(consumed_at, id)`。

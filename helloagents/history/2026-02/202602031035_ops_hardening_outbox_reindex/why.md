@@ -1,100 +1,108 @@
-# Change Proposal: 运维与一致性加固（Outbox 并发 + Reindex 单飞 + internal/ops 护栏）
+# Change Proposal: ops_hardening_outbox_reindex
 
 ## Requirement Background
-当前工程已具备“社区”核心链路（登录/发帖/评论/点赞关注/私信通知/搜索/统计）与较完善的安全默认态（internal-token、OriginGuard、限流、审计、outbox、消费幂等等）。
 
-但在“多实例并发 + 运维操作 + 配置漂移 + 兼容窗口”这些更贴近生产的场景中，仍存在一组可预期会放大的问题：
+当前社区系统已具备较完整的事件驱动能力（Kafka + Outbox + 幂等消费表），并配套了 internal 运维入口（reindex / outbox replay / backfill）与 runbook。但在代码与数据库初始化脚本/现网库之间存在“漂移”风险，导致以下问题：
 
-1. **Outbox 认领并发性能隐患**：认领使用 `SELECT ... FOR UPDATE` 且未启用 `SKIP LOCKED`，多实例 relay 并发时可能出现阻塞/头阻塞，造成吞吐下降与延迟抖动。
-2. **Outbox 运维能力不一致**：content/social 已提供 `/internal/{segment}/outbox/health|replay` 运维入口（并受 internal-token/ops-guard 保护），但 user-service outbox 缺少对应 controller，导致排障与自助恢复链路不对齐。
-3. **Reindex single-flight 锁 TTL 固定**：search-service reindex 的 Redis 锁 TTL 固定为 30 分钟，若 reindex 超时运行，可能出现“锁过期→并发重建”，放大 ES/下游压力。
-4. **internal/ops 安全依赖“多层拼装”**：internal-token 解析包含别名/分域写入口；ops guard 又叠加 break-glass、allowlist、token 与 Redis 限流/锁。若配置 key 命名或 segment 发生漂移，容易表现为大量 403（功能不可用）或运维入口无法开启（可运维性差）。
-5. **遗留兼容入口仍对外暴露**：网关仍保留 `/api/search/internal/reindex`（对外但命名 internal），即便已标记弃用，也会持续增加维护成本与误用风险。
-6. **dev 便捷能力的误用风险**：dev profile 固定验证码、回传 activation/reset link、默认演示账号口令等，如果环境隔离不严，会直接变成真实安全事故源。
+1. **Schema 不一致破坏语义**：部分库缺少 `event_id` 唯一约束或关键索引，直接导致幂等消费与 Outbox 轮询退化（重复副作用/扫表/锁竞争）。
+2. **internal 安全边界依赖链复杂**：`/internal/**` 走自定义 filter 兜底（`InternalTokenFilter` + `InternalOpsGuardFilter`），一旦 filter 未生效/配置漂移/旁路暴露，会把高风险运维能力暴露到更大范围。
+3. **多实例下定时任务放大负载**：部分 `@Scheduled` 任务在多副本部署时会重复跑（即使业务上幂等也会重复扫描/删除/回填），在故障期更容易放大下游压力。
+4. **漂移后的修复能力高风险**：backfill/reindex/replay 本身是必要的兜底，但需要更强的“默认关闭 + 可审计 + 速率/并发控制 + 可观测”治理，否则运维入口本身会成为事故源。
+5. **配置分散导致一致性成本高**：跨服务重复的安全/调用配置（JWT、internal token、timeout 等）容易出现“部分服务先变更、部分服务未同步”的灰色故障。
 
-本变更目标是：在不推翻现有架构的前提下，补齐“并发吞吐 + 运维一致性 + 配置护栏 + 兼容入口收敛”的工程化细节，使系统在多实例与生产运维场景下更稳定、更可控、更可排障。
+本变更的目标是：将“语义正确性”和“默认安全态”前置到可验证的工程约束上，降低漂移概率，并把运维能力从“高风险入口”升级为“可控的修复工具”。
 
 ## Change Content
-1. Outbox：在 MySQL 8 场景启用 `SKIP LOCKED` 的非阻塞认领策略，降低多实例并发头阻塞。
-2. Outbox：补齐 user-service 的 outbox 运维入口（health/replay），并与 InternalOpsGuardFilter 的 break-glass 机制对齐。
-3. Reindex：为 reindex single-flight 锁增加“续租/心跳”能力，避免长任务导致锁过期引发并发重建。
-4. internal/ops：收敛配置命名与校验策略（启动期 fail-fast + doctor 自检），降低配置漂移导致的 403 与不可运维风险。
-5. Legacy：对 `/api/search/internal/reindex` 进行默认禁用/显式引导迁移（410/文案/脚本），并给出最终移除窗口。
-6. dev/prod：补齐“危险 dev 配置”的 prod 护栏（prod 下 fail-closed），并收敛文档，避免误用扩散。
+
+1. **统一 Outbox / 幂等消费表 Schema（SSOT=初始化脚本 + 迁移脚本）**
+   - 补齐缺失的唯一约束与关键索引，确保与代码中的“insert-first + DuplicateKey/唯一约束”语义一致。
+   - 为已有环境提供可回滚的迁移脚本（包含重复数据预检与去重策略）。
+
+2. **internal 运维入口安全收敛（break-glass + 双 token + allowlist）**
+   - 以 `InternalTokenFilter` 作为 internal 最小权限兜底；
+   - 以 `InternalOpsGuardFilter` 对高风险运维动作（reindex/outbox replay/like backfill）进行二次校验与限流/并发控制（fail-closed）。
+
+3. **定时任务治理（多实例可控）**
+   - 明确哪些任务天然可水平扩展（队列/锁行语义），哪些任务必须 single-flight；
+   - 为 single-flight 任务引入轻量“集群锁”机制（优先复用已有 MySQL/Redis，避免新增基础设施）。
+
+4. **修复工具可观测与可审计**
+   - 为 reindex/replay/backfill 增加统一的审计日志、指标与告警维度；
+   - 约束执行入口（默认关闭、显式开启、来源 allowlist、速率限制、单飞锁）。
+
+5. **配置治理与防漂移**
+   - 统一关键配置项命名规范与校验策略（依托 `StartupValidation`）；
+   - 增加“schema/配置漂移检查”脚本或 CI 校验，阻断隐性退化。
 
 ## Impact Scope
-- **Modules:** `content-service/`, `social-service/`, `user-service/`, `search-service/`, `gateway/`, `common/`, `deploy/`, `scripts/`, `docs/`, `helloagents/wiki/`
-- **Files:** 预计涉及：
-  - `*/src/main/resources/mapper/outbox-event-mapper.xml`
-  - `search-service/src/main/java/.../ReindexJobService.java`
-  - `gateway/src/main/java/...`（legacy path 拦截/开关）
-  - `deploy/nacos-config/*.yaml`, `deploy/.env.example`, `deploy/docker-compose.yml`
-  - `scripts/doctor.sh`, `scripts/search-reindex.sh`
-  - `auth-service/src/main/resources/application-dev.yml` 与 prod 校验逻辑
+
+- **Modules:**
+  - `deploy/mysql-init/*`（DB 初始化脚本）
+  - `scripts/*`（迁移/校验/演练脚本）
+  - `common`（internal 保护器/启动校验/通用能力增强）
+  - `content-service` / `message-service` / `search-service`（Outbox/幂等/运维入口/定时任务）
+  - `helloagents/wiki/runbooks/*`（运维流程与验收清单）
+- **Files (planned):**
+  - `deploy/mysql-init/020_schema_content.sql`
+  - `deploy/mysql-init/030_schema_message.sql`
+  - `deploy/mysql-init/040_schema_search.sql`
+  - `scripts/*`（新增迁移与 drift check）
+  - `common/src/main/java/com/nowcoder/community/common/internal/InternalOpsGuardFilter.java`（必要时补齐接入/覆盖场景）
+  - 相关服务的 `*CleanupJob.java` / `Internal*Controller.java`（必要时补齐审计/批处理/保护）
 - **APIs:**
-  - 新增：`user-service` outbox 运维入口（internal）
-  - 收敛：`/api/search/internal/reindex`（legacy，计划默认禁用并逐步移除）
-- **Data:** 不改核心业务表结构；涉及 outbox / 幂等表的并发行为与运维操作；reindex 过程可能长时间运行（需更强保护）。
+  - `/internal/search/reindex`
+  - `/internal/*/outbox/replay`
+  - `/internal/*/likes/backfill`
+- **Data:**
+  - `outbox_event`
+  - `consumed_event`
+  - `search_consumed_event`
 
 ## Core Scenarios
 
-### Requirement: Outbox 认领并发与吞吐（outbox-claim-concurrency）
-**Module:** `content-service` / `social-service` / `user-service`
+### Requirement: Outbox / 幂等消费 Schema 对齐
+**Module:** deploy/mysql-init + message/search/content
+将“幂等语义”从代码注释升级为数据库强约束，避免重复副作用与性能退化。
 
-#### Scenario: 多实例 relay 并发时不头阻塞（skip-locked）
-当同一服务部署为多实例（或同机多进程）时：
-- outbox relay 认领批次应尽量避免互相阻塞；
-- 并发实例应倾向于“跳过已锁行”各自拉取不同批次；
-- 即便 Kafka 抖动导致积压，也应保持可预测的吞吐与延迟，不出现长期锁等待堆积。
+#### Scenario: Kafka 重复投递不产生重复副作用
+- 事件重复到达时：
+  - `message-service` 的通知不会重复写入
+  - `search-service` 的索引不会重复执行副作用
+- 成功标准：依赖 `event_id` 唯一约束触发 DuplicateKey/唯一冲突路径，消费侧能正确短路返回。
 
-### Requirement: Outbox 运维能力一致性（outbox-ops-parity）
-**Module:** `content-service` / `social-service` / `user-service`
+#### Scenario: Outbox 轮询不扫表
+- Outbox relay 每 5s 轮询时不产生全表扫描
+- 成功标准：具备 `(status, next_retry_at, id)` 索引支撑候选集查询；`event_id` 唯一约束避免重复入库。
 
-#### Scenario: 三个服务均支持 outbox health/replay 且受 break-glass 保护（ops-endpoints-parity）
-- `GET /internal/{segment}/outbox/health` 返回 NEW/RETRY/SENDING/FAILED 计数；
-- `POST /internal/{segment}/outbox/replay` 仅在 break-glass 开启（ops.guard + allowlist + ops token）时允许；
-- 运维入口在默认配置下为 deny（不会被误触）。
+### Requirement: internal 运维入口默认关闭且可控开启
+**Module:** common + runbooks
 
-### Requirement: Reindex single-flight 锁续租（reindex-lock-renewal）
-**Module:** `search-service`
+#### Scenario: break-glass 未开启时直接拒绝
+- 不配置/不开启时：
+  - 返回 403（默认拒绝）
+  - 不泄露敏感信息（token/payload）
 
-#### Scenario: reindex 运行超过 30 分钟也不会并发重建（lock-renewal）
-当 reindex 因数据量/ES/下游抖动导致运行超过锁 TTL：
-- 只要任务仍在执行且持有锁，应持续续租（避免 TTL 过期）；
-- 并发请求必须稳定返回 409（含 jobId，便于排障）；
-- 若执行实例崩溃，锁应在可控时间后自然过期，允许重新触发（避免永久卡死）。
+#### Scenario: 临时开启后仅 allowlist + 双 token 允许执行
+- 同时满足：
+  - `X-Internal-Token` 通过（最小权限）
+  - `X-Ops-Token` 通过（运维强保护）
+  - `allowlist` 命中（缩小爆炸半径）
+  - Redis 可用（single-flight + rate limit）
+- 成功标准：可按 runbook 演练并可回滚到默认关闭。
 
-### Requirement: internal/ops 配置一致性与启动校验（internal-ops-config-drift）
-**Module:** `common` / `deploy` / `scripts`
+### Requirement: 多实例下定时任务不放大风险
+**Module:** message/search/content/common
 
-#### Scenario: break-glass 开关开启但关键配置缺失时 fail-fast（fail-fast-when-enabled）
-当启用以下任一高风险开关：
-- `OPS_OUTBOX_REPLAY_ENABLED=true`
-- `OPS_SEARCH_REINDEX_ENABLED=true`
-
-系统应在启动期或 doctor 自检期明确报错，指出缺失项（token/allowlist/Redis 等），避免“上线后才 403 / 无法运维”的被动排障。
-
-### Requirement: legacy 对外入口收敛（legacy-search-internal-reindex）
-**Module:** `gateway` / `search-service` / `scripts` / `docs`
-
-#### Scenario: legacy 路径默认不可用且给出迁移引导（disable-and-guide）
-- 默认访问 `POST /api/search/internal/reindex` 返回明确的“已弃用/请使用 /api/ops/search/reindex”提示（建议 410/403，按策略确定）；
-- 保留可控的临时兼容开关，便于短期回滚与灰度；
-- `scripts/search-reindex.sh` 等工具统一使用 `/api/ops/search/reindex`。
-
-### Requirement: dev/prod 护栏（dev-prod-guardrails）
-**Module:** `auth-service` / `docs` / `deploy`
-
-#### Scenario: prod 下禁止固定验证码与敏感链接回传（prod-guardrails）
-当 `SPRING_PROFILES_ACTIVE` 包含 `prod` 时：
-- 若配置了固定验证码（如 `auth.captcha.fixed-code`）必须阻断启动；
-- 若开启了 activation/reset link 回传也必须阻断启动；
-- 文档明确区分 dev 与 prod 的行为与风险。
+#### Scenario: 多副本部署时单飞任务只执行一次
+- 多实例同时运行时：
+  - 清理类/纠偏类任务不会并发重复删除/扫描导致放大负载
+  - 发生故障时不形成雪崩（fail-closed / 限速）
 
 ## Risk Assessment
-- **Risk: `SKIP LOCKED` 兼容性/行为差异**
-  - **Mitigation:** 仅在 MySQL 8 场景启用；提供开关可回退到旧策略；加入并发冒烟验证。
-- **Risk: reindex 续租实现不当导致“锁被错误续租”或“锁无法释放”**
-  - **Mitigation:** 使用 jobId 作为 owner，续租必须校验 owner；释放必须校验 owner；异常情况下依赖 TTL 自然过期兜底。
-- **Risk: 配置项增多导致运维复杂度上升**
-  - **Mitigation:** 统一命名约定（segment 对齐）；doctor.sh 与启动校验提供明确错误；`deploy/.env.example` 给出默认安全示例。
+
+- **Risk:** DDL 变更可能因历史重复数据导致失败，或在大表上锁表影响写入。
+  - **Mitigation:** 上线前做重复数据预检；提供去重脚本；选择低峰执行；必要时分批/在线变更方案；提供回滚手段。
+- **Risk:** internal token 泄露或误配置导致运维入口被滥用。
+  - **Mitigation:** break-glass 默认关闭 + allowlist + 双 token + single-flight + rate-limit；日志审计且不打印敏感信息；依托 `StartupValidation` 在 prod 下 fail-closed。
+- **Risk:** 多实例任务治理引入新锁机制导致误阻断或死锁。
+  - **Mitigation:** 锁 TTL + 失败快速降级；仅对非关键任务启用 single-flight；提供开关与观测指标。

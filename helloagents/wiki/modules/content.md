@@ -155,3 +155,4 @@ Runbook：
 - 2026-02-01：新增 internal entity resolve 与 likes backfill 运维入口，用于跨域写路径契约可信与冷启动纠偏。
 - 2026-02-02：内容渲染契约收敛：写入停止全量 htmlEscape（仅对 `&` 最小化 escape 可配置），读路径对历史 entity 做一次性白名单解码（可配置），避免出现 `&amp;lt;` 二次转义可见问题，并保持 XSS 安全边界清晰。
 - 2026-02-03：Outbox 认领升级支持 `FOR UPDATE SKIP LOCKED`（可配置回退），降低多实例 relay 并发时的锁等待与头阻塞风险；运维入口 `/internal/content/outbox/replay` 继续受 ops-guard（break-glass）保护。
+- 2026-02-03：Outbox 轮询索引对齐为 `idx_outbox_status_next(status, next_retry_at, id)` 并增加 drift 自修复（旧索引缺 `id` 时 drop+recreate）；投影回填任务支持可选 single-flight（多实例避免重复执行）。

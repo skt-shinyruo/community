@@ -223,7 +223,28 @@ else
 fi
 
 echo ""
-echo "[doctor] 6) prod profile sanity"
+echo "[doctor] 6) Schema drift (manual)"
+echo "[INFO] 若你复用/升级已有 MySQL 数据卷，建议在低峰窗口执行："
+echo "       mysql ... < scripts/mysql-migrate-ops-harden-schema.sql"
+
+check_schema_snippet() {
+  local file="$1"
+  local needle="$2"
+  local hint="$3"
+  if grep -Fq "${needle}" "${file}"; then
+    echo "[OK] ${hint}"
+  else
+    echo "[ERR] ${hint} (missing snippet: ${file})"
+    errors=$((errors + 1))
+  fi
+}
+
+check_schema_snippet "deploy/mysql-init/020_schema_content.sql" "create index idx_outbox_status_next on outbox_event(status, next_retry_at, id)" "content outbox 索引声明存在（status,next_retry_at,id）"
+check_schema_snippet "deploy/mysql-init/030_schema_message.sql" "create index idx_consumed_event_at on consumed_event(consumed_at, id)" "message consumed_event 清理索引声明存在（consumed_at,id）"
+check_schema_snippet "deploy/mysql-init/040_schema_search.sql" "create index idx_search_consumed_at on search_consumed_event(consumed_at, id)" "search consumed_event 清理索引声明存在（consumed_at,id）"
+
+echo ""
+echo "[doctor] 7) prod profile sanity"
 if [[ "${profiles}" == *"prod"* ]]; then
   nacos_addr="$(read_var "NACOS_SERVER_ADDR")"
   if [[ -z "${nacos_addr}" ]]; then

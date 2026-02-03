@@ -8,9 +8,16 @@
 
 ### P1（幂等治理 / 清理 / ES alias reindex）
 - `search.idempotency.cleanup-enabled` / `search.idempotency.retention-days`
+- `search.idempotency.cleanup-batch-size` / `search.idempotency.cleanup-max-batches`（分批删除上限，避免单次扫表/长事务）
+- `search.idempotency.cleanup-single-flight` / `search.idempotency.cleanup-lock-ttl-seconds`（多实例下可选 single-flight，避免重复清理放大负载）
+- `search.idempotency.cleanup-interval-ms`
 - `message.idempotency.cleanup-enabled` / `message.idempotency.retention-days`
+- `message.idempotency.cleanup-batch-size` / `message.idempotency.cleanup-max-batches`
+- `message.idempotency.cleanup-single-flight` / `message.idempotency.cleanup-lock-ttl-seconds`
+- `message.idempotency.cleanup-interval-ms`
 - `search.index.keep-history`：保留历史索引数
 - reindex 触发：`POST /internal/search/reindex`（需 `X-Internal-Token`）
+  - Schema 预检/迁移：执行 `scripts/mysql-migrate-ops-harden-schema.sql`（确保幂等表 `event_id` 唯一约束与 `idx_*_consumed_at(consumed_at, id)` 存在，避免清理/查询退化为扫表）
 
 ### P2（Outbox）
 - `content.events.outbox.enabled`：开启后写入 outbox，关闭则恢复 After-Commit 直发
@@ -29,4 +36,3 @@
 - reindex：手工将 alias 指向上一版本索引（ES alias API）
 - Outbox：`content.events.outbox.enabled=false`（恢复 After-Commit 直发）；必要时设置 `relay-enabled=false`
 - 清理任务：将 `*.idempotency.cleanup-enabled=false` 暂停删除
-

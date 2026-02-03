@@ -29,6 +29,9 @@
 - internal 运维入口强保护（break-glass）：
   - `com.nowcoder.community.common.internal.InternalOpsGuardFilter`：对 `/internal/**` 中的高风险运维动作进行二次校验（`X-Ops-Token` + allowlist + 限流），默认关闭
   - 当前覆盖：`/internal/*/outbox/replay`、`/internal/search/reindex`、`/internal/*/likes/backfill`
+- 多实例定时任务 single-flight（可选）：
+  - `com.nowcoder.community.common.scheduler.SingleFlightTaskGuard`：基于 Redis 的分布式单飞锁（`SET NX` + TTL 获取，compare-and-del 释放），用于 cleanup/reconcile 等可重试任务避免“集群内重复跑”
+  - 任务侧通过各自配置开关控制（如 `*.idempotency.cleanup-single-flight`、`*.projection.reconcile.single-flight`），未启用或 Redis 不可用时应按任务风险选择 skip 或继续执行
 - HTTP 写接口幂等保护：
   - `com.nowcoder.community.common.idempotency.IdempotencyGuard`：基于 Redis 的 Idempotency-Key 幂等（缺失 key 时 fail-closed 返回 400；存储不可用时对 required 入口返回 503）
   - TTL 配置（可按环境调整）：

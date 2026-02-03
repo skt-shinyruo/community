@@ -251,25 +251,25 @@ services:
       elasticsearch:
         condition: service_started
 
-	  auth-service:
+  auth-service:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.spring-service
       args:
         MODULE: auth-service
     container_name: community-auth-service
-	    environment:
-	      - SERVER_PORT=8082
-	      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
-	      - NACOS_SERVER_ADDR=nacos:8848
-	      - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
-	      - USER_INTERNAL_TOKEN=${USER_INTERNAL_TOKEN:-}
-	      - USER_OPS_INTERNAL_TOKEN=${USER_OPS_INTERNAL_TOKEN:-}
-	      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
-	      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
-	      - AUTH_REFRESH_COOKIE_SECURE=${AUTH_REFRESH_COOKIE_SECURE:-false}
-	      - AUTH_REFRESH_COOKIE_SAME_SITE=${AUTH_REFRESH_COOKIE_SAME_SITE:-Lax}
-	      - AUTH_REDIS_HOST=redis
+    environment:
+      - SERVER_PORT=8082
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
+      - NACOS_SERVER_ADDR=nacos:8848
+      - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+      - USER_INTERNAL_TOKEN=${USER_INTERNAL_TOKEN:-}
+      - USER_OPS_INTERNAL_TOKEN=${USER_OPS_INTERNAL_TOKEN:-}
+      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
+      - AUTH_REFRESH_COOKIE_SECURE=${AUTH_REFRESH_COOKIE_SECURE:-false}
+      - AUTH_REFRESH_COOKIE_SAME_SITE=${AUTH_REFRESH_COOKIE_SAME_SITE:-Lax}
+      - AUTH_REDIS_HOST=redis
       - AUTH_REDIS_PORT=6379
       - AUTH_ACTIVATION_BASE_URL=${AUTH_ACTIVATION_BASE_URL:-http://localhost:12881}
       - AUTH_MAIL_ENABLED=${AUTH_MAIL_ENABLED:-false}
@@ -281,34 +281,34 @@ services:
       nacos:
         condition: service_healthy
 
-	  user-service:
+  user-service:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.spring-service
       args:
         MODULE: user-service
     container_name: community-user-service
-	    environment:
-	      - SERVER_PORT=8087
-	      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
-	      - NACOS_SERVER_ADDR=nacos:8848
-	      - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
-	      - USER_INTERNAL_TOKEN=${USER_INTERNAL_TOKEN:-}
-	      - SOCIAL_INTERNAL_TOKEN=${SOCIAL_INTERNAL_TOKEN:-}
-	      - USER_OPS_INTERNAL_TOKEN=${USER_OPS_INTERNAL_TOKEN:-}
-	      # OPS guard（break-glass）：/internal/users/outbox/replay
-	      - OPS_OUTBOX_REPLAY_ENABLED=${OPS_OUTBOX_REPLAY_ENABLED:-false}
-	      - OPS_OUTBOX_REPLAY_ALLOWLIST=${OPS_OUTBOX_REPLAY_ALLOWLIST:-127.0.0.1,::1}
-	      - OPS_USERS_TOKEN=${OPS_USERS_TOKEN:-}
-	      - OPS_USERS_TOKEN_PREVIOUS=${OPS_USERS_TOKEN_PREVIOUS:-}
-	      - OPS_RATE_WINDOW_SECONDS=${OPS_RATE_WINDOW_SECONDS:-60}
-	      - OPS_RATE_MAX=${OPS_RATE_MAX:-3}
-	      - OPS_LOCK_TTL_SECONDS=${OPS_LOCK_TTL_SECONDS:-600}
-	      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
-	      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
-	      - USER_DB_URL=jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
-	      - USER_DB_USERNAME=${USER_DB_USERNAME:-community}
-	      - USER_DB_PASSWORD=${USER_DB_PASSWORD:-communitypass}
+    environment:
+      - SERVER_PORT=8087
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
+      - NACOS_SERVER_ADDR=nacos:8848
+      - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+      - USER_INTERNAL_TOKEN=${USER_INTERNAL_TOKEN:-}
+      - SOCIAL_INTERNAL_TOKEN=${SOCIAL_INTERNAL_TOKEN:-}
+      - USER_OPS_INTERNAL_TOKEN=${USER_OPS_INTERNAL_TOKEN:-}
+      # OPS guard（break-glass）：/internal/users/outbox/replay
+      - OPS_OUTBOX_REPLAY_ENABLED=${OPS_OUTBOX_REPLAY_ENABLED:-false}
+      - OPS_OUTBOX_REPLAY_ALLOWLIST=${OPS_OUTBOX_REPLAY_ALLOWLIST:-127.0.0.1,::1}
+      - OPS_USERS_TOKEN=${OPS_USERS_TOKEN:-}
+      - OPS_USERS_TOKEN_PREVIOUS=${OPS_USERS_TOKEN_PREVIOUS:-}
+      - OPS_RATE_WINDOW_SECONDS=${OPS_RATE_WINDOW_SECONDS:-60}
+      - OPS_RATE_MAX=${OPS_RATE_MAX:-3}
+      - OPS_LOCK_TTL_SECONDS=${OPS_LOCK_TTL_SECONDS:-600}
+      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
+      - USER_DB_URL=jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+      - USER_DB_USERNAME=${USER_DB_USERNAME:-community}
+      - USER_DB_PASSWORD=${USER_DB_PASSWORD:-communitypass}
       - QINIU_ACCESS_KEY=${QINIU_ACCESS_KEY:-}
       - QINIU_SECRET_KEY=${QINIU_SECRET_KEY:-}
       - QINIU_BUCKET_HEADER_NAME=${QINIU_BUCKET_HEADER_NAME:-}
@@ -325,32 +325,32 @@ services:
       nacos:
         condition: service_healthy
 
-	  social-service:
+  social-service:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.spring-service
       args:
         MODULE: social-service
     container_name: community-social-service
-	    environment:
-	      - SERVER_PORT=8086
-	      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
-	      - NACOS_SERVER_ADDR=nacos:8848
-	      - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
-	      - SOCIAL_INTERNAL_TOKEN=${SOCIAL_INTERNAL_TOKEN:-}
-	      # OPS guard（break-glass）：/internal/social/outbox/replay
-	      - OPS_OUTBOX_REPLAY_ENABLED=${OPS_OUTBOX_REPLAY_ENABLED:-false}
-	      - OPS_OUTBOX_REPLAY_ALLOWLIST=${OPS_OUTBOX_REPLAY_ALLOWLIST:-127.0.0.1,::1}
-	      - OPS_SOCIAL_TOKEN=${OPS_SOCIAL_TOKEN:-}
-	      - OPS_SOCIAL_TOKEN_PREVIOUS=${OPS_SOCIAL_TOKEN_PREVIOUS:-}
-	      - OPS_RATE_WINDOW_SECONDS=${OPS_RATE_WINDOW_SECONDS:-60}
-	      - OPS_RATE_MAX=${OPS_RATE_MAX:-3}
-	      - OPS_LOCK_TTL_SECONDS=${OPS_LOCK_TTL_SECONDS:-600}
-	      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
-	      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
-	      - SOCIAL_REDIS_HOST=redis
-	      - SOCIAL_REDIS_PORT=6379
-	      - SOCIAL_DB_URL=jdbc:mysql://mysql:3306/${SOCIAL_DB_NAME:-community_social}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    environment:
+      - SERVER_PORT=8086
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
+      - NACOS_SERVER_ADDR=nacos:8848
+      - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+      - SOCIAL_INTERNAL_TOKEN=${SOCIAL_INTERNAL_TOKEN:-}
+      # OPS guard（break-glass）：/internal/social/outbox/replay
+      - OPS_OUTBOX_REPLAY_ENABLED=${OPS_OUTBOX_REPLAY_ENABLED:-false}
+      - OPS_OUTBOX_REPLAY_ALLOWLIST=${OPS_OUTBOX_REPLAY_ALLOWLIST:-127.0.0.1,::1}
+      - OPS_SOCIAL_TOKEN=${OPS_SOCIAL_TOKEN:-}
+      - OPS_SOCIAL_TOKEN_PREVIOUS=${OPS_SOCIAL_TOKEN_PREVIOUS:-}
+      - OPS_RATE_WINDOW_SECONDS=${OPS_RATE_WINDOW_SECONDS:-60}
+      - OPS_RATE_MAX=${OPS_RATE_MAX:-3}
+      - OPS_LOCK_TTL_SECONDS=${OPS_LOCK_TTL_SECONDS:-600}
+      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
+      - SOCIAL_REDIS_HOST=redis
+      - SOCIAL_REDIS_PORT=6379
+      - SOCIAL_DB_URL=jdbc:mysql://mysql:3306/${SOCIAL_DB_NAME:-community_social}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
       - SOCIAL_DB_USERNAME=${SOCIAL_DB_USER:-community_social}
       - SOCIAL_DB_PASSWORD=${SOCIAL_DB_PASSWORD:-community_socialpass}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
@@ -364,35 +364,35 @@ services:
       kafka:
         condition: service_healthy
 
-	  content-service:
+  content-service:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.spring-service
       args:
         MODULE: content-service
     container_name: community-content-service
-	    environment:
-	      - SERVER_PORT=8088
-	      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
-	      - NACOS_SERVER_ADDR=nacos:8848
-	      - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
-	      - CONTENT_INTERNAL_TOKEN=${CONTENT_INTERNAL_TOKEN:-}
-	      - USER_INTERNAL_TOKEN=${USER_INTERNAL_TOKEN:-}
-	      - SOCIAL_INTERNAL_TOKEN=${SOCIAL_INTERNAL_TOKEN:-}
-	      - USER_OPS_INTERNAL_TOKEN=${USER_OPS_INTERNAL_TOKEN:-}
-	      # OPS guard（break-glass）：/internal/content/outbox/replay
-	      - OPS_OUTBOX_REPLAY_ENABLED=${OPS_OUTBOX_REPLAY_ENABLED:-false}
-	      - OPS_OUTBOX_REPLAY_ALLOWLIST=${OPS_OUTBOX_REPLAY_ALLOWLIST:-127.0.0.1,::1}
-	      - OPS_CONTENT_TOKEN=${OPS_CONTENT_TOKEN:-}
-	      - OPS_CONTENT_TOKEN_PREVIOUS=${OPS_CONTENT_TOKEN_PREVIOUS:-}
-	      - OPS_RATE_WINDOW_SECONDS=${OPS_RATE_WINDOW_SECONDS:-60}
-	      - OPS_RATE_MAX=${OPS_RATE_MAX:-3}
-	      - OPS_LOCK_TTL_SECONDS=${OPS_LOCK_TTL_SECONDS:-600}
-	      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
-	      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
-	      - CONTENT_DB_URL=jdbc:mysql://mysql:3306/${CONTENT_DB_NAME:-community_content}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
-	      - CONTENT_DB_USERNAME=${CONTENT_DB_USER:-community_content}
-	      - CONTENT_DB_PASSWORD=${CONTENT_DB_PASSWORD:-community_contentpass}
+    environment:
+      - SERVER_PORT=8088
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
+      - NACOS_SERVER_ADDR=nacos:8848
+      - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+      - CONTENT_INTERNAL_TOKEN=${CONTENT_INTERNAL_TOKEN:-}
+      - USER_INTERNAL_TOKEN=${USER_INTERNAL_TOKEN:-}
+      - SOCIAL_INTERNAL_TOKEN=${SOCIAL_INTERNAL_TOKEN:-}
+      - USER_OPS_INTERNAL_TOKEN=${USER_OPS_INTERNAL_TOKEN:-}
+      # OPS guard（break-glass）：/internal/content/outbox/replay
+      - OPS_OUTBOX_REPLAY_ENABLED=${OPS_OUTBOX_REPLAY_ENABLED:-false}
+      - OPS_OUTBOX_REPLAY_ALLOWLIST=${OPS_OUTBOX_REPLAY_ALLOWLIST:-127.0.0.1,::1}
+      - OPS_CONTENT_TOKEN=${OPS_CONTENT_TOKEN:-}
+      - OPS_CONTENT_TOKEN_PREVIOUS=${OPS_CONTENT_TOKEN_PREVIOUS:-}
+      - OPS_RATE_WINDOW_SECONDS=${OPS_RATE_WINDOW_SECONDS:-60}
+      - OPS_RATE_MAX=${OPS_RATE_MAX:-3}
+      - OPS_LOCK_TTL_SECONDS=${OPS_LOCK_TTL_SECONDS:-600}
+      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
+      - CONTENT_DB_URL=jdbc:mysql://mysql:3306/${CONTENT_DB_NAME:-community_content}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+      - CONTENT_DB_USERNAME=${CONTENT_DB_USER:-community_content}
+      - CONTENT_DB_PASSWORD=${CONTENT_DB_PASSWORD:-community_contentpass}
       - CONTENT_REDIS_HOST=redis
       - CONTENT_REDIS_PORT=6379
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
@@ -406,32 +406,32 @@ services:
       kafka:
         condition: service_healthy
 
-	  search-service:
+  search-service:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.spring-service
       args:
         MODULE: search-service
     container_name: community-search-service
-	    environment:
+    environment:
       - SERVER_PORT=8083
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
       - NACOS_SERVER_ADDR=nacos:8848
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
-	      - CONTENT_INTERNAL_TOKEN=${CONTENT_INTERNAL_TOKEN:-}
-	      # OPS guard（break-glass）：/internal/search/reindex
-	      - OPS_SEARCH_REINDEX_ENABLED=${OPS_SEARCH_REINDEX_ENABLED:-false}
-	      - OPS_SEARCH_REINDEX_ALLOWLIST=${OPS_SEARCH_REINDEX_ALLOWLIST:-127.0.0.1,::1}
-	      - OPS_SEARCH_TOKEN=${OPS_SEARCH_TOKEN:-}
-	      - OPS_SEARCH_TOKEN_PREVIOUS=${OPS_SEARCH_TOKEN_PREVIOUS:-}
-	      - OPS_RATE_WINDOW_SECONDS=${OPS_RATE_WINDOW_SECONDS:-60}
-	      - OPS_RATE_MAX=${OPS_RATE_MAX:-3}
-	      - OPS_LOCK_TTL_SECONDS=${OPS_LOCK_TTL_SECONDS:-600}
-	      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
-	      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
-	      - SEARCH_DB_URL=jdbc:mysql://mysql:3306/${SEARCH_DB_NAME:-community_search}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
-	      - SEARCH_DB_USERNAME=${SEARCH_DB_USER:-community_search}
-	      - SEARCH_DB_PASSWORD=${SEARCH_DB_PASSWORD:-community_searchpass}
+      - CONTENT_INTERNAL_TOKEN=${CONTENT_INTERNAL_TOKEN:-}
+      # OPS guard（break-glass）：/internal/search/reindex
+      - OPS_SEARCH_REINDEX_ENABLED=${OPS_SEARCH_REINDEX_ENABLED:-false}
+      - OPS_SEARCH_REINDEX_ALLOWLIST=${OPS_SEARCH_REINDEX_ALLOWLIST:-127.0.0.1,::1}
+      - OPS_SEARCH_TOKEN=${OPS_SEARCH_TOKEN:-}
+      - OPS_SEARCH_TOKEN_PREVIOUS=${OPS_SEARCH_TOKEN_PREVIOUS:-}
+      - OPS_RATE_WINDOW_SECONDS=${OPS_RATE_WINDOW_SECONDS:-60}
+      - OPS_RATE_MAX=${OPS_RATE_MAX:-3}
+      - OPS_LOCK_TTL_SECONDS=${OPS_LOCK_TTL_SECONDS:-600}
+      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
+      - SEARCH_DB_URL=jdbc:mysql://mysql:3306/${SEARCH_DB_NAME:-community_search}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+      - SEARCH_DB_USERNAME=${SEARCH_DB_USER:-community_search}
+      - SEARCH_DB_PASSWORD=${SEARCH_DB_PASSWORD:-community_searchpass}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - ELASTICSEARCH_URIS=http://elasticsearch:9200
       - SEARCH_INTERNAL_TOKEN=${SEARCH_INTERNAL_TOKEN}

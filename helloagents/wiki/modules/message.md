@@ -78,3 +78,4 @@
 - 2026-01-23：私信写路径补齐拉黑校验；通知消费端新增治理事件（moderation topic）支持。
 - 2026-02-01：私信拉黑校验消除 fail-open：投影缺失时回源 social SSOT 并回填；对外私信接口返回 DTO，避免直接暴露实体契约。
 - 2026-02-02：私信 toName 写路径的 username→userId resolve 增加短 TTL 缓存（容量受控），降低同步依赖放大与尾延迟。
+- 2026-02-03：`consumed_event` 清理任务改为分批 delete（`order by consumed_at, id limit N`），并支持可选 single-flight（多实例避免重复执行）；索引对齐为 `idx_consumed_event_at(consumed_at, id)`。

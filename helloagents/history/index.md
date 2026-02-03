@@ -53,7 +53,7 @@
 ## Archive by Month
 
 ### 2026-02
-- [202602031035_ops_hardening_outbox_reindex](2026-02/202602031035_ops_hardening_outbox_reindex/) - 运维与一致性加固：Outbox `SKIP LOCKED` 并发认领（可降级）、user outbox 运维入口对齐、reindex 锁续租、internal/ops fail-fast、legacy reindex 默认禁用、dev-only 风险文档化
+- [202602031035_ops_hardening_outbox_reindex](2026-02/202602031035_ops_hardening_outbox_reindex/) - 运维与一致性加固：Outbox `SKIP LOCKED` 并发认领（可降级）、Schema drift（outbox/幂等表索引）对齐、幂等清理分批 delete + 可选 single-flight、user outbox 运维入口对齐、reindex 锁续租、internal/ops fail-fast、legacy reindex 默认禁用、dev-only 风险文档化
 - [202602022219_cleanup_nacos_ui_overlay](2026-02/202602022219_cleanup_nacos_ui_overlay/) - 清理废弃 compose overlay：移除 `deploy/docker-compose.nacos-ui.yml` 并同步更新部署文档
 - [202602022143_fix_known_issues](2026-02/202602022143_fix_known_issues/) - 现有功能问题修复与一致性加固：内容渲染契约（避免二次转义）、trusted-proxy prod 校验、gateway analytics 采集队列化、internal client 收敛、最终一致 UX 提示
 - [202602021224_consistency_gap_solution](2026-02/202602021224_consistency_gap_solution/) - 一致性缺口与依赖耦合治理：Perceived Consistency（点赞短 TTL 覆盖 + 搜索最终一致提示）、user 主页 fan-out 收敛（internal 聚合 + socialDegraded）、幂等 TTL 配置化与脚本、doctor 配置自检

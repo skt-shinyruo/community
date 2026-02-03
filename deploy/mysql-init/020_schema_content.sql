@@ -390,7 +390,29 @@ set @idx_outbox_status_next := (
     and table_name = 'outbox_event'
     and index_name = 'idx_outbox_status_next'
 );
-set @sql := if(@idx_outbox_status_next = 0, 'create index idx_outbox_status_next on outbox_event(status, next_retry_at)', 'select 1');
+set @idx_outbox_status_next_has_id := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'outbox_event'
+    and index_name = 'idx_outbox_status_next'
+    and column_name = 'id'
+    and seq_in_index = 3
+);
+
+-- NEW/RETRY 轮询候选集索引：应包含 (status, next_retry_at, id) 以支撑 where + order by id。
+set @sql := if(@idx_outbox_status_next = 0, 'create index idx_outbox_status_next on outbox_event(status, next_retry_at, id)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
+-- 兼容：历史版本 idx_outbox_status_next 仅 (status, next_retry_at)；为避免 drift，检测缺列时重建。
+set @sql := if(@idx_outbox_status_next > 0 and @idx_outbox_status_next_has_id = 0, 'drop index idx_outbox_status_next on outbox_event', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
+set @sql := if(@idx_outbox_status_next > 0 and @idx_outbox_status_next_has_id = 0, 'create index idx_outbox_status_next on outbox_event(status, next_retry_at, id)', 'select 1');
 prepare stmt from @sql;
 execute stmt;
 deallocate prepare stmt;

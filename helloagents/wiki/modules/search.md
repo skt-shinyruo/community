@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** ES 索引维护（保存/删除）；按关键字搜索；高亮 title/content
 - **Status：** ✅Stable
-- **Last Updated：** 2026-02-01
+- **Last Updated：** 2026-02-03
 
 ## Specifications
 
@@ -43,7 +43,7 @@
 - `GET /api/search/posts?keyword=xxx&categoryId=&tag=`（支持 taxonomy 过滤；返回 `categoryId/tags[]` 供前端展示/二次筛选）
 - `POST /api/ops/search/reindex`（仅管理员；高风险运维入口，通常需要额外 `X-Ops-Token` + allowlist 才允许执行）
   - Response: `{ jobId, indexedCount }`
-- `POST /api/search/internal/reindex`（历史兼容入口：弃用中）
+- `POST /api/search/internal/reindex`（历史兼容入口：弃用中，默认禁用；gateway 返回 410 并提示迁移到 `/api/ops/search/reindex`）
 - `POST /internal/search/reindex`（服务内部入口：需要 `X-Internal-Token`）
 
 ## Configuration Notes
@@ -66,3 +66,4 @@
 - 2026-01-20：索引与搜索联动 taxonomy：ES 文档增加 `categoryId/tags`，`/api/search/posts` 支持 `categoryId/tag` 过滤，前端搜索页可按分类/标签缩小范围。
 - 2026-01-28：search-service 幂等改为 insert-first + 定时清理；reindex 引入 alias/蓝绿切换并支持清理旧索引。
 - 2026-02-01：Kafka consumer 统一使用 `EventEnvelopeParser` + `UnknownEventAction`（unknown type/version 可配置 + 降噪），降低事件契约演进带来的 DLQ 噪声与阻塞风险。
+- 2026-02-03：reindex single-flight 增加锁续租（owner=jobId + 原子 renew）避免长任务锁过期并发重建；legacy `/api/search/internal/reindex` 默认禁用并返回迁移提示，降低误用与攻击面。

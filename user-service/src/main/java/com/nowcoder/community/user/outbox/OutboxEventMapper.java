@@ -14,6 +14,8 @@ public interface OutboxEventMapper {
 
     List<Long> selectCandidateIds(@Param("now") Date now, @Param("limit") int limit);
 
+    List<Long> selectCandidateIdsSkipLocked(@Param("now") Date now, @Param("limit") int limit);
+
     int markSending(@Param("ids") List<Long> ids, @Param("now") Date now);
 
     List<OutboxEvent> selectByIds(@Param("ids") List<Long> ids);

@@ -159,7 +159,7 @@ sequenceDiagram
 
 - **事件 envelope 统一携带 `eventId` / `traceId` / `version`**（详见 `helloagents/history/2026-01/202601161428_boot3_ms_vue3_nacos/event-contract.md`）。
 - **消费端幂等：** message-service 采用 `consumed_event` 表记录已消费 `eventId`，避免重复通知/重复副作用。
-- **索引重建：** search-service 提供 reindex 能力用于迁移期冷启动与修复（对外运维入口：`/api/ops/search/reindex`；内部入口：`/internal/search/reindex`；历史兼容：`/api/search/internal/reindex`），重建数据通过 content-service 内部 API 拉取。
+- **索引重建：** search-service 提供 reindex 能力用于迁移期冷启动与修复（对外运维入口：`/api/ops/search/reindex`；内部入口：`/internal/search/reindex`；历史兼容：`/api/search/internal/reindex`（默认禁用并返回迁移提示）），重建数据通过 content-service 内部 API 拉取。
 
 治理补充（2026-02-01）：
 - **Outbox Pattern（默认开启）：** content-service / social-service / user-service 默认启用 outbox，使“DB 提交后事件可重试投递”成为默认安全态；保留开关可回滚到 after-commit 直发（应急止血用途）。

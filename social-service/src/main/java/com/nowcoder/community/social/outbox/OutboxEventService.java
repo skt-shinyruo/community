@@ -1,6 +1,8 @@
 package com.nowcoder.community.social.outbox;
 
 // Outbox 事件服务：负责任务入库、批量认领与状态更新。
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -8,14 +10,22 @@ import org.springframework.util.StringUtils;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 public class OutboxEventService {
 
-    private final OutboxEventMapper outboxEventMapper;
+    private static final Logger log = LoggerFactory.getLogger(OutboxEventService.class);
 
-    public OutboxEventService(OutboxEventMapper outboxEventMapper) {
+    private final OutboxEventMapper outboxEventMapper;
+    private final SocialOutboxProperties properties;
+
+    // 运行期探测：若数据库不支持 SKIP LOCKED，自动降级一次，避免持续报错/影响主链路。
+    private final AtomicBoolean skipLockedUsable = new AtomicBoolean(true);
+
+    public OutboxEventService(OutboxEventMapper outboxEventMapper, SocialOutboxProperties properties) {
         this.outboxEventMapper = outboxEventMapper;
+        this.properties = properties;
     }
 
     public void enqueue(String eventId, String topic, String eventKey, String payload) {
@@ -36,12 +46,26 @@ public class OutboxEventService {
     public List<OutboxEvent> claimBatch(int limit) {
         int size = Math.max(1, Math.min(500, limit));
         Date now = new Date();
-        List<Long> ids = outboxEventMapper.selectCandidateIds(now, size);
+        List<Long> ids = selectCandidateIds(now, size);
         if (ids == null || ids.isEmpty()) {
             return Collections.emptyList();
         }
         outboxEventMapper.markSending(ids, now);
         return outboxEventMapper.selectByIds(ids);
+    }
+
+    private List<Long> selectCandidateIds(Date now, int size) {
+        boolean trySkipLocked = properties != null && properties.isClaimSkipLockedEnabled() && skipLockedUsable.get();
+        if (trySkipLocked) {
+            try {
+                return outboxEventMapper.selectCandidateIdsSkipLocked(now, size);
+            } catch (Exception ex) {
+                if (skipLockedUsable.compareAndSet(true, false)) {
+                    log.warn("[outbox] claim SKIP LOCKED not usable, fallback to FOR UPDATE: {}", ex.toString());
+                }
+            }
+        }
+        return outboxEventMapper.selectCandidateIds(now, size);
     }
 
     public void markSent(long id) {

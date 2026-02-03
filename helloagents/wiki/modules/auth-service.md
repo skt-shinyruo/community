@@ -64,7 +64,7 @@
 - **验证码（captchaId）**：
   - `GET /api/auth/captcha` 返回 `{ captchaId, imageBase64, ttlSeconds }`，验证码与失败计数在服务端存储（Redis/memory）。
   - 校验成功一次性失效；失败达到阈值作废并要求重新获取（默认失败 3 次）。
-  - 本地/测试环境可配置 `auth.captcha.fixed-code=0000` 用于调试（生产环境不建议开启）。
+  - 本地/测试环境可配置 `auth.captcha.fixed-code=0000` 用于调试（生产环境禁止开启；prod 下 `StartupValidation` 会 fail-closed 阻断误配）。
 - **找回密码**：
   - request 接口为避免用户枚举，邮箱不存在也返回“已处理”（不回传 token/不发邮件）。
   - resetToken 为一次性消费，建议短 TTL（默认 10 分钟）。

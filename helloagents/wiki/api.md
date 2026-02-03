@@ -43,10 +43,13 @@ Token 通过环境变量或 Nacos 注入（见 `deploy/.env.example` 与 `deploy
 - **user-service**
   - `GET /internal/users/{userId}/moderation-status`：查询用户禁言/封禁状态（content-service 写路径前置校验）。
   - `POST /internal/users/{userId}/moderation`：应用禁言/封禁（治理动作落地，供 content-service 治理动作转发调用）。
+  - outbox 运维（受 ops-guard 强保护，默认 break-glass 关闭）：
+    - `GET /internal/users/outbox/health`
+    - `POST /internal/users/outbox/replay?limit=200`
 - **search-service**
   - `POST /internal/search/reindex`：重建索引内部入口（受 `X-Internal-Token` + ops-guard 强保护）。
     - 对外运维入口（推荐）：`POST /api/ops/search/reindex`
-    - 历史兼容入口（弃用中）：`POST /api/search/internal/reindex`
+    - 历史兼容入口（弃用中，默认禁用）：`POST /api/search/internal/reindex`（gateway 返回 410 并提示迁移）
 - **analytics-service**
   - `POST /internal/analytics/uv/record`
   - `POST /internal/analytics/dau/record`

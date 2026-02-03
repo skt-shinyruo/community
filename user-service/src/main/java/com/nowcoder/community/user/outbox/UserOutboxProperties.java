@@ -24,6 +24,13 @@ public class UserOutboxProperties {
     private int batchSize = 200;
 
     /**
+     * outbox 认领是否启用 SKIP LOCKED（MySQL 8+）：多实例 relay 并发时避免锁等待与头阻塞。
+     *
+     * <p>兼容性：若数据库不支持，可关闭该开关回退到 FOR UPDATE（旧行为）。</p>
+     */
+    private boolean claimSkipLockedEnabled = false;
+
+    /**
      * 最大重试次数。
      */
     private int maxRetries = 10;
@@ -101,6 +108,14 @@ public class UserOutboxProperties {
 
     public void setBatchSize(int batchSize) {
         this.batchSize = batchSize;
+    }
+
+    public boolean isClaimSkipLockedEnabled() {
+        return claimSkipLockedEnabled;
+    }
+
+    public void setClaimSkipLockedEnabled(boolean claimSkipLockedEnabled) {
+        this.claimSkipLockedEnabled = claimSkipLockedEnabled;
     }
 
     public int getMaxRetries() {

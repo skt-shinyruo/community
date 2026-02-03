@@ -29,6 +29,8 @@ user:
       # 默认开启：可靠投递作为默认安全态（可通过开关回滚到 after-commit 直发）。
       enabled: true
       relay-enabled: true
+      # MySQL 8+ 推荐开启：多实例 relay 并发认领时避免头阻塞（不支持可关闭回退）。
+      claim-skip-locked-enabled: true
       batch-size: 200
       max-retries: 10
       base-delay-ms: 1000
@@ -51,3 +53,19 @@ qiniu:
     header:
       name: ${QINIU_BUCKET_HEADER_NAME:}
       url: ${QINIU_BUCKET_HEADER_URL:}
+
+# internal 运维入口强保护（default deny + break-glass）。
+ops:
+  users:
+    token: ${OPS_USERS_TOKEN:}
+    token-previous: ${OPS_USERS_TOKEN_PREVIOUS:}
+  guard:
+    outbox-replay:
+      enabled: ${OPS_OUTBOX_REPLAY_ENABLED:false}
+      # 默认仅允许本机/回环（生产请改为堡垒机/内网管理网段）。
+      allowlist: ${OPS_OUTBOX_REPLAY_ALLOWLIST:127.0.0.1,::1}
+    rate:
+      window-seconds: ${OPS_RATE_WINDOW_SECONDS:60}
+      max: ${OPS_RATE_MAX:3}
+    lock:
+      ttl-seconds: ${OPS_LOCK_TTL_SECONDS:600}

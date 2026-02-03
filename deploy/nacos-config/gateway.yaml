@@ -57,4 +57,6 @@ gateway:
     fail-open: false
     # 运维/高风险入口关闭开关：匹配到的路径按 404 直接拒绝（降低攻击面）。
     # 示例：临时关闭索引重建入口 -> ["/api/ops/search/reindex", "/api/search/internal/reindex"]
-    blocked-path-patterns: []
+    blocked-path-patterns:
+      # legacy：对外却叫 internal，易误用且攻击面更大；默认禁用并要求迁移到 /api/ops/**。
+      - /api/search/internal/reindex

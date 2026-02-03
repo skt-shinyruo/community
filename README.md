@@ -45,11 +45,9 @@
   - Elasticsearch：`elasticsearch:8.12.2`
   - Observability：Prometheus `v2.51.2` / Grafana `10.4.5` / Loki&Promtail `2.9.4` / Alertmanager `0.27.0`
 
-## 本地默认账号（仅开发/演示）
-- 普通用户：`aaa/aaa`
-- 管理员：`admin/aaa`
-
-数据种子：`deploy/mysql-init/090_seed_identity.sql`
+## 本地演示账号与便捷配置（dev-only）
+⚠️ 默认账号/口令、固定验证码等仅用于本地 dev/演示环境；生产环境禁止使用默认口令与 dev-only 开关。  
+详见：`docs/DEV_ONLY.md`（包含种子数据来源与冒烟脚本说明）。
 
 ## 历史说明（Legacy）
 仓库早期版本来自单体社区实现，README 中曾出现 JDK11/MySQL5.7/ES6/Kafka2.3 以及 wkhtmltopdf/Caffeine/Quartz 等描述。

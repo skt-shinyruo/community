@@ -23,6 +23,16 @@
         for update
     </select>
 
+    <select id="selectCandidateIdsSkipLocked" resultType="long">
+        select id
+        from outbox_event
+        where status in ('NEW', 'RETRY')
+          and (next_retry_at is null or next_retry_at &lt;= #{now})
+        order by id asc
+        limit #{limit}
+        for update skip locked
+    </select>
+
     <update id="markSending">
         update outbox_event
         set status = 'SENDING',

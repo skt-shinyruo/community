@@ -21,7 +21,7 @@
   - 默认要求：`X-Internal-Token`（按服务分域，禁止全局 token 兜底）
   - 原则：internal 不对外暴露（即便在本地联调也应优先通过 gateway 转发或容器内网络访问）
 - 历史遗留路径（示例）：`/api/search/internal/reindex`
-  - 仅用于短期兼容；新入口为 `/api/ops/search/reindex`
+  - 仅用于短期兼容；默认已禁用（gateway 返回 410 并提示迁移）；新入口为 `/api/ops/search/reindex`
 
 ### 1.2 身份与会话：auth-service
 - 登录/刷新/登出闭环

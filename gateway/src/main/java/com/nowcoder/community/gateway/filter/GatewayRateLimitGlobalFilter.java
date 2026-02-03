@@ -70,6 +70,12 @@ public class GatewayRateLimitGlobalFilter implements GlobalFilter, Ordered {
 
         if (StringUtils.hasText(path) && method != null && !HttpMethod.OPTIONS.equals(method) && isBlockedPath(path)) {
             // “可关闭开关”：按 404 隐藏入口（避免暴露运维/高风险能力）
+            // special-case：legacy 入口禁用时给出明确迁移提示，避免被误以为“内部接口不用管”。
+            if ("/api/search/internal/reindex".equals(path)) {
+                exchange.getResponse().getHeaders().set("Deprecation", "true");
+                exchange.getResponse().getHeaders().set("Link", "</api/ops/search/reindex>; rel=\"successor-version\"");
+                return write(exchange, HttpStatus.GONE, Result.error(410, "该入口已弃用，请迁移到 /api/ops/search/reindex"));
+            }
             return write(exchange, HttpStatus.NOT_FOUND, Result.error(CommonErrorCode.NOT_FOUND));
         }
 

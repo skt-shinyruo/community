@@ -13,9 +13,11 @@
 - `POST /internal/search/reindex`（search-service：重建索引）
 - `POST /internal/content/outbox/replay`（content-service：重放失败 outbox）
 - `POST /internal/social/outbox/replay`（social-service：重放失败 outbox）
+- `POST /internal/users/outbox/replay`（user-service：重放失败 outbox）
 
 对外入口（经网关转发，仍受相同 break-glass 保护）：
 - `POST /api/ops/search/reindex`（gateway -> search-service `/internal/search/reindex`，仅管理员）
+  - legacy：`POST /api/search/internal/reindex` 默认禁用（gateway 返回 410 并提示迁移）
 
 前端体验入口（仅管理员）：
 - `/#/ops`（Ops Console：输入 `X-Ops-Token` 后可触发 reindex）
@@ -39,7 +41,7 @@
 
 ### 3.1 ops-token（按 internal segment 分域）
 
-> segment 来自 `/internal/{segment}/...`，例如 `content` / `social` / `search`
+> segment 来自 `/internal/{segment}/...`，例如 `content` / `social` / `users` / `search`
 
 - `ops.<segment>.token`
 - `ops.<segment>.token-previous`（轮转窗口，可选）
@@ -66,7 +68,7 @@
 以 outbox replay 为例（search reindex 同理）：
 - 设置 `ops.guard.outbox-replay.enabled=true`
 - 设置 `ops.guard.outbox-replay.allowlist=<你的IP或CIDR>`（例如 `10.0.0.0/8` 或 `127.0.0.1`）
-- 设置 `ops.content.token=<OPS_TOKEN>`（或 `ops.social.token`）
+- 设置 `ops.<segment>.token=<OPS_TOKEN>`（例如 `ops.content.token` / `ops.social.token` / `ops.users.token`）
 
 ### Step 2：执行请求（同时携带两类 token）
 

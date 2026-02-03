@@ -47,6 +47,11 @@ public class StartupValidation {
                 requireFalse(environment, errors, "auth.password-reset.expose-reset-link", "生产环境禁止回传重置链接，请设置 AUTH_EXPOSE_RESET_LINK=false");
                 requireTrue(environment, errors, "auth.registration.mail.enabled", "生产环境必须启用 SMTP 邮件发送，请设置 AUTH_MAIL_ENABLED=true 并配置 spring.mail.*");
                 requireNonBlank(environment, errors, "spring.mail.host", "配置 spring.mail.host（SMTP 主机）");
+                // dev-only：固定验证码只允许用于本地/联调。prod 下若误开会直接变成漏洞/事故源。
+                String fixedCode = getTrimmed(environment, "auth.captcha.fixed-code");
+                if (StringUtils.hasText(fixedCode)) {
+                    errors.add("配置不安全：auth.captcha.fixed-code 已设置（生产环境禁止固定验证码，请删除该配置或仅在 dev profile 使用）");
+                }
             }
             case "user-service" -> {
                 requireNonBlank(environment, errors, "user.internal-token", "设置环境变量 USER_INTERNAL_TOKEN（用于 /internal/users/**）");
@@ -84,6 +89,9 @@ public class StartupValidation {
             }
         }
 
+        // internal/ops break-glass：开启时必须具备 token + allowlist + Redis（否则会变成 403/不可运维或误放行风险）
+        validateOpsGuard(environment, appName, errors);
+
         if (!errors.isEmpty()) {
             StringBuilder sb = new StringBuilder();
             sb.append("[startup-validation] 生产环境启动校验失败（fail-closed），服务拒绝启动。").append('\n');
@@ -97,6 +105,81 @@ public class StartupValidation {
             sb.append(" - 检查 Nacos 配置是否已发布（prod profile 下应为 required/fail-fast）").append('\n');
             sb.append(" - 检查 deploy/.env 与部署平台 Secret/ConfigMap 是否已注入对应环境变量").append('\n');
             throw new IllegalStateException(sb.toString());
+        }
+    }
+
+    private void validateOpsGuard(Environment environment, String appName, List<String> errors) {
+        if (environment == null) {
+            return;
+        }
+        boolean outboxReplayEnabled = environment.getProperty("ops.guard.outbox-replay.enabled", Boolean.class, Boolean.FALSE);
+        if (outboxReplayEnabled) {
+            requireNonBlank(environment, errors, "ops.guard.outbox-replay.allowlist", "设置 OPS_OUTBOX_REPLAY_ALLOWLIST（IP/CIDR 逗号分隔）");
+            requireRedisConfigured(environment, errors, "OPS_OUTBOX_REPLAY_ENABLED=true 需要配置 spring.data.redis.*（用于 ops single-flight/限流）");
+
+            // 仅对实际暴露 outbox ops 的服务强校验 token（避免误伤未提供该运维入口的服务）。
+            switch (appName) {
+                case "content-service" -> requireAnyNonBlank(
+                        environment,
+                        errors,
+                        List.of("ops.content.token", "ops.content.token-previous"),
+                        "设置 OPS_CONTENT_TOKEN（X-Ops-Token，用于 /internal/content/outbox/replay）"
+                );
+                case "social-service" -> requireAnyNonBlank(
+                        environment,
+                        errors,
+                        List.of("ops.social.token", "ops.social.token-previous"),
+                        "设置 OPS_SOCIAL_TOKEN（X-Ops-Token，用于 /internal/social/outbox/replay）"
+                );
+                case "user-service" -> requireAnyNonBlank(
+                        environment,
+                        errors,
+                        List.of("ops.users.token", "ops.users.token-previous", "ops.user.token", "ops.user.token-previous"),
+                        "设置 OPS_USERS_TOKEN（X-Ops-Token，用于 /internal/users/outbox/replay）"
+                );
+                default -> {
+                    // ignore
+                }
+            }
+        }
+
+        boolean searchReindexEnabled = environment.getProperty("ops.guard.search-reindex.enabled", Boolean.class, Boolean.FALSE);
+        if (searchReindexEnabled) {
+            requireNonBlank(environment, errors, "ops.guard.search-reindex.allowlist", "设置 OPS_SEARCH_REINDEX_ALLOWLIST（IP/CIDR 逗号分隔）");
+            requireRedisConfigured(environment, errors, "OPS_SEARCH_REINDEX_ENABLED=true 需要配置 spring.data.redis.*（用于 ops single-flight/限流）");
+
+            if ("search-service".equals(appName)) {
+                requireAnyNonBlank(
+                        environment,
+                        errors,
+                        List.of("ops.search.token", "ops.search.token-previous"),
+                        "设置 OPS_SEARCH_TOKEN（X-Ops-Token，用于 /internal/search/reindex）"
+                );
+            }
+        }
+    }
+
+    private void requireAnyNonBlank(Environment env, List<String> errors, List<String> keys, String hint) {
+        if (env == null || keys == null || keys.isEmpty()) {
+            return;
+        }
+        for (String key : keys) {
+            String v = getTrimmed(env, key);
+            if (StringUtils.hasText(v)) {
+                return;
+            }
+        }
+        errors.add("缺失配置：" + keys + "（" + hint + "）");
+    }
+
+    private void requireRedisConfigured(Environment env, List<String> errors, String hint) {
+        if (env == null) {
+            return;
+        }
+        String host = getTrimmed(env, "spring.data.redis.host");
+        String port = getTrimmed(env, "spring.data.redis.port");
+        if (!StringUtils.hasText(host) || !StringUtils.hasText(port)) {
+            errors.add("缺失配置：spring.data.redis.host/port（" + hint + "）");
         }
     }
 

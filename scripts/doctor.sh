@@ -175,28 +175,35 @@ if is_true "${ops_outbox_enabled}"; then
     echo "[OK] OPS_OUTBOX_REPLAY allowlist present (OPS_OUTBOX_REPLAY_ALLOWLIST)"
   fi
 
-  ops_content_token="$(read_var "OPS_CONTENT_TOKEN")"
-  ops_social_token="$(read_var "OPS_SOCIAL_TOKEN")"
-  if [[ -z "${ops_content_token}" && -z "${ops_social_token}" ]]; then
-    echo "[ERR] OPS_OUTBOX_REPLAY enabled but both OPS_CONTENT_TOKEN / OPS_SOCIAL_TOKEN are missing"
-    errors=$((errors + 1))
-  else
-    if [[ -n "${ops_content_token}" ]]; then
-      echo "[OK] OPS_OUTBOX_REPLAY token present for content (OPS_CONTENT_TOKEN, len=$(len "${ops_content_token}"))"
-    else
-      echo "[WARN] OPS_OUTBOX_REPLAY enabled but OPS_CONTENT_TOKEN missing (only required when calling /internal/content/**)"
-      warns=$((warns + 1))
-    fi
-    if [[ -n "${ops_social_token}" ]]; then
-      echo "[OK] OPS_OUTBOX_REPLAY token present for social (OPS_SOCIAL_TOKEN, len=$(len "${ops_social_token}"))"
-    else
-      echo "[WARN] OPS_OUTBOX_REPLAY enabled but OPS_SOCIAL_TOKEN missing (only required when calling /internal/social/**)"
-      warns=$((warns + 1))
-    fi
-  fi
-else
-  echo "[OK] OPS_OUTBOX_REPLAY disabled"
-fi
+	  ops_content_token="$(read_var "OPS_CONTENT_TOKEN")"
+	  ops_social_token="$(read_var "OPS_SOCIAL_TOKEN")"
+	  ops_users_token="$(read_var "OPS_USERS_TOKEN")"
+	  if [[ -z "${ops_content_token}" && -z "${ops_social_token}" && -z "${ops_users_token}" ]]; then
+	    echo "[ERR] OPS_OUTBOX_REPLAY enabled but OPS_CONTENT_TOKEN / OPS_SOCIAL_TOKEN / OPS_USERS_TOKEN are all missing"
+	    errors=$((errors + 1))
+	  else
+	    if [[ -n "${ops_content_token}" ]]; then
+	      echo "[OK] OPS_OUTBOX_REPLAY token present for content (OPS_CONTENT_TOKEN, len=$(len "${ops_content_token}"))"
+	    else
+	      echo "[WARN] OPS_OUTBOX_REPLAY enabled but OPS_CONTENT_TOKEN missing (only required when calling /internal/content/**)"
+	      warns=$((warns + 1))
+	    fi
+	    if [[ -n "${ops_social_token}" ]]; then
+	      echo "[OK] OPS_OUTBOX_REPLAY token present for social (OPS_SOCIAL_TOKEN, len=$(len "${ops_social_token}"))"
+	    else
+	      echo "[WARN] OPS_OUTBOX_REPLAY enabled but OPS_SOCIAL_TOKEN missing (only required when calling /internal/social/**)"
+	      warns=$((warns + 1))
+	    fi
+	    if [[ -n "${ops_users_token}" ]]; then
+	      echo "[OK] OPS_OUTBOX_REPLAY token present for users (OPS_USERS_TOKEN, len=$(len "${ops_users_token}"))"
+	    else
+	      echo "[WARN] OPS_OUTBOX_REPLAY enabled but OPS_USERS_TOKEN missing (only required when calling /internal/users/**)"
+	      warns=$((warns + 1))
+	    fi
+	  fi
+	else
+	  echo "[OK] OPS_OUTBOX_REPLAY disabled"
+	fi
 
 check_ops_guard "OPS_SEARCH_REINDEX" "${ops_search_enabled}" "OPS_SEARCH_TOKEN" "OPS_SEARCH_REINDEX_ALLOWLIST"
 

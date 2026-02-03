@@ -38,6 +38,7 @@ public class InternalSearchController {
         if (job == null || !job.acquired()) {
             reindexJobService.conflict(job == null ? null : job.jobId());
         }
+        AutoCloseable renewal = reindexJobService.startRenewal(job.jobId());
         try {
             int count = postSearchService.clearAndReindexFromContentService();
             ReindexResponse resp = new ReindexResponse();
@@ -45,6 +46,12 @@ public class InternalSearchController {
             resp.setIndexedCount(count);
             return Result.ok(resp);
         } finally {
+            try {
+                if (renewal != null) {
+                    renewal.close();
+                }
+            } catch (Exception ignored) {
+            }
             reindexJobService.finish(job.jobId());
         }
     }

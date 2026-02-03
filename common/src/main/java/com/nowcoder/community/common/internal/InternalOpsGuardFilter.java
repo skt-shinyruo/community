@@ -304,6 +304,11 @@ public class InternalOpsGuardFilter implements Filter {
         String s = segment.trim();
         addIfPresent(tokens, "ops." + s + ".token");
         addIfPresent(tokens, "ops." + s + ".token-previous");
+        // alias：users <-> user（历史/命名兼容，避免配置漂移导致大面积 403）
+        if ("users".equalsIgnoreCase(s)) {
+            addIfPresent(tokens, "ops.user.token");
+            addIfPresent(tokens, "ops.user.token-previous");
+        }
         return tokens;
     }
 

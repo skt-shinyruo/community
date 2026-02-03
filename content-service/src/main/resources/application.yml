@@ -8,6 +8,8 @@ content:
     outbox:
       enabled: true
       relay-enabled: true
+      # MySQL 8+ 推荐开启：多实例 relay 并发认领时避免头阻塞（不支持可关闭回退）。
+      claim-skip-locked-enabled: true
       batch-size: 200
       max-retries: 10
       base-delay-ms: 1000

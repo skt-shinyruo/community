@@ -117,6 +117,17 @@ gateway 对写请求会记录审计日志：
   - `ops.guard.<op>.allowlist` 命中（来源 IP/CIDR）
   - Redis 可用（用于 rate limit + single-flight；不可用时 fail-closed 返回 503）
 
+典型入口（SSOT）：
+- outbox replay（需 `ops.guard.outbox-replay.*` + `OPS_*_TOKEN`）：
+  - `POST /internal/content/outbox/replay`
+  - `POST /internal/social/outbox/replay`
+  - `POST /internal/users/outbox/replay`
+- search reindex（需 `ops.guard.search-reindex.*` + `OPS_SEARCH_TOKEN`）：
+  - `POST /internal/search/reindex`（服务侧入口）
+  - `POST /api/ops/search/reindex`（推荐：对外运维入口，经 gateway 转发）
+
+⚠️ legacy 入口提示：`POST /api/search/internal/reindex` 属于历史兼容路径，**默认禁用**（gateway 返回 410 并给出迁移提示），请迁移到 `/api/ops/search/reindex`。
+
 运维流程与回滚步骤见：
 - `helloagents/wiki/runbooks/internal-ops.md`
 

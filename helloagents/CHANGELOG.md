@@ -39,6 +39,9 @@
 - gateway：analytics 采集新增 `AnalyticsCollectDispatcher`（有界队列 + 异步 worker + 指标），采集链路与主转发隔离。
 - frontend：`UiToast` 支持可选 action（`actionText/onAction`），用于发帖/编辑成功后提供快捷入口。
 - runbooks：新增内容渲染迁移与网关采集排障手册（`helloagents/wiki/runbooks/content-rendering-migration.md`、`helloagents/wiki/runbooks/gateway-analytics-collect.md`）。
+- user-service：补齐 outbox 运维入口 `/internal/users/outbox/health|replay`，与 content/social 对齐；默认受 internal-token + ops-guard（break-glass）保护。
+- search-service：reindex single-flight 锁增加续租/心跳（owner=jobId + 原子 renew + owner 校验释放），避免长任务锁过期导致并发重建压垮 ES/下游。
+- docs：新增 `docs/DEV_ONLY.md`，集中说明默认演示账号/固定验证码等 dev-only 便捷能力，并在根 README 做生产禁用提示。
 
 ### Changed
 - content-service/social-service/user-service：Outbox 默认开启（配置与 properties 默认值对齐），并补强 relay 的 SENDING lease 回收 + SENT 保留期清理（默认关闭）与索引。
@@ -51,6 +54,8 @@
 - internal-token：清理各服务 `application.yml` 与 internal client 的 `${...:${INTERNAL_TOKEN:}}` 兜底路径，仅允许按服务 token；同步更新 `scripts/search-reindex.sh` 与 auth-service 文档。
 - Kafka 消费端：统一 version/type unknown handling（默认版本不匹配进入 DLQ；未知 type 默认 SKIP 并按 type 去重告警，避免 DLQ 噪音）。
 - gateway：显式拒绝 `/internal/**`，并将历史入口 `POST /api/search/internal/reindex` 纳入弃用窗口（`Deprecation: true`，引导迁移到 `/api/ops/**`）。
+- gateway：legacy `POST /api/search/internal/reindex` 默认禁用（blocked-path-patterns），并返回 410 迁移提示；保留短期开关用于灰度/回滚。
+- content-service/social-service/user-service：outbox 认领支持 `FOR UPDATE SKIP LOCKED`（可配置回退 + 运行期降级），降低多实例 relay 并发时的锁等待与头阻塞风险。
 - deploy/mysql-init：补齐 identity（user-service）账号最小权限 grant；compose 透传 `USER_DB_USERNAME/USER_DB_PASSWORD` 供初始化脚本创建账号。
 - deploy/nacos-config：content-service datasource 默认指向 `community_content`，并使用 `CONTENT_DB_USERNAME/CONTENT_DB_PASSWORD`（不再复用 `MYSQL_USER/MYSQL_PASSWORD`）。
 - auth-service：prod profile 启动校验升级为 fail-closed：禁止回传 activation/reset link、强制 mail.enabled=true 且校验 `spring.mail.host`/`activationBaseUrl` 等关键配置。
@@ -63,6 +68,7 @@
 ### Fixed
 - 修复“事件发布默认不可靠（best-effort）导致下游永久不一致”的默认配置问题：写侧入 outbox，relay 重试直至成功或进入 FAILED，可观测且可重放。
 - 修复“点赞/热帖分数链路数据源不一致”导致点赞展示与分数计算偏离真实值的问题：用社交事件驱动维护 Redis 点赞投影，并补齐取消点赞事件。
+- search-service：修复 `ReindexJobService` 多构造器场景下 Spring 注入失败（`No default constructor`）导致的启动/测试失败问题（通过 `@Autowired` 指定注入构造器）。
 - 修复“拉黑关系投影缺失/滞后时 fail-open 放过写操作”的问题：投影缺失时回源 SSOT 并回填。
 - 修复 `post:score` 刷新队列 pop 后异常导致 postId 永久丢失的问题：失败回补重试并补齐指标。
 - gateway：统计采集去重改为有界 TTL 缓存，并补齐对 analytics 内部调用的 traceId 透传。
@@ -72,6 +78,7 @@
 - 修复内容渲染二次转义可见问题：历史数据读路径一次性 entity 解码 + 写入停止全量 htmlEscape（仅 `&` 最小化 escape）。
 - 修复 trusted-proxy 误配置导致的潜在 XFF 伪造风险：prod profile 下启用启动期 fail-closed 校验（enabled 但 CIDR allowlist 为空/全量信任时阻断启动）。
 - 修复 auth-service -> user-service internal client `activate()` 结果返回错误（对齐下游 `result` 字段语义）。
+- common：prod 下补齐 internal ops guard 的启动期 fail-closed 校验（enabled 时强制要求 allowlist/ops-token/Redis 配置），并禁止 auth 固定验证码误配上线。
 
 ## [0.0.2] - 2026-01-28
 

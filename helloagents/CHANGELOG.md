@@ -77,6 +77,11 @@
 - 修复“拉黑关系投影缺失/滞后时 fail-open 放过写操作”的问题：投影缺失时回源 SSOT 并回填。
 - 修复 `post:score` 刷新队列 pop 后异常导致 postId 永久丢失的问题：失败回补重试并补齐指标。
 - gateway：统计采集去重改为有界 TTL 缓存，并补齐对 analytics 内部调用的 traceId 透传。
+- analytics-service：修复 UV/DAU 区间查询 unionKey 未清理导致 Redis key/内存膨胀：区间统计改为临时 key（随机后缀），查询结束 delete + 短 TTL 兜底。
+- gateway：修复 analytics 采集手动 subscribe 引入的不可控订阅：将 DAU principal 解析挂载到 reactive 链路并设置短超时，采集失败不影响主链路。
+- gateway：修复 traceId 注入重复实现（WebFilter + GlobalFilter）导致维护成本与潜在覆盖困惑：统一为 WebFilter 注入点，并收敛常量引用到 `TraceIdSupport`。
+- gateway：修复 OriginGuard 在反代/HTTPS offload 场景下同源判定可能误拦登录/刷新：仅在可信代理 CIDR 命中时解析 `Forwarded/X-Forwarded-*` 恢复公网 scheme/host/port。
+- docs：补齐 Redis Key 设计与 internal/ops runbook（路径→header→配置 key 映射 + 403 checklist），降低误配与排障成本。
 - frontend：修复 search reindex 进度展示误用 `count` 字段的问题（改用 `indexedCount`）。
 - social-service：修复未显式加载 `mapper/*.xml` 导致 outbox mapper 运行时 `BindingException` 的问题，并补齐 `map-underscore-to-camel-case`。
 - message-service：修复 `NoticeEventConsumerIntegrationTest` 通过 substring 统计 eventId 导致的偶发失败（traceId 字段可能包含相同子串），改为解析 JSON 精确计数。
@@ -169,6 +174,8 @@
 - `frontend` 视觉精修与 CSS 清理：移除历史未用样式入口 `frontend/src/styles.css`；删除确认无引用的遗留选择器（`.post-body/.comment-body`）；补齐 `.btn.sm` 小尺寸变体并以 design tokens 收敛零散间距（更好适配 density）。
 
 ### Fixed
+- content-service：修复回复评论“跨帖写入/读侧不可达”问题：回复评论必须属于同帖且仅允许回复帖子一级评论（非法请求返回 404）。
+- social-service：补齐点赞/关注在“创建关系”场景的拉黑校验（403），避免拉黑后仍产生互动与通知副作用。
 - 修复评论并发写入时 comment_count 丢更新问题。
 - 修复 message-service 消费端“自调用导致事务不生效 + 幂等记录先写导致永久丢通知”的高风险路径。
 - 修复 content-service/social-service 写路径“事务内直接 send Kafka”导致的幽灵事件风险（After-Commit）。

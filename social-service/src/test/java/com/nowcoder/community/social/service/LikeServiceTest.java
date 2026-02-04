@@ -1,7 +1,11 @@
 package com.nowcoder.community.social.service;
 
+import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.event.payload.LikePayload;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.internal.dto.EntityResolveResponse;
+import com.nowcoder.community.social.block.BlockService;
+import com.nowcoder.community.social.block.InMemoryBlockRepository;
 import com.nowcoder.community.social.event.InMemorySocialEventPublisher;
 import com.nowcoder.community.social.like.InMemoryLikeRepository;
 import com.nowcoder.community.social.like.LikeService;
@@ -10,8 +14,43 @@ import org.mockito.Mockito;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class LikeServiceTest {
+
+    @Test
+    void likeShouldBeForbiddenWhenEitherBlockedOnCreate() {
+        InMemoryLikeRepository repo = new InMemoryLikeRepository();
+        InMemorySocialEventPublisher publisher = new InMemorySocialEventPublisher();
+        ContentServiceClient contentServiceClient = Mockito.mock(ContentServiceClient.class);
+
+        EntityResolveResponse resolved = new EntityResolveResponse();
+        resolved.setEntityType(1);
+        resolved.setEntityId(100);
+        resolved.setEntityUserId(2);
+        resolved.setPostId(100);
+        Mockito.when(contentServiceClient.resolveEntity(1, 100)).thenReturn(resolved);
+
+        InMemoryBlockRepository blockRepository = new InMemoryBlockRepository();
+        // 模拟“被点赞用户拉黑了点赞者”
+        blockRepository.block(2, 1);
+        BlockService blockService = new BlockService(blockRepository, new InMemorySocialEventPublisher());
+
+        LikeService service = new LikeService(repo, publisher, contentServiceClient, blockService);
+
+        LikeRequest req = new LikeRequest();
+        req.setEntityType(1);
+        req.setEntityId(100);
+        req.setLiked(true);
+
+        assertThatThrownBy(() -> service.setLike(1, req))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.FORBIDDEN));
+
+        assertThat(repo.isLiked(1, 1, 100)).isFalse();
+        assertThat(repo.countEntityLikes(1, 100)).isEqualTo(0);
+        assertThat(publisher.snapshot()).isEmpty();
+    }
 
     @Test
     void likeShouldBeIdempotentAndPublishOnce() {
@@ -25,7 +64,8 @@ class LikeServiceTest {
         resolved.setPostId(100);
         Mockito.when(contentServiceClient.resolveEntity(1, 100)).thenReturn(resolved);
 
-        LikeService service = new LikeService(repo, publisher, contentServiceClient);
+        BlockService blockService = new BlockService(new InMemoryBlockRepository(), new InMemorySocialEventPublisher());
+        LikeService service = new LikeService(repo, publisher, contentServiceClient, blockService);
 
         LikeRequest req = new LikeRequest();
         req.setEntityType(1);

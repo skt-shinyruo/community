@@ -3,6 +3,7 @@ package com.nowcoder.community.social.like;
 import com.nowcoder.community.common.event.payload.LikePayload;
 import com.nowcoder.community.common.internal.dto.EntityResolveResponse;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.social.service.ContentServiceClient;
 import com.nowcoder.community.social.event.SocialEventPublisher;
 import com.nowcoder.community.social.like.dto.LikeRequest;
@@ -17,6 +18,7 @@ import java.util.Map;
 import static com.nowcoder.community.common.domain.EntityTypes.COMMENT;
 import static com.nowcoder.community.common.domain.EntityTypes.POST;
 import static com.nowcoder.community.common.domain.EntityTypes.USER;
+import static com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
@@ -25,11 +27,18 @@ public class LikeService {
     private final LikeRepository likeRepository;
     private final SocialEventPublisher eventPublisher;
     private final ContentServiceClient contentServiceClient;
+    private final BlockService blockService;
 
-    public LikeService(LikeRepository likeRepository, SocialEventPublisher eventPublisher, ContentServiceClient contentServiceClient) {
+    public LikeService(
+            LikeRepository likeRepository,
+            SocialEventPublisher eventPublisher,
+            ContentServiceClient contentServiceClient,
+            BlockService blockService
+    ) {
         this.likeRepository = likeRepository;
         this.eventPublisher = eventPublisher;
         this.contentServiceClient = contentServiceClient;
+        this.blockService = blockService;
     }
 
     @Transactional
@@ -43,19 +52,28 @@ public class LikeService {
             throw new BusinessException(INVALID_ARGUMENT, "entityType/entityId 非法");
         }
 
-        boolean liked;
-        if (request.getLiked() == null) {
-            // 兼容 toggle 语义：前端不传 liked 时，按当前状态翻转
-            liked = !likeRepository.isLiked(actorUserId, entityType, entityId);
-        } else {
-            // 兼容 set 语义：liked=true/false 代表目标状态（幂等）
-            liked = Boolean.TRUE.equals(request.getLiked());
+        boolean existed = likeRepository.isLiked(actorUserId, entityType, entityId);
+        // 兼容 toggle / set 两种语义：
+        // - toggle：不传 liked 时翻转当前状态
+        // - set：liked=true/false 代表目标状态（幂等）
+        boolean liked = (request.getLiked() == null) ? !existed : Boolean.TRUE.equals(request.getLiked());
+
+        // 反骚扰：仅阻断“创建点赞”副作用（like existed=false -> liked=true）。
+        // 允许取消点赞（清理自身状态），也允许幂等重复 set=true（不产生新副作用）。
+        ResolvedEntity resolvedForCreate = null;
+        if (liked && !existed) {
+            resolvedForCreate = resolveEntityForPayload(entityType, entityId);
+            if (resolvedForCreate.entityUserId > 0
+                    && blockService != null
+                    && blockService.isEitherBlocked(actorUserId, resolvedForCreate.entityUserId)) {
+                throw new BusinessException(FORBIDDEN, "双方存在拉黑关系，无法执行该操作");
+            }
         }
 
         if (liked) {
             boolean added = likeRepository.addLike(actorUserId, entityType, entityId);
             if (added) {
-                ResolvedEntity resolved = resolveEntityForPayload(entityType, entityId);
+                ResolvedEntity resolved = resolvedForCreate == null ? resolveEntityForPayload(entityType, entityId) : resolvedForCreate;
                 if (resolved.entityUserId > 0) {
                     likeRepository.incrementUserLikeCount(resolved.entityUserId, 1);
                 }

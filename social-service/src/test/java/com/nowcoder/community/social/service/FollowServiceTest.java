@@ -1,6 +1,10 @@
 package com.nowcoder.community.social.service;
 
+import com.nowcoder.community.common.api.CommonErrorCode;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.event.payload.FollowPayload;
+import com.nowcoder.community.social.block.BlockService;
+import com.nowcoder.community.social.block.InMemoryBlockRepository;
 import com.nowcoder.community.social.event.InMemorySocialEventPublisher;
 import com.nowcoder.community.social.follow.FollowService;
 import com.nowcoder.community.social.follow.InMemoryFollowRepository;
@@ -8,14 +12,40 @@ import com.nowcoder.community.social.follow.dto.FollowRequest;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class FollowServiceTest {
+
+    @Test
+    void followShouldBeForbiddenWhenEitherBlockedOnCreate() {
+        InMemoryFollowRepository repo = new InMemoryFollowRepository();
+        InMemorySocialEventPublisher publisher = new InMemorySocialEventPublisher();
+        InMemoryBlockRepository blockRepository = new InMemoryBlockRepository();
+        // 模拟“关注者拉黑了被关注者”
+        blockRepository.block(1, 2);
+        BlockService blockService = new BlockService(blockRepository, new InMemorySocialEventPublisher());
+
+        FollowService service = new FollowService(repo, publisher, blockService);
+
+        FollowRequest req = new FollowRequest();
+        req.setEntityType(3);
+        req.setEntityId(2);
+        req.setEntityUserId(2);
+
+        assertThatThrownBy(() -> service.follow(1, req))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.FORBIDDEN));
+
+        assertThat(service.hasFollowed(1, 3, 2)).isFalse();
+        assertThat(publisher.snapshot()).isEmpty();
+    }
 
     @Test
     void followShouldBeIdempotentAndPublishOnce() {
         InMemoryFollowRepository repo = new InMemoryFollowRepository();
         InMemorySocialEventPublisher publisher = new InMemorySocialEventPublisher();
-        FollowService service = new FollowService(repo, publisher);
+        BlockService blockService = new BlockService(new InMemoryBlockRepository(), new InMemorySocialEventPublisher());
+        FollowService service = new FollowService(repo, publisher, blockService);
 
         FollowRequest req = new FollowRequest();
         req.setEntityType(3);

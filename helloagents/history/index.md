@@ -8,6 +8,8 @@
 
 | Timestamp | Feature Name | Type | Status | Solution Package Path |
 |-----------|--------------|------|--------|----------------------|
+| 202602041705 | fix_comment_reply_block_guard | Development Implementation | ✅Completed | [202602041705_fix_comment_reply_block_guard](2026-02/202602041705_fix_comment_reply_block_guard/) |
+| 202602041143 | fix_runtime_risks | Development Implementation | ✅Completed | [202602041143_fix_runtime_risks](2026-02/202602041143_fix_runtime_risks/) |
 | 202602031035 | ops_hardening_outbox_reindex | Development Implementation | ✅Completed | [202602031035_ops_hardening_outbox_reindex](2026-02/202602031035_ops_hardening_outbox_reindex/) |
 | 202602022219 | cleanup_nacos_ui_overlay | Lightweight Iteration | ✅Completed | [202602022219_cleanup_nacos_ui_overlay](2026-02/202602022219_cleanup_nacos_ui_overlay/) |
 | 202602022143 | fix_known_issues | Development Implementation | ✅Completed | [202602022143_fix_known_issues](2026-02/202602022143_fix_known_issues/) |
@@ -53,6 +55,8 @@
 ## Archive by Month
 
 ### 2026-02
+- [202602041705_fix_comment_reply_block_guard](2026-02/202602041705_fix_comment_reply_block_guard/) - 修复评论回复跨帖/多层不一致，并补齐点赞/关注的拉黑约束（创建关系 403）
+- [202602041143_fix_runtime_risks](2026-02/202602041143_fix_runtime_risks/) - 运行时风险点修复：Redis unionKey 清理、网关采集链路去 subscribe、traceId 注入收敛、OriginGuard 反代兼容、internal/ops runbook 补齐
 - [202602031035_ops_hardening_outbox_reindex](2026-02/202602031035_ops_hardening_outbox_reindex/) - 运维与一致性加固：Outbox `SKIP LOCKED` 并发认领（可降级）、Schema drift（outbox/幂等表索引）对齐、幂等清理分批 delete + 可选 single-flight、user outbox 运维入口对齐、reindex 锁续租、internal/ops fail-fast、legacy reindex 默认禁用、dev-only 风险文档化
 - [202602022219_cleanup_nacos_ui_overlay](2026-02/202602022219_cleanup_nacos_ui_overlay/) - 清理废弃 compose overlay：移除 `deploy/docker-compose.nacos-ui.yml` 并同步更新部署文档
 - [202602022143_fix_known_issues](2026-02/202602022143_fix_known_issues/) - 现有功能问题修复与一致性加固：内容渲染契约（避免二次转义）、trusted-proxy prod 校验、gateway analytics 采集队列化、internal client 收敛、最终一致 UX 提示

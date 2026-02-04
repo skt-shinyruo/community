@@ -141,8 +141,13 @@ public class CommentService {
             }
             eid = entityId;
             Comment targetComment = commentMapper.selectCommentById(eid);
-            if (targetComment == null) {
-                throw new BusinessException(NOT_FOUND, "被回复的评论不存在");
+            if (targetComment == null || targetComment.getId() <= 0 || targetComment.getStatus() != 0) {
+                throw new BusinessException(NOT_FOUND, "资源不存在");
+            }
+
+            // 统一回复语义：仅允许回复“该帖子下的一级评论”，避免跨帖/多层回复写入后读侧不可达。
+            if (targetComment.getEntityType() != ENTITY_TYPE_POST || targetComment.getEntityId() != postId) {
+                throw new BusinessException(NOT_FOUND, "资源不存在");
             }
             targetUserId = targetComment.getUserId();
             if (targetId == null || targetId <= 0) {

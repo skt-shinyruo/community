@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 发帖；帖子详情；评论/回复；敏感词过滤；热帖分数刷新；与搜索/通知联动
 - **Status：** ✅Stable
-- **Last Updated：** 2026-02-02
+- **Last Updated：** 2026-02-04
 
 ## Specifications
 
@@ -49,6 +49,12 @@ Runbook：
 - 评论写入数据库
 - 更新帖子评论数
 - 触发评论事件（通知；支持 Outbox 模式；未启用时仍走 After-Commit 发送）
+
+#### Scenario: 回复帖子一级评论（仅一级回复）
+前置条件：用户已登录；目标 comment 属于该帖子且为一级评论（comment.entityType=POST 且 comment.entityId=postId）
+- 回复写入数据库（comment.entityType=COMMENT, entityId=commentId）
+- 若目标 comment 不属于该帖子或其本身为 reply（多层回复），返回 404（避免写入后读侧不可达/难以治理）
+- 触发评论事件（通知；支持 Outbox 模式）
 
 ### Requirement: 敏感词过滤
 **Module:** content
@@ -104,7 +110,8 @@ Runbook：
 - `PUT /api/posts/{postId}`（作者 24h 内编辑；发布 PostUpdated；更新 `update_time/edit_count`）
 - `DELETE /api/posts/{postId}`（作者软删；发布 PostDeleted；写入 `deleted_*`）
 - `GET /api/posts/{postId}`（包含 likeCount/liked；返回 `categoryId`/`tags[]`）
-- `GET /api/posts/{postId}/comments`、`POST /api/posts/{postId}/comments`（敏感词过滤 + 最小化 escape（仅 `&`，可配置）+ 发布 CommentCreated）
+- `GET /api/posts/{postId}/comments`、`POST /api/posts/{postId}/comments`（评论/回复：entityType=POST|COMMENT；回复仅允许指向该帖子一级评论；敏感词过滤 + 最小化 escape（仅 `&`，可配置）+ 发布 CommentCreated）
+- `GET /api/posts/{postId}/comments/{commentId}/replies`（仅一级评论可拉取 replies；接口会校验 commentId 属于该帖子，避免跨帖枚举）
 - `PUT /api/posts/{postId}/comments/{commentId}`（作者 15min 内编辑；更新 `update_time/edit_count`）
 - `POST /api/reports`（提交举报：POST/COMMENT/USER）
 - `GET /api/moderation/reports`（治理后台：举报列表；仅 MOD/ADMIN）
@@ -156,3 +163,4 @@ Runbook：
 - 2026-02-02：内容渲染契约收敛：写入停止全量 htmlEscape（仅对 `&` 最小化 escape 可配置），读路径对历史 entity 做一次性白名单解码（可配置），避免出现 `&amp;lt;` 二次转义可见问题，并保持 XSS 安全边界清晰。
 - 2026-02-03：Outbox 认领升级支持 `FOR UPDATE SKIP LOCKED`（可配置回退），降低多实例 relay 并发时的锁等待与头阻塞风险；运维入口 `/internal/content/outbox/replay` 继续受 ops-guard（break-glass）保护。
 - 2026-02-03：Outbox 轮询索引对齐为 `idx_outbox_status_next(status, next_retry_at, id)` 并增加 drift 自修复（旧索引缺 `id` 时 drop+recreate）；投影回填任务支持可选 single-flight（多实例避免重复执行）。
+- 2026-02-04：评论/回复写路径收敛为“仅一级回复”，并在回复评论时增加同帖归属校验，避免跨帖/多层回复导致脏数据与读侧不可达。

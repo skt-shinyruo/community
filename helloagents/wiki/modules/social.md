@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 点赞/取消点赞；统计实体点赞数；关注/取关；关注列表/粉丝列表；拉黑/解除拉黑
 - **Status：** ✅Stable
-- **Last Updated：** 2026-02-02
+- **Last Updated：** 2026-02-04
 
 ## Specifications
 
@@ -17,6 +17,7 @@
 #### Scenario: 点赞帖子
 前置条件：用户已登录
 - MySQL 作为关系 SSOT（默认）；Redis 可选作为缓存/计数加速层（非 SSOT）
+- 反骚扰一致性：若双方存在任一方向拉黑关系，禁止创建点赞（返回 403，不发布 LikeCreated）
 - 更新被赞用户的获赞计数（DB 侧具备唯一约束兜底幂等）
 - 写路径契约可信：服务端通过 content-service internal resolve 解析 entity 的 owner/postId 并校验存在性（禁止信任客户端注入字段）
 - 触发社交事件：`LikeCreated/LikeRemoved`，默认使用 Outbox 可靠投递（可通过开关回滚到 After-Commit 直发）
@@ -29,6 +30,7 @@
 前置条件：用户已登录
 - MySQL 作为关系 SSOT（默认）；Redis 可选作为缓存/加速层
 - follow 写路径收敛：当前仅支持关注 USER（避免跨域 entity 造成信任边界与脏关系问题）
+- 反骚扰一致性：若双方存在任一方向拉黑关系，禁止创建关注（返回 403，不发布 FollowCreated）
 - 触发关注事件：优先使用 Outbox 可靠投递（可通过开关回滚到 After-Commit 直发）
 
 ### Requirement: 拉黑/反骚扰
@@ -38,6 +40,7 @@
 #### Scenario: 拉黑用户
 - MySQL 作为关系 SSOT（默认）；Redis 可选作为缓存/加速层
 - 提供内部接口查询 A/B 拉黑关系，供 message-service/content-service 写路径校验
+- 社交写路径自校验：在点赞/关注“创建关系”场景同样执行拉黑校验，避免拉黑后仍产生通知类互动副作用
 
 ## API Interfaces（现状）
 - `POST /api/likes`（显式 liked=true/false，幂等）
@@ -86,3 +89,4 @@
 - 2026-02-01：新增 `LikeRemoved` 事件并发布；点赞写路径改为服务端 resolve entity 元信息（禁止客户端注入、校验存在性）；新增 internal likes scan 供下游回填投影；follow 写路径收敛仅支持 USER；补齐 MyBatis `mapper-locations`/`map-underscore-to-camel-case` 以确保 outbox XML mapper 生效。
 - 2026-02-02：新增 internal 用户主页聚合 read API（profile-stats），供 user-service 单次调用获取获赞/关注/粉丝/关注状态，降低 fan-out。
 - 2026-02-03：Outbox 认领升级支持 `FOR UPDATE SKIP LOCKED`（可配置回退），降低多实例 relay 并发时的锁等待与头阻塞风险；outbox 运维入口继续受 ops-guard（break-glass）保护。
+- 2026-02-04：补齐反骚扰语义一致性：点赞/关注在“创建关系”场景增加拉黑校验（403），避免拉黑后仍产生互动与通知副作用。

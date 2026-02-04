@@ -28,6 +28,156 @@ import static org.mockito.Mockito.when;
 class CommentServiceTest {
 
     @Test
+    void addReplyShouldFailWhenTargetCommentNotBelongToPost() {
+        CommentMapper commentMapper = mock(CommentMapper.class);
+        PostService postService = mock(PostService.class);
+        SensitiveFilter sensitiveFilter = mock(SensitiveFilter.class);
+        PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
+        ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
+        UserModerationProjectionRepository projectionRepository = mock(UserModerationProjectionRepository.class);
+        UserModerationClient userModerationClient = mock(UserModerationClient.class);
+        SocialBlockClient socialBlockClient = mock(SocialBlockClient.class);
+
+        doNothing().when(projectionRepository).assertCanSpeak(anyInt());
+        when(projectionRepository.checkEitherBlocked(anyInt(), anyInt()))
+                .thenReturn(UserModerationProjectionRepository.BlockCheck.NOT_BLOCKED);
+        UserModerationGuard moderationGuard = new UserModerationGuard(projectionRepository, userModerationClient);
+        ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
+
+        CommentService service = new CommentService(
+                commentMapper,
+                postService,
+                sensitiveFilter,
+                postScoreQueue,
+                eventPublisher,
+                projectionRepository,
+                moderationGuard,
+                socialBlockClient,
+                textCodec
+        );
+
+        DiscussPost post = new DiscussPost();
+        post.setId(100);
+        post.setUserId(2);
+        when(postService.getById(100)).thenReturn(post);
+
+        Comment target = new Comment();
+        target.setId(200);
+        target.setUserId(2);
+        target.setStatus(0);
+        target.setEntityType(CommentService.ENTITY_TYPE_POST);
+        target.setEntityId(999); // 属于其他 post
+        when(commentMapper.selectCommentById(200)).thenReturn(target);
+
+        assertThatThrownBy(() -> service.addComment(1, 100, CommentService.ENTITY_TYPE_COMMENT, 200, null, "hi"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
+
+        verify(commentMapper, never()).insertComment(any(Comment.class));
+        verify(eventPublisher, never()).publishCommentCreated(any());
+    }
+
+    @Test
+    void addReplyShouldFailWhenTargetCommentIsReplyItself() {
+        CommentMapper commentMapper = mock(CommentMapper.class);
+        PostService postService = mock(PostService.class);
+        SensitiveFilter sensitiveFilter = mock(SensitiveFilter.class);
+        PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
+        ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
+        UserModerationProjectionRepository projectionRepository = mock(UserModerationProjectionRepository.class);
+        UserModerationClient userModerationClient = mock(UserModerationClient.class);
+        SocialBlockClient socialBlockClient = mock(SocialBlockClient.class);
+
+        doNothing().when(projectionRepository).assertCanSpeak(anyInt());
+        when(projectionRepository.checkEitherBlocked(anyInt(), anyInt()))
+                .thenReturn(UserModerationProjectionRepository.BlockCheck.NOT_BLOCKED);
+        UserModerationGuard moderationGuard = new UserModerationGuard(projectionRepository, userModerationClient);
+        ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
+
+        CommentService service = new CommentService(
+                commentMapper,
+                postService,
+                sensitiveFilter,
+                postScoreQueue,
+                eventPublisher,
+                projectionRepository,
+                moderationGuard,
+                socialBlockClient,
+                textCodec
+        );
+
+        DiscussPost post = new DiscussPost();
+        post.setId(100);
+        post.setUserId(2);
+        when(postService.getById(100)).thenReturn(post);
+
+        Comment target = new Comment();
+        target.setId(200);
+        target.setUserId(2);
+        target.setStatus(0);
+        target.setEntityType(CommentService.ENTITY_TYPE_COMMENT); // 回复评论
+        target.setEntityId(123);
+        when(commentMapper.selectCommentById(200)).thenReturn(target);
+
+        assertThatThrownBy(() -> service.addComment(1, 100, CommentService.ENTITY_TYPE_COMMENT, 200, null, "hi"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
+
+        verify(commentMapper, never()).insertComment(any(Comment.class));
+        verify(eventPublisher, never()).publishCommentCreated(any());
+    }
+
+    @Test
+    void addReplyShouldFailWhenTargetCommentDeleted() {
+        CommentMapper commentMapper = mock(CommentMapper.class);
+        PostService postService = mock(PostService.class);
+        SensitiveFilter sensitiveFilter = mock(SensitiveFilter.class);
+        PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
+        ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
+        UserModerationProjectionRepository projectionRepository = mock(UserModerationProjectionRepository.class);
+        UserModerationClient userModerationClient = mock(UserModerationClient.class);
+        SocialBlockClient socialBlockClient = mock(SocialBlockClient.class);
+
+        doNothing().when(projectionRepository).assertCanSpeak(anyInt());
+        when(projectionRepository.checkEitherBlocked(anyInt(), anyInt()))
+                .thenReturn(UserModerationProjectionRepository.BlockCheck.NOT_BLOCKED);
+        UserModerationGuard moderationGuard = new UserModerationGuard(projectionRepository, userModerationClient);
+        ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
+
+        CommentService service = new CommentService(
+                commentMapper,
+                postService,
+                sensitiveFilter,
+                postScoreQueue,
+                eventPublisher,
+                projectionRepository,
+                moderationGuard,
+                socialBlockClient,
+                textCodec
+        );
+
+        DiscussPost post = new DiscussPost();
+        post.setId(100);
+        post.setUserId(2);
+        when(postService.getById(100)).thenReturn(post);
+
+        Comment target = new Comment();
+        target.setId(200);
+        target.setUserId(2);
+        target.setStatus(1); // 非 0
+        target.setEntityType(CommentService.ENTITY_TYPE_POST);
+        target.setEntityId(100);
+        when(commentMapper.selectCommentById(200)).thenReturn(target);
+
+        assertThatThrownBy(() -> service.addComment(1, 100, CommentService.ENTITY_TYPE_COMMENT, 200, null, "hi"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.NOT_FOUND));
+
+        verify(commentMapper, never()).insertComment(any(Comment.class));
+        verify(eventPublisher, never()).publishCommentCreated(any());
+    }
+
+    @Test
     void addCommentShouldNotCallDownstreamWhenProjectionExists() {
         CommentMapper commentMapper = mock(CommentMapper.class);
         PostService postService = mock(PostService.class);

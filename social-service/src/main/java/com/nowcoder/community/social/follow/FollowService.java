@@ -2,6 +2,7 @@ package com.nowcoder.community.social.follow;
 
 import com.nowcoder.community.common.event.payload.FollowPayload;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.social.event.SocialEventPublisher;
 import com.nowcoder.community.social.follow.dto.FollowItem;
 import com.nowcoder.community.social.follow.dto.FollowRequest;
@@ -12,6 +13,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static com.nowcoder.community.common.domain.EntityTypes.USER;
+import static com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
@@ -19,10 +21,12 @@ public class FollowService {
 
     private final FollowRepository followRepository;
     private final SocialEventPublisher eventPublisher;
+    private final BlockService blockService;
 
-    public FollowService(FollowRepository followRepository, SocialEventPublisher eventPublisher) {
+    public FollowService(FollowRepository followRepository, SocialEventPublisher eventPublisher, BlockService blockService) {
         this.followRepository = followRepository;
         this.eventPublisher = eventPublisher;
+        this.blockService = blockService;
     }
 
     @Transactional
@@ -40,6 +44,12 @@ public class FollowService {
         }
         if (actorUserId == entityId) {
             throw new BusinessException(INVALID_ARGUMENT, "不能关注自己");
+        }
+
+        // 反骚扰：仅阻断“创建关注”副作用（幂等重复 follow 不额外阻断）
+        boolean existed = followRepository.hasFollowed(actorUserId, entityType, entityId);
+        if (!existed && blockService != null && blockService.isEitherBlocked(actorUserId, entityId)) {
+            throw new BusinessException(FORBIDDEN, "双方存在拉黑关系，无法执行该操作");
         }
 
         long now = System.currentTimeMillis();

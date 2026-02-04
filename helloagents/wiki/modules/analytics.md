@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 记录 UV（HyperLogLog）；记录 DAU（Bitmap）；按日期区间统计；提供统计页面/接口
 - **Status：** 🟡In Progress
-- **Last Updated：** 2026-01-28
+- **Last Updated：** 2026-02-04
 
 ## Specifications
 
@@ -19,6 +19,7 @@
 
 #### Scenario: 区间 UV 查询
 - 合并日期范围的 UV 并返回
+- 区间 unionKey 为临时 key（随机后缀），查询结束后 delete；异常/进程崩溃时短 TTL 兜底，避免 Redis key/内存膨胀
 
 ### Requirement: DAU 统计
 **Module:** analytics
@@ -29,6 +30,7 @@
 
 #### Scenario: 区间 DAU 查询
 - 对日期范围做 OR 运算并返回 bitCount
+- BITOP OR 的 unionKey 同样为临时 key（随机后缀），查询结束后 delete；异常/进程崩溃时短 TTL 兜底，避免 Redis key/内存膨胀
 
 ## API Interfaces（现状）
 - `GET /api/analytics/uv?start=YYYY-MM-DD&end=YYYY-MM-DD`（管理员/版主）
@@ -47,4 +49,4 @@
 - infra（拦截器采集、Redis）
 
 ## Change History
-- （暂无）
+- 2026-02-04：区间 UV/DAU 查询使用临时 unionKey（delete + 短 TTL 兜底），避免 Redis key/内存膨胀。

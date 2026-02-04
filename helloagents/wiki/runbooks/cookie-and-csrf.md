@@ -28,6 +28,12 @@ refresh token 属于高价值凭证，一旦被 CSRF 或旁路利用，会导致
 - 对大多数浏览器默认防御较强
 - 允许普通站内跳转，不需要额外 CSRF token
 
+### 1.1) 反向代理 / HTTPS offload 注意事项
+若 gateway 处于反向代理/Ingress/HTTPS offload 后（外部是 `https`，gateway 内部可能感知为 `http`）：
+- 建议开启可信代理：`gateway.trusted-proxy.enabled=true` + `gateway.trusted-proxy.cidrs`（仅信任反向代理 IP/CIDR）
+- 确保代理正确回填并覆盖 `Forwarded` / `X-Forwarded-Proto/Host/Port`（避免客户端伪造）
+- 目的：让 OriginGuard 的“同源请求放行”在 login/refresh/logout 上能正确识别公网的 scheme/host/port，避免误拦
+
 ### 2) 跨站部署（谨慎）
 典型形态：前端与 gateway 不同 Origin，例如：
 - `https://app.example.com`（前端）
@@ -48,4 +54,3 @@ refresh token 属于高价值凭证，一旦被 CSRF 或旁路利用，会导致
 - [ ] gateway OriginGuard：对 `/api/auth/login|refresh|logout` 生效，allowlist 与前端 Origin 一致
 - [ ] auth-service OriginGuard：同样覆盖 login/refresh/logout，避免旁路
 - [ ] 外部网络只暴露 gateway（旁路禁止）
-

@@ -34,7 +34,7 @@ public class AuditLogGlobalFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
-        String traceId = request.getHeaders().getFirst(TraceIdGlobalFilter.HEADER_TRACE_ID);
+        String traceId = request.getHeaders().getFirst(TraceIdSupport.HEADER_TRACE_ID);
         long startNanos = System.nanoTime();
 
         return exchange.getPrincipal()

@@ -11,6 +11,15 @@
 
 > 注意：当前 `InternalTokenFilter` **不再读取** `internal.token`（即使设置环境变量 `INTERNAL_TOKEN` 也不会被接受）。仍建议在生产环境逐步移除该全局 env，避免误解与错误配置扩散。
 
+## users 特例（更小爆炸半径）
+users 的少数高权限写入口会 **禁止** 回退到 `users.internal-token` / `user.internal-token`（避免“通用 token 泄露扩大爆炸半径”）：
+- `/internal/users/{id}/password`
+- `/internal/users/{id}/moderation`
+
+对应配置 key：
+- `users.ops.internal-token` / `users.ops.internal-token-previous`
+- alias：`user.ops.internal-token` / `user.ops.internal-token-previous`
+
 ## 轮转流程（推荐）
 以轮转 social-service 的 token 为例（segment= `social`）：
 
@@ -29,6 +38,8 @@
 按调用链路逐个升级调用方配置（例如 content-service 的 `clients.social.internal-token`）：
 - 将调用方发送的 `X-Internal-Token` 切换为 `NEW_TOKEN`
 - 观察调用方错误率/延迟与目标服务的 internal 403 是否下降
+
+> 提示：gateway 也可能是 caller（例如 `/api/ops/search/reindex` 会注入 `X-Internal-Token=${SEARCH_INTERNAL_TOKEN}`），轮转 search-service internal-token 时需要同步升级 gateway 的注入 token。
 
 ### Step 3：收尾（移除 previous）
 当确认所有调用方已切换到 `NEW_TOKEN` 后：

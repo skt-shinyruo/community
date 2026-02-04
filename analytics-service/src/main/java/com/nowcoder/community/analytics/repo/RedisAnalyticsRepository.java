@@ -6,10 +6,12 @@ import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.stereotype.Repository;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Repository
 @ConditionalOnProperty(name = "analytics.storage", havingValue = "redis", matchIfMissing = true)
@@ -17,7 +19,11 @@ public class RedisAnalyticsRepository implements AnalyticsRepository {
 
     private static final String PREFIX_UV = "uv:";
     private static final String PREFIX_DAU = "dau:";
+    private static final String PREFIX_UV_TMP = "uv:tmp:";
+    private static final String PREFIX_DAU_TMP = "dau:tmp:";
     private static final DateTimeFormatter DF = DateTimeFormatter.ISO_LOCAL_DATE;
+    // unionKey 属于“临时计算中间结果”，即使 finally 清理失败/进程崩溃，也应尽快过期避免 Redis 膨胀。
+    private static final Duration UNION_KEY_TTL = Duration.ofSeconds(60);
 
     private final StringRedisTemplate redisTemplate;
 
@@ -36,10 +42,15 @@ public class RedisAnalyticsRepository implements AnalyticsRepository {
         if (keys.isEmpty()) {
             return 0;
         }
-        String unionKey = PREFIX_UV + DF.format(start) + ":" + DF.format(end);
-        redisTemplate.opsForHyperLogLog().union(unionKey, keys.toArray(new String[0]));
-        Long size = redisTemplate.opsForHyperLogLog().size(unionKey);
-        return size == null ? 0 : size;
+        String unionKey = tempUnionKey(PREFIX_UV_TMP, start, end);
+        try {
+            redisTemplate.opsForHyperLogLog().union(unionKey, keys.toArray(new String[0]));
+            redisTemplate.expire(unionKey, UNION_KEY_TTL);
+            Long size = redisTemplate.opsForHyperLogLog().size(unionKey);
+            return size == null ? 0 : size;
+        } finally {
+            safeDelete(unionKey);
+        }
     }
 
     @Override
@@ -53,15 +64,21 @@ public class RedisAnalyticsRepository implements AnalyticsRepository {
         if (keys.isEmpty()) {
             return 0;
         }
-        String unionKey = PREFIX_DAU + DF.format(start) + ":" + DF.format(end);
-        redisTemplate.execute((RedisCallback<Void>) connection -> {
-            connection.bitOp(org.springframework.data.redis.connection.RedisStringCommands.BitOperation.OR,
-                    unionKey.getBytes(StandardCharsets.UTF_8),
-                    keys.stream().map(k -> k.getBytes(StandardCharsets.UTF_8)).toArray(byte[][]::new));
-            return null;
-        });
-        Long count = redisTemplate.execute((RedisCallback<Long>) connection -> connection.stringCommands().bitCount(unionKey.getBytes(StandardCharsets.UTF_8)));
-        return count == null ? 0 : count;
+        String unionKey = tempUnionKey(PREFIX_DAU_TMP, start, end);
+        byte[] unionKeyBytes = unionKey.getBytes(StandardCharsets.UTF_8);
+        try {
+            redisTemplate.execute((RedisCallback<Void>) connection -> {
+                connection.bitOp(org.springframework.data.redis.connection.RedisStringCommands.BitOperation.OR,
+                        unionKeyBytes,
+                        keys.stream().map(k -> k.getBytes(StandardCharsets.UTF_8)).toArray(byte[][]::new));
+                return null;
+            });
+            redisTemplate.expire(unionKey, UNION_KEY_TTL);
+            Long count = redisTemplate.execute((RedisCallback<Long>) connection -> connection.stringCommands().bitCount(unionKeyBytes));
+            return count == null ? 0 : count;
+        } finally {
+            safeDelete(unionKey);
+        }
     }
 
     private List<String> rangeKeys(String prefix, LocalDate start, LocalDate end) {
@@ -72,5 +89,22 @@ public class RedisAnalyticsRepository implements AnalyticsRepository {
             d = d.plusDays(1);
         }
         return keys;
+    }
+
+    private String tempUnionKey(String prefix, LocalDate start, LocalDate end) {
+        String s = start == null ? "null" : DF.format(start);
+        String e = end == null ? "null" : DF.format(end);
+        String rand = UUID.randomUUID().toString().replace("-", "");
+        return prefix + s + ":" + e + ":" + rand;
+    }
+
+    private void safeDelete(String key) {
+        if (redisTemplate == null || key == null || key.isBlank()) {
+            return;
+        }
+        try {
+            redisTemplate.delete(key);
+        } catch (Exception ignored) {
+        }
     }
 }

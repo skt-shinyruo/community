@@ -2,6 +2,7 @@ package com.nowcoder.community.gateway.filter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.gateway.config.OriginGuardProperties;
+import com.nowcoder.community.gateway.config.TrustedProxyProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.http.HttpStatus;
@@ -22,11 +23,11 @@ class OriginGuardGlobalFilterTest {
         props.setEnabled(true);
         props.setAllowedOrigins(List.of("http://localhost:12881"));
 
-        OriginGuardGlobalFilter filter = new OriginGuardGlobalFilter(props, new ObjectMapper());
+        OriginGuardGlobalFilter filter = new OriginGuardGlobalFilter(props, new ObjectMapper(), new ForwardedOriginResolver(new TrustedProxyProperties()));
 
         MockServerHttpRequest request = MockServerHttpRequest.post("/api/auth/login")
                 .header("Origin", "http://localhost:12888")
-                .header(TraceIdGlobalFilter.HEADER_TRACE_ID, "0123456789abcdef0123456789abcdef")
+                .header(TraceIdSupport.HEADER_TRACE_ID, "0123456789abcdef0123456789abcdef")
                 .build();
         MockServerWebExchange exchange = MockServerWebExchange.from(request);
 
@@ -53,7 +54,7 @@ class OriginGuardGlobalFilterTest {
         props.setEnabled(true);
         props.setAllowedOrigins(List.of("http://localhost:12881"));
 
-        OriginGuardGlobalFilter filter = new OriginGuardGlobalFilter(props, new ObjectMapper());
+        OriginGuardGlobalFilter filter = new OriginGuardGlobalFilter(props, new ObjectMapper(), new ForwardedOriginResolver(new TrustedProxyProperties()));
 
         MockServerHttpRequest request = MockServerHttpRequest.post("/api/auth/refresh")
                 .header("Origin", "http://localhost:12881")
@@ -78,7 +79,7 @@ class OriginGuardGlobalFilterTest {
         props.setEnabled(true);
         props.setAllowedOrigins(List.of("http://localhost:12881"));
 
-        OriginGuardGlobalFilter filter = new OriginGuardGlobalFilter(props, new ObjectMapper());
+        OriginGuardGlobalFilter filter = new OriginGuardGlobalFilter(props, new ObjectMapper(), new ForwardedOriginResolver(new TrustedProxyProperties()));
 
         MockServerHttpRequest request = MockServerHttpRequest.post("/api/auth/logout").build();
         MockServerWebExchange exchange = MockServerWebExchange.from(request);
@@ -102,11 +103,11 @@ class OriginGuardGlobalFilterTest {
         props.setFailOpenWhenAllowlistEmpty(false);
         props.setAllowedOrigins(List.of());
 
-        OriginGuardGlobalFilter filter = new OriginGuardGlobalFilter(props, new ObjectMapper());
+        OriginGuardGlobalFilter filter = new OriginGuardGlobalFilter(props, new ObjectMapper(), new ForwardedOriginResolver(new TrustedProxyProperties()));
 
         MockServerHttpRequest request = MockServerHttpRequest.post("/api/auth/login")
                 .header("Origin", "http://localhost:12881")
-                .header(TraceIdGlobalFilter.HEADER_TRACE_ID, "0123456789abcdef0123456789abcdef")
+                .header(TraceIdSupport.HEADER_TRACE_ID, "0123456789abcdef0123456789abcdef")
                 .build();
         MockServerWebExchange exchange = MockServerWebExchange.from(request);
 
@@ -127,4 +128,3 @@ class OriginGuardGlobalFilterTest {
         assertThat(body).contains("0123456789abcdef0123456789abcdef");
     }
 }
-

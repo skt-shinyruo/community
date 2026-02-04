@@ -14,6 +14,7 @@
 - `POST /internal/content/outbox/replay`（content-service：重放失败 outbox）
 - `POST /internal/social/outbox/replay`（social-service：重放失败 outbox）
 - `POST /internal/users/outbox/replay`（user-service：重放失败 outbox）
+- `POST /internal/*/likes/backfill`（content-service：点赞投影冷启动/纠偏回填）
 
 对外入口（经网关转发，仍受相同 break-glass 保护）：
 - `POST /api/ops/search/reindex`（gateway -> search-service `/internal/search/reindex`，仅管理员）
@@ -39,6 +40,14 @@
 
 ## 3. 配置项（SSOT）
 
+### 3.0 路径 → Header → 配置 key 映射（速查）
+
+| 入口 | 实际 internal 路径 | 需要携带的 header | 关键配置（被调方） | 备注 |
+|------|-------------------|------------------|-------------------|------|
+| `POST /api/ops/search/reindex` | `POST /internal/search/reindex` | `X-Ops-Token`（调用方提供） | `ops.guard.search-reindex.*` + `ops.search.token*` + `search.internal-token*` | gateway 会注入 `X-Internal-Token=${SEARCH_INTERNAL_TOKEN}` |
+| `POST /internal/<segment>/outbox/replay` | 同左 | `X-Internal-Token` + `X-Ops-Token` | `ops.guard.outbox-replay.*` + `ops.<segment>.token*` + `<segment>.internal-token*` | 建议仅在内网/堡垒机发起 |
+| `POST /internal/<segment>/likes/backfill` | 同左 | `X-Internal-Token` + `X-Ops-Token` | `ops.guard.like-backfill.*` + `ops.<segment>.token*` + `<segment>.internal-token*` | 入口高成本，需严格限流 |
+
 ### 3.1 ops-token（按 internal segment 分域）
 
 > segment 来自 `/internal/{segment}/...`，例如 `content` / `social` / `users` / `search`
@@ -54,8 +63,18 @@
 - search reindex：
   - `ops.guard.search-reindex.enabled`（默认 `false`）
   - `ops.guard.search-reindex.allowlist`（必须配置，否则 fail-closed 拒绝）
+- like backfill：
+  - `ops.guard.like-backfill.enabled`（默认 `false`）
+  - `ops.guard.like-backfill.allowlist`（必须配置，否则 fail-closed 拒绝）
 
-### 3.3 频率/并发限制（全局）
+### 3.3 internal-token（最小权限，internal 兜底）
+- `<segment>.internal-token` / `<segment>.internal-token-previous`
+- users alias：`user.internal-token*`（仅当 segment 为 `users` 且非高权限写入口）
+- users 高权限写入口（更小爆炸半径）：
+  - `/internal/users/{id}/password`、`/internal/users/{id}/moderation`
+  - 对应 key：`users.ops.internal-token*`（或 alias：`user.ops.internal-token*`）
+
+### 3.4 频率/并发限制（全局）
 
 - `ops.guard.rate.window-seconds`（默认 60）
 - `ops.guard.rate.max`（默认 3）
@@ -104,3 +123,34 @@
 - 人 B：持有并输入 `X-Ops-Token` + 负责开启/关闭 break-glass
 
 即使某一类 token 泄露，也无法在默认关闭与 allowlist 约束下直接触发高风险运维操作。
+
+## 6. 403/失败排障 Checklist
+
+> 建议先看返回体 `message`，不同过滤器的错误语义不同（便于快速定位到底是 internal-token 还是 ops-guard 阻断）。
+
+1) **break-glass 未开启**
+- 现象：`403` + “运维入口默认关闭（break-glass 未开启）”
+- 排查：`ops.guard.<op>.enabled=true` 是否已生效（配置中心/实例环境）
+
+2) **allowlist 未命中**
+- 现象：`403` + “来源未在 allowlist 中”
+- 排查：
+  - `ops.guard.<op>.allowlist` 是否配置（逗号分隔 IP/CIDR）
+  - 服务侧 `ClientIpResolver` 解析到的 `clientIp` 是什么（remote vs xff）
+  - 若依赖 XFF：确认 `gateway.trusted-proxy.*` 已配置且 remoteAddr 命中 CIDR；并确保反向代理会剥离客户端自带 XFF
+
+3) **ops-token 问题**
+- 现象：`403` + “ops-token 未配置” / “ops-token 无效”
+- 排查：`ops.<segment>.token*` 是否配置且与 `X-Ops-Token` 一致（注意 users alias：`ops.users.*` / `ops.user.*`）
+
+4) **internal-token 问题**
+- 现象：`403` + “internal-token 未配置” / “internal-token 无效”
+- 排查：
+  - 被调方 `<segment>.internal-token*` 是否配置
+  - gateway 是否正确注入对应 internal token（例如 `/api/ops/search/reindex` 注入 `SEARCH_INTERNAL_TOKEN`）
+  - users 高权限写入口是否误用了通用 token（应使用 `users.ops.internal-token*`）
+
+5) **并发/频率/依赖不可用**
+- `409`：single-flight 锁被占用（已有运维任务执行中）
+- `429`：触发限频（`ops.guard.rate.*`）
+- `503`：Redis 不可用或保护器异常（fail-closed）

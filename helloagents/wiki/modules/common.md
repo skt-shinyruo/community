@@ -11,7 +11,7 @@
   - `com.nowcoder.community.common.api.SimpleErrorCode`（运行期动态错误码：用于跨服务透传 code/message）
 - 业务异常：`com.nowcoder.community.common.exception.BusinessException`
 - traceId：
-  - Header：`X-Trace-Id`（常量在 `com.nowcoder.community.common.web.TraceIdFilter` / `com.nowcoder.community.gateway.filter.TraceIdGlobalFilter`）
+  - Header：`X-Trace-Id`（常量在 `com.nowcoder.community.common.web.TraceIdFilter` / `com.nowcoder.community.gateway.filter.TraceIdSupport`）
   - Servlet Filter：`com.nowcoder.community.common.web.TraceIdFilter`（仅 Servlet Web 环境生效）
   - 线程上下文：`com.nowcoder.community.common.trace.TraceContext`（统一 set/clear TraceId + MDC）
   - RestTemplate 透传：`com.nowcoder.community.common.web.TraceIdClientHttpRequestInterceptor`（同步调用注入 `X-Trace-Id`）
@@ -57,7 +57,7 @@
 
 ## 3. 约定
 - 服务端统一输出 `Result<T>`，避免 Controller 拼接字符串 JSON。
-- `traceId` 由 gateway 生成并透传；下游服务将其写入 MDC 并在响应头回传。
+- `traceId` 由 gateway 注入并透传（WebFlux：`TraceIdWebFilter`；Servlet：`TraceIdFilter`）；下游服务将其写入 MDC 并在响应头回传。
 
 ### 3.1 internal client 约定（跨服务同步调用）
 - 建议优先调用 `/internal/**`（使用 `X-Internal-Token`），避免跨服务透传 Authorization 造成鉴权耦合。

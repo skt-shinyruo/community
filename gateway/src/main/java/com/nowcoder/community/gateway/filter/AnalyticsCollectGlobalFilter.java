@@ -80,7 +80,9 @@ public class AnalyticsCollectGlobalFilter implements GlobalFilter, Ordered {
         }
 
         // analytics 采集必须“与转发链路隔离”：不能因为采集失败/鉴权上下文异常而影响请求转发。
-        exchange.getPrincipal()
+        // 这里不再手动 subscribe，避免额外订阅带来的生命周期/背压不可控问题；采集逻辑以并行 Mono 形式挂载到主链路。
+        Mono<Void> dauTask = exchange.getPrincipal()
+                .timeout(Duration.ofMillis(50))
                 .onErrorResume(e -> {
                     if (meterRegistry != null) {
                         meterRegistry.counter("gateway_analytics_collect_total", Tags.of("metric", "dau", "outcome", "skipped_principal_error")).increment();
@@ -95,9 +97,9 @@ public class AnalyticsCollectGlobalFilter implements GlobalFilter, Ordered {
                         }
                     }
                 })
-                .subscribe();
+                .then();
 
-        return chain.filter(exchange);
+        return chain.filter(exchange).and(dauTask);
     }
 
     private void maybeRotateDay(LocalDate today) {

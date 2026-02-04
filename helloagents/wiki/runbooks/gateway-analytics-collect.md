@@ -7,6 +7,7 @@
 ## 关键设计（现状）
 - gateway filter 仅做字段收集与去重（TTL 缓存）：
   - `gateway/src/main/java/com/nowcoder/community/gateway/filter/AnalyticsCollectGlobalFilter.java`
+  - DAU 采集不再手动 `.subscribe()`：将 principal 解析挂载到返回的 reactive 链路中并行执行；principal 获取设置短超时（50ms），超时/异常直接跳过（采集可丢弃，不影响主链路）
 - filter 不直接远程调用；统一投递到有界队列：
   - `gateway/src/main/java/com/nowcoder/community/gateway/analytics/AnalyticsCollectDispatcher.java`
 - 异步 worker 消费队列并调用 analytics-service internal API（带 timeout/并发上限）。
@@ -22,6 +23,9 @@
 - `analytics.collect.dedup-enabled`（默认 true）：网关单实例内去重开关（降噪）
 - `analytics.collect.dedup-ttl-seconds`（默认 86400）：去重 TTL（秒）
 - `analytics.collect.uv-cache-max-size` / `analytics.collect.dau-cache-max-size`：去重缓存容量（单实例）
+- `gateway.trusted-proxy.enabled` / `gateway.trusted-proxy.cidrs`：决定是否信任 `X-Forwarded-For`（影响 UV 的 IP 维度；仅当 remoteAddr ∈ CIDR 才解析 XFF，避免伪造）
+
+> 安全提示：启用可信代理后，应确保反向代理/Ingress 会剥离客户端自带的 `X-Forwarded-*` / `Forwarded` 并由代理统一回填，否则可能放大伪造风险。
 
 ## 观测指标（Metrics）
 ### 1) 计数：`gateway_analytics_collect_total`
@@ -70,9 +74,9 @@ tags：
 - 用户未登录（无 JWT principal）
 - JWT subject 不是数字（subject 解析失败会计入 `skipped_bad_subject`）
 - 被浏览器预检 OPTIONS 放大（已在 filter 中跳过 OPTIONS）
+- principal 获取超时/异常（会计入 `skipped_principal_error`；当前 hard-code 50ms，必要时可提高以提升 DAU 采集率）
 
 ## 建议的验收口径
 - 主链路 P95/P99 不应因采集启用显著波动
 - `dropped` 在可控范围内（可接受，采集链路可丢弃）
 - `timeout/error` 可快速定位并具备清晰修复路径
-

@@ -12,10 +12,11 @@
 - common 自动装配（跨服务一致能力）：`common/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
 - 安全配置（JWT 验签 + 权限矩阵）：`gateway/src/main/java/com/nowcoder/community/gateway/config/GatewaySecurityConfig.java`
 - OriginGuard 配置：`gateway/src/main/java/com/nowcoder/community/gateway/config/OriginGuardProperties.java`（`gateway.origin-guard.*`）
-- traceId：`gateway/src/main/java/com/nowcoder/community/gateway/filter/TraceIdWebFilter.java`、`gateway/src/main/java/com/nowcoder/community/gateway/filter/TraceIdGlobalFilter.java`、`gateway/src/main/java/com/nowcoder/community/gateway/filter/TraceIdSupport.java`
+- traceId：`gateway/src/main/java/com/nowcoder/community/gateway/filter/TraceIdWebFilter.java`、`gateway/src/main/java/com/nowcoder/community/gateway/filter/TraceIdSupport.java`（单一注入点）
 - 安全异常响应：`gateway/src/main/java/com/nowcoder/community/gateway/config/ReactiveSecurityExceptionHandler.java`
 - 可信代理配置：`gateway/src/main/java/com/nowcoder/community/gateway/config/TrustedProxyProperties.java`（`gateway.trusted-proxy.*`）
 - 客户端 IP 解析：`gateway/src/main/java/com/nowcoder/community/gateway/filter/ClientIpResolver.java`
+- 反代/HTTPS offload 同源解析：`gateway/src/main/java/com/nowcoder/community/gateway/filter/ForwardedOriginResolver.java`（仅在可信代理 CIDR 命中时解析 `Forwarded/X-Forwarded-*`）
 - 限流：`gateway/src/main/java/com/nowcoder/community/gateway/filter/GatewayRateLimitGlobalFilter.java`
 - 审计：`gateway/src/main/java/com/nowcoder/community/gateway/filter/AuditLogGlobalFilter.java`
 - UV/DAU 采集：`gateway/src/main/java/com/nowcoder/community/gateway/filter/AnalyticsCollectGlobalFilter.java`
@@ -48,6 +49,7 @@
 - 若本地前端端口调整（例如 `12888` -> 其他端口），需要同步更新 allowlist（CORS + OriginGuard），并确保 gateway 与 auth-service 的 OriginGuard allowlist 保持一致（建议在配置中心统一维护同一套值）。
 - 旁路防护：auth-service 同样启用 OriginGuard，配置键与 gateway 对齐（`gateway.origin-guard.*`），避免绕过网关直连 auth-service 时降低安全性。
 - 若部署在反向代理/Ingress 后，默认 **不信任** `X-Forwarded-For`；需显式配置 `gateway.trusted-proxy.enabled=true` + `gateway.trusted-proxy.cidrs` 才会解析 XFF。
+- 若部署在反向代理/HTTPS offload 后，且希望 OriginGuard 的“同源请求放行”能正确识别 `https://<public-host>`：需要同时配置可信代理（`gateway.trusted-proxy.*`）并确保代理正确回填 `Forwarded/X-Forwarded-Proto/Host/Port`。
 - 若启用 Nacos Config：
   - Data ID：`gateway.yaml`（YAML）
   - 配置入口：`spring.cloud.gateway.globalcors.corsConfigurations.[/**].allowedOrigins` 与 `gateway.origin-guard.allowed-origins`
@@ -57,11 +59,13 @@
 ## 5. 关键行为说明
 - 限流触发时返回 HTTP 429，并附带 `X-RateLimit-*` 响应头（Limit/Remaining/Reset/Rule）。
 - 401/403/429/503 等错误响应统一回填 `traceId`（响应体 `Result.traceId` + 响应头 `X-Trace-Id/traceparent`）。
+- traceId 注入仅由 `TraceIdWebFilter` 负责，避免 WebFilter/GlobalFilter 重复导致的维护成本与潜在覆盖困惑。
 - 审计日志：gateway 记录非 GET 的 `/api/**` 操作（跳过 `/api/auth/login`），包含 `status/costMs/userId/traceId`，用于 Loki/日志系统检索。
 - 权限矩阵：治理后台接口 `/api/moderation/**` 仅允许 `ROLE_ADMIN/ROLE_MODERATOR`（其余用户返回 403）。
 - 文件访问：`GET /files/**` 允许匿名访问，但仅用于公开头像资源（下游 user-service 仍会做前缀与路径校验）。
 - UV/DAU 采集链路：网关侧仅做“有界降噪”（TTL + 最大容量），最终以 analytics-service Redis 去重/聚合为准；网关调用 analytics-service 时会透传 `X-Trace-Id/traceparent` 便于排障。
 - UV/DAU 采集链路（隔离版）：filter 仅采集字段并投递到有界队列；异步 worker 执行 WebClient 调用；队列满允许丢弃并通过指标观测（`gateway_analytics_collect_total{metric,outcome}` + `gateway_analytics_collect_latency{metric}`）。
+- OriginGuard：同源判定会在“可信代理 CIDR 命中”时基于 `Forwarded/X-Forwarded-*` 计算 effective scheme/host/port（反代/HTTPS offload 兼容）；非可信来源忽略 forwarded 头，避免伪造绕过 allowlist。
 
 ## 6. 常见问题排查
 - **503 Service Unavailable（Unable to find instance）**：若 gateway 日志提示 `Unable to find instance for {service}`，通常表示 `lb://{service}` 未解析到任何实例：

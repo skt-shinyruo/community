@@ -29,11 +29,17 @@ public class OriginGuardGlobalFilter implements GlobalFilter, Ordered {
 
     private final OriginGuardProperties properties;
     private final ObjectMapper objectMapper;
+    private final ForwardedOriginResolver forwardedOriginResolver;
     private final AtomicBoolean warnedEmptyAllowlist = new AtomicBoolean(false);
 
-    public OriginGuardGlobalFilter(OriginGuardProperties properties, ObjectMapper objectMapper) {
+    public OriginGuardGlobalFilter(
+            OriginGuardProperties properties,
+            ObjectMapper objectMapper,
+            ForwardedOriginResolver forwardedOriginResolver
+    ) {
         this.properties = properties;
         this.objectMapper = objectMapper;
+        this.forwardedOriginResolver = forwardedOriginResolver;
     }
 
     @Override
@@ -85,7 +91,6 @@ public class OriginGuardGlobalFilter implements GlobalFilter, Ordered {
         if (request == null || !StringUtils.hasText(origin)) {
             return false;
         }
-        URI requestUri = request.getURI();
         URI originUri;
         try {
             originUri = URI.create(origin.trim());
@@ -100,31 +105,26 @@ public class OriginGuardGlobalFilter implements GlobalFilter, Ordered {
             return false;
         }
 
-        String rScheme = requestUri == null ? "" : requestUri.getScheme();
-        String rHost = requestUri == null ? "" : requestUri.getHost();
-        int rPort = normalizePort(rScheme, requestUri == null ? -1 : requestUri.getPort());
+        ForwardedOriginResolver.ResolvedOrigin effective = forwardedOriginResolver == null ? null : forwardedOriginResolver.resolve(request);
 
-        if (!StringUtils.hasText(rScheme) || !StringUtils.hasText(rHost)) {
-            // 兜底：使用 Host header（格式可能为 host:port）
-            String hostHeader = request.getHeaders().getFirst("Host");
-            if (!StringUtils.hasText(hostHeader)) {
-                return false;
-            }
-            String h = hostHeader.trim();
-            int idx = h.indexOf(':');
-            if (idx > 0) {
-                rHost = h.substring(0, idx);
-                try {
-                    rPort = normalizePort(rScheme, Integer.parseInt(h.substring(idx + 1)));
-                } catch (Exception ignored) {
-                    rPort = normalizePort(rScheme, -1);
-                }
-            } else {
-                rHost = h;
-                rPort = normalizePort(rScheme, -1);
-            }
+        String rScheme;
+        String rHost;
+        int rPort;
+        if (effective != null) {
+            rScheme = effective.scheme();
+            rHost = effective.host();
+            rPort = effective.port();
+        } else {
+            // 兜底：未启用/未注入 resolver 时，仍基于当前 request 计算同源（兼容本地与无反代场景）。
+            URI requestUri = request.getURI();
+            rScheme = requestUri == null ? "" : requestUri.getScheme();
+            rHost = requestUri == null ? "" : requestUri.getHost();
+            rPort = normalizePort(rScheme, requestUri == null ? -1 : requestUri.getPort());
         }
 
+        if (!StringUtils.hasText(rScheme) || !StringUtils.hasText(rHost)) {
+            return false;
+        }
         return oScheme.equalsIgnoreCase(rScheme) && oHost.equalsIgnoreCase(rHost) && oPort == rPort;
     }
 
@@ -156,8 +156,8 @@ public class OriginGuardGlobalFilter implements GlobalFilter, Ordered {
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
 
         Result<?> body = Result.error(CommonErrorCode.FORBIDDEN.getCode(), message);
-        // gateway 侧 Result 的 traceId 来自 TraceIdGlobalFilter 注入的 header（避免 ThreadLocal 在 reactive 下为空）
-        String traceId = exchange.getRequest().getHeaders().getFirst(TraceIdGlobalFilter.HEADER_TRACE_ID);
+        // gateway 侧 Result 的 traceId 来自 TraceIdWebFilter 注入的 header（避免 ThreadLocal 在 reactive 下为空）
+        String traceId = exchange.getRequest().getHeaders().getFirst(TraceIdSupport.HEADER_TRACE_ID);
         if (StringUtils.hasText(traceId)) {
             body.setTraceId(traceId);
         }

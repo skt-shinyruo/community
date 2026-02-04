@@ -274,8 +274,8 @@
 - **关注列表：** `followee:<userId>:<entityType>`（ZSet，归属：social-service）
 - **粉丝列表：** `follower:<entityType>:<entityId>`（ZSet，归属：social-service）
 - **拉黑集合：** `block:<userId>`（Set，被拉黑用户 ID 列表，归属：social-service）
-- **UV：** `uv:<yyyy-MM-dd>`（HyperLogLog）+ `uv:<start>:<end>`（union 结果，归属：analytics-service）
-- **DAU：** `dau:<yyyy-MM-dd>`（Bitmap）+ `dau:<start>:<end>`（OR 结果，归属：analytics-service）
+- **UV：** `uv:<yyyy-MM-dd>`（HyperLogLog，日粒度）+ `uv:tmp:<start>:<end>:<rand>`（区间 union 临时 key：查询结束 delete，异常时短 TTL 兜底；归属：analytics-service）
+- **DAU：** `dau:<yyyy-MM-dd>`（Bitmap，日粒度）+ `dau:tmp:<start>:<end>:<rand>`（区间 OR 临时 key：查询结束 delete，异常时短 TTL 兜底；归属：analytics-service）
 - **帖子分数刷新集合：** `post:score`（Set，归属：content-service）
   - `captcha:<captchaId>`（String，归属：auth-service）
   - `captcha:fail:<captchaId>`（String counter + TTL，归属：auth-service）

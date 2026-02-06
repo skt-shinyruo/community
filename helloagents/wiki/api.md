@@ -4,7 +4,8 @@
 
 - **对外入口：** 统一由 `gateway` 暴露 `/api/**`（本地默认 `http://localhost:12882`）。
 - **鉴权：** 以 JWT Access Token 为主（`Authorization: Bearer <token>`）；刷新/登出等策略由 `auth-service` 管理。
-- **统一返回：** 后端统一返回 `Result<T>`（`code/message/data`）。
+- **统一返回：** 后端统一返回 `Result<T>`（`code/message/data/traceId/timestamp`）。
+- **错误协议：** 错误场景允许返回 **HTTP 4xx/5xx**（HTTP status 表达“错误类别”），响应体仍保持 `Result` 结构（`Result.code` 表达“业务细分”）。
 - **Trace：** `gateway` 注入并透传 `X-Trace-Id`，各服务在响应中回传该 header，便于跨服务串联日志。
 
 > SSOT：网关路由以 `gateway/src/main/resources/application.yml` 为准。
@@ -90,6 +91,13 @@ Token 通过环境变量或 Nacos 注入（见 `deploy/.env.example` 与 `deploy
 - **错误码：**
   - 通用错误码：`common/src/main/java/com/nowcoder/community/common/api/CommonErrorCode.java`
   - 鉴权域错误码：`common/src/main/java/com/nowcoder/community/common/api/AuthErrorCode.java`
+  - 用户域错误码：`common/src/main/java/com/nowcoder/community/common/api/UserErrorCode.java`
+  - 内容域错误码：`common/src/main/java/com/nowcoder/community/common/api/ContentErrorCode.java`
+  - 社交域错误码：`common/src/main/java/com/nowcoder/community/common/api/SocialErrorCode.java`
+  - 消息域错误码：`common/src/main/java/com/nowcoder/community/common/api/MessageErrorCode.java`
+  - 搜索域错误码：`common/src/main/java/com/nowcoder/community/common/api/SearchErrorCode.java`
+  - 统计域错误码：`common/src/main/java/com/nowcoder/community/common/api/AnalyticsErrorCode.java`
+  - 网关域错误码：`common/src/main/java/com/nowcoder/community/common/api/GatewayErrorCode.java`
 - **安全：**
   - 对外接口统一走网关鉴权与 CORS。
   - 内部接口使用 `X-Internal-Token` 做最小保护（生产可进一步升级为 mTLS/内网隔离）。

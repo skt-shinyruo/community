@@ -70,7 +70,7 @@ public class UserController {
         if (authentication != null && authentication.getPrincipal() instanceof Jwt jwt) {
             try {
                 currentUserId = Integer.parseInt(jwt.getSubject());
-            } catch (Exception ignored) {
+            } catch (NumberFormatException ignored) {
             }
         }
         int viewerId = (currentUserId > 0 && currentUserId != userId) ? currentUserId : 0;
@@ -180,7 +180,7 @@ public class UserController {
         String sub = jwt.getSubject();
         try {
             return Integer.parseInt(sub);
-        } catch (Exception e) {
+        } catch (NumberFormatException e) {
             throw new BusinessException(INVALID_ARGUMENT, "token subject 非法");
         }
     }

@@ -59,7 +59,7 @@ public class OutboxEventService {
         if (trySkipLocked) {
             try {
                 return outboxEventMapper.selectCandidateIdsSkipLocked(now, size);
-            } catch (Exception ex) {
+            } catch (RuntimeException ex) {
                 if (skipLockedUsable.compareAndSet(true, false)) {
                     log.warn("[outbox] claim SKIP LOCKED not usable, fallback to FOR UPDATE: {}", ex.toString());
                 }

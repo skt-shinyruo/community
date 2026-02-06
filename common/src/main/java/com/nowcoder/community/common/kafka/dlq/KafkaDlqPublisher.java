@@ -1,6 +1,7 @@
 package com.nowcoder.community.common.kafka.dlq;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.nowcoder.community.common.event.EventTopics;
 import com.nowcoder.community.common.kafka.KafkaTraceSupport;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -75,7 +76,7 @@ public class KafkaDlqPublisher {
             if (objectMapper != null) {
                 body = objectMapper.writeValueAsString(dlq);
             }
-        } catch (Exception ignore) {
+        } catch (JsonProcessingException ignore) {
             body = null;
         }
         if (!StringUtils.hasText(body)) {
@@ -85,7 +86,15 @@ public class KafkaDlqPublisher {
         try {
             kafkaTemplate.send(dlqTopic, key, body)
                     .get(Math.max(1, sendTimeout.toMillis()), TimeUnit.MILLISECONDS);
-        } catch (Exception e) {
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("DLQ publish interrupted: topic=" + dlqTopic + ", originalTopic=" + record.topic(), e);
+        } catch (java.util.concurrent.ExecutionException e) {
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+            throw new RuntimeException("DLQ publish failed: topic=" + dlqTopic + ", originalTopic=" + record.topic(), cause);
+        } catch (java.util.concurrent.TimeoutException e) {
+            throw new RuntimeException("DLQ publish timeout: topic=" + dlqTopic + ", originalTopic=" + record.topic(), e);
+        } catch (RuntimeException e) {
             // fail-closed：DLQ 发布失败不得提交 offset，否则会造成“失败即丢”窗口
             throw new RuntimeException("DLQ publish failed: topic=" + dlqTopic + ", originalTopic=" + record.topic(), e);
         }
@@ -102,4 +111,3 @@ public class KafkaDlqPublisher {
         return text.substring(0, maxChars) + "...(truncated)";
     }
 }
-

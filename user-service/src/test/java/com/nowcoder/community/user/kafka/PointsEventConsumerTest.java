@@ -3,50 +3,51 @@ package com.nowcoder.community.user.kafka;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.event.EventTopics;
 import com.nowcoder.community.common.event.EventTypes;
-import com.nowcoder.community.user.dao.UserMapper;
-import com.nowcoder.community.user.entity.User;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.JdbcTemplate;
+import com.nowcoder.community.user.service.PointsService;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-@SpringBootTest(properties = {
-        "security.jwt.hmac-secret=test-jwt-secret-please-change-at-least-32bytes",
-        "spring.datasource.url=jdbc:h2:mem:user;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;NON_KEYWORDS=USER",
-        "spring.datasource.driver-class-name=org.h2.Driver",
-        "spring.datasource.username=sa",
-        "spring.datasource.password=",
-        "spring.sql.init.mode=always",
-        "spring.sql.init.schema-locations=classpath:schema.sql",
-        "spring.kafka.listener.auto-startup=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "spring.cloud.nacos.config.enabled=false"
-})
 class PointsEventConsumerTest {
 
-    @Autowired
-    PointsEventConsumer consumer;
+    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    private final PointsService pointsService = mock(PointsService.class);
+    private final PointsEventConsumer consumer = new PointsEventConsumer(objectMapper, pointsService, "SKIP", "DLQ");
 
-    @Autowired
-    ObjectMapper objectMapper;
-
-    @Autowired
-    UserMapper userMapper;
-
-    @Autowired
-    JdbcTemplate jdbcTemplate;
+    private final Set<String> appliedEventIds = ConcurrentHashMap.newKeySet();
+    private final Map<Integer, Integer> scoreByUserId = new ConcurrentHashMap<>();
 
     @BeforeEach
     void resetDb() {
-        jdbcTemplate.update("delete from user_score_log");
-        jdbcTemplate.update("update user set score = 0");
+        appliedEventIds.clear();
+        scoreByUserId.clear();
+
+        // 用 in-memory stub 模拟 PointsService 的“按 eventId 幂等入账”语义，避免依赖 DB/Spring 容器。
+        when(pointsService.applyPoints(anyInt(), anyString(), anyString(), anyInt())).thenAnswer(invocation -> {
+            int userId = invocation.getArgument(0);
+            String eventId = invocation.getArgument(1);
+            int delta = invocation.getArgument(3);
+
+            if (eventId == null || eventId.isBlank()) {
+                return false;
+            }
+            if (!appliedEventIds.add(eventId)) {
+                return false;
+            }
+            scoreByUserId.merge(userId, delta, Integer::sum);
+            return true;
+        });
     }
 
     @Test
@@ -68,8 +69,7 @@ class PointsEventConsumerTest {
         consumer.handleRecord(new ConsumerRecord<>(EventTopics.POST_EVENTS_V1, 0, 0L, "k1", payload));
         consumer.handleRecord(new ConsumerRecord<>(EventTopics.POST_EVENTS_V1, 0, 1L, "k1", payload));
 
-        User u1 = userMapper.selectById(1);
-        assertThat(u1.getScore()).isEqualTo(10);
+        assertThat(scoreByUserId.get(1)).isEqualTo(10);
     }
 
     @Test
@@ -93,8 +93,7 @@ class PointsEventConsumerTest {
         consumer.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k1", payload));
         consumer.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 1L, "k1", payload));
 
-        User u1 = userMapper.selectById(1);
-        assertThat(u1.getScore()).isEqualTo(1);
+        assertThat(scoreByUserId.get(1)).isEqualTo(1);
     }
 
     @Test
@@ -117,8 +116,7 @@ class PointsEventConsumerTest {
 
         consumer.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k1", payload));
 
-        User u1 = userMapper.selectById(1);
-        assertThat(u1.getScore()).isEqualTo(0);
+        assertThat(scoreByUserId.getOrDefault(1, 0)).isEqualTo(0);
     }
 
     @Test
@@ -155,10 +153,10 @@ class PointsEventConsumerTest {
         ));
 
         consumer.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k1", created));
-        assertThat(userMapper.selectById(1).getScore()).isEqualTo(1);
+        assertThat(scoreByUserId.get(1)).isEqualTo(1);
 
         consumer.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 1L, "k1", removed));
         consumer.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 2L, "k1", removed));
-        assertThat(userMapper.selectById(1).getScore()).isEqualTo(0);
+        assertThat(scoreByUserId.get(1)).isEqualTo(0);
     }
 }

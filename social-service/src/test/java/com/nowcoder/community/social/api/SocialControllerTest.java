@@ -6,8 +6,10 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.nowcoder.community.common.domain.EntityTypes;
 import com.nowcoder.community.common.internal.dto.EntityResolveResponse;
 import com.nowcoder.community.social.service.ContentServiceClient;
+import com.nowcoder.community.social.follow.dto.FollowRequest;
 import com.nowcoder.community.social.like.dto.LikeRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +27,7 @@ import java.util.List;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
@@ -47,7 +50,9 @@ class SocialControllerTest {
     @Test
     void likeApisShouldRequireAuth() throws Exception {
         mockMvc.perform(get("/api/likes/status").param("entityType", "1").param("entityId", "1"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(401))
+                .andExpect(jsonPath("$.traceId").exists());
     }
 
     @Test
@@ -78,6 +83,24 @@ class SocialControllerTest {
                         .param("entityType", "1")
                         .param("entityId", "100"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void followShouldReturnDomainCodeWhenFollowSelf() throws Exception {
+        String token = tokenForUser(1);
+
+        FollowRequest req = new FollowRequest();
+        req.setEntityType(EntityTypes.USER);
+        req.setEntityId(1);
+        req.setEntityUserId(1);
+
+        mockMvc.perform(post("/api/follows")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(13001))
+                .andExpect(jsonPath("$.traceId").exists());
     }
 
     private String tokenForUser(int userId) throws Exception {

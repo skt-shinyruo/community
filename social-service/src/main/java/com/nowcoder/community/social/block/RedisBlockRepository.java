@@ -51,7 +51,7 @@ public class RedisBlockRepository implements BlockRepository {
                 if (id > 0) {
                     list.add(id);
                 }
-            } catch (Exception ignored) {
+            } catch (NumberFormatException ignored) {
             }
         }
         return list;

@@ -8,6 +8,7 @@ import jakarta.validation.ConstraintViolationException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 
 import java.util.Set;
 
@@ -55,5 +56,16 @@ class GlobalExceptionHandlerTest {
         assertThat(resp.getBody().getCode()).isEqualTo(CommonErrorCode.INTERNAL_ERROR.getCode());
         assertThat(resp.getBody().getTraceId()).isEqualTo("t-err-3");
     }
-}
 
+    @Test
+    void missingRequestParamShouldBe400WithTraceId() {
+        TraceId.set("t-err-4");
+        MissingServletRequestParameterException ex = new MissingServletRequestParameterException("ip", "String");
+        ResponseEntity<Result<Void>> resp = handler.handleRequestParam(ex);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(400);
+        assertThat(resp.getBody()).isNotNull();
+        assertThat(resp.getBody().getCode()).isEqualTo(400);
+        assertThat(resp.getBody().getTraceId()).isEqualTo("t-err-4");
+    }
+}

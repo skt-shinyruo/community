@@ -22,6 +22,9 @@ import java.util.Random;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.api.UserErrorCode.EMAIL_ALREADY_EXISTS;
+import static com.nowcoder.community.common.api.UserErrorCode.USER_ALREADY_EXISTS;
+import static com.nowcoder.community.common.api.UserErrorCode.USER_NOT_FOUND;
 
 @Service
 public class InternalUserService {
@@ -74,7 +77,7 @@ public class InternalUserService {
         }
         User user = userMapper.selectById(userId);
         if (user == null) {
-            throw new BusinessException(CommonErrorCode.NOT_FOUND, "用户不存在");
+            throw new BusinessException(USER_NOT_FOUND);
         }
         return user;
     }
@@ -97,10 +100,10 @@ public class InternalUserService {
         }
 
         if (userMapper.selectByName(u) != null) {
-            throw new BusinessException(INVALID_ARGUMENT, "该账号已存在");
+            throw new BusinessException(USER_ALREADY_EXISTS);
         }
         if (userMapper.selectByEmail(e) != null) {
-            throw new BusinessException(INVALID_ARGUMENT, "该邮箱已被注册");
+            throw new BusinessException(EMAIL_ALREADY_EXISTS);
         }
 
         User user = new User();
@@ -156,7 +159,7 @@ public class InternalUserService {
 
         User user = userMapper.selectById(userId);
         if (user == null) {
-            throw new BusinessException(CommonErrorCode.NOT_FOUND, "用户不存在");
+            throw new BusinessException(USER_NOT_FOUND);
         }
 
         String bcrypt = passwordEncoder.encode(p);
@@ -185,7 +188,7 @@ public class InternalUserService {
         }
         User user = userMapper.selectById(userId);
         if (user == null) {
-            throw new BusinessException(CommonErrorCode.NOT_FOUND, "用户不存在");
+            throw new BusinessException(USER_NOT_FOUND);
         }
 
         ModerationStatus s = new ModerationStatus();
@@ -246,7 +249,7 @@ public class InternalUserService {
 
         User user = userMapper.selectById(userId);
         if (user == null) {
-            throw new BusinessException(CommonErrorCode.NOT_FOUND, "用户不存在");
+            throw new BusinessException(USER_NOT_FOUND);
         }
 
         Instant now = Instant.now();
@@ -347,7 +350,7 @@ public class InternalUserService {
         if (isBcrypt(stored)) {
             try {
                 return passwordEncoder.matches(rawPassword, stored);
-            } catch (Exception ignored) {
+            } catch (RuntimeException ignored) {
                 return false;
             }
         }

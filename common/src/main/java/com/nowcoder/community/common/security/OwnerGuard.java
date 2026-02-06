@@ -1,6 +1,7 @@
 package com.nowcoder.community.common.security;
 
 import com.nowcoder.community.common.api.CommonErrorCode;
+import com.nowcoder.community.common.api.ErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
@@ -25,22 +26,27 @@ public class OwnerGuard {
     }
 
     public void assertConversationMember(int userId, String conversationId) {
+        assertConversationMember(userId, conversationId, CommonErrorCode.NOT_FOUND);
+    }
+
+    public void assertConversationMember(int userId, String conversationId, ErrorCode notFoundErrorCode) {
+        ErrorCode notFound = notFoundErrorCode == null ? CommonErrorCode.NOT_FOUND : notFoundErrorCode;
         if (userId <= 0) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "userId 非法");
         }
         if (!StringUtils.hasText(conversationId)) {
             record("conversation", "invalid_conversation_id");
-            throw new BusinessException(CommonErrorCode.NOT_FOUND, "会话不存在");
+            throw new BusinessException(notFound, "会话不存在");
         }
 
         ConversationIdParser.ConversationMembers members = ConversationIdParser.parseOrNull(conversationId);
         if (members == null) {
             record("conversation", "invalid_conversation_id");
-            throw new BusinessException(CommonErrorCode.NOT_FOUND, "会话不存在");
+            throw new BusinessException(notFound, "会话不存在");
         }
         if (!members.contains(userId)) {
             record("conversation", "owner_mismatch");
-            throw new BusinessException(CommonErrorCode.NOT_FOUND, "会话不存在");
+            throw new BusinessException(notFound, "会话不存在");
         }
     }
 
@@ -52,4 +58,3 @@ public class OwnerGuard {
         meterRegistry.counter(METRIC, Tags.of("type", type, "outcome", outcome)).increment();
     }
 }
-

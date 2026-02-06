@@ -60,7 +60,7 @@ public class SingleFlightTaskGuard {
                 return new Lock(key, token);
             }
             return null;
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             log.warn("[single-flight] acquire failed: key={}, err={}", key, e.toString());
             return null;
         }
@@ -75,7 +75,7 @@ public class SingleFlightTaskGuard {
         }
         try {
             redisTemplate.execute(UNLOCK_SCRIPT, Collections.singletonList(lock.key()), lock.token());
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             log.warn("[single-flight] release failed: key={}, err={}", lock.key(), e.toString());
         }
     }
@@ -83,4 +83,3 @@ public class SingleFlightTaskGuard {
     public record Lock(String key, String token) {
     }
 }
-

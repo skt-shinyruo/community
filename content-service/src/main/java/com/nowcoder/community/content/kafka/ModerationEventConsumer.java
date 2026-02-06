@@ -50,16 +50,16 @@ public class ModerationEventConsumer {
     }
 
     @KafkaListener(topics = {EventTopics.MODERATION_EVENTS_V1, EventTopics.SOCIAL_EVENTS_V1}, groupId = "content-service-projection")
-    public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) throws Exception {
+    public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) {
         KafkaTraceSupport.runWithTraceId(
                 objectMapper,
                 record.value(),
-                (KafkaTraceSupport.ThrowingRunnable) () -> handleRecord(record)
+                () -> handleRecord(record)
         );
         ack.acknowledge();
     }
 
-    void handleRecord(ConsumerRecord<String, String> record) throws Exception {
+    void handleRecord(ConsumerRecord<String, String> record) {
         EventEnvelopeParser.ParsedEnvelope env = EventEnvelopeParser.parse(objectMapper, record.value());
         String eventId = env.getEventId();
         String type = env.getType();
@@ -79,7 +79,7 @@ public class ModerationEventConsumer {
         }
 
         if (EventTypes.MODERATION_STATUS_CHANGED.equals(type)) {
-            ModerationStatusPayload p = objectMapper.treeToValue(env.getPayload(), ModerationStatusPayload.class);
+            ModerationStatusPayload p = objectMapper.convertValue(env.getPayload(), ModerationStatusPayload.class);
             int userId = p == null || p.getUserId() == null ? 0 : p.getUserId();
             if (userId > 0) {
                 projectionRepository.upsertModerationStatus(userId, p.getMuteUntil(), p.getBanUntil(), occurredAt);
@@ -88,7 +88,7 @@ public class ModerationEventConsumer {
         }
 
         if (EventTypes.BLOCK_RELATION_CHANGED.equals(type)) {
-            BlockPayload p = objectMapper.treeToValue(env.getPayload(), BlockPayload.class);
+            BlockPayload p = objectMapper.convertValue(env.getPayload(), BlockPayload.class);
             int a = p == null || p.getBlockerUserId() == null ? 0 : p.getBlockerUserId();
             int b = p == null || p.getBlockedUserId() == null ? 0 : p.getBlockedUserId();
             boolean blocked = p != null && Boolean.TRUE.equals(p.getBlocked());

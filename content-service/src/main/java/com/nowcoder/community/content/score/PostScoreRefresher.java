@@ -1,5 +1,6 @@
 package com.nowcoder.community.content.score;
 
+import com.nowcoder.community.common.api.ErrorCode;
 import com.nowcoder.community.common.event.payload.PostPayload;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.entity.DiscussPost;
@@ -18,8 +19,6 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-
-import static com.nowcoder.community.common.api.CommonErrorCode.NOT_FOUND;
 
 @Component
 public class PostScoreRefresher {
@@ -81,24 +80,25 @@ public class PostScoreRefresher {
             refresh(pid);
             meterRegistry.counter("content_post_score_refresh_total", Tags.of("outcome", "success")).increment();
         } catch (BusinessException e) {
-            if (e.getErrorCode() == NOT_FOUND) {
+            ErrorCode errorCode = e.getErrorCode();
+            if (errorCode != null && errorCode.getHttpStatus() == 404) {
                 // 资源已不存在：认为无需再刷新，直接丢弃（避免死循环）
                 meterRegistry.counter("content_post_score_refresh_total", Tags.of("outcome", "drop_not_found")).increment();
                 return;
             }
             meterRegistry.counter("content_post_score_refresh_total", Tags.of("outcome", "failed")).increment();
             reenqueue(pid, e);
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             meterRegistry.counter("content_post_score_refresh_total", Tags.of("outcome", "failed")).increment();
             reenqueue(pid, e);
         }
     }
 
-    private void reenqueue(int postId, Exception e) {
+    private void reenqueue(int postId, RuntimeException e) {
         try {
             scoreQueue.add(postId);
             meterRegistry.counter("content_post_score_refresh_total", Tags.of("outcome", "reenqueue")).increment();
-        } catch (Exception ex) {
+        } catch (RuntimeException ex) {
             meterRegistry.counter("content_post_score_refresh_total", Tags.of("outcome", "reenqueue_failed")).increment();
             log.warn("[post-score] re-enqueue failed (postId={}): {}", postId, ex.toString());
         }

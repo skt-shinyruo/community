@@ -27,9 +27,8 @@ public class RedisPostScoreQueue implements PostScoreQueue {
         }
         try {
             return Integer.parseInt(v);
-        } catch (Exception e) {
+        } catch (NumberFormatException e) {
             return null;
         }
     }
 }
-

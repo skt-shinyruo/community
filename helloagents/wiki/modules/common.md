@@ -8,6 +8,13 @@
 - 错误码：
   - `com.nowcoder.community.common.api.CommonErrorCode`
   - `com.nowcoder.community.common.api.AuthErrorCode`
+  - `com.nowcoder.community.common.api.UserErrorCode`
+  - `com.nowcoder.community.common.api.ContentErrorCode`
+  - `com.nowcoder.community.common.api.SocialErrorCode`
+  - `com.nowcoder.community.common.api.MessageErrorCode`
+  - `com.nowcoder.community.common.api.SearchErrorCode`
+  - `com.nowcoder.community.common.api.AnalyticsErrorCode`
+  - `com.nowcoder.community.common.api.GatewayErrorCode`
   - `com.nowcoder.community.common.api.SimpleErrorCode`（运行期动态错误码：用于跨服务透传 code/message）
 - 业务异常：`com.nowcoder.community.common.exception.BusinessException`
 - traceId：
@@ -58,6 +65,9 @@
 ## 3. 约定
 - 服务端统一输出 `Result<T>`，避免 Controller 拼接字符串 JSON。
 - `traceId` 由 gateway 注入并透传（WebFlux：`TraceIdWebFilter`；Servlet：`TraceIdFilter`）；下游服务将其写入 MDC 并在响应头回传。
+- 统一错误协议：**HTTP status 表达“错误类别”**（4xx/5xx），**`Result.code` 表达“业务细分”**（领域错误码段）；可预期错误优先抛 `BusinessException(ErrorCode)`，由全局 handler 统一映射。
+- 错误码段约定（领域拆分，便于检索/归因）：`10xxx auth` / `11xxx user` / `12xxx content` / `13xxx social` / `14xxx message` / `15xxx search` / `16xxx analytics` / `17xxx gateway`。
+- 生产代码“清零门禁”：`common/src/test/java/com/nowcoder/community/common/quality/ExceptionUsageGateTest.java` 扫描各模块 `src/main/java`，禁止 `catch(Exception)` 与（除 `*SecurityConfig.java` 外的）`throws Exception` 回潮。
 
 ### 3.1 internal client 约定（跨服务同步调用）
 - 建议优先调用 `/internal/**`（使用 `X-Internal-Token`），避免跨服务透传 Authorization 造成鉴权耦合。

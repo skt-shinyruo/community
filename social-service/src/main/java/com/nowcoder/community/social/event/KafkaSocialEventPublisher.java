@@ -1,5 +1,6 @@
 package com.nowcoder.community.social.event;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.event.EventEnvelope;
 import com.nowcoder.community.common.event.EventTopics;
@@ -84,7 +85,7 @@ public class KafkaSocialEventPublisher implements SocialEventPublisher {
 
             // 与 content-service 统一约定：若处于事务中，则在 commit 后发送，避免幽灵事件。
             AfterCommitExecutor.runAfterCommit(() -> sendAsync(EventTopics.SOCIAL_EVENTS_V1, key, json, type));
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
             throw new IllegalStateException("发布事件失败: " + type, e);
         }
     }
@@ -106,7 +107,7 @@ public class KafkaSocialEventPublisher implements SocialEventPublisher {
                         Tags.of("topic", topic, "type", type, "outcome", "ok")
                 ).increment();
             });
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             meterRegistry.counter(
                     "social_event_publish_total",
                     Tags.of("topic", topic, "type", type, "outcome", "error")

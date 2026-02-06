@@ -47,12 +47,12 @@ public class PostEventConsumer {
     }
 
     @KafkaListener(topics = EventTopics.POST_EVENTS_V1, groupId = "search-service")
-    public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) throws Exception {
+    public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) {
         KafkaTraceSupport.runWithTraceId(objectMapper, record.value(), () -> handleRecord(record));
         ack.acknowledge();
     }
 
-    void handleRecord(ConsumerRecord<String, String> record) throws Exception {
+    void handleRecord(ConsumerRecord<String, String> record) {
         EventEnvelopeParser.ParsedEnvelope env = EventEnvelopeParser.parse(objectMapper, record.value());
         String eventId = env.getEventId();
         String type = env.getType();
@@ -72,7 +72,7 @@ public class PostEventConsumer {
             return;
         }
 
-        PostPayload payload = objectMapper.treeToValue(env.getPayload(), PostPayload.class);
+        PostPayload payload = objectMapper.convertValue(env.getPayload(), PostPayload.class);
         if (payload == null || payload.getPostId() <= 0) {
             throw new IllegalArgumentException("postId 缺失");
         }

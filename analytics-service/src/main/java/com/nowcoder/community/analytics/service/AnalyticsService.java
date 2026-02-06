@@ -1,7 +1,7 @@
 package com.nowcoder.community.analytics.service;
 
 import com.nowcoder.community.analytics.repo.AnalyticsRepository;
-import com.nowcoder.community.common.api.CommonErrorCode;
+import com.nowcoder.community.common.api.AnalyticsErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -39,15 +39,14 @@ public class AnalyticsService {
 
     private void validateRange(LocalDate start, LocalDate end) {
         if (start == null || end == null) {
-            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "start/end 必填");
+            throw new BusinessException(AnalyticsErrorCode.RANGE_INVALID, "start/end 必填");
         }
         if (end.isBefore(start)) {
-            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "end 不能早于 start");
+            throw new BusinessException(AnalyticsErrorCode.RANGE_INVALID, "end 不能早于 start");
         }
         long days = java.time.temporal.ChronoUnit.DAYS.between(start, end) + 1;
         if (days > maxDaysRange) {
-            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "查询区间过大");
+            throw new BusinessException(AnalyticsErrorCode.RANGE_INVALID, "查询区间过大");
         }
     }
 }
-

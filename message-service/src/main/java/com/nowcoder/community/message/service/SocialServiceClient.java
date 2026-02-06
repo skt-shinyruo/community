@@ -84,7 +84,7 @@ public class SocialServiceClient {
             Boolean data = InternalClientSupport.unwrap(result, SERVICE_NAME);
             InternalClientSupport.record(meterRegistry, SERVICE_NAME, "isEitherBlocked", InternalClientSupport.OUTCOME_SUCCESS, start);
             return data;
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             if (failOpen) {
                 InternalClientSupport.record(meterRegistry, SERVICE_NAME, "isEitherBlocked", InternalClientSupport.OUTCOME_DEGRADED, start);
                 log.warn("[social-client] degraded (api=isEitherBlocked): {}", e.toString());

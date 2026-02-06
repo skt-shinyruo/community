@@ -3,7 +3,9 @@ package com.nowcoder.community.auth.service;
 import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
+import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
+import org.springframework.mail.MailException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -39,7 +41,7 @@ public class SmtpMailService implements MailService {
             helper.setSubject(properties.getMail().getSubject());
             helper.setText(buildHtml(activationLink), true);
             mailSender.send(mime);
-        } catch (Exception e) {
+        } catch (MessagingException | MailException e) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "发送激活邮件失败");
         }
     }
@@ -61,7 +63,7 @@ public class SmtpMailService implements MailService {
             helper.setSubject("重置密码");
             helper.setText(buildResetHtml(resetLink), true);
             mailSender.send(mime);
-        } catch (Exception e) {
+        } catch (MessagingException | MailException e) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "发送重置密码邮件失败");
         }
     }

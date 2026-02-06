@@ -82,7 +82,7 @@ public class SocialLikeScanClient {
             SocialLikeScanResponse data = InternalClientSupport.unwrap(resp, SERVICE_NAME);
             InternalClientSupport.record(meterRegistry, SERVICE_NAME, "scanLikes", InternalClientSupport.OUTCOME_SUCCESS, start);
             return data == null ? new SocialLikeScanResponse() : data;
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             if (failOpen) {
                 InternalClientSupport.record(meterRegistry, SERVICE_NAME, "scanLikes", InternalClientSupport.OUTCOME_DEGRADED, start);
                 log.warn("[social-like-scan] degraded: {}", e.toString());
@@ -100,4 +100,3 @@ public class SocialLikeScanClient {
         }
     }
 }
-

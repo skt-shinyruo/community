@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+import static com.nowcoder.community.common.api.ContentErrorCode.CATEGORY_NOT_FOUND;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
@@ -25,7 +26,7 @@ public class CategoryService {
     public Category getById(int id) {
         Category c = categoryMapper.selectCategoryById(id);
         if (c == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "分类不存在");
+            throw new BusinessException(CATEGORY_NOT_FOUND);
         }
         return c;
     }
@@ -40,4 +41,3 @@ public class CategoryService {
         getById(categoryId);
     }
 }
-

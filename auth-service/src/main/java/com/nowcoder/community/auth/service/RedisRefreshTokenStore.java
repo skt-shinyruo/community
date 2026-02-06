@@ -47,7 +47,7 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
         }
         try {
             return objectMapper.readValue(json, StoredRefreshToken.class);
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
             return null;
         }
     }
@@ -73,4 +73,3 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
         redisTemplate.delete(familyKey);
     }
 }
-

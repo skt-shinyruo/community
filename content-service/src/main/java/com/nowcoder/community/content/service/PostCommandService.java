@@ -16,9 +16,9 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 
+import static com.nowcoder.community.common.api.ContentErrorCode.POST_NOT_FOUND;
 import static com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.common.api.CommonErrorCode.NOT_FOUND;
 
 /**
  * 帖子写路径命令服务：
@@ -101,7 +101,7 @@ public class PostCommandService {
         AfterCommitExecutor.runAfterCommit(() -> {
             try {
                 postScoreQueue.add(postId);
-            } catch (Exception e) {
+            } catch (RuntimeException e) {
                 log.warn("[post-score] enqueue failed after commit (postId={}): {}", postId, e.toString());
             }
         });
@@ -124,7 +124,7 @@ public class PostCommandService {
 
         DiscussPost existed = postService.getByIdAllowDeleted(postId);
         if (existed.getStatus() == 2) {
-            throw new com.nowcoder.community.common.exception.BusinessException(NOT_FOUND, "帖子不存在");
+            throw new com.nowcoder.community.common.exception.BusinessException(POST_NOT_FOUND);
         }
         if (existed.getUserId() != actorUserId) {
             throw new com.nowcoder.community.common.exception.BusinessException(FORBIDDEN, "只能编辑自己的帖子");
@@ -158,7 +158,7 @@ public class PostCommandService {
         AfterCommitExecutor.runAfterCommit(() -> {
             try {
                 postScoreQueue.add(postId);
-            } catch (Exception e) {
+            } catch (RuntimeException e) {
                 log.warn("[post-score] enqueue failed after commit (postId={}): {}", postId, e.toString());
             }
         });
@@ -171,7 +171,7 @@ public class PostCommandService {
         }
         DiscussPost existed = postService.getByIdAllowDeleted(postId);
         if (existed.getStatus() == 2) {
-            throw new com.nowcoder.community.common.exception.BusinessException(NOT_FOUND, "帖子不存在");
+            throw new com.nowcoder.community.common.exception.BusinessException(POST_NOT_FOUND);
         }
         if (existed.getUserId() != actorUserId) {
             throw new com.nowcoder.community.common.exception.BusinessException(FORBIDDEN, "只能删除自己的帖子");

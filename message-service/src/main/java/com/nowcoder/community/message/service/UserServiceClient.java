@@ -149,7 +149,7 @@ public class UserServiceClient {
             T v = supplier.get();
             InternalClientSupport.record(meterRegistry, METRIC_CLIENT, api, InternalClientSupport.OUTCOME_SUCCESS, start);
             return v;
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             if (fallback != null && failOpen) {
                 InternalClientSupport.record(meterRegistry, METRIC_CLIENT, api, InternalClientSupport.OUTCOME_DEGRADED, start);
                 log.warn("[user-client] degraded (api={}): {}", api, e.toString());
@@ -157,10 +157,7 @@ public class UserServiceClient {
             }
             String outcome = InternalClientSupport.isTimeout(e) ? InternalClientSupport.OUTCOME_TIMEOUT : InternalClientSupport.OUTCOME_ERROR;
             InternalClientSupport.record(meterRegistry, METRIC_CLIENT, api, outcome, start);
-            if (e instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new IllegalStateException("user-service 调用失败(api=" + api + ")", e);
+            throw e;
         }
     }
 

@@ -6,6 +6,7 @@ import io.micrometer.core.instrument.Tags;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.dao.DataAccessException;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -15,7 +16,9 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Component
 @ConditionalOnProperty(name = "content.events.outbox.enabled", havingValue = "true")
@@ -73,33 +76,45 @@ public class OutboxRelayJob {
     }
 
     private void deliver(OutboxEvent event) {
-        long id = event.getId();
         try {
             CompletableFuture<?> future = kafkaTemplate.send(event.getTopic(), event.getEventKey(), event.getPayload());
             future.get(properties.getSendTimeoutMs(), TimeUnit.MILLISECONDS);
-            outboxEventService.markSent(id);
+            outboxEventService.markSent(event.getId());
             if (meterRegistry != null) {
                 meterRegistry.counter("content_outbox_deliver_total", Tags.of("topic", event.getTopic(), "outcome", "sent")).increment();
             }
-        } catch (Exception ex) {
-            int retryCount = event.getRetryCount() == null ? 0 : event.getRetryCount();
-            retryCount++;
-            if (retryCount > properties.getMaxRetries()) {
-                outboxEventService.markFailed(id, safeError(ex));
-                if (meterRegistry != null) {
-                    meterRegistry.counter("content_outbox_deliver_total", Tags.of("topic", event.getTopic(), "outcome", "failed")).increment();
-                }
-                log.warn("[outbox] send failed, marked failed (id={}, topic={}): {}", id, event.getTopic(), ex.toString());
-                return;
-            }
-            long delay = nextDelayMs(retryCount);
-            Date nextRetryAt = Date.from(Instant.now().plusMillis(delay));
-            outboxEventService.markRetry(id, retryCount, nextRetryAt, safeError(ex));
-            if (meterRegistry != null) {
-                meterRegistry.counter("content_outbox_deliver_total", Tags.of("topic", event.getTopic(), "outcome", "retry")).increment();
-            }
-            log.warn("[outbox] send failed, retry scheduled (id={}, retry={}, delayMs={}): {}", id, retryCount, delay, ex.toString());
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            handleSendFailure(event, ex);
+        } catch (ExecutionException | TimeoutException ex) {
+            handleSendFailure(event, ex);
+        } catch (RuntimeException ex) {
+            handleSendFailure(event, ex);
         }
+    }
+
+    private void handleSendFailure(OutboxEvent event, Throwable ex) {
+        if (event == null || event.getId() == null) {
+            return;
+        }
+        long id = event.getId();
+        int retryCount = event.getRetryCount() == null ? 0 : event.getRetryCount();
+        retryCount++;
+        if (retryCount > properties.getMaxRetries()) {
+            outboxEventService.markFailed(id, safeError(ex));
+            if (meterRegistry != null) {
+                meterRegistry.counter("content_outbox_deliver_total", Tags.of("topic", event.getTopic(), "outcome", "failed")).increment();
+            }
+            log.warn("[outbox] send failed, marked failed (id={}, topic={}): {}", id, event.getTopic(), ex == null ? "null" : ex.toString());
+            return;
+        }
+        long delay = nextDelayMs(retryCount);
+        Date nextRetryAt = Date.from(Instant.now().plusMillis(delay));
+        outboxEventService.markRetry(id, retryCount, nextRetryAt, safeError(ex));
+        if (meterRegistry != null) {
+            meterRegistry.counter("content_outbox_deliver_total", Tags.of("topic", event.getTopic(), "outcome", "retry")).increment();
+        }
+        log.warn("[outbox] send failed, retry scheduled (id={}, retry={}, delayMs={}): {}", id, retryCount, delay, ex == null ? "null" : ex.toString());
     }
 
     private void refreshBacklogMetrics() {
@@ -108,7 +123,7 @@ public class OutboxRelayJob {
             retryCountGauge.set(outboxEventService.countByStatus("RETRY"));
             sendingCountGauge.set(outboxEventService.countByStatus("SENDING"));
             failedCountGauge.set(outboxEventService.countByStatus("FAILED"));
-        } catch (Exception ignored) {
+        } catch (DataAccessException ignored) {
             // metrics 不应影响主链路
         }
     }
@@ -119,7 +134,7 @@ public class OutboxRelayJob {
             if (recovered > 0 && meterRegistry != null) {
                 meterRegistry.counter("content_outbox_recovered_total").increment(recovered);
             }
-        } catch (Exception ignored) {
+        } catch (DataAccessException ignored) {
             // recover 不应影响主链路
         }
     }
@@ -134,7 +149,7 @@ public class OutboxRelayJob {
             if (deleted > 0 && meterRegistry != null) {
                 meterRegistry.counter("content_outbox_cleanup_total", Tags.of("status", "SENT")).increment(deleted);
             }
-        } catch (Exception ignored) {
+        } catch (DataAccessException ignored) {
             // cleanup 不应影响主链路
         }
     }
@@ -147,7 +162,7 @@ public class OutboxRelayJob {
         return Math.min(delay, max);
     }
 
-    private String safeError(Exception ex) {
+    private String safeError(Throwable ex) {
         String msg = ex == null ? "" : ex.getMessage();
         if (msg == null) {
             msg = "";

@@ -3,6 +3,7 @@ package com.nowcoder.community.content.outbox;
 // Outbox 事件服务：负责任务入库、批量认领与状态更新。
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -59,7 +60,7 @@ public class OutboxEventService {
         if (trySkipLocked) {
             try {
                 return outboxEventMapper.selectCandidateIdsSkipLocked(now, size);
-            } catch (Exception ex) {
+            } catch (DataAccessException ex) {
                 if (skipLockedUsable.compareAndSet(true, false)) {
                     log.warn("[outbox] claim SKIP LOCKED not usable, fallback to FOR UPDATE: {}", ex.toString());
                 }

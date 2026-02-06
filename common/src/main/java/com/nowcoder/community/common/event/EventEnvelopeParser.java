@@ -2,9 +2,11 @@ package com.nowcoder.community.common.event;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 
 /**
  * 事件 envelope 解析与校验工具：用于消费端统一校验 required fields/version/type。
@@ -16,14 +18,19 @@ public final class EventEnvelopeParser {
     private EventEnvelopeParser() {
     }
 
-    public static ParsedEnvelope parse(ObjectMapper objectMapper, String json) throws Exception {
+    public static ParsedEnvelope parse(ObjectMapper objectMapper, String json) {
         if (objectMapper == null) {
             throw new IllegalArgumentException("objectMapper 缺失");
         }
         if (!StringUtils.hasText(json)) {
             throw new IllegalArgumentException("record value 为空");
         }
-        JsonNode root = objectMapper.readTree(json);
+        JsonNode root;
+        try {
+            root = objectMapper.readTree(json);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("record value 非法 JSON", e);
+        }
         String eventId = text(root, "eventId");
         String type = text(root, "type");
         int version = root.path("version").asInt(0);
@@ -63,7 +70,7 @@ public final class EventEnvelopeParser {
         }
         try {
             return Instant.parse(s.trim());
-        } catch (Exception ignored) {
+        } catch (DateTimeParseException ignored) {
             return null;
         }
     }
@@ -118,4 +125,3 @@ public final class EventEnvelopeParser {
         }
     }
 }
-

@@ -83,11 +83,8 @@ public class ForwardedOriginResolver {
             if (!StringUtils.hasText(cidr)) {
                 continue;
             }
-            try {
-                if (ClientIpResolver.cidrMatch(remoteIp, cidr.trim())) {
-                    return true;
-                }
-            } catch (Exception ignored) {
+            if (ClientIpResolver.cidrMatch(remoteIp, cidr.trim())) {
+                return true;
             }
         }
         return false;
@@ -236,7 +233,7 @@ public class ForwardedOriginResolver {
         try {
             int p = Integer.parseInt(raw.trim());
             return p > 0 && p <= 65535 ? p : null;
-        } catch (Exception ignored) {
+        } catch (NumberFormatException ignored) {
             return null;
         }
     }
@@ -260,4 +257,3 @@ public class ForwardedOriginResolver {
     public record ResolvedOrigin(String scheme, String host, int port, String source) {
     }
 }
-

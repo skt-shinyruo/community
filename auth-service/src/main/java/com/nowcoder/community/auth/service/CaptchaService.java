@@ -1,6 +1,8 @@
 package com.nowcoder.community.auth.service;
 
 import com.nowcoder.community.auth.config.CaptchaProperties;
+import com.nowcoder.community.common.api.AuthErrorCode;
+import com.nowcoder.community.common.exception.BusinessException;
 import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
@@ -9,6 +11,7 @@ import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
@@ -27,7 +30,7 @@ public class CaptchaService {
         this.captchaStore = captchaStore;
     }
 
-    public IssuedCaptcha issue() throws Exception {
+    public IssuedCaptcha issue() {
         String captchaId = uuid();
         String code = isBlank(properties.getFixedCode()) ? randomCode(4) : properties.getFixedCode().trim();
 
@@ -37,7 +40,11 @@ public class CaptchaService {
 
         BufferedImage image = render(code);
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        ImageIO.write(image, "png", baos);
+        try {
+            ImageIO.write(image, "png", baos);
+        } catch (IOException e) {
+            throw new BusinessException(AuthErrorCode.CAPTCHA_GENERATE_FAILED);
+        }
         String imageBase64 = Base64.getEncoder().encodeToString(baos.toByteArray());
         return new IssuedCaptcha(captchaId, imageBase64, ttlSeconds);
     }

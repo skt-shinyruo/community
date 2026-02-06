@@ -50,7 +50,7 @@ public class PointsEventConsumer {
     }
 
     @KafkaListener(topics = {EventTopics.POST_EVENTS_V1, EventTopics.COMMENT_EVENTS_V1, EventTopics.SOCIAL_EVENTS_V1}, groupId = "user-service")
-    public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) throws Exception {
+    public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) {
         KafkaTraceSupport.runWithTraceId(objectMapper, record.value(), () -> handleRecord(record));
         ack.acknowledge();
     }
@@ -58,7 +58,7 @@ public class PointsEventConsumer {
     /**
      * 供测试/手动调用：仅在处理成功后由上层 ack。
      */
-    public void handleRecord(ConsumerRecord<String, String> record) throws Exception {
+    public void handleRecord(ConsumerRecord<String, String> record) {
         EventEnvelopeParser.ParsedEnvelope env = EventEnvelopeParser.parse(objectMapper, record.value());
         String eventId = env.getEventId();
         String type = env.getType();
@@ -73,19 +73,19 @@ public class PointsEventConsumer {
         }
 
         if (EventTypes.POST_PUBLISHED.equals(type)) {
-            PostPayload p = objectMapper.treeToValue(env.getPayload(), PostPayload.class);
+            PostPayload p = objectMapper.convertValue(env.getPayload(), PostPayload.class);
             pointsService.applyPoints(p.getUserId(), eventId, type, 10);
             return;
         }
 
         if (EventTypes.COMMENT_CREATED.equals(type)) {
-            CommentPayload p = objectMapper.treeToValue(env.getPayload(), CommentPayload.class);
+            CommentPayload p = objectMapper.convertValue(env.getPayload(), CommentPayload.class);
             pointsService.applyPoints(p.getUserId(), eventId, type, 2);
             return;
         }
 
         if (EventTypes.LIKE_CREATED.equals(type)) {
-            LikePayload p = objectMapper.treeToValue(env.getPayload(), LikePayload.class);
+            LikePayload p = objectMapper.convertValue(env.getPayload(), LikePayload.class);
             int toUserId = p.getEntityUserId() == null ? 0 : p.getEntityUserId();
             if (toUserId > 0 && toUserId != p.getActorUserId()) {
                 pointsService.applyPoints(toUserId, eventId, type, 1);
@@ -94,7 +94,7 @@ public class PointsEventConsumer {
         }
 
         if (EventTypes.LIKE_REMOVED.equals(type)) {
-            LikePayload p = objectMapper.treeToValue(env.getPayload(), LikePayload.class);
+            LikePayload p = objectMapper.convertValue(env.getPayload(), LikePayload.class);
             int toUserId = p.getEntityUserId() == null ? 0 : p.getEntityUserId();
             if (toUserId > 0 && toUserId != p.getActorUserId()) {
                 pointsService.applyPoints(toUserId, eventId, type, -1);

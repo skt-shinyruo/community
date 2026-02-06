@@ -1,6 +1,7 @@
 package com.nowcoder.community.common.idempotency;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.api.SimpleErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
@@ -81,53 +82,69 @@ public class IdempotencyGuard {
         Duration processingTtl = safeDuration(properties == null ? null : properties.getProcessingTtl(), Duration.ofSeconds(30));
         Duration successTtl = safeDuration(properties == null ? null : properties.getSuccessTtl(), Duration.ofHours(24));
 
+        boolean acquired;
         try {
-            boolean acquired = store.tryAcquireProcessing(storeKey, processingTtl);
-            if (acquired) {
-                record(operation, "first_time");
-                try {
-                    T result = supplier.get();
-                    String json = toJson(result);
-                    store.save(storeKey, VALUE_SUCCESS_PREFIX + json, successTtl);
-                    record(operation, "succeeded");
-                    return result;
-                } catch (RuntimeException e) {
-                    // 失败允许重试：删除占用 key，避免永久卡死在 PROCESSING
-                    safeDelete(storeKey);
-                    record(operation, "failed");
-                    throw e;
-                }
-            }
-
-            String existing = store.get(storeKey);
-            if (existing == null) {
-                // 极端情况：刚判断为“已存在”，但随后读不到（可能已过期/被清理）
-                record(operation, "race_miss");
-                throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "幂等状态读取失败");
-            }
-            if (existing.startsWith(VALUE_SUCCESS_PREFIX)) {
-                record(operation, "duplicate");
-                String json = existing.substring(VALUE_SUCCESS_PREFIX.length());
-                return fromJson(json, type);
-            }
-            if (VALUE_PROCESSING.equals(existing)) {
-                record(operation, "concurrent_conflict");
-                throw new BusinessException(new SimpleErrorCode(409, "请求处理中，请稍后重试", 409));
-            }
-
-            record(operation, "unknown_state");
-            throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "幂等状态不合法");
-        } catch (BusinessException e) {
-            // 业务异常直接透传
-            throw e;
-        } catch (Exception e) {
+            acquired = store.tryAcquireProcessing(storeKey, processingTtl);
+        } catch (RuntimeException e) {
             record(operation, "store_error");
             if (failClosedOnStoreError) {
                 throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "幂等存储不可用");
             }
-            // fail-open：降级为非幂等执行（仅用于非关键入口）
             return supplier.get();
         }
+
+        if (acquired) {
+            record(operation, "first_time");
+            final T result;
+            try {
+                result = supplier.get();
+            } catch (RuntimeException e) {
+                // 失败允许重试：删除占用 key，避免永久卡死在 PROCESSING
+                safeDelete(storeKey);
+                record(operation, "failed");
+                throw e;
+            }
+
+            String json = toJson(result);
+            try {
+                store.save(storeKey, VALUE_SUCCESS_PREFIX + json, successTtl);
+            } catch (RuntimeException e) {
+                record(operation, "store_error");
+                if (failClosedOnStoreError) {
+                    throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "幂等存储不可用");
+                }
+            }
+            record(operation, "succeeded");
+            return result;
+        }
+
+        String existing;
+        try {
+            existing = store.get(storeKey);
+        } catch (RuntimeException e) {
+            record(operation, "store_error");
+            if (failClosedOnStoreError) {
+                throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "幂等存储不可用");
+            }
+            return supplier.get();
+        }
+        if (existing == null) {
+            // 极端情况：刚判断为“已存在”，但随后读不到（可能已过期/被清理）
+            record(operation, "race_miss");
+            throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "幂等状态读取失败");
+        }
+        if (existing.startsWith(VALUE_SUCCESS_PREFIX)) {
+            record(operation, "duplicate");
+            String json = existing.substring(VALUE_SUCCESS_PREFIX.length());
+            return fromJson(json, type);
+        }
+        if (VALUE_PROCESSING.equals(existing)) {
+            record(operation, "concurrent_conflict");
+            throw new BusinessException(new SimpleErrorCode(409, "请求处理中，请稍后重试", 409));
+        }
+
+        record(operation, "unknown_state");
+        throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "幂等状态不合法");
     }
 
     private String buildStoreKey(String operation, int userId, String key) {
@@ -145,7 +162,7 @@ public class IdempotencyGuard {
         }
         try {
             return objectMapper == null ? String.valueOf(value) : objectMapper.writeValueAsString(value);
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
             throw new IllegalStateException("serialize idempotency response failed", e);
         }
     }
@@ -162,7 +179,7 @@ public class IdempotencyGuard {
                 throw new IllegalStateException("objectMapper is null");
             }
             return objectMapper.readValue(json, type);
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
             throw new IllegalStateException("deserialize idempotency response failed", e);
         }
     }
@@ -170,7 +187,7 @@ public class IdempotencyGuard {
     private void safeDelete(String key) {
         try {
             store.delete(key);
-        } catch (Exception ignored) {
+        } catch (RuntimeException ignored) {
         }
     }
 

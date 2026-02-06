@@ -2,6 +2,7 @@ package com.nowcoder.community.common.kafka;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.nowcoder.community.common.trace.TraceContext;
 import com.nowcoder.community.common.trace.TraceId;
 import org.springframework.util.StringUtils;
@@ -18,12 +19,12 @@ public final class KafkaTraceSupport {
 
     @FunctionalInterface
     public interface ThrowingRunnable {
-        void run() throws Exception;
+        void run();
     }
 
     @FunctionalInterface
     public interface ThrowingSupplier<T> {
-        T get() throws Exception;
+        T get();
     }
 
     public static void runWithTraceId(ObjectMapper objectMapper, String recordValue, ThrowingRunnable runnable) {
@@ -31,10 +32,6 @@ public final class KafkaTraceSupport {
         TraceContext.set(traceId);
         try {
             runnable.run();
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
         } finally {
             TraceContext.clear();
         }
@@ -45,10 +42,6 @@ public final class KafkaTraceSupport {
         TraceContext.set(traceId);
         try {
             return supplier.get();
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
         } finally {
             TraceContext.clear();
         }
@@ -62,7 +55,7 @@ public final class KafkaTraceSupport {
                 if (StringUtils.hasText(traceId)) {
                     return traceId;
                 }
-            } catch (Exception ignore) {
+            } catch (JsonProcessingException | RuntimeException ignore) {
                 // ignore
             }
         }

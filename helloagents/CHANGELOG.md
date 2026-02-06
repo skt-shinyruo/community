@@ -7,6 +7,7 @@
 ## [Unreleased]
 
 ### Added
+- gateway：新增 `GatewayErrorContractTest`，锁定 401/403/400/429/500 的 **HTTP status + Result** 协议，并校验 `X-Trace-Id/traceparent` 与 `Result.traceId` 一致。
 - frontend：PostDetail 点赞 read-your-writes 覆盖（短 TTL），降低“写成功但刷新读到旧投影”的可见不一致；SearchView 增加“搜索索引最终一致”提示以管理预期。
 - social-service：新增 internal 聚合只读接口 `/internal/social/read/users/{userId}/profile-stats`（一次返回获赞/关注/粉丝/关注状态），供 user-service 收敛主页 fan-out。
 - user-service：用户主页聚合改为单次调用 social profile-stats，并在 `/api/users/{userId}` 响应中增加 `socialDegraded`，区分“真实为 0”与“依赖降级占位”。
@@ -38,6 +39,11 @@
 - common：新增 `HtmlEntityCodec`（基础 HTML entity 白名单编解码），用于历史内容兼容与避免二次转义可见问题。
 - gateway：analytics 采集新增 `AnalyticsCollectDispatcher`（有界队列 + 异步 worker + 指标），采集链路与主转发隔离。
 - frontend：`UiToast` 支持可选 action（`actionText/onAction`），用于发帖/编辑成功后提供快捷入口。
+
+### Fixed
+- social-service：关注/拉黑“自操作”错误收敛为 `SocialErrorCode`（13001/13002），避免以通用 400 掩盖领域语义。
+- search-service：reindex single-flight 冲突与存储不可用场景收敛到 `SearchErrorCode`（15003/15002），避免 `SimpleErrorCode(409)` 导致语义丢失。
+- content-service：分类/评论/帖子不存在场景收敛到 `ContentErrorCode`（12003/12002/12001），并补齐测试依赖 `spring-security-test` 以支撑契约测试编译。
 - runbooks：新增内容渲染迁移与网关采集排障手册（`helloagents/wiki/runbooks/content-rendering-migration.md`、`helloagents/wiki/runbooks/gateway-analytics-collect.md`）。
 - user-service：补齐 outbox 运维入口 `/internal/users/outbox/health|replay`，与 content/social 对齐；默认受 internal-token + ops-guard（break-glass）保护。
 - search-service：reindex single-flight 锁增加续租/心跳（owner=jobId + 原子 renew + owner 校验释放），避免长任务锁过期导致并发重建压垮 ES/下游。
@@ -69,6 +75,7 @@
 - content-service：内容渲染契约收敛：写入停止全量 htmlEscape（仅对 `&` 最小化 escape，可配置），读路径对历史 entity 做一次性白名单解码（可配置），并对事件 payload/内部扫描接口输出保持一致。
 - gateway：analytics 采集链路重构为“filter 投递 + 异步 worker 调用”，队列满允许丢弃且可观测（不影响主请求转发）。
 - frontend：发帖/编辑成功提示补齐“搜索/通知最终一致延迟”，并通过 Toast action 提供“立即查看/去搜索”入口。
+- 测试：将部分 Kafka consumer/outbox 测试下沉为纯单元测试（减少 `@SpringBootTest` 占比），并补充测试 Quick win 落地约定（`helloagents/project.md`）。
 
 ### Fixed
 - 修复“事件发布默认不可靠（best-effort）导致下游永久不一致”的默认配置问题：写侧入 outbox，relay 重试直至成功或进入 FAILED，可观测且可重放。

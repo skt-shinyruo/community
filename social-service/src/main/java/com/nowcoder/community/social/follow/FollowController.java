@@ -121,7 +121,7 @@ public class FollowController {
         String sub = jwt.getSubject();
         try {
             return Integer.parseInt(sub);
-        } catch (Exception e) {
+        } catch (NumberFormatException e) {
             throw new BusinessException(INVALID_ARGUMENT, "token subject 非法");
         }
     }

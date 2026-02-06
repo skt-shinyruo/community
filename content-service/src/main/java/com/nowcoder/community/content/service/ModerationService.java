@@ -20,6 +20,8 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 
+import static com.nowcoder.community.common.api.ContentErrorCode.COMMENT_NOT_FOUND;
+import static com.nowcoder.community.common.api.ContentErrorCode.POST_NOT_FOUND;
 import static com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
 
@@ -222,16 +224,16 @@ public class ModerationService {
 
         if (type == ReportService.TARGET_TYPE_POST) {
             DiscussPost post = discussPostMapper.selectDiscussPostById(targetId);
-            if (post == null) {
-                throw new BusinessException(INVALID_ARGUMENT, "帖子不存在");
+            if (post == null || post.getStatus() == 2) {
+                throw new BusinessException(POST_NOT_FOUND);
             }
             return new Target(type, targetId, post.getUserId());
         }
 
         if (type == ReportService.TARGET_TYPE_COMMENT) {
             Comment c = commentMapper.selectCommentById(targetId);
-            if (c == null) {
-                throw new BusinessException(INVALID_ARGUMENT, "评论不存在");
+            if (c == null || c.getStatus() != 0) {
+                throw new BusinessException(COMMENT_NOT_FOUND);
             }
             return new Target(type, targetId, c.getUserId());
         }

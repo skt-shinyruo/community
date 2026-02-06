@@ -77,7 +77,7 @@ public class ProjectionReconcileJob {
                 }
             }
             moderationAfterId.set(maxId);
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             log.warn("[projection] reconcile moderation failed (afterId={}): {}", afterId, e.toString());
         } finally {
             if (lock != null && guard != null) {

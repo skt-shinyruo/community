@@ -81,25 +81,33 @@ public class OutboxRelayJob {
             if (meterRegistry != null) {
                 meterRegistry.counter("user_outbox_deliver_total", Tags.of("topic", event.getTopic(), "outcome", "sent")).increment();
             }
-        } catch (Exception ex) {
-            int retryCount = event.getRetryCount() == null ? 0 : event.getRetryCount();
-            retryCount++;
-            if (retryCount > properties.getMaxRetries()) {
-                outboxEventService.markFailed(id, safeError(ex));
-                if (meterRegistry != null) {
-                    meterRegistry.counter("user_outbox_deliver_total", Tags.of("topic", event.getTopic(), "outcome", "failed")).increment();
-                }
-                log.warn("[outbox] send failed, marked failed (id={}, topic={}): {}", id, event.getTopic(), ex.toString());
-                return;
-            }
-            long delay = nextDelayMs(retryCount);
-            Date nextRetryAt = Date.from(Instant.now().plusMillis(delay));
-            outboxEventService.markRetry(id, retryCount, nextRetryAt, safeError(ex));
-            if (meterRegistry != null) {
-                meterRegistry.counter("user_outbox_deliver_total", Tags.of("topic", event.getTopic(), "outcome", "retry")).increment();
-            }
-            log.warn("[outbox] send failed, retry scheduled (id={}, retry={}, delayMs={}): {}", id, retryCount, delay, ex.toString());
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            handleDeliverFailure(event, ex);
+        } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException | RuntimeException ex) {
+            handleDeliverFailure(event, ex);
         }
+    }
+
+    private void handleDeliverFailure(OutboxEvent event, Exception ex) {
+        long id = event.getId();
+        int retryCount = event.getRetryCount() == null ? 0 : event.getRetryCount();
+        retryCount++;
+        if (retryCount > properties.getMaxRetries()) {
+            outboxEventService.markFailed(id, safeError(ex));
+            if (meterRegistry != null) {
+                meterRegistry.counter("user_outbox_deliver_total", Tags.of("topic", event.getTopic(), "outcome", "failed")).increment();
+            }
+            log.warn("[outbox] send failed, marked failed (id={}, topic={}): {}", id, event.getTopic(), ex.toString());
+            return;
+        }
+        long delay = nextDelayMs(retryCount);
+        Date nextRetryAt = Date.from(Instant.now().plusMillis(delay));
+        outboxEventService.markRetry(id, retryCount, nextRetryAt, safeError(ex));
+        if (meterRegistry != null) {
+            meterRegistry.counter("user_outbox_deliver_total", Tags.of("topic", event.getTopic(), "outcome", "retry")).increment();
+        }
+        log.warn("[outbox] send failed, retry scheduled (id={}, retry={}, delayMs={}): {}", id, retryCount, delay, ex.toString());
     }
 
     private void refreshBacklogMetrics() {
@@ -108,7 +116,7 @@ public class OutboxRelayJob {
             retryCountGauge.set(outboxEventService.countByStatus("RETRY"));
             sendingCountGauge.set(outboxEventService.countByStatus("SENDING"));
             failedCountGauge.set(outboxEventService.countByStatus("FAILED"));
-        } catch (Exception ignored) {
+        } catch (RuntimeException ignored) {
             // metrics 不应影响主链路
         }
     }
@@ -119,7 +127,7 @@ public class OutboxRelayJob {
             if (recovered > 0 && meterRegistry != null) {
                 meterRegistry.counter("user_outbox_recovered_total").increment(recovered);
             }
-        } catch (Exception ignored) {
+        } catch (RuntimeException ignored) {
             // recover 不应影响主链路
         }
     }
@@ -134,7 +142,7 @@ public class OutboxRelayJob {
             if (deleted > 0 && meterRegistry != null) {
                 meterRegistry.counter("user_outbox_cleanup_total", Tags.of("status", "SENT")).increment(deleted);
             }
-        } catch (Exception ignored) {
+        } catch (RuntimeException ignored) {
             // cleanup 不应影响主链路
         }
     }

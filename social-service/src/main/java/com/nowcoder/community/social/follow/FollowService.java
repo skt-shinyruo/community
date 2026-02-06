@@ -15,6 +15,7 @@ import java.util.List;
 import static com.nowcoder.community.common.domain.EntityTypes.USER;
 import static com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.api.SocialErrorCode.CANNOT_FOLLOW_SELF;
 
 @Service
 public class FollowService {
@@ -43,7 +44,7 @@ public class FollowService {
             throw new BusinessException(INVALID_ARGUMENT, "follow 仅支持 USER");
         }
         if (actorUserId == entityId) {
-            throw new BusinessException(INVALID_ARGUMENT, "不能关注自己");
+            throw new BusinessException(CANNOT_FOLLOW_SELF);
         }
 
         // 反骚扰：仅阻断“创建关注”副作用（幂等重复 follow 不额外阻断）

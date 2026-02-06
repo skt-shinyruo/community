@@ -17,9 +17,8 @@ public enum UnknownEventAction {
         }
         try {
             return UnknownEventAction.valueOf(raw.trim().toUpperCase());
-        } catch (Exception ignored) {
+        } catch (IllegalArgumentException ignored) {
             return defaultValue;
         }
     }
 }
-

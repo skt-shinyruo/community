@@ -7,6 +7,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.core.env.Environment;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -56,7 +57,7 @@ public class SensitiveFilter {
                 addKeyword(keyword.trim());
                 count++;
             }
-        } catch (Exception e) {
+        } catch (IOException | RuntimeException e) {
             if (isDev()) {
                 log.warn("[sensitive-filter] 词典加载失败（dev 下允许继续）：{}", e.toString());
                 loadedWords.set(0);

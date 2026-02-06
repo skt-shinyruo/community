@@ -55,16 +55,16 @@ public class SocialEventConsumer {
     }
 
     @KafkaListener(topics = EventTopics.SOCIAL_EVENTS_V1, groupId = "content-service")
-    public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) throws Exception {
+    public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) {
         KafkaTraceSupport.runWithTraceId(
                 objectMapper,
                 record.value(),
-                (KafkaTraceSupport.ThrowingRunnable) () -> handleRecord(record)
+                () -> handleRecord(record)
         );
         ack.acknowledge();
     }
 
-    void handleRecord(ConsumerRecord<String, String> record) throws Exception {
+    void handleRecord(ConsumerRecord<String, String> record) {
         EventEnvelopeParser.ParsedEnvelope env = EventEnvelopeParser.parse(objectMapper, record.value());
         String eventId = env.getEventId();
         String type = env.getType();
@@ -90,7 +90,7 @@ public class SocialEventConsumer {
             throw new IllegalArgumentException("unsupported event type: " + type);
         }
 
-        LikePayload payload = objectMapper.treeToValue(env.getPayload(), LikePayload.class);
+        LikePayload payload = objectMapper.convertValue(env.getPayload(), LikePayload.class);
         if (payload == null) {
             return;
         }

@@ -60,7 +60,7 @@ class MessageControllerSecurityTest {
                                 .param("size", "10")
                 )
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value(404));
+                .andExpect(jsonPath("$.code").value(14001));
 
         mockMvc.perform(
                         get("/api/messages/conversations/2_3")
@@ -118,4 +118,3 @@ class MessageControllerSecurityTest {
     private record MarkReadBody(List<Integer> ids) {
     }
 }
-

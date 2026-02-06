@@ -124,7 +124,7 @@ public class FilesController {
             if (isWebp(head)) {
                 return MediaType.valueOf("image/webp");
             }
-        } catch (Exception ignored) {
+        } catch (java.io.IOException ignored) {
         }
         return MediaType.APPLICATION_OCTET_STREAM;
     }

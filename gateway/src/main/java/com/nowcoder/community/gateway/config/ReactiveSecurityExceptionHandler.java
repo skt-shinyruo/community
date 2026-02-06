@@ -1,6 +1,7 @@
 package com.nowcoder.community.gateway.config;
 
 // Reactive 安全异常处理：确保 401/403 响应体携带 traceId。
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.api.Result;
@@ -44,7 +45,7 @@ public class ReactiveSecurityExceptionHandler implements ServerAuthenticationEnt
         try {
             byte[] bytes = objectMapper.writeValueAsBytes(body);
             return exchange.getResponse().writeWith(Mono.just(exchange.getResponse().bufferFactory().wrap(bytes)));
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
             return exchange.getResponse().setComplete();
         }
     }

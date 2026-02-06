@@ -96,7 +96,7 @@ public class LikeController {
         String sub = jwt.getSubject();
         try {
             return Integer.parseInt(sub);
-        } catch (Exception e) {
+        } catch (NumberFormatException e) {
             throw new BusinessException(INVALID_ARGUMENT, "token subject 非法");
         }
     }
@@ -124,7 +124,7 @@ public class LikeController {
                 if (id > 0) {
                     set.add(id);
                 }
-            } catch (Exception ignored) {
+            } catch (NumberFormatException ignored) {
             }
         }
         if (set.isEmpty()) {

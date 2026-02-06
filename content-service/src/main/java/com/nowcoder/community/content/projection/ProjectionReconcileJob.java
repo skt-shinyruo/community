@@ -81,7 +81,7 @@ public class ProjectionReconcileJob {
                 }
             }
             moderationAfterId.set(maxId);
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             // 纠偏任务不应影响主链路；失败后下次继续。
             log.warn("[projection] reconcile moderation failed (afterId={}): {}", afterId, e.toString());
         } finally {

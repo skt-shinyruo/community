@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.api.SocialErrorCode.CANNOT_BLOCK_SELF;
 
 @Service
 public class BlockService {
@@ -28,7 +29,7 @@ public class BlockService {
             throw new BusinessException(INVALID_ARGUMENT, "userId/targetUserId 非法");
         }
         if (userId == targetUserId) {
-            throw new BusinessException(INVALID_ARGUMENT, "不能拉黑自己");
+            throw new BusinessException(CANNOT_BLOCK_SELF);
         }
         repository.block(userId, targetUserId);
 

@@ -8,6 +8,8 @@
 
 | Timestamp | Feature Name | Type | Status | Solution Package Path |
 |-----------|--------------|------|--------|----------------------|
+| 202602061145 | exception_handling_convergence | Development Implementation | ✅Completed | [202602061145_exception_handling_convergence](2026-02/202602061145_exception_handling_convergence/) |
+| 202602061128 | test_layering_quickwin | Development Implementation | ✅Completed | [202602061128_test_layering_quickwin](2026-02/202602061128_test_layering_quickwin/) |
 | 202602041705 | fix_comment_reply_block_guard | Development Implementation | ✅Completed | [202602041705_fix_comment_reply_block_guard](2026-02/202602041705_fix_comment_reply_block_guard/) |
 | 202602041143 | fix_runtime_risks | Development Implementation | ✅Completed | [202602041143_fix_runtime_risks](2026-02/202602041143_fix_runtime_risks/) |
 | 202602031035 | ops_hardening_outbox_reindex | Development Implementation | ✅Completed | [202602031035_ops_hardening_outbox_reindex](2026-02/202602031035_ops_hardening_outbox_reindex/) |
@@ -55,6 +57,8 @@
 ## Archive by Month
 
 ### 2026-02
+- [202602061145_exception_handling_convergence](2026-02/202602061145_exception_handling_convergence/) - 异常处理语义收敛与分域错误码体系：统一错误协议（HTTP status + Result）与契约测试，并以门禁防止泛化 Exception 回潮
+- [202602061128_test_layering_quickwin](2026-02/202602061128_test_layering_quickwin/) - 测试分层 Quick win：下沉部分 Kafka consumer/outbox 测试为单元测试，降低 `@SpringBootTest` 占比并补齐落地约定
 - [202602041705_fix_comment_reply_block_guard](2026-02/202602041705_fix_comment_reply_block_guard/) - 修复评论回复跨帖/多层不一致，并补齐点赞/关注的拉黑约束（创建关系 403）
 - [202602041143_fix_runtime_risks](2026-02/202602041143_fix_runtime_risks/) - 运行时风险点修复：Redis unionKey 清理、网关采集链路去 subscribe、traceId 注入收敛、OriginGuard 反代兼容、internal/ops runbook 补齐
 - [202602031035_ops_hardening_outbox_reindex](2026-02/202602031035_ops_hardening_outbox_reindex/) - 运维与一致性加固：Outbox `SKIP LOCKED` 并发认领（可降级）、Schema drift（outbox/幂等表索引）对齐、幂等清理分批 delete + 可选 single-flight、user outbox 运维入口对齐、reindex 锁续租、internal/ops fail-fast、legacy reindex 默认禁用、dev-only 风险文档化

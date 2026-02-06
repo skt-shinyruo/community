@@ -8,8 +8,8 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 
-import static com.nowcoder.community.common.api.CommonErrorCode.NOT_FOUND;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.api.UserErrorCode.USER_NOT_FOUND;
 
 @Service
 public class UserService {
@@ -23,7 +23,7 @@ public class UserService {
     public User getById(int userId) {
         User user = userMapper.selectById(userId);
         if (user == null) {
-            throw new BusinessException(NOT_FOUND, "用户不存在");
+            throw new BusinessException(USER_NOT_FOUND);
         }
         return user;
     }
@@ -34,7 +34,7 @@ public class UserService {
         }
         User user = userMapper.selectByName(username);
         if (user == null) {
-            throw new BusinessException(NOT_FOUND, "用户不存在");
+            throw new BusinessException(USER_NOT_FOUND);
         }
         return user;
     }

@@ -175,7 +175,7 @@ public class SocialServiceClient {
             T v = supplier.get();
             record(api, InternalClientSupport.OUTCOME_SUCCESS, start);
             return v;
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             String outcome = classifyOutcome(e);
             if (fallback != null && properties.isFailOpen()) {
                 record(api, InternalClientSupport.OUTCOME_DEGRADED, start);
@@ -183,10 +183,7 @@ public class SocialServiceClient {
                 return fallback.get();
             }
             record(api, outcome, start);
-            if (e instanceof RuntimeException re) {
-                throw re;
-            }
-            throw new IllegalStateException("social-service 调用失败(api=" + api + ")", e);
+            throw e;
         }
     }
 

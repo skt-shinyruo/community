@@ -8,10 +8,14 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import jakarta.validation.ConstraintViolationException;
 
 @RestControllerAdvice
@@ -40,6 +44,24 @@ public class GlobalExceptionHandler {
                 .body(Result.error(CommonErrorCode.INVALID_ARGUMENT));
     }
 
+    @ExceptionHandler({MissingServletRequestParameterException.class, MethodArgumentTypeMismatchException.class})
+    public ResponseEntity<Result<Void>> handleRequestParam(Exception e) {
+        return ResponseEntity.status(httpStatusOf(CommonErrorCode.INVALID_ARGUMENT.getHttpStatus()))
+                .body(Result.error(CommonErrorCode.INVALID_ARGUMENT));
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<Result<Void>> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
+        return ResponseEntity.status(httpStatusOf(405))
+                .body(Result.error(405, "请求方法不支持"));
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<Result<Void>> handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException e) {
+        return ResponseEntity.status(httpStatusOf(415))
+                .body(Result.error(415, "不支持的 Content-Type"));
+    }
+
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<Result<Void>> handleDataAccess(DataAccessException e) {
         return ResponseEntity.status(httpStatusOf(CommonErrorCode.SERVICE_UNAVAILABLE.getHttpStatus()))
@@ -55,7 +77,7 @@ public class GlobalExceptionHandler {
     private HttpStatus httpStatusOf(int httpStatus) {
         try {
             return HttpStatus.valueOf(httpStatus);
-        } catch (Exception ignored) {
+        } catch (IllegalArgumentException ignored) {
         }
         return HttpStatus.INTERNAL_SERVER_ERROR;
     }

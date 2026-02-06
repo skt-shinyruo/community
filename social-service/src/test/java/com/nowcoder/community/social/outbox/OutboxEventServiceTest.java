@@ -1,148 +1,64 @@
 package com.nowcoder.community.social.outbox;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.JdbcTemplate;
+import org.mockito.ArgumentCaptor;
 
-import java.sql.Timestamp;
-import java.time.Duration;
-import java.time.Instant;
+import java.util.Date;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-@SpringBootTest
 class OutboxEventServiceTest {
-
-    @Autowired
-    OutboxEventService outboxEventService;
-
-    @Autowired
-    JdbcTemplate jdbcTemplate;
-
-    @BeforeEach
-    void resetTable() {
-        jdbcTemplate.update("delete from outbox_event");
-    }
 
     @Test
     void recoverStuckSendingShouldMoveToRetry() {
-        Instant now = Instant.now();
-        Timestamp createdAt = Timestamp.from(now.minus(Duration.ofHours(1)));
-        Timestamp staleUpdatedAt = Timestamp.from(now.minus(Duration.ofMinutes(10)));
-        Timestamp freshUpdatedAt = Timestamp.from(now.minus(Duration.ofSeconds(10)));
+        OutboxEventMapper outboxEventMapper = mock(OutboxEventMapper.class);
+        SocialOutboxProperties properties = new SocialOutboxProperties();
+        OutboxEventService outboxEventService = new OutboxEventService(outboxEventMapper, properties);
 
-        jdbcTemplate.update(
-                "insert into outbox_event(event_id, topic, event_key, payload, status, retry_count, next_retry_at, last_error, created_at, updated_at) values (?,?,?,?,?,?,?,?,?,?)",
-                "e-stale",
-                "t",
-                "k",
-                "{}",
-                "SENDING",
-                0,
-                null,
-                null,
-                createdAt,
-                staleUpdatedAt
-        );
-        jdbcTemplate.update(
-                "insert into outbox_event(event_id, topic, event_key, payload, status, retry_count, next_retry_at, last_error, created_at, updated_at) values (?,?,?,?,?,?,?,?,?,?)",
-                "e-fresh",
-                "t",
-                "k",
-                "{}",
-                "SENDING",
-                0,
-                null,
-                null,
-                createdAt,
-                freshUpdatedAt
-        );
+        List<Long> ids = List.of(1L);
+        when(outboxEventMapper.selectStuckSendingIds(any(Date.class), eq(1000))).thenReturn(ids);
+        when(outboxEventMapper.markRetrySendingByIds(eq(ids), any(Date.class), eq("stuck SENDING recovered"))).thenReturn(1);
 
-        int recovered = outboxEventService.recoverStuckSending(Duration.ofMinutes(5).toMillis(), 100);
+        long beforeCallMs = System.currentTimeMillis();
+        int recovered = outboxEventService.recoverStuckSending(10, 50000);
+        long afterCallMs = System.currentTimeMillis();
 
         assertThat(recovered).isEqualTo(1);
-        assertThat(jdbcTemplate.queryForObject(
-                "select status from outbox_event where event_id = ?",
-                String.class,
-                "e-stale"
-        )).isEqualTo("RETRY");
-        assertThat(jdbcTemplate.queryForObject(
-                "select last_error from outbox_event where event_id = ?",
-                String.class,
-                "e-stale"
-        )).isEqualTo("stuck SENDING recovered");
-        assertThat(jdbcTemplate.queryForObject(
-                "select next_retry_at from outbox_event where event_id = ?",
-                Timestamp.class,
-                "e-stale"
-        )).isNull();
 
-        assertThat(jdbcTemplate.queryForObject(
-                "select status from outbox_event where event_id = ?",
-                String.class,
-                "e-fresh"
-        )).isEqualTo("SENDING");
+        ArgumentCaptor<Date> beforeCaptor = ArgumentCaptor.forClass(Date.class);
+        verify(outboxEventMapper).selectStuckSendingIds(beforeCaptor.capture(), eq(1000));
+
+        long beforeMs = beforeCaptor.getValue().getTime();
+        assertThat(beforeMs).isBetween(beforeCallMs - 1000 - 2000, afterCallMs - 1000 + 2000);
+
+        verify(outboxEventMapper).markRetrySendingByIds(eq(ids), any(Date.class), eq("stuck SENDING recovered"));
     }
 
     @Test
     void cleanupSentShouldDeleteByRetentionAndLimit() {
-        Instant now = Instant.now();
-        Timestamp oldCreatedAt = Timestamp.from(now.minus(Duration.ofDays(10)));
-        Timestamp newCreatedAt = Timestamp.from(now.minus(Duration.ofDays(1)));
+        OutboxEventMapper outboxEventMapper = mock(OutboxEventMapper.class);
+        SocialOutboxProperties properties = new SocialOutboxProperties();
+        OutboxEventService outboxEventService = new OutboxEventService(outboxEventMapper, properties);
 
-        jdbcTemplate.update(
-                "insert into outbox_event(event_id, topic, event_key, payload, status, retry_count, next_retry_at, last_error, created_at, updated_at) values (?,?,?,?,?,?,?,?,?,?)",
-                "e-old-1",
-                "t",
-                "k",
-                "{}",
-                "SENT",
-                0,
-                null,
-                null,
-                oldCreatedAt,
-                oldCreatedAt
-        );
-        jdbcTemplate.update(
-                "insert into outbox_event(event_id, topic, event_key, payload, status, retry_count, next_retry_at, last_error, created_at, updated_at) values (?,?,?,?,?,?,?,?,?,?)",
-                "e-old-2",
-                "t",
-                "k",
-                "{}",
-                "SENT",
-                0,
-                null,
-                null,
-                oldCreatedAt,
-                oldCreatedAt
-        );
-        jdbcTemplate.update(
-                "insert into outbox_event(event_id, topic, event_key, payload, status, retry_count, next_retry_at, last_error, created_at, updated_at) values (?,?,?,?,?,?,?,?,?,?)",
-                "e-new",
-                "t",
-                "k",
-                "{}",
-                "SENT",
-                0,
-                null,
-                null,
-                newCreatedAt,
-                newCreatedAt
-        );
+        when(outboxEventMapper.deleteSentBefore(any(Date.class), eq(1))).thenReturn(1);
 
-        int deleted = outboxEventService.cleanupSent(7, 1);
+        long beforeCallMs = System.currentTimeMillis();
+        int deleted = outboxEventService.cleanupSent(0, 0);
+        long afterCallMs = System.currentTimeMillis();
 
         assertThat(deleted).isEqualTo(1);
-        assertThat(jdbcTemplate.queryForObject(
-                "select count(1) from outbox_event where event_id in ('e-old-1','e-old-2')",
-                Integer.class
-        )).isEqualTo(1);
-        assertThat(jdbcTemplate.queryForObject(
-                "select count(1) from outbox_event where event_id = 'e-new'",
-                Integer.class
-        )).isEqualTo(1);
+
+        ArgumentCaptor<Date> beforeCaptor = ArgumentCaptor.forClass(Date.class);
+        verify(outboxEventMapper).deleteSentBefore(beforeCaptor.capture(), eq(1));
+
+        long dayMs = 24L * 3600 * 1000;
+        long beforeMs = beforeCaptor.getValue().getTime();
+        assertThat(beforeMs).isBetween(beforeCallMs - dayMs - 5000, afterCallMs - dayMs + 5000);
     }
 }
-

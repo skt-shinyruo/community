@@ -56,12 +56,8 @@ public class ClientIpResolver {
             if (!StringUtils.hasText(cidr)) {
                 continue;
             }
-            try {
-                if (cidrMatch(remoteIp, cidr.trim())) {
-                    return true;
-                }
-            } catch (Exception ignored) {
-                // ignore invalid cidr
+            if (cidrMatch(remoteIp, cidr.trim())) {
+                return true;
             }
         }
         return false;
@@ -82,7 +78,9 @@ public class ClientIpResolver {
         try {
             InetAddress addr = InetAddress.getByName(ip.trim());
             return addr == null ? null : addr.getHostAddress();
-        } catch (Exception e) {
+        } catch (java.net.UnknownHostException e) {
+            return null;
+        } catch (RuntimeException e) {
             return null;
         }
     }
@@ -103,7 +101,7 @@ public class ClientIpResolver {
         int prefix;
         try {
             prefix = Integer.parseInt(prefixStr);
-        } catch (Exception e) {
+        } catch (NumberFormatException e) {
             return false;
         }
         try {
@@ -132,7 +130,9 @@ public class ClientIpResolver {
             int a = (cidrBytes[fullBytes] & 0xFF) & mask;
             int b = (ipBytes[fullBytes] & 0xFF) & mask;
             return a == b;
-        } catch (Exception ignored) {
+        } catch (java.net.UnknownHostException ignored) {
+            return false;
+        } catch (RuntimeException ignored) {
             return false;
         }
     }
@@ -140,4 +140,3 @@ public class ClientIpResolver {
     public record ResolvedClientIp(String ip, String source) {
     }
 }
-

@@ -81,7 +81,7 @@ public class SearchConsumedEventCleanupJob {
             }
             meterRegistry.counter("search_idempotency_cleanup_total", Tags.of("outcome", "success")).increment();
             meterRegistry.counter("search_idempotency_cleanup_deleted_total").increment(total);
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             meterRegistry.counter("search_idempotency_cleanup_total", Tags.of("outcome", "failed")).increment();
             throw e;
         } finally {

@@ -13,8 +13,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import static com.nowcoder.community.common.api.ContentErrorCode.COMMENT_NOT_FOUND;
+import static com.nowcoder.community.common.api.ContentErrorCode.POST_NOT_FOUND;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.common.api.CommonErrorCode.NOT_FOUND;
 
 /**
  * content-service internal entity resolve：用于让下游服务在写路径构造可信 payload（禁止信任客户端注入）。
@@ -58,7 +59,7 @@ public class InternalEntityController {
     private EntityResolveResponse resolvePost(int postId) {
         DiscussPost post = discussPostMapper.selectDiscussPostById(postId);
         if (post == null || post.getId() <= 0 || post.getStatus() == 2) {
-            throw new BusinessException(NOT_FOUND, "帖子不存在");
+            throw new BusinessException(POST_NOT_FOUND);
         }
         EntityResolveResponse r = new EntityResolveResponse();
         r.setEntityType(EntityTypes.POST);
@@ -71,15 +72,15 @@ public class InternalEntityController {
     private EntityResolveResponse resolveComment(int commentId) {
         Comment comment = commentMapper.selectCommentById(commentId);
         if (comment == null || comment.getId() <= 0 || comment.getStatus() != 0) {
-            throw new BusinessException(NOT_FOUND, "评论不存在");
+            throw new BusinessException(COMMENT_NOT_FOUND);
         }
         int postId = resolveRootPostIdByComment(comment, 12);
         if (postId <= 0) {
-            throw new BusinessException(NOT_FOUND, "评论所属帖子不存在");
+            throw new BusinessException(POST_NOT_FOUND, "评论所属帖子不存在");
         }
         DiscussPost post = discussPostMapper.selectDiscussPostById(postId);
         if (post == null || post.getId() <= 0 || post.getStatus() == 2) {
-            throw new BusinessException(NOT_FOUND, "评论所属帖子不存在");
+            throw new BusinessException(POST_NOT_FOUND, "评论所属帖子不存在");
         }
 
         EntityResolveResponse r = new EntityResolveResponse();

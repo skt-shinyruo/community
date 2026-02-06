@@ -1,5 +1,6 @@
 package com.nowcoder.community.gateway.filter;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.api.Result;
@@ -81,7 +82,7 @@ public class RequestSizeLimitGlobalFilter implements GlobalFilter, Ordered {
         try {
             byte[] bytes = objectMapper.writeValueAsBytes(body);
             return exchange.getResponse().writeWith(Mono.just(exchange.getResponse().bufferFactory().wrap(bytes)));
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
             return exchange.getResponse().setComplete();
         }
     }
@@ -92,4 +93,3 @@ public class RequestSizeLimitGlobalFilter implements GlobalFilter, Ordered {
         return Ordered.HIGHEST_PRECEDENCE + 15;
     }
 }
-

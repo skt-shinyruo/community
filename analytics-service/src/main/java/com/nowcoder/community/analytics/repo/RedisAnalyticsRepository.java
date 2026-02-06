@@ -104,7 +104,7 @@ public class RedisAnalyticsRepository implements AnalyticsRepository {
         }
         try {
             redisTemplate.delete(key);
-        } catch (Exception ignored) {
+        } catch (RuntimeException ignored) {
         }
     }
 }

@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 import java.util.Date;
 import java.util.List;
 
-import static com.nowcoder.community.common.api.CommonErrorCode.NOT_FOUND;
+import static com.nowcoder.community.common.api.ContentErrorCode.POST_NOT_FOUND;
 
 @Service
 public class PostService {
@@ -41,10 +41,10 @@ public class PostService {
     public DiscussPost getById(int postId) {
         DiscussPost post = discussPostMapper.selectDiscussPostById(postId);
         if (post == null) {
-            throw new BusinessException(NOT_FOUND, "帖子不存在");
+            throw new BusinessException(POST_NOT_FOUND);
         }
         if (post.getStatus() == 2) {
-            throw new BusinessException(NOT_FOUND, "帖子不存在");
+            throw new BusinessException(POST_NOT_FOUND);
         }
         return post;
     }
@@ -52,7 +52,7 @@ public class PostService {
     public DiscussPost getByIdAllowDeleted(int postId) {
         DiscussPost post = discussPostMapper.selectDiscussPostById(postId);
         if (post == null) {
-            throw new BusinessException(NOT_FOUND, "帖子不存在");
+            throw new BusinessException(POST_NOT_FOUND);
         }
         return post;
     }

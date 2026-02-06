@@ -164,7 +164,7 @@ public class AnalyticsCollectGlobalFilter implements GlobalFilter, Ordered {
         try {
             int id = Integer.parseInt(subject.trim());
             return id > 0 ? id : null;
-        } catch (Exception ignored) {
+        } catch (NumberFormatException ignored) {
             if (meterRegistry != null) {
                 meterRegistry.counter("gateway_analytics_collect_total", Tags.of("metric", "dau", "outcome", "skipped_bad_subject")).increment();
             }

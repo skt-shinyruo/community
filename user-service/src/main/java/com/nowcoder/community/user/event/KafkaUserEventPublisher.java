@@ -1,6 +1,7 @@
 package com.nowcoder.community.user.event;
 
 // user-service Kafka 事件发布器：支持直发与 Outbox 两种模式。
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.event.EventEnvelope;
 import com.nowcoder.community.common.event.EventTopics;
@@ -70,7 +71,7 @@ public class KafkaUserEventPublisher implements UserEventPublisher {
 
             // 事务提交后再发送，避免 DB 回滚但事件已发出（幽灵事件）。
             AfterCommitExecutor.runAfterCommit(() -> sendAsync(topic, key, json, type));
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
             throw new IllegalStateException("发布事件失败: " + type, e);
         }
     }
@@ -95,7 +96,7 @@ public class KafkaUserEventPublisher implements UserEventPublisher {
                         Tags.of("topic", topic, "type", type, "outcome", "ok")
                 ).increment();
             });
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             if (meterRegistry != null) {
                 meterRegistry.counter(
                         "user_event_publish_total",
@@ -106,4 +107,3 @@ public class KafkaUserEventPublisher implements UserEventPublisher {
         }
     }
 }
-

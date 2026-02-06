@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.nowcoder.community.common.api.ContentErrorCode.COMMENT_NOT_FOUND;
 import static com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.common.api.CommonErrorCode.NOT_FOUND;
@@ -196,7 +197,7 @@ public class CommentService {
             AfterCommitExecutor.runAfterCommit(() -> {
                 try {
                     postScoreQueue.add(postId);
-                } catch (Exception e) {
+                } catch (RuntimeException e) {
                     log.warn("[post-score] enqueue failed after commit (postId={}): {}", postId, e.toString());
                 }
             });
@@ -229,10 +230,10 @@ public class CommentService {
 
         Comment existed = commentMapper.selectCommentById(commentId);
         if (existed == null || existed.getId() <= 0) {
-            throw new BusinessException(NOT_FOUND, "评论不存在");
+            throw new BusinessException(COMMENT_NOT_FOUND);
         }
         if (existed.getStatus() != 0) {
-            throw new BusinessException(NOT_FOUND, "评论不存在");
+            throw new BusinessException(COMMENT_NOT_FOUND);
         }
         if (existed.getUserId() != actorUserId) {
             throw new BusinessException(FORBIDDEN, "只能编辑自己的评论");

@@ -159,7 +159,7 @@ public class UserServiceInternalClient {
             String outcome = InternalClientSupport.isTimeout(e) ? InternalClientSupport.OUTCOME_TIMEOUT : InternalClientSupport.OUTCOME_ERROR;
             InternalClientSupport.record(meterRegistry, METRIC_CLIENT, api, outcome, start);
             throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "user-service 不可用");
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             InternalClientSupport.record(meterRegistry, METRIC_CLIENT, api, InternalClientSupport.OUTCOME_ERROR, start);
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "user-service 调用失败");
         }

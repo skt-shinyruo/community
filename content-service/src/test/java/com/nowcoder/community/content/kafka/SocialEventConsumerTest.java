@@ -3,34 +3,28 @@ package com.nowcoder.community.content.kafka;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.event.EventTopics;
 import com.nowcoder.community.common.event.EventTypes;
+import com.nowcoder.community.content.score.InMemoryPostScoreQueue;
+import com.nowcoder.community.content.score.PostScoreQueue;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 
 import java.time.Instant;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(properties = {
-        "content.storage=memory",
-        "content.events.publisher=memory",
-        "content.score.refresh.enabled=false",
-        "spring.kafka.listener.auto-startup=false",
-        "spring.cloud.nacos.discovery.enabled=false",
-        "spring.cloud.nacos.config.enabled=false"
-})
 class SocialEventConsumerTest {
 
-    @Autowired
-    SocialEventConsumer consumer;
-
-    @Autowired
-    ObjectMapper objectMapper;
-
-    @Autowired
-    com.nowcoder.community.content.score.PostScoreQueue postScoreQueue;
+    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+    private final PostScoreQueue postScoreQueue = new InMemoryPostScoreQueue();
+    private final SocialEventConsumer consumer = new SocialEventConsumer(
+            objectMapper,
+            postScoreQueue,
+            null,
+            "memory",
+            "SKIP",
+            "DLQ"
+    );
 
     @Test
     void likeCreatedShouldEnqueuePostScoreRefresh() throws Exception {

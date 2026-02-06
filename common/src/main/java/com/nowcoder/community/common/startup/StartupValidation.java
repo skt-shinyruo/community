@@ -341,7 +341,7 @@ public class StartupValidation {
         int prefix;
         try {
             prefix = Integer.parseInt(prefixStr);
-        } catch (Exception e) {
+        } catch (NumberFormatException e) {
             return false;
         }
 
@@ -353,7 +353,9 @@ public class StartupValidation {
             }
             int totalBits = bytes.length * 8;
             return prefix >= 0 && prefix <= totalBits;
-        } catch (Exception e) {
+        } catch (java.net.UnknownHostException e) {
+            return false;
+        } catch (RuntimeException e) {
             return false;
         }
     }

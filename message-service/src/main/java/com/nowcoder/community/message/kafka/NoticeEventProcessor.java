@@ -1,6 +1,7 @@
 package com.nowcoder.community.message.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.nowcoder.community.common.event.EventEnvelopeParser;
 import com.nowcoder.community.common.event.EventTypes;
 import com.nowcoder.community.common.event.UnknownEventAction;
@@ -58,7 +59,7 @@ public class NoticeEventProcessor {
      * 发生异常将触发 Spring Kafka 的重试与 DLQ（由 DefaultErrorHandler 统一接管）。
      */
     @Transactional
-    public void handleRecord(ConsumerRecord<String, String> record) throws Exception {
+    public void handleRecord(ConsumerRecord<String, String> record) {
         EventEnvelopeParser.ParsedEnvelope env = EventEnvelopeParser.parse(objectMapper, record.value());
         String eventId = env.getEventId();
         String type = env.getType();
@@ -78,22 +79,22 @@ public class NoticeEventProcessor {
         Object payload = null;
 
         if (EventTypes.COMMENT_CREATED.equals(type)) {
-            CommentPayload p = objectMapper.treeToValue(env.getPayload(), CommentPayload.class);
+            CommentPayload p = objectMapper.convertValue(env.getPayload(), CommentPayload.class);
             payload = p;
             topic = "comment";
             toUserId = p.getTargetUserId() == null ? 0 : p.getTargetUserId();
         } else if (EventTypes.LIKE_CREATED.equals(type)) {
-            LikePayload p = objectMapper.treeToValue(env.getPayload(), LikePayload.class);
+            LikePayload p = objectMapper.convertValue(env.getPayload(), LikePayload.class);
             payload = p;
             topic = "like";
             toUserId = p.getEntityUserId() == null ? 0 : p.getEntityUserId();
         } else if (EventTypes.FOLLOW_CREATED.equals(type)) {
-            FollowPayload p = objectMapper.treeToValue(env.getPayload(), FollowPayload.class);
+            FollowPayload p = objectMapper.convertValue(env.getPayload(), FollowPayload.class);
             payload = p;
             topic = "follow";
             toUserId = p.getEntityUserId() == null ? 0 : p.getEntityUserId();
         } else if (EventTypes.MODERATION_ACTION_APPLIED.equals(type)) {
-            ModerationPayload p = objectMapper.treeToValue(env.getPayload(), ModerationPayload.class);
+            ModerationPayload p = objectMapper.convertValue(env.getPayload(), ModerationPayload.class);
             payload = p;
             topic = "moderation";
             toUserId = p.getToUserId() == null ? 0 : p.getToUserId();
@@ -118,11 +119,16 @@ public class NoticeEventProcessor {
             return;
         }
 
-        String contentJson = objectMapper.writeValueAsString(Map.of(
-                "eventId", eventId,
-                "type", type,
-                "payload", payload
-        ));
+        String contentJson;
+        try {
+            contentJson = objectMapper.writeValueAsString(Map.of(
+                    "eventId", eventId,
+                    "type", type,
+                    "payload", payload
+            ));
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("notice payload 序列化失败: " + type, e);
+        }
         noticeService.createNotice(toUserId, topic, contentJson);
     }
 

@@ -55,13 +55,13 @@ public class ModerationEventConsumer {
     }
 
     @KafkaListener(topics = EventTopics.MODERATION_EVENTS_V1, groupId = "user-service")
-    public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) throws Exception {
-        KafkaTraceSupport.runWithTraceId(objectMapper, record.value(), (KafkaTraceSupport.ThrowingRunnable) () -> handleRecord(record));
+    public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) {
+        KafkaTraceSupport.runWithTraceId(objectMapper, record.value(), () -> handleRecord(record));
         ack.acknowledge();
     }
 
     @Transactional
-    void handleRecord(ConsumerRecord<String, String> record) throws Exception {
+    void handleRecord(ConsumerRecord<String, String> record) {
         EventEnvelopeParser.ParsedEnvelope env = EventEnvelopeParser.parse(objectMapper, record.value());
         String eventId = env.getEventId();
         String type = env.getType();
@@ -90,7 +90,7 @@ public class ModerationEventConsumer {
             return;
         }
 
-        ModerationCommandPayload cmd = objectMapper.treeToValue(env.getPayload(), ModerationCommandPayload.class);
+        ModerationCommandPayload cmd = objectMapper.convertValue(env.getPayload(), ModerationCommandPayload.class);
         if (cmd == null || cmd.getUserId() == null || cmd.getUserId() <= 0) {
             throw new IllegalArgumentException("payload.userId 缺失");
         }

@@ -20,7 +20,7 @@ public class NoticeEventConsumer {
     }
 
     @KafkaListener(topics = {EventTopics.COMMENT_EVENTS_V1, EventTopics.SOCIAL_EVENTS_V1, EventTopics.MODERATION_EVENTS_V1}, groupId = "message-service")
-    public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) throws Exception {
+    public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) {
         KafkaTraceSupport.runWithTraceId(objectMapper, record.value(), () -> processor.handleRecord(record));
         ack.acknowledge();
     }

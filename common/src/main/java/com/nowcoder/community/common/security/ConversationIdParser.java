@@ -31,7 +31,7 @@ public final class ConversationIdParser {
         try {
             ua = Integer.parseInt(a);
             ub = Integer.parseInt(b);
-        } catch (Exception e) {
+        } catch (NumberFormatException e) {
             return null;
         }
         if (ua <= 0 || ub <= 0) {
@@ -55,4 +55,3 @@ public final class ConversationIdParser {
         }
     }
 }
-

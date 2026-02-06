@@ -103,7 +103,7 @@ public class AuthController {
     }
 
     @GetMapping("/captcha")
-    public Result<CaptchaIssueResponse> captcha(HttpServletResponse response) throws Exception {
+    public Result<CaptchaIssueResponse> captcha(HttpServletResponse response) {
         CaptchaService.IssuedCaptcha issued = captchaService.issue();
         response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0");
         response.setHeader(HttpHeaders.PRAGMA, "no-cache");

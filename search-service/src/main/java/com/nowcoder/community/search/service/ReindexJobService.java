@@ -1,7 +1,6 @@
 package com.nowcoder.community.search.service;
 
-import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.api.SimpleErrorCode;
+import com.nowcoder.community.common.api.SearchErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
@@ -93,7 +92,7 @@ public class ReindexJobService {
 
     public ReindexJob tryStart() {
         if (redisTemplate == null) {
-            throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "reindex 存储不可用");
+            throw new BusinessException(SearchErrorCode.INDEX_UNAVAILABLE, "reindex 存储不可用");
         }
 
         String jobId = newJobId();
@@ -110,10 +109,9 @@ public class ReindexJobService {
         return new ReindexJob(StringUtils.hasText(existing) ? existing.trim() : null, false);
     }
 
-    public AutoCloseable startRenewal(String jobId) {
+    public RenewalHandle startRenewal(String jobId) {
         if (redisTemplate == null || renewScheduler == null || !StringUtils.hasText(jobId)) {
-            return () -> {
-            };
+            return () -> { };
         }
 
         long ttlSeconds = Math.max(10L, (lockTtl == null ? DEFAULT_LOCK_TTL : lockTtl).getSeconds());
@@ -135,7 +133,7 @@ public class ReindexJobService {
                         f.cancel(false);
                     }
                 }
-            } catch (Exception ex) {
+            } catch (RuntimeException ex) {
                 // 续租失败不直接终止任务：TTL 作为兜底；同时保留日志便于排查。
                 log.warn("[reindex] lock renew failed (jobId={}): {}", jobId, ex.toString());
             }
@@ -162,13 +160,13 @@ public class ReindexJobService {
 
     public void conflict(String jobId) {
         String suffix = StringUtils.hasText(jobId) ? (" (jobId=" + jobId.trim() + ")") : "";
-        throw new BusinessException(new SimpleErrorCode(409, "reindex 任务正在执行" + suffix, 409));
+        throw new BusinessException(SearchErrorCode.REINDEX_IN_PROGRESS, "reindex 任务正在执行" + suffix);
     }
 
     private String newJobId() {
         try {
             return UUID.randomUUID().toString();
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             return String.valueOf(System.currentTimeMillis());
         }
     }
@@ -196,7 +194,17 @@ public class ReindexJobService {
                     Collections.singletonList(LOCK_KEY),
                     jobId.trim()
             );
-        } catch (Exception ignored) {
+        } catch (RuntimeException ignored) {
+        }
+    }
+
+    @FunctionalInterface
+    public interface RenewalHandle extends AutoCloseable {
+        void stop();
+
+        @Override
+        default void close() {
+            stop();
         }
     }
 

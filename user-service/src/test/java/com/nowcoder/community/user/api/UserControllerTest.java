@@ -35,6 +35,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
@@ -90,11 +91,23 @@ class UserControllerTest {
     }
 
     @Test
+    void getUserShouldReturnDomainNotFoundCodeWhenMissing() throws Exception {
+        mockMvc.perform(get("/api/users/999999"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(11001))
+                .andExpect(jsonPath("$.traceId").exists());
+    }
+
+    @Test
     void uploadTokenAndUpdateAvatarShouldRequireAuth() throws Exception {
         mockMvc.perform(get("/api/users/1/avatar/upload-token"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(401))
+                .andExpect(jsonPath("$.traceId").exists());
         mockMvc.perform(put("/api/users/1/avatar").contentType(MediaType.APPLICATION_JSON).content("{}"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(401))
+                .andExpect(jsonPath("$.traceId").exists());
     }
 
     @Test

@@ -2,6 +2,8 @@ package com.nowcoder.community.gateway.filter;
 
 // 网关异常响应 traceId 测试：验证 401/403/429 响应体与头部一致。
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.api.CommonErrorCode;
+import com.nowcoder.community.gateway.config.GatewayErrorWebExceptionHandler;
 import com.nowcoder.community.gateway.config.GatewayRateLimitProperties;
 import com.nowcoder.community.gateway.config.ReactiveSecurityExceptionHandler;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -59,6 +61,48 @@ class GatewayErrorTraceIdTest {
     }
 
     @Test
+    void shouldWriteTraceIdOnBadRequest() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        GatewayErrorWebExceptionHandler handler = new GatewayErrorWebExceptionHandler(objectMapper);
+
+        String traceId = "0123456789abcdef0123456789abcdef";
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/posts")
+                .header(TraceIdSupport.HEADER_TRACE_ID, traceId)
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        handler.handle(exchange, new IllegalArgumentException("bad")).block();
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+
+        String body = exchange.getResponse().getBodyAsString().block();
+        Map<?, ?> payload = objectMapper.readValue(body, Map.class);
+        assertThat(payload.get("code")).isEqualTo(CommonErrorCode.INVALID_ARGUMENT.getCode());
+        assertThat(payload.get("traceId")).isEqualTo(traceId);
+        assertThat(exchange.getResponse().getHeaders().getFirst(TraceIdSupport.HEADER_TRACE_ID)).isEqualTo(traceId);
+    }
+
+    @Test
+    void shouldWriteTraceIdOnInternalError() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        GatewayErrorWebExceptionHandler handler = new GatewayErrorWebExceptionHandler(objectMapper);
+
+        String traceId = "0123456789abcdef0123456789abcdef";
+        MockServerHttpRequest request = MockServerHttpRequest.get("/api/posts")
+                .header(TraceIdSupport.HEADER_TRACE_ID, traceId)
+                .build();
+        MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+        handler.handle(exchange, new RuntimeException("boom")).block();
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
+
+        String body = exchange.getResponse().getBodyAsString().block();
+        Map<?, ?> payload = objectMapper.readValue(body, Map.class);
+        assertThat(payload.get("code")).isEqualTo(CommonErrorCode.INTERNAL_ERROR.getCode());
+        assertThat(payload.get("traceId")).isEqualTo(traceId);
+        assertThat(exchange.getResponse().getHeaders().getFirst(TraceIdSupport.HEADER_TRACE_ID)).isEqualTo(traceId);
+    }
+
+    @Test
     void shouldWriteTraceIdOnRateLimit() throws Exception {
         GatewayRateLimitProperties properties = new GatewayRateLimitProperties();
         GatewayRateLimitProperties.Rule rule = new GatewayRateLimitProperties.Rule();
@@ -109,4 +153,3 @@ class GatewayErrorTraceIdTest {
         assertThat(exchange.getResponse().getHeaders().getFirst(TraceIdSupport.HEADER_TRACE_ID)).isEqualTo(traceId);
     }
 }
-

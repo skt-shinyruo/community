@@ -14,6 +14,7 @@ import org.springframework.util.StringUtils;
 import java.util.Date;
 import java.util.List;
 
+import static com.nowcoder.community.common.api.ContentErrorCode.COMMENT_NOT_FOUND;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.common.api.CommonErrorCode.NOT_FOUND;
 
@@ -72,7 +73,7 @@ public class ReportService {
         if (targetType == TARGET_TYPE_COMMENT) {
             Comment c = commentMapper.selectCommentById(targetId);
             if (c == null || c.getId() <= 0) {
-                throw new BusinessException(NOT_FOUND, "评论不存在");
+                throw new BusinessException(COMMENT_NOT_FOUND);
             }
         }
 

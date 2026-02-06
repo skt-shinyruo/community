@@ -1,5 +1,6 @@
 package com.nowcoder.community.message.service;
 
+import com.nowcoder.community.common.api.MessageErrorCode;
 import com.nowcoder.community.message.dao.MessageMapper;
 import com.nowcoder.community.message.api.dto.ConversationItemResponse;
 import com.nowcoder.community.message.api.dto.LetterItemResponse;
@@ -103,7 +104,7 @@ public class PrivateMessageService {
     }
 
     public List<Message> listLetters(int userId, String conversationId, int page, int size) {
-        ownerGuard.assertConversationMember(userId, conversationId);
+        ownerGuard.assertConversationMember(userId, conversationId, MessageErrorCode.CONVERSATION_NOT_FOUND);
         int offset = Math.max(0, page) * Math.max(1, size);
         return messageMapper.selectLetters(userId, conversationId, offset, size);
     }

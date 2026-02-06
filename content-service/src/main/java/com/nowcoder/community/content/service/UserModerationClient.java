@@ -70,7 +70,7 @@ public class UserModerationClient {
             ModerationStatus data = InternalClientSupport.unwrap(resp, SERVICE_NAME);
             InternalClientSupport.record(meterRegistry, SERVICE_NAME, "getStatus", InternalClientSupport.OUTCOME_SUCCESS, start);
             return data;
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             if (failOpen) {
                 InternalClientSupport.record(meterRegistry, SERVICE_NAME, "getStatus", InternalClientSupport.OUTCOME_DEGRADED, start);
                 log.warn("[user-client] degraded (api=getStatus): {}", e.toString());
@@ -112,7 +112,7 @@ public class UserModerationClient {
             List<ModerationStatus> data = InternalClientSupport.unwrap(resp, SERVICE_NAME);
             InternalClientSupport.record(meterRegistry, SERVICE_NAME, "scanStatuses", InternalClientSupport.OUTCOME_SUCCESS, start);
             return data == null ? List.of() : data;
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             if (failOpen) {
                 InternalClientSupport.record(meterRegistry, SERVICE_NAME, "scanStatuses", InternalClientSupport.OUTCOME_DEGRADED, start);
                 log.warn("[user-client] degraded (api=scanStatuses): {}", e.toString());
@@ -165,7 +165,7 @@ public class UserModerationClient {
             );
             InternalClientSupport.unwrap(resp, SERVICE_NAME);
             InternalClientSupport.record(meterRegistry, SERVICE_NAME, "apply:" + action, InternalClientSupport.OUTCOME_SUCCESS, start);
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             InternalClientSupport.record(meterRegistry, SERVICE_NAME, "apply:" + action, classifyOutcome(e), start);
             if (e instanceof BusinessException be) {
                 throw be;

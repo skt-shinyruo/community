@@ -78,7 +78,7 @@ public class ContentServiceClient {
             EntityResolveResponse data = InternalClientSupport.unwrap(resp, SERVICE_NAME);
             InternalClientSupport.record(meterRegistry, SERVICE_NAME, "resolveEntity", InternalClientSupport.OUTCOME_SUCCESS, start);
             return data;
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             if (failOpen) {
                 InternalClientSupport.record(meterRegistry, SERVICE_NAME, "resolveEntity", InternalClientSupport.OUTCOME_DEGRADED, start);
                 log.warn("[content-client] degraded (api=resolveEntity): {}", e.toString());
@@ -96,4 +96,3 @@ public class ContentServiceClient {
         }
     }
 }
-

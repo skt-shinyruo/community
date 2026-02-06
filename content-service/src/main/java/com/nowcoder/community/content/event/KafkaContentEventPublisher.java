@@ -2,6 +2,7 @@ package com.nowcoder.community.content.event;
 
 // Kafka 事件发布器：支持直发与 Outbox 两种模式。
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.nowcoder.community.common.event.EventEnvelope;
 import com.nowcoder.community.common.event.EventTopics;
 import com.nowcoder.community.common.event.EventTypes;
@@ -84,24 +85,25 @@ public class KafkaContentEventPublisher implements ContentEventPublisher {
     }
 
     private void publish(String topic, String type, String key, Object payload) {
+        EventEnvelope<Object> envelope = EventEnvelope.of(type, 1, "content-service", payload);
+        String json;
         try {
-            EventEnvelope<Object> envelope = EventEnvelope.of(type, 1, "content-service", payload);
-            String json = objectMapper.writeValueAsString(envelope);
-
-            if (outboxProperties.isEnabled()) {
-                outboxEventService.enqueue(envelope.getEventId(), topic, key, json);
-                meterRegistry.counter(
-                        "content_event_outbox_total",
-                        Tags.of("topic", topic, "type", type, "outcome", "queued")
-                ).increment();
-                return;
-            }
-
-            // 事务提交后再发送，避免 DB 回滚但事件已发出（幽灵事件）。
-            AfterCommitExecutor.runAfterCommit(() -> sendAsync(topic, key, json, type));
-        } catch (Exception e) {
+            json = objectMapper.writeValueAsString(envelope);
+        } catch (JsonProcessingException e) {
             throw new IllegalStateException("发布事件失败: " + type, e);
         }
+
+        if (outboxProperties.isEnabled()) {
+            outboxEventService.enqueue(envelope.getEventId(), topic, key, json);
+            meterRegistry.counter(
+                    "content_event_outbox_total",
+                    Tags.of("topic", topic, "type", type, "outcome", "queued")
+            ).increment();
+            return;
+        }
+
+        // 事务提交后再发送，避免 DB 回滚但事件已发出（幽灵事件）。
+        AfterCommitExecutor.runAfterCommit(() -> sendAsync(topic, key, json, type));
     }
 
     private void sendAsync(String topic, String key, String json, String type) {
@@ -121,7 +123,7 @@ public class KafkaContentEventPublisher implements ContentEventPublisher {
                         Tags.of("topic", topic, "type", type, "outcome", "ok")
                 ).increment();
             });
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             meterRegistry.counter(
                     "content_event_publish_total",
                     Tags.of("topic", topic, "type", type, "outcome", "error")

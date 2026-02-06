@@ -123,23 +123,39 @@ public class InternalOpsGuardFilter implements Filter {
 
         String scopeKey = segment.toLowerCase(Locale.ROOT) + ":" + route.opName();
 
+        boolean locked;
         try {
-            if (!acquireLock(scopeKey)) {
-                conflict(resp, "运维操作正在执行中，请稍后重试");
+            locked = acquireLock(scopeKey);
+        } catch (RuntimeException e) {
+            log.warn("[internal-ops] acquire lock failed: op={} path={} err={}", route.opName(), path, e.toString());
+            serviceUnavailable(resp, "ops 保护器不可用");
+            return;
+        }
+        if (!locked) {
+            conflict(resp, "运维操作正在执行中，请稍后重试");
+            return;
+        }
+
+        try {
+            boolean allowed;
+            try {
+                allowed = allowRate(scopeKey, clientIp);
+            } catch (RuntimeException e) {
+                log.warn("[internal-ops] rate limit failed: op={} path={} err={}", route.opName(), path, e.toString());
+                serviceUnavailable(resp, "ops 保护器不可用");
                 return;
             }
-            try {
-                if (!allowRate(scopeKey, clientIp)) {
-                    tooMany(resp, "触发频率过高，请稍后重试");
-                    return;
-                }
-                chain.doFilter(request, response);
-            } finally {
-                releaseLock(scopeKey);
+            if (!allowed) {
+                tooMany(resp, "触发频率过高，请稍后重试");
+                return;
             }
-        } catch (Exception e) {
-            log.warn("[internal-ops] blocked: op={} path={} err={}", route.opName(), path, e.toString());
-            serviceUnavailable(resp, "ops 保护器不可用");
+            chain.doFilter(request, response);
+        } finally {
+            try {
+                releaseLock(scopeKey);
+            } catch (RuntimeException e) {
+                log.warn("[internal-ops] release lock failed: op={} path={} err={}", route.opName(), path, e.toString());
+            }
         }
     }
 
@@ -212,7 +228,7 @@ public class InternalOpsGuardFilter implements Filter {
     private void releaseLock(String scopeKey) {
         try {
             redisTemplate.delete("ops:lock:" + scopeKey);
-        } catch (Exception ignored) {
+        } catch (RuntimeException ignored) {
         }
     }
 
@@ -243,7 +259,7 @@ public class InternalOpsGuardFilter implements Filter {
         }
         try {
             return Integer.parseInt(v.trim());
-        } catch (Exception ignored) {
+        } catch (NumberFormatException ignored) {
             return defaultValue;
         }
     }
@@ -338,7 +354,9 @@ public class InternalOpsGuardFilter implements Filter {
         try {
             InetAddress addr = InetAddress.getByName(ip.trim());
             return addr == null ? null : addr.getHostAddress();
-        } catch (Exception e) {
+        } catch (java.net.UnknownHostException e) {
+            return null;
+        } catch (RuntimeException e) {
             return null;
         }
     }
@@ -356,7 +374,7 @@ public class InternalOpsGuardFilter implements Filter {
         int prefix;
         try {
             prefix = Integer.parseInt(prefixStr);
-        } catch (Exception e) {
+        } catch (NumberFormatException e) {
             return false;
         }
         try {
@@ -385,7 +403,9 @@ public class InternalOpsGuardFilter implements Filter {
             int a = (cidrBytes[fullBytes] & 0xFF) & mask;
             int b = (ipBytes[fullBytes] & 0xFF) & mask;
             return a == b;
-        } catch (Exception ignored) {
+        } catch (java.net.UnknownHostException ignored) {
+            return false;
+        } catch (RuntimeException ignored) {
             return false;
         }
     }

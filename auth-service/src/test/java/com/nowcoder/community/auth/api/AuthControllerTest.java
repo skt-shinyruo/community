@@ -238,8 +238,14 @@ class AuthControllerTest {
 
     @Test
     void meShouldRequireAuth() throws Exception {
-        mockMvc.perform(get("/api/auth/me"))
-                .andExpect(status().isUnauthorized());
+        String body = mockMvc.perform(get("/api/auth/me"))
+                .andExpect(status().isUnauthorized())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        JsonNode json = objectMapper.readTree(body);
+        assertThat(json.path("code").asInt()).isEqualTo(401);
+        assertThat(json.path("traceId").asText()).isNotBlank();
     }
 
     @Test
@@ -255,18 +261,42 @@ class AuthControllerTest {
         // 之后触发验证码要求：CAPTCHA_REQUIRED（HTTP 400 + code=10005）
         // 第 5 次达到阈值：TOO_MANY_REQUESTS（HTTP 429）
         for (int i = 0; i < 4; i++) {
-            mockMvc.perform(post("/api/auth/login")
+            MvcResult result = mockMvc.perform(post("/api/auth/login")
                             .header("X-Forwarded-For", ip)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
-                    .andExpect(i < 2 ? status().isUnauthorized() : status().isBadRequest());
+                    .andExpect(i < 2 ? status().isUnauthorized() : status().isBadRequest())
+                    .andReturn();
+            JsonNode json = objectMapper.readTree(result.getResponse().getContentAsString());
+            int code = json.path("code").asInt();
+            assertThat(json.path("traceId").asText()).isNotBlank();
+            assertThat(code).isEqualTo(i < 2 ? AuthErrorCode.LOGIN_FAILED.getCode() : AuthErrorCode.CAPTCHA_REQUIRED.getCode());
         }
 
-        mockMvc.perform(post("/api/auth/login")
+        MvcResult limited = mockMvc.perform(post("/api/auth/login")
                         .header("X-Forwarded-For", ip)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
-                .andExpect(status().isTooManyRequests());
+                .andExpect(status().isTooManyRequests())
+                .andReturn();
+        JsonNode limitedJson = objectMapper.readTree(limited.getResponse().getContentAsString());
+        int limitedCode = limitedJson.path("code").asInt();
+        assertThat(limitedJson.path("traceId").asText()).isNotBlank();
+        assertThat(limitedCode).isEqualTo(429);
+    }
+
+    @Test
+    void loginShouldRejectBadJsonWith400() throws Exception {
+        String ip = "203.0.113.88";
+        MvcResult result = mockMvc.perform(post("/api/auth/login")
+                        .header("X-Forwarded-For", ip)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{"))
+                .andExpect(status().isBadRequest())
+                .andReturn();
+        JsonNode json = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertThat(json.path("code").asInt()).isEqualTo(400);
+        assertThat(json.path("traceId").asText()).isNotBlank();
     }
 
     @Test

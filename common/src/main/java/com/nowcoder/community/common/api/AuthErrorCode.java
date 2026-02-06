@@ -10,7 +10,9 @@ public enum AuthErrorCode implements ErrorCode {
     CAPTCHA_REQUIRED(10005, "需要验证码", 400),
     CAPTCHA_INVALID(10006, "验证码不正确或已失效", 400),
 
-    PASSWORD_RESET_INVALID(10007, "重置凭证无效或已过期", 400);
+    PASSWORD_RESET_INVALID(10007, "重置凭证无效或已过期", 400),
+
+    CAPTCHA_GENERATE_FAILED(10008, "验证码生成失败", 500);
 
     private final int code;
     private final String message;

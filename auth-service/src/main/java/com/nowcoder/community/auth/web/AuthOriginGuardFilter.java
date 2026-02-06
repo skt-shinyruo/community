@@ -103,7 +103,7 @@ public class AuthOriginGuardFilter extends OncePerRequestFilter {
         URI originUri;
         try {
             originUri = URI.create(origin.trim());
-        } catch (Exception ignored) {
+        } catch (IllegalArgumentException ignored) {
             return false;
         }
 

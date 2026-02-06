@@ -90,46 +90,17 @@ gateway 对写请求会记录审计日志：
 
 ---
 
-## 6. 内部 token（服务间内部接口）
+## 6. 内部接口（/internal/**）
 
-内部接口通过“内部 token”保护（用于避免被普通用户调用）：
-- 统一约定：所有服务的 `/internal/**` 由 `common` 层 `InternalTokenFilter` 强制校验 `X-Internal-Token`（fail-closed）。
-- token 分域建议：
-  1) 按 internal segment 分域：`USER_INTERNAL_TOKEN` / `CONTENT_INTERNAL_TOKEN` / `SEARCH_INTERNAL_TOKEN` / `ANALYTICS_INTERNAL_TOKEN` / `SOCIAL_INTERNAL_TOKEN`
-  2) **不推荐**使用全局 `INTERNAL_TOKEN` 兜底（会扩大爆炸半径，且与 fail-closed 的默认安全态相冲突）
-- 最小权限补充（user-service 高权限写入口分域 token）：
-  - `/internal/users/{id}/password`、`/internal/users/{id}/moderation` 需要 **独立 token**：`user.ops.internal-token`
-  - 调用方需分别配置：
-    - auth-service：`auth.user-client.ops-internal-token`
-    - content-service：`clients.user.ops-internal-token`
+开发阶段（当前实现）：
+- 本项目已移除基于 header token 的 internal 鉴权（不再要求 `X-Internal-Token` / `X-Ops-Token`），避免“配置/演进漂移”导致的两极风险（全不可用/保护变弱）。
+- gateway 明确拒绝 `/internal/**`（避免误配路由对外暴露 internal 面）。
+- 对外运维入口统一走 `/api/ops/**` 并在网关侧按角色收敛（例如 `POST /api/ops/search/reindex` 仅管理员可访问）。
+- legacy：`POST /api/search/internal/reindex` 属于历史兼容命名，默认在网关层通过 `blocked-path-patterns` 关闭（按 404 拒绝），请迁移到 `/api/ops/search/reindex`。
 
-本地示例值见：
-- `deploy/.env.example`
-
-### 6.2 internal OPS 运维入口（break-glass + allowlist + X-Ops-Token）
-
-对于极高风险的 internal 运维动作（如 search reindex / outbox replay），额外引入 `X-Ops-Token` 强保护：
-- `common` 层 `InternalOpsGuardFilter` 默认 deny（break-glass 关闭时直接拒绝）
-- 必须同时满足：
-  - `X-Internal-Token`（基础 internal token）
-  - `X-Ops-Token`（ops-token，按 segment 分域：`ops.<segment>.token`）
-  - `ops.guard.<op>.enabled=true`（临时开启）
-  - `ops.guard.<op>.allowlist` 命中（来源 IP/CIDR）
-  - Redis 可用（用于 rate limit + single-flight；不可用时 fail-closed 返回 503）
-
-典型入口（SSOT）：
-- outbox replay（需 `ops.guard.outbox-replay.*` + `OPS_*_TOKEN`）：
-  - `POST /internal/content/outbox/replay`
-  - `POST /internal/social/outbox/replay`
-  - `POST /internal/users/outbox/replay`
-- search reindex（需 `ops.guard.search-reindex.*` + `OPS_SEARCH_TOKEN`）：
-  - `POST /internal/search/reindex`（服务侧入口）
-  - `POST /api/ops/search/reindex`（推荐：对外运维入口，经 gateway 转发）
-
-⚠️ legacy 入口提示：`POST /api/search/internal/reindex` 属于历史兼容路径，**默认禁用**（gateway 返回 410 并给出迁移提示），请迁移到 `/api/ops/search/reindex`。
-
-运维流程与回滚步骤见：
-- `helloagents/wiki/runbooks/internal-ops.md`
+生产建议（后续迭代方向）：
+- internal 面建议通过“网络隔离 / mTLS / Service Mesh / 仅内网可达”来收敛暴露面，而不是依赖外部可注入的 header。
+- 若未来需要恢复 internal 鉴权，建议同时在网关侧补齐“剥离/禁止外部注入敏感 Header”的策略，避免攻击面外溢。
 
 ---
 

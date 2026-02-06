@@ -54,7 +54,7 @@ public class AnalyticsCollectGlobalFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        if (!properties.isEnabled() || !StringUtils.hasText(properties.getInternalToken())) {
+        if (!properties.isEnabled()) {
             return chain.filter(exchange);
         }
 

@@ -1,4 +1,4 @@
-// 内部治理接口请求：用于禁言/封禁/解除（由其他服务通过 internal-token 调用）。
+// 内部治理接口请求：用于禁言/封禁/解除（开发阶段默认放行；生产建议通过网络隔离/网关策略收敛暴露面）。
 package com.nowcoder.community.user.api.dto;
 
 import jakarta.validation.constraints.NotBlank;
@@ -27,4 +27,3 @@ public class InternalModerationApplyRequest {
         this.durationSeconds = durationSeconds;
     }
 }
-

@@ -3,7 +3,7 @@ package com.nowcoder.community.social.api.dto;
 /**
  * social-service 内部聚合只读响应：
  * - 面向 user-service 等“聚合展示”场景，避免同一页面 fan-out 多次调用；
- * - 仅在 internal 网络可达 + internal-token 保护下使用。
+ * - 开发阶段 internal 接口默认放行；生产建议通过网络隔离/网关策略收敛暴露面，并避免对外暴露 /internal/**。
  */
 public class InternalUserProfileStatsResponse {
 
@@ -58,4 +58,3 @@ public class InternalUserProfileStatsResponse {
         this.degraded = degraded;
     }
 }
-

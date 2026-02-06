@@ -15,7 +15,7 @@ import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT
 /**
  * social-service 内部 likes 扫描接口：供下游（content-service）回填 Redis 点赞投影使用。
  *
- * <p>安全：依赖 common 的 InternalTokenFilter，对 /internal/** 强制校验 X-Internal-Token。</p>
+ * <p>安全：开发阶段内部接口默认放行；生产建议通过网络隔离/网关策略收敛暴露面，并避免对外暴露 /internal/**。</p>
  */
 @RestController
 @RequestMapping("/internal/social/likes")
@@ -123,4 +123,3 @@ public class InternalLikeController {
         }
     }
 }
-

@@ -91,7 +91,7 @@ public class UserSecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS).permitAll()
-                        // 内部接口不走 JWT，依赖 X-Internal-Token 进行保护
+                        // 内部接口不走 JWT（开发阶段：默认放行；生产建议通过网络隔离/网关策略收敛暴露面）
                         .requestMatchers("/internal/users/**").permitAll()
                         // 头像公开资源（local provider）：允许匿名读取
                         .requestMatchers(HttpMethod.GET, "/files/**").permitAll()

@@ -6,7 +6,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class AnalyticsCollectProperties {
 
     private boolean enabled = false;
-    private String internalToken;
 
     /**
      * 采集请求超时（毫秒）。默认较小，避免影响主请求链路。
@@ -54,14 +53,6 @@ public class AnalyticsCollectProperties {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
-    }
-
-    public String getInternalToken() {
-        return internalToken;
-    }
-
-    public void setInternalToken(String internalToken) {
-        this.internalToken = internalToken;
     }
 
     public int getTimeoutMs() {

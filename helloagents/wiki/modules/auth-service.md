@@ -60,7 +60,7 @@
 - **refresh cookie**：默认 `SameSite=Lax`、`Path=/api/auth`；生产环境建议启用 `Secure=true` 并按部署形态评估 `SameSite` 策略。
 - **refresh token 存储**：通过 `auth.refresh.store=redis|memory` 切换（默认 memory，生产建议 redis）。
 - **登出语义**：登出会按 refresh token 的 `familyId` 做“家族级”失效，避免同一会话族残留 token。
-- **user-service internal token**：`auth.user-client.internal-token` 必须与 `user-service` 的 `user.internal-token` 匹配（header：`X-Internal-Token`）。推荐按服务 token（`USER_INTERNAL_TOKEN`），避免全局 `INTERNAL_TOKEN` 兜底扩大爆炸半径。
+- **user-service internal 调用**：auth-service 会调用 user-service 的 `/internal/**` 完成登录/刷新/注册等链路（开发阶段 internal 接口默认放行；生产建议通过网络隔离/网关策略收敛暴露面）。
 - **验证码（captchaId）**：
   - `GET /api/auth/captcha` 返回 `{ captchaId, imageBase64, ttlSeconds }`，验证码与失败计数在服务端存储（Redis/memory）。
   - 校验成功一次性失效；失败达到阈值作废并要求重新获取（默认失败 3 次）。

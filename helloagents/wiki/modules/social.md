@@ -54,7 +54,7 @@
 - `DELETE /api/blocks?userId=`（解除拉黑）
 - `GET /api/blocks`（我的拉黑列表）
 - `GET /api/blocks/status?userId=`（查询是否已拉黑）
-- internal（仅服务间调用，要求 `X-Internal-Token`）：
+- internal（仅服务间调用；开发阶段默认放行）：
   - `GET /internal/social/blocks/relation?userIdA=&userIdB=`
   - `GET /internal/social/likes/scan?entityType=&afterEntityId=&afterUserId=&limit=`（供 content-service 回填 Redis 点赞投影）
   - internal read（供聚合展示，避免跨服务透传 Authorization）：
@@ -88,5 +88,5 @@
 - 2026-01-28：固化 DB 为默认 SSOT（避免 Redis-only 误启用）；补齐 internal read API；Outbox 默认开启（部署侧）。
 - 2026-02-01：新增 `LikeRemoved` 事件并发布；点赞写路径改为服务端 resolve entity 元信息（禁止客户端注入、校验存在性）；新增 internal likes scan 供下游回填投影；follow 写路径收敛仅支持 USER；补齐 MyBatis `mapper-locations`/`map-underscore-to-camel-case` 以确保 outbox XML mapper 生效。
 - 2026-02-02：新增 internal 用户主页聚合 read API（profile-stats），供 user-service 单次调用获取获赞/关注/粉丝/关注状态，降低 fan-out。
-- 2026-02-03：Outbox 认领升级支持 `FOR UPDATE SKIP LOCKED`（可配置回退），降低多实例 relay 并发时的锁等待与头阻塞风险；outbox 运维入口继续受 ops-guard（break-glass）保护。
+- 2026-02-03：Outbox 认领升级支持 `FOR UPDATE SKIP LOCKED`（可配置回退），降低多实例 relay 并发时的锁等待与头阻塞风险；outbox 运维入口保留（开发阶段默认放行）。
 - 2026-02-04：补齐反骚扰语义一致性：点赞/关注在“创建关系”场景增加拉黑校验（403），避免拉黑后仍产生互动与通知副作用。

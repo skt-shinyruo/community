@@ -1,7 +1,6 @@
 package com.nowcoder.community.common.autoconfig;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.internal.InternalTokenFilter;
 import com.nowcoder.community.common.web.AuditLogFilter;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
@@ -11,7 +10,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
-import org.springframework.core.env.Environment;
 import org.springframework.beans.factory.annotation.Value;
 
 /**
@@ -34,12 +32,6 @@ public class ServletOnlyAutoConfiguration {
     @ConditionalOnMissingBean
     public AuditLogFilter auditLogFilter(@Value("${spring.application.name:unknown}") String serviceName) {
         return new AuditLogFilter(serviceName);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public InternalTokenFilter internalTokenFilter(Environment environment, ObjectMapper objectMapper) {
-        return new InternalTokenFilter(environment, objectMapper);
     }
 
     @Bean

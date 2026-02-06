@@ -41,7 +41,7 @@
 
 ## 4. 本地运行（示例）
 - 需要设置 `GATEWAY_JWT_HMAC_SECRET`（>=32 字节）并确保与 `AUTH_JWT_HMAC_SECRET` 一致。
-- 若启用统计采集（`analytics.collect.enabled=true`），需要配置 `ANALYTICS_INTERNAL_TOKEN`，用于 gateway 调用 analytics-service 的 `/internal/**` 写入口。
+- 若启用统计采集（`analytics.collect.enabled=true`），gateway 会调用 analytics-service 的 `/internal/**` 写入口（开发阶段不再要求 internal token 鉴权）。
   - 去重/降噪参数：`analytics.collect.dedup-enabled`、`analytics.collect.uv-cache-max-size`、`analytics.collect.dau-cache-max-size`、`analytics.collect.dedup-ttl-seconds`（网关单实例内生效）。
   - 隔离/背压参数：`analytics.collect.queue-capacity`（有界队列）、`analytics.collect.max-concurrency`（worker 并发）、`analytics.collect.timeout-ms`（采集超时）。
   - Runbook：`helloagents/wiki/runbooks/gateway-analytics-collect.md`
@@ -64,6 +64,7 @@
 - traceId 注入仅由 `TraceIdWebFilter` 负责，避免 WebFilter/GlobalFilter 重复导致的维护成本与潜在覆盖困惑。
 - 审计日志：gateway 记录非 GET 的 `/api/**` 操作（跳过 `/api/auth/login`），包含 `status/costMs/userId/traceId`，用于 Loki/日志系统检索。
 - 权限矩阵：治理后台接口 `/api/moderation/**` 仅允许 `ROLE_ADMIN/ROLE_MODERATOR`（其余用户返回 403）。
+- 帖子接口：仅开放读接口（`GET /api/posts`、`GET /api/posts/{postId}`、`GET /api/posts/{postId}/comments`、`GET /api/posts/{postId}/comments/{commentId}/replies`）；敏感管理操作（`POST /api/posts/{postId}/top|wonderful|delete`）要求 `ROLE_ADMIN/ROLE_MODERATOR`。为避免 matcher 顺序/通配导致误放行，网关侧对公开路径使用显式清单而非 `/api/posts/**`。
 - 文件访问：`GET /files/**` 允许匿名访问，但仅用于公开头像资源（下游 user-service 仍会做前缀与路径校验）。
 - UV/DAU 采集链路：网关侧仅做“有界降噪”（TTL + 最大容量），最终以 analytics-service Redis 去重/聚合为准；网关调用 analytics-service 时会透传 `X-Trace-Id/traceparent` 便于排障。
 - UV/DAU 采集链路（隔离版）：filter 仅采集字段并投递到有界队列；异步 worker 执行 WebClient 调用；队列满允许丢弃并通过指标观测（`gateway_analytics_collect_total{metric,outcome}` + `gateway_analytics_collect_latency{metric}`）。

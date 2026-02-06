@@ -20,7 +20,7 @@ import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT
 /**
  * content-service internal entity resolve：用于让下游服务在写路径构造可信 payload（禁止信任客户端注入）。
  *
- * <p>安全：依赖 common/InternalTokenFilter，对 /internal/** 强制校验 X-Internal-Token。</p>
+ * <p>安全：开发阶段内部接口默认放行；生产建议通过网络隔离/网关策略收敛暴露面，并避免对外暴露 /internal/**。</p>
  */
 @RestController
 @RequestMapping("/internal/content/entities")

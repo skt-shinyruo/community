@@ -171,7 +171,7 @@
 - `FolloweesView.vue` / `FollowersView.vue`：关注/粉丝列表（分页 + 用户摘要 + 关注状态）。
 - `ConversationsView.vue` / `ConversationDetailView.vue`：私信会话与详情（分页 + 已读）。
 - `NoticesView.vue` / `NoticeDetailView.vue`：通知汇总与详情（分页 + 已读）。
-- `SearchView.vue`：搜索与高亮；支持分类/标签过滤（`/api/search/posts?keyword&categoryId&tag`）；提示“搜索索引最终一致，可能延迟”；管理员重建索引支持输入 `X-Ops-Token`（`POST /api/ops/search/reindex`）。
+- `SearchView.vue`：搜索与高亮；支持分类/标签过滤（`/api/search/posts?keyword&categoryId&tag`）；提示“搜索索引最终一致，可能延迟”；管理员可触发重建索引（`POST /api/ops/search/reindex`）。
 - `AnalyticsView.vue`：UV/DAU 查询（管理员/版主）。
 - `SettingsView.vue`：头像上传（local/qiniu）与回写。
 - `OpsConsoleView.vue`：运维控制台（仅管理员）：集中高风险动作并提供配置引导。

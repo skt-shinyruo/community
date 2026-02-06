@@ -27,7 +27,7 @@ import java.util.function.Supplier;
 /**
  * user-service -> social-service 聚合展示客户端：
  * - 仅用于用户主页等读路径的“计数/状态”聚合；
- * - 通过 internal-token 调用 social-service internal read API，避免跨服务透传 Authorization。
+ * - 调用 social-service internal read API，避免跨服务透传 Authorization（降低鉴权耦合）。
  */
 @Service
 public class SocialServiceClient {

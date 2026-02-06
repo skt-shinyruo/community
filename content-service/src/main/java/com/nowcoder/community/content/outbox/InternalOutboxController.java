@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Outbox 运维接口（internal-token 保护由 common 的 InternalTokenFilter 统一兜底）。
+ * Outbox 运维接口（开发阶段默认不做 internal token 校验；生产建议通过网络隔离/网关策略收敛暴露面）。
  */
 @RestController
 @RequestMapping("/internal/content/outbox")
@@ -75,4 +75,3 @@ public class InternalOutboxController {
         }
     }
 }
-

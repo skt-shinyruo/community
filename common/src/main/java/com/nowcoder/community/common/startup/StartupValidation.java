@@ -36,10 +36,9 @@ public class StartupValidation {
         // 1.5) trusted-proxy（可选）：启用后必须配置 CIDR allowlist，避免信任 XFF 造成伪造风险。
         validateTrustedProxy(environment, errors);
 
-        // 2) internal-token：按服务校验（最小权限 / 防旁路）
+        // 2) 服务特有的 prod 约束（避免 silent fallback/危险开关误配上线）
         switch (appName) {
             case "auth-service" -> {
-                requireNonBlank(environment, errors, "auth.user-client.internal-token", "设置环境变量 USER_INTERNAL_TOKEN（用于 auth -> user internal 调用）");
                 requireTrue(environment, errors, "security.jwt.refresh-cookie-secure", "生产环境必须 Secure=true（HTTPS），请设置 AUTH_REFRESH_COOKIE_SECURE=true");
                 requireOneOf(environment, errors, "security.jwt.refresh-cookie-same-site", List.of("Lax", "Strict", "None"), "请设置 AUTH_REFRESH_COOKIE_SAME_SITE（Lax/Strict/None）");
                 requireNonBlank(environment, errors, "auth.registration.activation-base-url", "设置环境变量 AUTH_ACTIVATION_BASE_URL（指向公网可访问入口，例如 https://community.example.com）");
@@ -53,44 +52,10 @@ public class StartupValidation {
                     errors.add("配置不安全：auth.captcha.fixed-code 已设置（生产环境禁止固定验证码，请删除该配置或仅在 dev profile 使用）");
                 }
             }
-            case "user-service" -> {
-                requireNonBlank(environment, errors, "user.internal-token", "设置环境变量 USER_INTERNAL_TOKEN（用于 /internal/users/**）");
-                requireNonBlank(environment, errors, "user.social-client.internal-token", "设置环境变量 SOCIAL_INTERNAL_TOKEN（用于 user -> social internal 调用）");
-            }
-            case "content-service" -> {
-                requireNonBlank(environment, errors, "content.internal-token", "设置环境变量 CONTENT_INTERNAL_TOKEN（用于 /internal/content/**）");
-                requireNonBlank(environment, errors, "clients.user.internal-token", "设置环境变量 USER_INTERNAL_TOKEN（用于 content -> user internal 调用）");
-                requireNonBlank(environment, errors, "clients.social.internal-token", "设置环境变量 SOCIAL_INTERNAL_TOKEN（用于 content -> social internal 调用）");
-            }
-            case "search-service" -> {
-                requireNonBlank(environment, errors, "search.internal-token", "设置环境变量 SEARCH_INTERNAL_TOKEN（用于 /internal/search/**）");
-                requireNonBlank(environment, errors, "search.content-client.internal-token", "设置环境变量 CONTENT_INTERNAL_TOKEN（用于 search -> content internal 拉取数据）");
-            }
-            case "social-service" -> requireNonBlank(environment, errors, "social.internal-token", "设置环境变量 SOCIAL_INTERNAL_TOKEN（用于 /internal/social/**）");
-            case "analytics-service" -> requireNonBlank(environment, errors, "analytics.internal-token", "设置环境变量 ANALYTICS_INTERNAL_TOKEN（用于 /internal/analytics/**）");
-            case "message-service" -> {
-                requireNonBlank(environment, errors, "clients.user.internal-token", "设置环境变量 USER_INTERNAL_TOKEN（用于 message -> user internal 调用）");
-                requireNonBlank(environment, errors, "clients.social.internal-token", "设置环境变量 SOCIAL_INTERNAL_TOKEN（用于 message -> social internal 调用）");
-            }
-            case "gateway" -> {
-                // 网关作为“运维入口”，需要持有下游 internal-token。
-                boolean legacyReindexBlocked = isPathBlocked(environment, "/api/search/internal/reindex");
-                boolean opsReindexBlocked = isPathBlocked(environment, "/api/ops/search/reindex");
-                if (!legacyReindexBlocked || !opsReindexBlocked) {
-                    requireNonBlank(environment, errors, "SEARCH_INTERNAL_TOKEN", "设置环境变量 SEARCH_INTERNAL_TOKEN（用于 gateway -> search /internal/search/reindex）");
-                }
-                boolean analyticsEnabled = environment.getProperty("analytics.collect.enabled", Boolean.class, Boolean.TRUE);
-                if (analyticsEnabled) {
-                    requireNonBlank(environment, errors, "analytics.collect.internal-token", "设置环境变量 ANALYTICS_INTERNAL_TOKEN（用于 gateway -> analytics internal 采集）");
-                }
-            }
             default -> {
                 // 其他模块：只做通用校验，避免误伤未知服务
             }
         }
-
-        // internal/ops break-glass：开启时必须具备 token + allowlist + Redis（否则会变成 403/不可运维或误放行风险）
-        validateOpsGuard(environment, appName, errors);
 
         if (!errors.isEmpty()) {
             StringBuilder sb = new StringBuilder();
@@ -108,113 +73,12 @@ public class StartupValidation {
         }
     }
 
-    private void validateOpsGuard(Environment environment, String appName, List<String> errors) {
-        if (environment == null) {
-            return;
-        }
-        boolean outboxReplayEnabled = environment.getProperty("ops.guard.outbox-replay.enabled", Boolean.class, Boolean.FALSE);
-        if (outboxReplayEnabled) {
-            requireNonBlank(environment, errors, "ops.guard.outbox-replay.allowlist", "设置 OPS_OUTBOX_REPLAY_ALLOWLIST（IP/CIDR 逗号分隔）");
-            requireRedisConfigured(environment, errors, "OPS_OUTBOX_REPLAY_ENABLED=true 需要配置 spring.data.redis.*（用于 ops single-flight/限流）");
-
-            // 仅对实际暴露 outbox ops 的服务强校验 token（避免误伤未提供该运维入口的服务）。
-            switch (appName) {
-                case "content-service" -> requireAnyNonBlank(
-                        environment,
-                        errors,
-                        List.of("ops.content.token", "ops.content.token-previous"),
-                        "设置 OPS_CONTENT_TOKEN（X-Ops-Token，用于 /internal/content/outbox/replay）"
-                );
-                case "social-service" -> requireAnyNonBlank(
-                        environment,
-                        errors,
-                        List.of("ops.social.token", "ops.social.token-previous"),
-                        "设置 OPS_SOCIAL_TOKEN（X-Ops-Token，用于 /internal/social/outbox/replay）"
-                );
-                case "user-service" -> requireAnyNonBlank(
-                        environment,
-                        errors,
-                        List.of("ops.users.token", "ops.users.token-previous", "ops.user.token", "ops.user.token-previous"),
-                        "设置 OPS_USERS_TOKEN（X-Ops-Token，用于 /internal/users/outbox/replay）"
-                );
-                default -> {
-                    // ignore
-                }
-            }
-        }
-
-        boolean searchReindexEnabled = environment.getProperty("ops.guard.search-reindex.enabled", Boolean.class, Boolean.FALSE);
-        if (searchReindexEnabled) {
-            requireNonBlank(environment, errors, "ops.guard.search-reindex.allowlist", "设置 OPS_SEARCH_REINDEX_ALLOWLIST（IP/CIDR 逗号分隔）");
-            requireRedisConfigured(environment, errors, "OPS_SEARCH_REINDEX_ENABLED=true 需要配置 spring.data.redis.*（用于 ops single-flight/限流）");
-
-            if ("search-service".equals(appName)) {
-                requireAnyNonBlank(
-                        environment,
-                        errors,
-                        List.of("ops.search.token", "ops.search.token-previous"),
-                        "设置 OPS_SEARCH_TOKEN（X-Ops-Token，用于 /internal/search/reindex）"
-                );
-            }
-        }
-    }
-
-    private void requireAnyNonBlank(Environment env, List<String> errors, List<String> keys, String hint) {
-        if (env == null || keys == null || keys.isEmpty()) {
-            return;
-        }
-        for (String key : keys) {
-            String v = getTrimmed(env, key);
-            if (StringUtils.hasText(v)) {
-                return;
-            }
-        }
-        errors.add("缺失配置：" + keys + "（" + hint + "）");
-    }
-
-    private void requireRedisConfigured(Environment env, List<String> errors, String hint) {
-        if (env == null) {
-            return;
-        }
-        String host = getTrimmed(env, "spring.data.redis.host");
-        String port = getTrimmed(env, "spring.data.redis.port");
-        if (!StringUtils.hasText(host) || !StringUtils.hasText(port)) {
-            errors.add("缺失配置：spring.data.redis.host/port（" + hint + "）");
-        }
-    }
-
     private boolean isProd(Environment environment) {
         if (environment == null) {
             return false;
         }
         for (String p : environment.getActiveProfiles()) {
             if ("prod".equalsIgnoreCase(p) || "production".equalsIgnoreCase(p)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean isPathBlocked(Environment environment, String path) {
-        if (environment == null || !StringUtils.hasText(path)) {
-            return false;
-        }
-        // 1) 标准 YAML list：gateway.rate-limit.blocked-path-patterns[0..N]
-        for (int i = 0; i < 32; i++) {
-            String v = getTrimmed(environment, "gateway.rate-limit.blocked-path-patterns[" + i + "]");
-            if (path.equals(v)) {
-                return true;
-            }
-        }
-
-        // 2) 兼容：单行逗号分隔（便于 Nacos 临时覆盖）
-        String configured = getTrimmed(environment, "gateway.rate-limit.blocked-path-patterns");
-        if (!StringUtils.hasText(configured)) {
-            return false;
-        }
-        String normalized = configured.replace("[", "").replace("]", "");
-        for (String item : normalized.split(",")) {
-            if (path.equals(item.trim())) {
                 return true;
             }
         }

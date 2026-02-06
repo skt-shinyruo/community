@@ -24,7 +24,7 @@ import java.util.List;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.common.api.CommonErrorCode.SERVICE_UNAVAILABLE;
 
-// user-service 内部治理接口客户端：用于禁言/封禁与状态查询（通过 X-Internal-Token 保护）。
+// user-service 内部治理接口客户端：用于禁言/封禁与状态查询（开发阶段默认放行；生产建议通过网络隔离/网关策略收敛暴露面）。
 
 @Service
 public class UserModerationClient {
@@ -143,9 +143,6 @@ public class UserModerationClient {
         }
         if (!StringUtils.hasText(baseUrl)) {
             throw new BusinessException(INVALID_ARGUMENT, "user-service base-url 未配置");
-        }
-        if (!StringUtils.hasText(opsInternalToken)) {
-            throw new BusinessException(INVALID_ARGUMENT, "user-service ops-internal-token 未配置");
         }
         int seconds = Math.max(0, durationSeconds);
 

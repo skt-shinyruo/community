@@ -18,23 +18,21 @@ class InternalAnalyticsControllerContractTest {
     private MockMvc mockMvc;
 
     @Test
-    void internalAnalyticsShouldRequireInternalToken() throws Exception {
+    void internalAnalyticsShouldAllowWithoutInternalToken() throws Exception {
         mockMvc.perform(post("/internal/analytics/uv/record")
                         .param("ip", "1.1.1.1")
                         .param("date", "2026-01-01"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value(403))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.traceId").exists());
     }
 
     @Test
-    void internalAnalyticsShouldReturn400OnMissingParamWithToken() throws Exception {
+    void internalAnalyticsShouldReturn400OnMissingParam() throws Exception {
         mockMvc.perform(post("/internal/analytics/uv/record")
-                        .header("X-Internal-Token", "test-internal")
                         .param("date", "2026-01-01"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
                 .andExpect(jsonPath("$.traceId").exists());
     }
 }
-

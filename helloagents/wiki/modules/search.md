@@ -41,10 +41,10 @@
 
 ## API Interfaces（现状）
 - `GET /api/search/posts?keyword=xxx&categoryId=&tag=`（支持 taxonomy 过滤；返回 `categoryId/tags[]` 供前端展示/二次筛选）
-- `POST /api/ops/search/reindex`（仅管理员；高风险运维入口，通常需要额外 `X-Ops-Token` + allowlist 才允许执行）
+- `POST /api/ops/search/reindex`（仅管理员；高风险运维入口，建议配合限流/审计使用）
   - Response: `{ jobId, indexedCount }`
-- `POST /api/search/internal/reindex`（历史兼容入口：弃用中，默认禁用；gateway 返回 410 并提示迁移到 `/api/ops/search/reindex`）
-- `POST /internal/search/reindex`（服务内部入口：需要 `X-Internal-Token`）
+- `POST /api/search/internal/reindex`（历史兼容入口：弃用中，默认禁用；gateway 通过 blocked-path-patterns 关闭，按 404 拒绝并提示迁移到 `/api/ops/search/reindex`）
+- `POST /internal/search/reindex`（服务内部入口：开发阶段默认放行）
 
 ## Configuration Notes
 - `search.storage=es|memory`

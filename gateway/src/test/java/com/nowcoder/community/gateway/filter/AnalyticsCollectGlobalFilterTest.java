@@ -33,7 +33,6 @@ class AnalyticsCollectGlobalFilterTest {
     void shouldDedupUvWithinSameGatewayInstance() {
         AnalyticsCollectProperties props = new AnalyticsCollectProperties();
         props.setEnabled(true);
-        props.setInternalToken("t");
         props.setTimeoutMs(500);
         props.setMaxConcurrency(10);
         props.setQueueCapacity(10_000);
@@ -66,7 +65,6 @@ class AnalyticsCollectGlobalFilterTest {
     void shouldSkipDauWhenJwtSubjectNotNumeric() throws Exception {
         AnalyticsCollectProperties props = new AnalyticsCollectProperties();
         props.setEnabled(true);
-        props.setInternalToken("t");
         props.setTimeoutMs(500);
         props.setMaxConcurrency(10);
         props.setQueueCapacity(10_000);

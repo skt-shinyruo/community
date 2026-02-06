@@ -60,7 +60,7 @@
 - admin（仅管理员，JWT ROLE_ADMIN）：
   - `GET /api/users/admin/search?userId=&username=&email=`（搜索用户）
   - `POST /api/users/admin/role`（修改用户 type：USER/ADMIN/MODERATOR，要求 reason+confirm）
-- internal（仅服务间调用，要求 `X-Internal-Token`，不走 JWT）：
+- internal（仅服务间调用，不走 JWT；开发阶段默认放行）：
   - `POST /internal/users/authenticate`
   - `GET /internal/users/{userId}/session-profile`
   - `POST /internal/users/register`
@@ -69,7 +69,7 @@
   - `POST /internal/users/{userId}/password`
   - `GET /internal/users/{userId}/moderation-status`
   - `POST /internal/users/{userId}/moderation`
-  - outbox 运维（默认 break-glass 关闭；受 ops-guard 强保护）：
+  - outbox 运维（开发阶段默认放行；生产建议通过网络隔离/网关策略收敛暴露面）：
     - `GET /internal/users/outbox/health`
     - `POST /internal/users/outbox/replay?limit=200`
 
@@ -93,4 +93,4 @@
 - 2026-01-23：新增成长体系（积分/等级/榜单）与治理落地字段（禁言/封禁），并补齐 internal moderation API 供 content-service 调用。
 - 2026-02-01：积分链路支持 `LikeRemoved` 触发回退，并对 `user.score` 做非负保护（防刷分与边界值安全）。
 - 2026-02-02：用户主页聚合改为单次调用 social-service internal 聚合接口（profile-stats），并在响应中提供 `socialDegraded`，避免把下游故障伪装为 0。
-- 2026-02-03：Outbox 认领升级支持 `FOR UPDATE SKIP LOCKED`（可配置回退），降低多实例 relay 并发时的锁等待与头阻塞风险；补齐 outbox 运维入口 `/internal/users/outbox/health|replay` 并纳入 ops-guard（break-glass）统一保护。
+- 2026-02-03：Outbox 认领升级支持 `FOR UPDATE SKIP LOCKED`（可配置回退），降低多实例 relay 并发时的锁等待与头阻塞风险；补齐 outbox 运维入口 `/internal/users/outbox/health|replay`（开发阶段默认放行）。

@@ -32,13 +32,12 @@ public final class InternalClientSupport {
     }
 
     public static HttpHeaders jsonHeaders(String internalToken, String serviceName) {
-        if (!StringUtils.hasText(internalToken)) {
-            throw new BusinessException(CommonErrorCode.FORBIDDEN, serviceName + " internal-token 未配置");
-        }
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(MediaType.parseMediaTypes(MediaType.APPLICATION_JSON_VALUE));
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set(HEADER_INTERNAL_TOKEN, internalToken);
+        if (StringUtils.hasText(internalToken)) {
+            headers.set(HEADER_INTERNAL_TOKEN, internalToken.trim());
+        }
         return headers;
     }
 

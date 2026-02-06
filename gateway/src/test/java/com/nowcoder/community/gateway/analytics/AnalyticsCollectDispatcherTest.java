@@ -26,7 +26,6 @@ class AnalyticsCollectDispatcherTest {
 
         AnalyticsCollectProperties props = new AnalyticsCollectProperties();
         props.setEnabled(true);
-        props.setInternalToken("t");
         props.setTimeoutMs(1000);
         props.setMaxConcurrency(2);
         props.setQueueCapacity(10_000);
@@ -60,7 +59,6 @@ class AnalyticsCollectDispatcherTest {
 
         AnalyticsCollectProperties props = new AnalyticsCollectProperties();
         props.setEnabled(true);
-        props.setInternalToken("t");
         props.setTimeoutMs(60_000);
         props.setMaxConcurrency(1);
         props.setQueueCapacity(256);
@@ -82,4 +80,3 @@ class AnalyticsCollectDispatcherTest {
                 .count()).isGreaterThan(0.0);
     }
 }
-

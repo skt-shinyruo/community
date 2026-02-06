@@ -1,4 +1,4 @@
-// 内部拉黑关系查询：用于 content/message 写路径校验（依赖 X-Internal-Token）。
+// 内部拉黑关系查询：用于 content/message 写路径校验（开发阶段默认放行；生产建议通过网络隔离/网关策略收敛暴露面）。
 package com.nowcoder.community.social.block;
 
 import com.nowcoder.community.common.api.Result;

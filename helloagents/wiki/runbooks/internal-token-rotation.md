@@ -1,12 +1,14 @@
 # internal-token 轮转 Runbook
 
+> ⚠️ 已废弃：开发阶段已移除 `/internal/**` 的 header token 鉴权（不再校验 `X-Internal-Token`），本 runbook 仅保留为历史参考。
+
 ## 目标
-- 在不影响服务间 internal 调用的前提下轮转 `X-Internal-Token`。
-- 将风险控制在“单服务爆炸半径”内（按服务 token），避免全局 `INTERNAL_TOKEN` 带来的扩大影响。
+- （历史）在不影响服务间 internal 调用的前提下轮转 `X-Internal-Token`。
+- （历史）将风险控制在“单服务爆炸半径”内（按服务 token），避免全局 `INTERNAL_TOKEN` 带来的扩大影响。
 
 ## 背景与机制（SSOT=代码）
 - internal 接口统一以 `/internal/<segment>/**` 作为路径前缀。
-- `common` 模块的 `InternalTokenFilter` 会对 `/internal/**` 强制校验 `X-Internal-Token`。
+- （历史）`common` 模块曾通过 `InternalTokenFilter` 对 `/internal/**` 强制校验 `X-Internal-Token`；当前实现已移除该机制。
 - token 查找优先级（按 segment）：`<segment>.internal-token` → `<segment>.internal-token-previous` →（兼容 alias）→ `user.internal-token` / `user.internal-token-previous`（仅当 segment 为 `users`）。
 
 > 注意：当前 `InternalTokenFilter` **不再读取** `internal.token`（即使设置环境变量 `INTERNAL_TOKEN` 也不会被接受）。仍建议在生产环境逐步移除该全局 env，避免误解与错误配置扩散。

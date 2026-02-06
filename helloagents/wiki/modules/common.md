@@ -30,12 +30,9 @@
 - 全局异常：
   - `com.nowcoder.community.common.web.GlobalExceptionHandler`
   - `com.nowcoder.community.common.web.SecurityExceptionHandler`（仅在存在 Security 类时启用）
-- internal API 最小权限：
-  - `com.nowcoder.community.common.internal.InternalTokenFilter`：对 `/internal/**` 强制校验 `X-Internal-Token`（按 `/internal/{segment}` 映射到 `{segment}.internal-token`）
-  - 轮转窗口：支持 `{segment}.internal-token-previous`（current + previous 并存）
-- internal 运维入口强保护（break-glass）：
-  - `com.nowcoder.community.common.internal.InternalOpsGuardFilter`：对 `/internal/**` 中的高风险运维动作进行二次校验（`X-Ops-Token` + allowlist + 限流），默认关闭
-  - 当前覆盖：`/internal/*/outbox/replay`、`/internal/search/reindex`、`/internal/*/likes/backfill`
+- internal 接口说明（开发阶段）：
+  - 当前版本不再通过 header token 对 `/internal/**` 做鉴权（避免配置/演进漂移带来的两极风险）
+  - 生产建议通过网络隔离/网关拒绝策略收敛暴露面，并避免对外暴露 `/internal/**`
 - 多实例定时任务 single-flight（可选）：
   - `com.nowcoder.community.common.scheduler.SingleFlightTaskGuard`：基于 Redis 的分布式单飞锁（`SET NX` + TTL 获取，compare-and-del 释放），用于 cleanup/reconcile 等可重试任务避免“集群内重复跑”
   - 任务侧通过各自配置开关控制（如 `*.idempotency.cleanup-single-flight`、`*.projection.reconcile.single-flight`），未启用或 Redis 不可用时应按任务风险选择 skip 或继续执行
@@ -47,7 +44,7 @@
 - 事务工具：
   - `com.nowcoder.community.common.tx.AfterCommitExecutor`：在事务提交后执行非 DB 副作用（Kafka 发送、缓存刷新等），用于 P0 消除“幽灵事件”。
 - prod 启动期 fail-closed 校验：
-  - `com.nowcoder.community.common.startup.StartupValidation` + `StartupValidationAutoConfig`：在 `prod` profile 下校验关键配置（JWT/internal-token/trusted-proxy、internal ops guard 配置、auth dev-only 危险开关等），避免 silent fallback 与误配上线。
+  - `com.nowcoder.community.common.startup.StartupValidation` + `StartupValidationAutoConfig`：在 `prod` profile 下校验关键配置（JWT/trusted-proxy、auth dev-only 危险开关等），避免 silent fallback 与误配上线。
 - Kafka 消费辅助：
   - `com.nowcoder.community.common.kafka.KafkaTraceSupport`：消费端从 envelope 读取 `traceId` 注入 MDC，并在 finally 清理。
 - 事件 envelope 解析：
@@ -70,9 +67,9 @@
 - 生产代码“清零门禁”：`common/src/test/java/com/nowcoder/community/common/quality/ExceptionUsageGateTest.java` 扫描各模块 `src/main/java`，禁止 `catch(Exception)` 与（除 `*SecurityConfig.java` 外的）`throws Exception` 回潮。
 
 ### 3.1 internal client 约定（跨服务同步调用）
-- 建议优先调用 `/internal/**`（使用 `X-Internal-Token`），避免跨服务透传 Authorization 造成鉴权耦合。
+- 建议优先调用 `/internal/**`（避免跨服务透传 Authorization 造成鉴权耦合）。
 - `InternalClientSupport.unwrap` 会保留下游 `code/message/traceId`（通过 `SimpleErrorCode` + message 附带 traceId），便于排障与告警归因。
 - outcome 口径建议使用：`success` / `error` / `timeout` / `degraded` / `forbidden`（保持跨服务一致）。
 
 ### 3.2 internal-token 轮转
-- Runbook：`helloagents/wiki/runbooks/internal-token-rotation.md`
+- 说明：internal token 鉴权已在开发阶段移除，该 runbook 暂不适用。

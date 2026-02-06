@@ -76,9 +76,6 @@ public class UserServiceClientProperties {
 
     @PostConstruct
     public void validate() {
-        if (!StringUtils.hasText(internalToken)) {
-            throw new IllegalStateException("auth.user-client.internal-token 未配置（建议设置 env: INTERNAL_TOKEN 或 USER_INTERNAL_TOKEN）");
-        }
         if (!StringUtils.hasText(baseUrl)) {
             throw new IllegalStateException("auth.user-client.base-url 未配置");
         }

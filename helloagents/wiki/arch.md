@@ -167,7 +167,7 @@ sequenceDiagram
 - **反骚扰一致性（消除 fail-open）：** message/content 在“投影缺失”场景采用“投影优先 + SSOT 回源 + 回填”的策略，避免冷启动/漏消息窗口期绕过拉黑校验。
 - **事件契约可信（信任边界收口）：** social 写路径不再信任客户端注入的 `entityUserId/postId`，改为调用 content internal resolve 生成可信 payload，并校验 entity 存在性，避免脏关系与下游污染。
 - **unknown-handling 对齐：** search-service 等消费者统一采用 `EventEnvelopeParser` + `UnknownEventAction`，降低版本演进时的 DLQ 噪声与阻塞风险。
-- **internal 聚合收敛：** 跨服务聚合展示（例如 user-service 用户主页的获赞/关注/粉丝/是否关注）应优先走 `/internal/**` + `X-Internal-Token`，避免跨服务透传 Authorization 造成鉴权耦合。
+- **internal 聚合收敛：** 跨服务聚合展示（例如 user-service 用户主页的获赞/关注/粉丝/是否关注）应优先走 `/internal/**`，避免跨服务透传 Authorization 造成鉴权耦合。
 - **感知一致性（Perceived Consistency）：** 对“点赞/搜索”等对用户敏感的链路，在前端做短 TTL 覆盖与预期管理（read-your-writes + 最终一致提示），降低“写成功但读侧未更新”的可见不一致。
 - **幂等 TTL 可配置：** `IdempotencyGuard` 的 processing/success TTL 支持按环境配置，降低慢链路下锁过期的重复副作用风险；同时提供脚本示例帮助第三方正确传递 `Idempotency-Key`。
 - **配置护栏（doctor）：** 提供 `scripts/doctor.sh` 进行部署前自检（不输出敏感值），快速发现 internal-token/JWT/prod profile 等误配。

@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * content-service 内部接口（不走 JWT），通过 X-Internal-Token 做最小权限保护。
+ * content-service 内部接口（不走 JWT；开发阶段默认放行，生产建议通过网络隔离/网关策略收敛暴露面）。
  */
 @RestController
 @RequestMapping("/internal/content")

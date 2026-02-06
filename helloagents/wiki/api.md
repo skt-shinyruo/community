@@ -24,19 +24,19 @@
 - `/api/messages/**`、`/api/notices/**` → `message-service`
 - `/api/search/**` → `search-service`
 - `/api/analytics/**` → `analytics-service`
-- `/api/ops/**` → 运维入口（默认仅管理员可访问，且通常需要额外 `X-Ops-Token`；具体以网关路由与下游保护器为准）
+- `/api/ops/**` → 运维入口（默认仅管理员可访问；具体以网关路由与权限矩阵为准）
 
 ---
 
 ## 3. 内部接口（/internal/**）
 
-说明：内部接口仅用于服务间调用/运维操作，必须携带 `X-Internal-Token`。
-Token 通过环境变量或 Nacos 注入（见 `deploy/.env.example` 与 `deploy/nacos-config/*.yaml`）。
+说明：内部接口仅用于服务间调用/运维操作。
+开发阶段（当前实现）：内部接口默认不再要求 header token 鉴权；建议通过网络隔离/仅内网可达收敛暴露面，且避免在 gateway 中对外暴露 `/internal/**`。
 
 - **content-service**
   - `GET /internal/content/posts`：供 search-service 扫描帖子数据以完成 reindex（严格 schema 隔离下不允许跨库直读）。
   - `GET /internal/content/entities/resolve?entityType=&entityId=`：解析 POST/COMMENT 的 owner/postId（供 social 写路径构造可信事件 payload，禁止信任客户端注入）。
-  - `POST /internal/content/likes/backfill?entityType=&maxItems=&batchSize=`：回填 Redis 点赞投影（运维入口，默认关闭；受 `X-Internal-Token` + ops-guard + endpoint-enabled 共同保护）。
+  - `POST /internal/content/likes/backfill?entityType=&maxItems=&batchSize=`：回填 Redis 点赞投影（运维入口，默认关闭；需显式开启 `content.like.backfill.endpoint-enabled=true`）。
 - **social-service**
   - `GET /internal/social/blocks/relation?userIdA=&userIdB=`：查询 A/B 的拉黑关系（互斥私信等写路径校验）。
   - `GET /internal/social/likes/scan?entityType=&afterEntityId=&afterUserId=&limit=`：按游标扫描点赞关系（供 content-service 回填 Redis 点赞投影使用）。
@@ -44,13 +44,13 @@ Token 通过环境变量或 Nacos 注入（见 `deploy/.env.example` 与 `deploy
 - **user-service**
   - `GET /internal/users/{userId}/moderation-status`：查询用户禁言/封禁状态（content-service 写路径前置校验）。
   - `POST /internal/users/{userId}/moderation`：应用禁言/封禁（治理动作落地，供 content-service 治理动作转发调用）。
-  - outbox 运维（受 ops-guard 强保护，默认 break-glass 关闭）：
+  - outbox 运维（开发阶段默认放行；生产建议通过网络隔离/网关策略收敛暴露面）：
     - `GET /internal/users/outbox/health`
     - `POST /internal/users/outbox/replay?limit=200`
 - **search-service**
-  - `POST /internal/search/reindex`：重建索引内部入口（受 `X-Internal-Token` + ops-guard 强保护）。
+  - `POST /internal/search/reindex`：重建索引内部入口。
     - 对外运维入口（推荐）：`POST /api/ops/search/reindex`
-    - 历史兼容入口（弃用中，默认禁用）：`POST /api/search/internal/reindex`（gateway 返回 410 并提示迁移）
+    - 历史兼容入口（弃用中，默认禁用）：`POST /api/search/internal/reindex`（gateway 通过 blocked-path-patterns 关闭，按 404 拒绝并提示迁移）
 - **analytics-service**
   - `POST /internal/analytics/uv/record`
   - `POST /internal/analytics/dau/record`
@@ -100,6 +100,5 @@ Token 通过环境变量或 Nacos 注入（见 `deploy/.env.example` 与 `deploy
   - 网关域错误码：`common/src/main/java/com/nowcoder/community/common/api/GatewayErrorCode.java`
 - **安全：**
   - 对外接口统一走网关鉴权与 CORS。
-  - 内部接口使用 `X-Internal-Token` 做最小保护（生产可进一步升级为 mTLS/内网隔离）。
-  - 运维高风险入口额外使用 ops-guard（`X-Ops-Token` + allowlist + 限流，默认 break-glass 关闭），典型场景：`/internal/*/outbox/replay`、`/internal/*/likes/backfill`、`/internal/search/reindex`。
+  - 开发阶段 internal 接口默认放行；生产建议通过网络隔离/仅内网可达等方式收敛暴露面，并避免对外暴露 `/internal/**`。
   - 未认证（Authentication 缺失）统一返回 401（`UNAUTHORIZED`），避免把鉴权问题伪装成参数错误（400）。

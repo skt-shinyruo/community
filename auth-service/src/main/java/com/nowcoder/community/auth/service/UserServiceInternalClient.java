@@ -20,7 +20,6 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -128,9 +127,6 @@ public class UserServiceInternalClient {
 
     public void updatePassword(int userId, String newPassword) {
         call("updatePassword", () -> {
-            if (!StringUtils.hasText(properties.getOpsInternalToken())) {
-                throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "auth.user-client.ops-internal-token 未配置");
-            }
             UserInternalUpdatePasswordRequest req = new UserInternalUpdatePasswordRequest();
             req.setNewPassword(newPassword);
             String url = properties.getBaseUrl() + "/internal/users/" + userId + "/password";

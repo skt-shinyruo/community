@@ -27,26 +27,24 @@ spring:
           uri: lb://auth-service
           predicates:
             - Path=/api/auth/**
-        - id: search-ops-reindex
-          uri: lb://search-service
-          predicates:
-            - Method=POST
-            - Path=/api/ops/search/reindex
-          filters:
-            - SetPath=/internal/search/reindex
-            - AddRequestHeader=X-Internal-Token, ${SEARCH_INTERNAL_TOKEN:}
-            - AddRequestHeader=X-External-Path, /api/ops/search/reindex
-        - id: search-reindex
-          uri: lb://search-service
-          predicates:
-            - Method=POST
-            - Path=/api/search/internal/reindex
-          filters:
-            - SetPath=/internal/search/reindex
-            - AddRequestHeader=X-Internal-Token, ${SEARCH_INTERNAL_TOKEN:}
-            - AddRequestHeader=X-External-Path, /api/search/internal/reindex
-            # 对外 internal 命名属于历史遗留入口：保留短期兼容，但明确标记弃用。
-            - AddResponseHeader=Deprecation, true
+	        - id: search-ops-reindex
+	          uri: lb://search-service
+	          predicates:
+	            - Method=POST
+	            - Path=/api/ops/search/reindex
+	          filters:
+	            - SetPath=/internal/search/reindex
+	            - AddRequestHeader=X-External-Path, /api/ops/search/reindex
+	        - id: search-reindex
+	          uri: lb://search-service
+	          predicates:
+	            - Method=POST
+	            - Path=/api/search/internal/reindex
+	          filters:
+	            - SetPath=/internal/search/reindex
+	            - AddRequestHeader=X-External-Path, /api/search/internal/reindex
+	            # 对外 internal 命名属于历史遗留入口：保留短期兼容，但明确标记弃用。
+	            - AddResponseHeader=Deprecation, true
         - id: search-service
           uri: lb://search-service
           predicates:
@@ -108,14 +106,13 @@ community:
       username: ${METRICS_BASIC_AUTH_USERNAME:prometheus}
       password: ${METRICS_BASIC_AUTH_PASSWORD:dev-prometheus-pass}
 
-analytics:
-  collect:
-    enabled: true
-    internal-token: ${ANALYTICS_INTERNAL_TOKEN:}
-    timeout-ms: 300
-    max-concurrency: 50
-    # 网关侧 in-process 去重（有界 TTL 缓存）。注意：多实例不共享，最终以 analytics-service 侧 Redis 去重为准。
-    dedup-enabled: true
+	analytics:
+	  collect:
+	    enabled: true
+	    timeout-ms: 300
+	    max-concurrency: 50
+	    # 网关侧 in-process 去重（有界 TTL 缓存）。注意：多实例不共享，最终以 analytics-service 侧 Redis 去重为准。
+	    dedup-enabled: true
     uv-cache-max-size: 200000
     dau-cache-max-size: 200000
     dedup-ttl-seconds: 86400

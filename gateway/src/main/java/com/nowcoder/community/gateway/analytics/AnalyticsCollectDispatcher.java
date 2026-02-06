@@ -27,8 +27,6 @@ import java.util.concurrent.TimeoutException;
 @Component
 public class AnalyticsCollectDispatcher {
 
-    private static final String HEADER_INTERNAL_TOKEN = "X-Internal-Token";
-
     private static final String METRIC_TOTAL = "gateway_analytics_collect_total";
     private static final String METRIC_LATENCY = "gateway_analytics_collect_latency";
 
@@ -87,8 +85,7 @@ public class AnalyticsCollectDispatcher {
 
     private boolean isEnabled() {
         return properties != null
-                && properties.isEnabled()
-                && StringUtils.hasText(properties.getInternalToken());
+                && properties.isEnabled();
     }
 
     private void emit(Task task) {
@@ -128,7 +125,7 @@ public class AnalyticsCollectDispatcher {
             return null;
         }
         String metric = task.metric();
-        if (!StringUtils.hasText(metric) || !StringUtils.hasText(properties.getInternalToken())) {
+        if (!StringUtils.hasText(metric)) {
             return null;
         }
 
@@ -144,7 +141,6 @@ public class AnalyticsCollectDispatcher {
             }
             return webClient.post()
                     .uri("lb://analytics-service/internal/analytics/uv/record")
-                    .header(HEADER_INTERNAL_TOKEN, properties.getInternalToken())
                     .headers(h -> {
                         if (StringUtils.hasText(traceId)) {
                             h.set(TraceIdSupport.HEADER_TRACE_ID, traceId);
@@ -166,7 +162,6 @@ public class AnalyticsCollectDispatcher {
             }
             return webClient.post()
                     .uri("lb://analytics-service/internal/analytics/dau/record")
-                    .header(HEADER_INTERNAL_TOKEN, properties.getInternalToken())
                     .headers(h -> {
                         if (StringUtils.hasText(traceId)) {
                             h.set(TraceIdSupport.HEADER_TRACE_ID, traceId);

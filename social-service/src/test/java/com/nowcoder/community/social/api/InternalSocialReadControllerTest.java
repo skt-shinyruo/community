@@ -40,9 +40,11 @@ class InternalSocialReadControllerTest {
     ObjectMapper objectMapper;
 
     @Test
-    void internalProfileStatsShouldRequireInternalToken() throws Exception {
+    void internalProfileStatsShouldAllowWithoutInternalToken() throws Exception {
         mockMvc.perform(get("/internal/social/read/users/1/profile-stats"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.traceId").exists());
     }
 
     @Test
@@ -60,7 +62,6 @@ class InternalSocialReadControllerTest {
                 .andExpect(status().isOk());
 
         mockMvc.perform(get("/internal/social/read/users/2/profile-stats")
-                        .header("X-Internal-Token", "test-internal-token")
                         .param("viewerId", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.followerCount").value(1))
@@ -84,4 +85,3 @@ class InternalSocialReadControllerTest {
         return jwt.serialize();
     }
 }
-

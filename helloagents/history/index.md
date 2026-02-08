@@ -8,6 +8,7 @@
 
 | Timestamp | Feature Name | Type | Status | Solution Package Path |
 |-----------|--------------|------|--------|----------------------|
+| 202602072216 | gateway_webclient_resilience | Development Implementation | ✅Completed | [202602072216_gateway_webclient_resilience](2026-02/202602072216_gateway_webclient_resilience/) |
 | 202602061145 | exception_handling_convergence | Development Implementation | ✅Completed | [202602061145_exception_handling_convergence](2026-02/202602061145_exception_handling_convergence/) |
 | 202602061128 | test_layering_quickwin | Development Implementation | ✅Completed | [202602061128_test_layering_quickwin](2026-02/202602061128_test_layering_quickwin/) |
 | 202602041705 | fix_comment_reply_block_guard | Development Implementation | ✅Completed | [202602041705_fix_comment_reply_block_guard](2026-02/202602041705_fix_comment_reply_block_guard/) |
@@ -57,6 +58,7 @@
 ## Archive by Month
 
 ### 2026-02
+- [202602072216_gateway_webclient_resilience](2026-02/202602072216_gateway_webclient_resilience/) - 网关 WebClient 全局超时与连接池兜底：统一 connect/response/read/write timeout 与 pending acquire 上限，降低极端网络条件下资源耗尽风险
 - [202602061145_exception_handling_convergence](2026-02/202602061145_exception_handling_convergence/) - 异常处理语义收敛与分域错误码体系：统一错误协议（HTTP status + Result）与契约测试，并以门禁防止泛化 Exception 回潮
 - [202602061128_test_layering_quickwin](2026-02/202602061128_test_layering_quickwin/) - 测试分层 Quick win：下沉部分 Kafka consumer/outbox 测试为单元测试，降低 `@SpringBootTest` 占比并补齐落地约定
 - [202602041705_fix_comment_reply_block_guard](2026-02/202602041705_fix_comment_reply_block_guard/) - 修复评论回复跨帖/多层不一致，并补齐点赞/关注的拉黑约束（创建关系 403）

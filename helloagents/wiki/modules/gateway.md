@@ -15,6 +15,7 @@
 - traceId：`gateway/src/main/java/com/nowcoder/community/gateway/filter/TraceIdWebFilter.java`、`gateway/src/main/java/com/nowcoder/community/gateway/filter/TraceIdSupport.java`（单一注入点）
 - 安全异常响应：`gateway/src/main/java/com/nowcoder/community/gateway/config/ReactiveSecurityExceptionHandler.java`
 - 网关全局异常收敛：`gateway/src/main/java/com/nowcoder/community/gateway/config/GatewayErrorWebExceptionHandler.java`（非 401/403 的统一错误协议）
+- WebClient 兜底配置：`gateway/src/main/java/com/nowcoder/community/gateway/config/GatewayWebClientConfig.java`、`gateway/src/main/java/com/nowcoder/community/gateway/config/GatewayWebClientProperties.java`（`gateway.webclient.*`）
 - 可信代理配置：`gateway/src/main/java/com/nowcoder/community/gateway/config/TrustedProxyProperties.java`（`gateway.trusted-proxy.*`）
 - 客户端 IP 解析：`gateway/src/main/java/com/nowcoder/community/gateway/filter/ClientIpResolver.java`
 - 反代/HTTPS offload 同源解析：`gateway/src/main/java/com/nowcoder/community/gateway/filter/ForwardedOriginResolver.java`（仅在可信代理 CIDR 命中时解析 `Forwarded/X-Forwarded-*`）
@@ -68,6 +69,7 @@
 - 文件访问：`GET /files/**` 允许匿名访问，但仅用于公开头像资源（下游 user-service 仍会做前缀与路径校验）。
 - UV/DAU 采集链路：网关侧仅做“有界降噪”（TTL + 最大容量），最终以 analytics-service Redis 去重/聚合为准；网关调用 analytics-service 时会透传 `X-Trace-Id/traceparent` 便于排障。
 - UV/DAU 采集链路（隔离版）：filter 仅采集字段并投递到有界队列；异步 worker 执行 WebClient 调用；队列满允许丢弃并通过指标观测（`gateway_analytics_collect_total{metric,outcome}` + `gateway_analytics_collect_latency{metric}`）。
+- WebClient 全局兜底：网关通过 `gateway.webclient.*` 提供出站调用的统一超时与连接池上限（含 pending acquire 限制），用于覆盖“新增链路忘配 timeout”并在极端网络条件下保护网关不被连接堆积拖垮。
 - OriginGuard：同源判定会在“可信代理 CIDR 命中”时基于 `Forwarded/X-Forwarded-*` 计算 effective scheme/host/port（反代/HTTPS offload 兼容）；非可信来源忽略 forwarded 头，避免伪造绕过 allowlist。
 
 ## 6. 常见问题排查

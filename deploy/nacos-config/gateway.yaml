@@ -31,11 +31,24 @@ security:
 analytics:
   collect:
     enabled: true
-    internal-token: ${ANALYTICS_INTERNAL_TOKEN}
     timeout-ms: 300
     max-concurrency: 50
 
 gateway:
+  webclient:
+    # 出站调用兜底：避免下游网络异常导致请求悬挂与连接堆积拖垮网关。
+    connect-timeout-ms: 1000
+    response-timeout-ms: 2000
+    read-timeout-ms: 2000
+    write-timeout-ms: 2000
+    pool:
+      max-connections: 500
+      pending-acquire-timeout-ms: 2000
+      pending-acquire-max-count: 2000
+      max-idle-time-seconds: 60
+      max-life-time-seconds: 300
+      evict-in-background-seconds: 60
+      metrics-enabled: true
   trusted-proxy:
     # 生产/演练建议：仅在可信代理链路中信任 XFF（remoteAddr ∈ CIDR 才解析 X-Forwarded-For）。
     # 若你的 ingress/gateway 使用公网 IP 直连，请按实际网段收敛 cidrs。

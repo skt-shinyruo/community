@@ -45,8 +45,9 @@
 - search-service：reindex single-flight 冲突与存储不可用场景收敛到 `SearchErrorCode`（15003/15002），避免 `SimpleErrorCode(409)` 导致语义丢失。
 - content-service：分类/评论/帖子不存在场景收敛到 `ContentErrorCode`（12003/12002/12001），并补齐测试依赖 `spring-security-test` 以支撑契约测试编译。
 - runbooks：新增内容渲染迁移与网关采集排障手册（`helloagents/wiki/runbooks/content-rendering-migration.md`、`helloagents/wiki/runbooks/gateway-analytics-collect.md`）。
-- user-service：补齐 outbox 运维入口 `/internal/users/outbox/health|replay`，与 content/social 对齐；默认受 internal-token + ops-guard（break-glass）保护。
+- user-service：补齐 outbox 运维入口 `/internal/users/outbox/health|replay`，与 content/social 对齐；开发阶段已移除 internal token 鉴权，建议仅在私网调用。
 - search-service：reindex single-flight 锁增加续租/心跳（owner=jobId + 原子 renew + owner 校验释放），避免长任务锁过期导致并发重建压垮 ES/下游。
+- gateway：为出站 WebClient 增加统一的连接/响应/读写超时与连接池上限（含 pending acquire 限制，配置键 `gateway.webclient.*`），降低极端网络条件下资源耗尽风险。
 - docs：新增 `docs/DEV_ONLY.md`，集中说明默认演示账号/固定验证码等 dev-only 便捷能力，并在根 README 做生产禁用提示。
 - common：新增 `SingleFlightTaskGuard`（基于 Redis 的分布式 single-flight），用于 @Scheduled cleanup/reconcile 在多实例部署下避免重复执行。
 - scripts：新增 `scripts/mysql-migrate-ops-harden-schema.sql`（三库预检 + 去重指导 + 条件 DDL），用于 Outbox/幂等表的唯一约束与关键索引对齐。

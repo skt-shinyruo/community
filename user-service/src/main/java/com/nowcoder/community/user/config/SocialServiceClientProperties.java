@@ -30,13 +30,6 @@ public class SocialServiceClientProperties {
     private Duration readTimeout = Duration.ofMillis(800);
 
     /**
-     * social-service internal API 访问令牌（X-Internal-Token）。
-     *
-     * <p>说明：该 token 属于“目标服务（social-service）”，用于调用 /internal/social/**。</p>
-     */
-    private String internalToken = "";
-
-    /**
      * 是否允许降级（fail-open）。只推荐用于非关键读路径（例如计数类展示）。
      */
     private boolean failOpen = true;
@@ -63,14 +56,6 @@ public class SocialServiceClientProperties {
 
     public void setReadTimeout(Duration readTimeout) {
         this.readTimeout = readTimeout;
-    }
-
-    public String getInternalToken() {
-        return internalToken;
-    }
-
-    public void setInternalToken(String internalToken) {
-        this.internalToken = internalToken;
     }
 
     public boolean isFailOpen() {

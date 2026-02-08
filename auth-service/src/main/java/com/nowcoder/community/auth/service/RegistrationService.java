@@ -48,12 +48,15 @@ public class RegistrationService {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "用户名/密码/邮箱不能为空");
         }
 
+        // 先做配置校验：避免创建用户后才发现无法生成激活链接，造成“已创建但无法激活”的隐蔽失败。
+        String activationBaseUrl = normalizeActivationBaseUrlOrThrow();
+
         com.nowcoder.community.auth.service.dto.UserInternalRegisterResponse created = userServiceInternalClient.register(username, password, email);
         if (created == null || created.getUserId() <= 0 || !StringUtils.hasText(created.getActivationCode())) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败");
         }
 
-        String activationLink = buildActivationLink(created.getUserId(), created.getActivationCode());
+        String activationLink = buildActivationLink(activationBaseUrl, created.getUserId(), created.getActivationCode());
         mailService.sendActivationMail(email, activationLink);
 
         RegisterResponse resp = new RegisterResponse();
@@ -69,15 +72,21 @@ public class RegistrationService {
         return userServiceInternalClient.activate(userId, code);
     }
 
-    private String buildActivationLink(int userId, String activationCode) {
+    private String normalizeActivationBaseUrlOrThrow() {
         String base = properties.getActivationBaseUrl();
         if (!StringUtils.hasText(base)) {
-            base = "http://localhost:8080";
+            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR,
+                    "未配置 auth.registration.activation-base-url，无法生成激活链接");
         }
-        if (base.endsWith("/")) {
-            base = base.substring(0, base.length() - 1);
+        String normalized = base.trim();
+        if (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
         }
-        return base + "/api/auth/activation/" + userId + "/" + activationCode;
+        return normalized;
+    }
+
+    private String buildActivationLink(String activationBaseUrl, int userId, String activationCode) {
+        return activationBaseUrl + "/api/auth/activation/" + userId + "/" + activationCode;
     }
 
     private String safeTrim(String s) {

@@ -51,7 +51,7 @@ public class ContentServiceClient {
                 .queryParam("limit", Math.min(1000, Math.max(1, limit)))
                 .toUriString();
 
-        HttpHeaders headers = InternalClientSupport.jsonHeaders(properties.getInternalToken(), SERVICE_NAME);
+        HttpHeaders headers = InternalClientSupport.jsonHeaders();
         HttpEntity<Void> entity = new HttpEntity<>(headers);
 
         long start = System.nanoTime();

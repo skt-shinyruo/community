@@ -8,7 +8,7 @@
 
 ### 1.1 统一入口：gateway
 - 浏览器唯一后端入口：`/api/**`
-- 对外运维入口：`/api/ops/**`（高风险操作，强保护；默认不应由前端 UI 直接触发）
+- 对外运维入口：`/api/ops/**`（高风险操作；仅管理员可触发，建议通过 Ops Console 等受控入口执行）
 - 内部接口：`/internal/**`（仅服务间调用；**网关显式拒绝**，同时在部署层默认不对宿主机暴露端口）
 - 统一能力：鉴权、CORS、限流、审计、traceId
 - 路由：按路径前缀转发到各微服务（见 `gateway/src/main/resources/application.yml`）
@@ -16,10 +16,11 @@
 边界与弃用窗口（SSOT）：
 - External（对外业务）：`/api/**`
 - Ops（对外运维）：`/api/ops/**`
-  - 默认要求：管理员角色（ADMIN）+ `X-Ops-Token`（break-glass）+ allowlist/频率限制（fail-closed）
+  - 默认要求：管理员角色（ADMIN）（由网关鉴权收敛）
+  - 建议：对高成本入口在网关/基础设施层补齐限流与审计（可选）
 - Internal（服务间调用）：`/internal/**`
-  - 默认要求：`X-Internal-Token`（按服务分域，禁止全局 token 兜底）
-  - 原则：internal 不对外暴露（即便在本地联调也应优先通过 gateway 转发或容器内网络访问）
+  - 当前实现：不做 header token 鉴权（不校验 `X-Internal-Token`）
+  - 原则：internal 不对外暴露（本地联调建议通过容器内网络访问或直连服务端口；对外请求必须走 `/api/**`）
 - 历史遗留路径（示例）：`/api/search/internal/reindex`
   - 仅用于短期兼容；默认已禁用（gateway 返回 410 并提示迁移）；新入口为 `/api/ops/search/reindex`
 
@@ -42,7 +43,7 @@
 - prod：必须显式启用 `prod` profile，此时：
   - `spring.config.import` 对 `${spring.application.name}.yaml` 为 **required/fail-fast**（配置中心不可用直接失败，禁止静默退化）。
   - 可选导入 `${spring.application.name}-prod.yaml` 作为 prod 专用覆盖（例如可信代理 CIDR、更严格开关/阈值）。
-- 启动期校验（Startup Validation）：`common` 在 `prod` 下启用启动校验，关键密钥/内部 token 缺失会直接阻断启动（fail-closed），避免“带着默认值上线”。
+- 启动期校验（Startup Validation）：`common` 在 `prod` 下启用启动校验，关键密钥缺失会直接阻断启动（fail-closed），避免“带着默认值上线”。
 
 运维约定：
 - 生产部署入口必须显式设置 `SPRING_PROFILES_ACTIVE=prod`（避免 dev/default 默认值误用）。
@@ -234,6 +235,6 @@ P0 修复策略：
 ## 6. 验收口径（关键约束）
 本轮治理的验收建议（可逐步完善为自动化测试/监控告警）：
 - 错误协议：全链路（gateway/服务端/前端）对 4xx/5xx 的 status 与 `Result` 载荷处理一致
-- fail-closed：关键安全能力（Origin allowlist、internal-token、限流依赖故障）在缺失/故障时默认拒绝并可观测
+- fail-closed：关键安全能力（Origin allowlist、请求体上限、限流依赖故障）在缺失/故障时默认拒绝并可观测
 - 最终一致：处罚/拉黑状态可在“最终一致窗口”内传播到写服务投影；缺口可通过 internal 扫描/纠偏补齐
 - 幂等与失败处理：消费端不会出现“幂等已标记但副作用未落地”的丢失窗口；未知事件不会 silent drop

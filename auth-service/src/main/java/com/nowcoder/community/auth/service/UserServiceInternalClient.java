@@ -50,7 +50,7 @@ public class UserServiceInternalClient {
             ResponseEntity<Result<UserInternalAuthenticateResponse>> resp = restTemplate.exchange(
                     url,
                     HttpMethod.POST,
-                    new HttpEntity<>(req, InternalClientSupport.jsonHeaders(properties.getInternalToken(), "user-service")),
+                    new HttpEntity<>(req, InternalClientSupport.jsonHeaders()),
                     new ParameterizedTypeReference<Result<UserInternalAuthenticateResponse>>() {
                     }
             );
@@ -64,7 +64,7 @@ public class UserServiceInternalClient {
             ResponseEntity<Result<UserInternalSessionProfileResponse>> resp = restTemplate.exchange(
                     url,
                     HttpMethod.GET,
-                    new HttpEntity<>(InternalClientSupport.jsonHeaders(properties.getInternalToken(), "user-service")),
+                    new HttpEntity<>(InternalClientSupport.jsonHeaders()),
                     new ParameterizedTypeReference<Result<UserInternalSessionProfileResponse>>() {
                     }
             );
@@ -82,7 +82,7 @@ public class UserServiceInternalClient {
             ResponseEntity<Result<UserInternalRegisterResponse>> resp = restTemplate.exchange(
                     url,
                     HttpMethod.POST,
-                    new HttpEntity<>(req, InternalClientSupport.jsonHeaders(properties.getInternalToken(), "user-service")),
+                    new HttpEntity<>(req, InternalClientSupport.jsonHeaders()),
                     new ParameterizedTypeReference<Result<UserInternalRegisterResponse>>() {
                     }
             );
@@ -98,7 +98,7 @@ public class UserServiceInternalClient {
             ResponseEntity<Result<UserInternalActivationResponse>> resp = restTemplate.exchange(
                     url,
                     HttpMethod.POST,
-                    new HttpEntity<>(req, InternalClientSupport.jsonHeaders(properties.getInternalToken(), "user-service")),
+                    new HttpEntity<>(req, InternalClientSupport.jsonHeaders()),
                     new ParameterizedTypeReference<Result<UserInternalActivationResponse>>() {
                     }
             );
@@ -116,7 +116,7 @@ public class UserServiceInternalClient {
             ResponseEntity<Result<UserInternalUserByEmailResponse>> resp = restTemplate.exchange(
                     url,
                     HttpMethod.GET,
-                    new HttpEntity<>(InternalClientSupport.jsonHeaders(properties.getInternalToken(), "user-service")),
+                    new HttpEntity<>(InternalClientSupport.jsonHeaders()),
                     new ParameterizedTypeReference<Result<UserInternalUserByEmailResponse>>() {
                     }
             );
@@ -133,7 +133,7 @@ public class UserServiceInternalClient {
             ResponseEntity<Result<Void>> resp = restTemplate.exchange(
                     url,
                     HttpMethod.POST,
-                    new HttpEntity<>(req, InternalClientSupport.jsonHeaders(properties.getOpsInternalToken(), "user-service")),
+                    new HttpEntity<>(req, InternalClientSupport.jsonHeaders()),
                     new ParameterizedTypeReference<Result<Void>>() {
                     }
             );

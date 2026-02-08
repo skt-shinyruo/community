@@ -102,113 +102,48 @@ else
 fi
 
 echo ""
-echo "[doctor] 2) Internal tokens (/internal/**)"
+echo "[doctor] 2) Internal endpoints (/internal/**)"
 
-check_token() {
+echo "[INFO] 当前实现不再使用 X-Internal-Token / X-Ops-Token。"
+echo "[INFO] 请确保：gateway 显式拒绝 /internal/**，且下游服务端口不对外暴露（网络隔离）。"
+
+warn_if_present() {
   local name="$1"
   local v
   v="$(read_var "${name}")"
-  if [[ -z "${v}" ]]; then
-    echo "[ERR] missing ${name} (internal calls may fail-closed)"
-    errors=$((errors + 1))
-    return
-  fi
-  echo "[OK] ${name} present (len=$(len "${v}"))"
-}
-
-check_token "USER_INTERNAL_TOKEN"
-check_token "CONTENT_INTERNAL_TOKEN"
-check_token "SOCIAL_INTERNAL_TOKEN"
-check_token "SEARCH_INTERNAL_TOKEN"
-check_token "ANALYTICS_INTERNAL_TOKEN"
-
-echo ""
-echo "[doctor] 3) User ops internal token (/internal/users/*/password|moderation)"
-user_ops_token="$(read_var "USER_OPS_INTERNAL_TOKEN")"
-if [[ -z "${user_ops_token}" ]]; then
-  echo "[WARN] USER_OPS_INTERNAL_TOKEN missing (only required for user-service 高权限 internal 写入口)"
-  warns=$((warns + 1))
-else
-  echo "[OK] USER_OPS_INTERNAL_TOKEN present (len=$(len "${user_ops_token}"))"
-fi
-
-echo ""
-echo "[doctor] 4) OPS guard (break-glass)"
-
-ops_outbox_enabled="$(read_var "OPS_OUTBOX_REPLAY_ENABLED")"
-ops_search_enabled="$(read_var "OPS_SEARCH_REINDEX_ENABLED")"
-
-check_ops_guard() {
-  local op_name="$1"
-  local enabled="$2"
-  local token_var="$3"
-  local allowlist_var="$4"
-
-  if ! is_true "${enabled}"; then
-    echo "[OK] ${op_name} disabled"
-    return
-  fi
-
-  local t a
-  t="$(read_var "${token_var}")"
-  a="$(read_var "${allowlist_var}")"
-  if [[ -z "${t}" ]]; then
-    echo "[ERR] ${op_name} enabled but ${token_var} missing"
-    errors=$((errors + 1))
+  if [[ -n "${v}" ]]; then
+    echo "[WARN] ${name} is set but no longer used (len=$(len "${v}"))"
+    warns=$((warns + 1))
   else
-    echo "[OK] ${op_name} token present (${token_var}, len=$(len "${t}"))"
-  fi
-  if [[ -z "${a}" ]]; then
-    echo "[ERR] ${op_name} enabled but ${allowlist_var} missing"
-    errors=$((errors + 1))
-  else
-    echo "[OK] ${op_name} allowlist present (${allowlist_var})"
+    echo "[OK] ${name} not set"
   fi
 }
 
-if is_true "${ops_outbox_enabled}"; then
-  allowlist="$(read_var "OPS_OUTBOX_REPLAY_ALLOWLIST")"
-  if [[ -z "${allowlist}" ]]; then
-    echo "[ERR] OPS_OUTBOX_REPLAY enabled but OPS_OUTBOX_REPLAY_ALLOWLIST missing"
-    errors=$((errors + 1))
-  else
-    echo "[OK] OPS_OUTBOX_REPLAY allowlist present (OPS_OUTBOX_REPLAY_ALLOWLIST)"
-  fi
-
-	  ops_content_token="$(read_var "OPS_CONTENT_TOKEN")"
-	  ops_social_token="$(read_var "OPS_SOCIAL_TOKEN")"
-	  ops_users_token="$(read_var "OPS_USERS_TOKEN")"
-	  if [[ -z "${ops_content_token}" && -z "${ops_social_token}" && -z "${ops_users_token}" ]]; then
-	    echo "[ERR] OPS_OUTBOX_REPLAY enabled but OPS_CONTENT_TOKEN / OPS_SOCIAL_TOKEN / OPS_USERS_TOKEN are all missing"
-	    errors=$((errors + 1))
-	  else
-	    if [[ -n "${ops_content_token}" ]]; then
-	      echo "[OK] OPS_OUTBOX_REPLAY token present for content (OPS_CONTENT_TOKEN, len=$(len "${ops_content_token}"))"
-	    else
-	      echo "[WARN] OPS_OUTBOX_REPLAY enabled but OPS_CONTENT_TOKEN missing (only required when calling /internal/content/**)"
-	      warns=$((warns + 1))
-	    fi
-	    if [[ -n "${ops_social_token}" ]]; then
-	      echo "[OK] OPS_OUTBOX_REPLAY token present for social (OPS_SOCIAL_TOKEN, len=$(len "${ops_social_token}"))"
-	    else
-	      echo "[WARN] OPS_OUTBOX_REPLAY enabled but OPS_SOCIAL_TOKEN missing (only required when calling /internal/social/**)"
-	      warns=$((warns + 1))
-	    fi
-	    if [[ -n "${ops_users_token}" ]]; then
-	      echo "[OK] OPS_OUTBOX_REPLAY token present for users (OPS_USERS_TOKEN, len=$(len "${ops_users_token}"))"
-	    else
-	      echo "[WARN] OPS_OUTBOX_REPLAY enabled but OPS_USERS_TOKEN missing (only required when calling /internal/users/**)"
-	      warns=$((warns + 1))
-	    fi
-	  fi
-	else
-	  echo "[OK] OPS_OUTBOX_REPLAY disabled"
-	fi
-
-check_ops_guard "OPS_SEARCH_REINDEX" "${ops_search_enabled}" "OPS_SEARCH_TOKEN" "OPS_SEARCH_REINDEX_ALLOWLIST"
+warn_if_present "USER_INTERNAL_TOKEN"
+warn_if_present "CONTENT_INTERNAL_TOKEN"
+warn_if_present "SOCIAL_INTERNAL_TOKEN"
+warn_if_present "SEARCH_INTERNAL_TOKEN"
+warn_if_present "ANALYTICS_INTERNAL_TOKEN"
+warn_if_present "USER_OPS_INTERNAL_TOKEN"
+warn_if_present "USER_OPS_INTERNAL_TOKEN_PREVIOUS"
+warn_if_present "OPS_CONTENT_TOKEN"
+warn_if_present "OPS_CONTENT_TOKEN_PREVIOUS"
+warn_if_present "OPS_SOCIAL_TOKEN"
+warn_if_present "OPS_SOCIAL_TOKEN_PREVIOUS"
+warn_if_present "OPS_USERS_TOKEN"
+warn_if_present "OPS_USERS_TOKEN_PREVIOUS"
+warn_if_present "OPS_SEARCH_TOKEN"
+warn_if_present "OPS_SEARCH_TOKEN_PREVIOUS"
+warn_if_present "OPS_OUTBOX_REPLAY_ENABLED"
+warn_if_present "OPS_OUTBOX_REPLAY_ALLOWLIST"
+warn_if_present "OPS_SEARCH_REINDEX_ENABLED"
+warn_if_present "OPS_SEARCH_REINDEX_ALLOWLIST"
+warn_if_present "OPS_RATE_WINDOW_SECONDS"
+warn_if_present "OPS_RATE_MAX"
+warn_if_present "OPS_LOCK_TTL_SECONDS"
 
 echo ""
-echo "[doctor] 5) Idempotency TTL (optional overrides)"
+echo "[doctor] 3) Idempotency TTL (optional overrides)"
 processing_ttl="$(read_var "HTTP_IDEMPOTENCY_PROCESSING_TTL")"
 success_ttl="$(read_var "HTTP_IDEMPOTENCY_SUCCESS_TTL")"
 if [[ -n "${processing_ttl}" ]]; then
@@ -223,7 +158,7 @@ else
 fi
 
 echo ""
-echo "[doctor] 6) Schema drift (manual)"
+echo "[doctor] 4) Schema drift (manual)"
 echo "[INFO] 若你复用/升级已有 MySQL 数据卷，建议在低峰窗口执行："
 echo "       mysql ... < scripts/mysql-migrate-ops-harden-schema.sql"
 
@@ -244,7 +179,7 @@ check_schema_snippet "deploy/mysql-init/030_schema_message.sql" "create index id
 check_schema_snippet "deploy/mysql-init/040_schema_search.sql" "create index idx_search_consumed_at on search_consumed_event(consumed_at, id)" "search consumed_event 清理索引声明存在（consumed_at,id）"
 
 echo ""
-echo "[doctor] 7) prod profile sanity"
+echo "[doctor] 5) prod profile sanity"
 if [[ "${profiles}" == *"prod"* ]]; then
   nacos_addr="$(read_var "NACOS_SERVER_ADDR")"
   if [[ -z "${nacos_addr}" ]]; then

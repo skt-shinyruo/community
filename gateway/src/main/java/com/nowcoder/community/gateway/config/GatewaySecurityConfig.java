@@ -108,11 +108,11 @@ public class GatewaySecurityConfig {
                         .pathMatchers(HttpMethod.GET, "/api/auth/captcha").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/captcha/verify").permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/auth/password/reset/request", "/api/auth/password/reset/confirm").permitAll()
-                        .pathMatchers(HttpMethod.GET, "/files/**").permitAll()
-                        .pathMatchers("/api/moderation/**").hasAnyRole("ADMIN", "MODERATOR")
-                        // 对外运维入口：在网关侧先做角色收敛；ops-token/allowlist/single-flight 由下游 internal 保护器兜底。
-                        .pathMatchers("/api/ops/**").hasRole("ADMIN")
-                        .pathMatchers("/api/users/admin/**").hasRole("ADMIN")
+	                        .pathMatchers(HttpMethod.GET, "/files/**").permitAll()
+	                        .pathMatchers("/api/moderation/**").hasAnyRole("ADMIN", "MODERATOR")
+	                        // 对外运维入口：在网关侧先做角色收敛；下游 internal 入口不做 header token 鉴权，因此必须确保 internal 端口仅内网可达。
+	                        .pathMatchers("/api/ops/**").hasRole("ADMIN")
+	                        .pathMatchers("/api/users/admin/**").hasRole("ADMIN")
 	                        .pathMatchers(HttpMethod.GET, "/api/users/*").permitAll()
 	                        .pathMatchers(HttpMethod.POST, "/api/users/batch-summary").permitAll()
 	                        .pathMatchers(HttpMethod.GET, "/api/categories", "/api/categories/**").permitAll()

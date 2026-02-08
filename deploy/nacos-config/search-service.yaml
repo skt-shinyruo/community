@@ -19,7 +19,6 @@ security:
 search:
   # SSOT：生产/默认使用 Elasticsearch；仅测试/演示可显式覆盖为 memory（并关闭 ES 依赖）。
   storage: es
-  internal-token: ${SEARCH_INTERNAL_TOKEN}
   idempotency:
     cleanup-enabled: true
     retention-days: 7
@@ -29,20 +28,3 @@ search:
     keep-history: 2
   content-client:
     base-url: ${CONTENT_SERVICE_BASE_URL:http://content-service:8088}
-    internal-token: ${CONTENT_INTERNAL_TOKEN}
-
-# internal 运维入口强保护（default deny + break-glass）。
-ops:
-  search:
-    token: ${OPS_SEARCH_TOKEN:}
-    token-previous: ${OPS_SEARCH_TOKEN_PREVIOUS:}
-  guard:
-    search-reindex:
-      enabled: ${OPS_SEARCH_REINDEX_ENABLED:false}
-      # 默认仅允许本机/回环（生产请改为堡垒机/内网管理网段）。
-      allowlist: ${OPS_SEARCH_REINDEX_ALLOWLIST:127.0.0.1,::1}
-    rate:
-      window-seconds: ${OPS_RATE_WINDOW_SECONDS:60}
-      max: ${OPS_RATE_MAX:3}
-    lock:
-      ttl-seconds: ${OPS_LOCK_TTL_SECONDS:600}

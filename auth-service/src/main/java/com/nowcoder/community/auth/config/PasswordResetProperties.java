@@ -6,6 +6,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class PasswordResetProperties {
 
     /**
+     * 重置密码链接的 base URL（建议指向对用户可访问的入口，例如 gateway/前端域名）。
+     *
+     * <p>说明：为了避免在非本地环境“静默回退到 localhost”生成错误链接，这里不提供硬编码默认值；
+     * 未配置时将拒绝签发 resetLink。</p>
+     */
+    private String resetBaseUrl = "";
+
+    /**
      * 存储方式：redis / memory（测试用）。
      */
     private String store = "redis";
@@ -19,6 +27,14 @@ public class PasswordResetProperties {
      * 是否在响应中回传 resetLink（仅本地/测试联调建议开启）。
      */
     private boolean exposeResetLink = false;
+
+    public String getResetBaseUrl() {
+        return resetBaseUrl;
+    }
+
+    public void setResetBaseUrl(String resetBaseUrl) {
+        this.resetBaseUrl = resetBaseUrl;
+    }
 
     public String getStore() {
         return store;

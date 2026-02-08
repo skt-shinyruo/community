@@ -13,10 +13,7 @@
 - 异步 worker 消费队列并调用 analytics-service internal API（带 timeout/并发上限）。
 
 ## 配置项（SSOT）
-前提：必须配置 internal token，否则采集会被视为未启用。
-
 - `analytics.collect.enabled`（默认 false）
-- `analytics.collect.internal-token`（env：`ANALYTICS_INTERNAL_TOKEN`）
 - `analytics.collect.timeout-ms`（默认 300）：单次采集请求超时
 - `analytics.collect.max-concurrency`（默认 50）：worker in-flight 上限
 - `analytics.collect.queue-capacity`（默认 10000）：网关侧有界队列容量（满则丢弃）
@@ -53,7 +50,7 @@ tags：
 1) 先确认业务链路是否正常（采集不应影响主链路）
 2) 查看 `ok/timeout/error` 比例：
    - timeout 高：下游慢或不可用 → 调小 `timeout-ms` 或先修复 analytics-service
-   - error 高：检查 internal token / discovery / 路由
+   - error 高：检查 discovery / 路由 / 下游可用性
 3) 调整参数（建议按优先级）：
    - 降低 `max-concurrency`（减少对下游冲击）
    - 增大 `queue-capacity`（仅在确认内存余量足够且确有必要时）
@@ -61,13 +58,11 @@ tags：
 
 ### 2) `error` 增长但 `timeout` 不高
 常见原因：
-- `ANALYTICS_INTERNAL_TOKEN` 配置错误导致 403
 - `lb://analytics-service` 无实例（discovery 问题）
 - analytics-service internal API 变更/路由不通
 
 建议：
 - 用网关容器内 curl/日志验证：是否能访问 `lb://analytics-service/internal/analytics/*`
-- 对齐 internal-token 配置与轮转（见 `helloagents/wiki/runbooks/internal-token-rotation.md`）
 
 ### 3) DAU 一直为 0
 常见原因：

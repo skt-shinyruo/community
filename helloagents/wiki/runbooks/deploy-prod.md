@@ -11,7 +11,7 @@
   - required：`${spring.application.name}.yaml`
   - optional：`${spring.application.name}-prod.yaml`（仅用于 prod 专用覆盖）
 - **启动期校验（fail-closed）**：prod 下 `StartupValidation` 会对关键配置做阻断校验（缺失即拒绝启动）
-- **internal-token 分域**：不使用全局 `INTERNAL_TOKEN` 兜底；每个 internal segment 使用各自 token（降低爆炸半径）
+- **internal 面隔离**：服务端不做 header token 鉴权；必须依赖“网关显式拒绝 `/internal/**` + 部署网络隔离（端口不对外暴露）”
 - **Cookie 安全边界**：refresh cookie 在 prod 必须 `Secure=true`（需要 HTTPS）
 
 ---
@@ -33,15 +33,11 @@
 - [ ] （可选）以上各服务的 `*-prod.yaml`（仅用于 prod 专用覆盖）
 
 ### 2.3 JWT
-- [ ] `JWT_HMAC_SECRET`（>= 32 bytes）
+- [ ] `JWT_HMAC_SECRET`（>=32 bytes；auth-service 签发、gateway/资源服务验签需一致）
 
-### 2.4 internal-token（分域）
-- [ ] `USER_INTERNAL_TOKEN`
-- [ ] `CONTENT_INTERNAL_TOKEN`
-- [ ] `SOCIAL_INTERNAL_TOKEN`
-- [ ] `SEARCH_INTERNAL_TOKEN`
-- [ ] `ANALYTICS_INTERNAL_TOKEN`
-- [ ] （轮转窗口可选）`*_INTERNAL_TOKEN_PREVIOUS`
+### 2.4 internal 面隔离（必须项）
+- [ ] gateway 显式拒绝 `/internal/**`（避免误配路由对外暴露）
+- [ ] 下游服务端口不对外暴露（容器端口不映射到宿主机；或仅绑定 `127.0.0.1` 且有明确时限）
 
 ### 2.5 HTTPS / Cookie
 - [ ] prod 环境的用户访问链路必须为 HTTPS（CDN/Ingress/TLS 终止均可）
@@ -58,7 +54,7 @@
 3) 基础验证：
    - `GET /actuator/health`（gateway 与各服务）
    - 登录/刷新流程（确认 refresh cookie 正常写入且 Secure=true）
-   - internal API（确认 `/internal/**` 必须携带正确的 `X-Internal-Token`）
+   - internal 面隔离（确认经 gateway 无法访问 `/internal/**`，且下游服务端口不对外暴露）
 
 ---
 
@@ -75,11 +71,12 @@
   - 是否误将 `AUTH_REFRESH_COOKIE_SECURE=false` 注入到 prod
   - SameSite 是否与跨站部署匹配（None 需要 Secure=true）
 
-### 4.3 internal-token 校验失败（403）
-- 现象：访问 `/internal/**` 返回 403
+### 4.3 internal 面误暴露风险排查
+- 现象：外部可直接访问 `/internal/**`（或通过反代误配可达）
 - 处置：
-  - 确认对应 segment token 已配置（例如 `/internal/search/**` 对应 `SEARCH_INTERNAL_TOKEN`）
-  - 若处于轮转窗口，确认调用方与被调方 token 的 current/previous 对齐
+  - 确认 gateway 显式拒绝 `/internal/**`
+  - 确认下游服务端口未映射到宿主机/公网，仅内网可达
+  - 如必须临时暴露端口，请加明确时限与防火墙/IP allowlist（并记录审计）
 
 ---
 
@@ -87,7 +84,3 @@
 
 - 优先回滚到上一版镜像（保持配置不变）
 - 若问题来自配置变更，回滚 Nacos 配置到上一版本
-- internal-token 轮转失败时：
-  - 先把旧 token 放入 `*_INTERNAL_TOKEN_PREVIOUS`
-  - 确认调用方全部升级后再切换 current
-

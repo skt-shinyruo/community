@@ -42,7 +42,6 @@ class UserServiceClientResolveCacheTest {
                 restTemplate,
                 new SimpleMeterRegistry(),
                 "http://user-service",
-                "t",
                 false,
                 Duration.ofSeconds(60),
                 10
@@ -62,4 +61,3 @@ class UserServiceClientResolveCacheTest {
         );
     }
 }
-

@@ -1,6 +1,5 @@
 analytics:
   storage: memory
-  internal-token: test-internal
   max-days-range: 31
 
 security:
@@ -14,4 +13,3 @@ spring:
         enabled: false
       config:
         enabled: false
-

@@ -34,7 +34,6 @@ public class UserServiceClient {
     private final RestTemplate restTemplate;
     private final MeterRegistry meterRegistry;
     private final String baseUrl;
-    private final String internalToken;
     private final boolean failOpen;
 
     // username -> userId 解析：用于 toName 写路径的依赖放大控制（短 TTL、容量受控）。
@@ -46,7 +45,6 @@ public class UserServiceClient {
             RestTemplate restTemplate,
             MeterRegistry meterRegistry,
             @Value("${clients.user.base-url:http://user-service}") String baseUrl,
-            @Value("${clients.user.internal-token:}") String internalToken,
             @Value("${clients.user.fail-open:false}") boolean failOpen,
             @Value("${clients.user.resolve-cache.ttl:60s}") Duration resolveCacheTtl,
             @Value("${clients.user.resolve-cache.max-size:5000}") int resolveCacheMaxSize
@@ -54,7 +52,6 @@ public class UserServiceClient {
         this.restTemplate = restTemplate;
         this.meterRegistry = meterRegistry;
         this.baseUrl = baseUrl;
-        this.internalToken = internalToken;
         this.failOpen = failOpen;
         this.resolveCacheTtl = resolveCacheTtl == null || resolveCacheTtl.isNegative() ? Duration.ofSeconds(60) : resolveCacheTtl;
         this.resolveCacheMaxSize = Math.max(0, resolveCacheMaxSize);
@@ -126,7 +123,7 @@ public class UserServiceClient {
         ResponseEntity<Result<List<UserSummary>>> resp = restTemplate.exchange(
                 url,
                 HttpMethod.POST,
-                new HttpEntity<>(req, InternalClientSupport.jsonHeaders(internalToken, "user-service")),
+                new HttpEntity<>(req, InternalClientSupport.jsonHeaders()),
                 new ParameterizedTypeReference<Result<List<UserSummary>>>() {
                 }
         );

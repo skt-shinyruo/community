@@ -166,7 +166,7 @@ public class SocialServiceClient {
         if (!StringUtils.hasText(baseUrl)) {
             throw new IllegalArgumentException("user.social-client.base-url 未配置");
         }
-        return InternalClientSupport.jsonHeaders(properties.getInternalToken(), SERVICE_NAME);
+        return InternalClientSupport.jsonHeaders();
     }
 
     private <T> T call(String api, Supplier<T> supplier, Supplier<T> fallback) {

@@ -35,23 +35,17 @@ public class UserModerationClient {
     private final RestTemplate restTemplate;
     private final MeterRegistry meterRegistry;
     private final String baseUrl;
-    private final String internalToken;
-    private final String opsInternalToken;
     private final boolean failOpen;
 
     public UserModerationClient(
             RestTemplate restTemplate,
             MeterRegistry meterRegistry,
             @Value("${clients.user.base-url:http://user-service}") String baseUrl,
-            @Value("${clients.user.internal-token:}") String internalToken,
-            @Value("${clients.user.ops-internal-token:}") String opsInternalToken,
             @Value("${clients.user.fail-open:false}") boolean failOpen
     ) {
         this.restTemplate = restTemplate;
         this.meterRegistry = meterRegistry;
         this.baseUrl = baseUrl;
-        this.internalToken = internalToken;
-        this.opsInternalToken = opsInternalToken;
         this.failOpen = failOpen;
     }
 
@@ -65,7 +59,7 @@ public class UserModerationClient {
         String url = baseUrl + "/internal/users/" + userId + "/moderation-status";
         long start = System.nanoTime();
         try {
-            ResponseEntity<Result<ModerationStatus>> resp = exchange(url, HttpMethod.GET, new HttpEntity<>(InternalClientSupport.jsonHeaders(internalToken, SERVICE_NAME)), new ParameterizedTypeReference<Result<ModerationStatus>>() {
+            ResponseEntity<Result<ModerationStatus>> resp = exchange(url, HttpMethod.GET, new HttpEntity<>(InternalClientSupport.jsonHeaders()), new ParameterizedTypeReference<Result<ModerationStatus>>() {
             });
             ModerationStatus data = InternalClientSupport.unwrap(resp, SERVICE_NAME);
             InternalClientSupport.record(meterRegistry, SERVICE_NAME, "getStatus", InternalClientSupport.OUTCOME_SUCCESS, start);
@@ -105,7 +99,7 @@ public class UserModerationClient {
             ResponseEntity<Result<List<ModerationStatus>>> resp = exchange(
                     url,
                     HttpMethod.GET,
-                    new HttpEntity<>(InternalClientSupport.jsonHeaders(internalToken, SERVICE_NAME)),
+                    new HttpEntity<>(InternalClientSupport.jsonHeaders()),
                     new ParameterizedTypeReference<Result<List<ModerationStatus>>>() {
                     }
             );
@@ -156,7 +150,7 @@ public class UserModerationClient {
             ResponseEntity<Result<ModerationStatus>> resp = exchange(
                     url,
                     HttpMethod.POST,
-                    new HttpEntity<>(req, InternalClientSupport.jsonHeaders(opsInternalToken, SERVICE_NAME)),
+                    new HttpEntity<>(req, InternalClientSupport.jsonHeaders()),
                     new ParameterizedTypeReference<Result<ModerationStatus>>() {
                     }
             );

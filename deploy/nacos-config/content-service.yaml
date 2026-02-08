@@ -29,10 +29,6 @@ content:
       max-delay-ms: 60000
       relay-interval-ms: 5000
       send-timeout-ms: 3000
-  # internal 接口令牌：建议按服务隔离，避免全局 token 泄露扩大爆炸半径。
-  internal-token: ${CONTENT_INTERNAL_TOKEN:}
-  # 轮转窗口：灰度期间允许 previous 继续访问（配合 common/InternalTokenFilter）。
-  internal-token-previous: ${CONTENT_INTERNAL_TOKEN_PREVIOUS:}
   score:
     refresh:
       enabled: true
@@ -40,27 +36,7 @@ content:
 clients:
   user:
     base-url: ${USER_SERVICE_BASE_URL:http://user-service}
-    internal-token: ${USER_INTERNAL_TOKEN:}
-    # user-service 高权限 internal 写接口分域 token（例如 /internal/users/{id}/moderation）。
-    ops-internal-token: ${USER_OPS_INTERNAL_TOKEN:}
     fail-open: false
   social:
     base-url: ${SOCIAL_SERVICE_BASE_URL:http://social-service}
-    internal-token: ${SOCIAL_INTERNAL_TOKEN:}
     fail-open: false
-
-# internal 运维入口强保护（default deny + break-glass）。
-ops:
-  content:
-    token: ${OPS_CONTENT_TOKEN:}
-    token-previous: ${OPS_CONTENT_TOKEN_PREVIOUS:}
-  guard:
-    outbox-replay:
-      enabled: ${OPS_OUTBOX_REPLAY_ENABLED:false}
-      # 默认仅允许本机/回环（生产请改为堡垒机/内网管理网段）。
-      allowlist: ${OPS_OUTBOX_REPLAY_ALLOWLIST:127.0.0.1,::1}
-    rate:
-      window-seconds: ${OPS_RATE_WINDOW_SECONDS:60}
-      max: ${OPS_RATE_MAX:3}
-    lock:
-      ttl-seconds: ${OPS_LOCK_TTL_SECONDS:600}

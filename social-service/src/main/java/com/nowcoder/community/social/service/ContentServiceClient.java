@@ -34,20 +34,17 @@ public class ContentServiceClient {
     private final RestTemplate restTemplate;
     private final MeterRegistry meterRegistry;
     private final String baseUrl;
-    private final String internalToken;
     private final boolean failOpen;
 
     public ContentServiceClient(
             RestTemplate restTemplate,
             MeterRegistry meterRegistry,
             @Value("${clients.content.base-url:http://content-service}") String baseUrl,
-            @Value("${clients.content.internal-token:}") String internalToken,
             @Value("${clients.content.fail-open:false}") boolean failOpen
     ) {
         this.restTemplate = restTemplate;
         this.meterRegistry = meterRegistry;
         this.baseUrl = baseUrl;
-        this.internalToken = internalToken;
         this.failOpen = failOpen;
     }
 
@@ -65,7 +62,7 @@ public class ContentServiceClient {
                 .queryParam("entityId", entityId)
                 .toUriString();
 
-        HttpHeaders headers = InternalClientSupport.jsonHeaders(internalToken, SERVICE_NAME);
+        HttpHeaders headers = InternalClientSupport.jsonHeaders();
         long start = System.nanoTime();
         try {
             ResponseEntity<Result<EntityResolveResponse>> resp = restTemplate.exchange(

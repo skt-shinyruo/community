@@ -27,8 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = {
         "social.storage=memory",
         "social.events.publisher=memory",
-        "security.jwt.hmac-secret=test-jwt-secret-please-change-at-least-32bytes",
-        "social.internal-token=test-internal-token"
+        "security.jwt.hmac-secret=test-jwt-secret-please-change-at-least-32bytes"
 })
 @AutoConfigureMockMvc
 class InternalSocialReadControllerTest {

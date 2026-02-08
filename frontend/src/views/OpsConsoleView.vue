@@ -3,30 +3,13 @@
     <UiCard flat>
       <UiPageHeader>
         <template #title>Ops Console</template>
-        <template #subtitle>高风险运维入口（仅管理员）。break-glass 默认关闭，执行前请确认配置。</template>
+        <template #subtitle>高风险运维入口（仅管理员）。请谨慎操作。</template>
       </UiPageHeader>
     </UiCard>
 
     <UiCard style="margin-top: 12px">
       <div class="stack" style="gap: 12px">
-        <div style="font-weight: 800">Ops Token</div>
-        <div class="muted" style="font-size: 12px">
-          说明：该 token 仅用于本次浏览器会话内发送，不会写入本地存储；页面刷新后会清空。
-        </div>
-        <UiInput v-model.trim="opsToken" type="password" placeholder="X-Ops-Token（可留空）" autocomplete="off" />
-      </div>
-    </UiCard>
-
-    <UiCard style="margin-top: 12px">
-      <div class="stack" style="gap: 12px">
         <div style="font-weight: 800">Search - 重建索引</div>
-        <div class="muted" style="font-size: 12px">
-          常见前置条件：<br />
-          1) <code>OPS_SEARCH_REINDEX_ENABLED=true</code>（临时开启）<br />
-          2) <code>OPS_SEARCH_REINDEX_ALLOWLIST</code> 命中（来源 IP/CIDR）<br />
-          3) <code>OPS_SEARCH_TOKEN</code>（即 X-Ops-Token）正确<br />
-          4) Redis 可用（用于 single-flight + rate limit；不可用时 fail-closed）
-        </div>
 
         <div class="row" style="justify-content: flex-end; gap: 8px; flex-wrap: wrap">
           <UiButton variant="secondary" :disabled="loading" @click="openConfirm">重建索引</UiButton>
@@ -54,14 +37,12 @@ import { inject, ref } from 'vue'
 import { reindex } from '../api/services/searchService'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
-import UiInput from '../components/ui/UiInput.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiModalConfirm from '../components/ui/UiModalConfirm.vue'
 
 const emit = defineEmits(['trace'])
 const showToast = inject('showToast', () => {})
 
-const opsToken = ref('')
 const confirmOpen = ref(false)
 const loading = ref(false)
 const error = ref('')
@@ -79,7 +60,7 @@ async function onConfirm() {
   successMsg.value = ''
   loading.value = true
   try {
-    const { data, traceId } = await reindex({ opsToken: opsToken.value })
+    const { data, traceId } = await reindex()
     emit('trace', traceId || '')
     const count = Number(data?.indexedCount || 0)
     const jobId = String(data?.jobId || '').trim()
@@ -95,4 +76,3 @@ async function onConfirm() {
   }
 }
 </script>
-

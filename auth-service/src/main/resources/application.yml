@@ -35,7 +35,6 @@ community:
 auth:
   user-client:
     base-url: ${USER_SERVICE_BASE_URL:http://user-service}
-    internal-token: ${USER_INTERNAL_TOKEN:}
     connect-timeout: 200ms
     read-timeout: 800ms
   refresh:
@@ -45,13 +44,14 @@ auth:
     ttl-seconds: 60
     max-failures: 3
   registration:
-    activation-base-url: ${AUTH_ACTIVATION_BASE_URL:http://localhost:8080}
+    activation-base-url: ${AUTH_ACTIVATION_BASE_URL:}
     expose-activation-link: ${AUTH_EXPOSE_ACTIVATION_LINK:false}
     mail:
       enabled: ${AUTH_MAIL_ENABLED:false}
       from: ${AUTH_MAIL_FROM:no-reply@community.local}
       subject: 激活账号
   password-reset:
+    reset-base-url: ${AUTH_PASSWORD_RESET_BASE_URL:${auth.registration.activation-base-url:}}
     store: redis
     ttl-seconds: 600
     expose-reset-link: ${AUTH_EXPOSE_RESET_LINK:false}

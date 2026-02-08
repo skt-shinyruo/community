@@ -11,5 +11,6 @@ auth:
       # dev 默认不依赖 SMTP，保持 log-only 降级即可。
       enabled: false
   password-reset:
+    reset-base-url: http://localhost:12881
     # 本地/联调默认：在找回密码响应中回传 resetLink，形成闭环。
     expose-reset-link: true

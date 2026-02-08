@@ -6,9 +6,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class RegistrationProperties {
 
     /**
-     * 激活链接的 base URL（建议指向 gateway，例如 http://localhost:8080）。
+     * 激活链接的 base URL（建议指向 gateway/前端可访问入口）。
+     *
+     * <p>说明：为了避免在非本地环境“静默回退到 localhost”生成错误链接，这里不提供硬编码默认值；
+     * 未配置时将拒绝签发 activationLink。</p>
      */
-    private String activationBaseUrl = "http://localhost:8080";
+    private String activationBaseUrl = "";
 
     /**
      * 是否在注册响应中回传激活链接（仅建议用于本地/测试）。
@@ -75,4 +78,3 @@ public class RegistrationProperties {
         }
     }
 }
-

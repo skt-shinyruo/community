@@ -26,9 +26,6 @@ auth:
     store: redis
   user-client:
     base-url: ${USER_SERVICE_BASE_URL:http://user-service}
-    internal-token: ${USER_INTERNAL_TOKEN}
-    # user-service 内部高权限写接口分域 token（例如 /internal/users/{id}/password）。
-    ops-internal-token: ${USER_OPS_INTERNAL_TOKEN:}
     connect-timeout: 200ms
     read-timeout: 800ms
   captcha:
@@ -36,10 +33,11 @@ auth:
     ttl-seconds: 60
     max-failures: 3
   password-reset:
+    reset-base-url: ${AUTH_PASSWORD_RESET_BASE_URL:${auth.registration.activation-base-url:}}
     store: redis
     ttl-seconds: 600
   registration:
-    activation-base-url: ${AUTH_ACTIVATION_BASE_URL:http://localhost:12881}
+    activation-base-url: ${AUTH_ACTIVATION_BASE_URL:}
     mail:
       enabled: ${AUTH_MAIL_ENABLED:false}
   login-rate-limit:

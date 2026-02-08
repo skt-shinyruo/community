@@ -1,61 +1,14 @@
-# internal-token 轮转 Runbook
+# internal-token 轮转 Runbook（已废弃）
 
-> ⚠️ 已废弃：开发阶段已移除 `/internal/**` 的 header token 鉴权（不再校验 `X-Internal-Token`），本 runbook 仅保留为历史参考。
+> ⚠️ SSOT=代码：当前实现已移除 `/internal/**` 的 header token 鉴权。
+> 服务端不校验 `X-Internal-Token`，调用方也不再发送该 header。
+> 因此 `*_INTERNAL_TOKEN` / `internal-token*` 相关配置不再影响 internal API 访问控制。
 
-## 目标
-- （历史）在不影响服务间 internal 调用的前提下轮转 `X-Internal-Token`。
-- （历史）将风险控制在“单服务爆炸半径”内（按服务 token），避免全局 `INTERNAL_TOKEN` 带来的扩大影响。
+## 结论
 
-## 背景与机制（SSOT=代码）
-- internal 接口统一以 `/internal/<segment>/**` 作为路径前缀。
-- （历史）`common` 模块曾通过 `InternalTokenFilter` 对 `/internal/**` 强制校验 `X-Internal-Token`；当前实现已移除该机制。
-- token 查找优先级（按 segment）：`<segment>.internal-token` → `<segment>.internal-token-previous` →（兼容 alias）→ `user.internal-token` / `user.internal-token-previous`（仅当 segment 为 `users`）。
-
-> 注意：当前 `InternalTokenFilter` **不再读取** `internal.token`（即使设置环境变量 `INTERNAL_TOKEN` 也不会被接受）。仍建议在生产环境逐步移除该全局 env，避免误解与错误配置扩散。
-
-## users 特例（更小爆炸半径）
-users 的少数高权限写入口会 **禁止** 回退到 `users.internal-token` / `user.internal-token`（避免“通用 token 泄露扩大爆炸半径”）：
-- `/internal/users/{id}/password`
-- `/internal/users/{id}/moderation`
-
-对应配置 key：
-- `users.ops.internal-token` / `users.ops.internal-token-previous`
-- alias：`user.ops.internal-token` / `user.ops.internal-token-previous`
-
-## 轮转流程（推荐）
-以轮转 social-service 的 token 为例（segment= `social`）：
-
-### Step 0：准备
-1. 生成新 token（建议随机 32+ 字节，避免可猜测）。
-2. 确认所有调用方（content-service/message-service/user-service 等）都通过配置注入 token，而非硬编码。
-
-### Step 1：服务端进入灰度窗口（current + previous）
-在 **目标服务**（例如 social-service）的配置中：
-- 设置 `social.internal-token` = `NEW_TOKEN`
-- 设置 `social.internal-token-previous` = `OLD_TOKEN`
-
-部署/重启 social-service，使其同时接受新旧 token（不中断调用）。
-
-### Step 2：逐步升级调用方（caller）
-按调用链路逐个升级调用方配置（例如 content-service 的 `clients.social.internal-token`）：
-- 将调用方发送的 `X-Internal-Token` 切换为 `NEW_TOKEN`
-- 观察调用方错误率/延迟与目标服务的 internal 403 是否下降
-
-> 提示：gateway 也可能是 caller（例如 `/api/ops/search/reindex` 会注入 `X-Internal-Token=${SEARCH_INTERNAL_TOKEN}`），轮转 search-service internal-token 时需要同步升级 gateway 的注入 token。
-
-### Step 3：收尾（移除 previous）
-当确认所有调用方已切换到 `NEW_TOKEN` 后：
-- 清空 `social.internal-token-previous`（或删除该配置项）
-- 保留 `social.internal-token` = `NEW_TOKEN`
-
-## 回滚策略
-若升级调用方后出现大量 403 或调用失败：
-1. 确认目标服务仍保留 `social.internal-token-previous = OLD_TOKEN`。
-2. 将调用方 token 临时回滚到 `OLD_TOKEN`（快速恢复）。
-3. 排查调用方配置分发是否生效、是否存在多套配置源（例如 Nacos 与本地 profile 叠加）。
-
-## 验证清单
-- [ ] 目标服务 `/internal/<segment>/**` 能被旧 token 与新 token 访问（灰度窗口阶段）。
-- [ ] 调用方切换 token 后，internal 调用 403 不上升，且延迟无异常增长。
-- [ ] 灰度结束后，旧 token 访问会被拒绝（403），新 token 正常。
-- [ ] 生产环境不再依赖全局 `INTERNAL_TOKEN`（逐步收敛）。
+- **无需轮转 internal-token：** 当前版本不再使用 internal-token 作为鉴权边界
+- **安全边界建议：** 依赖网关显式拒绝 `/internal/**` + 部署网络隔离（服务端口不对外暴露）
+- 若未来重新引入 internal token 机制：
+  1) 必须先在服务端实现明确的 token 校验逻辑（并明确 401/403 语义）
+  2) 再补齐调用方 header 注入、配置项、轮转窗口与契约测试
+  3) 同步更新 `deploy/*` 与 `docs/*`，避免“发不验/验不发”的漂移

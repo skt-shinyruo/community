@@ -44,8 +44,8 @@
 
 接口边界（SSOT）：
 - External（对外业务）：`/api/**`
-- Ops（对外运维）：`/api/ops/**`（高风险操作，必须强保护，默认不应由前端 UI 直接触发）
-- Internal（服务间调用）：`/internal/**`（仅服务间调用；部署层默认不暴露端口；校验 `X-Internal-Token`）
+- Ops（对外运维）：`/api/ops/**`（高风险操作；仅管理员可触发，建议通过 Ops Console 等受控入口执行）
+- Internal（服务间调用）：`/internal/**`（仅服务间调用；部署层默认不暴露端口；服务端不校验 `X-Internal-Token`）
 - 历史遗留对外 internal 命名（示例：`/api/search/internal/reindex`）：仅短期兼容；新入口为 `/api/ops/search/reindex`
 
 ### 2.2 配置管理
@@ -67,9 +67,8 @@
   - 需要前端容器直连时叠加 `deploy/docker-compose.frontend-direct.yml`
 
 敏感配置清单（必须通过环境变量或 Nacos 注入）：
-- JWT HMAC：`JWT_HMAC_SECRET` / `AUTH_JWT_HMAC_SECRET` / `GATEWAY_JWT_HMAC_SECRET`
-- 内部调用 token（按服务隔离，禁止全局兜底）：`USER_INTERNAL_TOKEN`、`CONTENT_INTERNAL_TOKEN`、`SOCIAL_INTERNAL_TOKEN`、`SEARCH_INTERNAL_TOKEN`、`ANALYTICS_INTERNAL_TOKEN`
-- 运维 break-glass token（默认关闭）：`OPS_SEARCH_TOKEN`、`OPS_CONTENT_TOKEN`、`OPS_SOCIAL_TOKEN` 等（配合 allowlist/频率限制）
+- JWT HMAC：`JWT_HMAC_SECRET`（建议 >= 32 字节；auth-service 签发、gateway/资源服务验签需一致）
+  - 可选覆盖：`AUTH_JWT_HMAC_SECRET`、`GATEWAY_JWT_HMAC_SECRET`
 - 对象存储：`QINIU_ACCESS_KEY` / `QINIU_SECRET_KEY` 等
 - DB 账号（按服务最小权限，禁止复用 `MYSQL_USER/MYSQL_PASSWORD` 作为其它服务业务账号）：
   - user-service：`USER_DB_URL` / `USER_DB_USERNAME` / `USER_DB_PASSWORD`

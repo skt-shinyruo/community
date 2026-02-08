@@ -36,20 +36,17 @@ public class SocialBlockClient {
     private final RestTemplate restTemplate;
     private final MeterRegistry meterRegistry;
     private final String baseUrl;
-    private final String internalToken;
     private final boolean failOpen;
 
     public SocialBlockClient(
             RestTemplate restTemplate,
             MeterRegistry meterRegistry,
             @Value("${clients.social.base-url:http://social-service}") String baseUrl,
-            @Value("${clients.social.internal-token:}") String internalToken,
             @Value("${clients.social.fail-open:false}") boolean failOpen
     ) {
         this.restTemplate = restTemplate;
         this.meterRegistry = meterRegistry;
         this.baseUrl = baseUrl;
-        this.internalToken = internalToken;
         this.failOpen = failOpen;
     }
 
@@ -77,7 +74,7 @@ public class SocialBlockClient {
                 .queryParam("userIdB", userIdB)
                 .toUriString();
 
-        HttpHeaders headers = InternalClientSupport.jsonHeaders(internalToken, SERVICE_NAME);
+        HttpHeaders headers = InternalClientSupport.jsonHeaders();
         long start = System.nanoTime();
         try {
             ResponseEntity<Result<Boolean>> resp = exchange(url, HttpMethod.GET, new HttpEntity<>(headers), new ParameterizedTypeReference<Result<Boolean>>() {

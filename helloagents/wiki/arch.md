@@ -170,7 +170,7 @@ sequenceDiagram
 - **internal 聚合收敛：** 跨服务聚合展示（例如 user-service 用户主页的获赞/关注/粉丝/是否关注）应优先走 `/internal/**`，避免跨服务透传 Authorization 造成鉴权耦合。
 - **感知一致性（Perceived Consistency）：** 对“点赞/搜索”等对用户敏感的链路，在前端做短 TTL 覆盖与预期管理（read-your-writes + 最终一致提示），降低“写成功但读侧未更新”的可见不一致。
 - **幂等 TTL 可配置：** `IdempotencyGuard` 的 processing/success TTL 支持按环境配置，降低慢链路下锁过期的重复副作用风险；同时提供脚本示例帮助第三方正确传递 `Idempotency-Key`。
-- **配置护栏（doctor）：** 提供 `scripts/doctor.sh` 进行部署前自检（不输出敏感值），快速发现 internal-token/JWT/prod profile 等误配。
+- **配置护栏（doctor）：** 提供 `scripts/doctor.sh` 进行部署前自检（不输出敏感值），快速发现 JWT/prod profile/旁路暴露等误配，并提示清理已废弃的 internal/ops token 配置。
 - **gateway analytics 有界化：** 网关侧 UV/DAU 去重仅用于降噪，应使用有界 TTL 缓存（多实例不共享），最终以 analytics-service Redis 去重/聚合为准；并确保采集失败可观测且不影响主业务链路。
 
 ---

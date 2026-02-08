@@ -40,6 +40,9 @@
 - gateway：analytics 采集新增 `AnalyticsCollectDispatcher`（有界队列 + 异步 worker + 指标），采集链路与主转发隔离。
 - frontend：`UiToast` 支持可选 action（`actionText/onAction`），用于发帖/编辑成功后提供快捷入口。
 
+### Removed
+- internal：移除 internal/ops header token 机制（不再使用 `X-Internal-Token` / `X-Ops-Token`），清理 `*_INTERNAL_TOKEN` / `OPS_*_TOKEN` 配置与前端/脚本输入；internal 访问边界回归为部署/网关（gateway `denyAll /internal/**`）。
+
 ### Fixed
 - social-service：关注/拉黑“自操作”错误收敛为 `SocialErrorCode`（13001/13002），避免以通用 400 掩盖领域语义。
 - search-service：reindex single-flight 冲突与存储不可用场景收敛到 `SearchErrorCode`（15003/15002），避免 `SimpleErrorCode(409)` 导致语义丢失。
@@ -71,6 +74,8 @@
 - deploy/mysql-init：补齐 identity（user-service）账号最小权限 grant；compose 透传 `USER_DB_USERNAME/USER_DB_PASSWORD` 供初始化脚本创建账号。
 - deploy/nacos-config：content-service datasource 默认指向 `community_content`，并使用 `CONTENT_DB_USERNAME/CONTENT_DB_PASSWORD`（不再复用 `MYSQL_USER/MYSQL_PASSWORD`）。
 - auth-service：prod profile 启动校验升级为 fail-closed：禁止回传 activation/reset link、强制 mail.enabled=true 且校验 `spring.mail.host`/`activationBaseUrl` 等关键配置。
+- auth-service：找回密码 resetLink 生成逻辑解耦 activationBaseUrl，新增 `auth.password-reset.reset-base-url` 并移除 localhost 隐式回退，避免非本地环境生成错误链接。
+- common/auth-service：`StartupValidation`（prod）新增校验 `auth.password-reset.reset-base-url`，避免重置链接基址缺失上线后“接口返回已发送但链接不可用”。
 - frontend：注册/找回密码在不回传 link 时给出更清晰提示；reindex UI 对齐后端字段（`indexedCount/jobId`）并支持透传 `X-Ops-Token`。
 - user-service：管理员角色变更改为显式 `reason + confirm`，并禁止管理员自降级以避免锁死；设置页头像上传逻辑兼容 local/qiniu 两种 provider。
 - content-service：内容渲染契约收敛：写入停止全量 htmlEscape（仅对 `&` 最小化 escape，可配置），读路径对历史 entity 做一次性白名单解码（可配置），并对事件 payload/内部扫描接口输出保持一致。

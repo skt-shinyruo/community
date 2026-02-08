@@ -143,23 +143,13 @@
           <div style="font-weight: 700">重建索引</div>
           <div class="muted">此操作可能耗时较长，会对搜索/下游产生负载，是否继续？</div>
 
-          <div class="stack" style="gap: 8px; margin-top: 6px">
-            <div class="muted" style="font-size: 12px">X-Ops-Token（不保存；是否必填取决于后端 break-glass 配置）</div>
-            <UiInput
-              v-model.trim="opsToken"
-              type="password"
-              placeholder="请输入 X-Ops-Token（可留空）"
-              autocomplete="off"
-            />
-          </div>
-
           <div class="row" style="justify-content: flex-end">
             <UiButton variant="secondary" @click="reindexConfirmOpen = false">取消</UiButton>
             <UiButton @click="onConfirmReindex" :disabled="loading">继续</UiButton>
           </div>
 
           <div class="muted" style="font-size: 12px">
-            提示：通常需要同时满足 ops 开关/allowlist/X-Ops-Token；若失败可查看错误提示或进入 Ops Console 获取引导。
+            提示：该操作仅管理员可执行；若失败可查看错误提示或进入 Ops Console 获取引导。
           </div>
         </div>
       </div>
@@ -201,7 +191,6 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 	const items = ref([])
 	const hasNext = computed(() => items.value.length === Number(size.value))
 	const reindexConfirmOpen = ref(false)
-  const opsToken = ref('')
 
 	const taxonomy = useTaxonomyStore()
 	const categories = computed(() => (Array.isArray(taxonomy.categories) ? taxonomy.categories : []))
@@ -324,7 +313,7 @@ async function nextPage() {
 
 async function onReindex() {
   try {
-    const { data, traceId } = await reindex({ opsToken: opsToken.value })
+    const { data, traceId } = await reindex()
     emit('trace', traceId || '')
     const count = Number(data?.indexedCount || 0)
     const jobId = String(data?.jobId || '').trim()
@@ -332,7 +321,7 @@ async function onReindex() {
   } catch (e) {
     const code = e?.code
     if (code === 403) {
-      showToast({ type: 'error', title: '重建失败', text: `${e?.message || '无权限或运维保护未满足'}（请检查 enabled/allowlist/X-Ops-Token）` })
+      showToast({ type: 'error', title: '重建失败', text: e?.message || '无权限' })
     } else {
       showToast({ type: 'error', title: '重建失败', text: e?.message || '请求失败' })
     }
@@ -340,7 +329,6 @@ async function onReindex() {
 }
 
 function openReindexConfirm() {
-  opsToken.value = ''
   reindexConfirmOpen.value = true
 }
 async function onConfirmReindex() {

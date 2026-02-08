@@ -4,7 +4,6 @@ security:
 
 clients:
   social:
-    internal-token: test-internal-token
     fail-open: true
 
 message:

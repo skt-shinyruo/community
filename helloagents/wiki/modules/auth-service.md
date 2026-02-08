@@ -71,7 +71,10 @@
 
 ### 4.1 Onboarding（注册/激活/找回密码闭环）
 - **激活链接 base URL**：`auth.registration.activation-base-url`（env：`AUTH_ACTIVATION_BASE_URL`）
-  - 用途：生成注册激活链接 `/api/auth/activation/{userId}/{code}` 与找回密码重置链接 `/#/auth/password/reset?token=...`
+  - 用途：生成注册激活链接 `/api/auth/activation/{userId}/{code}`
+- **重置密码链接 base URL**：`auth.password-reset.reset-base-url`（env：`AUTH_PASSWORD_RESET_BASE_URL`）
+  - 用途：生成找回密码重置链接 `/#/auth/password/reset?token=...`
+  - 兼容：若未设置 `AUTH_PASSWORD_RESET_BASE_URL`，默认复用 `auth.registration.activation-base-url`（见 `auth-service/src/main/resources/application.yml`）
 - **dev/联调：回传链接（可选，提升开箱即用）**
   - `auth.registration.expose-activation-link=true`（env：`AUTH_EXPOSE_ACTIVATION_LINK=true`）
   - `auth.password-reset.expose-reset-link=true`（env：`AUTH_EXPOSE_RESET_LINK=true`）

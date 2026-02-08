@@ -20,8 +20,8 @@
 ## 启动教程（推荐：前端直连 gateway）
 1. 准备环境变量：`cp deploy/.env.example deploy/.env`
    - 必填项：`SPRING_PROFILES_ACTIVE`（本地建议 `dev`；生产必须 `prod`）
-   - 必填项：`JWT_HMAC_SECRET`（>=32 bytes）、各服务 internal token（`USER_INTERNAL_TOKEN`/`CONTENT_INTERNAL_TOKEN`/`SOCIAL_INTERNAL_TOKEN`/`SEARCH_INTERNAL_TOKEN`/`ANALYTICS_INTERNAL_TOKEN`）
-   - 说明：本项目默认不再使用全局 `INTERNAL_TOKEN` 兜底，避免 token 泄露扩大爆炸半径
+   - 必填项：`JWT_HMAC_SECRET`（>=32 bytes；auth-service 签发、gateway/资源服务验签需一致）
+   - 说明：本项目不再使用 `X-Internal-Token` / `X-Ops-Token`；因此 `*_INTERNAL_TOKEN` / `OPS_*_TOKEN` 不再是启动前置条件
    - 用户体验闭环（dev 推荐）：`AUTH_EXPOSE_ACTIVATION_LINK=true`、`AUTH_EXPOSE_RESET_LINK=true`（无 SMTP 也能跑通注册/找回密码）
    - 头像自托管（dev 默认）：`USER_AVATAR_STORAGE=local` + `USER_FILES_BASE_DIR=/data/files` + `USER_PUBLIC_BASE_URL=http://localhost:12881`
 2. 启动全栈（含前端与网关端口暴露）：
@@ -73,7 +73,7 @@
 
 ### Ops Console（仅管理员）
 - 前端入口：`http://localhost:12881/#/ops`
-- 需要管理员权限（ROLE_ADMIN）；执行 reindex 等高风险动作通常需要额外 `X-Ops-Token` + allowlist + enabled（break-glass）。
+- 需要管理员权限（ROLE_ADMIN）；执行 reindex 等高风险动作请谨慎操作。
 
 ### 用户管理（仅管理员）
 - 前端入口：`http://localhost:12881/#/admin/users`

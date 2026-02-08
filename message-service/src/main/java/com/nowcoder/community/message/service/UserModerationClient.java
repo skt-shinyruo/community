@@ -34,20 +34,17 @@ public class UserModerationClient {
     private final RestTemplate restTemplate;
     private final MeterRegistry meterRegistry;
     private final String baseUrl;
-    private final String internalToken;
     private final boolean failOpen;
 
     public UserModerationClient(
             RestTemplate restTemplate,
             MeterRegistry meterRegistry,
             @Value("${clients.user.base-url:http://user-service}") String baseUrl,
-            @Value("${clients.user.internal-token:}") String internalToken,
             @Value("${clients.user.fail-open:false}") boolean failOpen
     ) {
         this.restTemplate = restTemplate;
         this.meterRegistry = meterRegistry;
         this.baseUrl = baseUrl;
-        this.internalToken = internalToken;
         this.failOpen = failOpen;
     }
 
@@ -64,7 +61,7 @@ public class UserModerationClient {
             ResponseEntity<Result<ModerationStatus>> resp = exchange(
                     url,
                     HttpMethod.GET,
-                    new HttpEntity<>(InternalClientSupport.jsonHeaders(internalToken, SERVICE_NAME)),
+                    new HttpEntity<>(InternalClientSupport.jsonHeaders()),
                     new ParameterizedTypeReference<Result<ModerationStatus>>() {
                     }
             );
@@ -99,7 +96,7 @@ public class UserModerationClient {
             ResponseEntity<Result<List<ModerationStatus>>> resp = exchange(
                     url,
                     HttpMethod.GET,
-                    new HttpEntity<>(InternalClientSupport.jsonHeaders(internalToken, SERVICE_NAME)),
+                    new HttpEntity<>(InternalClientSupport.jsonHeaders()),
                     new ParameterizedTypeReference<Result<List<ModerationStatus>>>() {
                     }
             );

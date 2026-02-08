@@ -3,11 +3,11 @@
 ## 目标
 - 只对外暴露 `gateway`（或 ingress），禁止直接暴露 `auth-service` / `user-service` / `content-service` 等下游服务端口
 - 将“安全策略”收敛到可验证的边界：网关 + 服务侧兜底（fail-closed）
-- 降低误配置、旁路访问、内部 token 泄露带来的爆炸半径
+- 降低误配置、旁路访问、端口误暴露带来的爆炸半径
 
 ## 核心原则
 1. **对外入口只有一个**：所有客户端流量必须经过 `gateway`
-2. **服务侧必须可自洽**：即使绕过网关直连服务，也不能降低安全性（例如 auth 的 OriginGuard、internal 的 token 兜底）
+2. **服务侧必须可自洽**：对外业务接口由服务端 JWT 鉴权兜底；internal 面不做 header token 鉴权，因此必须依赖网络隔离确保不可对外暴露
 3. **默认拒绝（fail-closed）**：关键依赖（配置中心/限流/鉴权/幂等/运维开关）不可用时，应返回错误而非静默放行
 
 ## Docker Compose（旁路禁止）
@@ -21,10 +21,8 @@
 - [ ] 外部网络仅可访问 `gateway`（以及必要的运维入口：例如观测系统，必须鉴权）
 - [ ] 下游服务容器端口未映射到宿主机（或仅绑定 `127.0.0.1` 且有明确时限）
 - [ ] auth-service 启用 OriginGuard（login/refresh/logout），与 gateway allowlist 一致
-- [ ] internal 接口强制校验 `X-Internal-Token`，并避免使用“全局兜底 token”
-- [ ] user-service 高权限 internal 写入口已分域 token：`user.ops.internal-token`（改密码/治理处置），调用方已切换对应 token
-- [ ] internal OPS 运维入口默认关闭（break-glass），需要时按 runbook 临时开启：`helloagents/wiki/runbooks/internal-ops.md`
-- [ ] internal OPS 运维入口具备 `X-Ops-Token` + allowlist + single-flight/rate-limit，且 Redis 不可用时 fail-closed 返回 503
+- [ ] gateway 显式拒绝 `/internal/**`，且部署层确认下游服务端口不对外暴露（internal 面不做 token 鉴权）
+- [ ] 对外运维入口 `/api/ops/**` 已在网关侧按角色收敛（仅管理员），并开启必要的审计与限流（建议）
 - [ ] 可信代理与 `X-Forwarded-For` 解析规则已配置（只在可信链路信任 XFF）：
   - `gateway.trusted-proxy.enabled=true` 时必须配置 `gateway.trusted-proxy.cidrs`（CIDR allowlist）
   - 禁止 `0.0.0.0/0` / `::/0`（全量信任会导致 XFF 伪造）

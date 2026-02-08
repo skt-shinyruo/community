@@ -10,10 +10,8 @@ content:
 
 clients:
   user:
-    internal-token: test-internal-token
     fail-open: true
   social:
-    internal-token: test-internal-token
     fail-open: true
 
 spring:

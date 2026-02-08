@@ -14,8 +14,7 @@
    - 说明：内部依赖组件（Nacos/MySQL/Redis/Kafka/Elasticsearch/观测栈）默认不再映射到宿主机端口，以避免与本机已安装服务（如 Redis 6379）冲突
 2. 准备环境变量：
    - 复制 `deploy/.env.example` 为 `deploy/.env`
-   - 确认 `JWT_HMAC_SECRET` 长度 >= 32 字节
-   - 确认内部 token：`ANALYTICS_INTERNAL_TOKEN`、`SEARCH_INTERNAL_TOKEN`（dev/测试即可）
+   - 确认 `JWT_HMAC_SECRET` 长度 >= 32 字节（auth-service 签发、gateway/资源服务验签需一致）
 
 ---
 

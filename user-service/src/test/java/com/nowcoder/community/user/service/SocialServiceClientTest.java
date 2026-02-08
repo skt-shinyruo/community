@@ -23,7 +23,6 @@ class SocialServiceClientTest {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         SocialServiceClientProperties properties = new SocialServiceClientProperties();
         properties.setBaseUrl("http://social-service");
-        properties.setInternalToken("t");
         properties.setFailOpen(true);
         SocialServiceClient client = new SocialServiceClient(restTemplate, registry, properties);
 

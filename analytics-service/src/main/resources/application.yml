@@ -3,7 +3,6 @@ server:
 
 analytics:
   storage: redis
-  internal-token: ${ANALYTICS_INTERNAL_TOKEN:}
   max-days-range: 31
 
 spring:

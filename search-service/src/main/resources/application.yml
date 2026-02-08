@@ -38,7 +38,6 @@ spring:
 
 search:
   storage: es
-  internal-token: ${SEARCH_INTERNAL_TOKEN:}
   idempotency:
     cleanup-enabled: true
     retention-days: 7
@@ -48,7 +47,6 @@ search:
     keep-history: 2
   content-client:
     base-url: ${CONTENT_SERVICE_BASE_URL:http://content-service:8088}
-    internal-token: ${CONTENT_INTERNAL_TOKEN:}
     connect-timeout: 200ms
     read-timeout: 5s
     page-size: 500

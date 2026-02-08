@@ -1,7 +1,6 @@
 package com.nowcoder.community.auth.service;
 
 import com.nowcoder.community.auth.config.PasswordResetProperties;
-import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.common.api.AuthErrorCode;
 import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
@@ -19,22 +18,19 @@ public class PasswordResetService {
     private final UserServiceInternalClient userServiceInternalClient;
     private final MailService mailService;
     private final CaptchaService captchaService;
-    private final RegistrationProperties registrationProperties;
 
     public PasswordResetService(
             PasswordResetProperties properties,
             PasswordResetTokenStore tokenStore,
             UserServiceInternalClient userServiceInternalClient,
             MailService mailService,
-            CaptchaService captchaService,
-            RegistrationProperties registrationProperties
+            CaptchaService captchaService
     ) {
         this.properties = properties;
         this.tokenStore = tokenStore;
         this.userServiceInternalClient = userServiceInternalClient;
         this.mailService = mailService;
         this.captchaService = captchaService;
-        this.registrationProperties = registrationProperties;
     }
 
     public RequestResult requestReset(String email, String captchaId, String captchaCode) {
@@ -48,6 +44,9 @@ public class PasswordResetService {
             throw new BusinessException(AuthErrorCode.CAPTCHA_INVALID);
         }
 
+        // 先做配置校验：避免“部分邮箱成功/部分失败”导致用户枚举；也避免签发 token 后才发现链接无法生成。
+        String resetBaseUrl = normalizeResetBaseUrlOrThrow();
+
         String normalizedEmail = email.trim();
         com.nowcoder.community.auth.service.dto.UserInternalUserByEmailResponse user = userServiceInternalClient.findByEmailOrNull(normalizedEmail);
         if (user == null || user.getUserId() <= 0 || user.getStatus() == 0) {
@@ -59,7 +58,7 @@ public class PasswordResetService {
         Duration ttl = Duration.ofSeconds(Math.max(60, properties.getTtlSeconds()));
         tokenStore.store(token, user.getUserId(), ttl);
 
-        String resetLink = buildResetLink(token);
+        String resetLink = buildResetLink(resetBaseUrl, token);
         mailService.sendPasswordResetMail(user.getEmail(), resetLink);
 
         if (properties.isExposeResetLink()) {
@@ -88,15 +87,21 @@ public class PasswordResetService {
         return true;
     }
 
-    private String buildResetLink(String token) {
-        String base = registrationProperties.getActivationBaseUrl();
+    private String normalizeResetBaseUrlOrThrow() {
+        String base = properties.getResetBaseUrl();
         if (!StringUtils.hasText(base)) {
-            base = "http://localhost:8080";
+            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR,
+                    "未配置 auth.password-reset.reset-base-url，无法生成重置密码链接");
         }
-        if (base.endsWith("/")) {
-            base = base.substring(0, base.length() - 1);
+        String normalized = base.trim();
+        if (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
         }
-        return base + "/#/auth/password/reset?token=" + token;
+        return normalized;
+    }
+
+    private String buildResetLink(String resetBaseUrl, String token) {
+        return resetBaseUrl + "/#/auth/password/reset?token=" + token;
     }
 
     private String uuid() {

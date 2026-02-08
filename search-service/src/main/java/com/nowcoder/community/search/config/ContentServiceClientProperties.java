@@ -34,11 +34,6 @@ public class ContentServiceClientProperties {
      */
     private int pageSize = 500;
 
-    /**
-     * content-service 内部接口访问令牌（X-Internal-Token）。
-     */
-    private String internalToken = "";
-
     public String getBaseUrl() {
         return baseUrl;
     }
@@ -69,13 +64,5 @@ public class ContentServiceClientProperties {
 
     public void setPageSize(int pageSize) {
         this.pageSize = pageSize;
-    }
-
-    public String getInternalToken() {
-        return internalToken;
-    }
-
-    public void setInternalToken(String internalToken) {
-        this.internalToken = internalToken;
     }
 }

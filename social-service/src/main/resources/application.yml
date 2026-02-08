@@ -20,7 +20,6 @@ social:
       max-delay-ms: 60000
       relay-interval-ms: 5000
       send-timeout-ms: 3000
-  internal-token: ${SOCIAL_INTERNAL_TOKEN:}
 
 spring:
   application:
@@ -70,7 +69,6 @@ security:
 clients:
   content:
     base-url: ${CONTENT_SERVICE_BASE_URL:http://content-service}
-    internal-token: ${CONTENT_INTERNAL_TOKEN:}
     fail-open: false
 
 mybatis:

@@ -9,7 +9,6 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
@@ -23,7 +22,6 @@ class UserServiceInternalClientTest {
 
         UserServiceClientProperties props = new UserServiceClientProperties();
         props.setBaseUrl("http://user-service");
-        props.setInternalToken("t");
 
         UserServiceInternalClient client = new UserServiceInternalClient(restTemplate, new SimpleMeterRegistry(), props);
 
@@ -39,7 +37,6 @@ class UserServiceInternalClientTest {
 
         server.expect(requestTo("http://user-service/internal/users/123/activate"))
                 .andExpect(method(HttpMethod.POST))
-                .andExpect(header("X-Internal-Token", "t"))
                 .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
 
         int r = client.activate(123, "code");
@@ -54,7 +51,6 @@ class UserServiceInternalClientTest {
 
         UserServiceClientProperties props = new UserServiceClientProperties();
         props.setBaseUrl("http://user-service");
-        props.setInternalToken("t");
 
         UserServiceInternalClient client = new UserServiceInternalClient(restTemplate, new SimpleMeterRegistry(), props);
 
@@ -70,7 +66,6 @@ class UserServiceInternalClientTest {
 
         server.expect(requestTo("http://user-service/internal/users/123/activate"))
                 .andExpect(method(HttpMethod.POST))
-                .andExpect(header("X-Internal-Token", "t"))
                 .andRespond(withSuccess(body, MediaType.APPLICATION_JSON));
 
         int r = client.activate(123, "code");
@@ -78,4 +73,3 @@ class UserServiceInternalClientTest {
         server.verify();
     }
 }
-

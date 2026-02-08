@@ -20,8 +20,6 @@ import java.util.concurrent.TimeUnit;
 
 public final class InternalClientSupport {
 
-    public static final String HEADER_INTERNAL_TOKEN = "X-Internal-Token";
-
     public static final String OUTCOME_SUCCESS = "success";
     public static final String OUTCOME_ERROR = "error";
     public static final String OUTCOME_TIMEOUT = "timeout";
@@ -31,13 +29,10 @@ public final class InternalClientSupport {
     private InternalClientSupport() {
     }
 
-    public static HttpHeaders jsonHeaders(String internalToken, String serviceName) {
+    public static HttpHeaders jsonHeaders() {
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(MediaType.parseMediaTypes(MediaType.APPLICATION_JSON_VALUE));
         headers.setContentType(MediaType.APPLICATION_JSON);
-        if (StringUtils.hasText(internalToken)) {
-            headers.set(HEADER_INTERNAL_TOKEN, internalToken.trim());
-        }
         return headers;
     }
 

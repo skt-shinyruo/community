@@ -1,7 +1,6 @@
 auth:
   user-client:
     base-url: http://user-service
-    internal-token: test-internal-token
   refresh:
     store: memory
   captcha:
@@ -9,6 +8,7 @@ auth:
     ttl-seconds: 60
     max-failures: 3
   password-reset:
+    reset-base-url: http://localhost:8080
     store: memory
     ttl-seconds: 600
     expose-reset-link: true

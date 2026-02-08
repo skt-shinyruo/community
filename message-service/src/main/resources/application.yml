@@ -68,9 +68,7 @@ message:
 clients:
   user:
     base-url: ${USER_SERVICE_BASE_URL:http://user-service}
-    internal-token: ${USER_INTERNAL_TOKEN:}
     fail-open: false
   social:
     base-url: ${SOCIAL_SERVICE_BASE_URL:http://social-service}
-    internal-token: ${SOCIAL_INTERNAL_TOKEN:}
     fail-open: false

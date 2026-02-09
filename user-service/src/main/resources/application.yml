@@ -84,8 +84,23 @@ user:
       relay-interval-ms: 5000
       send-timeout-ms: 3000
   social-client:
-    base-url: ${SOCIAL_SERVICE_BASE_URL:http://social-service}
     # 用户主页展示类读路径允许降级（避免 social-service 抖动影响主页面）。
     fail-open: true
-    connect-timeout: 200ms
-    read-timeout: 800ms
+
+dubbo:
+  application:
+    name: ${spring.application.name}
+    qos-enable: false
+  registry:
+    address: ${DUBBO_REGISTRY_ADDR:zookeeper://127.0.0.1:2181/dubbo}
+  protocol:
+    name: dubbo
+    port: -1
+  scan:
+    base-packages: com.nowcoder.community
+  consumer:
+    check: false
+    retries: 0
+    timeout: 3000
+  provider:
+    timeout: 3000

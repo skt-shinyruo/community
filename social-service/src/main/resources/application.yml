@@ -68,10 +68,27 @@ security:
 
 clients:
   content:
-    base-url: ${CONTENT_SERVICE_BASE_URL:http://content-service}
     fail-open: false
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   configuration:
     map-underscore-to-camel-case: true
+
+dubbo:
+  application:
+    name: ${spring.application.name}
+    qos-enable: false
+  registry:
+    address: ${DUBBO_REGISTRY_ADDR:zookeeper://127.0.0.1:2181/dubbo}
+  protocol:
+    name: dubbo
+    port: -1
+  scan:
+    base-packages: com.nowcoder.community
+  consumer:
+    check: false
+    retries: 0
+    timeout: 3000
+  provider:
+    timeout: 3000

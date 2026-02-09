@@ -1,24 +1,15 @@
 package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.domain.EntityTypes;
 import com.nowcoder.community.common.web.internalclient.InternalClientSupport;
 import com.nowcoder.community.user.config.SocialServiceClientProperties;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.apache.dubbo.rpc.RpcException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
-import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.SocketTimeoutException;
 import java.util.concurrent.TimeUnit;
@@ -34,14 +25,14 @@ public class SocialServiceClient {
 
     private static final Logger log = LoggerFactory.getLogger(SocialServiceClient.class);
     private static final String SERVICE_NAME = "social-service";
-    private static final int USER_ENTITY_TYPE = EntityTypes.USER;
 
-    private final RestTemplate restTemplate;
     private final MeterRegistry meterRegistry;
     private final SocialServiceClientProperties properties;
 
-    public SocialServiceClient(RestTemplate restTemplate, MeterRegistry meterRegistry, SocialServiceClientProperties properties) {
-        this.restTemplate = restTemplate;
+    @DubboReference(check = false, retries = 0, timeout = 800)
+    private com.nowcoder.community.social.api.rpc.SocialReadRpcService socialReadRpcService;
+
+    public SocialServiceClient(MeterRegistry meterRegistry, SocialServiceClientProperties properties) {
         this.meterRegistry = meterRegistry;
         this.properties = properties;
     }
@@ -93,27 +84,26 @@ public class SocialServiceClient {
             return UserProfileStats.empty();
         }
 
-        UriComponentsBuilder builder = UriComponentsBuilder
-                .fromHttpUrl(properties.getBaseUrl() + "/internal/social/read/users/" + userId + "/profile-stats");
-        if (viewerId > 0 && viewerId != userId) {
-            builder.queryParam("viewerId", viewerId);
+        Integer v = viewerId > 0 && viewerId != userId ? viewerId : null;
+        Result<com.nowcoder.community.social.api.rpc.dto.UserProfileStats> result = socialReadRpcService.userProfileStats(userId, v);
+        com.nowcoder.community.social.api.rpc.dto.UserProfileStats data = InternalClientSupport.unwrap(result, SERVICE_NAME);
+        if (data == null) {
+            return UserProfileStats.empty();
         }
-        String url = builder.toUriString();
-        ResponseEntity<Result<UserProfileStats>> resp = exchange(url, HttpMethod.GET, new HttpEntity<>(headers()), new ParameterizedTypeReference<Result<UserProfileStats>>() {
-        });
-        UserProfileStats data = InternalClientSupport.unwrap(resp, SERVICE_NAME);
-        return data == null ? UserProfileStats.empty() : data;
+        UserProfileStats resp = new UserProfileStats();
+        resp.setLikeCount(data.getLikeCount());
+        resp.setFolloweeCount(data.getFolloweeCount());
+        resp.setFollowerCount(data.getFollowerCount());
+        resp.setHasFollowed(data.isHasFollowed());
+        return resp;
     }
 
     private long userLikeCountInternal(int userId) {
         if (userId <= 0) {
             return 0;
         }
-        String baseUrl = properties.getBaseUrl();
-        String url = baseUrl + "/internal/social/read/likes/users/" + userId + "/count";
-        ResponseEntity<Result<Long>> resp = exchange(url, HttpMethod.GET, new HttpEntity<>(headers()), new ParameterizedTypeReference<Result<Long>>() {
-        });
-        Long data = InternalClientSupport.unwrap(resp, SERVICE_NAME);
+        Result<Long> result = socialReadRpcService.userLikeCount(userId);
+        Long data = InternalClientSupport.unwrap(result, SERVICE_NAME);
         return data == null ? 0 : data;
     }
 
@@ -121,13 +111,8 @@ public class SocialServiceClient {
         if (userId <= 0) {
             return 0;
         }
-        String url = UriComponentsBuilder
-                .fromHttpUrl(properties.getBaseUrl() + "/internal/social/read/follows/" + userId + "/followees/count")
-                .queryParam("entityType", USER_ENTITY_TYPE)
-                .toUriString();
-        ResponseEntity<Result<Long>> resp = exchange(url, HttpMethod.GET, new HttpEntity<>(headers()), new ParameterizedTypeReference<Result<Long>>() {
-        });
-        Long data = InternalClientSupport.unwrap(resp, SERVICE_NAME);
+        Result<Long> result = socialReadRpcService.followeeCount(userId);
+        Long data = InternalClientSupport.unwrap(result, SERVICE_NAME);
         return data == null ? 0 : data;
     }
 
@@ -135,13 +120,8 @@ public class SocialServiceClient {
         if (userId <= 0) {
             return 0;
         }
-        String url = UriComponentsBuilder
-                .fromHttpUrl(properties.getBaseUrl() + "/internal/social/read/follows/" + userId + "/followers/count")
-                .queryParam("entityType", USER_ENTITY_TYPE)
-                .toUriString();
-        ResponseEntity<Result<Long>> resp = exchange(url, HttpMethod.GET, new HttpEntity<>(headers()), new ParameterizedTypeReference<Result<Long>>() {
-        });
-        Long data = InternalClientSupport.unwrap(resp, SERVICE_NAME);
+        Result<Long> result = socialReadRpcService.followerCount(userId);
+        Long data = InternalClientSupport.unwrap(result, SERVICE_NAME);
         return data == null ? 0 : data;
     }
 
@@ -149,24 +129,8 @@ public class SocialServiceClient {
         if (actorUserId <= 0 || targetUserId <= 0 || actorUserId == targetUserId) {
             return false;
         }
-        String url = UriComponentsBuilder
-                .fromHttpUrl(properties.getBaseUrl() + "/internal/social/read/follows/status")
-                .queryParam("userId", actorUserId)
-                .queryParam("entityType", USER_ENTITY_TYPE)
-                .queryParam("entityId", targetUserId)
-                .toUriString();
-
-        ResponseEntity<Result<Boolean>> resp = exchange(url, HttpMethod.GET, new HttpEntity<>(headers()), new ParameterizedTypeReference<Result<Boolean>>() {
-        });
-        return InternalClientSupport.unwrap(resp, SERVICE_NAME);
-    }
-
-    private HttpHeaders headers() {
-        String baseUrl = properties.getBaseUrl();
-        if (!StringUtils.hasText(baseUrl)) {
-            throw new IllegalArgumentException("user.social-client.base-url 未配置");
-        }
-        return InternalClientSupport.jsonHeaders();
+        Result<Boolean> result = socialReadRpcService.hasFollowedUser(actorUserId, targetUserId);
+        return InternalClientSupport.unwrap(result, SERVICE_NAME);
     }
 
     private <T> T call(String api, Supplier<T> supplier, Supplier<T> fallback) {
@@ -195,13 +159,16 @@ public class SocialServiceClient {
     }
 
     private boolean isTimeout(Throwable t) {
-        if (t instanceof ResourceAccessException) {
-            return true;
+        if (t instanceof RpcException re) {
+            return re.isTimeout();
         }
         Throwable cur = t;
         while (cur != null) {
             if (cur instanceof SocketTimeoutException) {
                 return true;
+            }
+            if (cur instanceof RpcException re) {
+                return re.isTimeout();
             }
             cur = cur.getCause();
         }
@@ -215,14 +182,6 @@ public class SocialServiceClient {
         Tags tags = Tags.of("api", api, "outcome", outcome);
         meterRegistry.counter("user_social_client_requests_total", tags).increment();
         meterRegistry.timer("user_social_client_latency", tags).record(System.nanoTime() - startNanos, TimeUnit.NANOSECONDS);
-    }
-
-    private <T> ResponseEntity<Result<T>> exchange(String url, HttpMethod method, HttpEntity<?> entity, ParameterizedTypeReference<Result<T>> typeRef) {
-        try {
-            return restTemplate.exchange(url, method, entity, typeRef);
-        } catch (RestClientException e) {
-            throw e;
-        }
     }
 
     public static class UserProfileStats {

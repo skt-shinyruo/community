@@ -95,7 +95,7 @@ Runbook：
 
 #### Scenario: 版主处置
 - 生成 `moderation_action` 审计记录
-- 需要时调用 `user-service` internal API 执行禁言/封禁
+- 需要时通过 `user-api` 的 Dubbo RPC 执行禁言/封禁（`UserModerationRpcService`）
 
 ### Requirement: 收藏与订阅
 **Module:** content
@@ -122,8 +122,11 @@ Runbook：
 - `PUT /api/categories/{categoryId}/subscribe`、`DELETE /api/categories/{categoryId}/subscribe`（订阅/取消订阅分类）
 - `GET /api/subscriptions/categories`（我的分类订阅列表）
 - `GET /api/posts?subscribed=true`（仅看订阅：按订阅分类过滤）
-- `GET /internal/content/posts`（内部接口：供 search-service 重建索引扫描帖子；开发阶段默认放行）
-- `GET /internal/content/entities/resolve`（内部接口：供 social-service 在写路径解析 POST/COMMENT 的 owner/postId，构造可信事件 payload；开发阶段默认放行）
+- Dubbo RPC（服务间同步调用，推荐）：
+  - `ContentScanRpcService`：帖子扫描（供 search-service reindex）
+  - `ContentEntityRpcService`：实体解析（POST/COMMENT 的 owner/postId；供 social 写路径构造可信事件 payload）
+- `GET /internal/content/posts`（legacy：历史 HTTP internal 扫描接口；开发阶段默认放行）
+- `GET /internal/content/entities/resolve`（legacy：历史 HTTP internal resolve 接口；开发阶段默认放行）
 - `POST /internal/content/likes/backfill`（内部运维接口：默认关闭；回填 Redis 点赞投影；需显式开启 `content.like.backfill.endpoint-enabled=true`）
 
 ## Data Models
@@ -142,9 +145,8 @@ Runbook：
 ## Dependencies
 - user（作者信息）
 - social（点赞 SSOT 与事件来源；由 social 事件驱动维护 content 的 Redis 点赞投影）
-- social-service internal（likes scan：用于冷启动/纠偏回填 Redis 点赞投影）
-- social-service internal（拉黑关系：评论/回复写路径前置校验）
-- user-service internal（禁言/封禁状态：发帖/评论写路径前置校验；治理动作落地）
+- social（通过 `social-api` Dubbo RPC：likes scan 用于冷启动/纠偏回填点赞投影；拉黑关系用于写路径前置校验）
+- user（通过 `user-api` Dubbo RPC：禁言/封禁状态用于发帖/评论写路径前置校验；治理动作落地）
 - message（评论/点赞/关注通知）
 - search（发帖/删帖事件同步索引）
 - infra（Quartz、Redis、Kafka）
@@ -164,3 +166,4 @@ Runbook：
 - 2026-02-03：Outbox 认领升级支持 `FOR UPDATE SKIP LOCKED`（可配置回退），降低多实例 relay 并发时的锁等待与头阻塞风险；运维入口 `/internal/content/outbox/replay` 保留（开发阶段默认放行）。
 - 2026-02-03：Outbox 轮询索引对齐为 `idx_outbox_status_next(status, next_retry_at, id)` 并增加 drift 自修复（旧索引缺 `id` 时 drop+recreate）；投影回填任务支持可选 single-flight（多实例避免重复执行）。
 - 2026-02-04：评论/回复写路径收敛为“仅一级回复”，并在回复评论时增加同帖归属校验，避免跨帖/多层回复导致脏数据与读侧不可达。
+- 2026-02-09：服务间同步调用由 HTTP internal client 迁移为 Dubbo RPC（契约下沉到 `content-api`），减少跨服务 HTTP 依赖与 DTO 漂移风险。

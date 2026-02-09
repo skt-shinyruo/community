@@ -21,7 +21,7 @@
 #### Scenario: 发送私信
 前置条件：目标用户存在
 - 私信写入数据库
-  - 发送前校验拉黑关系（双向）：优先查询本地投影；投影缺失时回源 `social-service` internal 关系查询并回填，避免冷启动/漏消息导致的 fail-open 窗口期
+  - 发送前校验拉黑关系（双向）：优先查询本地投影；投影缺失时通过 `social-api` Dubbo RPC 回源拉黑关系查询并回填，避免冷启动/漏消息导致的 fail-open 窗口期
   - toName 场景（按用户名发送）会触发 username→userId 的 resolve：默认加入短 TTL + 有界容量缓存，降低重复回源导致的依赖放大（配置见 Dependencies）
 
 ### Requirement: 系统通知
@@ -67,7 +67,7 @@
 
 ## Dependencies
 - user（目标用户信息）
-- social-service internal（拉黑关系 SSOT 查询：投影缺失时回源；并回填 message 投影）
+- social（通过 `social-api` Dubbo RPC：拉黑关系 SSOT 查询；投影缺失时回源并回填 message 投影）
 - infra（Kafka、Security/登录态）
   - username resolve 缓存（message-service -> user-service）：
     - `clients.user.resolve-cache.ttl`（默认 60s）

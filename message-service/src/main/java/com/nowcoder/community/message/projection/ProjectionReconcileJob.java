@@ -2,6 +2,7 @@ package com.nowcoder.community.message.projection;
 
 import com.nowcoder.community.common.scheduler.SingleFlightTaskGuard;
 import com.nowcoder.community.message.service.UserModerationClient;
+import com.nowcoder.community.user.api.rpc.dto.UserModerationStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -60,14 +61,14 @@ public class ProjectionReconcileJob {
         int afterId = Math.max(0, moderationAfterId.get());
         int batchSize = 200;
         try {
-            List<UserModerationClient.ModerationStatus> list = userModerationClient.scanStatuses(afterId, batchSize);
+            List<UserModerationStatus> list = userModerationClient.scanStatuses(afterId, batchSize);
             if (list == null || list.isEmpty()) {
                 moderationAfterId.set(0);
                 return;
             }
             Instant now = Instant.now();
             int maxId = afterId;
-            for (UserModerationClient.ModerationStatus s : list) {
+            for (UserModerationStatus s : list) {
                 if (s == null || s.getUserId() <= 0) {
                     continue;
                 }

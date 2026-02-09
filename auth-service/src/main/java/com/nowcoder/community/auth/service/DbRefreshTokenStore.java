@@ -1,6 +1,6 @@
 package com.nowcoder.community.auth.service;
 
-import com.nowcoder.community.auth.service.dto.UserInternalRefreshTokenRecordResponse;
+import com.nowcoder.community.user.api.rpc.dto.UserInternalRefreshTokenRecordResponse;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -86,4 +86,3 @@ public class DbRefreshTokenStore implements RefreshTokenStore {
         }
     }
 }
-

@@ -21,10 +21,12 @@
   - Header：`X-Trace-Id`（常量在 `com.nowcoder.community.common.web.TraceIdFilter` / `com.nowcoder.community.gateway.filter.TraceIdSupport`）
   - Servlet Filter：`com.nowcoder.community.common.web.TraceIdFilter`（仅 Servlet Web 环境生效）
   - 线程上下文：`com.nowcoder.community.common.trace.TraceContext`（统一 set/clear TraceId + MDC）
-  - RestTemplate 透传：`com.nowcoder.community.common.web.TraceIdClientHttpRequestInterceptor`（同步调用注入 `X-Trace-Id`）
+  - RestTemplate 透传（legacy）：`com.nowcoder.community.common.web.TraceIdClientHttpRequestInterceptor`（同步 HTTP 调用注入 `X-Trace-Id`）
+  - Dubbo 透传：`com.nowcoder.community.common.dubbo.TraceContextDubboFilter`（consumer 写 attachment；provider 注入 `TraceContext/MDC` 并 finally 清理）
 - 内部调用治理：
-  - headers/错误映射/指标：`com.nowcoder.community.common.web.internalclient.InternalClientSupport`
-  - 指标统一：`internal_client_requests_total` / `internal_client_latency`（tags：client/api/outcome）
+  - Dubbo（推荐）：`com.nowcoder.community.common.dubbo.TraceContextDubboFilter`、`com.nowcoder.community.common.dubbo.DubboMetricsFilter`（调用次数/时延统一埋点）
+  - HTTP internal client（legacy/仅运维/兼容）：`com.nowcoder.community.common.web.internalclient.InternalClientSupport`
+    - 指标统一：`internal_client_requests_total` / `internal_client_latency`（tags：client/api/outcome）
 - 文本兼容工具：
   - `com.nowcoder.community.common.text.HtmlEntityCodec`：基础 HTML entity 白名单编解码（用于历史内容兼容，避免二次转义可见问题）
 - 全局异常：
@@ -69,10 +71,18 @@
 - 错误码段约定（领域拆分，便于检索/归因）：`10xxx auth` / `11xxx user` / `12xxx content` / `13xxx social` / `14xxx message` / `15xxx search` / `16xxx analytics` / `17xxx gateway`。
 - 生产代码“清零门禁”：`common/src/test/java/com/nowcoder/community/common/quality/ExceptionUsageGateTest.java` 扫描各模块 `src/main/java`，禁止 `catch(Exception)` 与（除 `*SecurityConfig.java` 外的）`throws Exception` 回潮。
 
-### 3.1 internal client 约定（跨服务同步调用）
-- 建议优先调用 `/internal/**`（避免跨服务透传 Authorization 造成鉴权耦合）。
-- `InternalClientSupport.unwrap` 会保留下游 `code/message/traceId`（通过 `SimpleErrorCode` + message 附带 traceId），便于排障与告警归因。
+### 3.1 服务间同步调用（Dubbo RPC）
+（已迁移）项目的“服务间同步调用”已收敛为 Dubbo RPC（契约在 `*-api` 模块）。
+
+约定（Best Practices）：
+- RPC method 统一返回 `Result<T>`（业务错误编码在 `Result.code/message`，避免跨服务异常序列化/语义漂移）。
+- 默认 consumer `timeout` 偏短且可配置；默认 `retries=0`，仅对明确幂等读接口按需开启 1 次重试并控制总超时。
+- Trace/metrics 通过 `common` 的 Dubbo Filter 统一透传与埋点（attachments：`X-Trace-Id/traceparent`；metrics outcome 口径一致）。
+
+### 3.2 internal HTTP（legacy/运维/兼容）
+- `/internal/**` 主要保留为运维入口/兼容调试；gateway 默认拒绝对外暴露。
+- 如确需 HTTP internal 调用，建议统一使用 `InternalClientSupport.unwrap` 保留下游 `code/message/traceId`（通过 `SimpleErrorCode` + message 附带 traceId），便于排障与告警归因。
 - outcome 口径建议使用：`success` / `error` / `timeout` / `degraded` / `forbidden`（保持跨服务一致）。
 
-### 3.2 internal-token 轮转
+### 3.3 internal-token 轮转
 - 说明：internal token 鉴权已在开发阶段移除，该 runbook 暂不适用。

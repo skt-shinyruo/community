@@ -16,6 +16,13 @@ flowchart TD
     GW --> Ana[analytics-service]
 
     GW -. service discovery/config .-> Nacos[(Nacos)]
+    Auth -. dubbo registry .-> ZK[(Zookeeper)]
+    User -. dubbo registry .-> ZK
+    Content -. dubbo registry .-> ZK
+    Social -. dubbo registry .-> ZK
+    Msg -. dubbo registry .-> ZK
+    Search -. dubbo registry .-> ZK
+    Ana -. dubbo registry .-> ZK
 
     Auth --> MySQL[(MySQL)]
     User --> MySQL
@@ -111,9 +118,9 @@ flowchart TD
 ---
 
 ## 4. 技术栈
-- **Backend：** Java 17 / Spring Boot 3.x / Spring Cloud / Spring Cloud Alibaba Nacos
+- **Backend：** Java 17 / Spring Boot 3.x / Spring Cloud / Nacos / Dubbo
 - **Frontend：** Vue 3
-- **Data：** MySQL / Redis / Kafka / Elasticsearch / Qiniu
+- **Data/Infra：** MySQL / Redis / Kafka / Elasticsearch / Qiniu / Zookeeper（Dubbo registry）
 
 ---
 
@@ -167,11 +174,12 @@ sequenceDiagram
 - **反骚扰一致性（消除 fail-open）：** message/content 在“投影缺失”场景采用“投影优先 + SSOT 回源 + 回填”的策略，避免冷启动/漏消息窗口期绕过拉黑校验。
 - **事件契约可信（信任边界收口）：** social 写路径不再信任客户端注入的 `entityUserId/postId`，改为调用 content internal resolve 生成可信 payload，并校验 entity 存在性，避免脏关系与下游污染。
 - **unknown-handling 对齐：** search-service 等消费者统一采用 `EventEnvelopeParser` + `UnknownEventAction`，降低版本演进时的 DLQ 噪声与阻塞风险。
-- **internal 聚合收敛：** 跨服务聚合展示（例如 user-service 用户主页的获赞/关注/粉丝/是否关注）应优先走 `/internal/**`，避免跨服务透传 Authorization 造成鉴权耦合。
+- **服务间同步调用收敛：** 跨服务同步调用（例如 user-service 用户主页的获赞/关注/粉丝/是否关注）应优先走 **Dubbo RPC**（契约在 `*-api` 模块）；`/internal/**` 主要保留为运维/兼容入口，避免把业务同步依赖绑定到 HTTP internal。
 - **感知一致性（Perceived Consistency）：** 对“点赞/搜索”等对用户敏感的链路，在前端做短 TTL 覆盖与预期管理（read-your-writes + 最终一致提示），降低“写成功但读侧未更新”的可见不一致。
 - **幂等 TTL 可配置：** `IdempotencyGuard` 的 processing/success TTL 支持按环境配置，降低慢链路下锁过期的重复副作用风险；同时提供脚本示例帮助第三方正确传递 `Idempotency-Key`。
 - **配置护栏（doctor）：** 提供 `scripts/doctor.sh` 进行部署前自检（不输出敏感值），快速发现 JWT/prod profile/旁路暴露等误配，并提示清理已废弃的 internal/ops token 配置。
 - **gateway analytics 有界化：** 网关侧 UV/DAU 去重仅用于降噪，应使用有界 TTL 缓存（多实例不共享），最终以 analytics-service Redis 去重/聚合为准；并确保采集失败可观测且不影响主业务链路。
+- **Dubbo 调用治理：** traceId/traceparent 通过 Dubbo attachment 透传；调用次数/时延通过统一 Filter 埋点（consumer/provider 侧口径一致），与 Prometheus/Micrometer 指标体系对齐。
 
 ---
 
@@ -196,3 +204,4 @@ sequenceDiagram
 | ADR-015 | 互动写路径拉黑校验统一为“投影优先 + 缺失回源 + 回填” | 2026-02-01 | ✅Adopted | content/message/social | [Link](../history/2026-02/202602011327_event_consistency_hardening/how.md#adr-015-互动写路径的拉黑校验统一为投影优先--缺失回源--回填) |
 | ADR-016 | 社交事件 payload 禁止信任客户端注入字段（服务端解析为准） | 2026-02-01 | ✅Adopted | social/content/user/message | [Link](../history/2026-02/202602011327_event_consistency_hardening/how.md#adr-016-社交事件-payload-禁止信任客户端注入字段服务端解析为准) |
 | ADR-017 | post:score 刷新队列至少一次语义（避免异常丢失） | 2026-02-01 | ✅Adopted | content | [Link](../history/2026-02/202602011327_event_consistency_hardening/how.md#adr-017-postscore-刷新队列至少一次语义避免异常丢失) |
+| ADR-018 | 服务间同步调用采用 Dubbo + Zookeeper registry（保留 gateway HTTP） | 2026-02-09 | ✅Adopted | gateway/auth/user/content/social/message/search/analytics | [Link](../history/2026-02/202602091808_dubbo_rpc_migration/how.md#adr-018-保留-spring-cloud-gateway-http-路由仅迁移服务间同步调用为-dubbo) |

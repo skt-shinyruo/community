@@ -4,7 +4,7 @@
 - 统一入口：对外暴露 `/api/**`，内部转发到各微服务（当前主要是 `auth-service`）。
 - 统一能力：CORS、JWT 验签、401/403 统一错误返回、traceId 透传。
 - 安全增强：基于 Redis 的多规则限流（登录/注册/验证码/敏感操作/管理操作）；管理/运维接口按角色收敛（例如搜索重建、统计接口）。
-- 可观测性增强：可选启用 UV/DAU 采集（由 gateway 采集并写入 analytics-service）。
+- 可观测性增强：可选启用 UV/DAU 采集（由 gateway 采集并 best-effort 写入 analytics-service）。
 - 服务治理：接入 Nacos Discovery（可选 Nacos Config）。
 
 ## 2. 关键文件
@@ -42,7 +42,7 @@
 
 ## 4. 本地运行（示例）
 - 需要设置 `GATEWAY_JWT_HMAC_SECRET`（>=32 字节）并确保与 `AUTH_JWT_HMAC_SECRET` 一致。
-- 若启用统计采集（`analytics.collect.enabled=true`），gateway 会调用 analytics-service 的 `/internal/**` 写入口（开发阶段不再要求 internal token 鉴权）。
+- 若启用统计采集（`analytics.collect.enabled=true`），gateway 会通过 `analytics-api` 的 Dubbo RPC 调用 analytics-service（best-effort）。
   - 去重/降噪参数：`analytics.collect.dedup-enabled`、`analytics.collect.uv-cache-max-size`、`analytics.collect.dau-cache-max-size`、`analytics.collect.dedup-ttl-seconds`（网关单实例内生效）。
   - 隔离/背压参数：`analytics.collect.queue-capacity`（有界队列）、`analytics.collect.max-concurrency`（worker 并发）、`analytics.collect.timeout-ms`（采集超时）。
   - Runbook：`helloagents/wiki/runbooks/gateway-analytics-collect.md`
@@ -67,7 +67,7 @@
 - 权限矩阵：治理后台接口 `/api/moderation/**` 仅允许 `ROLE_ADMIN/ROLE_MODERATOR`（其余用户返回 403）。
 - 帖子接口：仅开放读接口（`GET /api/posts`、`GET /api/posts/{postId}`、`GET /api/posts/{postId}/comments`、`GET /api/posts/{postId}/comments/{commentId}/replies`）；敏感管理操作（`POST /api/posts/{postId}/top|wonderful|delete`）要求 `ROLE_ADMIN/ROLE_MODERATOR`。为避免 matcher 顺序/通配导致误放行，网关侧对公开路径使用显式清单而非 `/api/posts/**`。
 - 文件访问：`GET /files/**` 允许匿名访问，但仅用于公开头像资源（下游 user-service 仍会做前缀与路径校验）。
-- UV/DAU 采集链路：网关侧仅做“有界降噪”（TTL + 最大容量），最终以 analytics-service Redis 去重/聚合为准；网关调用 analytics-service 时会透传 `X-Trace-Id/traceparent` 便于排障。
+- UV/DAU 采集链路：网关侧仅做“有界降噪”（TTL + 最大容量），最终以 analytics-service Redis 去重/聚合为准；网关通过 Dubbo 调用 analytics-service 时会透传 `X-Trace-Id/traceparent` 便于排障。
 - UV/DAU 采集链路（隔离版）：filter 仅采集字段并投递到有界队列；异步 worker 执行 WebClient 调用；队列满允许丢弃并通过指标观测（`gateway_analytics_collect_total{metric,outcome}` + `gateway_analytics_collect_latency{metric}`）。
 - WebClient 全局兜底：网关通过 `gateway.webclient.*` 提供出站调用的统一超时与连接池上限（含 pending acquire 限制），用于覆盖“新增链路忘配 timeout”并在极端网络条件下保护网关不被连接堆积拖垮。
 - OriginGuard：同源判定会在“可信代理 CIDR 命中”时基于 `Forwarded/X-Forwarded-*` 计算 effective scheme/host/port（反代/HTTPS offload 兼容）；非可信来源忽略 forwarded 头，避免伪造绕过 allowlist。

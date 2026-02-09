@@ -3,6 +3,7 @@ package com.nowcoder.community.content.service;
 import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.projection.UserModerationProjectionRepository;
+import com.nowcoder.community.user.api.rpc.dto.UserModerationStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -37,7 +38,7 @@ public class UserModerationGuard {
         }
 
         // 投影缺失：向 SSOT(user-service) 做一次性回填，再次校验（失败则按 fail-closed 返回 503）。
-        UserModerationClient.ModerationStatus status = userModerationClient.getStatus(userId);
+        UserModerationStatus status = userModerationClient.getStatus(userId);
         projectionRepository.upsertModerationStatus(
                 userId,
                 status == null ? null : status.getMuteUntil(),
@@ -55,4 +56,3 @@ public class UserModerationGuard {
                 && String.valueOf(e.getMessage()).contains("投影缺失");
     }
 }
-

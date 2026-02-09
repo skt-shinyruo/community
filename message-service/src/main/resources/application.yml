@@ -57,9 +57,6 @@ security:
     hmac-secret: ${JWT_HMAC_SECRET:${AUTH_JWT_HMAC_SECRET:}}
 
 message:
-  user-client:
-    connect-timeout: 200ms
-    read-timeout: 800ms
   idempotency:
     cleanup-enabled: true
     retention-days: 7
@@ -67,13 +64,27 @@ message:
 
 clients:
   user:
-    base-url: ${USER_SERVICE_BASE_URL:http://user-service}
     fail-open: false
   social:
-    base-url: ${SOCIAL_SERVICE_BASE_URL:http://social-service}
     fail-open: false
 
 http:
   idempotency:
     enabled: true
     store: DB
+
+dubbo:
+  application:
+    name: ${spring.application.name}
+    qos-enable: false
+  registry:
+    address: ${DUBBO_REGISTRY_ADDR:zookeeper://127.0.0.1:2181/dubbo}
+  protocol:
+    name: dubbo
+    port: -1
+  scan:
+    base-packages: com.nowcoder.community
+  consumer:
+    check: false
+    retries: 0
+    timeout: 3000

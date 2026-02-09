@@ -11,6 +11,10 @@
 - **语言：** Java 17（父工程 `pom.xml` 强制门禁）
 - **当前模块：**
   - `common`：统一 `Result<T>` / 错误码 / 全局异常 / traceId（目标态规范基线）
+  - `user-api`：user-service 的 Dubbo RPC 接口/DTO（供 auth/message/content 等调用）
+  - `social-api`：social-service 的 Dubbo RPC 接口/DTO（供 user/content/message 等调用）
+  - `content-api`：content-service 的 Dubbo RPC 接口/DTO（供 search/social 等调用）
+  - `analytics-api`：analytics-service 的 Dubbo RPC 接口/DTO（供 gateway 采集调用）
   - `gateway`：Spring Cloud Gateway（统一入口：CORS/鉴权/trace/错误收敛）
   - `auth-service`：JWT 登录/刷新/登出（refresh token 旋转；默认 Redis 存储，内存实现需显式启用）
   - `user-service`：用户资料与头像（Qiniu）
@@ -23,12 +27,12 @@
 - **持久化：** MyBatis + MySQL（迭代 0 仍复用 legacy 的 user 表）
 - **缓存：** Redis（auth refresh token、social 点赞/关注、analytics UV/DAU 等）
 - **安全：** Spring Security 6（gateway/auth/legacy）
-- **服务治理：** Spring Cloud 2023.0.x + Spring Cloud Alibaba 2023.x + Nacos（注册发现/配置中心）
+- **服务治理：** Spring Cloud 2023.0.x + Spring Cloud Alibaba 2023.x + Nacos（HTTP 路由的注册发现/配置中心）+ Dubbo（服务间同步调用）+ Zookeeper（Dubbo registry）
 
 > 注：legacy 的 Elasticsearch 实现已在迁移期降级移除（后续迭代 1 将以独立 `search-service` 重写）。
 
 ### 1.2 目标态（迁移方向）
-- **后端：** Spring Boot 3.x + Spring Cloud（微服务）+ Spring Cloud Alibaba Nacos（注册发现/配置中心）
+- **后端：** Spring Boot 3.x + Spring Cloud（微服务）+ Nacos（注册发现/配置中心）+ Dubbo（服务间同步调用）
 - **语言：** Java 17
 - **前端：** Vue 3（前后端分离，SPA）
 - **鉴权：** JWT Access Token + Refresh Token（推荐旋转刷新）
@@ -45,7 +49,8 @@
 接口边界（SSOT）：
 - External（对外业务）：`/api/**`
 - Ops（对外运维）：`/api/ops/**`（高风险操作；仅管理员可触发，建议通过 Ops Console 等受控入口执行）
-- Internal（服务间调用）：`/internal/**`（仅服务间调用；部署层默认不暴露端口；服务端不校验 `X-Internal-Token`）
+- Internal-RPC（服务间同步调用）：Dubbo RPC（接口/DTO 统一沉淀在 `*-api` 模块；registry=Zookeeper）
+- Internal-HTTP（运维/兼容）：`/internal/**`（仅集群内可达；gateway 默认拒绝；服务端不校验 `X-Internal-Token`）
 - 历史遗留对外 internal 命名（示例：`/api/search/internal/reindex`）：仅短期兼容；新入口为 `/api/ops/search/reindex`
 
 ### 2.2 配置管理

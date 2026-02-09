@@ -1,17 +1,14 @@
 package com.nowcoder.community.user.service;
 
+import com.nowcoder.community.social.api.rpc.SocialReadRpcService;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import com.nowcoder.community.user.config.SocialServiceClientProperties;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
+import org.apache.dubbo.rpc.RpcException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -19,19 +16,19 @@ class SocialServiceClientTest {
 
     @Test
     void safeMethodsShouldDegradeAndEmitMetricsWhenDownstreamFails() {
-        RestTemplate restTemplate = mock(RestTemplate.class);
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         SocialServiceClientProperties properties = new SocialServiceClientProperties();
-        properties.setBaseUrl("http://social-service");
         properties.setFailOpen(true);
-        SocialServiceClient client = new SocialServiceClient(restTemplate, registry, properties);
+        SocialServiceClient client = new SocialServiceClient(registry, properties);
 
-        when(restTemplate.exchange(
-                anyString(),
-                any(HttpMethod.class),
-                any(HttpEntity.class),
-                any(ParameterizedTypeReference.class)
-        )).thenThrow(new RestClientException("downstream error"));
+        SocialReadRpcService rpc = mock(SocialReadRpcService.class);
+        TestSupport.injectRpc(client, rpc);
+        RpcException downstreamError = new RpcException("downstream error");
+        when(rpc.userProfileStats(anyInt(), any())).thenThrow(downstreamError);
+        when(rpc.userLikeCount(anyInt())).thenThrow(downstreamError);
+        when(rpc.followeeCount(anyInt())).thenThrow(downstreamError);
+        when(rpc.followerCount(anyInt())).thenThrow(downstreamError);
+        when(rpc.hasFollowedUser(anyInt(), anyInt())).thenThrow(downstreamError);
 
         SocialServiceClient.UserProfileStats stats = client.safeUserProfileStats(1, 2);
         assertThat(stats).isNotNull();
@@ -60,5 +57,17 @@ class SocialServiceClientTest {
                 .tags("api", "userLikeCount", "outcome", "degraded")
                 .counter()
                 .count()).isEqualTo(1.0);
+    }
+
+    private static final class TestSupport {
+        private static void injectRpc(SocialServiceClient client, SocialReadRpcService rpc) {
+            try {
+                var f = SocialServiceClient.class.getDeclaredField("socialReadRpcService");
+                f.setAccessible(true);
+                f.set(client, rpc);
+            } catch (ReflectiveOperationException e) {
+                throw new IllegalStateException(e);
+            }
+        }
     }
 }

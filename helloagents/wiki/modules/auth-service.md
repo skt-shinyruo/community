@@ -3,7 +3,7 @@
 ## 1. 职责（迭代 0）
 - 提供登录/刷新/登出闭环：`/api/auth/login`、`/api/auth/refresh`、`/api/auth/logout`，以及联调用的 `GET /api/auth/me`。
 - 签发 JWT access token（HS256），refresh token 默认使用 **HttpOnly Cookie** 并支持 **旋转刷新（rotation）**。
-- 身份域数据所有权收敛到 `user-service`：用户名密码校验、用户状态/角色查询、密码渐进升级（legacy→BCrypt）均通过 `user-service` 的 `/internal/users/**` 完成；`auth-service` **不再直连 MySQL**。
+- 身份域数据所有权收敛到 `user-service`：用户名密码校验、用户状态/角色查询、密码渐进升级（legacy→BCrypt）等通过 `user-api` 的 Dubbo RPC 完成；`auth-service` **不再直连 MySQL**。
 - 提供验证码与账号安全防护：
   - `GET /api/auth/captcha`（captchaId + imageBase64）
   - `POST /api/auth/captcha/verify`（一次性 + TTL + 失败次数阈值作废）
@@ -23,12 +23,9 @@
 - JWT 签发：`auth-service/src/main/java/com/nowcoder/community/auth/config/JwtCryptoConfig.java`
 - 业务入口：`auth-service/src/main/java/com/nowcoder/community/auth/api/AuthController.java`
 - 核心服务：`auth-service/src/main/java/com/nowcoder/community/auth/service/AuthService.java`
-- user-service internal client（身份域 SSOT）：
-  - 配置：`auth-service/src/main/java/com/nowcoder/community/auth/config/UserServiceClientProperties.java`
-  - RestTemplate：`auth-service/src/main/java/com/nowcoder/community/auth/config/AuthRestClientConfig.java`
-  - 客户端：`auth-service/src/main/java/com/nowcoder/community/auth/service/UserServiceInternalClient.java`
-  - 统一支撑：复用 `common` 的 `InternalClientSupport`（headers/错误语义保真/metrics 统一）
-  - DTO：`auth-service/src/main/java/com/nowcoder/community/auth/service/dto/*`
+- user-service RPC client（身份域 SSOT，Dubbo）：
+  - 客户端：`auth-service/src/main/java/com/nowcoder/community/auth/service/UserServiceInternalClient.java`（`@DubboReference` 注入 `UserInternalRpcService`）
+  - 契约与 DTO：`user-api/src/main/java/com/nowcoder/community/user/api/rpc/**`
 - 验证码：
   - 配置：`auth-service/src/main/java/com/nowcoder/community/auth/config/CaptchaProperties.java`
   - 逻辑：`auth-service/src/main/java/com/nowcoder/community/auth/service/CaptchaService.java`
@@ -63,7 +60,7 @@
 - **refresh cookie**：默认 `SameSite=Lax`、`Path=/api/auth`；生产环境建议启用 `Secure=true` 并按部署形态评估 `SameSite` 策略。
 - **refresh token 存储**：通过 `auth.refresh.store=db|redis|memory` 切换（默认 db，生产建议 db）。
 - **登出语义**：登出会按 refresh token 的 `familyId` 做“家族级”失效，避免同一会话族残留 token。
-- **user-service internal 调用**：auth-service 会调用 user-service 的 `/internal/**` 完成登录/刷新/注册等链路（开发阶段 internal 接口默认放行；生产建议通过网络隔离/网关策略收敛暴露面）。
+- **user-service 同步调用（Dubbo）**：auth-service 通过 `user-api` 的 Dubbo RPC 完成登录/刷新/注册等链路；`/internal/**` 主要保留为运维/兼容入口（生产建议通过网络隔离/网关策略收敛暴露面）。
 - **登录安全降级语义**：登录失败计数/验证码阈值在依赖（Redis）不可用时会降级为 fail-open（不阻断登录主链路），并通过 metrics/日志观测。
 - **验证码（captchaId）**：
   - `GET /api/auth/captcha` 返回 `{ captchaId, imageBase64, ttlSeconds }`，验证码与失败计数在服务端存储（Redis/memory）。

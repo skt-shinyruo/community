@@ -20,7 +20,7 @@
 - 当 `social.storage=redis` 时：点赞关系（`like:entity:*`）与获赞计数（`like:user:*`）通过 Lua 脚本原子更新；事件入队失败将 best-effort 回滚 Redis 状态，降低计数漂移/重复事件风险（仍不建议在 prod 使用）
 - 反骚扰一致性：若双方存在任一方向拉黑关系，禁止创建点赞（返回 403，不发布 LikeCreated）
 - 更新被赞用户的获赞计数（DB 侧具备唯一约束兜底幂等）
-- 写路径契约可信：服务端通过 content-service internal resolve 解析 entity 的 owner/postId 并校验存在性（禁止信任客户端注入字段）
+- 写路径契约可信：服务端通过 `content-api` 的 Dubbo RPC resolve 解析 entity 的 owner/postId 并校验存在性（禁止信任客户端注入字段）
 - 触发社交事件：`LikeCreated/LikeRemoved`，默认使用 Outbox 可靠投递（可通过开关回滚到 After-Commit 直发）
 
 ### Requirement: 关注/粉丝
@@ -56,7 +56,11 @@
 - `DELETE /api/blocks?userId=`（解除拉黑）
 - `GET /api/blocks`（我的拉黑列表）
 - `GET /api/blocks/status?userId=`（查询是否已拉黑）
-- internal（仅服务间调用；开发阶段默认放行）：
+- Dubbo RPC（服务间同步调用，推荐）：
+  - `SocialReadRpcService`：主页聚合只读（profile-stats 等）、计数/关注状态等
+  - `SocialBlockRpcService`：拉黑关系查询（供 message/content 写路径校验）
+  - `SocialLikeScanRpcService`：点赞扫描（供 content 回填投影）
+- internal HTTP（legacy/运维/兼容；开发阶段默认放行）：
   - `GET /internal/social/blocks/relation?userIdA=&userIdB=`
   - `GET /internal/social/likes/scan?entityType=&afterEntityId=&afterUserId=&limit=`（供 content-service 回填 Redis 点赞投影）
   - internal read（供聚合展示，避免跨服务透传 Authorization）：
@@ -80,7 +84,7 @@
 
 ## Dependencies
 - user（用户资料用于列表展示）
-- content-service internal（resolve entity 元信息：owner/postId/存在性；用于点赞写路径与事件 payload 可信化）
+- content（通过 `content-api` Dubbo RPC resolve entity 元信息：owner/postId/存在性；用于点赞写路径与事件 payload 可信化）
 - message（点赞/关注通知）
 - infra（Redis/Kafka）
 
@@ -93,3 +97,4 @@
 - 2026-02-03：Outbox 认领升级支持 `FOR UPDATE SKIP LOCKED`（可配置回退），降低多实例 relay 并发时的锁等待与头阻塞风险；outbox 运维入口保留（开发阶段默认放行）。
 - 2026-02-04：补齐反骚扰语义一致性：点赞/关注在“创建关系”场景增加拉黑校验（403），避免拉黑后仍产生互动与通知副作用。
 - 2026-02-09：Redis 存储模式写路径原子性修复：follow（双 ZSet）与 like（关系 + 获赞计数）改为 Lua 脚本原子更新；事件入队失败 best-effort 回滚 Redis 状态，降低重复事件与计数漂移风险。
+- 2026-02-09：服务间同步调用由 HTTP internal client 迁移为 Dubbo RPC（契约下沉到 `social-api`），减少跨服务 HTTP 依赖与 DTO 漂移风险。

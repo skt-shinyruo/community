@@ -2,7 +2,7 @@ package com.nowcoder.community.search.service;
 
 // 帖子搜索服务：支持基于 alias 的零停机重建。
 import com.nowcoder.community.search.api.dto.SearchPostItem;
-import com.nowcoder.community.search.api.dto.ContentPostScanResponse;
+import com.nowcoder.community.content.api.rpc.dto.ContentPostScanResponse;
 import com.nowcoder.community.search.config.ContentServiceClientProperties;
 import com.nowcoder.community.search.repo.PostSearchRepository;
 import com.nowcoder.community.search.repo.PostIndexManager;

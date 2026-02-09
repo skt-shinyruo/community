@@ -56,7 +56,7 @@
 （详见 `helloagents/wiki/data.md` 的 “Elasticsearch 索引” 小节）
 
 ## Dependencies
-- content（帖子数据源；reindex 通过 content-service 内部 API 拉取）
+- content（帖子数据源；reindex 通过 `content-api` 的 Dubbo RPC 扫描帖子数据）
 - infra（Kafka、Elasticsearch）
 - MySQL（仅 `community_search` schema：幂等去重表 `search_consumed_event`；不再跨 schema 直读内容域）
 
@@ -68,3 +68,4 @@
 - 2026-02-01：Kafka consumer 统一使用 `EventEnvelopeParser` + `UnknownEventAction`（unknown type/version 可配置 + 降噪），降低事件契约演进带来的 DLQ 噪声与阻塞风险。
 - 2026-02-03：reindex single-flight 增加锁续租（owner=jobId + 原子 renew）避免长任务锁过期并发重建；legacy `/api/search/internal/reindex` 默认禁用并返回迁移提示，降低误用与攻击面。
 - 2026-02-03：`search_consumed_event` 清理任务改为分批 delete（`order by consumed_at, id limit N`），并支持可选 single-flight（多实例避免重复执行）；索引对齐为 `idx_search_consumed_at(consumed_at, id)`。
+- 2026-02-09：服务间同步调用由 HTTP internal client 迁移为 Dubbo RPC（reindex 扫描切换为 `ContentScanRpcService`），减少跨服务 HTTP 依赖与 DTO 漂移风险。

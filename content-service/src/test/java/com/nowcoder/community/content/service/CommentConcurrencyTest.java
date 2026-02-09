@@ -3,6 +3,7 @@ package com.nowcoder.community.content.service;
 // 评论并发写入测试：验证 comment_count 原子增量不会丢更新。
 import com.nowcoder.community.content.dao.DiscussPostMapper;
 import com.nowcoder.community.content.entity.DiscussPost;
+import com.nowcoder.community.user.api.rpc.dto.UserModerationStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,7 +41,7 @@ class CommentConcurrencyTest {
 
     @BeforeEach
     void stubClients() {
-        UserModerationClient.ModerationStatus status = new UserModerationClient.ModerationStatus();
+        UserModerationStatus status = new UserModerationStatus();
         status.setUserId(1);
         status.setMuteUntil(null);
         status.setBanUntil(null);

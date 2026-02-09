@@ -1,7 +1,7 @@
 # user
 
 ## Purpose
-提供用户资料、个人主页与头像设置能力，并作为 **身份域 SSOT** 提供 internal 鉴权能力（供 auth-service 调用）。
+提供用户资料、个人主页与头像设置能力，并作为 **身份域 SSOT** 通过 `user-api` 的 Dubbo RPC 对外提供认证/会话/用户查询等能力。
 
 ## Module Overview
 - **Responsibility：** 用户资料查询；个人主页展示所需数据；头像上传（local/qiniu）与头像 URL 回写；internal 身份鉴权/注册/激活/密码更新接口；管理员用户角色管理
@@ -60,7 +60,11 @@
 - admin（仅管理员，JWT ROLE_ADMIN）：
   - `GET /api/users/admin/search?userId=&username=&email=`（搜索用户）
   - `POST /api/users/admin/role`（修改用户 type：USER/ADMIN/MODERATOR，要求 reason+confirm）
-- internal（仅服务间调用，不走 JWT；开发阶段默认放行）：
+- Dubbo RPC（服务间同步调用，推荐）：
+  - `UserInternalRpcService`：authenticate/session-profile/register/activate/by-email/password/refresh-token 等
+  - `UserReadRpcService`：batch-summary/username-resolve 等只读能力
+  - `UserModerationRpcService`：moderation-status/scan/apply（供 content/message 等写路径治理）
+- internal HTTP（legacy/运维/兼容；不走 JWT；开发阶段默认放行）：
   - `POST /internal/users/authenticate`
   - `GET /internal/users/{userId}/session-profile`
   - refresh token 会话托管（SSOT=DB，仅存 token_hash；供 auth-service 调用）：
@@ -93,7 +97,7 @@ refresh token 会话表（SSOT=DB，仅存 `token_hash`；用于 refresh/rotate/
 - kafka（消费内容/社交事件以生成积分）
 - infra（登录态/权限控制）
 - external: Qiniu（可选）
-- auth-service（通过 internal API 调用 user-service 作为身份域 SSOT）
+- auth-service（通过 Dubbo RPC 调用 user-service 作为身份域 SSOT）
 
 ## Change History
 - 2026-01-18：补齐 user-service -> social-service 同步调用韧性（强制超时、降级返回默认值、指标可观测）。
@@ -102,3 +106,4 @@ refresh token 会话表（SSOT=DB，仅存 `token_hash`；用于 refresh/rotate/
 - 2026-02-01：积分链路支持 `LikeRemoved` 触发回退，并对 `user.score` 做非负保护（防刷分与边界值安全）。
 - 2026-02-02：用户主页聚合改为单次调用 social-service internal 聚合接口（profile-stats），并在响应中提供 `socialDegraded`，避免把下游故障伪装为 0。
 - 2026-02-03：Outbox 认领升级支持 `FOR UPDATE SKIP LOCKED`（可配置回退），降低多实例 relay 并发时的锁等待与头阻塞风险；补齐 outbox 运维入口 `/internal/users/outbox/health|replay`（开发阶段默认放行）。
+- 2026-02-09：服务间同步调用由 HTTP internal client 迁移为 Dubbo RPC（契约下沉到 `user-api`），减少跨服务 HTTP 依赖与 DTO 漂移风险。

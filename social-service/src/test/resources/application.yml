@@ -4,6 +4,8 @@ social:
     publisher: memory
 
 spring:
+  application:
+    name: social-service
   cloud:
     nacos:
       discovery:
@@ -27,3 +29,21 @@ mybatis:
   mapper-locations: classpath:mapper/*.xml
   configuration:
     map-underscore-to-camel-case: true
+
+dubbo:
+  application:
+    name: ${spring.application.name}
+    qos-enable: false
+  registry:
+    address: N/A
+  protocol:
+    name: dubbo
+    port: -1
+  consumer:
+    check: false
+    init: false
+    lazy: true
+    retries: 0
+    timeout: 3000
+  provider:
+    timeout: 3000

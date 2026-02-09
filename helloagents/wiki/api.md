@@ -28,22 +28,39 @@
 
 ---
 
-## 3. 内部接口（/internal/**）
+## 3. 内部调用（Dubbo RPC 为主）
 
-说明：内部接口仅用于服务间调用/运维操作。
-开发阶段（当前实现）：内部接口默认不再要求 header token 鉴权；建议通过网络隔离/仅内网可达收敛暴露面，且避免在 gateway 中对外暴露 `/internal/**`。
+### 3.1 Dubbo RPC（服务间同步调用，推荐）
+
+说明：服务间同步调用已从 HTTP internal client 迁移为 Dubbo RPC（Zookeeper registry）。
+RPC 契约与 DTO 统一沉淀在 `*-api` 模块（consumer/provider 共同依赖），避免跨服务依赖实现模块导致的循环依赖与演进失控。
+
+- `user-api`：`UserInternalRpcService` / `UserReadRpcService` / `UserModerationRpcService`
+- `social-api`：`SocialReadRpcService` / `SocialBlockRpcService` / `SocialLikeScanRpcService`
+- `content-api`：`ContentScanRpcService` / `ContentEntityRpcService`
+- `analytics-api`：`InternalAnalyticsRpcService`（gateway 采集 best-effort 调用）
+
+约定（Best Practices）：
+- **返回协议：** RPC 统一返回 `Result<T>`（跨服务错误语义与错误码口径一致）。
+- **Trace/观测：** 通过 Dubbo attachment 透传 `X-Trace-Id/traceparent`；consumer/provider 侧统一埋点调用次数/时延。
+- **安全边界：** 禁止在 RPC attachment 中透传用户 `Authorization`；只允许透传观测字段（traceId 等）。
+
+### 3.2 HTTP internal（/internal/**，运维/兼容）
+
+说明：`/internal/**` 主要保留用于运维入口/兼容调试。
+开发阶段（当前实现）：internal HTTP 端点默认不再要求 header token 鉴权；生产建议通过网络隔离/仅内网可达收敛暴露面，且避免在 gateway 中对外暴露 `/internal/**`。
 
 - **content-service**
-  - `GET /internal/content/posts`：供 search-service 扫描帖子数据以完成 reindex（严格 schema 隔离下不允许跨库直读）。
-  - `GET /internal/content/entities/resolve?entityType=&entityId=`：解析 POST/COMMENT 的 owner/postId（供 social 写路径构造可信事件 payload，禁止信任客户端注入）。
+  - `GET /internal/content/posts`：legacy（原供 search-service reindex 扫描；现推荐使用 Dubbo `ContentScanRpcService`）。
+  - `GET /internal/content/entities/resolve?entityType=&entityId=`：legacy（原供 social 写路径 resolve；现推荐使用 Dubbo `ContentEntityRpcService`）。
   - `POST /internal/content/likes/backfill?entityType=&maxItems=&batchSize=`：回填 Redis 点赞投影（运维入口，默认关闭；需显式开启 `content.like.backfill.endpoint-enabled=true`）。
 - **social-service**
-  - `GET /internal/social/blocks/relation?userIdA=&userIdB=`：查询 A/B 的拉黑关系（互斥私信等写路径校验）。
-  - `GET /internal/social/likes/scan?entityType=&afterEntityId=&afterUserId=&limit=`：按游标扫描点赞关系（供 content-service 回填 Redis 点赞投影使用）。
-  - `GET /internal/social/read/users/{userId}/profile-stats?viewerId=`：用户主页聚合只读接口（一次返回获赞/关注/粉丝/是否关注；供 user-service 聚合展示，降低 fan-out）。
+  - `GET /internal/social/blocks/relation?userIdA=&userIdB=`：legacy（现推荐使用 Dubbo `SocialBlockRpcService`）。
+  - `GET /internal/social/likes/scan?entityType=&afterEntityId=&afterUserId=&limit=`：legacy（现推荐使用 Dubbo `SocialLikeScanRpcService`）。
+  - `GET /internal/social/read/users/{userId}/profile-stats?viewerId=`：legacy（现推荐使用 Dubbo `SocialReadRpcService`）。
 - **user-service**
-  - `GET /internal/users/{userId}/moderation-status`：查询用户禁言/封禁状态（content-service 写路径前置校验）。
-  - `POST /internal/users/{userId}/moderation`：应用禁言/封禁（治理动作落地，供 content-service 治理动作转发调用）。
+  - `GET /internal/users/{userId}/moderation-status`：legacy（现推荐使用 Dubbo `UserModerationRpcService`）。
+  - `POST /internal/users/{userId}/moderation`：legacy（现推荐使用 Dubbo `UserModerationRpcService`）。
   - outbox 运维（开发阶段默认放行；生产建议通过网络隔离/网关策略收敛暴露面）：
     - `GET /internal/users/outbox/health`
     - `POST /internal/users/outbox/replay?limit=200`
@@ -52,8 +69,8 @@
     - 对外运维入口（推荐）：`POST /api/ops/search/reindex`
     - 历史兼容入口（弃用中，默认禁用）：`POST /api/search/internal/reindex`（gateway 通过 blocked-path-patterns 关闭，按 404 拒绝并提示迁移）
 - **analytics-service**
-  - `POST /internal/analytics/uv/record`
-  - `POST /internal/analytics/dau/record`
+  - `POST /internal/analytics/uv/record`：legacy（现推荐使用 Dubbo `InternalAnalyticsRpcService`）。
+  - `POST /internal/analytics/dau/record`：legacy（现推荐使用 Dubbo `InternalAnalyticsRpcService`）。
 
 ---
 

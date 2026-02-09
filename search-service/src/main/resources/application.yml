@@ -46,9 +46,6 @@ search:
     prefix: community_posts_v
     keep-history: 2
   content-client:
-    base-url: ${CONTENT_SERVICE_BASE_URL:http://content-service:8088}
-    connect-timeout: 200ms
-    read-timeout: 5s
     page-size: 500
 
 management:
@@ -69,3 +66,19 @@ community:
 security:
   jwt:
     hmac-secret: ${JWT_HMAC_SECRET:${AUTH_JWT_HMAC_SECRET:}}
+
+dubbo:
+  application:
+    name: ${spring.application.name}
+    qos-enable: false
+  registry:
+    address: ${DUBBO_REGISTRY_ADDR:zookeeper://127.0.0.1:2181/dubbo}
+  protocol:
+    name: dubbo
+    port: -1
+  scan:
+    base-packages: com.nowcoder.community
+  consumer:
+    check: false
+    retries: 0
+    timeout: 3000

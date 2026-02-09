@@ -2,39 +2,37 @@ package com.nowcoder.community.message.service;
 
 import com.nowcoder.community.common.api.Result;
 import com.nowcoder.community.common.web.internalclient.InternalClientSupport;
-import com.nowcoder.community.message.service.dto.UserSummary;
+import com.nowcoder.community.user.api.rpc.UserReadRpcService;
+import com.nowcoder.community.user.api.rpc.dto.UserSummary;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.apache.dubbo.rpc.RpcException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
-import java.time.Duration;
 
 @Service
 public class UserServiceClient {
 
     private static final Logger log = LoggerFactory.getLogger(UserServiceClient.class);
     private static final String METRIC_CLIENT = "message-service:user-service";
+    private static final String SERVICE_NAME = "user-service";
 
-    private final RestTemplate restTemplate;
     private final MeterRegistry meterRegistry;
-    private final String baseUrl;
     private final boolean failOpen;
+
+    @DubboReference(check = false, retries = 0, timeout = 800)
+    private UserReadRpcService userReadRpcService;
 
     // username -> userId 解析：用于 toName 写路径的依赖放大控制（短 TTL、容量受控）。
     private final Duration resolveCacheTtl;
@@ -42,16 +40,12 @@ public class UserServiceClient {
     private final ConcurrentHashMap<String, ResolveCacheEntry> resolveCache = new ConcurrentHashMap<>();
 
     public UserServiceClient(
-            RestTemplate restTemplate,
             MeterRegistry meterRegistry,
-            @Value("${clients.user.base-url:http://user-service}") String baseUrl,
             @Value("${clients.user.fail-open:false}") boolean failOpen,
             @Value("${clients.user.resolve-cache.ttl:60s}") Duration resolveCacheTtl,
             @Value("${clients.user.resolve-cache.max-size:5000}") int resolveCacheMaxSize
     ) {
-        this.restTemplate = restTemplate;
         this.meterRegistry = meterRegistry;
-        this.baseUrl = baseUrl;
         this.failOpen = failOpen;
         this.resolveCacheTtl = resolveCacheTtl == null || resolveCacheTtl.isNegative() ? Duration.ofSeconds(60) : resolveCacheTtl;
         this.resolveCacheMaxSize = Math.max(0, resolveCacheMaxSize);
@@ -79,12 +73,8 @@ public class UserServiceClient {
             return cached;
         }
 
-        String url = UriComponentsBuilder.fromHttpUrl(baseUrl + "/api/users/resolve")
-                .queryParam("username", key)
-                .toUriString();
-        Result<UserSummary> result = exchange(url, HttpMethod.GET, HttpEntity.EMPTY, new ParameterizedTypeReference<Result<UserSummary>>() {
-        });
-        UserSummary data = result == null ? null : result.getData();
+        Result<UserSummary> result = userReadRpcService.resolveByUsernameOrNull(key);
+        UserSummary data = InternalClientSupport.unwrap(result, SERVICE_NAME);
         if (data != null && data.getId() > 0) {
             putResolveCache(key, data);
         }
@@ -95,10 +85,8 @@ public class UserServiceClient {
         if (userId <= 0) {
             return null;
         }
-        String url = baseUrl + "/api/users/" + userId;
-        Result<UserSummary> result = exchange(url, HttpMethod.GET, HttpEntity.EMPTY, new ParameterizedTypeReference<Result<UserSummary>>() {
-        });
-        return result == null ? null : result.getData();
+        Result<UserSummary> result = userReadRpcService.getByIdOrNull(userId);
+        return InternalClientSupport.unwrap(result, SERVICE_NAME);
     }
 
     public Map<Integer, UserSummary> safeBatchGetUsers(Set<Integer> userIds) {
@@ -116,18 +104,8 @@ public class UserServiceClient {
         if (ids.isEmpty()) {
             return Map.of();
         }
-        BatchUserSummaryRequest req = new BatchUserSummaryRequest();
-        req.setUserIds(ids);
-
-        String url = baseUrl + "/internal/users/batch-summary";
-        ResponseEntity<Result<List<UserSummary>>> resp = restTemplate.exchange(
-                url,
-                HttpMethod.POST,
-                new HttpEntity<>(req, InternalClientSupport.jsonHeaders()),
-                new ParameterizedTypeReference<Result<List<UserSummary>>>() {
-                }
-        );
-        List<UserSummary> list = InternalClientSupport.unwrap(resp, "user-service");
+        Result<List<UserSummary>> result = userReadRpcService.batchSummary(ids);
+        List<UserSummary> list = InternalClientSupport.unwrap(result, SERVICE_NAME);
         if (list == null || list.isEmpty()) {
             return Map.of();
         }
@@ -152,31 +130,24 @@ public class UserServiceClient {
                 log.warn("[user-client] degraded (api={}): {}", api, e.toString());
                 return fallback.get();
             }
-            String outcome = InternalClientSupport.isTimeout(e) ? InternalClientSupport.OUTCOME_TIMEOUT : InternalClientSupport.OUTCOME_ERROR;
+            String outcome = isTimeout(e) ? InternalClientSupport.OUTCOME_TIMEOUT : InternalClientSupport.OUTCOME_ERROR;
             InternalClientSupport.record(meterRegistry, METRIC_CLIENT, api, outcome, start);
             throw e;
         }
     }
 
-    private <T> Result<T> exchange(String url, HttpMethod method, HttpEntity<?> entity, ParameterizedTypeReference<Result<T>> typeRef) {
-        try {
-            ResponseEntity<Result<T>> resp = restTemplate.exchange(url, method, entity, typeRef);
-            return resp.getBody();
-        } catch (RestClientException e) {
-            throw e;
+    private boolean isTimeout(Throwable t) {
+        if (t instanceof RpcException re) {
+            return re.isTimeout();
         }
-    }
-
-    public static class BatchUserSummaryRequest {
-        private List<Integer> userIds;
-
-        public List<Integer> getUserIds() {
-            return userIds == null ? List.of() : userIds;
+        Throwable cur = t;
+        while (cur != null) {
+            if (cur instanceof RpcException re) {
+                return re.isTimeout();
+            }
+            cur = cur.getCause();
         }
-
-        public void setUserIds(List<Integer> userIds) {
-            this.userIds = userIds;
-        }
+        return InternalClientSupport.isTimeout(t);
     }
 
     private String normalizeUsernameKey(String username) {

@@ -4,6 +4,7 @@ import com.nowcoder.community.auth.config.PasswordResetProperties;
 import com.nowcoder.community.common.api.AuthErrorCode;
 import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.api.rpc.dto.UserInternalUserByEmailResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -48,7 +49,7 @@ public class PasswordResetService {
         String resetBaseUrl = normalizeResetBaseUrlOrThrow();
 
         String normalizedEmail = email.trim();
-        com.nowcoder.community.auth.service.dto.UserInternalUserByEmailResponse user = userServiceInternalClient.findByEmailOrNull(normalizedEmail);
+        UserInternalUserByEmailResponse user = userServiceInternalClient.findByEmailOrNull(normalizedEmail);
         if (user == null || user.getUserId() <= 0 || user.getStatus() == 0) {
             // 防用户枚举：邮箱不存在/未激活等情况也返回“已发送”（但不实际下发 token/邮件）
             return new RequestResult(true, "");

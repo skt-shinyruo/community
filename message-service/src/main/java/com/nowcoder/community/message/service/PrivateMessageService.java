@@ -7,9 +7,9 @@ import com.nowcoder.community.message.api.dto.LetterItemResponse;
 import com.nowcoder.community.message.api.dto.UserSummaryResponse;
 import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.service.dto.ConversationStats;
-import com.nowcoder.community.message.service.dto.UserSummary;
 import com.nowcoder.community.message.projection.UserModerationProjectionRepository;
 import com.nowcoder.community.common.security.OwnerGuard;
+import com.nowcoder.community.user.api.rpc.dto.UserSummary;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 

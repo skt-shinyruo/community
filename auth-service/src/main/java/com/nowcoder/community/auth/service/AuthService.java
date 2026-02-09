@@ -8,6 +8,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import com.nowcoder.community.user.api.rpc.dto.UserInternalAuthenticateResponse;
+import com.nowcoder.community.user.api.rpc.dto.UserInternalSessionProfileResponse;
 
 import java.util.List;
 
@@ -61,7 +63,7 @@ public class AuthService {
             throw new BusinessException(AuthErrorCode.LOGIN_FAILED);
         }
 
-        com.nowcoder.community.auth.service.dto.UserInternalAuthenticateResponse user;
+        UserInternalAuthenticateResponse user;
         try {
             user = userServiceInternalClient.authenticate(username, password);
         } catch (BusinessException e) {
@@ -91,7 +93,7 @@ public class AuthService {
             throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
         }
 
-        com.nowcoder.community.auth.service.dto.UserInternalSessionProfileResponse profile = userServiceInternalClient.sessionProfile(stored.userId());
+        UserInternalSessionProfileResponse profile = userServiceInternalClient.sessionProfile(stored.userId());
         if (profile == null || profile.getStatus() == 0) {
             throw new BusinessException(AuthErrorCode.USER_DISABLED);
         }

@@ -10,7 +10,7 @@ import com.nowcoder.community.message.service.SocialServiceClient;
 import com.nowcoder.community.message.service.UserModerationGuard;
 import com.nowcoder.community.message.service.UserServiceClient;
 import com.nowcoder.community.message.service.dto.ConversationStats;
-import com.nowcoder.community.message.service.dto.UserSummary;
+import com.nowcoder.community.user.api.rpc.dto.UserSummary;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

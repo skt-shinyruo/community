@@ -3,6 +3,7 @@ package com.nowcoder.community.message.service;
 import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.message.projection.UserModerationProjectionRepository;
+import com.nowcoder.community.user.api.rpc.dto.UserModerationStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -34,7 +35,7 @@ public class UserModerationGuard {
             }
         }
 
-        UserModerationClient.ModerationStatus status = userModerationClient.getStatus(userId);
+        UserModerationStatus status = userModerationClient.getStatus(userId);
         projectionRepository.upsertModerationStatus(
                 userId,
                 status == null ? null : status.getMuteUntil(),
@@ -52,4 +53,3 @@ public class UserModerationGuard {
                 && String.valueOf(e.getMessage()).contains("投影缺失");
     }
 }
-

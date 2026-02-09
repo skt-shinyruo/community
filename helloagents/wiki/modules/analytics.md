@@ -36,8 +36,9 @@
 - `GET /api/analytics/uv?start=YYYY-MM-DD&end=YYYY-MM-DD`（管理员/版主）
 - `GET /api/analytics/dau?start=YYYY-MM-DD&end=YYYY-MM-DD`（管理员/版主）
 - `GET /api/analytics/me`（联调用，需要登录）
-- `POST /internal/analytics/uv/record`（gateway 内部调用：开发阶段默认放行）
-- `POST /internal/analytics/dau/record`（gateway 内部调用：开发阶段默认放行）
+- Dubbo RPC（服务间同步调用，推荐）：`analytics-api` 的 `InternalAnalyticsRpcService`（gateway 采集 best-effort 调用）
+- `POST /internal/analytics/uv/record`（legacy：历史 HTTP internal 写入口，开发阶段默认放行）
+- `POST /internal/analytics/dau/record`（legacy：历史 HTTP internal 写入口，开发阶段默认放行）
 
 > 说明：gateway 侧采集链路应做到“不影响主业务链路”，并保证可观测（超时/并发限制/降噪/指标）。gateway → analytics-service 的内部调用建议透传 `X-Trace-Id/traceparent` 便于排障。
 

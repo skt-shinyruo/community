@@ -8,6 +8,7 @@
 
 | Timestamp | Feature Name | Type | Status | Solution Package Path |
 |-----------|--------------|------|--------|----------------------|
+| 202602091808 | dubbo_rpc_migration | Development Implementation | ✅Completed | [202602091808_dubbo_rpc_migration](2026-02/202602091808_dubbo_rpc_migration/) |
 | 202602091424 | social_redis_atomicity | Development Implementation | ✅Completed | [202602091424_social_redis_atomicity](2026-02/202602091424_social_redis_atomicity/) |
 | 202602082354 | redis_critical_state_to_db | Development Implementation | ✅Completed | [202602082354_redis_critical_state_to_db](2026-02/202602082354_redis_critical_state_to_db/) |
 | 202602081447 | remove_internal_auth | Development Implementation | ✅Completed | [202602081447_remove_internal_auth](2026-02/202602081447_remove_internal_auth/) |
@@ -61,6 +62,7 @@
 ## Archive by Month
 
 ### 2026-02
+- [202602091808_dubbo_rpc_migration](2026-02/202602091808_dubbo_rpc_migration/) - Dubbo RPC 服务间同步调用迁移（Zookeeper registry；对外仍保留 gateway HTTP `/api/**`；接口/DTO 下沉到 `*-api`；trace/metrics 治理落地）
 - [202602091424_social_redis_atomicity](2026-02/202602091424_social_redis_atomicity/) - social-service Redis 存储原子性与一致性修复：follow/like 写路径 Lua 原子更新 + 事件失败 best-effort 回滚，降低重复事件与计数漂移风险
 - [202602081447_remove_internal_auth](2026-02/202602081447_remove_internal_auth/) - 移除 internal/ops header token 机制（`X-Internal-Token`/`X-Ops-Token`）与相关配置/UI/脚本，对齐“/internal/** 仅靠部署/网关边界”的安全现实
 - [202602072216_gateway_webclient_resilience](2026-02/202602072216_gateway_webclient_resilience/) - 网关 WebClient 全局超时与连接池兜底：统一 connect/response/read/write timeout 与 pending acquire 上限，降低极端网络条件下资源耗尽风险

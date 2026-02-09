@@ -7,6 +7,10 @@
 ## [Unreleased]
 
 ### Added
+- build：新增 `user-api`/`social-api`/`content-api`/`analytics-api` 作为跨服务 RPC 契约模块（接口/DTO 独立；provider/consumer 依赖 api）。
+- common：新增 Dubbo 调用治理 Filter（traceId/traceparent attachment 透传 + Micrometer 指标：调用次数/时延/outcome）。
+- internal：服务间同步调用由 HTTP internal client（RestTemplate/WebClient）迁移为 Dubbo RPC（Zookeeper registry）；对外 `/api/**` 路由保持不变（gateway 仍使用 Nacos discovery/config）。
+- deploy：`deploy/docker-compose.yml` 补齐 Dubbo registry 地址注入（`DUBBO_REGISTRY_ADDR=zookeeper://.../dubbo`）与依赖启动顺序（`depends_on: zookeeper`）。
 - gateway：新增 `GatewayErrorContractTest`，锁定 401/403/400/429/500 的 **HTTP status + Result** 协议，并校验 `X-Trace-Id/traceparent` 与 `Result.traceId` 一致。
 - frontend：PostDetail 点赞 read-your-writes 覆盖（短 TTL），降低“写成功但刷新读到旧投影”的可见不一致；SearchView 增加“搜索索引最终一致”提示以管理预期。
 - social-service：新增 internal 聚合只读接口 `/internal/social/read/users/{userId}/profile-stats`（一次返回获赞/关注/粉丝/关注状态），供 user-service 收敛主页 fan-out。
@@ -43,6 +47,7 @@
 
 ### Removed
 - internal：移除 internal/ops header token 机制（不再使用 `X-Internal-Token` / `X-Ops-Token`），清理 `*_INTERNAL_TOKEN` / `OPS_*_TOKEN` 配置与前端/脚本输入；internal 访问边界回归为部署/网关（gateway `denyAll /internal/**`）。
+- internal client：删除已废弃的 HTTP internal client 基建（各服务 `*RestClientConfig`/`*ClientProperties` 等）并清理 `base-url/connect-timeout/read-timeout` 等配置项，避免双栈漂移。
 
 ### Fixed
 - social-service：关注/拉黑“自操作”错误收敛为 `SocialErrorCode`（13001/13002），避免以通用 400 掩盖领域语义。
@@ -87,6 +92,7 @@
 - gateway：analytics 采集链路重构为“filter 投递 + 异步 worker 调用”，队列满允许丢弃且可观测（不影响主请求转发）。
 - frontend：发帖/编辑成功提示补齐“搜索/通知最终一致延迟”，并通过 Toast action 提供“立即查看/去搜索”入口。
 - 测试：将部分 Kafka consumer/outbox 测试下沉为纯单元测试（减少 `@SpringBootTest` 占比），并补充测试 Quick win 落地约定（`helloagents/project.md`）。
+- 测试：单测环境隔离 Dubbo registry（`dubbo.registry.address: N/A` + `dubbo.consumer.init: false`/`lazy: true`），避免测试强依赖外部 Zookeeper。
 
 ### Fixed
 - 修复“事件发布默认不可靠（best-effort）导致下游永久不一致”的默认配置问题：写侧入 outbox，relay 重试直至成功或进入 FAILED，可观测且可重放。

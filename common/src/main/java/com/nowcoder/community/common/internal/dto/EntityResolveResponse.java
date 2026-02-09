@@ -1,11 +1,13 @@
 package com.nowcoder.community.common.internal.dto;
 
+import java.io.Serializable;
+
 /**
  * internal entity resolve 响应：用于跨服务写路径构造可信事件 payload（禁止信任客户端注入）。
  *
  * <p>约定：由内容域提供 POST/COMMENT 的 owner/postId 解析。</p>
  */
-public class EntityResolveResponse {
+public class EntityResolveResponse implements Serializable {
 
     private int entityType;
     private int entityId;
@@ -44,4 +46,3 @@ public class EntityResolveResponse {
         this.postId = postId;
     }
 }
-

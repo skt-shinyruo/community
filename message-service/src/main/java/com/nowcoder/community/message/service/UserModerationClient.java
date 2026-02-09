@@ -3,20 +3,16 @@ package com.nowcoder.community.message.service;
 import com.nowcoder.community.common.api.Result;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.internalclient.InternalClientSupport;
+import com.nowcoder.community.user.api.rpc.UserModerationRpcService;
+import com.nowcoder.community.user.api.rpc.dto.UserModerationStatus;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.apache.dubbo.rpc.RpcException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
 
-import java.time.Instant;
 import java.util.List;
 
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
@@ -31,52 +27,40 @@ public class UserModerationClient {
     private static final Logger log = LoggerFactory.getLogger(UserModerationClient.class);
     private static final String SERVICE_NAME = "user-service";
 
-    private final RestTemplate restTemplate;
     private final MeterRegistry meterRegistry;
-    private final String baseUrl;
     private final boolean failOpen;
 
     public UserModerationClient(
-            RestTemplate restTemplate,
             MeterRegistry meterRegistry,
-            @Value("${clients.user.base-url:http://user-service}") String baseUrl,
             @Value("${clients.user.fail-open:false}") boolean failOpen
     ) {
-        this.restTemplate = restTemplate;
         this.meterRegistry = meterRegistry;
-        this.baseUrl = baseUrl;
         this.failOpen = failOpen;
     }
 
-    public ModerationStatus getStatus(int userId) {
+    @DubboReference(check = false, retries = 0, timeout = 800)
+    private UserModerationRpcService userModerationRpcService;
+
+    public UserModerationStatus getStatus(int userId) {
         if (userId <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
-        if (!StringUtils.hasText(baseUrl)) {
-            throw new BusinessException(INVALID_ARGUMENT, "user-service base-url 未配置");
-        }
-        String url = baseUrl + "/internal/users/" + userId + "/moderation-status";
         long start = System.nanoTime();
         try {
-            ResponseEntity<Result<ModerationStatus>> resp = exchange(
-                    url,
-                    HttpMethod.GET,
-                    new HttpEntity<>(InternalClientSupport.jsonHeaders()),
-                    new ParameterizedTypeReference<Result<ModerationStatus>>() {
-                    }
-            );
-            ModerationStatus data = InternalClientSupport.unwrap(resp, SERVICE_NAME);
+            Result<UserModerationStatus> result = userModerationRpcService.getStatus(userId);
+            UserModerationStatus data = InternalClientSupport.unwrap(result, SERVICE_NAME);
             InternalClientSupport.record(meterRegistry, SERVICE_NAME, "getStatus", InternalClientSupport.OUTCOME_SUCCESS, start);
             return data;
         } catch (RuntimeException e) {
             if (failOpen) {
                 InternalClientSupport.record(meterRegistry, SERVICE_NAME, "getStatus", InternalClientSupport.OUTCOME_DEGRADED, start);
                 log.warn("[user-client] degraded (api=getStatus): {}", e.toString());
-                ModerationStatus status = new ModerationStatus();
+                UserModerationStatus status = new UserModerationStatus();
                 status.setUserId(userId);
                 return status;
             }
-            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "getStatus", InternalClientSupport.OUTCOME_ERROR, start);
+            String outcome = isTimeout(e) ? InternalClientSupport.OUTCOME_TIMEOUT : InternalClientSupport.OUTCOME_ERROR;
+            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "getStatus", outcome, start);
             if (e instanceof BusinessException be) {
                 throw be;
             }
@@ -84,23 +68,13 @@ public class UserModerationClient {
         }
     }
 
-    public List<ModerationStatus> scanStatuses(int afterId, int limit) {
+    public List<UserModerationStatus> scanStatuses(int afterId, int limit) {
         int a = Math.max(0, afterId);
         int l = Math.min(500, Math.max(1, limit));
-        if (!StringUtils.hasText(baseUrl)) {
-            throw new BusinessException(INVALID_ARGUMENT, "user-service base-url 未配置");
-        }
-        String url = baseUrl + "/internal/users/moderation-scan?afterId=" + a + "&limit=" + l;
         long start = System.nanoTime();
         try {
-            ResponseEntity<Result<List<ModerationStatus>>> resp = exchange(
-                    url,
-                    HttpMethod.GET,
-                    new HttpEntity<>(InternalClientSupport.jsonHeaders()),
-                    new ParameterizedTypeReference<Result<List<ModerationStatus>>>() {
-                    }
-            );
-            List<ModerationStatus> data = InternalClientSupport.unwrap(resp, SERVICE_NAME);
+            Result<List<UserModerationStatus>> result = userModerationRpcService.scanStatuses(a, l);
+            List<UserModerationStatus> data = InternalClientSupport.unwrap(result, SERVICE_NAME);
             InternalClientSupport.record(meterRegistry, SERVICE_NAME, "scanStatuses", InternalClientSupport.OUTCOME_SUCCESS, start);
             return data == null ? List.of() : data;
         } catch (RuntimeException e) {
@@ -109,7 +83,8 @@ public class UserModerationClient {
                 log.warn("[user-client] degraded (api=scanStatuses): {}", e.toString());
                 return List.of();
             }
-            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "scanStatuses", InternalClientSupport.OUTCOME_ERROR, start);
+            String outcome = isTimeout(e) ? InternalClientSupport.OUTCOME_TIMEOUT : InternalClientSupport.OUTCOME_ERROR;
+            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "scanStatuses", outcome, start);
             if (e instanceof BusinessException be) {
                 throw be;
             }
@@ -117,46 +92,17 @@ public class UserModerationClient {
         }
     }
 
-    private <T> ResponseEntity<Result<T>> exchange(
-            String url,
-            HttpMethod method,
-            HttpEntity<?> entity,
-            ParameterizedTypeReference<Result<T>> typeRef
-    ) {
-        try {
-            return restTemplate.exchange(url, method, entity, typeRef);
-        } catch (RestClientException e) {
-            throw e;
+    private boolean isTimeout(Throwable t) {
+        if (t instanceof RpcException re) {
+            return re.isTimeout();
         }
-    }
-
-    public static class ModerationStatus {
-        private int userId;
-        private Instant muteUntil;
-        private Instant banUntil;
-
-        public int getUserId() {
-            return userId;
+        Throwable cur = t;
+        while (cur != null) {
+            if (cur instanceof RpcException re) {
+                return re.isTimeout();
+            }
+            cur = cur.getCause();
         }
-
-        public void setUserId(int userId) {
-            this.userId = userId;
-        }
-
-        public Instant getMuteUntil() {
-            return muteUntil;
-        }
-
-        public void setMuteUntil(Instant muteUntil) {
-            this.muteUntil = muteUntil;
-        }
-
-        public Instant getBanUntil() {
-            return banUntil;
-        }
-
-        public void setBanUntil(Instant banUntil) {
-            this.banUntil = banUntil;
-        }
+        return false;
     }
 }

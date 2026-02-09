@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：**
   - 入口说明：`deploy/README.md`（deploy 目录结构说明 + 本地启动教程）
-  - 部署：`deploy/docker-compose.yml`（Nacos/MySQL/Redis/Kafka/Elasticsearch + 全服务 + 观测栈；基础 compose 默认不提供“前端统一入口”容器）
+  - 部署：`deploy/docker-compose.yml`（Nacos/MySQL/Redis/Kafka/Elasticsearch/Zookeeper + 全服务 + 观测栈；基础 compose 默认不提供“前端统一入口”容器）
   - 前端直连（推荐）：`deploy/docker-compose.frontend-direct.yml`（对外暴露前端 `12881` + gateway `12882`，浏览器访问前端、前端跨端口直连 gateway，不依赖 Nginx）
   - 观测端口映射（可选）：`deploy/docker-compose.ports.yml`（仅暴露 Grafana/Loki/Prometheus/Alertmanager，端口 `12883+`）
   - 容器化：`deploy/Dockerfile.spring-service`（统一构建/健康检查）
@@ -25,7 +25,7 @@
 ### Requirement: 全依赖可用
 - MySQL/Redis/Kafka/Elasticsearch/Nacos 均启用且服务健康（`/actuator/health`）。
 - CI 侧以单元测试/构建为基础门禁；全链路集成验证建议在本地按需执行（docker compose + curl）。
-- Zookeeper 状态持久化（`zookeeper_data/zookeeper_log`），避免 Kafka 因 clusterId 不一致而启动失败。
+- Zookeeper 状态持久化（`zookeeper_data/zookeeper_log`），避免 Kafka 因 clusterId 不一致而启动失败；同时 Zookeeper 也作为 Dubbo registry（建议使用 chroot `/dubbo`）。
 - Kafka 增加 compose healthcheck + `restart: on-failure`，并将依赖 Kafka 的服务统一为等待 `service_healthy`，避免首次启动时 Kafka 因 ZK 会话未过期窗口偶发退出导致级联失败。
 
 ### Requirement: 构建可重复、可恢复

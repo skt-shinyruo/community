@@ -6,6 +6,7 @@ import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.common.api.AuthErrorCode;
 import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.api.rpc.dto.UserInternalRegisterResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -51,7 +52,7 @@ public class RegistrationService {
         // 先做配置校验：避免创建用户后才发现无法生成激活链接，造成“已创建但无法激活”的隐蔽失败。
         String activationBaseUrl = normalizeActivationBaseUrlOrThrow();
 
-        com.nowcoder.community.auth.service.dto.UserInternalRegisterResponse created = userServiceInternalClient.register(username, password, email);
+        UserInternalRegisterResponse created = userServiceInternalClient.register(username, password, email);
         if (created == null || created.getUserId() <= 0 || !StringUtils.hasText(created.getActivationCode())) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败");
         }

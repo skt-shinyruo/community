@@ -1,9 +1,8 @@
-package com.nowcoder.community.message.service.dto;
+package com.nowcoder.community.user.api.rpc.dto;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import java.io.Serializable;
 
-@JsonIgnoreProperties(ignoreUnknown = true)
-public class UserSummary {
+public class UserSummary implements Serializable {
 
     private int id;
     private String username;

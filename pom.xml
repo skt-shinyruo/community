@@ -19,6 +19,7 @@
         <java.version>17</java.version>
         <spring-cloud.version>2023.0.3</spring-cloud.version>
         <spring-cloud-alibaba.version>2023.0.1.0</spring-cloud-alibaba.version>
+        <dubbo.version>3.2.12</dubbo.version>
     </properties>
 
     <dependencyManagement>
@@ -42,6 +43,10 @@
 
     <modules>
         <module>common</module>
+        <module>user-api</module>
+        <module>social-api</module>
+        <module>content-api</module>
+        <module>analytics-api</module>
         <module>gateway</module>
         <module>auth-service</module>
         <module>search-service</module>

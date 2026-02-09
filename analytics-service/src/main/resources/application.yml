@@ -39,3 +39,21 @@ community:
 security:
   jwt:
     hmac-secret: ${JWT_HMAC_SECRET:${AUTH_JWT_HMAC_SECRET:}}
+
+dubbo:
+  application:
+    name: ${spring.application.name}
+    qos-enable: false
+  registry:
+    address: ${DUBBO_REGISTRY_ADDR:zookeeper://127.0.0.1:2181/dubbo}
+  protocol:
+    name: dubbo
+    port: -1
+  scan:
+    base-packages: com.nowcoder.community
+  consumer:
+    check: false
+    retries: 0
+    timeout: 3000
+  provider:
+    timeout: 3000

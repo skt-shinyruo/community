@@ -1,20 +1,18 @@
-package com.nowcoder.community.search.api.dto;
+package com.nowcoder.community.content.api.rpc.dto;
 
 import com.nowcoder.community.common.event.payload.PostPayload;
 
+import java.io.Serializable;
 import java.util.List;
 
-/**
- * content-service 内部扫描帖子接口的响应模型（search-service 侧）。
- */
-public class ContentPostScanResponse {
+public class ContentPostScanResponse implements Serializable {
 
     private List<PostPayload> items;
     private int nextAfterId;
     private boolean hasMore;
 
     public List<PostPayload> getItems() {
-        return items;
+        return items == null ? List.of() : items;
     }
 
     public void setItems(List<PostPayload> items) {

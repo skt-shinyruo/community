@@ -1,13 +1,9 @@
-package com.nowcoder.community.content.like;
+package com.nowcoder.community.social.api.rpc.dto;
 
+import java.io.Serializable;
 import java.util.List;
 
-/**
- * social-service internal likes 扫描响应（用于回填 Redis 点赞投影）。
- *
- * <p>注意：该 DTO 仅用于 internal client 反序列化，字段需与 social-service 输出保持一致。</p>
- */
-public class SocialLikeScanResponse {
+public class SocialLikeScanResponse implements Serializable {
 
     private List<SocialLikeScanItem> items;
     private boolean hasMore;
@@ -46,7 +42,7 @@ public class SocialLikeScanResponse {
         this.nextAfterUserId = nextAfterUserId;
     }
 
-    public static class SocialLikeScanItem {
+    public static class SocialLikeScanItem implements Serializable {
         private long entityId;
         private long userId;
 

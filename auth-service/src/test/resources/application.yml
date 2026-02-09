@@ -1,6 +1,4 @@
 auth:
-  user-client:
-    base-url: http://user-service
   refresh:
     store: memory
   captcha:
@@ -26,9 +24,27 @@ security:
     hmac-secret: test-auth-secret-please-change-at-least-32bytes
 
 spring:
+  application:
+    name: auth-service
   cloud:
     nacos:
       discovery:
         enabled: false
       config:
         enabled: false
+
+dubbo:
+  application:
+    name: ${spring.application.name}
+    qos-enable: false
+  registry:
+    address: N/A
+  protocol:
+    name: dubbo
+    port: -1
+  consumer:
+    check: false
+    init: false
+    lazy: true
+    retries: 0
+    timeout: 3000

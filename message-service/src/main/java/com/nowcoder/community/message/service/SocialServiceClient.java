@@ -4,20 +4,14 @@ package com.nowcoder.community.message.service;
 import com.nowcoder.community.common.api.Result;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.internalclient.InternalClientSupport;
+import com.nowcoder.community.social.api.rpc.SocialBlockRpcService;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.apache.dubbo.rpc.RpcException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import static com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
@@ -32,20 +26,17 @@ public class SocialServiceClient {
     private static final Logger log = LoggerFactory.getLogger(SocialServiceClient.class);
     private static final String SERVICE_NAME = "social-service";
 
-    private final RestTemplate restTemplate;
     private final MeterRegistry meterRegistry;
-    private final String baseUrl;
     private final boolean failOpen;
 
+    @DubboReference(check = false, retries = 0, timeout = 800)
+    private SocialBlockRpcService socialBlockRpcService;
+
     public SocialServiceClient(
-            RestTemplate restTemplate,
             MeterRegistry meterRegistry,
-            @Value("${clients.social.base-url:http://social-service}") String baseUrl,
             @Value("${clients.social.fail-open:false}") boolean failOpen
     ) {
-        this.restTemplate = restTemplate;
         this.meterRegistry = meterRegistry;
-        this.baseUrl = baseUrl;
         this.failOpen = failOpen;
     }
 
@@ -63,21 +54,9 @@ public class SocialServiceClient {
         if (userIdA <= 0 || userIdB <= 0 || userIdA == userIdB) {
             return false;
         }
-        if (!StringUtils.hasText(baseUrl)) {
-            throw new BusinessException(INVALID_ARGUMENT, "social-service base-url 未配置");
-        }
-
-        String url = UriComponentsBuilder
-                .fromHttpUrl(baseUrl + "/internal/social/blocks/relation")
-                .queryParam("userIdA", userIdA)
-                .queryParam("userIdB", userIdB)
-                .toUriString();
-
-        HttpHeaders headers = InternalClientSupport.jsonHeaders();
         long start = System.nanoTime();
         try {
-            Result<Boolean> result = exchange(url, HttpMethod.GET, new HttpEntity<>(headers), new ParameterizedTypeReference<Result<Boolean>>() {
-            });
+            Result<Boolean> result = socialBlockRpcService.isEitherBlocked(userIdA, userIdB);
             Boolean data = InternalClientSupport.unwrap(result, SERVICE_NAME);
             InternalClientSupport.record(meterRegistry, SERVICE_NAME, "isEitherBlocked", InternalClientSupport.OUTCOME_SUCCESS, start);
             return data;
@@ -87,7 +66,8 @@ public class SocialServiceClient {
                 log.warn("[social-client] degraded (api=isEitherBlocked): {}", e.toString());
                 return false;
             }
-            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "isEitherBlocked", InternalClientSupport.OUTCOME_ERROR, start);
+            String outcome = isTimeout(e) ? InternalClientSupport.OUTCOME_TIMEOUT : InternalClientSupport.OUTCOME_ERROR;
+            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "isEitherBlocked", outcome, start);
             if (e instanceof BusinessException be) {
                 throw be;
             }
@@ -95,12 +75,17 @@ public class SocialServiceClient {
         }
     }
 
-    private <T> Result<T> exchange(String url, HttpMethod method, HttpEntity<?> entity, ParameterizedTypeReference<Result<T>> typeRef) {
-        try {
-            ResponseEntity<Result<T>> resp = restTemplate.exchange(url, method, entity, typeRef);
-            return resp.getBody();
-        } catch (RestClientException e) {
-            throw new BusinessException(SERVICE_UNAVAILABLE, "social-service 不可用");
+    private boolean isTimeout(Throwable t) {
+        if (t instanceof RpcException re) {
+            return re.isTimeout();
         }
+        Throwable cur = t;
+        while (cur != null) {
+            if (cur instanceof RpcException re) {
+                return re.isTimeout();
+            }
+            cur = cur.getCause();
+        }
+        return false;
     }
 }

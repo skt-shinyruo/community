@@ -1,9 +1,10 @@
 package com.nowcoder.community.common.event.payload;
 
+import java.io.Serializable;
 import java.time.Instant;
 import java.util.List;
 
-public class PostPayload {
+public class PostPayload implements Serializable {
 
     private int postId;
     private int userId;

@@ -1,5 +1,6 @@
 package com.nowcoder.community.content.like;
 
+import com.nowcoder.community.social.api.rpc.dto.SocialLikeScanResponse;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.slf4j.Logger;

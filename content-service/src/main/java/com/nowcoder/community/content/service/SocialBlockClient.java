@@ -3,21 +3,14 @@ package com.nowcoder.community.content.service;
 import com.nowcoder.community.common.api.Result;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.internalclient.InternalClientSupport;
+import com.nowcoder.community.social.api.rpc.SocialBlockRpcService;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.apache.dubbo.config.annotation.DubboReference;
+import org.apache.dubbo.rpc.RpcException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
-import org.springframework.web.client.ResourceAccessException;
-import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.SocketTimeoutException;
 
@@ -33,22 +26,19 @@ public class SocialBlockClient {
     private static final Logger log = LoggerFactory.getLogger(SocialBlockClient.class);
     private static final String SERVICE_NAME = "social-service";
 
-    private final RestTemplate restTemplate;
     private final MeterRegistry meterRegistry;
-    private final String baseUrl;
     private final boolean failOpen;
 
     public SocialBlockClient(
-            RestTemplate restTemplate,
             MeterRegistry meterRegistry,
-            @Value("${clients.social.base-url:http://social-service}") String baseUrl,
             @Value("${clients.social.fail-open:false}") boolean failOpen
     ) {
-        this.restTemplate = restTemplate;
         this.meterRegistry = meterRegistry;
-        this.baseUrl = baseUrl;
         this.failOpen = failOpen;
     }
+
+    @DubboReference(check = false, retries = 0, timeout = 800)
+    private SocialBlockRpcService socialBlockRpcService;
 
     public void assertNotBlocked(int userIdA, int userIdB) {
         if (userIdA <= 0 || userIdB <= 0 || userIdA == userIdB) {
@@ -64,22 +54,10 @@ public class SocialBlockClient {
         if (userIdA <= 0 || userIdB <= 0 || userIdA == userIdB) {
             return false;
         }
-        if (!StringUtils.hasText(baseUrl)) {
-            throw new BusinessException(INVALID_ARGUMENT, "social-service base-url 未配置");
-        }
-
-        String url = UriComponentsBuilder
-                .fromHttpUrl(baseUrl + "/internal/social/blocks/relation")
-                .queryParam("userIdA", userIdA)
-                .queryParam("userIdB", userIdB)
-                .toUriString();
-
-        HttpHeaders headers = InternalClientSupport.jsonHeaders();
         long start = System.nanoTime();
         try {
-            ResponseEntity<Result<Boolean>> resp = exchange(url, HttpMethod.GET, new HttpEntity<>(headers), new ParameterizedTypeReference<Result<Boolean>>() {
-            });
-            Boolean data = InternalClientSupport.unwrap(resp, SERVICE_NAME);
+            Result<Boolean> result = socialBlockRpcService.isEitherBlocked(userIdA, userIdB);
+            Boolean data = InternalClientSupport.unwrap(result, SERVICE_NAME);
             InternalClientSupport.record(meterRegistry, SERVICE_NAME, "isEitherBlocked", InternalClientSupport.OUTCOME_SUCCESS, start);
             return data;
         } catch (RuntimeException e) {
@@ -104,24 +82,19 @@ public class SocialBlockClient {
     }
 
     private boolean isTimeout(Throwable t) {
-        if (t instanceof ResourceAccessException) {
-            return true;
+        if (t instanceof RpcException re) {
+            return re.isTimeout();
         }
         Throwable cur = t;
         while (cur != null) {
             if (cur instanceof SocketTimeoutException) {
                 return true;
             }
+            if (cur instanceof RpcException re) {
+                return re.isTimeout();
+            }
             cur = cur.getCause();
         }
         return false;
-    }
-
-    private <T> ResponseEntity<Result<T>> exchange(String url, HttpMethod method, HttpEntity<?> entity, ParameterizedTypeReference<Result<T>> typeRef) {
-        try {
-            return restTemplate.exchange(url, method, entity, typeRef);
-        } catch (RestClientException e) {
-            throw e;
-        }
     }
 }

@@ -10,7 +10,7 @@
   - DAU 采集不再手动 `.subscribe()`：将 principal 解析挂载到返回的 reactive 链路中并行执行；principal 获取设置短超时（50ms），超时/异常直接跳过（采集可丢弃，不影响主链路）
 - filter 不直接远程调用；统一投递到有界队列：
   - `gateway/src/main/java/com/nowcoder/community/gateway/analytics/AnalyticsCollectDispatcher.java`
-- 异步 worker 消费队列并调用 analytics-service internal API（带 timeout/并发上限）。
+- 异步 worker 消费队列并通过 Dubbo RPC 调用 analytics-service（带 timeout/并发上限；best-effort）。
 
 ## 配置项（SSOT）
 - `analytics.collect.enabled`（默认 false）
@@ -58,11 +58,13 @@ tags：
 
 ### 2) `error` 增长但 `timeout` 不高
 常见原因：
-- `lb://analytics-service` 无实例（discovery 问题）
-- analytics-service internal API 变更/路由不通
+- Dubbo registry（Zookeeper）不可用或不可达
+- analytics-service 未启动/未注册 Dubbo 服务
+- 接口契约不匹配（consumer/provider 版本不一致）
 
 建议：
-- 用网关容器内 curl/日志验证：是否能访问 `lb://analytics-service/internal/analytics/*`
+- 查看 gateway 日志中 Dubbo 调用异常（registry/serialization/no provider 等关键字）
+- 确认 Zookeeper 可达且 analytics-service 已注册对应 Dubbo service
 
 ### 3) DAU 一直为 0
 常见原因：

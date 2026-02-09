@@ -1,17 +1,19 @@
 package com.nowcoder.community.gateway.analytics;
 
+import com.nowcoder.community.analytics.api.rpc.InternalAnalyticsRpcService;
+import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.common.trace.TraceContext;
 import com.nowcoder.community.gateway.config.AnalyticsCollectProperties;
 import com.nowcoder.community.gateway.filter.TraceIdSupport;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import jakarta.annotation.PostConstruct;
-import org.springframework.http.MediaType;
+import org.apache.dubbo.config.annotation.DubboReference;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
-import org.springframework.web.reactive.function.BodyInserters;
-import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
+import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
 import java.time.LocalDate;
@@ -20,7 +22,7 @@ import java.util.concurrent.TimeoutException;
 /**
  * 网关 analytics 采集异步调度器：
  * - filter 内仅投递事件（避免 per-request subscribe 触发远程调用副作用）
- * - worker 统一执行 WebClient 调用（有界队列 + 并发上限 + 超时）
+ * - worker 统一执行 Dubbo 调用（有界队列 + 并发上限 + 超时）
  *
  * <p>采集属于“可丢弃”链路：主请求转发永远优先。</p>
  */
@@ -29,19 +31,20 @@ public class AnalyticsCollectDispatcher {
 
     private static final String METRIC_TOTAL = "gateway_analytics_collect_total";
     private static final String METRIC_LATENCY = "gateway_analytics_collect_latency";
+    private static final String SERVICE_NAME = "analytics-service";
 
     private final AnalyticsCollectProperties properties;
-    private final WebClient webClient;
     private final MeterRegistry meterRegistry;
     private final Sinks.Many<Task> sink;
 
+    @DubboReference(check = false, retries = 0, timeout = 300)
+    private InternalAnalyticsRpcService internalAnalyticsRpcService;
+
     public AnalyticsCollectDispatcher(
             AnalyticsCollectProperties properties,
-            WebClient.Builder webClientBuilder,
             MeterRegistry meterRegistry
     ) {
         this.properties = properties;
-        this.webClient = webClientBuilder.build();
         this.meterRegistry = meterRegistry;
 
         int capacity = Math.max(256, properties == null ? 10_000 : properties.getQueueCapacity());
@@ -130,29 +133,15 @@ public class AnalyticsCollectDispatcher {
         }
 
         String traceId = TraceIdSupport.normalizeTraceId(task.traceId());
-        String traceparent = StringUtils.hasText(task.traceparent())
-                ? task.traceparent().trim()
-                : (StringUtils.hasText(traceId) ? TraceIdSupport.buildTraceparent(traceId) : null);
 
         if ("uv".equals(metric)) {
             String ip = task.ip();
             if (!StringUtils.hasText(ip) || task.date() == null) {
                 return null;
             }
-            return webClient.post()
-                    .uri("lb://analytics-service/internal/analytics/uv/record")
-                    .headers(h -> {
-                        if (StringUtils.hasText(traceId)) {
-                            h.set(TraceIdSupport.HEADER_TRACE_ID, traceId);
-                        }
-                        if (StringUtils.hasText(traceparent)) {
-                            h.set(TraceIdSupport.HEADER_TRACEPARENT, traceparent);
-                        }
-                    })
-                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                    .body(BodyInserters.fromFormData("ip", ip).with("date", task.date().toString()))
-                    .retrieve()
-                    .bodyToMono(Void.class);
+            return Mono.fromRunnable(() -> invokeUv(ip.trim(), task.date(), traceId))
+                    .subscribeOn(Schedulers.boundedElastic())
+                    .then();
         }
 
         if ("dau".equals(metric)) {
@@ -160,23 +149,46 @@ public class AnalyticsCollectDispatcher {
             if (userId == null || userId <= 0 || task.date() == null) {
                 return null;
             }
-            return webClient.post()
-                    .uri("lb://analytics-service/internal/analytics/dau/record")
-                    .headers(h -> {
-                        if (StringUtils.hasText(traceId)) {
-                            h.set(TraceIdSupport.HEADER_TRACE_ID, traceId);
-                        }
-                        if (StringUtils.hasText(traceparent)) {
-                            h.set(TraceIdSupport.HEADER_TRACEPARENT, traceparent);
-                        }
-                    })
-                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                    .body(BodyInserters.fromFormData("userId", String.valueOf(userId)).with("date", task.date().toString()))
-                    .retrieve()
-                    .bodyToMono(Void.class);
+            return Mono.fromRunnable(() -> invokeDau(userId, task.date(), traceId))
+                    .subscribeOn(Schedulers.boundedElastic())
+                    .then();
         }
 
         return null;
+    }
+
+    private void invokeUv(String ip, LocalDate date, String traceId) {
+        String before = com.nowcoder.community.common.trace.TraceId.get();
+        TraceContext.clear();
+        if (StringUtils.hasText(traceId)) {
+            TraceContext.set(traceId);
+        }
+        try {
+            Result<Void> result = internalAnalyticsRpcService.recordUv(ip, date);
+            com.nowcoder.community.common.web.internalclient.InternalClientSupport.unwrap(result, SERVICE_NAME);
+        } finally {
+            TraceContext.clear();
+            if (StringUtils.hasText(before)) {
+                TraceContext.set(before);
+            }
+        }
+    }
+
+    private void invokeDau(int userId, LocalDate date, String traceId) {
+        String before = com.nowcoder.community.common.trace.TraceId.get();
+        TraceContext.clear();
+        if (StringUtils.hasText(traceId)) {
+            TraceContext.set(traceId);
+        }
+        try {
+            Result<Void> result = internalAnalyticsRpcService.recordDau(userId, date);
+            com.nowcoder.community.common.web.internalclient.InternalClientSupport.unwrap(result, SERVICE_NAME);
+        } finally {
+            TraceContext.clear();
+            if (StringUtils.hasText(before)) {
+                TraceContext.set(before);
+            }
+        }
     }
 
     private void recordLatency(String metric, long startNanos) {

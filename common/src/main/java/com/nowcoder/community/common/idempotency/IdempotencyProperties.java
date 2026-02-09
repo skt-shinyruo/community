@@ -11,6 +11,20 @@ import java.time.Duration;
 public class IdempotencyProperties {
 
     /**
+     * 是否启用 HTTP 幂等保护：
+     * - 默认关闭，避免在未使用幂等保护的服务中引入不必要的依赖与启动失败风险
+     * - 对需要幂等的服务（如发帖/评论/私信）应显式打开
+     */
+    private boolean enabled = false;
+
+    /**
+     * 幂等存储后端：
+     * - REDIS：默认（兼容旧实现）
+     * - DB：MySQL（用于消除 Redis 抖动放大，作为更强的 SSOT）
+     */
+    private Store store = Store.REDIS;
+
+    /**
      * processing 状态的 TTL：用于并发互斥与“处理中”提示。
      *
      * <p>注意：该值过短可能导致慢链路下锁过期 → 二次执行的理论风险；可按部署环境调整。</p>
@@ -37,5 +51,25 @@ public class IdempotencyProperties {
     public void setSuccessTtl(Duration successTtl) {
         this.successTtl = successTtl;
     }
-}
 
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    public Store getStore() {
+        return store;
+    }
+
+    public void setStore(Store store) {
+        this.store = store == null ? Store.REDIS : store;
+    }
+
+    public enum Store {
+        REDIS,
+        DB
+    }
+}

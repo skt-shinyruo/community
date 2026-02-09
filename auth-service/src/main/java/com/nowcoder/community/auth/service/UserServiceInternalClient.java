@@ -10,6 +10,10 @@ import com.nowcoder.community.auth.service.dto.UserInternalRegisterResponse;
 import com.nowcoder.community.auth.service.dto.UserInternalSessionProfileResponse;
 import com.nowcoder.community.auth.service.dto.UserInternalUpdatePasswordRequest;
 import com.nowcoder.community.auth.service.dto.UserInternalUserByEmailResponse;
+import com.nowcoder.community.auth.service.dto.UserInternalRefreshTokenRecordResponse;
+import com.nowcoder.community.auth.service.dto.UserInternalRefreshTokenRevokeFamilyRequest;
+import com.nowcoder.community.auth.service.dto.UserInternalRefreshTokenRevokeRequest;
+import com.nowcoder.community.auth.service.dto.UserInternalRefreshTokenStoreRequest;
 import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.api.Result;
@@ -24,6 +28,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.time.Instant;
 import java.util.function.Supplier;
 
 @Service
@@ -130,6 +135,74 @@ public class UserServiceInternalClient {
             UserInternalUpdatePasswordRequest req = new UserInternalUpdatePasswordRequest();
             req.setNewPassword(newPassword);
             String url = properties.getBaseUrl() + "/internal/users/" + userId + "/password";
+            ResponseEntity<Result<Void>> resp = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    new HttpEntity<>(req, InternalClientSupport.jsonHeaders()),
+                    new ParameterizedTypeReference<Result<Void>>() {
+                    }
+            );
+            InternalClientSupport.unwrap(resp, "user-service");
+            return null;
+        });
+    }
+
+    public void storeRefreshToken(String tokenHash, int userId, String familyId, Instant expiresAt) {
+        call("refreshStore", () -> {
+            UserInternalRefreshTokenStoreRequest req = new UserInternalRefreshTokenStoreRequest();
+            req.setTokenHash(tokenHash);
+            req.setUserId(userId);
+            req.setFamilyId(familyId);
+            req.setExpiresAt(expiresAt);
+            String url = properties.getBaseUrl() + "/internal/users/sessions/refresh/store";
+            ResponseEntity<Result<Void>> resp = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    new HttpEntity<>(req, InternalClientSupport.jsonHeaders()),
+                    new ParameterizedTypeReference<Result<Void>>() {
+                    }
+            );
+            InternalClientSupport.unwrap(resp, "user-service");
+            return null;
+        });
+    }
+
+    public UserInternalRefreshTokenRecordResponse findRefreshTokenOrNull(String tokenHash) {
+        return call("refreshFind", () -> {
+            String url = properties.getBaseUrl() + "/internal/users/sessions/refresh/" + tokenHash;
+            ResponseEntity<Result<UserInternalRefreshTokenRecordResponse>> resp = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    new HttpEntity<>(InternalClientSupport.jsonHeaders()),
+                    new ParameterizedTypeReference<Result<UserInternalRefreshTokenRecordResponse>>() {
+                    }
+            );
+            return InternalClientSupport.unwrap(resp, "user-service");
+        });
+    }
+
+    public void revokeRefreshToken(String tokenHash) {
+        call("refreshRevoke", () -> {
+            UserInternalRefreshTokenRevokeRequest req = new UserInternalRefreshTokenRevokeRequest();
+            req.setTokenHash(tokenHash);
+            String url = properties.getBaseUrl() + "/internal/users/sessions/refresh/revoke";
+            ResponseEntity<Result<Void>> resp = restTemplate.exchange(
+                    url,
+                    HttpMethod.POST,
+                    new HttpEntity<>(req, InternalClientSupport.jsonHeaders()),
+                    new ParameterizedTypeReference<Result<Void>>() {
+                    }
+            );
+            InternalClientSupport.unwrap(resp, "user-service");
+            return null;
+        });
+    }
+
+    public void revokeRefreshTokenFamily(String familyId) {
+        call("refreshRevokeFamily", () -> {
+            UserInternalRefreshTokenRevokeFamilyRequest req = new UserInternalRefreshTokenRevokeFamilyRequest();
+            req.setFamilyId(familyId);
+            String url = properties.getBaseUrl() + "/internal/users/sessions/refresh/revoke-family";
             ResponseEntity<Result<Void>> resp = restTemplate.exchange(
                     url,
                     HttpMethod.POST,

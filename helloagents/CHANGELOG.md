@@ -56,6 +56,9 @@
 - scripts：新增 `scripts/mysql-migrate-ops-harden-schema.sql`（三库预检 + 去重指导 + 条件 DDL），用于 Outbox/幂等表的唯一约束与关键索引对齐。
 
 ### Changed
+- common/content-service/message-service：HTTP 写接口幂等新增 DB store（`http.idempotency.enabled/store=DB`），发帖/评论/私信等 required 幂等不再硬依赖 Redis。
+- auth-service/user-service：refresh token 存储默认迁移到 DB（user-service 托管 `auth_refresh_token`，仅存 `token_hash`），降低 Redis 抖动放大为“无法登录/无法刷新”的风险。
+- gateway/auth-service：Redis 不可用时关键链路降级为 fail-open（网关限流、登录失败计数、验证码存储），避免把 Redis 故障放大为对外 503。
 - deploy/mysql-init：对齐 Outbox/幂等表索引形态（`idx_outbox_status_next(status, next_retry_at, id)`、`idx_consumed_event_at(consumed_at, id)`、`idx_search_consumed_at(consumed_at, id)`），并增加 schema drift 自修复以避免历史版本索引缺列导致轮询/清理退化为扫表。
 - message-service/search-service：幂等表清理任务改为分批 delete（`order by + limit`）并支持可选 single-flight，降低多实例竞争与下游压力放大风险。
 - deploy：修复 `deploy/docker-compose.yml` Tab 缩进，恢复 `docker compose ... config` 校验可用性（`scripts/security-check.sh`）。

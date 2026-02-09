@@ -21,6 +21,19 @@ create table if not exists user (
   ban_until timestamp null default null
 );
 
+-- refresh token（SSOT=DB）：auth-service 不直连 MySQL，改由 user-service 托管会话状态
+-- 注意：只存 token_hash（SHA-256 hex），避免明文凭据落库
+create table if not exists auth_refresh_token (
+  token_hash char(64) primary key,
+  user_id int not null,
+  family_id varchar(64) not null,
+  expires_at timestamp not null,
+  revoked_at timestamp null default null,
+  created_at timestamp null default current_timestamp,
+  key idx_refresh_family (family_id, expires_at),
+  key idx_refresh_user (user_id, expires_at)
+);
+
 -- Compatibility upgrade: add moderation columns for existing DBs (manual re-run scenario).
 set @has_mute_until := (
   select count(*)

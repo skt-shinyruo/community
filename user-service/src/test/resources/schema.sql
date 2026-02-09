@@ -31,6 +31,15 @@ create table if not exists user_consumed_event (
   constraint uk_user_consumed_event_id unique (event_id)
 );
 
+create table if not exists auth_refresh_token (
+  token_hash char(64) primary key,
+  user_id int not null,
+  family_id varchar(64) not null,
+  expires_at timestamp not null,
+  revoked_at timestamp,
+  created_at timestamp default current_timestamp
+);
+
 create table if not exists outbox_event (
   id bigint auto_increment primary key,
   event_id varchar(64) not null,

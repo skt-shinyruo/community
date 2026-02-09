@@ -8,8 +8,6 @@ import com.nowcoder.community.common.exception.BusinessException;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
@@ -23,14 +21,9 @@ import java.util.function.Supplier;
  * - 已成功：直接返回缓存响应（避免重复写入与重复副作用）
  * - 幂等存储不可用：按 fail-closed 返回 503（仅对“必须幂等”的入口）
  */
-@Component
 public class IdempotencyGuard {
 
     public static final String HEADER_IDEMPOTENCY_KEY = "Idempotency-Key";
-
-    private static final String KEY_PREFIX = "idem:";
-    private static final String VALUE_PROCESSING = "P";
-    private static final String VALUE_SUCCESS_PREFIX = "S\n";
 
     private static final String METRIC = "http_idempotency_total";
 
@@ -41,12 +34,15 @@ public class IdempotencyGuard {
 
     public IdempotencyGuard(
             ObjectMapper objectMapper,
-            StringRedisTemplate redisTemplate,
+            IdempotencyStore store,
             ObjectProvider<MeterRegistry> meterRegistryProvider,
             IdempotencyProperties properties
     ) {
         this.objectMapper = objectMapper;
-        this.store = new RedisIdempotencyStore(redisTemplate);
+        if (store == null) {
+            throw new IllegalStateException("idempotency store is null");
+        }
+        this.store = store;
         this.meterRegistryProvider = meterRegistryProvider;
         this.properties = properties == null ? new IdempotencyProperties() : properties;
     }
@@ -78,13 +74,13 @@ public class IdempotencyGuard {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "supplier 不能为空");
         }
 
-        String storeKey = buildStoreKey(operation, userId, key);
         Duration processingTtl = safeDuration(properties == null ? null : properties.getProcessingTtl(), Duration.ofSeconds(30));
         Duration successTtl = safeDuration(properties == null ? null : properties.getSuccessTtl(), Duration.ofHours(24));
+        String op = operation.trim().toLowerCase(Locale.ROOT);
 
         boolean acquired;
         try {
-            acquired = store.tryAcquireProcessing(storeKey, processingTtl);
+            acquired = store.tryAcquireProcessing(op, userId, key, processingTtl);
         } catch (RuntimeException e) {
             record(operation, "store_error");
             if (failClosedOnStoreError) {
@@ -100,27 +96,25 @@ public class IdempotencyGuard {
                 result = supplier.get();
             } catch (RuntimeException e) {
                 // 失败允许重试：删除占用 key，避免永久卡死在 PROCESSING
-                safeDelete(storeKey);
+                safeDelete(op, userId, key);
                 record(operation, "failed");
                 throw e;
             }
 
             String json = toJson(result);
             try {
-                store.save(storeKey, VALUE_SUCCESS_PREFIX + json, successTtl);
+                store.saveSuccess(op, userId, key, json, successTtl);
             } catch (RuntimeException e) {
                 record(operation, "store_error");
-                if (failClosedOnStoreError) {
-                    throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "幂等存储不可用");
-                }
+                // 注意：supplier 已成功执行（副作用已产生）。此时再返回 503 会诱导客户端重试并放大重复副作用风险。
             }
             record(operation, "succeeded");
             return result;
         }
 
-        String existing;
+        IdempotencyStore.Entry existing;
         try {
-            existing = store.get(storeKey);
+            existing = store.get(op, userId, key);
         } catch (RuntimeException e) {
             record(operation, "store_error");
             if (failClosedOnStoreError) {
@@ -133,23 +127,17 @@ public class IdempotencyGuard {
             record(operation, "race_miss");
             throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "幂等状态读取失败");
         }
-        if (existing.startsWith(VALUE_SUCCESS_PREFIX)) {
+        if (existing.status() == IdempotencyStore.Status.SUCCESS) {
             record(operation, "duplicate");
-            String json = existing.substring(VALUE_SUCCESS_PREFIX.length());
-            return fromJson(json, type);
+            return fromJson(existing.successJson(), type);
         }
-        if (VALUE_PROCESSING.equals(existing)) {
+        if (existing.status() == IdempotencyStore.Status.PROCESSING) {
             record(operation, "concurrent_conflict");
             throw new BusinessException(new SimpleErrorCode(409, "请求处理中，请稍后重试", 409));
         }
 
         record(operation, "unknown_state");
         throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "幂等状态不合法");
-    }
-
-    private String buildStoreKey(String operation, int userId, String key) {
-        String op = operation.trim().toLowerCase(Locale.ROOT);
-        return KEY_PREFIX + op + ":" + userId + ":" + key;
     }
 
     private String normalizeKey(String key) {
@@ -184,9 +172,9 @@ public class IdempotencyGuard {
         }
     }
 
-    private void safeDelete(String key) {
+    private void safeDelete(String operation, int userId, String key) {
         try {
-            store.delete(key);
+            store.delete(operation, userId, key);
         } catch (RuntimeException ignored) {
         }
     }

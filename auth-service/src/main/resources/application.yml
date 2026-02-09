@@ -38,7 +38,7 @@ auth:
     connect-timeout: 200ms
     read-timeout: 800ms
   refresh:
-    store: redis
+    store: db
   captcha:
     store: redis
     ttl-seconds: 60

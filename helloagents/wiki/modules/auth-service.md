@@ -44,23 +44,27 @@
 - refresh token：
   - 业务：`auth-service/src/main/java/com/nowcoder/community/auth/service/RefreshTokenService.java`
   - 存储接口：`auth-service/src/main/java/com/nowcoder/community/auth/service/RefreshTokenStore.java`
-  - 内存实现（默认/测试用）：`auth-service/src/main/java/com/nowcoder/community/auth/service/InMemoryRefreshTokenStore.java`
-  - Redis 实现（生产建议）：`auth-service/src/main/java/com/nowcoder/community/auth/service/RedisRefreshTokenStore.java`
+  - DB 实现（默认/生产建议）：`auth-service/src/main/java/com/nowcoder/community/auth/service/DbRefreshTokenStore.java`（SSOT=user-service MySQL，仅存 token_hash）
+  - Redis 实现（可选/兼容）：`auth-service/src/main/java/com/nowcoder/community/auth/service/RedisRefreshTokenStore.java`
+  - 内存实现（测试/单机联调）：`auth-service/src/main/java/com/nowcoder/community/auth/service/InMemoryRefreshTokenStore.java`
 - 登录限流：
   - 配置：`auth-service/src/main/java/com/nowcoder/community/auth/config/LoginRateLimitProperties.java`
   - 逻辑：`auth-service/src/main/java/com/nowcoder/community/auth/service/LoginRateLimitService.java`
 - 配置：`auth-service/src/main/resources/application.yml`
 
-## 3. refresh token Redis Key
-- `auth:refresh:<refreshToken>` -> JSON（包含 `userId` / `familyId` / `expiresAt`，带 TTL）
-- `auth:refresh:family:<familyId>` -> Set（family 下的 refreshToken 列表，带 TTL）
+## 3. refresh token 存储
+- DB（默认）：`auth_refresh_token` 表（位于 identity schema，由 user-service 托管），只存 `token_hash(userId/familyId/expiresAt/revokedAt)`。
+- Redis（可选）：当 `auth.refresh.store=redis` 时：
+  - `auth:refresh:<refreshToken>` -> JSON（包含 `userId` / `familyId` / `expiresAt`，带 TTL）
+  - `auth:refresh:family:<familyId>` -> Set（family 下的 refreshToken 列表，带 TTL）
 
 ## 4. 安全与配置约定
 - **JWT HMAC 密钥**：通过 `security.jwt.hmac-secret` 配置，建议 >= 32 字节，且需与 gateway 的验签密钥保持一致。
 - **refresh cookie**：默认 `SameSite=Lax`、`Path=/api/auth`；生产环境建议启用 `Secure=true` 并按部署形态评估 `SameSite` 策略。
-- **refresh token 存储**：通过 `auth.refresh.store=redis|memory` 切换（默认 memory，生产建议 redis）。
+- **refresh token 存储**：通过 `auth.refresh.store=db|redis|memory` 切换（默认 db，生产建议 db）。
 - **登出语义**：登出会按 refresh token 的 `familyId` 做“家族级”失效，避免同一会话族残留 token。
 - **user-service internal 调用**：auth-service 会调用 user-service 的 `/internal/**` 完成登录/刷新/注册等链路（开发阶段 internal 接口默认放行；生产建议通过网络隔离/网关策略收敛暴露面）。
+- **登录安全降级语义**：登录失败计数/验证码阈值在依赖（Redis）不可用时会降级为 fail-open（不阻断登录主链路），并通过 metrics/日志观测。
 - **验证码（captchaId）**：
   - `GET /api/auth/captcha` 返回 `{ captchaId, imageBase64, ttlSeconds }`，验证码与失败计数在服务端存储（Redis/memory）。
   - 校验成功一次性失效；失败达到阈值作废并要求重新获取（默认失败 3 次）。

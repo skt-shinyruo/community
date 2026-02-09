@@ -14,12 +14,24 @@ public interface IdempotencyStore {
      *
      * @return true 表示占用成功（本次为 first-time）；false 表示 key 已存在（可能是并发/重复）
      */
-    boolean tryAcquireProcessing(String key, Duration ttl);
+    boolean tryAcquireProcessing(String operation, int userId, String key, Duration ttl);
 
-    String get(String key);
+    Entry get(String operation, int userId, String key);
 
-    void save(String key, String value, Duration ttl);
+    void saveSuccess(String operation, int userId, String key, String successJson, Duration ttl);
 
-    void delete(String key);
+    void delete(String operation, int userId, String key);
+
+    enum Status {
+        PROCESSING,
+        SUCCESS
+    }
+
+    /**
+     * 幂等记录：
+     * - PROCESSING：处理中（并发互斥/提示稍后重试）
+     * - SUCCESS：已成功（直接复用响应 JSON）
+     */
+    record Entry(Status status, String successJson) {
+    }
 }
-

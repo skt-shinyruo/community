@@ -148,8 +148,8 @@ gateway:
     fail-open-when-allowlist-empty: false
   rate-limit:
     enabled: true
-    # 生产建议 fail-closed：限流依赖（Redis）不可用时返回 503，避免静默放行导致风控失效。
-    fail-open: false
+    # 降级策略：Redis 不可用时 fail-open，避免把 Redis 抖动放大成对外 503（可用性优先，配合告警/审计治理）。
+    fail-open: true
     # 运维/高风险入口关闭开关：匹配到的路径按 404 直接拒绝（降低攻击面）。
     # legacy：对外却叫 internal，易误用且攻击面更大；默认禁用并要求迁移到 /api/ops/**。
     blocked-path-patterns:

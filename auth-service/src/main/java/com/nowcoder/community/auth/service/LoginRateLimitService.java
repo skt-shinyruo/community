@@ -40,21 +40,28 @@ public class LoginRateLimitService {
             return;
         }
 
-        int ipLimit = Math.max(1, properties.getMaxFailuresPerIp());
-        int userLimit = Math.max(1, properties.getMaxFailuresPerUser());
+        try {
+            int ipLimit = Math.max(1, properties.getMaxFailuresPerIp());
+            int userLimit = Math.max(1, properties.getMaxFailuresPerUser());
 
-        if (StringUtils.hasText(ip) && getCount(KEY_PREFIX_IP + ip.trim()) >= ipLimit) {
-            record("blocked", ipSource);
-            throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "登录尝试过于频繁，请稍后再试");
-        }
-        if (StringUtils.hasText(username)) {
-            String normalized = normalizeUsername(username);
-            if (getCount(KEY_PREFIX_USER + normalized) >= userLimit) {
+            if (StringUtils.hasText(ip) && getCount(KEY_PREFIX_IP + ip.trim()) >= ipLimit) {
                 record("blocked", ipSource);
-                throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "账号登录尝试过于频繁，请稍后再试");
+                throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "登录尝试过于频繁，请稍后再试");
             }
+            if (StringUtils.hasText(username)) {
+                String normalized = normalizeUsername(username);
+                if (getCount(KEY_PREFIX_USER + normalized) >= userLimit) {
+                    record("blocked", ipSource);
+                    throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "账号登录尝试过于频繁，请稍后再试");
+                }
+            }
+            record("allowed", ipSource);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            // 降级语义：限流依赖不可用时不阻断登录主链路（可用性优先），通过指标观测与告警兜底。
+            record("degraded", ipSource);
         }
-        record("allowed", ipSource);
     }
 
     public void recordFailure(String username, String ip, String ipSource) {
@@ -62,36 +69,45 @@ public class LoginRateLimitService {
             return;
         }
 
-        int ipLimit = Math.max(1, properties.getMaxFailuresPerIp());
-        int userLimit = Math.max(1, properties.getMaxFailuresPerUser());
+        try {
+            int ipLimit = Math.max(1, properties.getMaxFailuresPerIp());
+            int userLimit = Math.max(1, properties.getMaxFailuresPerUser());
 
-        if (StringUtils.hasText(ip)) {
-            int ipCount = increment(KEY_PREFIX_IP + ip.trim());
-            if (ipCount >= ipLimit) {
-                record("blocked", ipSource);
-                throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "登录尝试过于频繁，请稍后再试");
+            if (StringUtils.hasText(ip)) {
+                int ipCount = increment(KEY_PREFIX_IP + ip.trim());
+                if (ipCount >= ipLimit) {
+                    record("blocked", ipSource);
+                    throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "登录尝试过于频繁，请稍后再试");
+                }
             }
-        }
-        if (StringUtils.hasText(username)) {
-            String normalized = normalizeUsername(username);
-            int userCount = increment(KEY_PREFIX_USER + normalized);
-            if (userCount >= userLimit) {
-                record("blocked", ipSource);
-                throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "账号登录尝试过于频繁，请稍后再试");
+            if (StringUtils.hasText(username)) {
+                String normalized = normalizeUsername(username);
+                int userCount = increment(KEY_PREFIX_USER + normalized);
+                if (userCount >= userLimit) {
+                    record("blocked", ipSource);
+                    throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "账号登录尝试过于频繁，请稍后再试");
+                }
             }
+            record("allowed", ipSource);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            record("degraded", ipSource);
         }
-        record("allowed", ipSource);
     }
 
     public void reset(String username, String ip) {
         if (!properties.isEnabled()) {
             return;
         }
-        if (StringUtils.hasText(ip)) {
-            redisTemplate.delete(KEY_PREFIX_IP + ip.trim());
-        }
-        if (StringUtils.hasText(username)) {
-            redisTemplate.delete(KEY_PREFIX_USER + normalizeUsername(username));
+        try {
+            if (StringUtils.hasText(ip)) {
+                redisTemplate.delete(KEY_PREFIX_IP + ip.trim());
+            }
+            if (StringUtils.hasText(username)) {
+                redisTemplate.delete(KEY_PREFIX_USER + normalizeUsername(username));
+            }
+        } catch (RuntimeException ignored) {
         }
     }
 
@@ -100,23 +116,28 @@ public class LoginRateLimitService {
             return false;
         }
 
-        int ipThreshold = properties.getCaptchaRequiredFailuresPerIp();
-        int userThreshold = properties.getCaptchaRequiredFailuresPerUser();
+        try {
+            int ipThreshold = properties.getCaptchaRequiredFailuresPerIp();
+            int userThreshold = properties.getCaptchaRequiredFailuresPerUser();
 
-        if (StringUtils.hasText(ip)) {
-            int count = getCount(KEY_PREFIX_IP + ip.trim());
-            if (ipThreshold <= 0 || count >= ipThreshold) {
-                return true;
+            if (StringUtils.hasText(ip)) {
+                int count = getCount(KEY_PREFIX_IP + ip.trim());
+                if (ipThreshold <= 0 || count >= ipThreshold) {
+                    return true;
+                }
             }
-        }
-        if (StringUtils.hasText(username)) {
-            String normalized = normalizeUsername(username);
-            int count = getCount(KEY_PREFIX_USER + normalized);
-            if (userThreshold <= 0 || count >= userThreshold) {
-                return true;
+            if (StringUtils.hasText(username)) {
+                String normalized = normalizeUsername(username);
+                int count = getCount(KEY_PREFIX_USER + normalized);
+                if (userThreshold <= 0 || count >= userThreshold) {
+                    return true;
+                }
             }
+            return false;
+        } catch (RuntimeException e) {
+            // 降级语义：依赖不可用时不强制验证码（避免把 Redis 抖动放大为“无法登录”）
+            return false;
         }
-        return false;
     }
 
     private void record(String outcome, String ipSource) {

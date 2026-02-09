@@ -63,6 +63,11 @@
 - internal（仅服务间调用，不走 JWT；开发阶段默认放行）：
   - `POST /internal/users/authenticate`
   - `GET /internal/users/{userId}/session-profile`
+  - refresh token 会话托管（SSOT=DB，仅存 token_hash；供 auth-service 调用）：
+    - `POST /internal/users/sessions/refresh/store`
+    - `GET /internal/users/sessions/refresh/{tokenHash}`
+    - `POST /internal/users/sessions/refresh/revoke`
+    - `POST /internal/users/sessions/refresh/revoke-family`
   - `POST /internal/users/register`
   - `POST /internal/users/{userId}/activate`
   - `GET /internal/users/by-email`
@@ -76,6 +81,9 @@
 ## Data Models
 ### user
 （详见 `helloagents/wiki/data.md` 的 “user” 小节）
+
+### auth_refresh_token
+refresh token 会话表（SSOT=DB，仅存 `token_hash`；用于 refresh/rotate/logout 的家族级撤销）。
 
 ### user_score_log
 （详见 `helloagents/wiki/data.md` 的 “user_score_log” 小节）

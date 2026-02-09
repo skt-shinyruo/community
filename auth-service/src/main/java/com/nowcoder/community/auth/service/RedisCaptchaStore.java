@@ -15,6 +15,7 @@ public class RedisCaptchaStore implements CaptchaStore {
     private static final String PREFIX_FAIL = "captcha:fail:";
 
     private final StringRedisTemplate redisTemplate;
+    private final InMemoryCaptchaStore fallback = new InMemoryCaptchaStore();
 
     public RedisCaptchaStore(StringRedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
@@ -25,7 +26,11 @@ public class RedisCaptchaStore implements CaptchaStore {
         if (!StringUtils.hasText(owner) || !StringUtils.hasText(code) || ttl == null || ttl.isNegative() || ttl.isZero()) {
             return;
         }
-        redisTemplate.opsForValue().set(key(owner), code, ttl);
+        try {
+            redisTemplate.opsForValue().set(key(owner), code, ttl);
+        } catch (RuntimeException e) {
+            fallback.save(owner, code, ttl);
+        }
     }
 
     @Override
@@ -33,7 +38,11 @@ public class RedisCaptchaStore implements CaptchaStore {
         if (!StringUtils.hasText(owner)) {
             return null;
         }
-        return redisTemplate.opsForValue().get(key(owner));
+        try {
+            return redisTemplate.opsForValue().get(key(owner));
+        } catch (RuntimeException e) {
+            return fallback.get(owner);
+        }
     }
 
     @Override
@@ -41,8 +50,12 @@ public class RedisCaptchaStore implements CaptchaStore {
         if (!StringUtils.hasText(owner)) {
             return;
         }
-        redisTemplate.delete(key(owner));
-        redisTemplate.delete(failKey(owner));
+        try {
+            redisTemplate.delete(key(owner));
+            redisTemplate.delete(failKey(owner));
+        } catch (RuntimeException e) {
+            fallback.delete(owner);
+        }
     }
 
     @Override
@@ -50,17 +63,21 @@ public class RedisCaptchaStore implements CaptchaStore {
         if (!StringUtils.hasText(owner) || ttl == null || ttl.isNegative() || ttl.isZero()) {
             return 0;
         }
-        Long count = redisTemplate.opsForValue().increment(failKey(owner));
-        if (count == null) {
-            return 0;
+        try {
+            Long count = redisTemplate.opsForValue().increment(failKey(owner));
+            if (count == null) {
+                return 0;
+            }
+            if (count == 1) {
+                redisTemplate.expire(failKey(owner), ttl);
+            }
+            if (count > Integer.MAX_VALUE) {
+                return Integer.MAX_VALUE;
+            }
+            return count.intValue();
+        } catch (RuntimeException e) {
+            return fallback.incrementFailures(owner, ttl);
         }
-        if (count == 1) {
-            redisTemplate.expire(failKey(owner), ttl);
-        }
-        if (count > Integer.MAX_VALUE) {
-            return Integer.MAX_VALUE;
-        }
-        return count.intValue();
     }
 
     private String key(String owner) {

@@ -42,3 +42,8 @@ mybatis:
   type-aliases-package: com.nowcoder.community.content.entity
   configuration:
     map-underscore-to-camel-case: true
+
+http:
+  idempotency:
+    enabled: true
+    store: DB

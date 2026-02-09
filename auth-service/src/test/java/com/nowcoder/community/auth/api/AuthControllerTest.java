@@ -7,6 +7,7 @@ import com.nowcoder.community.auth.api.dto.LoginRequest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.auth.service.UserServiceInternalClient;
 import com.nowcoder.community.auth.service.dto.UserInternalAuthenticateResponse;
+import com.nowcoder.community.auth.service.dto.UserInternalRefreshTokenRecordResponse;
 import com.nowcoder.community.auth.service.dto.UserInternalRegisterResponse;
 import com.nowcoder.community.auth.service.dto.UserInternalSessionProfileResponse;
 import com.nowcoder.community.auth.service.dto.UserInternalUserByEmailResponse;
@@ -28,6 +29,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -76,6 +79,7 @@ class AuthControllerTest {
     private final Map<String, TestUser> usersByUsername = new ConcurrentHashMap<>();
     private final Map<Integer, TestUser> usersById = new ConcurrentHashMap<>();
     private final Map<String, Integer> userIdByEmail = new ConcurrentHashMap<>();
+    private final Map<String, UserInternalRefreshTokenRecordResponse> refreshTokensByHash = new ConcurrentHashMap<>();
     private final AtomicInteger userIdSeq = new AtomicInteger(1000);
 
     @BeforeEach
@@ -83,6 +87,7 @@ class AuthControllerTest {
         usersByUsername.clear();
         usersById.clear();
         userIdByEmail.clear();
+        refreshTokensByHash.clear();
 
         // 预置用户（对齐 deploy/mysql-init/090_seed_identity.sql 的默认账号）
         TestUser aaa = new TestUser(1, "aaa", "aaa", "aaa@example.com", 1, List.of("ROLE_USER"));
@@ -196,6 +201,48 @@ class AuthControllerTest {
             }
             return null;
         }).when(userServiceInternalClient).updatePassword(anyInt(), anyString());
+
+        doAnswer(invocation -> {
+            String tokenHash = invocation.getArgument(0);
+            int userId = invocation.getArgument(1);
+            String familyId = invocation.getArgument(2);
+            Instant expiresAt = invocation.getArgument(3);
+            UserInternalRefreshTokenRecordResponse r = new UserInternalRefreshTokenRecordResponse();
+            r.setTokenHash(tokenHash);
+            r.setUserId(userId);
+            r.setFamilyId(familyId);
+            r.setExpiresAt(expiresAt);
+            r.setRevokedAt(null);
+            refreshTokensByHash.put(tokenHash, r);
+            return null;
+        }).when(userServiceInternalClient).storeRefreshToken(anyString(), anyInt(), anyString(), any());
+
+        when(userServiceInternalClient.findRefreshTokenOrNull(anyString())).thenAnswer(invocation -> {
+            String tokenHash = invocation.getArgument(0);
+            return refreshTokensByHash.get(tokenHash);
+        });
+
+        doAnswer(invocation -> {
+            String tokenHash = invocation.getArgument(0);
+            UserInternalRefreshTokenRecordResponse r = refreshTokensByHash.get(tokenHash);
+            if (r != null && r.getRevokedAt() == null) {
+                r.setRevokedAt(Instant.now());
+            }
+            return null;
+        }).when(userServiceInternalClient).revokeRefreshToken(anyString());
+
+        doAnswer(invocation -> {
+            String familyId = invocation.getArgument(0);
+            for (UserInternalRefreshTokenRecordResponse r : refreshTokensByHash.values()) {
+                if (r == null) {
+                    continue;
+                }
+                if (familyId != null && familyId.equals(r.getFamilyId()) && r.getRevokedAt() == null) {
+                    r.setRevokedAt(Instant.now());
+                }
+            }
+            return null;
+        }).when(userServiceInternalClient).revokeRefreshTokenFamily(anyString());
     }
 
     @Test

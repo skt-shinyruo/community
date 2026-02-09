@@ -72,3 +72,8 @@ clients:
   social:
     base-url: ${SOCIAL_SERVICE_BASE_URL:http://social-service}
     fail-open: false
+
+http:
+  idempotency:
+    enabled: true
+    store: DB

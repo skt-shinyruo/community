@@ -37,7 +37,10 @@
   - `com.nowcoder.community.common.scheduler.SingleFlightTaskGuard`：基于 Redis 的分布式单飞锁（`SET NX` + TTL 获取，compare-and-del 释放），用于 cleanup/reconcile 等可重试任务避免“集群内重复跑”
   - 任务侧通过各自配置开关控制（如 `*.idempotency.cleanup-single-flight`、`*.projection.reconcile.single-flight`），未启用或 Redis 不可用时应按任务风险选择 skip 或继续执行
 - HTTP 写接口幂等保护：
-  - `com.nowcoder.community.common.idempotency.IdempotencyGuard`：基于 Redis 的 Idempotency-Key 幂等（缺失 key 时 fail-closed 返回 400；存储不可用时对 required 入口返回 503）
+  - `com.nowcoder.community.common.idempotency.IdempotencyGuard`：基于 Idempotency-Key 的写接口幂等（缺失 key 时 fail-closed 返回 400；存储不可用时对 required 入口返回 503）
+  - 幂等开关与后端存储：
+    - `http.idempotency.enabled`（默认 false，需在使用幂等的服务显式开启）
+    - `http.idempotency.store=REDIS|DB`（默认 REDIS；DB 用于把 Redis 抖动从关键写链路中隔离出去）
   - TTL 配置（可按环境调整）：
     - `http.idempotency.processing-ttl`（默认 30s）
     - `http.idempotency.success-ttl`（默认 24h）

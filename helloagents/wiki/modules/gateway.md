@@ -46,7 +46,7 @@
   - 去重/降噪参数：`analytics.collect.dedup-enabled`、`analytics.collect.uv-cache-max-size`、`analytics.collect.dau-cache-max-size`、`analytics.collect.dedup-ttl-seconds`（网关单实例内生效）。
   - 隔离/背压参数：`analytics.collect.queue-capacity`（有界队列）、`analytics.collect.max-concurrency`（worker 并发）、`analytics.collect.timeout-ms`（采集超时）。
   - Runbook：`helloagents/wiki/runbooks/gateway-analytics-collect.md`
-- 若启用限流（默认开启），需要 Redis 可用（`spring.data.redis.host/port`）。
+- 若启用限流（默认开启），限流依赖 Redis（`spring.data.redis.host/port`）；Redis 不可用时按配置降级（`gateway.rate-limit.fail-open=true` 时放行并打点可观测）。
 - 若采用“前端直连 gateway”模式（前端 `12881` + gateway `12882`），需要在 gateway allowlist 中允许对应 Origin（默认包含 `http://localhost:12881` / `http://localhost:12888`）。
 - 若本地前端端口调整（例如 `12888` -> 其他端口），需要同步更新 allowlist（CORS + OriginGuard），并确保 gateway 与 auth-service 的 OriginGuard allowlist 保持一致（建议在配置中心统一维护同一套值）。
 - 旁路防护：auth-service 同样启用 OriginGuard，配置键与 gateway 对齐（`gateway.origin-guard.*`），避免绕过网关直连 auth-service 时降低安全性。

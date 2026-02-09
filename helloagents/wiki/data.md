@@ -63,6 +63,23 @@
 | delta | int |  | 积分增量（可为负） |
 | created_at | datetime |  | 记账时间 |
 
+### 2.1.2 auth_refresh_token
+
+**Description：** refresh token 会话状态（SSOT=DB）。auth-service 不直连 MySQL，由 user-service 托管 internal session API。
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| token_hash | char(64) | PK | refresh token 的 SHA-256 hex（仅存 hash，避免明文凭据落库） |
+| user_id | int | Not Null | 用户 ID |
+| family_id | varchar(64) | Not Null | token family（用于 rotate/revokeFamily） |
+| expires_at | timestamp | Not Null | 过期时间 |
+| revoked_at | timestamp |  | 撤销时间（为空表示有效） |
+| created_at | timestamp |  | 创建时间 |
+
+**Indexes：**
+- `idx_refresh_family(family_id, expires_at)`
+- `idx_refresh_user(user_id, expires_at)`
+
 ### 2.2 discuss_post
 
 **Description：** 帖子。
@@ -263,6 +280,32 @@
 
 **Description：** 早期登录票据表，当前实现已迁移到 Redis（代码中 Mapper 标记为 `@Deprecated`）。
 
+### 2.9 http_idempotency
+
+**Description：** HTTP 写接口幂等表（SSOT=DB）。用于发帖/评论/私信等 required 幂等：同一 `(operation, user_id, idem_key)` 只执行一次副作用；后续请求返回同一响应。
+
+> 该表按业务域落在各自 schema 中：
+> - `community_content.http_idempotency`（content-service）
+> - `community_message.http_idempotency`（message-service）
+
+| Field | Type | Constraints | Description |
+|-------|------|-------------|-------------|
+| id | bigint | PK | 自增 ID |
+| operation | varchar(64) | Not Null | 幂等操作名（路由级别 key） |
+| user_id | int | Not Null | 用户 ID |
+| idem_key | varchar(128) | Not Null | 请求幂等键（Idempotency-Key） |
+| status | varchar(16) | Not Null | 状态（PROCESSING/SUCCESS 等） |
+| response_json | mediumtext |  | 成功响应缓存 JSON（便于重复请求返回同一响应） |
+| processing_expires_at | timestamp |  | PROCESSING 租约 TTL（避免死锁） |
+| success_expires_at | timestamp |  | SUCCESS 缓存 TTL（幂等窗口） |
+| created_at | timestamp |  | 创建时间 |
+| updated_at | timestamp |  | 更新时间 |
+
+**Indexes：**
+- `uk_http_idem(operation, user_id, idem_key)`
+- `idx_http_idem_processing_expires(processing_expires_at, id)`
+- `idx_http_idem_success_expires(success_expires_at, id)`
+
 ---
 
 ## 3. Redis Key 设计（基于代码推断）
@@ -281,7 +324,8 @@
   - `captcha:fail:<captchaId>`（String counter + TTL，归属：auth-service）
 - **登录失败限流（auth-service）：** `auth:login:fail:ip:<ip>` / `auth:login:fail:user:<username>`（String counter + TTL）
 - **找回密码（auth-service）：** `auth:pwdreset:<token>`（String userId + TTL，一次性消费）
-- **auth-service refresh token（迭代 0）：**
+- **auth-service refresh token（可选 Redis store，legacy）：**
+  - 默认已迁移到 MySQL `auth_refresh_token`（由 user-service 托管）；仅当 `auth.refresh.store=redis` 时使用以下 key
   - `auth:refresh:<refreshToken>` -> JSON（包含 userId/familyId/expiresAt，带 TTL）
   - `auth:refresh:family:<familyId>` -> Set（refreshToken 列表，带 TTL）
 - **网关限流（gateway）：** `gateway:ratelimit:<ruleId>:<bucket>:<key>`（String counter + TTL）

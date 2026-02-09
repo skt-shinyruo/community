@@ -23,7 +23,7 @@ gateway:
 
 auth:
   refresh:
-    store: redis
+    store: db
   user-client:
     base-url: ${USER_SERVICE_BASE_URL:http://user-service}
     connect-timeout: 200ms

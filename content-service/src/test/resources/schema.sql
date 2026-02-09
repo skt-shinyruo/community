@@ -91,6 +91,20 @@ create table if not exists post_tag (
   primary key (post_id, tag_id)
 );
 
+create table if not exists http_idempotency (
+  id bigint auto_increment primary key,
+  operation varchar(64) not null,
+  user_id int not null,
+  idem_key varchar(128) not null,
+  status varchar(16) not null,
+  response_json mediumtext,
+  processing_expires_at timestamp,
+  success_expires_at timestamp,
+  created_at timestamp default current_timestamp,
+  updated_at timestamp default current_timestamp,
+  unique (operation, user_id, idem_key)
+);
+
 delete from user;
 delete from discuss_post;
 delete from comment;
@@ -99,6 +113,7 @@ delete from tag;
 delete from category;
 delete from user_moderation_projection;
 delete from user_block_projection;
+delete from http_idempotency;
 
 insert into user(id, username) values (1, 'u1');
 insert into user(id, username) values (2, 'u2');

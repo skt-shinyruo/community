@@ -4,6 +4,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
+import java.util.Locale;
 
 /**
  * Redis 幂等存储实现：
@@ -19,7 +20,13 @@ public class RedisIdempotencyStore implements IdempotencyStore {
     }
 
     @Override
-    public boolean tryAcquireProcessing(String key, Duration ttl) {
+    public boolean tryAcquireProcessing(String operation, int userId, String key, Duration ttl) {
+        if (!StringUtils.hasText(operation)) {
+            throw new IllegalArgumentException("operation is blank");
+        }
+        if (userId <= 0) {
+            throw new IllegalArgumentException("userId is invalid");
+        }
         if (!StringUtils.hasText(key)) {
             throw new IllegalArgumentException("key is blank");
         }
@@ -27,22 +34,40 @@ public class RedisIdempotencyStore implements IdempotencyStore {
             throw new IllegalStateException("redisTemplate is null");
         }
         Duration safeTtl = ttl == null ? Duration.ofSeconds(30) : ttl;
-        return Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key, "P", safeTtl));
+        String storeKey = buildStoreKey(operation, userId, key);
+        return Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(storeKey, "P", safeTtl));
     }
 
     @Override
-    public String get(String key) {
-        if (!StringUtils.hasText(key)) {
+    public Entry get(String operation, int userId, String key) {
+        if (!StringUtils.hasText(operation) || userId <= 0 || !StringUtils.hasText(key)) {
             return null;
         }
         if (redisTemplate == null) {
             throw new IllegalStateException("redisTemplate is null");
         }
-        return redisTemplate.opsForValue().get(key);
+        String storeKey = buildStoreKey(operation, userId, key);
+        String value = redisTemplate.opsForValue().get(storeKey);
+        if (value == null) {
+            return null;
+        }
+        if ("P".equals(value)) {
+            return new Entry(Status.PROCESSING, null);
+        }
+        if (value.startsWith("S\n")) {
+            return new Entry(Status.SUCCESS, value.substring(2));
+        }
+        throw new IllegalStateException("unknown idempotency state");
     }
 
     @Override
-    public void save(String key, String value, Duration ttl) {
+    public void saveSuccess(String operation, int userId, String key, String successJson, Duration ttl) {
+        if (!StringUtils.hasText(operation)) {
+            throw new IllegalArgumentException("operation is blank");
+        }
+        if (userId <= 0) {
+            throw new IllegalArgumentException("userId is invalid");
+        }
         if (!StringUtils.hasText(key)) {
             throw new IllegalArgumentException("key is blank");
         }
@@ -50,18 +75,24 @@ public class RedisIdempotencyStore implements IdempotencyStore {
             throw new IllegalStateException("redisTemplate is null");
         }
         Duration safeTtl = ttl == null ? Duration.ofHours(24) : ttl;
-        redisTemplate.opsForValue().set(key, value == null ? "" : value, safeTtl);
+        String storeKey = buildStoreKey(operation, userId, key);
+        String json = successJson == null ? "null" : successJson;
+        redisTemplate.opsForValue().set(storeKey, "S\n" + json, safeTtl);
     }
 
     @Override
-    public void delete(String key) {
-        if (!StringUtils.hasText(key)) {
+    public void delete(String operation, int userId, String key) {
+        if (!StringUtils.hasText(operation) || userId <= 0 || !StringUtils.hasText(key)) {
             return;
         }
         if (redisTemplate == null) {
             throw new IllegalStateException("redisTemplate is null");
         }
-        redisTemplate.delete(key);
+        redisTemplate.delete(buildStoreKey(operation, userId, key));
+    }
+
+    private String buildStoreKey(String operation, int userId, String key) {
+        String op = operation.trim().toLowerCase(Locale.ROOT);
+        return "idem:" + op + ":" + userId + ":" + key.trim();
     }
 }
-

@@ -60,6 +60,23 @@ create table if not exists post_tag (
   primary key (post_id, tag_id)
 );
 
+-- HTTP 写接口幂等（SSOT=DB）：同一 user + operation + key 只执行一次副作用
+create table if not exists http_idempotency (
+  id bigint auto_increment primary key,
+  operation varchar(64) not null,
+  user_id int not null,
+  idem_key varchar(128) not null,
+  status varchar(16) not null,
+  response_json mediumtext null,
+  processing_expires_at timestamp null,
+  success_expires_at timestamp null,
+  created_at timestamp null default current_timestamp,
+  updated_at timestamp null default current_timestamp on update current_timestamp,
+  unique key uk_http_idem (operation, user_id, idem_key),
+  key idx_http_idem_processing_expires (processing_expires_at, id),
+  key idx_http_idem_success_expires (success_expires_at, id)
+);
+
 -- moderation: reports + actions (MVP)
 create table if not exists report (
   id int auto_increment primary key,

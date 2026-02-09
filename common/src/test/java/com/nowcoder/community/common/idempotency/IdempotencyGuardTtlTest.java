@@ -33,7 +33,12 @@ class IdempotencyGuardTtlTest {
         properties.setProcessingTtl(Duration.ofSeconds(45));
         properties.setSuccessTtl(Duration.ofMinutes(10));
 
-        IdempotencyGuard guard = new IdempotencyGuard(new ObjectMapper(), redisTemplate, meterRegistryProvider, properties);
+        IdempotencyGuard guard = new IdempotencyGuard(
+                new ObjectMapper(),
+                new RedisIdempotencyStore(redisTemplate),
+                meterRegistryProvider,
+                properties
+        );
 
         guard.executeRequired("op", 1, "k1", String.class, () -> "OK");
 
@@ -41,4 +46,3 @@ class IdempotencyGuardTtlTest {
         verify(valueOps).set(anyString(), anyString(), eq(Duration.ofMinutes(10)));
     }
 }
-

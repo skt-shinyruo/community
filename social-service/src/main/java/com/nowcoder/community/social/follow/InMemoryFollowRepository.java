@@ -21,10 +21,12 @@ public class InMemoryFollowRepository implements FollowRepository {
     @Override
     public boolean follow(int userId, int entityType, int entityId, long followTimeMillis) {
         Map<Integer, Long> followeeMap = followees.computeIfAbsent(followeeKey(userId, entityType), ignored -> new ConcurrentHashMap<>());
-        if (followeeMap.containsKey(entityId)) {
+        Long existed = followeeMap.putIfAbsent(entityId, followTimeMillis);
+        if (existed != null) {
+            // 幂等：若历史/异常导致 follower 缺失，则尽量补齐（不重复返回 created=true）。
+            followers.computeIfAbsent(followerKey(entityType, entityId), ignored -> new ConcurrentHashMap<>()).putIfAbsent(userId, existed);
             return false;
         }
-        followeeMap.put(entityId, followTimeMillis);
         followers.computeIfAbsent(followerKey(entityType, entityId), ignored -> new ConcurrentHashMap<>()).put(userId, followTimeMillis);
         return true;
     }
@@ -96,4 +98,3 @@ public class InMemoryFollowRepository implements FollowRepository {
         return "follower:" + entityType + ":" + entityId;
     }
 }
-

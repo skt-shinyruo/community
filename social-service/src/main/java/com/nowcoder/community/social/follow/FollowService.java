@@ -6,8 +6,14 @@ import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.social.event.SocialEventPublisher;
 import com.nowcoder.community.social.follow.dto.FollowItem;
 import com.nowcoder.community.social.follow.dto.FollowRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.List;
@@ -20,14 +26,28 @@ import static com.nowcoder.community.common.api.SocialErrorCode.CANNOT_FOLLOW_SE
 @Service
 public class FollowService {
 
+    private static final Logger log = LoggerFactory.getLogger(FollowService.class);
+
     private final FollowRepository followRepository;
     private final SocialEventPublisher eventPublisher;
     private final BlockService blockService;
+    private final boolean redisStorage;
 
     public FollowService(FollowRepository followRepository, SocialEventPublisher eventPublisher, BlockService blockService) {
+        this(followRepository, eventPublisher, blockService, "memory");
+    }
+
+    @Autowired
+    public FollowService(
+            FollowRepository followRepository,
+            SocialEventPublisher eventPublisher,
+            BlockService blockService,
+            @Value("${social.storage:db}") String storage
+    ) {
         this.followRepository = followRepository;
         this.eventPublisher = eventPublisher;
         this.blockService = blockService;
+        this.redisStorage = "redis".equalsIgnoreCase(storage);
     }
 
     @Transactional
@@ -62,8 +82,43 @@ public class FollowService {
             payload.setEntityId(entityId);
             payload.setEntityUserId(entityId);
             payload.setCreateTime(Instant.ofEpochMilli(now));
-            eventPublisher.publishFollowCreated(payload);
+            Runnable rollback = () -> followRepository.unfollow(actorUserId, entityType, entityId);
+            if (redisStorage) {
+                registerRollbackIfTxRolledBack(rollback);
+            }
+            try {
+                eventPublisher.publishFollowCreated(payload);
+            } catch (RuntimeException ex) {
+                if (redisStorage) {
+                    try {
+                        rollback.run();
+                    } catch (RuntimeException rollbackEx) {
+                        log.warn("[follow] rollback failed after publish error (entityType={}, entityId={}, actorUserId={}): {}",
+                                entityType, entityId, actorUserId, rollbackEx.toString());
+                    }
+                }
+                throw ex;
+            }
         }
+    }
+
+    private void registerRollbackIfTxRolledBack(Runnable rollback) {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_COMMITTED) {
+                    return;
+                }
+                try {
+                    rollback.run();
+                } catch (RuntimeException ex) {
+                    log.warn("[follow] rollback failed after tx rollback: {}", ex.toString());
+                }
+            }
+        });
     }
 
     @Transactional

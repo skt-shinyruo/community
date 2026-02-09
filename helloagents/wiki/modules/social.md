@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 点赞/取消点赞；统计实体点赞数；关注/取关；关注列表/粉丝列表；拉黑/解除拉黑
 - **Status：** ✅Stable
-- **Last Updated：** 2026-02-04
+- **Last Updated：** 2026-02-09
 
 ## Specifications
 
@@ -16,7 +16,8 @@
 
 #### Scenario: 点赞帖子
 前置条件：用户已登录
-- MySQL 作为关系 SSOT（默认）；Redis 可选作为缓存/计数加速层（非 SSOT）
+- MySQL 作为关系 SSOT（默认）；Redis 可选作为本地/压测/演示路径（非 SSOT）
+- 当 `social.storage=redis` 时：点赞关系（`like:entity:*`）与获赞计数（`like:user:*`）通过 Lua 脚本原子更新；事件入队失败将 best-effort 回滚 Redis 状态，降低计数漂移/重复事件风险（仍不建议在 prod 使用）
 - 反骚扰一致性：若双方存在任一方向拉黑关系，禁止创建点赞（返回 403，不发布 LikeCreated）
 - 更新被赞用户的获赞计数（DB 侧具备唯一约束兜底幂等）
 - 写路径契约可信：服务端通过 content-service internal resolve 解析 entity 的 owner/postId 并校验存在性（禁止信任客户端注入字段）
@@ -28,7 +29,8 @@
 
 #### Scenario: 关注用户
 前置条件：用户已登录
-- MySQL 作为关系 SSOT（默认）；Redis 可选作为缓存/加速层
+- MySQL 作为关系 SSOT（默认）；Redis 可选作为本地/压测/演示路径（非 SSOT）
+- 当 `social.storage=redis` 时：关注列表（`followee:*`）与粉丝列表（`follower:*`）通过 Lua 脚本原子双写，并在幂等重入时尽量自愈双写不一致；事件入队失败将 best-effort 回滚 Redis 状态（仍不建议在 prod 使用）
 - follow 写路径收敛：当前仅支持关注 USER（避免跨域 entity 造成信任边界与脏关系问题）
 - 反骚扰一致性：若双方存在任一方向拉黑关系，禁止创建关注（返回 403，不发布 FollowCreated）
 - 触发关注事件：优先使用 Outbox 可靠投递（可通过开关回滚到 After-Commit 直发）
@@ -90,3 +92,4 @@
 - 2026-02-02：新增 internal 用户主页聚合 read API（profile-stats），供 user-service 单次调用获取获赞/关注/粉丝/关注状态，降低 fan-out。
 - 2026-02-03：Outbox 认领升级支持 `FOR UPDATE SKIP LOCKED`（可配置回退），降低多实例 relay 并发时的锁等待与头阻塞风险；outbox 运维入口保留（开发阶段默认放行）。
 - 2026-02-04：补齐反骚扰语义一致性：点赞/关注在“创建关系”场景增加拉黑校验（403），避免拉黑后仍产生互动与通知副作用。
+- 2026-02-09：Redis 存储模式写路径原子性修复：follow（双 ZSet）与 like（关系 + 获赞计数）改为 Lua 脚本原子更新；事件入队失败 best-effort 回滚 Redis 状态，降低重复事件与计数漂移风险。

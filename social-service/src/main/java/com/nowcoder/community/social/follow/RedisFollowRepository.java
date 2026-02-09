@@ -4,6 +4,7 @@ import com.nowcoder.community.social.follow.dto.FollowItem;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
@@ -15,6 +16,58 @@ import java.util.Set;
 @ConditionalOnProperty(name = "social.storage", havingValue = "redis")
 public class RedisFollowRepository implements FollowRepository {
 
+    private static final DefaultRedisScript<Long> FOLLOW_SCRIPT = new DefaultRedisScript<>(
+            """
+            local followeeKey = KEYS[1]
+            local followerKey = KEYS[2]
+
+            local entityId = ARGV[1]
+            local userId = ARGV[2]
+            local score = tonumber(ARGV[3])
+
+            local followeeScore = redis.call('ZSCORE', followeeKey, entityId)
+            local followerScore = redis.call('ZSCORE', followerKey, userId)
+
+            if followeeScore and followerScore then
+              return 0
+            end
+
+            -- 修复历史/异常窗口导致的“双写不一致”：只补齐缺失的一侧，不重复返回 created=true。
+            if followeeScore and not followerScore then
+              redis.call('ZADD', followerKey, followeeScore, userId)
+              return 0
+            end
+            if not followeeScore and followerScore then
+              redis.call('ZADD', followeeKey, followerScore, entityId)
+              return 0
+            end
+
+            redis.call('ZADD', followeeKey, score, entityId)
+            redis.call('ZADD', followerKey, score, userId)
+            return 1
+            """,
+            Long.class
+    );
+
+    private static final DefaultRedisScript<Long> UNFOLLOW_SCRIPT = new DefaultRedisScript<>(
+            """
+            local followeeKey = KEYS[1]
+            local followerKey = KEYS[2]
+
+            local entityId = ARGV[1]
+            local userId = ARGV[2]
+
+            local r1 = redis.call('ZREM', followeeKey, entityId)
+            local r2 = redis.call('ZREM', followerKey, userId)
+
+            if (r1 and r1 > 0) or (r2 and r2 > 0) then
+              return 1
+            end
+            return 0
+            """,
+            Long.class
+    );
+
     private final StringRedisTemplate redisTemplate;
 
     public RedisFollowRepository(StringRedisTemplate redisTemplate) {
@@ -24,20 +77,28 @@ public class RedisFollowRepository implements FollowRepository {
     @Override
     public boolean follow(int userId, int entityType, int entityId, long followTimeMillis) {
         String followeeKey = followeeKey(userId, entityType);
-        Double existed = redisTemplate.opsForZSet().score(followeeKey, String.valueOf(entityId));
-        if (existed != null) {
-            return false;
-        }
-        redisTemplate.opsForZSet().add(followeeKey, String.valueOf(entityId), followTimeMillis);
-        redisTemplate.opsForZSet().add(followerKey(entityType, entityId), String.valueOf(userId), followTimeMillis);
-        return true;
+        String followerKey = followerKey(entityType, entityId);
+        Long changed = redisTemplate.execute(
+                FOLLOW_SCRIPT,
+                List.of(followeeKey, followerKey),
+                String.valueOf(entityId),
+                String.valueOf(userId),
+                String.valueOf(followTimeMillis)
+        );
+        return changed != null && changed > 0;
     }
 
     @Override
     public boolean unfollow(int userId, int entityType, int entityId) {
-        Long removed = redisTemplate.opsForZSet().remove(followeeKey(userId, entityType), String.valueOf(entityId));
-        redisTemplate.opsForZSet().remove(followerKey(entityType, entityId), String.valueOf(userId));
-        return removed != null && removed > 0;
+        String followeeKey = followeeKey(userId, entityType);
+        String followerKey = followerKey(entityType, entityId);
+        Long changed = redisTemplate.execute(
+                UNFOLLOW_SCRIPT,
+                List.of(followeeKey, followerKey),
+                String.valueOf(entityId),
+                String.valueOf(userId)
+        );
+        return changed != null && changed > 0;
     }
 
     @Override

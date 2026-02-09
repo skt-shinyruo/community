@@ -33,6 +33,7 @@
 - user-service/gateway：新增本地头像上传与访问链路（multipart 上传 + `/files/**` 静态访问路由），并提供 `user.avatar.*` 配置以支持 local/qiniu 存储切换。
 - user-service：新增 batch 用户摘要 API（`POST /api/users/batch-summary`）供 feed 聚合补水，降低 N+1 请求风暴。
 - social-service：新增批量点赞计数/状态 API（`GET /api/likes/counts`、`GET /api/likes/statuses`），配合 feed 批量补水渲染。
+- social-service：新增 Redis Testcontainers 集成测试 `RedisStorageAtomicityTest`，覆盖 `social.storage=redis` 下 follow/like 原子语义与事件失败回滚。
 - frontend：feed 列表改为 batch 拉取用户/点赞元信息，并新增 TTL 缓存（60s）；新增 `/#/ops`（Ops Console）与 `/#/admin/users`（用户管理）页面入口。
 - scripts：新增 `bootstrap-admin.sh`（管理员角色初始化/修复）与 `smoke-i1-avatar.sh`（local avatar 上传/读取冒烟）。
 - content-service/social-service/user-service：补齐 outbox 的 SENDING lease 回收与 SENT 清理策略单测，确保 H2/MySQL 下行为一致。
@@ -45,6 +46,7 @@
 
 ### Fixed
 - social-service：关注/拉黑“自操作”错误收敛为 `SocialErrorCode`（13001/13002），避免以通用 400 掩盖领域语义。
+- social-service：修复 `social.storage=redis` 写路径的并发与一致性缺口：follow 改为 Lua 原子双写（`followee:*` + `follower:*`），like 改为 Lua 原子更新（`like:entity:*` + `like:user:*`，含非负保护）；事件入队失败 best-effort 回滚 Redis 状态，降低重复事件与计数漂移风险。
 - search-service：reindex single-flight 冲突与存储不可用场景收敛到 `SearchErrorCode`（15003/15002），避免 `SimpleErrorCode(409)` 导致语义丢失。
 - content-service：分类/评论/帖子不存在场景收敛到 `ContentErrorCode`（12003/12002/12001），并补齐测试依赖 `spring-security-test` 以支撑契约测试编译。
 - runbooks：新增内容渲染迁移与网关采集排障手册（`helloagents/wiki/runbooks/content-rendering-migration.md`、`helloagents/wiki/runbooks/gateway-analytics-collect.md`）。

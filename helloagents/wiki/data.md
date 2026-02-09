@@ -317,6 +317,12 @@
 - **关注列表：** `followee:<userId>:<entityType>`（ZSet，归属：social-service）
 - **粉丝列表：** `follower:<entityType>:<entityId>`（ZSet，归属：social-service）
 - **拉黑集合：** `block:<userId>`（Set，被拉黑用户 ID 列表，归属：social-service）
+
+> 一致性说明（Redis 非 SSOT 场景）：  
+> 当 `social.storage=redis` 时，social-service 写路径通过 Lua 脚本将跨 key 的复合更新收敛为单次原子操作：  
+> - follow：`followee:*` + `follower:*` 原子双写（并对历史/异常窗口造成的“双写不一致”做 best-effort 自愈）；  
+> - like：`like:entity:*` + `like:user:*` 原子更新（计数做非负保护）。  
+> 仍需注意：Redis 状态与 DB Outbox 无法强原子，仅做 best-effort 回滚与边界文档化。
 - **UV：** `uv:<yyyy-MM-dd>`（HyperLogLog，日粒度）+ `uv:tmp:<start>:<end>:<rand>`（区间 union 临时 key：查询结束 delete，异常时短 TTL 兜底；归属：analytics-service）
 - **DAU：** `dau:<yyyy-MM-dd>`（Bitmap，日粒度）+ `dau:tmp:<start>:<end>:<rand>`（区间 OR 临时 key：查询结束 delete，异常时短 TTL 兜底；归属：analytics-service）
 - **帖子分数刷新集合：** `post:score`（Set，归属：content-service）

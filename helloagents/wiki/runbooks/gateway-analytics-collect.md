@@ -58,13 +58,13 @@ tags：
 
 ### 2) `error` 增长但 `timeout` 不高
 常见原因：
-- Dubbo registry（Zookeeper）不可用或不可达
+- Dubbo registry（Nacos）不可用或不可达
 - analytics-service 未启动/未注册 Dubbo 服务
 - 接口契约不匹配（consumer/provider 版本不一致）
 
 建议：
 - 查看 gateway 日志中 Dubbo 调用异常（registry/serialization/no provider 等关键字）
-- 确认 Zookeeper 可达且 analytics-service 已注册对应 Dubbo service
+- 确认 Nacos 可达且 analytics-service 已注册对应 Dubbo service（必要时对照 namespace/group 是否一致）
 
 ### 3) DAU 一直为 0
 常见原因：

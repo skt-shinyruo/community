@@ -85,7 +85,13 @@ dubbo:
     name: ${spring.application.name}
     qos-enable: false
   registry:
-    address: ${DUBBO_REGISTRY_ADDR:zookeeper://127.0.0.1:2181/dubbo}
+    # 默认使用 Nacos；仅在显式设置 DUBBO_REGISTRY_ADDR 时覆盖（应急/迁移窗口）。
+    address: "${DUBBO_REGISTRY_ADDR:nacos://${NACOS_SERVER_ADDR:127.0.0.1:8848}}"
+    parameters:
+      namespace: ${NACOS_NAMESPACE:}
+      group: ${NACOS_GROUP:DEFAULT_GROUP}
+      username: ${NACOS_USERNAME:}
+      password: ${NACOS_PASSWORD:}
   protocol:
     name: dubbo
     port: -1

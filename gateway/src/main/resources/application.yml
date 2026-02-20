@@ -10,45 +10,83 @@ spring:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}
       port: ${SPRING_DATA_REDIS_PORT:6379}
-  cloud:
-    nacos:
-      discovery:
-        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+	  cloud:
+	    nacos:
+	      discovery:
+	        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
         group: ${NACOS_GROUP:DEFAULT_GROUP}
       config:
         server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
         group: ${NACOS_GROUP:DEFAULT_GROUP}
         file-extension: yaml
-    gateway:
-      default-filters:
-        - PreserveHostHeader
-      routes:
-        - id: auth-service
-          uri: lb://auth-service
-          predicates:
-            - Path=/api/auth/**
-        - id: search-ops-reindex
-          uri: lb://search-service
-          predicates:
-            - Method=POST
-            - Path=/api/ops/search/reindex
-          filters:
-            - SetPath=/internal/search/reindex
-            - AddRequestHeader=X-External-Path, /api/ops/search/reindex
-        - id: search-reindex
-          uri: lb://search-service
-          predicates:
-            - Method=POST
-            - Path=/api/search/internal/reindex
-          filters:
-            - SetPath=/internal/search/reindex
-            - AddRequestHeader=X-External-Path, /api/search/internal/reindex
-            # 对外 internal 命名属于历史遗留入口：保留短期兼容，但明确标记弃用。
-            - AddResponseHeader=Deprecation, true
-        - id: search-service
-          uri: lb://search-service
-          predicates:
-            - Path=/api/search/**
+	    gateway:
+	      default-filters:
+	        - PreserveHostHeader
+	      routes:
+	        - id: auth-service
+	          uri: lb://auth-service
+	          predicates:
+	            - Path=/api/auth/**
+	        - id: ops-search-reindex
+	          uri: forward:/__gateway/ops/search/reindex
+	          predicates:
+	            - Method=POST
+	            - Path=/api/ops/search/reindex
+	          filters:
+	            - AddRequestHeader=X-Gateway-Forwarded, 1
+	        - id: ops-content-outbox-health
+	          uri: forward:/__gateway/ops/content/outbox/health
+	          predicates:
+	            - Method=GET
+	            - Path=/api/ops/content/outbox/health
+	          filters:
+	            - AddRequestHeader=X-Gateway-Forwarded, 1
+	        - id: ops-content-outbox-replay
+	          uri: forward:/__gateway/ops/content/outbox/replay
+	          predicates:
+	            - Method=POST
+	            - Path=/api/ops/content/outbox/replay
+	          filters:
+	            - AddRequestHeader=X-Gateway-Forwarded, 1
+	        - id: ops-social-outbox-health
+	          uri: forward:/__gateway/ops/social/outbox/health
+	          predicates:
+	            - Method=GET
+	            - Path=/api/ops/social/outbox/health
+	          filters:
+	            - AddRequestHeader=X-Gateway-Forwarded, 1
+	        - id: ops-social-outbox-replay
+	          uri: forward:/__gateway/ops/social/outbox/replay
+	          predicates:
+	            - Method=POST
+	            - Path=/api/ops/social/outbox/replay
+	          filters:
+	            - AddRequestHeader=X-Gateway-Forwarded, 1
+	        - id: ops-user-outbox-health
+	          uri: forward:/__gateway/ops/user/outbox/health
+	          predicates:
+	            - Method=GET
+	            - Path=/api/ops/user/outbox/health
+	          filters:
+	            - AddRequestHeader=X-Gateway-Forwarded, 1
+	        - id: ops-user-outbox-replay
+	          uri: forward:/__gateway/ops/user/outbox/replay
+	          predicates:
+	            - Method=POST
+	            - Path=/api/ops/user/outbox/replay
+	          filters:
+	            - AddRequestHeader=X-Gateway-Forwarded, 1
+		        - id: ops-content-like-backfill
+		          uri: forward:/__gateway/ops/content/likes/backfill
+		          predicates:
+		            - Method=POST
+		            - Path=/api/ops/content/likes/backfill
+		          filters:
+		            - AddRequestHeader=X-Gateway-Forwarded, 1
+		        - id: search-service
+		          uri: lb://search-service
+	          predicates:
+	            - Path=/api/search/**
         - id: message-service
           uri: lb://message-service
           predicates:
@@ -146,14 +184,12 @@ gateway:
     allowed-origins: *frontend_origins
     # 生产建议 fail-closed：allowlist 漏配时拒绝敏感 cookie 会话入口（login/refresh/logout）。
     fail-open-when-allowlist-empty: false
-  rate-limit:
-    enabled: true
-    # 降级策略：Redis 不可用时 fail-open，避免把 Redis 抖动放大成对外 503（可用性优先，配合告警/审计治理）。
-    fail-open: true
-    # 运维/高风险入口关闭开关：匹配到的路径按 404 直接拒绝（降低攻击面）。
-    # legacy：对外却叫 internal，易误用且攻击面更大；默认禁用并要求迁移到 /api/ops/**。
-    blocked-path-patterns:
-      - /api/search/internal/reindex
+	  rate-limit:
+	    enabled: true
+	    # 降级策略：Redis 不可用时 fail-open，避免把 Redis 抖动放大成对外 503（可用性优先，配合告警/审计治理）。
+	    fail-open: true
+	    # 运维/高风险入口关闭开关：匹配到的路径按 404 直接拒绝（降低攻击面）。
+	    blocked-path-patterns: []
     rules:
       # 登录/注册/验证码：按 IP 限流
       - id: login
@@ -214,20 +250,38 @@ gateway:
         window-seconds: 60
         max-requests: 30
         key-strategy: USER
-      # 高成本运维操作：严格限流，避免误触发/滥用（可通过配置中心临时调小/关闭）
-      - id: search-reindex
-        methods: [POST]
-        path-patterns: [/api/search/internal/reindex, /api/ops/search/reindex]
-        window-seconds: 60
-        max-requests: 2
-        key-strategy: USER
+		      # 高成本运维操作：严格限流，避免误触发/滥用（可通过配置中心临时调小/关闭）
+		      - id: search-reindex
+		        methods: [POST]
+		        path-patterns: [/api/ops/search/reindex]
+		        window-seconds: 60
+		        max-requests: 2
+		        key-strategy: USER
+	      - id: ops-outbox-replay
+	        methods: [POST]
+	        path-patterns: [/api/ops/content/outbox/replay, /api/ops/social/outbox/replay, /api/ops/user/outbox/replay]
+	        window-seconds: 60
+	        max-requests: 10
+	        key-strategy: USER
+	      - id: ops-like-backfill
+	        methods: [POST]
+	        path-patterns: [/api/ops/content/likes/backfill]
+	        window-seconds: 60
+	        max-requests: 2
+	        key-strategy: USER
 
 dubbo:
   application:
     name: ${spring.application.name}
     qos-enable: false
   registry:
-    address: ${DUBBO_REGISTRY_ADDR:zookeeper://127.0.0.1:2181/dubbo}
+    # 默认使用 Nacos；仅在显式设置 DUBBO_REGISTRY_ADDR 时覆盖（应急/迁移窗口）。
+    address: "${DUBBO_REGISTRY_ADDR:nacos://${NACOS_SERVER_ADDR:127.0.0.1:8848}}"
+    parameters:
+      namespace: ${NACOS_NAMESPACE:}
+      group: ${NACOS_GROUP:DEFAULT_GROUP}
+      username: ${NACOS_USERNAME:}
+      password: ${NACOS_PASSWORD:}
   protocol:
     name: dubbo
     port: -1

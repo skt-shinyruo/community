@@ -221,6 +221,9 @@ services:
       - prometheus
       - loki
 
+  # Registry 约定：
+  # - Spring Cloud & Dubbo 默认使用 Nacos（NACOS_SERVER_ADDR）
+  # - 如需应急回滚/迁移窗口覆盖 Dubbo registry，可显式设置 DUBBO_REGISTRY_ADDR（默认不注入）
   gateway:
     build:
       context: ..
@@ -232,7 +235,6 @@ services:
       - SERVER_PORT=8080
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
       - NACOS_SERVER_ADDR=nacos:8848
-      - DUBBO_REGISTRY_ADDR=zookeeper://zookeeper:2181/dubbo
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
       - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
@@ -245,8 +247,6 @@ services:
         condition: service_healthy
       nacos:
         condition: service_healthy
-      zookeeper:
-        condition: service_started
       kafka:
         condition: service_healthy
       elasticsearch:
@@ -263,7 +263,6 @@ services:
       - SERVER_PORT=8082
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
       - NACOS_SERVER_ADDR=nacos:8848
-      - DUBBO_REGISTRY_ADDR=zookeeper://zookeeper:2181/dubbo
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
       - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
@@ -280,8 +279,6 @@ services:
         condition: service_healthy
       nacos:
         condition: service_healthy
-      zookeeper:
-        condition: service_started
 
   user-service:
     build:
@@ -294,7 +291,6 @@ services:
       - SERVER_PORT=8087
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
       - NACOS_SERVER_ADDR=nacos:8848
-      - DUBBO_REGISTRY_ADDR=zookeeper://zookeeper:2181/dubbo
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
       - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
@@ -316,8 +312,6 @@ services:
         condition: service_healthy
       nacos:
         condition: service_healthy
-      zookeeper:
-        condition: service_started
 
   social-service:
     build:
@@ -330,7 +324,6 @@ services:
       - SERVER_PORT=8086
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
       - NACOS_SERVER_ADDR=nacos:8848
-      - DUBBO_REGISTRY_ADDR=zookeeper://zookeeper:2181/dubbo
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
       - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
@@ -347,8 +340,6 @@ services:
         condition: service_healthy
       nacos:
         condition: service_healthy
-      zookeeper:
-        condition: service_started
       kafka:
         condition: service_healthy
 
@@ -363,7 +354,6 @@ services:
       - SERVER_PORT=8088
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
       - NACOS_SERVER_ADDR=nacos:8848
-      - DUBBO_REGISTRY_ADDR=zookeeper://zookeeper:2181/dubbo
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
       - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
@@ -380,8 +370,6 @@ services:
         condition: service_healthy
       nacos:
         condition: service_healthy
-      zookeeper:
-        condition: service_started
       kafka:
         condition: service_healthy
 
@@ -396,7 +384,6 @@ services:
       - SERVER_PORT=8083
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
       - NACOS_SERVER_ADDR=nacos:8848
-      - DUBBO_REGISTRY_ADDR=zookeeper://zookeeper:2181/dubbo
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
       - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
@@ -410,8 +397,6 @@ services:
         condition: service_healthy
       nacos:
         condition: service_healthy
-      zookeeper:
-        condition: service_started
       kafka:
         condition: service_healthy
       elasticsearch:
@@ -428,7 +413,6 @@ services:
       - SERVER_PORT=8084
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
       - NACOS_SERVER_ADDR=nacos:8848
-      - DUBBO_REGISTRY_ADDR=zookeeper://zookeeper:2181/dubbo
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
       - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
@@ -441,8 +425,6 @@ services:
         condition: service_healthy
       nacos:
         condition: service_healthy
-      zookeeper:
-        condition: service_started
       kafka:
         condition: service_healthy
 
@@ -457,7 +439,6 @@ services:
       - SERVER_PORT=8085
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
       - NACOS_SERVER_ADDR=nacos:8848
-      - DUBBO_REGISTRY_ADDR=zookeeper://zookeeper:2181/dubbo
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - ANALYTICS_REDIS_HOST=redis
       - ANALYTICS_REDIS_PORT=6379
@@ -468,8 +449,6 @@ services:
         condition: service_healthy
       nacos:
         condition: service_healthy
-      zookeeper:
-        condition: service_started
 
 volumes:
   mysql_data: {}

@@ -18,14 +18,14 @@
   - 质量门禁：CI（backend-test/frontend-lint-build）+ 冒烟脚本（可选：`scripts/smoke-i0-auth.sh`）
   - 压测：`loadtest/`（k6 脚本与容量阈值/记录模板）
 - **Status：** ✅Stable
-- **Last Updated：** 2026-01-20
+- **Last Updated：** 2026-02-20
 
 ## Specifications（交付门禁）
 
 ### Requirement: 全依赖可用
 - MySQL/Redis/Kafka/Elasticsearch/Nacos 均启用且服务健康（`/actuator/health`）。
 - CI 侧以单元测试/构建为基础门禁；全链路集成验证建议在本地按需执行（docker compose + curl）。
-- Zookeeper 状态持久化（`zookeeper_data/zookeeper_log`），避免 Kafka 因 clusterId 不一致而启动失败；同时 Zookeeper 也作为 Dubbo registry（建议使用 chroot `/dubbo`）。
+- Zookeeper 状态持久化（`zookeeper_data/zookeeper_log`），避免 Kafka 因 clusterId 不一致而启动失败；Zookeeper 仅作为 Kafka 依赖（Dubbo registry 已收敛到 Nacos）。
 - Kafka 增加 compose healthcheck + `restart: on-failure`，并将依赖 Kafka 的服务统一为等待 `service_healthy`，避免首次启动时 Kafka 因 ZK 会话未过期窗口偶发退出导致级联失败。
 
 ### Requirement: 构建可重复、可恢复
@@ -55,3 +55,4 @@
 - 2026-01-18：P0 生产可用加固：MySQL 同实例多 schema（非身份域先拆）+ 备份/恢复支持多库 + DLQ 指标/告警与回放脚本。
 - 2026-01-20：Kafka 增加 healthcheck + `restart: on-failure`，并将依赖 Kafka 的启动条件改为等待 `service_healthy`，修复首次启动偶发 NodeExists 导致的 Kafka/业务服务退出。
 - 2026-01-20：docker compose project name 固定为 `community`；Nacos 控制台端口默认绑定到宿主机 `127.0.0.1:${NACOS_UI_PORT:-8848}`，便于通过 UI 修改配置。
+- 2026-02-20：Dubbo registry 从 Zookeeper 收敛到 Nacos；compose 不再默认注入 `DUBBO_REGISTRY_ADDR`，业务服务启动不再强依赖 Zookeeper（ZK 继续由 Kafka 使用）。

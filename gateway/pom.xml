@@ -24,7 +24,43 @@
 
         <dependency>
             <groupId>com.newcoder.community</groupId>
+            <artifactId>infra-dubbo-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.newcoder.community</groupId>
+            <artifactId>infra-security-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.newcoder.community</groupId>
             <artifactId>analytics-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.newcoder.community</groupId>
+            <artifactId>search-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.newcoder.community</groupId>
+            <artifactId>content-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.newcoder.community</groupId>
+            <artifactId>social-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.newcoder.community</groupId>
+            <artifactId>user-api</artifactId>
             <version>${project.version}</version>
         </dependency>
 
@@ -44,7 +80,7 @@
         </dependency>
         <dependency>
             <groupId>org.apache.dubbo</groupId>
-            <artifactId>dubbo-registry-zookeeper</artifactId>
+            <artifactId>dubbo-registry-nacos</artifactId>
             <version>${dubbo.version}</version>
         </dependency>
 

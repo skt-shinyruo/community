@@ -4,13 +4,40 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## 2026-02-20
+
+- [infra] Dubbo registry 默认收敛到 Nacos：各服务 `application.yml` 默认使用 `nacos://${NACOS_SERVER_ADDR}`，并通过 `DUBBO_REGISTRY_ADDR` 保留应急覆盖（默认部署编排不注入，避免双栈常态化）。
+- [deploy] `deploy/docker-compose.yml` 移除业务服务的 `DUBBO_REGISTRY_ADDR` 注入与 `depends_on: zookeeper`；Zookeeper 保留供 Kafka 使用。
+- [docs] 同步更新 README 与知识库（架构/API/runbook/infra 模块），消除“Dubbo registry=Zookeeper”的过时描述。
+
+## 2026-02-13
+
+- [social-service] 移除 content entity 投影缺失时的跨服务回源兜底，写路径强约束：仅依赖本地投影（缺失/不完整 fail-closed）。
+- [build] social-service 移除对 content-api 的 Maven 依赖，进一步降低编译期耦合与误用入口。
+- [docs] 同步更新架构/模块/API 文档，明确“写路径不回源同步调用”的约束。
+- [ops] 移除各服务 HTTP `/internal/**` 运维入口，统一通过 gateway `/api/ops/**` + Dubbo RPC 触发高成本运维动作（reindex/outbox replay/like backfill）。
+- [gateway] `/api/ops/**` 运维入口不再转发到下游 `/internal/**`，改为 gateway 内部 handler + Dubbo 调用；legacy `POST /api/search/internal/reindex` 固定返回 410 并提示迁移。
+- [search-api/search-service] 新增并实现 `SearchOpsRpcService`（reindex），替代 `/internal/search/reindex` Controller。
+- [content-api/content-service] 新增并实现 outbox/like-backfill 运维 RPC，替代 `/internal/content/**`。
+- [social-api/social-service] 新增并实现 outbox 运维 RPC，替代 `/internal/social/**`。
+- [user-api/user-service] 新增并实现 outbox 运维 RPC，替代 `/internal/users/**`。
+- [scripts/docs] 更新 `scripts/search-reindex.sh` 与运维/安全 runbook，运维触发统一走 `/api/ops/**`。
+
+## 2026-02-12
+
+- [arch] 明确约束：跨服务同步调用仅允许读且不得成环；写路径优先本地投影/事件驱动，缺失时受控回源并回填。
+- [social-service] 新增内容实体投影与事件消费者，写路径（如点赞）改为解析本地投影，避免常态同步调用 content-service。
+- [content-service] 在治理处置（hide/delete）时发布 PostDeleted/CommentDeleted 事件，驱动下游投影最终一致。
+- [common] 扩展事件类型 COMMENT_DELETED，并补充事件契约测试覆盖。
+- [db] 新增 social 内容实体投影表（social_content_entity_projection）。
+
 ## [Unreleased]
 
 ### Added
 - build：新增 `user-api`/`social-api`/`content-api`/`analytics-api` 作为跨服务 RPC 契约模块（接口/DTO 独立；provider/consumer 依赖 api）。
 - common：新增 Dubbo 调用治理 Filter（traceId/traceparent attachment 透传 + Micrometer 指标：调用次数/时延/outcome）。
-- internal：服务间同步调用由 HTTP internal client（RestTemplate/WebClient）迁移为 Dubbo RPC（Zookeeper registry）；对外 `/api/**` 路由保持不变（gateway 仍使用 Nacos discovery/config）。
-- deploy：`deploy/docker-compose.yml` 补齐 Dubbo registry 地址注入（`DUBBO_REGISTRY_ADDR=zookeeper://.../dubbo`）与依赖启动顺序（`depends_on: zookeeper`）。
+- internal：服务间同步调用由 HTTP internal client（RestTemplate/WebClient）迁移为 Dubbo RPC（默认 Nacos registry；必要时可用 `DUBBO_REGISTRY_ADDR` 覆盖）；对外 `/api/**` 路由保持不变（gateway 仍使用 Nacos discovery/config）。
+- deploy：`deploy/docker-compose.yml` 不再默认注入 `DUBBO_REGISTRY_ADDR`；Dubbo registry 默认随 `NACOS_SERVER_ADDR` 走 Nacos；业务服务启动不再依赖 `depends_on: zookeeper`（Zookeeper 仅供 Kafka 使用）。
 - gateway：新增 `GatewayErrorContractTest`，锁定 401/403/400/429/500 的 **HTTP status + Result** 协议，并校验 `X-Trace-Id/traceparent` 与 `Result.traceId` 一致。
 - frontend：PostDetail 点赞 read-your-writes 覆盖（短 TTL），降低“写成功但刷新读到旧投影”的可见不一致；SearchView 增加“搜索索引最终一致”提示以管理预期。
 - social-service：新增 internal 聚合只读接口 `/internal/social/read/users/{userId}/profile-stats`（一次返回获赞/关注/粉丝/关注状态），供 user-service 收敛主页 fan-out。

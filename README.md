@@ -45,6 +45,21 @@
   - Elasticsearch：`elasticsearch:8.12.2`
   - Observability：Prometheus `v2.51.2` / Grafana `10.4.5` / Loki&Promtail `2.9.4` / Alertmanager `0.27.0`
 
+## 注册中心与关键变量（治理收敛）
+本项目当前约定为 **单注册中心（Nacos）**：
+
+- Spring Cloud：服务发现/配置中心均使用 Nacos（`NACOS_SERVER_ADDR`，可选 `NACOS_GROUP/NACOS_NAMESPACE/NACOS_USERNAME/NACOS_PASSWORD`）。
+- Dubbo：服务间同步调用默认使用 Nacos registry（同 `NACOS_SERVER_ADDR`）。
+  - 应急/迁移窗口可显式设置 `DUBBO_REGISTRY_ADDR` 覆盖 Dubbo registry（默认部署编排不注入，避免双栈常态化）。
+- Zookeeper：仍保留在 compose 中供 Kafka 使用（不再承担 Dubbo registry）。
+
+验证 checklist（建议按顺序）：
+1. `mvn test`（确保依赖/编译/单测通过）
+2. `docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build`（全依赖+全服务冒烟）
+3. Nacos UI（默认 `http://127.0.0.1:${NACOS_UI_PORT:-8848}`）：确认服务实例可见、排障入口统一
+4. 验证 1 条 Dubbo 关键调用链（例如 gateway→analytics Dubbo 调用 / 任意跨服务只读 RPC）
+5. （应急演练）显式设置 `DUBBO_REGISTRY_ADDR=zookeeper://...` 覆盖 Dubbo registry 并重启一组服务，确认回滚手段可用（稳定后移除该注入）
+
 ## 本地演示账号与便捷配置（dev-only）
 ⚠️ 默认账号/口令、固定验证码等仅用于本地 dev/演示环境；生产环境禁止使用默认口令与 dev-only 开关。  
 详见：`docs/DEV_ONLY.md`（包含种子数据来源与冒烟脚本说明）。

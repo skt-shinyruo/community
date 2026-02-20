@@ -2,13 +2,15 @@ package com.nowcoder.community.user.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.event.EventEnvelopeParser;
-import com.nowcoder.community.common.event.EventTopics;
-import com.nowcoder.community.common.event.EventTypes;
 import com.nowcoder.community.common.event.UnknownEventAction;
-import com.nowcoder.community.common.event.payload.CommentPayload;
-import com.nowcoder.community.common.event.payload.LikePayload;
-import com.nowcoder.community.common.event.payload.PostPayload;
 import com.nowcoder.community.common.kafka.KafkaTraceSupport;
+import com.nowcoder.community.content.api.event.ContentEventTopics;
+import com.nowcoder.community.content.api.event.ContentEventTypes;
+import com.nowcoder.community.content.api.event.payload.CommentPayload;
+import com.nowcoder.community.content.api.event.payload.PostPayload;
+import com.nowcoder.community.social.api.event.SocialEventTopics;
+import com.nowcoder.community.social.api.event.SocialEventTypes;
+import com.nowcoder.community.social.api.event.payload.LikePayload;
 import com.nowcoder.community.user.service.PointsService;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
@@ -49,7 +51,7 @@ public class PointsEventConsumer {
         this.unsupportedVersionAction = UnknownEventAction.parseOrDefault(unsupportedVersionAction, UnknownEventAction.DLQ);
     }
 
-    @KafkaListener(topics = {EventTopics.POST_EVENTS_V1, EventTopics.COMMENT_EVENTS_V1, EventTopics.SOCIAL_EVENTS_V1}, groupId = "user-service")
+    @KafkaListener(topics = {ContentEventTopics.POST_EVENTS_V1, ContentEventTopics.COMMENT_EVENTS_V1, SocialEventTopics.SOCIAL_EVENTS_V1}, groupId = "user-service")
     public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) {
         KafkaTraceSupport.runWithTraceId(objectMapper, record.value(), () -> handleRecord(record));
         ack.acknowledge();
@@ -72,19 +74,19 @@ public class PointsEventConsumer {
             throw new IllegalArgumentException("unsupported envelope version: " + version);
         }
 
-        if (EventTypes.POST_PUBLISHED.equals(type)) {
+        if (ContentEventTypes.POST_PUBLISHED.equals(type)) {
             PostPayload p = objectMapper.convertValue(env.getPayload(), PostPayload.class);
             pointsService.applyPoints(p.getUserId(), eventId, type, 10);
             return;
         }
 
-        if (EventTypes.COMMENT_CREATED.equals(type)) {
+        if (ContentEventTypes.COMMENT_CREATED.equals(type)) {
             CommentPayload p = objectMapper.convertValue(env.getPayload(), CommentPayload.class);
             pointsService.applyPoints(p.getUserId(), eventId, type, 2);
             return;
         }
 
-        if (EventTypes.LIKE_CREATED.equals(type)) {
+        if (SocialEventTypes.LIKE_CREATED.equals(type)) {
             LikePayload p = objectMapper.convertValue(env.getPayload(), LikePayload.class);
             int toUserId = p.getEntityUserId() == null ? 0 : p.getEntityUserId();
             if (toUserId > 0 && toUserId != p.getActorUserId()) {
@@ -93,7 +95,7 @@ public class PointsEventConsumer {
             return;
         }
 
-        if (EventTypes.LIKE_REMOVED.equals(type)) {
+        if (SocialEventTypes.LIKE_REMOVED.equals(type)) {
             LikePayload p = objectMapper.convertValue(env.getPayload(), LikePayload.class);
             int toUserId = p.getEntityUserId() == null ? 0 : p.getEntityUserId();
             if (toUserId > 0 && toUserId != p.getActorUserId()) {

@@ -2,11 +2,13 @@ content:
   storage: memory
   events:
     publisher: memory
-    outbox:
-      enabled: false
   score:
     refresh:
       enabled: false
+
+events:
+  outbox:
+    enabled: false
 
 clients:
   user:

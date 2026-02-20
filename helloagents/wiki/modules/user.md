@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 用户资料查询；个人主页展示所需数据；头像上传（local/qiniu）与头像 URL 回写；internal 身份鉴权/注册/激活/密码更新接口；管理员用户角色管理
 - **Status：** ✅Stable
-- **Last Updated：** 2026-02-02
+- **Last Updated：** 2026-02-13
 
 ## Specifications
 
@@ -64,23 +64,9 @@
   - `UserInternalRpcService`：authenticate/session-profile/register/activate/by-email/password/refresh-token 等
   - `UserReadRpcService`：batch-summary/username-resolve 等只读能力
   - `UserModerationRpcService`：moderation-status/scan/apply（供 content/message 等写路径治理）
-- internal HTTP（legacy/运维/兼容；不走 JWT；开发阶段默认放行）：
-  - `POST /internal/users/authenticate`
-  - `GET /internal/users/{userId}/session-profile`
-  - refresh token 会话托管（SSOT=DB，仅存 token_hash；供 auth-service 调用）：
-    - `POST /internal/users/sessions/refresh/store`
-    - `GET /internal/users/sessions/refresh/{tokenHash}`
-    - `POST /internal/users/sessions/refresh/revoke`
-    - `POST /internal/users/sessions/refresh/revoke-family`
-  - `POST /internal/users/register`
-  - `POST /internal/users/{userId}/activate`
-  - `GET /internal/users/by-email`
-  - `POST /internal/users/{userId}/password`
-  - `GET /internal/users/{userId}/moderation-status`
-  - `POST /internal/users/{userId}/moderation`
-  - outbox 运维（开发阶段默认放行；生产建议通过网络隔离/网关策略收敛暴露面）：
-    - `GET /internal/users/outbox/health`
-    - `POST /internal/users/outbox/replay?limit=200`
+- Ops（对外运维入口，统一走 gateway `/api/ops/**`）：
+  - `GET /api/ops/user/outbox/health`
+  - `POST /api/ops/user/outbox/replay?limit=200`
 
 ## Data Models
 ### user
@@ -101,9 +87,10 @@ refresh token 会话表（SSOT=DB，仅存 `token_hash`；用于 refresh/rotate/
 
 ## Change History
 - 2026-01-18：补齐 user-service -> social-service 同步调用韧性（强制超时、降级返回默认值、指标可观测）。
-- 2026-01-20：新增 `/internal/users/**` 作为身份域 internal API，并在登录成功后对 legacy 密码做渐进 rehash（MD5+salt -> BCrypt）。
+- 2026-01-20：新增 `/internal/users/**` 作为身份域 internal API（已在 2026-02-13 移除），并在登录成功后对 legacy 密码做渐进 rehash（MD5+salt -> BCrypt）。
 - 2026-01-23：新增成长体系（积分/等级/榜单）与治理落地字段（禁言/封禁），并补齐 internal moderation API 供 content-service 调用。
 - 2026-02-01：积分链路支持 `LikeRemoved` 触发回退，并对 `user.score` 做非负保护（防刷分与边界值安全）。
 - 2026-02-02：用户主页聚合改为单次调用 social-service internal 聚合接口（profile-stats），并在响应中提供 `socialDegraded`，避免把下游故障伪装为 0。
-- 2026-02-03：Outbox 认领升级支持 `FOR UPDATE SKIP LOCKED`（可配置回退），降低多实例 relay 并发时的锁等待与头阻塞风险；补齐 outbox 运维入口 `/internal/users/outbox/health|replay`（开发阶段默认放行）。
+- 2026-02-03：Outbox 认领升级支持 `FOR UPDATE SKIP LOCKED`（可配置回退），降低多实例 relay 并发时的锁等待与头阻塞风险；补齐 outbox 运维入口（`/internal/users/outbox/health|replay`，已在 2026-02-13 移除）。
 - 2026-02-09：服务间同步调用由 HTTP internal client 迁移为 Dubbo RPC（契约下沉到 `user-api`），减少跨服务 HTTP 依赖与 DTO 漂移风险。
+- 2026-02-13：移除 HTTP `/internal/users/**` 运维入口，统一通过 gateway `/api/ops/**` + Dubbo 触发 outbox 运维动作。

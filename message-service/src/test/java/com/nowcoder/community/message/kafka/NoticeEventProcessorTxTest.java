@@ -1,8 +1,8 @@
 package com.nowcoder.community.message.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.event.EventTopics;
-import com.nowcoder.community.common.event.EventTypes;
+import com.nowcoder.community.social.api.event.SocialEventTopics;
+import com.nowcoder.community.social.api.event.SocialEventTypes;
 import com.nowcoder.community.message.dao.ConsumedEventMapper;
 import com.nowcoder.community.message.service.NoticeService;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -41,7 +41,7 @@ class NoticeEventProcessorTxTest {
 
         String payload = objectMapper.writeValueAsString(Map.of(
                 "eventId", eventId,
-                "type", EventTypes.LIKE_CREATED,
+                "type", SocialEventTypes.LIKE_CREATED,
                 "version", 1,
                 "occurredAt", Instant.now().toString(),
                 "producer", "social-service",
@@ -62,14 +62,14 @@ class NoticeEventProcessorTxTest {
                 .createNotice(eq(toUserId), eq("like"), anyString());
 
         try {
-            processor.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k1", payload));
+            processor.handleRecord(new ConsumerRecord<>(SocialEventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k1", payload));
         } catch (Exception ignored) {
         }
 
         assertThat(consumedEventMapper.countByEventId(eventId)).isEqualTo(0);
 
         // 重试后应能成功写入
-        processor.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 1L, "k1", payload));
+        processor.handleRecord(new ConsumerRecord<>(SocialEventTopics.SOCIAL_EVENTS_V1, 0, 1L, "k1", payload));
 
         assertThat(consumedEventMapper.countByEventId(eventId)).isEqualTo(1);
         assertThat(noticeService.listNotices(toUserId, "like", 0, 10).size()).isEqualTo(1);

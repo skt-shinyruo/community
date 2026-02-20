@@ -16,7 +16,7 @@
 - `message.idempotency.cleanup-single-flight` / `message.idempotency.cleanup-lock-ttl-seconds`
 - `message.idempotency.cleanup-interval-ms`
 - `search.index.keep-history`：保留历史索引数
-- reindex 触发：`POST /internal/search/reindex`
+- reindex 触发：`POST /api/ops/search/reindex`
   - Schema 预检/迁移：执行 `scripts/mysql-migrate-ops-harden-schema.sql`（确保幂等表 `event_id` 唯一约束与 `idx_*_consumed_at(consumed_at, id)` 存在，避免清理/查询退化为扫表）
 
 ### P2（Outbox）

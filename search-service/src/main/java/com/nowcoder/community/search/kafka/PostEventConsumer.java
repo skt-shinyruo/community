@@ -3,10 +3,10 @@ package com.nowcoder.community.search.kafka;
 // 帖子事件消费者：先执行业务索引副作用（幂等 upsert/delete），成功后再写入幂等表，避免丢更新窗口。
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.event.EventEnvelopeParser;
-import com.nowcoder.community.common.event.EventTopics;
-import com.nowcoder.community.common.event.EventTypes;
 import com.nowcoder.community.common.event.UnknownEventAction;
-import com.nowcoder.community.common.event.payload.PostPayload;
+import com.nowcoder.community.content.api.event.ContentEventTopics;
+import com.nowcoder.community.content.api.event.ContentEventTypes;
+import com.nowcoder.community.content.api.event.payload.PostPayload;
 import com.nowcoder.community.common.kafka.KafkaTraceSupport;
 import com.nowcoder.community.search.repo.PostSearchRepository;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -46,7 +46,7 @@ public class PostEventConsumer {
         this.unsupportedVersionAction = UnknownEventAction.parseOrDefault(unsupportedVersionAction, UnknownEventAction.DLQ);
     }
 
-    @KafkaListener(topics = EventTopics.POST_EVENTS_V1, groupId = "search-service")
+    @KafkaListener(topics = ContentEventTopics.POST_EVENTS_V1, groupId = "search-service")
     public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) {
         KafkaTraceSupport.runWithTraceId(objectMapper, record.value(), () -> handleRecord(record));
         ack.acknowledge();
@@ -77,14 +77,14 @@ public class PostEventConsumer {
             throw new IllegalArgumentException("postId 缺失");
         }
 
-        if (EventTypes.POST_DELETED.equals(type)) {
+        if (ContentEventTypes.POST_DELETED.equals(type)) {
             postSearchRepository.delete(payload.getPostId());
             // 索引副作用成功后再标记已消费（幂等点位后移）
             consumedEventStore.markConsumedIfFirst(eventId);
             return;
         }
 
-        if (EventTypes.POST_PUBLISHED.equals(type) || EventTypes.POST_UPDATED.equals(type)) {
+        if (ContentEventTypes.POST_PUBLISHED.equals(type) || ContentEventTypes.POST_UPDATED.equals(type)) {
             postSearchRepository.upsert(payload);
             consumedEventStore.markConsumedIfFirst(eventId);
             return;

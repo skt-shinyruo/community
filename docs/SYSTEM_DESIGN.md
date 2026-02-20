@@ -9,7 +9,7 @@
 ### 1.1 统一入口：gateway
 - 浏览器唯一后端入口：`/api/**`
 - 对外运维入口：`/api/ops/**`（高风险操作；仅管理员可触发，建议通过 Ops Console 等受控入口执行）
-- 内部接口：`/internal/**`（仅服务间调用；**网关显式拒绝**，同时在部署层默认不对宿主机暴露端口）
+- 服务间同步调用：Dubbo RPC（契约与 DTO 统一沉淀在 `*-api` 模块）
 - 统一能力：鉴权、CORS、限流、审计、traceId
 - 路由：按路径前缀转发到各微服务（见 `gateway/src/main/resources/application.yml`）
 
@@ -18,11 +18,9 @@
 - Ops（对外运维）：`/api/ops/**`
   - 默认要求：管理员角色（ADMIN）（由网关鉴权收敛）
   - 建议：对高成本入口在网关/基础设施层补齐限流与审计（可选）
-- Internal（服务间调用）：`/internal/**`
-  - 当前实现：不做 header token 鉴权（不校验 `X-Internal-Token`）
-  - 原则：internal 不对外暴露（本地联调建议通过容器内网络访问或直连服务端口；对外请求必须走 `/api/**`）
+- Internal-RPC（服务间同步调用）：Dubbo RPC（契约在 `*-api` 模块；禁止跨库 JOIN）
 - 历史遗留路径（示例）：`/api/search/internal/reindex`
-  - 仅用于短期兼容；默认已禁用（gateway 返回 410 并提示迁移）；新入口为 `/api/ops/search/reindex`
+  - 不再保留功能语义：gateway 固定返回 410 并提示迁移；新入口为 `/api/ops/search/reindex`
 
 ### 1.2 身份与会话：auth-service
 - 登录/刷新/登出闭环
@@ -32,7 +30,7 @@
 - content-service：帖子/评论（写主存储并发布事件）
 - social-service：点赞/关注（写 Redis 并发布事件）
 - message-service：私信/通知（消费事件写通知）
-- search-service：搜索（消费事件写 ES 索引；提供 reindex 用于冷启动/修复，重建通过 content-service 内部 API 拉取数据）
+- search-service：搜索（消费事件写 ES 索引；提供 reindex 用于冷启动/修复，重建通过 content-service Dubbo RPC 拉取数据）
 - analytics-service：统计（可由 gateway 采集或事件驱动写入）
 
 ### 1.4 配置中心与 profile（fail-closed）

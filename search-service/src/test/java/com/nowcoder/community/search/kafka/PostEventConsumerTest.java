@@ -2,8 +2,8 @@ package com.nowcoder.community.search.kafka;
 
 // search-service 幂等消费测试：重复 eventId 只应索引一次。
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.event.EventTopics;
-import com.nowcoder.community.common.event.EventTypes;
+import com.nowcoder.community.content.api.event.ContentEventTopics;
+import com.nowcoder.community.content.api.event.ContentEventTypes;
 import com.nowcoder.community.search.repo.PostSearchRepository;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.Test;
@@ -36,12 +36,12 @@ class PostEventConsumerTest {
     void shouldSkipDuplicateEventId() throws Exception {
         String json = objectMapper.createObjectNode()
                 .put("eventId", "event-1")
-                .put("type", EventTypes.POST_PUBLISHED)
+                .put("type", ContentEventTypes.POST_PUBLISHED)
                 .put("version", 1)
                 .set("payload", objectMapper.createObjectNode().put("postId", 100))
                 .toString();
 
-        ConsumerRecord<String, String> record = new ConsumerRecord<>(EventTopics.POST_EVENTS_V1, 0, 0L, "k", json);
+        ConsumerRecord<String, String> record = new ConsumerRecord<>(ContentEventTopics.POST_EVENTS_V1, 0, 0L, "k", json);
 
         consumer.handleRecord(record);
         consumer.handleRecord(record);
@@ -54,12 +54,12 @@ class PostEventConsumerTest {
     void shouldNotMarkConsumedWhenEsWriteFailsThenAllowRetry() throws Exception {
         String json = objectMapper.createObjectNode()
                 .put("eventId", "event-fail-1")
-                .put("type", EventTypes.POST_PUBLISHED)
+                .put("type", ContentEventTypes.POST_PUBLISHED)
                 .put("version", 1)
                 .set("payload", objectMapper.createObjectNode().put("postId", 101))
                 .toString();
 
-        ConsumerRecord<String, String> record = new ConsumerRecord<>(EventTopics.POST_EVENTS_V1, 0, 0L, "k", json);
+        ConsumerRecord<String, String> record = new ConsumerRecord<>(ContentEventTopics.POST_EVENTS_V1, 0, 0L, "k", json);
 
         doThrow(new RuntimeException("es down"))
                 .when(postSearchRepository)

@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.service;
 
-import com.nowcoder.community.common.event.payload.PostPayload;
+import com.nowcoder.community.content.api.event.payload.PostPayload;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.event.ContentEventPublisher;

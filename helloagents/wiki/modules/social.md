@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 点赞/取消点赞；统计实体点赞数；关注/取关；关注列表/粉丝列表；拉黑/解除拉黑
 - **Status：** ✅Stable
-- **Last Updated：** 2026-02-09
+- **Last Updated：** 2026-02-13
 
 ## Specifications
 
@@ -20,7 +20,7 @@
 - 当 `social.storage=redis` 时：点赞关系（`like:entity:*`）与获赞计数（`like:user:*`）通过 Lua 脚本原子更新；事件入队失败将 best-effort 回滚 Redis 状态，降低计数漂移/重复事件风险（仍不建议在 prod 使用）
 - 反骚扰一致性：若双方存在任一方向拉黑关系，禁止创建点赞（返回 403，不发布 LikeCreated）
 - 更新被赞用户的获赞计数（DB 侧具备唯一约束兜底幂等）
-- 写路径契约可信：服务端通过 `content-api` 的 Dubbo RPC resolve 解析 entity 的 owner/postId 并校验存在性（禁止信任客户端注入字段）
+- 写路径契约可信：服务端通过本地 **content entity 投影**（消费 content 事件最终一致更新）解析 entity 的 owner/postId/存在性；投影缺失/不完整时直接 fail-closed（返回 503），禁止回源同步调用；通过事件回放/投影重建纠偏，禁止信任客户端注入字段
 - 触发社交事件：`LikeCreated/LikeRemoved`，默认使用 Outbox 可靠投递（可通过开关回滚到 After-Commit 直发）
 
 ### Requirement: 关注/粉丝
@@ -60,18 +60,9 @@
   - `SocialReadRpcService`：主页聚合只读（profile-stats 等）、计数/关注状态等
   - `SocialBlockRpcService`：拉黑关系查询（供 message/content 写路径校验）
   - `SocialLikeScanRpcService`：点赞扫描（供 content 回填投影）
-- internal HTTP（legacy/运维/兼容；开发阶段默认放行）：
-  - `GET /internal/social/blocks/relation?userIdA=&userIdB=`
-  - `GET /internal/social/likes/scan?entityType=&afterEntityId=&afterUserId=&limit=`（供 content-service 回填 Redis 点赞投影）
-  - internal read（供聚合展示，避免跨服务透传 Authorization）：
-    - `GET /internal/social/read/likes/users/{userId}/count`
-    - `GET /internal/social/read/follows/{userId}/followees/count?entityType=3`
-    - `GET /internal/social/read/follows/{userId}/followers/count?entityType=3`
-    - `GET /internal/social/read/follows/status?userId=&entityType=3&entityId=`
-    - `GET /internal/social/read/users/{userId}/profile-stats?viewerId=`（用户主页聚合，一次返回获赞/关注/粉丝/关注状态）
-  - outbox 运维：
-    - `GET /internal/social/outbox/health`
-    - `POST /internal/social/outbox/replay?limit=200`
+- Ops（对外运维入口，统一走 gateway `/api/ops/**`）：
+  - `GET /api/ops/social/outbox/health`
+  - `POST /api/ops/social/outbox/replay?limit=200`
 
 ## Data Models
 ### Storage Modes（重要）
@@ -84,17 +75,20 @@
 
 ## Dependencies
 - user（用户资料用于列表展示）
-- content（通过 `content-api` Dubbo RPC resolve entity 元信息：owner/postId/存在性；用于点赞写路径与事件 payload 可信化）
+- content（消费 post/comment 事件维护本地 content entity 投影；写路径只读投影，缺失/不完整时 fail-closed）
 - message（点赞/关注通知）
 - infra（Redis/Kafka）
 
 ## Change History
 - 2026-01-18：Kafka 事件发布统一 After-Commit 策略（在事务活跃时 commit 后发送），并补齐发布失败指标用于观测。
 - 2026-01-23：新增拉黑/反骚扰能力（Redis Set 存储 + 对外 API + internal 关系查询）。
-- 2026-01-28：固化 DB 为默认 SSOT（避免 Redis-only 误启用）；补齐 internal read API；Outbox 默认开启（部署侧）。
-- 2026-02-01：新增 `LikeRemoved` 事件并发布；点赞写路径改为服务端 resolve entity 元信息（禁止客户端注入、校验存在性）；新增 internal likes scan 供下游回填投影；follow 写路径收敛仅支持 USER；补齐 MyBatis `mapper-locations`/`map-underscore-to-camel-case` 以确保 outbox XML mapper 生效。
-- 2026-02-02：新增 internal 用户主页聚合 read API（profile-stats），供 user-service 单次调用获取获赞/关注/粉丝/关注状态，降低 fan-out。
-- 2026-02-03：Outbox 认领升级支持 `FOR UPDATE SKIP LOCKED`（可配置回退），降低多实例 relay 并发时的锁等待与头阻塞风险；outbox 运维入口保留（开发阶段默认放行）。
+- 2026-01-28：固化 DB 为默认 SSOT（避免 Redis-only 误启用）；补齐 internal read API（已在 2026-02-13 移除/迁移）；Outbox 默认开启（部署侧）。
+- 2026-02-01：新增 `LikeRemoved` 事件并发布；点赞写路径改为服务端 resolve entity 元信息（禁止客户端注入、校验存在性）；新增 internal likes scan（已在 2026-02-13 移除/迁移）供下游回填投影；follow 写路径收敛仅支持 USER；补齐 MyBatis `mapper-locations`/`map-underscore-to-camel-case` 以确保 outbox XML mapper 生效。
+- 2026-02-02：新增 internal 用户主页聚合 read API（profile-stats，已在 2026-02-13 移除/迁移），供 user-service 单次调用获取获赞/关注/粉丝/关注状态，降低 fan-out。
+- 2026-02-03：Outbox 认领升级支持 `FOR UPDATE SKIP LOCKED`（可配置回退），降低多实例 relay 并发时的锁等待与头阻塞风险；outbox 运维入口（已在 2026-02-13 移除/迁移）。
 - 2026-02-04：补齐反骚扰语义一致性：点赞/关注在“创建关系”场景增加拉黑校验（403），避免拉黑后仍产生互动与通知副作用。
 - 2026-02-09：Redis 存储模式写路径原子性修复：follow（双 ZSet）与 like（关系 + 获赞计数）改为 Lua 脚本原子更新；事件入队失败 best-effort 回滚 Redis 状态，降低重复事件与计数漂移风险。
 - 2026-02-09：服务间同步调用由 HTTP internal client 迁移为 Dubbo RPC（契约下沉到 `social-api`），减少跨服务 HTTP 依赖与 DTO 漂移风险。
+- 2026-02-12：引入 content entity 投影（消费 post/comment 事件），点赞写路径改为读投影解析 entity 元信息，避免常态同步调用 content-service，降低 content ↔ social 写路径同步环带来的级联故障风险。
+- 2026-02-13：移除投影缺失场景的跨服务回源兜底，实现强约束：social 写路径仅依赖本地投影（缺失/不完整 fail-closed）。
+- 2026-02-13：移除 HTTP `/internal/social/**` 运维入口，统一通过 gateway `/api/ops/**` + Dubbo 触发 outbox 运维动作。

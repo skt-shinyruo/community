@@ -4,12 +4,12 @@ package com.nowcoder.community.user.event;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.event.EventEnvelope;
-import com.nowcoder.community.common.event.EventTopics;
-import com.nowcoder.community.common.event.EventTypes;
-import com.nowcoder.community.common.event.payload.ModerationStatusPayload;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
-import com.nowcoder.community.user.outbox.OutboxEventService;
-import com.nowcoder.community.user.outbox.UserOutboxProperties;
+import com.nowcoder.community.content.api.event.ContentEventTopics;
+import com.nowcoder.community.infra.outbox.OutboxEventService;
+import com.nowcoder.community.infra.outbox.OutboxProperties;
+import com.nowcoder.community.user.api.event.UserEventTypes;
+import com.nowcoder.community.user.api.event.payload.ModerationStatusPayload;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.slf4j.Logger;
@@ -29,14 +29,14 @@ public class KafkaUserEventPublisher implements UserEventPublisher {
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
     private final MeterRegistry meterRegistry;
-    private final UserOutboxProperties outboxProperties;
+    private final OutboxProperties outboxProperties;
     private final OutboxEventService outboxEventService;
 
     public KafkaUserEventPublisher(
             KafkaTemplate<String, String> kafkaTemplate,
             ObjectMapper objectMapper,
             MeterRegistry meterRegistry,
-            UserOutboxProperties outboxProperties,
+            OutboxProperties outboxProperties,
             OutboxEventService outboxEventService
     ) {
         this.kafkaTemplate = kafkaTemplate;
@@ -50,7 +50,7 @@ public class KafkaUserEventPublisher implements UserEventPublisher {
     public void publishModerationStatusChanged(ModerationStatusPayload payload) {
         int userId = payload == null || payload.getUserId() == null ? 0 : payload.getUserId();
         String key = "moderation-status:user:" + userId;
-        publish(EventTopics.MODERATION_EVENTS_V1, EventTypes.MODERATION_STATUS_CHANGED, key, payload);
+        publish(ContentEventTopics.MODERATION_EVENTS_V1, UserEventTypes.MODERATION_STATUS_CHANGED, key, payload);
     }
 
     private void publish(String topic, String type, String key, Object payload) {

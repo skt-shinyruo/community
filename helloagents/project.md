@@ -46,12 +46,12 @@
 - 服务按领域拆分：`gateway`、`auth-service`、`user-service`、`content-service`、`social-service`、`message-service`、`search-service`、`analytics-service`
 - **原则：** 一个服务拥有自己的数据归属与演进节奏；跨服务通过 API 或事件交互，禁止跨库 JOIN。
 
-接口边界（SSOT）：
-- External（对外业务）：`/api/**`
-- Ops（对外运维）：`/api/ops/**`（高风险操作；仅管理员可触发，建议通过 Ops Console 等受控入口执行）
-- Internal-RPC（服务间同步调用）：Dubbo RPC（接口/DTO 统一沉淀在 `*-api` 模块；registry=Zookeeper）
-- Internal-HTTP（运维/兼容）：`/internal/**`（仅集群内可达；gateway 默认拒绝；服务端不校验 `X-Internal-Token`）
-- 历史遗留对外 internal 命名（示例：`/api/search/internal/reindex`）：仅短期兼容；新入口为 `/api/ops/search/reindex`
+	接口边界（SSOT）：
+	- External（对外业务）：`/api/**`
+	- Ops（对外运维）：`/api/ops/**`（高风险操作；仅管理员可触发，建议通过 Ops Console 等受控入口执行）
+	- Internal-RPC（服务间同步调用）：Dubbo RPC（接口/DTO 统一沉淀在 `*-api` 模块；registry=Zookeeper）
+	- Internal-HTTP：❌ 当前版本不再提供 `/internal/**`（避免 internal HTTP 与 RPC 并存导致长期“半迁移”治理债务）
+	- legacy 对外 internal 命名（示例：`/api/search/internal/reindex`）：❌ 不再保留功能语义，固定返回 410；新入口为 `/api/ops/search/reindex`
 
 ### 2.2 配置管理
 - 所有环境配置以 Nacos 为准，禁止把密钥/Token/账号密码写入代码库。

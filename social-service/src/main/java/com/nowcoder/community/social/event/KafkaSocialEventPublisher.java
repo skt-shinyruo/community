@@ -3,14 +3,14 @@ package com.nowcoder.community.social.event;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.event.EventEnvelope;
-import com.nowcoder.community.common.event.EventTopics;
-import com.nowcoder.community.common.event.EventTypes;
-import com.nowcoder.community.common.event.payload.BlockPayload;
-import com.nowcoder.community.common.event.payload.FollowPayload;
-import com.nowcoder.community.common.event.payload.LikePayload;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
-import com.nowcoder.community.social.outbox.OutboxEventService;
-import com.nowcoder.community.social.outbox.SocialOutboxProperties;
+import com.nowcoder.community.infra.outbox.OutboxEventService;
+import com.nowcoder.community.infra.outbox.OutboxProperties;
+import com.nowcoder.community.social.api.event.SocialEventTopics;
+import com.nowcoder.community.social.api.event.SocialEventTypes;
+import com.nowcoder.community.social.api.event.payload.BlockPayload;
+import com.nowcoder.community.social.api.event.payload.FollowPayload;
+import com.nowcoder.community.social.api.event.payload.LikePayload;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.slf4j.Logger;
@@ -30,14 +30,14 @@ public class KafkaSocialEventPublisher implements SocialEventPublisher {
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
     private final MeterRegistry meterRegistry;
-    private final SocialOutboxProperties outboxProperties;
+    private final OutboxProperties outboxProperties;
     private final OutboxEventService outboxEventService;
 
     public KafkaSocialEventPublisher(
             KafkaTemplate<String, String> kafkaTemplate,
             ObjectMapper objectMapper,
             MeterRegistry meterRegistry,
-            SocialOutboxProperties outboxProperties,
+            OutboxProperties outboxProperties,
             OutboxEventService outboxEventService
     ) {
         this.kafkaTemplate = kafkaTemplate;
@@ -49,24 +49,24 @@ public class KafkaSocialEventPublisher implements SocialEventPublisher {
 
     @Override
     public void publishLikeCreated(LikePayload payload) {
-        publish(EventTypes.LIKE_CREATED, "like:" + payload.getEntityType() + ":" + payload.getEntityId(), payload);
+        publish(SocialEventTypes.LIKE_CREATED, "like:" + payload.getEntityType() + ":" + payload.getEntityId(), payload);
     }
 
     @Override
     public void publishLikeRemoved(LikePayload payload) {
-        publish(EventTypes.LIKE_REMOVED, "like:" + payload.getEntityType() + ":" + payload.getEntityId(), payload);
+        publish(SocialEventTypes.LIKE_REMOVED, "like:" + payload.getEntityType() + ":" + payload.getEntityId(), payload);
     }
 
     @Override
     public void publishFollowCreated(FollowPayload payload) {
-        publish(EventTypes.FOLLOW_CREATED, "follow:" + payload.getEntityType() + ":" + payload.getEntityId(), payload);
+        publish(SocialEventTypes.FOLLOW_CREATED, "follow:" + payload.getEntityType() + ":" + payload.getEntityId(), payload);
     }
 
     @Override
     public void publishBlockRelationChanged(BlockPayload payload) {
         int blocker = payload == null || payload.getBlockerUserId() == null ? 0 : payload.getBlockerUserId();
         int blocked = payload == null || payload.getBlockedUserId() == null ? 0 : payload.getBlockedUserId();
-        publish(EventTypes.BLOCK_RELATION_CHANGED, "block:" + blocker + ":" + blocked, payload);
+        publish(SocialEventTypes.BLOCK_RELATION_CHANGED, "block:" + blocker + ":" + blocked, payload);
     }
 
     private void publish(String type, String key, Object payload) {
@@ -75,16 +75,16 @@ public class KafkaSocialEventPublisher implements SocialEventPublisher {
             String json = objectMapper.writeValueAsString(envelope);
 
             if (outboxProperties.isEnabled()) {
-                outboxEventService.enqueue(envelope.getEventId(), EventTopics.SOCIAL_EVENTS_V1, key, json);
+                outboxEventService.enqueue(envelope.getEventId(), SocialEventTopics.SOCIAL_EVENTS_V1, key, json);
                 meterRegistry.counter(
                         "social_event_outbox_total",
-                        Tags.of("topic", EventTopics.SOCIAL_EVENTS_V1, "type", type, "outcome", "queued")
+                        Tags.of("topic", SocialEventTopics.SOCIAL_EVENTS_V1, "type", type, "outcome", "queued")
                 ).increment();
                 return;
             }
 
             // 与 content-service 统一约定：若处于事务中，则在 commit 后发送，避免幽灵事件。
-            AfterCommitExecutor.runAfterCommit(() -> sendAsync(EventTopics.SOCIAL_EVENTS_V1, key, json, type));
+            AfterCommitExecutor.runAfterCommit(() -> sendAsync(SocialEventTopics.SOCIAL_EVENTS_V1, key, json, type));
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("发布事件失败: " + type, e);
         }

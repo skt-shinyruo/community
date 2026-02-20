@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.service;
 
 // 评论领域服务：负责评论写入与基础校验、评论事件发布。
-import com.nowcoder.community.common.event.payload.CommentPayload;
+import com.nowcoder.community.content.api.event.payload.CommentPayload;
 import com.nowcoder.community.common.domain.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;

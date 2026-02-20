@@ -7,8 +7,7 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.nowcoder.community.common.domain.EntityTypes;
-import com.nowcoder.community.common.internal.dto.EntityResolveResponse;
-import com.nowcoder.community.social.service.ContentServiceClient;
+import com.nowcoder.community.social.service.ContentEntityResolver;
 import com.nowcoder.community.social.follow.dto.FollowRequest;
 import com.nowcoder.community.social.like.dto.LikeRequest;
 import org.junit.jupiter.api.Test;
@@ -45,7 +44,7 @@ class SocialControllerTest {
     ObjectMapper objectMapper;
 
     @MockBean
-    ContentServiceClient contentServiceClient;
+    ContentEntityResolver contentEntityResolver;
 
     @Test
     void likeApisShouldRequireAuth() throws Exception {
@@ -59,12 +58,7 @@ class SocialControllerTest {
     void likeThenStatusShouldWork() throws Exception {
         String token = tokenForUser(1);
 
-        EntityResolveResponse resolved = new EntityResolveResponse();
-        resolved.setEntityType(1);
-        resolved.setEntityId(100);
-        resolved.setEntityUserId(2);
-        resolved.setPostId(100);
-        Mockito.when(contentServiceClient.resolveEntity(1, 100)).thenReturn(resolved);
+        Mockito.when(contentEntityResolver.resolve(1, 100)).thenReturn(new ContentEntityResolver.ResolvedEntity(2, 100));
 
         LikeRequest req = new LikeRequest();
         req.setEntityType(1);

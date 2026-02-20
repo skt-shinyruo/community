@@ -1,9 +1,9 @@
 package com.nowcoder.community.content.event;
 
-import com.nowcoder.community.common.event.payload.CommentPayload;
-import com.nowcoder.community.common.event.payload.ModerationCommandPayload;
-import com.nowcoder.community.common.event.payload.ModerationPayload;
-import com.nowcoder.community.common.event.payload.PostPayload;
+import com.nowcoder.community.content.api.event.payload.CommentPayload;
+import com.nowcoder.community.content.api.event.payload.ModerationCommandPayload;
+import com.nowcoder.community.content.api.event.payload.ModerationPayload;
+import com.nowcoder.community.content.api.event.payload.PostPayload;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -34,6 +34,11 @@ public class InMemoryContentEventPublisher implements ContentEventPublisher {
 
     @Override
     public void publishCommentCreated(CommentPayload payload) {
+        events.add(payload);
+    }
+
+    @Override
+    public void publishCommentDeleted(CommentPayload payload) {
         events.add(payload);
     }
 

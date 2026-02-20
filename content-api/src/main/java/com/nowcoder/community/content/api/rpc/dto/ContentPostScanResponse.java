@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.api.rpc.dto;
 
-import com.nowcoder.community.common.event.payload.PostPayload;
+import com.nowcoder.community.content.api.event.payload.PostPayload;
 
 import java.io.Serializable;
 import java.util.List;
@@ -35,4 +35,3 @@ public class ContentPostScanResponse implements Serializable {
         this.hasMore = hasMore;
     }
 }
-

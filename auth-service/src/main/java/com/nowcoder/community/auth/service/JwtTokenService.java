@@ -1,6 +1,6 @@
 package com.nowcoder.community.auth.service;
 
-import com.nowcoder.community.auth.config.JwtProperties;
+import com.nowcoder.community.infra.security.jwt.JwtProperties;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
@@ -39,4 +39,3 @@ public class JwtTokenService {
         return jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
     }
 }
-

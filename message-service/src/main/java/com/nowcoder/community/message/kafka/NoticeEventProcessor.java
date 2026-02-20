@@ -3,12 +3,13 @@ package com.nowcoder.community.message.kafka;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.nowcoder.community.common.event.EventEnvelopeParser;
-import com.nowcoder.community.common.event.EventTypes;
 import com.nowcoder.community.common.event.UnknownEventAction;
-import com.nowcoder.community.common.event.payload.CommentPayload;
-import com.nowcoder.community.common.event.payload.FollowPayload;
-import com.nowcoder.community.common.event.payload.LikePayload;
-import com.nowcoder.community.common.event.payload.ModerationPayload;
+import com.nowcoder.community.content.api.event.ContentEventTypes;
+import com.nowcoder.community.content.api.event.payload.CommentPayload;
+import com.nowcoder.community.content.api.event.payload.ModerationPayload;
+import com.nowcoder.community.social.api.event.SocialEventTypes;
+import com.nowcoder.community.social.api.event.payload.FollowPayload;
+import com.nowcoder.community.social.api.event.payload.LikePayload;
 import com.nowcoder.community.message.dao.ConsumedEventMapper;
 import com.nowcoder.community.message.service.NoticeService;
 import org.slf4j.Logger;
@@ -78,22 +79,22 @@ public class NoticeEventProcessor {
         String topic = null;
         Object payload = null;
 
-        if (EventTypes.COMMENT_CREATED.equals(type)) {
+        if (ContentEventTypes.COMMENT_CREATED.equals(type)) {
             CommentPayload p = objectMapper.convertValue(env.getPayload(), CommentPayload.class);
             payload = p;
             topic = "comment";
             toUserId = p.getTargetUserId() == null ? 0 : p.getTargetUserId();
-        } else if (EventTypes.LIKE_CREATED.equals(type)) {
+        } else if (SocialEventTypes.LIKE_CREATED.equals(type)) {
             LikePayload p = objectMapper.convertValue(env.getPayload(), LikePayload.class);
             payload = p;
             topic = "like";
             toUserId = p.getEntityUserId() == null ? 0 : p.getEntityUserId();
-        } else if (EventTypes.FOLLOW_CREATED.equals(type)) {
+        } else if (SocialEventTypes.FOLLOW_CREATED.equals(type)) {
             FollowPayload p = objectMapper.convertValue(env.getPayload(), FollowPayload.class);
             payload = p;
             topic = "follow";
             toUserId = p.getEntityUserId() == null ? 0 : p.getEntityUserId();
-        } else if (EventTypes.MODERATION_ACTION_APPLIED.equals(type)) {
+        } else if (ContentEventTypes.MODERATION_ACTION_APPLIED.equals(type)) {
             ModerationPayload p = objectMapper.convertValue(env.getPayload(), ModerationPayload.class);
             payload = p;
             topic = "moderation";

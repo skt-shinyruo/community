@@ -2,7 +2,7 @@ package com.nowcoder.community.common.kafka.dlq;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.nowcoder.community.common.event.EventTopics;
+import com.nowcoder.community.common.event.EventTopicConventions;
 import com.nowcoder.community.common.kafka.KafkaTraceSupport;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -68,7 +68,7 @@ public class KafkaDlqPublisher {
         String traceId = KafkaTraceSupport.resolveTraceId(objectMapper, payload);
         dlq.setTraceId(traceId);
 
-        String dlqTopic = record.topic() + EventTopics.DLQ_SUFFIX;
+        String dlqTopic = record.topic() + EventTopicConventions.DLQ_SUFFIX;
 
         // 先尽量写 schema 化的 JSON；序列化失败再回退到原始 payload（仍保持 fail-closed）。
         String body = null;

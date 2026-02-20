@@ -61,29 +61,6 @@ class GatewaySecurityConfigTest {
                 .isNotFound();
     }
 
-    @Test
-    void legacySearchInternalPathsShouldRequireAdminRole() {
-        webTestClient.get()
-                .uri("/api/search/internal/ping")
-                .exchange()
-                .expectStatus()
-                .isUnauthorized();
-
-        webTestClient.get()
-                .uri("/api/search/internal/ping")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenWithAuthorities(List.of("ROLE_USER")))
-                .exchange()
-                .expectStatus()
-                .isForbidden();
-
-        webTestClient.get()
-                .uri("/api/search/internal/ping")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenWithAuthorities(List.of("ROLE_ADMIN")))
-                .exchange()
-                .expectStatus()
-                .isNotFound();
-    }
-
     private String tokenWithAuthorities(List<String> authorities) {
         try {
             byte[] secretBytes = hmacSecret.getBytes(StandardCharsets.UTF_8);

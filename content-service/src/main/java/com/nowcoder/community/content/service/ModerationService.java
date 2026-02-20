@@ -1,8 +1,10 @@
 // 治理服务：处理举报审核与处置动作（隐藏/删除/警告/禁言/封禁），并记录审计与通知。
 package com.nowcoder.community.content.service;
 
-import com.nowcoder.community.common.event.payload.ModerationCommandPayload;
-import com.nowcoder.community.common.event.payload.ModerationPayload;
+import com.nowcoder.community.content.api.event.payload.CommentPayload;
+import com.nowcoder.community.content.api.event.payload.ModerationCommandPayload;
+import com.nowcoder.community.content.api.event.payload.ModerationPayload;
+import com.nowcoder.community.content.api.event.payload.PostPayload;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.dao.CommentMapper;
 import com.nowcoder.community.content.dao.DiscussPostMapper;
@@ -164,6 +166,7 @@ public class ModerationService {
             if (updated <= 0) {
                 throw new BusinessException(INVALID_ARGUMENT, "帖子状态更新失败");
             }
+            publishPostDeletedEvent(target.targetId);
             return;
         }
 
@@ -178,11 +181,73 @@ public class ModerationService {
             if (updated <= 0) {
                 throw new BusinessException(INVALID_ARGUMENT, "评论状态更新失败");
             }
+            publishCommentDeletedEvent(target.targetId);
             return;
         }
 
         // user 类型不支持 hide/delete
         throw new BusinessException(FORBIDDEN, "该目标类型不支持此处置动作");
+    }
+
+    private void publishPostDeletedEvent(int postId) {
+        if (postId <= 0) {
+            return;
+        }
+        DiscussPost post = discussPostMapper.selectDiscussPostById(postId);
+        if (post == null || post.getId() <= 0) {
+            return;
+        }
+        PostPayload payload = new PostPayload();
+        payload.setPostId(post.getId());
+        payload.setUserId(post.getUserId());
+        payload.setCategoryId(post.getCategoryId());
+        payload.setType(post.getType());
+        payload.setStatus(post.getStatus());
+        payload.setCreateTime(Instant.now());
+        payload.setScore(post.getScore());
+        eventPublisher.publishPostDeleted(payload);
+    }
+
+    private void publishCommentDeletedEvent(int commentId) {
+        if (commentId <= 0) {
+            return;
+        }
+        Comment comment = commentMapper.selectCommentById(commentId);
+        if (comment == null || comment.getId() <= 0) {
+            return;
+        }
+        int postId = resolveRootPostIdByComment(comment, 12);
+        CommentPayload payload = new CommentPayload();
+        payload.setCommentId(comment.getId());
+        payload.setPostId(Math.max(0, postId));
+        payload.setUserId(comment.getUserId());
+        payload.setEntityType(comment.getEntityType());
+        payload.setEntityId(comment.getEntityId());
+        payload.setCreateTime(Instant.now());
+        eventPublisher.publishCommentDeleted(payload);
+    }
+
+    private int resolveRootPostIdByComment(Comment comment, int maxHops) {
+        if (comment == null || comment.getId() <= 0) {
+            return 0;
+        }
+        int t = comment.getEntityType();
+        int id = comment.getEntityId();
+        for (int i = 0; i < Math.max(1, maxHops); i++) {
+            if (t == ReportService.TARGET_TYPE_POST) {
+                return id;
+            }
+            if (t != ReportService.TARGET_TYPE_COMMENT || id <= 0) {
+                return 0;
+            }
+            Comment parent = commentMapper.selectCommentById(id);
+            if (parent == null || parent.getId() <= 0 || parent.getStatus() != 0) {
+                return 0;
+            }
+            t = parent.getEntityType();
+            id = parent.getEntityId();
+        }
+        return 0;
     }
 
     private void publishNotices(Report report, ModerationAction action, Target target, String kind, int toUserId) {

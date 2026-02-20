@@ -1,7 +1,7 @@
 package com.nowcoder.community.search.repo;
 
 // 帖子搜索存储接口：支持常规索引操作与可选的指定索引写入。
-import com.nowcoder.community.common.event.payload.PostPayload;
+import com.nowcoder.community.content.api.event.payload.PostPayload;
 import com.nowcoder.community.search.api.dto.SearchPostItem;
 
 import java.util.List;

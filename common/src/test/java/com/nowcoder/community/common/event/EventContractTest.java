@@ -1,14 +1,12 @@
 package com.nowcoder.community.common.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.event.payload.CommentPayload;
-import com.nowcoder.community.common.event.payload.LikePayload;
-import com.nowcoder.community.common.event.payload.PostPayload;
 import com.nowcoder.community.common.trace.TraceId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,24 +22,24 @@ class EventContractTest {
     void eventEnvelopeShouldContainRequiredFields() throws Exception {
         TraceId.set("t1");
 
-        PostPayload payload = new PostPayload();
-        payload.setPostId(123);
-        payload.setUserId(1);
-        payload.setTitle("hello");
-        payload.setContent("content");
-        payload.setType(0);
-        payload.setStatus(0);
-        payload.setCreateTime(Instant.parse("2026-01-16T06:28:00Z"));
-        payload.setScore(0.0);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("postId", 123);
+        payload.put("userId", 1);
+        payload.put("title", "hello");
+        payload.put("content", "content");
+        payload.put("type", 0);
+        payload.put("status", 0);
+        payload.put("createTime", Instant.parse("2026-01-16T06:28:00Z"));
+        payload.put("score", 0.0);
 
-        EventEnvelope<PostPayload> envelope = EventEnvelope.of(EventTypes.POST_PUBLISHED, 1, "content-service", payload);
+        EventEnvelope<Map<String, Object>> envelope = EventEnvelope.of("PostPublished", 1, "content-service", payload);
 
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         Map<?, ?> json = mapper.readValue(mapper.writeValueAsString(envelope), Map.class);
 
         assertThat(json.get("eventId")).isNotNull();
         assertThat(json.get("traceId")).isEqualTo("t1");
-        assertThat(json.get("type")).isEqualTo(EventTypes.POST_PUBLISHED);
+        assertThat(json.get("type")).isEqualTo("PostPublished");
         assertThat(json.get("version")).isEqualTo(1);
         assertThat(json.get("occurredAt")).isNotNull();
         assertThat(json.get("producer")).isEqualTo("content-service");
@@ -57,15 +55,15 @@ class EventContractTest {
     void eventPayloadShouldAvoidSensitiveFields() throws Exception {
         TraceId.set("t2");
 
-        LikePayload payload = new LikePayload();
-        payload.setActorUserId(1);
-        payload.setEntityType(1);
-        payload.setEntityId(100);
-        payload.setEntityUserId(2);
-        payload.setPostId(100);
-        payload.setCreateTime(Instant.now());
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("actorUserId", 1);
+        payload.put("entityType", 1);
+        payload.put("entityId", 100);
+        payload.put("entityUserId", 2);
+        payload.put("postId", 100);
+        payload.put("createTime", Instant.now());
 
-        EventEnvelope<LikePayload> envelope = EventEnvelope.of(EventTypes.LIKE_CREATED, 1, "social-service", payload);
+        EventEnvelope<Map<String, Object>> envelope = EventEnvelope.of("LikeCreated", 1, "social-service", payload);
 
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         String json = mapper.writeValueAsString(envelope);
@@ -80,22 +78,45 @@ class EventContractTest {
     void commentCreatedPayloadShouldBeSerializable() throws Exception {
         TraceId.set("t3");
 
-        CommentPayload payload = new CommentPayload();
-        payload.setCommentId(1);
-        payload.setPostId(100);
-        payload.setUserId(2);
-        payload.setEntityType(1);
-        payload.setEntityId(100);
-        payload.setTargetUserId(1);
-        payload.setContent("hi");
-        payload.setCreateTime(Instant.now());
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("commentId", 1);
+        payload.put("postId", 100);
+        payload.put("userId", 2);
+        payload.put("entityType", 1);
+        payload.put("entityId", 100);
+        payload.put("targetUserId", 1);
+        payload.put("content", "hi");
+        payload.put("createTime", Instant.now());
 
-        EventEnvelope<CommentPayload> envelope = EventEnvelope.of(EventTypes.COMMENT_CREATED, 1, "content-service", payload);
+        EventEnvelope<Map<String, Object>> envelope = EventEnvelope.of("CommentCreated", 1, "content-service", payload);
 
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         String json = mapper.writeValueAsString(envelope);
 
         assertThat(json).contains("CommentCreated");
+        assertThat(json).contains("payload");
+    }
+
+    @Test
+    void commentDeletedPayloadShouldBeSerializable() throws Exception {
+        TraceId.set("t4");
+
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("commentId", 1);
+        payload.put("postId", 100);
+        payload.put("userId", 2);
+        payload.put("entityType", 1);
+        payload.put("entityId", 100);
+        payload.put("targetUserId", 1);
+        payload.put("content", null);
+        payload.put("createTime", Instant.now());
+
+        EventEnvelope<Map<String, Object>> envelope = EventEnvelope.of("CommentDeleted", 1, "content-service", payload);
+
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+        String json = mapper.writeValueAsString(envelope);
+
+        assertThat(json).contains("CommentDeleted");
         assertThat(json).contains("payload");
     }
 }

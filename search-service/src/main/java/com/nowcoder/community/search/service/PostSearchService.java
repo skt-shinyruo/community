@@ -6,7 +6,7 @@ import com.nowcoder.community.content.api.rpc.dto.ContentPostScanResponse;
 import com.nowcoder.community.search.config.ContentServiceClientProperties;
 import com.nowcoder.community.search.repo.PostSearchRepository;
 import com.nowcoder.community.search.repo.PostIndexManager;
-import com.nowcoder.community.common.event.payload.PostPayload;
+import com.nowcoder.community.content.api.event.payload.PostPayload;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;

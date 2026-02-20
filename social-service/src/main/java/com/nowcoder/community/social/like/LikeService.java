@@ -1,13 +1,12 @@
 package com.nowcoder.community.social.like;
 
-import com.nowcoder.community.common.event.payload.LikePayload;
-import com.nowcoder.community.common.internal.dto.EntityResolveResponse;
+import com.nowcoder.community.social.api.event.payload.LikePayload;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.social.block.BlockService;
-import com.nowcoder.community.social.service.ContentServiceClient;
 import com.nowcoder.community.social.event.SocialEventPublisher;
 import com.nowcoder.community.social.like.dto.LikeRequest;
 import com.nowcoder.community.social.like.dto.LikeResponse;
+import com.nowcoder.community.social.service.ContentEntityResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,30 +33,30 @@ public class LikeService {
 
     private final LikeRepository likeRepository;
     private final SocialEventPublisher eventPublisher;
-    private final ContentServiceClient contentServiceClient;
+    private final ContentEntityResolver contentEntityResolver;
     private final BlockService blockService;
     private final boolean redisStorage;
 
     public LikeService(
             LikeRepository likeRepository,
             SocialEventPublisher eventPublisher,
-            ContentServiceClient contentServiceClient,
+            ContentEntityResolver contentEntityResolver,
             BlockService blockService
     ) {
-        this(likeRepository, eventPublisher, contentServiceClient, blockService, "memory");
+        this(likeRepository, eventPublisher, contentEntityResolver, blockService, "memory");
     }
 
     @Autowired
     public LikeService(
             LikeRepository likeRepository,
             SocialEventPublisher eventPublisher,
-            ContentServiceClient contentServiceClient,
+            ContentEntityResolver contentEntityResolver,
             BlockService blockService,
             @Value("${social.storage:db}") String storage
     ) {
         this.likeRepository = likeRepository;
         this.eventPublisher = eventPublisher;
-        this.contentServiceClient = contentServiceClient;
+        this.contentEntityResolver = contentEntityResolver;
         this.blockService = blockService;
         this.redisStorage = "redis".equalsIgnoreCase(storage);
     }
@@ -224,10 +223,7 @@ public class LikeService {
             return r;
         }
         if (entityType == POST || entityType == COMMENT) {
-            EntityResolveResponse resolved = contentServiceClient.resolveEntity(entityType, entityId);
-            if (resolved == null) {
-                throw new BusinessException(INVALID_ARGUMENT, "entity resolve 结果为空");
-            }
+            ContentEntityResolver.ResolvedEntity resolved = contentEntityResolver.resolve(entityType, entityId);
             ResolvedEntity r = new ResolvedEntity();
             r.entityUserId = resolved.getEntityUserId();
             r.postId = resolved.getPostId();

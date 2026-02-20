@@ -160,7 +160,7 @@ public class ReindexJobService {
 
     public void conflict(String jobId) {
         String suffix = StringUtils.hasText(jobId) ? (" (jobId=" + jobId.trim() + ")") : "";
-        throw new BusinessException(SearchErrorCode.REINDEX_IN_PROGRESS, "reindex 任务正在执行" + suffix);
+        throw new BusinessException(SearchErrorCode.REINDEX_RUNNING, "reindex 任务正在执行" + suffix);
     }
 
     private String newJobId() {

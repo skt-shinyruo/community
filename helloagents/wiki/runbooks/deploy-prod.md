@@ -11,7 +11,7 @@
   - required：`${spring.application.name}.yaml`
   - optional：`${spring.application.name}-prod.yaml`（仅用于 prod 专用覆盖）
 - **启动期校验（fail-closed）**：prod 下 `StartupValidation` 会对关键配置做阻断校验（缺失即拒绝启动）
-- **internal 面隔离**：服务端不做 header token 鉴权；必须依赖“网关显式拒绝 `/internal/**` + 部署网络隔离（端口不对外暴露）”
+- **internal 面隔离**：当前版本代码层已移除 `/internal/**`；仍需依赖“网关显式拒绝 `/internal/**` + 部署网络隔离（端口不对外暴露）”防止旁路与未来回潮
 - **Cookie 安全边界**：refresh cookie 在 prod 必须 `Secure=true`（需要 HTTPS）
 
 ---

@@ -60,7 +60,7 @@
 - **refresh cookie**：默认 `SameSite=Lax`、`Path=/api/auth`；生产环境建议启用 `Secure=true` 并按部署形态评估 `SameSite` 策略。
 - **refresh token 存储**：通过 `auth.refresh.store=db|redis|memory` 切换（默认 db，生产建议 db）。
 - **登出语义**：登出会按 refresh token 的 `familyId` 做“家族级”失效，避免同一会话族残留 token。
-- **user-service 同步调用（Dubbo）**：auth-service 通过 `user-api` 的 Dubbo RPC 完成登录/刷新/注册等链路；`/internal/**` 主要保留为运维/兼容入口（生产建议通过网络隔离/网关策略收敛暴露面）。
+- **user-service 同步调用（Dubbo）**：auth-service 通过 `user-api` 的 Dubbo RPC 完成登录/刷新/注册等链路；服务端不再提供 `/internal/**`，对外运维统一收敛到 gateway `/api/ops/**`。
 - **登录安全降级语义**：登录失败计数/验证码阈值在依赖（Redis）不可用时会降级为 fail-open（不阻断登录主链路），并通过 metrics/日志观测。
 - **验证码（captchaId）**：
   - `GET /api/auth/captcha` 返回 `{ captchaId, imageBase64, ttlSeconds }`，验证码与失败计数在服务端存储（Redis/memory）。

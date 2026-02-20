@@ -1,6 +1,5 @@
 package com.nowcoder.community.social.storage;
 
-import com.nowcoder.community.common.internal.dto.EntityResolveResponse;
 import com.nowcoder.community.social.event.SocialEventPublisher;
 import com.nowcoder.community.social.follow.FollowService;
 import com.nowcoder.community.social.follow.RedisFollowRepository;
@@ -8,7 +7,7 @@ import com.nowcoder.community.social.follow.dto.FollowRequest;
 import com.nowcoder.community.social.like.LikeService;
 import com.nowcoder.community.social.like.RedisLikeRepository;
 import com.nowcoder.community.social.like.dto.LikeRequest;
-import com.nowcoder.community.social.service.ContentServiceClient;
+import com.nowcoder.community.social.service.ContentEntityResolver;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -179,15 +178,10 @@ class RedisStorageAtomicityTest {
         SocialEventPublisher publisher = mock(SocialEventPublisher.class);
         doThrow(new RuntimeException("boom")).when(publisher).publishLikeCreated(any());
 
-        ContentServiceClient contentServiceClient = mock(ContentServiceClient.class);
-        EntityResolveResponse resolved = new EntityResolveResponse();
-        resolved.setEntityType(1);
-        resolved.setEntityId(100);
-        resolved.setEntityUserId(2);
-        resolved.setPostId(100);
-        when(contentServiceClient.resolveEntity(1, 100)).thenReturn(resolved);
+        ContentEntityResolver resolver = mock(ContentEntityResolver.class);
+        when(resolver.resolve(1, 100)).thenReturn(new ContentEntityResolver.ResolvedEntity(2, 100));
 
-        LikeService service = new LikeService(repo, publisher, contentServiceClient, null, "redis");
+        LikeService service = new LikeService(repo, publisher, resolver, null, "redis");
 
         LikeRequest request = new LikeRequest();
         request.setEntityType(1);

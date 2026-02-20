@@ -49,6 +49,17 @@ create table if not exists social_block (
   index idx_block_user_created (user_id, created_at)
 );
 
+-- content 实体元信息投影（用于 social 写路径解析 entity -> owner/postId/status，避免跨域同步 resolve）
+create table if not exists social_content_entity_projection (
+  entity_type int not null,
+  entity_id bigint not null,
+  entity_user_id bigint not null default 0,
+  post_id bigint not null default 0,
+  status int not null default 0,
+  updated_at timestamp not null default current_timestamp,
+  primary key (entity_type, entity_id)
+);
+
 -- Outbox（可靠事件投递）
 create table if not exists outbox_event (
   id bigint not null auto_increment primary key,

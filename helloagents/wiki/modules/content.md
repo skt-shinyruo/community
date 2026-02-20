@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 发帖；帖子详情；评论/回复；敏感词过滤；热帖分数刷新；与搜索/通知联动
 - **Status：** ✅Stable
-- **Last Updated：** 2026-02-04
+- **Last Updated：** 2026-02-13
 
 ## Specifications
 
@@ -115,7 +115,7 @@ Runbook：
 - `PUT /api/posts/{postId}/comments/{commentId}`（作者 15min 内编辑；更新 `update_time/edit_count`）
 - `POST /api/reports`（提交举报：POST/COMMENT/USER）
 - `GET /api/moderation/reports`（治理后台：举报列表；仅 MOD/ADMIN）
-- `POST /api/moderation/actions`（治理后台：处置动作；仅 MOD/ADMIN；发布 ModerationActionApplied）
+- `POST /api/moderation/actions`（治理后台：处置动作；仅 MOD/ADMIN；发布 ModerationActionApplied；对 post/comment 的 hide/delete 额外发布 PostDeleted/CommentDeleted 以驱动下游投影）
 - `GET /api/moderation/actions`（治理后台：处置审计查询；仅 MOD/ADMIN）
 - `PUT /api/posts/{postId}/bookmark`、`DELETE /api/posts/{postId}/bookmark`（收藏/取消收藏）
 - `GET /api/bookmarks`（我的收藏列表）
@@ -124,10 +124,11 @@ Runbook：
 - `GET /api/posts?subscribed=true`（仅看订阅：按订阅分类过滤）
 - Dubbo RPC（服务间同步调用，推荐）：
   - `ContentScanRpcService`：帖子扫描（供 search-service reindex）
-  - `ContentEntityRpcService`：实体解析（POST/COMMENT 的 owner/postId；供 social 写路径构造可信事件 payload）
-- `GET /internal/content/posts`（legacy：历史 HTTP internal 扫描接口；开发阶段默认放行）
-- `GET /internal/content/entities/resolve`（legacy：历史 HTTP internal resolve 接口；开发阶段默认放行）
-- `POST /internal/content/likes/backfill`（内部运维接口：默认关闭；回填 Redis 点赞投影；需显式开启 `content.like.backfill.endpoint-enabled=true`）
+  - `ContentEntityRpcService`：实体解析（POST/COMMENT 的 owner/postId/存在性；用于运维/投影重建/一致性纠偏，不应用于线上写路径的同步依赖）
+- Ops（对外运维入口，统一走 gateway `/api/ops/**`）：
+  - `GET /api/ops/content/outbox/health`
+  - `POST /api/ops/content/outbox/replay?limit=200`
+  - `POST /api/ops/content/likes/backfill?entityType=&maxItems=&batchSize=`（默认关闭；需显式开启 `content.like.backfill.endpoint-enabled=true`）
 
 ## Data Models
 ### discuss_post
@@ -153,17 +154,19 @@ Runbook：
 
 ## Change History
 - 2026-01-18：写路径事件发布改为 After-Commit（避免 DB 回滚仍发事件），并将热度刷新 enqueue 延后到事务提交后执行。
-- 2026-01-19：补充内部帖子扫描接口（`/internal/content/posts`），用于支持 search-service 在严格 schema 隔离下完成 reindex 冷启动。
+- 2026-01-19：补充内部帖子扫描接口（`/internal/content/posts`，已在 2026-02-13 移除），用于支持 search-service 在严格 schema 隔离下完成 reindex 冷启动。
 - 2026-01-20：`/api/posts` 列表返回补齐“最后回复/最后活动”字段（包含评论与回复评论），支撑前端 Discourse 风格 topic list（活动列 + 未读提示）。
 - 2026-01-20：引入 taxonomy（分类/标签）：新增 `category/tag/post_tag` 表，发帖支持 `categoryId/tags[]`，列表支持按分类/标签过滤，支撑 Discourse-like 信息架构与侧栏聚合。
 - 2026-01-20：新增 `GET /api/tags/suggest` 标签建议接口，支撑 Discourse-like 标签输入体验（autocomplete）。
 - 2026-01-23：新增举报/治理闭环（report/moderation_action + /api/reports + /api/moderation/**），补齐内容生命周期（编辑窗口/作者软删）、收藏/订阅与“仅看订阅”。
+- 2026-02-12：治理处置 hide/delete 补齐发布 PostDeleted/CommentDeleted 事件，供下游（如 social-service）维护本地 entity 投影并降低写路径同步依赖放大风险。
 - 2026-02-01：Outbox 默认开启（可靠投递作为默认安全态），并补齐 relay 的 SENDING 回收 + SENT 清理与索引。
 - 2026-02-01：消费 `LikeCreated/LikeRemoved` 维护 Redis `like:entity:*` 投影，帖子详情与热帖分数读源一致，且支持取消点赞回落。
 - 2026-02-01：评论/回复写路径拉黑校验改为“投影优先 + 缺失回源 + 回填”，消除投影缺失 fail-open 窗口。
-- 2026-02-01：新增 internal entity resolve 与 likes backfill 运维入口，用于跨域写路径契约可信与冷启动纠偏。
+- 2026-02-01：新增 internal entity resolve 与 likes backfill 运维入口（已在 2026-02-13 移除），用于跨域写路径契约可信与冷启动纠偏。
 - 2026-02-02：内容渲染契约收敛：写入停止全量 htmlEscape（仅对 `&` 最小化 escape 可配置），读路径对历史 entity 做一次性白名单解码（可配置），避免出现 `&amp;lt;` 二次转义可见问题，并保持 XSS 安全边界清晰。
-- 2026-02-03：Outbox 认领升级支持 `FOR UPDATE SKIP LOCKED`（可配置回退），降低多实例 relay 并发时的锁等待与头阻塞风险；运维入口 `/internal/content/outbox/replay` 保留（开发阶段默认放行）。
+- 2026-02-03：Outbox 认领升级支持 `FOR UPDATE SKIP LOCKED`（可配置回退），降低多实例 relay 并发时的锁等待与头阻塞风险；运维入口（`/internal/content/outbox/replay`，已在 2026-02-13 移除）。
 - 2026-02-03：Outbox 轮询索引对齐为 `idx_outbox_status_next(status, next_retry_at, id)` 并增加 drift 自修复（旧索引缺 `id` 时 drop+recreate）；投影回填任务支持可选 single-flight（多实例避免重复执行）。
 - 2026-02-04：评论/回复写路径收敛为“仅一级回复”，并在回复评论时增加同帖归属校验，避免跨帖/多层回复导致脏数据与读侧不可达。
 - 2026-02-09：服务间同步调用由 HTTP internal client 迁移为 Dubbo RPC（契约下沉到 `content-api`），减少跨服务 HTTP 依赖与 DTO 漂移风险。
+- 2026-02-13：移除 HTTP `/internal/content/**` 运维入口，统一通过 gateway `/api/ops/**` + Dubbo 触发 outbox/likes backfill 等高成本运维动作。

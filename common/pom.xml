@@ -16,18 +16,23 @@
     <packaging>jar</packaging>
 
 	    <dependencies>
+        <dependency>
+            <groupId>com.newcoder.community</groupId>
+            <artifactId>contracts-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.newcoder.community</groupId>
+            <artifactId>contracts-event-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
 	        <dependency>
 	            <groupId>org.springframework.boot</groupId>
 	            <artifactId>spring-boot-starter-web</artifactId>
 	            <scope>provided</scope>
 	        </dependency>
-
-        <dependency>
-            <groupId>org.apache.dubbo</groupId>
-            <artifactId>dubbo</artifactId>
-            <version>${dubbo.version}</version>
-            <scope>provided</scope>
-        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

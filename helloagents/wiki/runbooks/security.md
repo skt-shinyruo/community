@@ -7,7 +7,7 @@
 
 ## 核心原则
 1. **对外入口只有一个**：所有客户端流量必须经过 `gateway`
-2. **服务侧必须可自洽**：对外业务接口由服务端 JWT 鉴权兜底；internal 面不做 header token 鉴权，因此必须依赖网络隔离确保不可对外暴露
+2. **服务侧必须可自洽**：对外业务接口由服务端 JWT 鉴权兜底；对外运维能力统一收敛到 gateway `/api/ops/**`（ADMIN），并禁止旁路访问下游服务端口
 3. **默认拒绝（fail-closed）**：关键依赖（配置中心/限流/鉴权/幂等/运维开关）不可用时，应返回错误而非静默放行
 
 ## Docker Compose（旁路禁止）
@@ -21,7 +21,7 @@
 - [ ] 外部网络仅可访问 `gateway`（以及必要的运维入口：例如观测系统，必须鉴权）
 - [ ] 下游服务容器端口未映射到宿主机（或仅绑定 `127.0.0.1` 且有明确时限）
 - [ ] auth-service 启用 OriginGuard（login/refresh/logout），与 gateway allowlist 一致
-- [ ] gateway 显式拒绝 `/internal/**`，且部署层确认下游服务端口不对外暴露（internal 面不做 token 鉴权）
+- [ ] gateway 显式拒绝 `/internal/**`，且部署层确认下游服务端口不对外暴露（避免旁路绕过网关与运维入口治理）
 - [ ] 对外运维入口 `/api/ops/**` 已在网关侧按角色收敛（仅管理员），并开启必要的审计与限流（建议）
 - [ ] 可信代理与 `X-Forwarded-For` 解析规则已配置（只在可信链路信任 XFF）：
   - `gateway.trusted-proxy.enabled=true` 时必须配置 `gateway.trusted-proxy.cidrs`（CIDR allowlist）

@@ -2,8 +2,8 @@ package com.nowcoder.community.message.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.nowcoder.community.common.event.EventTopics;
-import com.nowcoder.community.common.event.EventTypes;
+import com.nowcoder.community.social.api.event.SocialEventTopics;
+import com.nowcoder.community.social.api.event.SocialEventTypes;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
@@ -43,7 +43,7 @@ class NoticeEventConsumerIntegrationTest {
     void consumeEventThenQueryNoticeShouldWork() throws Exception {
         String payload = objectMapper.writeValueAsString(Map.of(
                 "eventId", "e1",
-                "type", EventTypes.LIKE_CREATED,
+                "type", SocialEventTypes.LIKE_CREATED,
                 "version", 1,
                 "occurredAt", Instant.now().toString(),
                 "producer", "social-service",
@@ -58,8 +58,8 @@ class NoticeEventConsumerIntegrationTest {
         ));
 
         // 重复投递/重试场景：同 eventId 不应产生重复通知
-        processor.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k1", payload));
-        processor.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 1L, "k1", payload));
+        processor.handleRecord(new ConsumerRecord<>(SocialEventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k1", payload));
+        processor.handleRecord(new ConsumerRecord<>(SocialEventTopics.SOCIAL_EVENTS_V1, 0, 1L, "k1", payload));
 
         SignedJWT jwt = new SignedJWT(
                 new JWSHeader(JWSAlgorithm.HS256),

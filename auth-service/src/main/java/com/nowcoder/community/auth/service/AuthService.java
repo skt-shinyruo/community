@@ -60,7 +60,7 @@ public class AuthService {
 
         if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) {
             loginRateLimitService.recordFailure(username, ip, ipSource);
-            throw new BusinessException(AuthErrorCode.LOGIN_FAILED);
+            throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
         }
 
         UserInternalAuthenticateResponse user;
@@ -68,7 +68,7 @@ public class AuthService {
             user = userServiceInternalClient.authenticate(username, password);
         } catch (BusinessException e) {
             int code = e.getErrorCode() == null ? 0 : e.getErrorCode().getCode();
-            if (code == AuthErrorCode.LOGIN_FAILED.getCode() || code == AuthErrorCode.USER_DISABLED.getCode()) {
+            if (code == AuthErrorCode.INVALID_CREDENTIALS.getCode() || code == AuthErrorCode.USER_DISABLED.getCode()) {
                 loginRateLimitService.recordFailure(username, ip, ipSource);
             }
             throw e;

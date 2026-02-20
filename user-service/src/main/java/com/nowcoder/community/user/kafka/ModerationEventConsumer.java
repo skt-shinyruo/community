@@ -2,11 +2,11 @@ package com.nowcoder.community.user.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.event.EventEnvelopeParser;
-import com.nowcoder.community.common.event.EventTopics;
-import com.nowcoder.community.common.event.EventTypes;
 import com.nowcoder.community.common.event.UnknownEventAction;
-import com.nowcoder.community.common.event.payload.ModerationCommandPayload;
 import com.nowcoder.community.common.kafka.KafkaTraceSupport;
+import com.nowcoder.community.content.api.event.ContentEventTopics;
+import com.nowcoder.community.content.api.event.ContentEventTypes;
+import com.nowcoder.community.content.api.event.payload.ModerationCommandPayload;
 import com.nowcoder.community.user.dao.ConsumedEventMapper;
 import com.nowcoder.community.user.service.InternalUserService;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -54,7 +54,7 @@ public class ModerationEventConsumer {
         this.unsupportedVersionAction = UnknownEventAction.parseOrDefault(unsupportedVersionAction, UnknownEventAction.DLQ);
     }
 
-    @KafkaListener(topics = EventTopics.MODERATION_EVENTS_V1, groupId = "user-service")
+    @KafkaListener(topics = ContentEventTopics.MODERATION_EVENTS_V1, groupId = "user-service")
     public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) {
         KafkaTraceSupport.runWithTraceId(objectMapper, record.value(), () -> handleRecord(record));
         ack.acknowledge();
@@ -75,7 +75,7 @@ public class ModerationEventConsumer {
             throw new IllegalArgumentException("unsupported envelope version: " + version);
         }
 
-        if (!EventTypes.MODERATION_COMMAND_REQUESTED.equals(type)) {
+        if (!ContentEventTypes.MODERATION_COMMAND_REQUESTED.equals(type)) {
             if (unknownTypeAction == UnknownEventAction.SKIP) {
                 if (LOGGED_UNKNOWN_TYPES.add(type)) {
                     log.warn("skip unsupported event type: {}, example eventId={}", type, eventId);

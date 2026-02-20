@@ -100,13 +100,13 @@ class AuthControllerTest {
             String password = invocation.getArgument(1);
             TestUser user = usersByUsername.get(username);
             if (user == null || user.userId <= 0) {
-                throw new BusinessException(AuthErrorCode.LOGIN_FAILED);
+                throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
             }
             if (user.status == 0) {
                 throw new BusinessException(AuthErrorCode.USER_DISABLED);
             }
             if (!user.password.equals(password)) {
-                throw new BusinessException(AuthErrorCode.LOGIN_FAILED);
+                throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
             }
             UserInternalAuthenticateResponse resp = new UserInternalAuthenticateResponse();
             resp.setUserId(user.userId);
@@ -136,10 +136,10 @@ class AuthControllerTest {
             String email = invocation.getArgument(2);
 
             if (usersByUsername.containsKey(username)) {
-                throw new BusinessException(AuthErrorCode.LOGIN_FAILED, "该账号已存在");
+                throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS, "该账号已存在");
             }
             if (userIdByEmail.containsKey(email)) {
-                throw new BusinessException(AuthErrorCode.LOGIN_FAILED, "该邮箱已被注册");
+                throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS, "该邮箱已被注册");
             }
 
             int userId = userIdSeq.incrementAndGet();
@@ -304,7 +304,7 @@ class AuthControllerTest {
         req.setPassword("wrong");
         String body = objectMapper.writeValueAsString(req);
 
-        // 前 2 次失败：LOGIN_FAILED（HTTP 401 + code=10001）
+        // 前 2 次失败：INVALID_CREDENTIALS（HTTP 401 + code=10001）
         // 之后触发验证码要求：CAPTCHA_REQUIRED（HTTP 400 + code=10005）
         // 第 5 次达到阈值：TOO_MANY_REQUESTS（HTTP 429）
         for (int i = 0; i < 4; i++) {
@@ -317,7 +317,7 @@ class AuthControllerTest {
             JsonNode json = objectMapper.readTree(result.getResponse().getContentAsString());
             int code = json.path("code").asInt();
             assertThat(json.path("traceId").asText()).isNotBlank();
-            assertThat(code).isEqualTo(i < 2 ? AuthErrorCode.LOGIN_FAILED.getCode() : AuthErrorCode.CAPTCHA_REQUIRED.getCode());
+            assertThat(code).isEqualTo(i < 2 ? AuthErrorCode.INVALID_CREDENTIALS.getCode() : AuthErrorCode.CAPTCHA_REQUIRED.getCode());
         }
 
         MvcResult limited = mockMvc.perform(post("/api/auth/login")

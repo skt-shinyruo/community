@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @MapperScan({
         "com.nowcoder.community.content.dao",
-        "com.nowcoder.community.content.outbox"
+        "com.nowcoder.community.infra.outbox"
 })
 public class MybatisConfig {
 }

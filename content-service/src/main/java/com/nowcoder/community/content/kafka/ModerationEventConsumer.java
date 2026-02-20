@@ -2,12 +2,14 @@ package com.nowcoder.community.content.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.event.EventEnvelopeParser;
-import com.nowcoder.community.common.event.EventTopics;
-import com.nowcoder.community.common.event.EventTypes;
 import com.nowcoder.community.common.event.UnknownEventAction;
-import com.nowcoder.community.common.event.payload.BlockPayload;
-import com.nowcoder.community.common.event.payload.ModerationStatusPayload;
 import com.nowcoder.community.common.kafka.KafkaTraceSupport;
+import com.nowcoder.community.content.api.event.ContentEventTopics;
+import com.nowcoder.community.social.api.event.SocialEventTopics;
+import com.nowcoder.community.social.api.event.SocialEventTypes;
+import com.nowcoder.community.social.api.event.payload.BlockPayload;
+import com.nowcoder.community.user.api.event.UserEventTypes;
+import com.nowcoder.community.user.api.event.payload.ModerationStatusPayload;
 import com.nowcoder.community.content.projection.UserModerationProjectionRepository;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
@@ -49,7 +51,7 @@ public class ModerationEventConsumer {
         this.unsupportedVersionAction = UnknownEventAction.parseOrDefault(unsupportedVersionAction, UnknownEventAction.DLQ);
     }
 
-    @KafkaListener(topics = {EventTopics.MODERATION_EVENTS_V1, EventTopics.SOCIAL_EVENTS_V1}, groupId = "content-service-projection")
+    @KafkaListener(topics = {ContentEventTopics.MODERATION_EVENTS_V1, SocialEventTopics.SOCIAL_EVENTS_V1}, groupId = "content-service-projection")
     public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) {
         KafkaTraceSupport.runWithTraceId(
                 objectMapper,
@@ -78,7 +80,7 @@ public class ModerationEventConsumer {
             occurredAt = Instant.now();
         }
 
-        if (EventTypes.MODERATION_STATUS_CHANGED.equals(type)) {
+        if (UserEventTypes.MODERATION_STATUS_CHANGED.equals(type)) {
             ModerationStatusPayload p = objectMapper.convertValue(env.getPayload(), ModerationStatusPayload.class);
             int userId = p == null || p.getUserId() == null ? 0 : p.getUserId();
             if (userId > 0) {
@@ -87,7 +89,7 @@ public class ModerationEventConsumer {
             return;
         }
 
-        if (EventTypes.BLOCK_RELATION_CHANGED.equals(type)) {
+        if (SocialEventTypes.BLOCK_RELATION_CHANGED.equals(type)) {
             BlockPayload p = objectMapper.convertValue(env.getPayload(), BlockPayload.class);
             int a = p == null || p.getBlockerUserId() == null ? 0 : p.getBlockerUserId();
             int b = p == null || p.getBlockedUserId() == null ? 0 : p.getBlockedUserId();

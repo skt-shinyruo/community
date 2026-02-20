@@ -18,20 +18,21 @@ social:
   storage: db
   events:
     publisher: kafka
-    outbox:
-      # 默认开启：可靠投递作为默认安全态（可通过开关回滚到 after-commit 直发）。
-      enabled: true
-      relay-enabled: true
-      # MySQL 8+ 推荐开启：多实例 relay 并发认领时避免头阻塞（不支持可关闭回退）。
-      claim-skip-locked-enabled: true
-      batch-size: 200
-      max-retries: 10
-      base-delay-ms: 1000
-      max-delay-ms: 60000
-      relay-interval-ms: 5000
-      send-timeout-ms: 3000
+
+events:
+  outbox:
+    # 默认开启：可靠投递作为默认安全态（可通过开关回滚到 after-commit 直发）。
+    enabled: true
+    relay-enabled: true
+    # MySQL 8+ 推荐开启：多实例 relay 并发认领时避免头阻塞（不支持可关闭回退）。
+    claim-skip-locked-enabled: true
+    batch-size: 200
+    max-retries: 10
+    base-delay-ms: 1000
+    max-delay-ms: 60000
+    relay-interval-ms: 5000
+    send-timeout-ms: 3000
 
 clients:
   content:
-    base-url: ${CONTENT_SERVICE_BASE_URL:http://content-service}
     fail-open: false

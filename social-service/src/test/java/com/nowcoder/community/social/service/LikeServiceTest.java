@@ -1,9 +1,8 @@
 package com.nowcoder.community.social.service;
 
 import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.event.payload.LikePayload;
+import com.nowcoder.community.social.api.event.payload.LikePayload;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.common.internal.dto.EntityResolveResponse;
 import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.social.block.InMemoryBlockRepository;
 import com.nowcoder.community.social.event.InMemorySocialEventPublisher;
@@ -22,21 +21,15 @@ class LikeServiceTest {
     void likeShouldBeForbiddenWhenEitherBlockedOnCreate() {
         InMemoryLikeRepository repo = new InMemoryLikeRepository();
         InMemorySocialEventPublisher publisher = new InMemorySocialEventPublisher();
-        ContentServiceClient contentServiceClient = Mockito.mock(ContentServiceClient.class);
-
-        EntityResolveResponse resolved = new EntityResolveResponse();
-        resolved.setEntityType(1);
-        resolved.setEntityId(100);
-        resolved.setEntityUserId(2);
-        resolved.setPostId(100);
-        Mockito.when(contentServiceClient.resolveEntity(1, 100)).thenReturn(resolved);
+        ContentEntityResolver resolver = Mockito.mock(ContentEntityResolver.class);
+        Mockito.when(resolver.resolve(1, 100)).thenReturn(new ContentEntityResolver.ResolvedEntity(2, 100));
 
         InMemoryBlockRepository blockRepository = new InMemoryBlockRepository();
         // 模拟“被点赞用户拉黑了点赞者”
         blockRepository.block(2, 1);
         BlockService blockService = new BlockService(blockRepository, new InMemorySocialEventPublisher());
 
-        LikeService service = new LikeService(repo, publisher, contentServiceClient, blockService);
+        LikeService service = new LikeService(repo, publisher, resolver, blockService);
 
         LikeRequest req = new LikeRequest();
         req.setEntityType(1);
@@ -56,16 +49,11 @@ class LikeServiceTest {
     void likeShouldBeIdempotentAndPublishOnce() {
         InMemoryLikeRepository repo = new InMemoryLikeRepository();
         InMemorySocialEventPublisher publisher = new InMemorySocialEventPublisher();
-        ContentServiceClient contentServiceClient = Mockito.mock(ContentServiceClient.class);
-        EntityResolveResponse resolved = new EntityResolveResponse();
-        resolved.setEntityType(1);
-        resolved.setEntityId(100);
-        resolved.setEntityUserId(2);
-        resolved.setPostId(100);
-        Mockito.when(contentServiceClient.resolveEntity(1, 100)).thenReturn(resolved);
+        ContentEntityResolver resolver = Mockito.mock(ContentEntityResolver.class);
+        Mockito.when(resolver.resolve(1, 100)).thenReturn(new ContentEntityResolver.ResolvedEntity(2, 100));
 
         BlockService blockService = new BlockService(new InMemoryBlockRepository(), new InMemorySocialEventPublisher());
-        LikeService service = new LikeService(repo, publisher, contentServiceClient, blockService);
+        LikeService service = new LikeService(repo, publisher, resolver, blockService);
 
         LikeRequest req = new LikeRequest();
         req.setEntityType(1);

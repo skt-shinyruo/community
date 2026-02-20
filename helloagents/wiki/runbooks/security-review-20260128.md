@@ -1,7 +1,7 @@
 # 安全检查记录：2026-01-28（后端架构治理）
 
-> ⚠️ 现状更新（2026-02-08）：当前代码已移除 `/internal/**` 的 header token 鉴权机制（不校验 `X-Internal-Token` / `X-Ops-Token`，调用方也不再发送）。
-> 因此本文件中与 internal-token 相关的结论/待办仅作为当时审阅记录，不再作为现行策略；现行策略与排障以 `helloagents/wiki/runbooks/internal-ops.md` 为准。
+> ⚠️ 现状更新（2026-02-13）：当前代码已移除 HTTP `/internal/**` 运维入口，并将运维动作收敛到 gateway `/api/ops/**` + Dubbo RPC；同时仍保持（2026-02-08）已移除 `/internal/**` 的 header token 鉴权机制（不校验 `X-Internal-Token` / `X-Ops-Token`，调用方也不再发送）。
+> 因此本文件中与 `/internal/**` / internal-token 相关的结论/待办仅作为当时审阅记录，不再作为现行策略；现行策略与排障以 `helloagents/wiki/runbooks/internal-ops.md` 为准。
 
 ## 范围
 - internal 接口边界（/internal/** 的访问边界、误配置风险）

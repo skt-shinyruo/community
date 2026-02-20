@@ -3,11 +3,11 @@ package com.nowcoder.community.content.kafka;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.domain.EntityTypes;
 import com.nowcoder.community.common.event.EventEnvelopeParser;
-import com.nowcoder.community.common.event.EventTopics;
-import com.nowcoder.community.common.event.EventTypes;
 import com.nowcoder.community.common.event.UnknownEventAction;
-import com.nowcoder.community.common.event.payload.LikePayload;
 import com.nowcoder.community.common.kafka.KafkaTraceSupport;
+import com.nowcoder.community.social.api.event.SocialEventTopics;
+import com.nowcoder.community.social.api.event.SocialEventTypes;
+import com.nowcoder.community.social.api.event.payload.LikePayload;
 import com.nowcoder.community.content.like.LikeRedisKeys;
 import com.nowcoder.community.content.score.PostScoreQueue;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -54,7 +54,7 @@ public class SocialEventConsumer {
         this.unsupportedVersionAction = UnknownEventAction.parseOrDefault(unsupportedVersionAction, UnknownEventAction.DLQ);
     }
 
-    @KafkaListener(topics = EventTopics.SOCIAL_EVENTS_V1, groupId = "content-service")
+    @KafkaListener(topics = SocialEventTopics.SOCIAL_EVENTS_V1, groupId = "content-service")
     public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) {
         KafkaTraceSupport.runWithTraceId(
                 objectMapper,
@@ -78,8 +78,8 @@ public class SocialEventConsumer {
             throw new IllegalArgumentException("unsupported envelope version: " + version);
         }
 
-        boolean likeCreated = EventTypes.LIKE_CREATED.equals(type);
-        boolean likeRemoved = EventTypes.LIKE_REMOVED.equals(type);
+        boolean likeCreated = SocialEventTypes.LIKE_CREATED.equals(type);
+        boolean likeRemoved = SocialEventTypes.LIKE_REMOVED.equals(type);
         if (!likeCreated && !likeRemoved) {
             if (unknownTypeAction == UnknownEventAction.SKIP) {
                 if (LOGGED_UNKNOWN_TYPES.add(type)) {

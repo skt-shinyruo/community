@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.api.dto;
 
-import com.nowcoder.community.common.event.payload.PostPayload;
+import com.nowcoder.community.content.api.event.payload.PostPayload;
 
 import java.util.List;
 
@@ -37,4 +37,3 @@ public class InternalPostScanResponse {
         this.hasMore = hasMore;
     }
 }
-

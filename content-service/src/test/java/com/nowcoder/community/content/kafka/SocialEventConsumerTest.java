@@ -1,10 +1,10 @@
 package com.nowcoder.community.content.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.event.EventTopics;
-import com.nowcoder.community.common.event.EventTypes;
 import com.nowcoder.community.content.score.InMemoryPostScoreQueue;
 import com.nowcoder.community.content.score.PostScoreQueue;
+import com.nowcoder.community.social.api.event.SocialEventTopics;
+import com.nowcoder.community.social.api.event.SocialEventTypes;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.Test;
 
@@ -30,7 +30,7 @@ class SocialEventConsumerTest {
     void likeCreatedShouldEnqueuePostScoreRefresh() throws Exception {
         String payload = objectMapper.writeValueAsString(Map.of(
                 "eventId", "e-like-1",
-                "type", EventTypes.LIKE_CREATED,
+                "type", SocialEventTypes.LIKE_CREATED,
                 "version", 1,
                 "occurredAt", Instant.now().toString(),
                 "producer", "social-service",
@@ -44,7 +44,7 @@ class SocialEventConsumerTest {
                 )
         ));
 
-        consumer.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k1", payload));
+        consumer.handleRecord(new ConsumerRecord<>(SocialEventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k1", payload));
 
         Integer postId = postScoreQueue.pop();
         assertThat(postId).isEqualTo(123);
@@ -54,7 +54,7 @@ class SocialEventConsumerTest {
     void likeRemovedShouldEnqueuePostScoreRefresh() throws Exception {
         String payload = objectMapper.writeValueAsString(Map.of(
                 "eventId", "e-like-2",
-                "type", EventTypes.LIKE_REMOVED,
+                "type", SocialEventTypes.LIKE_REMOVED,
                 "version", 1,
                 "occurredAt", Instant.now().toString(),
                 "producer", "social-service",
@@ -68,7 +68,7 @@ class SocialEventConsumerTest {
                 )
         ));
 
-        consumer.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k2", payload));
+        consumer.handleRecord(new ConsumerRecord<>(SocialEventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k2", payload));
 
         Integer postId = postScoreQueue.pop();
         assertThat(postId).isEqualTo(123);

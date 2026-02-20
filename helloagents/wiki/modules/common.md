@@ -25,16 +25,16 @@
   - Dubbo 透传：`com.nowcoder.community.common.dubbo.TraceContextDubboFilter`（consumer 写 attachment；provider 注入 `TraceContext/MDC` 并 finally 清理）
 - 内部调用治理：
   - Dubbo（推荐）：`com.nowcoder.community.common.dubbo.TraceContextDubboFilter`、`com.nowcoder.community.common.dubbo.DubboMetricsFilter`（调用次数/时延统一埋点）
-  - HTTP internal client（legacy/仅运维/兼容）：`com.nowcoder.community.common.web.internalclient.InternalClientSupport`
+  - HTTP client（legacy/不再用于服务间调用）：`com.nowcoder.community.common.web.internalclient.InternalClientSupport`
     - 指标统一：`internal_client_requests_total` / `internal_client_latency`（tags：client/api/outcome）
 - 文本兼容工具：
   - `com.nowcoder.community.common.text.HtmlEntityCodec`：基础 HTML entity 白名单编解码（用于历史内容兼容，避免二次转义可见问题）
 - 全局异常：
   - `com.nowcoder.community.common.web.GlobalExceptionHandler`
   - `com.nowcoder.community.common.web.SecurityExceptionHandler`（仅在存在 Security 类时启用）
-- internal 接口说明（开发阶段）：
-  - 当前版本不再通过 header token 对 `/internal/**` 做鉴权（避免配置/演进漂移带来的两极风险）
-  - 生产建议通过网络隔离/网关拒绝策略收敛暴露面，并避免对外暴露 `/internal/**`
+- internal / ops 边界说明（现行）：
+  - 代码层已移除 HTTP `/internal/**` 运维入口；对外运维统一走 gateway `/api/ops/**`，并通过 Dubbo RPC 调用对应服务
+  - gateway 显式拒绝 `/internal/**`，避免误配路由导致对外暴露
 - 多实例定时任务 single-flight（可选）：
   - `com.nowcoder.community.common.scheduler.SingleFlightTaskGuard`：基于 Redis 的分布式单飞锁（`SET NX` + TTL 获取，compare-and-del 释放），用于 cleanup/reconcile 等可重试任务避免“集群内重复跑”
   - 任务侧通过各自配置开关控制（如 `*.idempotency.cleanup-single-flight`、`*.projection.reconcile.single-flight`），未启用或 Redis 不可用时应按任务风险选择 skip 或继续执行
@@ -80,8 +80,8 @@
 - Trace/metrics 通过 `common` 的 Dubbo Filter 统一透传与埋点（attachments：`X-Trace-Id/traceparent`；metrics outcome 口径一致）。
 
 ### 3.2 internal HTTP（legacy/运维/兼容）
-- `/internal/**` 主要保留为运维入口/兼容调试；gateway 默认拒绝对外暴露。
-- 如确需 HTTP internal 调用，建议统一使用 `InternalClientSupport.unwrap` 保留下游 `code/message/traceId`（通过 `SimpleErrorCode` + message 附带 traceId），便于排障与告警归因。
+- 当前版本不再提供 `/internal/**` 作为运维/功能入口（避免 internal HTTP 与 RPC 并存导致长期“半迁移”治理债务）。
+- 如确需极少量 HTTP 出站调用（例如第三方适配或过渡期兼容），建议统一使用 `InternalClientSupport.unwrap` 保留下游 `code/message/traceId`（通过 `SimpleErrorCode` + message 附带 traceId），便于排障与告警归因。
 - outcome 口径建议使用：`success` / `error` / `timeout` / `degraded` / `forbidden`（保持跨服务一致）。
 
 ### 3.3 internal-token 轮转

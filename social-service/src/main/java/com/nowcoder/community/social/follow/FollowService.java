@@ -1,6 +1,6 @@
 package com.nowcoder.community.social.follow;
 
-import com.nowcoder.community.common.event.payload.FollowPayload;
+import com.nowcoder.community.social.api.event.payload.FollowPayload;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.social.event.SocialEventPublisher;

@@ -93,14 +93,14 @@ gateway 对写请求会记录审计日志：
 ## 6. 内部接口（/internal/**）
 
 开发阶段（当前实现）：
-- 本项目已移除基于 header token 的 internal 鉴权（不再要求 `X-Internal-Token` / `X-Ops-Token`），避免“配置/演进漂移”导致的两极风险（全不可用/保护变弱）。
+- 本项目已移除 HTTP `/internal/**` 运维入口（避免 internal HTTP 与 RPC 并存导致长期“半迁移”治理债务）。
 - gateway 明确拒绝 `/internal/**`（避免误配路由对外暴露 internal 面）。
 - 对外运维入口统一走 `/api/ops/**` 并在网关侧按角色收敛（例如 `POST /api/ops/search/reindex` 仅管理员可访问）。
-- legacy：`POST /api/search/internal/reindex` 属于历史兼容命名，默认在网关层通过 `blocked-path-patterns` 关闭（按 404 拒绝），请迁移到 `/api/ops/search/reindex`。
+- legacy：`POST /api/search/internal/reindex` 属于历史遗留命名，固定返回 410 并提示迁移到 `/api/ops/search/reindex`。
 
 生产建议（后续迭代方向）：
-- internal 面建议通过“网络隔离 / mTLS / Service Mesh / 仅内网可达”来收敛暴露面，而不是依赖外部可注入的 header。
-- 若未来需要恢复 internal 鉴权，建议同时在网关侧补齐“剥离/禁止外部注入敏感 Header”的策略，避免攻击面外溢。
+- 仍需确保下游服务端口不对外暴露（避免旁路绕过网关与运维入口治理）。
+- 若未来需要新增“仅内网可达”的 internal 面，建议通过“网络隔离 / mTLS / Service Mesh”来收敛暴露面，而不是依赖外部可注入的 header。
 
 ---
 

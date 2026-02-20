@@ -11,7 +11,8 @@ import org.springframework.context.annotation.Configuration;
                 "com.nowcoder.community.social.like",
                 "com.nowcoder.community.social.follow",
                 "com.nowcoder.community.social.block",
-                "com.nowcoder.community.social.outbox"
+                "com.nowcoder.community.infra.outbox",
+                "com.nowcoder.community.social.projection"
         }
 )
 public class MybatisConfig {

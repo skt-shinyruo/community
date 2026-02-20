@@ -49,8 +49,8 @@
 2. 按需修改：
    - `JWT_HMAC_SECRET`：开发环境也建议改成自己的一串 >= 32 字节密钥（auth-service 签发、gateway 验签需要一致）
    - `gateway.webclient.*`：网关出站 `WebClient` 的全局超时/连接池兜底（极端网络条件下避免资源耗尽）；可通过 Nacos `gateway.yaml` 覆盖默认值
-	   - 开发阶段说明：本项目已移除 `/internal/**` 的 header token 鉴权，因此 `*_INTERNAL_TOKEN` / `OPS_*_TOKEN` **不再是本地启动前置条件**。
-	   - legacy 提示：历史入口 `POST /api/search/internal/reindex` 默认在 gateway 层通过 `blocked-path-patterns` 关闭（按 404 拒绝），请迁移到 `POST /api/ops/search/reindex`
+	   - 开发阶段说明：本项目已移除 HTTP `/internal/**` 运维入口，因此 `*_INTERNAL_TOKEN` / `OPS_*_TOKEN` **不再是本地启动前置条件**。
+	   - legacy 提示：历史入口 `POST /api/search/internal/reindex` 固定返回 410 并提示迁移，请使用 `POST /api/ops/search/reindex`
 	   - 运行自检（推荐）：`bash scripts/doctor.sh`（不输出敏感值，仅提示缺失项与建议）
 
 生产提示（避免误配）：

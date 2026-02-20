@@ -28,6 +28,15 @@
 
 ## 3. 路由（当前）
 - `/api/auth/**` -> `lb://auth-service`
+- `/api/ops/search/reindex` -> `forward:/__gateway/ops/search/reindex`（运维入口；gateway -> Dubbo -> search-service）
+- `/api/ops/content/outbox/health` -> `forward:/__gateway/ops/content/outbox/health`
+- `/api/ops/content/outbox/replay` -> `forward:/__gateway/ops/content/outbox/replay`
+- `/api/ops/social/outbox/health` -> `forward:/__gateway/ops/social/outbox/health`
+- `/api/ops/social/outbox/replay` -> `forward:/__gateway/ops/social/outbox/replay`
+- `/api/ops/user/outbox/health` -> `forward:/__gateway/ops/user/outbox/health`
+- `/api/ops/user/outbox/replay` -> `forward:/__gateway/ops/user/outbox/replay`
+- `/api/ops/content/likes/backfill` -> `forward:/__gateway/ops/content/likes/backfill`
+- legacy：`/api/search/internal/reindex` -> `forward:/__gateway/legacy/search/internal/reindex`（固定返回 410）
 - `/api/search/**` -> `lb://search-service`
 - `/api/notices/**`、`/api/messages/**` -> `lb://message-service`
 - `/api/analytics/**` -> `lb://analytics-service`

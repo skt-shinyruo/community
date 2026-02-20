@@ -2,7 +2,7 @@ package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.api.AuthErrorCode;
 import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.event.payload.ModerationStatusPayload;
+import com.nowcoder.community.user.api.event.payload.ModerationStatusPayload;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.event.UserEventPublisher;
 import com.nowcoder.community.user.dao.UserMapper;
@@ -46,19 +46,19 @@ public class InternalUserService {
         String u = safeTrim(username);
         String p = safeTrim(password);
         if (!StringUtils.hasText(u) || !StringUtils.hasText(p)) {
-            throw new BusinessException(AuthErrorCode.LOGIN_FAILED);
+            throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
         }
 
         User user = userMapper.selectByName(u);
         if (user == null) {
-            throw new BusinessException(AuthErrorCode.LOGIN_FAILED);
+            throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
         }
         if (user.getStatus() == 0) {
             throw new BusinessException(AuthErrorCode.USER_DISABLED);
         }
 
         if (!passwordMatches(user, p)) {
-            throw new BusinessException(AuthErrorCode.LOGIN_FAILED);
+            throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
         }
 
         // 渐进 rehash：legacy(MD5+salt) -> bcrypt（仅在校验通过后触发）

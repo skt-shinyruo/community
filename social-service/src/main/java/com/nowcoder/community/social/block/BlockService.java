@@ -1,7 +1,7 @@
 // 拉黑业务服务：实现拉黑/解除拉黑/状态查询/内部关系查询（用于反骚扰与写路径校验）。
 package com.nowcoder.community.social.block;
 
-import com.nowcoder.community.common.event.payload.BlockPayload;
+import com.nowcoder.community.social.api.event.payload.BlockPayload;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.social.event.SocialEventPublisher;
 import org.springframework.stereotype.Service;

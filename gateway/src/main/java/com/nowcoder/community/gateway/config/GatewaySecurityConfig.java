@@ -1,42 +1,26 @@
 package com.nowcoder.community.gateway.config;
 
 // Gateway 安全配置：JWT 验签 + 授权矩阵 + 统一异常处理。
-import com.nowcoder.community.common.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
-import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
-import org.springframework.security.oauth2.jwt.NimbusReactiveJwtDecoder;
-import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverterAdapter;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.ReactiveUserDetailsService;
-import org.springframework.security.core.userdetails.MapReactiveUserDetailsService;
 import org.springframework.security.web.server.SecurityWebFilterChain;
-import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatchers;
 import org.springframework.util.StringUtils;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Collectors;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
-
-import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
 
 @Configuration
 @EnableWebFluxSecurity
 @EnableConfigurationProperties({
-        JwtProperties.class,
         AnalyticsCollectProperties.class,
         GatewayRateLimitProperties.class,
         OriginGuardProperties.class,
@@ -44,50 +28,6 @@ import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT
         RequestSizeLimitProperties.class
 })
 public class GatewaySecurityConfig {
-
-    @Bean
-    public ReactiveUserDetailsService prometheusUserDetailsService(
-            @Value("${community.metrics.basic-auth.username:prometheus}") String username,
-            @Value("${community.metrics.basic-auth.password:dev-prometheus-pass}") String password
-    ) {
-        String u = StringUtils.hasText(username) ? username.trim() : "prometheus";
-        String p = StringUtils.hasText(password) ? password : "dev-prometheus-pass";
-        UserDetails user = User.withUsername(u)
-                .password("{noop}" + p)
-                .roles("PROMETHEUS")
-                .build();
-        return new MapReactiveUserDetailsService(user);
-    }
-
-    @Bean
-    public ReactiveJwtDecoder jwtDecoder(JwtProperties jwtProperties) {
-        if (!StringUtils.hasText(jwtProperties.getHmacSecret())) {
-            throw new BusinessException(INVALID_ARGUMENT, "GATEWAY_JWT_HMAC_SECRET 未配置");
-        }
-        byte[] secretBytes = jwtProperties.getHmacSecret().getBytes(StandardCharsets.UTF_8);
-        if (secretBytes.length < 32) {
-            throw new BusinessException(INVALID_ARGUMENT, "GATEWAY_JWT_HMAC_SECRET 长度不足（建议 >= 32 字节）");
-        }
-
-        SecretKey secretKey = new SecretKeySpec(secretBytes, "HmacSHA256");
-        return NimbusReactiveJwtDecoder.withSecretKey(secretKey).macAlgorithm(MacAlgorithm.HS256).build();
-    }
-
-    @Bean
-    @Order(1)
-    public SecurityWebFilterChain actuatorSecurityWebFilterChain(ServerHttpSecurity http) {
-        return http
-                .securityMatcher(ServerWebExchangeMatchers.pathMatchers("/actuator/**"))
-                .csrf(ServerHttpSecurity.CsrfSpec::disable)
-                .authorizeExchange(exchanges -> exchanges
-                        .pathMatchers(HttpMethod.OPTIONS).permitAll()
-                        .pathMatchers("/actuator/health", "/actuator/info").permitAll()
-                        .pathMatchers("/actuator/prometheus").hasRole("PROMETHEUS")
-                        .anyExchange().denyAll()
-                )
-                .httpBasic(Customizer.withDefaults())
-                .build();
-    }
 
     @Bean
     @Order(2)
@@ -112,6 +52,8 @@ public class GatewaySecurityConfig {
 	                        .pathMatchers("/api/moderation/**").hasAnyRole("ADMIN", "MODERATOR")
 	                        // 对外运维入口：在网关侧先做角色收敛；下游 internal 入口不做 header token 鉴权，因此必须确保 internal 端口仅内网可达。
 	                        .pathMatchers("/api/ops/**").hasRole("ADMIN")
+	                        // gateway 内部 forward handler：仅允许通过 /api/ops/** 等受控入口触发；直连会被 handler 按 404 隐藏。
+	                        .pathMatchers("/__gateway/**").hasRole("ADMIN")
 	                        .pathMatchers("/api/users/admin/**").hasRole("ADMIN")
 	                        .pathMatchers(HttpMethod.GET, "/api/users/*").permitAll()
 	                        .pathMatchers(HttpMethod.POST, "/api/users/batch-summary").permitAll()
@@ -121,7 +63,6 @@ public class GatewaySecurityConfig {
 	                        // 仅开放帖子读接口；显式列出公开路径，避免使用 /** 导致未来新增的 GET 保护接口被误放行。
 	                        .pathMatchers(HttpMethod.GET, "/api/posts", "/api/posts/*", "/api/posts/*/comments", "/api/posts/*/comments/*/replies").permitAll()
 	                        .pathMatchers(HttpMethod.GET, "/api/search/posts").permitAll()
-	                        .pathMatchers("/api/search/internal/**").hasRole("ADMIN")
 	                        .pathMatchers(HttpMethod.GET, "/api/likes/count", "/api/likes/counts", "/api/likes/users/*/count").permitAll()
 	                        .pathMatchers(HttpMethod.GET, "/api/follows/*/followees", "/api/follows/*/followers").permitAll()
 	                        .pathMatchers(HttpMethod.GET, "/api/follows/*/followees/count", "/api/follows/*/followers/count").permitAll()

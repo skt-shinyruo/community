@@ -1,6 +1,6 @@
 package com.nowcoder.community.user.event;
 
-import com.nowcoder.community.common.event.payload.ModerationStatusPayload;
+import com.nowcoder.community.user.api.event.payload.ModerationStatusPayload;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -25,4 +25,3 @@ public class InMemoryUserEventPublisher implements UserEventPublisher {
         }
     }
 }
-

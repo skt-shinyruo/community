@@ -173,6 +173,7 @@ services:
       - prometheus_data:/prometheus
     depends_on:
       - gateway
+      - ops-service
       - auth-service
       - search-service
       - message-service
@@ -251,6 +252,24 @@ services:
         condition: service_healthy
       elasticsearch:
         condition: service_started
+
+  ops-service:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.spring-service
+      args:
+        MODULE: ops-service
+    container_name: community-ops-service
+    environment:
+      - SERVER_PORT=8090
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:?Missing SPRING_PROFILES_ACTIVE}
+      - NACOS_SERVER_ADDR=nacos:8848
+      - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-dev-prometheus-pass}
+    depends_on:
+      nacos:
+        condition: service_healthy
 
   auth-service:
     build:

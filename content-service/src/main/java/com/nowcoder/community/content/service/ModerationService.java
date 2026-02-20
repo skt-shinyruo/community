@@ -22,8 +22,8 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 
-import static com.nowcoder.community.common.api.ContentErrorCode.COMMENT_NOT_FOUND;
-import static com.nowcoder.community.common.api.ContentErrorCode.POST_NOT_FOUND;
+import static com.nowcoder.community.content.api.ContentErrorCode.COMMENT_NOT_FOUND;
+import static com.nowcoder.community.content.api.ContentErrorCode.POST_NOT_FOUND;
 import static com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
 

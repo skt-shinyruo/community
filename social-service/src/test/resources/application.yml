@@ -25,6 +25,12 @@ security:
   jwt:
     hmac-secret: test-jwt-secret-please-change-at-least-32bytes
 
+community:
+  metrics:
+    basic-auth:
+      username: prometheus
+      password: test-prometheus-pass-please-change
+
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   configuration:

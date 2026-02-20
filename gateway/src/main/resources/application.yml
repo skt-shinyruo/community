@@ -10,83 +10,31 @@ spring:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}
       port: ${SPRING_DATA_REDIS_PORT:6379}
-	  cloud:
-	    nacos:
-	      discovery:
-	        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
         group: ${NACOS_GROUP:DEFAULT_GROUP}
       config:
         server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
         group: ${NACOS_GROUP:DEFAULT_GROUP}
         file-extension: yaml
-	    gateway:
-	      default-filters:
-	        - PreserveHostHeader
-	      routes:
-	        - id: auth-service
-	          uri: lb://auth-service
-	          predicates:
-	            - Path=/api/auth/**
-	        - id: ops-search-reindex
-	          uri: forward:/__gateway/ops/search/reindex
-	          predicates:
-	            - Method=POST
-	            - Path=/api/ops/search/reindex
-	          filters:
-	            - AddRequestHeader=X-Gateway-Forwarded, 1
-	        - id: ops-content-outbox-health
-	          uri: forward:/__gateway/ops/content/outbox/health
-	          predicates:
-	            - Method=GET
-	            - Path=/api/ops/content/outbox/health
-	          filters:
-	            - AddRequestHeader=X-Gateway-Forwarded, 1
-	        - id: ops-content-outbox-replay
-	          uri: forward:/__gateway/ops/content/outbox/replay
-	          predicates:
-	            - Method=POST
-	            - Path=/api/ops/content/outbox/replay
-	          filters:
-	            - AddRequestHeader=X-Gateway-Forwarded, 1
-	        - id: ops-social-outbox-health
-	          uri: forward:/__gateway/ops/social/outbox/health
-	          predicates:
-	            - Method=GET
-	            - Path=/api/ops/social/outbox/health
-	          filters:
-	            - AddRequestHeader=X-Gateway-Forwarded, 1
-	        - id: ops-social-outbox-replay
-	          uri: forward:/__gateway/ops/social/outbox/replay
-	          predicates:
-	            - Method=POST
-	            - Path=/api/ops/social/outbox/replay
-	          filters:
-	            - AddRequestHeader=X-Gateway-Forwarded, 1
-	        - id: ops-user-outbox-health
-	          uri: forward:/__gateway/ops/user/outbox/health
-	          predicates:
-	            - Method=GET
-	            - Path=/api/ops/user/outbox/health
-	          filters:
-	            - AddRequestHeader=X-Gateway-Forwarded, 1
-	        - id: ops-user-outbox-replay
-	          uri: forward:/__gateway/ops/user/outbox/replay
-	          predicates:
-	            - Method=POST
-	            - Path=/api/ops/user/outbox/replay
-	          filters:
-	            - AddRequestHeader=X-Gateway-Forwarded, 1
-		        - id: ops-content-like-backfill
-		          uri: forward:/__gateway/ops/content/likes/backfill
-		          predicates:
-		            - Method=POST
-		            - Path=/api/ops/content/likes/backfill
-		          filters:
-		            - AddRequestHeader=X-Gateway-Forwarded, 1
-		        - id: search-service
-		          uri: lb://search-service
-	          predicates:
-	            - Path=/api/search/**
+    gateway:
+      default-filters:
+        - PreserveHostHeader
+      routes:
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/auth/**
+        - id: ops-service
+          uri: lb://ops-service
+          predicates:
+            - Path=/api/ops/**
+        - id: search-service
+          uri: lb://search-service
+          predicates:
+            - Path=/api/search/**
         - id: message-service
           uri: lb://message-service
           predicates:
@@ -146,7 +94,8 @@ community:
 
 analytics:
   collect:
-    enabled: true
+    # 采集属于可丢弃链路，默认关闭；可在配置中心按环境/灰度开启。
+    enabled: false
     timeout-ms: 300
     max-concurrency: 50
     # 网关侧 in-process 去重（有界 TTL 缓存）。注意：多实例不共享，最终以 analytics-service 侧 Redis 去重为准。
@@ -156,6 +105,12 @@ analytics:
     dedup-ttl-seconds: 86400
 
 gateway:
+  security:
+    # transparent: gateway 不再维护业务路径级权限矩阵（授权 SSOT 下沉到各服务）
+    # legacy-matrix: 旧模式（仅用于应急回滚）
+    mode: transparent
+  audit:
+    enabled: true
   webclient:
     # 出站调用兜底：避免下游网络异常导致请求悬挂与连接堆积拖垮网关。
     connect-timeout-ms: 1000
@@ -184,14 +139,14 @@ gateway:
     allowed-origins: *frontend_origins
     # 生产建议 fail-closed：allowlist 漏配时拒绝敏感 cookie 会话入口（login/refresh/logout）。
     fail-open-when-allowlist-empty: false
-	  rate-limit:
-	    enabled: true
-	    # 降级策略：Redis 不可用时 fail-open，避免把 Redis 抖动放大成对外 503（可用性优先，配合告警/审计治理）。
-	    fail-open: true
-	    # 运维/高风险入口关闭开关：匹配到的路径按 404 直接拒绝（降低攻击面）。
-	    blocked-path-patterns: []
+  rate-limit:
+    enabled: true
+    # 降级策略：Redis 不可用时 fail-open，避免把 Redis 抖动放大成对外 503（可用性优先，配合告警/审计治理）。
+    fail-open: true
+    # 运维/高风险入口关闭开关：匹配到的路径按 404 直接拒绝（降低攻击面）。
+    blocked-path-patterns: []
     rules:
-      # 登录/注册/验证码：按 IP 限流
+      # 边界 anti-abuse：按 IP 限流
       - id: login
         methods: [POST]
         path-patterns: [/api/auth/login]
@@ -216,59 +171,13 @@ gateway:
         window-seconds: 60
         max-requests: 30
         key-strategy: IP
-
-      # 业务敏感操作：优先按用户，其次按 IP
-      - id: post-create
+      # 运维平面：按用户限流（双保险，避免误触发/滥用）
+      - id: ops
         methods: [POST]
-        path-patterns: [/api/posts]
-        window-seconds: 60
-        max-requests: 30
-        key-strategy: USER_OR_IP
-      - id: comment-create
-        methods: [POST]
-        path-patterns: [/api/posts/*/comments]
-        window-seconds: 60
-        max-requests: 60
-        key-strategy: USER_OR_IP
-      - id: message-send
-        methods: [POST]
-        path-patterns: [/api/messages]
-        window-seconds: 60
-        max-requests: 30
-        key-strategy: USER_OR_IP
-      - id: social-actions
-        methods: [POST]
-        path-patterns: [/api/likes, /api/follows]
-        window-seconds: 60
-        max-requests: 120
-        key-strategy: USER_OR_IP
-
-      # 管理/审核：更严格（也便于观测与告警）
-      - id: moderation
-        methods: [POST]
-        path-patterns: [/api/posts/*/top, /api/posts/*/wonderful, /api/posts/*/delete]
+        path-patterns: [/api/ops/**]
         window-seconds: 60
         max-requests: 30
         key-strategy: USER
-		      # 高成本运维操作：严格限流，避免误触发/滥用（可通过配置中心临时调小/关闭）
-		      - id: search-reindex
-		        methods: [POST]
-		        path-patterns: [/api/ops/search/reindex]
-		        window-seconds: 60
-		        max-requests: 2
-		        key-strategy: USER
-	      - id: ops-outbox-replay
-	        methods: [POST]
-	        path-patterns: [/api/ops/content/outbox/replay, /api/ops/social/outbox/replay, /api/ops/user/outbox/replay]
-	        window-seconds: 60
-	        max-requests: 10
-	        key-strategy: USER
-	      - id: ops-like-backfill
-	        methods: [POST]
-	        path-patterns: [/api/ops/content/likes/backfill]
-	        window-seconds: 60
-	        max-requests: 2
-	        key-strategy: USER
 
 dubbo:
   application:
@@ -291,3 +200,4 @@ dubbo:
     check: false
     retries: 0
     timeout: 3000
+

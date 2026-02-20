@@ -61,6 +61,18 @@ class GatewaySecurityConfigTest {
                 .isNotFound();
     }
 
+    @Test
+    void transparentModeShouldNotBlockPublicTrafficAtGateway() {
+        // 透明模式下 gateway 不做业务授权矩阵。这里使用“无实例服务”的 503 作为信号：
+        // - 若 gateway 做了认证拦截，会先返回 401/403
+        // - 若 gateway 透明转发，则路由匹配后会因无法发现实例返回 503
+        webTestClient.get()
+                .uri("/api/posts")
+                .exchange()
+                .expectStatus()
+                .isEqualTo(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
     private String tokenWithAuthorities(List<String> authorities) {
         try {
             byte[] secretBytes = hmacSecret.getBytes(StandardCharsets.UTF_8);

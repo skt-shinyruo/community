@@ -5,8 +5,19 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "community.metrics.basic-auth")
 public class MetricsBasicAuthProperties {
 
-    private String username = "prometheus";
-    private String password = "dev-prometheus-pass";
+    /**
+     * metrics basic-auth 用户名：用于访问 /actuator/prometheus。
+     *
+     * <p>说明：允许为空，缺省按 prometheus 处理。</p>
+     */
+    private String username;
+
+    /**
+     * metrics basic-auth 密码：用于访问 /actuator/prometheus。
+     *
+     * <p>安全约束：必须显式配置（fail-closed）。</p>
+     */
+    private String password;
 
     public String getUsername() {
         return username;
@@ -24,4 +35,3 @@ public class MetricsBasicAuthProperties {
         this.password = password;
     }
 }
-

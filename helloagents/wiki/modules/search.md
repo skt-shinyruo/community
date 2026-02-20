@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** ES 索引维护（保存/删除）；按关键字搜索；高亮 title/content
 - **Status：** ✅Stable
-- **Last Updated：** 2026-02-13
+- **Last Updated：** 2026-02-20
 
 ## Specifications
 
@@ -41,9 +41,9 @@
 
 ## API Interfaces（现状）
 - `GET /api/search/posts?keyword=xxx&categoryId=&tag=`（支持 taxonomy 过滤；返回 `categoryId/tags[]` 供前端展示/二次筛选）
-- `POST /api/ops/search/reindex`（仅管理员；高风险运维入口，建议配合限流/审计使用；gateway 通过 Dubbo 调用 search-service）
+- `POST /api/ops/search/reindex`（仅管理员；高风险运维入口，建议配合限流/审计使用；ops-service 通过 Dubbo 调用 search-service）
   - Response: `{ jobId, indexedCount }`
-- legacy：`POST /api/search/internal/reindex`（历史遗留命名；固定返回 410，并提示迁移到 `/api/ops/search/reindex`）
+- legacy：`POST /api/search/internal/reindex`（历史遗留命名；固定返回 410，并提示迁移到 `/api/ops/search/reindex`；响应头包含 `Link/X-Successor`）
 
 ## Configuration Notes
 - `search.storage=es|memory`

@@ -14,7 +14,7 @@ import org.springframework.util.StringUtils;
 import java.util.Date;
 import java.util.List;
 
-import static com.nowcoder.community.common.api.ContentErrorCode.COMMENT_NOT_FOUND;
+import static com.nowcoder.community.content.api.ContentErrorCode.COMMENT_NOT_FOUND;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.common.api.CommonErrorCode.NOT_FOUND;
 

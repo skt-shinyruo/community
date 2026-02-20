@@ -1,7 +1,7 @@
 package com.nowcoder.community.auth.service;
 
 import com.nowcoder.community.auth.config.PasswordResetProperties;
-import com.nowcoder.community.common.api.AuthErrorCode;
+import com.nowcoder.community.auth.api.AuthErrorCode;
 import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.api.rpc.dto.UserInternalUserByEmailResponse;

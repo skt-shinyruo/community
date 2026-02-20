@@ -16,6 +16,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         properties = {
                 "spring.main.web-application-type=reactive",
                 "security.jwt.hmac-secret=01234567890123456789012345678901",
+                "community.metrics.basic-auth.username=prometheus",
+                "community.metrics.basic-auth.password=test-prometheus-pass-please-change",
                 "management.endpoint.prometheus.enabled=true",
                 "management.metrics.export.prometheus.enabled=true",
                 "management.prometheus.metrics.export.enabled=true",
@@ -55,7 +57,7 @@ class ActuatorSecurityReactiveTest {
                 .expectStatus().isUnauthorized();
 
         webTestClient.get().uri("/actuator/prometheus")
-                .headers(headers -> headers.setBasicAuth("prometheus", "dev-prometheus-pass"))
+                .headers(headers -> headers.setBasicAuth("prometheus", "test-prometheus-pass-please-change"))
                 .exchange()
                 .expectStatus().isOk();
     }
@@ -63,7 +65,7 @@ class ActuatorSecurityReactiveTest {
     @Test
     void other_actuator_endpoints_are_deny_all() {
         webTestClient.get().uri("/actuator/env")
-                .headers(headers -> headers.setBasicAuth("prometheus", "dev-prometheus-pass"))
+                .headers(headers -> headers.setBasicAuth("prometheus", "test-prometheus-pass-please-change"))
                 .exchange()
                 .expectStatus().isForbidden();
     }

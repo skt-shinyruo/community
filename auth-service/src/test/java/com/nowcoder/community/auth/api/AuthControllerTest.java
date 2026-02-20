@@ -6,7 +6,7 @@ import com.nowcoder.community.auth.service.CaptchaStore;
 import com.nowcoder.community.auth.api.dto.LoginRequest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.auth.service.UserServiceInternalClient;
-import com.nowcoder.community.common.api.AuthErrorCode;
+import com.nowcoder.community.auth.api.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.api.rpc.dto.UserInternalAuthenticateResponse;
 import com.nowcoder.community.user.api.rpc.dto.UserInternalRefreshTokenRecordResponse;

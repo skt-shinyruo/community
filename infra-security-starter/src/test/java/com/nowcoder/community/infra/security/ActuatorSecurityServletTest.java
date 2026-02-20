@@ -19,6 +19,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         properties = {
                 "spring.main.web-application-type=servlet",
                 "security.jwt.hmac-secret=01234567890123456789012345678901",
+                "community.metrics.basic-auth.username=prometheus",
+                "community.metrics.basic-auth.password=test-prometheus-pass-please-change",
                 "management.endpoint.prometheus.enabled=true",
                 "management.metrics.export.prometheus.enabled=true",
                 "management.prometheus.metrics.export.enabled=true",
@@ -55,14 +57,14 @@ class ActuatorSecurityServletTest {
                 .andExpect(status().isUnauthorized());
 
         mockMvc.perform(get("/actuator/prometheus")
-                        .with(httpBasic("prometheus", "dev-prometheus-pass")))
+                        .with(httpBasic("prometheus", "test-prometheus-pass-please-change")))
                 .andExpect(status().isOk());
     }
 
     @Test
     void other_actuator_endpoints_are_deny_all() throws Exception {
         mockMvc.perform(get("/actuator/env")
-                        .with(httpBasic("prometheus", "dev-prometheus-pass")))
+                        .with(httpBasic("prometheus", "test-prometheus-pass-please-change")))
                 .andExpect(status().isForbidden());
     }
 

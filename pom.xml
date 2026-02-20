@@ -53,6 +53,7 @@
         <module>content-api</module>
         <module>analytics-api</module>
         <module>search-api</module>
+        <module>ops-service</module>
         <module>gateway</module>
         <module>auth-service</module>
         <module>search-service</module>

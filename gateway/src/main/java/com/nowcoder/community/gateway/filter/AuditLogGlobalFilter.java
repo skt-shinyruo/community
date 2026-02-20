@@ -1,5 +1,6 @@
 package com.nowcoder.community.gateway.filter;
 
+import com.nowcoder.community.gateway.config.GatewayAuditProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -17,8 +18,18 @@ public class AuditLogGlobalFilter implements GlobalFilter, Ordered {
 
     private static final Logger log = LoggerFactory.getLogger(AuditLogGlobalFilter.class);
 
+    private final GatewayAuditProperties properties;
+
+    public AuditLogGlobalFilter(GatewayAuditProperties properties) {
+        this.properties = properties;
+    }
+
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        if (properties != null && !properties.isEnabled()) {
+            return chain.filter(exchange);
+        }
+
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getURI().getPath();
         HttpMethod method = request.getMethod();

@@ -60,7 +60,7 @@ public class AnalyticsCollectGlobalFilter implements GlobalFilter, Ordered {
 
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getURI().getPath();
-        if (path == null || !path.startsWith("/api/") || path.startsWith("/api/auth/")) {
+        if (path == null || !path.startsWith("/api/") || path.startsWith("/api/auth/") || path.startsWith("/api/ops/")) {
             return chain.filter(exchange);
         }
         // 浏览器预检会显著放大采集流量，且不代表真实访问。

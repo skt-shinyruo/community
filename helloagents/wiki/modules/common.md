@@ -1,88 +1,71 @@
-# common 模块
+# common（运行期工具）+ contracts（跨服务稳定协议）
 
-## 1. 职责
-- 提供目标态（微服务）统一的 **API 返回结构**、**错误码**、**异常收敛**、**traceId 约定**。
+## 1. 职责边界（目标态）
 
-## 2. 核心实现
-- 统一返回：`com.nowcoder.community.common.api.Result`
-- 错误码：
-  - `com.nowcoder.community.common.api.CommonErrorCode`
-  - `com.nowcoder.community.common.api.AuthErrorCode`
-  - `com.nowcoder.community.common.api.UserErrorCode`
-  - `com.nowcoder.community.common.api.ContentErrorCode`
-  - `com.nowcoder.community.common.api.SocialErrorCode`
-  - `com.nowcoder.community.common.api.MessageErrorCode`
-  - `com.nowcoder.community.common.api.SearchErrorCode`
-  - `com.nowcoder.community.common.api.AnalyticsErrorCode`
-  - `com.nowcoder.community.common.api.GatewayErrorCode`
-  - `com.nowcoder.community.common.api.SimpleErrorCode`（运行期动态错误码：用于跨服务透传 code/message）
-- 业务异常：`com.nowcoder.community.common.exception.BusinessException`
+本仓库已从“mega common”演进为 **contracts + infra/starter + common-runtime** 的组合：
+
+- **contracts（跨服务稳定协议）**：演进慢、变更需谨慎、跨服务共享。
+- **infra/starter（横切基础设施交付）**：以 auto-config/starter 形式交付，消除重复实现与漂移。
+- **common（运行期共享工具）**：仅保留少量运行期通用能力与工具，避免继续承载“域语义”。
+
+## 2. 核心实现（代码位置 = SSOT）
+
+### 2.1 contracts-core（跨服务稳定协议）
+- 统一返回：`contracts-core/src/main/java/com/nowcoder/community/common/api/Result.java`
+  - 字段：`code/message/data/traceId/timestamp/httpStatus`
+  - 约定：跨服务透传时，**消费者不需要 import 生产方域错误码枚举**；如需还原 HTTP 语义，可使用 `httpStatus`。
+- 错误码接口：`contracts-core/src/main/java/com/nowcoder/community/common/api/ErrorCode.java`
+- 通用错误码：`contracts-core/src/main/java/com/nowcoder/community/common/api/CommonErrorCode.java`
+- 运行期动态错误码（透传）：`contracts-core/src/main/java/com/nowcoder/community/common/api/SimpleErrorCode.java`
+- 业务异常：`contracts-core/src/main/java/com/nowcoder/community/common/exception/BusinessException.java`
+
+> 域错误码不再集中在 contracts-core/common：见各域模块（2.4）。
+
+### 2.2 contracts-event-core（通用事件协议）
+- Event envelope：`contracts-event-core/src/main/java/com/nowcoder/community/common/event/EventEnvelope.java`
+- 解析器：`contracts-event-core/src/main/java/com/nowcoder/community/common/event/EventEnvelopeParser.java`
+- unknown handling：`contracts-event-core/src/main/java/com/nowcoder/community/common/event/UnknownEventAction.java`
+- topic 约定：`contracts-event-core/src/main/java/com/nowcoder/community/common/event/EventTopicConventions.java`
+
+域事件契约（payload/type/topic）归属生产方域的 `*-api`（例如 `content-api`、`social-api`、`user-api`），避免 common 成为事件 SSOT 的单点耦合源。
+
+### 2.3 common（运行期共享工具）
+- 全局异常收敛：`common/src/main/java/com/nowcoder/community/common/web/GlobalExceptionHandler.java`
+- 安全异常收敛：`common/src/main/java/com/nowcoder/community/common/web/SecurityExceptionHandler.java`（按条件启用）
 - traceId：
-  - Header：`X-Trace-Id`（常量在 `com.nowcoder.community.common.web.TraceIdFilter` / `com.nowcoder.community.gateway.filter.TraceIdSupport`）
-  - Servlet Filter：`com.nowcoder.community.common.web.TraceIdFilter`（仅 Servlet Web 环境生效）
-  - 线程上下文：`com.nowcoder.community.common.trace.TraceContext`（统一 set/clear TraceId + MDC）
-  - RestTemplate 透传（legacy）：`com.nowcoder.community.common.web.TraceIdClientHttpRequestInterceptor`（同步 HTTP 调用注入 `X-Trace-Id`）
-  - Dubbo 透传：`com.nowcoder.community.common.dubbo.TraceContextDubboFilter`（consumer 写 attachment；provider 注入 `TraceContext/MDC` 并 finally 清理）
-- 内部调用治理：
-  - Dubbo（推荐）：`com.nowcoder.community.common.dubbo.TraceContextDubboFilter`、`com.nowcoder.community.common.dubbo.DubboMetricsFilter`（调用次数/时延统一埋点）
-  - HTTP client（legacy/不再用于服务间调用）：`com.nowcoder.community.common.web.internalclient.InternalClientSupport`
-    - 指标统一：`internal_client_requests_total` / `internal_client_latency`（tags：client/api/outcome）
-- 文本兼容工具：
-  - `com.nowcoder.community.common.text.HtmlEntityCodec`：基础 HTML entity 白名单编解码（用于历史内容兼容，避免二次转义可见问题）
-- 全局异常：
-  - `com.nowcoder.community.common.web.GlobalExceptionHandler`
-  - `com.nowcoder.community.common.web.SecurityExceptionHandler`（仅在存在 Security 类时启用）
-- internal / ops 边界说明（现行）：
-  - 代码层已移除 HTTP `/internal/**` 运维入口；对外运维统一走 gateway `/api/ops/**`，并通过 Dubbo RPC 调用对应服务
-  - gateway 显式拒绝 `/internal/**`，避免误配路由导致对外暴露
-- 多实例定时任务 single-flight（可选）：
-  - `com.nowcoder.community.common.scheduler.SingleFlightTaskGuard`：基于 Redis 的分布式单飞锁（`SET NX` + TTL 获取，compare-and-del 释放），用于 cleanup/reconcile 等可重试任务避免“集群内重复跑”
-  - 任务侧通过各自配置开关控制（如 `*.idempotency.cleanup-single-flight`、`*.projection.reconcile.single-flight`），未启用或 Redis 不可用时应按任务风险选择 skip 或继续执行
-- HTTP 写接口幂等保护：
-  - `com.nowcoder.community.common.idempotency.IdempotencyGuard`：基于 Idempotency-Key 的写接口幂等（缺失 key 时 fail-closed 返回 400；存储不可用时对 required 入口返回 503）
-  - 幂等开关与后端存储：
-    - `http.idempotency.enabled`（默认 false，需在使用幂等的服务显式开启）
-    - `http.idempotency.store=REDIS|DB`（默认 REDIS；DB 用于把 Redis 抖动从关键写链路中隔离出去）
-  - TTL 配置（可按环境调整）：
-    - `http.idempotency.processing-ttl`（默认 30s）
-    - `http.idempotency.success-ttl`（默认 24h）
-- 事务工具：
-  - `com.nowcoder.community.common.tx.AfterCommitExecutor`：在事务提交后执行非 DB 副作用（Kafka 发送、缓存刷新等），用于 P0 消除“幽灵事件”。
-- prod 启动期 fail-closed 校验：
-  - `com.nowcoder.community.common.startup.StartupValidation` + `StartupValidationAutoConfig`：在 `prod` profile 下校验关键配置（JWT/trusted-proxy、auth dev-only 危险开关等），避免 silent fallback 与误配上线。
-- Kafka 消费辅助：
-  - `com.nowcoder.community.common.kafka.KafkaTraceSupport`：消费端从 envelope 读取 `traceId` 注入 MDC，并在 finally 清理。
-- 事件 envelope 解析：
-  - `com.nowcoder.community.common.event.EventEnvelopeParser`：统一校验 required fields（eventId/type/version/payload），用于消费端版本治理与 unknown handling。
-- unknown handling 策略：
-  - `com.nowcoder.community.common.event.UnknownEventAction`：`SKIP` / `DLQ`
-  - 默认策略（建议）：`unsupported envelope version -> DLQ`；`unknown event type -> SKIP（按 type 去重告警，避免 DLQ 噪音）`
-  - 配置项：
-    - `community.kafka.consumer.unsupported-version-action`（默认 `DLQ`）
-    - `community.kafka.consumer.unknown-type-action`（默认 `SKIP`）
-- 事件契约常量（跨服务边界）：
-  - `com.nowcoder.community.common.event.EventTopics`：topic 统一定义（post/comment/social/moderation v1 + `.dlq`）
-  - `com.nowcoder.community.common.event.EventTypes`：type 统一定义（PostPublished/CommentCreated/LikeCreated/ModerationActionApplied 等）
+  - Header：`X-Trace-Id`
+  - Servlet Filter：`common/src/main/java/com/nowcoder/community/common/web/TraceIdFilter.java`
+  - 线程上下文：`common/src/main/java/com/nowcoder/community/common/trace/TraceContext.java`
+  - internal HTTP client（legacy/过渡）：`common/src/main/java/com/nowcoder/community/common/web/internalclient/InternalClientSupport.java`
+- 事务提交后副作用：`common/src/main/java/com/nowcoder/community/common/tx/AfterCommitExecutor.java`
+- Kafka 消费 trace 辅助：`common/src/main/java/com/nowcoder/community/common/kafka/KafkaTraceSupport.java`
+- 审计过滤器（服务侧）：`common/src/main/java/com/nowcoder/community/common/web/AuditLogFilter.java`
+- 幂等保护：`common/src/main/java/com/nowcoder/community/common/idempotency/IdempotencyGuard.java`
+- single-flight（可选）：`common/src/main/java/com/nowcoder/community/common/scheduler/SingleFlightTaskGuard.java`
+- prod 启动期 fail-closed 校验：`common/src/main/java/com/nowcoder/community/common/startup/StartupValidationAutoConfig.java`
 
-## 3. 约定
-- 服务端统一输出 `Result<T>`，避免 Controller 拼接字符串 JSON。
-- `traceId` 由 gateway 注入并透传（WebFlux：`TraceIdWebFilter`；Servlet：`TraceIdFilter`）；下游服务将其写入 MDC 并在响应头回传。
-- 统一错误协议：**HTTP status 表达“错误类别”**（4xx/5xx），**`Result.code` 表达“业务细分”**（领域错误码段）；可预期错误优先抛 `BusinessException(ErrorCode)`，由全局 handler 统一映射。
-- 错误码段约定（领域拆分，便于检索/归因）：`10xxx auth` / `11xxx user` / `12xxx content` / `13xxx social` / `14xxx message` / `15xxx search` / `16xxx analytics` / `17xxx gateway`。
-- 生产代码“清零门禁”：`common/src/test/java/com/nowcoder/community/common/quality/ExceptionUsageGateTest.java` 扫描各模块 `src/main/java`，禁止 `catch(Exception)` 与（除 `*SecurityConfig.java` 外的）`throws Exception` 回潮。
+### 2.4 域错误码（domain owns semantics）
+各域 `*ErrorCode` 归属各自域模块（域内自洽演进）：
 
-### 3.1 服务间同步调用（Dubbo RPC）
-（已迁移）项目的“服务间同步调用”已收敛为 Dubbo RPC（契约在 `*-api` 模块）。
+- auth：`auth-service/src/main/java/com/nowcoder/community/auth/api/AuthErrorCode.java`
+- user：`user-api/src/main/java/com/nowcoder/community/user/api/UserErrorCode.java`
+- content：`content-api/src/main/java/com/nowcoder/community/content/api/ContentErrorCode.java`
+- social：`social-api/src/main/java/com/nowcoder/community/social/api/SocialErrorCode.java`
+- message：`message-service/src/main/java/com/nowcoder/community/message/api/MessageErrorCode.java`
+- search：`search-api/src/main/java/com/nowcoder/community/search/api/SearchErrorCode.java`
+- analytics：`analytics-api/src/main/java/com/nowcoder/community/analytics/api/AnalyticsErrorCode.java`
+- gateway：`gateway/src/main/java/com/nowcoder/community/gateway/api/GatewayErrorCode.java`
 
-约定（Best Practices）：
-- RPC method 统一返回 `Result<T>`（业务错误编码在 `Result.code/message`，避免跨服务异常序列化/语义漂移）。
-- 默认 consumer `timeout` 偏短且可配置；默认 `retries=0`，仅对明确幂等读接口按需开启 1 次重试并控制总超时。
-- Trace/metrics 通过 `common` 的 Dubbo Filter 统一透传与埋点（attachments：`X-Trace-Id/traceparent`；metrics outcome 口径一致）。
+跨服务错误语义：统一通过 `Result.code/message/httpStatus` 透传与 code 段约定归因，不要求消费者 import 生产方枚举。
 
-### 3.2 internal HTTP（legacy/运维/兼容）
-- 当前版本不再提供 `/internal/**` 作为运维/功能入口（避免 internal HTTP 与 RPC 并存导致长期“半迁移”治理债务）。
-- 如确需极少量 HTTP 出站调用（例如第三方适配或过渡期兼容），建议统一使用 `InternalClientSupport.unwrap` 保留下游 `code/message/traceId`（通过 `SimpleErrorCode` + message 附带 traceId），便于排障与告警归因。
-- outcome 口径建议使用：`success` / `error` / `timeout` / `degraded` / `forbidden`（保持跨服务一致）。
+### 2.5 infra/starter（横切能力交付）
+- Dubbo 横切（trace/metrics）：`infra-dubbo-starter/`
+- 安全与 actuator 一致性（Servlet/Reactive）：`infra-security-starter/`
+- Outbox 可靠投递（实体/mapper/service/relay/job/metrics/properties）：`infra-outbox/`
 
-### 3.3 internal-token 轮转
-- 说明：internal token 鉴权已在开发阶段移除，该 runbook 暂不适用。
+## 3. 约定（重要）
+- **HTTP status 表达“错误类别”，Result.code 表达“业务细分”。**
+- 错误码段约定：`10xxx auth` / `11xxx user` / `12xxx content` / `13xxx social` / `14xxx message` / `15xxx search` / `16xxx analytics` / `17xxx gateway`。
+- 跨域依赖门禁：
+  - `contracts-core/src/test/java/com/nowcoder/community/common/arch/NoCrossDomainContractImportTest.java`：禁止跨域 import 域错误码；并禁止 infra/contracts/common/gateway/ops 等模块依赖 domain payload。
+

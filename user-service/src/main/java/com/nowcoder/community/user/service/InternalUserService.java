@@ -1,6 +1,5 @@
 package com.nowcoder.community.user.service;
 
-import com.nowcoder.community.common.api.AuthErrorCode;
 import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.user.api.event.payload.ModerationStatusPayload;
 import com.nowcoder.community.common.exception.BusinessException;
@@ -22,9 +21,9 @@ import java.util.Random;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.common.api.UserErrorCode.EMAIL_ALREADY_EXISTS;
-import static com.nowcoder.community.common.api.UserErrorCode.USER_ALREADY_EXISTS;
-import static com.nowcoder.community.common.api.UserErrorCode.USER_NOT_FOUND;
+import static com.nowcoder.community.user.api.UserErrorCode.EMAIL_ALREADY_EXISTS;
+import static com.nowcoder.community.user.api.UserErrorCode.USER_ALREADY_EXISTS;
+import static com.nowcoder.community.user.api.UserErrorCode.USER_NOT_FOUND;
 
 @Service
 public class InternalUserService {
@@ -46,19 +45,19 @@ public class InternalUserService {
         String u = safeTrim(username);
         String p = safeTrim(password);
         if (!StringUtils.hasText(u) || !StringUtils.hasText(p)) {
-            throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
+            throw new BusinessException(CommonErrorCode.UNAUTHORIZED, "用户名或密码错误");
         }
 
         User user = userMapper.selectByName(u);
         if (user == null) {
-            throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
+            throw new BusinessException(CommonErrorCode.UNAUTHORIZED, "用户名或密码错误");
         }
         if (user.getStatus() == 0) {
-            throw new BusinessException(AuthErrorCode.USER_DISABLED);
+            throw new BusinessException(CommonErrorCode.FORBIDDEN, "账号未激活或被禁用");
         }
 
         if (!passwordMatches(user, p)) {
-            throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
+            throw new BusinessException(CommonErrorCode.UNAUTHORIZED, "用户名或密码错误");
         }
 
         // 渐进 rehash：legacy(MD5+salt) -> bcrypt（仅在校验通过后触发）

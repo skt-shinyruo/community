@@ -1,16 +1,17 @@
 # gateway 模块
 
-## 1. 职责（迭代 0）
-- 统一入口：对外暴露 `/api/**`，内部转发到各微服务（当前主要是 `auth-service`）。
-- 统一能力：CORS、JWT 验签、401/403 统一错误返回、traceId 透传。
-- 安全增强：基于 Redis 的多规则限流（登录/注册/验证码/敏感操作/管理操作）；管理/运维接口按角色收敛（例如搜索重建、统计接口）。
-- 可观测性增强：可选启用 UV/DAU 采集（由 gateway 采集并 best-effort 写入 analytics-service）。
-- 服务治理：接入 Nacos Discovery（可选 Nacos Config）。
+## 1. 职责（迭代 1：薄网关 / 降爆炸半径）
+- 统一入口：对外暴露 `/api/**` 与 `/files/**`，默认透明转发到各微服务（SSOT=各服务自身 API 与安全配置）。
+- 边界护栏（可配置开关）：`/internal/**` 显式拒绝、`/api/ops/**` 双保险鉴权、请求体大小限制、OriginGuard、边界 anti-abuse 限流。
+- 统一协议：traceId 注入与透传；网关自身异常（路由未命中/上游不可用/超时/解析失败等）收敛为 `Result + HTTP status`。
+- 可观测性：写请求审计日志（可关闭）；可选 UV/DAU 采集（默认关闭，best-effort + 有界队列，不影响主转发）。
+- 服务治理：接入 Nacos Discovery / Config（可选），并提供 WebClient 出站兜底配置（超时/连接池上限）。
+- 安全模式：`gateway.security.mode=transparent`（默认；不维护业务路径级授权矩阵） vs `legacy-matrix`（仅应急回滚）。
 
 ## 2. 关键文件
 - 启动类：`gateway/src/main/java/com/nowcoder/community/gateway/GatewayApplication.java`
 - common 自动装配（跨服务一致能力）：`common/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
-- 安全配置（JWT 验签 + 权限矩阵）：`gateway/src/main/java/com/nowcoder/community/gateway/config/GatewaySecurityConfig.java`
+- 安全配置（透明模式 + legacy-matrix 回滚）：`gateway/src/main/java/com/nowcoder/community/gateway/config/GatewaySecurityConfig.java`
 - OriginGuard 配置：`gateway/src/main/java/com/nowcoder/community/gateway/config/OriginGuardProperties.java`（`gateway.origin-guard.*`）
 - traceId：`gateway/src/main/java/com/nowcoder/community/gateway/filter/TraceIdWebFilter.java`、`gateway/src/main/java/com/nowcoder/community/gateway/filter/TraceIdSupport.java`（单一注入点）
 - 安全异常响应：`gateway/src/main/java/com/nowcoder/community/gateway/config/ReactiveSecurityExceptionHandler.java`
@@ -28,16 +29,9 @@
 
 ## 3. 路由（当前）
 - `/api/auth/**` -> `lb://auth-service`
-- `/api/ops/search/reindex` -> `forward:/__gateway/ops/search/reindex`（运维入口；gateway -> Dubbo -> search-service）
-- `/api/ops/content/outbox/health` -> `forward:/__gateway/ops/content/outbox/health`
-- `/api/ops/content/outbox/replay` -> `forward:/__gateway/ops/content/outbox/replay`
-- `/api/ops/social/outbox/health` -> `forward:/__gateway/ops/social/outbox/health`
-- `/api/ops/social/outbox/replay` -> `forward:/__gateway/ops/social/outbox/replay`
-- `/api/ops/user/outbox/health` -> `forward:/__gateway/ops/user/outbox/health`
-- `/api/ops/user/outbox/replay` -> `forward:/__gateway/ops/user/outbox/replay`
-- `/api/ops/content/likes/backfill` -> `forward:/__gateway/ops/content/likes/backfill`
-- legacy：`/api/search/internal/reindex` -> `forward:/__gateway/legacy/search/internal/reindex`（固定返回 410）
+- `/api/ops/**` -> `lb://ops-service`（运维平面隔离：ops-service -> Dubbo RPC -> 各服务）
 - `/api/search/**` -> `lb://search-service`
+  - legacy：`POST /api/search/internal/reindex`（在 search-service 固定返回 410 + successor link，提示迁移到 `/api/ops/search/reindex`）
 - `/api/notices/**`、`/api/messages/**` -> `lb://message-service`
 - `/api/analytics/**` -> `lb://analytics-service`
 - `/api/likes/**`、`/api/follows/**` -> `lb://social-service`
@@ -51,6 +45,7 @@
 
 ## 4. 本地运行（示例）
 - 需要设置 `GATEWAY_JWT_HMAC_SECRET`（>=32 字节）并确保与 `AUTH_JWT_HMAC_SECRET` 一致。
+- 需要同时启动 `ops-service`（运维平面）：gateway 将 `/api/ops/**` 路由到 `lb://ops-service`。
 - 若启用统计采集（`analytics.collect.enabled=true`），gateway 会通过 `analytics-api` 的 Dubbo RPC 调用 analytics-service（best-effort）。
   - 去重/降噪参数：`analytics.collect.dedup-enabled`、`analytics.collect.uv-cache-max-size`、`analytics.collect.dau-cache-max-size`、`analytics.collect.dedup-ttl-seconds`（网关单实例内生效）。
   - 隔离/背压参数：`analytics.collect.queue-capacity`（有界队列）、`analytics.collect.max-concurrency`（worker 并发）、`analytics.collect.timeout-ms`（采集超时）。
@@ -73,8 +68,9 @@
 - 网关自身异常（路由未命中/请求解析/超时/上游不可用等）统一收敛为 `Result` + 4xx/5xx，避免默认 HTML/空响应导致调用方难以处理。
 - traceId 注入仅由 `TraceIdWebFilter` 负责，避免 WebFilter/GlobalFilter 重复导致的维护成本与潜在覆盖困惑。
 - 审计日志：gateway 记录非 GET 的 `/api/**` 操作（跳过 `/api/auth/login`），包含 `status/costMs/userId/traceId`，用于 Loki/日志系统检索。
-- 权限矩阵：治理后台接口 `/api/moderation/**` 仅允许 `ROLE_ADMIN/ROLE_MODERATOR`（其余用户返回 403）。
-- 帖子接口：仅开放读接口（`GET /api/posts`、`GET /api/posts/{postId}`、`GET /api/posts/{postId}/comments`、`GET /api/posts/{postId}/comments/{commentId}/replies`）；敏感管理操作（`POST /api/posts/{postId}/top|wonderful|delete`）要求 `ROLE_ADMIN/ROLE_MODERATOR`。为避免 matcher 顺序/通配导致误放行，网关侧对公开路径使用显式清单而非 `/api/posts/**`。
+  - transparent 模式下 gateway 默认不解析用户 token，因此 `userId` 可能为 `-`（仅 `/api/ops/**` 等严格链路会解析 JWT）。
+- 授权边界：transparent 模式下 gateway 不维护业务路径级 `permitAll/hasRole` 矩阵；业务授权由各服务的 `*SecurityConfig` 作为 SSOT 强制执行。
+  - `legacy-matrix` 仅作为应急回滚选项保留（避免网关误配/发布扩大爆炸半径）。
 - 文件访问：`GET /files/**` 允许匿名访问，但仅用于公开头像资源（下游 user-service 仍会做前缀与路径校验）。
 - UV/DAU 采集链路：网关侧仅做“有界降噪”（TTL + 最大容量），最终以 analytics-service Redis 去重/聚合为准；网关通过 Dubbo 调用 analytics-service 时会透传 `X-Trace-Id/traceparent` 便于排障。
 - UV/DAU 采集链路（隔离版）：filter 仅采集字段并投递到有界队列；异步 worker 执行 WebClient 调用；队列满允许丢弃并通过指标观测（`gateway_analytics_collect_total{metric,outcome}` + `gateway_analytics_collect_latency{metric}`）。

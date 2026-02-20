@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 import java.util.Date;
 import java.util.List;
 
-import static com.nowcoder.community.common.api.ContentErrorCode.POST_NOT_FOUND;
+import static com.nowcoder.community.content.api.ContentErrorCode.POST_NOT_FOUND;
 
 @Service
 public class PostService {

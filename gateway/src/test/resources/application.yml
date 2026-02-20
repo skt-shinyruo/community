@@ -2,6 +2,12 @@ security:
   jwt:
     hmac-secret: test-gateway-secret-please-change-at-least-32b
 
+community:
+  metrics:
+    basic-auth:
+      username: prometheus
+      password: test-prometheus-pass-please-change
+
 analytics:
   collect:
     enabled: false
@@ -10,6 +16,12 @@ spring:
   application:
     name: gateway
   cloud:
+    gateway:
+      routes:
+        - id: content-service
+          uri: lb://content-service
+          predicates:
+            - Path=/api/posts/**
     nacos:
       discovery:
         enabled: false

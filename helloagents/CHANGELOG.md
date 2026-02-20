@@ -7,8 +7,14 @@
 ## 2026-02-20
 
 - [infra] Dubbo registry 默认收敛到 Nacos：各服务 `application.yml` 默认使用 `nacos://${NACOS_SERVER_ADDR}`，并通过 `DUBBO_REGISTRY_ADDR` 保留应急覆盖（默认部署编排不注入，避免双栈常态化）。
+- [infra-security-starter] Prometheus basic-auth 配置改为 fail-closed：必须显式配置 `community.metrics.basic-auth.password`（并做最小长度校验），避免缺失配置时静默回退到弱默认口令。
 - [deploy] `deploy/docker-compose.yml` 移除业务服务的 `DUBBO_REGISTRY_ADDR` 注入与 `depends_on: zookeeper`；Zookeeper 保留供 Kafka 使用。
 - [docs] 同步更新 README 与知识库（架构/API/runbook/infra 模块），消除“Dubbo registry=Zookeeper”的过时描述。
+- [ops] 新增 `ops-service`（运维平面隔离）：gateway 将 `/api/ops/**` 路由到 ops-service；ops-service 通过 Dubbo RPC 调用 search/content/social/user 等服务的 ops RPC（降低 gateway 变更爆炸半径）。
+- [gateway] 安全策略默认 transparent：gateway 不再维护业务路径级授权矩阵（SSOT 下沉到各服务）；仅保留 `/internal/**` 显式拒绝与 `/api/ops/**` 双保险鉴权；legacy `legacy-matrix` 作为应急回滚选项保留。
+- [gateway] 限流分层：gateway 仅保留边界 anti-abuse（login/register/captcha/password-reset）与 ops 入口的防误触限流；analytics 采集默认关闭（best-effort 可灰度开启）。
+- [search-service] legacy `POST /api/search/internal/reindex` 固定返回 410（GONE）并通过 `Link/X-Successor` 指向 `/api/ops/search/reindex`，避免误用与攻击面回潮。
+- [common] `GlobalExceptionHandler` 补齐 404（NoHandler/NoResource）与 `ResponseStatusException` 映射，避免“未命中路由/资源”被误收敛为 500。
 
 ## 2026-02-13
 
@@ -214,7 +220,7 @@
 - taxonomy（分类/标签）全链路落地：content-service 新增 `GET /api/categories`、`GET /api/tags/hot`，发帖支持 `categoryId/tags[]`，列表支持按 `categoryId/tag` 过滤；frontend 发帖/列表/详情展示分类与标签，RightPanel 展示分类与热门标签并跳转过滤；gateway 路由与公共 GET 放行补齐；deploy MySQL schema 增加 `category/tag/post_tag` 与 `discuss_post.category_id`。
 - taxonomy 体验补齐：content-service 新增 `GET /api/tags/suggest`（标签自动补全）；search-service ES 文档与搜索 API 补齐 `categoryId/tags[]` 并支持 `categoryId/tag` 过滤；frontend 发帖标签输入升级为 chips + suggest，Posts 列表增加“自上次访问后新增 / 上次看到这里”提示，搜索页增加分类/标签过滤。
 - `deploy/README.md` 补充前端样式分层与静态资源/文件访问（头像等）策略说明，便于本地与部署排查。
-- `deploy/nacos-config/gateway.yaml` 补齐 gateway CORS allowlist 与 OriginGuard allowlist 示例，支持通过 Nacos UI 管理并覆盖默认配置。
+- `deploy/nacos-config/gateway.yaml` 补齐 gateway CORS allowlist 与 OriginGuard allowlist 示例，并补齐 `gateway.security.mode=transparent`、`analytics.collect.enabled=false`、`gateway.audit.enabled=true` 的默认配置口径，支持通过 Nacos UI 管理并覆盖默认配置。
 - BBS 核心运营能力（治理 + 内容生命周期 + 收藏订阅 + 成长体系）：
   - 举报与治理闭环：`report/moderation_action` 表 + `/api/reports` + `/api/moderation/**`（网关仅 MOD/ADMIN），并通过 Kafka `community.event.moderation.v1` 投递治理通知。
   - 反骚扰：`social-service` 拉黑 API（`/api/blocks/**`）+ internal 关系查询，`message-service` 私信发送前校验拉黑关系。

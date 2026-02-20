@@ -8,6 +8,7 @@ flowchart TD
     SPA --> GW[Gateway]
 
     GW --> Auth[auth-service]
+    GW --> Ops[ops-service]
     GW --> User[user-service]
     GW --> Content[content-service]
     GW --> Social[social-service]
@@ -17,6 +18,7 @@ flowchart TD
 
 	    GW -. service discovery/config .-> Nacos[(Nacos)]
 	    Auth -. dubbo registry .-> Nacos
+	    Ops -. dubbo registry .-> Nacos
 	    User -. dubbo registry .-> Nacos
 	    Content -. dubbo registry .-> Nacos
 	    Social -. dubbo registry .-> Nacos
@@ -44,6 +46,7 @@ flowchart TD
     Search --> ES[(Elasticsearch)]
 
     Prom[Prometheus] -. scrape .-> GW
+    Prom -. scrape .-> Ops
     Prom -. scrape .-> Auth
     Prom -. scrape .-> User
     Prom -. scrape .-> Content
@@ -84,6 +87,7 @@ flowchart TD
 flowchart TD
     SPA[Vue3 SPA] --> GW[API Gateway]
     GW --> Auth[auth-service]
+    GW --> Ops[ops-service]
     GW --> User[user-service]
     GW --> Content[content-service]
     GW --> Social[social-service]
@@ -108,6 +112,7 @@ flowchart TD
 
     GW -. service discovery/config .-> Nacos[(Nacos)]
     Auth -.-> Nacos
+    Ops -.-> Nacos
     User -.-> Nacos
     Content -.-> Nacos
     Social -.-> Nacos
@@ -175,7 +180,7 @@ sequenceDiagram
 - **反骚扰一致性（消除 fail-open）：** message/content 在“投影缺失”场景采用“投影优先 + SSOT 回源 + 回填”的策略，避免冷启动/漏消息窗口期绕过拉黑校验。
 - **事件契约可信（信任边界收口）：** social 写路径不再信任客户端注入的 `entityUserId/postId`，通过本地 content entity 投影生成可信 payload；投影缺失/不完整时 fail-closed（返回 503），通过事件回放/投影重建纠偏，避免跨域写路径同步依赖。
 - **unknown-handling 对齐：** search-service 等消费者统一采用 `EventEnvelopeParser` + `UnknownEventAction`，降低版本演进时的 DLQ 噪声与阻塞风险。
-- **服务间同步调用收敛：** 跨服务同步调用（例如 user-service 用户主页的获赞/关注/粉丝/是否关注）应优先走 **Dubbo RPC**（契约在 `*-api` 模块）；对外运维能力统一收敛到 gateway `/api/ops/**`，避免把业务同步依赖绑定到 HTTP internal。
+- **服务间同步调用收敛：** 跨服务同步调用（例如 user-service 用户主页的获赞/关注/粉丝/是否关注）应优先走 **Dubbo RPC**（契约在 `*-api` 模块）；对外运维能力统一收敛到 `/api/ops/**`（gateway 路由到 ops-service），避免把业务同步依赖绑定到 HTTP internal。
 - **同步调用约束（只读且不成环）：** 跨服务同步调用只允许 **read-only**，并且不得形成依赖环；跨域写路径校验优先采用事件驱动的本地投影，投影缺失时应 fail-closed 或通过运维回放/重建修复（禁止在写路径回源同步调用形成环），从结构上降低级联故障与部署牵制风险。
 - **感知一致性（Perceived Consistency）：** 对“点赞/搜索”等对用户敏感的链路，在前端做短 TTL 覆盖与预期管理（read-your-writes + 最终一致提示），降低“写成功但读侧未更新”的可见不一致。
 - **幂等 TTL 可配置：** `IdempotencyGuard` 的 processing/success TTL 支持按环境配置，降低慢链路下锁过期的重复副作用风险；同时提供脚本示例帮助第三方正确传递 `Idempotency-Key`。

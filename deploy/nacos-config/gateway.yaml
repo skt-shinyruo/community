@@ -30,11 +30,19 @@ security:
 
 analytics:
   collect:
-    enabled: true
+    # 默认关闭：采集属于“可丢弃能力”，避免采集链路故障放大为全站网关故障。
+    enabled: false
     timeout-ms: 300
     max-concurrency: 50
 
 gateway:
+  security:
+    # transparent: gateway 不维护业务路径级权限矩阵；授权 SSOT 下沉到各服务，仅保留边界护栏与 ops 防误触。
+    # legacy-matrix: 紧急回滚开关（不建议长期启用）。
+    mode: transparent
+  audit:
+    # 审计默认开启：便于追溯高风险入口（ops/login 等）的访问轨迹。
+    enabled: true
   webclient:
     # 出站调用兜底：避免下游网络异常导致请求悬挂与连接堆积拖垮网关。
     connect-timeout-ms: 1000

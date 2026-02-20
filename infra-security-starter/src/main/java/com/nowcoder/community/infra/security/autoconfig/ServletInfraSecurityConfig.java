@@ -21,6 +21,8 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 
+import java.nio.charset.StandardCharsets;
+
 @AutoConfiguration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @ConditionalOnClass({HttpSecurity.class, SecurityFilterChain.class})
@@ -32,7 +34,14 @@ public class ServletInfraSecurityConfig {
         String u = properties == null ? null : properties.getUsername();
         String p = properties == null ? null : properties.getPassword();
         String username = u == null || u.isBlank() ? "prometheus" : u.trim();
-        String password = p == null || p.isBlank() ? "dev-prometheus-pass" : p;
+        if (p == null || p.isBlank()) {
+            // fail-closed：避免缺失配置时悄悄回退到弱默认值，导致生产环境被“已知口令”探测命中。
+            throw new IllegalArgumentException("community.metrics.basic-auth.password 未配置");
+        }
+        String password = p.trim();
+        if (password.getBytes(StandardCharsets.UTF_8).length < 12) {
+            throw new IllegalArgumentException("community.metrics.basic-auth.password 长度不足（建议 >= 12 字节）");
+        }
         return new InMemoryUserDetailsManager(
                 User.withUsername(username)
                         .password("{noop}" + password)

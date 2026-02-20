@@ -1,7 +1,7 @@
 package com.nowcoder.community.analytics.service;
 
 import com.nowcoder.community.analytics.repo.InMemoryAnalyticsRepository;
-import com.nowcoder.community.common.api.AnalyticsErrorCode;
+import com.nowcoder.community.analytics.api.AnalyticsErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import org.junit.jupiter.api.Test;
 

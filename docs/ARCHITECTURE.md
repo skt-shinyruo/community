@@ -19,8 +19,13 @@ flowchart TD
     GW --> Msg[message-service]
     GW --> Search[search-service]
     GW --> Ana[analytics-service]
+    GW --> Ops[ops-service]
 
-    GW -. service discovery / config .-> Nacos[(Nacos)]
+    GW -. service discovery / config / dubbo registry .-> Nacos[(Nacos)]
+    Ops -. dubbo rpc .-> User
+    Ops -. dubbo rpc .-> Content
+    Ops -. dubbo rpc .-> Social
+    Ops -. dubbo rpc .-> Search
 
     Auth --> MySQL[(MySQL)]
     User --> MySQL
@@ -68,11 +73,16 @@ flowchart TD
 ### 2.2 网关（`gateway/`）
 - 技术栈：Spring Cloud Gateway + Spring Security
 - 职责：
-  - 统一入口：对外暴露 `/api/**`，路由到各微服务
-  - 统一能力：CORS、JWT 验签、统一错误返回、traceId 透传、审计日志、限流
+  - 统一入口：对外暴露 `/api/**`，路由到各微服务（含 `/api/ops/**` 运维平面）
+  - 安全边界：
+    - 默认 `transparent`：gateway 不再维护业务路径级授权矩阵（业务鉴权 SSOT 下沉到各服务）
+    - 双保险：`/internal/**` 在 gateway 显式拒绝；`/api/ops/**` 需要 ADMIN
+    - 应急回滚：`gateway.security.mode=legacy-matrix` 可启用历史路径级授权矩阵（发布风险更高，仅用于窗口期）
+  - 统一能力：CORS、traceId 透传、统一错误返回、审计日志、边界限流、请求体大小限制
   - 服务治理：通过 Nacos Discovery + Spring Cloud LoadBalancer 解析 `lb://{service}`
 - 路由（以 `gateway/src/main/resources/application.yml` 为准）：
   - `/api/auth/**` → `lb://auth-service`
+  - `/api/ops/**` → `lb://ops-service`
   - `/api/search/**` → `lb://search-service`
   - `/api/notices/**`、`/api/messages/**` → `lb://message-service`
   - `/api/analytics/**` → `lb://analytics-service`
@@ -88,10 +98,20 @@ flowchart TD
 - message-service：私信与通知（消费事件，生成通知）
 - search-service：搜索域（Elasticsearch 索引 + reindex 能力；消费事件更新索引；默认 `search.storage=es`，CI/本地测试可显式切到 `memory`）
 - analytics-service：UV/DAU 等统计能力（由 gateway 采集或事件驱动写入）
+- ops-service：运维平面（管理员入口）：承载 `/api/ops/**`，通过 Dubbo RPC 调用各服务的 ops RPC 执行高成本动作（reindex/outbox replay 等），避免 gateway 继续膨胀
 
-### 2.4 common（`common/`）
-- 统一响应结构 `Result<T>`、错误码、全局异常处理
-- traceId 工具与 Filter（便于跨服务关联日志）
+### 2.4 contracts / infra / common（代码模块边界）
+- **contracts-core（跨服务稳定协议）**：统一返回 `Result<T>`、错误码接口 `ErrorCode`、通用错误码 `CommonErrorCode`、业务异常 `BusinessException`。
+- **contracts-event-core（通用事件协议）**：事件 envelope、解析器（required fields/version 校验）、unknown handling 策略（可配置 skip/DLQ）。
+- **`*-api`（域契约模块）**：`user-api`/`social-api`/`content-api`/`search-api`/`analytics-api`：
+  - Dubbo RPC 接口/DTO（consumer 仅依赖 api，不依赖 service 实现）
+  - 域错误码 `*ErrorCode`（domain owns semantics）
+  - 域事件契约（payload/type/topic），producer 作为 SSOT，consumer 按需依赖
+- **`infra-*`（横切能力交付）**：以 starter/auto-config 交付，消除重复实现与漂移：
+  - `infra-security-starter`：JWT decoder + actuator/prometheus basic-auth 安全链（Servlet/Reactive）
+  - `infra-dubbo-starter`：Dubbo trace/metrics 横切
+  - `infra-outbox`：Outbox 可靠投递统一实现（实体/mapper/service/relay/job/metrics/properties）
+- **common（运行期共享工具）**：全局异常收敛、traceId、审计、幂等等；不再承载 `Result/*ErrorCode` 等跨服务稳定协议，避免继续“变胖”。
 
 
 ---
@@ -127,7 +147,7 @@ flowchart TD
 
 ### 4.2 典型写路径：发帖 → 事件 → 搜索/通知更新（最终一致）
 1. 前端 `POST /api/posts`
-2. `content-service` 写入主存储后发布 Kafka 事件
+2. `content-service` 写入主存储后写入 outbox（`infra-outbox`），事务提交后由 relay job 可靠发布 Kafka 事件（payload/type/topic 以 `content-api` 为 SSOT）
 3. `search-service`/`message-service` 消费事件，异步更新 ES 索引/通知
 4. 读侧可能存在短暂延迟（允许最终一致窗口）
 
@@ -146,6 +166,8 @@ flowchart TD
 
 ### 5.2 指标与告警
 - Prometheus 抓取各服务 `/actuator/prometheus`（见 `deploy/observability/prometheus.yml`）
+  - `/actuator/health|info` 默认 permitAll；`/actuator/prometheus` 需要 basic-auth（ROLE_PROMETHEUS）
+  - basic-auth 来源：`community.metrics.basic-auth.username/password`（password 缺失会 fail-closed）
 - Alertmanager 接收告警（规则见 `deploy/observability/alerts.yml`）
 - Grafana 预置数据源：Prometheus + Loki（见 `deploy/observability/grafana/provisioning/datasources/datasources.yml`）
 

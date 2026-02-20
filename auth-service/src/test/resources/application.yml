@@ -23,6 +23,12 @@ security:
   jwt:
     hmac-secret: test-auth-secret-please-change-at-least-32bytes
 
+community:
+  metrics:
+    basic-auth:
+      username: prometheus
+      password: test-prometheus-pass-please-change
+
 spring:
   application:
     name: auth-service

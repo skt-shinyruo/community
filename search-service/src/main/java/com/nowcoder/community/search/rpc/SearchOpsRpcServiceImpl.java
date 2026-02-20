@@ -3,7 +3,7 @@ package com.nowcoder.community.search.rpc;
 import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.api.ErrorCode;
 import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.api.SearchErrorCode;
+import com.nowcoder.community.search.api.SearchErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.search.api.rpc.SearchOpsRpcService;
 import com.nowcoder.community.search.api.rpc.dto.SearchReindexResponse;
@@ -65,4 +65,3 @@ public class SearchOpsRpcServiceImpl implements SearchOpsRpcService {
         return Result.error(ec.getCode(), msg);
     }
 }
-

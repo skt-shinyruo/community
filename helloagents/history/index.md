@@ -2,7 +2,9 @@
 
 ## 2026-02
 
+- 202602201245_gateway_decomposition
 - 202602201009_dubbo_registry_to_nacos
+- 202602132240_common_modularization_and_drift_governance
 - 202602132020_internal_ops_dubbo_unification
 - 202602121304_dubbo_registry_to_nacos
 - 202602130010_remove_social_entity_fallback
@@ -16,7 +18,9 @@
 
 | Timestamp | Feature Name | Type | Status | Solution Package Path |
 |-----------|--------------|------|--------|----------------------|
+| 202602201245 | gateway_decomposition | Development Implementation | ✅Completed | [202602201245_gateway_decomposition](2026-02/202602201245_gateway_decomposition/) |
 | 202602201009 | dubbo_registry_to_nacos | Development Implementation | ✅Completed | [202602201009_dubbo_registry_to_nacos](2026-02/202602201009_dubbo_registry_to_nacos/) |
+| 202602132240 | common_modularization_and_drift_governance | Development Implementation | ✅Completed | [202602132240_common_modularization_and_drift_governance](2026-02/202602132240_common_modularization_and_drift_governance/) |
 | 202602132020 | internal_ops_dubbo_unification | Development Implementation | ✅Completed | [202602132020_internal_ops_dubbo_unification](2026-02/202602132020_internal_ops_dubbo_unification/) |
 | 202602091808 | dubbo_rpc_migration | Development Implementation | ✅Completed | [202602091808_dubbo_rpc_migration](2026-02/202602091808_dubbo_rpc_migration/) |
 | 202602091424 | social_redis_atomicity | Development Implementation | ✅Completed | [202602091424_social_redis_atomicity](2026-02/202602091424_social_redis_atomicity/) |
@@ -73,6 +77,7 @@
 
 ### 2026-02
 - [202602132020_internal_ops_dubbo_unification](2026-02/202602132020_internal_ops_dubbo_unification/) - internal HTTP 与 Dubbo RPC 并存治理：移除各服务 HTTP `/internal/**` 运维入口，统一通过 gateway `/api/ops/**` + Dubbo 触发（reindex/outbox replay/like backfill），legacy `/api/search/internal/reindex` 固定返回 410
+- [202602132240_common_modularization_and_drift_governance](2026-02/202602132240_common_modularization_and_drift_governance/) - common 模块拆分与复用漂移治理：contracts/infra 模块化、outbox 统一、事件契约按域归属、域错误码归属与门禁、actuator/prometheus 安全一致性（fail-closed）
 - [202602091808_dubbo_rpc_migration](2026-02/202602091808_dubbo_rpc_migration/) - Dubbo RPC 服务间同步调用迁移（Zookeeper registry；对外仍保留 gateway HTTP `/api/**`；接口/DTO 下沉到 `*-api`；trace/metrics 治理落地）
 - [202602091424_social_redis_atomicity](2026-02/202602091424_social_redis_atomicity/) - social-service Redis 存储原子性与一致性修复：follow/like 写路径 Lua 原子更新 + 事件失败 best-effort 回滚，降低重复事件与计数漂移风险
 - [202602081447_remove_internal_auth](2026-02/202602081447_remove_internal_auth/) - 移除 internal/ops header token 机制（`X-Internal-Token`/`X-Ops-Token`）与相关配置/UI/脚本，对齐“/internal/** 仅靠部署/网关边界”的安全现实

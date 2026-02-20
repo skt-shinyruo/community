@@ -1,6 +1,6 @@
 package com.nowcoder.community.search.service;
 
-import com.nowcoder.community.common.api.SearchErrorCode;
+import com.nowcoder.community.search.api.SearchErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;

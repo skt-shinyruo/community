@@ -31,6 +31,8 @@ public class SearchSecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/search/posts").permitAll()
+                        // legacy ops path：固定返回 410 + successor link，不应被 401/403 遮蔽
+                        .requestMatchers(HttpMethod.POST, "/api/search/internal/reindex").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())))

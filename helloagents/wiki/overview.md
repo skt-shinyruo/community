@@ -37,7 +37,8 @@
 | Module Name | Responsibility | Status | Documentation |
 |-------------|----------------|--------|---------------|
 | common | 统一 Result/错误码/异常处理/traceId | ✅Stable | [common](modules/common.md) |
-| gateway | 统一入口：路由/CORS/鉴权/trace/错误收敛 | ✅Stable | [gateway](modules/gateway.md) |
+| gateway | 统一入口：路由/CORS/trace/错误收敛（默认透明；业务鉴权 SSOT 在各服务） | ✅Stable | [gateway](modules/gateway.md) |
+| ops-service | 运维平面（ADMIN）：`/api/ops/**`（Dubbo fan-out，隔离高风险/高成本运维能力） | ✅Stable | [ops-service](modules/ops-service.md) |
 | auth-service | 登录/刷新/登出闭环（JWT + refresh rotation） | ✅Stable | [auth-service](modules/auth-service.md) |
 | user-service | 用户资料与头像（Qiniu） | ✅Stable | [user](modules/user.md) |
 | content-service | 帖子/评论/热帖/敏感词过滤（Kafka + Redis + MySQL） | ✅Stable | [content](modules/content.md) |

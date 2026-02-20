@@ -15,8 +15,8 @@ import org.apache.dubbo.config.annotation.DubboService;
 import org.springframework.util.StringUtils;
 
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.common.api.ContentErrorCode.COMMENT_NOT_FOUND;
-import static com.nowcoder.community.common.api.ContentErrorCode.POST_NOT_FOUND;
+import static com.nowcoder.community.content.api.ContentErrorCode.COMMENT_NOT_FOUND;
+import static com.nowcoder.community.content.api.ContentErrorCode.POST_NOT_FOUND;
 
 @DubboService
 public class ContentEntityRpcServiceImpl implements ContentEntityRpcService {
@@ -116,4 +116,3 @@ public class ContentEntityRpcServiceImpl implements ContentEntityRpcService {
         return Result.error(ec.getCode(), msg);
     }
 }
-

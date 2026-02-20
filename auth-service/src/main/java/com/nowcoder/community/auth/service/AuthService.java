@@ -1,6 +1,7 @@
 package com.nowcoder.community.auth.service;
 
-import com.nowcoder.community.common.api.AuthErrorCode;
+import com.nowcoder.community.auth.api.AuthErrorCode;
+import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.net.ClientIpResolver;
 import jakarta.servlet.http.Cookie;
@@ -68,8 +69,19 @@ public class AuthService {
             user = userServiceInternalClient.authenticate(username, password);
         } catch (BusinessException e) {
             int code = e.getErrorCode() == null ? 0 : e.getErrorCode().getCode();
-            if (code == AuthErrorCode.INVALID_CREDENTIALS.getCode() || code == AuthErrorCode.USER_DISABLED.getCode()) {
+            boolean invalidCredentials = code == AuthErrorCode.INVALID_CREDENTIALS.getCode()
+                    || code == CommonErrorCode.UNAUTHORIZED.getCode();
+            boolean userDisabled = code == AuthErrorCode.USER_DISABLED.getCode()
+                    || code == CommonErrorCode.FORBIDDEN.getCode();
+            if (invalidCredentials || userDisabled) {
                 loginRateLimitService.recordFailure(username, ip, ipSource);
+            }
+            // user-service 使用通用码表达鉴权失败（避免跨域依赖 auth 域错误码），auth-service 在边界做语义翻译。
+            if (code == CommonErrorCode.UNAUTHORIZED.getCode()) {
+                throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
+            }
+            if (code == CommonErrorCode.FORBIDDEN.getCode()) {
+                throw new BusinessException(AuthErrorCode.USER_DISABLED);
             }
             throw e;
         }

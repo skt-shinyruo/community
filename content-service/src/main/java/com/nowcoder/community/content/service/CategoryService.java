@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-import static com.nowcoder.community.common.api.ContentErrorCode.CATEGORY_NOT_FOUND;
+import static com.nowcoder.community.content.api.ContentErrorCode.CATEGORY_NOT_FOUND;
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service

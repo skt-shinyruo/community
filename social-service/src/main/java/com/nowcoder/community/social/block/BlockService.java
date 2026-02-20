@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.common.api.SocialErrorCode.CANNOT_BLOCK_SELF;
+import static com.nowcoder.community.social.api.SocialErrorCode.CANNOT_BLOCK_SELF;
 
 @Service
 public class BlockService {

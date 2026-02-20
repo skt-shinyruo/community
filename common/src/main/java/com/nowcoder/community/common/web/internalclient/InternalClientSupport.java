@@ -66,7 +66,11 @@ public final class InternalClientSupport {
             if (StringUtils.hasText(traceId)) {
                 detail += " (traceId=" + traceId + ")";
             }
-            throw new BusinessException(new SimpleErrorCode(code, msg), detail);
+            int httpStatus = result.getHttpStatus();
+            if (httpStatus <= 0) {
+                httpStatus = code >= 400 && code < 600 ? code : 500;
+            }
+            throw new BusinessException(new SimpleErrorCode(code, msg, httpStatus), detail);
         }
         return result.getData();
     }

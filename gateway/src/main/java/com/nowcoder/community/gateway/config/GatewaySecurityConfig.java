@@ -1,7 +1,6 @@
 package com.nowcoder.community.gateway.config;
 
 // Gateway 安全配置：JWT 验签 + 授权矩阵 + 统一异常处理。
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,7 +12,9 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverterAdapter;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatchers;
 import org.springframework.util.StringUtils;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 @EnableConfigurationProperties({
         AnalyticsCollectProperties.class,
         GatewayRateLimitProperties.class,
+        GatewayAuditProperties.class,
         OriginGuardProperties.class,
         TrustedProxyProperties.class,
         RequestSizeLimitProperties.class
@@ -31,7 +33,8 @@ public class GatewaySecurityConfig {
 
     @Bean
     @Order(2)
-    public SecurityWebFilterChain apiSecurityWebFilterChain(ServerHttpSecurity http, ReactiveSecurityExceptionHandler securityExceptionHandler) {
+    @ConditionalOnProperty(prefix = "gateway.security", name = "mode", havingValue = "legacy-matrix")
+    public SecurityWebFilterChain legacyMatrixSecurityWebFilterChain(ServerHttpSecurity http, ReactiveSecurityExceptionHandler securityExceptionHandler) {
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .exceptionHandling(ex -> ex
@@ -52,8 +55,6 @@ public class GatewaySecurityConfig {
 	                        .pathMatchers("/api/moderation/**").hasAnyRole("ADMIN", "MODERATOR")
 	                        // 对外运维入口：在网关侧先做角色收敛；下游 internal 入口不做 header token 鉴权，因此必须确保 internal 端口仅内网可达。
 	                        .pathMatchers("/api/ops/**").hasRole("ADMIN")
-	                        // gateway 内部 forward handler：仅允许通过 /api/ops/** 等受控入口触发；直连会被 handler 按 404 隐藏。
-	                        .pathMatchers("/__gateway/**").hasRole("ADMIN")
 	                        .pathMatchers("/api/users/admin/**").hasRole("ADMIN")
 	                        .pathMatchers(HttpMethod.GET, "/api/users/*").permitAll()
 	                        .pathMatchers(HttpMethod.POST, "/api/users/batch-summary").permitAll()
@@ -70,6 +71,54 @@ public class GatewaySecurityConfig {
                         .anyExchange().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())))
+                .build();
+    }
+
+    @Bean
+    @Order(2)
+    @ConditionalOnProperty(prefix = "gateway.security", name = "mode", havingValue = "transparent", matchIfMissing = true)
+    public SecurityWebFilterChain internalDenyWebFilterChain(ServerHttpSecurity http, ReactiveSecurityExceptionHandler securityExceptionHandler) {
+        return http
+                .securityMatcher(ServerWebExchangeMatchers.pathMatchers("/internal/**"))
+                .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(securityExceptionHandler)
+                        .accessDeniedHandler(securityExceptionHandler)
+                )
+                .authorizeExchange(ex -> ex.anyExchange().denyAll())
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())))
+                .build();
+    }
+
+    @Bean
+    @Order(3)
+    @ConditionalOnProperty(prefix = "gateway.security", name = "mode", havingValue = "transparent", matchIfMissing = true)
+    public SecurityWebFilterChain opsSecurityWebFilterChain(ServerHttpSecurity http, ReactiveSecurityExceptionHandler securityExceptionHandler) {
+        return http
+                .securityMatcher(ServerWebExchangeMatchers.pathMatchers("/api/ops/**"))
+                .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(securityExceptionHandler)
+                        .accessDeniedHandler(securityExceptionHandler)
+                )
+                .authorizeExchange(exchanges -> exchanges
+                        .pathMatchers(HttpMethod.OPTIONS).permitAll()
+                        .anyExchange().hasRole("ADMIN")
+                )
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter())))
+                .build();
+    }
+
+    @Bean
+    @Order(100)
+    @ConditionalOnProperty(prefix = "gateway.security", name = "mode", havingValue = "transparent", matchIfMissing = true)
+    public SecurityWebFilterChain transparentAllowAllWebFilterChain(ServerHttpSecurity http) {
+        // 透明模式：gateway 不再维护业务路径级权限矩阵（SSOT 下沉到各服务）。
+        // 目的：降低 gateway 发布频率与误配爆炸半径。
+        return http
+                .securityMatcher(ServerWebExchangeMatchers.anyExchange())
+                .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .authorizeExchange(ex -> ex.anyExchange().permitAll())
                 .build();
     }
 

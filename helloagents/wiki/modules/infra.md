@@ -20,6 +20,22 @@
 - **Status：** ✅Stable
 - **Last Updated：** 2026-02-20
 
+## Code Modules（infra-*）
+除 deploy/observability 脚本与交付外，本仓库也以 `infra-*` 形式交付跨服务横切能力（按需依赖，避免 common 膨胀）：
+
+- `infra-security-starter/`：
+  - 统一 `security.jwt.*` 配置与 decoder（Servlet/Reactive 双栈）
+  - 统一 actuator 安全链：`/actuator/health|info` permitAll；`/actuator/prometheus` 需要 `PROMETHEUS` 角色的 basic-auth；其余 denyAll
+  - 配置键：
+    - JWT secret：`security.jwt.hmac-secret`（建议 >= 32 字节；缺失/过短会 fail-closed）
+    - Prometheus basic-auth：`community.metrics.basic-auth.username/password`（password 必须配置，建议 >= 12 字节；缺失会 fail-closed）
+- `infra-dubbo-starter/`：
+  - Dubbo traceId 透传（attachments）+ provider 注入 MDC 并 finally 清理
+  - Dubbo 调用 metrics（次数/时延/结果）统一埋点
+- `infra-outbox/`：
+  - Outbox 可靠投递统一实现：`OutboxEvent/Mapper/Service/RelayJob/Properties` + MyBatis mapper XML + 统一 metrics
+  - 统一配置前缀：`events.outbox.*`（每个服务在各自 Nacos 配置中配置，不会互相干扰）
+
 ## Specifications（交付门禁）
 
 ### Requirement: 全依赖可用

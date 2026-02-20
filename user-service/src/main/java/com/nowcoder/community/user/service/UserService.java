@@ -9,7 +9,7 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 
 import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.common.api.UserErrorCode.USER_NOT_FOUND;
+import static com.nowcoder.community.user.api.UserErrorCode.USER_NOT_FOUND;
 
 @Service
 public class UserService {

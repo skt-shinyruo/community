@@ -1,6 +1,6 @@
 package com.nowcoder.community.message.service;
 
-import com.nowcoder.community.common.api.MessageErrorCode;
+import com.nowcoder.community.message.api.MessageErrorCode;
 import com.nowcoder.community.message.dao.MessageMapper;
 import com.nowcoder.community.message.api.dto.ConversationItemResponse;
 import com.nowcoder.community.message.api.dto.LetterItemResponse;

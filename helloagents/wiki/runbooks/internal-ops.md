@@ -1,6 +1,6 @@
 # OPS 运维入口 Runbook（现行：统一 /api/ops/** + Dubbo）
 
-> ⚠️ SSOT=代码：当前版本已移除各服务的 HTTP `/internal/**` 运维入口；运维动作统一通过 gateway 的 `/api/ops/**` 触发，并由 gateway 通过 Dubbo RPC 调用对应服务。
+> ⚠️ SSOT=代码：当前版本已移除各服务的 HTTP `/internal/**` 运维入口；运维动作统一通过 gateway 路由到 `ops-service` 的 `/api/ops/**` 触发，并由 `ops-service` 通过 Dubbo RPC 调用对应服务（gateway 仅保留边界安全护栏：鉴权/限流/审计/一键关闭）。
 > legacy 对外路径 `POST /api/search/internal/reindex` 不再保留功能语义，固定返回 410 并提示迁移。
 
 ## 0. 目标
@@ -25,7 +25,8 @@
 ### 2.1 通过 gateway（对外运维入口，唯一推荐）
 
 - 所有 `/api/ops/**` 入口仅管理员可触发（网关侧鉴权收敛）。
-- gateway 内部通过 Dubbo RPC 调用下游服务，不再允许通过 HTTP 调用 `/internal/**`。
+- gateway 仅做路由与边界护栏：`/api/ops/** -> lb://ops-service`。
+- ops-service 内部通过 Dubbo RPC 调用下游服务，不再允许通过 HTTP 调用 `/internal/**`。
 
 脚本示例：
 - `scripts/search-reindex.sh`（调用 gateway 的 `POST /api/ops/search/reindex`；需要设置 `OPS_ACCESS_TOKEN`）

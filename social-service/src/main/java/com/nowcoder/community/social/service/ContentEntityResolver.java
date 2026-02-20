@@ -1,6 +1,5 @@
 package com.nowcoder.community.social.service;
 
-import com.nowcoder.community.common.api.ContentErrorCode;
 import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.domain.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
@@ -61,10 +60,11 @@ public class ContentEntityResolver {
 
     private BusinessException notFound(int entityType) {
         if (entityType == EntityTypes.POST) {
-            return new BusinessException(ContentErrorCode.POST_NOT_FOUND);
+            // social 域不直接依赖 content 域错误码；跨域语义通过 code/message 透传或用通用码表达。
+            return new BusinessException(CommonErrorCode.NOT_FOUND, "帖子不存在");
         }
         if (entityType == EntityTypes.COMMENT) {
-            return new BusinessException(ContentErrorCode.COMMENT_NOT_FOUND);
+            return new BusinessException(CommonErrorCode.NOT_FOUND, "评论不存在");
         }
         return new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "entityType 不支持");
     }

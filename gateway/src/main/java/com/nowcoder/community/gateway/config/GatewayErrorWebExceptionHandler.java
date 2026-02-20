@@ -4,7 +4,7 @@ package com.nowcoder.community.gateway.config;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.api.GatewayErrorCode;
+import com.nowcoder.community.gateway.api.GatewayErrorCode;
 import com.nowcoder.community.common.api.Result;
 import com.nowcoder.community.gateway.filter.TraceIdSupport;
 import io.netty.handler.timeout.TimeoutException;

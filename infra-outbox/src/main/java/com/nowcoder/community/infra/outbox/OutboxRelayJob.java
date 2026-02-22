@@ -5,10 +5,8 @@ import io.micrometer.core.instrument.Tags;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.Date;
@@ -20,8 +18,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Outbox Relay 任务：批量拉取待投递事件并发送到 Kafka。
  */
-@Component
-@ConditionalOnProperty(name = "events.outbox.enabled", havingValue = "true")
 public class OutboxRelayJob {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxRelayJob.class);
@@ -180,4 +176,3 @@ public class OutboxRelayJob {
         return msg.length() > 200 ? msg.substring(0, 200) : msg;
     }
 }
-

@@ -2,7 +2,6 @@ package com.nowcoder.community.infra.outbox;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -14,7 +13,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Outbox 事件服务：负责任务入库、批量认领与状态更新。
  */
-@Service
 public class OutboxEventService {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxEventService.class);
@@ -132,4 +130,3 @@ public class OutboxEventService {
         return outboxEventMapper.deleteSentBefore(before, size);
     }
 }
-

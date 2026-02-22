@@ -1,14 +1,12 @@
 package com.nowcoder.community.infra.outbox;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
 
 /**
  * Outbox 配置（跨服务统一）。
  *
  * <p>约定：服务侧统一使用 {@code events.outbox.*} 配置键，避免各服务复制粘贴导致参数漂移。</p>
  */
-@Component
 @ConfigurationProperties(prefix = "events.outbox")
 public class OutboxProperties {
 
@@ -210,4 +208,3 @@ public class OutboxProperties {
         this.cleanupIntervalMs = cleanupIntervalMs;
     }
 }
-

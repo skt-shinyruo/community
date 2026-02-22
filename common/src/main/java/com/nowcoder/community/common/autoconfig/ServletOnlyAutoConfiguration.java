@@ -3,6 +3,8 @@ package com.nowcoder.community.common.autoconfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.web.AuditLogFilter;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
+import com.nowcoder.community.common.net.ClientIpResolver;
+import com.nowcoder.community.common.net.TrustedProxyProperties;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.common.web.TraceIdFilter;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -44,5 +46,11 @@ public class ServletOnlyAutoConfiguration {
     @ConditionalOnMissingBean
     public SecurityExceptionHandler securityExceptionHandler(ObjectMapper objectMapper) {
         return new SecurityExceptionHandler(objectMapper);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ClientIpResolver clientIpResolver(TrustedProxyProperties trustedProxyProperties) {
+        return new ClientIpResolver(trustedProxyProperties);
     }
 }

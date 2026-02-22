@@ -3,10 +3,8 @@ package com.nowcoder.community.common.scheduler;
 // 分布式 single-flight 保护：用于定时任务/批处理在多实例部署下避免重复执行。
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
-import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
@@ -21,8 +19,6 @@ import java.util.UUID;
  * <p>注意：当 Redis 不可用时，调用方应选择 fail-closed（直接跳过）或 fail-open（继续执行），
  * 具体由任务风险决定。</p>
  */
-@Component
-@ConditionalOnBean(StringRedisTemplate.class)
 public class SingleFlightTaskGuard {
 
     private static final Logger log = LoggerFactory.getLogger(SingleFlightTaskGuard.class);

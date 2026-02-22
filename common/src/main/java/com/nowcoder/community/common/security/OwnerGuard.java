@@ -6,7 +6,6 @@ import com.nowcoder.community.common.exception.BusinessException;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 /**
@@ -14,7 +13,6 @@ import org.springframework.util.StringUtils;
  * - 统一抛出语义化错误（默认 404，避免泄露资源存在性）
  * - 统一指标埋点（invalid/mismatch），便于观测潜在攻击与误用
  */
-@Component
 public class OwnerGuard {
 
     private static final String METRIC = "owner_guard_total";

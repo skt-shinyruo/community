@@ -1,7 +1,6 @@
 package com.nowcoder.community.common.net;
 
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.net.InetAddress;
@@ -12,7 +11,6 @@ import java.util.List;
  * - 默认只使用 remoteAddr；
  * - 仅当 remoteAddr ∈ 可信代理 CIDR 时才解析 X-Forwarded-For（取第一个 IP）。
  */
-@Component
 public class ClientIpResolver {
 
     public static final String SOURCE_REMOTE = "remote";

@@ -7,11 +7,14 @@ import com.nowcoder.community.common.idempotency.IdempotencyStore;
 import com.nowcoder.community.common.idempotency.JdbcIdempotencyStore;
 import com.nowcoder.community.common.idempotency.RedisIdempotencyStore;
 import com.nowcoder.community.common.net.TrustedProxyProperties;
+import com.nowcoder.community.common.scheduler.SingleFlightTaskGuard;
+import com.nowcoder.community.common.security.OwnerGuard;
 import com.nowcoder.community.common.web.CommonJacksonConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.beans.factory.ObjectProvider;
@@ -35,6 +38,19 @@ import org.springframework.jdbc.core.JdbcTemplate;
         StartupValidationAutoConfig.class
 })
 public class CommonAutoConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean
+    public OwnerGuard ownerGuard(ObjectProvider<MeterRegistry> meterRegistryProvider) {
+        return new OwnerGuard(meterRegistryProvider);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(StringRedisTemplate.class)
+    public SingleFlightTaskGuard singleFlightTaskGuard(StringRedisTemplate redisTemplate) {
+        return new SingleFlightTaskGuard(redisTemplate);
+    }
 
     @Bean
     @ConditionalOnProperty(prefix = "http.idempotency", name = "enabled", havingValue = "true")

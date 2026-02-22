@@ -27,7 +27,6 @@ import java.util.stream.Collectors;
         RegistrationProperties.class,
         CaptchaProperties.class,
         PasswordResetProperties.class,
-        OriginGuardProperties.class,
         TrustedProxyProperties.class
 })
 public class AuthSecurityConfig {

@@ -3,7 +3,6 @@ package com.nowcoder.community.content.api;
 import com.nowcoder.community.common.api.Result;
 import com.nowcoder.community.common.domain.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.content.api.event.payload.PostPayload;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.content.api.dto.CommentResponse;
 import com.nowcoder.community.content.api.dto.CreateCommentRequest;
@@ -15,9 +14,7 @@ import com.nowcoder.community.content.api.dto.UpdateCommentRequest;
 import com.nowcoder.community.content.api.dto.UpdatePostRequest;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.entity.Comment;
-import com.nowcoder.community.content.event.ContentEventPublisher;
 import com.nowcoder.community.content.like.LikeQueryService;
-import com.nowcoder.community.content.score.PostScoreQueue;
 import com.nowcoder.community.content.service.BookmarkService;
 import com.nowcoder.community.content.service.TagService;
 import com.nowcoder.community.content.service.CommentService;
@@ -42,7 +39,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -62,42 +58,36 @@ public class PostController {
     private final CommentService commentService;
     private final SensitiveFilter sensitiveFilter;
     private final LikeQueryService likeQueryService;
-    private final PostScoreQueue postScoreQueue;
-    private final ContentEventPublisher eventPublisher;
-	    private final PostCommandService postCommandService;
-	    private final TagService tagService;
-	    private final BookmarkService bookmarkService;
-	    private final SubscriptionService subscriptionService;
-	    private final IdempotencyGuard idempotencyGuard;
-        private final ContentTextCodec textCodec;
+    private final PostCommandService postCommandService;
+    private final TagService tagService;
+    private final BookmarkService bookmarkService;
+    private final SubscriptionService subscriptionService;
+    private final IdempotencyGuard idempotencyGuard;
+    private final ContentTextCodec textCodec;
 
-	    public PostController(
-	            PostService postService,
-	            CommentService commentService,
-	            SensitiveFilter sensitiveFilter,
+    public PostController(
+            PostService postService,
+            CommentService commentService,
+            SensitiveFilter sensitiveFilter,
             LikeQueryService likeQueryService,
-            PostScoreQueue postScoreQueue,
-            ContentEventPublisher eventPublisher,
-	            PostCommandService postCommandService,
-	            TagService tagService,
-	            BookmarkService bookmarkService,
-	            SubscriptionService subscriptionService,
-	            IdempotencyGuard idempotencyGuard,
-                ContentTextCodec textCodec
-	    ) {
-	        this.postService = postService;
-	        this.commentService = commentService;
-	        this.sensitiveFilter = sensitiveFilter;
-	        this.likeQueryService = likeQueryService;
-	        this.postScoreQueue = postScoreQueue;
-	        this.eventPublisher = eventPublisher;
-	        this.postCommandService = postCommandService;
-	        this.tagService = tagService;
-	        this.bookmarkService = bookmarkService;
-	        this.subscriptionService = subscriptionService;
-	        this.idempotencyGuard = idempotencyGuard;
-            this.textCodec = textCodec;
-	    }
+            PostCommandService postCommandService,
+            TagService tagService,
+            BookmarkService bookmarkService,
+            SubscriptionService subscriptionService,
+            IdempotencyGuard idempotencyGuard,
+            ContentTextCodec textCodec
+    ) {
+        this.postService = postService;
+        this.commentService = commentService;
+        this.sensitiveFilter = sensitiveFilter;
+        this.likeQueryService = likeQueryService;
+        this.postCommandService = postCommandService;
+        this.tagService = tagService;
+        this.bookmarkService = bookmarkService;
+        this.subscriptionService = subscriptionService;
+        this.idempotencyGuard = idempotencyGuard;
+        this.textCodec = textCodec;
+    }
 
     @GetMapping
     public Result<List<PostSummaryResponse>> list(
@@ -132,27 +122,27 @@ public class PostController {
         return Result.ok(items);
     }
 
-	    @PostMapping
-	    public Result<CreatePostResponse> create(
-	            Authentication authentication,
-	            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
-	            @Valid @RequestBody CreatePostRequest request
-	    ) {
-	        int userId = currentUserId(authentication);
+    @PostMapping
+    public Result<CreatePostResponse> create(
+            Authentication authentication,
+            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
+            @Valid @RequestBody CreatePostRequest request
+    ) {
+        int userId = currentUserId(authentication);
 
-	        return Result.ok(idempotencyGuard.executeRequired("create_post", userId, idempotencyKey, CreatePostResponse.class, () -> {
-	            String title = textCodec.escapeOnWrite(request.getTitle().trim());
-	            String content = textCodec.escapeOnWrite(request.getContent().trim());
-	            title = sensitiveFilter.filter(title);
-	            content = sensitiveFilter.filter(content);
+        return Result.ok(idempotencyGuard.executeRequired("create_post", userId, idempotencyKey, CreatePostResponse.class, () -> {
+            String title = textCodec.escapeOnWrite(request.getTitle().trim());
+            String content = textCodec.escapeOnWrite(request.getContent().trim());
+            title = sensitiveFilter.filter(title);
+            content = sensitiveFilter.filter(content);
 
-	            int postId = postCommandService.createPost(userId, title, content, request.getCategoryId(), request.getTags());
+            int postId = postCommandService.createPost(userId, title, content, request.getCategoryId(), request.getTags());
 
-	            CreatePostResponse resp = new CreatePostResponse();
-	            resp.setPostId(postId);
-	            return resp;
-	        }));
-	    }
+            CreatePostResponse resp = new CreatePostResponse();
+            resp.setPostId(postId);
+            return resp;
+        }));
+    }
 
     @GetMapping("/{postId}")
     public Result<PostDetailResponse> detail(Authentication authentication, @PathVariable int postId) {
@@ -206,18 +196,18 @@ public class PostController {
         return Result.ok(resp);
     }
 
-	    @PostMapping("/{postId}/comments")
-	    public Result<Integer> addComment(
-	            Authentication authentication,
-	            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
-	            @PathVariable int postId,
-	            @Valid @RequestBody CreateCommentRequest request
-	    ) {
-	        int userId = currentUserId(authentication);
-	        Integer id = idempotencyGuard.executeRequired("create_comment", userId, idempotencyKey, Integer.class,
-	                () -> commentService.addComment(userId, postId, request.getEntityType(), request.getEntityId(), request.getTargetId(), request.getContent()));
-	        return Result.ok(id);
-	    }
+    @PostMapping("/{postId}/comments")
+    public Result<Integer> addComment(
+            Authentication authentication,
+            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
+            @PathVariable int postId,
+            @Valid @RequestBody CreateCommentRequest request
+    ) {
+        int userId = currentUserId(authentication);
+        Integer id = idempotencyGuard.executeRequired("create_comment", userId, idempotencyKey, Integer.class,
+                () -> commentService.addComment(userId, postId, request.getEntityType(), request.getEntityId(), request.getTargetId(), request.getContent()));
+        return Result.ok(id);
+    }
 
     @PutMapping("/{postId}")
     public Result<Void> updatePost(Authentication authentication, @PathVariable int postId, @Valid @RequestBody UpdatePostRequest request) {
@@ -275,22 +265,7 @@ public class PostController {
     @PostMapping("/{postId}/top")
     public Result<Void> top(Authentication authentication, @PathVariable int postId) {
         int actorUserId = currentUserId(authentication);
-        postService.updateType(postId, 1);
-        DiscussPost post = postService.getById(postId);
-        List<String> tags = tagService.getTagsByPostIds(List.of(postId)).getOrDefault(postId, List.of());
-
-        PostPayload payload = new PostPayload();
-        payload.setPostId(postId);
-        payload.setUserId(post.getUserId());
-        payload.setCategoryId(post.getCategoryId());
-        payload.setTags(tags);
-        payload.setTitle(textCodec.decodeOnRead(post.getTitle()));
-        payload.setContent(textCodec.decodeOnRead(post.getContent()));
-        payload.setType(post.getType());
-        payload.setStatus(post.getStatus());
-        payload.setScore(post.getScore());
-        payload.setCreateTime(post.getCreateTime() == null ? null : post.getCreateTime().toInstant());
-        eventPublisher.publishPostUpdated(payload);
+        postCommandService.topPost(actorUserId, postId);
 
         log.info("[audit] action=post_top actorUserId={} postId={}", actorUserId, postId);
         return Result.ok();
@@ -300,23 +275,7 @@ public class PostController {
     @PostMapping("/{postId}/wonderful")
     public Result<Void> wonderful(Authentication authentication, @PathVariable int postId) {
         int actorUserId = currentUserId(authentication);
-        postService.updateStatus(postId, 1);
-        postScoreQueue.add(postId);
-        DiscussPost post = postService.getById(postId);
-        List<String> tags = tagService.getTagsByPostIds(List.of(postId)).getOrDefault(postId, List.of());
-
-        PostPayload payload = new PostPayload();
-        payload.setPostId(postId);
-        payload.setUserId(post.getUserId());
-        payload.setCategoryId(post.getCategoryId());
-        payload.setTags(tags);
-        payload.setTitle(textCodec.decodeOnRead(post.getTitle()));
-        payload.setContent(textCodec.decodeOnRead(post.getContent()));
-        payload.setType(post.getType());
-        payload.setStatus(post.getStatus());
-        payload.setScore(post.getScore());
-        payload.setCreateTime(post.getCreateTime() == null ? null : post.getCreateTime().toInstant());
-        eventPublisher.publishPostUpdated(payload);
+        postCommandService.markWonderful(actorUserId, postId);
 
         log.info("[audit] action=post_wonderful actorUserId={} postId={}", actorUserId, postId);
         return Result.ok();
@@ -326,22 +285,7 @@ public class PostController {
     @PostMapping("/{postId}/delete")
     public Result<Void> delete(Authentication authentication, @PathVariable int postId) {
         int actorUserId = currentUserId(authentication);
-        postService.updateStatus(postId, 2);
-        DiscussPost post = postService.getById(postId);
-        List<String> tags = tagService.getTagsByPostIds(List.of(postId)).getOrDefault(postId, List.of());
-
-        PostPayload payload = new PostPayload();
-        payload.setPostId(postId);
-        payload.setUserId(post.getUserId());
-        payload.setCategoryId(post.getCategoryId());
-        payload.setTags(tags);
-        payload.setTitle(textCodec.decodeOnRead(post.getTitle()));
-        payload.setContent(textCodec.decodeOnRead(post.getContent()));
-        payload.setType(post.getType());
-        payload.setStatus(post.getStatus());
-        payload.setScore(post.getScore());
-        payload.setCreateTime(Instant.now());
-        eventPublisher.publishPostDeleted(payload);
+        postCommandService.adminDelete(actorUserId, postId);
 
         log.info("[audit] action=post_delete actorUserId={} postId={}", actorUserId, postId);
         return Result.ok();

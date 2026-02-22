@@ -1,18 +1,16 @@
 package com.nowcoder.community.content.service;
 
-import com.nowcoder.community.content.api.event.payload.PostPayload;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.entity.DiscussPost;
-import com.nowcoder.community.content.event.ContentEventPublisher;
+import com.nowcoder.community.content.domain.event.PostDomainEventPublisher;
 import com.nowcoder.community.content.projection.UserModerationProjectionRepository;
 import com.nowcoder.community.content.score.PostScoreQueue;
-import com.nowcoder.community.content.text.ContentTextCodec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 
@@ -32,37 +30,34 @@ public class PostCommandService {
 
     private final PostService postService;
     private final PostScoreQueue postScoreQueue;
-    private final ContentEventPublisher eventPublisher;
     private final CategoryService categoryService;
     private final TagService tagService;
     private final UserModerationProjectionRepository projectionRepository;
     private final UserModerationGuard moderationGuard;
-    private final ContentTextCodec textCodec;
+    private final PostDomainEventPublisher domainEventPublisher;
 
     public PostCommandService(
             PostService postService,
             PostScoreQueue postScoreQueue,
-            ContentEventPublisher eventPublisher,
             CategoryService categoryService,
             TagService tagService,
             UserModerationProjectionRepository projectionRepository,
             UserModerationGuard moderationGuard,
-            ContentTextCodec textCodec
+            PostDomainEventPublisher domainEventPublisher
     ) {
         this.postService = postService;
         this.postScoreQueue = postScoreQueue;
-        this.eventPublisher = eventPublisher;
         this.categoryService = categoryService;
         this.tagService = tagService;
         this.projectionRepository = projectionRepository;
         this.moderationGuard = moderationGuard;
-        this.textCodec = textCodec;
+        this.domainEventPublisher = domainEventPublisher;
     }
 
     @Transactional
     public int createPost(int userId, String title, String content, Integer categoryId, List<String> tags) {
         if (userId <= 0) {
-            throw new com.nowcoder.community.common.exception.BusinessException(INVALID_ARGUMENT, "userId 非法");
+            throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         assertCanSpeak(userId);
         categoryService.assertExists(categoryId);
@@ -81,21 +76,8 @@ public class PostCommandService {
         int postId = postService.create(post);
 
         // taxonomy：绑定 tags（同事务写入，便于后续列表/侧栏聚合使用）
-        List<String> normalizedTags = tagService.bindTagsToPost(postId, tags);
-
-        PostPayload payload = new PostPayload();
-        payload.setPostId(postId);
-        payload.setUserId(userId);
-        payload.setCategoryId(categoryId);
-        payload.setTags(normalizedTags);
-        payload.setTitle(textCodec.decodeOnRead(title));
-        payload.setContent(textCodec.decodeOnRead(content));
-        payload.setType(post.getType());
-        payload.setStatus(post.getStatus());
-        payload.setCreateTime(post.getCreateTime() == null ? null : post.getCreateTime().toInstant());
-        payload.setScore(post.getScore());
-
-        eventPublisher.publishPostPublished(payload);
+        tagService.bindTagsToPost(postId, tags);
+        domainEventPublisher.postPublished(postId);
 
         // 热度刷新属于非 DB 副作用：延后到事务提交后，避免回滚仍触发刷新。
         AfterCommitExecutor.runAfterCommit(() -> {
@@ -117,44 +99,31 @@ public class PostCommandService {
     @Transactional
     public void updatePost(int actorUserId, int postId, String title, String content, Integer categoryId, List<String> tags) {
         if (actorUserId <= 0 || postId <= 0) {
-            throw new com.nowcoder.community.common.exception.BusinessException(INVALID_ARGUMENT, "actorUserId/postId 非法");
+            throw new BusinessException(INVALID_ARGUMENT, "actorUserId/postId 非法");
         }
         assertCanSpeak(actorUserId);
         categoryService.assertExists(categoryId);
 
         DiscussPost existed = postService.getByIdAllowDeleted(postId);
         if (existed.getStatus() == 2) {
-            throw new com.nowcoder.community.common.exception.BusinessException(POST_NOT_FOUND);
+            throw new BusinessException(POST_NOT_FOUND);
         }
         if (existed.getUserId() != actorUserId) {
-            throw new com.nowcoder.community.common.exception.BusinessException(FORBIDDEN, "只能编辑自己的帖子");
+            throw new BusinessException(FORBIDDEN, "只能编辑自己的帖子");
         }
 
         Date now = new Date();
         if (existed.getCreateTime() == null) {
-            throw new com.nowcoder.community.common.exception.BusinessException(INVALID_ARGUMENT, "帖子时间非法");
+            throw new BusinessException(INVALID_ARGUMENT, "帖子时间非法");
         }
         long windowMillis = 24L * 3600 * 1000;
         if (now.getTime() - existed.getCreateTime().getTime() > windowMillis) {
-            throw new com.nowcoder.community.common.exception.BusinessException(FORBIDDEN, "已超过可编辑时间（24h）");
+            throw new BusinessException(FORBIDDEN, "已超过可编辑时间（24h）");
         }
 
         postService.updatePostContent(postId, title, content, categoryId, now);
-        List<String> normalizedTags = tagService.replaceTagsForPost(postId, tags);
-
-        PostPayload payload = new PostPayload();
-        payload.setPostId(postId);
-        payload.setUserId(existed.getUserId());
-        payload.setCategoryId(categoryId);
-        payload.setTags(normalizedTags);
-        payload.setTitle(textCodec.decodeOnRead(title));
-        payload.setContent(textCodec.decodeOnRead(content));
-        payload.setType(existed.getType());
-        payload.setStatus(existed.getStatus());
-        payload.setCreateTime(existed.getCreateTime() == null ? null : existed.getCreateTime().toInstant());
-        payload.setScore(existed.getScore());
-
-        eventPublisher.publishPostUpdated(payload);
+        tagService.replaceTagsForPost(postId, tags);
+        domainEventPublisher.postUpdated(postId);
         AfterCommitExecutor.runAfterCommit(() -> {
             try {
                 postScoreQueue.add(postId);
@@ -167,31 +136,57 @@ public class PostCommandService {
     @Transactional
     public void deletePostByAuthor(int actorUserId, int postId) {
         if (actorUserId <= 0 || postId <= 0) {
-            throw new com.nowcoder.community.common.exception.BusinessException(INVALID_ARGUMENT, "actorUserId/postId 非法");
+            throw new BusinessException(INVALID_ARGUMENT, "actorUserId/postId 非法");
         }
         DiscussPost existed = postService.getByIdAllowDeleted(postId);
         if (existed.getStatus() == 2) {
-            throw new com.nowcoder.community.common.exception.BusinessException(POST_NOT_FOUND);
+            throw new BusinessException(POST_NOT_FOUND);
         }
         if (existed.getUserId() != actorUserId) {
-            throw new com.nowcoder.community.common.exception.BusinessException(FORBIDDEN, "只能删除自己的帖子");
+            throw new BusinessException(FORBIDDEN, "只能删除自己的帖子");
         }
         postService.updateModerationDeleteMeta(postId, 2, actorUserId, "author_delete", new Date());
+        domainEventPublisher.postDeleted(postId);
+    }
 
-        List<String> tags = tagService.getTagsByPostIds(List.of(postId)).getOrDefault(postId, List.of());
+    @Transactional
+    public void topPost(int actorUserId, int postId) {
+        if (actorUserId <= 0 || postId <= 0) {
+            throw new BusinessException(INVALID_ARGUMENT, "actorUserId/postId 非法");
+        }
+        postService.getById(postId);
+        postService.updateType(postId, 1);
+        domainEventPublisher.postUpdated(postId);
+    }
 
-        PostPayload payload = new PostPayload();
-        payload.setPostId(postId);
-        payload.setUserId(existed.getUserId());
-        payload.setCategoryId(existed.getCategoryId());
-        payload.setTags(tags);
-        payload.setTitle(textCodec.decodeOnRead(existed.getTitle()));
-        payload.setContent(textCodec.decodeOnRead(existed.getContent()));
-        payload.setType(existed.getType());
-        payload.setStatus(2);
-        payload.setCreateTime(Instant.now());
-        payload.setScore(existed.getScore());
+    @Transactional
+    public void markWonderful(int actorUserId, int postId) {
+        if (actorUserId <= 0 || postId <= 0) {
+            throw new BusinessException(INVALID_ARGUMENT, "actorUserId/postId 非法");
+        }
+        postService.getById(postId);
+        postService.updateStatus(postId, 1);
+        domainEventPublisher.postUpdated(postId);
 
-        eventPublisher.publishPostDeleted(payload);
+        AfterCommitExecutor.runAfterCommit(() -> {
+            try {
+                postScoreQueue.add(postId);
+            } catch (RuntimeException e) {
+                log.warn("[post-score] enqueue failed after commit (postId={}): {}", postId, e.toString());
+            }
+        });
+    }
+
+    @Transactional
+    public void adminDelete(int actorUserId, int postId) {
+        if (actorUserId <= 0 || postId <= 0) {
+            throw new BusinessException(INVALID_ARGUMENT, "actorUserId/postId 非法");
+        }
+        DiscussPost existed = postService.getByIdAllowDeleted(postId);
+        if (existed.getStatus() == 2) {
+            return;
+        }
+        postService.updateModerationDeleteMeta(postId, 2, actorUserId, "admin_delete", new Date());
+        domainEventPublisher.postDeleted(postId);
     }
 }

@@ -1,5 +1,6 @@
 package com.nowcoder.community.content.event;
 
+import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import com.nowcoder.community.content.api.event.payload.CommentPayload;
 import com.nowcoder.community.content.api.event.payload.ModerationCommandPayload;
 import com.nowcoder.community.content.api.event.payload.ModerationPayload;
@@ -19,37 +20,37 @@ public class InMemoryContentEventPublisher implements ContentEventPublisher {
 
     @Override
     public void publishPostPublished(PostPayload payload) {
-        events.add(payload);
+        AfterCommitExecutor.runAfterCommit(() -> events.add(payload));
     }
 
     @Override
     public void publishPostUpdated(PostPayload payload) {
-        events.add(payload);
+        AfterCommitExecutor.runAfterCommit(() -> events.add(payload));
     }
 
     @Override
     public void publishPostDeleted(PostPayload payload) {
-        events.add(payload);
+        AfterCommitExecutor.runAfterCommit(() -> events.add(payload));
     }
 
     @Override
     public void publishCommentCreated(CommentPayload payload) {
-        events.add(payload);
+        AfterCommitExecutor.runAfterCommit(() -> events.add(payload));
     }
 
     @Override
     public void publishCommentDeleted(CommentPayload payload) {
-        events.add(payload);
+        AfterCommitExecutor.runAfterCommit(() -> events.add(payload));
     }
 
     @Override
     public void publishModerationActionApplied(ModerationPayload payload) {
-        events.add(payload);
+        AfterCommitExecutor.runAfterCommit(() -> events.add(payload));
     }
 
     @Override
     public void publishModerationCommandRequested(ModerationCommandPayload payload) {
-        events.add(payload);
+        AfterCommitExecutor.runAfterCommit(() -> events.add(payload));
     }
 
     public List<Object> snapshot() {

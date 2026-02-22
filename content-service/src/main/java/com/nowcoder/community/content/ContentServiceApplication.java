@@ -4,7 +4,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-@SpringBootApplication(scanBasePackages = "com.nowcoder.community")
+@SpringBootApplication
 @EnableScheduling
 public class ContentServiceApplication {
 
@@ -12,4 +12,3 @@ public class ContentServiceApplication {
         SpringApplication.run(ContentServiceApplication.class, args);
     }
 }
-

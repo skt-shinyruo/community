@@ -1,13 +1,10 @@
 package com.nowcoder.community.content.score;
 
 import com.nowcoder.community.common.api.ErrorCode;
-import com.nowcoder.community.content.api.event.payload.PostPayload;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.entity.DiscussPost;
-import com.nowcoder.community.content.event.ContentEventPublisher;
 import com.nowcoder.community.content.like.LikeQueryService;
 import com.nowcoder.community.content.service.PostService;
-import com.nowcoder.community.content.text.ContentTextCodec;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.slf4j.Logger;
@@ -16,7 +13,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 
@@ -29,9 +25,8 @@ public class PostScoreRefresher {
     private final PostScoreQueue scoreQueue;
     private final PostService postService;
     private final LikeQueryService likeQueryService;
-    private final ContentEventPublisher eventPublisher;
+    private final PostScoreCommandService scoreCommandService;
     private final MeterRegistry meterRegistry;
-    private final ContentTextCodec textCodec;
 
     private final boolean enabled;
     private final int batchSize;
@@ -40,18 +35,16 @@ public class PostScoreRefresher {
             PostScoreQueue scoreQueue,
             PostService postService,
             LikeQueryService likeQueryService,
-            ContentEventPublisher eventPublisher,
+            PostScoreCommandService scoreCommandService,
             MeterRegistry meterRegistry,
-            ContentTextCodec textCodec,
             @Value("${content.score.refresh.enabled:true}") boolean enabled,
             @Value("${content.score.refresh.batch-size:200}") int batchSize
     ) {
         this.scoreQueue = scoreQueue;
         this.postService = postService;
         this.likeQueryService = likeQueryService;
-        this.eventPublisher = eventPublisher;
+        this.scoreCommandService = scoreCommandService;
         this.meterRegistry = meterRegistry;
-        this.textCodec = textCodec;
         this.enabled = enabled;
         this.batchSize = Math.max(1, Math.min(2000, batchSize));
     }
@@ -119,17 +112,6 @@ public class PostScoreRefresher {
         }
         double score = Math.log10(Math.max(w, 1.0)) + days;
 
-        postService.updateScore(postId, score);
-
-        PostPayload payload = new PostPayload();
-        payload.setPostId(postId);
-        payload.setUserId(post.getUserId());
-        payload.setTitle(textCodec.decodeOnRead(post.getTitle()));
-        payload.setContent(textCodec.decodeOnRead(post.getContent()));
-        payload.setType(post.getType());
-        payload.setStatus(post.getStatus());
-        payload.setScore(score);
-        payload.setCreateTime(post.getCreateTime() == null ? null : post.getCreateTime().toInstant());
-        eventPublisher.publishPostUpdated(payload);
+        scoreCommandService.updateScore(postId, score);
     }
 }

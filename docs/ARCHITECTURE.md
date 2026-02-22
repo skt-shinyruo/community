@@ -77,7 +77,7 @@ flowchart TD
   - 安全边界：
     - 默认 `transparent`：gateway 不再维护业务路径级授权矩阵（业务鉴权 SSOT 下沉到各服务）
     - 双保险：`/internal/**` 在 gateway 显式拒绝；`/api/ops/**` 需要 ADMIN
-    - 应急回滚：`gateway.security.mode=legacy-matrix` 可启用历史路径级授权矩阵（发布风险更高，仅用于窗口期）
+    - 应急手段：使用 `gateway.rate-limit.blocked-path-patterns` 临时按 404 隐藏高风险入口，并通过回滚恢复
   - 统一能力：CORS、traceId 透传、统一错误返回、审计日志、边界限流、请求体大小限制
   - 服务治理：通过 Nacos Discovery + Spring Cloud LoadBalancer 解析 `lb://{service}`
 - 路由（以 `gateway/src/main/resources/application.yml` 为准）：

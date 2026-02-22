@@ -105,10 +105,6 @@ analytics:
     dedup-ttl-seconds: 86400
 
 gateway:
-  security:
-    # transparent: gateway 不再维护业务路径级权限矩阵（授权 SSOT 下沉到各服务）
-    # legacy-matrix: 旧模式（仅用于应急回滚）
-    mode: transparent
   audit:
     enabled: true
   webclient:
@@ -200,4 +196,3 @@ dubbo:
     check: false
     retries: 0
     timeout: 3000
-

@@ -1,6 +1,6 @@
 package com.nowcoder.community.gateway.filter;
 
-import com.nowcoder.community.gateway.config.TrustedProxyProperties;
+import com.nowcoder.community.common.net.TrustedProxyProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 

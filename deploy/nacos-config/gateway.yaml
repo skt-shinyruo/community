@@ -36,10 +36,6 @@ analytics:
     max-concurrency: 50
 
 gateway:
-  security:
-    # transparent: gateway 不维护业务路径级权限矩阵；授权 SSOT 下沉到各服务，仅保留边界护栏与 ops 防误触。
-    # legacy-matrix: 紧急回滚开关（不建议长期启用）。
-    mode: transparent
   audit:
     # 审计默认开启：便于追溯高风险入口（ops/login 等）的访问轨迹。
     enabled: true

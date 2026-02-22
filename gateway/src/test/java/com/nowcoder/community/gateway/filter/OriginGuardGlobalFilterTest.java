@@ -1,8 +1,8 @@
 package com.nowcoder.community.gateway.filter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.gateway.config.OriginGuardProperties;
-import com.nowcoder.community.gateway.config.TrustedProxyProperties;
+import com.nowcoder.community.common.net.TrustedProxyProperties;
+import com.nowcoder.community.infra.security.origin.OriginGuardProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.http.HttpStatus;

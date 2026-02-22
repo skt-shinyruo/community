@@ -1,7 +1,7 @@
 package com.nowcoder.community.gateway.filter;
 
 // 可信代理 IP 解析测试：确保未信任时忽略 XFF，可信代理时采用 XFF。
-import com.nowcoder.community.gateway.config.TrustedProxyProperties;
+import com.nowcoder.community.common.net.TrustedProxyProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 
@@ -57,4 +57,3 @@ class ClientIpResolverTest {
         assertThat(resolver.resolve(request)).isEqualTo("203.0.113.10");
     }
 }
-

@@ -28,6 +28,9 @@ class GatewaySecurityConfigTest {
     @Value("${security.jwt.hmac-secret}")
     private String hmacSecret;
 
+    @Value("${community.metrics.basic-auth.password}")
+    private String metricsBasicAuthPassword;
+
     @Test
     void internalPathsShouldBeExplicitlyDenied() {
         webTestClient.get()
@@ -71,6 +74,23 @@ class GatewaySecurityConfigTest {
                 .exchange()
                 .expectStatus()
                 .isEqualTo(org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
+    @Test
+    void prometheusEndpointShouldRequireBasicAuth() {
+        webTestClient.get()
+                .uri("/actuator/prometheus")
+                .exchange()
+                .expectStatus()
+                .isUnauthorized();
+
+        webTestClient.get()
+                .uri("/actuator/prometheus")
+                .headers(h -> h.setBasicAuth("prometheus", metricsBasicAuthPassword))
+                .exchange()
+                // 若未启用 prometheus endpoint，最终会是 404；但不应被 401/403 遮蔽（安全链路应允许通过）。
+                .expectStatus()
+                .value(status -> org.assertj.core.api.Assertions.assertThat(status).isNotIn(401, 403));
     }
 
     private String tokenWithAuthorities(List<String> authorities) {

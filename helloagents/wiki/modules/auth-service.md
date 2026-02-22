@@ -86,16 +86,11 @@
   - `auth.registration.mail.enabled=true` + `spring.mail.*` 配置可用
   - `common` 的 `StartupValidation` 会在 prod profile 下强制校验上述项（不满足则 fail-closed 阻断启动）。
 
-## 5. 测试策略（分层）
+## 5. 测试策略（仅保留 Unit Tests）
 
-### 5.1 切片测试（mock）
-- 目标：只验证 Controller 层的入参/出参/响应头等行为，不依赖 DB/Redis 等外部服务。
-- 建议：新增 `@WebMvcTest(AuthController.class)` 覆盖 login/refresh/logout/register/password-reset 等关键接口。
+- 目标：只保留纯单元测试（不启动 Spring、不监听端口、不依赖 Redis/DB/Docker/外部网络），覆盖 login/refresh/logout/register/password-reset 等关键分支。
+- 建议：直接构造 `AuthController` + Mockito mock 依赖；对 refresh token 等存储以 in-memory 实现做契约单测（避免 Testcontainers/Redis）。
 
-### 5.2 集成测试（Testcontainers）
-- 目标：覆盖登录/注册/验证码/找回密码等关键链路，允许引入外部依赖（Redis/DB 等）。
-- 建议：使用 Testcontainers 启动 Redis，并以 mock/stub 方式替代 `user-service internal`（或在 compose 环境跑端到端 smoke）。
-
-### 5.3 常用命令
+### 5.1 常用命令
 - 全量跑 `auth-service` 测试（推荐，确保依赖模块一起构建）：`mvn -pl auth-service -am test`
 - 全仓测试（CI backend-test 一致）：`mvn test`

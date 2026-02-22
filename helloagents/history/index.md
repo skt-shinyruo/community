@@ -2,6 +2,7 @@
 
 ## 2026-02
 
+- 202602221539_tests_unit_only
 - 202602212346_gateway_security_ssot
 - 202602212345_content_domain_event_outbox
 - 202602201245_gateway_decomposition
@@ -20,6 +21,7 @@
 
 | Timestamp | Feature Name | Type | Status | Solution Package Path |
 |-----------|--------------|------|--------|----------------------|
+| 202602221539 | tests_unit_only | Development Implementation | ✅Completed | [202602221539_tests_unit_only](2026-02/202602221539_tests_unit_only/) |
 | 202602212346 | gateway_security_ssot | Development Implementation | ✅Completed | [202602212346_gateway_security_ssot](2026-02/202602212346_gateway_security_ssot/) |
 | 202602212345 | content_domain_event_outbox | Development Implementation | ✅Completed | [202602212345_content_domain_event_outbox](2026-02/202602212345_content_domain_event_outbox/) |
 | 202602201245 | gateway_decomposition | Development Implementation | ✅Completed | [202602201245_gateway_decomposition](2026-02/202602201245_gateway_decomposition/) |
@@ -80,6 +82,7 @@
 ## Archive by Month
 
 ### 2026-02
+- [202602221539_tests_unit_only](2026-02/202602221539_tests_unit_only/) - 测试策略调整为 unit-only：移除全仓 Spring 容器/切片/集成测试，并增加单元测试门禁（禁止 Testcontainers/本地端口/外部组件依赖）
 - [202602212346_gateway_security_ssot](2026-02/202602212346_gateway_security_ssot/) - 网关安全策略 SSOT 收敛：删除网关路径级授权矩阵（legacy-matrix），并用 CI 安全契约测试锁定公开 GET 白名单/管理接口的鉴权语义，防止规则漂移
 - [202602212345_content_domain_event_outbox](2026-02/202602212345_content_domain_event_outbox/) - 帖子写路径领域事件与 Outbox 原子入队：管理动作与热帖分数刷新收敛、payload assembler SSOT、补齐一致性测试
 - [202602132020_internal_ops_dubbo_unification](2026-02/202602132020_internal_ops_dubbo_unification/) - internal HTTP 与 Dubbo RPC 并存治理：移除各服务 HTTP `/internal/**` 运维入口，统一通过 gateway `/api/ops/**` + Dubbo 触发（reindex/outbox replay/like backfill），legacy `/api/search/internal/reindex` 固定返回 410

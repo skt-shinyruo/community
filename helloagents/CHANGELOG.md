@@ -8,9 +8,9 @@
 
 - [content-service] 帖子写路径引入 Domain Event + `@TransactionalEventListener(BEFORE_COMMIT)` 桥接到 Outbox 入队，保证“业务更新 + outbox enqueue”同事务提交，降低入口分散导致的一致性风险。
 - [content-service] 新增 `PostPayloadAssembler` 作为事件 payload SSOT，并将管理动作（top/wonderful/delete）与热帖分数刷新链路统一收敛到事务命令服务发布事件，避免字段漂移/覆盖为空。
-- [test] 增加 Outbox 原子性回滚测试与 PostPayloadAssembler 字段完整性测试，锁定一致性约束。
+- [test] 测试策略调整为 unit-only：移除全仓 Spring 容器/切片/集成测试（含 actuator smoke、契约回归、Testcontainers），并新增单元测试门禁 `UnitTestOnlyGateTest`，保证默认 `mvn test` 无外部依赖。
 - [gateway] 移除网关侧业务路径级授权矩阵（legacy-matrix），安全策略 SSOT 收敛到“各服务自身 `*SecurityConfig`”；网关仅保留 `/internal/**` 显式拒绝与 `/api/ops/**` ADMIN 双保险。
-- [test] 新增/补齐安全契约测试（CI 阻断）：覆盖公开 GET 白名单与管理/治理接口，防止“误放行/误拦截”规则漂移（`UserSecurityContractTest` / `ContentSecurityContractTest` / `SocialSecurityContractTest`）。
+- [test] 关键语义下沉为纯单测：gateway 错误协议/trace header、WebClient 配置构造、auth cookie/header 与 refresh token 存储契约、prometheus basic-auth fail-closed。
 - [docs/deploy] 清理 `gateway.security.mode` 相关配置与文档口径（配置模板与架构/模块文档对齐为单一 transparent 策略），并补充应急手段为 `blocked-path-patterns` + 回滚。
 
 ## 2026-02-20

@@ -118,17 +118,15 @@
 
 ## 5. 测试与交付
 
-### 5.1 测试分层
-- **单元测试：** 核心领域逻辑（Service、工具类），对外部依赖（DB/Redis/Kafka/HTTP）使用 mock/stub。
-- **切片测试：** `@WebMvcTest/@DataJpaTest` 等，只验证当前层的配置与行为；对下游依赖使用 mock（例如 `@MockBean`）。
-- **集成测试：** 覆盖 DB/Redis/Kafka/ES 关键链路，**主流做法是使用 Testcontainers**（CI/本地一致）；仅在必要时使用 docker compose 作为开发联调环境。
-- **契约测试：** 服务间 API/事件契约（推荐逐步引入）。
+### 5.1 测试策略（仅保留 Unit Tests）
+- **默认回归（CI / `mvn test`）：** 仅运行纯单元测试（JUnit5 + Mockito/AssertJ 等），禁止启动 Spring 容器、禁止监听本地端口、禁止真实网络 IO。
+- **外部依赖处理：** DB/Redis/Kafka/ES/Nacos/HTTP 等一律使用 mock/stub/in-memory（不使用 Docker/Testcontainers、也不依赖本地 docker compose）。
+- **禁止项（门禁强制）：** `@SpringBootTest`、`@WebMvcTest/@WebFluxTest/@DataJpaTest/@JdbcTest`、`@AutoConfigureMockMvc/@AutoConfigureWebTestClient`、Testcontainers、以及 Reactor Netty `HttpServer.bindNow()` 等嵌入式 server 形态。
+- **建议写法：** Web 层优先直接 `new Controller(...)` 并用 `MockHttpServletRequest/Response` 或 `MockServerWebExchange` 驱动；配置类只验证“构造/装配结果与关键参数”而不是发起真实请求。
 
-### 5.2 测试 Quick win 约定（默认）
-- **优先级：** 能用单元/切片解决的回归，默认不新增 `@SpringBootTest`；`@SpringBootTest` 主要保留给“wiring/配置/事务边界/真实序列化组合/真实 DB 行为”等必须场景。
-- **Kafka Consumer 类测试：** 优先直接构造被测类并调用 `handleRecord(...)`，避免启动 Spring 容器；若 payload DTO 含 `Instant` 等时间类型，建议 `new ObjectMapper().findAndRegisterModules()` 以保证可反序列化。
-- **Outbox 类逻辑：** 参数裁剪（limit/retention）、fallback（如 SKIP LOCKED 探测降级）等逻辑优先用 Mockito 单测覆盖；跨服务重复的 Outbox 集成测试应控制数量，避免“同类用例在每个服务都全量复制”拖慢默认回归。
-- **并发/不确定性用例：** 如必须保留，建议后续通过 Tag/profile 隔离（例如 nightly），避免影响默认 `mvn test` 的稳定性与耗时。
+### 5.2 约束固化（防回归）
+- `common` 模块提供 `UnitTestOnlyGateTest`：在测试阶段扫描仓库 `src/test/java`，一旦出现上述禁止项即 fail-fast。
+- 若确需端到端验证，统一以 **手工联调/运行手册（docker compose + curl）** 方式进行，不纳入 `mvn test` 默认回归。
 
 ### 5.3 交付与回滚
 - 每个服务独立构建与部署；灰度/回滚由 Gateway 路由策略支持。

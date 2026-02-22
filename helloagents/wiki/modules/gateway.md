@@ -6,18 +6,18 @@
 - 统一协议：traceId 注入与透传；网关自身异常（路由未命中/上游不可用/超时/解析失败等）收敛为 `Result + HTTP status`。
 - 可观测性：写请求审计日志（可关闭）；可选 UV/DAU 采集（默认关闭，best-effort + 有界队列，不影响主转发）。
 - 服务治理：接入 Nacos Discovery / Config（可选），并提供 WebClient 出站兜底配置（超时/连接池上限）。
-- 安全模式：`gateway.security.mode=transparent`（默认；不维护业务路径级授权矩阵） vs `legacy-matrix`（仅应急回滚）。
+- 安全策略：固定 transparent（不维护业务路径级授权矩阵；授权 SSOT 下沉到各服务），网关仅保留 `/internal/**` 拒绝与 `/api/ops/**` ADMIN 双保险。
 
 ## 2. 关键文件
 - 启动类：`gateway/src/main/java/com/nowcoder/community/gateway/GatewayApplication.java`
 - common 自动装配（跨服务一致能力）：`common/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
-- 安全配置（透明模式 + legacy-matrix 回滚）：`gateway/src/main/java/com/nowcoder/community/gateway/config/GatewaySecurityConfig.java`
-- OriginGuard 配置：`gateway/src/main/java/com/nowcoder/community/gateway/config/OriginGuardProperties.java`（`gateway.origin-guard.*`）
+- 安全配置（最小护栏 + ops 双保险）：`gateway/src/main/java/com/nowcoder/community/gateway/config/GatewaySecurityConfig.java`
+- OriginGuard 配置：`infra-security-starter/src/main/java/com/nowcoder/community/infra/security/origin/OriginGuardProperties.java`（`gateway.origin-guard.*`；由 infra-security-starter 自动装配）
 - traceId：`gateway/src/main/java/com/nowcoder/community/gateway/filter/TraceIdWebFilter.java`、`gateway/src/main/java/com/nowcoder/community/gateway/filter/TraceIdSupport.java`（单一注入点）
 - 安全异常响应：`gateway/src/main/java/com/nowcoder/community/gateway/config/ReactiveSecurityExceptionHandler.java`
 - 网关全局异常收敛：`gateway/src/main/java/com/nowcoder/community/gateway/config/GatewayErrorWebExceptionHandler.java`（非 401/403 的统一错误协议）
 - WebClient 兜底配置：`gateway/src/main/java/com/nowcoder/community/gateway/config/GatewayWebClientConfig.java`、`gateway/src/main/java/com/nowcoder/community/gateway/config/GatewayWebClientProperties.java`（`gateway.webclient.*`）
-- 可信代理配置：`gateway/src/main/java/com/nowcoder/community/gateway/config/TrustedProxyProperties.java`（`gateway.trusted-proxy.*`）
+- 可信代理配置：`common/src/main/java/com/nowcoder/community/common/net/TrustedProxyProperties.java`（`gateway.trusted-proxy.*`；由 common 自动装配）
 - 客户端 IP 解析：`gateway/src/main/java/com/nowcoder/community/gateway/filter/ClientIpResolver.java`
 - 反代/HTTPS offload 同源解析：`gateway/src/main/java/com/nowcoder/community/gateway/filter/ForwardedOriginResolver.java`（仅在可信代理 CIDR 命中时解析 `Forwarded/X-Forwarded-*`）
 - 限流：`gateway/src/main/java/com/nowcoder/community/gateway/filter/GatewayRateLimitGlobalFilter.java`
@@ -70,7 +70,9 @@
 - 审计日志：gateway 记录非 GET 的 `/api/**` 操作（跳过 `/api/auth/login`），包含 `status/costMs/userId/traceId`，用于 Loki/日志系统检索。
   - transparent 模式下 gateway 默认不解析用户 token，因此 `userId` 可能为 `-`（仅 `/api/ops/**` 等严格链路会解析 JWT）。
 - 授权边界：transparent 模式下 gateway 不维护业务路径级 `permitAll/hasRole` 矩阵；业务授权由各服务的 `*SecurityConfig` 作为 SSOT 强制执行。
-  - `legacy-matrix` 仅作为应急回滚选项保留（避免网关误配/发布扩大爆炸半径）。
+  - 应急手段：通过 `gateway.rate-limit.blocked-path-patterns` 临时按 404 隐藏高风险入口，并通过回滚恢复。
+- principal 语义：transparent 模式下 gateway 仅在少量严格链路（例如 `/api/ops/**`）解析 JWT，其余业务请求通常拿不到 `principal`。
+  - 影响：限流 `keyStrategy=USER/USER_OR_IP` 与 DAU 采集在大多数请求上会退化/跳过；网关侧建议默认使用 IP 维度限流，用户维度约束下沉到各服务实现。
 - 文件访问：`GET /files/**` 允许匿名访问，但仅用于公开头像资源（下游 user-service 仍会做前缀与路径校验）。
 - UV/DAU 采集链路：网关侧仅做“有界降噪”（TTL + 最大容量），最终以 analytics-service Redis 去重/聚合为准；网关通过 Dubbo 调用 analytics-service 时会透传 `X-Trace-Id/traceparent` 便于排障。
 - UV/DAU 采集链路（隔离版）：filter 仅采集字段并投递到有界队列；异步 worker 执行 WebClient 调用；队列满允许丢弃并通过指标观测（`gateway_analytics_collect_total{metric,outcome}` + `gateway_analytics_collect_latency{metric}`）。

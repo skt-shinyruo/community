@@ -2,6 +2,8 @@
 
 ## 2026-02
 
+- 202602212346_gateway_security_ssot
+- 202602212345_content_domain_event_outbox
 - 202602201245_gateway_decomposition
 - 202602201009_dubbo_registry_to_nacos
 - 202602132240_common_modularization_and_drift_governance
@@ -18,6 +20,8 @@
 
 | Timestamp | Feature Name | Type | Status | Solution Package Path |
 |-----------|--------------|------|--------|----------------------|
+| 202602212346 | gateway_security_ssot | Development Implementation | ✅Completed | [202602212346_gateway_security_ssot](2026-02/202602212346_gateway_security_ssot/) |
+| 202602212345 | content_domain_event_outbox | Development Implementation | ✅Completed | [202602212345_content_domain_event_outbox](2026-02/202602212345_content_domain_event_outbox/) |
 | 202602201245 | gateway_decomposition | Development Implementation | ✅Completed | [202602201245_gateway_decomposition](2026-02/202602201245_gateway_decomposition/) |
 | 202602201009 | dubbo_registry_to_nacos | Development Implementation | ✅Completed | [202602201009_dubbo_registry_to_nacos](2026-02/202602201009_dubbo_registry_to_nacos/) |
 | 202602132240 | common_modularization_and_drift_governance | Development Implementation | ✅Completed | [202602132240_common_modularization_and_drift_governance](2026-02/202602132240_common_modularization_and_drift_governance/) |
@@ -76,6 +80,8 @@
 ## Archive by Month
 
 ### 2026-02
+- [202602212346_gateway_security_ssot](2026-02/202602212346_gateway_security_ssot/) - 网关安全策略 SSOT 收敛：删除网关路径级授权矩阵（legacy-matrix），并用 CI 安全契约测试锁定公开 GET 白名单/管理接口的鉴权语义，防止规则漂移
+- [202602212345_content_domain_event_outbox](2026-02/202602212345_content_domain_event_outbox/) - 帖子写路径领域事件与 Outbox 原子入队：管理动作与热帖分数刷新收敛、payload assembler SSOT、补齐一致性测试
 - [202602132020_internal_ops_dubbo_unification](2026-02/202602132020_internal_ops_dubbo_unification/) - internal HTTP 与 Dubbo RPC 并存治理：移除各服务 HTTP `/internal/**` 运维入口，统一通过 gateway `/api/ops/**` + Dubbo 触发（reindex/outbox replay/like backfill），legacy `/api/search/internal/reindex` 固定返回 410
 - [202602132240_common_modularization_and_drift_governance](2026-02/202602132240_common_modularization_and_drift_governance/) - common 模块拆分与复用漂移治理：contracts/infra 模块化、outbox 统一、事件契约按域归属、域错误码归属与门禁、actuator/prometheus 安全一致性（fail-closed）
 - [202602091808_dubbo_rpc_migration](2026-02/202602091808_dubbo_rpc_migration/) - Dubbo RPC 服务间同步调用迁移（Zookeeper registry；对外仍保留 gateway HTTP `/api/**`；接口/DTO 下沉到 `*-api`；trace/metrics 治理落地）

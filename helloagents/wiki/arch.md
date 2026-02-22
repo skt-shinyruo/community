@@ -213,3 +213,4 @@ sequenceDiagram
 | ADR-017 | post:score 刷新队列至少一次语义（避免异常丢失） | 2026-02-01 | ✅Adopted | content | [Link](../history/2026-02/202602011327_event_consistency_hardening/how.md#adr-017-postscore-刷新队列至少一次语义避免异常丢失) |
 | ADR-018 | 服务间同步调用采用 Dubbo RPC（保留 gateway HTTP） | 2026-02-09 | ✅Adopted | gateway/auth/user/content/social/message/search/analytics | [Link](../history/2026-02/202602091808_dubbo_rpc_migration/how.md#adr-018-保留-spring-cloud-gateway-http-路由仅迁移服务间同步调用为-dubbo) |
 | ADR-019 | Dubbo Registry 收敛到 Nacos（替代 Zookeeper registry） | 2026-02-20 | ✅Adopted | gateway/auth/user/content/social/message/search/analytics | [Link](../history/2026-02/202602201009_dubbo_registry_to_nacos/how.md) |
+| ADR-020 | content 写路径采用 Domain Event + BEFORE_COMMIT 统一 Outbox 入队 | 2026-02-22 | ✅Adopted | content | [Link](../history/2026-02/202602212345_content_domain_event_outbox/how.md) |

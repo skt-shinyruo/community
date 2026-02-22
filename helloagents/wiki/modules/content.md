@@ -6,13 +6,18 @@
 ## Module Overview
 - **Responsibility：** 发帖；帖子详情；评论/回复；敏感词过滤；热帖分数刷新；与搜索/通知联动
 - **Status：** ✅Stable
-- **Last Updated：** 2026-02-13
+- **Last Updated：** 2026-02-22
 
 ## Specifications
 
 ### Requirement: 发帖与浏览帖子
 **Module:** content
 用户发布帖子后可在首页与详情页浏览。
+
+#### Notes: 写路径事件一致性（Outbox 原子入队）
+- 写路径统一在 `@Transactional` 的命令服务内完成业务更新，并发布 posts 领域事件（Domain Event）。
+- 通过 `@TransactionalEventListener(BEFORE_COMMIT)` 将领域事件桥接为 Outbox enqueue（或 after-commit 直发），保证“业务表更新 + outbox 入队”同事务提交。
+- `PostPayloadAssembler` 作为事件 payload 的单一组装点（SSOT），避免多处拼装导致字段漂移/缺失与下游覆盖风险。
 
 ### Requirement: 内容渲染契约（store-raw + render-safe）
 **Module:** content
@@ -70,6 +75,10 @@ Runbook：
 #### Scenario: 帖子被点赞/评论后进入刷新集合
 - Redis `post:score` 集合写入帖子 ID（在 DB 事务提交后执行，避免回滚仍触发刷新）
 - Quartz 任务周期刷新分数并同步到搜索；刷新失败会回补重试（至少一次语义），避免异常导致 postId 永久丢失
+
+#### Scenario: 分数刷新触发 PostUpdated（旁路一致性）
+- 分数更新与 PostUpdated 事件入队（Outbox）在同一事务域完成，避免出现“score 已更新但事件未入队”的旁路不一致窗口
+- 事件 payload 通过 `PostPayloadAssembler` 构造，确保 `categoryId/tags/...` 字段完整，避免下游索引被空字段覆盖
 
 ### Requirement: 内容生命周期（编辑/软删）
 **Module:** content
@@ -153,6 +162,7 @@ Runbook：
 - infra（Quartz、Redis、Kafka）
 
 ## Change History
+- 2026-02-22：帖子写路径引入 Domain Event + BEFORE_COMMIT Outbox 桥接；管理动作（top/wonderful/delete）收敛到事务命令服务；PostPayload 组装集中到 assembler，修复旁路更新链路的 payload 漂移风险。
 - 2026-01-18：写路径事件发布改为 After-Commit（避免 DB 回滚仍发事件），并将热度刷新 enqueue 延后到事务提交后执行。
 - 2026-01-19：补充内部帖子扫描接口（`/internal/content/posts`，已在 2026-02-13 移除），用于支持 search-service 在严格 schema 隔离下完成 reindex 冷启动。
 - 2026-01-20：`/api/posts` 列表返回补齐“最后回复/最后活动”字段（包含评论与回复评论），支撑前端 Discourse 风格 topic list（活动列 + 未读提示）。

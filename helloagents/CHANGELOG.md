@@ -4,6 +4,15 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## 2026-02-22
+
+- [content-service] 帖子写路径引入 Domain Event + `@TransactionalEventListener(BEFORE_COMMIT)` 桥接到 Outbox 入队，保证“业务更新 + outbox enqueue”同事务提交，降低入口分散导致的一致性风险。
+- [content-service] 新增 `PostPayloadAssembler` 作为事件 payload SSOT，并将管理动作（top/wonderful/delete）与热帖分数刷新链路统一收敛到事务命令服务发布事件，避免字段漂移/覆盖为空。
+- [test] 增加 Outbox 原子性回滚测试与 PostPayloadAssembler 字段完整性测试，锁定一致性约束。
+- [gateway] 移除网关侧业务路径级授权矩阵（legacy-matrix），安全策略 SSOT 收敛到“各服务自身 `*SecurityConfig`”；网关仅保留 `/internal/**` 显式拒绝与 `/api/ops/**` ADMIN 双保险。
+- [test] 新增/补齐安全契约测试（CI 阻断）：覆盖公开 GET 白名单与管理/治理接口，防止“误放行/误拦截”规则漂移（`UserSecurityContractTest` / `ContentSecurityContractTest` / `SocialSecurityContractTest`）。
+- [docs/deploy] 清理 `gateway.security.mode` 相关配置与文档口径（配置模板与架构/模块文档对齐为单一 transparent 策略），并补充应急手段为 `blocked-path-patterns` + 回滚。
+
 ## 2026-02-20
 
 - [infra] Dubbo registry 默认收敛到 Nacos：各服务 `application.yml` 默认使用 `nacos://${NACOS_SERVER_ADDR}`，并通过 `DUBBO_REGISTRY_ADDR` 保留应急覆盖（默认部署编排不注入，避免双栈常态化）。

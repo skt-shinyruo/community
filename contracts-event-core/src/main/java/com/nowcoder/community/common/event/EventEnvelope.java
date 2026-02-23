@@ -20,7 +20,11 @@ public class EventEnvelope<T> {
     public static <T> EventEnvelope<T> of(String type, int version, String producer, T payload) {
         EventEnvelope<T> e = new EventEnvelope<>();
         e.eventId = UUID.randomUUID().toString().replace("-", "");
-        e.traceId = TraceId.get();
+        String traceId = TraceId.get();
+        if (traceId == null || traceId.isBlank()) {
+            traceId = TraceId.generate();
+        }
+        e.traceId = traceId;
         e.type = type;
         e.version = version;
         e.occurredAt = Instant.now();
@@ -85,4 +89,3 @@ public class EventEnvelope<T> {
         this.payload = payload;
     }
 }
-

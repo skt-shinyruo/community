@@ -1,6 +1,7 @@
 package com.nowcoder.community.common.web;
 
 import com.nowcoder.community.common.trace.TraceId;
+import com.nowcoder.community.common.trace.TraceHeaders;
 import org.springframework.http.HttpRequest;
 import org.springframework.http.client.ClientHttpRequestExecution;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
@@ -18,13 +19,12 @@ public class TraceIdClientHttpRequestInterceptor implements ClientHttpRequestInt
 
     @Override
     public ClientHttpResponse intercept(HttpRequest request, byte[] body, ClientHttpRequestExecution execution) throws IOException {
-        if (request != null && request.getHeaders() != null && !request.getHeaders().containsKey(TraceIdFilter.HEADER_TRACE_ID)) {
+        if (request != null && request.getHeaders() != null && !request.getHeaders().containsKey(TraceHeaders.HEADER_TRACE_ID)) {
             String traceId = TraceId.get();
             if (StringUtils.hasText(traceId)) {
-                request.getHeaders().set(TraceIdFilter.HEADER_TRACE_ID, traceId);
+                request.getHeaders().set(TraceHeaders.HEADER_TRACE_ID, traceId);
             }
         }
         return execution.execute(request, body);
     }
 }
-

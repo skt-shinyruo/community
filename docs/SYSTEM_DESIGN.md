@@ -113,13 +113,16 @@
 ## 3. 异步事件：最终一致（Kafka）
 
 ### 3.1 Topic 约定
-事件 topic 由 `common` 统一定义：
+事件 topic 由 `contracts-event-core` 的 `EventTopics` 统一定义（SSOT：`contracts-event-core/src/main/java/com/nowcoder/community/common/event/EventTopics.java`）：
 - `community.event.post.v1`
 - `community.event.comment.v1`
 - `community.event.social.v1`
+- `community.event.moderation.v1`
 - 约定 DLQ：`<topic>.dlq`
 
 ### 3.2 事件 Envelope（契约边界）
+代码位置（SSOT）：`contracts-event-core/src/main/java/com/nowcoder/community/common/event/EventEnvelope.java`。
+
 事件消息使用统一 envelope：
 - `eventId`：全局唯一，用于幂等
 - `traceId`：贯穿请求链路，便于日志串联

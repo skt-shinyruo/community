@@ -3,10 +3,10 @@ package com.nowcoder.community.social.event;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.event.EventEnvelope;
+import com.nowcoder.community.common.event.EventTopics;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import com.nowcoder.community.infra.outbox.OutboxEventService;
 import com.nowcoder.community.infra.outbox.OutboxProperties;
-import com.nowcoder.community.social.api.event.SocialEventTopics;
 import com.nowcoder.community.social.api.event.SocialEventTypes;
 import com.nowcoder.community.social.api.event.payload.BlockPayload;
 import com.nowcoder.community.social.api.event.payload.FollowPayload;
@@ -75,16 +75,16 @@ public class KafkaSocialEventPublisher implements SocialEventPublisher {
             String json = objectMapper.writeValueAsString(envelope);
 
             if (outboxProperties.isEnabled()) {
-                outboxEventService.enqueue(envelope.getEventId(), SocialEventTopics.SOCIAL_EVENTS_V1, key, json);
+                outboxEventService.enqueue(envelope.getEventId(), EventTopics.SOCIAL_EVENTS_V1, key, json);
                 meterRegistry.counter(
                         "social_event_outbox_total",
-                        Tags.of("topic", SocialEventTopics.SOCIAL_EVENTS_V1, "type", type, "outcome", "queued")
+                        Tags.of("topic", EventTopics.SOCIAL_EVENTS_V1, "type", type, "outcome", "queued")
                 ).increment();
                 return;
             }
 
             // 与 content-service 统一约定：若处于事务中，则在 commit 后发送，避免幽灵事件。
-            AfterCommitExecutor.runAfterCommit(() -> sendAsync(SocialEventTopics.SOCIAL_EVENTS_V1, key, json, type));
+            AfterCommitExecutor.runAfterCommit(() -> sendAsync(EventTopics.SOCIAL_EVENTS_V1, key, json, type));
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("发布事件失败: " + type, e);
         }

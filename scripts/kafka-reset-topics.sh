@@ -8,9 +8,11 @@ TOPICS=(
   "community.event.post.v1"
   "community.event.comment.v1"
   "community.event.social.v1"
+  "community.event.moderation.v1"
   "community.event.post.v1.dlq"
   "community.event.comment.v1.dlq"
   "community.event.social.v1.dlq"
+  "community.event.moderation.v1.dlq"
 )
 
 echo "[kafka-reset] deleting topics (ignore not-exists)..."

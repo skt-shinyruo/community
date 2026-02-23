@@ -66,17 +66,27 @@ Redis 主要用于：
 - `community.event.post.v1`
 - `community.event.comment.v1`
 - `community.event.social.v1`
+- `community.event.moderation.v1`
 - 对应 DLQ：
   - `community.event.post.v1.dlq`
   - `community.event.comment.v1.dlq`
   - `community.event.social.v1.dlq`
+  - `community.event.moderation.v1.dlq`
 
 ### 3.2 事件契约
-事件模型位于 `common`：
-- `common/src/main/java/com/nowcoder/community/common/event/EventEnvelope.java`
-- `common/src/main/java/com/nowcoder/community/common/event/EventTopics.java`
-- `common/src/main/java/com/nowcoder/community/common/event/EventTypes.java`
-- `common/src/main/java/com/nowcoder/community/common/event/payload/*`
+事件契约分为两层（contracts + domain）：
+
+1) **通用事件协议（中立 contracts）：** `contracts-event-core/`
+- `contracts-event-core/src/main/java/com/nowcoder/community/common/event/EventEnvelope.java`
+- `contracts-event-core/src/main/java/com/nowcoder/community/common/event/EventEnvelopeParser.java`
+- `contracts-event-core/src/main/java/com/nowcoder/community/common/event/EventTopics.java`
+- `contracts-event-core/src/main/java/com/nowcoder/community/common/event/UnknownEventAction.java`
+- `contracts-event-core/src/main/java/com/nowcoder/community/common/event/EventTopicConventions.java`
+
+2) **域事件契约（生产方域 owns semantics）：** `*-api/`
+- content：`content-api/src/main/java/com/nowcoder/community/content/api/event/ContentEventTypes.java` + `content-api/src/main/java/com/nowcoder/community/content/api/event/payload/*`
+- social：`social-api/src/main/java/com/nowcoder/community/social/api/event/SocialEventTypes.java` + `social-api/src/main/java/com/nowcoder/community/social/api/event/payload/*`
+- user：`user-api/src/main/java/com/nowcoder/community/user/api/event/UserEventTypes.java` + `user-api/src/main/java/com/nowcoder/community/user/api/event/payload/*`
 
 ---
 

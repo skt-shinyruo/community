@@ -4,6 +4,17 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## 2026-02-23
+
+- [contracts-event-core] 新增 `EventTopics` 作为 Kafka topic SSOT（`post/comment/social/moderation`），并全仓收敛引用，移除域内 `ContentEventTopics`/`SocialEventTopics` 以降低跨域耦合与漂移风险。
+- [contracts-event-core] `EventEnvelope.of` 在缺失 traceId 时强制生成，保证事件链路可观测性（非 HTTP 场景也可串联日志）。
+- [contracts-core] 新增 `TraceHeaders` 作为跨服务 trace header SSOT；gateway 与各服务侧统一引用，避免重复定义导致的 drift。
+- [content-service/message-service] 投影缺失语义结构化：新增 `*ErrorCode.PROJECTION_MISSING` 并移除基于异常 message 文案的分支判断（提升可维护性与演进安全）。
+- [test/contracts-core] 新增 Maven 依赖门禁：禁止 service 模块直接依赖其他 service 模块（强制通过 `*-api`/contracts 协作）。
+- [docs] 同步更新 `docs/SYSTEM_DESIGN.md`、`docs/DATA_MODEL.md` 与知识库（common 模块说明、数据模型引用路径）以对齐代码 SSOT。
+- [infra-dubbo-starter] `DubboAttachmentKeys` 改为统一引用 `TraceHeaders`（attachment key 与 HTTP header SSOT 对齐），消除重复定义漂移点。
+- [scripts/wiki] 补齐 `scripts/kafka-reset-topics.sh` 的 moderation topic + DLQ；同步更新 Kafka DLQ 回放 Runbook 与 user/common 模块文档，避免运维与知识库口径漂移。
+
 ## 2026-02-22
 
 - [content-service] 帖子写路径引入 Domain Event + `@TransactionalEventListener(BEFORE_COMMIT)` 桥接到 Outbox 入队，保证“业务更新 + outbox enqueue”同事务提交，降低入口分散导致的一致性风险。

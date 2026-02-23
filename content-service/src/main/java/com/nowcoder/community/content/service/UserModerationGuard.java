@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.service;
 
-import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.content.api.ContentErrorCode;
 import com.nowcoder.community.content.projection.UserModerationProjectionRepository;
 import com.nowcoder.community.user.api.rpc.dto.UserModerationStatus;
 import org.springframework.stereotype.Service;
@@ -52,7 +52,6 @@ public class UserModerationGuard {
         if (e == null || e.getErrorCode() == null) {
             return false;
         }
-        return e.getErrorCode() == CommonErrorCode.SERVICE_UNAVAILABLE
-                && String.valueOf(e.getMessage()).contains("投影缺失");
+        return e.getErrorCode() == ContentErrorCode.PROJECTION_MISSING;
     }
 }

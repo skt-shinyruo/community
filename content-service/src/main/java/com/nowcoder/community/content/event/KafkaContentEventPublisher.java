@@ -4,8 +4,8 @@ package com.nowcoder.community.content.event;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.nowcoder.community.common.event.EventEnvelope;
+import com.nowcoder.community.common.event.EventTopics;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
-import com.nowcoder.community.content.api.event.ContentEventTopics;
 import com.nowcoder.community.content.api.event.ContentEventTypes;
 import com.nowcoder.community.content.api.event.payload.CommentPayload;
 import com.nowcoder.community.content.api.event.payload.ModerationCommandPayload;
@@ -51,34 +51,34 @@ public class KafkaContentEventPublisher implements ContentEventPublisher {
 
     @Override
     public void publishPostPublished(PostPayload payload) {
-        publish(ContentEventTopics.POST_EVENTS_V1, ContentEventTypes.POST_PUBLISHED, "post:" + payload.getPostId(), payload);
+        publish(EventTopics.POST_EVENTS_V1, ContentEventTypes.POST_PUBLISHED, "post:" + payload.getPostId(), payload);
     }
 
     @Override
     public void publishPostUpdated(PostPayload payload) {
-        publish(ContentEventTopics.POST_EVENTS_V1, ContentEventTypes.POST_UPDATED, "post:" + payload.getPostId(), payload);
+        publish(EventTopics.POST_EVENTS_V1, ContentEventTypes.POST_UPDATED, "post:" + payload.getPostId(), payload);
     }
 
     @Override
     public void publishPostDeleted(PostPayload payload) {
-        publish(ContentEventTopics.POST_EVENTS_V1, ContentEventTypes.POST_DELETED, "post:" + payload.getPostId(), payload);
+        publish(EventTopics.POST_EVENTS_V1, ContentEventTypes.POST_DELETED, "post:" + payload.getPostId(), payload);
     }
 
     @Override
     public void publishCommentCreated(CommentPayload payload) {
-        publish(ContentEventTopics.COMMENT_EVENTS_V1, ContentEventTypes.COMMENT_CREATED, "comment:" + payload.getCommentId(), payload);
+        publish(EventTopics.COMMENT_EVENTS_V1, ContentEventTypes.COMMENT_CREATED, "comment:" + payload.getCommentId(), payload);
     }
 
     @Override
     public void publishCommentDeleted(CommentPayload payload) {
-        publish(ContentEventTopics.COMMENT_EVENTS_V1, ContentEventTypes.COMMENT_DELETED, "comment:" + payload.getCommentId(), payload);
+        publish(EventTopics.COMMENT_EVENTS_V1, ContentEventTypes.COMMENT_DELETED, "comment:" + payload.getCommentId(), payload);
     }
 
     @Override
     public void publishModerationActionApplied(ModerationPayload payload) {
         int toUserId = payload == null || payload.getToUserId() == null ? 0 : payload.getToUserId();
         String key = "moderation:" + (payload == null ? "0" : String.valueOf(payload.getReportId())) + ":to:" + toUserId;
-        publish(ContentEventTopics.MODERATION_EVENTS_V1, ContentEventTypes.MODERATION_ACTION_APPLIED, key, payload);
+        publish(EventTopics.MODERATION_EVENTS_V1, ContentEventTypes.MODERATION_ACTION_APPLIED, key, payload);
     }
 
     @Override
@@ -86,7 +86,7 @@ public class KafkaContentEventPublisher implements ContentEventPublisher {
         int userId = payload == null || payload.getUserId() == null ? 0 : payload.getUserId();
         String reportId = payload == null || payload.getReportId() == null ? "0" : String.valueOf(payload.getReportId());
         String key = "moderation-cmd:user:" + userId + ":report:" + reportId;
-        publish(ContentEventTopics.MODERATION_EVENTS_V1, ContentEventTypes.MODERATION_COMMAND_REQUESTED, key, payload);
+        publish(EventTopics.MODERATION_EVENTS_V1, ContentEventTypes.MODERATION_COMMAND_REQUESTED, key, payload);
     }
 
     private void publish(String topic, String type, String key, Object payload) {

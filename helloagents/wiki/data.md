@@ -409,7 +409,7 @@ CommentCreated（`type=CommentCreated`）：
 }
 ```
 
-> 说明：LikeCreated/FollowCreated 的字段与可选项，参考 `event-contract.md` 与 `common/src/main/java/com/nowcoder/community/common/event/payload/*`。
+> 说明：LikeCreated/FollowCreated 的字段与可选项，参考 `event-contract.md` 与 `social-api/src/main/java/com/nowcoder/community/social/api/event/payload/*`。
 
 ---
 

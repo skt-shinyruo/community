@@ -18,7 +18,14 @@ public enum ContentErrorCode implements ErrorCode {
     SUBSCRIPTION_CONFLICT(12006, "订阅状态冲突", 409),
 
     CONTENT_RENDER_FAILED(12007, "内容渲染失败", 500),
-    INTERNAL_ERROR(12008, "内容服务异常", 500);
+    INTERNAL_ERROR(12008, "内容服务异常", 500),
+
+    /**
+     * 本地读模型投影缺失（最终一致系统的兜底失败语义）。
+     *
+     * <p>说明：通常由投影冷启动/漏消费/滞后导致；上层可选择 bootstrap 回填或 fail-closed（503）。</p>
+     */
+    PROJECTION_MISSING(12009, "投影缺失", 503);
 
     private final int code;
     private final String message;

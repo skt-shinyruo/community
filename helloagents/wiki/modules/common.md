@@ -18,6 +18,7 @@
 - 通用错误码：`contracts-core/src/main/java/com/nowcoder/community/common/api/CommonErrorCode.java`
 - 运行期动态错误码（透传）：`contracts-core/src/main/java/com/nowcoder/community/common/api/SimpleErrorCode.java`
 - 业务异常：`contracts-core/src/main/java/com/nowcoder/community/common/exception/BusinessException.java`
+- trace header SSOT：`contracts-core/src/main/java/com/nowcoder/community/common/trace/TraceHeaders.java`
 
 > 域错误码不再集中在 contracts-core/common：见各域模块（2.4）。
 
@@ -25,9 +26,10 @@
 - Event envelope：`contracts-event-core/src/main/java/com/nowcoder/community/common/event/EventEnvelope.java`
 - 解析器：`contracts-event-core/src/main/java/com/nowcoder/community/common/event/EventEnvelopeParser.java`
 - unknown handling：`contracts-event-core/src/main/java/com/nowcoder/community/common/event/UnknownEventAction.java`
+- topic SSOT：`contracts-event-core/src/main/java/com/nowcoder/community/common/event/EventTopics.java`
 - topic 约定：`contracts-event-core/src/main/java/com/nowcoder/community/common/event/EventTopicConventions.java`
 
-域事件契约（payload/type/topic）归属生产方域的 `*-api`（例如 `content-api`、`social-api`、`user-api`），避免 common 成为事件 SSOT 的单点耦合源。
+域事件契约（type/payload）归属生产方域的 `*-api`（例如 `content-api`、`social-api`、`user-api`），避免 common 成为事件 SSOT 的单点耦合源；topic 则由中立 contracts 统一定义，降低跨域耦合与漂移风险。
 
 ### 2.3 common（运行期共享工具）
 - 全局异常收敛：`common/src/main/java/com/nowcoder/community/common/web/GlobalExceptionHandler.java`
@@ -35,7 +37,7 @@
 - traceId：
   - Header：`X-Trace-Id`
   - Servlet Filter：`common/src/main/java/com/nowcoder/community/common/web/TraceIdFilter.java`
-  - 线程上下文：`common/src/main/java/com/nowcoder/community/common/trace/TraceContext.java`
+  - 线程上下文：`contracts-core/src/main/java/com/nowcoder/community/common/trace/TraceContext.java`
   - internal HTTP client（legacy/过渡）：`common/src/main/java/com/nowcoder/community/common/web/internalclient/InternalClientSupport.java`
 - 事务提交后副作用：`common/src/main/java/com/nowcoder/community/common/tx/AfterCommitExecutor.java`
 - Kafka 消费 trace 辅助：`common/src/main/java/com/nowcoder/community/common/kafka/KafkaTraceSupport.java`
@@ -68,4 +70,3 @@
 - 错误码段约定：`10xxx auth` / `11xxx user` / `12xxx content` / `13xxx social` / `14xxx message` / `15xxx search` / `16xxx analytics` / `17xxx gateway`。
 - 跨域依赖门禁：
   - `contracts-core/src/test/java/com/nowcoder/community/common/arch/NoCrossDomainContractImportTest.java`：禁止跨域 import 域错误码；并禁止 infra/contracts/common/gateway/ops 等模块依赖 domain payload。
-

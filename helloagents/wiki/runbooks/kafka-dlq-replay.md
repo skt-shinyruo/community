@@ -9,7 +9,7 @@
 ## 1. 适用范围
 
 - 事件 Topic（示例）：
-  - `community.event.post.v1` / `community.event.comment.v1` / `community.event.social.v1`
+  - `community.event.post.v1` / `community.event.comment.v1` / `community.event.social.v1` / `community.event.moderation.v1`
   - DLQ：`<topic>.dlq`
 - 消费方（典型）：
   - `search-service`：ES 索引更新（应具备 `search_consumed_event` 幂等表）
@@ -85,4 +85,3 @@
 - [ ] 下游系统状态是否恢复（ES 索引一致、通知生成符合预期）
 - [ ] 是否出现重复副作用（抽样核对 + 幂等表命中情况）
 - [ ] 是否需要补充监控/告警阈值（避免下次“发现太晚”）
-

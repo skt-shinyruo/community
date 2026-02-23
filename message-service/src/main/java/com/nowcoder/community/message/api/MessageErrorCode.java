@@ -14,7 +14,12 @@ public enum MessageErrorCode implements ErrorCode {
     MESSAGE_FORBIDDEN(14002, "无权限发送消息", 403),
     MESSAGE_CONFLICT(14003, "消息状态冲突", 409),
 
-    INTERNAL_ERROR(14004, "消息服务异常", 500);
+    INTERNAL_ERROR(14004, "消息服务异常", 500),
+
+    /**
+     * 本地读模型投影缺失（最终一致系统的兜底失败语义）。
+     */
+    PROJECTION_MISSING(14005, "投影缺失", 503);
 
     private final int code;
     private final String message;

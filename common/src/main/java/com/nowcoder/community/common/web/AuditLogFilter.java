@@ -1,12 +1,12 @@
 package com.nowcoder.community.common.web;
 
+import com.nowcoder.community.common.trace.TraceId;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -61,7 +61,7 @@ public class AuditLogFilter extends OncePerRequestFilter {
             long costMs = (System.nanoTime() - startNanos) / 1_000_000L;
             int status = response.getStatus();
             String userId = resolveUserId();
-            String traceId = MDC.get(TraceIdFilter.MDC_KEY_TRACE_ID);
+            String traceId = TraceId.get();
             log.info(
                     "[audit][service={}] method={} path={} status={} userId={} traceId={} costMs={}",
                     serviceName, method, path, status, userId, traceId, costMs

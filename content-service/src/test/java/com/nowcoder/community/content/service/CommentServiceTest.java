@@ -2,6 +2,7 @@ package com.nowcoder.community.content.service;
 
 import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.content.api.ContentErrorCode;
 import com.nowcoder.community.content.dao.CommentMapper;
 import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.entity.DiscussPost;
@@ -239,7 +240,7 @@ class CommentServiceTest {
         SocialBlockClient socialBlockClient = mock(SocialBlockClient.class);
 
         // 投影缺失：触发 bootstrap 回填；但下游不可用时必须 fail-closed 返回 503
-        doThrow(new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "处罚状态投影缺失"))
+        doThrow(new BusinessException(ContentErrorCode.PROJECTION_MISSING, "处罚状态投影缺失"))
                 .when(projectionRepository)
                 .assertCanSpeak(anyInt());
         when(projectionRepository.checkEitherBlocked(anyInt(), anyInt()))

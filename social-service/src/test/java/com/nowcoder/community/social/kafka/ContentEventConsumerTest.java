@@ -2,7 +2,7 @@ package com.nowcoder.community.social.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.domain.EntityTypes;
-import com.nowcoder.community.content.api.event.ContentEventTopics;
+import com.nowcoder.community.common.event.EventTopics;
 import com.nowcoder.community.content.api.event.ContentEventTypes;
 import com.nowcoder.community.social.projection.ContentEntityProjectionRepository;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -47,7 +47,7 @@ class ContentEventConsumerTest {
                 )
         ));
 
-        consumer.handleRecord(new ConsumerRecord<>(ContentEventTopics.POST_EVENTS_V1, 0, 0L, "k1", payload));
+        consumer.handleRecord(new ConsumerRecord<>(EventTopics.POST_EVENTS_V1, 0, 0L, "k1", payload));
 
         Mockito.verify(repo, times(1)).upsertIfNewer(
                 eq(EntityTypes.POST),
@@ -83,7 +83,7 @@ class ContentEventConsumerTest {
                 )
         ));
 
-        consumer.handleRecord(new ConsumerRecord<>(ContentEventTopics.COMMENT_EVENTS_V1, 0, 0L, "k2", payload));
+        consumer.handleRecord(new ConsumerRecord<>(EventTopics.COMMENT_EVENTS_V1, 0, 0L, "k2", payload));
 
         Mockito.verify(repo, times(1)).upsertIfNewer(
                 eq(EntityTypes.COMMENT),
@@ -115,7 +115,7 @@ class ContentEventConsumerTest {
                 "payload", Map.of()
         ));
 
-        consumer.handleRecord(new ConsumerRecord<>(ContentEventTopics.POST_EVENTS_V1, 0, 0L, "k3", payload));
+        consumer.handleRecord(new ConsumerRecord<>(EventTopics.POST_EVENTS_V1, 0, 0L, "k3", payload));
 
         Mockito.verify(repo, times(0)).upsertIfNewer(anyInt(), anyLong(), anyLong(), anyLong(), anyInt(), any());
     }

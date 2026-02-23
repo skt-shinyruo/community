@@ -3,8 +3,8 @@ package com.nowcoder.community.search.kafka;
 // 帖子事件消费者：先执行业务索引副作用（幂等 upsert/delete），成功后再写入幂等表，避免丢更新窗口。
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.event.EventEnvelopeParser;
+import com.nowcoder.community.common.event.EventTopics;
 import com.nowcoder.community.common.event.UnknownEventAction;
-import com.nowcoder.community.content.api.event.ContentEventTopics;
 import com.nowcoder.community.content.api.event.ContentEventTypes;
 import com.nowcoder.community.content.api.event.payload.PostPayload;
 import com.nowcoder.community.common.kafka.KafkaTraceSupport;
@@ -46,7 +46,7 @@ public class PostEventConsumer {
         this.unsupportedVersionAction = UnknownEventAction.parseOrDefault(unsupportedVersionAction, UnknownEventAction.DLQ);
     }
 
-    @KafkaListener(topics = ContentEventTopics.POST_EVENTS_V1, groupId = "search-service")
+    @KafkaListener(topics = EventTopics.POST_EVENTS_V1, groupId = "search-service")
     public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) {
         KafkaTraceSupport.runWithTraceId(objectMapper, record.value(), () -> handleRecord(record));
         ack.acknowledge();

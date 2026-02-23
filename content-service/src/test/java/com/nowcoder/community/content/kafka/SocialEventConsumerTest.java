@@ -1,9 +1,9 @@
 package com.nowcoder.community.content.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.event.EventTopics;
 import com.nowcoder.community.content.score.InMemoryPostScoreQueue;
 import com.nowcoder.community.content.score.PostScoreQueue;
-import com.nowcoder.community.social.api.event.SocialEventTopics;
 import com.nowcoder.community.social.api.event.SocialEventTypes;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.Test;
@@ -44,7 +44,7 @@ class SocialEventConsumerTest {
                 )
         ));
 
-        consumer.handleRecord(new ConsumerRecord<>(SocialEventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k1", payload));
+        consumer.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k1", payload));
 
         Integer postId = postScoreQueue.pop();
         assertThat(postId).isEqualTo(123);
@@ -68,7 +68,7 @@ class SocialEventConsumerTest {
                 )
         ));
 
-        consumer.handleRecord(new ConsumerRecord<>(SocialEventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k2", payload));
+        consumer.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k2", payload));
 
         Integer postId = postScoreQueue.pop();
         assertThat(postId).isEqualTo(123);

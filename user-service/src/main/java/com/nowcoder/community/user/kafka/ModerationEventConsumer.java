@@ -2,9 +2,9 @@ package com.nowcoder.community.user.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.event.EventEnvelopeParser;
+import com.nowcoder.community.common.event.EventTopics;
 import com.nowcoder.community.common.event.UnknownEventAction;
 import com.nowcoder.community.common.kafka.KafkaTraceSupport;
-import com.nowcoder.community.content.api.event.ContentEventTopics;
 import com.nowcoder.community.content.api.event.ContentEventTypes;
 import com.nowcoder.community.content.api.event.payload.ModerationCommandPayload;
 import com.nowcoder.community.user.dao.ConsumedEventMapper;
@@ -54,7 +54,7 @@ public class ModerationEventConsumer {
         this.unsupportedVersionAction = UnknownEventAction.parseOrDefault(unsupportedVersionAction, UnknownEventAction.DLQ);
     }
 
-    @KafkaListener(topics = ContentEventTopics.MODERATION_EVENTS_V1, groupId = "user-service")
+    @KafkaListener(topics = EventTopics.MODERATION_EVENTS_V1, groupId = "user-service")
     public void onMessage(ConsumerRecord<String, String> record, Acknowledgment ack) {
         KafkaTraceSupport.runWithTraceId(objectMapper, record.value(), () -> handleRecord(record));
         ack.acknowledge();

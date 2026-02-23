@@ -1,6 +1,8 @@
 package com.nowcoder.community.gateway.filter;
 
 // 网关 traceId 解析与规范化工具：统一处理 X-Trace-Id/traceparent 并生成规范化结果。
+import com.nowcoder.community.common.trace.TraceHeaders;
+import com.nowcoder.community.common.trace.TraceId;
 import org.springframework.http.HttpHeaders;
 import org.springframework.util.StringUtils;
 
@@ -8,8 +10,8 @@ import java.util.UUID;
 
 public final class TraceIdSupport {
 
-    public static final String HEADER_TRACE_ID = "X-Trace-Id";
-    public static final String HEADER_TRACEPARENT = "traceparent";
+    public static final String HEADER_TRACE_ID = TraceHeaders.HEADER_TRACE_ID;
+    public static final String HEADER_TRACEPARENT = TraceHeaders.HEADER_TRACEPARENT;
 
     private TraceIdSupport() {
     }
@@ -73,6 +75,6 @@ public final class TraceIdSupport {
     }
 
     public static String generateTraceId() {
-        return UUID.randomUUID().toString().replace("-", "");
+        return TraceId.generate();
     }
 }

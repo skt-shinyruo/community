@@ -1,9 +1,8 @@
 package com.nowcoder.community.user.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.content.api.event.ContentEventTopics;
+import com.nowcoder.community.common.event.EventTopics;
 import com.nowcoder.community.content.api.event.ContentEventTypes;
-import com.nowcoder.community.social.api.event.SocialEventTopics;
 import com.nowcoder.community.social.api.event.SocialEventTypes;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,8 +67,8 @@ class PointsEventConsumerTest {
                 )
         ));
 
-        consumer.handleRecord(new ConsumerRecord<>(ContentEventTopics.POST_EVENTS_V1, 0, 0L, "k1", payload));
-        consumer.handleRecord(new ConsumerRecord<>(ContentEventTopics.POST_EVENTS_V1, 0, 1L, "k1", payload));
+        consumer.handleRecord(new ConsumerRecord<>(EventTopics.POST_EVENTS_V1, 0, 0L, "k1", payload));
+        consumer.handleRecord(new ConsumerRecord<>(EventTopics.POST_EVENTS_V1, 0, 1L, "k1", payload));
 
         assertThat(scoreByUserId.get(1)).isEqualTo(10);
     }
@@ -92,8 +91,8 @@ class PointsEventConsumerTest {
                 )
         ));
 
-        consumer.handleRecord(new ConsumerRecord<>(SocialEventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k1", payload));
-        consumer.handleRecord(new ConsumerRecord<>(SocialEventTopics.SOCIAL_EVENTS_V1, 0, 1L, "k1", payload));
+        consumer.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k1", payload));
+        consumer.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 1L, "k1", payload));
 
         assertThat(scoreByUserId.get(1)).isEqualTo(1);
     }
@@ -116,7 +115,7 @@ class PointsEventConsumerTest {
                 )
         ));
 
-        consumer.handleRecord(new ConsumerRecord<>(SocialEventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k1", payload));
+        consumer.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k1", payload));
 
         assertThat(scoreByUserId.getOrDefault(1, 0)).isEqualTo(0);
     }
@@ -154,11 +153,11 @@ class PointsEventConsumerTest {
                 )
         ));
 
-        consumer.handleRecord(new ConsumerRecord<>(SocialEventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k1", created));
+        consumer.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 0L, "k1", created));
         assertThat(scoreByUserId.get(1)).isEqualTo(1);
 
-        consumer.handleRecord(new ConsumerRecord<>(SocialEventTopics.SOCIAL_EVENTS_V1, 0, 1L, "k1", removed));
-        consumer.handleRecord(new ConsumerRecord<>(SocialEventTopics.SOCIAL_EVENTS_V1, 0, 2L, "k1", removed));
+        consumer.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 1L, "k1", removed));
+        consumer.handleRecord(new ConsumerRecord<>(EventTopics.SOCIAL_EVENTS_V1, 0, 2L, "k1", removed));
         assertThat(scoreByUserId.get(1)).isEqualTo(0);
     }
 }

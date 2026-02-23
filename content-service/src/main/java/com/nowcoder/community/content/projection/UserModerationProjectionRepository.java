@@ -1,5 +1,6 @@
 package com.nowcoder.community.content.projection;
 
+import com.nowcoder.community.content.api.ContentErrorCode;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -96,7 +97,7 @@ public class UserModerationProjectionRepository {
         BlockCheck check = checkEitherBlocked(userIdA, userIdB);
         if (check == BlockCheck.UNKNOWN) {
             throw new com.nowcoder.community.common.exception.BusinessException(
-                    com.nowcoder.community.common.api.CommonErrorCode.SERVICE_UNAVAILABLE,
+                    ContentErrorCode.PROJECTION_MISSING,
                     "拉黑关系投影缺失"
             );
         }
@@ -155,7 +156,7 @@ public class UserModerationProjectionRepository {
         if (s == null || s.getUpdatedAt() == null) {
             // 投影缺失时不做“猜测”，交由上层决定是否 fail-closed（503）或降级处理。
             throw new com.nowcoder.community.common.exception.BusinessException(
-                    com.nowcoder.community.common.api.CommonErrorCode.SERVICE_UNAVAILABLE,
+                    ContentErrorCode.PROJECTION_MISSING,
                     "处罚状态投影缺失"
             );
         }

@@ -1,5 +1,7 @@
 package com.nowcoder.community.common.web;
 
+import com.nowcoder.community.common.trace.TraceContext;
+import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceId;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
@@ -8,7 +10,6 @@ import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.slf4j.MDC;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -19,33 +20,27 @@ import java.io.IOException;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class TraceIdFilter implements Filter {
 
-    public static final String HEADER_TRACE_ID = "X-Trace-Id";
-    public static final String HEADER_TRACEPARENT = "traceparent";
-    public static final String MDC_KEY_TRACE_ID = "traceId";
-
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
             throws IOException, ServletException {
         HttpServletRequest req = (HttpServletRequest) request;
         HttpServletResponse resp = (HttpServletResponse) response;
 
-        String traceId = req.getHeader(HEADER_TRACE_ID);
+        String traceId = req.getHeader(TraceHeaders.HEADER_TRACE_ID);
         if (traceId == null || traceId.isBlank()) {
-            traceId = extractTraceIdFromTraceparent(req.getHeader(HEADER_TRACEPARENT));
+            traceId = extractTraceIdFromTraceparent(req.getHeader(TraceHeaders.HEADER_TRACEPARENT));
         }
         if (traceId == null || traceId.isBlank()) {
             traceId = TraceId.generate();
         }
 
-        TraceId.set(traceId);
-        MDC.put(MDC_KEY_TRACE_ID, traceId);
-        resp.setHeader(HEADER_TRACE_ID, traceId);
+        TraceContext.set(traceId);
+        resp.setHeader(TraceHeaders.HEADER_TRACE_ID, traceId);
 
         try {
             chain.doFilter(request, response);
         } finally {
-            MDC.remove(MDC_KEY_TRACE_ID);
-            TraceId.clear();
+            TraceContext.clear();
         }
     }
 

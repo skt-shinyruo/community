@@ -1,5 +1,6 @@
 package com.nowcoder.community.message.projection;
 
+import com.nowcoder.community.message.api.MessageErrorCode;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -71,7 +72,7 @@ public class UserModerationProjectionRepository {
         BlockCheck check = checkEitherBlocked(userIdA, userIdB);
         if (check == BlockCheck.UNKNOWN) {
             throw new com.nowcoder.community.common.exception.BusinessException(
-                    com.nowcoder.community.common.api.CommonErrorCode.SERVICE_UNAVAILABLE,
+                    MessageErrorCode.PROJECTION_MISSING,
                     "拉黑关系投影缺失"
             );
         }
@@ -151,7 +152,7 @@ public class UserModerationProjectionRepository {
         ModerationSnapshot s = list == null || list.isEmpty() ? null : list.get(0);
         if (s == null || s.updatedAt == null) {
             throw new com.nowcoder.community.common.exception.BusinessException(
-                    com.nowcoder.community.common.api.CommonErrorCode.SERVICE_UNAVAILABLE,
+                    MessageErrorCode.PROJECTION_MISSING,
                     "处罚状态投影缺失"
             );
         }

@@ -1,19 +1,14 @@
 package com.nowcoder.community.search.config;
 
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
+import com.nowcoder.community.infra.security.jwt.AuthoritiesConverterFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.util.StringUtils;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-
-import java.util.List;
 
 @Configuration
 public class SearchSecurityConfig {
@@ -39,19 +34,7 @@ public class SearchSecurityConfig {
                 .build();
     }
 
-    private JwtAuthenticationConverter jwtAuthenticationConverter() {
-        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(jwt -> {
-            List<String> authorities = jwt.getClaimAsStringList("authorities");
-            if (authorities == null) {
-                return List.of();
-            }
-            return authorities.stream()
-                    .filter(StringUtils::hasText)
-                    .map(SimpleGrantedAuthority::new)
-                    .map(a -> (GrantedAuthority) a)
-                    .toList();
-        });
-        return converter;
+    private org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter jwtAuthenticationConverter() {
+        return AuthoritiesConverterFactory.jwtAuthenticationConverter();
     }
 }

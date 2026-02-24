@@ -19,21 +19,18 @@ import static org.mockito.Mockito.when;
 class PrivateMessageServiceBlockCheckTest {
 
     @Test
-    void sendShouldFailClosedWhenProjectionUnknownAndSaysBlocked() {
+    void sendShouldRejectWhenEitherBlocked() {
         MessageMapper messageMapper = mock(MessageMapper.class);
         UserServiceClient userServiceClient = mock(UserServiceClient.class);
-        SocialServiceClient socialServiceClient = mock(SocialServiceClient.class);
         UserModerationProjectionRepository projectionRepository = mock(UserModerationProjectionRepository.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         OwnerGuard ownerGuard = mock(OwnerGuard.class);
 
-        when(projectionRepository.checkEitherBlocked(1, 2)).thenReturn(UserModerationProjectionRepository.BlockCheck.UNKNOWN);
-        when(socialServiceClient.isEitherBlocked(1, 2)).thenReturn(true);
+        when(projectionRepository.checkEitherBlocked(1, 2)).thenReturn(UserModerationProjectionRepository.BlockCheck.BLOCKED);
 
         PrivateMessageService service = new PrivateMessageService(
                 messageMapper,
                 userServiceClient,
-                socialServiceClient,
                 projectionRepository,
                 moderationGuard,
                 ownerGuard
@@ -47,16 +44,10 @@ class PrivateMessageServiceBlockCheckTest {
                 });
 
         verify(messageMapper, never()).insertMessage(ArgumentMatchers.any(Message.class));
-        verify(projectionRepository).upsertBlockRelation(
-                ArgumentMatchers.eq(1),
-                ArgumentMatchers.eq(2),
-                ArgumentMatchers.eq(true),
-                ArgumentMatchers.any(java.time.Instant.class)
-        );
-        verify(projectionRepository).upsertBlockRelation(
-                ArgumentMatchers.eq(2),
-                ArgumentMatchers.eq(1),
-                ArgumentMatchers.eq(true),
+        verify(projectionRepository, never()).upsertBlockRelation(
+                ArgumentMatchers.anyInt(),
+                ArgumentMatchers.anyInt(),
+                ArgumentMatchers.anyBoolean(),
                 ArgumentMatchers.any(java.time.Instant.class)
         );
     }

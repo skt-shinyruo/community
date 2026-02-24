@@ -4,6 +4,19 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## 2026-02-24
+
+- [contracts-core] contracts 纯化：新增 `TraceIdCodec` 作为 trace 编解码 SSOT；移除 `TraceId/TraceContext` 等运行期实现；`Result` 不再隐式读取 ThreadLocal traceId（避免契约泄漏 runtime 细节）。
+- [common] trace 注入点收敛：新增运行期 `TraceId/TraceContext`（ThreadLocal + MDC）与 `ResultTraceIdAdvice`（Servlet 出口统一回填 `Result.traceId`），并收敛 `TraceIdFilter/SecurityExceptionHandler` 对 `X-Trace-Id/traceparent` 的生成与回写。
+- [contracts-event-core] 事件契约去 runtime 耦合：`EventEnvelope.of` 新增显式 `traceId` 重载；服务侧 Kafka publisher 改为传入当前 traceId（不再隐式依赖 ThreadLocal）。
+- [infra-outbox] outbox-only 默认安全态：新增应急开关 `events.outbox.direct-send-enabled`（默认 `false`）；当 `events.outbox.enabled=false` 且直发开关未显式开启时禁止业务侧直发（fail-closed），避免静默降级造成语义漂移。
+- [infra-security-starter] Security 去漂移：新增 `AuthoritiesConverterFactory` 作为 JWT authorities converter SSOT；各服务 `*SecurityConfig` 与 gateway reactive 配置统一复用（减少复制粘贴与 claim 解析漂移）。
+- [test/arch] 新增/强化架构门禁：contracts runtime 泄漏、outbox 旁路直发、Security converter 漂移等均可测试化（`NoContractsRuntimeLeakTest` / `OutboxOnlyGateTest` / `PublicEndpointDriftGateTest`）。
+- [gateway/infra-dubbo-starter] Reactive 去 ThreadLocal：gateway analytics worker 不再使用 `TraceContext`，改为 Dubbo attachments 显式注入 trace；Dubbo consumer filter 优先使用 invocation attachment 作为 traceId SSOT，避免 consumer 日志 trace 与透传 trace 不一致；新增 gateway 门禁 `NoGatewayTraceContextUsageTest` 防回潮。
+- [social-api/social-service] 新增 `SocialBlockScanRpcService`（拉黑关系扫描，keyset 分页），供下游服务冷启动/补洞回填 `user_block_projection`。
+- [message-service/content-service] 互动写路径移除 `SocialBlockRpcService#isEitherBlocked` per-request 点查回源；拉黑校验收敛为本地投影（空记录默认 NOT_BLOCKED）+ scan 自举；新增 `NoSocialBlockRpcUsageTest` 门禁防回潮，并清理不再使用的 internal client。
+- [docs/wiki] 同步更新架构与模块文档：明确 contracts/core/common/infra 边界，以及 trace/outbox/security 的 SSOT 与注入点。
+
 ## 2026-02-23
 
 - [contracts-event-core] 新增 `EventTopics` 作为 Kafka topic SSOT（`post/comment/social/moderation`），并全仓收敛引用，移除域内 `ContentEventTopics`/`SocialEventTopics` 以降低跨域耦合与漂移风险。

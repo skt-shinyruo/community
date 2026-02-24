@@ -36,7 +36,7 @@
 RPC 契约与 DTO 统一沉淀在 `*-api` 模块（consumer/provider 共同依赖），避免跨服务依赖实现模块导致的循环依赖与演进失控。
 
 - `user-api`：`UserInternalRpcService` / `UserReadRpcService` / `UserModerationRpcService`
-- `social-api`：`SocialReadRpcService` / `SocialBlockRpcService` / `SocialLikeScanRpcService`
+- `social-api`：`SocialReadRpcService` / `SocialBlockRpcService` / `SocialBlockScanRpcService` / `SocialLikeScanRpcService`
 - `content-api`：`ContentScanRpcService` / `ContentEntityRpcService`
 - `analytics-api`：`InternalAnalyticsRpcService`（gateway 采集 best-effort 调用）
 

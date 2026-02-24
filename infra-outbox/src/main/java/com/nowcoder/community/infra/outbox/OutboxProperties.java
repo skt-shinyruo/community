@@ -16,6 +16,17 @@ public class OutboxProperties {
     private boolean enabled = true;
 
     /**
+     * 是否允许“事务提交后直发”作为应急回滚手段（默认关闭）。
+     *
+     * <p>说明：</p>
+     * <ul>
+     *   <li>当 {@link #enabled} 关闭时，业务侧可选择是否回退到 After-Commit 直发（best-effort）。</li>
+     *   <li>该能力仅用于应急止血，常态路径应保持 outbox-only。</li>
+     * </ul>
+     */
+    private boolean directSendEnabled = false;
+
+    /**
      * Relay 是否运行（默认开启，需配合 enabled=true）。
      */
     private boolean relayEnabled = true;
@@ -102,6 +113,14 @@ public class OutboxProperties {
 
     public void setRelayEnabled(boolean relayEnabled) {
         this.relayEnabled = relayEnabled;
+    }
+
+    public boolean isDirectSendEnabled() {
+        return directSendEnabled;
+    }
+
+    public void setDirectSendEnabled(boolean directSendEnabled) {
+        this.directSendEnabled = directSendEnabled;
     }
 
     public int getBatchSize() {

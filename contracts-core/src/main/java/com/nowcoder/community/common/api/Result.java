@@ -1,7 +1,5 @@
 package com.nowcoder.community.common.api;
 
-import com.nowcoder.community.common.trace.TraceId;
-
 public class Result<T> {
 
     private int code;
@@ -22,7 +20,6 @@ public class Result<T> {
         r.message = CommonErrorCode.OK.getMessage();
         r.httpStatus = CommonErrorCode.OK.getHttpStatus();
         r.data = data;
-        r.traceId = TraceId.get();
         r.timestamp = System.currentTimeMillis();
         return r;
     }
@@ -36,7 +33,6 @@ public class Result<T> {
         r.code = errorCode.getCode();
         r.message = errorCode.getMessage();
         r.httpStatus = errorCode.getHttpStatus();
-        r.traceId = TraceId.get();
         r.timestamp = System.currentTimeMillis();
         return r;
     }
@@ -50,7 +46,6 @@ public class Result<T> {
         r.code = code;
         r.message = message;
         r.httpStatus = httpStatus;
-        r.traceId = TraceId.get();
         r.timestamp = System.currentTimeMillis();
         return r;
     }

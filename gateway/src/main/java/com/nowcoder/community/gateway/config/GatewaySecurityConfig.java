@@ -1,6 +1,7 @@
 package com.nowcoder.community.gateway.config;
 
 // Gateway 安全配置：最小边界护栏 + ops 入口双保险 + 统一异常处理。
+import com.nowcoder.community.infra.security.jwt.AuthoritiesConverterFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,13 +11,8 @@ import org.springframework.security.config.annotation.web.reactive.EnableWebFlux
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.ReactiveJwtAuthenticationConverterAdapter;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatchers;
-import org.springframework.util.StringUtils;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Configuration
 @EnableWebFluxSecurity
@@ -74,17 +70,7 @@ public class GatewaySecurityConfig {
     }
 
     private ReactiveJwtAuthenticationConverterAdapter jwtAuthenticationConverter() {
-        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(jwt -> {
-            List<String> authorities = jwt.getClaimAsStringList("authorities");
-            if (authorities == null) {
-                return List.of();
-            }
-            return authorities.stream()
-                    .filter(StringUtils::hasText)
-                    .map(SimpleGrantedAuthority::new)
-                    .collect(Collectors.toList());
-        });
+        JwtAuthenticationConverter converter = AuthoritiesConverterFactory.jwtAuthenticationConverter();
         return new ReactiveJwtAuthenticationConverterAdapter(converter);
     }
 }

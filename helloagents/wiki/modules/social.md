@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 点赞/取消点赞；统计实体点赞数；关注/取关；关注列表/粉丝列表；拉黑/解除拉黑
 - **Status：** ✅Stable
-- **Last Updated：** 2026-02-13
+- **Last Updated：** 2026-02-24
 
 ## Specifications
 
@@ -41,7 +41,9 @@
 
 #### Scenario: 拉黑用户
 - MySQL 作为关系 SSOT（默认）；Redis 可选作为缓存/加速层
-- 提供内部接口查询 A/B 拉黑关系，供 message-service/content-service 写路径校验
+- 提供 internal RPC 支撑下游“投影自举/补洞”：
+  - `SocialBlockScanRpcService`：扫描当前拉黑集合（keyset 分页）
+  - `SocialBlockRpcService`：点查 A/B 是否存在任意方向拉黑（兼容保留；不建议用于线上写路径 per-request 同步依赖）
 - 社交写路径自校验：在点赞/关注“创建关系”场景同样执行拉黑校验，避免拉黑后仍产生通知类互动副作用
 
 ## API Interfaces（现状）
@@ -58,7 +60,8 @@
 - `GET /api/blocks/status?userId=`（查询是否已拉黑）
 - Dubbo RPC（服务间同步调用，推荐）：
   - `SocialReadRpcService`：主页聚合只读（profile-stats 等）、计数/关注状态等
-  - `SocialBlockRpcService`：拉黑关系查询（供 message/content 写路径校验）
+  - `SocialBlockRpcService`：拉黑关系点查（兼容保留；建议使用投影 + scan 自举替代写路径 per-request 点查）
+  - `SocialBlockScanRpcService`：拉黑关系扫描（供下游服务冷启动/补洞回填投影）
   - `SocialLikeScanRpcService`：点赞扫描（供 content 回填投影）
 - Ops（对外运维入口，统一走 gateway `/api/ops/**`）：
   - `GET /api/ops/social/outbox/health`
@@ -80,6 +83,7 @@
 - infra（Redis/Kafka）
 
 ## Change History
+- 2026-02-24：新增 `SocialBlockScanRpcService`（拉黑关系扫描）供下游服务投影自举；下游写路径拉黑校验收敛为“本地投影 + scan 自举”，降低同步依赖放大风险。
 - 2026-01-18：Kafka 事件发布统一 After-Commit 策略（在事务活跃时 commit 后发送），并补齐发布失败指标用于观测。
 - 2026-01-23：新增拉黑/反骚扰能力（Redis Set 存储 + 对外 API + internal 关系查询）。
 - 2026-01-28：固化 DB 为默认 SSOT（避免 Redis-only 误启用）；补齐 internal read API（已在 2026-02-13 移除/迁移）；Outbox 默认开启（部署侧）。

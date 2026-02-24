@@ -1,7 +1,7 @@
 package com.nowcoder.community.common.event;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.nowcoder.community.common.trace.TraceId;
+import com.nowcoder.community.common.trace.TraceIdCodec;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -18,13 +18,16 @@ public class EventEnvelope<T> {
     private T payload;
 
     public static <T> EventEnvelope<T> of(String type, int version, String producer, T payload) {
+        return of(type, version, producer, payload, TraceIdCodec.generateTraceId());
+    }
+
+    /**
+     * 显式指定 traceId 的工厂方法（推荐）：避免 contracts 读取 ThreadLocal 等运行期上下文。
+     */
+    public static <T> EventEnvelope<T> of(String type, int version, String producer, T payload, String traceId) {
         EventEnvelope<T> e = new EventEnvelope<>();
         e.eventId = UUID.randomUUID().toString().replace("-", "");
-        String traceId = TraceId.get();
-        if (traceId == null || traceId.isBlank()) {
-            traceId = TraceId.generate();
-        }
-        e.traceId = traceId;
+        e.traceId = traceId == null || traceId.isBlank() ? TraceIdCodec.generateTraceId() : traceId.trim();
         e.type = type;
         e.version = version;
         e.occurredAt = Instant.now();

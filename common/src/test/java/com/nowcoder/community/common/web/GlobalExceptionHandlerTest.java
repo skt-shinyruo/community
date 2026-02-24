@@ -4,6 +4,7 @@ import com.nowcoder.community.common.api.CommonErrorCode;
 import com.nowcoder.community.common.api.Result;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.trace.TraceId;
+import com.nowcoder.community.common.web.ResultTraceIdAdvice;
 import jakarta.validation.ConstraintViolationException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class GlobalExceptionHandlerTest {
 
     private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
+    private final ResultTraceIdAdvice advice = new ResultTraceIdAdvice();
 
     @AfterEach
     void tearDown() {
@@ -27,6 +29,7 @@ class GlobalExceptionHandlerTest {
     void businessExceptionShouldKeepHttpStatusCodeAndTraceId() {
         TraceId.set("t-err-1");
         ResponseEntity<Result<Void>> resp = handler.handleBusiness(new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "bad"));
+        advice.beforeBodyWrite(resp.getBody(), null, null, null, null, null);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         assertThat(resp.getBody()).isNotNull();
@@ -39,6 +42,7 @@ class GlobalExceptionHandlerTest {
     void validationExceptionShouldBeInvalidArgumentWithTraceId() {
         TraceId.set("t-err-2");
         ResponseEntity<Result<Void>> resp = handler.handleValidation(new ConstraintViolationException("x", Set.of()));
+        advice.beforeBodyWrite(resp.getBody(), null, null, null, null, null);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         assertThat(resp.getBody()).isNotNull();
@@ -50,6 +54,7 @@ class GlobalExceptionHandlerTest {
     void unknownExceptionShouldBeInternalErrorWithTraceId() {
         TraceId.set("t-err-3");
         ResponseEntity<Result<Void>> resp = handler.handleGeneric(new RuntimeException("boom"));
+        advice.beforeBodyWrite(resp.getBody(), null, null, null, null, null);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(500);
         assertThat(resp.getBody()).isNotNull();
@@ -62,6 +67,7 @@ class GlobalExceptionHandlerTest {
         TraceId.set("t-err-4");
         MissingServletRequestParameterException ex = new MissingServletRequestParameterException("ip", "String");
         ResponseEntity<Result<Void>> resp = handler.handleRequestParam(ex);
+        advice.beforeBodyWrite(resp.getBody(), null, null, null, null, null);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         assertThat(resp.getBody()).isNotNull();

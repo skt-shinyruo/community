@@ -37,7 +37,6 @@ class CommentServiceTest {
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
         UserModerationProjectionRepository projectionRepository = mock(UserModerationProjectionRepository.class);
         UserModerationClient userModerationClient = mock(UserModerationClient.class);
-        SocialBlockClient socialBlockClient = mock(SocialBlockClient.class);
 
         doNothing().when(projectionRepository).assertCanSpeak(anyInt());
         when(projectionRepository.checkEitherBlocked(anyInt(), anyInt()))
@@ -53,7 +52,6 @@ class CommentServiceTest {
                 eventPublisher,
                 projectionRepository,
                 moderationGuard,
-                socialBlockClient,
                 textCodec
         );
 
@@ -87,7 +85,6 @@ class CommentServiceTest {
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
         UserModerationProjectionRepository projectionRepository = mock(UserModerationProjectionRepository.class);
         UserModerationClient userModerationClient = mock(UserModerationClient.class);
-        SocialBlockClient socialBlockClient = mock(SocialBlockClient.class);
 
         doNothing().when(projectionRepository).assertCanSpeak(anyInt());
         when(projectionRepository.checkEitherBlocked(anyInt(), anyInt()))
@@ -103,7 +100,6 @@ class CommentServiceTest {
                 eventPublisher,
                 projectionRepository,
                 moderationGuard,
-                socialBlockClient,
                 textCodec
         );
 
@@ -137,7 +133,6 @@ class CommentServiceTest {
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
         UserModerationProjectionRepository projectionRepository = mock(UserModerationProjectionRepository.class);
         UserModerationClient userModerationClient = mock(UserModerationClient.class);
-        SocialBlockClient socialBlockClient = mock(SocialBlockClient.class);
 
         doNothing().when(projectionRepository).assertCanSpeak(anyInt());
         when(projectionRepository.checkEitherBlocked(anyInt(), anyInt()))
@@ -153,7 +148,6 @@ class CommentServiceTest {
                 eventPublisher,
                 projectionRepository,
                 moderationGuard,
-                socialBlockClient,
                 textCodec
         );
 
@@ -187,7 +181,6 @@ class CommentServiceTest {
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
         UserModerationProjectionRepository projectionRepository = mock(UserModerationProjectionRepository.class);
         UserModerationClient userModerationClient = mock(UserModerationClient.class);
-        SocialBlockClient socialBlockClient = mock(SocialBlockClient.class);
 
         // 投影存在：assertCanSpeak 直接通过，不应触发下游 user-service 访问
         doNothing().when(projectionRepository).assertCanSpeak(anyInt());
@@ -204,7 +197,6 @@ class CommentServiceTest {
                 eventPublisher,
                 projectionRepository,
                 moderationGuard,
-                socialBlockClient,
                 textCodec
         );
 
@@ -237,7 +229,6 @@ class CommentServiceTest {
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
         UserModerationProjectionRepository projectionRepository = mock(UserModerationProjectionRepository.class);
         UserModerationClient userModerationClient = mock(UserModerationClient.class);
-        SocialBlockClient socialBlockClient = mock(SocialBlockClient.class);
 
         // 投影缺失：触发 bootstrap 回填；但下游不可用时必须 fail-closed 返回 503
         doThrow(new BusinessException(ContentErrorCode.PROJECTION_MISSING, "处罚状态投影缺失"))
@@ -260,7 +251,6 @@ class CommentServiceTest {
                 eventPublisher,
                 projectionRepository,
                 moderationGuard,
-                socialBlockClient,
                 textCodec
         );
 

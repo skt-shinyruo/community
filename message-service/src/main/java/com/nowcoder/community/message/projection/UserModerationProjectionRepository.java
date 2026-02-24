@@ -70,12 +70,6 @@ public class UserModerationProjectionRepository {
 
     public void assertNotBlocked(int userIdA, int userIdB) {
         BlockCheck check = checkEitherBlocked(userIdA, userIdB);
-        if (check == BlockCheck.UNKNOWN) {
-            throw new com.nowcoder.community.common.exception.BusinessException(
-                    MessageErrorCode.PROJECTION_MISSING,
-                    "拉黑关系投影缺失"
-            );
-        }
         if (check == BlockCheck.BLOCKED) {
             throw new com.nowcoder.community.common.exception.BusinessException(
                     com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN,
@@ -85,10 +79,9 @@ public class UserModerationProjectionRepository {
     }
 
     /**
-     * 拉黑关系投影查询（区分 UNKNOWN vs NOT_BLOCKED）：
+     * 拉黑关系投影查询（最终一致）：
      * - BLOCKED：任意方向 blocked=1
-     * - NOT_BLOCKED：至少存在一条投影记录，且无 blocked=1
-     * - UNKNOWN：两条方向记录都不存在（冷启动/滞后/漏消费时需要回源 SSOT）
+     * - NOT_BLOCKED：无 blocked=1（包含“无投影记录”的默认态）
      */
     public BlockCheck checkEitherBlocked(int userIdA, int userIdB) {
         int a = Math.max(0, userIdA);
@@ -110,7 +103,7 @@ public class UserModerationProjectionRepository {
                 a
         );
         if (list == null || list.isEmpty()) {
-            return BlockCheck.UNKNOWN;
+            return BlockCheck.NOT_BLOCKED;
         }
         for (Integer v : list) {
             if (v != null && v == 1) {
@@ -121,7 +114,6 @@ public class UserModerationProjectionRepository {
     }
 
     public enum BlockCheck {
-        UNKNOWN,
         NOT_BLOCKED,
         BLOCKED
     }

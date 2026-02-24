@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.event.EventEnvelope;
 import com.nowcoder.community.common.event.EventTopics;
+import com.nowcoder.community.common.trace.TraceId;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import com.nowcoder.community.infra.outbox.OutboxEventService;
 import com.nowcoder.community.infra.outbox.OutboxProperties;
@@ -71,7 +72,7 @@ public class KafkaSocialEventPublisher implements SocialEventPublisher {
 
     private void publish(String type, String key, Object payload) {
         try {
-            EventEnvelope<Object> envelope = EventEnvelope.of(type, 1, "social-service", payload);
+            EventEnvelope<Object> envelope = EventEnvelope.of(type, 1, "social-service", payload, TraceId.get());
             String json = objectMapper.writeValueAsString(envelope);
 
             if (outboxProperties.isEnabled()) {
@@ -81,6 +82,14 @@ public class KafkaSocialEventPublisher implements SocialEventPublisher {
                         Tags.of("topic", EventTopics.SOCIAL_EVENTS_V1, "type", type, "outcome", "queued")
                 ).increment();
                 return;
+            }
+
+            if (!outboxProperties.isDirectSendEnabled()) {
+                meterRegistry.counter(
+                        "social_event_publish_total",
+                        Tags.of("topic", EventTopics.SOCIAL_EVENTS_V1, "type", type, "outcome", "blocked_direct_send")
+                ).increment();
+                throw new IllegalStateException("events.outbox.enabled=false 且 events.outbox.direct-send-enabled=false，禁止直发: " + type);
             }
 
             // 与 content-service 统一约定：若处于事务中，则在 commit 后发送，避免幽灵事件。

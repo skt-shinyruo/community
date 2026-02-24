@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.nowcoder.community.common.event.EventEnvelope;
 import com.nowcoder.community.common.event.EventTopics;
+import com.nowcoder.community.common.trace.TraceId;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import com.nowcoder.community.content.api.event.ContentEventTypes;
 import com.nowcoder.community.content.api.event.payload.CommentPayload;
@@ -90,7 +91,7 @@ public class KafkaContentEventPublisher implements ContentEventPublisher {
     }
 
     private void publish(String topic, String type, String key, Object payload) {
-        EventEnvelope<Object> envelope = EventEnvelope.of(type, 1, "content-service", payload);
+        EventEnvelope<Object> envelope = EventEnvelope.of(type, 1, "content-service", payload, TraceId.get());
         String json;
         try {
             json = objectMapper.writeValueAsString(envelope);
@@ -105,6 +106,14 @@ public class KafkaContentEventPublisher implements ContentEventPublisher {
                     Tags.of("topic", topic, "type", type, "outcome", "queued")
             ).increment();
             return;
+        }
+
+        if (!outboxProperties.isDirectSendEnabled()) {
+            meterRegistry.counter(
+                    "content_event_publish_total",
+                    Tags.of("topic", topic, "type", type, "outcome", "blocked_direct_send")
+            ).increment();
+            throw new IllegalStateException("events.outbox.enabled=false 且 events.outbox.direct-send-enabled=false，禁止直发: " + type);
         }
 
         // 事务提交后再发送，避免 DB 回滚但事件已发出（幽灵事件）。

@@ -18,7 +18,7 @@
     <dependencies>
         <dependency>
             <groupId>com.newcoder.community</groupId>
-            <artifactId>contracts-core</artifactId>
+            <artifactId>common</artifactId>
             <version>${project.version}</version>
         </dependency>
 
@@ -42,4 +42,3 @@
         </dependency>
     </dependencies>
 </project>
-

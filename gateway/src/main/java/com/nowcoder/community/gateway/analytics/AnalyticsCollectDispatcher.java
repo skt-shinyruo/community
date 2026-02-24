@@ -2,13 +2,15 @@ package com.nowcoder.community.gateway.analytics;
 
 import com.nowcoder.community.analytics.api.rpc.InternalAnalyticsRpcService;
 import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.trace.TraceContext;
+import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.gateway.config.AnalyticsCollectProperties;
 import com.nowcoder.community.gateway.filter.TraceIdSupport;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import jakarta.annotation.PostConstruct;
 import org.apache.dubbo.config.annotation.DubboReference;
+import org.apache.dubbo.rpc.RpcContext;
+import org.apache.dubbo.rpc.RpcContextAttachment;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Mono;
@@ -132,14 +134,18 @@ public class AnalyticsCollectDispatcher {
             return null;
         }
 
-        String traceId = TraceIdSupport.normalizeTraceId(task.traceId());
+        String normalizedTraceId = TraceIdSupport.normalizeTraceId(task.traceId());
+        String extractedFromTraceparent = TraceIdSupport.extractTraceIdFromTraceparent(task.traceparent());
+        String resolvedTraceId = StringUtils.hasText(normalizedTraceId) ? normalizedTraceId : extractedFromTraceparent;
+        String traceId = StringUtils.hasText(resolvedTraceId) ? resolvedTraceId : TraceIdSupport.generateTraceId();
+        String traceparent = TraceIdSupport.buildTraceparent(traceId);
 
         if ("uv".equals(metric)) {
             String ip = task.ip();
             if (!StringUtils.hasText(ip) || task.date() == null) {
                 return null;
             }
-            return Mono.fromRunnable(() -> invokeUv(ip.trim(), task.date(), traceId))
+            return Mono.fromRunnable(() -> invokeUv(ip.trim(), task.date(), traceId, traceparent))
                     .subscribeOn(Schedulers.boundedElastic())
                     .then();
         }
@@ -149,7 +155,7 @@ public class AnalyticsCollectDispatcher {
             if (userId == null || userId <= 0 || task.date() == null) {
                 return null;
             }
-            return Mono.fromRunnable(() -> invokeDau(userId, task.date(), traceId))
+            return Mono.fromRunnable(() -> invokeDau(userId, task.date(), traceId, traceparent))
                     .subscribeOn(Schedulers.boundedElastic())
                     .then();
         }
@@ -157,38 +163,56 @@ public class AnalyticsCollectDispatcher {
         return null;
     }
 
-    private void invokeUv(String ip, LocalDate date, String traceId) {
-        String before = com.nowcoder.community.common.trace.TraceId.get();
-        TraceContext.clear();
-        if (StringUtils.hasText(traceId)) {
-            TraceContext.set(traceId);
-        }
+    private void invokeUv(String ip, LocalDate date, String traceId, String traceparent) {
+        RpcContextAttachment attachments = RpcContext.getClientAttachment();
+        String beforeTraceId = attachments.getAttachment(TraceHeaders.HEADER_TRACE_ID);
+        String beforeTraceparent = attachments.getAttachment(TraceHeaders.HEADER_TRACEPARENT);
+        setOrRemoveAttachment(attachments, TraceHeaders.HEADER_TRACE_ID, traceId);
+        setOrRemoveAttachment(attachments, TraceHeaders.HEADER_TRACEPARENT, traceparent);
         try {
             Result<Void> result = internalAnalyticsRpcService.recordUv(ip, date);
             com.nowcoder.community.common.web.internalclient.InternalClientSupport.unwrap(result, SERVICE_NAME);
         } finally {
-            TraceContext.clear();
-            if (StringUtils.hasText(before)) {
-                TraceContext.set(before);
-            }
+            restoreAttachment(attachments, TraceHeaders.HEADER_TRACE_ID, beforeTraceId);
+            restoreAttachment(attachments, TraceHeaders.HEADER_TRACEPARENT, beforeTraceparent);
         }
     }
 
-    private void invokeDau(int userId, LocalDate date, String traceId) {
-        String before = com.nowcoder.community.common.trace.TraceId.get();
-        TraceContext.clear();
-        if (StringUtils.hasText(traceId)) {
-            TraceContext.set(traceId);
-        }
+    private void invokeDau(int userId, LocalDate date, String traceId, String traceparent) {
+        RpcContextAttachment attachments = RpcContext.getClientAttachment();
+        String beforeTraceId = attachments.getAttachment(TraceHeaders.HEADER_TRACE_ID);
+        String beforeTraceparent = attachments.getAttachment(TraceHeaders.HEADER_TRACEPARENT);
+        setOrRemoveAttachment(attachments, TraceHeaders.HEADER_TRACE_ID, traceId);
+        setOrRemoveAttachment(attachments, TraceHeaders.HEADER_TRACEPARENT, traceparent);
         try {
             Result<Void> result = internalAnalyticsRpcService.recordDau(userId, date);
             com.nowcoder.community.common.web.internalclient.InternalClientSupport.unwrap(result, SERVICE_NAME);
         } finally {
-            TraceContext.clear();
-            if (StringUtils.hasText(before)) {
-                TraceContext.set(before);
-            }
+            restoreAttachment(attachments, TraceHeaders.HEADER_TRACE_ID, beforeTraceId);
+            restoreAttachment(attachments, TraceHeaders.HEADER_TRACEPARENT, beforeTraceparent);
         }
+    }
+
+    private void setOrRemoveAttachment(RpcContextAttachment attachments, String key, String value) {
+        if (attachments == null || key == null) {
+            return;
+        }
+        if (StringUtils.hasText(value)) {
+            attachments.setAttachment(key, value.trim());
+            return;
+        }
+        attachments.removeAttachment(key);
+    }
+
+    private void restoreAttachment(RpcContextAttachment attachments, String key, String beforeValue) {
+        if (attachments == null || key == null) {
+            return;
+        }
+        if (beforeValue == null) {
+            attachments.removeAttachment(key);
+            return;
+        }
+        attachments.setAttachment(key, beforeValue);
     }
 
     private void recordLatency(String metric, long startNanos) {

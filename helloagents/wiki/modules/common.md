@@ -36,8 +36,10 @@
 - 安全异常收敛：`common/src/main/java/com/nowcoder/community/common/web/SecurityExceptionHandler.java`（按条件启用）
 - traceId：
   - Header：`X-Trace-Id`
+  - SSOT（纯工具）：`contracts-core/src/main/java/com/nowcoder/community/common/trace/TraceIdCodec.java`
   - Servlet Filter：`common/src/main/java/com/nowcoder/community/common/web/TraceIdFilter.java`
-  - 线程上下文：`contracts-core/src/main/java/com/nowcoder/community/common/trace/TraceContext.java`
+  - Result trace 回填（Servlet 出口）：`common/src/main/java/com/nowcoder/community/common/web/ResultTraceIdAdvice.java`
+  - 线程上下文（ThreadLocal + MDC）：`common/src/main/java/com/nowcoder/community/common/trace/TraceContext.java`
   - internal HTTP client（legacy/过渡）：`common/src/main/java/com/nowcoder/community/common/web/internalclient/InternalClientSupport.java`
 - 事务提交后副作用：`common/src/main/java/com/nowcoder/community/common/tx/AfterCommitExecutor.java`
 - Kafka 消费 trace 辅助：`common/src/main/java/com/nowcoder/community/common/kafka/KafkaTraceSupport.java`

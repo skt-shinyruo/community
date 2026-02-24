@@ -22,5 +22,20 @@ public interface BlockMapper {
 
     @Select("select target_user_id from social_block where user_id = #{userId} order by created_at desc")
     List<Integer> listBlockedUserIds(@Param("userId") int userId);
-}
 
+    @Select(
+            """
+                    select user_id as userId, target_user_id as targetUserId
+                    from social_block
+                    where (user_id > #{afterUserId})
+                       or (user_id = #{afterUserId} and target_user_id > #{afterTargetUserId})
+                    order by user_id asc, target_user_id asc
+                    limit #{limit}
+                    """
+    )
+    List<BlockScanRow> scanBlocks(
+            @Param("afterUserId") int afterUserId,
+            @Param("afterTargetUserId") int afterTargetUserId,
+            @Param("limit") int limit
+    );
+}

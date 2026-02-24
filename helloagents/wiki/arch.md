@@ -188,6 +188,14 @@ sequenceDiagram
 - **gateway analytics 有界化：** 网关侧 UV/DAU 去重仅用于降噪，应使用有界 TTL 缓存（多实例不共享），最终以 analytics-service Redis 去重/聚合为准；并确保采集失败可观测且不影响主业务链路。
 - **Dubbo 调用治理：** traceId/traceparent 通过 Dubbo attachment 透传；调用次数/时延通过统一 Filter 埋点（consumer/provider 侧口径一致），与 Prometheus/Micrometer 指标体系对齐。
 
+### 6.1 架构护栏（Guardrails）
+- **contracts 纯化（协议与运行期隔离）：** `contracts-core` 仅承载稳定协议与纯工具类（如 `TraceHeaders`/`TraceIdCodec`），禁止 ThreadLocal/MDC/Spring Web/Reactor 等运行期实现细节；门禁测试：`contracts-core/src/test/java/com/nowcoder/community/common/arch/NoContractsRuntimeLeakTest.java`。
+- **Reactive 禁止 ThreadLocal trace 上下文（gateway）：** gateway 生产代码禁止依赖 `TraceContext/TraceId`（ThreadLocal/MDC），trace 传播必须通过 header/attachment；门禁测试：`gateway/src/test/java/com/nowcoder/community/gateway/arch/NoGatewayTraceContextUsageTest.java`。
+- **跨域依赖治理（ErrorCode ownership / payload 不泄漏）：** 禁止跨域 import 域错误码枚举、禁止 infra/contracts/common/gateway/ops 依赖域事件 payload；门禁测试：`contracts-core/src/test/java/com/nowcoder/community/common/arch/NoCrossDomainContractImportTest.java`。
+- **Outbox-only 默认安全态：** 允许保留“事务提交后直发”作为应急能力，但必须被显式开关保护（`events.outbox.direct-send-enabled`，默认关闭）；门禁测试：`common/src/test/java/com/nowcoder/community/common/arch/OutboxOnlyGateTest.java`。
+- **Security 去漂移（SSOT 下沉到 starter）：** JWT authorities converter 统一由 `infra-security-starter/src/main/java/com/nowcoder/community/infra/security/jwt/AuthoritiesConverterFactory.java` 提供，各服务 `*SecurityConfig` 仅表达授权矩阵；门禁测试：`common/src/test/java/com/nowcoder/community/common/arch/PublicEndpointDriftGateTest.java`。
+- **服务实现级耦合门禁（Maven 依赖层面）：** 禁止 service 模块在 pom 中直接依赖其他 service 模块，强制经由 `*-api` 或事件契约协作；门禁测试：`contracts-core/src/test/java/com/nowcoder/community/common/arch/NoCrossServicePomDependencyTest.java`。
+
 ---
 
 ## 6. 重大架构决策（ADR 索引）
@@ -214,3 +222,5 @@ sequenceDiagram
 | ADR-018 | 服务间同步调用采用 Dubbo RPC（保留 gateway HTTP） | 2026-02-09 | ✅Adopted | gateway/auth/user/content/social/message/search/analytics | [Link](../history/2026-02/202602091808_dubbo_rpc_migration/how.md#adr-018-保留-spring-cloud-gateway-http-路由仅迁移服务间同步调用为-dubbo) |
 | ADR-019 | Dubbo Registry 收敛到 Nacos（替代 Zookeeper registry） | 2026-02-20 | ✅Adopted | gateway/auth/user/content/social/message/search/analytics | [Link](../history/2026-02/202602201009_dubbo_registry_to_nacos/how.md) |
 | ADR-020 | content 写路径采用 Domain Event + BEFORE_COMMIT 统一 Outbox 入队 | 2026-02-22 | ✅Adopted | content | [Link](../history/2026-02/202602212345_content_domain_event_outbox/how.md) |
+| ADR-021 | contracts 纯化 + trace/security/outbox 去漂移（Guardrails First） | 2026-02-24 | ✅Adopted | contracts-core/common/infra-security-starter/infra-outbox/gateway | [Link](../history/2026-02/202602241115_architecture_deep_refactor/how.md) |
+| ADR-022 | 互动写路径拉黑校验去同步点查（scan 自举 + 投影默认态） | 2026-02-24 | ✅Adopted | social/message/content | [Link](../history/2026-02/202602241314_architecture_deep_refactor_phase3/how.md) |

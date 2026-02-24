@@ -101,17 +101,17 @@ flowchart TD
 - ops-service：运维平面（管理员入口）：承载 `/api/ops/**`，通过 Dubbo RPC 调用各服务的 ops RPC 执行高成本动作（reindex/outbox replay 等），避免 gateway 继续膨胀
 
 ### 2.4 contracts / infra / common（代码模块边界）
-- **contracts-core（跨服务稳定协议）**：统一返回 `Result<T>`、错误码接口 `ErrorCode`、通用错误码 `CommonErrorCode`、业务异常 `BusinessException`。
+- **contracts-core（跨服务稳定协议）**：统一返回 `Result<T>`、错误码接口 `ErrorCode`、通用错误码 `CommonErrorCode`、业务异常 `BusinessException`；并承载纯工具类（如 `TraceHeaders`/`TraceIdCodec`），禁止引入 ThreadLocal/MDC/Spring Web 等运行期实现细节。
 - **contracts-event-core（通用事件协议）**：事件 envelope、解析器（required fields/version 校验）、unknown handling 策略（可配置 skip/DLQ）。
 - **`*-api`（域契约模块）**：`user-api`/`social-api`/`content-api`/`search-api`/`analytics-api`：
   - Dubbo RPC 接口/DTO（consumer 仅依赖 api，不依赖 service 实现）
   - 域错误码 `*ErrorCode`（domain owns semantics）
   - 域事件契约（payload/type/topic），producer 作为 SSOT，consumer 按需依赖
 - **`infra-*`（横切能力交付）**：以 starter/auto-config 交付，消除重复实现与漂移：
-  - `infra-security-starter`：JWT decoder + actuator/prometheus basic-auth 安全链（Servlet/Reactive）
+  - `infra-security-starter`：JWT decoder + authorities converter（SSOT）+ actuator/prometheus basic-auth 安全链（Servlet/Reactive）
   - `infra-dubbo-starter`：Dubbo trace/metrics 横切
   - `infra-outbox`：Outbox 可靠投递统一实现（实体/mapper/service/relay/job/metrics/properties）
-- **common（运行期共享工具）**：全局异常收敛、traceId、审计、幂等等；不再承载 `Result/*ErrorCode` 等跨服务稳定协议，避免继续“变胖”。
+- **common（运行期共享工具）**：全局异常收敛、traceId（`TraceId/TraceContext` + Servlet Filter/Advice）、审计、幂等等；不再承载 `Result/*ErrorCode` 等跨服务稳定协议，避免继续“变胖”。
 
 
 ---

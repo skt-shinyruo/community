@@ -75,7 +75,8 @@
   - 影响：限流 `keyStrategy=USER/USER_OR_IP` 与 DAU 采集在大多数请求上会退化/跳过；网关侧建议默认使用 IP 维度限流，用户维度约束下沉到各服务实现。
 - 文件访问：`GET /files/**` 允许匿名访问，但仅用于公开头像资源（下游 user-service 仍会做前缀与路径校验）。
 - UV/DAU 采集链路：网关侧仅做“有界降噪”（TTL + 最大容量），最终以 analytics-service Redis 去重/聚合为准；网关通过 Dubbo 调用 analytics-service 时会透传 `X-Trace-Id/traceparent` 便于排障。
-- UV/DAU 采集链路（隔离版）：filter 仅采集字段并投递到有界队列；异步 worker 执行 WebClient 调用；队列满允许丢弃并通过指标观测（`gateway_analytics_collect_total{metric,outcome}` + `gateway_analytics_collect_latency{metric}`）。
+- UV/DAU 采集链路（隔离版）：filter 仅采集字段并投递到有界队列；异步 worker 执行 Dubbo 调用；队列满允许丢弃并通过指标观测（`gateway_analytics_collect_total{metric,outcome}` + `gateway_analytics_collect_latency{metric}`）。
+  - 约束：worker 不使用 `TraceContext`（ThreadLocal/MDC），仅通过 Dubbo attachments 显式注入 trace header，避免 reactive 场景串线风险。
 - WebClient 全局兜底：网关通过 `gateway.webclient.*` 提供出站调用的统一超时与连接池上限（含 pending acquire 限制），用于覆盖“新增链路忘配 timeout”并在极端网络条件下保护网关不被连接堆积拖垮。
 - OriginGuard：同源判定会在“可信代理 CIDR 命中”时基于 `Forwarded/X-Forwarded-*` 计算 effective scheme/host/port（反代/HTTPS offload 兼容）；非可信来源忽略 forwarded 头，避免伪造绕过 allowlist。
 

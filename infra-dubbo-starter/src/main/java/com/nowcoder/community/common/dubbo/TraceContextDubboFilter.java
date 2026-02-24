@@ -34,10 +34,15 @@ public class TraceContextDubboFilter implements Filter {
 
     private Result invokeConsumer(Invoker<?> invoker, Invocation invocation) {
         String before = TraceId.get();
+        String attached = invocation == null ? null : invocation.getAttachment(DubboAttachmentKeys.TRACE_ID);
+        if (attached == null || attached.isBlank()) {
+            attached = RpcContext.getClientAttachment().getAttachment(DubboAttachmentKeys.TRACE_ID);
+        }
+
         boolean created = false;
         String traceId = before;
         if (traceId == null || traceId.isBlank()) {
-            traceId = TraceId.generate();
+            traceId = (attached == null || attached.isBlank()) ? TraceId.generate() : attached;
             created = true;
             TraceContext.set(traceId);
         }
@@ -45,7 +50,7 @@ public class TraceContextDubboFilter implements Filter {
         try {
             if (invocation != null) {
                 String existing = invocation.getAttachment(DubboAttachmentKeys.TRACE_ID);
-                if (existing == null || existing.isBlank()) {
+                if (existing == null || existing.isBlank() || !existing.equals(traceId)) {
                     invocation.setAttachment(DubboAttachmentKeys.TRACE_ID, traceId);
                 }
             }
@@ -71,4 +76,3 @@ public class TraceContextDubboFilter implements Filter {
         }
     }
 }
-

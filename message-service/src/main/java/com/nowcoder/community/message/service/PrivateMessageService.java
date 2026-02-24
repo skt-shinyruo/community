@@ -13,7 +13,6 @@ import com.nowcoder.community.user.api.rpc.dto.UserSummary;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -26,7 +25,6 @@ public class PrivateMessageService {
 
     private final MessageMapper messageMapper;
     private final UserServiceClient userServiceClient;
-    private final SocialServiceClient socialServiceClient;
     private final UserModerationProjectionRepository projectionRepository;
     private final UserModerationGuard moderationGuard;
     private final OwnerGuard ownerGuard;
@@ -34,14 +32,12 @@ public class PrivateMessageService {
     public PrivateMessageService(
             MessageMapper messageMapper,
             UserServiceClient userServiceClient,
-            SocialServiceClient socialServiceClient,
             UserModerationProjectionRepository projectionRepository,
             UserModerationGuard moderationGuard,
             OwnerGuard ownerGuard
     ) {
         this.messageMapper = messageMapper;
         this.userServiceClient = userServiceClient;
-        this.socialServiceClient = socialServiceClient;
         this.projectionRepository = projectionRepository;
         this.moderationGuard = moderationGuard;
         this.ownerGuard = ownerGuard;
@@ -121,19 +117,6 @@ public class PrivateMessageService {
                     com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN,
                     "双方存在拉黑关系，无法发送私信"
             );
-        }
-        if (check == UserModerationProjectionRepository.BlockCheck.UNKNOWN) {
-            // 冷启动/漏消息/滞后：回源 social-service SSOT（internal）避免 fail-open，并回填投影减少后续回源
-            boolean blocked = Boolean.TRUE.equals(socialServiceClient.isEitherBlocked(fromId, toId));
-            Instant now = Instant.now();
-            projectionRepository.upsertBlockRelation(fromId, toId, blocked, now);
-            projectionRepository.upsertBlockRelation(toId, fromId, blocked, now);
-            if (blocked) {
-                throw new com.nowcoder.community.common.exception.BusinessException(
-                        com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN,
-                        "双方存在拉黑关系，无法发送私信"
-                );
-            }
         }
         Message msg = new Message();
         msg.setFromId(fromId);

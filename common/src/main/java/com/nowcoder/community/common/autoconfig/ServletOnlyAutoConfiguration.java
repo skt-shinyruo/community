@@ -5,6 +5,7 @@ import com.nowcoder.community.common.web.AuditLogFilter;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.net.ClientIpResolver;
 import com.nowcoder.community.common.net.TrustedProxyProperties;
+import com.nowcoder.community.common.web.ResultTraceIdAdvice;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.common.web.TraceIdFilter;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -40,6 +41,12 @@ public class ServletOnlyAutoConfiguration {
     @ConditionalOnMissingBean
     public GlobalExceptionHandler globalExceptionHandler() {
         return new GlobalExceptionHandler();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ResultTraceIdAdvice resultTraceIdAdvice() {
+        return new ResultTraceIdAdvice();
     }
 
     @Bean

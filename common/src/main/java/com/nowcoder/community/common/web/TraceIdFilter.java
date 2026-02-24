@@ -2,7 +2,7 @@ package com.nowcoder.community.common.web;
 
 import com.nowcoder.community.common.trace.TraceContext;
 import com.nowcoder.community.common.trace.TraceHeaders;
-import com.nowcoder.community.common.trace.TraceId;
+import com.nowcoder.community.common.trace.TraceIdCodec;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -26,47 +26,19 @@ public class TraceIdFilter implements Filter {
         HttpServletRequest req = (HttpServletRequest) request;
         HttpServletResponse resp = (HttpServletResponse) response;
 
-        String traceId = req.getHeader(TraceHeaders.HEADER_TRACE_ID);
-        if (traceId == null || traceId.isBlank()) {
-            traceId = extractTraceIdFromTraceparent(req.getHeader(TraceHeaders.HEADER_TRACEPARENT));
-        }
-        if (traceId == null || traceId.isBlank()) {
-            traceId = TraceId.generate();
-        }
+        String traceId = TraceIdCodec.resolveTraceId(
+                req.getHeader(TraceHeaders.HEADER_TRACE_ID),
+                req.getHeader(TraceHeaders.HEADER_TRACEPARENT)
+        );
 
         TraceContext.set(traceId);
         resp.setHeader(TraceHeaders.HEADER_TRACE_ID, traceId);
+        resp.setHeader(TraceHeaders.HEADER_TRACEPARENT, TraceIdCodec.buildTraceparent(traceId));
 
         try {
             chain.doFilter(request, response);
         } finally {
             TraceContext.clear();
         }
-    }
-
-    private String extractTraceIdFromTraceparent(String traceparent) {
-        // W3C Trace Context: version-traceid-spanid-flags
-        // 示例：00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
-        if (traceparent == null || traceparent.isBlank()) {
-            return null;
-        }
-        String[] parts = traceparent.trim().split("-");
-        if (parts.length != 4) {
-            return null;
-        }
-        String traceId = parts[1];
-        if (traceId == null || traceId.length() != 32) {
-            return null;
-        }
-        for (int i = 0; i < traceId.length(); i++) {
-            char c = traceId.charAt(i);
-            boolean ok = (c >= '0' && c <= '9')
-                    || (c >= 'a' && c <= 'f')
-                    || (c >= 'A' && c <= 'F');
-            if (!ok) {
-                return null;
-            }
-        }
-        return traceId.toLowerCase();
     }
 }

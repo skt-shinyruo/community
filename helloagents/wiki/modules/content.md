@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 发帖；帖子详情；评论/回复；敏感词过滤；热帖分数刷新；与搜索/通知联动
 - **Status：** ✅Stable
-- **Last Updated：** 2026-02-22
+- **Last Updated：** 2026-02-24
 
 ## Specifications
 
@@ -155,13 +155,21 @@ Runbook：
 ## Dependencies
 - user（作者信息）
 - social（点赞 SSOT 与事件来源；由 social 事件驱动维护 content 的 Redis 点赞投影）
-- social（通过 `social-api` Dubbo RPC：likes scan 用于冷启动/纠偏回填点赞投影；拉黑关系用于写路径前置校验）
+- social（通过 `social-api` Dubbo RPC：likes scan 用于冷启动/纠偏回填点赞投影；拉黑关系校验仅依赖本地投影 + scan 自举，写路径不再 per-request 点查）
 - user（通过 `user-api` Dubbo RPC：禁言/封禁状态用于发帖/评论写路径前置校验；治理动作落地）
 - message（评论/点赞/关注通知）
 - search（发帖/删帖事件同步索引）
 - infra（Quartz、Redis、Kafka）
+  - block 投影自举（content-service -> social-service）：
+    - `content.projection.block-scan.enabled`（默认 true）
+    - `content.projection.block-scan.interval-ms`（默认 2000）
+    - `content.projection.block-scan.batch-size`（默认 2000）
+    - `content.projection.block-scan.rescan-interval-ms`（默认 3600000）
+    - `content.projection.block-scan.single-flight`（默认 true）
+    - `content.projection.block-scan.lock-ttl-seconds`（默认 300）
 
 ## Change History
+- 2026-02-24：评论/回复写路径移除“投影缺失 -> social 点查回源”同步依赖；拉黑校验收敛为本地投影 + scan 自举；新增架构门禁防止回潮。
 - 2026-02-22：帖子写路径引入 Domain Event + BEFORE_COMMIT Outbox 桥接；管理动作（top/wonderful/delete）收敛到事务命令服务；PostPayload 组装集中到 assembler，修复旁路更新链路的 payload 漂移风险。
 - 2026-01-18：写路径事件发布改为 After-Commit（避免 DB 回滚仍发事件），并将热度刷新 enqueue 延后到事务提交后执行。
 - 2026-01-19：补充内部帖子扫描接口（`/internal/content/posts`，已在 2026-02-13 移除），用于支持 search-service 在严格 schema 隔离下完成 reindex 冷启动。

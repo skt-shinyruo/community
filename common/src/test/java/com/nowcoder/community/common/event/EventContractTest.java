@@ -32,7 +32,7 @@ class EventContractTest {
         payload.put("createTime", Instant.parse("2026-01-16T06:28:00Z"));
         payload.put("score", 0.0);
 
-        EventEnvelope<Map<String, Object>> envelope = EventEnvelope.of("PostPublished", 1, "content-service", payload);
+        EventEnvelope<Map<String, Object>> envelope = EventEnvelope.of("PostPublished", 1, "content-service", payload, TraceId.get());
 
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         Map<?, ?> json = mapper.readValue(mapper.writeValueAsString(envelope), Map.class);
@@ -63,7 +63,7 @@ class EventContractTest {
         payload.put("postId", 100);
         payload.put("createTime", Instant.now());
 
-        EventEnvelope<Map<String, Object>> envelope = EventEnvelope.of("LikeCreated", 1, "social-service", payload);
+        EventEnvelope<Map<String, Object>> envelope = EventEnvelope.of("LikeCreated", 1, "social-service", payload, TraceId.get());
 
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         String json = mapper.writeValueAsString(envelope);
@@ -88,7 +88,7 @@ class EventContractTest {
         payload.put("content", "hi");
         payload.put("createTime", Instant.now());
 
-        EventEnvelope<Map<String, Object>> envelope = EventEnvelope.of("CommentCreated", 1, "content-service", payload);
+        EventEnvelope<Map<String, Object>> envelope = EventEnvelope.of("CommentCreated", 1, "content-service", payload, TraceId.get());
 
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         String json = mapper.writeValueAsString(envelope);
@@ -111,7 +111,7 @@ class EventContractTest {
         payload.put("content", null);
         payload.put("createTime", Instant.now());
 
-        EventEnvelope<Map<String, Object>> envelope = EventEnvelope.of("CommentDeleted", 1, "content-service", payload);
+        EventEnvelope<Map<String, Object>> envelope = EventEnvelope.of("CommentDeleted", 1, "content-service", payload, TraceId.get());
 
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         String json = mapper.writeValueAsString(envelope);

@@ -11,7 +11,7 @@ create table if not exists social_like (
   index idx_like_entity (entity_type, entity_id)
 );
 
--- social_like 扫描索引（idempotent）：用于按 (entity_type, entity_id, user_id) keyset 分页回填下游投影
+-- social_like 扫描索引（idempotent）：用于按 (entity_type, entity_id, user_id) keyset 分页（运维排查/历史遗留 scan RPC）
 set @idx_like_entity_user := (
   select count(*)
   from information_schema.statistics
@@ -47,17 +47,6 @@ create table if not exists social_block (
   created_at timestamp not null default current_timestamp,
   primary key (user_id, target_user_id),
   index idx_block_user_created (user_id, created_at)
-);
-
--- content 实体元信息投影（用于 social 写路径解析 entity -> owner/postId/status，避免跨域同步 resolve）
-create table if not exists social_content_entity_projection (
-  entity_type int not null,
-  entity_id bigint not null,
-  entity_user_id bigint not null default 0,
-  post_id bigint not null default 0,
-  status int not null default 0,
-  updated_at timestamp not null default current_timestamp,
-  primary key (entity_type, entity_id)
 );
 
 -- Outbox（可靠事件投递）

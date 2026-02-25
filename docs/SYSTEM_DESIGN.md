@@ -153,22 +153,19 @@ unknown handling 为可配置策略（服务级别）：
   2) ES 索引健康：检查索引是否存在、mapping 是否兼容、写入是否报错
   3) 冷启动/纠偏：必要时执行 reindex（`scripts/search-reindex.sh` 或 `/api/ops/search/reindex`）
 
-### 3.4 写路径解耦：本地投影（Read Model）+ 事件同步
-为降低跨服务同步耦合与级联失败风险，关键写路径遵循：
-- **写路径只读本地投影**：不在写接口中同步依赖 user-service/social-service 的实时可用性
-- **SSOT 在源服务**：处罚状态 SSOT 在 user-service；拉黑关系 SSOT 在 social-service
-- **最终一致**：通过事件与回填/纠偏机制，让状态在可接受窗口内传播到各写服务投影
+### 3.4 跨域校验与聚合：Dubbo RPC 回源（去投影）
+按当前需求取舍：仓库已移除跨域本地投影（`*_projection` 表、Redis 投影、投影消费者与 backfill 入口），统一改为 **Dubbo RPC 实时回源 SSOT**。
 
-投影范围（示例）：
-- content-service/message-service：`user_moderation_projection`（mute/ban）与 `user_block_projection`（block/unblock）
+典型场景：
+- content/message 写路径反骚扰（拉黑校验）：RPC 调 `social-service`（`SocialBlockRpcService#isEitherBlocked`），默认 fail-closed（social 不可用则 503）
+- content/message 写路径处罚状态守卫：RPC 调 `user-service`（`UserModerationRpcService#getStatus`），默认 fail-closed（user 不可用则 503）
+- social 写路径可信解析（entity resolve）：RPC 调 `content-service`（`ContentEntityRpcService#resolveEntity`），默认 fail-closed（content 不可用则 503）
+- content 读路径点赞查询：RPC 调 `social-service`（`SocialReadRpcService#entityLikeCount/hasLiked`），展示类读路径默认 fail-open（可配置）
 
-传播链路（示例）：
-- content-service 处罚处置：发布 `ModerationCommandRequested` → user-service 消费并写库 → 发布 `ModerationStatusChanged` → 下游投影消费者更新本地投影
-- social-service 拉黑：写库后发布 `BlockRelationChanged` → 下游投影消费者更新本地投影
-
-冷启动/纠偏（建议）：
-- 提供 internal 扫描接口（按主键游标）用于下游建立投影基线
-- 必要时提供定时纠偏 job（可关闭），用于补齐历史数据或处理事件丢失/延迟导致的缺口
+风险与约束：
+- 同步依赖链增加（且存在 `content-service ↔ social-service` 双向依赖），更容易出现级联超时与部署牵制
+- 所有 `@DubboReference` 必须显式 `timeout` + `retries=0`，并为关键路径明确 fail-open/fail-closed 策略
+- 避免 N+1 RPC：优先批量 RPC 或短 TTL 缓存（容量受控）
 
 ---
 

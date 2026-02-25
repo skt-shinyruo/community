@@ -71,5 +71,5 @@
 ## 3. 约定（重要）
 - **HTTP status 表达“错误类别”，Result.code 表达“业务细分”。**
 - 错误码段约定：`10xxx auth` / `11xxx user` / `12xxx content` / `13xxx social` / `14xxx message` / `15xxx search` / `16xxx analytics` / `17xxx gateway`。
-- 跨域依赖门禁：
-  - `contracts-core/src/test/java/com/nowcoder/community/contracts/arch/NoCrossDomainContractImportTest.java`：禁止跨域 import 域错误码；并禁止 infra/contracts/common/gateway/ops 等模块依赖 domain payload。
+- 跨域依赖约束（仅文档）：
+  - 禁止跨域 import 域错误码枚举；infra/contracts/common/gateway/ops 等中立层也禁止依赖 domain payload/内部实现。

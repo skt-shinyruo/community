@@ -8,9 +8,6 @@ import com.nowcoder.community.user.api.rpc.dto.UserModerationStatus;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.dubbo.config.annotation.DubboReference;
 import org.apache.dubbo.rpc.RpcException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -25,18 +22,12 @@ import static com.nowcoder.community.contracts.api.CommonErrorCode.SERVICE_UNAVA
 @Service
 public class UserModerationClient {
 
-    private static final Logger log = LoggerFactory.getLogger(UserModerationClient.class);
     private static final String SERVICE_NAME = "user-service";
 
     private final MeterRegistry meterRegistry;
-    private final boolean failOpen;
 
-    public UserModerationClient(
-            MeterRegistry meterRegistry,
-            @Value("${clients.user.fail-open:false}") boolean failOpen
-    ) {
+    public UserModerationClient(MeterRegistry meterRegistry) {
         this.meterRegistry = meterRegistry;
-        this.failOpen = failOpen;
     }
 
     @DubboReference(check = false, retries = 0, timeout = 800)
@@ -53,13 +44,6 @@ public class UserModerationClient {
             InternalClientSupport.record(meterRegistry, SERVICE_NAME, "getStatus", InternalClientSupport.OUTCOME_SUCCESS, start);
             return data;
         } catch (RuntimeException e) {
-            if (failOpen) {
-                InternalClientSupport.record(meterRegistry, SERVICE_NAME, "getStatus", InternalClientSupport.OUTCOME_DEGRADED, start);
-                log.warn("[user-client] degraded (api=getStatus): {}", e.toString());
-                UserModerationStatus status = new UserModerationStatus();
-                status.setUserId(userId);
-                return status;
-            }
             InternalClientSupport.record(meterRegistry, SERVICE_NAME, "getStatus", classifyOutcome(e), start);
             if (e instanceof BusinessException be) {
                 throw be;
@@ -83,11 +67,6 @@ public class UserModerationClient {
             InternalClientSupport.record(meterRegistry, SERVICE_NAME, "scanStatuses", InternalClientSupport.OUTCOME_SUCCESS, start);
             return data == null ? List.of() : data;
         } catch (RuntimeException e) {
-            if (failOpen) {
-                InternalClientSupport.record(meterRegistry, SERVICE_NAME, "scanStatuses", InternalClientSupport.OUTCOME_DEGRADED, start);
-                log.warn("[user-client] degraded (api=scanStatuses): {}", e.toString());
-                return List.of();
-            }
             InternalClientSupport.record(meterRegistry, SERVICE_NAME, "scanStatuses", classifyOutcome(e), start);
             if (e instanceof BusinessException be) {
                 throw be;

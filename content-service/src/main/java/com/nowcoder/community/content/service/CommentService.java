@@ -5,7 +5,6 @@ import com.nowcoder.community.content.api.event.payload.CommentPayload;
 import com.nowcoder.community.contracts.domain.EntityTypes;
 import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.platform.tx.AfterCommitExecutor;
-import com.nowcoder.community.content.projection.UserModerationProjectionRepository;
 import com.nowcoder.community.content.dao.CommentMapper;
 import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.entity.DiscussPost;
@@ -42,7 +41,7 @@ public class CommentService {
     private final SensitiveFilter sensitiveFilter;
     private final PostScoreQueue postScoreQueue;
     private final ContentEventPublisher eventPublisher;
-    private final UserModerationProjectionRepository projectionRepository;
+    private final SocialBlockClient socialBlockClient;
     private final UserModerationGuard moderationGuard;
     private final ContentTextCodec textCodec;
 
@@ -52,7 +51,7 @@ public class CommentService {
             SensitiveFilter sensitiveFilter,
             PostScoreQueue postScoreQueue,
             ContentEventPublisher eventPublisher,
-            UserModerationProjectionRepository projectionRepository,
+            SocialBlockClient socialBlockClient,
             UserModerationGuard moderationGuard,
             ContentTextCodec textCodec
     ) {
@@ -61,7 +60,7 @@ public class CommentService {
         this.sensitiveFilter = sensitiveFilter;
         this.postScoreQueue = postScoreQueue;
         this.eventPublisher = eventPublisher;
-        this.projectionRepository = projectionRepository;
+        this.socialBlockClient = socialBlockClient;
         this.moderationGuard = moderationGuard;
         this.textCodec = textCodec;
     }
@@ -157,8 +156,7 @@ public class CommentService {
 
         // 反骚扰：双方任意一方拉黑另一方，都禁止互动（评论/回复）。
         if (targetUserId != null && targetUserId > 0) {
-            UserModerationProjectionRepository.BlockCheck check = projectionRepository.checkEitherBlocked(actorUserId, targetUserId);
-            if (check == UserModerationProjectionRepository.BlockCheck.BLOCKED) {
+            if (socialBlockClient != null && socialBlockClient.isEitherBlocked(actorUserId, targetUserId)) {
                 throw new BusinessException(FORBIDDEN, "双方存在拉黑关系，无法执行该操作");
             }
         }

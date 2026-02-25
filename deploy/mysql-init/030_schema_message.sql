@@ -39,19 +39,3 @@ create table if not exists http_idempotency (
   key idx_http_idem_processing_expires (processing_expires_at, id),
   key idx_http_idem_success_expires (success_expires_at, id)
 );
-
--- message-service 本地投影（最终一致）：处罚状态与拉黑关系（用于私信写路径拦截）
-create table if not exists user_moderation_projection (
-  user_id int primary key,
-  mute_until timestamp null default null,
-  ban_until timestamp null default null,
-  updated_at timestamp null default current_timestamp
-);
-
-create table if not exists user_block_projection (
-  blocker_user_id int not null,
-  blocked_user_id int not null,
-  blocked tinyint not null default 1,
-  updated_at timestamp null default current_timestamp,
-  primary key (blocker_user_id, blocked_user_id)
-);

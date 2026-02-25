@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 私信会话列表/详情/发送；通知列表/详情/未读数；Kafka 消费评论/点赞/关注事件写入通知；消费失败重试与 DLQ
 - **Status：** ✅Stable
-- **Last Updated：** 2026-02-24
+- **Last Updated：** 2026-02-25
 
 ## Specifications
 
@@ -21,9 +21,8 @@
 #### Scenario: 发送私信
 前置条件：目标用户存在
 - 私信写入数据库
-  - 发送前校验拉黑关系（双向）：仅依赖本地投影 `user_block_projection`（最终一致）
-    - 实时纠偏：消费 `BlockRelationChanged` 事件更新投影
-    - 冷启动/补洞：通过 `SocialBlockScanRpcService` 扫描“当前拉黑集合”做投影自举（避免 per-request 点查回源）
+  - 发送前校验拉黑关系（双向）：Dubbo RPC 调用 `social-service`（`SocialBlockRpcService#isEitherBlocked`）
+    - 写路径默认 fail-closed：social-service 不可用时返回 503（避免“被拉黑仍可私信”的绕过窗口）
   - toName 场景（按用户名发送）会触发 username→userId 的 resolve：默认加入短 TTL + 有界容量缓存，降低重复回源导致的依赖放大（配置见 Dependencies）
 
 ### Requirement: 系统通知
@@ -34,7 +33,6 @@
 前置条件：Kafka 收到事件
 - 写入 message 表（from_id=系统用户）
 - 通知内容包含触发者与目标实体信息
-  - 支持治理通知（moderation topic），用于回传治理处置结果给用户
 
 ### Requirement: 消费端幂等 + 事务 + ack（P0）
 **Module:** message
@@ -59,7 +57,7 @@
 - `POST /api/messages`
 - `GET /api/messages/unread-count`
 - `PUT /api/messages/read`
-- `GET /api/notices?topic=like|comment|follow|moderation`
+- `GET /api/notices?topic=like|comment|follow`
 - `GET /api/notices/unread-count`
 - `PUT /api/notices/read`
 
@@ -69,18 +67,12 @@
 
 ## Dependencies
 - user（目标用户信息）
-- social（通过 `social-api` Dubbo RPC：`SocialBlockScanRpcService` 扫描当前拉黑集合用于投影自举；写路径不再 per-request 点查）
+- user（私信写路径禁言/封禁校验：`UserModerationRpcService#getStatus`）
+- social（私信写路径拉黑校验：`SocialBlockRpcService#isEitherBlocked`）
 - infra（Kafka、Security/登录态）
   - username resolve 缓存（message-service -> user-service）：
     - `clients.user.resolve-cache.ttl`（默认 60s）
     - `clients.user.resolve-cache.max-size`（默认 5000）
-  - block 投影自举（message-service -> social-service）：
-    - `message.projection.block-scan.enabled`（默认 true）
-    - `message.projection.block-scan.interval-ms`（默认 2000）
-    - `message.projection.block-scan.batch-size`（默认 2000）
-    - `message.projection.block-scan.rescan-interval-ms`（默认 3600000）
-    - `message.projection.block-scan.single-flight`（默认 true）
-    - `message.projection.block-scan.lock-ttl-seconds`（默认 300）
 
 ## Change History
 - 2026-01-18：消费端幂等/事务/ack 正确性修复（insert-first + 同事务提交），并补齐 DLQ 指标/告警与回放脚本。
@@ -88,4 +80,4 @@
 - 2026-02-01：私信拉黑校验消除 fail-open：投影缺失时回源 social SSOT 并回填；对外私信接口返回 DTO，避免直接暴露实体契约。
 - 2026-02-02：私信 toName 写路径的 username→userId resolve 增加短 TTL 缓存（容量受控），降低同步依赖放大与尾延迟。
 - 2026-02-03：`consumed_event` 清理任务改为分批 delete（`order by consumed_at, id limit N`），并支持可选 single-flight（多实例避免重复执行）；索引对齐为 `idx_consumed_event_at(consumed_at, id)`。
-- 2026-02-24：私信写路径移除“投影缺失 -> social 点查回源”同步依赖；拉黑校验收敛为本地投影 + scan 自举；新增架构门禁防止回潮。
+- 2026-02-25：按需求移除本地投影：私信写路径拉黑校验改为 Dubbo RPC 回源 social SSOT；用户摘要与 username 解析改为 Dubbo RPC 回源 user SSOT（保留短 TTL + 有界缓存）。

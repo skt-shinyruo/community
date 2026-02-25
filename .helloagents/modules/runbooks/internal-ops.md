@@ -5,7 +5,7 @@
 
 ## 0. 目标
 
-- 列出对外 ops 运维入口清单（reindex / outbox replay / backfill）
+- 列出对外 ops 运维入口清单（reindex / outbox replay）
 - 给出推荐触发方式（仅 gateway）
 - 给出最低限度的安全注意事项（鉴权、审计、限流、避免并发重复触发）
 
@@ -18,7 +18,6 @@
 - `POST /api/ops/social/outbox/replay?limit=200`（social-service：重放失败 outbox）
 - `GET /api/ops/user/outbox/health`（user-service：outbox 健康检查）
 - `POST /api/ops/user/outbox/replay?limit=200`（user-service：重放失败 outbox）
-- `POST /api/ops/content/likes/backfill?entityType=&maxItems=&batchSize=`（content-service：点赞投影冷启动/纠偏回填，高成本；默认关闭，需显式开启 `content.like.backfill.endpoint-enabled=true`）
 
 ## 2. 推荐触发方式
 
@@ -49,7 +48,7 @@
 	  - 审计日志（谁在什么时候触发了什么运维动作）
 
 4) **避免并发重复触发**
-- reindex/outbox replay/backfill 建议单次执行并观察日志/指标，避免重复触发造成下游雪崩或队列堆积
+- reindex/outbox replay 建议单次执行并观察日志/指标，避免重复触发造成下游雪崩或队列堆积
 
 ## 4. 历史说明（已废弃）
 

@@ -29,16 +29,6 @@ create table if not exists social_block (
   primary key (user_id, target_user_id)
 );
 
-create table if not exists social_content_entity_projection (
-  entity_type int not null,
-  entity_id int not null,
-  entity_user_id int not null default 0,
-  post_id int not null default 0,
-  status int not null default 0,
-  updated_at timestamp null default current_timestamp,
-  primary key (entity_type, entity_id)
-);
-
 create table if not exists outbox_event (
   id bigint auto_increment primary key,
   event_id varchar(64) unique,

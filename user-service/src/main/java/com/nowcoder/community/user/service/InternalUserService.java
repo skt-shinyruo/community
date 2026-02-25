@@ -1,9 +1,7 @@
 package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.contracts.api.CommonErrorCode;
-import com.nowcoder.community.user.api.event.payload.ModerationStatusPayload;
 import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.user.event.UserEventPublisher;
 import com.nowcoder.community.user.dao.UserMapper;
 import com.nowcoder.community.user.entity.User;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -33,12 +31,10 @@ public class InternalUserService {
     public static final int ACTIVATION_FAILURE = 2;
 
     private final UserMapper userMapper;
-    private final UserEventPublisher eventPublisher;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    public InternalUserService(UserMapper userMapper, UserEventPublisher eventPublisher) {
+    public InternalUserService(UserMapper userMapper) {
         this.userMapper = userMapper;
-        this.eventPublisher = eventPublisher;
     }
 
     public User authenticate(String username, String password) {
@@ -89,6 +85,7 @@ public class InternalUserService {
         return userMapper.selectByEmail(e);
     }
 
+    @Transactional
     public User register(String username, String password, String email) {
         String u = safeTrim(username);
         String p = safeTrim(password);
@@ -136,12 +133,6 @@ public class InternalUserService {
         }
         if (activationCode.equals(user.getActivationCode())) {
             userMapper.updateStatus(userId, 1);
-            // 冷启动/投影回填：激活成功后发布一次“当前处罚状态”（通常为空），便于下游建立基线。
-            ModerationStatus baseline = new ModerationStatus();
-            baseline.setUserId(userId);
-            baseline.setMuteUntil(user.getMuteUntil() == null ? null : user.getMuteUntil().toInstant());
-            baseline.setBanUntil(user.getBanUntil() == null ? null : user.getBanUntil().toInstant());
-            publishModerationStatusChanged(baseline);
             return ACTIVATION_SUCCESS;
         }
         return ACTIVATION_FAILURE;
@@ -283,20 +274,7 @@ public class InternalUserService {
         resp.setMuteUntil(muteUntil);
         resp.setBanUntil(banUntil);
 
-        // 投影更新的 SSOT：user-service 处罚状态变更必须发布事件（最终一致）。
-        publishModerationStatusChanged(resp);
         return resp;
-    }
-
-    private void publishModerationStatusChanged(ModerationStatus status) {
-        if (status == null) {
-            return;
-        }
-        ModerationStatusPayload payload = new ModerationStatusPayload();
-        payload.setUserId(status.getUserId());
-        payload.setMuteUntil(status.getMuteUntil());
-        payload.setBanUntil(status.getBanUntil());
-        eventPublisher.publishModerationStatusChanged(payload);
     }
 
     private int clampDurationSeconds(int seconds) {

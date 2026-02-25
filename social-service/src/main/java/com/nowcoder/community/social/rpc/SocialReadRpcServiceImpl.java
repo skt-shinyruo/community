@@ -40,6 +40,34 @@ public class SocialReadRpcServiceImpl implements SocialReadRpcService {
     }
 
     @Override
+    public Result<Long> entityLikeCount(int entityType, int entityId) {
+        try {
+            if (!EntityTypes.isValid(entityType) || entityId <= 0) {
+                return Result.ok(0L);
+            }
+            return Result.ok(likeService.count(entityType, entityId));
+        } catch (BusinessException e) {
+            return error(e);
+        } catch (RuntimeException e) {
+            return Result.error(CommonErrorCode.INTERNAL_ERROR);
+        }
+    }
+
+    @Override
+    public Result<Boolean> hasLiked(int actorUserId, int entityType, int entityId) {
+        try {
+            if (actorUserId <= 0 || !EntityTypes.isValid(entityType) || entityId <= 0) {
+                return Result.ok(false);
+            }
+            return Result.ok(likeService.isLiked(actorUserId, entityType, entityId));
+        } catch (BusinessException e) {
+            return error(e);
+        } catch (RuntimeException e) {
+            return Result.error(CommonErrorCode.INTERNAL_ERROR);
+        }
+    }
+
+    @Override
     public Result<Long> followeeCount(int userId) {
         try {
             if (userId <= 0) {
@@ -117,4 +145,3 @@ public class SocialReadRpcServiceImpl implements SocialReadRpcService {
         return Result.error(ec.getCode(), msg);
     }
 }
-

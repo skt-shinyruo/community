@@ -86,7 +86,6 @@ Redis 主要用于：
 2) **域事件契约（生产方域 owns semantics）：** `*-api/`
 - content：`content-api/src/main/java/com/nowcoder/community/content/api/event/ContentEventTypes.java` + `content-api/src/main/java/com/nowcoder/community/content/api/event/payload/*`
 - social：`social-api/src/main/java/com/nowcoder/community/social/api/event/SocialEventTypes.java` + `social-api/src/main/java/com/nowcoder/community/social/api/event/payload/*`
-- user：`user-api/src/main/java/com/nowcoder/community/user/api/event/UserEventTypes.java` + `user-api/src/main/java/com/nowcoder/community/user/api/event/payload/*`
 
 ---
 

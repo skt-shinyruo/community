@@ -4,6 +4,7 @@ import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.user.dao.UserMapper;
 import com.nowcoder.community.user.entity.User;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
@@ -39,8 +40,20 @@ public class UserService {
         return user;
     }
 
+    @Transactional
     public void updateHeaderUrl(int userId, String headerUrl) {
-        userMapper.updateHeader(userId, headerUrl);
+        int uid = Math.max(0, userId);
+        if (uid <= 0) {
+            throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
+        }
+        String url = StringUtils.hasText(headerUrl) ? headerUrl.trim() : "";
+        if (!StringUtils.hasText(url)) {
+            throw new BusinessException(INVALID_ARGUMENT, "headerUrl 不能为空");
+        }
+        int updated = userMapper.updateHeader(uid, url);
+        if (updated <= 0) {
+            throw new BusinessException(com.nowcoder.community.contracts.api.CommonErrorCode.INTERNAL_ERROR, "更新头像失败");
+        }
     }
 
     public List<User> listUserSummariesByIds(List<Integer> ids) {

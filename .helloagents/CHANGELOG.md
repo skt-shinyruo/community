@@ -4,6 +4,16 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## 2026-02-25
+
+- [arch/kb] 按需求移除跨域本地投影：跨域校验/聚合统一改为 Dubbo RPC 回源；同步更新 `.helloagents/project.md` 的同步依赖 allowlist 与 RPC 降级策略（SSOT）。
+- [social-service] 删除内容实体投影与消费者；`ContentEntityResolver` 改为 Dubbo RPC 调用 `content-service`（`ContentEntityRpcService#resolveEntity`，写路径 fail-closed）。
+- [content-service] 删除 moderation/block/like 投影与相关消费者/backfill；写路径处罚状态与拉黑校验改为 Dubbo RPC 回源（user/social SSOT）；点赞查询改为 Dubbo RPC 回源 `social-service`（展示类读路径默认 fail-open）。
+- [message-service] 删除 moderation/block/userSummary 投影与相关消费者；私信写路径拉黑校验改为 Dubbo RPC 回源 `social-service`；用户摘要与 username 解析改为 Dubbo RPC 回源 `user-service`（短 TTL + 有界缓存）。
+- [ops-service] 移除投影 backfill 运维入口与配置，仅保留 reindex/outbox health/replay。
+- [deploy/docs/kb] 移除 `deploy/mysql-init/*` 中 `*_projection` 建表，并更新 `docs/SYSTEM_DESIGN.md` 与 `.helloagents` 模块文档口径为“RPC 回源”。
+- [contracts-core/test] 按需求变更：撤销/移除仓库内现存架构/质量门禁测试（不再通过 gate tests 强制，仅保留 KB 与 code review 约定）。
+
 ## 2026-02-24
 
 - [contracts-core] contracts 纯化：新增 `TraceIdCodec` 作为 trace 编解码 SSOT；移除 `TraceId/TraceContext` 等运行期实现；`Result` 不再隐式读取 ThreadLocal traceId（避免契约泄漏 runtime 细节）。

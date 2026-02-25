@@ -76,8 +76,6 @@ class SocialEventConsumerContractTest {
         return new SocialEventConsumer(
                 objectMapper,
                 postScoreQueue,
-                null,
-                "db",
                 unknownTypeAction,
                 unsupportedVersionAction
         );

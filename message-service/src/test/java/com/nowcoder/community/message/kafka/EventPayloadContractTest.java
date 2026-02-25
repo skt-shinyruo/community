@@ -9,7 +9,6 @@ import com.nowcoder.community.content.api.event.payload.PostPayload;
 import com.nowcoder.community.social.api.event.payload.BlockPayload;
 import com.nowcoder.community.social.api.event.payload.FollowPayload;
 import com.nowcoder.community.social.api.event.payload.LikePayload;
-import com.nowcoder.community.user.api.event.payload.ModerationStatusPayload;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -50,8 +49,6 @@ class EventPayloadContractTest {
         assertRoundTrip(LikePayload.class, sampleLikePayload());
         assertRoundTrip(FollowPayload.class, sampleFollowPayload());
         assertRoundTrip(BlockPayload.class, sampleBlockPayload());
-
-        assertRoundTrip(ModerationStatusPayload.class, sampleModerationStatusPayload());
     }
 
     private <T> void assertRoundTrip(Class<T> clazz, T value) throws Exception {
@@ -182,12 +179,4 @@ class EventPayloadContractTest {
         return p;
     }
 
-    private ModerationStatusPayload sampleModerationStatusPayload() {
-        ModerationStatusPayload p = new ModerationStatusPayload();
-        p.setUserId(1);
-        p.setMuteUntil(Instant.now());
-        p.setBanUntil(Instant.now());
-        return p;
-    }
 }
-

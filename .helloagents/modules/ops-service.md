@@ -1,12 +1,12 @@
 # ops-service
 
 ## Purpose
-隔离高风险/高成本运维能力（reindex / outbox replay / backfill 等），降低主转发面（gateway）的爆炸半径与发布风险。
+隔离高风险/高成本运维能力（reindex / outbox replay 等），降低主转发面（gateway）的爆炸半径与发布风险。
 
 ## Module Overview
 - **Responsibility：** 对外暴露 `/api/ops/**` 运维入口；内部通过 Dubbo RPC 调用各服务的 ops RPC（search/content/social/user）
 - **Status：** ✅Stable
-- **Last Updated：** 2026-02-20
+- **Last Updated：** 2026-02-25
 
 ## Key Files
 - 启动类：`ops-service/src/main/java/com/nowcoder/community/ops/OpsServiceApplication.java`
@@ -23,7 +23,6 @@
 - `POST /api/ops/social/outbox/replay?limit=200`：重放失败 outbox（social-service）
 - `GET /api/ops/user/outbox/health`：outbox 健康检查（user-service）
 - `POST /api/ops/user/outbox/replay?limit=200`：重放失败 outbox（user-service）
-- `POST /api/ops/content/likes/backfill?entityType=&maxItems=&batchSize=`：回填点赞投影（content-service，高成本；默认关闭，需显式开启 `content.like.backfill.endpoint-enabled=true`）
 
 legacy：
 - `POST /api/search/internal/reindex`：历史遗留命名；在 **search-service** 固定返回 410，并提示迁移到 `/api/ops/search/reindex`（避免误用与攻击面回潮）。
@@ -38,4 +37,4 @@ legacy：
 
 ## Change History
 - 2026-02-20：引入 `ops-service`，将 gateway 内部运维 handlers 迁移到独立发布单元，降低全站爆炸半径。
-
+- 2026-02-25：按需求移除本地投影后，ops 平面同步移除投影 backfill 入口，仅保留 reindex/outbox 健康检查与重放等能力。

@@ -4,7 +4,6 @@ import com.nowcoder.community.platform.tx.AfterCommitExecutor;
 import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.domain.event.PostDomainEventPublisher;
-import com.nowcoder.community.content.projection.UserModerationProjectionRepository;
 import com.nowcoder.community.content.score.PostScoreQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +31,6 @@ public class PostCommandService {
     private final PostScoreQueue postScoreQueue;
     private final CategoryService categoryService;
     private final TagService tagService;
-    private final UserModerationProjectionRepository projectionRepository;
     private final UserModerationGuard moderationGuard;
     private final PostDomainEventPublisher domainEventPublisher;
 
@@ -41,7 +39,6 @@ public class PostCommandService {
             PostScoreQueue postScoreQueue,
             CategoryService categoryService,
             TagService tagService,
-            UserModerationProjectionRepository projectionRepository,
             UserModerationGuard moderationGuard,
             PostDomainEventPublisher domainEventPublisher
     ) {
@@ -49,7 +46,6 @@ public class PostCommandService {
         this.postScoreQueue = postScoreQueue;
         this.categoryService = categoryService;
         this.tagService = tagService;
-        this.projectionRepository = projectionRepository;
         this.moderationGuard = moderationGuard;
         this.domainEventPublisher = domainEventPublisher;
     }

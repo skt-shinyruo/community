@@ -7,7 +7,6 @@ import com.nowcoder.community.message.api.dto.LetterItemResponse;
 import com.nowcoder.community.message.api.dto.UserSummaryResponse;
 import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.service.dto.ConversationStats;
-import com.nowcoder.community.message.projection.UserModerationProjectionRepository;
 import com.nowcoder.community.platform.security.OwnerGuard;
 import com.nowcoder.community.user.api.rpc.dto.UserSummary;
 import org.springframework.stereotype.Service;
@@ -25,20 +24,20 @@ public class PrivateMessageService {
 
     private final MessageMapper messageMapper;
     private final UserServiceClient userServiceClient;
-    private final UserModerationProjectionRepository projectionRepository;
+    private final SocialBlockClient socialBlockClient;
     private final UserModerationGuard moderationGuard;
     private final OwnerGuard ownerGuard;
 
     public PrivateMessageService(
             MessageMapper messageMapper,
             UserServiceClient userServiceClient,
-            UserModerationProjectionRepository projectionRepository,
+            SocialBlockClient socialBlockClient,
             UserModerationGuard moderationGuard,
             OwnerGuard ownerGuard
     ) {
         this.messageMapper = messageMapper;
         this.userServiceClient = userServiceClient;
-        this.projectionRepository = projectionRepository;
+        this.socialBlockClient = socialBlockClient;
         this.moderationGuard = moderationGuard;
         this.ownerGuard = ownerGuard;
     }
@@ -111,8 +110,7 @@ public class PrivateMessageService {
 
     public void send(int fromId, int toId, String content) {
         moderationGuard.assertCanSendMessage(fromId);
-        UserModerationProjectionRepository.BlockCheck check = projectionRepository.checkEitherBlocked(fromId, toId);
-        if (check == UserModerationProjectionRepository.BlockCheck.BLOCKED) {
+        if (socialBlockClient != null && socialBlockClient.isEitherBlocked(fromId, toId)) {
             throw new com.nowcoder.community.contracts.exception.BusinessException(
                     com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN,
                     "双方存在拉黑关系，无法发送私信"

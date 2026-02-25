@@ -29,6 +29,6 @@ frontend → gateway → {各业务服务}
 ```
 
 ## 状态说明
-- ✅ Stable：已收敛并受门禁保护
+- ✅ Stable：已收敛，关键约定记录于 KB（当前不通过 gate tests 强制）
 - 🚧 Developing：开发中
 - 📝 Planned：规划中

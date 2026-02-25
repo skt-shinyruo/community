@@ -8,16 +8,13 @@ import com.nowcoder.community.contracts.event.UnknownEventAction;
 import com.nowcoder.community.platform.kafka.KafkaTraceSupport;
 import com.nowcoder.community.social.api.event.SocialEventTypes;
 import com.nowcoder.community.social.api.event.payload.LikePayload;
-import com.nowcoder.community.content.like.LikeRedisKeys;
 import com.nowcoder.community.content.score.PostScoreQueue;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;
@@ -33,23 +30,17 @@ public class SocialEventConsumer {
 
     private final ObjectMapper objectMapper;
     private final PostScoreQueue postScoreQueue;
-    private final ObjectProvider<StringRedisTemplate> redisTemplateProvider;
-    private final boolean redisProjectionEnabled;
     private final UnknownEventAction unknownTypeAction;
     private final UnknownEventAction unsupportedVersionAction;
 
     public SocialEventConsumer(
             ObjectMapper objectMapper,
             PostScoreQueue postScoreQueue,
-            ObjectProvider<StringRedisTemplate> redisTemplateProvider,
-            @Value("${content.storage:redis}") String storage,
             @Value("${community.kafka.consumer.unknown-type-action:SKIP}") String unknownTypeAction,
             @Value("${community.kafka.consumer.unsupported-version-action:DLQ}") String unsupportedVersionAction
     ) {
         this.objectMapper = objectMapper;
         this.postScoreQueue = postScoreQueue;
-        this.redisTemplateProvider = redisTemplateProvider;
-        this.redisProjectionEnabled = "redis".equalsIgnoreCase(storage == null ? "" : storage.trim());
         this.unknownTypeAction = UnknownEventAction.parseOrDefault(unknownTypeAction, UnknownEventAction.SKIP);
         this.unsupportedVersionAction = UnknownEventAction.parseOrDefault(unsupportedVersionAction, UnknownEventAction.DLQ);
     }
@@ -103,20 +94,7 @@ public class SocialEventConsumer {
             return;
         }
 
-        // 点赞投影：用 Redis Set 作为读模型（与帖子详情/热帖分数链路统一）。
-        if (redisProjectionEnabled && payload.getActorUserId() > 0) {
-            StringRedisTemplate redisTemplate = redisTemplateProvider == null ? null : redisTemplateProvider.getIfAvailable();
-            if (redisTemplate != null) {
-                String key = LikeRedisKeys.entityKey(payload.getEntityType(), payload.getEntityId());
-                String member = String.valueOf(payload.getActorUserId());
-                if (likeCreated) {
-                    redisTemplate.opsForSet().add(key, member);
-                } else {
-                    redisTemplate.opsForSet().remove(key, member);
-                }
-            }
-        }
-
+        // 热帖分数刷新：点赞变化触发重新计算（由刷新任务通过 RPC 回源读取最新点赞数）。
         postScoreQueue.add(postId);
     }
 }

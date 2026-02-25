@@ -7,6 +7,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.lang.reflect.Field;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -17,14 +18,12 @@ import static org.mockito.Mockito.when;
 class UserServiceClientResolveCacheTest {
 
     @Test
-    void resolveByUsernameShouldUseShortTtlCache() {
+    void resolveByUsernameShouldUseShortTtlCache() throws Exception {
         UserReadRpcService rpc = mock(UserReadRpcService.class);
-
         UserSummary u = new UserSummary();
         u.setId(123);
         u.setUsername("alice");
         u.setHeaderUrl("h");
-
         when(rpc.resolveByUsernameOrNull("alice")).thenReturn(Result.ok(u));
 
         UserServiceClient client = new UserServiceClient(
@@ -33,7 +32,10 @@ class UserServiceClientResolveCacheTest {
                 Duration.ofSeconds(60),
                 10
         );
-        TestSupport.injectRpc(client, rpc);
+
+        Field f = UserServiceClient.class.getDeclaredField("userReadRpcService");
+        f.setAccessible(true);
+        f.set(client, rpc);
 
         Integer id1 = client.safeResolveUserIdByUsername("alice ");
         Integer id2 = client.safeResolveUserIdByUsername("alice");
@@ -42,17 +44,5 @@ class UserServiceClientResolveCacheTest {
         assertThat(id2).isEqualTo(123);
 
         verify(rpc, times(1)).resolveByUsernameOrNull("alice");
-    }
-
-    private static final class TestSupport {
-        private static void injectRpc(UserServiceClient client, UserReadRpcService rpc) {
-            try {
-                var f = UserServiceClient.class.getDeclaredField("userReadRpcService");
-                f.setAccessible(true);
-                f.set(client, rpc);
-            } catch (ReflectiveOperationException e) {
-                throw new IllegalStateException(e);
-            }
-        }
     }
 }

@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 发帖；帖子详情；评论/回复；敏感词过滤；热帖分数刷新；与搜索/通知联动
 - **Status：** ✅Stable
-- **Last Updated：** 2026-02-24
+- **Last Updated：** 2026-02-25
 
 ## Specifications
 
@@ -43,7 +43,7 @@ Runbook：
 #### Scenario: 浏览帖子详情
 前置条件：帖子存在
 - 返回帖子、作者、评论/回复列表
-- 返回点赞数量与点赞状态（读 Redis `like:entity:*` 投影；由 social 事件驱动维护，允许短暂最终一致窗口）
+- 返回点赞数量与点赞状态（Dubbo RPC 回源 `social-service`；展示类读路径默认 fail-open，可配置 `clients.social.fail-open`）
 
 ### Requirement: 评论与回复
 **Module:** content
@@ -133,11 +133,10 @@ Runbook：
 - `GET /api/posts?subscribed=true`（仅看订阅：按订阅分类过滤）
 - Dubbo RPC（服务间同步调用，推荐）：
   - `ContentScanRpcService`：帖子扫描（供 search-service reindex）
-  - `ContentEntityRpcService`：实体解析（POST/COMMENT 的 owner/postId/存在性；用于运维/投影重建/一致性纠偏，不应用于线上写路径的同步依赖）
+  - `ContentEntityRpcService`：实体解析（POST/COMMENT 的 owner/postId/存在性；供 social-service 写路径做可信校验与解析）
 - Ops（对外运维入口，统一走 gateway `/api/ops/**`）：
   - `GET /api/ops/content/outbox/health`
   - `POST /api/ops/content/outbox/replay?limit=200`
-  - `POST /api/ops/content/likes/backfill?entityType=&maxItems=&batchSize=`（默认关闭；需显式开启 `content.like.backfill.endpoint-enabled=true`）
 
 ## Data Models
 ### discuss_post
@@ -154,22 +153,14 @@ Runbook：
 
 ## Dependencies
 - user（作者信息）
-- social（点赞 SSOT 与事件来源；由 social 事件驱动维护 content 的 Redis 点赞投影）
-- social（通过 `social-api` Dubbo RPC：likes scan 用于冷启动/纠偏回填点赞投影；拉黑关系校验仅依赖本地投影 + scan 自举，写路径不再 per-request 点查）
+- social（点赞/拉黑 SSOT；Dubbo RPC 回源：点赞数/点赞状态/拉黑校验）
 - user（通过 `user-api` Dubbo RPC：禁言/封禁状态用于发帖/评论写路径前置校验；治理动作落地）
 - message（评论/点赞/关注通知）
 - search（发帖/删帖事件同步索引）
 - infra（Quartz、Redis、Kafka）
-  - block 投影自举（content-service -> social-service）：
-    - `content.projection.block-scan.enabled`（默认 true）
-    - `content.projection.block-scan.interval-ms`（默认 2000）
-    - `content.projection.block-scan.batch-size`（默认 2000）
-    - `content.projection.block-scan.rescan-interval-ms`（默认 3600000）
-    - `content.projection.block-scan.single-flight`（默认 true）
-    - `content.projection.block-scan.lock-ttl-seconds`（默认 300）
 
 ## Change History
-- 2026-02-24：评论/回复写路径移除“投影缺失 -> social 点查回源”同步依赖；拉黑校验收敛为本地投影 + scan 自举；新增架构门禁防止回潮。
+- 2026-02-25：按需求移除本地投影：发言权限/拉黑校验/点赞查询统一改为 Dubbo RPC 回源；移除 likes/block backfill 运维入口与相关投影逻辑。
 - 2026-02-22：帖子写路径引入 Domain Event + BEFORE_COMMIT Outbox 桥接；管理动作（top/wonderful/delete）收敛到事务命令服务；PostPayload 组装集中到 assembler，修复旁路更新链路的 payload 漂移风险。
 - 2026-01-18：写路径事件发布改为 After-Commit（避免 DB 回滚仍发事件），并将热度刷新 enqueue 延后到事务提交后执行。
 - 2026-01-19：补充内部帖子扫描接口（`/internal/content/posts`，已在 2026-02-13 移除），用于支持 search-service 在严格 schema 隔离下完成 reindex 冷启动。

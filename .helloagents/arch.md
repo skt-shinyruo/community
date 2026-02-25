@@ -174,14 +174,11 @@ sequenceDiagram
 - **消费端幂等：** message-service 采用 `consumed_event` 表记录已消费 `eventId`，避免重复通知/重复副作用。
 - **索引重建：** search-service 提供 reindex 能力用于迁移期冷启动与修复（对外运维入口：`/api/ops/search/reindex`；legacy：`/api/search/internal/reindex` 固定返回 410 并提示迁移），重建数据通过 content-service Dubbo RPC 拉取。
 
-治理补充（2026-02-01）：
+治理补充（2026-02-25）：
 - **Outbox Pattern（默认开启）：** content-service / social-service / user-service 默认启用 outbox，使“DB 提交后事件可重试投递”成为默认安全态；保留开关可回滚到 after-commit 直发（应急止血用途）。
-- **点赞一致性（Like 投影 + LikeRemoved）：** social-service 发布 `LikeCreated/LikeRemoved`；content-service 消费并维护 Redis `like:entity:*` 投影，帖子详情与热帖分数使用同一数据源且支持取消点赞回落。
-- **反骚扰一致性（消除 fail-open）：** message/content 在“投影缺失”场景采用“投影优先 + SSOT 回源 + 回填”的策略，避免冷启动/漏消息窗口期绕过拉黑校验。
-- **事件契约可信（信任边界收口）：** social 写路径不再信任客户端注入的 `entityUserId/postId`，通过本地 content entity 投影生成可信 payload；投影缺失/不完整时 fail-closed（返回 503），通过事件回放/投影重建纠偏，避免跨域写路径同步依赖。
+- **去投影（RPC 回源）：** 取消 `content/message/social` 之间的本地投影（`*_projection` 表、Redis 投影、投影消费者与 backfill 入口），跨域校验/聚合统一改为 Dubbo RPC 回源 SSOT（例如：content/message 写路径拉黑校验、content 读路径点赞查询、social 写路径 entity resolve、写路径处罚状态校验）。
+- **同步依赖风险（content ↔ social）：** 当前存在 `content-service ↔ social-service` 双向 Dubbo 依赖；必须显式 `timeout` + `retries=0`，并对写路径与读路径分别制定 fail-open/fail-closed 策略，避免级联超时放大与部署牵制。
 - **unknown-handling 对齐：** search-service 等消费者统一采用 `EventEnvelopeParser` + `UnknownEventAction`，降低版本演进时的 DLQ 噪声与阻塞风险。
-- **服务间同步调用收敛：** 跨服务同步调用（例如 user-service 用户主页的获赞/关注/粉丝/是否关注）应优先走 **Dubbo RPC**（契约在 `*-api` 模块）；对外运维能力统一收敛到 `/api/ops/**`（gateway 路由到 ops-service），避免把业务同步依赖绑定到 HTTP internal。
-- **同步调用约束（只读且不成环）：** 跨服务同步调用只允许 **read-only**，并且不得形成依赖环；跨域写路径校验优先采用事件驱动的本地投影，投影缺失时应 fail-closed 或通过运维回放/重建修复（禁止在写路径回源同步调用形成环），从结构上降低级联故障与部署牵制风险。
 - **感知一致性（Perceived Consistency）：** 对“点赞/搜索”等对用户敏感的链路，在前端做短 TTL 覆盖与预期管理（read-your-writes + 最终一致提示），降低“写成功但读侧未更新”的可见不一致。
 - **幂等 TTL 可配置：** `IdempotencyGuard` 的 processing/success TTL 支持按环境配置，降低慢链路下锁过期的重复副作用风险；同时提供脚本示例帮助第三方正确传递 `Idempotency-Key`。
 - **配置护栏（doctor）：** 提供 `scripts/doctor.sh` 进行部署前自检（不输出敏感值），快速发现 JWT/prod profile/旁路暴露等误配，并提示清理已废弃的 internal/ops token 配置。
@@ -189,12 +186,13 @@ sequenceDiagram
 - **Dubbo 调用治理：** traceId/traceparent 通过 Dubbo attachment 透传；调用次数/时延通过统一 Filter 埋点（consumer/provider 侧口径一致），与 Prometheus/Micrometer 指标体系对齐。
 
 ### 6.1 架构护栏（Guardrails）
-- **contracts 纯化（协议与运行期隔离）：** `contracts-core` 仅承载稳定协议与纯工具类（如 `TraceHeaders`/`TraceIdCodec`），禁止 ThreadLocal/MDC/Spring Web/Reactor 等运行期实现细节；门禁测试：`contracts-core/src/test/java/com/nowcoder/community/contracts/arch/NoContractsRuntimeLeakTest.java`。
-- **Reactive 禁止 ThreadLocal trace 上下文（gateway）：** gateway 生产代码禁止依赖 `TraceContext/TraceId`（ThreadLocal/MDC），trace 传播必须通过 header/attachment；门禁测试：`gateway/src/test/java/com/nowcoder/community/gateway/arch/NoGatewayTraceContextUsageTest.java`。
-- **跨域依赖治理（ErrorCode ownership / payload 不泄漏）：** 禁止跨域 import 域错误码枚举、禁止 infra/contracts/common/gateway/ops 依赖域事件 payload；门禁测试：`contracts-core/src/test/java/com/nowcoder/community/contracts/arch/NoCrossDomainContractImportTest.java`。
-- **Outbox-only 默认安全态：** 允许保留“事务提交后直发”作为应急能力，但必须被显式开关保护（`events.outbox.direct-send-enabled`，默认关闭）；门禁测试：`common/src/test/java/com/nowcoder/community/platform/arch/OutboxOnlyGateTest.java`。
-- **Security 去漂移（SSOT 下沉到 starter）：** JWT authorities converter 统一由 `infra-security-starter/src/main/java/com/nowcoder/community/infra/security/jwt/AuthoritiesConverterFactory.java` 提供，各服务 `*SecurityConfig` 仅表达授权矩阵；门禁测试：`common/src/test/java/com/nowcoder/community/platform/arch/PublicEndpointDriftGateTest.java`。
-- **服务实现级耦合门禁（Maven 依赖层面）：** 禁止 service 模块在 pom 中直接依赖其他 service 模块，强制经由 `*-api` 或事件契约协作；门禁测试：`contracts-core/src/test/java/com/nowcoder/community/contracts/arch/NoCrossServicePomDependencyTest.java`。
+说明：按需求变更，当前仓库已移除扫描式门禁测试（gate tests）。以下护栏以 **文档 SSOT + code review + 编译/单测** 方式执行。
+- **contracts 纯化（协议与运行期隔离）：** `contracts-core` 仅承载稳定协议与纯工具类（如 `TraceHeaders`/`TraceIdCodec`），禁止 ThreadLocal/MDC/Spring Web/Reactor 等运行期实现细节。
+- **Reactive 禁止 ThreadLocal trace 上下文（gateway）：** gateway 生产代码禁止依赖 `TraceContext/TraceId`（ThreadLocal/MDC），trace 传播必须通过 header/attachment。
+- **跨域依赖治理（ErrorCode ownership / payload 不泄漏）：** 禁止跨域 import 域错误码枚举、禁止 infra/contracts/common/gateway/ops 依赖域事件 payload。
+- **Outbox-only 默认安全态：** 允许保留“事务提交后直发”作为应急能力，但必须被显式开关保护（`events.outbox.direct-send-enabled`，默认关闭）。
+- **Security 去漂移（SSOT 下沉到 starter）：** JWT authorities converter 统一由 `infra-security-starter/src/main/java/com/nowcoder/community/infra/security/jwt/AuthoritiesConverterFactory.java` 提供，各服务 `*SecurityConfig` 仅表达授权矩阵。
+- **服务实现级耦合约束（Maven 依赖层面）：** 禁止 service 模块在 pom 中直接依赖其他 service 模块，强制经由 `*-api` 或事件契约协作。
 
 ---
 

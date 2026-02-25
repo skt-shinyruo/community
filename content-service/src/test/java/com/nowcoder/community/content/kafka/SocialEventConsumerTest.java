@@ -20,8 +20,6 @@ class SocialEventConsumerTest {
     private final SocialEventConsumer consumer = new SocialEventConsumer(
             objectMapper,
             postScoreQueue,
-            null,
-            "memory",
             "SKIP",
             "DLQ"
     );

@@ -4,8 +4,8 @@ import com.nowcoder.community.platform.security.OwnerGuard;
 import com.nowcoder.community.message.api.dto.ConversationItemResponse;
 import com.nowcoder.community.message.dao.MessageMapper;
 import com.nowcoder.community.message.entity.Message;
-import com.nowcoder.community.message.projection.UserModerationProjectionRepository;
 import com.nowcoder.community.message.service.PrivateMessageService;
+import com.nowcoder.community.message.service.SocialBlockClient;
 import com.nowcoder.community.message.service.UserModerationGuard;
 import com.nowcoder.community.message.service.UserServiceClient;
 import com.nowcoder.community.message.service.dto.ConversationStats;
@@ -30,14 +30,14 @@ class MessageControllerTest {
     void conversationItemsShouldBatchUserLookupAndAvoidNPlusOne() {
         MessageMapper messageMapper = mock(MessageMapper.class);
         UserServiceClient userServiceClient = mock(UserServiceClient.class);
-        UserModerationProjectionRepository projectionRepository = mock(UserModerationProjectionRepository.class);
+        SocialBlockClient socialBlockClient = mock(SocialBlockClient.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         OwnerGuard ownerGuard = mock(OwnerGuard.class);
 
         PrivateMessageService service = new PrivateMessageService(
                 messageMapper,
                 userServiceClient,
-                projectionRepository,
+                socialBlockClient,
                 moderationGuard,
                 ownerGuard
         );

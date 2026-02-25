@@ -3,9 +3,7 @@ package com.nowcoder.community.ops.api;
 import com.nowcoder.community.contracts.api.CommonErrorCode;
 import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.contracts.internal.dto.OutboxHealthResponse;
-import com.nowcoder.community.content.api.rpc.ContentLikeOpsRpcService;
 import com.nowcoder.community.content.api.rpc.ContentOutboxRpcService;
-import com.nowcoder.community.content.api.rpc.dto.ContentLikeBackfillResponse;
 import com.nowcoder.community.search.api.rpc.SearchOpsRpcService;
 import com.nowcoder.community.search.api.rpc.dto.SearchReindexResponse;
 import com.nowcoder.community.social.api.rpc.SocialOutboxRpcService;
@@ -43,9 +41,6 @@ public class OpsController {
     @DubboReference(check = false, retries = 0, timeout = 30_000)
     private UserOutboxRpcService userOutboxRpcService;
 
-    @DubboReference(check = false, retries = 0, timeout = 120_000)
-    private ContentLikeOpsRpcService contentLikeOpsRpcService;
-
     @PostMapping("/search/reindex")
     public ResponseEntity<Result<SearchReindexResponse>> reindex() {
         return invoke(() -> searchOpsRpcService.reindex());
@@ -79,15 +74,6 @@ public class OpsController {
     @PostMapping("/user/outbox/replay")
     public ResponseEntity<Result<Integer>> userOutboxReplay(@RequestParam(required = false) Integer limit) {
         return invoke(() -> userOutboxRpcService.replayFailed(limit));
-    }
-
-    @PostMapping("/content/likes/backfill")
-    public ResponseEntity<Result<ContentLikeBackfillResponse>> contentLikesBackfill(
-            @RequestParam int entityType,
-            @RequestParam(required = false) Long maxItems,
-            @RequestParam(required = false) Integer batchSize
-    ) {
-        return invoke(() -> contentLikeOpsRpcService.backfill(entityType, maxItems, batchSize));
     }
 
     private <T> ResponseEntity<Result<T>> invoke(java.util.function.Supplier<Result<T>> call) {

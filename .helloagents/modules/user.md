@@ -6,7 +6,7 @@
 ## Module Overview
 - **Responsibility：** 用户资料查询；个人主页展示所需数据；头像上传（local/qiniu）与头像 URL 回写；internal 身份鉴权/注册/激活/密码更新接口；管理员用户角色管理
 - **Status：** ✅Stable
-- **Last Updated：** 2026-02-23
+- **Last Updated：** 2026-02-25
 
 ## Specifications
 
@@ -51,7 +51,7 @@
 
 #### Scenario: 消费处罚命令并发布状态变更（最终一致）
 - 消费 `community.event.moderation.v1` 的 `ModerationCommandRequested`（来自 content-service）
-- 执行后发布 `ModerationStatusChanged`，供 content/message 等下游投影更新
+- 执行后写入 user 表（`mute_until/ban_until`）；当前版本不再发布“处罚状态变更”事件，下游以 Dubbo RPC 实时回源为准
 - 幂等：以 `eventId` 去重表为准，避免重复消费导致重复处罚/重复事件
 
 ## API Interfaces（现状）

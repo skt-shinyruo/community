@@ -8,6 +8,10 @@ public interface SocialReadRpcService {
 
     Result<Long> userLikeCount(int userId);
 
+    Result<Long> entityLikeCount(int entityType, int entityId);
+
+    Result<Boolean> hasLiked(int actorUserId, int entityType, int entityId);
+
     Result<Long> followeeCount(int userId);
 
     Result<Long> followerCount(int userId);
@@ -16,4 +20,3 @@ public interface SocialReadRpcService {
 
     Result<UserProfileStats> userProfileStats(int userId, Integer viewerId);
 }
-

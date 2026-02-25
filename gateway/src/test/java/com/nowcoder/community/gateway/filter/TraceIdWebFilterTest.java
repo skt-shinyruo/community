@@ -1,5 +1,6 @@
 package com.nowcoder.community.gateway.filter;
 
+import com.nowcoder.community.platform.web.reactive.TraceIdWebFilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
@@ -50,4 +51,3 @@ class TraceIdWebFilterTest {
         assertThat(traceparent).endsWith("-01");
     }
 }
-

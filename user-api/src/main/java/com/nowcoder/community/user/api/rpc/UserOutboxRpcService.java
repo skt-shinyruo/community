@@ -1,7 +1,7 @@
 package com.nowcoder.community.user.api.rpc;
 
-import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.internal.dto.OutboxHealthResponse;
+import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.contracts.internal.dto.OutboxHealthResponse;
 
 /**
  * user-service outbox 运维 RPC。

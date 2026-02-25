@@ -8,7 +8,7 @@
         <version>3.2.6</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
-    <groupId>com.newcoder.community</groupId>
+    <groupId>com.nowcoder.community</groupId>
     <artifactId>community</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <packaging>pom</packaging>

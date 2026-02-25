@@ -1,7 +1,7 @@
 package com.nowcoder.community.user.api.rpc;
 
 // user-service 内部 RPC 接口：供 auth-service 等服务调用，替代原先的 HTTP `/internal/users/**` 调用。
-import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.user.api.rpc.dto.UserInternalActivationResponse;
 import com.nowcoder.community.user.api.rpc.dto.UserInternalAuthenticateResponse;
 import com.nowcoder.community.user.api.rpc.dto.UserInternalRefreshTokenRecordResponse;

@@ -1,6 +1,6 @@
 package com.nowcoder.community.message.service;
 
-import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.user.api.rpc.UserReadRpcService;
 import com.nowcoder.community.user.api.rpc.dto.UserSummary;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;

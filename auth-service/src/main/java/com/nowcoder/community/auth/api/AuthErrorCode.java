@@ -1,6 +1,6 @@
 package com.nowcoder.community.auth.api;
 
-import com.nowcoder.community.common.api.ErrorCode;
+import com.nowcoder.community.contracts.api.ErrorCode;
 
 /**
  * auth 域错误码（登录/注册/验证码/刷新等）。

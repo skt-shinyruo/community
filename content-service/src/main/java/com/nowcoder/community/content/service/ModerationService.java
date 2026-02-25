@@ -5,7 +5,7 @@ import com.nowcoder.community.content.api.event.payload.CommentPayload;
 import com.nowcoder.community.content.api.event.payload.ModerationCommandPayload;
 import com.nowcoder.community.content.api.event.payload.ModerationPayload;
 import com.nowcoder.community.content.api.event.payload.PostPayload;
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.content.dao.CommentMapper;
 import com.nowcoder.community.content.dao.DiscussPostMapper;
 import com.nowcoder.community.content.dao.ModerationActionMapper;
@@ -24,8 +24,8 @@ import java.util.List;
 
 import static com.nowcoder.community.content.api.ContentErrorCode.COMMENT_NOT_FOUND;
 import static com.nowcoder.community.content.api.ContentErrorCode.POST_NOT_FOUND;
-import static com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN;
-import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
 public class ModerationService {

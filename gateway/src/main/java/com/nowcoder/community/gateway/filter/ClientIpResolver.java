@@ -1,7 +1,7 @@
 package com.nowcoder.community.gateway.filter;
 
 // 统一客户端 IP 解析：仅在可信代理场景下解析 X-Forwarded-For。
-import com.nowcoder.community.common.net.TrustedProxyProperties;
+import com.nowcoder.community.platform.net.TrustedProxyProperties;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.http.server.reactive.ServerHttpRequest;

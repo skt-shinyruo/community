@@ -1,10 +1,10 @@
 package com.nowcoder.community.user.rpc;
 
 // user-service 的 Dubbo Provider：实现读取型 RPC（用户摘要/批量摘要/用户名解析）。
-import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.api.ErrorCode;
-import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.api.CommonErrorCode;
+import com.nowcoder.community.contracts.api.ErrorCode;
+import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.user.api.rpc.UserReadRpcService;
 import com.nowcoder.community.user.api.rpc.dto.UserSummary;
 import com.nowcoder.community.user.entity.User;

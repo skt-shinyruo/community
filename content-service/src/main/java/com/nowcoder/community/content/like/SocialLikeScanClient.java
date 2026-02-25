@@ -1,8 +1,8 @@
 package com.nowcoder.community.content.like;
 
-import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.common.web.internalclient.InternalClientSupport;
+import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.platform.web.internalclient.InternalClientSupport;
 import com.nowcoder.community.social.api.rpc.SocialLikeScanRpcService;
 import com.nowcoder.community.social.api.rpc.dto.SocialLikeScanResponse;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -13,8 +13,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.common.api.CommonErrorCode.SERVICE_UNAVAILABLE;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.SERVICE_UNAVAILABLE;
 
 /**
  * social-service internal likes 扫描客户端：用于回填 Redis 点赞投影（减少冷启动窗口）。

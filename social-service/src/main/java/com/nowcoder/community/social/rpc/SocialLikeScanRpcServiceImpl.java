@@ -1,10 +1,10 @@
 package com.nowcoder.community.social.rpc;
 
-import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.api.ErrorCode;
-import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.domain.EntityTypes;
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.api.CommonErrorCode;
+import com.nowcoder.community.contracts.api.ErrorCode;
+import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.contracts.domain.EntityTypes;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.social.api.rpc.SocialLikeScanRpcService;
 import com.nowcoder.community.social.api.rpc.dto.SocialLikeScanResponse;
 import com.nowcoder.community.social.like.LikeMapper;
@@ -14,7 +14,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 
-import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
 
 @DubboService
 public class SocialLikeScanRpcServiceImpl implements SocialLikeScanRpcService {

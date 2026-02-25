@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.like;
 
-import com.nowcoder.community.common.domain.EntityTypes;
+import com.nowcoder.community.contracts.domain.EntityTypes;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;

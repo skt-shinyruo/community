@@ -3,10 +3,10 @@ package com.nowcoder.community.content.event;
 // Kafka 事件发布器：支持直发与 Outbox 两种模式。
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.nowcoder.community.common.event.EventEnvelope;
-import com.nowcoder.community.common.event.EventTopics;
-import com.nowcoder.community.common.trace.TraceId;
-import com.nowcoder.community.common.tx.AfterCommitExecutor;
+import com.nowcoder.community.contracts.event.EventEnvelope;
+import com.nowcoder.community.contracts.event.EventTopics;
+import com.nowcoder.community.platform.trace.TraceId;
+import com.nowcoder.community.platform.tx.AfterCommitExecutor;
 import com.nowcoder.community.content.api.event.ContentEventTypes;
 import com.nowcoder.community.content.api.event.payload.CommentPayload;
 import com.nowcoder.community.content.api.event.payload.ModerationCommandPayload;

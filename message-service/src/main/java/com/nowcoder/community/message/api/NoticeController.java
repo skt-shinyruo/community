@@ -1,6 +1,6 @@
 package com.nowcoder.community.message.api;
 
-import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.message.api.dto.MarkReadRequest;
 import com.nowcoder.community.message.api.dto.NoticeTopicSummaryResponse;
 import com.nowcoder.community.message.entity.Message;

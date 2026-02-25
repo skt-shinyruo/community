@@ -2,8 +2,8 @@ package com.nowcoder.community.auth.service;
 
 import com.nowcoder.community.auth.config.PasswordResetProperties;
 import com.nowcoder.community.auth.api.AuthErrorCode;
-import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.api.CommonErrorCode;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.user.api.rpc.dto.UserInternalUserByEmailResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;

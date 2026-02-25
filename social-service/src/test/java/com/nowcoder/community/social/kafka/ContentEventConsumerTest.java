@@ -1,8 +1,8 @@
 package com.nowcoder.community.social.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.domain.EntityTypes;
-import com.nowcoder.community.common.event.EventTopics;
+import com.nowcoder.community.contracts.domain.EntityTypes;
+import com.nowcoder.community.contracts.event.EventTopics;
 import com.nowcoder.community.content.api.event.ContentEventTypes;
 import com.nowcoder.community.social.projection.ContentEntityProjectionRepository;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;

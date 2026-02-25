@@ -1,7 +1,7 @@
 package com.nowcoder.community.user.api;
 
-import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.user.api.dto.AdminUserResponse;
 import com.nowcoder.community.user.api.dto.UpdateUserRoleRequest;
 import com.nowcoder.community.user.dao.UserMapper;
@@ -19,10 +19,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import static com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN;
-import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.common.api.CommonErrorCode.INTERNAL_ERROR;
-import static com.nowcoder.community.common.api.CommonErrorCode.UNAUTHORIZED;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.INTERNAL_ERROR;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.UNAUTHORIZED;
 
 @RestController
 @RequestMapping("/api/users/admin")

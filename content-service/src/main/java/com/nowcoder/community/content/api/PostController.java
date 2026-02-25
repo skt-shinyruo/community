@@ -1,9 +1,9 @@
 package com.nowcoder.community.content.api;
 
-import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.domain.EntityTypes;
-import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.common.idempotency.IdempotencyGuard;
+import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.contracts.domain.EntityTypes;
+import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.platform.idempotency.IdempotencyGuard;
 import com.nowcoder.community.content.api.dto.CommentResponse;
 import com.nowcoder.community.content.api.dto.CreateCommentRequest;
 import com.nowcoder.community.content.api.dto.CreatePostRequest;
@@ -43,8 +43,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.common.api.CommonErrorCode.UNAUTHORIZED;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.UNAUTHORIZED;
 
 @RestController
 @RequestMapping("/api/posts")

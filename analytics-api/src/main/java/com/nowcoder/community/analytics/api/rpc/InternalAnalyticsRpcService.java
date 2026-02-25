@@ -1,7 +1,7 @@
 package com.nowcoder.community.analytics.api.rpc;
 
 // analytics-service 采集型内部 RPC：供 gateway 等入口服务上报 UV/DAU（best-effort，不影响主链路）。
-import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.contracts.api.Result;
 
 import java.time.LocalDate;
 

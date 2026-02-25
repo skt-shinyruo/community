@@ -2,7 +2,7 @@ package com.nowcoder.community.search.kafka;
 
 // search-service 幂等消费测试：重复 eventId 只应索引一次。
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.event.EventTopics;
+import com.nowcoder.community.contracts.event.EventTopics;
 import com.nowcoder.community.content.api.event.ContentEventTypes;
 import com.nowcoder.community.search.repo.PostSearchRepository;
 import org.apache.kafka.clients.consumer.ConsumerRecord;

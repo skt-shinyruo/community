@@ -1,7 +1,7 @@
 package com.nowcoder.community.user.api;
 
-import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.user.api.dto.AvatarUploadTokenResponse;
 import com.nowcoder.community.user.api.dto.BatchUserSummaryRequest;
 import com.nowcoder.community.user.api.dto.UpdateAvatarRequest;
@@ -33,9 +33,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
-import static com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN;
-import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.common.api.CommonErrorCode.UNAUTHORIZED;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.UNAUTHORIZED;
 
 @RestController
 @RequestMapping("/api/users")

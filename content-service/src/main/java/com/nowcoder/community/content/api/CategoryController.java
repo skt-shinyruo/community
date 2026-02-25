@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.api;
 
-import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.content.api.dto.CategoryResponse;
 import com.nowcoder.community.content.entity.Category;
 import com.nowcoder.community.content.service.CategoryService;

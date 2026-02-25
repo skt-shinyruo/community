@@ -1,9 +1,9 @@
 package com.nowcoder.community.social.rpc;
 
-import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.api.ErrorCode;
-import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.api.CommonErrorCode;
+import com.nowcoder.community.contracts.api.ErrorCode;
+import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.social.api.rpc.SocialBlockRpcService;
 import com.nowcoder.community.social.block.BlockService;
 import org.apache.dubbo.config.annotation.DubboService;

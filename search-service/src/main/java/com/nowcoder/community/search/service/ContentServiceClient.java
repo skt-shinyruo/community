@@ -1,10 +1,10 @@
 package com.nowcoder.community.search.service;
 
 // content-service 内部调用客户端：用于 reindex 扫描帖子数据。
-import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.common.web.internalclient.InternalClientSupport;
+import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.contracts.api.CommonErrorCode;
+import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.platform.web.internalclient.InternalClientSupport;
 import com.nowcoder.community.content.api.rpc.ContentScanRpcService;
 import com.nowcoder.community.content.api.rpc.dto.ContentPostScanResponse;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -48,7 +48,7 @@ public class ContentServiceClient {
             String outcome = e.isTimeout() ? InternalClientSupport.OUTCOME_TIMEOUT : InternalClientSupport.OUTCOME_ERROR;
             InternalClientSupport.record(meterRegistry, SERVICE_NAME, "scanPosts", outcome, start);
             log.warn("[content-client] dubbo call failed: {}", e.toString());
-            throw new BusinessException(com.nowcoder.community.common.api.CommonErrorCode.SERVICE_UNAVAILABLE, "content-service 不可用");
+            throw new BusinessException(com.nowcoder.community.contracts.api.CommonErrorCode.SERVICE_UNAVAILABLE, "content-service 不可用");
         } catch (RuntimeException e) {
             InternalClientSupport.record(meterRegistry, SERVICE_NAME, "scanPosts", "error", start);
             log.warn("[content-client] call failed: {}", e.toString());

@@ -1,7 +1,7 @@
 package com.nowcoder.community.message.kafka;
 
 // message-service 幂等表清理任务：按 retention-days 删除过期记录。
-import com.nowcoder.community.common.scheduler.SingleFlightTaskGuard;
+import com.nowcoder.community.platform.scheduler.SingleFlightTaskGuard;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.springframework.beans.factory.annotation.Value;

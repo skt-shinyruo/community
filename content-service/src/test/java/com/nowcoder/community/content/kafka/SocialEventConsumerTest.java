@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.event.EventTopics;
+import com.nowcoder.community.contracts.event.EventTopics;
 import com.nowcoder.community.content.score.InMemoryPostScoreQueue;
 import com.nowcoder.community.content.score.PostScoreQueue;
 import com.nowcoder.community.social.api.event.SocialEventTypes;

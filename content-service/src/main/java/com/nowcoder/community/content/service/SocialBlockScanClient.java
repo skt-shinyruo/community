@@ -1,8 +1,8 @@
 package com.nowcoder.community.content.service;
 
-import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.common.web.internalclient.InternalClientSupport;
+import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.platform.web.internalclient.InternalClientSupport;
 import com.nowcoder.community.social.api.rpc.SocialBlockScanRpcService;
 import com.nowcoder.community.social.api.rpc.dto.SocialBlockScanResponse;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -12,7 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import static com.nowcoder.community.common.api.CommonErrorCode.SERVICE_UNAVAILABLE;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.SERVICE_UNAVAILABLE;
 
 @Service
 public class SocialBlockScanClient {

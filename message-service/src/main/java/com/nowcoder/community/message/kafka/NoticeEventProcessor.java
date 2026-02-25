@@ -2,8 +2,8 @@ package com.nowcoder.community.message.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.nowcoder.community.common.event.EventEnvelopeParser;
-import com.nowcoder.community.common.event.UnknownEventAction;
+import com.nowcoder.community.contracts.event.EventEnvelopeParser;
+import com.nowcoder.community.contracts.event.UnknownEventAction;
 import com.nowcoder.community.content.api.event.ContentEventTypes;
 import com.nowcoder.community.content.api.event.payload.CommentPayload;
 import com.nowcoder.community.content.api.event.payload.ModerationPayload;

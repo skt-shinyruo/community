@@ -1,8 +1,8 @@
 package com.nowcoder.community.content.service;
 
-import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.common.web.internalclient.InternalClientSupport;
+import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.platform.web.internalclient.InternalClientSupport;
 import com.nowcoder.community.user.api.rpc.UserModerationRpcService;
 import com.nowcoder.community.user.api.rpc.dto.UserModerationStatus;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -17,8 +17,8 @@ import org.springframework.util.StringUtils;
 import java.net.SocketTimeoutException;
 import java.util.List;
 
-import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.common.api.CommonErrorCode.SERVICE_UNAVAILABLE;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.SERVICE_UNAVAILABLE;
 
 // user-service 内部治理接口客户端：用于禁言/封禁与状态查询（开发阶段默认放行；生产建议通过网络隔离/网关策略收敛暴露面）。
 

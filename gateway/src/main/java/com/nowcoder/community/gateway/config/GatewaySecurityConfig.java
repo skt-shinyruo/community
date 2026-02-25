@@ -2,6 +2,7 @@ package com.nowcoder.community.gateway.config;
 
 // Gateway 安全配置：最小边界护栏 + ops 入口双保险 + 统一异常处理。
 import com.nowcoder.community.infra.security.jwt.AuthoritiesConverterFactory;
+import com.nowcoder.community.platform.web.reactive.ReactiveSecurityExceptionHandler;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

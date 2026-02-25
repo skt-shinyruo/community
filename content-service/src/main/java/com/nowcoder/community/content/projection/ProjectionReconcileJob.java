@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.projection;
 
-import com.nowcoder.community.common.scheduler.SingleFlightTaskGuard;
+import com.nowcoder.community.platform.scheduler.SingleFlightTaskGuard;
 import com.nowcoder.community.content.service.UserModerationClient;
 import com.nowcoder.community.user.api.rpc.dto.UserModerationStatus;
 import org.slf4j.Logger;

@@ -1,6 +1,6 @@
 package com.nowcoder.community.social.api;
 
-import com.nowcoder.community.common.api.ErrorCode;
+import com.nowcoder.community.contracts.api.ErrorCode;
 
 /**
  * social 域错误码（点赞/关注/拉黑等关系）。

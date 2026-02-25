@@ -1,6 +1,6 @@
 package com.nowcoder.community.user.service;
 
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.user.dao.UserMapper;
 import com.nowcoder.community.user.entity.User;
 import org.springframework.stereotype.Service;
@@ -8,7 +8,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 
-import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.user.api.UserErrorCode.USER_NOT_FOUND;
 
 @Service

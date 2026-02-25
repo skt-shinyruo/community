@@ -2,8 +2,8 @@ package com.nowcoder.community.gateway.filter;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.contracts.api.CommonErrorCode;
+import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.gateway.config.RequestSizeLimitProperties;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;

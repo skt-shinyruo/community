@@ -1,6 +1,6 @@
 package com.nowcoder.community.gateway.api;
 
-import com.nowcoder.community.common.api.ErrorCode;
+import com.nowcoder.community.contracts.api.ErrorCode;
 
 /**
  * gateway 域错误码（网关鉴权/限流/请求防护等）。

@@ -1,11 +1,11 @@
 package com.nowcoder.community.content.rpc;
 
-import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.api.ErrorCode;
-import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.domain.EntityTypes;
-import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.common.internal.dto.EntityResolveResponse;
+import com.nowcoder.community.contracts.api.CommonErrorCode;
+import com.nowcoder.community.contracts.api.ErrorCode;
+import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.contracts.domain.EntityTypes;
+import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.contracts.internal.dto.EntityResolveResponse;
 import com.nowcoder.community.content.api.rpc.ContentEntityRpcService;
 import com.nowcoder.community.content.dao.CommentMapper;
 import com.nowcoder.community.content.dao.DiscussPostMapper;
@@ -14,7 +14,7 @@ import com.nowcoder.community.content.entity.DiscussPost;
 import org.apache.dubbo.config.annotation.DubboService;
 import org.springframework.util.StringUtils;
 
-import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.content.api.ContentErrorCode.COMMENT_NOT_FOUND;
 import static com.nowcoder.community.content.api.ContentErrorCode.POST_NOT_FOUND;
 

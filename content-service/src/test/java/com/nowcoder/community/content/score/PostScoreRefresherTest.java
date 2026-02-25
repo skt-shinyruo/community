@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.score;
 
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.content.like.LikeQueryService;
 import com.nowcoder.community.content.service.PostService;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -10,7 +10,7 @@ import org.mockito.Mockito;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.nowcoder.community.common.api.CommonErrorCode.NOT_FOUND;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.NOT_FOUND;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class PostScoreRefresherTest {

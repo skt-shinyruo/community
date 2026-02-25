@@ -1,10 +1,10 @@
 package com.nowcoder.community.content.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.event.EventEnvelopeParser;
-import com.nowcoder.community.common.event.EventTopics;
-import com.nowcoder.community.common.event.UnknownEventAction;
-import com.nowcoder.community.common.kafka.KafkaTraceSupport;
+import com.nowcoder.community.contracts.event.EventEnvelopeParser;
+import com.nowcoder.community.contracts.event.EventTopics;
+import com.nowcoder.community.contracts.event.UnknownEventAction;
+import com.nowcoder.community.platform.kafka.KafkaTraceSupport;
 import com.nowcoder.community.social.api.event.SocialEventTypes;
 import com.nowcoder.community.social.api.event.payload.BlockPayload;
 import com.nowcoder.community.user.api.event.UserEventTypes;

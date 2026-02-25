@@ -77,11 +77,11 @@ Redis 主要用于：
 事件契约分为两层（contracts + domain）：
 
 1) **通用事件协议（中立 contracts）：** `contracts-event-core/`
-- `contracts-event-core/src/main/java/com/nowcoder/community/common/event/EventEnvelope.java`
-- `contracts-event-core/src/main/java/com/nowcoder/community/common/event/EventEnvelopeParser.java`
-- `contracts-event-core/src/main/java/com/nowcoder/community/common/event/EventTopics.java`
-- `contracts-event-core/src/main/java/com/nowcoder/community/common/event/UnknownEventAction.java`
-- `contracts-event-core/src/main/java/com/nowcoder/community/common/event/EventTopicConventions.java`
+- `contracts-event-core/src/main/java/com/nowcoder/community/contracts/event/EventEnvelope.java`
+- `contracts-event-core/src/main/java/com/nowcoder/community/contracts/event/EventEnvelopeParser.java`
+- `contracts-event-core/src/main/java/com/nowcoder/community/contracts/event/EventTopics.java`
+- `contracts-event-core/src/main/java/com/nowcoder/community/contracts/event/UnknownEventAction.java`
+- `contracts-event-core/src/main/java/com/nowcoder/community/contracts/event/EventTopicConventions.java`
 
 2) **域事件契约（生产方域 owns semantics）：** `*-api/`
 - content：`content-api/src/main/java/com/nowcoder/community/content/api/event/ContentEventTypes.java` + `content-api/src/main/java/com/nowcoder/community/content/api/event/payload/*`

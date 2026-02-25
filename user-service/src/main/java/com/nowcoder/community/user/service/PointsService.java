@@ -6,7 +6,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
 public class PointsService {
@@ -36,13 +36,13 @@ public class PointsService {
     @Transactional
     public boolean applyPoints(int userId, String eventId, String eventType, int delta) {
         if (userId <= 0) {
-            throw new com.nowcoder.community.common.exception.BusinessException(INVALID_ARGUMENT, "userId 非法");
+            throw new com.nowcoder.community.contracts.exception.BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         if (eventId == null || eventId.isBlank()) {
-            throw new com.nowcoder.community.common.exception.BusinessException(INVALID_ARGUMENT, "eventId 缺失");
+            throw new com.nowcoder.community.contracts.exception.BusinessException(INVALID_ARGUMENT, "eventId 缺失");
         }
         if (eventType == null || eventType.isBlank()) {
-            throw new com.nowcoder.community.common.exception.BusinessException(INVALID_ARGUMENT, "eventType 缺失");
+            throw new com.nowcoder.community.contracts.exception.BusinessException(INVALID_ARGUMENT, "eventType 缺失");
         }
         if (delta == 0) {
             return false;

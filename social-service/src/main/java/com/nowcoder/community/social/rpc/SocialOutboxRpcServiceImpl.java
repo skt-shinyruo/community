@@ -1,8 +1,8 @@
 package com.nowcoder.community.social.rpc;
 
-import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.internal.dto.OutboxHealthResponse;
+import com.nowcoder.community.contracts.api.CommonErrorCode;
+import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.contracts.internal.dto.OutboxHealthResponse;
 import com.nowcoder.community.infra.outbox.OutboxEventService;
 import com.nowcoder.community.social.api.rpc.SocialOutboxRpcService;
 import org.apache.dubbo.config.annotation.DubboService;

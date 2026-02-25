@@ -2,9 +2,9 @@ package com.nowcoder.community.content.service;
 
 // 评论领域服务：负责评论写入与基础校验、评论事件发布。
 import com.nowcoder.community.content.api.event.payload.CommentPayload;
-import com.nowcoder.community.common.domain.EntityTypes;
-import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.common.tx.AfterCommitExecutor;
+import com.nowcoder.community.contracts.domain.EntityTypes;
+import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.platform.tx.AfterCommitExecutor;
 import com.nowcoder.community.content.projection.UserModerationProjectionRepository;
 import com.nowcoder.community.content.dao.CommentMapper;
 import com.nowcoder.community.content.entity.Comment;
@@ -25,9 +25,9 @@ import java.util.List;
 import java.util.Map;
 
 import static com.nowcoder.community.content.api.ContentErrorCode.COMMENT_NOT_FOUND;
-import static com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN;
-import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.common.api.CommonErrorCode.NOT_FOUND;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.NOT_FOUND;
 
 @Service
 public class CommentService {

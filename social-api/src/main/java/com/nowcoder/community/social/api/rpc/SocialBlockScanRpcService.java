@@ -1,6 +1,6 @@
 package com.nowcoder.community.social.api.rpc;
 
-import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.social.api.rpc.dto.SocialBlockScanResponse;
 
 /**

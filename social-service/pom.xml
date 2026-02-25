@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.newcoder.community</groupId>
+        <groupId>com.nowcoder.community</groupId>
         <artifactId>community</artifactId>
         <version>0.0.1-SNAPSHOT</version>
     </parent>
@@ -22,37 +22,37 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.newcoder.community</groupId>
+            <groupId>com.nowcoder.community</groupId>
             <artifactId>common</artifactId>
             <version>${project.version}</version>
         </dependency>
 
         <dependency>
-            <groupId>com.newcoder.community</groupId>
+            <groupId>com.nowcoder.community</groupId>
             <artifactId>infra-dubbo-starter</artifactId>
             <version>${project.version}</version>
         </dependency>
 
         <dependency>
-            <groupId>com.newcoder.community</groupId>
+            <groupId>com.nowcoder.community</groupId>
             <artifactId>infra-security-starter</artifactId>
             <version>${project.version}</version>
         </dependency>
 
         <dependency>
-            <groupId>com.newcoder.community</groupId>
+            <groupId>com.nowcoder.community</groupId>
             <artifactId>infra-outbox</artifactId>
             <version>${project.version}</version>
         </dependency>
 
         <dependency>
-            <groupId>com.newcoder.community</groupId>
+            <groupId>com.nowcoder.community</groupId>
             <artifactId>social-api</artifactId>
             <version>${project.version}</version>
         </dependency>
 
         <dependency>
-            <groupId>com.newcoder.community</groupId>
+            <groupId>com.nowcoder.community</groupId>
             <artifactId>content-api</artifactId>
             <version>${project.version}</version>
         </dependency>

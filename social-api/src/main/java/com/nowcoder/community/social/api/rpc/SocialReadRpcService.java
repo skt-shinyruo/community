@@ -1,7 +1,7 @@
 package com.nowcoder.community.social.api.rpc;
 
 // social-service 读取型 RPC 接口：供 user-service 等服务聚合展示使用（获赞/关注/粉丝/关注状态等）。
-import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.social.api.rpc.dto.UserProfileStats;
 
 public interface SocialReadRpcService {

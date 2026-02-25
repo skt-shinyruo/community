@@ -1,15 +1,15 @@
 package com.nowcoder.community.social.service;
 
-import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.domain.EntityTypes;
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.api.CommonErrorCode;
+import com.nowcoder.community.contracts.domain.EntityTypes;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.social.projection.ContentEntityProjection;
 import com.nowcoder.community.social.projection.ContentEntityProjectionRepository;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.springframework.stereotype.Service;
 
-import static com.nowcoder.community.common.api.CommonErrorCode.SERVICE_UNAVAILABLE;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.SERVICE_UNAVAILABLE;
 
 /**
  * 内容实体元信息解析器（social 写路径可信只读依赖）：

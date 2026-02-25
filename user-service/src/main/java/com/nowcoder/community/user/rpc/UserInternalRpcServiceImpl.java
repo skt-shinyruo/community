@@ -1,10 +1,10 @@
 package com.nowcoder.community.user.rpc;
 
 // user-service 的 Dubbo Provider：实现内部认证/会话相关 RPC（供 auth-service 调用）。
-import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.api.ErrorCode;
-import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.api.CommonErrorCode;
+import com.nowcoder.community.contracts.api.ErrorCode;
+import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.user.api.rpc.UserInternalRpcService;
 import com.nowcoder.community.user.api.rpc.dto.UserInternalActivationResponse;
 import com.nowcoder.community.user.api.rpc.dto.UserInternalAuthenticateResponse;

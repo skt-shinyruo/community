@@ -2,14 +2,14 @@
 package com.nowcoder.community.social.block;
 
 import com.nowcoder.community.social.api.event.payload.BlockPayload;
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.social.event.SocialEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.social.api.SocialErrorCode.CANNOT_BLOCK_SELF;
 
 @Service

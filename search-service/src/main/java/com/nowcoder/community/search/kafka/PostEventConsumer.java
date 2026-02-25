@@ -2,12 +2,12 @@ package com.nowcoder.community.search.kafka;
 
 // 帖子事件消费者：先执行业务索引副作用（幂等 upsert/delete），成功后再写入幂等表，避免丢更新窗口。
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.event.EventEnvelopeParser;
-import com.nowcoder.community.common.event.EventTopics;
-import com.nowcoder.community.common.event.UnknownEventAction;
+import com.nowcoder.community.contracts.event.EventEnvelopeParser;
+import com.nowcoder.community.contracts.event.EventTopics;
+import com.nowcoder.community.contracts.event.UnknownEventAction;
 import com.nowcoder.community.content.api.event.ContentEventTypes;
 import com.nowcoder.community.content.api.event.payload.PostPayload;
-import com.nowcoder.community.common.kafka.KafkaTraceSupport;
+import com.nowcoder.community.platform.kafka.KafkaTraceSupport;
 import com.nowcoder.community.search.repo.PostSearchRepository;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;

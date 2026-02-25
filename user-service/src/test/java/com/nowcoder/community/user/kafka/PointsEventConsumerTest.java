@@ -1,7 +1,7 @@
 package com.nowcoder.community.user.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.event.EventTopics;
+import com.nowcoder.community.contracts.event.EventTopics;
 import com.nowcoder.community.content.api.event.ContentEventTypes;
 import com.nowcoder.community.social.api.event.SocialEventTypes;
 import org.apache.kafka.clients.consumer.ConsumerRecord;

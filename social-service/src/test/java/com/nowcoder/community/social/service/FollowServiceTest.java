@@ -1,7 +1,7 @@
 package com.nowcoder.community.social.service;
 
-import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.api.CommonErrorCode;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.social.api.event.payload.FollowPayload;
 import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.social.block.InMemoryBlockRepository;

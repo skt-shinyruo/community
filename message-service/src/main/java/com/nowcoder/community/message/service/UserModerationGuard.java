@@ -1,6 +1,6 @@
 package com.nowcoder.community.message.service;
 
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.message.api.MessageErrorCode;
 import com.nowcoder.community.message.projection.UserModerationProjectionRepository;
 import com.nowcoder.community.user.api.rpc.dto.UserModerationStatus;

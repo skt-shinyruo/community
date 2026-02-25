@@ -113,7 +113,7 @@
 ## 3. 异步事件：最终一致（Kafka）
 
 ### 3.1 Topic 约定
-事件 topic 由 `contracts-event-core` 的 `EventTopics` 统一定义（SSOT：`contracts-event-core/src/main/java/com/nowcoder/community/common/event/EventTopics.java`）：
+事件 topic 由 `contracts-event-core` 的 `EventTopics` 统一定义（SSOT：`contracts-event-core/src/main/java/com/nowcoder/community/contracts/event/EventTopics.java`）：
 - `community.event.post.v1`
 - `community.event.comment.v1`
 - `community.event.social.v1`
@@ -121,7 +121,7 @@
 - 约定 DLQ：`<topic>.dlq`
 
 ### 3.2 事件 Envelope（契约边界）
-代码位置（SSOT）：`contracts-event-core/src/main/java/com/nowcoder/community/common/event/EventEnvelope.java`。
+代码位置（SSOT）：`contracts-event-core/src/main/java/com/nowcoder/community/contracts/event/EventEnvelope.java`。
 
 事件消息使用统一 envelope：
 - `eventId`：全局唯一，用于幂等
@@ -229,7 +229,7 @@ P0 修复策略：
 - 通过 `version` 做向后兼容（先双写/双读，再切换）
 - payload 避免敏感字段（密码/邮箱等）
 - 生产端与消费端都要对“未知类型/未知版本”容错（可跳过并记录）
-- `entityType/targetType` 等关键枚举值必须以 `common` 的 SSOT 为准：`com.nowcoder.community.common.domain.EntityTypes`
+- `entityType/targetType` 等关键枚举值必须以 `contracts-core` 的 SSOT 为准：`com.nowcoder.community.contracts.domain.EntityTypes`
 
 ---
 

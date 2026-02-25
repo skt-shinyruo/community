@@ -1,6 +1,6 @@
 package com.nowcoder.community.search.api;
 
-import com.nowcoder.community.common.api.ErrorCode;
+import com.nowcoder.community.contracts.api.ErrorCode;
 
 /**
  * search 域错误码（搜索/索引/reindex 等）。

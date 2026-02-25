@@ -1,0 +1,83 @@
+package com.nowcoder.community.platform.web;
+
+import com.nowcoder.community.platform.trace.TraceId;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.util.StringUtils;
+
+import java.io.IOException;
+
+@Component
+@Order(Ordered.HIGHEST_PRECEDENCE + 10)
+public class AuditLogFilter extends OncePerRequestFilter {
+
+    private static final Logger log = LoggerFactory.getLogger(AuditLogFilter.class);
+
+    private final String serviceName;
+
+    public AuditLogFilter(@Value("${spring.application.name:unknown}") String serviceName) {
+        this.serviceName = serviceName;
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
+        String path = request.getRequestURI();
+        String method = request.getMethod();
+
+        if (path == null || method == null) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+        if (!path.startsWith("/api/") && !path.startsWith("/internal/")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+        if ("GET".equalsIgnoreCase(method) || "OPTIONS".equalsIgnoreCase(method)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+        // 避免记录敏感登录参数（即便不记录 body，也尽量不污染审计流量）
+        if (path.startsWith("/api/auth/login")) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        long startNanos = System.nanoTime();
+        try {
+            filterChain.doFilter(request, response);
+        } finally {
+            long costMs = (System.nanoTime() - startNanos) / 1_000_000L;
+            int status = response.getStatus();
+            String userId = resolveUserId();
+            String traceId = TraceId.get();
+            log.info(
+                    "[audit][service={}] method={} path={} status={} userId={} traceId={} costMs={}",
+                    serviceName, method, path, status, userId, traceId, costMs
+            );
+        }
+    }
+
+    private String resolveUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return "-";
+        }
+        String name = authentication.getName();
+        if (!StringUtils.hasText(name) || "anonymousUser".equalsIgnoreCase(name)) {
+            return "-";
+        }
+        return name;
+    }
+}

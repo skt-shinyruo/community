@@ -96,8 +96,8 @@ public class UserModerationProjectionRepository {
     public void assertNotBlocked(int userIdA, int userIdB) {
         BlockCheck check = checkEitherBlocked(userIdA, userIdB);
         if (check == BlockCheck.BLOCKED) {
-            throw new com.nowcoder.community.common.exception.BusinessException(
-                    com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN,
+            throw new com.nowcoder.community.contracts.exception.BusinessException(
+                    com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN,
                     "双方存在拉黑关系，无法执行该操作"
             );
         }
@@ -147,7 +147,7 @@ public class UserModerationProjectionRepository {
         ModerationSnapshot s = findModerationStatus(userId);
         if (s == null || s.getUpdatedAt() == null) {
             // 投影缺失时不做“猜测”，交由上层决定是否 fail-closed（503）或降级处理。
-            throw new com.nowcoder.community.common.exception.BusinessException(
+            throw new com.nowcoder.community.contracts.exception.BusinessException(
                     ContentErrorCode.PROJECTION_MISSING,
                     "处罚状态投影缺失"
             );
@@ -155,14 +155,14 @@ public class UserModerationProjectionRepository {
 
         Instant now = Instant.now();
         if (s.getBanUntil() != null && s.getBanUntil().isAfter(now)) {
-            throw new com.nowcoder.community.common.exception.BusinessException(
-                    com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN,
+            throw new com.nowcoder.community.contracts.exception.BusinessException(
+                    com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN,
                     "账号已被封禁，无法发言"
             );
         }
         if (s.getMuteUntil() != null && s.getMuteUntil().isAfter(now)) {
-            throw new com.nowcoder.community.common.exception.BusinessException(
-                    com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN,
+            throw new com.nowcoder.community.contracts.exception.BusinessException(
+                    com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN,
                     "你已被禁言，暂时无法发言"
             );
         }

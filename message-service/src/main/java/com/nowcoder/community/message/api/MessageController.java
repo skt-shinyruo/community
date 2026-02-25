@@ -1,8 +1,8 @@
 package com.nowcoder.community.message.api;
 
-import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.common.idempotency.IdempotencyGuard;
+import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.platform.idempotency.IdempotencyGuard;
 import com.nowcoder.community.message.api.dto.LetterItemResponse;
 import com.nowcoder.community.message.api.dto.MarkReadRequest;
 import com.nowcoder.community.message.api.dto.SendMessageRequest;
@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import org.springframework.util.StringUtils;
 
-import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
 
 @RestController
 @RequestMapping("/api/messages")

@@ -71,8 +71,8 @@ public class UserModerationProjectionRepository {
     public void assertNotBlocked(int userIdA, int userIdB) {
         BlockCheck check = checkEitherBlocked(userIdA, userIdB);
         if (check == BlockCheck.BLOCKED) {
-            throw new com.nowcoder.community.common.exception.BusinessException(
-                    com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN,
+            throw new com.nowcoder.community.contracts.exception.BusinessException(
+                    com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN,
                     "双方存在拉黑关系，无法执行该操作"
             );
         }
@@ -121,8 +121,8 @@ public class UserModerationProjectionRepository {
     public void assertCanSendMessage(int userId) {
         int uid = Math.max(0, userId);
         if (uid <= 0) {
-            throw new com.nowcoder.community.common.exception.BusinessException(
-                    com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT,
+            throw new com.nowcoder.community.contracts.exception.BusinessException(
+                    com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT,
                     "userId 非法"
             );
         }
@@ -143,21 +143,21 @@ public class UserModerationProjectionRepository {
         );
         ModerationSnapshot s = list == null || list.isEmpty() ? null : list.get(0);
         if (s == null || s.updatedAt == null) {
-            throw new com.nowcoder.community.common.exception.BusinessException(
+            throw new com.nowcoder.community.contracts.exception.BusinessException(
                     MessageErrorCode.PROJECTION_MISSING,
                     "处罚状态投影缺失"
             );
         }
         Instant now = Instant.now();
         if (s.banUntil != null && s.banUntil.isAfter(now)) {
-            throw new com.nowcoder.community.common.exception.BusinessException(
-                    com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN,
+            throw new com.nowcoder.community.contracts.exception.BusinessException(
+                    com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN,
                     "账号已被封禁，无法发送私信"
             );
         }
         if (s.muteUntil != null && s.muteUntil.isAfter(now)) {
-            throw new com.nowcoder.community.common.exception.BusinessException(
-                    com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN,
+            throw new com.nowcoder.community.contracts.exception.BusinessException(
+                    com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN,
                     "你已被禁言，暂时无法发送私信"
             );
         }

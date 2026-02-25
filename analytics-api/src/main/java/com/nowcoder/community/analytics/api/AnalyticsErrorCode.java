@@ -1,6 +1,6 @@
 package com.nowcoder.community.analytics.api;
 
-import com.nowcoder.community.common.api.ErrorCode;
+import com.nowcoder.community.contracts.api.ErrorCode;
 
 /**
  * analytics 域错误码（UV/DAU 等统计）。

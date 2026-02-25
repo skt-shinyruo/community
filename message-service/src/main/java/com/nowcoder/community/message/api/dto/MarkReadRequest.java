@@ -3,7 +3,7 @@ package com.nowcoder.community.message.api.dto;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Min;
-import com.nowcoder.community.common.validation.ValidationLimits;
+import com.nowcoder.community.platform.validation.ValidationLimits;
 
 import java.util.List;
 

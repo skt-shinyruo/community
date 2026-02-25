@@ -1,10 +1,10 @@
 package com.nowcoder.community.social.rpc;
 
-import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.api.ErrorCode;
-import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.domain.EntityTypes;
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.api.CommonErrorCode;
+import com.nowcoder.community.contracts.api.ErrorCode;
+import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.contracts.domain.EntityTypes;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.social.api.rpc.SocialReadRpcService;
 import com.nowcoder.community.social.api.rpc.dto.UserProfileStats;
 import com.nowcoder.community.social.follow.FollowService;

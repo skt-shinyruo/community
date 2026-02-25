@@ -1,8 +1,8 @@
 package com.nowcoder.community.ops.api;
 
-import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.internal.dto.OutboxHealthResponse;
+import com.nowcoder.community.contracts.api.CommonErrorCode;
+import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.contracts.internal.dto.OutboxHealthResponse;
 import com.nowcoder.community.content.api.rpc.ContentLikeOpsRpcService;
 import com.nowcoder.community.content.api.rpc.ContentOutboxRpcService;
 import com.nowcoder.community.content.api.rpc.dto.ContentLikeBackfillResponse;

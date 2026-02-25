@@ -3,7 +3,7 @@ package com.nowcoder.community.content.api.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import com.nowcoder.community.common.validation.ValidationLimits;
+import com.nowcoder.community.platform.validation.ValidationLimits;
 
 public class UpdateCommentRequest {
 

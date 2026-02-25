@@ -1,6 +1,6 @@
 package com.nowcoder.community.user.service;
 
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.user.api.dto.AvatarUploadTokenResponse;
 import com.nowcoder.community.user.config.AvatarStorageProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -13,8 +13,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.common.api.CommonErrorCode.INTERNAL_ERROR;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.INTERNAL_ERROR;
 
 @Service
 @EnableConfigurationProperties(AvatarStorageProperties.class)

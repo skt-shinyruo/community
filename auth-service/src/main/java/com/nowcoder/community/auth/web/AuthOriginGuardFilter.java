@@ -2,8 +2,8 @@ package com.nowcoder.community.auth.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.infra.security.origin.OriginGuardProperties;
-import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.contracts.api.CommonErrorCode;
+import com.nowcoder.community.contracts.api.Result;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

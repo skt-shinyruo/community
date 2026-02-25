@@ -2,7 +2,7 @@ package com.nowcoder.community.auth.service;
 
 import com.nowcoder.community.auth.config.CaptchaProperties;
 import com.nowcoder.community.auth.api.AuthErrorCode;
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;

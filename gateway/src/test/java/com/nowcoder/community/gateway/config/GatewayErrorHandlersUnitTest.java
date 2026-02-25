@@ -3,6 +3,7 @@ package com.nowcoder.community.gateway.config;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.gateway.filter.TraceIdSupport;
+import com.nowcoder.community.platform.web.reactive.ReactiveSecurityExceptionHandler;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferUtils;
@@ -86,4 +87,3 @@ class GatewayErrorHandlersUnitTest {
         return new String(bytes, StandardCharsets.UTF_8);
     }
 }
-

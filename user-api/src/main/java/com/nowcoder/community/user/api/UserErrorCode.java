@@ -1,6 +1,6 @@
 package com.nowcoder.community.user.api;
 
-import com.nowcoder.community.common.api.ErrorCode;
+import com.nowcoder.community.contracts.api.ErrorCode;
 
 /**
  * user 域错误码（用户资料/头像/管理等）。

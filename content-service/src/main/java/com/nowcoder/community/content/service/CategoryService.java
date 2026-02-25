@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.service;
 
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.content.dao.CategoryMapper;
 import com.nowcoder.community.content.entity.Category;
 import org.springframework.stereotype.Service;
@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 import static com.nowcoder.community.content.api.ContentErrorCode.CATEGORY_NOT_FOUND;
-import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
 public class CategoryService {

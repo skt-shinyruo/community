@@ -1,10 +1,10 @@
 package com.nowcoder.community.content.rpc;
 
-import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.api.ErrorCode;
-import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.contracts.api.CommonErrorCode;
+import com.nowcoder.community.contracts.api.ErrorCode;
+import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.content.api.event.payload.PostPayload;
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.content.api.rpc.ContentScanRpcService;
 import com.nowcoder.community.content.api.rpc.dto.ContentPostScanResponse;
 import com.nowcoder.community.content.dao.DiscussPostMapper;

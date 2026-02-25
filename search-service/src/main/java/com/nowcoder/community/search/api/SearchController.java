@@ -1,6 +1,6 @@
 package com.nowcoder.community.search.api;
 
-import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.search.api.dto.SearchPostItem;
 import com.nowcoder.community.search.service.PostSearchService;
 import org.springframework.web.bind.annotation.GetMapping;

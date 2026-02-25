@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.event.EventEnvelope;
+import com.nowcoder.community.contracts.event.EventEnvelope;
 import com.nowcoder.community.content.score.PostScoreQueue;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.Test;

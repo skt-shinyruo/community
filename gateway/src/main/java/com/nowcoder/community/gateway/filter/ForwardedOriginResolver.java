@@ -1,7 +1,7 @@
 package com.nowcoder.community.gateway.filter;
 
 // 反向代理/HTTPS offload 兼容：在可信代理场景下解析 Forwarded/X-Forwarded-* 以恢复原始 scheme/host/port。
-import com.nowcoder.community.common.net.TrustedProxyProperties;
+import com.nowcoder.community.platform.net.TrustedProxyProperties;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;

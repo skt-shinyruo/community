@@ -3,9 +3,9 @@ package com.nowcoder.community.gateway.config;
 // 网关全局异常收敛：将 WebFlux/Gateway 内部异常统一映射为 Result + 4xx/5xx，并回填 traceId。
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.api.CommonErrorCode;
+import com.nowcoder.community.contracts.api.CommonErrorCode;
 import com.nowcoder.community.gateway.api.GatewayErrorCode;
-import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.gateway.filter.TraceIdSupport;
 import io.netty.handler.timeout.TimeoutException;
 import org.slf4j.Logger;
@@ -26,7 +26,8 @@ import reactor.core.publisher.Mono;
 /**
  * 说明：
  * - 只处理“网关自身抛出的异常”（路由、解析、上游不可用等），不干预下游服务返回的非 2xx 响应体。
- * - 安全异常（401/403）优先由 {@link ReactiveSecurityExceptionHandler} 处理；若仍抛出到此处，也会按统一协议返回。
+ * - 安全异常（401/403）优先由 {@code com.nowcoder.community.platform.web.reactive.ReactiveSecurityExceptionHandler} 处理；
+ *   若仍抛出到此处，也会按统一协议返回。
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)

@@ -26,10 +26,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 class NoGatewayTraceContextUsageTest {
 
     private static final Pattern[] FORBIDDEN = new Pattern[]{
-            Pattern.compile("\\bimport\\s+com\\.nowcoder\\.community\\.common\\.trace\\.TraceContext\\b"),
-            Pattern.compile("\\bimport\\s+com\\.nowcoder\\.community\\.common\\.trace\\.TraceId\\b"),
-            Pattern.compile("\\bcom\\.nowcoder\\.community\\.common\\.trace\\.TraceContext\\b"),
-            Pattern.compile("\\bcom\\.nowcoder\\.community\\.common\\.trace\\.TraceId\\b")
+            Pattern.compile("\\bimport\\s+com\\.nowcoder\\.community\\.platform\\.trace\\.TraceContext\\b"),
+            Pattern.compile("\\bimport\\s+com\\.nowcoder\\.community\\.platform\\.trace\\.TraceId\\b"),
+            Pattern.compile("\\bcom\\.nowcoder\\.community\\.platform\\.trace\\.TraceContext\\b"),
+            Pattern.compile("\\bcom\\.nowcoder\\.community\\.platform\\.trace\\.TraceId\\b")
     };
 
     @Test
@@ -78,4 +78,3 @@ class NoGatewayTraceContextUsageTest {
         return start;
     }
 }
-

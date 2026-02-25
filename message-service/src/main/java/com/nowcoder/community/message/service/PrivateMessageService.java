@@ -8,7 +8,7 @@ import com.nowcoder.community.message.api.dto.UserSummaryResponse;
 import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.service.dto.ConversationStats;
 import com.nowcoder.community.message.projection.UserModerationProjectionRepository;
-import com.nowcoder.community.common.security.OwnerGuard;
+import com.nowcoder.community.platform.security.OwnerGuard;
 import com.nowcoder.community.user.api.rpc.dto.UserSummary;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -113,8 +113,8 @@ public class PrivateMessageService {
         moderationGuard.assertCanSendMessage(fromId);
         UserModerationProjectionRepository.BlockCheck check = projectionRepository.checkEitherBlocked(fromId, toId);
         if (check == UserModerationProjectionRepository.BlockCheck.BLOCKED) {
-            throw new com.nowcoder.community.common.exception.BusinessException(
-                    com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN,
+            throw new com.nowcoder.community.contracts.exception.BusinessException(
+                    com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN,
                     "双方存在拉黑关系，无法发送私信"
             );
         }

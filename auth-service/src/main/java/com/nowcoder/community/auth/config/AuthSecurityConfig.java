@@ -1,7 +1,7 @@
 package com.nowcoder.community.auth.config;
 
-import com.nowcoder.community.common.web.SecurityExceptionHandler;
-import com.nowcoder.community.common.net.TrustedProxyProperties;
+import com.nowcoder.community.platform.web.SecurityExceptionHandler;
+import com.nowcoder.community.platform.net.TrustedProxyProperties;
 import com.nowcoder.community.infra.security.jwt.AuthoritiesConverterFactory;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;

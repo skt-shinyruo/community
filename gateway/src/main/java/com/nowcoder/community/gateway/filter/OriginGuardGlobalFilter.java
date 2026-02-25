@@ -2,8 +2,8 @@ package com.nowcoder.community.gateway.filter;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.contracts.api.CommonErrorCode;
+import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.infra.security.origin.OriginGuardProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -157,7 +157,7 @@ public class OriginGuardGlobalFilter implements GlobalFilter, Ordered {
         exchange.getResponse().getHeaders().setContentType(MediaType.APPLICATION_JSON);
 
         Result<?> body = Result.error(CommonErrorCode.FORBIDDEN.getCode(), message);
-        // gateway 侧 Result 的 traceId 来自 TraceIdWebFilter 注入的 header（避免 ThreadLocal 在 reactive 下为空）
+        // gateway 侧 Result 的 traceId 来自 platform TraceIdWebFilter 注入的 header（避免 ThreadLocal 在 reactive 下为空）
         String traceId = exchange.getRequest().getHeaders().getFirst(TraceIdSupport.HEADER_TRACE_ID);
         if (StringUtils.hasText(traceId)) {
             body.setTraceId(traceId);

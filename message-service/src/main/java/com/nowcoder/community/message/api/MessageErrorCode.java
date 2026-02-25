@@ -1,6 +1,6 @@
 package com.nowcoder.community.message.api;
 
-import com.nowcoder.community.common.api.ErrorCode;
+import com.nowcoder.community.contracts.api.ErrorCode;
 
 /**
  * message 域错误码（私信/通知等）。

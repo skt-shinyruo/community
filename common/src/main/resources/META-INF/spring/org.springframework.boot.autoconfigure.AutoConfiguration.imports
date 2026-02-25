@@ -1,5 +1,4 @@
-com.nowcoder.community.common.autoconfig.CommonAutoConfiguration
-com.nowcoder.community.common.autoconfig.ServletOnlyAutoConfiguration
-com.nowcoder.community.common.autoconfig.ReactiveOnlyAutoConfiguration
-com.nowcoder.community.common.autoconfig.KafkaDlqPublisherAutoConfiguration
-
+com.nowcoder.community.platform.autoconfig.CommonAutoConfiguration
+com.nowcoder.community.platform.autoconfig.ServletOnlyAutoConfiguration
+com.nowcoder.community.platform.autoconfig.ReactiveOnlyAutoConfiguration
+com.nowcoder.community.platform.autoconfig.KafkaDlqPublisherAutoConfiguration

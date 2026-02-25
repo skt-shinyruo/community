@@ -1,8 +1,8 @@
 package com.nowcoder.community.gateway.filter;
 
 // 网关 traceId 解析与规范化工具：统一处理 X-Trace-Id/traceparent 并生成规范化结果。
-import com.nowcoder.community.common.trace.TraceHeaders;
-import com.nowcoder.community.common.trace.TraceIdCodec;
+import com.nowcoder.community.contracts.trace.TraceHeaders;
+import com.nowcoder.community.contracts.trace.TraceIdCodec;
 import org.springframework.http.HttpHeaders;
 
 public final class TraceIdSupport {

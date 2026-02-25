@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.score;
 
-import com.nowcoder.community.common.api.ErrorCode;
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.api.ErrorCode;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.like.LikeQueryService;
 import com.nowcoder.community.content.service.PostService;

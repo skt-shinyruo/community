@@ -1,6 +1,6 @@
 package com.nowcoder.community.user.api;
 
-import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.user.api.dto.LeaderboardItemResponse;
 import com.nowcoder.community.user.service.LeaderboardService;
 import org.springframework.web.bind.annotation.GetMapping;

@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.api;
 
-import com.nowcoder.community.common.api.ErrorCode;
+import com.nowcoder.community.contracts.api.ErrorCode;
 
 /**
  * content 域错误码（帖子/评论/内容治理等）。

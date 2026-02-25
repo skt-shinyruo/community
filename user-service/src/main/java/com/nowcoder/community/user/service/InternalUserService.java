@@ -1,8 +1,8 @@
 package com.nowcoder.community.user.service;
 
-import com.nowcoder.community.common.api.CommonErrorCode;
+import com.nowcoder.community.contracts.api.CommonErrorCode;
 import com.nowcoder.community.user.api.event.payload.ModerationStatusPayload;
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.user.event.UserEventPublisher;
 import com.nowcoder.community.user.dao.UserMapper;
 import com.nowcoder.community.user.entity.User;
@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 
-import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.user.api.UserErrorCode.EMAIL_ALREADY_EXISTS;
 import static com.nowcoder.community.user.api.UserErrorCode.USER_ALREADY_EXISTS;
 import static com.nowcoder.community.user.api.UserErrorCode.USER_NOT_FOUND;

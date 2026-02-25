@@ -1,6 +1,6 @@
 package com.nowcoder.community.auth.service;
 
-import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.user.api.rpc.UserInternalRpcService;
 import com.nowcoder.community.user.api.rpc.dto.UserInternalActivationResponse;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;

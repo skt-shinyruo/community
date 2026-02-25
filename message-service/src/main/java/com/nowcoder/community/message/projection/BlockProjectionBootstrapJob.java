@@ -1,6 +1,6 @@
 package com.nowcoder.community.message.projection;
 
-import com.nowcoder.community.common.scheduler.SingleFlightTaskGuard;
+import com.nowcoder.community.platform.scheduler.SingleFlightTaskGuard;
 import com.nowcoder.community.message.service.SocialBlockScanClient;
 import com.nowcoder.community.social.api.rpc.dto.SocialBlockScanResponse;
 import org.slf4j.Logger;

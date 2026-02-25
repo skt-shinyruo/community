@@ -1,7 +1,7 @@
 package com.nowcoder.community.social.follow;
 
 import com.nowcoder.community.social.api.event.payload.FollowPayload;
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.social.event.SocialEventPublisher;
 import com.nowcoder.community.social.follow.dto.FollowItem;
@@ -18,9 +18,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.Instant;
 import java.util.List;
 
-import static com.nowcoder.community.common.domain.EntityTypes.USER;
-import static com.nowcoder.community.common.api.CommonErrorCode.FORBIDDEN;
-import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.contracts.domain.EntityTypes.USER;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.social.api.SocialErrorCode.CANNOT_FOLLOW_SELF;
 
 @Service

@@ -1,7 +1,7 @@
 package com.nowcoder.community.analytics.api;
 
 import com.nowcoder.community.analytics.service.AnalyticsService;
-import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.contracts.api.Result;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.Authentication;

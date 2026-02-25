@@ -2,10 +2,10 @@ package com.nowcoder.community.gateway.filter;
 
 // 网关异常响应 traceId 测试：验证 401/403/429 响应体与头部一致。
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.api.CommonErrorCode;
+import com.nowcoder.community.contracts.api.CommonErrorCode;
 import com.nowcoder.community.gateway.config.GatewayErrorWebExceptionHandler;
 import com.nowcoder.community.gateway.config.GatewayRateLimitProperties;
-import com.nowcoder.community.gateway.config.ReactiveSecurityExceptionHandler;
+import com.nowcoder.community.platform.web.reactive.ReactiveSecurityExceptionHandler;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;

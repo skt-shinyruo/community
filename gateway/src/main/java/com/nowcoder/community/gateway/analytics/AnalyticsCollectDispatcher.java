@@ -1,8 +1,8 @@
 package com.nowcoder.community.gateway.analytics;
 
 import com.nowcoder.community.analytics.api.rpc.InternalAnalyticsRpcService;
-import com.nowcoder.community.common.api.Result;
-import com.nowcoder.community.common.trace.TraceHeaders;
+import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.contracts.trace.TraceHeaders;
 import com.nowcoder.community.gateway.config.AnalyticsCollectProperties;
 import com.nowcoder.community.gateway.filter.TraceIdSupport;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -171,7 +171,7 @@ public class AnalyticsCollectDispatcher {
         setOrRemoveAttachment(attachments, TraceHeaders.HEADER_TRACEPARENT, traceparent);
         try {
             Result<Void> result = internalAnalyticsRpcService.recordUv(ip, date);
-            com.nowcoder.community.common.web.internalclient.InternalClientSupport.unwrap(result, SERVICE_NAME);
+            com.nowcoder.community.platform.web.internalclient.InternalClientSupport.unwrap(result, SERVICE_NAME);
         } finally {
             restoreAttachment(attachments, TraceHeaders.HEADER_TRACE_ID, beforeTraceId);
             restoreAttachment(attachments, TraceHeaders.HEADER_TRACEPARENT, beforeTraceparent);
@@ -186,7 +186,7 @@ public class AnalyticsCollectDispatcher {
         setOrRemoveAttachment(attachments, TraceHeaders.HEADER_TRACEPARENT, traceparent);
         try {
             Result<Void> result = internalAnalyticsRpcService.recordDau(userId, date);
-            com.nowcoder.community.common.web.internalclient.InternalClientSupport.unwrap(result, SERVICE_NAME);
+            com.nowcoder.community.platform.web.internalclient.InternalClientSupport.unwrap(result, SERVICE_NAME);
         } finally {
             restoreAttachment(attachments, TraceHeaders.HEADER_TRACE_ID, beforeTraceId);
             restoreAttachment(attachments, TraceHeaders.HEADER_TRACEPARENT, beforeTraceparent);

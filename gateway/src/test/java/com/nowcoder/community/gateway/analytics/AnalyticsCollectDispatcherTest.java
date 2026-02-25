@@ -1,7 +1,7 @@
 package com.nowcoder.community.gateway.analytics;
 
 import com.nowcoder.community.analytics.api.rpc.InternalAnalyticsRpcService;
-import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.gateway.config.AnalyticsCollectProperties;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;

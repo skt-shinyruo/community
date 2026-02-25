@@ -3,8 +3,8 @@ package com.nowcoder.community.gateway.filter;
 // 网关限流过滤器：支持多策略限流并统一写出 traceId。
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.api.Result;
+import com.nowcoder.community.contracts.api.CommonErrorCode;
+import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.gateway.config.GatewayRateLimitProperties;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;

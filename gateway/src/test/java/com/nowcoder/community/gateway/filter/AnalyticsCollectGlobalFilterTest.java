@@ -2,7 +2,7 @@ package com.nowcoder.community.gateway.filter;
 
 import com.nowcoder.community.gateway.analytics.AnalyticsCollectDispatcher;
 import com.nowcoder.community.gateway.config.AnalyticsCollectProperties;
-import com.nowcoder.community.common.net.TrustedProxyProperties;
+import com.nowcoder.community.platform.net.TrustedProxyProperties;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;

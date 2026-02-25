@@ -1,6 +1,6 @@
 package com.nowcoder.community.user.api;
 
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.user.config.AvatarStorageProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -23,7 +23,7 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.regex.Pattern;
 
-import static com.nowcoder.community.common.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
 
 /**
  * 本地文件访问（仅头像）：/files/avatar/{userId}/{uuid}

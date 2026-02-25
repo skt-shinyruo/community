@@ -2,7 +2,7 @@ package com.nowcoder.community.analytics.service;
 
 import com.nowcoder.community.analytics.repo.AnalyticsRepository;
 import com.nowcoder.community.analytics.api.AnalyticsErrorCode;
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 

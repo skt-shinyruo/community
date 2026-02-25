@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.service;
 
-import com.nowcoder.community.common.api.CommonErrorCode;
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.contracts.api.CommonErrorCode;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.content.api.ContentErrorCode;
 import com.nowcoder.community.content.dao.CommentMapper;
 import com.nowcoder.community.content.entity.Comment;

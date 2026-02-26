@@ -1,11 +1,9 @@
 package com.nowcoder.community.message.api.dto;
 
-import com.nowcoder.community.message.entity.Message;
-
 public class NoticeTopicSummaryResponse {
 
     private String topic;
-    private Message latest;
+    private LetterItemResponse latest;
     private int noticeCount;
     private int unreadCount;
 
@@ -17,11 +15,11 @@ public class NoticeTopicSummaryResponse {
         this.topic = topic;
     }
 
-    public Message getLatest() {
+    public LetterItemResponse getLatest() {
         return latest;
     }
 
-    public void setLatest(Message latest) {
+    public void setLatest(LetterItemResponse latest) {
         this.latest = latest;
     }
 
@@ -41,4 +39,3 @@ public class NoticeTopicSummaryResponse {
         this.unreadCount = unreadCount;
     }
 }
-

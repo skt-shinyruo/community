@@ -14,6 +14,7 @@
     <packaging>pom</packaging>
 
     <modules>
+        <module>message-api</module>
         <module>message-service</module>
     </modules>
 </project>

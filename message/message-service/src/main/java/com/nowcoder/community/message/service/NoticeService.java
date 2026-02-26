@@ -1,6 +1,7 @@
 package com.nowcoder.community.message.service;
 
 import com.nowcoder.community.message.dao.MessageMapper;
+import com.nowcoder.community.message.api.dto.LetterItemResponse;
 import com.nowcoder.community.message.api.dto.NoticeTopicSummaryResponse;
 import com.nowcoder.community.message.entity.Message;
 import org.springframework.stereotype.Service;
@@ -54,10 +55,25 @@ public class NoticeService {
             NoticeTopicSummaryResponse r = new NoticeTopicSummaryResponse();
             r.setTopic(topic);
             List<Message> latest = messageMapper.selectNotices(userId, topic, 0, 1);
-            r.setLatest(latest == null || latest.isEmpty() ? null : latest.get(0));
+            r.setLatest(latest == null || latest.isEmpty() ? null : toLetterItem(latest.get(0)));
             r.setNoticeCount(messageMapper.selectNoticeCount(userId, topic));
             r.setUnreadCount(messageMapper.selectNoticeUnreadCount(userId, topic));
             return r;
         }).toList();
+    }
+
+    private LetterItemResponse toLetterItem(Message m) {
+        if (m == null) {
+            return null;
+        }
+        LetterItemResponse r = new LetterItemResponse();
+        r.setId(m.getId());
+        r.setFromId(m.getFromId());
+        r.setToId(m.getToId());
+        r.setConversationId(m.getConversationId());
+        r.setContent(m.getContent());
+        r.setStatus(m.getStatus());
+        r.setCreateTime(m.getCreateTime());
+        return r;
     }
 }

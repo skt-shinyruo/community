@@ -1,6 +1,7 @@
 package com.nowcoder.community.message.api;
 
 import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.message.api.dto.LetterItemResponse;
 import com.nowcoder.community.message.api.dto.MarkReadRequest;
 import com.nowcoder.community.message.api.dto.NoticeTopicSummaryResponse;
 import com.nowcoder.community.message.entity.Message;
@@ -28,7 +29,7 @@ public class NoticeController {
     }
 
     @GetMapping
-    public Result<List<Message>> list(
+    public Result<List<LetterItemResponse>> list(
             Authentication authentication,
             @RequestParam String topic,
             @RequestParam(required = false) Integer page,
@@ -38,7 +39,8 @@ public class NoticeController {
         int userId = Integer.parseInt(jwt.getSubject());
         int p = page == null ? 0 : Math.max(0, page);
         int s = size == null ? 10 : Math.min(50, Math.max(1, size));
-        return Result.ok(noticeService.listNotices(userId, topic, p, s));
+        List<Message> list = noticeService.listNotices(userId, topic, p, s);
+        return Result.ok(list == null ? List.of() : list.stream().map(this::toLetterItem).toList());
     }
 
     @GetMapping("/unread-count")
@@ -61,5 +63,20 @@ public class NoticeController {
         int userId = Integer.parseInt(jwt.getSubject());
         noticeService.markRead(userId, request.getIds());
         return Result.ok();
+    }
+
+    private LetterItemResponse toLetterItem(Message m) {
+        if (m == null) {
+            return null;
+        }
+        LetterItemResponse r = new LetterItemResponse();
+        r.setId(m.getId());
+        r.setFromId(m.getFromId());
+        r.setToId(m.getToId());
+        r.setConversationId(m.getConversationId());
+        r.setContent(m.getContent());
+        r.setStatus(m.getStatus());
+        r.setCreateTime(m.getCreateTime());
+        return r;
     }
 }

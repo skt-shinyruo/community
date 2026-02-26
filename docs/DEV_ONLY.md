@@ -27,7 +27,7 @@
 - 冒烟脚本：`scripts/smoke-i0-auth.sh`（`SMOKE_ONBOARDING=true` 时会使用固定验证码）
 
 生产约束（SSOT）：
-- prod profile 下 **禁止** `auth.captcha.fixed-code`，且 `common/StartupValidation` 会在启动期 fail-closed 阻断误配。
+- prod profile 下 **禁止** `auth.captcha.fixed-code`，且 `platform/common/StartupValidation` 会在启动期 fail-closed 阻断误配。
 
 ---
 
@@ -39,4 +39,3 @@
 
 生产约束（SSOT）：
 - prod profile 下禁止回传 activationLink/resetLink，并要求启用 SMTP（见 `docs/SECURITY.md` 与 `deploy/README.md`）。
-

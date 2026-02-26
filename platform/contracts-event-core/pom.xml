@@ -6,33 +6,30 @@
 
     <parent>
         <groupId>com.nowcoder.community</groupId>
-        <artifactId>community</artifactId>
+        <artifactId>platform</artifactId>
         <version>0.0.1-SNAPSHOT</version>
     </parent>
 
-    <artifactId>infra-dubbo-starter</artifactId>
-    <name>infra-dubbo-starter</name>
-    <description>Dubbo cross-cutting filters (trace/metrics)</description>
+    <artifactId>contracts-event-core</artifactId>
+    <name>contracts-event-core</name>
+    <description>Event envelope contracts and payload DTOs</description>
     <packaging>jar</packaging>
 
     <dependencies>
         <dependency>
             <groupId>com.nowcoder.community</groupId>
-            <artifactId>common</artifactId>
+            <artifactId>contracts-core</artifactId>
             <version>${project.version}</version>
         </dependency>
 
         <dependency>
-            <groupId>org.apache.dubbo</groupId>
-            <artifactId>dubbo</artifactId>
-            <version>${dubbo.version}</version>
-            <scope>provided</scope>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
         </dependency>
 
         <dependency>
-            <groupId>io.micrometer</groupId>
-            <artifactId>micrometer-core</artifactId>
-            <scope>provided</scope>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
 
         <dependency>

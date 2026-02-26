@@ -13,7 +13,7 @@
 - `message-service/`：私信/通知（Kafka 消费生成通知）
 - `search/search-service/`：Elasticsearch 搜索 + reindex
 - `analytics/analytics-service/`：UV/DAU 统计
-- `common/`：Result/错误码/traceId/internal client 支撑（headers/错误映射/指标）等公共库
+- `platform/`：共享模块（contracts/infra/common；其中 `platform/common/` 提供 Result/错误码/traceId/internal client 支撑等公共库）
 
 文档（建议从这里开始）：
 - `docs/ARCHITECTURE.md`

@@ -10,7 +10,7 @@
 - `user/user-service/`：用户资料、头像上传（七牛）、成长/榜单等
 - `content/content-service/`：帖子/评论、分类/标签、收藏/订阅、内容生命周期
 - `social/social-service/`：点赞/关注/拉黑
-- `message-service/`：私信/通知（Kafka 消费生成通知）
+- `message/message-service/`：私信/通知（Kafka 消费生成通知；契约见 `message/message-api/`）
 - `search/search-service/`：Elasticsearch 搜索 + reindex
 - `analytics/analytics-service/`：UV/DAU 统计
 - `platform/`：共享模块（contracts/infra/common；其中 `platform/common/` 提供 Result/错误码/traceId/internal client 支撑等公共库）

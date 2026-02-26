@@ -7,12 +7,12 @@
 - `frontend/`：Vue3 SPA（Vite + Router + Pinia + Axios）
 - `gateway/`：Spring Cloud Gateway（统一入口 `/api/**`：鉴权/CORS/traceId/审计/限流）
 - `auth-service/`：登录/刷新/登出/验证码/注册激活/找回密码（JWT access + refresh cookie）
-- `user-service/`：用户资料、头像上传（七牛）、成长/榜单等
-- `content-service/`：帖子/评论、分类/标签、收藏/订阅、内容生命周期
-- `social-service/`：点赞/关注/拉黑
+- `user/user-service/`：用户资料、头像上传（七牛）、成长/榜单等
+- `content/content-service/`：帖子/评论、分类/标签、收藏/订阅、内容生命周期
+- `social/social-service/`：点赞/关注/拉黑
 - `message-service/`：私信/通知（Kafka 消费生成通知）
-- `search-service/`：Elasticsearch 搜索 + reindex
-- `analytics-service/`：UV/DAU 统计
+- `search/search-service/`：Elasticsearch 搜索 + reindex
+- `analytics/analytics-service/`：UV/DAU 统计
 - `common/`：Result/错误码/traceId/internal client 支撑（headers/错误映射/指标）等公共库
 
 文档（建议从这里开始）：

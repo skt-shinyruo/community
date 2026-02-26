@@ -69,26 +69,26 @@ legacy（固定返回 410）：
 - **ops-service（ops handlers）**：
   - `ops-service/src/main/java/com/nowcoder/community/ops/api/OpsController.java`
 - **auth-service**：`auth-service/src/main/java/com/nowcoder/community/auth/api/AuthController.java`
-- **user-service**：`user-service/src/main/java/com/nowcoder/community/user/api/UserController.java`
-- **user-service**：`user-service/src/main/java/com/nowcoder/community/user/api/LeaderboardController.java`
+- **user-service**：`user/user-service/src/main/java/com/nowcoder/community/user/api/UserController.java`
+- **user-service**：`user/user-service/src/main/java/com/nowcoder/community/user/api/LeaderboardController.java`
 - **content-service**：
-  - `content-service/src/main/java/com/nowcoder/community/content/api/PostController.java`
-  - `content-service/src/main/java/com/nowcoder/community/content/api/BookmarkController.java`
-  - `content-service/src/main/java/com/nowcoder/community/content/api/SubscriptionController.java`
-  - `content-service/src/main/java/com/nowcoder/community/content/api/ReportController.java`
-  - `content-service/src/main/java/com/nowcoder/community/content/api/ModerationController.java`
+  - `content/content-service/src/main/java/com/nowcoder/community/content/api/PostController.java`
+  - `content/content-service/src/main/java/com/nowcoder/community/content/api/BookmarkController.java`
+  - `content/content-service/src/main/java/com/nowcoder/community/content/api/SubscriptionController.java`
+  - `content/content-service/src/main/java/com/nowcoder/community/content/api/ReportController.java`
+  - `content/content-service/src/main/java/com/nowcoder/community/content/api/ModerationController.java`
 - **social-service**：
-  - `social-service/src/main/java/com/nowcoder/community/social/like/LikeController.java`
-  - `social-service/src/main/java/com/nowcoder/community/social/follow/FollowController.java`
-  - `social-service/src/main/java/com/nowcoder/community/social/block/BlockController.java`
+  - `social/social-service/src/main/java/com/nowcoder/community/social/like/LikeController.java`
+  - `social/social-service/src/main/java/com/nowcoder/community/social/follow/FollowController.java`
+  - `social/social-service/src/main/java/com/nowcoder/community/social/block/BlockController.java`
 - **message-service**：
   - `message-service/src/main/java/com/nowcoder/community/message/api/MessageController.java`
   - `message-service/src/main/java/com/nowcoder/community/message/api/NoticeController.java`
 - **search-service**：
-  - `search-service/src/main/java/com/nowcoder/community/search/api/SearchController.java`
-  - `search-service/src/main/java/com/nowcoder/community/search/api/SearchLegacyController.java`（legacy 410 stub）
+  - `search/search-service/src/main/java/com/nowcoder/community/search/api/SearchController.java`
+  - `search/search-service/src/main/java/com/nowcoder/community/search/api/SearchLegacyController.java`（legacy 410 stub）
 - **analytics-service**：
-  - `analytics-service/src/main/java/com/nowcoder/community/analytics/api/AnalyticsController.java`
+  - `analytics/analytics-service/src/main/java/com/nowcoder/community/analytics/api/AnalyticsController.java`
 
 ---
 
@@ -97,12 +97,12 @@ legacy（固定返回 410）：
 - **错误码：**
   - 通用错误码：`contracts-core/src/main/java/com/nowcoder/community/contracts/api/CommonErrorCode.java`
   - 鉴权域错误码：`auth-service/src/main/java/com/nowcoder/community/auth/api/AuthErrorCode.java`
-  - 用户域错误码：`user-api/src/main/java/com/nowcoder/community/user/api/UserErrorCode.java`
-  - 内容域错误码：`content-api/src/main/java/com/nowcoder/community/content/api/ContentErrorCode.java`
-  - 社交域错误码：`social-api/src/main/java/com/nowcoder/community/social/api/SocialErrorCode.java`
+  - 用户域错误码：`user/user-api/src/main/java/com/nowcoder/community/user/api/UserErrorCode.java`
+  - 内容域错误码：`content/content-api/src/main/java/com/nowcoder/community/content/api/ContentErrorCode.java`
+  - 社交域错误码：`social/social-api/src/main/java/com/nowcoder/community/social/api/SocialErrorCode.java`
   - 消息域错误码：`message-service/src/main/java/com/nowcoder/community/message/api/MessageErrorCode.java`
-  - 搜索域错误码：`search-api/src/main/java/com/nowcoder/community/search/api/SearchErrorCode.java`
-  - 统计域错误码：`analytics-api/src/main/java/com/nowcoder/community/analytics/api/AnalyticsErrorCode.java`
+  - 搜索域错误码：`search/search-api/src/main/java/com/nowcoder/community/search/api/SearchErrorCode.java`
+  - 统计域错误码：`analytics/analytics-api/src/main/java/com/nowcoder/community/analytics/api/AnalyticsErrorCode.java`
   - 网关域错误码：`gateway/src/main/java/com/nowcoder/community/gateway/api/GatewayErrorCode.java`
 - **安全：**
   - 对外接口统一走 gateway 路由与 CORS；业务鉴权以各服务为 SSOT（gateway 仅对 `/api/ops/**`、`/internal/**` 等边界路径做收敛与双保险）。

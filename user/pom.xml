@@ -10,16 +10,11 @@
         <version>0.0.1-SNAPSHOT</version>
     </parent>
 
-    <artifactId>social-api</artifactId>
-    <name>social-api</name>
-    <description>Social RPC API (interfaces and DTOs)</description>
-    <packaging>jar</packaging>
+    <artifactId>user</artifactId>
+    <packaging>pom</packaging>
 
-    <dependencies>
-        <dependency>
-            <groupId>com.nowcoder.community</groupId>
-            <artifactId>contracts-core</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-    </dependencies>
+    <modules>
+        <module>user-api</module>
+        <module>user-service</module>
+    </modules>
 </project>

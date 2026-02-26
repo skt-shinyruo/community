@@ -106,7 +106,7 @@
 - 契约通过回归测试固化，避免后续重构/联表扩展时不小心把字段带出
 
 示例：
-- `content-service/src/test/java/com/nowcoder/community/content/api/PostControllerTest.java`
+- `content/content-service/src/test/java/com/nowcoder/community/content/api/PostControllerTest.java`
 
 ---
 

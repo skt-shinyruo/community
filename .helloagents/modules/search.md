@@ -48,7 +48,7 @@
 ## Configuration Notes
 - `search.storage=es|memory`
   - 默认推荐：`es`（生产/部署）
-  - 测试/演示：可显式切到 `memory`（如 `search-service/src/test/resources/application.yml`）
+  - 测试/演示：可显式切到 `memory`（如 `search/search-service/src/test/resources/application.yml`）
 
 ## Data Models
 ### Elasticsearch: discuss_post

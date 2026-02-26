@@ -53,12 +53,12 @@
 各域 `*ErrorCode` 归属各自域模块（域内自洽演进）：
 
 - auth：`auth-service/src/main/java/com/nowcoder/community/auth/api/AuthErrorCode.java`
-- user：`user-api/src/main/java/com/nowcoder/community/user/api/UserErrorCode.java`
-- content：`content-api/src/main/java/com/nowcoder/community/content/api/ContentErrorCode.java`
-- social：`social-api/src/main/java/com/nowcoder/community/social/api/SocialErrorCode.java`
+- user：`user/user-api/src/main/java/com/nowcoder/community/user/api/UserErrorCode.java`
+- content：`content/content-api/src/main/java/com/nowcoder/community/content/api/ContentErrorCode.java`
+- social：`social/social-api/src/main/java/com/nowcoder/community/social/api/SocialErrorCode.java`
 - message：`message-service/src/main/java/com/nowcoder/community/message/api/MessageErrorCode.java`
-- search：`search-api/src/main/java/com/nowcoder/community/search/api/SearchErrorCode.java`
-- analytics：`analytics-api/src/main/java/com/nowcoder/community/analytics/api/AnalyticsErrorCode.java`
+- search：`search/search-api/src/main/java/com/nowcoder/community/search/api/SearchErrorCode.java`
+- analytics：`analytics/analytics-api/src/main/java/com/nowcoder/community/analytics/api/AnalyticsErrorCode.java`
 - gateway：`gateway/src/main/java/com/nowcoder/community/gateway/api/GatewayErrorCode.java`
 
 跨服务错误语义：统一通过 `Result.code/message/httpStatus` 透传与 code 段约定归因，不要求消费者 import 生产方枚举。

@@ -16,13 +16,40 @@ ARG MODULE
 #   为了让 `docker compose up -d --build` 更鲁棒：第一次失败时清空 cache 并重试一次。
 RUN --mount=type=cache,target=/root/.m2/repository,sharing=locked \
     set -eu; \
-    build_one() { mvn -q -DskipTests -pl "${MODULE}" -am package; }; \
+    if [ -z "${MODULE:-}" ]; then \
+      echo "[docker-build] ERROR: build-arg MODULE is required (Maven artifactId, e.g. content-service)."; \
+      exit 1; \
+    fi; \
+    build_one() { mvn -q -DskipTests -pl ":${MODULE}" -am package; }; \
     if ! build_one; then \
       echo "[docker-build] Maven build failed. Cleaning /root/.m2/repository cache and retrying once..."; \
       rm -rf /root/.m2/repository/*; \
       build_one; \
     fi; \
-    cp "${MODULE}/target/"*.jar /workspace/app.jar
+    jar_list="$({ \
+      find . -maxdepth 4 -type f -path "./*/${MODULE}/target/*.jar" \
+        ! -name "original-*.jar" \
+        ! -name "*-sources.jar" \
+        ! -name "*-javadoc.jar" \
+        ! -name "*-tests.jar" \
+        -print; \
+      find . -maxdepth 4 -type f -path "./${MODULE}/target/*.jar" \
+        ! -name "original-*.jar" \
+        ! -name "*-sources.jar" \
+        ! -name "*-javadoc.jar" \
+        ! -name "*-tests.jar" \
+        -print; \
+    } | sort)"; \
+    jar_path="$(printf "%s\\n" "${jar_list}" | head -n 1)"; \
+    if [ -z "${jar_path}" ]; then \
+      echo "[docker-build] ERROR: Cannot find built jar for MODULE='${MODULE}'." >&2; \
+      echo "[docker-build] Expected: */${MODULE}/target/*.jar (or ${MODULE}/target/*.jar) (excluding original-*, *-sources.jar, *-javadoc.jar, *-tests.jar)." >&2; \
+      echo "[docker-build] Existing jar(s) under */target/*.jar and */*/target/*.jar:" >&2; \
+      find . -maxdepth 4 -type f \\( -path "./*/target/*.jar" -o -path "./*/*/target/*.jar" \\) -print | sed "s|^\\./||" >&2 || true; \
+      exit 1; \
+    fi; \
+    echo "[docker-build] Using jar: ${jar_path}"; \
+    cp "${jar_path}" /workspace/app.jar
 
 FROM eclipse-temurin:17-jre-jammy
 

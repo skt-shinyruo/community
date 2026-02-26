@@ -18,7 +18,7 @@
 
 - **common（artifactId）与 platform（package）语义不一致**：`common/pom.xml` 的 `artifactId/name` 为 `common`，但主要代码位于 `common/src/main/java/com/nowcoder/community/platform/**`（例如 `platform/autoconfig`、`platform/startup` 等）。这会把“平台运行期能力”伪装成“随便放点共享代码”，导致边界治理依赖口头约定。
 - **平台层出现按服务名分支的 prod 启动校验**：`common/src/main/java/com/nowcoder/community/platform/startup/StartupValidation.java` 在 prod 下读取 `spring.application.name`，并对 `auth-service` 做服务特有校验（SMTP、验证码、Cookie 等）。平台层开始理解业务细节，新增服务/新增校验会牵引 common 改动与发版。
-- **Dubbo 扫描包过宽**：多个服务 `application.yml` 中 `dubbo.scan.base-packages` 统一为 `com.nowcoder.community`（例如 `content-service/src/main/resources/application.yml`），扫描范围包含依赖 jar 的同根包；未来一旦某个依赖误带 `@DubboService`，可能被意外暴露。
+- **Dubbo 扫描包过宽**：多个服务 `application.yml` 中 `dubbo.scan.base-packages` 统一为 `com.nowcoder.community`（例如 `content/content-service/src/main/resources/application.yml`），扫描范围包含依赖 jar 的同根包；未来一旦某个依赖误带 `@DubboService`，可能被意外暴露。
 - **prod 配置导入 fail-fast 不一致**：多数服务已通过 `application-prod.yml` 把 `spring.config.import` 改为 required/fail-fast，但 `ops-service` 当前仅有 `application.yml`（缺少 `application-prod.yml`），存在 prod 配置缺失仍能启动的“静默退化”风险。
 
 ### 目标

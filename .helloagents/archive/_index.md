@@ -2,6 +2,9 @@
 
 ## 2026-02
 
+- 202602252336_business-service-boundary-splitting
+- 202602252227_microservices-module-count-review
+- 202602252158_backend-package-structure-review
 - 202602241314_architecture_deep_refactor_phase3
 - 202602241220_architecture_deep_refactor_phase2
 - 202602241115_architecture_deep_refactor
@@ -25,6 +28,9 @@
 
 | Timestamp | Feature Name | Type | Status | Solution Package Path |
 |-----------|--------------|------|--------|----------------------|
+| 202602252336 | business-service-boundary-splitting | Overview | ✅Completed | [202602252336_business-service-boundary-splitting](2026-02/202602252336_business-service-boundary-splitting/) |
+| 202602252227 | microservices-module-count-review | Overview | ✅Completed | [202602252227_microservices-module-count-review](2026-02/202602252227_microservices-module-count-review/) |
+| 202602252158 | backend-package-structure-review | Overview | ✅Completed | [202602252158_backend-package-structure-review](2026-02/202602252158_backend-package-structure-review/) |
 | 202602241314 | architecture_deep_refactor_phase3 | Development Implementation | ✅Completed | [202602241314_architecture_deep_refactor_phase3](2026-02/202602241314_architecture_deep_refactor_phase3/) |
 | 202602241220 | architecture_deep_refactor_phase2 | Development Implementation | ✅Completed | [202602241220_architecture_deep_refactor_phase2](2026-02/202602241220_architecture_deep_refactor_phase2/) |
 | 202602241115 | architecture_deep_refactor | Development Implementation | ✅Completed | [202602241115_architecture_deep_refactor](2026-02/202602241115_architecture_deep_refactor/) |

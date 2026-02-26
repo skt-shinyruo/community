@@ -119,17 +119,17 @@
 
 证据文件（便于追溯）：
 - `auth-service/src/main/java/com/nowcoder/community/auth/service/UserServiceInternalClient.java`
-- `user-service/src/main/java/com/nowcoder/community/user/service/SocialServiceClient.java`
-- `content-service/src/main/java/com/nowcoder/community/content/service/UserModerationClient.java`
-- `content-service/src/main/java/com/nowcoder/community/content/service/SocialBlockClient.java`
-- `content-service/src/main/java/com/nowcoder/community/content/like/RpcLikeQueryService.java`
+- `user/user-service/src/main/java/com/nowcoder/community/user/service/SocialServiceClient.java`
+- `content/content-service/src/main/java/com/nowcoder/community/content/service/UserModerationClient.java`
+- `content/content-service/src/main/java/com/nowcoder/community/content/service/SocialBlockClient.java`
+- `content/content-service/src/main/java/com/nowcoder/community/content/like/RpcLikeQueryService.java`
 - `message-service/src/main/java/com/nowcoder/community/message/service/UserModerationClient.java`
 - `message-service/src/main/java/com/nowcoder/community/message/service/SocialBlockClient.java`
 - `message-service/src/main/java/com/nowcoder/community/message/service/UserServiceClient.java`
-- `search-service/src/main/java/com/nowcoder/community/search/service/ContentServiceClient.java`
+- `search/search-service/src/main/java/com/nowcoder/community/search/service/ContentServiceClient.java`
 - `gateway/src/main/java/com/nowcoder/community/gateway/analytics/AnalyticsCollectDispatcher.java`
 - `ops-service/src/main/java/com/nowcoder/community/ops/api/OpsController.java`
-- `social-service/src/main/java/com/nowcoder/community/social/service/ContentEntityResolver.java`
+- `social/social-service/src/main/java/com/nowcoder/community/social/service/ContentEntityResolver.java`
 
 ### 2.5 跨服务 RPC 降级策略（SSOT）
 

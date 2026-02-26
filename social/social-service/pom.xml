@@ -6,14 +6,19 @@
 
     <parent>
         <groupId>com.nowcoder.community</groupId>
-        <artifactId>community</artifactId>
+        <artifactId>social</artifactId>
         <version>0.0.1-SNAPSHOT</version>
     </parent>
 
-    <artifactId>content-service</artifactId>
-    <name>content-service</name>
-    <description>Content service (posts/comments/hot score)</description>
+    <artifactId>social-service</artifactId>
+    <name>social-service</name>
+    <description>Social service (like/follow)</description>
     <packaging>jar</packaging>
+
+    <properties>
+        <testcontainers.version>1.20.4</testcontainers.version>
+        <docker.api.version>1.44</docker.api.version>
+    </properties>
 
     <dependencies>
         <dependency>
@@ -42,19 +47,13 @@
 
         <dependency>
             <groupId>com.nowcoder.community</groupId>
-            <artifactId>content-api</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.nowcoder.community</groupId>
             <artifactId>social-api</artifactId>
             <version>${project.version}</version>
         </dependency>
 
         <dependency>
             <groupId>com.nowcoder.community</groupId>
-            <artifactId>user-api</artifactId>
+            <artifactId>content-api</artifactId>
             <version>${project.version}</version>
         </dependency>
 
@@ -137,14 +136,22 @@
         </dependency>
 
         <dependency>
-            <groupId>org.springframework.security</groupId>
-            <artifactId>spring-security-test</artifactId>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
 
         <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>${testcontainers.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${testcontainers.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -154,6 +161,15 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <api.version>${docker.api.version}</api.version>
+                    </systemPropertyVariables>
+                </configuration>
             </plugin>
         </plugins>
     </build>

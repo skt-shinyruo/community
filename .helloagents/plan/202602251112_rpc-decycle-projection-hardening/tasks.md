@@ -47,28 +47,28 @@
 - [√] 3.2 `message-service`：将处罚状态校验的 read-repair 机制标准化（限流/超时/熔断策略明确），并与“投影缺失策略表”对齐
   - 当前证据：`message-service/src/main/java/com/nowcoder/community/message/service/UserModerationGuard.java`
 - [√] 3.3 `content-service`：将处罚状态校验的 read-repair 机制标准化（同 3.2）
-  - 当前证据：`content-service/src/main/java/com/nowcoder/community/content/service/UserModerationGuard.java`
+  - 当前证据：`content/content-service/src/main/java/com/nowcoder/community/content/service/UserModerationGuard.java`
 - [√] 3.4 `content-service`：将 `SocialBlockScanClient` / `SocialLikeScanClient` 的扫描能力上收至 ops 平面（避免业务服务持有扫描依赖）
-  - 当前证据：`ops-service/src/main/java/com/nowcoder/community/ops/api/OpsController.java`、`content-service/src/main/java/com/nowcoder/community/content/rpc/ContentLikeProjectionOpsRpcServiceImpl.java`、`content-service/src/main/java/com/nowcoder/community/content/rpc/ContentBlockProjectionOpsRpcServiceImpl.java`
+  - 当前证据：`ops-service/src/main/java/com/nowcoder/community/ops/api/OpsController.java`、`content/content-service/src/main/java/com/nowcoder/community/content/rpc/ContentLikeProjectionOpsRpcServiceImpl.java`、`content/content-service/src/main/java/com/nowcoder/community/content/rpc/ContentBlockProjectionOpsRpcServiceImpl.java`
 - [√] 3.5 `message-service`：将 `SocialBlockScanClient` 的扫描能力上收至 ops 平面（同 3.4）
   - 当前证据：`ops-service/src/main/java/com/nowcoder/community/ops/api/OpsController.java`、`message-service/src/main/java/com/nowcoder/community/message/rpc/MessageBlockProjectionOpsRpcServiceImpl.java`
 - [ ] 3.6 `user-service`：评估并实施“用户主页聚合读”去耦路径（两选一或组合）
   - A: 保留 `user-service -> social-service` 单一聚合 RPC，但固化 fail-open 与观测（现状）
   - B: user-service 消费 social 事件物化计数投影，减少或移除该 RPC（更激进）
-  - 当前证据：`user-service/src/main/java/com/nowcoder/community/user/service/SocialServiceClient.java`
+  - 当前证据：`user/user-service/src/main/java/com/nowcoder/community/user/service/SocialServiceClient.java`
 - [ ] 3.7 `search-service`：明确 `reindex` 的同步依赖边界（仅 ops 触发、禁止请求路径触发 full scan），并评估将扫描迁移为事件回放/离线任务的可行性
-  - 当前证据：`search-service/src/main/java/com/nowcoder/community/search/service/ContentServiceClient.java`
+  - 当前证据：`search/search-service/src/main/java/com/nowcoder/community/search/service/ContentServiceClient.java`
 
 ### 4. 写路径关键投影（可用性风险前移的系统性治理）
 
 - [ ] 4.1 `social-service`：为 `ContentEntityProjection` 建立“投影缺失修复闭环”（至少一种：read-repair / ops backfill / 受控 fallback）
-  - 当前证据：`social-service/src/main/java/com/nowcoder/community/social/service/ContentEntityResolver.java`（当前 fail-closed）
+  - 当前证据：`social/social-service/src/main/java/com/nowcoder/community/social/service/ContentEntityResolver.java`（当前 fail-closed）
 - [ ] 4.2 `social-service`：补齐 `ContentEntityProjection` 的健康/延迟指标与告警（miss/incomplete/lag 分维度）
-  - 当前证据：`social-service/src/main/java/com/nowcoder/community/social/kafka/ContentEventConsumer.java`、`ContentEntityProjectionRepository`
+  - 当前证据：`social/social-service/src/main/java/com/nowcoder/community/social/kafka/ContentEventConsumer.java`、`ContentEntityProjectionRepository`
 - [ ] 4.3 对所有“写路径关键投影”统一补齐：replay/backfill/runbook（建议集中到 `ops-service`）
   - 现有基础：`ops-service/src/main/java/com/nowcoder/community/ops/api/OpsController.java`（outbox replay、reindex、backfill）
 - [ ] 4.4 抽取并统一“read-repair 基础能力”（限流/超时/metrics/开关），减少各服务自行实现导致的漂移
-  - 参考现有实现：`content-service/src/main/java/com/nowcoder/community/content/service/UserModerationGuard.java`、`message-service/src/main/java/com/nowcoder/community/message/service/UserModerationGuard.java`
+  - 参考现有实现：`content/content-service/src/main/java/com/nowcoder/community/content/service/UserModerationGuard.java`、`message-service/src/main/java/com/nowcoder/community/message/service/UserModerationGuard.java`
 
 ### 5. 运维平面收敛（把扫描/重建/纠偏集中化）
 

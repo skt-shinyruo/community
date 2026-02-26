@@ -29,15 +29,15 @@
   - `auth-service/src/main/java/com/nowcoder/community/auth/service/UserServiceInternalClient.java`
   - `@DubboReference UserInternalRpcService`（登录/会话/注册/激活/refresh token 相关）
 - `user-service` → `social-service`
-  - `user-service/src/main/java/com/nowcoder/community/user/service/SocialServiceClient.java`
+  - `user/user-service/src/main/java/com/nowcoder/community/user/service/SocialServiceClient.java`
   - `@DubboReference SocialReadRpcService`（用户主页计数与关注状态聚合）
 - `content-service` → `user-service`
-  - `content-service/src/main/java/com/nowcoder/community/content/service/UserModerationClient.java`
+  - `content/content-service/src/main/java/com/nowcoder/community/content/service/UserModerationClient.java`
   - `@DubboReference UserModerationRpcService`（发言权限/处罚状态）
 - `message-service` → `user-service`
   - `message-service/src/main/java/com/nowcoder/community/message/service/UserModerationClient.java`（私信权限/处罚状态）
 - `search-service` → `content-service`
-  - `search-service/src/main/java/com/nowcoder/community/search/service/ContentServiceClient.java`
+  - `search/search-service/src/main/java/com/nowcoder/community/search/service/ContentServiceClient.java`
   - `@DubboReference ContentScanRpcService`（reindex 扫描帖子）
 - `gateway` → `analytics-service`
   - `gateway/src/main/java/com/nowcoder/community/gateway/analytics/AnalyticsCollectDispatcher.java`
@@ -57,15 +57,15 @@
 **证据：写路径依赖投影且存在 fail-closed**
 
 - `social-service` 的写路径可信校验依赖本地投影：
-  - `social-service/src/main/java/com/nowcoder/community/social/service/ContentEntityResolver.java`
+  - `social/social-service/src/main/java/com/nowcoder/community/social/service/ContentEntityResolver.java`
   - `ContentEntityResolver.resolve(...)` 在投影缺失/不完整时直接抛 `SERVICE_UNAVAILABLE`（fail-closed）
-  - 投影写入来自 Kafka 消费者：`social-service/src/main/java/com/nowcoder/community/social/kafka/ContentEventConsumer.java`
+  - 投影写入来自 Kafka 消费者：`social/social-service/src/main/java/com/nowcoder/community/social/kafka/ContentEventConsumer.java`
 
 **对照：同仓库内已存在“投影缺失 → 一次性 bootstrap 修复”的成熟模式**
 
 `content-service` 与 `message-service` 对“用户处罚状态投影”已经采用了更稳健的策略：优先读投影，投影缺失时做一次性 read-repair（向 SSOT 取一次、写回投影、再次校验）：
 
-- `content-service/src/main/java/com/nowcoder/community/content/service/UserModerationGuard.java`
+- `content/content-service/src/main/java/com/nowcoder/community/content/service/UserModerationGuard.java`
 - `message-service/src/main/java/com/nowcoder/community/message/service/UserModerationGuard.java`
 
 这说明：项目内部已经接受“投影缺失不能无脑 503”的现实，并在关键链路中引入了可控的 read-repair。

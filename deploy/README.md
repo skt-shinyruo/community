@@ -6,6 +6,7 @@
 
 ## 文件/目录说明
 - `Dockerfile.spring-service`：统一构建 Spring Boot 模块镜像（build arg：`MODULE`）。
+  - `MODULE` 取值为 Maven `artifactId`（例如 `search-service`），不是目录路径；因此即使模块目录结构调整（如按域分组），compose 中的 `MODULE: xxx-service` 也无需随之变更。
 - `Dockerfile.frontend`：构建并运行前端（Vite build + preview，对外 `12881`）。
 - `docker-compose.yml`：基础全栈（Nacos/MySQL/Redis/Kafka/ES/观测 + 全服务），默认仅映射必要入口端口；Nacos 控制台端口默认绑定到宿主机 `127.0.0.1:8848`（可用 `NACOS_UI_PORT` 覆盖），其余依赖端口不映射到宿主机。
 - `docker-compose.frontend-direct.yml`：本地入口覆盖：暴露 `12881/12882` + 启动 `frontend`，并将激活链接默认指向 `http://localhost:12881`。

@@ -25,7 +25,7 @@
 - 核心服务：`auth-service/src/main/java/com/nowcoder/community/auth/service/AuthService.java`
 - user-service RPC client（身份域 SSOT，Dubbo）：
   - 客户端：`auth-service/src/main/java/com/nowcoder/community/auth/service/UserServiceInternalClient.java`（`@DubboReference` 注入 `UserInternalRpcService`）
-  - 契约与 DTO：`user-api/src/main/java/com/nowcoder/community/user/api/rpc/**`
+  - 契约与 DTO：`user/user-api/src/main/java/com/nowcoder/community/user/api/rpc/**`
 - 验证码：
   - 配置：`auth-service/src/main/java/com/nowcoder/community/auth/config/CaptchaProperties.java`
   - 逻辑：`auth-service/src/main/java/com/nowcoder/community/auth/service/CaptchaService.java`

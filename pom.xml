@@ -41,28 +41,23 @@
         </dependencies>
     </dependencyManagement>
 
-    <modules>
-        <module>contracts-core</module>
-        <module>contracts-event-core</module>
-        <module>infra-dubbo-starter</module>
-        <module>infra-security-starter</module>
-        <module>infra-outbox</module>
-        <module>common</module>
-        <module>user-api</module>
-        <module>social-api</module>
-        <module>content-api</module>
-        <module>analytics-api</module>
-        <module>search-api</module>
-        <module>ops-service</module>
-        <module>gateway</module>
-        <module>auth-service</module>
-        <module>search-service</module>
-        <module>message-service</module>
-        <module>analytics-service</module>
-        <module>social-service</module>
-        <module>user-service</module>
-        <module>content-service</module>
-    </modules>
+	    <modules>
+	        <module>contracts-core</module>
+	        <module>contracts-event-core</module>
+	        <module>infra-dubbo-starter</module>
+	        <module>infra-security-starter</module>
+	        <module>infra-outbox</module>
+	        <module>common</module>
+	        <module>analytics</module>
+	        <module>content</module>
+	        <module>search</module>
+	        <module>social</module>
+	        <module>user</module>
+	        <module>ops-service</module>
+	        <module>gateway</module>
+	        <module>auth-service</module>
+	        <module>message-service</module>
+	    </modules>
 
     <build>
         <plugins>

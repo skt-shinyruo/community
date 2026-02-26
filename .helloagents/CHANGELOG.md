@@ -4,6 +4,13 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## 2026-02-26
+
+- [build/maven] 业务域 Maven 模块按域归组：新增 `analytics/`、`content/`、`search/`、`social/`、`user/` 的聚合父 POM（`packaging=pom`），并将各域 `*-api`/`*-service` 迁移到 `/{domain}/{module}/`；leaf 模块 GAV（`groupId/artifactId/version`）保持不变，root reactor 仅聚合域模块。
+- [deploy] `deploy/Dockerfile.spring-service` 去路径耦合：`MODULE` 语义收敛为 Maven `artifactId`；构建改为 `mvn -pl ":${MODULE}" -am package`，产物拷贝通过 `find */${MODULE}/target/*.jar` 解析，避免目录层级变化导致镜像构建失败。
+- [docs/kb] 同步更新 README、`docs/SYSTEM_DESIGN.md`、`docs/DATA_MODEL.md` 与 `.helloagents/*.md` 中涉及模块路径的引用（如 `content-service/src/...` → `content/content-service/src/...`），保证文档口径与代码结构一致。
+- [test] 迁移后根目录 `./mvnw -q test` 通过。
+
 ## 2026-02-25
 
 - [arch/kb] 按需求移除跨域本地投影：跨域校验/聚合统一改为 Dubbo RPC 回源；同步更新 `.helloagents/project.md` 的同步依赖 allowlist 与 RPC 降级策略（SSOT）。
@@ -13,6 +20,9 @@
 - [ops-service] 移除投影 backfill 运维入口与配置，仅保留 reindex/outbox health/replay。
 - [deploy/docs/kb] 移除 `deploy/mysql-init/*` 中 `*_projection` 建表，并更新 `docs/SYSTEM_DESIGN.md` 与 `.helloagents` 模块文档口径为“RPC 回源”。
 - [contracts-core/test] 按需求变更：撤销/移除仓库内现存架构/质量门禁测试（不再通过 gate tests 强制，仅保留 KB 与 code review 约定）。
+- [arch/kb] 后端包/模块结构评审：确认 `contracts-*`/`*-api`/`*-service` 分层与依赖方向健康；记录 `message-api/` 残留目录与 `common` 边界膨胀风险；报告归档至 `archive/2026-02/202602252158_backend-package-structure-review/`。
+- [arch/kb] “模块数是否过多”评审：澄清 20 个 Maven 模块 ≠ 20 个运行时服务（可部署服务为 9 个）；在“真实微服务独立部署/扩容”目标下建议保持现状分层并强化边界治理（同时提供领域收敛与独立仓库两条演进路径）；报告归档至 `archive/2026-02/202602252227_microservices-module-count-review/`。
+- [arch/kb] 业务视角服务拆分建议：按能力域定义 `gateway/auth/user/content/social/message/search/analytics/ops` 的职责边界与 SSOT 数据所有权；给出最小同步调用集合与事件协作建议；报告归档至 `archive/2026-02/202602252336_business-service-boundary-splitting/`。
 
 ## 2026-02-24
 

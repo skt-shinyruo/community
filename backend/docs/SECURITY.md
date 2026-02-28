@@ -1,23 +1,34 @@
 # 安全与鉴权模型
 
-> 本文档描述“本地前端直连 gateway”模式下的安全边界与关键机制。以网关（统一入口）与 auth-service（签发 token）为中心，说明 JWT、refresh cookie、CORS、限流、审计与内部 token 的协作关系。
+> 本文档描述 **A-1 模块化单体（community-app）** 模式下的安全边界与关键机制。  
+> 对外只有一个 HTTP 入口：`/api/**` + `/files/**`。  
+>
+> 约定：本文档中的路径/命令默认从 `backend/` 目录执行。
 
 ---
 
 ## 1. 总体安全边界（推荐理解方式）
 
-- **浏览器只直连 gateway**：对外统一入口 `/api/**`，避免前端直接访问内部微服务。
-- **gateway 负责鉴权与统一策略**：JWT 验签、权限矩阵、CORS、限流、审计日志等。
-- **auth-service 负责签发与会话闭环**：登录/刷新/登出、验证码、注册/激活、找回密码等。
+- **浏览器只直连 community-app**：对外统一入口 `/api/**`（业务）与 `/files/**`（静态文件）。
+- **community-app 负责最小边界护栏与横切策略**：
+  - CORS（跨端口直连的前提）
+  - OriginGuard（仅覆盖 cookie 会话敏感入口：`/api/auth/login|refresh|logout`）
+  - traceId 注入与统一异常映射
+  - 写请求审计日志（`platform/common` 的 `AuditLogFilter`）
+- **授权矩阵 SSOT 在 community-app**：路径级鉴权统一在 `app/community-app/.../CommunitySecurityConfig` 中收敛（JWT resource server）。
+- **auth 模块负责签发与会话闭环**：登录/刷新/登出、验证码、注册/激活、找回密码、登录风控等；对外路径仍为 `/api/auth/**`，但运行在同一进程。
+- **user 模块托管 refresh token 状态**：`auth.refresh.store=db` 时，refresh token 状态落在 MySQL 表 `auth_refresh_token`（单一 schema：`community`）。
+
+> legacy：历史的 `gateway/auth-service/user-service` 多进程微服务形态仍保留（用于迁移窗口参考），但不是默认运行模式。
 
 ---
 
 ## 2. JWT + Refresh Cookie（会话模型）
 
 ### 2.1 Access Token（JWT）
-- 由 auth-service 签发（HS256），在响应体返回 `accessToken`
+- 由 auth 模块签发（HS256），在响应体返回 `accessToken`（`POST /api/auth/login`）
 - 前端保存到内存/状态（Pinia store），并在每次请求加上 `Authorization: Bearer <token>`
-- gateway 作为资源服务器验签：密钥来自 `JWT_HMAC_SECRET`（需与 auth-service 保持一致）
+- 资源服务器验签：由 `community-app` 统一 JWT resource server 验签；密钥来自 `JWT_HMAC_SECRET`
 
 ### 2.2 Refresh Token（HttpOnly Cookie）
 - refresh token 通过 **HttpOnly Cookie** 下发（浏览器 JS 无法读取）
@@ -26,7 +37,8 @@
   - 当业务请求返回 `401`，前端调用 `/api/auth/refresh` 获取新 access token，然后重试原请求
 
 ### 2.3 Refresh Token 存储与旋转
-- auth-service 支持 `memory` / `redis` 两种 store（以配置为准）
+- auth 模块支持 `memory` / `redis` / `db` 三种 store（以 `auth.refresh.store` 为准；默认 `db`）
+  - `db`：refresh token 状态落在 MySQL 表 `auth_refresh_token`（仅存 token_hash），由 user 模块的 session 组件托管（A-1 下为同进程内部调用）
 - refresh token 支持“旋转刷新（rotation）”语义：refresh 时可颁发新 refresh token，并使旧 token 失效（按 familyId 族撤销）
 
 ---
@@ -35,26 +47,30 @@
 
 本地直连模式下：
 - 前端 origin 默认为 `http://localhost:12881`（也可能因本地端口调整变为 `http://localhost:12888` 等）
-- Origin/CORS allowlist 以 **gateway 为 SSOT**：
-  - **gateway CORS**：负责浏览器跨端口直连时的 CORS 响应头（是否允许带 cookie / 预检等）
-  - **gateway OriginGuard**：对敏感接口（`/api/auth/login|refresh|logout`）执行 Origin 白名单校验（服务端硬拦截）
-- **auth-service OriginGuard（旁路兜底）**：同样覆盖 `login/refresh/logout`，并复用同一套 allowlist 配置键（`gateway.origin-guard.*`），避免绕过网关直连 auth-service 时降低安全性
+- Origin/CORS allowlist 以 **community-app 为 SSOT**：
+  - **CORS**：由 `app/community-app/.../CommunityCorsConfig` 统一配置（覆盖 `/api/**` 与 `/files/**`）
+  - **OriginGuard**：由 `auth-service` 模块内的 `AuthOriginGuardFilter` 覆盖敏感入口（`POST /api/auth/login|refresh|logout`）
+    - 配置键名仍沿用 `gateway.origin-guard.*`（历史兼容），但执行位置在单体内
 
 注意：
 - 若用 `127.0.0.1` 访问前端，会导致 origin 变化，需要同步调整 allowlist（或统一用 `localhost`）。
-- 若前端端口变化，需要同步更新 allowlist（gateway CORS / gateway OriginGuard / auth-service OriginGuard）。
+- 若前端端口变化，需要同步更新 allowlist（community-app CORS / auth OriginGuard）。
 
 ---
 
-## 4. 网关限流（Redis + metrics）
+## 4. 限流与风控（模块化单体）
 
-gateway 支持基于 Redis 的规则化限流：
-- 规则按「method + path-pattern」匹配
-- key 策略支持 IP / USER / USER_OR_IP
+### 4.1 登录风控（auth.login-rate-limit）
+目前默认启用登录风控（避免暴力破解/撞库）：
+- 维度：用户名/用户 IP（以及组合维度，按配置）
+- 行为：达到阈值后拒绝登录并可要求验证码
+- 配置：`auth.login-rate-limit.*`
 
-对外表现：
-- 被限流时返回 `429 Too Many Requests`
-- 同时记录指标 `gateway_rate_limit_total`（带 `rule`、`outcome` 标签）
+### 4.2 全局 API 限流（当前取舍）
+在 A-1 默认路径下：
+- **应用内不实现“网关级全局限流”**（历史 `gateway.rate-limit.*` 仅存在于 legacy 微服务网关模块中）
+- 建议在生产由 **反代/Ingress/WAF** 统一做全局限流与请求体大小限制
+- 若后续确实需要“应用内按路径限流”，建议以 Servlet Filter/Interceptor 形式实现，并在 `community-app` 侧明确 fail-open/fail-closed 策略与可观测指标
 
 ### 4.1 可信代理与真实客户端 IP（X-Forwarded-For）
 
@@ -81,9 +97,9 @@ gateway 支持基于 Redis 的规则化限流：
 
 ## 5. 审计日志（写路径）
 
-gateway 对写请求会记录审计日志：
+`community-app` 对写请求会记录审计日志（`platform/common` 的 `AuditLogFilter`）：
 - 范围：`/api/**` 且 method 非 `GET/OPTIONS`
-- 例外：跳过 `/api/auth/login`（避免在网关层记录敏感登录参数）
+- 例外：跳过 `/api/auth/login`（避免记录敏感登录参数，也尽量不污染审计流量）
 
 目的：
 - 让“谁在什么时候调用了哪个写接口、返回状态、耗时、traceId”可追踪
@@ -93,10 +109,9 @@ gateway 对写请求会记录审计日志：
 ## 6. 内部接口（/internal/**）
 
 开发阶段（当前实现）：
-- 本项目已移除 HTTP `/internal/**` 运维入口（避免 internal HTTP 与 RPC 并存导致长期“半迁移”治理债务）。
-- gateway 明确拒绝 `/internal/**`（避免误配路由对外暴露 internal 面）。
-- 对外运维入口统一走 `/api/ops/**` 并在网关侧按角色收敛（例如 `POST /api/ops/search/reindex` 仅管理员可访问）。
-- legacy：`POST /api/search/internal/reindex` 属于历史遗留命名，固定返回 410 并提示迁移到 `/api/ops/search/reindex`。
+- 本项目已移除 HTTP `/internal/**` 运维入口（避免 internal HTTP 与 ops 面并存导致长期“半迁移”治理债务）。
+- 对外运维入口统一走 `/api/ops/**`（例如 `POST /api/ops/search/reindex` 仅管理员可访问）。
+- legacy：`POST /api/search/internal/reindex` 属于历史遗留命名，在 A-1 下固定返回 410 并提示迁移到 `/api/ops/search/reindex`。
 
 生产建议（后续迭代方向）：
 - 仍需确保下游服务端口不对外暴露（避免旁路绕过网关与运维入口治理）。

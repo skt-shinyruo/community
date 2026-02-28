@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.nowcoder.community</groupId>
+        <artifactId>app</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>community-app</artifactId>
+    <name>community-app</name>
+    <description>Single deployable backend (modular monolith)</description>
+    <packaging>jar</packaging>
+
+    <dependencies>
+        <!-- Platform (shared runtime concerns) -->
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>common</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>infra-security-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>infra-outbox</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Former service modules (now libraries) -->
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>auth-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>user-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>content-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>social-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>message-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>search-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>analytics-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>ops-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Explicit app runtime starters (keep servlet stack) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.nowcoder.community.app.CommunityAppApplication</mainClass>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

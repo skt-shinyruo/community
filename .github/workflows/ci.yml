@@ -11,6 +11,9 @@ jobs:
   backend-build:
     name: backend-build
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,6 +34,9 @@ jobs:
   backend-test:
     name: backend-test
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - name: Checkout
         uses: actions/checkout@v4

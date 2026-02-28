@@ -1,0 +1,29 @@
+name: community
+
+# 端口暴露覆盖（可选）：
+# - 默认 docker-compose.yml 不暴露业务服务端口（fail-closed）；
+# - 需要浏览器访问观测组件（Grafana/Loki/Prometheus/Alertmanager）时，可额外叠加本文件暴露观测端口。
+#
+# 使用方式：
+#   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.ports.yml up -d
+#
+# 约束：
+# - 生产环境建议由反代/Ingress 统一入口，不直接暴露容器端口；
+# - 若必须临时暴露（排障），建议只绑定到 127.0.0.1 并在结束后立即回滚。
+
+services:
+  grafana:
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-12883}:3000"
+
+  loki:
+    ports:
+      - "127.0.0.1:${LOKI_PORT:-12884}:3100"
+
+  prometheus:
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-12885}:9090"
+
+  alertmanager:
+    ports:
+      - "127.0.0.1:${ALERTMANAGER_PORT:-12886}:9093"

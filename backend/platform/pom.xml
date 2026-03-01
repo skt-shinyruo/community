@@ -18,7 +18,6 @@
     <modules>
         <module>contracts-core</module>
         <module>contracts-event-core</module>
-        <module>infra-dubbo-starter</module>
         <module>infra-security-starter</module>
         <module>infra-outbox</module>
         <module>common</module>

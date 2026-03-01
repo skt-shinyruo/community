@@ -34,6 +34,11 @@ build/
 .vscode/
 
 ### Local dev secrets ###
+deploy/.env
+deploy/.local/
+deploy/backups/
+
+# Legacy path (kept to avoid surfacing existing local files as untracked)
 backend/deploy/.env
 backend/deploy/.local/
 backend/deploy/backups/

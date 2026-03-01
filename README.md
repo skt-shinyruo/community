@@ -10,7 +10,6 @@
 后端 + 前端容器一键启动（推荐）：
 
 ```bash
-cd backend
 cp deploy/.env.example deploy/.env
 docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.frontend-direct.yml --env-file deploy/.env up -d --build
 ```
@@ -20,5 +19,6 @@ docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.frontend-di
 - 后端：`http://localhost:12882/api/...`
 
 ## 文档入口
-- 后端入口：`backend/README.md`
-- 部署说明：`backend/docs/DEPLOYMENT.md`、`backend/deploy/README.md`
+- 后端工程：`backend/README.md`
+- 部署与本地启动：`deploy/README.md`
+- 架构/设计文档：`docs/README.md`

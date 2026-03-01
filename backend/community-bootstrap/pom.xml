@@ -10,12 +10,13 @@
         <version>0.0.1-SNAPSHOT</version>
     </parent>
 
-    <artifactId>ops-service</artifactId>
-    <name>ops-service</name>
-    <description>Ops/admin plane service (isolated from edge gateway)</description>
+    <artifactId>community-bootstrap</artifactId>
+    <name>community-bootstrap</name>
+    <description>Single deployable backend (modular monolith)</description>
     <packaging>jar</packaging>
 
     <dependencies>
+        <!-- Platform (shared runtime concerns) -->
         <dependency>
             <groupId>com.nowcoder.community</groupId>
             <artifactId>common</artifactId>
@@ -26,71 +27,66 @@
             <artifactId>infra-security-starter</artifactId>
             <version>${project.version}</version>
         </dependency>
-
         <dependency>
             <groupId>com.nowcoder.community</groupId>
-            <artifactId>search-service</artifactId>
+            <artifactId>infra-outbox</artifactId>
             <version>${project.version}</version>
         </dependency>
 
+        <!-- Former service modules (now libraries) -->
         <dependency>
             <groupId>com.nowcoder.community</groupId>
-            <artifactId>content-service</artifactId>
+            <artifactId>auth-service</artifactId>
             <version>${project.version}</version>
         </dependency>
-
-        <dependency>
-            <groupId>com.nowcoder.community</groupId>
-            <artifactId>social-service</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-
         <dependency>
             <groupId>com.nowcoder.community</groupId>
             <artifactId>user-service</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>content-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>social-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>message-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>search-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>analytics-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>ops-service</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
+        <!-- Explicit app runtime starters (keep servlet stack) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-security</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-redis</artifactId>
-        </dependency>
-
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
-
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-            <scope>test</scope>
         </dependency>
     </dependencies>
 
@@ -100,7 +96,7 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
-                    <skip>${community.repackage.skip}</skip>
+                    <mainClass>com.nowcoder.community.bootstrap.CommunityBootstrapApplication</mainClass>
                 </configuration>
             </plugin>
         </plugins>

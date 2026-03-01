@@ -1,2 +1,0 @@
-traceContextDubboFilter=com.nowcoder.community.infra.dubbo.TraceContextDubboFilter
-dubboMetricsFilter=com.nowcoder.community.infra.dubbo.DubboMetricsFilter

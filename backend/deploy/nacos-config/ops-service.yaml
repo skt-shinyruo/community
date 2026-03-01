@@ -1,9 +1,0 @@
-security:
-  jwt:
-    hmac-secret: ${JWT_HMAC_SECRET}
-
-community:
-  metrics:
-    basic-auth:
-      username: ${METRICS_BASIC_AUTH_USERNAME:prometheus}
-      password: ${METRICS_BASIC_AUTH_PASSWORD}

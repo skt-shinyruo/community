@@ -1,9 +1,0 @@
-spring:
-  data:
-    redis:
-      host: ${ANALYTICS_REDIS_HOST:redis}
-      port: ${ANALYTICS_REDIS_PORT:6379}
-
-security:
-  jwt:
-    hmac-secret: ${JWT_HMAC_SECRET}

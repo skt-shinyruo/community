@@ -4,7 +4,7 @@ package com.nowcoder.community.content.service;
 import com.nowcoder.community.content.api.event.payload.CommentPayload;
 import com.nowcoder.community.contracts.domain.EntityTypes;
 import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.platform.tx.AfterCommitExecutor;
+import com.nowcoder.community.infra.tx.AfterCommitExecutor;
 import com.nowcoder.community.content.dao.CommentMapper;
 import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.entity.DiscussPost;

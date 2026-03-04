@@ -1,4 +1,4 @@
-package com.nowcoder.community.platform.tx;
+package com.nowcoder.community.infra.tx;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.support.TransactionSynchronization;

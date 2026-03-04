@@ -1,4 +1,4 @@
-package com.nowcoder.community.platform.trace;
+package com.nowcoder.community.infra.trace;
 
 import org.slf4j.MDC;
 
@@ -31,4 +31,3 @@ public final class TraceContext {
         TraceId.clear();
     }
 }
-

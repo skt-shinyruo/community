@@ -2,7 +2,7 @@ package com.nowcoder.community.message.api;
 
 import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.platform.idempotency.IdempotencyGuard;
+import com.nowcoder.community.infra.idempotency.IdempotencyGuard;
 import com.nowcoder.community.message.api.dto.LetterItemResponse;
 import com.nowcoder.community.message.api.dto.MarkReadRequest;
 import com.nowcoder.community.message.api.dto.SendMessageRequest;

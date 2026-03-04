@@ -5,7 +5,7 @@ import com.nowcoder.community.contracts.domain.EntityTypes;
 import com.nowcoder.community.contracts.event.EventEnvelopeParser;
 import com.nowcoder.community.contracts.event.EventTopics;
 import com.nowcoder.community.contracts.event.UnknownEventAction;
-import com.nowcoder.community.platform.kafka.KafkaTraceSupport;
+import com.nowcoder.community.infra.kafka.KafkaTraceSupport;
 import com.nowcoder.community.social.api.event.SocialEventTypes;
 import com.nowcoder.community.social.api.event.payload.LikePayload;
 import com.nowcoder.community.content.score.PostScoreQueue;

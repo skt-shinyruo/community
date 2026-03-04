@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.contracts.event.EventEnvelopeParser;
 import com.nowcoder.community.contracts.event.EventTopics;
 import com.nowcoder.community.contracts.event.UnknownEventAction;
-import com.nowcoder.community.platform.kafka.KafkaTraceSupport;
+import com.nowcoder.community.infra.kafka.KafkaTraceSupport;
 import com.nowcoder.community.content.api.event.ContentEventTypes;
 import com.nowcoder.community.content.api.event.payload.CommentPayload;
 import com.nowcoder.community.content.api.event.payload.PostPayload;

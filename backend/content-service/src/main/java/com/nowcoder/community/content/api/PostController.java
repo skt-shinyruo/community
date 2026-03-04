@@ -3,7 +3,7 @@ package com.nowcoder.community.content.api;
 import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.contracts.domain.EntityTypes;
 import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.platform.idempotency.IdempotencyGuard;
+import com.nowcoder.community.infra.idempotency.IdempotencyGuard;
 import com.nowcoder.community.content.api.dto.CommentResponse;
 import com.nowcoder.community.content.api.dto.CreateCommentRequest;
 import com.nowcoder.community.content.api.dto.CreatePostRequest;

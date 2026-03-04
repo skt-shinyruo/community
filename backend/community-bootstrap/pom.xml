@@ -19,7 +19,12 @@
         <!-- Platform (shared runtime concerns) -->
         <dependency>
             <groupId>com.nowcoder.community</groupId>
-            <artifactId>common</artifactId>
+            <artifactId>infra-web-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>infra-startup-validation-starter</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

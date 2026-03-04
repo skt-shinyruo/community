@@ -23,9 +23,28 @@
     <dependencies>
         <dependency>
             <groupId>com.nowcoder.community</groupId>
-            <artifactId>common</artifactId>
+            <artifactId>contracts-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>infra-internal-client</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>infra-web-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>infra-startup-validation-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>com.nowcoder.community</groupId>
             <artifactId>infra-security-starter</artifactId>

@@ -2,9 +2,9 @@ package com.nowcoder.community.message.service;
 
 import com.nowcoder.community.contracts.api.CommonErrorCode;
 import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.platform.security.OwnerGuard;
 import com.nowcoder.community.message.dao.MessageMapper;
 import com.nowcoder.community.message.entity.Message;
+import com.nowcoder.community.message.security.OwnerGuard;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 

@@ -3,7 +3,7 @@ package com.nowcoder.community.auth.api.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import com.nowcoder.community.platform.validation.ValidationLimits;
+import com.nowcoder.community.contracts.validation.ValidationLimits;
 
 public class RegisterRequest {
 

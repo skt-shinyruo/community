@@ -1,9 +1,9 @@
 package com.nowcoder.community.message.api;
 
-import com.nowcoder.community.platform.security.OwnerGuard;
 import com.nowcoder.community.message.api.dto.ConversationItemResponse;
 import com.nowcoder.community.message.dao.MessageMapper;
 import com.nowcoder.community.message.entity.Message;
+import com.nowcoder.community.message.security.OwnerGuard;
 import com.nowcoder.community.message.service.PrivateMessageService;
 import com.nowcoder.community.message.service.SocialBlockClient;
 import com.nowcoder.community.message.service.UserModerationGuard;

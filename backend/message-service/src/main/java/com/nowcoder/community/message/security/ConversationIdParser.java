@@ -1,4 +1,4 @@
-package com.nowcoder.community.platform.security;
+package com.nowcoder.community.message.security;
 
 import org.springframework.util.StringUtils;
 

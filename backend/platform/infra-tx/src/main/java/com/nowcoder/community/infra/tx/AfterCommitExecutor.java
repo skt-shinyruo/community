@@ -1,4 +1,4 @@
-package com.nowcoder.community.platform.tx;
+package com.nowcoder.community.infra.tx;
 
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -35,4 +35,3 @@ public final class AfterCommitExecutor {
         action.run();
     }
 }
-

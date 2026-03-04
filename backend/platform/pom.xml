@@ -19,6 +19,14 @@
         <module>contracts-core</module>
         <module>contracts-event-core</module>
         <module>infra-security-starter</module>
+        <module>infra-trace</module>
+        <module>infra-tx</module>
+        <module>infra-scheduler-starter</module>
+        <module>infra-idempotency-starter</module>
+        <module>infra-kafka-starter</module>
+        <module>infra-internal-client</module>
+        <module>infra-web-starter</module>
+        <module>infra-startup-validation-starter</module>
         <module>infra-outbox</module>
         <module>common</module>
     </modules>

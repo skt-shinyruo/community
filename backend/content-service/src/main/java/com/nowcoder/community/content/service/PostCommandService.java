@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.service;
 
-import com.nowcoder.community.platform.tx.AfterCommitExecutor;
+import com.nowcoder.community.infra.tx.AfterCommitExecutor;
 import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.domain.event.PostDomainEventPublisher;

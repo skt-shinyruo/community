@@ -1,4 +1,4 @@
-package com.nowcoder.community.platform.trace;
+package com.nowcoder.community.infra.trace;
 
 import com.nowcoder.community.contracts.trace.TraceIdCodec;
 

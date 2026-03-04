@@ -19,9 +19,28 @@
     <dependencies>
         <dependency>
             <groupId>com.nowcoder.community</groupId>
-            <artifactId>common</artifactId>
+            <artifactId>contracts-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>contracts-event-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>infra-kafka-starter</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>infra-internal-client</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>com.nowcoder.community</groupId>
             <artifactId>infra-security-starter</artifactId>

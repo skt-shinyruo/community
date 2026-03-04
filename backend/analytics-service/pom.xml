@@ -19,7 +19,7 @@
     <dependencies>
         <dependency>
             <groupId>com.nowcoder.community</groupId>
-            <artifactId>common</artifactId>
+            <artifactId>contracts-core</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

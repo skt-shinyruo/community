@@ -1,4 +1,4 @@
-package com.nowcoder.community.platform.startup;
+package com.nowcoder.community.infra.startup;
 
 import org.springframework.core.env.Environment;
 import org.springframework.util.StringUtils;
@@ -13,6 +13,16 @@ import java.util.List;
  * - 输出缺失项清单与修复指引，降低排障成本
  */
 public class StartupValidation {
+
+    private final List<StartupValidator> validators;
+
+    public StartupValidation() {
+        this(null);
+    }
+
+    public StartupValidation(List<StartupValidator> validators) {
+        this.validators = validators == null ? List.of() : List.copyOf(validators);
+    }
 
     public void validateOrThrow(Environment environment) {
         if (environment == null) {
@@ -36,26 +46,12 @@ public class StartupValidation {
         // 1.5) trusted-proxy（可选）：启用后必须配置 CIDR allowlist，避免信任 XFF 造成伪造风险。
         validateTrustedProxy(environment, errors);
 
-        // 2) 服务特有的 prod 约束（避免 silent fallback/危险开关误配上线）
-        switch (appName) {
-            case "auth-service" -> {
-                requireTrue(environment, errors, "security.jwt.refresh-cookie-secure", "生产环境必须 Secure=true（HTTPS），请设置 AUTH_REFRESH_COOKIE_SECURE=true");
-                requireOneOf(environment, errors, "security.jwt.refresh-cookie-same-site", List.of("Lax", "Strict", "None"), "请设置 AUTH_REFRESH_COOKIE_SAME_SITE（Lax/Strict/None）");
-                requireNonBlank(environment, errors, "auth.registration.activation-base-url", "设置环境变量 AUTH_ACTIVATION_BASE_URL（指向公网可访问入口，例如 https://community.example.com）");
-                requireNonBlank(environment, errors, "auth.password-reset.reset-base-url", "设置环境变量 AUTH_PASSWORD_RESET_BASE_URL（指向公网可访问入口；未设置时可与 AUTH_ACTIVATION_BASE_URL 保持一致）");
-                requireFalse(environment, errors, "auth.registration.expose-activation-link", "生产环境禁止回传激活链接，请设置 AUTH_EXPOSE_ACTIVATION_LINK=false");
-                requireFalse(environment, errors, "auth.password-reset.expose-reset-link", "生产环境禁止回传重置链接，请设置 AUTH_EXPOSE_RESET_LINK=false");
-                requireTrue(environment, errors, "auth.registration.mail.enabled", "生产环境必须启用 SMTP 邮件发送，请设置 AUTH_MAIL_ENABLED=true 并配置 spring.mail.*");
-                requireNonBlank(environment, errors, "spring.mail.host", "配置 spring.mail.host（SMTP 主机）");
-                // dev-only：固定验证码只允许用于本地/联调。prod 下若误开会直接变成漏洞/事故源。
-                String fixedCode = getTrimmed(environment, "auth.captcha.fixed-code");
-                if (StringUtils.hasText(fixedCode)) {
-                    errors.add("配置不安全：auth.captcha.fixed-code 已设置（生产环境禁止固定验证码，请删除该配置或仅在 dev profile 使用）");
-                }
+        // 2) 服务特有的 prod 约束：由各服务自己提供 StartupValidator（避免 common 变大杂烩）。
+        for (StartupValidator validator : validators) {
+            if (validator == null) {
+                continue;
             }
-            default -> {
-                // 其他模块：只做通用校验，避免误伤未知服务
-            }
+            validator.validate(environment, errors);
         }
 
         if (!errors.isEmpty()) {

@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.platform.kafka.dlq.KafkaDlqPublisher;
+import com.nowcoder.community.infra.kafka.dlq.KafkaDlqPublisher;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.apache.kafka.clients.consumer.ConsumerRecord;

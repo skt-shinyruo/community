@@ -1,8 +1,8 @@
 package com.nowcoder.community.message.kafka;
 
-import com.nowcoder.community.platform.kafka.KafkaTraceSupport;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.contracts.event.EventTopics;
+import com.nowcoder.community.infra.kafka.KafkaTraceSupport;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;

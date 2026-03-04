@@ -7,7 +7,7 @@ import com.nowcoder.community.contracts.event.EventTopics;
 import com.nowcoder.community.contracts.event.UnknownEventAction;
 import com.nowcoder.community.content.api.event.ContentEventTypes;
 import com.nowcoder.community.content.api.event.payload.PostPayload;
-import com.nowcoder.community.platform.kafka.KafkaTraceSupport;
+import com.nowcoder.community.infra.kafka.KafkaTraceSupport;
 import com.nowcoder.community.search.repo.PostSearchRepository;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;

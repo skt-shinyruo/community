@@ -1,0 +1,4 @@
+com.nowcoder.community.infra.idempotency.autoconfig.IdempotencyAutoConfiguration
+com.nowcoder.community.infra.idempotency.autoconfig.JdbcIdempotencyAutoConfiguration
+com.nowcoder.community.infra.idempotency.autoconfig.RedisIdempotencyAutoConfiguration
+com.nowcoder.community.infra.idempotency.autoconfig.IdempotencyGuardAutoConfiguration

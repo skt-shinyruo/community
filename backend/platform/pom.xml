@@ -28,6 +28,5 @@
         <module>infra-web-starter</module>
         <module>infra-startup-validation-starter</module>
         <module>infra-outbox</module>
-        <module>common</module>
     </modules>
 </project>

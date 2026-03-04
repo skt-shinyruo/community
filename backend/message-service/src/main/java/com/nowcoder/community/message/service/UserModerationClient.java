@@ -4,7 +4,7 @@ import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.contracts.internal.dto.UserModerationStatus;
 import com.nowcoder.community.contracts.internal.rpc.UserModerationRpcService;
-import com.nowcoder.community.platform.web.internalclient.InternalClientSupport;
+import com.nowcoder.community.infra.internalclient.InternalClientSupport;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Service;
 

@@ -2,7 +2,7 @@ package com.nowcoder.community.content.like;
 
 import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.contracts.domain.EntityTypes;
-import com.nowcoder.community.platform.web.internalclient.InternalClientSupport;
+import com.nowcoder.community.infra.internalclient.InternalClientSupport;
 import com.nowcoder.community.social.api.rpc.SocialReadRpcService;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;

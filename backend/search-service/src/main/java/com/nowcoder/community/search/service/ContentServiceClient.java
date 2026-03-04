@@ -4,7 +4,7 @@ package com.nowcoder.community.search.service;
 import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.contracts.api.CommonErrorCode;
 import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.platform.web.internalclient.InternalClientSupport;
+import com.nowcoder.community.infra.internalclient.InternalClientSupport;
 import com.nowcoder.community.content.api.rpc.ContentScanRpcService;
 import com.nowcoder.community.content.api.rpc.dto.ContentPostScanResponse;
 import io.micrometer.core.instrument.MeterRegistry;

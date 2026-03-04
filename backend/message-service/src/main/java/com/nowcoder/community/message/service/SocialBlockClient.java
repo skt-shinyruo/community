@@ -2,7 +2,7 @@ package com.nowcoder.community.message.service;
 
 import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.platform.web.internalclient.InternalClientSupport;
+import com.nowcoder.community.infra.internalclient.InternalClientSupport;
 import com.nowcoder.community.social.api.rpc.SocialBlockRpcService;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Service;

@@ -6,7 +6,7 @@ import com.nowcoder.community.contracts.api.CommonErrorCode;
 import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.contracts.internal.dto.EntityResolveResponse;
 import com.nowcoder.community.contracts.internal.rpc.EntityResolveRpcService;
-import com.nowcoder.community.platform.web.internalclient.InternalClientSupport;
+import com.nowcoder.community.infra.internalclient.InternalClientSupport;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.springframework.stereotype.Service;

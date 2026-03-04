@@ -3,7 +3,7 @@ package com.nowcoder.community.auth.service;
 import com.nowcoder.community.auth.api.AuthErrorCode;
 import com.nowcoder.community.contracts.api.CommonErrorCode;
 import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.platform.net.ClientIpResolver;
+import com.nowcoder.community.infra.web.net.ClientIpResolver;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseCookie;

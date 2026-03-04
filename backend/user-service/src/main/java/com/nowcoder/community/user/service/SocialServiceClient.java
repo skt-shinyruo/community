@@ -1,7 +1,7 @@
 package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.contracts.api.Result;
-import com.nowcoder.community.platform.web.internalclient.InternalClientSupport;
+import com.nowcoder.community.infra.internalclient.InternalClientSupport;
 import com.nowcoder.community.user.config.SocialServiceClientProperties;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;

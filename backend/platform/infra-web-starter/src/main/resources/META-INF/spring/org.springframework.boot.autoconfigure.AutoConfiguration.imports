@@ -1,0 +1,4 @@
+com.nowcoder.community.infra.web.autoconfig.WebInfraAutoConfiguration
+com.nowcoder.community.infra.web.autoconfig.ServletWebInfraAutoConfiguration
+com.nowcoder.community.infra.web.autoconfig.ReactiveWebInfraAutoConfiguration
+

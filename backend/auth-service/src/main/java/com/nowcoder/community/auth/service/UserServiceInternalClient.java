@@ -3,7 +3,7 @@ package com.nowcoder.community.auth.service;
 import com.nowcoder.community.contracts.api.CommonErrorCode;
 import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.contracts.api.Result;
-import com.nowcoder.community.platform.web.internalclient.InternalClientSupport;
+import com.nowcoder.community.infra.internalclient.InternalClientSupport;
 import com.nowcoder.community.user.api.rpc.UserInternalRpcService;
 import com.nowcoder.community.user.api.rpc.dto.UserInternalActivationResponse;
 import com.nowcoder.community.user.api.rpc.dto.UserInternalAuthenticateResponse;

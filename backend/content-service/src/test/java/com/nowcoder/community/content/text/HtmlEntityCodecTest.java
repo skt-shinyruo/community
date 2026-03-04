@@ -1,4 +1,4 @@
-package com.nowcoder.community.platform.text;
+package com.nowcoder.community.content.text;
 
 import org.junit.jupiter.api.Test;
 
@@ -35,4 +35,3 @@ class HtmlEntityCodecTest {
         assertThat(HtmlEntityCodec.unescapeBasic("&amp;quot;x&amp;quot;")).isEqualTo("&quot;x&quot;");
     }
 }
-

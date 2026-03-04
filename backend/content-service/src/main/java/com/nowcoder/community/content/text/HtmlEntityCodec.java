@@ -1,4 +1,4 @@
-package com.nowcoder.community.platform.text;
+package com.nowcoder.community.content.text;
 
 import org.springframework.util.StringUtils;
 
@@ -59,4 +59,3 @@ public final class HtmlEntityCodec {
         return s;
     }
 }
-

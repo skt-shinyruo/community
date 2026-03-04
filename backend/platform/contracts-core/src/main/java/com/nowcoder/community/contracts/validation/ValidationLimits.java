@@ -1,4 +1,4 @@
-package com.nowcoder.community.platform.validation;
+package com.nowcoder.community.contracts.validation;
 
 /**
  * 统一输入校验限额（SSOT）：
@@ -28,4 +28,3 @@ public final class ValidationLimits {
     public static final int MESSAGE_CONTENT_MAX = 2_000;
     public static final int IDS_MAX = 200;
 }
-

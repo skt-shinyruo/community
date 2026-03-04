@@ -1,6 +1,5 @@
 package com.nowcoder.community.content.text;
 
-import com.nowcoder.community.platform.text.HtmlEntityCodec;
 import com.nowcoder.community.content.config.ContentRenderProperties;
 import org.springframework.stereotype.Component;
 
@@ -32,4 +31,3 @@ public class ContentTextCodec {
         return HtmlEntityCodec.unescapeBasic(text);
     }
 }
-

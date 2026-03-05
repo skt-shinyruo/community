@@ -3,6 +3,7 @@ package com.nowcoder.community.message.api;
 import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.infra.idempotency.IdempotencyGuard;
+import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.message.api.dto.LetterItemResponse;
 import com.nowcoder.community.message.api.dto.MarkReadRequest;
 import com.nowcoder.community.message.api.dto.SendMessageRequest;
@@ -12,7 +13,6 @@ import com.nowcoder.community.message.service.PrivateMessageService;
 import com.nowcoder.community.message.service.UserServiceClient;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -48,8 +48,7 @@ public class MessageController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        Jwt jwt = (Jwt) authentication.getPrincipal();
-        int userId = Integer.parseInt(jwt.getSubject());
+        int userId = CurrentUser.requireUserId(authentication);
         int p = page == null ? 0 : Math.max(0, page);
         int s = size == null ? 10 : Math.min(50, Math.max(1, size));
         List<Message> list = privateMessageService.listConversations(userId, p, s);
@@ -62,8 +61,7 @@ public class MessageController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        Jwt jwt = (Jwt) authentication.getPrincipal();
-        int userId = Integer.parseInt(jwt.getSubject());
+        int userId = CurrentUser.requireUserId(authentication);
         int p = page == null ? 0 : Math.max(0, page);
         int s = size == null ? 10 : Math.min(50, Math.max(1, size));
         return Result.ok(privateMessageService.listConversationItems(userId, p, s));
@@ -76,8 +74,7 @@ public class MessageController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        Jwt jwt = (Jwt) authentication.getPrincipal();
-        int userId = Integer.parseInt(jwt.getSubject());
+        int userId = CurrentUser.requireUserId(authentication);
         int p = page == null ? 0 : Math.max(0, page);
         int s = size == null ? 10 : Math.min(50, Math.max(1, size));
         List<Message> list = privateMessageService.listLetters(userId, conversationId, p, s);
@@ -86,8 +83,7 @@ public class MessageController {
 
     @GetMapping("/unread-count")
     public Result<Integer> unreadCount(Authentication authentication, @RequestParam(required = false) String conversationId) {
-        Jwt jwt = (Jwt) authentication.getPrincipal();
-        int userId = Integer.parseInt(jwt.getSubject());
+        int userId = CurrentUser.requireUserId(authentication);
         return Result.ok(privateMessageService.unreadCount(userId, conversationId));
     }
 
@@ -97,8 +93,7 @@ public class MessageController {
 	            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
 	            @Valid @RequestBody SendMessageRequest request
 	    ) {
-	        Jwt jwt = (Jwt) authentication.getPrincipal();
-	        int fromId = Integer.parseInt(jwt.getSubject());
+	        int fromId = CurrentUser.requireUserId(authentication);
 
 	        Integer toId = request.getToId();
 	        String toName = request.getToName();
@@ -122,8 +117,7 @@ public class MessageController {
 
     @PutMapping("/read")
     public Result<Void> markRead(Authentication authentication, @Valid @RequestBody MarkReadRequest request) {
-        Jwt jwt = (Jwt) authentication.getPrincipal();
-        int userId = Integer.parseInt(jwt.getSubject());
+        int userId = CurrentUser.requireUserId(authentication);
         privateMessageService.markRead(userId, request.getIds());
         return Result.ok();
     }

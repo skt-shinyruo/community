@@ -15,13 +15,13 @@ import com.nowcoder.community.auth.service.CaptchaService;
 import com.nowcoder.community.auth.service.PasswordResetService;
 import com.nowcoder.community.auth.service.RegistrationService;
 import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.infra.security.auth.CurrentUser;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -82,7 +82,7 @@ public class AuthController {
 
     @GetMapping("/me")
     public Result<MeResponse> me(Authentication authentication) {
-        Jwt jwt = (Jwt) authentication.getPrincipal();
+        var jwt = CurrentUser.requireJwt(authentication);
         MeResponse me = new MeResponse();
         me.setUserId(Integer.parseInt(jwt.getSubject()));
         me.setUsername(jwt.getClaimAsString("username"));

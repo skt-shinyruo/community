@@ -1,6 +1,6 @@
 package com.nowcoder.community.user.rpc;
 
-// user-service 的 Dubbo Provider：实现治理相关 RPC（处罚状态查询/扫描/应用），供下游投影 bootstrap 与写路径校验使用。
+// user-service 内部 RPC Provider：实现治理相关内部接口（处罚状态查询/扫描/应用；A-1 下为进程内调用）。
 import com.nowcoder.community.contracts.api.CommonErrorCode;
 import com.nowcoder.community.contracts.api.ErrorCode;
 import com.nowcoder.community.contracts.api.Result;

@@ -1,6 +1,6 @@
 package com.nowcoder.community.user.rpc;
 
-// user-service 的 Dubbo Provider：实现内部认证/会话相关 RPC（供 auth-service 调用）。
+// user-service 内部 RPC Provider：实现认证/会话相关内部接口（A-1 下为进程内调用，保留契约以便未来拆分）。
 import com.nowcoder.community.contracts.api.CommonErrorCode;
 import com.nowcoder.community.contracts.api.ErrorCode;
 import com.nowcoder.community.contracts.api.Result;

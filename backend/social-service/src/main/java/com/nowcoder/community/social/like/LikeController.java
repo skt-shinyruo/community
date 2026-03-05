@@ -3,11 +3,11 @@ package com.nowcoder.community.social.like;
 import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.contracts.domain.EntityTypes;
 import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.social.like.dto.LikeRequest;
 import com.nowcoder.community.social.like.dto.LikeResponse;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Map;
 
 import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.UNAUTHORIZED;
 
 @RestController
 @RequestMapping("/api/likes")
@@ -36,7 +35,7 @@ public class LikeController {
 
     @PostMapping
     public Result<LikeResponse> setLike(Authentication authentication, @Valid @RequestBody LikeRequest request) {
-        int userId = currentUserId(authentication);
+        int userId = CurrentUser.requireUserId(authentication);
         if (!EntityTypes.isValid(request.getEntityType())) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
         }
@@ -49,7 +48,7 @@ public class LikeController {
             @RequestParam int entityType,
             @RequestParam int entityId
     ) {
-        int userId = currentUserId(authentication);
+        int userId = CurrentUser.requireUserId(authentication);
         if (!EntityTypes.isValid(entityType)) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
         }
@@ -75,7 +74,7 @@ public class LikeController {
 
     @GetMapping("/statuses")
     public Result<Map<Integer, Boolean>> statuses(Authentication authentication, @RequestParam int entityType, @RequestParam String entityIds) {
-        int userId = currentUserId(authentication);
+        int userId = CurrentUser.requireUserId(authentication);
         if (!EntityTypes.isValid(entityType)) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
         }
@@ -86,19 +85,6 @@ public class LikeController {
     @GetMapping("/users/{userId}/count")
     public Result<Long> userLikeCount(@PathVariable int userId) {
         return Result.ok(likeService.userLikeCount(userId));
-    }
-
-    private int currentUserId(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            throw new BusinessException(UNAUTHORIZED, "未获取到认证信息");
-        }
-        Jwt jwt = (Jwt) authentication.getPrincipal();
-        String sub = jwt.getSubject();
-        try {
-            return Integer.parseInt(sub);
-        } catch (NumberFormatException e) {
-            throw new BusinessException(INVALID_ARGUMENT, "token subject 非法");
-        }
     }
 
     private List<Integer> parseEntityIds(String raw, int limit) {

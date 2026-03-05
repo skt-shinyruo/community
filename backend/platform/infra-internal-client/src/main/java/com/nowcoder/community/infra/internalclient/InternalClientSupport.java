@@ -1,6 +1,9 @@
 package com.nowcoder.community.infra.internalclient;
 
-// 内部 HTTP 客户端通用支持：统一 headers、错误映射与指标记录。
+// internal client 通用支持：
+// - 用于“跨模块内部调用”的统一错误映射与指标记录；
+// - 在 A-1 模块化单体下，多数调用是进程内 Spring Bean 调用；
+// - 保留该抽象与命名是为了未来可能的拆分（HTTP/RPC）时，调用方无需大改业务逻辑。
 import com.nowcoder.community.contracts.api.CommonErrorCode;
 import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.contracts.exception.BusinessException;
@@ -37,6 +40,7 @@ public final class InternalClientSupport {
     }
 
     /**
+     * HTTP 场景下的 RestTemplate 支持：
      * RestTemplate 默认会在 4xx/5xx 时抛异常，导致调用方拿不到统一的 Result 错误体。
      * internal client 场景下，我们需要“非 2xx 也读取 body”，再由 unwrap 做语义保真与异常映射。
      */

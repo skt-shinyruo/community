@@ -2,6 +2,7 @@ package com.nowcoder.community.user.api;
 
 import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.user.api.dto.AdminUserResponse;
 import com.nowcoder.community.user.api.dto.UpdateUserRoleRequest;
 import com.nowcoder.community.user.dao.UserMapper;
@@ -10,7 +11,6 @@ import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,7 +22,6 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.contracts.api.CommonErrorCode.INTERNAL_ERROR;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.UNAUTHORIZED;
 
 @RestController
 @RequestMapping("/api/users/admin")
@@ -70,7 +69,7 @@ public class AdminUserController {
 
     @PostMapping("/role")
     public Result<Void> updateRole(Authentication authentication, @Valid @RequestBody UpdateUserRoleRequest request) {
-        int actorUserId = currentUserId(authentication);
+        int actorUserId = CurrentUser.requireUserId(authentication);
         if (!request.isConfirm()) {
             throw new BusinessException(INVALID_ARGUMENT, "需要二次确认（confirm=true）");
         }
@@ -104,18 +103,5 @@ public class AdminUserController {
         log.info("[audit] action=admin_user_role_update actorUserId={} targetUserId={} fromType={} toType={} reason={}",
                 actorUserId, targetUserId, fromType, toType, reason);
         return Result.ok();
-    }
-
-    private int currentUserId(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            throw new BusinessException(UNAUTHORIZED, "未获取到认证信息");
-        }
-        Jwt jwt = (Jwt) authentication.getPrincipal();
-        String sub = jwt.getSubject();
-        try {
-            return Integer.parseInt(sub);
-        } catch (NumberFormatException e) {
-            throw new BusinessException(INVALID_ARGUMENT, "token subject 非法");
-        }
     }
 }

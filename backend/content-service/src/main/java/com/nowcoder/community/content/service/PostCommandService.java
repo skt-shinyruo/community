@@ -88,7 +88,8 @@ public class PostCommandService {
     }
 
     private void assertCanSpeak(int userId) {
-        // 与 CommentService 统一：写路径不依赖 user-service 实时可用，改为读取本地投影（最终一致）
+        // 与 CommentService 统一：写路径通过 user-service 治理接口校验（fail-closed）。
+        // 若未来需要解除同步依赖，可引入本地投影并保持最终一致。
         moderationGuard.assertCanSpeak(userId);
     }
 

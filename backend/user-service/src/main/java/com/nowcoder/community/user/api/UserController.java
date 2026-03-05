@@ -2,6 +2,7 @@ package com.nowcoder.community.user.api;
 
 import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.user.api.dto.AvatarUploadTokenResponse;
 import com.nowcoder.community.user.api.dto.BatchUserSummaryRequest;
 import com.nowcoder.community.user.api.dto.UpdateAvatarRequest;
@@ -15,7 +16,6 @@ import com.nowcoder.community.user.service.SocialServiceClient;
 import com.nowcoder.community.user.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -34,8 +34,6 @@ import java.util.List;
 import java.util.Map;
 
 import static com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.UNAUTHORIZED;
 
 @RestController
 @RequestMapping("/api/users")
@@ -66,13 +64,8 @@ public class UserController {
         resp.setScore(user.getScore());
         resp.setLevel(pointsService.levelForScore(user.getScore()));
 
-        int currentUserId = 0;
-        if (authentication != null && authentication.getPrincipal() instanceof Jwt jwt) {
-            try {
-                currentUserId = Integer.parseInt(jwt.getSubject());
-            } catch (NumberFormatException ignored) {
-            }
-        }
+        Integer maybeCurrentUserId = CurrentUser.tryUserId(authentication);
+        int currentUserId = maybeCurrentUserId == null ? 0 : maybeCurrentUserId;
         int viewerId = (currentUserId > 0 && currentUserId != userId) ? currentUserId : 0;
 
         // 对齐旧单体“用户主页”展示：获赞/关注/粉丝 + 是否已关注（可选，未登录时为 false）
@@ -143,7 +136,7 @@ public class UserController {
 
     @GetMapping("/{userId}/avatar/upload-token")
     public Result<AvatarUploadTokenResponse> uploadToken(Authentication authentication, @PathVariable int userId) {
-        int currentUserId = currentUserId(authentication);
+        int currentUserId = CurrentUser.requireUserId(authentication);
         if (currentUserId != userId) {
             throw new BusinessException(FORBIDDEN, "只能操作自己的头像");
         }
@@ -152,7 +145,7 @@ public class UserController {
 
     @PostMapping(value = "/{userId}/avatar/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Result<Void> uploadAvatar(Authentication authentication, @PathVariable int userId, @RequestParam("file") MultipartFile file, @RequestParam("fileName") String fileName) {
-        int currentUserId = currentUserId(authentication);
+        int currentUserId = CurrentUser.requireUserId(authentication);
         if (currentUserId != userId) {
             throw new BusinessException(FORBIDDEN, "只能操作自己的头像");
         }
@@ -162,7 +155,7 @@ public class UserController {
 
     @PutMapping("/{userId}/avatar")
     public Result<Void> updateAvatar(Authentication authentication, @PathVariable int userId, @Valid @RequestBody UpdateAvatarRequest request) {
-        int currentUserId = currentUserId(authentication);
+        int currentUserId = CurrentUser.requireUserId(authentication);
         if (currentUserId != userId) {
             throw new BusinessException(FORBIDDEN, "只能操作自己的头像");
         }
@@ -170,18 +163,5 @@ public class UserController {
         String url = avatarService.buildAvatarUrl(request.getFileName());
         userService.updateHeaderUrl(userId, url);
         return Result.ok();
-    }
-
-    private int currentUserId(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            throw new BusinessException(UNAUTHORIZED, "未获取到认证信息");
-        }
-        Jwt jwt = (Jwt) authentication.getPrincipal();
-        String sub = jwt.getSubject();
-        try {
-            return Integer.parseInt(sub);
-        } catch (NumberFormatException e) {
-            throw new BusinessException(INVALID_ARGUMENT, "token subject 非法");
-        }
     }
 }

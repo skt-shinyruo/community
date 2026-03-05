@@ -2,14 +2,13 @@
 package com.nowcoder.community.content.api;
 
 import com.nowcoder.community.contracts.api.Result;
-import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.content.api.dto.ModerationActionRequest;
 import com.nowcoder.community.content.entity.ModerationAction;
 import com.nowcoder.community.content.entity.Report;
 import com.nowcoder.community.content.service.ModerationService;
+import com.nowcoder.community.infra.security.auth.CurrentUser;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -18,9 +17,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.UNAUTHORIZED;
 
 @RestController
 @RequestMapping("/api/moderation")
@@ -47,7 +43,7 @@ public class ModerationController {
 
     @PostMapping("/actions")
     public Result<Integer> action(Authentication authentication, @Valid @RequestBody ModerationActionRequest request) {
-        int actorId = currentUserId(authentication);
+        int actorId = CurrentUser.requireUserId(authentication);
         int id = moderationService.takeAction(
                 actorId,
                 request.getReportId(),
@@ -67,18 +63,5 @@ public class ModerationController {
         int p = page == null ? 0 : Math.max(0, page);
         int s = size == null ? 20 : Math.min(100, Math.max(1, size));
         return Result.ok(moderationService.listActions(actorId, p, s));
-    }
-
-    private int currentUserId(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            throw new BusinessException(UNAUTHORIZED, "未获取到认证信息");
-        }
-        Jwt jwt = (Jwt) authentication.getPrincipal();
-        String sub = jwt.getSubject();
-        try {
-            return Integer.parseInt(sub);
-        } catch (NumberFormatException e) {
-            throw new BusinessException(INVALID_ARGUMENT, "token subject 非法");
-        }
     }
 }

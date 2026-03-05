@@ -11,26 +11,3 @@ community:
 spring:
   application:
     name: ops-service
-  cloud:
-    nacos:
-      discovery:
-        enabled: false
-      config:
-        enabled: false
-
-dubbo:
-  application:
-    name: ${spring.application.name}
-    qos-enable: false
-  registry:
-    # 单测不依赖外部注册中心，避免 CI/本地未启动 Nacos 导致上下文启动失败。
-    address: N/A
-  protocol:
-    name: dubbo
-    port: -1
-  consumer:
-    check: false
-    init: false
-    lazy: true
-    retries: 0
-    timeout: 3000

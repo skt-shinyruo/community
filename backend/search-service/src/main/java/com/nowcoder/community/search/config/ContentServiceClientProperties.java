@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 /**
  * search-service -> content-service 内部调用配置（reindex 扫描分页大小）。
  *
- * <p>说明：服务间同步调用已迁移为 Dubbo RPC，因此不再需要 HTTP baseUrl/timeout 配置。</p>
+ * <p>说明：在 A-1 模块化单体形态下，该调用是进程内内部接口调用；保留 “client” 抽象是为了未来可替换为 RPC/HTTP。</p>
  */
 @Component
 @ConfigurationProperties(prefix = "search.content-client")

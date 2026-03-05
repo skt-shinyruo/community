@@ -2,10 +2,10 @@ package com.nowcoder.community.analytics.api;
 
 import com.nowcoder.community.analytics.service.AnalyticsService;
 import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.infra.security.auth.CurrentUser;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -41,8 +41,6 @@ public class AnalyticsController {
 
     @GetMapping("/me")
     public Result<String> me(Authentication authentication) {
-        Jwt jwt = (Jwt) authentication.getPrincipal();
-        return Result.ok(jwt.getSubject());
+        return Result.ok(CurrentUser.requireJwt(authentication).getSubject());
     }
 }
-

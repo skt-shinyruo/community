@@ -2,10 +2,9 @@
 package com.nowcoder.community.content.api;
 
 import com.nowcoder.community.contracts.api.Result;
-import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.content.service.SubscriptionService;
+import com.nowcoder.community.infra.security.auth.CurrentUser;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,9 +13,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.UNAUTHORIZED;
 
 @RestController
 @RequestMapping("/api")
@@ -30,34 +26,21 @@ public class SubscriptionController {
 
     @PutMapping("/categories/{categoryId}/subscribe")
     public Result<Void> subscribeCategory(Authentication authentication, @PathVariable int categoryId) {
-        int userId = currentUserId(authentication);
+        int userId = CurrentUser.requireUserId(authentication);
         subscriptionService.subscribeCategory(userId, categoryId);
         return Result.ok();
     }
 
     @DeleteMapping("/categories/{categoryId}/subscribe")
     public Result<Void> unsubscribeCategory(Authentication authentication, @PathVariable int categoryId) {
-        int userId = currentUserId(authentication);
+        int userId = CurrentUser.requireUserId(authentication);
         subscriptionService.unsubscribeCategory(userId, categoryId);
         return Result.ok();
     }
 
     @GetMapping("/subscriptions/categories")
     public Result<List<Integer>> myCategories(Authentication authentication) {
-        int userId = currentUserId(authentication);
+        int userId = CurrentUser.requireUserId(authentication);
         return Result.ok(subscriptionService.listSubscribedCategoryIds(userId));
-    }
-
-    private int currentUserId(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            throw new BusinessException(UNAUTHORIZED, "未获取到认证信息");
-        }
-        Jwt jwt = (Jwt) authentication.getPrincipal();
-        String sub = jwt.getSubject();
-        try {
-            return Integer.parseInt(sub);
-        } catch (NumberFormatException e) {
-            throw new BusinessException(INVALID_ARGUMENT, "token subject 非法");
-        }
     }
 }

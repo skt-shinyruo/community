@@ -2,12 +2,11 @@
 package com.nowcoder.community.social.block;
 
 import com.nowcoder.community.contracts.api.Result;
-import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.infra.security.auth.CurrentUser;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,9 +16,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.UNAUTHORIZED;
 
 @RestController
 @RequestMapping("/api/blocks")
@@ -33,41 +29,28 @@ public class BlockController {
 
     @PostMapping
     public Result<Void> block(Authentication authentication, @Valid @RequestBody BlockRequest request) {
-        int userId = currentUserId(authentication);
+        int userId = CurrentUser.requireUserId(authentication);
         blockService.block(userId, request.getUserId());
         return Result.ok();
     }
 
     @DeleteMapping
     public Result<Void> unblock(Authentication authentication, @RequestParam int userId) {
-        int actorId = currentUserId(authentication);
+        int actorId = CurrentUser.requireUserId(authentication);
         blockService.unblock(actorId, userId);
         return Result.ok();
     }
 
     @GetMapping
     public Result<List<Integer>> list(Authentication authentication) {
-        int userId = currentUserId(authentication);
+        int userId = CurrentUser.requireUserId(authentication);
         return Result.ok(blockService.listBlockedUserIds(userId));
     }
 
     @GetMapping("/status")
     public Result<Boolean> status(Authentication authentication, @RequestParam int userId) {
-        int actorId = currentUserId(authentication);
+        int actorId = CurrentUser.requireUserId(authentication);
         return Result.ok(blockService.hasBlocked(actorId, userId));
-    }
-
-    private int currentUserId(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            throw new BusinessException(UNAUTHORIZED, "未获取到认证信息");
-        }
-        Jwt jwt = (Jwt) authentication.getPrincipal();
-        String sub = jwt.getSubject();
-        try {
-            return Integer.parseInt(sub);
-        } catch (NumberFormatException e) {
-            throw new BusinessException(INVALID_ARGUMENT, "token subject 非法");
-        }
     }
 
     public static class BlockRequest {

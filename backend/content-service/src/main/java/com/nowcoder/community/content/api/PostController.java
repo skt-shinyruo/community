@@ -2,8 +2,8 @@ package com.nowcoder.community.content.api;
 
 import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.contracts.domain.EntityTypes;
-import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.infra.idempotency.IdempotencyGuard;
+import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.content.api.dto.CommentResponse;
 import com.nowcoder.community.content.api.dto.CreateCommentRequest;
 import com.nowcoder.community.content.api.dto.CreatePostRequest;
@@ -27,7 +27,6 @@ import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -42,9 +41,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.UNAUTHORIZED;
 
 @RestController
 @RequestMapping("/api/posts")
@@ -105,7 +101,7 @@ public class PostController {
 
         List<DiscussPost> posts;
         if (Boolean.TRUE.equals(subscribed)) {
-            int userId = currentUserId(authentication);
+            int userId = CurrentUser.requireUserId(authentication);
             List<Integer> subscribedCategoryIds = subscriptionService.listSubscribedCategoryIds(userId);
             posts = postService.listSubscribedPosts(userId, subscribedCategoryIds, p, s, orderMode, categoryId, tag);
         } else {
@@ -128,7 +124,7 @@ public class PostController {
             @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
             @Valid @RequestBody CreatePostRequest request
     ) {
-        int userId = currentUserId(authentication);
+        int userId = CurrentUser.requireUserId(authentication);
 
         return Result.ok(idempotencyGuard.executeRequired("content:create_post", userId, idempotencyKey, CreatePostResponse.class, () -> {
             String title = textCodec.escapeOnWrite(request.getTitle().trim());
@@ -148,13 +144,8 @@ public class PostController {
     public Result<PostDetailResponse> detail(Authentication authentication, @PathVariable int postId) {
         DiscussPost post = postService.getById(postId);
 
-        int currentUserId = 0;
-        if (authentication != null && authentication.getPrincipal() instanceof Jwt jwt) {
-            try {
-                currentUserId = Integer.parseInt(jwt.getSubject());
-            } catch (NumberFormatException ignored) {
-            }
-        }
+        Integer maybeCurrentUserId = CurrentUser.tryUserId(authentication);
+        int currentUserId = maybeCurrentUserId == null ? 0 : maybeCurrentUserId;
 
         PostDetailResponse resp = new PostDetailResponse();
         resp.setId(post.getId());
@@ -203,7 +194,7 @@ public class PostController {
             @PathVariable int postId,
             @Valid @RequestBody CreateCommentRequest request
     ) {
-        int userId = currentUserId(authentication);
+        int userId = CurrentUser.requireUserId(authentication);
         Integer id = idempotencyGuard.executeRequired("content:create_comment", userId, idempotencyKey, Integer.class,
                 () -> commentService.addComment(userId, postId, request.getEntityType(), request.getEntityId(), request.getTargetId(), request.getContent()));
         return Result.ok(id);
@@ -211,7 +202,7 @@ public class PostController {
 
     @PutMapping("/{postId}")
     public Result<Void> updatePost(Authentication authentication, @PathVariable int postId, @Valid @RequestBody UpdatePostRequest request) {
-        int userId = currentUserId(authentication);
+        int userId = CurrentUser.requireUserId(authentication);
 
         String title = textCodec.escapeOnWrite(request.getTitle().trim());
         String content = textCodec.escapeOnWrite(request.getContent().trim());
@@ -224,7 +215,7 @@ public class PostController {
 
     @DeleteMapping("/{postId}")
     public Result<Void> deleteByAuthor(Authentication authentication, @PathVariable int postId) {
-        int userId = currentUserId(authentication);
+        int userId = CurrentUser.requireUserId(authentication);
         postCommandService.deletePostByAuthor(userId, postId);
         log.info("[audit] action=post_delete_author actorUserId={} postId={}", userId, postId);
         return Result.ok();
@@ -237,7 +228,7 @@ public class PostController {
             @PathVariable int commentId,
             @Valid @RequestBody UpdateCommentRequest request
     ) {
-        int userId = currentUserId(authentication);
+        int userId = CurrentUser.requireUserId(authentication);
         commentService.updateComment(userId, postId, commentId, request.getContent());
         return Result.ok();
     }
@@ -264,7 +255,7 @@ public class PostController {
     // 置顶（type=1）
     @PostMapping("/{postId}/top")
     public Result<Void> top(Authentication authentication, @PathVariable int postId) {
-        int actorUserId = currentUserId(authentication);
+        int actorUserId = CurrentUser.requireUserId(authentication);
         postCommandService.topPost(actorUserId, postId);
 
         log.info("[audit] action=post_top actorUserId={} postId={}", actorUserId, postId);
@@ -274,7 +265,7 @@ public class PostController {
     // 加精（status=1）
     @PostMapping("/{postId}/wonderful")
     public Result<Void> wonderful(Authentication authentication, @PathVariable int postId) {
-        int actorUserId = currentUserId(authentication);
+        int actorUserId = CurrentUser.requireUserId(authentication);
         postCommandService.markWonderful(actorUserId, postId);
 
         log.info("[audit] action=post_wonderful actorUserId={} postId={}", actorUserId, postId);
@@ -284,7 +275,7 @@ public class PostController {
     // 删除（status=2）
     @PostMapping("/{postId}/delete")
     public Result<Void> delete(Authentication authentication, @PathVariable int postId) {
-        int actorUserId = currentUserId(authentication);
+        int actorUserId = CurrentUser.requireUserId(authentication);
         postCommandService.adminDelete(actorUserId, postId);
 
         log.info("[audit] action=post_delete actorUserId={} postId={}", actorUserId, postId);
@@ -320,18 +311,5 @@ public class PostController {
             r.setLastActivityTime(r.getCreateTime());
         }
         return r;
-    }
-
-    private int currentUserId(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            throw new BusinessException(UNAUTHORIZED, "未获取到认证信息");
-        }
-        Jwt jwt = (Jwt) authentication.getPrincipal();
-        String sub = jwt.getSubject();
-        try {
-            return Integer.parseInt(sub);
-        } catch (NumberFormatException e) {
-            throw new BusinessException(INVALID_ARGUMENT, "token subject 非法");
-        }
     }
 }

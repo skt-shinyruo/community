@@ -19,12 +19,6 @@ clients:
 spring:
   application:
     name: content-service
-  cloud:
-    nacos:
-      discovery:
-        enabled: false
-      config:
-        enabled: false
   kafka:
     listener:
       auto-startup: false
@@ -57,21 +51,3 @@ http:
   idempotency:
     enabled: true
     store: DB
-
-dubbo:
-  application:
-    name: ${spring.application.name}
-    qos-enable: false
-  registry:
-    address: N/A
-  protocol:
-    name: dubbo
-    port: -1
-  consumer:
-    check: false
-    init: false
-    lazy: true
-    retries: 0
-    timeout: 3000
-  provider:
-    timeout: 3000

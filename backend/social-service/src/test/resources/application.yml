@@ -6,12 +6,6 @@ social:
 spring:
   application:
     name: social-service
-  cloud:
-    nacos:
-      discovery:
-        enabled: false
-      config:
-        enabled: false
   datasource:
     url: jdbc:h2:mem:social;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
     driver-class-name: org.h2.Driver
@@ -35,21 +29,3 @@ mybatis:
   mapper-locations: classpath:mapper/*.xml
   configuration:
     map-underscore-to-camel-case: true
-
-dubbo:
-  application:
-    name: ${spring.application.name}
-    qos-enable: false
-  registry:
-    address: N/A
-  protocol:
-    name: dubbo
-    port: -1
-  consumer:
-    check: false
-    init: false
-    lazy: true
-    retries: 0
-    timeout: 3000
-  provider:
-    timeout: 3000

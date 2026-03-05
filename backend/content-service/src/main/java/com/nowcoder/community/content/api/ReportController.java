@@ -6,16 +6,15 @@ import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.content.api.dto.CreateReportRequest;
 import com.nowcoder.community.content.api.dto.CreateReportResponse;
 import com.nowcoder.community.content.service.ReportService;
+import com.nowcoder.community.infra.security.auth.CurrentUser;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.UNAUTHORIZED;
 
 @RestController
 @RequestMapping("/api/reports")
@@ -29,7 +28,7 @@ public class ReportController {
 
     @PostMapping
     public Result<CreateReportResponse> create(Authentication authentication, @Valid @RequestBody CreateReportRequest request) {
-        int reporterId = currentUserId(authentication);
+        int reporterId = CurrentUser.requireUserId(authentication);
         int targetType = parseTargetType(request.getTargetType());
         int targetId = request.getTargetId() == null ? 0 : request.getTargetId();
         int reportId = reportService.createReport(reporterId, targetType, targetId, request.getReason(), request.getDetail());
@@ -55,18 +54,5 @@ public class ReportController {
             return ReportService.TARGET_TYPE_USER;
         }
         throw new BusinessException(INVALID_ARGUMENT, "targetType 非法");
-    }
-
-    private int currentUserId(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            throw new BusinessException(UNAUTHORIZED, "未获取到认证信息");
-        }
-        Jwt jwt = (Jwt) authentication.getPrincipal();
-        String sub = jwt.getSubject();
-        try {
-            return Integer.parseInt(sub);
-        } catch (NumberFormatException e) {
-            throw new BusinessException(INVALID_ARGUMENT, "token subject 非法");
-        }
     }
 }

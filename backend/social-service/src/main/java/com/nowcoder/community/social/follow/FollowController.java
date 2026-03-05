@@ -3,11 +3,11 @@ package com.nowcoder.community.social.follow;
 import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.contracts.domain.EntityTypes;
 import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.social.follow.dto.FollowItem;
 import com.nowcoder.community.social.follow.dto.FollowRequest;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.UNAUTHORIZED;
 
 @RestController
 @RequestMapping("/api/follows")
@@ -36,7 +35,7 @@ public class FollowController {
 
     @PostMapping
     public Result<Void> follow(Authentication authentication, @Valid @RequestBody FollowRequest request) {
-        int userId = currentUserId(authentication);
+        int userId = CurrentUser.requireUserId(authentication);
         if (request.getEntityType() != ENTITY_TYPE_USER) {
             throw new BusinessException(INVALID_ARGUMENT, "follow 仅支持 USER");
         }
@@ -46,7 +45,7 @@ public class FollowController {
 
     @DeleteMapping
     public Result<Void> unfollow(Authentication authentication, @RequestParam int entityType, @RequestParam int entityId) {
-        int userId = currentUserId(authentication);
+        int userId = CurrentUser.requireUserId(authentication);
         if (entityType != ENTITY_TYPE_USER) {
             throw new BusinessException(INVALID_ARGUMENT, "unfollow 仅支持 USER");
         }
@@ -56,7 +55,7 @@ public class FollowController {
 
     @GetMapping("/status")
     public Result<Boolean> status(Authentication authentication, @RequestParam int entityType, @RequestParam int entityId) {
-        int userId = currentUserId(authentication);
+        int userId = CurrentUser.requireUserId(authentication);
         if (entityType != ENTITY_TYPE_USER) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
         }
@@ -111,18 +110,5 @@ public class FollowController {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
         }
         return Result.ok(followService.followerCount(t, userId));
-    }
-
-    private int currentUserId(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            throw new BusinessException(UNAUTHORIZED, "未获取到认证信息");
-        }
-        Jwt jwt = (Jwt) authentication.getPrincipal();
-        String sub = jwt.getSubject();
-        try {
-            return Integer.parseInt(sub);
-        } catch (NumberFormatException e) {
-            throw new BusinessException(INVALID_ARGUMENT, "token subject 非法");
-        }
     }
 }

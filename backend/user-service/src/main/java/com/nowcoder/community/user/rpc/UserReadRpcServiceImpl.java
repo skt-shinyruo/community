@@ -1,6 +1,6 @@
 package com.nowcoder.community.user.rpc;
 
-// user-service 的 Dubbo Provider：实现读取型 RPC（用户摘要/批量摘要/用户名解析）。
+// user-service 内部 RPC Provider：实现读取型内部接口（用户摘要/批量摘要/用户名解析；A-1 下为进程内调用）。
 import com.nowcoder.community.contracts.api.CommonErrorCode;
 import com.nowcoder.community.contracts.api.ErrorCode;
 import com.nowcoder.community.contracts.api.Result;

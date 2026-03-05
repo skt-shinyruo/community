@@ -2,7 +2,6 @@
 package com.nowcoder.community.content.api;
 
 import com.nowcoder.community.contracts.api.Result;
-import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.content.api.dto.PostSummaryResponse;
 import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.entity.DiscussPost;
@@ -10,8 +9,8 @@ import com.nowcoder.community.content.service.BookmarkService;
 import com.nowcoder.community.content.service.CommentService;
 import com.nowcoder.community.content.service.TagService;
 import com.nowcoder.community.content.text.ContentTextCodec;
+import com.nowcoder.community.infra.security.auth.CurrentUser;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,9 +22,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.UNAUTHORIZED;
 
 @RestController
 @RequestMapping("/api")
@@ -45,14 +41,14 @@ public class BookmarkController {
 
     @PutMapping("/posts/{postId}/bookmark")
     public Result<Void> bookmark(Authentication authentication, @PathVariable int postId) {
-        int userId = currentUserId(authentication);
+        int userId = CurrentUser.requireUserId(authentication);
         bookmarkService.add(userId, postId);
         return Result.ok();
     }
 
     @DeleteMapping("/posts/{postId}/bookmark")
     public Result<Void> unbookmark(Authentication authentication, @PathVariable int postId) {
-        int userId = currentUserId(authentication);
+        int userId = CurrentUser.requireUserId(authentication);
         bookmarkService.remove(userId, postId);
         return Result.ok();
     }
@@ -63,7 +59,7 @@ public class BookmarkController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        int userId = currentUserId(authentication);
+        int userId = CurrentUser.requireUserId(authentication);
         int p = page == null ? 0 : Math.max(0, page);
         int s = size == null ? 10 : Math.min(50, Math.max(1, size));
 
@@ -105,18 +101,5 @@ public class BookmarkController {
             r.setLastActivityTime(r.getCreateTime());
         }
         return r;
-    }
-
-    private int currentUserId(Authentication authentication) {
-        if (authentication == null || authentication.getPrincipal() == null) {
-            throw new BusinessException(UNAUTHORIZED, "未获取到认证信息");
-        }
-        Jwt jwt = (Jwt) authentication.getPrincipal();
-        String sub = jwt.getSubject();
-        try {
-            return Integer.parseInt(sub);
-        } catch (NumberFormatException e) {
-            throw new BusinessException(INVALID_ARGUMENT, "token subject 非法");
-        }
     }
 }

@@ -14,9 +14,9 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Architecture guardrails for the modular monolith:
- * - Domain modules may depend on other domains ONLY via their public API packages ({@code ..<domain>.api..}).
- * - Domain modules must not depend on bootstrap/app wiring packages.
+ * Architecture guardrails for the flattened monolith:
+ * - Domain packages may depend on other domains only via stable entry packages ({@code ..<domain>.api..}, {@code ..<domain>.application..}, or {@code ..<domain>.event..}).
+ * - Domain packages must not depend on bootstrap/app wiring packages, except the security-rule SPI used by domain-owned auth rules.
  *
  * <p>These tests are meant to prevent "big ball of mud" erosion as modules evolve.</p>
  */
@@ -36,7 +36,7 @@ public class ModuleBoundaryArchTest {
     );
 
     @Test
-    void domain_modules_must_only_depend_on_other_domains_api_packages() {
+    void domain_packages_must_only_depend_on_other_domains_entry_packages() {
         JavaClasses classes = new ClassFileImporter()
                 .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
                 .importPackages(ROOT);
@@ -59,8 +59,8 @@ public class ModuleBoundaryArchTest {
                     continue;
                 }
 
-                // Domain modules must not depend on bootstrap wiring packages.
-                if (targetPkg.startsWith(ROOT + ".bootstrap.")) {
+                if (targetPkg.startsWith(ROOT + ".bootstrap.")
+                        && !target.getName().equals(ROOT + ".bootstrap.security.ApiSecurityRules")) {
                     violations.add("[" + origin.getName() + "] -> [" + target.getName() + "] (" + dep.getDescription() + ")");
                     continue;
                 }
@@ -70,8 +70,16 @@ public class ModuleBoundaryArchTest {
                     continue;
                 }
 
-                String allowedPrefix = ROOT + "." + targetDomain + ".api";
-                if (!targetPkg.startsWith(allowedPrefix + ".") && !targetPkg.equals(allowedPrefix)) {
+                String allowedApiPrefix = ROOT + "." + targetDomain + ".api";
+                String allowedApplicationPrefix = ROOT + "." + targetDomain + ".application";
+                String allowedEventPrefix = ROOT + "." + targetDomain + ".event";
+                boolean allowed = targetPkg.startsWith(allowedApiPrefix + ".")
+                        || targetPkg.equals(allowedApiPrefix)
+                        || targetPkg.startsWith(allowedApplicationPrefix + ".")
+                        || targetPkg.equals(allowedApplicationPrefix)
+                        || targetPkg.startsWith(allowedEventPrefix + ".")
+                        || targetPkg.equals(allowedEventPrefix);
+                if (!allowed) {
                     violations.add("[" + origin.getName() + "] -> [" + target.getName() + "] (" + dep.getDescription() + ")");
                 }
             }
@@ -79,7 +87,7 @@ public class ModuleBoundaryArchTest {
 
         violations.sort(Comparator.naturalOrder());
         assertThat(violations)
-                .as("Cross-domain dependencies must go through the callee's API package only")
+                .as("Cross-domain dependencies must go through the callee's api/application/event package only")
                 .isEmpty();
     }
 
@@ -96,4 +104,3 @@ public class ModuleBoundaryArchTest {
         return null;
     }
 }
-

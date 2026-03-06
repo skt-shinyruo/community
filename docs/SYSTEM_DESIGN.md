@@ -59,7 +59,7 @@
 ### 2.2 写路径（示例：发帖/评论/点赞/关注）
 1. 前端请求写接口（携带 JWT）
 2. `community-app` 统一鉴权/审计（以及关键 cookie 会话入口的 OriginGuard）
-3. 目标模块写入主存储（DB/Redis），并通过 Outbox 发布事件（最终一致）
+3. 目标模块写入主存储（DB/Redis），并通过同进程事务事件驱动后续投影
 
 ### 2.3 错误协议（HTTP status + Result.code）
 本项目对外（以及内部）统一返回 `Result<T>` 结构，但同时要求：
@@ -70,14 +70,14 @@
 - 参数错误：HTTP 400 + `Result.code=400`
 - 未登录/令牌无效：HTTP 401 + `Result.code=10003/401`（业务码优先表达细分）
 - 无权限：HTTP 403
-- 依赖故障（DB/Redis/Kafka/下游服务不可用）：HTTP 503（fail-closed）
+- 依赖故障（DB/Redis/ES/关键基础设施不可用）：HTTP 503（fail-closed）
 - 未捕获异常：HTTP 500
 
 前端 Axios 约定：
 - 对非 2xx 响应仍尝试解析 `Result` 并展示 message/traceId
 - 401 的 refresh 逻辑需区分“可刷新/不可刷新”，避免登录失败误触发 refresh
 
-> P0 生产可用优先：本项目默认使用 Outbox Pattern（见第 3 章），避免“DB 回滚但事件已发出”的幽灵事件，
+> 当前实现优先保持单进程语义：事务内发布领域事件，事务后触发本地监听，避免把网络/队列语义引入同 JVM 内的协作。
 > 并补齐“提交成功但发送失败导致下游缺数据”的一致性缺口（可重试/可观测/可回放）。
 
 ### 2.4 refresh cookie 与 CSRF（SameSite + OriginGuard）
@@ -124,7 +124,7 @@
 
 ---
 
-## 3. 异步事件：Kafka + Outbox（最终一致）
+## 3. 异步事件：本地事务事件（最终一致）
 
 ### 3.1 Topic 约定（SSOT）
 事件 topic 的 SSOT：`backend/platform/contracts-event-core/src/main/java/com/nowcoder/community/contracts/event/EventTopics.java`：
@@ -132,7 +132,7 @@
 - `community.event.comment.v1`
 - `community.event.social.v1`
 - `community.event.moderation.v1`
-- 约定 DLQ：`<topic>.dlq`
+- 写路径与投影/通知解耦，但运行时不再依赖 Kafka/Outbox。
 
 ### 3.2 事件契约：Envelope + 校验（SSOT）
 代码位置（SSOT）：`backend/platform/contracts-event-core/src/main/java/com/nowcoder/community/contracts/event/EventEnvelope.java`。
@@ -147,43 +147,19 @@
 - `payload`：具体数据（避免敏感字段）
 
 unknown handling 为可配置策略（consumer 级别）：
-- `community.kafka.consumer.unsupported-version-action`：`DLQ`（默认）/ `SKIP`
-- `community.kafka.consumer.unknown-type-action`：`SKIP`（默认）/ `DLQ`
+### 3.3 事务后本地监听
+当前实现采用：
+1. 写模块在 DB 事务内发布领域事件
+2. `@TransactionalEventListener(phase = AFTER_COMMIT)` 在事务提交后驱动搜索投影、通知、积分、处罚命令等后续动作
+3. reindex 等高成本入口通过单进程 single-flight 控制并发
 
-消费端必须对 envelope 做统一校验（required fields + version），并对 unknown 事件做可配置处理（SKIP/DLQ），避免 silent drop。
-
-### 3.3 生产侧可靠投递：Outbox Pattern（默认启用）
-本项目默认启用 Outbox（配置见 `backend/community-bootstrap/src/main/resources/application.yml` 的 `events.outbox.*`）：
-1. 写模块在同一个 DB 事务内同时写入业务数据 + outbox 表
-2. relay job 在事务提交后轮询 outbox，可靠发布 Kafka 事件（重试、退避、可观测）
-3. 发布失败不会回滚已提交事务，但会通过重试/DLQ/告警暴露缺口，支持人工回放
-
-收益：
-- 避免“事务回滚但事件已发出”的幽灵事件
-- 避免“事务提交成功但发 Kafka 失败导致下游缺数据”的不可修复缺口
-
-### 3.4 消费侧：幂等 + 事务 + ack（P0）
-消费端最小正确性目标是：**ack 之前，业务副作用必须已成功提交**。因此：
-- Listener 采用 manual ack
-- 处理器使用 `@Transactional`，并确保“幂等记录 + 副作用写入”同事务提交
-- 避免自调用导致事务不生效（建议拆为独立 `@Service`）
-
-### 3.5 DLQ（死信队列）与回放
-当消费端处理失败（反序列化/业务异常等）：
-- 通过统一错误处理器将消息投递到 `<topic>.dlq`
-- 便于离线排查与人工/脚本回放
-
-参考脚本：
-- `backend/scripts/kafka-replay-dlq.sh`：DLQ 回放
-- `backend/scripts/kafka-reset-topics.sh`：重置 topic（谨慎）
-
-### 3.6 典型消费方（最终一致）
+### 3.4 典型消费方（最终一致）
 - message：消费评论/社交事件，生成通知
 - search：消费帖子/评论等事件，更新 ES 索引
 
 补充：搜索属于“事件驱动投影”，因此天然最终一致：
-- 写成功后到可搜索存在秒级延迟（事件传播 + 消费处理 + ES refresh）
-- 若出现长时间缺失/冷启动缺口：优先排查 lag/DLQ/ES 健康，必要时执行 reindex（`POST /api/ops/search/reindex` 或 `backend/scripts/search-reindex.sh`）
+- 写成功后到可搜索存在短暂延迟（事务提交 + 本地监听 + ES refresh）
+- 若出现长时间缺失/冷启动缺口：优先排查监听链路与 ES 健康，必要时执行 reindex（`POST /api/ops/search/reindex` 或 `backend/scripts/search-reindex.sh`）
 
 ---
 
@@ -212,7 +188,7 @@ unknown handling 为可配置策略（consumer 级别）：
 - search 模块：`search_consumed_event` 表
 
 这能避免：
-- Kafka 重平衡/重试导致的重复消费产生重复副作用（重复通知、重复索引更新）
+- 事务后监听重复触发导致的重复副作用（例如重复通知、重复索引更新）
 
 ### 5.2 消费侧“事务 + ack”的最小正确性（P0）
 消费端最小正确性目标是：**ack 之前，业务副作用必须已成功提交**。因此：
@@ -220,18 +196,8 @@ unknown handling 为可配置策略（consumer 级别）：
 - 处理器使用 `@Transactional`，并确保幂等记录与业务写入同事务提交
 - 避免“同类内部调用导致事务不生效”的自调用陷阱（建议拆分为独立 `@Service`）
 
-### 5.3 DLQ（死信队列）
-当消费端处理失败（反序列化/业务异常等）：
-- 通过统一的错误处理器将消息投递到 `<topic>.dlq`
-- 便于离线排查与人工/脚本回放
-
-> 生产侧的可靠投递以 Outbox 为 SSOT（见第 3 章）。After-Commit 仅适合作为临时折中，不建议作为长期默认形态。
-
 ### 5.4 消费幂等点位（避免“已 ack 但副作用未落地”）
-消费端的幂等表写入点位建议：
-- 对“幂等副作用”（如 ES upsert/delete）：**先执行业务副作用，再写入 consumed 表**
-  - 副作用失败时允许 Kafka 重试
-  - consumed 表写入异常必须触发重试/DLQ（不能吞掉伪装为重复）
+本地监听仍应确保副作用尽可能幂等；对幂等副作用（如 ES upsert/delete）优先保持“副作用本身幂等”，避免额外引入本地消息基础设施。
 
 ### 5.5 事件版本与未知类型/版本处理
 事件演进需要显式约定：

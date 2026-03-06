@@ -13,18 +13,6 @@ spring:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}
       port: ${SPRING_DATA_REDIS_PORT:6379}
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:127.0.0.1:9092}
-    consumer:
-      auto-offset-reset: earliest
-      enable-auto-commit: false
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-    listener:
-      ack-mode: manual
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
   elasticsearch:
     uris: ${ELASTICSEARCH_URIS:http://127.0.0.1:9200}
 
@@ -98,19 +86,6 @@ auth:
     captcha-required-failures-per-ip: 5
     captcha-required-failures-per-user: 2
 
-events:
-  outbox:
-    enabled: true
-    relay-enabled: true
-    # MySQL 8+ 推荐开启：多实例 relay 并发认领时避免头阻塞（不支持可关闭回退）。
-    claim-skip-locked-enabled: true
-    batch-size: 200
-    max-retries: 10
-    base-delay-ms: 1000
-    max-delay-ms: 60000
-    relay-interval-ms: 5000
-    send-timeout-ms: 3000
-
 http:
   idempotency:
     enabled: true
@@ -119,7 +94,7 @@ http:
 content:
   storage: redis
   events:
-    publisher: kafka
+    publisher: local
   score:
     refresh:
       enabled: true
@@ -128,18 +103,15 @@ content:
 social:
   storage: db
   events:
-    publisher: kafka
+    publisher: local
 
 user:
   avatar:
     storage: ${USER_AVATAR_STORAGE:local}
     files-base-dir: ${USER_FILES_BASE_DIR:/tmp/community-files}
     public-base-url: ${USER_PUBLIC_BASE_URL:http://localhost:12881}
-  events:
-    publisher: kafka
-  social-client:
-    # 用户主页展示类读路径允许降级（避免 social-service 抖动影响主页面）。
-    fail-open: true
+  social-profile:
+    degrade-on-error: true
 
 message:
   idempotency:
@@ -156,7 +128,7 @@ search:
   index:
     prefix: community_posts_v
     keep-history: 2
-  content-client:
+  post-scan:
     page-size: 500
 
 analytics:

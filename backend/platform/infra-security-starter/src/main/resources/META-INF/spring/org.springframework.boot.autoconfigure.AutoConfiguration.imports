@@ -1,3 +1,0 @@
-com.nowcoder.community.infra.security.autoconfig.SecurityInfraAutoConfiguration
-com.nowcoder.community.infra.security.autoconfig.ServletInfraSecurityConfig
-com.nowcoder.community.infra.security.autoconfig.ReactiveSecurityInfraAutoConfiguration

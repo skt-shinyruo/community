@@ -13,25 +13,15 @@
     <version>0.0.1-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>community</name>
-    <description>community parent (multi-module)</description>
+    <description>community parent (single backend module)</description>
 
     <properties>
         <java.version>17</java.version>
-        <!-- Modular monolith build: make former microservices plain jars when needed -->
         <community.repackage.skip>true</community.repackage.skip>
     </properties>
 
     <modules>
-        <module>platform</module>
         <module>community-bootstrap</module>
-        <module>auth-service</module>
-        <module>user-service</module>
-        <module>content-service</module>
-        <module>social-service</module>
-        <module>message-service</module>
-        <module>search-service</module>
-        <module>analytics-service</module>
-        <module>ops-service</module>
     </modules>
 
     <build>

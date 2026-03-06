@@ -1,6 +1,6 @@
 # 架构文档（与代码保持一致）
 
-> 本项目当前形态：**A-1 模块化单体（Modular Monolith）** + 前后端分离。  
+> 本项目当前形态：**单后端模块的包级单体（Package-Scoped Monolith）** + 前后端分离。  
 > 对外只有一个后端进程：`community-app`（Spring Boot 3，容器内默认 `8080`；本地 compose 映射为 `12882`）。  
 > 对外 API 前缀稳定：`/api/**`；静态文件前缀稳定：`/files/**`。  
 >
@@ -25,11 +25,11 @@
 | 消息域（message） | `community-app`：`/api/messages/**`、`/api/notices/**` | `message` 模块（MySQL） | `community-app` SecurityFilterChain |
 | 搜索域（search） | `community-app`：`/api/search/**` | `search` 模块（Elasticsearch + 幂等表） | `community-app` SecurityFilterChain（读 permitAll；reindex 走 `/api/ops/**`） |
 | 分析域（analytics） | `community-app`：`/api/analytics/**` | `analytics` 模块（Redis） | `community-app` SecurityFilterChain（ADMIN/MODERATOR） |
-| 运维平面（ops） | `community-app`：`/api/ops/**` | -（触发跨模块动作，如 reindex / outbox replay） | `community-app` SecurityFilterChain（ADMIN-only） |
+| 运维平面（ops） | `community-app`：`/api/ops/**` | -（触发跨模块动作，如 reindex） | `community-app` SecurityFilterChain（ADMIN-only） |
 
 ---
 
-## 1. 总体架构（模块化单体 + 前后端分离）
+## 1. 总体架构（单后端模块 + 前后端分离）
 
 ```mermaid
 flowchart TD
@@ -38,7 +38,6 @@ flowchart TD
 
     APP --> MySQL[(MySQL<br/>schema: community)]
     APP --> Redis[(Redis)]
-    APP --> Kafka[(Kafka)]
     APP --> ES[(Elasticsearch)]
 
     Prom[Prometheus] -. scrape .-> APP
@@ -49,7 +48,8 @@ flowchart TD
 
 补充说明：
 - **单体发布**：后端整体一起发布/回滚；因此“运行期耦合”是显式接受的取舍。
-- **模块化**：顶层 Reactor 按 `community-bootstrap / platform / 各领域-service` 组织；领域契约统一收敛在各 `*-service` 模块内（保留 `.api` 包作为契约命名空间）。
+- **单模块构建**：`backend/` 只保留一个 Maven 子模块 `community-bootstrap/`；原有领域与平台代码全部收敛到该模块内。
+- **包级边界**：领域仍按 `com.nowcoder.community.auth`、`content`、`social`、`search` 等包组织，并在包内继续细分 `api / application / domain / infra`。
 
 ---
 
@@ -69,40 +69,36 @@ flowchart TD
   - 排除各模块历史的 `@SpringBootApplication`（防止“多入口同时启动”）
 - 统一基础设施（一个进程/一份配置）：
   - 单一 `spring.datasource`（MySQL schema `community`）
-  - Redis / Kafka / Elasticsearch（按需启用）
+  - Redis / Elasticsearch（按需启用）
 - 统一对外安全边界：`backend/community-bootstrap/.../CommunitySecurityConfig`
   - 对外路径稳定：`/api/**`、`/files/**`
   - `/api/ops/**` ADMIN-only（对高成本入口集中收敛）
 
-### 2.3 领域模块（以 Maven 模块为编译期边界）
+### 2.3 领域包（以包为边界）
 
-这些模块在历史上是“微服务”，现在作为库被 `community-app` 依赖并在同一 Spring 容器内运行：
-- `backend/auth-service`：登录/刷新/登出、验证码、注册/激活、找回密码、登录风控（`auth.login-rate-limit`）
-- `backend/user-service`：用户资料、角色管理（管理员）、头像上传与文件服务（`GET /files/**`）
-- `backend/content-service`：帖子/评论/回复、审核、举报、内容分数刷新；并作为内容相关事件的 producer
-- `backend/social-service`：点赞、关注、拉黑；并作为社交事件的 producer
-- `backend/message-service`：私信、通知；消费事件生成通知
-- `backend/search-service`：搜索投影（ES）；消费事件更新索引
-- `backend/analytics-service`：统计/分析（Redis）
-- `backend/ops-service`：运维平面（`/api/ops/**`），承载 reindex/outbox 回放等高成本动作（管理员入口）
+领域能力现在都位于 `backend/community-bootstrap/` 内部的包树下：
+- `com.nowcoder.community.auth`：登录/刷新/登出、验证码、注册/激活、找回密码、登录风控
+- `com.nowcoder.community.user`：用户资料、角色管理、头像上传与文件服务
+- `com.nowcoder.community.content`：帖子/评论/回复、审核、举报、内容分数刷新
+- `com.nowcoder.community.social`：点赞、关注、拉黑
+- `com.nowcoder.community.message`：私信、通知
+- `com.nowcoder.community.search`：搜索投影（ES）
+- `com.nowcoder.community.analytics`：统计/分析
+- `com.nowcoder.community.ops`：运维平面（`/api/ops/**`）
 
-> 命名提示：代码中仍存在 `*RpcService`/`*InternalClient` 等历史命名，它们在 A-1 下是**进程内接口调用**（不是网络 RPC）。
-> 保留该形态的目的，是为未来可能的再拆分预留“契约层”，同时避免直接依赖实现模块导致编译期环。
+跨域协作优先通过对方的 `application` 或 `api` 包完成；不再为进程内调用保留 `Result` unwrap、超时分类、伪“下游服务不可用”等 RPC 语义。
 
-### 2.4 platform（contracts / infra / common）
-- **`backend/platform/contracts-core`（跨模块稳定协议）**：`Result<T>`、错误码、业务异常、内部 RPC 契约（例如 `EntityResolveRpcService`、`UserModerationRpcService`）
-- **`backend/platform/contracts-event-core`（事件协议）**：统一 event envelope + 校验 + unknown handling（skip/DLQ 可配置）
-- **`backend/platform/infra-*`（横切能力交付）**：
-  - `infra-security-starter`：JWT decoder + authorities converter（SSOT）+ actuator/prometheus basic-auth（fail-closed）
-  - `infra-outbox`：Outbox 可靠投递（同事务写 outbox + relay job 发布 Kafka，带 metrics/重试/DLQ）
-- **`backend/platform/common`（运行期共享）**：traceId、全局异常映射、审计日志 filter、可信代理/客户端 IP 解析、启动期校验（prod 下 fail-closed）
+### 2.4 共享基础设施（同模块内包）
+- `com.nowcoder.community.contracts.*`：错误码、业务异常、协议对象
+- `com.nowcoder.community.infra.*`：安全、trace、web、idempotency、scheduler 等横切能力
+- `com.nowcoder.community.bootstrap.*`：启动入口与装配代码
 
 ---
 
 ## 3. 运行拓扑与端口规划（本地 docker compose）
 
 ### 3.1 Compose 文件分工（以 `deploy/README.md` 为准）
-- `deploy/docker-compose.yml`：基础全栈（MySQL/Redis/Kafka/ES/观测 + `community-app`），默认不把业务端口暴露到宿主机（fail-closed）。
+- `deploy/docker-compose.yml`：基础全栈（MySQL/Redis/ES/观测 + `community-app`），默认不把业务端口暴露到宿主机（fail-closed）。
 - `deploy/docker-compose.frontend-direct.yml`：本地入口覆盖（暴露 frontend `12881` 与 backend `12882`，并启动 `frontend` 容器）。
 - `deploy/docker-compose.ports.yml`：仅暴露观测/日志入口（Grafana/Loki/Prometheus/Alertmanager，端口 `12883+`）。
 
@@ -116,7 +112,7 @@ flowchart TD
 - Prometheus：`http://localhost:12885`
 - Alertmanager：`http://localhost:12886`
 
-> 说明：Redis/MySQL/ES/Kafka 等内部依赖默认不暴露宿主机端口，避免误暴露与端口冲突。
+> 说明：Redis/MySQL/ES 等内部依赖默认不暴露宿主机端口，避免误暴露与端口冲突。
 
 ---
 
@@ -128,16 +124,11 @@ flowchart TD
 3. `community-app` SecurityFilterChain 按路径规则鉴权（匿名读放行，写接口需登录/角色）
 4. `content` 模块查询 MySQL/Redis 组装结果并返回
 
-### 4.2 典型写路径：发帖 → 事件 → 搜索/通知更新（最终一致）
+### 4.2 典型写路径：发帖 → 本地编排 → 事件投影
 1. 前端 `POST /api/posts`
-2. `content` 模块写入主存储后写入 outbox（`infra-outbox`，同事务）
-3. relay job 在事务提交后可靠发布 Kafka 事件（payload/type/topic 以 producer 契约为 SSOT）
-4. `search`/`message` 等模块消费事件，异步更新 ES 索引/通知
-
-> 说明：即便当前运行在同一进程，事件仍走 Kafka：
-> - 让“写路径”与“投影/通知”天然解耦，降低同步链路复杂度
-> - 更容易观测（lag/DLQ/重放）
-> - 为未来拆分保留演进空间
+2. `content.application.PostApplicationService` 在本地完成参数清洗、幂等包装与命令调用
+3. `PostCommandService` 在事务内写主存储并发布帖子领域事件
+4. 帖子领域事件目前仍通过桥接层进入既有事件发布链路，用于搜索/通知等投影；reindex 等运维动作已收敛为单进程 single-flight 协调
 
 ---
 
@@ -174,6 +165,6 @@ flowchart TD
 ---
 
 ## 7. 与代码一致性的检查清单（建议）
-- 对外入口与授权矩阵：以 `backend/community-bootstrap/src/main/java/.../CommunitySecurityConfig.java` 为准
+- 对外入口与安全装配：以 `backend/community-bootstrap/src/main/java/.../CommunitySecurityConfig.java` 和各领域 `api/security/*SecurityRules.java` 为准
 - 端口：以 `deploy/docker-compose.frontend-direct.yml` 与 `deploy/docker-compose.ports.yml` 为准
 - 观测：以 `deploy/observability/*` 与 `deploy/docker-compose.yml` 为准

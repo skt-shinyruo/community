@@ -9,7 +9,7 @@
         values(#{postId}, #{tagId}, #{createTime})
     </insert>
 
-    <select id="selectTagNamesByPostIds" resultType="PostTagName">
+    <select id="selectTagNamesByPostIds" resultType="com.nowcoder.community.content.entity.PostTagName">
         select
             pt.post_id as post_id,
             t.name as name

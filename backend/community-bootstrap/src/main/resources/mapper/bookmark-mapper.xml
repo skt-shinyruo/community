@@ -22,7 +22,7 @@
           and post_id = #{postId}
     </select>
 
-    <select id="selectBookmarkedPosts" resultType="DiscussPost">
+    <select id="selectBookmarkedPosts" resultType="com.nowcoder.community.content.entity.DiscussPost">
         select
             p.id as id,
             p.user_id as user_id,
@@ -48,4 +48,3 @@
     </select>
 
 </mapper>
-

@@ -8,7 +8,7 @@
         id, name, description, position, create_time
     </sql>
 
-    <select id="selectCategories" resultType="Category">
+    <select id="selectCategories" resultType="com.nowcoder.community.content.entity.Category">
         select
             c.id as id,
             c.name as name,
@@ -27,11 +27,10 @@
         order by c.position asc, c.id asc
     </select>
 
-    <select id="selectCategoryById" resultType="Category">
+    <select id="selectCategoryById" resultType="com.nowcoder.community.content.entity.Category">
         select <include refid="selectFields"></include>
         from category
         where id = #{id}
     </select>
 
 </mapper>
-

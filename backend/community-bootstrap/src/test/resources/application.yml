@@ -16,7 +16,6 @@ spring:
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml
-  type-aliases-package: com.nowcoder.community.content.entity,com.nowcoder.community.user.entity,com.nowcoder.community.message.entity
   configuration:
     map-underscore-to-camel-case: true
 

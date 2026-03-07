@@ -12,7 +12,7 @@
         reporter_id, target_type, target_id, reason, detail, status, create_time
     </sql>
 
-    <insert id="insertReport" parameterType="Report" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+    <insert id="insertReport" parameterType="com.nowcoder.community.content.entity.Report" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         insert into report(<include refid="insertFields"></include>)
         values(#{reporterId}, #{targetType}, #{targetId}, #{reason}, #{detail}, #{status}, #{createTime})
     </insert>
@@ -26,13 +26,13 @@
         limit 1
     </select>
 
-    <select id="selectReportById" resultType="Report">
+    <select id="selectReportById" resultType="com.nowcoder.community.content.entity.Report">
         select <include refid="selectFields"></include>
         from report
         where id = #{id}
     </select>
 
-    <select id="selectReports" resultType="Report">
+    <select id="selectReports" resultType="com.nowcoder.community.content.entity.Report">
         select <include refid="selectFields"></include>
         from report
         where 1=1
@@ -54,4 +54,3 @@
     </update>
 
 </mapper>
-

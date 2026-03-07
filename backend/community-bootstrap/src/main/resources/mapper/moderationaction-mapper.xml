@@ -12,19 +12,19 @@
         report_id, actor_id, action, reason, duration_seconds, create_time
     </sql>
 
-    <insert id="insertAction" parameterType="ModerationAction" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+    <insert id="insertAction" parameterType="com.nowcoder.community.content.entity.ModerationAction" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         insert into moderation_action(<include refid="insertFields"></include>)
         values(#{reportId}, #{actorId}, #{action}, #{reason}, #{durationSeconds}, #{createTime})
     </insert>
 
-    <select id="selectActionsByReportId" resultType="ModerationAction">
+    <select id="selectActionsByReportId" resultType="com.nowcoder.community.content.entity.ModerationAction">
         select <include refid="selectFields"></include>
         from moderation_action
         where report_id = #{reportId}
         order by create_time asc, id asc
     </select>
 
-    <select id="selectActions" resultType="ModerationAction">
+    <select id="selectActions" resultType="com.nowcoder.community.content.entity.ModerationAction">
         select <include refid="selectFields"></include>
         from moderation_action
         where 1=1
@@ -36,4 +36,3 @@
     </select>
 
 </mapper>
-

@@ -13,28 +13,28 @@
         id, username, password, salt, email, type, status, activation_code, header_url, create_time, score, mute_until, ban_until
     </sql>
 
-    <select id="selectById" resultType="User">
+    <select id="selectById" resultType="com.nowcoder.community.user.entity.User">
         select
         <include refid="selectFields"></include>
         from user
         where id = #{id}
     </select>
 
-    <select id="selectByName" resultType="User">
+    <select id="selectByName" resultType="com.nowcoder.community.user.entity.User">
         select
         <include refid="selectFields"></include>
         from user
         where username = #{username}
     </select>
 
-    <select id="selectByEmail" resultType="User">
+    <select id="selectByEmail" resultType="com.nowcoder.community.user.entity.User">
         select
         <include refid="selectFields"></include>
         from user
         where email = #{email}
     </select>
 
-    <insert id="insertUser" parameterType="User" keyProperty="id">
+    <insert id="insertUser" parameterType="com.nowcoder.community.user.entity.User" keyProperty="id">
         insert into user (<include refid="insertFields"></include>)
         values(#{username}, #{password}, #{salt}, #{email}, #{type}, #{status}, #{activationCode}, #{headerUrl},
         #{createTime})
@@ -72,7 +72,7 @@
         where id = #{id}
     </update>
 
-    <select id="selectTopByScore" resultType="User">
+    <select id="selectTopByScore" resultType="com.nowcoder.community.user.entity.User">
         select
         <include refid="selectFields"></include>
         from user
@@ -80,7 +80,7 @@
         limit #{limit}
     </select>
 
-    <select id="selectModerationUsersAfterId" resultType="User">
+    <select id="selectModerationUsersAfterId" resultType="com.nowcoder.community.user.entity.User">
         select id, mute_until, ban_until
         from user
         where id &gt; #{afterId}
@@ -88,7 +88,7 @@
         limit #{limit}
     </select>
 
-    <select id="selectUserSummariesByIds" resultType="User">
+    <select id="selectUserSummariesByIds" resultType="com.nowcoder.community.user.entity.User">
         select id, username, header_url, type
         from user
         where id in

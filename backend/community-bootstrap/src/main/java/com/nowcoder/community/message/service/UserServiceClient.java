@@ -1,11 +1,11 @@
 package com.nowcoder.community.message.service;
 
 import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.infra.internalclient.InternalCallOptions;
 import com.nowcoder.community.infra.internalclient.InternalClientSupport;
 import com.nowcoder.community.user.api.rpc.UserReadRpcService;
 import com.nowcoder.community.user.api.rpc.dto.UserSummary;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Tags;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,18 +16,14 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
-import java.net.SocketTimeoutException;
 
 @Service
 public class UserServiceClient {
 
     private static final Logger log = LoggerFactory.getLogger(UserServiceClient.class);
     private static final String SERVICE_NAME = "user-service";
-    private static final String METRIC_TOTAL = "message_user_read_rpc_total";
-    private static final String METRIC_LATENCY = "message_user_read_rpc_latency";
 
     private final MeterRegistry meterRegistry;
     private final boolean failOpen;
@@ -53,14 +49,12 @@ public class UserServiceClient {
     }
 
     public Integer safeResolveUserIdByUsername(String username) {
-        return call("resolveByUsername", () -> {
-            UserSummary u = resolveByUsername(username);
-            return u == null || u.getId() <= 0 ? null : u.getId();
-        }, () -> null);
+        UserSummary u = resolveByUsername(username);
+        return u == null || u.getId() <= 0 ? null : u.getId();
     }
 
     public UserSummary safeGetUser(int userId) {
-        return call("getById", () -> getById(userId), () -> null);
+        return getById(userId);
     }
 
     public UserSummary resolveByUsername(String username) {
@@ -74,7 +68,7 @@ public class UserServiceClient {
             return cached;
         }
 
-        UserSummary data = call("resolveByUsername", () -> resolveByUsernameInternal(key), () -> null);
+        UserSummary data = callResult("resolveByUsername", () -> userReadRpcService.resolveByUsernameOrNull(key), () -> null);
         if (data != null && data.getId() > 0 && StringUtils.hasText(data.getUsername())) {
             putResolveCache(data.getUsername(), data);
         }
@@ -82,17 +76,13 @@ public class UserServiceClient {
     }
 
     public UserSummary getById(int userId) {
-        return call("getById", () -> getByIdInternal(userId), () -> null);
+        if (userId <= 0) {
+            return null;
+        }
+        return callResult("getById", () -> userReadRpcService.getByIdOrNull(userId), () -> null);
     }
 
     public Map<Integer, UserSummary> safeBatchGetUsers(Set<Integer> userIds) {
-        if (userIds == null || userIds.isEmpty()) {
-            return Map.of();
-        }
-        return call("batchSummary", () -> batchSummary(userIds), () -> Map.of());
-    }
-
-    private Map<Integer, UserSummary> batchSummary(Set<Integer> userIds) {
         if (userIds == null || userIds.isEmpty()) {
             return Map.of();
         }
@@ -100,8 +90,7 @@ public class UserServiceClient {
         if (ids.isEmpty()) {
             return Map.of();
         }
-        Result<List<UserSummary>> result = userReadRpcService.batchSummary(ids);
-        List<UserSummary> list = InternalClientSupport.unwrap(result, SERVICE_NAME);
+        List<UserSummary> list = callResult("batchSummary", () -> userReadRpcService.batchSummary(ids), () -> List.of());
         if (list == null || list.isEmpty()) {
             return Map.of();
         }
@@ -115,64 +104,17 @@ public class UserServiceClient {
         return map;
     }
 
-    private <T> T call(String api, Supplier<T> supplier, Supplier<T> fallback) {
-        long start = System.nanoTime();
-        try {
-            T v = supplier.get();
-            record(api, "success", start);
-            return v;
-        } catch (RuntimeException e) {
-            if (fallback != null && failOpen) {
-                record(api, "degraded", start);
-                log.warn("[user-client] degraded (api={}): {}", api, e.toString());
-                return fallback.get();
-            }
-            record(api, classifyOutcome(e), start);
-            throw e;
-        }
-    }
-
-    private UserSummary resolveByUsernameInternal(String usernameKey) {
-        if (!StringUtils.hasText(usernameKey)) {
-            return null;
-        }
-        Result<UserSummary> result = userReadRpcService.resolveByUsernameOrNull(usernameKey);
-        return InternalClientSupport.unwrap(result, SERVICE_NAME);
-    }
-
-    private UserSummary getByIdInternal(int userId) {
-        if (userId <= 0) {
-            return null;
-        }
-        Result<UserSummary> result = userReadRpcService.getByIdOrNull(userId);
-        return InternalClientSupport.unwrap(result, SERVICE_NAME);
-    }
-
-    private String classifyOutcome(Throwable t) {
-        if (isTimeout(t)) {
-            return "timeout";
-        }
-        return "error";
-    }
-
-    private boolean isTimeout(Throwable t) {
-        Throwable cur = t;
-        while (cur != null) {
-            if (cur instanceof SocketTimeoutException) {
-                return true;
-            }
-            cur = cur.getCause();
-        }
-        return false;
-    }
-
-    private void record(String api, String outcome, long startNanos) {
-        if (meterRegistry == null) {
-            return;
-        }
-        Tags tags = Tags.of("api", String.valueOf(api), "outcome", String.valueOf(outcome));
-        meterRegistry.counter(METRIC_TOTAL, tags).increment();
-        meterRegistry.timer(METRIC_LATENCY, tags).record(System.nanoTime() - startNanos, TimeUnit.NANOSECONDS);
+    private <T> T callResult(String api, Supplier<Result<T>> supplier, Supplier<T> fallback) {
+        InternalCallOptions<T> options = (failOpen && fallback != null)
+                ? InternalCallOptions.failOpen(fallback)
+                : InternalCallOptions.failClosed();
+        return InternalClientSupport.callResult(
+                meterRegistry,
+                SERVICE_NAME,
+                api,
+                supplier,
+                options.withWarnLogger((m, e) -> log.warn(m, e))
+        );
     }
 
     private String normalizeUsernameKey(String username) {

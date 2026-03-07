@@ -1,25 +1,26 @@
 package com.nowcoder.community.content.service;
 
-import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.contracts.internal.dto.UserModerationStatus;
 import com.nowcoder.community.contracts.internal.rpc.UserModerationRpcService;
+import com.nowcoder.community.infra.internalclient.InternalCallOptions;
 import com.nowcoder.community.infra.internalclient.InternalClientSupport;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.net.SocketTimeoutException;
 import java.util.List;
 
 import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.SERVICE_UNAVAILABLE;
 
 // user-service 内部治理接口客户端：用于禁言/封禁与状态查询（开发阶段默认放行；生产建议通过网络隔离/网关策略收敛暴露面）。
 
 @Service
 public class UserModerationClient {
 
+    private static final Logger log = LoggerFactory.getLogger(UserModerationClient.class);
     private static final String SERVICE_NAME = "user-service";
 
     private final MeterRegistry meterRegistry;
@@ -34,19 +35,13 @@ public class UserModerationClient {
         if (userId <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
-        long start = System.nanoTime();
-        try {
-            Result<UserModerationStatus> result = userModerationRpcService.getStatus(userId);
-            UserModerationStatus data = InternalClientSupport.unwrap(result, SERVICE_NAME);
-            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "getStatus", InternalClientSupport.OUTCOME_SUCCESS, start);
-            return data;
-        } catch (RuntimeException e) {
-            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "getStatus", classifyOutcome(e), start);
-            if (e instanceof BusinessException be) {
-                throw be;
-            }
-            throw new BusinessException(SERVICE_UNAVAILABLE, "user-service 不可用");
-        }
+        return InternalClientSupport.callResult(
+                meterRegistry,
+                SERVICE_NAME,
+                "getStatus",
+                () -> userModerationRpcService.getStatus(userId),
+                InternalCallOptions.<UserModerationStatus>failClosed().withWarnLogger((m, e) -> log.warn(m, e))
+        );
     }
 
     /**
@@ -57,19 +52,14 @@ public class UserModerationClient {
     public List<UserModerationStatus> scanStatuses(int afterId, int limit) {
         int a = Math.max(0, afterId);
         int l = Math.min(500, Math.max(1, limit));
-        long start = System.nanoTime();
-        try {
-            Result<List<UserModerationStatus>> result = userModerationRpcService.scanStatuses(a, l);
-            List<UserModerationStatus> data = InternalClientSupport.unwrap(result, SERVICE_NAME);
-            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "scanStatuses", InternalClientSupport.OUTCOME_SUCCESS, start);
-            return data == null ? List.of() : data;
-        } catch (RuntimeException e) {
-            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "scanStatuses", classifyOutcome(e), start);
-            if (e instanceof BusinessException be) {
-                throw be;
-            }
-            throw new BusinessException(SERVICE_UNAVAILABLE, "user-service 不可用");
-        }
+        List<UserModerationStatus> data = InternalClientSupport.callResult(
+                meterRegistry,
+                SERVICE_NAME,
+                "scanStatuses",
+                () -> userModerationRpcService.scanStatuses(a, l),
+                InternalCallOptions.<List<UserModerationStatus>>failClosed().withWarnLogger((m, e) -> log.warn(m, e))
+        );
+        return data == null ? List.of() : data;
     }
 
     public void mute(int userId, int durationSeconds) {
@@ -88,35 +78,12 @@ public class UserModerationClient {
             throw new BusinessException(INVALID_ARGUMENT, "action 不能为空");
         }
         int seconds = Math.max(0, durationSeconds);
-        long start = System.nanoTime();
-        try {
-            Result<UserModerationStatus> result = userModerationRpcService.applyModeration(userId, action, seconds);
-            InternalClientSupport.unwrap(result, SERVICE_NAME);
-            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "apply:" + action, InternalClientSupport.OUTCOME_SUCCESS, start);
-        } catch (RuntimeException e) {
-            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "apply:" + action, classifyOutcome(e), start);
-            if (e instanceof BusinessException be) {
-                throw be;
-            }
-            throw new BusinessException(SERVICE_UNAVAILABLE, "user-service 不可用");
-        }
-    }
-
-    private String classifyOutcome(Throwable t) {
-        if (isTimeout(t)) {
-            return InternalClientSupport.OUTCOME_TIMEOUT;
-        }
-        return InternalClientSupport.OUTCOME_ERROR;
-    }
-
-    private boolean isTimeout(Throwable t) {
-        Throwable cur = t;
-        while (cur != null) {
-            if (cur instanceof SocketTimeoutException) {
-                return true;
-            }
-            cur = cur.getCause();
-        }
-        return false;
+        InternalClientSupport.callResult(
+                meterRegistry,
+                SERVICE_NAME,
+                "apply:" + action,
+                () -> userModerationRpcService.applyModeration(userId, action, seconds),
+                InternalCallOptions.<UserModerationStatus>failClosed().withWarnLogger((m, e) -> log.warn(m, e))
+        );
     }
 }

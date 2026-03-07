@@ -3,12 +3,13 @@ package com.nowcoder.community.social.service;
 import com.nowcoder.community.contracts.domain.EntityTypes;
 import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.contracts.api.CommonErrorCode;
-import com.nowcoder.community.contracts.api.Result;
-import com.nowcoder.community.contracts.internal.dto.EntityResolveResponse;
 import com.nowcoder.community.contracts.internal.rpc.EntityResolveRpcService;
+import com.nowcoder.community.infra.internalclient.InternalCallOptions;
 import com.nowcoder.community.infra.internalclient.InternalClientSupport;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import static com.nowcoder.community.contracts.api.CommonErrorCode.SERVICE_UNAVAILABLE;
@@ -21,6 +22,7 @@ import static com.nowcoder.community.contracts.api.CommonErrorCode.SERVICE_UNAVA
 @Service
 public class ContentEntityResolver {
 
+    private static final Logger log = LoggerFactory.getLogger(ContentEntityResolver.class);
     private final MeterRegistry meterRegistry;
     private final EntityResolveRpcService entityResolveRpcService;
 
@@ -42,27 +44,31 @@ public class ContentEntityResolver {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "entityType 不支持");
         }
 
-        long start = System.nanoTime();
+        return resolveInternal(entityType, entityId);
+    }
+
+    private ResolvedEntity resolveInternal(int entityType, int entityId) {
         try {
-            Result<EntityResolveResponse> result = entityResolveRpcService.resolveEntity(entityType, entityId);
-            EntityResolveResponse data = InternalClientSupport.unwrap(result, SERVICE_NAME);
-            int entityUserId = data == null ? 0 : data.getEntityUserId();
-            int postId = data == null ? 0 : data.getPostId();
-            if (entityUserId <= 0 || postId <= 0) {
-                count(entityType, "rpc", "incomplete");
-                throw new BusinessException(SERVICE_UNAVAILABLE, "内容实体解析结果缺失或不完整");
-            }
-            count(entityType, "rpc", "success");
-            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "resolveEntity", InternalClientSupport.OUTCOME_SUCCESS, start);
-            return new ResolvedEntity(entityUserId, postId);
+            return InternalClientSupport.callResultAndThen(
+                    meterRegistry,
+                    SERVICE_NAME,
+                    "resolveEntity",
+                    () -> entityResolveRpcService.resolveEntity(entityType, entityId),
+                    data -> {
+                        int entityUserId = data == null ? 0 : data.getEntityUserId();
+                        int postId = data == null ? 0 : data.getPostId();
+                        if (entityUserId <= 0 || postId <= 0) {
+                            count(entityType, "rpc", "incomplete");
+                            throw new BusinessException(SERVICE_UNAVAILABLE, "内容实体解析结果缺失或不完整");
+                        }
+                        count(entityType, "rpc", "success");
+                        return new ResolvedEntity(entityUserId, postId);
+                    },
+                    InternalCallOptions.<ResolvedEntity>failClosed().withWarnLogger((m, e) -> log.warn(m, e))
+            );
         } catch (RuntimeException e) {
             count(entityType, "rpc", "error");
-            String outcome = InternalClientSupport.isTimeout(e) ? InternalClientSupport.OUTCOME_TIMEOUT : InternalClientSupport.OUTCOME_ERROR;
-            InternalClientSupport.record(meterRegistry, SERVICE_NAME, "resolveEntity", outcome, start);
-            if (e instanceof BusinessException be) {
-                throw be;
-            }
-            throw new BusinessException(SERVICE_UNAVAILABLE, "content-service 不可用");
+            throw e;
         }
     }
 

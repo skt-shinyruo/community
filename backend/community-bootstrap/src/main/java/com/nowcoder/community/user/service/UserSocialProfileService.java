@@ -2,20 +2,21 @@ package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.social.application.SocialReadApplicationService;
 import com.nowcoder.community.social.application.dto.SocialUserProfileStats;
+import com.nowcoder.community.infra.internalclient.InternalCallOptions;
+import com.nowcoder.community.infra.internalclient.InternalClientSupport;
 import com.nowcoder.community.user.config.UserSocialProfileProperties;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Tags;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 @Service
 public class UserSocialProfileService {
 
     private static final Logger log = LoggerFactory.getLogger(UserSocialProfileService.class);
+    private static final String TARGET = "social-service";
 
     private final MeterRegistry meterRegistry;
     private final UserSocialProfileProperties properties;
@@ -32,22 +33,37 @@ public class UserSocialProfileService {
     }
 
     public UserProfileStats safeUserProfileStats(int userId, int viewerId) {
+        if (userId <= 0) {
+            return UserProfileStats.empty();
+        }
         return call("profileStats", () -> userProfileStatsInternal(userId, viewerId), UserProfileStats::degradedFallback);
     }
 
     public long safeUserLikeCount(int userId) {
+        if (userId <= 0) {
+            return 0L;
+        }
         return call("userLikeCount", () -> userLikeCountInternal(userId), () -> 0L);
     }
 
     public long safeFolloweeCount(int userId) {
+        if (userId <= 0) {
+            return 0L;
+        }
         return call("followeeCount", () -> followeeCountInternal(userId), () -> 0L);
     }
 
     public long safeFollowerCount(int userId) {
+        if (userId <= 0) {
+            return 0L;
+        }
         return call("followerCount", () -> followerCountInternal(userId), () -> 0L);
     }
 
     public boolean safeHasFollowed(int actorUserId, int targetUserId) {
+        if (actorUserId <= 0 || targetUserId <= 0 || actorUserId == targetUserId) {
+            return false;
+        }
         Boolean value = call("hasFollowed", () -> hasFollowedInternal(actorUserId, targetUserId), () -> Boolean.FALSE);
         return Boolean.TRUE.equals(value);
     }
@@ -100,30 +116,16 @@ public class UserSocialProfileService {
     }
 
     private <T> T call(String api, Supplier<T> supplier, Supplier<T> fallback) {
-        long start = System.nanoTime();
-        try {
-            T value = supplier.get();
-            record(api, "success", start);
-            return value;
-        } catch (RuntimeException e) {
-            if (fallback != null && properties.isDegradeOnError()) {
-                record(api, "degraded", start);
-                log.warn("[user-social-profile] degraded (api={}): {}", api, e.toString());
-                return fallback.get();
-            }
-            record(api, "error", start);
-            throw e;
-        }
-    }
-
-    private void record(String api, String outcome, long startNanos) {
-        if (meterRegistry == null) {
-            return;
-        }
-        Tags tags = Tags.of("api", api, "outcome", outcome);
-        meterRegistry.counter("user_social_profile_requests_total", tags).increment();
-        meterRegistry.timer("user_social_profile_latency", tags)
-                .record(System.nanoTime() - startNanos, TimeUnit.NANOSECONDS);
+        InternalCallOptions<T> options = (fallback != null && properties.isDegradeOnError())
+                ? InternalCallOptions.failOpen(fallback)
+                : InternalCallOptions.failClosed();
+        return InternalClientSupport.call(
+                meterRegistry,
+                TARGET,
+                api,
+                supplier,
+                options.withWarnLogger((m, e) -> log.warn(m, e))
+        );
     }
 
     public static class UserProfileStats {

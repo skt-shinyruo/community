@@ -40,19 +40,19 @@ class SocialServiceClientTest {
         assertThat(client.safeFollowerCount(1)).isEqualTo(0);
         assertThat(client.safeHasFollowed(1, 2)).isFalse();
 
-        assertThat(registry.find("user_social_profile_requests_total")
-                .tags("api", "profileStats", "outcome", "degraded")
+        assertThat(registry.find("internal_call_requests_total")
+                .tags("target", "social-service", "api", "profileStats", "outcome", "degraded")
                 .counter()).isNotNull();
-        assertThat(registry.find("user_social_profile_requests_total")
-                .tags("api", "profileStats", "outcome", "degraded")
+        assertThat(registry.find("internal_call_requests_total")
+                .tags("target", "social-service", "api", "profileStats", "outcome", "degraded")
                 .counter()
                 .count()).isEqualTo(1.0);
 
-        assertThat(registry.find("user_social_profile_requests_total")
-                .tags("api", "userLikeCount", "outcome", "degraded")
+        assertThat(registry.find("internal_call_requests_total")
+                .tags("target", "social-service", "api", "userLikeCount", "outcome", "degraded")
                 .counter()).isNotNull();
-        assertThat(registry.find("user_social_profile_requests_total")
-                .tags("api", "userLikeCount", "outcome", "degraded")
+        assertThat(registry.find("internal_call_requests_total")
+                .tags("target", "social-service", "api", "userLikeCount", "outcome", "degraded")
                 .counter()
                 .count()).isEqualTo(1.0);
     }

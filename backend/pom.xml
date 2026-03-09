@@ -21,6 +21,9 @@
     </properties>
 
     <modules>
+        <module>im-contracts</module>
+        <module>im-core</module>
+        <module>im-realtime</module>
         <module>community-bootstrap</module>
     </modules>
 

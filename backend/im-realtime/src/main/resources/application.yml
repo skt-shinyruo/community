@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: im-realtime
+
+server:
+  port: 18081
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+

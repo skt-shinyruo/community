@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: im-core
+
+server:
+  port: 18082
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+

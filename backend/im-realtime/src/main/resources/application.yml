@@ -26,6 +26,9 @@ security:
 im:
   core:
     base-url: ${IM_CORE_BASE_URL:http://localhost:18082}
+  kafka:
+    event:
+      concurrency: ${IM_REALTIME_KAFKA_EVENT_CONCURRENCY:3}
   ws:
     path: ${IM_WS_PATH:/ws/im}
     outbound-buffer-size: ${IM_WS_OUTBOUND_BUFFER_SIZE:256}

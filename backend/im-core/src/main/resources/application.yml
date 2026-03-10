@@ -28,6 +28,9 @@ security:
     hmac-secret: ${JWT_HMAC_SECRET:dev-secret-please-change-at-least-32bytes}
 
 im:
+  kafka:
+    command:
+      concurrency: ${IM_CORE_KAFKA_COMMAND_CONCURRENCY:3}
   room:
     max-members: ${IM_ROOM_MAX_MEMBERS:10000}
   room-member-change:

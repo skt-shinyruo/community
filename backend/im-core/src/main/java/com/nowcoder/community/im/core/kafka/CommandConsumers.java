@@ -29,7 +29,11 @@ public class CommandConsumers {
         this.eventProducer = eventProducer;
     }
 
-    @KafkaListener(topics = ImTopics.COMMAND_PRIVATE_TEXT_V1, containerFactory = "kafkaListenerContainerFactory")
+    @KafkaListener(
+            topics = ImTopics.COMMAND_PRIVATE_TEXT_V1,
+            containerFactory = "kafkaListenerContainerFactory",
+            concurrency = "${im.kafka.command.concurrency:3}"
+    )
     public void onPrivateText(SendPrivateTextCommandV1 cmd) {
         if (cmd == null) {
             return;
@@ -40,7 +44,11 @@ public class CommandConsumers {
                 event.conversationId(), event.seq(), event.messageId());
     }
 
-    @KafkaListener(topics = ImTopics.COMMAND_ROOM_TEXT_V1, containerFactory = "kafkaListenerContainerFactory")
+    @KafkaListener(
+            topics = ImTopics.COMMAND_ROOM_TEXT_V1,
+            containerFactory = "kafkaListenerContainerFactory",
+            concurrency = "${im.kafka.command.concurrency:3}"
+    )
     public void onRoomText(SendRoomTextCommandV1 cmd) {
         if (cmd == null) {
             return;
@@ -51,4 +59,3 @@ public class CommandConsumers {
                 event.roomId(), event.seq(), event.messageId());
     }
 }
-

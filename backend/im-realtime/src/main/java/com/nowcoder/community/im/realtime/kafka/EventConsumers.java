@@ -38,12 +38,20 @@ public class EventConsumers {
         this.roomFanoutCoalescer = roomFanoutCoalescer;
     }
 
-    @KafkaListener(topics = ImTopics.EVENT_PRIVATE_PERSISTED_V1, containerFactory = "kafkaListenerContainerFactory")
+    @KafkaListener(
+            topics = ImTopics.EVENT_PRIVATE_PERSISTED_V1,
+            containerFactory = "kafkaListenerContainerFactory",
+            concurrency = "${im.kafka.event.concurrency:3}"
+    )
     public void onPrivatePersisted(PrivateMessagePersistedEventV1 event) {
         privatePushService.pushPrivateMessage(event);
     }
 
-    @KafkaListener(topics = ImTopics.EVENT_ROOM_PERSISTED_V1, containerFactory = "kafkaListenerContainerFactory")
+    @KafkaListener(
+            topics = ImTopics.EVENT_ROOM_PERSISTED_V1,
+            containerFactory = "kafkaListenerContainerFactory",
+            concurrency = "${im.kafka.event.concurrency:3}"
+    )
     public void onRoomPersisted(RoomMessagePersistedEventV1 event) {
         if (event == null) {
             return;

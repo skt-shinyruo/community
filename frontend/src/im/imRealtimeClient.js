@@ -15,7 +15,7 @@ function resolveWsUrl() {
       const scheme = loc.protocol === 'https:' ? 'wss' : 'ws'
       return `${scheme}://${loc.hostname}:18081/ws/im`
     }
-    // Default: same origin (if a gateway/ingress routes /ws/im to im-realtime)
+    // Default: same origin (if an edge proxy/ingress routes /ws/im to im-realtime)
     const scheme = loc.protocol === 'https:' ? 'wss' : 'ws'
     return `${scheme}://${loc.host}/ws/im`
   } catch {
@@ -206,4 +206,3 @@ class ImRealtimeClient {
 }
 
 export const imRealtimeClient = new ImRealtimeClient()
-

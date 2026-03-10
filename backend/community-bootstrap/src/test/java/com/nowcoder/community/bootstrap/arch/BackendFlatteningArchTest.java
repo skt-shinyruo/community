@@ -28,12 +28,17 @@ class BackendFlatteningArchTest {
     );
 
     @Test
-    void backend_should_only_keep_community_bootstrap_as_module() {
+    void backend_should_not_keep_legacy_split_modules() {
         Path backendRoot = detectBackendRoot();
         List<String> declaredModules = declaredModules(backendRoot.resolve("pom.xml"));
 
         assertThat(Files.isDirectory(backendRoot.resolve("community-bootstrap"))).isTrue();
-        assertThat(declaredModules).containsExactly("community-bootstrap");
+        assertThat(declaredModules).containsExactly(
+                "im-contracts",
+                "im-core",
+                "im-realtime",
+                "community-bootstrap"
+        );
         for (String module : LEGACY_MODULES) {
             assertThat(backendRoot.resolve(module))
                     .as("legacy module should be removed: %s", module)

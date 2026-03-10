@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:im_core_test;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+  sql:
+    init:
+      mode: always
+  kafka:
+    bootstrap-servers: localhost:0
+    listener:
+      auto-startup: false
+
+security:
+  jwt:
+    hmac-secret: dev-secret-please-change-at-least-32bytes
+
+im:
+  room:
+    max-members: 3
+

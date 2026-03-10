@@ -22,12 +22,12 @@
             class="conv-item"
             :class="{ unread: c.unreadCount > 0 }"
           >
-             <UiAvatar :src="c?.targetUser?.headerUrl || ''" :name="c?.targetUser?.username || '?'" :size="48" />
+             <UiAvatar :src="''" :name="`U#${c?.otherUserId || '?'}`" :size="48" />
              
              <div class="conv-content">
                 <div class="conv-top">
-                   <span class="conv-name">{{ c?.targetUser?.username || `User ${c?.targetUser?.id}` }}</span>
-                   <span class="conv-time" v-if="c.lastMessage">{{ formatTimeShort(c.lastMessage.createTime) }}</span>
+                   <span class="conv-name">{{ `用户 #${c?.otherUserId || '?'}` }}</span>
+                   <span class="conv-time" v-if="c.lastMessage">{{ formatTimeShort(c.lastMessage.createdAtEpochMs) }}</span>
                 </div>
                 <div class="conv-bottom">
                    <span class="conv-preview">{{ c.lastMessage?.content || '（暂无消息）' }}</span>
@@ -42,7 +42,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import { listConversationItems } from '../api/services/messageService'
+import { listImConversations } from '../api/services/imCoreChatService'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -70,9 +70,8 @@ async function load() {
   error.value = ''
   loading.value = true
   try {
-    const { data, traceId } = await listConversationItems({ page: 0, size: 20 })
-    items.value = data
-    emit('trace', traceId || '')
+    items.value = await listImConversations({ page: 0, size: 20 })
+    emit('trace', '')
   } catch (e) {
     error.value = e?.message || '加载会话失败'
   } finally {

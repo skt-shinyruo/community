@@ -98,6 +98,13 @@ services:
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic community.event.comment.v1.dlq --replication-factor 1 --partitions 1
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic community.event.social.v1.dlq --replication-factor 1 --partitions 1
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic community.event.moderation.v1.dlq --replication-factor 1 --partitions 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic im.command.private_text.v1 --replication-factor 1 --partitions 12
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic im.command.room_text.v1 --replication-factor 1 --partitions 12
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic im.event.private_persisted.v1 --replication-factor 1 --partitions 12
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic im.event.room_persisted.v1 --replication-factor 1 --partitions 12
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic im.event.room_member_changed.v1 --replication-factor 1 --partitions 3
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic im.command.private_text.v1.dlq --replication-factor 1 --partitions 12
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic im.command.room_text.v1.dlq --replication-factor 1 --partitions 12
         echo "[kafka-init] done."
     restart: "no"
 
@@ -228,6 +235,48 @@ services:
       kafka:
         condition: service_healthy
       elasticsearch:
+        condition: service_started
+
+  im-core:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/Dockerfile.spring-service
+      args:
+        MODULE: im-core
+    container_name: im-core
+    environment:
+      - SERVER_PORT=18082
+      - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - IM_CORE_DB_URL=jdbc:mysql://mysql:3306/${IM_MYSQL_DATABASE:-im_core}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+      - IM_CORE_DB_USER=${IM_MYSQL_USER:-im_core}
+      - IM_CORE_DB_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
+      - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+
+  im-realtime:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/Dockerfile.spring-service
+      args:
+        MODULE: im-realtime
+    container_name: im-realtime
+    environment:
+      - SERVER_PORT=18081
+      - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - IM_CORE_BASE_URL=http://im-core:18082
+      - IM_ROOM_FLUSH_INTERVAL_MS=${IM_ROOM_FLUSH_INTERVAL_MS:-50}
+      - IM_WS_OUTBOUND_BUFFER_SIZE=${IM_WS_OUTBOUND_BUFFER_SIZE:-256}
+      - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      im-core:
         condition: service_started
 
 volumes:

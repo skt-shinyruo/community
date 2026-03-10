@@ -18,4 +18,5 @@ security:
 im:
   room:
     max-members: 3
-
+  room-member-change:
+    publisher: noop

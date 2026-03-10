@@ -10,21 +10,27 @@
 
 ---
 
-## Task 1: Add Maven modules for `im-contracts`, `im-core`, `im-realtime`
+## Task 1: Add Maven module `im` (aggregate) + leaf modules
 
 **Files:**
 - Modify: `backend/pom.xml`
-- Create: `backend/im-contracts/pom.xml`
-- Create: `backend/im-core/pom.xml`
-- Create: `backend/im-realtime/pom.xml`
-- Create: `backend/im-core/src/main/java/.../ImCoreApplication.java`
-- Create: `backend/im-realtime/src/main/java/.../ImRealtimeApplication.java`
-- Create: `backend/im-core/src/main/resources/application.yml`
-- Create: `backend/im-realtime/src/main/resources/application.yml`
+- Create: `backend/im/pom.xml`
+- Create: `backend/im/im-contracts/pom.xml`
+- Create: `backend/im/im-core/pom.xml`
+- Create: `backend/im/im-realtime/pom.xml`
+- Create: `backend/im/im-core/src/main/java/.../ImCoreApplication.java`
+- Create: `backend/im/im-realtime/src/main/java/.../ImRealtimeApplication.java`
+- Create: `backend/im/im-core/src/main/resources/application.yml`
+- Create: `backend/im/im-realtime/src/main/resources/application.yml`
 
 **Step 1: Add modules to the reactor**
 
 Modify `backend/pom.xml`:
+
+- Add:
+  - `<module>im</module>`
+
+Create `backend/im/pom.xml`:
 
 - Add:
   - `<module>im-contracts</module>`
@@ -33,14 +39,14 @@ Modify `backend/pom.xml`:
 
 **Step 2: Create `im-contracts` module**
 
-Create `backend/im-contracts/pom.xml`:
+Create `backend/im/im-contracts/pom.xml`:
 - packaging `jar`
 - no Spring Boot plugin
 - keep dependencies minimal (`jackson-annotations` if needed)
 
 **Step 3: Create `im-core` module**
 
-Create `backend/im-core/pom.xml`:
+Create `backend/im/im-core/pom.xml`:
 - `spring-boot-starter-web`
 - `spring-boot-starter-actuator`
 - `spring-boot-starter-validation`
@@ -51,7 +57,7 @@ Create `backend/im-core/pom.xml`:
 
 **Step 4: Create `im-realtime` module**
 
-Create `backend/im-realtime/pom.xml`:
+Create `backend/im/im-realtime/pom.xml`:
 - `spring-boot-starter-webflux`
 - `spring-boot-starter-actuator`
 - `spring-boot-starter-validation`
@@ -62,8 +68,8 @@ Create `backend/im-realtime/pom.xml`:
 **Step 5: Add smoke tests**
 
 Create:
-- `backend/im-core/src/test/java/.../ImCoreApplicationTest.java`
-- `backend/im-realtime/src/test/java/.../ImRealtimeApplicationTest.java`
+- `backend/im/im-core/src/test/java/.../ImCoreApplicationTest.java`
+- `backend/im/im-realtime/src/test/java/.../ImRealtimeApplicationTest.java`
 
 Example (same pattern for both):
 
@@ -88,12 +94,12 @@ Expected: PASS.
 ## Task 2: Define Kafka topics + command/event DTOs in `im-contracts`
 
 **Files:**
-- Create: `backend/im-contracts/src/main/java/.../ImTopics.java`
-- Create: `backend/im-contracts/src/main/java/.../command/SendPrivateTextCommandV1.java`
-- Create: `backend/im-contracts/src/main/java/.../command/SendRoomTextCommandV1.java`
-- Create: `backend/im-contracts/src/main/java/.../event/PrivateMessagePersistedEventV1.java`
-- Create: `backend/im-contracts/src/main/java/.../event/RoomMessagePersistedEventV1.java`
-- Create: `backend/im-contracts/src/main/java/.../event/RoomMemberChangedEventV1.java`
+- Create: `backend/im/im-contracts/src/main/java/.../ImTopics.java`
+- Create: `backend/im/im-contracts/src/main/java/.../command/SendPrivateTextCommandV1.java`
+- Create: `backend/im/im-contracts/src/main/java/.../command/SendRoomTextCommandV1.java`
+- Create: `backend/im/im-contracts/src/main/java/.../event/PrivateMessagePersistedEventV1.java`
+- Create: `backend/im/im-contracts/src/main/java/.../event/RoomMessagePersistedEventV1.java`
+- Create: `backend/im/im-contracts/src/main/java/.../event/RoomMemberChangedEventV1.java`
 
 **Step 1: Topics**
 
@@ -185,10 +191,10 @@ If using docker-compose for local dev:
 ## Task 4: `im-core` — DB access layer (read/write + seq allocation)
 
 **Files:**
-- Create: `backend/im-core/src/main/java/.../db/*` (DAO + mapper)
-- Create: `backend/im-core/src/main/java/.../service/RoomMessageService.java`
-- Create: `backend/im-core/src/main/java/.../service/PrivateMessageService.java`
-- Test: `backend/im-core/src/test/java/.../service/*Test.java`
+- Create: `backend/im/im-core/src/main/java/.../db/*` (DAO + mapper)
+- Create: `backend/im/im-core/src/main/java/.../service/RoomMessageService.java`
+- Create: `backend/im/im-core/src/main/java/.../service/PrivateMessageService.java`
+- Test: `backend/im/im-core/src/test/java/.../service/*Test.java`
 
 **Step 1: Implement seq allocation**
 
@@ -219,14 +225,14 @@ Run:
 ## Task 5: `im-core` — Kafka consumers (commands) + producers (persisted events)
 
 **Files:**
-- Create: `backend/im-core/src/main/java/.../kafka/KafkaConfig.java`
-- Create: `backend/im-core/src/main/java/.../kafka/CommandConsumers.java`
-- Create: `backend/im-core/src/main/java/.../kafka/EventProducer.java`
-- Test: `backend/im-core/src/test/java/.../kafka/*Test.java`
+- Create: `backend/im/im-core/src/main/java/.../kafka/KafkaConfig.java`
+- Create: `backend/im/im-core/src/main/java/.../kafka/CommandConsumers.java`
+- Create: `backend/im/im-core/src/main/java/.../kafka/EventProducer.java`
+- Test: `backend/im/im-core/src/test/java/.../kafka/*Test.java`
 
 **Step 1: Add `spring.kafka.*` config**
 
-In `backend/im-core/src/main/resources/application.yml`:
+In `backend/im/im-core/src/main/resources/application.yml`:
 - bootstrap servers
 - consumer group ids
 - JSON serializers/deserializers
@@ -253,11 +259,11 @@ If Testcontainers Kafka is too heavy, add a “wiring test” that boots context
 ## Task 6: `im-core` — HTTP APIs (history + unread + read mark + internal bootstrap)
 
 **Files:**
-- Create: `backend/im-core/src/main/java/.../api/RoomController.java`
-- Create: `backend/im-core/src/main/java/.../api/ConversationController.java`
-- Create: `backend/im-core/src/main/java/.../api/UnreadController.java`
-- Create: `backend/im-core/src/main/java/.../api/InternalRealtimeBootstrapController.java`
-- Test: `backend/im-core/src/test/java/.../api/*Test.java`
+- Create: `backend/im/im-core/src/main/java/.../api/RoomController.java`
+- Create: `backend/im/im-core/src/main/java/.../api/ConversationController.java`
+- Create: `backend/im/im-core/src/main/java/.../api/UnreadController.java`
+- Create: `backend/im/im-core/src/main/java/.../api/InternalRealtimeBootstrapController.java`
+- Test: `backend/im/im-core/src/test/java/.../api/*Test.java`
 
 **Step 1: History endpoints**
 
@@ -291,10 +297,10 @@ Return items contain:
 ## Task 7: `im-realtime` — JWT verification + WS endpoint skeleton
 
 **Files:**
-- Create: `backend/im-realtime/src/main/java/.../ws/ImWebSocketHandler.java`
-- Create: `backend/im-realtime/src/main/java/.../ws/WsProtocol.java` (message types)
-- Create: `backend/im-realtime/src/main/java/.../security/JwtVerifier.java`
-- Test: `backend/im-realtime/src/test/java/.../security/JwtVerifierTest.java`
+- Create: `backend/im/im-realtime/src/main/java/.../ws/ImWebSocketHandler.java`
+- Create: `backend/im/im-realtime/src/main/java/.../ws/WsProtocol.java` (message types)
+- Create: `backend/im/im-realtime/src/main/java/.../security/JwtVerifier.java`
+- Test: `backend/im/im-realtime/src/test/java/.../security/JwtVerifierTest.java`
 
 **Step 1: Implement `auth` first-message protocol**
 
@@ -314,10 +320,10 @@ Use Nimbus APIs (via Spring Security jose) to validate and extract:
 ## Task 8: `im-realtime` — connection registry + room membership bootstrap
 
 **Files:**
-- Create: `backend/im-realtime/src/main/java/.../presence/ConnectionRegistry.java`
-- Create: `backend/im-realtime/src/main/java/.../presence/RoomLocalIndex.java`
-- Create: `backend/im-realtime/src/main/java/.../client/ImCoreClient.java`
-- Test: `backend/im-realtime/src/test/java/.../presence/*Test.java`
+- Create: `backend/im/im-realtime/src/main/java/.../presence/ConnectionRegistry.java`
+- Create: `backend/im/im-realtime/src/main/java/.../presence/RoomLocalIndex.java`
+- Create: `backend/im/im-realtime/src/main/java/.../client/ImCoreClient.java`
+- Test: `backend/im/im-realtime/src/test/java/.../presence/*Test.java`
 
 **Step 1: Register connection by userId**
 
@@ -340,11 +346,11 @@ On close:
 ## Task 9: `im-realtime` — Kafka event consumers + push logic
 
 **Files:**
-- Create: `backend/im-realtime/src/main/java/.../kafka/EventConsumers.java`
-- Create: `backend/im-realtime/src/main/java/.../push/PrivatePushService.java`
-- Create: `backend/im-realtime/src/main/java/.../push/RoomUpdateCoalescer.java`
-- Create: `backend/im-realtime/src/main/java/.../push/WsSender.java`
-- Test: `backend/im-realtime/src/test/java/.../push/RoomUpdateCoalescerTest.java`
+- Create: `backend/im/im-realtime/src/main/java/.../kafka/EventConsumers.java`
+- Create: `backend/im/im-realtime/src/main/java/.../push/PrivatePushService.java`
+- Create: `backend/im/im-realtime/src/main/java/.../push/RoomUpdateCoalescer.java`
+- Create: `backend/im/im-realtime/src/main/java/.../push/WsSender.java`
+- Test: `backend/im/im-realtime/src/test/java/.../push/RoomUpdateCoalescerTest.java`
 
 **Step 1: Private persisted events**
 
@@ -379,9 +385,9 @@ Unit test `RoomUpdateCoalescer`:
 ## Task 10: `im-realtime` — inbound WS send handling (produce commands)
 
 **Files:**
-- Modify: `backend/im-realtime/src/main/java/.../ws/ImWebSocketHandler.java`
-- Create: `backend/im-realtime/src/main/java/.../kafka/CommandProducer.java`
-- Test: `backend/im-realtime/src/test/java/.../ws/SendValidationTest.java`
+- Modify: `backend/im/im-realtime/src/main/java/.../ws/ImWebSocketHandler.java`
+- Create: `backend/im/im-realtime/src/main/java/.../kafka/CommandProducer.java`
+- Test: `backend/im/im-realtime/src/test/java/.../ws/SendValidationTest.java`
 
 **Step 1: Parse and validate**
 

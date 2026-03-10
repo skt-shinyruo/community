@@ -1,0 +1,21 @@
+{
+  "name": "im-load",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Self-hosted load tool for im-realtime (WebSocket) + im-core (history/backfill)",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2",
+    "ws": "^8.18.3"
+  },
+  "scripts": {
+    "start": "node src/index.mjs --help",
+    "connect-only": "node src/index.mjs connect-only",
+    "private": "node src/index.mjs private"
+  }
+}
+

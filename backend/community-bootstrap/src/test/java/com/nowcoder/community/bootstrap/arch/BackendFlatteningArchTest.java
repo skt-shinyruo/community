@@ -32,13 +32,24 @@ class BackendFlatteningArchTest {
         Path backendRoot = detectBackendRoot();
         List<String> declaredModules = declaredModules(backendRoot.resolve("pom.xml"));
 
+        assertThat(Files.isDirectory(backendRoot.resolve("im"))).isTrue();
         assertThat(Files.isDirectory(backendRoot.resolve("community-bootstrap"))).isTrue();
         assertThat(declaredModules).containsExactly(
-                "im-contracts",
-                "im-core",
-                "im-realtime",
+                "im",
                 "community-bootstrap"
         );
+
+        Path imRoot = backendRoot.resolve("im");
+        List<String> imModules = declaredModules(imRoot.resolve("pom.xml"));
+        assertThat(imModules).containsExactly(
+                "im-contracts",
+                "im-core",
+                "im-realtime"
+        );
+        assertThat(Files.isDirectory(imRoot.resolve("im-contracts"))).isTrue();
+        assertThat(Files.isDirectory(imRoot.resolve("im-core"))).isTrue();
+        assertThat(Files.isDirectory(imRoot.resolve("im-realtime"))).isTrue();
+
         for (String module : LEGACY_MODULES) {
             assertThat(backendRoot.resolve(module))
                     .as("legacy module should be removed: %s", module)

@@ -23,11 +23,12 @@
 </template>
 
 <script setup>
-import { computed, onMounted, provide, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { useRoute, RouterView } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 import { useAppStore } from './stores/app'
 import { me } from './api/services/authService'
+import { imRealtimeClient } from './im/imRealtimeClient'
 import AppShell from './components/layout/AppShell.vue'
 import AuthShell from './components/layout/AuthShell.vue'
 import RightPanel from './components/layout/RightPanel.vue'
@@ -72,4 +73,39 @@ async function refreshMe() {
 }
 
 onMounted(refreshMe)
+
+// IM realtime lifecycle: connect on login, disconnect on logout or token refresh.
+watch(
+  () => auth.accessToken,
+  (token, prev) => {
+    const next = String(token || '').trim()
+    const prevToken = String(prev || '').trim()
+    if (!next) {
+      imRealtimeClient.disconnect()
+      return
+    }
+    if (prevToken && prevToken !== next) {
+      imRealtimeClient.disconnect()
+    }
+    imRealtimeClient.connect(next)
+  },
+  { immediate: true }
+)
+
+let offRoomUpdates = null
+onMounted(() => {
+  offRoomUpdates = imRealtimeClient.on('roomUpdatedBatch', (msg) => {
+    const n = Array.isArray(msg?.items) ? msg.items.length : 0
+    if (n <= 0) return
+    showToast({
+      type: 'info',
+      title: '群聊有新消息',
+      text: `${n} 个群聊有新消息（点击进入群聊查看内容）`
+    })
+  })
+})
+
+onBeforeUnmount(() => {
+  try { offRoomUpdates?.() } catch {}
+})
 </script>

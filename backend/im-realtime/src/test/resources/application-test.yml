@@ -1,0 +1,10 @@
+spring:
+  kafka:
+    bootstrap-servers: localhost:0
+    listener:
+      auto-startup: false
+
+security:
+  jwt:
+    hmac-secret: dev-secret-please-change-at-least-32bytes
+

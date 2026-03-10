@@ -65,9 +65,10 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import { listLetters, markRead, sendMessage } from '../api/services/messageService'
+import { listImConversationMessages, markImConversationRead } from '../api/services/imCoreChatService'
+import { imRealtimeClient } from '../im/imRealtimeClient'
 import UiCard from '../components/ui/UiCard.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiDivider from '../components/ui/UiDivider.vue'
@@ -116,16 +117,20 @@ async function load() {
   error.value = ''
   loading.value = true
   try {
-    const { data, traceId } = await listLetters(conversationId.value, { page: 0, size: 50 })
-    items.value = data
-    emit('trace', traceId || '')
+    const resp = await listImConversationMessages(conversationId.value, { afterSeq: 0, limit: 50 })
+    const rows = Array.isArray(resp?.items) ? resp.items : []
+    items.value = rows.map((m) => ({
+      id: Number(m?.messageId || m?.seq || 0),
+      seq: Number(m?.seq || 0),
+      fromId: Number(m?.fromUserId || 0),
+      toId: Number(m?.toUserId || 0),
+      content: String(m?.content || ''),
+      createTime: Number(m?.createdAtEpochMs || 0)
+    }))
 
-    const unreadIds = data
-      .filter((m) => m?.toId === meId.value && m?.status === 0)
-      .map((m) => m.id)
-      .filter((id) => typeof id === 'number' && id > 0)
-    if (unreadIds.length > 0) {
-      await markRead(unreadIds)
+    const maxSeq = items.value.reduce((acc, m) => Math.max(acc, Number(m?.seq || 0)), 0)
+    if (maxSeq > 0) {
+      await markImConversationRead(conversationId.value, maxSeq)
     }
     
     scrollToBottom()
@@ -143,9 +148,11 @@ async function send() {
   
   sending.value = true
   try {
-    await sendMessage({ toId, content: content.value })
+    if (!imRealtimeClient?.state?.connected) {
+      throw new Error('IM 未连接')
+    }
+    imRealtimeClient.sendPrivateText({ toUserId: toId, content: content.value })
     content.value = ''
-    await load()
   } catch (e) {
     error.value = e?.message || '发送失败'
   } finally {
@@ -162,6 +169,38 @@ function scrollToBottom() {
 }
 
 onMounted(load)
+
+let offPrivate = null
+onMounted(() => {
+  offPrivate = imRealtimeClient.on('privateMessage', async (msg) => {
+    if (!msg || msg.conversationId !== conversationId.value) return
+    const seq = Number(msg?.seq || 0)
+    const messageId = Number(msg?.messageId || seq || 0)
+    const fromId = Number(msg?.fromUserId || 0)
+    const toId = Number(msg?.toUserId || 0)
+    const createTime = Number(msg?.createdAtEpochMs || Date.now())
+    const contentText = String(msg?.content || '')
+
+    items.value.push({
+      id: messageId,
+      seq,
+      fromId,
+      toId,
+      content: contentText,
+      createTime
+    })
+    scrollToBottom()
+
+    // When this conversation is open, best-effort mark read to the latest seq.
+    if (seq > 0 && toId === meId.value) {
+      try { await markImConversationRead(conversationId.value, seq) } catch {}
+    }
+  })
+})
+
+onBeforeUnmount(() => {
+  try { offPrivate?.() } catch {}
+})
 </script>
 
 <style scoped>

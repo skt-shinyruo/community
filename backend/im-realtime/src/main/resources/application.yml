@@ -1,13 +1,40 @@
 spring:
   application:
     name: im-realtime
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    consumer:
+      group-id: ${IM_REALTIME_CONSUMER_GROUP:im-realtime-${HOSTNAME:local}}
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: com.nowcoder.community.im.contracts.*
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: true
 
 server:
   port: 18081
+
+security:
+  jwt:
+    hmac-secret: ${JWT_HMAC_SECRET:dev-secret-please-change-at-least-32bytes}
+
+im:
+  core:
+    base-url: ${IM_CORE_BASE_URL:http://localhost:18082}
+  ws:
+    path: ${IM_WS_PATH:/ws/im}
+    outbound-buffer-size: ${IM_WS_OUTBOUND_BUFFER_SIZE:256}
+    room-flush-interval-ms: ${IM_ROOM_FLUSH_INTERVAL_MS:100}
+  cors:
+    allowed-origins: ${IM_CORS_ALLOWED_ORIGINS:http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info,prometheus
-

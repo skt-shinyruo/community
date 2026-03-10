@@ -11,6 +11,7 @@
 4. `docs/SYSTEM_DESIGN.md`：系统设计（同步 API + 异步事件、最终一致、幂等、DLQ）
 5. `docs/SECURITY.md`：鉴权模型（JWT + refresh cookie）、CORS、限流、审计日志、内部 token
 6. `docs/DATA_MODEL.md`：MySQL/Redis/Kafka/ES 的最小数据模型与约定（以 `deploy/` 与代码常量为准）
+7. `docs/LOAD_TESTING.md`：自研压测工具与推荐压测分层（面向 IM/长连）
 
 ## 文档范围说明
 - 本仓库默认本地运行模式：**前端直连 community-app**（frontend `12881` / backend `12882`），不依赖 `community-edge`（Nginx）。

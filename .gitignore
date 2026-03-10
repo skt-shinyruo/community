@@ -48,3 +48,6 @@ frontend/node_modules/
 frontend/dist/
 frontend/.env*
 !frontend/.env.example
+
+### Tools ###
+tools/**/node_modules/

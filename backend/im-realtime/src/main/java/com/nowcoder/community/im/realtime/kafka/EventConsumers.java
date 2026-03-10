@@ -8,6 +8,7 @@ import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
 import com.nowcoder.community.im.realtime.presence.RoomLocalIndex;
 import com.nowcoder.community.im.realtime.presence.WsConnection;
 import com.nowcoder.community.im.realtime.push.PrivatePushService;
+import com.nowcoder.community.im.realtime.push.RoomFanoutCoalescer;
 import com.nowcoder.community.im.realtime.push.RoomUpdateCoalescer;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
@@ -21,17 +22,20 @@ public class EventConsumers {
     private final ConnectionRegistry connectionRegistry;
     private final RoomLocalIndex roomLocalIndex;
     private final RoomUpdateCoalescer roomUpdateCoalescer;
+    private final RoomFanoutCoalescer roomFanoutCoalescer;
 
     public EventConsumers(
             PrivatePushService privatePushService,
             ConnectionRegistry connectionRegistry,
             RoomLocalIndex roomLocalIndex,
-            RoomUpdateCoalescer roomUpdateCoalescer
+            RoomUpdateCoalescer roomUpdateCoalescer,
+            RoomFanoutCoalescer roomFanoutCoalescer
     ) {
         this.privatePushService = privatePushService;
         this.connectionRegistry = connectionRegistry;
         this.roomLocalIndex = roomLocalIndex;
         this.roomUpdateCoalescer = roomUpdateCoalescer;
+        this.roomFanoutCoalescer = roomFanoutCoalescer;
     }
 
     @KafkaListener(topics = ImTopics.EVENT_PRIVATE_PERSISTED_V1, containerFactory = "kafkaListenerContainerFactory")
@@ -44,14 +48,7 @@ public class EventConsumers {
         if (event == null) {
             return;
         }
-        long roomId = event.roomId();
-        long lastSeq = event.seq();
-        for (String connectionId : roomLocalIndex.listConnectionIds(roomId)) {
-            WsConnection conn = connectionRegistry.get(connectionId);
-            if (conn != null) {
-                roomUpdateCoalescer.markRoomUpdated(conn, roomId, lastSeq);
-            }
-        }
+        roomFanoutCoalescer.markRoomUpdated(event.roomId(), event.seq());
     }
 
     @KafkaListener(topics = ImTopics.EVENT_ROOM_MEMBER_CHANGED_V1, containerFactory = "kafkaListenerContainerFactory")
@@ -78,4 +75,3 @@ public class EventConsumers {
         }
     }
 }
-

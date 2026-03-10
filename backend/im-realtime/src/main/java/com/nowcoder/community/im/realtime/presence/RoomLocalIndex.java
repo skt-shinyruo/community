@@ -3,6 +3,7 @@ package com.nowcoder.community.im.realtime.presence;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
@@ -31,9 +32,19 @@ public class RoomLocalIndex {
         }
     }
 
-    public Set<String> listConnectionIds(long roomId) {
+    public void forEachConnectionId(long roomId, Consumer<String> consumer) {
+        if (roomId <= 0 || consumer == null) {
+            return;
+        }
         Set<String> ids = connectionIdsByRoomId.get(roomId);
-        return ids == null ? Set.of() : Set.copyOf(ids);
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        // Intentionally iterate over the concurrent set directly (no copying) for large-room performance.
+        for (String id : ids) {
+            if (id != null && !id.isBlank()) {
+                consumer.accept(id);
+            }
+        }
     }
 }
-

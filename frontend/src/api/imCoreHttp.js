@@ -17,7 +17,7 @@ function resolveImCoreBaseUrl() {
     }
   } catch {}
 
-  // Default: same origin (if a gateway/ingress routes /api/im/** to im-core)
+  // Default: same origin (if an edge proxy/ingress routes /api/im/** to im-core)
   return ''
 }
 

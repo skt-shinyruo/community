@@ -235,9 +235,11 @@ Without backpressure, per-connection outbound queues grow unbounded and lead to 
 
 For room events:
 
-- Maintain **only the latest `(roomId -> lastSeq)`** per connection between flush ticks.
+- Use **two-level coalescing** to keep CPU and GC stable under high room message rates:
+  1) **Room-level**: keep only the latest `(roomId -> lastSeq)` between ticks, so a hot room is fanned out at most once per tick (instead of per message).
+  2) **Connection-level**: keep only the latest `(roomId -> lastSeq)` per connection between ticks.
 - Flush interval: **50–200ms configurable**.
-- Each flush emits at most 1 batch frame per connection (`roomUpdatedBatch`).
+- Each connection flush emits at most 1 batch frame per tick (`roomUpdatedBatch`).
 
 Effect:
 - Even if a room produces extremely high message rates, each client receives bounded “state updates”, while correctness relies on pull.

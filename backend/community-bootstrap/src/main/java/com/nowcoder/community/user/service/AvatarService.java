@@ -2,15 +2,11 @@ package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.user.api.dto.AvatarUploadTokenResponse;
-import com.nowcoder.community.user.config.AvatarStorageProperties;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.UUID;
 
@@ -23,14 +19,12 @@ public class AvatarService {
     private static final String KEY_PREFIX_UPLOAD_TICKET = "user:avatar:upload:";
     private static final long UPLOAD_TICKET_TTL_SECONDS = 600;
 
-    private final AvatarStorageProperties storageProperties;
-    private final Map<String, AvatarStorageProvider> providers;
+    private final AvatarStorageRouter storageRouter;
     private final StringRedisTemplate redisTemplate;
 
-    public AvatarService(AvatarStorageProperties storageProperties, List<AvatarStorageProvider> providers, StringRedisTemplate redisTemplate) {
-        this.storageProperties = storageProperties;
+    public AvatarService(AvatarStorageRouter storageRouter, StringRedisTemplate redisTemplate) {
+        this.storageRouter = storageRouter;
         this.redisTemplate = redisTemplate;
-        this.providers = buildProviderMap(providers);
     }
 
     public AvatarUploadTokenResponse createUploadToken(int userId) {
@@ -108,27 +102,10 @@ public class AvatarService {
     }
 
     private AvatarStorageProvider currentProvider() {
-        String configured = storageProperties == null ? "" : storageProperties.getStorage();
-        String key = StringUtils.hasText(configured) ? configured.trim().toLowerCase() : "local";
-        AvatarStorageProvider provider = providers.get(key);
-        if (provider == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "未知头像存储策略：" + key);
+        if (storageRouter == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "头像存储路由未配置");
         }
-        return provider;
-    }
-
-    private Map<String, AvatarStorageProvider> buildProviderMap(List<AvatarStorageProvider> list) {
-        Map<String, AvatarStorageProvider> map = new HashMap<>();
-        if (list == null) {
-            return map;
-        }
-        for (AvatarStorageProvider p : list) {
-            if (p == null || !StringUtils.hasText(p.provider())) {
-                continue;
-            }
-            map.put(p.provider().trim().toLowerCase(), p);
-        }
-        return map;
+        return storageRouter.currentProviderOrThrow();
     }
 
     private String generateFileName(int userId) {

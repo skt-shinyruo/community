@@ -3,7 +3,7 @@ package com.nowcoder.community.user.api.dto;
 public class AvatarUploadTokenResponse {
 
     /**
-     * 存储策略：local/qiniu（面向前端的可用性提示）。
+     * 存储策略：local/r2（面向前端的可用性提示）。
      */
     private String provider;
 

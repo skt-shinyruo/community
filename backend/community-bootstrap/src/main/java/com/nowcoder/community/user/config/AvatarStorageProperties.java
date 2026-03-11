@@ -11,7 +11,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class AvatarStorageProperties {
 
     /**
-     * 存储策略：local/qiniu
+     * 存储策略：local/r2
      */
     private String storage = "local";
 
@@ -49,4 +49,3 @@ public class AvatarStorageProperties {
         this.publicBaseUrl = publicBaseUrl;
     }
 }
-

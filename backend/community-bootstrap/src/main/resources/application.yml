@@ -149,12 +149,3 @@ r2:
   bucket-name: ${R2_BUCKET_NAME:}
   region: ${R2_REGION:auto}
   path-style: ${R2_PATH_STYLE:true}
-
-qiniu:
-  key:
-    access: ${QINIU_ACCESS_KEY:}
-    secret: ${QINIU_SECRET_KEY:}
-  bucket:
-    header:
-      name: ${QINIU_BUCKET_HEADER_NAME:}
-      url: ${QINIU_BUCKET_HEADER_URL:}

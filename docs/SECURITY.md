@@ -141,7 +141,7 @@ TTL 配置（可按环境调整）：
 ## 7. 本地安全建议（即便是开发环境）
 - 修改 `.env` 中的 `JWT_HMAC_SECRET`（>= 32 字节），不要长期用默认值
 - 不要把 `.env`（含真实密钥）提交到版本库
-- 默认不暴露内部依赖端口到宿主机；需要时再用 overlay 显式开启
+- 默认不暴露内部依赖端口到宿主机；需要浏览器访问观测组件时，再启用 `observability` profile（例如在 `deploy/.env` 设置 `COMPOSE_PROFILES=observability`）
 
 ---
 

@@ -34,6 +34,13 @@ services:
       timeout: 3s
       retries: 30
 
+  # Dev mailbox：用于本地接收 SMTP 邮件（激活/找回密码），UI 仅绑定到宿主机 127.0.0.1
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: community-mailhog
+    ports:
+      - "127.0.0.1:8025:8025"
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.1
     container_name: community-zookeeper
@@ -140,56 +147,6 @@ services:
       '
     restart: "no"
 
-  prometheus:
-    image: prom/prometheus:v2.51.2
-    container_name: community-prometheus
-    volumes:
-      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
-      - prometheus_data:/prometheus
-    depends_on:
-      - community-app
-
-  alertmanager:
-    image: prom/alertmanager:v0.27.0
-    container_name: community-alertmanager
-    volumes:
-      - ./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-    command:
-      - "--config.file=/etc/alertmanager/alertmanager.yml"
-
-  loki:
-    image: grafana/loki:2.9.4
-    container_name: community-loki
-    volumes:
-      - ./observability/loki-config.yml:/etc/loki/config.yml:ro
-      - loki_data:/loki
-    command: ["-config.file=/etc/loki/config.yml"]
-
-  promtail:
-    image: grafana/promtail:2.9.4
-    container_name: community-promtail
-    volumes:
-      - ./observability/promtail-config.yml:/etc/promtail/config.yml:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/log:/var/log:ro
-    command: ["-config.file=/etc/promtail/config.yml"]
-    depends_on:
-      - loki
-
-  grafana:
-    image: grafana/grafana:10.4.5
-    container_name: community-grafana
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
-    depends_on:
-      - prometheus
-      - loki
-
   community-app:
     build:
       # 后端工程在 backend/ 下；镜像构建以 backend 作为 build context
@@ -199,6 +156,8 @@ services:
       args:
         MODULE: community-bootstrap
     container_name: community-app
+    ports:
+      - "12882:8080"
     environment:
       - SERVER_PORT=8080
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}
@@ -216,9 +175,13 @@ services:
       - USER_FILES_BASE_DIR=${USER_FILES_BASE_DIR:-/data/files}
       - USER_PUBLIC_BASE_URL=${USER_PUBLIC_BASE_URL:-http://localhost:12881}
       - AUTH_ACTIVATION_BASE_URL=${AUTH_ACTIVATION_BASE_URL:-http://localhost:12881}
-      - AUTH_MAIL_ENABLED=${AUTH_MAIL_ENABLED:-false}
-      - AUTH_EXPOSE_ACTIVATION_LINK=${AUTH_EXPOSE_ACTIVATION_LINK:-true}
-      - AUTH_EXPOSE_RESET_LINK=${AUTH_EXPOSE_RESET_LINK:-true}
+      - AUTH_MAIL_ENABLED=${AUTH_MAIL_ENABLED:-true}
+      - AUTH_EXPOSE_ACTIVATION_LINK=${AUTH_EXPOSE_ACTIVATION_LINK:-false}
+      - AUTH_EXPOSE_RESET_LINK=${AUTH_EXPOSE_RESET_LINK:-false}
+      - SPRING_MAIL_HOST=${SPRING_MAIL_HOST:-mailhog}
+      - SPRING_MAIL_PORT=${SPRING_MAIL_PORT:-1025}
+      - SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:-false}
+      - SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:-false}
       - AUTH_REFRESH_COOKIE_SECURE=${AUTH_REFRESH_COOKIE_SECURE:-false}
       - AUTH_REFRESH_COOKIE_SAME_SITE=${AUTH_REFRESH_COOKIE_SAME_SITE:-Lax}
       - QINIU_ACCESS_KEY=${QINIU_ACCESS_KEY:-}
@@ -228,6 +191,8 @@ services:
     volumes:
       - user_files:/data/files
     depends_on:
+      mailhog:
+        condition: service_started
       mysql:
         condition: service_healthy
       redis:
@@ -237,6 +202,17 @@ services:
       elasticsearch:
         condition: service_started
 
+  frontend:
+    build:
+      # frontend 构建需要包含 repo root 的 frontend/ 目录
+      context: ..
+      dockerfile: deploy/Dockerfile.frontend
+    container_name: community-frontend
+    ports:
+      - "12881:12881"
+    depends_on:
+      - community-app
+
   im-core:
     build:
       context: ../backend
@@ -244,6 +220,8 @@ services:
       args:
         MODULE: im-core
     container_name: im-core
+    ports:
+      - "18082:18082"
     environment:
       - SERVER_PORT=18082
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
@@ -265,6 +243,8 @@ services:
       args:
         MODULE: im-realtime
     container_name: im-realtime
+    ports:
+      - "18081:18081"
     environment:
       - SERVER_PORT=18081
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
@@ -278,6 +258,69 @@ services:
         condition: service_completed_successfully
       im-core:
         condition: service_started
+
+  prometheus:
+    profiles: ["observability"]
+    image: prom/prometheus:v2.51.2
+    container_name: community-prometheus
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-12885}:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - community-app
+
+  alertmanager:
+    profiles: ["observability"]
+    image: prom/alertmanager:v0.27.0
+    container_name: community-alertmanager
+    ports:
+      - "127.0.0.1:${ALERTMANAGER_PORT:-12886}:9093"
+    volumes:
+      - ./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+
+  loki:
+    profiles: ["observability"]
+    image: grafana/loki:2.9.4
+    container_name: community-loki
+    ports:
+      - "127.0.0.1:${LOKI_PORT:-12884}:3100"
+    volumes:
+      - ./observability/loki-config.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    command: ["-config.file=/etc/loki/config.yml"]
+
+  promtail:
+    profiles: ["observability"]
+    image: grafana/promtail:2.9.4
+    container_name: community-promtail
+    volumes:
+      - ./observability/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/log:/var/log:ro
+    command: ["-config.file=/etc/promtail/config.yml"]
+    depends_on:
+      - loki
+
+  grafana:
+    profiles: ["observability"]
+    image: grafana/grafana:10.4.5
+    container_name: community-grafana
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-12883}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+      - loki
 
 volumes:
   mysql_data: {}

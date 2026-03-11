@@ -6,32 +6,31 @@
 
 ## 1. MySQL（最小表结构）
 
-本地使用的最小 schema 位于：
+本地 compose 的 MySQL 初始化脚本位于：
 - `deploy/mysql-init/001_create_databases.sh`（建库 + 最小权限账号）
-- `deploy/mysql-init/010_schema_identity.sql`（身份域：user 表，P0 暂留在 `community`）
-- `deploy/mysql-init/020_schema_content.sql`（内容域：`community_content`）
-- `deploy/mysql-init/030_schema_message.sql`（消息域：`community_message`）
-- `deploy/mysql-init/040_schema_search.sql`（搜索域：`community_search`）
-- `deploy/mysql-init/090_seed_identity.sql`（本地种子数据）
+- `deploy/mysql-init/010_schema.sql`（最小表结构 + 本地种子数据；覆盖 `community` + `im_core`）
 
-> P0 策略：同实例多 schema，先拆非身份域（content/message/search），降低迁移风险。
+> 说明：当前 modular monolith 默认使用单 schema `community`（业务表 + shared tables），IM 使用独立 schema `im_core`。
 
 ### 1.1 主要表
-- `community.user`：身份域用户基础信息（P0 仍为 auth/user 共享）
-- `community_content.discuss_post`：帖子
-- `community_content.comment`：评论/回复
-- `community_message.message`：私信/站内信（含 conversationId）
-- `community_message.consumed_event`：message-service 消费幂等（eventId 去重）
-- `community_search.search_consumed_event`：search-service 消费幂等（eventId 去重）
+- `community.user`：用户基础信息
+- `community.auth_refresh_token`：refresh token（仅存 token_hash）
+- `community.discuss_post`：帖子
+- `community.comment`：评论/回复
+- `community.message`：私信/站内信（含 conversationId）
+- `community.consumed_event`：消息消费幂等（eventId 去重）
+- `community.search_consumed_event`：搜索投影消费幂等（eventId 去重）
+- `community.outbox_event`：outbox（可靠事件投递）
+- `im_core.im_room` / `im_core.im_room_message`：群聊（seq）
+- `im_core.im_conversation` / `im_core.im_private_message`：私聊（seq）
 
 ### 1.2 本地种子数据
-`deploy/mysql-init/090_seed_identity.sql` 提供演示用户（仅本地开发用途）。
+`deploy/mysql-init/010_schema.sql` 提供演示用户（仅本地开发用途）。
 
 ### 1.3 最小权限账号（P0）
-mysql init 会为各服务创建独立账号（仅授权自身 schema），避免“全服务共享账号”带来的误写风险：
-- content-service：`${CONTENT_DB_USER}` → `${CONTENT_DB_NAME}`
-- message-service：`${MESSAGE_DB_USER}` → `${MESSAGE_DB_NAME}`
-- search-service：`${SEARCH_DB_USER}` → `${SEARCH_DB_NAME}`
+mysql init 会创建最小权限账号（仅授权对应 schema），避免“全服务共享账号”带来的误写风险：
+- `${MYSQL_USER:-community}` → `${MYSQL_DATABASE:-community}`（`select/insert/update/delete`）
+- `${IM_MYSQL_USER:-im_core}` → `${IM_MYSQL_DATABASE:-im_core}`（`select/insert/update/delete`）
 
 ---
 

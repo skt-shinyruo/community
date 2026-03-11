@@ -68,5 +68,5 @@
 
 ## Verification
 
-- `docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.frontend-direct.yml --env-file deploy/.env.example config`
+- `docker compose -f deploy/docker-compose.yml --env-file deploy/.env.example config`
 - `cd backend && ./mvnw -q -DskipTests -pl :community-bootstrap -am package`

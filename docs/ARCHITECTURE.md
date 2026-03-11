@@ -98,13 +98,15 @@ flowchart TD
 ## 3. 运行拓扑与端口规划（本地 docker compose）
 
 ### 3.1 Compose 文件分工（以 `deploy/README.md` 为准）
-- `deploy/docker-compose.yml`：基础全栈（MySQL/Redis/ES/观测 + `community-app`），默认不把业务端口暴露到宿主机（fail-closed）。
-- `deploy/docker-compose.frontend-direct.yml`：本地入口覆盖（暴露 frontend `12881` 与 backend `12882`，并启动 `frontend` 容器）。
-- `deploy/docker-compose.ports.yml`：仅暴露观测/日志入口（Grafana/Loki/Prometheus/Alertmanager，端口 `12883+`）。
+- `deploy/docker-compose.yml`：业务必需全栈（frontend + `community-app` + IM + MySQL/Redis/Kafka/ES + MailHog），默认暴露业务入口端口（`12881/12882/18081/18082`）与 MailHog UI（`8025`，仅本机），但不暴露依赖端口（fail-closed）。
+- `observability` profile：可选观测/日志栈（Prometheus/Grafana/Loki/Promtail/Alertmanager），默认仅绑定到 `127.0.0.1` 暴露端口（`12883+`）。
 
 ### 3.2 对外暴露端口（默认推荐）
 - frontend：`http://localhost:12881`
 - backend（community-app）：`http://localhost:12882`
+- IM Realtime（WebSocket）：`ws://localhost:18081/ws/im`
+- IM Core（HTTP）：`http://localhost:18082`
+- MailHog UI（dev mailbox）：`http://localhost:8025`（仅本机）
 
 ### 3.3 观测/日志端口（可选开启）
 - Grafana：`http://localhost:12883`（默认账号密码 `admin/admin`）
@@ -156,9 +158,9 @@ flowchart TD
 
 1. 准备环境变量：`cp deploy/.env.example deploy/.env`
 2. 启动（前端直连后端单体）：
-   - `docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.frontend-direct.yml --env-file deploy/.env up -d --build`
+   - `docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build`
 3. （可选）开启观测/日志端口：
-   - `docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.frontend-direct.yml -f deploy/docker-compose.ports.yml --env-file deploy/.env up -d --build`
+   - 在 `deploy/.env` 中添加 `COMPOSE_PROFILES=observability`，然后执行：`docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d`
 
 更完整的启动与运维说明见：`deploy/README.md`。
 
@@ -166,5 +168,5 @@ flowchart TD
 
 ## 7. 与代码一致性的检查清单（建议）
 - 对外入口与安全装配：以 `backend/community-bootstrap/src/main/java/.../CommunitySecurityConfig.java` 和各领域 `api/security/*SecurityRules.java` 为准
-- 端口：以 `deploy/docker-compose.frontend-direct.yml` 与 `deploy/docker-compose.ports.yml` 为准
-- 观测：以 `deploy/observability/*` 与 `deploy/docker-compose.yml` 为准
+- 端口：以 `deploy/docker-compose.yml`（业务 + observability profile）为准
+- 观测：以 `deploy/observability/*` 与 `deploy/docker-compose.yml`（observability profile 的 service 定义）为准

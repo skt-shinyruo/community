@@ -11,7 +11,14 @@
 
 ```bash
 cp deploy/.env.example deploy/.env
-docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.frontend-direct.yml --env-file deploy/.env up -d --build
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+```
+
+（可选）开启观测/日志（Grafana/Loki/Prometheus/Alertmanager）：
+
+```bash
+# 在 deploy/.env 中添加：COMPOSE_PROFILES=observability
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 ```
 
 访问：

@@ -18,7 +18,7 @@
 
 ```bash
 cp deploy/.env.example deploy/.env
-docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.frontend-direct.yml --env-file deploy/.env up -d --build
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 ```
 
 2) 确保压测端拿到相同的 JWT secret（与服务端一致）：
@@ -102,4 +102,3 @@ node src/index.mjs connect-only --connections 50000 --startUserId 50001 --durati
 - `--sendPerConnPerSec`：每连接平均发送速率（小数）
 - `--reconnectEverySec`：重连周期（0 表示不重连）
 - `--slowConsumerPct`：慢消费者百分比（0-100）
-

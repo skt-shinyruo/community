@@ -5,7 +5,7 @@
 - **指标**：Prometheus → Grafana
 - **告警**：Prometheus rules → Alertmanager
 
-> 默认情况下这些组件不暴露到宿主机；如需浏览器访问，请额外启用 `deploy/docker-compose.ports.yml`（端口 `12883+`）。
+> 观测/日志组件默认不随业务栈启动；如需使用，请启用 compose profile：`observability`（端口 `12883+`，默认仅绑定到 `127.0.0.1`）。
 
 ---
 
@@ -17,7 +17,7 @@
   - 路径：`/var/lib/docker/containers/*/*-json.log`（以 volume 方式挂载）
 
 ### 1.2 如何检索日志（Grafana）
-1. 启动时额外加上 `deploy/docker-compose.ports.yml`
+1. 启用 `observability` profile（推荐：在 `deploy/.env` 中添加 `COMPOSE_PROFILES=observability`，再启动 compose）
 2. 打开 `http://localhost:12883`（默认 `admin/admin`）
 3. 进入 Explore → 选择数据源 `Loki`
 4. 推荐从 `{job="docker"}` 开始，再用 `|=` 关键字过滤
@@ -92,4 +92,4 @@ Alertmanager 配置位于：
 - 避免误把依赖暴露给宿主机/局域网，降低安全与误操作风险
 
 当你确实需要浏览器访问观测组件时，再开启：
-- `deploy/docker-compose.ports.yml`（映射到 `12883+`）
+- `observability` profile（映射到 `12883+`）

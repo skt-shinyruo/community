@@ -12,7 +12,7 @@
 - 管理员：`admin/aaa`
 
 数据来源：
-- `deploy/mysql-init/090_seed_identity.sql`
+- `deploy/mysql-init/010_schema.sql`（包含本地 dev/demo 种子用户插入）
 
 建议：
 - 本地也尽量修改默认口令（至少不要在任何共享环境/公网环境复用）。
@@ -33,7 +33,11 @@
 
 ## 3) 敏感链接回传（仅 dev/演练）
 
-本地 dev 默认可回传 onboarding 链接（便于无 SMTP 环境闭环）：
+本地 compose 默认不回传 `activationLink/resetLink`（更贴近生产安全态），而是通过 MailHog 接收邮件完成闭环：
+- MailHog UI：`http://localhost:8025`（仅本机）
+
+如需 dev-only 快捷模式（无 SMTP 也能跑通闭环），可显式开启回传：
+- `AUTH_MAIL_ENABLED=false`
 - `AUTH_EXPOSE_ACTIVATION_LINK=true`
 - `AUTH_EXPOSE_RESET_LINK=true`
 

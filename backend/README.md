@@ -7,10 +7,10 @@
 
 ## 全栈启动（docker compose，推荐：前端直连后端单体）
 
-> 从仓库根目录执行（见 `../deploy/README.md` 获取更多 overlay 示例）：
+> 从仓库根目录执行（见 `../deploy/README.md` 获取可选能力：观测/日志 profile 等）：
 
 1. 准备环境变量：`cp deploy/.env.example deploy/.env`
-2. 启动全栈：`docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.frontend-direct.yml --env-file deploy/.env up -d --build`
+2. 启动全栈：`docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build`
 3. 访问：
    - 前端：`http://localhost:12881`
    - API：`http://localhost:12882/api/...`

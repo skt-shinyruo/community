@@ -11,9 +11,13 @@
 ### 1.1 必要对外端口（默认）
 - 前端（Vue3 SPA）：`http://localhost:12881`
 - 后端（community-app）：`http://localhost:12882`
+- IM Realtime（WebSocket）：`ws://localhost:18081/ws/im`
+- IM Core（HTTP）：`http://localhost:18082`
 
-### 1.2 可选对外端口（仅用于观测/日志）
-> 仅在开启 `deploy/docker-compose.ports.yml` 时才会映射到宿主机。
+### 1.2 可选对外端口（本地辅助）
+- MailHog UI（dev mailbox）：`http://localhost:8025`（默认启用；仅绑定到 `127.0.0.1`）
+
+> 观测/日志端口仅在启用 `observability` profile 时才会映射到宿主机（见下文）。
 
 - Grafana：`http://localhost:12883`（默认 `admin/admin`）
 - Loki：`http://localhost:12884`
@@ -22,25 +26,22 @@
 
 ---
 
-## 2. Compose 分层设计（为什么要拆成多个 yml）
+## 2. Compose 分层设计（为什么要用 profiles）
 
-本项目采用“基础 compose + 可选覆盖”的方式，目的是：
+本项目采用“基础 compose + 可选 profile”的方式，目的是：
 - 默认只暴露必要端口，减少端口冲突与误暴露风险；
-- 通过 overlay 文件切换不同入口策略（本地直连、观测端口等），避免在一个 yml 里堆大量条件分支；
+- 通过 compose profile 按需开启观测/日志能力，保持默认启动足够简单；
 - 保持命令简单、可复制粘贴。
 
 ### 2.1 文件分工
-- `deploy/docker-compose.yml`
+- `deploy/docker-compose.yml`（业务必需全栈）
   - 依赖：MySQL / Redis / Kafka / Elasticsearch
+  - 业务：`community-app` + `frontend` + IM（`im-core` / `im-realtime`）
+  - 辅助：MailHog（dev mailbox，UI `http://localhost:8025`，仅本机）
+  - **暴露业务入口端口（`12881/12882/18081/18082`），但不把依赖端口映射到宿主机（fail-closed）**
+- `observability` profile（可选）
   - 观测：Prometheus / Alertmanager / Loki / Promtail / Grafana
-  - 业务：`community-app`（模块化单体，后端整体一起发布）
-  - **默认不把依赖端口映射到宿主机**
-- `deploy/docker-compose.frontend-direct.yml`
-  - 暴露：backend `12882:8080`
-  - 启动：前端容器（`12881:12881`）
-  - 覆盖：激活链接基址（`AUTH_ACTIVATION_BASE_URL=http://localhost:12881`）
-- `deploy/docker-compose.ports.yml`
-  - 仅暴露观测端口（`12883+`），用于浏览器访问 Grafana/Loki/Prometheus/Alertmanager
+  - 绑定到 `127.0.0.1` 暴露观测端口（`12883+`），用于浏览器访问 Grafana/Loki/Prometheus/Alertmanager
 
 ---
 
@@ -54,9 +55,7 @@
 
 ### 3.2 启动（前端直连后端）
 ```bash
-docker compose -f deploy/docker-compose.yml \
-  -f deploy/docker-compose.frontend-direct.yml \
-  --env-file deploy/.env up -d --build
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 ```
 
 访问：
@@ -65,11 +64,14 @@ docker compose -f deploy/docker-compose.yml \
 
 ### 3.3 启动 + 额外开放观测端口
 ```bash
-docker compose -f deploy/docker-compose.yml \
-  -f deploy/docker-compose.frontend-direct.yml \
-  -f deploy/docker-compose.ports.yml \
-  --env-file deploy/.env up -d --build
+# 方式 1（推荐）：在 deploy/.env 中添加：COMPOSE_PROFILES=observability，然后执行下方命令
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+
+# 方式 2（临时一次性）：不改文件，直接在命令前加环境变量
+# COMPOSE_PROFILES=observability docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 ```
+
+> 注意：profile 只影响“本次 up 会包含哪些 services”；如果你曾经启用过 `observability`，之后去掉 profile 不会自动停止已启动的观测容器，需要手动 stop/remove 或执行 `docker compose ... down`。
 
 ---
 
@@ -102,14 +104,10 @@ docker compose -f deploy/docker-compose.yml \
 
 停止：
 ```bash
-docker compose -f deploy/docker-compose.yml \
-  -f deploy/docker-compose.frontend-direct.yml \
-  --env-file deploy/.env down
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env down
 ```
 
 完全重置（删除数据卷）：
 ```bash
-docker compose -f deploy/docker-compose.yml \
-  -f deploy/docker-compose.frontend-direct.yml \
-  --env-file deploy/.env down -v
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env down -v
 ```

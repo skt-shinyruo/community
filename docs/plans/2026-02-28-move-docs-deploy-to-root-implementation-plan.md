@@ -46,7 +46,7 @@ Run: `git mv backend/deploy deploy`
   - `context: ../backend`
   - `dockerfile: ../deploy/Dockerfile.spring-service`
   - build arg `MODULE: community-bootstrap`
-- In `deploy/docker-compose.frontend-direct.yml`, set frontend build:
+- In `deploy/docker-compose.yml`, add frontend build:
   - `context: ..`
   - `dockerfile: deploy/Dockerfile.frontend`
 
@@ -94,7 +94,7 @@ Expected: exit code `0`.
 
 **Step 1: Compose config**
 
-Run: `docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.frontend-direct.yml --env-file deploy/.env.example config >/dev/null`
+Run: `docker compose -f deploy/docker-compose.yml --env-file deploy/.env.example config >/dev/null`
 Expected: exit code `0`.
 
 **Step 2: Backend packaging (skip tests)**

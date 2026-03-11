@@ -75,5 +75,9 @@ public class QiniuAvatarStorageProvider implements AvatarStorageProvider {
         }
         return bucketUrl.endsWith("/") ? (bucketUrl + fileName) : (bucketUrl + "/" + fileName);
     }
-}
 
+    @Override
+    public StoredAvatar loadOrNull(String key) {
+        return null;
+    }
+}

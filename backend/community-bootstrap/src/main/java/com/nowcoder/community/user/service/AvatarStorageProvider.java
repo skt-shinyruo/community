@@ -11,7 +11,7 @@ import org.springframework.web.multipart.MultipartFile;
 public interface AvatarStorageProvider {
 
     /**
-     * provider 名称（local/qiniu）。
+     * provider 名称（local/qiniu/r2）。
      */
     String provider();
 
@@ -31,5 +31,13 @@ public interface AvatarStorageProvider {
      * 生成头像可访问 URL（用于写入用户 headerUrl）。
      */
     String buildAvatarUrl(String fileName);
-}
 
+    /**
+     * 读取存储中的文件（用于 /files/**）。
+     *
+     * <p>约定：key 为服务端生成的 {@code avatar/{userId}/{uuid}}。</p>
+     *
+     * @return 找不到时返回 null
+     */
+    StoredAvatar loadOrNull(String key);
+}

@@ -96,12 +96,3 @@ http:
   idempotency:
     enabled: true
     store: DB
-
-qiniu:
-  key:
-    access: test-ak
-    secret: test-sk
-  bucket:
-    header:
-      name: test-bucket
-      url: http://bucket.local

@@ -10,6 +10,7 @@ import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.security.OwnerGuard;
 import com.nowcoder.community.message.service.dto.ConversationStats;
 import com.nowcoder.community.user.api.rpc.dto.UserSummary;
+import com.nowcoder.community.infra.pagination.Pagination;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -44,8 +45,10 @@ public class PrivateMessageService {
     }
 
     public List<Message> listConversations(int userId, int page, int size) {
-        int offset = Math.max(0, page) * Math.max(1, size);
-        return messageMapper.selectConversations(userId, offset, size);
+        int p = Math.max(0, page);
+        int s = Math.min(50, Math.max(1, size));
+        int offset = Pagination.safeOffset(p, s);
+        return messageMapper.selectConversations(userId, offset, s);
     }
 
     public List<ConversationItemResponse> listConversationItems(int userId, int page, int size) {
@@ -101,8 +104,10 @@ public class PrivateMessageService {
 
     public List<Message> listLetters(int userId, String conversationId, int page, int size) {
         ownerGuard.assertConversationMember(userId, conversationId, MessageErrorCode.CONVERSATION_NOT_FOUND);
-        int offset = Math.max(0, page) * Math.max(1, size);
-        return messageMapper.selectLetters(userId, conversationId, offset, size);
+        int p = Math.max(0, page);
+        int s = Math.min(50, Math.max(1, size));
+        int offset = Pagination.safeOffset(p, s);
+        return messageMapper.selectLetters(userId, conversationId, offset, s);
     }
 
     public int unreadCount(int userId, String conversationId) {

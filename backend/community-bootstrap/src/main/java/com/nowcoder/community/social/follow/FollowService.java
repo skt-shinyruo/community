@@ -6,6 +6,7 @@ import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.social.event.SocialEventPublisher;
 import com.nowcoder.community.social.follow.dto.FollowItem;
 import com.nowcoder.community.social.follow.dto.FollowRequest;
+import com.nowcoder.community.infra.pagination.Pagination;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -168,7 +169,7 @@ public class FollowService {
         if (entityType != USER) {
             return List.of();
         }
-        return followRepository.listFollowees(userId, entityType, p * s, s);
+        return followRepository.listFollowees(userId, entityType, Pagination.safeOffset(p, s), s);
     }
 
     public List<FollowItem> listFollowers(int entityType, int entityId, int page, int size) {
@@ -177,6 +178,6 @@ public class FollowService {
         if (entityType != USER) {
             return List.of();
         }
-        return followRepository.listFollowers(entityType, entityId, p * s, s);
+        return followRepository.listFollowers(entityType, entityId, Pagination.safeOffset(p, s), s);
     }
 }

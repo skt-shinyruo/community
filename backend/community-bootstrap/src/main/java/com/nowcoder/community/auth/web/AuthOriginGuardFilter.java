@@ -21,6 +21,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -132,6 +133,7 @@ public class AuthOriginGuardFilter extends OncePerRequestFilter {
 
     private void forbidden(HttpServletResponse response, String message) throws IOException {
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         Result<?> body = Result.error(CommonErrorCode.FORBIDDEN.getCode(), message);
         response.getWriter().write(objectMapper.writeValueAsString(body));

@@ -1,6 +1,7 @@
 package com.nowcoder.community.im.realtime.presence;
 
 import org.springframework.web.reactive.socket.WebSocketSession;
+import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 
@@ -12,6 +13,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class WsConnection {
 
@@ -26,6 +28,8 @@ public class WsConnection {
     private final Set<Long> joinedRooms = ConcurrentHashMap.newKeySet();
     private final ConcurrentHashMap<Long, Long> pendingRoomSeq = new ConcurrentHashMap<>();
     private final AtomicBoolean enqueuedForRoomFlush = new AtomicBoolean(false);
+
+    private final AtomicReference<Disposable> roomBootstrapSubscription = new AtomicReference<>();
 
     public WsConnection(String connectionId, WebSocketSession session, int maxOutboundBacklog) {
         this.connectionId = connectionId;
@@ -141,6 +145,20 @@ public class WsConnection {
                     .onErrorResume(e -> Mono.empty())
                     .subscribe();
         } catch (RuntimeException ignore) {
+        }
+    }
+
+    public void setRoomBootstrapSubscription(Disposable subscription) {
+        Disposable prev = roomBootstrapSubscription.getAndSet(subscription);
+        if (prev != null) {
+            prev.dispose();
+        }
+    }
+
+    public void disposeRoomBootstrapSubscription() {
+        Disposable d = roomBootstrapSubscription.getAndSet(null);
+        if (d != null) {
+            d.dispose();
         }
     }
 }

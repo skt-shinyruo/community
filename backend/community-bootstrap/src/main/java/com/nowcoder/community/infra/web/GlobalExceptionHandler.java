@@ -4,6 +4,9 @@ import com.nowcoder.community.contracts.api.CommonErrorCode;
 import com.nowcoder.community.contracts.api.ErrorCode;
 import com.nowcoder.community.contracts.api.Result;
 import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.infra.trace.TraceId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,12 +27,18 @@ import jakarta.validation.ConstraintViolationException;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Result<Void>> handleBusiness(BusinessException e) {
         ErrorCode errorCode = e.getErrorCode() == null ? CommonErrorCode.INTERNAL_ERROR : e.getErrorCode();
+        int status = errorCode.getHttpStatus();
         String message = e.getMessage();
         if (message == null) {
             message = errorCode.getMessage();
+        }
+        if (status >= 500) {
+            log.error("[exception][business] traceId={} code={} status={} message={}", TraceId.get(), errorCode.getCode(), status, message, e);
         }
         Result<Void> body = Result.error(errorCode.getCode(), message, errorCode.getHttpStatus());
         return ResponseEntity.status(httpStatusOf(errorCode.getHttpStatus())).body(body);
@@ -100,12 +109,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<Result<Void>> handleDataAccess(DataAccessException e) {
+        log.error("[exception][data-access] traceId={}", TraceId.get(), e);
         return ResponseEntity.status(httpStatusOf(CommonErrorCode.SERVICE_UNAVAILABLE.getHttpStatus()))
                 .body(Result.error(CommonErrorCode.SERVICE_UNAVAILABLE));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Result<Void>> handleGeneric(Exception e) {
+        log.error("[exception][unhandled] traceId={}", TraceId.get(), e);
         return ResponseEntity.status(httpStatusOf(CommonErrorCode.INTERNAL_ERROR.getHttpStatus()))
                 .body(Result.error(CommonErrorCode.INTERNAL_ERROR));
     }

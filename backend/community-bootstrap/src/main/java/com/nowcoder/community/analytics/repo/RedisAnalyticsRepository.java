@@ -68,7 +68,7 @@ public class RedisAnalyticsRepository implements AnalyticsRepository {
         byte[] unionKeyBytes = unionKey.getBytes(StandardCharsets.UTF_8);
         try {
             redisTemplate.execute((RedisCallback<Void>) connection -> {
-                connection.bitOp(org.springframework.data.redis.connection.RedisStringCommands.BitOperation.OR,
+                connection.stringCommands().bitOp(org.springframework.data.redis.connection.RedisStringCommands.BitOperation.OR,
                         unionKeyBytes,
                         keys.stream().map(k -> k.getBytes(StandardCharsets.UTF_8)).toArray(byte[][]::new));
                 return null;

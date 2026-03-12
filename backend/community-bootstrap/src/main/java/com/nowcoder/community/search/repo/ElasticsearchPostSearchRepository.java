@@ -140,18 +140,11 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
             item.setCreateTime(doc.getCreateTime() == null ? null : Instant.ofEpochMilli(doc.getCreateTime()));
             item.setScore(doc.getScore());
             if (StringUtils.hasText(keyword)) {
-                item.setHighlightedTitle(highlight(doc.getTitle(), keyword));
-                item.setHighlightedContent(highlight(doc.getContent(), keyword));
+                item.setHighlightedTitle(KeywordHighlightSupport.highlight(doc.getTitle(), keyword));
+                item.setHighlightedContent(KeywordHighlightSupport.highlight(doc.getContent(), keyword));
             }
         }
         return item;
-    }
-
-    private String highlight(String text, String keyword) {
-        if (!StringUtils.hasText(text) || !StringUtils.hasText(keyword)) {
-            return text;
-        }
-        return text.replace(keyword, "<em>" + keyword + "</em>");
     }
 
     private EsPostDocument toDocument(PostPayload post) {

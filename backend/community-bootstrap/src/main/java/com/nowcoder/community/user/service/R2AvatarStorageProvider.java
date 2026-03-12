@@ -88,9 +88,9 @@ public class R2AvatarStorageProvider implements AvatarStorageProvider {
                     .build();
             s3Client.putObject(req, RequestBody.fromInputStream(in, file.getSize()));
         } catch (S3Exception e) {
-            throw new BusinessException(INTERNAL_ERROR, "上传头像失败");
+            throw new BusinessException(INTERNAL_ERROR, "上传头像失败", e);
         } catch (java.io.IOException | RuntimeException e) {
-            throw new BusinessException(INTERNAL_ERROR, "上传头像失败");
+            throw new BusinessException(INTERNAL_ERROR, "上传头像失败", e);
         }
     }
 
@@ -133,9 +133,9 @@ public class R2AvatarStorageProvider implements AvatarStorageProvider {
             if (e.statusCode() == 404) {
                 return null;
             }
-            throw new BusinessException(INTERNAL_ERROR, "读取头像失败");
+            throw new BusinessException(INTERNAL_ERROR, "读取头像失败", e);
         } catch (RuntimeException e) {
-            throw new BusinessException(INTERNAL_ERROR, "读取头像失败");
+            throw new BusinessException(INTERNAL_ERROR, "读取头像失败", e);
         }
     }
 
@@ -158,4 +158,3 @@ public class R2AvatarStorageProvider implements AvatarStorageProvider {
         }
     }
 }
-

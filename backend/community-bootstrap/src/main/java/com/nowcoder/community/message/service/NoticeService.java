@@ -4,6 +4,7 @@ import com.nowcoder.community.message.dao.MessageMapper;
 import com.nowcoder.community.message.api.dto.LetterItemResponse;
 import com.nowcoder.community.message.api.dto.NoticeTopicSummaryResponse;
 import com.nowcoder.community.message.entity.Message;
+import com.nowcoder.community.infra.pagination.Pagination;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
@@ -34,8 +35,10 @@ public class NoticeService {
     }
 
     public List<Message> listNotices(int userId, String topic, int page, int size) {
-        int offset = Math.max(0, page) * Math.max(1, size);
-        return messageMapper.selectNotices(userId, topic, offset, size);
+        int p = Math.max(0, page);
+        int s = Math.min(50, Math.max(1, size));
+        int offset = Pagination.safeOffset(p, s);
+        return messageMapper.selectNotices(userId, topic, offset, s);
     }
 
     public int unreadCount(int userId, String topic) {

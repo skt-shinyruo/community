@@ -3,22 +3,22 @@
     <slot />
     
     <Transition name="pop">
-      <div v-if="show && user" class="user-card-popover" :style="{ left: align === 'right' ? 'auto' : '0', right: align === 'right' ? '0' : 'auto' }">
+      <div v-if="show && cardUser" class="user-card-popover" :style="{ left: align === 'right' ? 'auto' : '0', right: align === 'right' ? '0' : 'auto' }">
         <div class="row" style="gap: 12px; align-items: flex-start">
-           <UiAvatar :src="user.headerUrl" :name="user.username" :size="48" />
+           <UiAvatar :src="cardUser.headerUrl" :name="cardUser.username" :size="48" />
            <div style="flex: 1">
               <div class="row" style="gap: 8px; align-items: center; flex-wrap: wrap">
-                <div style="font-weight: 700; font-size: 16px; color: var(--text-1)">{{ user.username }}</div>
-                <UiRoleBadge :user="user" />
+                <div style="font-weight: 700; font-size: 16px; color: var(--text-1)">{{ cardUser.username }}</div>
+                <UiRoleBadge :user="cardUser" />
               </div>
-              <div class="muted" style="font-size: 12px">加入 {{ new Date(user.createTime || Date.now()).getFullYear() }}</div>
+              <div class="muted" style="font-size: 12px">加入 {{ new Date(cardUser.createTime || Date.now()).getFullYear() }}</div>
               
               <div class="row" style="gap: 12px; margin-top: 8px; font-size: 13px">
                  <div class="stat-item">
-                    <b>{{ user.postCount || 0 }}</b> 帖子
+                    <b>{{ cardUser.postCount || 0 }}</b> 帖子
                  </div>
                  <div class="stat-item">
-                    <b>{{ user.likeCount || 0 }}</b> 获赞
+                    <b>{{ cardUser.likeCount || 0 }}</b> 获赞
                  </div>
               </div>
 
@@ -67,10 +67,11 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useSocialPrefsStore } from '../../stores/socialPrefs'
 import { blockUser, unblockUser } from '../../api/services/blockService'
+import { getUserProfile } from '../../api/services/userService'
 import UiAvatar from './UiAvatar.vue'
 import UiButton from './UiButton.vue'
 import UiRoleBadge from './UiRoleBadge.vue'
@@ -89,6 +90,11 @@ const resolvedUserId = computed(() => {
   return Number(u?.id || u?.userId || 0) || 0
 })
 
+const profile = ref(null)
+const profileLoading = ref(false)
+
+const cardUser = computed(() => profile.value || props.user || null)
+
 const meUserId = computed(() => Number(auth.userId || 0))
 const canInteract = computed(() => !!auth.authed && resolvedUserId.value > 0 && resolvedUserId.value !== meUserId.value)
 const isBlocked = computed(() => prefs.blockedSet.has(resolvedUserId.value))
@@ -99,9 +105,37 @@ let timer = null
 const reportOpen = ref(false)
 const actionLoading = ref(false)
 
+function shouldFetchProfile(user) {
+  if (!user) return true
+  // batch-summary returns a subset (no createTime/likeCount). Popover needs richer fields.
+  if (!user.createTime) return true
+  if (typeof user.likeCount === 'undefined') return true
+  return false
+}
+
+async function ensureProfile() {
+  const uid = resolvedUserId.value
+  if (!uid) return
+  if (profileLoading.value) return
+  if (profile.value && !shouldFetchProfile(profile.value)) return
+  if (!shouldFetchProfile(props.user)) {
+    // props already has a rich profile
+    profile.value = props.user
+    return
+  }
+
+  profileLoading.value = true
+  try {
+    profile.value = await getUserProfile(uid).catch(() => null)
+  } finally {
+    profileLoading.value = false
+  }
+}
+
 async function onEnter() {
   if (timer) window.clearTimeout(timer)
   show.value = true
+  ensureProfile()
   if (!auth.authed) return
   try {
     await prefs.ensureBlocked()
@@ -115,6 +149,10 @@ function hide() {
     show.value = false
   }, 300)
 }
+
+watch(resolvedUserId, () => {
+  profile.value = null
+})
 
 function openReport() {
   if (!auth.authed) {

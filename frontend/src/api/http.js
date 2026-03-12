@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { useAuthStore } from '../stores/auth'
+import { createIdempotencyKeyCache } from './idempotencyKeyCache'
 
 function resolveApiBaseUrl() {
   const configured = import.meta.env?.VITE_API_BASE_URL
@@ -37,7 +38,7 @@ let refreshingPromise = null
 
 const IDEMPOTENCY_HEADER = 'Idempotency-Key'
 const IDEMPOTENCY_WINDOW_MS = 10000
-const recentIdempotencyKeys = new Map()
+const IDEMPOTENCY_MAX_CACHE_SIZE = 5000
 
 function shouldAttachIdempotencyKey(config) {
   const method = String(config?.method || '').toLowerCase()
@@ -62,6 +63,12 @@ function generateIdempotencyKey() {
   return `idem_${now}_${rand}`
 }
 
+const idempotencyKeyCache = createIdempotencyKeyCache({
+  windowMs: IDEMPOTENCY_WINDOW_MS,
+  maxSize: IDEMPOTENCY_MAX_CACHE_SIZE,
+  generateKey: generateIdempotencyKey
+})
+
 function safeStringify(data) {
   if (data == null) return ''
   if (typeof data === 'string') return data
@@ -81,18 +88,6 @@ function hashString(str) {
   return (h >>> 0).toString(36)
 }
 
-function getOrReuseIdempotencyKey(fingerprint) {
-  const now = Date.now()
-  const existing = recentIdempotencyKeys.get(fingerprint)
-  if (existing && existing.expiresAt > now && typeof existing.key === 'string' && existing.key) {
-    return existing.key
-  }
-
-  const key = generateIdempotencyKey()
-  recentIdempotencyKeys.set(fingerprint, { key, expiresAt: now + IDEMPOTENCY_WINDOW_MS })
-  return key
-}
-
 http.interceptors.request.use((config) => {
   const auth = useAuthStore()
   if (auth.accessToken) {
@@ -106,7 +101,7 @@ http.interceptors.request.use((config) => {
       const url = String(config?.url || '')
       const body = safeStringify(config?.data)
       const fingerprint = `post:${url}:${hashString(body)}`
-      config.headers[IDEMPOTENCY_HEADER] = getOrReuseIdempotencyKey(fingerprint)
+      config.headers[IDEMPOTENCY_HEADER] = idempotencyKeyCache.getOrReuse(fingerprint)
     }
   }
   return config

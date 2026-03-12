@@ -34,7 +34,7 @@ community:
   metrics:
     basic-auth:
       username: ${METRICS_BASIC_AUTH_USERNAME:prometheus}
-      password: ${METRICS_BASIC_AUTH_PASSWORD:dev-prometheus-pass}
+      password: ${METRICS_BASIC_AUTH_PASSWORD:}
 
 security:
   jwt:

@@ -39,7 +39,7 @@ public class ConversationController {
         int me = CurrentUser.userIdOrThrow(jwt);
         int s = Math.min(Math.max(1, size), 200);
         int p = Math.max(0, page);
-        int offset = p * s;
+        long offset = (long) p * (long) s;
         return jdbcTemplate.query(
                 "select c.conversation_id, c.user_a, c.user_b, c.last_seq, " +
                         "coalesce(r.last_read_seq, 0) as last_read_seq, " +

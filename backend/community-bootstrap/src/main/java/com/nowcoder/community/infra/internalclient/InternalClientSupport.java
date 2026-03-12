@@ -183,7 +183,17 @@ public final class InternalClientSupport {
             if (StringUtils.hasText(traceId)) {
                 detail += " (traceId=" + traceId + ")";
             }
-            int httpStatus = response.getStatusCode() == null ? 500 : response.getStatusCode().value();
+            int responseStatus = response.getStatusCode() == null ? 0 : response.getStatusCode().value();
+            int httpStatus = responseStatus;
+            // Some downstreams always respond 200 and use Result.{code,httpStatus} to express errors.
+            // In that case we must restore proper HTTP semantics from the body (or derive from code),
+            // otherwise BusinessException will carry a misleading 2xx status and break classification.
+            if (responseStatus <= 0 || (responseStatus >= 200 && responseStatus < 300)) {
+                httpStatus = result.getHttpStatus();
+                if (httpStatus <= 0) {
+                    httpStatus = code >= 400 && code < 600 ? code : 500;
+                }
+            }
             throw new BusinessException(new SimpleErrorCode(code, msg, httpStatus), detail);
         }
         return result.getData();
@@ -221,9 +231,9 @@ public final class InternalClientSupport {
     public static BusinessException wrapUnexpectedException(String target, Throwable t) {
         String service = String.valueOf(target);
         if (isTimeout(t) || isConnectionError(t)) {
-            return new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, service + " 不可用");
+            return new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, service + " 不可用", t);
         }
-        return new BusinessException(CommonErrorCode.INTERNAL_ERROR, service + " 调用失败");
+        return new BusinessException(CommonErrorCode.INTERNAL_ERROR, service + " 调用失败", t);
     }
 
     public static void record(MeterRegistry meterRegistry, String target, String api, String outcome, long startNanos) {

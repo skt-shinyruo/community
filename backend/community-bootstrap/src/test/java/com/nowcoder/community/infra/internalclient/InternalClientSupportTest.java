@@ -6,6 +6,7 @@ import com.nowcoder.community.contracts.exception.BusinessException;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.ResponseEntity;
 
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
@@ -205,5 +206,17 @@ class InternalClientSupportTest {
                 .counter()
                 .count()).isEqualTo(1.0);
     }
-}
 
+    @Test
+    void unwrapResponseEntityShouldUseResultHttpStatusWhenHttpIs2xx() {
+        ResponseEntity<Result<Void>> response = ResponseEntity.ok(Result.error(11001, "用户不存在", 404));
+
+        assertThatThrownBy(() -> InternalClientSupport.unwrap(response, "user-service"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(e -> {
+                    BusinessException be = (BusinessException) e;
+                    assertThat(be.getErrorCode().getCode()).isEqualTo(11001);
+                    assertThat(be.getErrorCode().getHttpStatus()).isEqualTo(404);
+                });
+    }
+}

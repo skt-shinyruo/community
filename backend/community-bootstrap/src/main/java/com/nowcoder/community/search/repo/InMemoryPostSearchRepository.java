@@ -31,7 +31,11 @@ public class InMemoryPostSearchRepository implements PostSearchRepository {
 
     @Override
     public List<SearchPostItem> search(String keyword, Integer categoryId, String tag, int page, int size) {
+        int p = Math.max(0, page);
+        int s = Math.min(50, Math.max(1, size));
+
         String k = keyword == null ? "" : keyword.trim();
+        String kLower = StringUtils.hasText(k) ? k.toLowerCase(Locale.ROOT) : "";
         Integer cid = categoryId != null && categoryId > 0 ? categoryId : null;
         String safeTag = tag == null ? "" : tag.trim();
         if (safeTag.startsWith("#")) {
@@ -67,13 +71,17 @@ public class InMemoryPostSearchRepository implements PostSearchRepository {
                 matched.add(post);
                 continue;
             }
-            if ((post.getTitle() != null && post.getTitle().contains(k)) || (post.getContent() != null && post.getContent().contains(k))) {
+            if (containsIgnoreCase(post.getTitle(), kLower) || containsIgnoreCase(post.getContent(), kLower)) {
                 matched.add(post);
             }
         }
         matched.sort(Comparator.comparing(PostPayload::getCreateTime, Comparator.nullsLast(Comparator.reverseOrder())));
-        int from = Math.max(0, page * size);
-        int to = Math.min(matched.size(), from + size);
+        long fromLong = (long) p * (long) s;
+        if (fromLong >= matched.size()) {
+            return List.of();
+        }
+        int from = (int) fromLong;
+        int to = (int) Math.min((long) matched.size(), fromLong + (long) s);
         List<SearchPostItem> items = new ArrayList<>();
         for (PostPayload post : matched.subList(from, to)) {
             SearchPostItem item = new SearchPostItem();
@@ -84,8 +92,8 @@ public class InMemoryPostSearchRepository implements PostSearchRepository {
             item.setCreateTime(post.getCreateTime());
             item.setScore(post.getScore());
             if (StringUtils.hasText(k)) {
-                item.setHighlightedTitle(highlight(post.getTitle(), k));
-                item.setHighlightedContent(highlight(post.getContent(), k));
+                item.setHighlightedTitle(KeywordHighlightSupport.highlight(post.getTitle(), k));
+                item.setHighlightedContent(KeywordHighlightSupport.highlight(post.getContent(), k));
             }
             items.add(item);
         }
@@ -97,10 +105,10 @@ public class InMemoryPostSearchRepository implements PostSearchRepository {
         store.clear();
     }
 
-    private String highlight(String text, String keyword) {
-        if (!StringUtils.hasText(text) || !StringUtils.hasText(keyword)) {
-            return text;
+    private boolean containsIgnoreCase(String text, String keywordLower) {
+        if (!StringUtils.hasText(text) || !StringUtils.hasText(keywordLower)) {
+            return false;
         }
-        return text.replace(keyword, "<em>" + keyword + "</em>");
+        return text.toLowerCase(Locale.ROOT).contains(keywordLower);
     }
 }

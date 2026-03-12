@@ -124,7 +124,7 @@ public class RedisFollowRepository implements FollowRepository {
         Set<ZSetOperations.TypedTuple<String>> tuples = redisTemplate.opsForZSet().reverseRangeWithScores(
                 followeeKey(userId, entityType),
                 offset,
-                offset + limit - 1L
+                (long) offset + (long) limit - 1L
         );
         return toItems(tuples);
     }
@@ -134,7 +134,7 @@ public class RedisFollowRepository implements FollowRepository {
         Set<ZSetOperations.TypedTuple<String>> tuples = redisTemplate.opsForZSet().reverseRangeWithScores(
                 followerKey(entityType, entityId),
                 offset,
-                offset + limit - 1L
+                (long) offset + (long) limit - 1L
         );
         return toItems(tuples);
     }

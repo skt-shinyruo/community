@@ -101,7 +101,13 @@ public class IdempotencyGuard {
                 throw e;
             }
 
-            String json = toJson(result);
+            String json;
+            try {
+                json = toJson(result);
+            } catch (RuntimeException e) {
+                record(operation, "serialize_error");
+                json = "null";
+            }
             try {
                 store.saveSuccess(op, userId, key, json, successTtl);
             } catch (RuntimeException e) {

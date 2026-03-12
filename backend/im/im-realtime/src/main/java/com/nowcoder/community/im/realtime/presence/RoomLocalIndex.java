@@ -1,21 +1,65 @@
 package com.nowcoder.community.im.realtime.presence;
 
+import io.micrometer.core.instrument.DistributionSummary;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
 public class RoomLocalIndex {
 
     private final ConcurrentHashMap<Long, Set<String>> connectionIdsByRoomId = new ConcurrentHashMap<>();
 
+    private static final int DEFAULT_ROOM_SIZE_SAMPLE_RATE = 256;
+
+    private final AtomicInteger indexedRooms = new AtomicInteger(0);
+    private final int roomSizeSampleRate;
+    private final DistributionSummary connectionsPerRoom;
+
+    public RoomLocalIndex() {
+        this(null, DEFAULT_ROOM_SIZE_SAMPLE_RATE);
+    }
+
+    public RoomLocalIndex(MeterRegistry meterRegistry, int roomSizeSampleRate) {
+        this.roomSizeSampleRate = Math.max(1, roomSizeSampleRate);
+        if (meterRegistry != null) {
+            meterRegistry.gauge("im_ws_rooms_indexed", indexedRooms);
+            this.connectionsPerRoom = DistributionSummary.builder("im_ws_connections_per_room")
+                    .description("Sampled distribution of active connections per room (in-process, im-realtime)")
+                    .baseUnit("connections")
+                    .register(meterRegistry);
+        } else {
+            this.connectionsPerRoom = null;
+        }
+    }
+
+    @Autowired
+    public RoomLocalIndex(ObjectProvider<MeterRegistry> meterRegistryProvider) {
+        this(meterRegistryProvider == null ? null : meterRegistryProvider.getIfAvailable(), DEFAULT_ROOM_SIZE_SAMPLE_RATE);
+    }
+
     public void add(long roomId, String connectionId) {
         if (roomId <= 0 || connectionId == null || connectionId.isBlank()) {
             return;
         }
-        connectionIdsByRoomId.computeIfAbsent(roomId, k -> ConcurrentHashMap.newKeySet()).add(connectionId);
+        Set<String> ids = connectionIdsByRoomId.get(roomId);
+        if (ids == null) {
+            Set<String> created = ConcurrentHashMap.newKeySet();
+            ids = connectionIdsByRoomId.putIfAbsent(roomId, created);
+            if (ids == null) {
+                ids = created;
+                indexedRooms.incrementAndGet();
+            }
+        }
+        ids.add(connectionId);
+        recordRoomSizeSampled(ids);
     }
 
     public void remove(long roomId, String connectionId) {
@@ -28,8 +72,11 @@ public class RoomLocalIndex {
         }
         ids.remove(connectionId);
         if (ids.isEmpty()) {
-            connectionIdsByRoomId.remove(roomId, ids);
+            if (connectionIdsByRoomId.remove(roomId, ids)) {
+                indexedRooms.decrementAndGet();
+            }
         }
+        recordRoomSizeSampled(ids);
     }
 
     public void forEachConnectionId(long roomId, Consumer<String> consumer) {
@@ -45,6 +92,22 @@ public class RoomLocalIndex {
             if (id != null && !id.isBlank()) {
                 consumer.accept(id);
             }
+        }
+    }
+
+    private void recordRoomSizeSampled(Set<String> ids) {
+        if (connectionsPerRoom == null || ids == null) {
+            return;
+        }
+        if (roomSizeSampleRate > 1 && ThreadLocalRandom.current().nextInt(roomSizeSampleRate) != 0) {
+            return;
+        }
+        try {
+            int size = ids.size();
+            if (size > 0) {
+                connectionsPerRoom.record(size);
+            }
+        } catch (RuntimeException ignore) {
         }
     }
 }

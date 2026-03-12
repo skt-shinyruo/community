@@ -15,6 +15,7 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 @Component
 public class SecurityExceptionHandler implements AuthenticationEntryPoint, AccessDeniedHandler {
@@ -39,6 +40,7 @@ public class SecurityExceptionHandler implements AuthenticationEntryPoint, Acces
 
     private void write(HttpServletRequest request, HttpServletResponse response, int httpStatus, Result<?> body) throws IOException {
         response.setStatus(httpStatus);
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 
         String traceId = TraceId.get();

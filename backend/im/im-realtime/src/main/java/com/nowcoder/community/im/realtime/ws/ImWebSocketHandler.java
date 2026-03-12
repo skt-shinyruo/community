@@ -19,6 +19,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.socket.WebSocketHandler;
 import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.WebSocketSession;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -140,12 +141,15 @@ public class ImWebSocketHandler implements WebSocketHandler {
             conn.trySendText(WsProtocol.authOk(verified.userId()));
 
             // Best-effort bootstrap: pull membership from im-core (paged) and build local indexes.
-            imCoreClient.listAllRoomIdsForUser(verified.userId(), accessToken)
+            Disposable sub = imCoreClient.listAllRoomIdsForUser(verified.userId(), accessToken)
                     .onBackpressureBuffer(2048)
+                    .doOnError(ex -> log.warn("[im-ws] room bootstrap failed (userId={}): {}", verified.userId(), ex.toString()))
+                    .onErrorResume(ex -> Flux.empty())
                     .subscribe(roomId -> {
                         roomLocalIndex.add(roomId, conn.connectionId());
                         conn.joinRoom(roomId);
                     });
+            conn.setRoomBootstrapSubscription(sub);
         } catch (Exception e) {
             conn.trySendText(WsProtocol.authError("invalid token"));
             conn.closeAsync(Duration.ofSeconds(1));
@@ -213,6 +217,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
 
     private void cleanup(WsConnection conn) {
         try {
+            conn.disposeRoomBootstrapSubscription();
             connectionRegistry.unregister(conn);
             for (Long roomId : conn.joinedRoomsView()) {
                 roomLocalIndex.remove(roomId, conn.connectionId());

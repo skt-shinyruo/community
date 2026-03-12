@@ -133,7 +133,7 @@
  
       <UiCard>
         <UiPageHeader>
-          <template #title>评论 {{ post?.commentCount || 0 }}</template>
+          <template #title>回复 {{ post?.commentCount || 0 }}</template>
           <template #actions>
             <UiButton variant="secondary" @click="reloadComments" :disabled="commentsLoading">
               {{ commentsLoading ? '加载中…' : '刷新' }}
@@ -386,7 +386,7 @@ import { formatTime } from '../utils/time'
 import { markPostRead } from '../utils/readTracker'
 import { scrollToAnchor } from '../utils/scrollToAnchor'
 import { getUserProfile } from '../api/services/userService'
-import { setLike, getLikeCount, getLikeStatus, followUser, unfollowUser, getFollowStatus } from '../api/services/socialService'
+import { setLike, followUser, unfollowUser, getFollowStatus } from '../api/services/socialService'
 import { bookmarkPost, unbookmarkPost } from '../api/services/bookmarkService'
 import { blockUser, unblockUser } from '../api/services/blockService'
 import {
@@ -853,20 +853,17 @@ async function submitEdit(payload) {
   }
 }
 
-async function hydrateComment(raw) {
+function hydrateComment(raw, { users = {}, counts = {}, statuses = {} } = {}) {
   const commentId = Number(raw?.id || 0)
   const userId = Number(raw?.userId || 0)
-  const [user, likeCount, liked] = await Promise.all([
-    userId ? getUserProfile(userId).catch(() => null) : Promise.resolve(null),
-    commentId ? getLikeCount(2, commentId).catch(() => ({ data: 0 })) : Promise.resolve({ data: 0 }),
-    authed.value && commentId ? getLikeStatus(2, commentId).catch(() => ({ data: false })) : Promise.resolve({ data: false })
-  ])
+  const likeCount = counts?.[commentId]
+  const liked = statuses?.[commentId]
 
   return {
     ...raw,
-    user,
-    likeCount: Number(likeCount?.data || 0),
-    liked: !!liked?.data,
+    user: users?.[userId] || null,
+    likeCount: typeof likeCount === 'number' ? likeCount : 0,
+    liked: !!liked,
     _likeLoading: false,
 
     _replying: false,
@@ -886,24 +883,20 @@ async function hydrateComment(raw) {
   }
 }
 
-async function hydrateReply(raw) {
+function hydrateReply(raw, { users = {}, counts = {}, statuses = {} } = {}) {
   const replyId = Number(raw?.id || 0)
   const userId = Number(raw?.userId || 0)
   const targetUserId = Number(raw?.targetId || 0)
-  const [user, targetUser, likeCount, liked] = await Promise.all([
-    userId ? getUserProfile(userId).catch(() => null) : Promise.resolve(null),
-    targetUserId ? getUserProfile(targetUserId).catch(() => null) : Promise.resolve(null),
-    replyId ? getLikeCount(2, replyId).catch(() => ({ data: 0 })) : Promise.resolve({ data: 0 }),
-    authed.value && replyId ? getLikeStatus(2, replyId).catch(() => ({ data: false })) : Promise.resolve({ data: false })
-  ])
+  const likeCount = counts?.[replyId]
+  const liked = statuses?.[replyId]
 
   return {
     ...raw,
-    user,
+    user: users?.[userId] || null,
     targetUserId,
-    targetUser,
-    likeCount: Number(likeCount?.data || 0),
-    liked: !!liked?.data,
+    targetUser: targetUserId > 0 ? (users?.[targetUserId] || null) : null,
+    likeCount: typeof likeCount === 'number' ? likeCount : 0,
+    liked: !!liked,
     _likeLoading: false
   }
 }
@@ -946,7 +939,47 @@ async function loadComments() {
   try {
     const resp = await apiListComments(postId.value, { page: commentsPage.value, size: commentsSize.value })
     emit('trace', resp?.traceId || '')
-    comments.value = await Promise.all((resp?.data || []).map((c) => hydrateComment(c)))
+    const raw = Array.isArray(resp?.data) ? resp.data : []
+    const userIds = []
+    const commentIds = []
+    const seenUsers = new Set()
+    const seenComments = new Set()
+    for (const c of raw) {
+      const uid = Number(c?.userId || 0)
+      const cid = Number(c?.id || 0)
+      if (uid > 0 && !seenUsers.has(uid)) {
+        seenUsers.add(uid)
+        userIds.push(uid)
+      }
+      if (cid > 0 && !seenComments.has(cid)) {
+        seenComments.add(cid)
+        commentIds.push(cid)
+      }
+      if (userIds.length >= 200 && commentIds.length >= 200) break
+    }
+
+    let users = {}
+    let counts = {}
+    let statuses = {}
+    try {
+      users = await postMetaCache.ensureUserSummaries(userIds)
+    } catch {
+      users = {}
+    }
+    try {
+      counts = await postMetaCache.ensureLikeCounts(2, commentIds)
+    } catch {
+      counts = {}
+    }
+    if (authed.value) {
+      try {
+        statuses = await postMetaCache.ensureLikeStatuses(2, commentIds)
+      } catch {
+        statuses = {}
+      }
+    }
+
+    comments.value = raw.map((c) => hydrateComment(c, { users, counts, statuses }))
     await maybeScrollFromRoute()
   } catch (e) {
     commentsError.value = e?.message || '加载评论失败'
@@ -966,7 +999,52 @@ async function loadReplies(c) {
   try {
     const resp = await apiListReplies(postId.value, c.id, { page: c._repliesPage, size: c._repliesSize })
     emit('trace', resp?.traceId || '')
-    c._replies = await Promise.all((resp?.data || []).map((r) => hydrateReply(r)))
+    const raw = Array.isArray(resp?.data) ? resp.data : []
+    const userIds = []
+    const replyIds = []
+    const seenUsers = new Set()
+    const seenReplies = new Set()
+    for (const r of raw) {
+      const uid = Number(r?.userId || 0)
+      const tid = Number(r?.targetId || 0)
+      const rid = Number(r?.id || 0)
+      if (uid > 0 && !seenUsers.has(uid)) {
+        seenUsers.add(uid)
+        userIds.push(uid)
+      }
+      if (tid > 0 && !seenUsers.has(tid)) {
+        seenUsers.add(tid)
+        userIds.push(tid)
+      }
+      if (rid > 0 && !seenReplies.has(rid)) {
+        seenReplies.add(rid)
+        replyIds.push(rid)
+      }
+      if (userIds.length >= 200 && replyIds.length >= 200) break
+    }
+
+    let users = {}
+    let counts = {}
+    let statuses = {}
+    try {
+      users = await postMetaCache.ensureUserSummaries(userIds)
+    } catch {
+      users = {}
+    }
+    try {
+      counts = await postMetaCache.ensureLikeCounts(2, replyIds)
+    } catch {
+      counts = {}
+    }
+    if (authed.value) {
+      try {
+        statuses = await postMetaCache.ensureLikeStatuses(2, replyIds)
+      } catch {
+        statuses = {}
+      }
+    }
+
+    c._replies = raw.map((r) => hydrateReply(r, { users, counts, statuses }))
   } catch (e) {
     c._repliesError = e?.message || '加载回复失败'
   } finally {
@@ -1065,6 +1143,9 @@ async function submitReply(c) {
     safeStorageSet(replyDraftKey(c.id), '')
     c._replying = false
     c._replyQuote = null
+    if (post.value) {
+      post.value.commentCount = Number(post.value.commentCount || 0) + 1
+    }
     if (!c._repliesExpanded) {
       c._repliesExpanded = true
     }
@@ -1089,8 +1170,14 @@ async function toggleCommentLike(c) {
       liked: null
     })
     emit('trace', resp?.traceId || '')
-    if (typeof resp?.data?.likeCount === 'number') c.likeCount = resp.data.likeCount
-    if (typeof resp?.data?.liked === 'boolean') c.liked = resp.data.liked
+    if (typeof resp?.data?.likeCount === 'number') {
+      c.likeCount = resp.data.likeCount
+      postMetaCache.setLikeCount(2, Number(c.id), c.likeCount)
+    }
+    if (typeof resp?.data?.liked === 'boolean') {
+      c.liked = resp.data.liked
+      postMetaCache.setLikeStatus(2, Number(c.id), c.liked)
+    }
   } catch (e) {
     commentsError.value = e?.message || '点赞失败'
   } finally {
@@ -1110,8 +1197,14 @@ async function toggleReplyLike(c, r) {
       liked: null
     })
     emit('trace', resp?.traceId || '')
-    if (typeof resp?.data?.likeCount === 'number') r.likeCount = resp.data.likeCount
-    if (typeof resp?.data?.liked === 'boolean') r.liked = resp.data.liked
+    if (typeof resp?.data?.likeCount === 'number') {
+      r.likeCount = resp.data.likeCount
+      postMetaCache.setLikeCount(2, Number(r.id), r.likeCount)
+    }
+    if (typeof resp?.data?.liked === 'boolean') {
+      r.liked = resp.data.liked
+      postMetaCache.setLikeStatus(2, Number(r.id), r.liked)
+    }
   } catch (e) {
     c._repliesError = e?.message || '点赞失败'
   } finally {

@@ -17,8 +17,8 @@ public class AuthStartupValidator implements StartupValidator {
         }
 
         String appName = getTrimmed(environment, "spring.application.name");
-        if (!"auth-service".equals(appName)) {
-            // 兼容单体/其他模块：仅当应用名为 auth-service 时启用 auth 相关 prod 校验，保持行为稳定。
+        if (!"auth-service".equalsIgnoreCase(appName) && !"community-app".equalsIgnoreCase(appName)) {
+            // 兼容拆分/单体：auth 独立服务（auth-service）或单体应用（community-app）才启用 auth 相关 prod 校验。
             return;
         }
 
@@ -81,4 +81,3 @@ public class AuthStartupValidator implements StartupValidator {
         return v == null ? "" : v.trim();
     }
 }
-

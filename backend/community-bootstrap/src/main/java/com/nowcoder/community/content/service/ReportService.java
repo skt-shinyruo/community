@@ -7,6 +7,7 @@ import com.nowcoder.community.content.dao.CommentMapper;
 import com.nowcoder.community.content.dao.ReportMapper;
 import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.entity.Report;
+import com.nowcoder.community.infra.pagination.Pagination;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -116,7 +117,7 @@ public class ReportService {
         if (rid != null && rid <= 0) {
             rid = null;
         }
-        return reportMapper.selectReports(st, tt, rid, p * s, s);
+        return reportMapper.selectReports(st, tt, rid, Pagination.safeOffset(p, s), s);
     }
 
     public void markStatus(int reportId, int status) {

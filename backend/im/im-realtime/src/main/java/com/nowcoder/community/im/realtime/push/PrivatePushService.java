@@ -4,10 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.im.contracts.event.PrivateMessagePersistedEventV1;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
-import com.nowcoder.community.im.realtime.presence.WsConnection;
 import org.springframework.stereotype.Component;
-
-import java.util.Collection;
 
 @Component
 public class PrivatePushService {
@@ -36,10 +33,7 @@ public class PrivatePushService {
     }
 
     private void pushToUser(int userId, String json) {
-        Collection<WsConnection> conns = connectionRegistry.listByUserId(userId);
-        for (WsConnection conn : conns) {
-            conn.trySendText(json);
-        }
+        connectionRegistry.forEachConnectionByUserId(userId, conn -> conn.trySendText(json));
     }
 
     public record PrivateMessage(
@@ -66,4 +60,3 @@ public class PrivatePushService {
         }
     }
 }
-

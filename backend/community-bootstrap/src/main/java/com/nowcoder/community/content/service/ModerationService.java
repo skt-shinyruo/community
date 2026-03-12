@@ -14,6 +14,7 @@ import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.entity.ModerationAction;
 import com.nowcoder.community.content.entity.Report;
 import com.nowcoder.community.content.event.ContentEventPublisher;
+import com.nowcoder.community.infra.pagination.Pagination;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -71,7 +72,7 @@ public class ModerationService {
         if (aid != null && aid <= 0) {
             aid = null;
         }
-        return actionMapper.selectActions(aid, p * s, s);
+        return actionMapper.selectActions(aid, Pagination.safeOffset(p, s), s);
     }
 
     @Transactional

@@ -71,6 +71,10 @@ public class PostScoreRefresher {
         }
         try {
             refresh(pid);
+            try {
+                scoreQueue.onSuccess(pid);
+            } catch (RuntimeException ignored) {
+            }
             meterRegistry.counter("content_post_score_refresh_total", Tags.of("outcome", "success")).increment();
         } catch (BusinessException e) {
             ErrorCode errorCode = e.getErrorCode();
@@ -89,7 +93,7 @@ public class PostScoreRefresher {
 
     private void reenqueue(int postId, RuntimeException e) {
         try {
-            scoreQueue.add(postId);
+            scoreQueue.reenqueue(postId);
             meterRegistry.counter("content_post_score_refresh_total", Tags.of("outcome", "reenqueue")).increment();
         } catch (RuntimeException ex) {
             meterRegistry.counter("content_post_score_refresh_total", Tags.of("outcome", "reenqueue_failed")).increment();

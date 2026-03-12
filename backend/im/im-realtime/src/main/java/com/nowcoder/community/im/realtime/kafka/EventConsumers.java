@@ -6,14 +6,11 @@ import com.nowcoder.community.im.contracts.event.RoomMemberChangedEventV1;
 import com.nowcoder.community.im.contracts.event.RoomMessagePersistedEventV1;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
 import com.nowcoder.community.im.realtime.presence.RoomLocalIndex;
-import com.nowcoder.community.im.realtime.presence.WsConnection;
 import com.nowcoder.community.im.realtime.push.PrivatePushService;
 import com.nowcoder.community.im.realtime.push.RoomFanoutCoalescer;
 import com.nowcoder.community.im.realtime.push.RoomUpdateCoalescer;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
-
-import java.util.Collection;
 
 @Component
 public class EventConsumers {
@@ -66,20 +63,19 @@ public class EventConsumers {
         }
         long roomId = event.roomId();
         int userId = event.userId();
-        Collection<WsConnection> conns = connectionRegistry.listByUserId(userId);
         String action = event.action() == null ? "" : event.action().trim().toUpperCase();
         if ("JOINED".equals(action)) {
-            for (WsConnection conn : conns) {
+            connectionRegistry.forEachConnectionByUserId(userId, conn -> {
                 roomLocalIndex.add(roomId, conn.connectionId());
                 conn.joinRoom(roomId);
-            }
+            });
             return;
         }
         if ("LEFT".equals(action)) {
-            for (WsConnection conn : conns) {
+            connectionRegistry.forEachConnectionByUserId(userId, conn -> {
                 roomLocalIndex.remove(roomId, conn.connectionId());
                 conn.leaveRoom(roomId);
-            }
+            });
         }
     }
 }

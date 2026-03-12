@@ -5,6 +5,7 @@ import com.nowcoder.community.social.application.BlockQueryApplicationService;
 import com.nowcoder.community.content.api.event.payload.CommentPayload;
 import com.nowcoder.community.contracts.domain.EntityTypes;
 import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.infra.pagination.Pagination;
 import com.nowcoder.community.infra.tx.AfterCommitExecutor;
 import com.nowcoder.community.content.dao.CommentMapper;
 import com.nowcoder.community.content.entity.Comment;
@@ -69,13 +70,13 @@ public class CommentService {
     public List<Comment> listByPost(int postId, int page, int size) {
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
-        return commentMapper.selectCommentsByEntity(ENTITY_TYPE_POST, postId, p * s, s);
+        return commentMapper.selectCommentsByEntity(ENTITY_TYPE_POST, postId, Pagination.safeOffset(p, s), s);
     }
 
     public List<Comment> listReplies(int commentId, int page, int size) {
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
-        return commentMapper.selectCommentsByEntity(ENTITY_TYPE_COMMENT, commentId, p * s, s);
+        return commentMapper.selectCommentsByEntity(ENTITY_TYPE_COMMENT, commentId, Pagination.safeOffset(p, s), s);
     }
 
     public void assertCommentBelongsToPost(int postId, int commentId) {
@@ -176,18 +177,17 @@ public class CommentService {
 
         commentMapper.insertComment(comment);
 
-        if (type == ENTITY_TYPE_POST) {
-            postService.incrementCommentCount(postId, 1);
+        // commentCount 语义：包含一级评论 + 回复（不回填历史，只对新写入生效）。
+        postService.incrementCommentCount(postId, 1);
 
-            // 热度刷新属于非 DB 副作用：延后到事务提交后，避免回滚仍触发刷新。
-            AfterCommitExecutor.runAfterCommit(() -> {
-                try {
-                    postScoreQueue.add(postId);
-                } catch (RuntimeException e) {
-                    log.warn("[post-score] enqueue failed after commit (postId={}): {}", postId, e.toString());
-                }
-            });
-        }
+        // 热度刷新属于非 DB 副作用：延后到事务提交后，避免回滚仍触发刷新。
+        AfterCommitExecutor.runAfterCommit(() -> {
+            try {
+                postScoreQueue.add(postId);
+            } catch (RuntimeException e) {
+                log.warn("[post-score] enqueue failed after commit (postId={}): {}", postId, e.toString());
+            }
+        });
 
         CommentPayload payload = new CommentPayload();
         payload.setCommentId(comment.getId());

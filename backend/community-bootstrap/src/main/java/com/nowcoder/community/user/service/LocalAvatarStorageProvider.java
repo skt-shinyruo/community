@@ -90,7 +90,7 @@ public class LocalAvatarStorageProvider implements AvatarStorageProvider {
         } catch (BusinessException e) {
             throw e;
         } catch (java.io.IOException | RuntimeException e) {
-            throw new BusinessException(INTERNAL_ERROR, "保存头像失败");
+            throw new BusinessException(INTERNAL_ERROR, "保存头像失败", e);
         }
     }
 

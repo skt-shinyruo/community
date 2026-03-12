@@ -4,6 +4,7 @@ package com.nowcoder.community.content.service;
 import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.content.dao.DiscussPostMapper;
 import com.nowcoder.community.content.entity.DiscussPost;
+import com.nowcoder.community.infra.pagination.Pagination;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
@@ -35,7 +36,7 @@ public class PostService {
             safeTag = null;
         }
         Integer safeCategoryId = (categoryId != null && categoryId > 0) ? categoryId : null;
-        return discussPostMapper.selectDiscussPosts(0, safeCategoryId, null, safeTag, p * s, s, orderMode);
+        return discussPostMapper.selectDiscussPosts(0, safeCategoryId, null, safeTag, Pagination.safeOffset(p, s), s, orderMode);
     }
 
     public DiscussPost getById(int postId) {
@@ -81,7 +82,7 @@ public class PostService {
             safeTag = null;
         }
         Integer safeCategoryId = (categoryId != null && categoryId > 0) ? categoryId : null;
-        return discussPostMapper.selectDiscussPosts(0, safeCategoryId, subscribedCategoryIds, safeTag, p * s, s, orderMode);
+        return discussPostMapper.selectDiscussPosts(0, safeCategoryId, subscribedCategoryIds, safeTag, Pagination.safeOffset(p, s), s, orderMode);
     }
 
     public int create(DiscussPost post) {

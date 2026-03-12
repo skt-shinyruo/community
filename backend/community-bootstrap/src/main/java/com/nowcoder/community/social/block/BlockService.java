@@ -4,8 +4,12 @@ package com.nowcoder.community.social.block;
 import com.nowcoder.community.social.api.event.payload.BlockPayload;
 import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.social.event.SocialEventPublisher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 
@@ -14,6 +18,8 @@ import static com.nowcoder.community.social.api.SocialErrorCode.CANNOT_BLOCK_SEL
 
 @Service
 public class BlockService {
+
+    private static final Logger log = LoggerFactory.getLogger(BlockService.class);
 
     private final BlockRepository repository;
     private final SocialEventPublisher eventPublisher;
@@ -31,13 +37,29 @@ public class BlockService {
         if (userId == targetUserId) {
             throw new BusinessException(CANNOT_BLOCK_SELF);
         }
-        repository.block(userId, targetUserId);
+        boolean changed = repository.block(userId, targetUserId);
+        if (!changed) {
+            return;
+        }
+
+        Runnable rollback = () -> repository.unblock(userId, targetUserId);
+        registerRollbackIfTxRolledBack(rollback);
 
         BlockPayload payload = new BlockPayload();
         payload.setBlockerUserId(userId);
         payload.setBlockedUserId(targetUserId);
         payload.setBlocked(Boolean.TRUE);
-        eventPublisher.publishBlockRelationChanged(payload);
+        try {
+            eventPublisher.publishBlockRelationChanged(payload);
+        } catch (RuntimeException ex) {
+            try {
+                rollback.run();
+            } catch (RuntimeException rollbackEx) {
+                log.warn("[block] rollback failed after publish error (userId={}, targetUserId={}): {}",
+                        userId, targetUserId, rollbackEx.toString());
+            }
+            throw ex;
+        }
     }
 
     @Transactional
@@ -45,13 +67,29 @@ public class BlockService {
         if (userId <= 0 || targetUserId <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "userId/targetUserId 非法");
         }
-        repository.unblock(userId, targetUserId);
+        boolean changed = repository.unblock(userId, targetUserId);
+        if (!changed) {
+            return;
+        }
+
+        Runnable rollback = () -> repository.block(userId, targetUserId);
+        registerRollbackIfTxRolledBack(rollback);
 
         BlockPayload payload = new BlockPayload();
         payload.setBlockerUserId(userId);
         payload.setBlockedUserId(targetUserId);
         payload.setBlocked(Boolean.FALSE);
-        eventPublisher.publishBlockRelationChanged(payload);
+        try {
+            eventPublisher.publishBlockRelationChanged(payload);
+        } catch (RuntimeException ex) {
+            try {
+                rollback.run();
+            } catch (RuntimeException rollbackEx) {
+                log.warn("[block] rollback failed after publish error (userId={}, targetUserId={}): {}",
+                        userId, targetUserId, rollbackEx.toString());
+            }
+            throw ex;
+        }
     }
 
     public boolean hasBlocked(int userId, int targetUserId) {
@@ -76,5 +114,27 @@ public class BlockService {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         return repository.listBlockedUserIds(userId);
+    }
+
+    private void registerRollbackIfTxRolledBack(Runnable rollback) {
+        if (rollback == null) {
+            return;
+        }
+        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_COMMITTED) {
+                    return;
+                }
+                try {
+                    rollback.run();
+                } catch (RuntimeException ex) {
+                    log.warn("[block] rollback failed after tx rollback: {}", ex.toString());
+                }
+            }
+        });
     }
 }

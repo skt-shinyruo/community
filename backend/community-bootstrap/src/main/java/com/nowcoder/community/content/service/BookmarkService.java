@@ -4,6 +4,7 @@ package com.nowcoder.community.content.service;
 import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.content.dao.BookmarkMapper;
 import com.nowcoder.community.content.entity.DiscussPost;
+import com.nowcoder.community.infra.pagination.Pagination;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
@@ -51,7 +52,6 @@ public class BookmarkService {
         }
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
-        return bookmarkMapper.selectBookmarkedPosts(userId, p * s, s);
+        return bookmarkMapper.selectBookmarkedPosts(userId, Pagination.safeOffset(p, s), s);
     }
 }
-

@@ -36,8 +36,8 @@
 
                 <div v-if="token.fileName" class="upload-area">
                   <div class="muted" style="font-size: 12px; margin-bottom: 8px">
-                    <span v-if="token.provider === 'local'">当前存储：本地上传（文件会先上传到服务器）。</span>
-                    <span v-else-if="token.provider === 'qiniu'">当前存储：对象存储直传（需要可用的 uploadToken）。</span>
+                    <span v-if="token.provider === 'local'">当前存储：本地文件（文件上传到后端并落盘）。</span>
+                    <span v-else-if="token.provider === 'r2'">当前存储：Cloudflare R2（文件先上传到后端，再转存到 R2）。</span>
                     <span v-else>当前存储：未知（请联系管理员）。</span>
                     <span v-if="token.maxBytes"> · 限制 {{ Math.round(token.maxBytes / 1024) }}KB</span>
                   </div>
@@ -78,9 +78,7 @@ const error = ref('')
 const successMsg = ref('')
 const token = reactive({
   provider: '',
-  uploadToken: '',
   fileName: '',
-  bucketUrl: '',
   uploadUrl: '',
   uploadMethod: '',
   maxBytes: 0,
@@ -92,24 +90,13 @@ const pickedFile = ref(null)
 const currentAvatarUrl = computed(() => String(auth?.me?.headerUrl || '').trim())
 
 const previewUrl = computed(() => {
-  const provider = String(token.provider || '').trim()
   const fileName = String(token.fileName || '').trim()
-  if (!provider || !fileName) return ''
+  if (!fileName) return ''
 
-  if (provider === 'local') {
-    const base = String(http?.defaults?.baseURL || '').trim()
-    // edge/同源模式：baseURL 为空，直接使用相对路径。
-    if (!base) return `/files/${encodeURIComponent(fileName)}`
-    return `${base.replace(/\/$/, '')}/files/${encodeURIComponent(fileName)}`
-  }
-
-  if (provider === 'qiniu') {
-    const bucketUrl = String(token.bucketUrl || '').trim()
-    if (!bucketUrl) return ''
-    return bucketUrl.endsWith('/') ? `${bucketUrl}${fileName}` : `${bucketUrl}/${fileName}`
-  }
-
-  return ''
+  const base = String(http?.defaults?.baseURL || '').trim()
+  // edge/同源模式：baseURL 为空，直接使用相对路径。
+  if (!base) return `/files/${encodeURIComponent(fileName)}`
+  return `${base.replace(/\/$/, '')}/files/${encodeURIComponent(fileName)}`
 })
 
 const displayAvatarUrl = computed(() => previewUrl.value || currentAvatarUrl.value)
@@ -124,15 +111,13 @@ async function loadToken() {
     const { data, traceId } = unwrapResultBody(resp.data, 'Get Token')
     emit('trace', traceId || '')
     token.provider = data?.provider || ''
-    token.uploadToken = data?.uploadToken || ''
     token.fileName = data?.fileName || ''
-    token.bucketUrl = data?.bucketUrl || ''
     token.uploadUrl = data?.uploadUrl || ''
     token.uploadMethod = data?.uploadMethod || ''
     token.maxBytes = data?.maxBytes || 0
     token.mimeLimit = data?.mimeLimit || ''
   } catch (e) {
-    error.value = e?.message || '获取上传 Token 失败'
+    error.value = e?.message || '获取上传参数失败'
   } finally {
     loading.value = false
   }
@@ -143,21 +128,7 @@ function onPickFile(e) {
   pickedFile.value = f || null
 }
 
-async function uploadToQiniu({ file, key, uploadToken }) {
-  const url = 'https://upload.qiniup.com'
-  const form = new FormData()
-  form.append('token', uploadToken)
-  form.append('key', key)
-  form.append('file', file)
-  
-  const resp = await fetch(url, { method: 'POST', body: form })
-  if (!resp.ok) {
-    throw new Error(`Upload failed: ${resp.status}`)
-  }
-  return resp.text()
-}
-
-async function uploadToLocal({ file, fileName, uploadUrl }) {
+async function uploadToBackend({ file, fileName, uploadUrl }) {
   const form = new FormData()
   form.append('file', file)
   form.append('fileName', fileName)
@@ -180,16 +151,11 @@ async function uploadAndUpdate() {
   loading.value = true
   try {
     const provider = String(token.provider || '').trim()
-    if (provider === 'local') {
+    if (provider === 'local' || provider === 'r2') {
       if (!token.uploadUrl) {
         throw new Error('uploadUrl 缺失，请重新获取上传参数')
       }
-      await uploadToLocal({ file: pickedFile.value, fileName: token.fileName, uploadUrl: token.uploadUrl })
-    } else if (provider === 'qiniu') {
-      if (!token.uploadToken) {
-        throw new Error('uploadToken 缺失，请检查对象存储配置')
-      }
-      await uploadToQiniu({ file: pickedFile.value, key: token.fileName, uploadToken: token.uploadToken })
+      await uploadToBackend({ file: pickedFile.value, fileName: token.fileName, uploadUrl: token.uploadUrl })
     } else {
       throw new Error('未知存储策略，请联系管理员')
     }

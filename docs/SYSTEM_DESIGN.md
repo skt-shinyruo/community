@@ -132,7 +132,7 @@
 - `community.event.comment.v1`
 - `community.event.social.v1`
 - `community.event.moderation.v1`
-- 写路径与投影/通知解耦，但运行时不再依赖 Kafka/Outbox。
+- 写路径与投影/通知解耦：运行时不依赖 Kafka；关键投影（通知/积分/搜索）通过本地 DB Outbox 可靠投递（可重试）。
 
 ### 3.2 事件契约：Envelope + 校验（SSOT）
 代码位置（SSOT）：`backend/platform/contracts-event-core/src/main/java/com/nowcoder/community/contracts/event/EventEnvelope.java`。
@@ -150,8 +150,9 @@ unknown handling 为可配置策略（consumer 级别）：
 ### 3.3 事务后本地监听
 当前实现采用：
 1. 写模块在 DB 事务内发布领域事件
-2. `@TransactionalEventListener(phase = AFTER_COMMIT)` 在事务提交后驱动搜索投影、通知、积分、处罚命令等后续动作
-3. reindex 等高成本入口通过单进程 single-flight 控制并发
+2. 对“必须最终达成”的投影（通知/积分/搜索）使用 `@TransactionalEventListener(phase = BEFORE_COMMIT)` 写入 `community.outbox_event`（同事务提交）
+3. 本地 `@Scheduled` outbox worker 轮询并执行投影 handler（失败自动重试，最终一致）
+4. 对“尽力而为”的本地副作用（如热度队列）仍使用 after-commit 执行，并在监听方做兜底（不影响主链路）
 
 ### 3.4 典型消费方（最终一致）
 - message：消费评论/社交事件，生成通知

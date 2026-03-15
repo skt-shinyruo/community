@@ -23,15 +23,22 @@ public class ImRealtimeSecurityConfig {
     }
 
     @Bean
-    public SecurityWebFilterChain webFluxSecurityFilterChain(ServerHttpSecurity http) {
+    public SecurityWebFilterChain webFluxSecurityFilterChain(
+            ServerHttpSecurity http,
+            @Value("${im.ws.path:/ws/im}") String wsPath
+    ) {
+        String wsPathValue = (wsPath == null || wsPath.isBlank()) ? "/ws/im" : wsPath;
         // WebSocket auth is handled at message-level (first 'auth' frame).
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
+                .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                 .authorizeExchange(ex -> ex
-                        .pathMatchers("/actuator/health", "/actuator/info").permitAll()
-                        .anyExchange().permitAll()
+                        .pathMatchers("/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
+                        .pathMatchers(wsPathValue).permitAll()
+                        // Safer default: new HTTP endpoints must be explicitly allowed.
+                        .anyExchange().denyAll()
                 )
                 .build();
     }
 }
-

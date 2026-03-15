@@ -26,6 +26,9 @@ security:
 im:
   core:
     base-url: ${IM_CORE_BASE_URL:http://localhost:18082}
+  community:
+    base-url: ${COMMUNITY_BASE_URL:http://localhost:12882}
+    timeout-ms: ${IM_COMMUNITY_TIMEOUT_MS:1500}
   kafka:
     event:
       concurrency: ${IM_REALTIME_KAFKA_EVENT_CONCURRENCY:3}

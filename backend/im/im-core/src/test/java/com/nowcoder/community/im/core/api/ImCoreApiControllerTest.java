@@ -88,12 +88,14 @@ class ImCoreApiControllerTest {
                 .getContentAsString();
 
         JsonNode json1 = objectMapper.readTree(res1);
-        assertThat(json1.path("conversationId").asText("")).isEqualTo(conversationId);
-        assertThat(json1.path("items").isArray()).isTrue();
-        assertThat(json1.path("items").size()).isEqualTo(1);
-        assertThat(json1.path("items").get(0).path("content").asText("")).isEqualTo("hello");
-        assertThat(json1.path("nextAfterSeq").asLong()).isEqualTo(1L);
-        assertThat(json1.path("lastReadSeq").asLong()).isEqualTo(1L); // sender has read their own outgoing
+        assertThat(json1.path("code").asInt(-1)).isEqualTo(0);
+        JsonNode data1 = json1.path("data");
+        assertThat(data1.path("conversationId").asText("")).isEqualTo(conversationId);
+        assertThat(data1.path("items").isArray()).isTrue();
+        assertThat(data1.path("items").size()).isEqualTo(1);
+        assertThat(data1.path("items").get(0).path("content").asText("")).isEqualTo("hello");
+        assertThat(data1.path("nextAfterSeq").asLong()).isEqualTo(1L);
+        assertThat(data1.path("lastReadSeq").asLong()).isEqualTo(1L); // sender has read their own outgoing
 
         mockMvc.perform(post("/api/im/conversations/{id}/read", conversationId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -110,7 +112,8 @@ class ImCoreApiControllerTest {
                 .getResponse()
                 .getContentAsString();
         JsonNode json2 = objectMapper.readTree(res2);
-        assertThat(json2.path("lastReadSeq").asLong()).isEqualTo(1L);
+        assertThat(json2.path("code").asInt(-1)).isEqualTo(0);
+        assertThat(json2.path("data").path("lastReadSeq").asLong()).isEqualTo(1L);
 
         mockMvc.perform(get("/api/im/conversations/{id}/messages", conversationId)
                         .header("Authorization", bearer(user3)))
@@ -144,11 +147,13 @@ class ImCoreApiControllerTest {
                 .getResponse()
                 .getContentAsString();
         JsonNode json = objectMapper.readTree(res);
-        assertThat(json.path("roomId").asLong()).isEqualTo(roomId);
-        assertThat(json.path("items").isArray()).isTrue();
-        assertThat(json.path("items").size()).isEqualTo(1);
-        assertThat(json.path("items").get(0).path("content").asText("")).isEqualTo("hi room");
-        assertThat(json.path("nextAfterSeq").asLong()).isEqualTo(1L);
+        assertThat(json.path("code").asInt(-1)).isEqualTo(0);
+        JsonNode roomData = json.path("data");
+        assertThat(roomData.path("roomId").asLong()).isEqualTo(roomId);
+        assertThat(roomData.path("items").isArray()).isTrue();
+        assertThat(roomData.path("items").size()).isEqualTo(1);
+        assertThat(roomData.path("items").get(0).path("content").asText("")).isEqualTo("hi room");
+        assertThat(roomData.path("nextAfterSeq").asLong()).isEqualTo(1L);
 
         mockMvc.perform(post("/api/im/rooms/{roomId}/read", roomId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -165,7 +170,8 @@ class ImCoreApiControllerTest {
                 .getResponse()
                 .getContentAsString();
         JsonNode json2 = objectMapper.readTree(res2);
-        assertThat(json2.path("lastReadSeq").asLong()).isEqualTo(1L);
+        assertThat(json2.path("code").asInt(-1)).isEqualTo(0);
+        assertThat(json2.path("data").path("lastReadSeq").asLong()).isEqualTo(1L);
 
         mockMvc.perform(get("/api/im/rooms/{roomId}/messages", roomId)
                         .header("Authorization", bearer(outsider)))
@@ -206,16 +212,18 @@ class ImCoreApiControllerTest {
                 .getResponse()
                 .getContentAsString();
         JsonNode receiverJson = objectMapper.readTree(receiverRes);
-        assertThat(receiverJson.path("rooms").isArray()).isTrue();
-        assertThat(receiverJson.path("conversations").isArray()).isTrue();
+        assertThat(receiverJson.path("code").asInt(-1)).isEqualTo(0);
+        JsonNode receiverData = receiverJson.path("data");
+        assertThat(receiverData.path("rooms").isArray()).isTrue();
+        assertThat(receiverData.path("conversations").isArray()).isTrue();
 
-        JsonNode roomItem = receiverJson.path("rooms").get(0);
+        JsonNode roomItem = receiverData.path("rooms").get(0);
         assertThat(roomItem.path("roomId").asLong()).isEqualTo(roomId);
         assertThat(roomItem.path("lastSeq").asLong()).isEqualTo(1L);
         assertThat(roomItem.path("lastReadSeq").asLong()).isEqualTo(0L);
         assertThat(roomItem.path("unreadCount").asLong()).isEqualTo(1L);
 
-        JsonNode convItem = receiverJson.path("conversations").get(0);
+        JsonNode convItem = receiverData.path("conversations").get(0);
         assertThat(convItem.path("conversationId").asText("")).isEqualTo(conversationId);
         assertThat(convItem.path("lastSeq").asLong()).isEqualTo(1L);
         assertThat(convItem.path("lastReadSeq").asLong()).isEqualTo(0L);
@@ -228,8 +236,10 @@ class ImCoreApiControllerTest {
                 .getResponse()
                 .getContentAsString();
         JsonNode senderJson = objectMapper.readTree(senderRes);
-        assertThat(senderJson.path("rooms").get(0).path("unreadCount").asLong()).isEqualTo(0L);
-        assertThat(senderJson.path("conversations").get(0).path("unreadCount").asLong()).isEqualTo(0L);
+        assertThat(senderJson.path("code").asInt(-1)).isEqualTo(0);
+        JsonNode senderData = senderJson.path("data");
+        assertThat(senderData.path("rooms").get(0).path("unreadCount").asLong()).isEqualTo(0L);
+        assertThat(senderData.path("conversations").get(0).path("unreadCount").asLong()).isEqualTo(0L);
     }
 
     @Test

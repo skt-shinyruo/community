@@ -5,8 +5,6 @@ com.nowcoder.community.infra.idempotency.autoconfig.IdempotencyGuardAutoConfigur
 com.nowcoder.community.infra.scheduler.autoconfig.SchedulerInfraAutoConfiguration
 com.nowcoder.community.infra.security.autoconfig.SecurityInfraAutoConfiguration
 com.nowcoder.community.infra.security.autoconfig.ServletInfraSecurityConfig
-com.nowcoder.community.infra.security.autoconfig.ReactiveSecurityInfraAutoConfiguration
 com.nowcoder.community.infra.startup.autoconfig.StartupValidationAutoConfiguration
 com.nowcoder.community.infra.web.autoconfig.WebInfraAutoConfiguration
 com.nowcoder.community.infra.web.autoconfig.ServletWebInfraAutoConfiguration
-com.nowcoder.community.infra.web.autoconfig.ReactiveWebInfraAutoConfiguration

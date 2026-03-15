@@ -30,27 +30,29 @@ public class RoomController {
     }
 
     @PostMapping
-    public CreateRoomResponse createRoom(@AuthenticationPrincipal Jwt jwt, @RequestBody CreateRoomRequest req) {
+    public Result<CreateRoomResponse> createRoom(@AuthenticationPrincipal Jwt jwt, @RequestBody CreateRoomRequest req) {
         int me = CurrentUser.userIdOrThrow(jwt);
         String name = req == null ? null : req.name();
         long roomId = membershipService.createRoom(me, name);
-        return new CreateRoomResponse(roomId);
+        return Result.ok(new CreateRoomResponse(roomId));
     }
 
     @PostMapping("/{roomId}/join")
-    public void joinRoom(@AuthenticationPrincipal Jwt jwt, @PathVariable long roomId) {
+    public Result<Void> joinRoom(@AuthenticationPrincipal Jwt jwt, @PathVariable long roomId) {
         int me = CurrentUser.userIdOrThrow(jwt);
         membershipService.joinRoom(me, roomId);
+        return Result.ok();
     }
 
     @PostMapping("/{roomId}/leave")
-    public void leaveRoom(@AuthenticationPrincipal Jwt jwt, @PathVariable long roomId) {
+    public Result<Void> leaveRoom(@AuthenticationPrincipal Jwt jwt, @PathVariable long roomId) {
         int me = CurrentUser.userIdOrThrow(jwt);
         membershipService.leaveRoom(me, roomId);
+        return Result.ok();
     }
 
     @GetMapping("/{roomId}/messages")
-    public RoomMessagesResponse listMessages(
+    public Result<RoomMessagesResponse> listMessages(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable long roomId,
             @RequestParam(name = "afterSeq", required = false, defaultValue = "0") long afterSeq,
@@ -77,11 +79,11 @@ public class RoomController {
                 .toList();
         long nextAfterSeq = items.isEmpty() ? after : items.get(items.size() - 1).seq();
         long lastReadSeq = readStateRepository.getLastReadSeq(roomId, me);
-        return new RoomMessagesResponse(roomId, items, nextAfterSeq, lastReadSeq);
+        return Result.ok(new RoomMessagesResponse(roomId, items, nextAfterSeq, lastReadSeq));
     }
 
     @PostMapping("/{roomId}/read")
-    public void markRead(
+    public Result<Void> markRead(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable long roomId,
             @RequestBody MarkReadRequest req
@@ -91,7 +93,10 @@ public class RoomController {
             throw new AccessDeniedException("not a room member");
         }
         long lastReadSeq = req == null ? 0L : Math.max(0L, req.lastReadSeq());
-        readStateRepository.updateLastReadSeqMax(roomId, me, lastReadSeq);
+        if (lastReadSeq > 0) {
+            readStateRepository.updateLastReadSeqMax(roomId, me, lastReadSeq);
+        }
+        return Result.ok();
     }
 
     public record CreateRoomRequest(String name) {
@@ -122,4 +127,3 @@ public class RoomController {
     ) {
     }
 }
-

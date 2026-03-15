@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class NoDistributedProjectionInfraArchTest {
 
     private static final List<String> FORBIDDEN_MAIN_PATHS = List.of(
-            "community-bootstrap/src/main/java/com/nowcoder/community/infra/outbox",
+            // NOTE: local DB outbox is allowed for reliability; distributed projection infra is not.
             "community-bootstrap/src/main/java/com/nowcoder/community/infra/kafka",
             "community-bootstrap/src/main/java/com/nowcoder/community/content/api/rpc/ContentOutboxRpcService.java",
             "community-bootstrap/src/main/java/com/nowcoder/community/content/rpc/ContentOutboxRpcServiceImpl.java",
@@ -23,7 +23,7 @@ class NoDistributedProjectionInfraArchTest {
     );
 
     @Test
-    void backend_should_not_keep_runtime_kafka_or_outbox_projection_infrastructure() {
+    void backend_should_not_keep_runtime_kafka_or_distributed_outbox_projection_infrastructure() {
         Path backendRoot = detectBackendRoot();
         for (String relative : FORBIDDEN_MAIN_PATHS) {
             assertThat(backendRoot.resolve(relative))

@@ -1,6 +1,7 @@
 package com.nowcoder.community.im.core.api;
 
 import com.nowcoder.community.im.core.db.ConversationReadStateRepository;
+import com.nowcoder.community.im.core.db.ConversationRepository;
 import com.nowcoder.community.im.core.db.PrivateMessageRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -33,6 +34,7 @@ class ConversationControllerPaginationOverflowTest {
         ConversationController controller = new ConversationController(
                 mock(PrivateMessageRepository.class),
                 mock(ConversationReadStateRepository.class),
+                mock(ConversationRepository.class),
                 jdbcTemplate
         );
 

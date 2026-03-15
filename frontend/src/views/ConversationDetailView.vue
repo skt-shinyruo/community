@@ -86,6 +86,7 @@ const error = ref('')
 const content = ref('')
 const sending = ref(false)
 const chatArea = ref(null)
+const pendingClientMsgIds = new Set()
 
 const conversationId = computed(() => props.conversationId || '')
 const targetId = computed(() => parseTargetId())
@@ -151,7 +152,8 @@ async function send() {
     if (!imRealtimeClient?.state?.connected) {
       throw new Error('IM 未连接')
     }
-    imRealtimeClient.sendPrivateText({ toUserId: toId, content: content.value })
+    const cmid = imRealtimeClient.sendPrivateText({ toUserId: toId, content: content.value })
+    if (cmid) pendingClientMsgIds.add(String(cmid))
     content.value = ''
   } catch (e) {
     error.value = e?.message || '发送失败'
@@ -171,6 +173,8 @@ function scrollToBottom() {
 onMounted(load)
 
 let offPrivate = null
+let offSendAck = null
+let offSendError = null
 onMounted(() => {
   offPrivate = imRealtimeClient.on('privateMessage', async (msg) => {
     if (!msg || msg.conversationId !== conversationId.value) return
@@ -200,6 +204,33 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   try { offPrivate?.() } catch {}
+  try { offSendAck?.() } catch {}
+  try { offSendError?.() } catch {}
+})
+
+onMounted(() => {
+  offSendAck = imRealtimeClient.on('sendAck', (msg) => {
+    if (String(msg?.cmd || '') !== 'sendPrivateText') return
+    const cmid = String(msg?.clientMsgId || '')
+    if (cmid) pendingClientMsgIds.delete(cmid)
+  })
+
+  offSendError = imRealtimeClient.on('sendError', (msg) => {
+    if (String(msg?.cmd || '') !== 'sendPrivateText') return
+    const cmid = String(msg?.clientMsgId || '')
+    if (cmid && !pendingClientMsgIds.has(cmid)) return
+    if (cmid) pendingClientMsgIds.delete(cmid)
+
+    const message = String(msg?.message || '发送失败')
+    error.value = message
+    try {
+      if (typeof window !== 'undefined' && window.$toast) {
+        const traceId = String(msg?.traceId || '')
+        const traceSuffix = traceId ? ` (traceId=${traceId})` : ''
+        window.$toast({ type: 'error', title: '发送失败', text: `${message}${traceSuffix}` })
+      }
+    } catch {}
+  })
 })
 </script>
 

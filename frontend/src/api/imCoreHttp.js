@@ -43,6 +43,7 @@ imCoreHttp.interceptors.response.use(
     const original = error?.config || {}
     const result = error?.response?.data
     const msg = typeof result?.message === 'string' ? result.message : (error?.message || '请求失败')
+    const traceId = typeof result?.traceId === 'string' ? result.traceId : ''
 
     // Best-effort refresh on 401 (reuse community-app refresh cookie via `http`).
     if (status === 401 && !original._retry) {
@@ -63,10 +64,11 @@ imCoreHttp.interceptors.response.use(
     }
 
     if (status >= 400 && typeof window !== 'undefined' && window.$toast) {
+      const traceSuffix = traceId ? ` (traceId=${traceId})` : ''
       window.$toast({
         type: 'error',
         title: status === 401 ? '未登录或登录失效' : '请求失败',
-        text: msg
+        text: `${msg}${traceSuffix}`
       })
     }
     return Promise.reject(error)

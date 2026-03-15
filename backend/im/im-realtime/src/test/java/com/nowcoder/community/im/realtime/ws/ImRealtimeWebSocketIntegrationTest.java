@@ -11,6 +11,7 @@ import com.nowcoder.community.im.contracts.ImTopics;
 import com.nowcoder.community.im.contracts.event.PrivateMessagePersistedEventV1;
 import com.nowcoder.community.im.contracts.event.RoomMemberChangedEventV1;
 import com.nowcoder.community.im.contracts.event.RoomMessagePersistedEventV1;
+import com.nowcoder.community.im.realtime.client.CommunityGovernanceClient;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
 import com.nowcoder.community.im.realtime.presence.RoomLocalIndex;
 import com.nowcoder.community.im.realtime.presence.WsConnection;
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -51,6 +53,9 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -90,6 +95,9 @@ class ImRealtimeWebSocketIntegrationTest {
     @Autowired
     private RoomLocalIndex roomLocalIndex;
 
+    @MockBean
+    private CommunityGovernanceClient governanceClient;
+
     @Value("${security.jwt.hmac-secret}")
     private String jwtSecret;
 
@@ -107,6 +115,9 @@ class ImRealtimeWebSocketIntegrationTest {
 
     @Test
     void websocket_shouldAuth_sendCommands_andReceivePrivateAndRoomPush() throws Exception {
+        when(governanceClient.validateSendPrivateMessage(anyString(), anyInt()))
+                .thenReturn(Mono.just(CommunityGovernanceClient.Decision.allow("")));
+
         int userId = 100;
         int toUserId = 200;
         long roomId = 10L;
@@ -147,6 +158,9 @@ class ImRealtimeWebSocketIntegrationTest {
             assertThat(authOk.path("userId").asInt()).isEqualTo(userId);
 
             outbound.tryEmitNext("{\"type\":\"sendPrivateText\",\"clientMsgId\":\"c1\",\"toUserId\":" + toUserId + ",\"content\":\"hi\"}");
+            JsonNode privateAck = awaitType(received, "sendAck", Duration.ofSeconds(5));
+            assertThat(privateAck.path("cmd").asText("")).isEqualTo("sendPrivateText");
+            assertThat(privateAck.path("clientMsgId").asText("")).isEqualTo("c1");
             ConsumerRecord<String, String> privateCmdRecord = pollForSingleRecord(commandConsumer, ImTopics.COMMAND_PRIVATE_TEXT_V1, Duration.ofSeconds(10));
             JsonNode privateCmd = objectMapper.readTree(privateCmdRecord.value());
             assertThat(privateCmd.path("fromUserId").asInt()).isEqualTo(userId);
@@ -156,6 +170,9 @@ class ImRealtimeWebSocketIntegrationTest {
             assertThat(privateCmd.path("clientMsgId").asText("")).isEqualTo("c1");
 
             outbound.tryEmitNext("{\"type\":\"sendRoomText\",\"clientMsgId\":\"c2\",\"roomId\":" + roomId + ",\"content\":\"hello\"}");
+            JsonNode roomAck = awaitType(received, "sendAck", Duration.ofSeconds(5));
+            assertThat(roomAck.path("cmd").asText("")).isEqualTo("sendRoomText");
+            assertThat(roomAck.path("clientMsgId").asText("")).isEqualTo("c2");
             ConsumerRecord<String, String> roomCmdRecord = pollForSingleRecord(commandConsumer, ImTopics.COMMAND_ROOM_TEXT_V1, Duration.ofSeconds(10));
             JsonNode roomCmd = objectMapper.readTree(roomCmdRecord.value());
             assertThat(roomCmd.path("fromUserId").asInt()).isEqualTo(userId);

@@ -4,12 +4,18 @@ import com.nowcoder.community.content.api.event.ContentEventTypes;
 import com.nowcoder.community.content.api.event.payload.PostPayload;
 import com.nowcoder.community.content.event.ContentLocalEvent;
 import com.nowcoder.community.search.repo.PostSearchRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 @Component
+@ConditionalOnProperty(prefix = "events.outbox", name = "enabled", havingValue = "false", matchIfMissing = true)
 public class PostProjectionListener {
+
+    private static final Logger log = LoggerFactory.getLogger(PostProjectionListener.class);
 
     private final PostSearchRepository postSearchRepository;
 
@@ -19,16 +25,29 @@ public class PostProjectionListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = false)
     public void onContentEvent(ContentLocalEvent event) {
-        if (event == null || !(event.payload() instanceof PostPayload payload) || payload.getPostId() <= 0) {
+        if (event == null) {
+            return;
+        }
+        if (!(event.payload() instanceof PostPayload payload) || payload.getPostId() <= 0) {
             return;
         }
 
-        if (ContentEventTypes.POST_DELETED.equals(event.type())) {
-            postSearchRepository.delete(payload.getPostId());
-            return;
-        }
-        if (ContentEventTypes.POST_PUBLISHED.equals(event.type()) || ContentEventTypes.POST_UPDATED.equals(event.type())) {
-            postSearchRepository.upsert(payload);
+        try {
+            if (ContentEventTypes.POST_DELETED.equals(event.type())) {
+                postSearchRepository.delete(payload.getPostId());
+                return;
+            }
+            if (ContentEventTypes.POST_PUBLISHED.equals(event.type()) || ContentEventTypes.POST_UPDATED.equals(event.type())) {
+                postSearchRepository.upsert(payload);
+            }
+        } catch (RuntimeException e) {
+            log.warn(
+                    "[search] post projection failed after commit (eventId={}, type={}, postId={}): {}",
+                    event.eventId(),
+                    event.type(),
+                    payload.getPostId(),
+                    e.toString()
+            );
         }
     }
 }

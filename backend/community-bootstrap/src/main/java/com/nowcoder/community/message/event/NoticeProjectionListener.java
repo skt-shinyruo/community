@@ -11,6 +11,9 @@ import com.nowcoder.community.social.api.event.SocialEventTypes;
 import com.nowcoder.community.social.api.event.payload.FollowPayload;
 import com.nowcoder.community.social.api.event.payload.LikePayload;
 import com.nowcoder.community.social.event.SocialLocalEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -18,7 +21,10 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import java.util.Map;
 
 @Component
+@ConditionalOnProperty(prefix = "events.outbox", name = "enabled", havingValue = "false", matchIfMissing = true)
 public class NoticeProjectionListener {
+
+    private static final Logger log = LoggerFactory.getLogger(NoticeProjectionListener.class);
 
     private final ObjectMapper objectMapper;
     private final NoticeService noticeService;
@@ -33,12 +39,16 @@ public class NoticeProjectionListener {
         if (event == null) {
             return;
         }
-        if (ContentEventTypes.COMMENT_CREATED.equals(event.type()) && event.payload() instanceof CommentPayload payload) {
-            createNotice(event.eventId(), event.type(), "comment", payload.getTargetUserId(), payload);
-            return;
-        }
-        if (ContentEventTypes.MODERATION_ACTION_APPLIED.equals(event.type()) && event.payload() instanceof ModerationPayload payload) {
-            createNotice(event.eventId(), event.type(), "moderation", payload.getToUserId(), payload);
+        try {
+            if (ContentEventTypes.COMMENT_CREATED.equals(event.type()) && event.payload() instanceof CommentPayload payload) {
+                createNotice(event.eventId(), event.type(), "comment", payload.getTargetUserId(), payload);
+                return;
+            }
+            if (ContentEventTypes.MODERATION_ACTION_APPLIED.equals(event.type()) && event.payload() instanceof ModerationPayload payload) {
+                createNotice(event.eventId(), event.type(), "moderation", payload.getToUserId(), payload);
+            }
+        } catch (RuntimeException e) {
+            log.warn("[notice] projection failed after commit (eventId={}, type={}): {}", event.eventId(), event.type(), e.toString());
         }
     }
 
@@ -47,12 +57,16 @@ public class NoticeProjectionListener {
         if (event == null) {
             return;
         }
-        if (SocialEventTypes.LIKE_CREATED.equals(event.type()) && event.payload() instanceof LikePayload payload) {
-            createNotice(event.eventId(), event.type(), "like", payload.getEntityUserId(), payload);
-            return;
-        }
-        if (SocialEventTypes.FOLLOW_CREATED.equals(event.type()) && event.payload() instanceof FollowPayload payload) {
-            createNotice(event.eventId(), event.type(), "follow", payload.getEntityUserId(), payload);
+        try {
+            if (SocialEventTypes.LIKE_CREATED.equals(event.type()) && event.payload() instanceof LikePayload payload) {
+                createNotice(event.eventId(), event.type(), "like", payload.getEntityUserId(), payload);
+                return;
+            }
+            if (SocialEventTypes.FOLLOW_CREATED.equals(event.type()) && event.payload() instanceof FollowPayload payload) {
+                createNotice(event.eventId(), event.type(), "follow", payload.getEntityUserId(), payload);
+            }
+        } catch (RuntimeException e) {
+            log.warn("[notice] projection failed after commit (eventId={}, type={}): {}", event.eventId(), event.type(), e.toString());
         }
     }
 

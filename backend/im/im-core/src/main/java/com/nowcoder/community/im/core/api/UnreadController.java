@@ -22,7 +22,7 @@ public class UnreadController {
     }
 
     @GetMapping("/summary")
-    public UnreadSummaryResponse summary(
+    public Result<UnreadSummaryResponse> summary(
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(name = "limit", required = false, defaultValue = "500") int limit
     ) {
@@ -30,7 +30,7 @@ public class UnreadController {
         int l = Math.min(Math.max(1, limit), 5000);
         List<UnreadService.RoomUnreadItem> rooms = unreadService.listRoomUnread(me, l);
         List<UnreadService.ConversationUnreadItem> conversations = unreadService.listConversationUnread(me, l);
-        return new UnreadSummaryResponse(rooms, conversations);
+        return Result.ok(new UnreadSummaryResponse(rooms, conversations));
     }
 
     public record UnreadSummaryResponse(
@@ -39,4 +39,3 @@ public class UnreadController {
     ) {
     }
 }
-

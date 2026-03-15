@@ -53,6 +53,27 @@ public class PostScanApplicationService {
         return response;
     }
 
+    /**
+     * Loads a single post snapshot for projection purposes.
+     *
+     * <p>Returns {@code null} when the post does not exist.</p>
+     */
+    public PostPayload getPostPayloadAllowDeleted(int postId) {
+        int pid = Math.max(0, postId);
+        if (pid <= 0) {
+            return null;
+        }
+
+        DiscussPost post = discussPostMapper.selectDiscussPostById(pid);
+        if (post == null || post.getId() <= 0) {
+            return null;
+        }
+
+        Map<Integer, List<String>> tagsByPostId = tagService.getTagsByPostIds(List.of(pid));
+        List<String> tags = tagsByPostId == null ? List.of() : tagsByPostId.getOrDefault(pid, List.of());
+        return toPostPayload(post, tags);
+    }
+
     private PostPayload toPostPayload(DiscussPost post, List<String> tags) {
         PostPayload payload = new PostPayload();
         payload.setPostId(post.getId());

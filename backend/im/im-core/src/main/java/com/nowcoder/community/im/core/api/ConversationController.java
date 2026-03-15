@@ -1,12 +1,16 @@
 package com.nowcoder.community.im.core.api;
 
 import com.nowcoder.community.im.core.db.ConversationReadStateRepository;
+import com.nowcoder.community.im.core.db.ConversationRepository;
 import com.nowcoder.community.im.core.db.PrivateMessageRepository;
 import com.nowcoder.community.im.core.security.CurrentUser;
+import com.nowcoder.community.im.core.support.ConversationIdSupport;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.*;
 
 import java.sql.Timestamp;
@@ -18,20 +22,23 @@ public class ConversationController {
 
     private final PrivateMessageRepository privateMessageRepository;
     private final ConversationReadStateRepository readStateRepository;
+    private final ConversationRepository conversationRepository;
     private final JdbcTemplate jdbcTemplate;
 
     public ConversationController(
             PrivateMessageRepository privateMessageRepository,
             ConversationReadStateRepository readStateRepository,
+            ConversationRepository conversationRepository,
             JdbcTemplate jdbcTemplate
     ) {
         this.privateMessageRepository = privateMessageRepository;
         this.readStateRepository = readStateRepository;
+        this.conversationRepository = conversationRepository;
         this.jdbcTemplate = jdbcTemplate;
     }
 
     @GetMapping
-    public List<ConversationListItem> listConversations(
+    public Result<List<ConversationListItem>> listConversations(
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(name = "page", required = false, defaultValue = "0") int page,
             @RequestParam(name = "size", required = false, defaultValue = "20") int size
@@ -40,7 +47,7 @@ public class ConversationController {
         int s = Math.min(Math.max(1, size), 200);
         int p = Math.max(0, page);
         long offset = (long) p * (long) s;
-        return jdbcTemplate.query(
+        List<ConversationListItem> items = jdbcTemplate.query(
                 "select c.conversation_id, c.user_a, c.user_b, c.last_seq, " +
                         "coalesce(r.last_read_seq, 0) as last_read_seq, " +
                         "m.message_id as last_message_id, m.from_user_id as last_from_user_id, m.to_user_id as last_to_user_id, " +
@@ -80,23 +87,33 @@ public class ConversationController {
                 s,
                 offset
         );
+        return Result.ok(items == null ? List.of() : items);
     }
 
     @GetMapping("/{conversationId}/messages")
-    public ConversationMessagesResponse listMessages(
+    public Result<ConversationMessagesResponse> listMessages(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String conversationId,
             @RequestParam(name = "afterSeq", required = false, defaultValue = "0") long afterSeq,
             @RequestParam(name = "limit", required = false, defaultValue = "50") int limit
     ) {
         int me = CurrentUser.userIdOrThrow(jwt);
-        if (!conversationContainsUser(conversationId, me)) {
+        ParsedConversationId parsed = parseConversationId(conversationId);
+        if (parsed == null) {
+            throw new IllegalArgumentException("invalid conversationId");
+        }
+        if (me != parsed.user1 && me != parsed.user2) {
             throw new AccessDeniedException("not a conversation member");
         }
 
         int l = Math.min(Math.max(1, limit), 200);
         long after = Math.max(0L, afterSeq);
-        List<PrivateMessageRepository.PrivateMessageRow> rows = privateMessageRepository.listAfterSeq(conversationId, after, l);
+        String canonicalConversationId = parsed.canonicalConversationId;
+        if (!conversationRepository.exists(canonicalConversationId)) {
+            return Result.ok(new ConversationMessagesResponse(canonicalConversationId, List.of(), after, 0L));
+        }
+
+        List<PrivateMessageRepository.PrivateMessageRow> rows = privateMessageRepository.listAfterSeq(canonicalConversationId, after, l);
         List<ConversationMessageItem> items = rows.stream()
                 .map(r -> new ConversationMessageItem(
                         r.conversationId(),
@@ -110,39 +127,57 @@ public class ConversationController {
                 ))
                 .toList();
         long nextAfterSeq = items.isEmpty() ? after : items.get(items.size() - 1).seq();
-        long lastReadSeq = readStateRepository.getLastReadSeq(conversationId, me);
-        return new ConversationMessagesResponse(conversationId, items, nextAfterSeq, lastReadSeq);
+        long lastReadSeq = readStateRepository.getLastReadSeq(canonicalConversationId, me);
+        return Result.ok(new ConversationMessagesResponse(canonicalConversationId, items, nextAfterSeq, lastReadSeq));
     }
 
     @PostMapping("/{conversationId}/read")
-    public void markRead(
+    public Result<Void> markRead(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String conversationId,
             @RequestBody MarkReadRequest req
     ) {
         int me = CurrentUser.userIdOrThrow(jwt);
-        if (!conversationContainsUser(conversationId, me)) {
+        ParsedConversationId parsed = parseConversationId(conversationId);
+        if (parsed == null) {
+            throw new IllegalArgumentException("invalid conversationId");
+        }
+        if (me != parsed.user1 && me != parsed.user2) {
             throw new AccessDeniedException("not a conversation member");
         }
+        String canonicalConversationId = parsed.canonicalConversationId;
+        if (!conversationRepository.exists(canonicalConversationId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "会话不存在");
+        }
+
         long lastReadSeq = req == null ? 0L : Math.max(0L, req.lastReadSeq());
-        readStateRepository.updateLastReadSeqMax(conversationId, me, lastReadSeq);
+        if (lastReadSeq > 0) {
+            readStateRepository.updateLastReadSeqMax(canonicalConversationId, me, lastReadSeq);
+        }
+        return Result.ok();
     }
 
-    private static boolean conversationContainsUser(String conversationId, int userId) {
+    private static ParsedConversationId parseConversationId(String conversationId) {
         if (conversationId == null || conversationId.isBlank()) {
-            return false;
+            return null;
         }
         String[] parts = conversationId.split("_");
         if (parts.length != 2) {
-            return false;
+            return null;
         }
         try {
             int a = Integer.parseInt(parts[0].trim());
             int b = Integer.parseInt(parts[1].trim());
-            return a == userId || b == userId;
+            if (a <= 0 || b <= 0 || a == b) {
+                return null;
+            }
+            return new ParsedConversationId(a, b, ConversationIdSupport.conversationId(a, b));
         } catch (NumberFormatException e) {
-            return false;
+            return null;
         }
+    }
+
+    private record ParsedConversationId(int user1, int user2, String canonicalConversationId) {
     }
 
     public record MarkReadRequest(long lastReadSeq) {

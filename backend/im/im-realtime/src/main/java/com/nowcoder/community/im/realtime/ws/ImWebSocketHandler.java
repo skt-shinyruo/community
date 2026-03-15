@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.im.contracts.command.SendPrivateTextCommandV1;
 import com.nowcoder.community.im.contracts.command.SendRoomTextCommandV1;
+import com.nowcoder.community.im.realtime.client.CommunityGovernanceClient;
 import com.nowcoder.community.im.realtime.client.ImCoreClient;
 import com.nowcoder.community.im.realtime.kafka.CommandProducer;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
@@ -24,6 +25,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.UUID;
 
@@ -37,6 +39,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
     private final ConnectionRegistry connectionRegistry;
     private final RoomLocalIndex roomLocalIndex;
     private final ImCoreClient imCoreClient;
+    private final CommunityGovernanceClient governanceClient;
     private final CommandProducer commandProducer;
     private final int maxChars;
     private final int maxOutboundBacklog;
@@ -47,6 +50,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
             ConnectionRegistry connectionRegistry,
             RoomLocalIndex roomLocalIndex,
             ImCoreClient imCoreClient,
+            CommunityGovernanceClient governanceClient,
             CommandProducer commandProducer,
             @Value("${im.ws.max-inbound-chars:10000}") int maxChars,
             @Value("${im.ws.outbound-buffer-size:256}") int maxOutboundBacklog
@@ -56,6 +60,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
         this.connectionRegistry = connectionRegistry;
         this.roomLocalIndex = roomLocalIndex;
         this.imCoreClient = imCoreClient;
+        this.governanceClient = governanceClient;
         this.commandProducer = commandProducer;
         this.maxChars = Math.min(Math.max(1, maxChars), 100_000);
         this.maxOutboundBacklog = Math.min(Math.max(1, maxOutboundBacklog), 10_000);
@@ -111,16 +116,14 @@ public class ImWebSocketHandler implements WebSocketHandler {
             return Mono.empty();
         }
 
-        if (conn.userId() == null) {
-            if (!"auth".equals(type)) {
-                conn.trySendText(WsProtocol.authError("auth required"));
-                conn.closeAsync(Duration.ofSeconds(1));
-                return Mono.empty();
-            }
-            return handleAuth(conn, node);
+        if (conn.userId() == null && !"auth".equals(type)) {
+            conn.trySendText(WsProtocol.authError("auth required"));
+            conn.closeAsync(Duration.ofSeconds(1));
+            return Mono.empty();
         }
 
         return switch (type) {
+            case "auth" -> handleAuth(conn, node);
             case "sendPrivateText" -> handleSendPrivate(conn, node);
             case "sendRoomText" -> handleSendRoom(conn, node);
             case "ping" -> {
@@ -135,9 +138,21 @@ public class ImWebSocketHandler implements WebSocketHandler {
         String accessToken = node.path("accessToken").asText("");
         try {
             JwtVerifier.VerifiedJwt verified = jwtVerifier.verify(accessToken);
-            conn.bindUser(verified.userId());
-            connectionRegistry.register(conn);
+            Integer previous = conn.userId();
+            if (previous != null) {
+                if (previous != verified.userId()) {
+                    conn.trySendText(WsProtocol.authError("user mismatch"));
+                    conn.closeAsync(Duration.ofSeconds(1));
+                    return Mono.empty();
+                }
+                // Token refresh (do not re-bootstrap rooms, but update token for downstream calls).
+                conn.bindAuth(verified.userId(), accessToken);
+                conn.trySendText(WsProtocol.authOk(verified.userId()));
+                return Mono.empty();
+            }
 
+            conn.bindAuth(verified.userId(), accessToken);
+            connectionRegistry.register(conn);
             conn.trySendText(WsProtocol.authOk(verified.userId()));
 
             // Best-effort bootstrap: pull membership from im-core (paged) and build local indexes.
@@ -160,31 +175,71 @@ public class ImWebSocketHandler implements WebSocketHandler {
     private Mono<Void> handleSendPrivate(WsConnection conn, JsonNode node) {
         Integer fromUserId = conn.userId();
         if (fromUserId == null) {
+            conn.trySendText(WsProtocol.authError("auth required"));
+            conn.closeAsync(Duration.ofSeconds(1));
             return Mono.empty();
         }
         int toUserId = node.path("toUserId").asInt(0);
         String content = node.path("content").asText("");
-        String clientMsgId = node.path("clientMsgId").asText("");
-        if (toUserId <= 0 || !StringUtils.hasText(clientMsgId) || !StringUtils.hasText(content)) {
-            conn.trySendText(WsProtocol.error("invalid sendPrivateText"));
+        String clientMsgId = String.valueOf(node.path("clientMsgId").asText("")).trim();
+        String requestId = newRequestId();
+        if (toUserId <= 0) {
+            conn.trySendText(WsProtocol.sendError("sendPrivateText", clientMsgId, requestId, 400, "toUserId 非法", ""));
+            return Mono.empty();
+        }
+        if (!StringUtils.hasText(clientMsgId)) {
+            conn.trySendText(WsProtocol.error("clientMsgId required"));
+            return Mono.empty();
+        }
+        if (!StringUtils.hasText(content)) {
+            conn.trySendText(WsProtocol.sendError("sendPrivateText", clientMsgId, requestId, 400, "content required", ""));
             return Mono.empty();
         }
         if (content.length() > maxChars) {
-            conn.trySendText(WsProtocol.error("content too long"));
+            conn.trySendText(WsProtocol.sendError("sendPrivateText", clientMsgId, requestId, 400, "content too long", ""));
             return Mono.empty();
         }
-        String conversationId = ConversationIdSupport.conversationId(fromUserId, toUserId);
-        SendPrivateTextCommandV1 cmd = new SendPrivateTextCommandV1(
-                newRequestId(),
-                clientMsgId.trim(),
-                fromUserId,
-                toUserId,
-                conversationId,
-                content,
-                System.currentTimeMillis()
-        );
-        commandProducer.sendPrivateText(cmd);
-        return Mono.empty();
+
+        String accessToken = conn.accessToken();
+        if (!StringUtils.hasText(accessToken)) {
+            conn.trySendText(WsProtocol.sendError("sendPrivateText", clientMsgId, requestId, 401, "未登录或登录已失效", ""));
+            conn.closeAsync(Duration.ofSeconds(1));
+            return Mono.empty();
+        }
+
+        return governanceClient.validateSendPrivateMessage(accessToken, toUserId)
+                .flatMap(decision -> {
+                    if (decision == null || !decision.allowed()) {
+                        int code = decision == null ? 503 : decision.code();
+                        String msg = decision == null ? "治理校验服务不可用，请稍后重试" : decision.message();
+                        String traceId = decision == null ? "" : decision.traceId();
+                        conn.trySendText(WsProtocol.sendError("sendPrivateText", clientMsgId, requestId, code, msg, traceId));
+                        if (code == 401) {
+                            conn.trySendText(WsProtocol.authError("invalid token"));
+                            conn.closeAsync(Duration.ofSeconds(1));
+                        }
+                        return Mono.empty();
+                    }
+
+                    String conversationId = ConversationIdSupport.conversationId(fromUserId, toUserId);
+                    SendPrivateTextCommandV1 cmd = new SendPrivateTextCommandV1(
+                            requestId,
+                            clientMsgId,
+                            fromUserId,
+                            toUserId,
+                            conversationId,
+                            content,
+                            System.currentTimeMillis()
+                    );
+                    CompletableFuture<?> f;
+                    try {
+                        f = commandProducer.sendPrivateText(cmd);
+                    } catch (RuntimeException e) {
+                        f = CompletableFuture.failedFuture(e);
+                    }
+                    sendWithAck(conn, "sendPrivateText", cmd.clientMsgId(), cmd.requestId(), f);
+                    return Mono.empty();
+                });
     }
 
     private Mono<Void> handleSendRoom(WsConnection conn, JsonNode node) {
@@ -211,8 +266,46 @@ public class ImWebSocketHandler implements WebSocketHandler {
                 content,
                 System.currentTimeMillis()
         );
-        commandProducer.sendRoomText(cmd);
+        CompletableFuture<?> f;
+        try {
+            f = commandProducer.sendRoomText(cmd);
+        } catch (RuntimeException e) {
+            f = CompletableFuture.failedFuture(e);
+        }
+        sendWithAck(conn, "sendRoomText", cmd.clientMsgId(), cmd.requestId(), f);
         return Mono.empty();
+    }
+
+    private void sendWithAck(
+            WsConnection conn,
+            String cmdType,
+            String clientMsgId,
+            String requestId,
+            CompletableFuture<?> future
+    ) {
+        if (conn == null) {
+            return;
+        }
+        if (future == null) {
+            conn.trySendText(WsProtocol.sendError(cmdType, clientMsgId, requestId, "kafka send failed"));
+            return;
+        }
+        try {
+            future.whenComplete((ok, ex) -> {
+                try {
+                    if (ex != null) {
+                        log.warn("[im-ws] kafka send failed (userId={}, cmd={}, clientMsgId={}, requestId={}): {}",
+                                conn.userId(), cmdType, clientMsgId, requestId, ex.toString());
+                        conn.trySendText(WsProtocol.sendError(cmdType, clientMsgId, requestId, "kafka send failed"));
+                        return;
+                    }
+                    conn.trySendText(WsProtocol.sendAck(cmdType, clientMsgId, requestId));
+                } catch (RuntimeException ignore) {
+                }
+            });
+        } catch (RuntimeException e) {
+            conn.trySendText(WsProtocol.sendError(cmdType, clientMsgId, requestId, "kafka send failed"));
+        }
     }
 
     private void cleanup(WsConnection conn) {

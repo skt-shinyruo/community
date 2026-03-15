@@ -24,6 +24,7 @@ public class WsConnection {
     private final int maxOutboundBacklog;
 
     private volatile Integer userId;
+    private volatile String accessToken = "";
 
     private final Set<Long> joinedRooms = ConcurrentHashMap.newKeySet();
     private final ConcurrentHashMap<Long, Long> pendingRoomSeq = new ConcurrentHashMap<>();
@@ -51,8 +52,17 @@ public class WsConnection {
         return userId;
     }
 
+    public String accessToken() {
+        return accessToken;
+    }
+
     public void bindUser(int userId) {
         this.userId = userId;
+    }
+
+    public void bindAuth(int userId, String accessToken) {
+        this.userId = userId;
+        this.accessToken = accessToken == null ? "" : accessToken;
     }
 
     public Set<Long> joinedRoomsView() {

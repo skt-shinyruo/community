@@ -107,7 +107,13 @@ com.nowcoder.community
 
 Naming normalization for existing `community-bootstrap` packages:
 
-- current `api` packages become `controller` unless they contain DTO-only types
+- top-level `*.api` packages must not be renamed mechanically
+- classes under `*.api` that are actual HTTP endpoints move to `controller`
+- `*.api.dto` moves to domain-owned `dto`
+- `*.api.security` moves to domain `config` or `security` according to actual usage
+- `*.api.event` and `*.api.event.payload` stay as domain event packages or move to a domain-owned `event` package, not to `controller`
+- `*ErrorCode` types currently under `*.api` move to domain exception or error-code packages
+- `*.api.ops` and similar non-controller API support packages move by responsibility, not by current path name
 - current `dao` packages become `mapper` or `repository`
 - current `api/internal` packages are absorbed into ordinary `service` and `dto` packages of the owning domain
 - package moves should favor semantic clarity over mechanical 1:1 renaming
@@ -188,7 +194,8 @@ Rules:
 
 - controllers may return a common response body type
 - services must not use `Result<T>` as an internal collaboration protocol
-- the global exception handler becomes the single place where exceptions are converted to HTTP responses
+- controller-thrown exceptions should be centralized through the global exception handler
+- security entry points, access-denied handlers, and filter-level rejections may still write HTTP responses directly and must remain consistent with the same error and trace conventions
 
 This keeps the service layer clean and makes controller/service boundaries look like conventional Spring Boot code.
 
@@ -285,8 +292,9 @@ Refactor domain by domain:
 - move DTO assembly to controllers or dedicated mapper/assembler helpers if needed
 - update tests to target the new service/controller structure
 - delete obsolete `application` classes
-- rename old `api` packages to `controller` where they currently hold HTTP endpoints
+- rename old `api` packages to `controller` only where they currently hold HTTP endpoints
 - rename old `dao` packages to `mapper` or `repository` according to actual persistence usage
+- keep non-controller `api` subpackages such as security, event, and specialized support packages mapped by responsibility instead of by package prefix
 - absorb `api/internal` DTOs and interfaces into normal service and dto ownership
 
 ### Phase 5: Refactor IM modules
@@ -302,6 +310,9 @@ For `im-contracts`:
 - retain only real shared process-boundary artifacts
 - migrate or delete anything that is merely module-local but currently shared for convenience
 - update `backend/im/pom.xml`, child module dependencies, artifact references, and Java package imports accordingly
+- update runtime configuration that currently references `com.nowcoder.community.im.contracts.*`, especially Kafka `spring.json.trusted.packages`
+- update tests and architecture assertions that currently require the `im-contracts` module or package name
+- update IM-facing docs and descriptions that currently refer to `im-contracts`
 
 ### Phase 6: Remove dead architectural scaffolding and update docs
 
@@ -369,6 +380,8 @@ Mitigation:
 
 - centralize HTTP mapping in the global exception handler and controller response path
 - add or update controller integration tests for representative 4xx and 5xx cases
+- explicitly preserve security-handler and filter-written response behavior where those paths do not flow through controller advice
+- add or update tests for security entry-point, access-denied, and filter rejection responses where applicable
 
 ### Risk 3: Large-batch refactor leaves repository broken for too long
 
@@ -385,6 +398,7 @@ Mitigation:
 - keep only true cross-process Kafka artifacts shared
 - move HTTP/local DTOs back to their owning runtime modules
 - verify both `im-core` and `im-realtime` test suites after each IM stage
+- update runtime configuration and module-layout tests in the same batch as the shared-module rename so compile success does not hide runtime or config drift
 
 ## Acceptance Criteria
 
@@ -397,6 +411,7 @@ The refactor is complete only when all of the following are true.
 - `contracts.internal.*` is gone
 - `common.*` is the default home for cross-cutting shared code inside `community-bootstrap`
 - old naming centered on `api`, `dao`, and `api/internal` has been normalized to `controller`, `mapper` or `repository`, `service`, and domain-owned `dto`
+- event, security, and error-code packages that currently happen to sit under `api` have been moved by responsibility rather than blindly folded into `controller`
 - `im-contracts` has been reduced to a minimal shared module and renamed to `im-common`
 
 ### Dependency behavior
@@ -411,6 +426,7 @@ The refactor is complete only when all of the following are true.
 - major business flows continue working end to end
 - trace, security, idempotency, and global error handling still function
 - IM Kafka and realtime flows still function
+- direct security-handler and filter-written error responses remain consistent with the controller exception path for status, body shape, and trace propagation
 
 ### Documentation
 

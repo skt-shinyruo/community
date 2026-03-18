@@ -189,7 +189,7 @@ public class InternalUserService {
     }
 
     /**
-     * internal 投影回填/纠偏：按主键游标向后扫描用户处罚状态（SSOT=user-service）。
+     * internal 投影回填/纠偏：按主键游标向后扫描用户处罚状态（SSOT=user 模块）。
      */
     public List<ModerationStatus> scanModerationStatusesAfterId(int afterId, int limit) {
         int a = Math.max(0, afterId);
@@ -213,7 +213,7 @@ public class InternalUserService {
     }
 
     /**
-     * internal 批量用户摘要：用于下游聚合接口避免 N+1 RPC。
+     * internal 批量用户摘要：用于下游聚合接口避免 N+1 模块调用。
      */
     public List<User> batchGetUserSummaries(List<Integer> userIds) {
         if (userIds == null || userIds.isEmpty()) {

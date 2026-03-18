@@ -6,7 +6,7 @@ import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.auth.api.AuthErrorCode;
 import com.nowcoder.community.contracts.api.CommonErrorCode;
 import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.user.api.rpc.dto.UserInternalRegisterResponse;
+import com.nowcoder.community.user.api.internal.dto.UserInternalRegisterResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -18,13 +18,13 @@ public class RegistrationService {
     public static final int ACTIVATION_REPEAT = 1;
     public static final int ACTIVATION_FAILURE = 2;
 
-    private final UserServiceInternalClient userServiceInternalClient;
+    private final UserAuthAccess userAuthAccess;
     private final RegistrationProperties properties;
     private final MailService mailService;
     private final CaptchaService captchaService;
 
-    public RegistrationService(UserServiceInternalClient userServiceInternalClient, RegistrationProperties properties, MailService mailService, CaptchaService captchaService) {
-        this.userServiceInternalClient = userServiceInternalClient;
+    public RegistrationService(UserAuthAccess userAuthAccess, RegistrationProperties properties, MailService mailService, CaptchaService captchaService) {
+        this.userAuthAccess = userAuthAccess;
         this.properties = properties;
         this.mailService = mailService;
         this.captchaService = captchaService;
@@ -52,7 +52,7 @@ public class RegistrationService {
         // 先做配置校验：避免创建用户后才发现无法生成激活链接，造成“已创建但无法激活”的隐蔽失败。
         String activationBaseUrl = normalizeActivationBaseUrlOrThrow();
 
-        UserInternalRegisterResponse created = userServiceInternalClient.register(username, password, email);
+        UserInternalRegisterResponse created = userAuthAccess.register(username, password, email);
         if (created == null || created.getUserId() <= 0 || !StringUtils.hasText(created.getActivationCode())) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败");
         }
@@ -70,7 +70,7 @@ public class RegistrationService {
     }
 
     public int activate(int userId, String code) {
-        return userServiceInternalClient.activate(userId, code);
+        return userAuthAccess.activate(userId, code);
     }
 
     private String normalizeActivationBaseUrlOrThrow() {

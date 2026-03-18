@@ -9,7 +9,7 @@ import com.nowcoder.community.message.api.dto.UserSummaryResponse;
 import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.security.OwnerGuard;
 import com.nowcoder.community.message.service.dto.ConversationStats;
-import com.nowcoder.community.user.api.rpc.dto.UserSummary;
+import com.nowcoder.community.user.api.internal.dto.UserSummary;
 import com.nowcoder.community.infra.pagination.Pagination;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -25,20 +25,20 @@ import java.util.stream.Collectors;
 public class PrivateMessageService {
 
     private final MessageMapper messageMapper;
-    private final UserServiceClient userServiceClient;
+    private final UserLookupService userLookupService;
     private final BlockQueryApplicationService blockQueryApplicationService;
     private final UserModerationGuard moderationGuard;
     private final OwnerGuard ownerGuard;
 
     public PrivateMessageService(
             MessageMapper messageMapper,
-            UserServiceClient userServiceClient,
+            UserLookupService userLookupService,
             BlockQueryApplicationService blockQueryApplicationService,
             UserModerationGuard moderationGuard,
             OwnerGuard ownerGuard
     ) {
         this.messageMapper = messageMapper;
-        this.userServiceClient = userServiceClient;
+        this.userLookupService = userLookupService;
         this.blockQueryApplicationService = blockQueryApplicationService;
         this.moderationGuard = moderationGuard;
         this.ownerGuard = ownerGuard;
@@ -79,7 +79,7 @@ public class PrivateMessageService {
                 .map(m -> m.getFromId() == userId ? m.getToId() : m.getFromId())
                 .filter(id -> id > 0)
                 .collect(Collectors.toSet());
-        Map<Integer, UserSummary> userMap = userServiceClient.safeBatchGetUsers(targetIds);
+        Map<Integer, UserSummary> userMap = userLookupService.safeBatchGetUsers(targetIds);
 
         return latest.stream().map(m -> {
             ConversationItemResponse item = new ConversationItemResponse();

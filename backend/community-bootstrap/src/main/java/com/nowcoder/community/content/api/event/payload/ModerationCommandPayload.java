@@ -2,8 +2,8 @@ package com.nowcoder.community.content.api.event.payload;
 
 /**
  * 处罚命令事件载荷：
- * - content-service 产生（举报处置触发 mute/ban）
- * - user-service 消费并执行（写入 user.mute_until/ban_until）
+ * - content 模块产生（举报处置触发 mute/ban）
+ * - user 模块消费并执行（写入 user.mute_until/ban_until）
  *
  * <p>注意：这是“命令”，不是“通知”。当前在同进程内通过事务后本地事件投递。</p>
  */

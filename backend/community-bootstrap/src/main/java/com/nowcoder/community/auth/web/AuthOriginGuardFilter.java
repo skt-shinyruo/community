@@ -26,8 +26,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * auth-service 服务侧 OriginGuard：
- * - 防止绕过 gateway 直接访问 auth-service 时降低安全性；
+ * auth 模块 OriginGuard：
+ * - 防止绕过 gateway 直接访问认证入口时降低安全性；
  * - 仅覆盖 cookie 会话相关敏感入口（login/refresh/logout）。
  */
 @Component

@@ -136,18 +136,6 @@ create table if not exists message (
   create_time timestamp
 );
 
-create table if not exists consumed_event (
-  id int auto_increment primary key,
-  event_id varchar(64) unique,
-  consumed_at timestamp
-);
-
-create table if not exists search_consumed_event (
-  id int auto_increment primary key,
-  event_id varchar(64) unique,
-  consumed_at timestamp
-);
-
 create table if not exists http_idempotency (
   id bigint auto_increment primary key,
   operation varchar(64) not null,
@@ -193,8 +181,6 @@ delete from social_user_like_count;
 delete from social_follow;
 delete from social_block;
 delete from message;
-delete from consumed_event;
-delete from search_consumed_event;
 delete from http_idempotency;
 delete from outbox_event;
 delete from discuss_post;

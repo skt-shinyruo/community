@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.api.event;
 
 /**
- * content-service 作为生产方的事件类型定义。
+ * content 模块作为生产方的事件类型定义。
  */
 public final class ContentEventTypes {
 
@@ -17,6 +17,6 @@ public final class ContentEventTypes {
 
     public static final String MODERATION_ACTION_APPLIED = "ModerationActionApplied";
 
-    // 处罚命令：由 content-service 发起，user-service 消费并执行（最终一致）
+    // 处罚命令：由 content 模块发起，user 模块消费并执行（最终一致）
     public static final String MODERATION_COMMAND_REQUESTED = "ModerationCommandRequested";
 }

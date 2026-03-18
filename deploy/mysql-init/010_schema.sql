@@ -89,8 +89,8 @@ create table if not exists http_idempotency (
 -- --------------------------------------------------------------------
 -- Identity schema (keep in MYSQL_DATABASE=community for P0).
 -- NOTE:
--- - 身份域数据所有权已收敛到 user-service；
--- - auth-service 已不再直连 MySQL（通过调用 user-service internal API 完成鉴权/注册/激活/重置密码等）。
+-- - 身份域数据所有权已收敛到 user 模块；
+-- - auth 模块已不再直连 MySQL（通过调用 user 模块内部 API 完成鉴权/注册/激活/重置密码等）。
 
 use community;
 
@@ -110,7 +110,7 @@ create table if not exists user (
   ban_until timestamp null default null
 );
 
--- refresh token（SSOT=DB）：auth-service 不直连 MySQL，改由 user-service 托管会话状态
+-- refresh token（SSOT=DB）：auth 模块不直连 MySQL，改由 user 模块托管会话状态
 -- 注意：只存 token_hash（SHA-256 hex），避免明文凭据落库
 create table if not exists auth_refresh_token (
   token_hash char(64) primary key,
@@ -160,7 +160,7 @@ prepare stmt from @sql;
 execute stmt;
 deallocate prepare stmt;
 
--- user-service Kafka 消费幂等（处罚命令等）：以 event_id 唯一约束为准（insert-first）。
+-- 用户处罚类事件幂等（历史遗留）：以 event_id 唯一约束为准（insert-first）。
 create table if not exists user_consumed_event (
   id bigint auto_increment primary key,
   event_id varchar(64) not null,
@@ -589,7 +589,7 @@ create table if not exists social_like (
   index idx_like_entity (entity_type, entity_id)
 );
 
--- social_like 扫描索引（idempotent）：用于按 (entity_type, entity_id, user_id) keyset 分页（运维排查/历史遗留 scan RPC）
+-- social_like 扫描索引（idempotent）：用于按 (entity_type, entity_id, user_id) keyset 分页（运维排查/历史遗留 scan 接口）
 set @idx_like_entity_user := (
   select count(*)
   from information_schema.statistics
@@ -631,7 +631,7 @@ create table if not exists social_block (
 -- --------------------------------------------------------------------
 -- Source: 030_schema_message.sql
 -- --------------------------------------------------------------------
--- Message schema (community): message + consumed_event.
+-- Message schema (community): message.
 
 use community;
 
@@ -644,14 +644,6 @@ create table if not exists message (
   status int default 0,
   create_time timestamp null default current_timestamp
 );
-
-create table if not exists consumed_event (
-  id int auto_increment primary key,
-  event_id varchar(64) unique,
-  consumed_at timestamp null default current_timestamp
-);
-
-create index idx_consumed_event_at on consumed_event(consumed_at, id);
 
 create index idx_message_conversation on message(conversation_id);
 create index idx_message_to_status on message(to_id, status);
@@ -749,18 +741,9 @@ create index idx_im_conversation_read_state_user on im_conversation_read_state(u
 -- --------------------------------------------------------------------
 -- Source: 040_schema_search.sql
 -- --------------------------------------------------------------------
--- Search schema (community): search service consumed-event table.
+-- Search schema (community).
 
 use community;
-
-create table if not exists search_consumed_event (
-  id int auto_increment primary key,
-  event_id varchar(64) unique,
-  consumed_at timestamp null default current_timestamp
-);
-
-create index idx_search_consumed_at on search_consumed_event(consumed_at, id);
-
 
 -- --------------------------------------------------------------------
 -- Source: 090_seed_identity.sql
@@ -776,4 +759,3 @@ values
   (2, 'bbb', 'be5cdc88ad25c5aa86b9a9e1c3573e79', 'salt', 'bbb@example.com', 0, 1, 'ac', 'http://example.com/b.png', now()),
   (3, 'admin', 'be5cdc88ad25c5aa86b9a9e1c3573e79', 'salt', 'admin@example.com', 1, 1, 'ac', 'http://example.com/admin.png', now())
 on duplicate key update username = values(username);
-

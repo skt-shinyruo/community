@@ -10,7 +10,7 @@ import java.time.format.DateTimeParseException;
 /**
  * 事件 envelope 解析与校验工具：用于消费端统一校验 required fields/version/type。
  *
- * <p>约定：当 required fields 缺失或 version 非法时，抛出异常交给 Kafka error handler（重试/DLQ）。</p>
+ * <p>约定：当 required fields 缺失或 version 非法时，抛出异常交给上层消费框架处理（重试/死信/告警），以保持 fail-closed。</p>
  */
 public final class EventEnvelopeParser {
 
@@ -124,4 +124,3 @@ public final class EventEnvelopeParser {
         }
     }
 }
-

@@ -51,7 +51,7 @@
 1. 复制示例：`cp deploy/.env.example deploy/.env`
 2. 按需修改：
    - `JWT_HMAC_SECRET`：开发环境也建议改成自己的一串 >= 32 字节密钥（auth/login 签发、资源接口验签需要一致）
-   - 运行自检（推荐）：`bash backend/scripts/doctor.sh`（不输出敏感值，仅提示缺失项与建议）
+   - 运行自检：当前仓库未提供 `backend/scripts/doctor.sh`；如需可后续补充一个不输出敏感值的检查脚本。
 
 ### 3.2 启动（前端直连后端）
 ```bash

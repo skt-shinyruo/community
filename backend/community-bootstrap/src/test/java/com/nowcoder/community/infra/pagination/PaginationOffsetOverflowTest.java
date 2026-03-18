@@ -25,7 +25,7 @@ import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.security.OwnerGuard;
 import com.nowcoder.community.message.service.NoticeService;
 import com.nowcoder.community.message.service.PrivateMessageService;
-import com.nowcoder.community.message.service.UserServiceClient;
+import com.nowcoder.community.message.service.UserLookupService;
 import com.nowcoder.community.social.application.BlockQueryApplicationService;
 import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.social.event.SocialEventPublisher;
@@ -110,7 +110,7 @@ class PaginationOffsetOverflowTest {
 
         PrivateMessageService service = new PrivateMessageService(
                 messageMapper,
-                mock(UserServiceClient.class),
+                mock(UserLookupService.class),
                 mock(BlockQueryApplicationService.class),
                 mock(com.nowcoder.community.message.service.UserModerationGuard.class),
                 mock(OwnerGuard.class)
@@ -182,4 +182,3 @@ class PaginationOffsetOverflowTest {
         assertThat(offsetCaptor.getValue()).isGreaterThanOrEqualTo(0);
     }
 }
-

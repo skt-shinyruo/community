@@ -2,9 +2,9 @@ package com.nowcoder.community.ops.api;
 
 import com.nowcoder.community.contracts.api.CommonErrorCode;
 import com.nowcoder.community.contracts.api.Result;
-import com.nowcoder.community.infra.internalclient.InternalClientSupport;
-import com.nowcoder.community.search.api.rpc.SearchOpsRpcService;
-import com.nowcoder.community.search.api.rpc.dto.SearchReindexResponse;
+import com.nowcoder.community.infra.modulecall.ModuleCallSupport;
+import com.nowcoder.community.search.api.ops.SearchOpsApi;
+import com.nowcoder.community.search.api.ops.dto.SearchReindexResponse;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,19 +26,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class OpsController {
 
     private static final Logger log = LoggerFactory.getLogger(OpsController.class);
-    private static final String TARGET_SEARCH = "search-service";
+    private static final String TARGET_MODULE_SEARCH = "search";
 
     private final MeterRegistry meterRegistry;
-    private final SearchOpsRpcService searchOpsRpcService;
+    private final SearchOpsApi searchOpsApi;
 
-    public OpsController(MeterRegistry meterRegistry, SearchOpsRpcService searchOpsRpcService) {
+    public OpsController(MeterRegistry meterRegistry, SearchOpsApi searchOpsApi) {
         this.meterRegistry = meterRegistry;
-        this.searchOpsRpcService = searchOpsRpcService;
+        this.searchOpsApi = searchOpsApi;
     }
 
     @PostMapping("/search/reindex")
     public ResponseEntity<Result<SearchReindexResponse>> reindex() {
-        return invoke(TARGET_SEARCH, "reindex", () -> searchOpsRpcService.reindex());
+        return invoke(TARGET_MODULE_SEARCH, "reindex", () -> searchOpsApi.reindex());
     }
 
     private <T> ResponseEntity<Result<T>> invoke(String target, String api, java.util.function.Supplier<Result<T>> call) {
@@ -46,17 +46,17 @@ public class OpsController {
         try {
             Result<T> result = call == null ? null : call.get();
             if (result == null) {
-                InternalClientSupport.record(meterRegistry, target, api, InternalClientSupport.OUTCOME_UNAVAILABLE, start);
+                ModuleCallSupport.record(meterRegistry, target, api, ModuleCallSupport.OUTCOME_UNAVAILABLE, start);
                 return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Result.error(CommonErrorCode.SERVICE_UNAVAILABLE));
             }
             HttpStatus status = httpStatusOf(result);
-            InternalClientSupport.record(meterRegistry, target, api, outcomeOf(result), start);
+            ModuleCallSupport.record(meterRegistry, target, api, outcomeOf(result), start);
             return ResponseEntity.status(status).body(result);
         } catch (RuntimeException e) {
-            boolean unavailable = InternalClientSupport.isTimeout(e) || InternalClientSupport.isConnectionError(e);
-            String outcome = unavailable ? InternalClientSupport.OUTCOME_UNAVAILABLE : InternalClientSupport.OUTCOME_ERROR;
-            InternalClientSupport.record(meterRegistry, target, api, outcome, start);
-            log.warn("[internal-call] target={} api={} outcome={}", target, api, outcome, e);
+            boolean unavailable = ModuleCallSupport.isTimeout(e) || ModuleCallSupport.isConnectionError(e);
+            String outcome = unavailable ? ModuleCallSupport.OUTCOME_UNAVAILABLE : ModuleCallSupport.OUTCOME_ERROR;
+            ModuleCallSupport.record(meterRegistry, target, api, outcome, start);
+            log.warn("[module-call] module={} api={} outcome={}", target, api, outcome, e);
             if (unavailable) {
                 return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(Result.error(CommonErrorCode.SERVICE_UNAVAILABLE));
             }
@@ -66,10 +66,10 @@ public class OpsController {
 
     private String outcomeOf(Result<?> result) {
         if (result == null) {
-            return InternalClientSupport.OUTCOME_UNAVAILABLE;
+            return ModuleCallSupport.OUTCOME_UNAVAILABLE;
         }
         if (result.getCode() == CommonErrorCode.OK.getCode()) {
-            return InternalClientSupport.OUTCOME_SUCCESS;
+            return ModuleCallSupport.OUTCOME_SUCCESS;
         }
         int httpStatus = result.getHttpStatus();
         if (httpStatus <= 0) {
@@ -77,15 +77,15 @@ public class OpsController {
             httpStatus = code >= 400 && code < 600 ? code : 500;
         }
         if (httpStatus == CommonErrorCode.FORBIDDEN.getHttpStatus()) {
-            return InternalClientSupport.OUTCOME_FORBIDDEN;
+            return ModuleCallSupport.OUTCOME_FORBIDDEN;
         }
         if (httpStatus == CommonErrorCode.SERVICE_UNAVAILABLE.getHttpStatus()) {
-            return InternalClientSupport.OUTCOME_UNAVAILABLE;
+            return ModuleCallSupport.OUTCOME_UNAVAILABLE;
         }
         if (httpStatus == 504) {
-            return InternalClientSupport.OUTCOME_TIMEOUT;
+            return ModuleCallSupport.OUTCOME_TIMEOUT;
         }
-        return InternalClientSupport.OUTCOME_REMOTE_ERROR;
+        return ModuleCallSupport.OUTCOME_REMOTE_ERROR;
     }
 
     private HttpStatus httpStatusOf(Result<?> result) {
@@ -108,4 +108,3 @@ public class OpsController {
     }
 
 }
-

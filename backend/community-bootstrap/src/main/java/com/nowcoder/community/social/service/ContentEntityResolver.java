@@ -3,9 +3,9 @@ package com.nowcoder.community.social.service;
 import com.nowcoder.community.contracts.domain.EntityTypes;
 import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.contracts.api.CommonErrorCode;
-import com.nowcoder.community.contracts.internal.rpc.EntityResolveRpcService;
-import com.nowcoder.community.infra.internalclient.InternalCallOptions;
-import com.nowcoder.community.infra.internalclient.InternalClientSupport;
+import com.nowcoder.community.contracts.internal.api.EntityResolveApi;
+import com.nowcoder.community.infra.modulecall.ModuleCallOptions;
+import com.nowcoder.community.infra.modulecall.ModuleCallSupport;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.slf4j.Logger;
@@ -17,24 +17,24 @@ import static com.nowcoder.community.contracts.api.CommonErrorCode.SERVICE_UNAVA
 /**
  * 内容实体元信息解析器（social 写路径可信只读依赖）：
  * - 通过内部接口回源到 content 模块（SSOT）
- * - content-service 不可用时 fail-closed（快速失败）
+ * - content 模块不可用时 fail-closed（快速失败）
  */
 @Service
 public class ContentEntityResolver {
 
     private static final Logger log = LoggerFactory.getLogger(ContentEntityResolver.class);
     private final MeterRegistry meterRegistry;
-    private final EntityResolveRpcService entityResolveRpcService;
+    private final EntityResolveApi entityResolveApi;
 
     public ContentEntityResolver(
             MeterRegistry meterRegistry,
-            EntityResolveRpcService entityResolveRpcService
+            EntityResolveApi entityResolveApi
     ) {
         this.meterRegistry = meterRegistry;
-        this.entityResolveRpcService = entityResolveRpcService;
+        this.entityResolveApi = entityResolveApi;
     }
 
-    private static final String SERVICE_NAME = "content-service";
+    private static final String TARGET_MODULE = "content";
 
     public ResolvedEntity resolve(int entityType, int entityId) {
         if (entityId <= 0) {
@@ -49,25 +49,25 @@ public class ContentEntityResolver {
 
     private ResolvedEntity resolveInternal(int entityType, int entityId) {
         try {
-            return InternalClientSupport.callResultAndThen(
+            return ModuleCallSupport.callResultAndThen(
                     meterRegistry,
-                    SERVICE_NAME,
+                    TARGET_MODULE,
                     "resolveEntity",
-                    () -> entityResolveRpcService.resolveEntity(entityType, entityId),
+                    () -> entityResolveApi.resolveEntity(entityType, entityId),
                     data -> {
                         int entityUserId = data == null ? 0 : data.getEntityUserId();
                         int postId = data == null ? 0 : data.getPostId();
                         if (entityUserId <= 0 || postId <= 0) {
-                            count(entityType, "rpc", "incomplete");
+                            count(entityType, "internal-api", "incomplete");
                             throw new BusinessException(SERVICE_UNAVAILABLE, "内容实体解析结果缺失或不完整");
                         }
-                        count(entityType, "rpc", "success");
+                        count(entityType, "internal-api", "success");
                         return new ResolvedEntity(entityUserId, postId);
                     },
-                    InternalCallOptions.<ResolvedEntity>failClosed().withWarnLogger((m, e) -> log.warn(m, e))
+                    ModuleCallOptions.<ResolvedEntity>failClosed().withWarnLogger((m, e) -> log.warn(m, e))
             );
         } catch (RuntimeException e) {
-            count(entityType, "rpc", "error");
+            count(entityType, "internal-api", "error");
             throw e;
         }
     }

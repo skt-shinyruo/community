@@ -5,7 +5,7 @@ import com.nowcoder.community.content.api.event.payload.PostPayload;
 import java.util.List;
 
 /**
- * content-service 内部接口：按游标扫描帖子，用于 search-service 重建索引等后台任务。
+ * content 模块内部接口：按游标扫描帖子，用于 search 模块重建索引等后台任务。
  */
 public class InternalPostScanResponse {
 

@@ -35,7 +35,7 @@ public interface UserMapper {
     List<User> selectModerationUsersAfterId(@Param("afterId") int afterId, @Param("limit") int limit);
 
     /**
-     * internal 批量用户摘要：用于下游聚合接口避免 N+1 RPC。
+     * internal 批量用户摘要：用于下游聚合接口避免 N+1 模块调用。
      */
     List<User> selectUserSummariesByIds(@Param("ids") List<Integer> ids);
 

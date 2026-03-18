@@ -127,6 +127,11 @@ message:
     cleanup-enabled: true
     retention-days: 7
     cleanup-interval-ms: 21600000
+  user-lookup:
+    fail-open: false
+    resolve-cache:
+      ttl: 60s
+      max-size: 5000
 
 search:
   storage: es
@@ -143,14 +148,6 @@ search:
 analytics:
   storage: redis
   max-days-range: 31
-
-clients:
-  user:
-    fail-open: false
-  social:
-    fail-open: false
-  content:
-    fail-open: false
 
 r2:
   endpoint: ${R2_ENDPOINT:}

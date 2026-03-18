@@ -6,7 +6,7 @@ import org.springframework.util.StringUtils;
 import java.time.Instant;
 
 /**
- * refresh token 会话托管服务（供 auth-service internal 调用）。
+ * refresh token 会话托管服务（供 auth 模块内部调用）。
  */
 @Service
 public class RefreshTokenSessionService {
@@ -70,4 +70,3 @@ public class RefreshTokenSessionService {
     public record RefreshTokenRecord(String tokenHash, int userId, String familyId, Instant expiresAt, Instant revokedAt) {
     }
 }
-

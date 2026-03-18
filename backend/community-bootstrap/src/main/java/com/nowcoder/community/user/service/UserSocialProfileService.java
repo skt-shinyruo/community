@@ -2,8 +2,8 @@ package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.social.application.SocialReadApplicationService;
 import com.nowcoder.community.social.application.dto.SocialUserProfileStats;
-import com.nowcoder.community.infra.internalclient.InternalCallOptions;
-import com.nowcoder.community.infra.internalclient.InternalClientSupport;
+import com.nowcoder.community.infra.modulecall.ModuleCallOptions;
+import com.nowcoder.community.infra.modulecall.ModuleCallSupport;
 import com.nowcoder.community.user.config.UserSocialProfileProperties;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
@@ -16,7 +16,7 @@ import java.util.function.Supplier;
 public class UserSocialProfileService {
 
     private static final Logger log = LoggerFactory.getLogger(UserSocialProfileService.class);
-    private static final String TARGET = "social-service";
+    private static final String TARGET_MODULE = "social";
 
     private final MeterRegistry meterRegistry;
     private final UserSocialProfileProperties properties;
@@ -116,12 +116,12 @@ public class UserSocialProfileService {
     }
 
     private <T> T call(String api, Supplier<T> supplier, Supplier<T> fallback) {
-        InternalCallOptions<T> options = (fallback != null && properties.isDegradeOnError())
-                ? InternalCallOptions.failOpen(fallback)
-                : InternalCallOptions.failClosed();
-        return InternalClientSupport.call(
+        ModuleCallOptions<T> options = (fallback != null && properties.isDegradeOnError())
+                ? ModuleCallOptions.failOpen(fallback)
+                : ModuleCallOptions.failClosed();
+        return ModuleCallSupport.call(
                 meterRegistry,
-                TARGET,
+                TARGET_MODULE,
                 api,
                 supplier,
                 options.withWarnLogger((m, e) -> log.warn(m, e))

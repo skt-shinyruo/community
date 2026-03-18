@@ -85,7 +85,7 @@
   - **Search:** payload includes `{postId}`; worker reads current post state and either deletes or upserts.
 
 - [x] **Step 3: Update arch test + docs + config**
-  - Allow local `infra/outbox` in runtime; keep Kafka/RPC-outbox artifacts forbidden.
+  - Allow local `infra/outbox` in runtime; keep Kafka/distributed-outbox artifacts forbidden.
   - Add `events.outbox.enabled: true` in main `application.yml` (tests keep it `false` by default).
   - Update `docs/SYSTEM_DESIGN.md` to reflect local outbox for reliability.
 

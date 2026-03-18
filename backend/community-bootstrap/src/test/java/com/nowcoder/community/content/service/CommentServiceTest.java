@@ -150,7 +150,7 @@ class CommentServiceTest {
         doNothing().when(eventPublisher).publishCommentCreated(any());
 
         doNothing().when(moderationGuard).assertCanSpeak(eq(1));
-        when(blockQueryApplicationService.isEitherBlocked(1, 2)).thenThrow(new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "user-service 不可用"));
+        when(blockQueryApplicationService.isEitherBlocked(1, 2)).thenThrow(new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "user 模块不可用"));
 
         assertThatThrownBy(() -> service.addComment(1, 100, CommentService.ENTITY_TYPE_POST, null, 0, "hi"))
                 .isInstanceOf(BusinessException.class)

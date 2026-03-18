@@ -2,8 +2,8 @@ package com.nowcoder.community.social.api.event.payload;
 
 /**
  * 拉黑关系变更事件载荷：
- * - social-service 产生（block/unblock）
- * - content-service/message-service 消费并维护本地投影，用于写路径拦截（最终一致）
+ * - social 模块产生（block/unblock）
+ * - content/message 模块消费并维护本地投影，用于写路径拦截（最终一致）
  */
 public class BlockPayload {
 
@@ -35,4 +35,3 @@ public class BlockPayload {
         this.blocked = blocked;
     }
 }
-

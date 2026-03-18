@@ -1,6 +1,6 @@
 package com.nowcoder.community.auth.service;
 
-import com.nowcoder.community.user.api.rpc.dto.UserInternalRefreshTokenRecordResponse;
+import com.nowcoder.community.user.api.internal.dto.UserInternalRefreshTokenRecordResponse;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -11,18 +11,18 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 
 /**
- * refresh token DB 存储（SSOT=user-service MySQL）：
- * - auth-service 不直连 MySQL，通过调用 user-service internal API 托管会话状态
+ * refresh token DB 存储（SSOT=user 模块 MySQL）：
+ * - auth 模块不直连 MySQL，通过调用 user 模块内部 API 托管会话状态
  * - 仅存 token_hash（SHA-256 hex），避免明文凭据落库
  */
 @Component
 @ConditionalOnProperty(name = "auth.refresh.store", havingValue = "db")
 public class DbRefreshTokenStore implements RefreshTokenStore {
 
-    private final UserServiceInternalClient userServiceInternalClient;
+    private final UserAuthAccess userAuthAccess;
 
-    public DbRefreshTokenStore(UserServiceInternalClient userServiceInternalClient) {
-        this.userServiceInternalClient = userServiceInternalClient;
+    public DbRefreshTokenStore(UserAuthAccess userAuthAccess) {
+        this.userAuthAccess = userAuthAccess;
     }
 
     @Override
@@ -30,7 +30,7 @@ public class DbRefreshTokenStore implements RefreshTokenStore {
         if (!StringUtils.hasText(refreshToken) || userId <= 0 || !StringUtils.hasText(familyId) || expiresAt == null) {
             return;
         }
-        userServiceInternalClient.storeRefreshToken(sha256Hex(refreshToken), userId, familyId, expiresAt);
+        userAuthAccess.storeRefreshToken(sha256Hex(refreshToken), userId, familyId, expiresAt);
     }
 
     @Override
@@ -38,7 +38,7 @@ public class DbRefreshTokenStore implements RefreshTokenStore {
         if (!StringUtils.hasText(refreshToken)) {
             return null;
         }
-        UserInternalRefreshTokenRecordResponse record = userServiceInternalClient.findRefreshTokenOrNull(sha256Hex(refreshToken));
+        UserInternalRefreshTokenRecordResponse record = userAuthAccess.findRefreshTokenOrNull(sha256Hex(refreshToken));
         if (record == null) {
             return null;
         }
@@ -56,7 +56,7 @@ public class DbRefreshTokenStore implements RefreshTokenStore {
         if (!StringUtils.hasText(refreshToken)) {
             return;
         }
-        userServiceInternalClient.revokeRefreshToken(sha256Hex(refreshToken));
+        userAuthAccess.revokeRefreshToken(sha256Hex(refreshToken));
     }
 
     @Override
@@ -64,7 +64,7 @@ public class DbRefreshTokenStore implements RefreshTokenStore {
         if (!StringUtils.hasText(familyId)) {
             return;
         }
-        userServiceInternalClient.revokeRefreshTokenFamily(familyId.trim());
+        userAuthAccess.revokeRefreshTokenFamily(familyId.trim());
     }
 
     private String sha256Hex(String value) {

@@ -28,8 +28,8 @@ public class ServletWebInfraAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public AuditLogFilter auditLogFilter(@Value("${spring.application.name:unknown}") String serviceName) {
-        return new AuditLogFilter(serviceName);
+    public AuditLogFilter auditLogFilter(@Value("${spring.application.name:unknown}") String appName) {
+        return new AuditLogFilter(appName);
     }
 
     @Bean
@@ -56,4 +56,3 @@ public class ServletWebInfraAutoConfiguration {
         return new ClientIpResolver(trustedProxyProperties);
     }
 }
-

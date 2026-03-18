@@ -6,10 +6,10 @@ import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.security.OwnerGuard;
 import com.nowcoder.community.message.service.PrivateMessageService;
 import com.nowcoder.community.message.service.UserModerationGuard;
-import com.nowcoder.community.message.service.UserServiceClient;
+import com.nowcoder.community.message.service.UserLookupService;
 import com.nowcoder.community.message.service.dto.ConversationStats;
 import com.nowcoder.community.social.application.BlockQueryApplicationService;
-import com.nowcoder.community.user.api.rpc.dto.UserSummary;
+import com.nowcoder.community.user.api.internal.dto.UserSummary;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -29,14 +29,14 @@ class MessageControllerTest {
     @Test
     void conversationItemsShouldBatchUserLookupAndAvoidNPlusOne() {
         MessageMapper messageMapper = mock(MessageMapper.class);
-        UserServiceClient userServiceClient = mock(UserServiceClient.class);
+        UserLookupService userLookupService = mock(UserLookupService.class);
         BlockQueryApplicationService blockQueryApplicationService = mock(BlockQueryApplicationService.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         OwnerGuard ownerGuard = mock(OwnerGuard.class);
 
         PrivateMessageService service = new PrivateMessageService(
                 messageMapper,
-                userServiceClient,
+                userLookupService,
                 blockQueryApplicationService,
                 moderationGuard,
                 ownerGuard
@@ -75,12 +75,12 @@ class MessageControllerTest {
         u3.setId(3);
         u3.setUsername("u3");
 
-        when(userServiceClient.safeBatchGetUsers(any())).thenReturn(Map.of(2, u2, 3, u3));
+        when(userLookupService.safeBatchGetUsers(any())).thenReturn(Map.of(2, u2, 3, u3));
 
         List<ConversationItemResponse> items = service.listConversationItems(userId, 0, 10);
         assertThat(items).hasSize(2);
 
-        verify(userServiceClient, times(1)).safeBatchGetUsers(Set.of(2, 3));
+        verify(userLookupService, times(1)).safeBatchGetUsers(Set.of(2, 3));
         verify(messageMapper, times(1)).selectConversationStats(anyInt(), any());
     }
 }

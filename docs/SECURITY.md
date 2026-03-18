@@ -14,7 +14,7 @@
   - CORS（跨端口直连的前提）
   - OriginGuard（仅覆盖 cookie 会话敏感入口：`/api/auth/login|refresh|logout`）
   - traceId 注入与统一异常映射
-  - 写请求审计日志（`backend/platform/common` 的 `AuditLogFilter`）
+  - 写请求审计日志（`backend/community-bootstrap/src/main/java/com/nowcoder/community/infra/web/AuditLogFilter.java`）
 - **授权矩阵 SSOT 在 community-app**：路径级鉴权统一在 `backend/community-bootstrap/.../CommunitySecurityConfig` 中收敛（JWT resource server）。
 - **auth 模块负责签发与会话闭环**：登录/刷新/登出、验证码、注册/激活、找回密码、登录风控等；对外路径仍为 `/api/auth/**`，但运行在同一进程。
 - **user 模块托管 refresh token 状态**：`auth.refresh.store=db` 时，refresh token 状态落在 MySQL 表 `auth_refresh_token`（单一 schema：`community`）。
@@ -47,7 +47,7 @@
 - 前端 origin 默认为 `http://localhost:12881`（也可能因本地端口调整变为 `http://localhost:12888` 等）
 - Origin/CORS allowlist 以 **community-app 为 SSOT**：
   - **CORS**：由 `backend/community-bootstrap/.../CommunityCorsConfig` 统一配置（覆盖 `/api/**` 与 `/files/**`）
-  - **OriginGuard**：由 `auth-service` 模块内的 `AuthOriginGuardFilter` 覆盖敏感入口（`POST /api/auth/login|refresh|logout`）
+  - **OriginGuard**：由 `community-bootstrap` 内的 `AuthOriginGuardFilter` 覆盖敏感入口（`POST /api/auth/login|refresh|logout`）
     - 配置键名仍沿用 `gateway.origin-guard.*`（历史兼容），但执行位置在单体内
 
 注意：
@@ -95,7 +95,7 @@
 
 ## 5. 审计日志（写路径）
 
-`community-app` 对写请求会记录审计日志（`backend/platform/common` 的 `AuditLogFilter`）：
+`community-app` 对写请求会记录审计日志（`backend/community-bootstrap/src/main/java/com/nowcoder/community/infra/web/AuditLogFilter.java`）：
 - 范围：`/api/**` 且 method 非 `GET/OPTIONS`
 - 例外：跳过 `/api/auth/login`（避免记录敏感登录参数，也尽量不污染审计流量）
 
@@ -109,6 +109,9 @@
 开发阶段（当前实现）：
 - 本项目已移除 HTTP `/internal/**` 运维入口（避免 internal HTTP 与 ops 面并存导致长期“半迁移”治理债务）。
 - 对外运维入口统一走 `/api/ops/**`（例如 `POST /api/ops/search/reindex` 仅管理员可访问）。
+
+IM 说明：
+- IM 保留独立服务形态（`im-core`/`im-realtime`），其中 `im-core` 仍暴露少量 `/internal/**` 供 `im-realtime` bootstrap 使用（见 `backend/im/im-core/.../InternalRealtimeBootstrapController`）。
 
 生产建议（后续迭代方向）：
 - 仍需确保下游服务端口不对外暴露（避免旁路绕过网关与运维入口治理）。
@@ -128,7 +131,7 @@
 
 强约束（fail-closed）：
 - 对“必须幂等”的入口，缺失 `Idempotency-Key` 会直接返回 `400`，以避免非预期重复副作用。
-- 脚本/第三方客户端请务必显式携带该 header；示例见 `backend/scripts/curl-idempotent-post.sh`。
+- 脚本/第三方客户端请务必显式携带该 header（当前仓库暂无示例脚本）。
 
 TTL 配置（可按环境调整）：
 - `http.idempotency.processing-ttl`（默认 `30s`）：并发互斥的 processing 锁 TTL
@@ -145,7 +148,7 @@ TTL 配置（可按环境调整）：
 
 ---
 
-## 8. 头像上传（user-service + 对象存储直传）
+## 8. 头像上传（user + 对象存储直传）
 
 ### 8.1 风险点
 - 头像更新链路属于“写接口”，若缺乏约束容易被滥用（大文件 DoS、上传任意类型、覆盖他人对象、绕过上传直接改头像 URL 等）

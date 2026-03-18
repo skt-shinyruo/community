@@ -22,12 +22,16 @@
 ## 2) 验证码固定值（仅 dev）
 
 为便于冒烟/联调，`dev` profile 下允许固定验证码：
-- 配置：`backend/auth-service/src/main/resources/application-dev.yml`
+- 配置：`backend/community-bootstrap/src/main/resources/application.yml` 或测试配置 `backend/community-bootstrap/src/test/resources/application.yml`
 - 固定值：`auth.captcha.fixed-code=0000`
-- 冒烟脚本：`backend/scripts/smoke-i0-auth.sh`（`SMOKE_ONBOARDING=true` 时会使用固定验证码）
+- 冒烟脚本：暂无（如需可在后续补充）
 
 生产约束（SSOT）：
-- prod profile 下 **禁止** `auth.captcha.fixed-code`，且 `backend/platform/common/StartupValidation` 会在启动期 fail-closed 阻断误配。
+- prod profile 下 **禁止** `auth.captcha.fixed-code`，且启动期校验会 fail-closed 阻断误配（见 `backend/community-bootstrap/src/main/java/com/nowcoder/community/auth/config/AuthStartupValidator.java`）。
+
+当前仓库说明：
+- 验证码固定值配置键为 `auth.captcha.fixed-code`（见 `backend/community-bootstrap/src/main/java/com/nowcoder/community/auth/config/CaptchaProperties.java`）。
+- prod 下的 fail-closed 校验实现位于 `backend/community-bootstrap/src/main/java/com/nowcoder/community/auth/config/AuthStartupValidator.java`。
 
 ---
 

@@ -24,10 +24,10 @@ public class AuditLogFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(AuditLogFilter.class);
 
-    private final String serviceName;
+    private final String appName;
 
-    public AuditLogFilter(@Value("${spring.application.name:unknown}") String serviceName) {
-        this.serviceName = serviceName;
+    public AuditLogFilter(@Value("${spring.application.name:unknown}") String appName) {
+        this.appName = appName;
     }
 
     @Override
@@ -63,8 +63,8 @@ public class AuditLogFilter extends OncePerRequestFilter {
             String userId = resolveUserId();
             String traceId = TraceId.get();
             log.info(
-                    "[audit][service={}] method={} path={} status={} userId={} traceId={} costMs={}",
-                    serviceName, method, path, status, userId, traceId, costMs
+                    "[audit][app={}] method={} path={} status={} userId={} traceId={} costMs={}",
+                    appName, method, path, status, userId, traceId, costMs
             );
         }
     }

@@ -3,7 +3,7 @@ package com.nowcoder.community.user.api.dto;
 public class InternalActivationResponse {
 
     /**
-     * 0=success, 1=repeat, 2=failure（与旧单体/原 auth-service 语义对齐，方便迁移）
+     * 0=success, 1=repeat, 2=failure（与历史实现语义对齐，方便迁移）
      */
     private int result;
 
@@ -15,4 +15,3 @@ public class InternalActivationResponse {
         this.result = result;
     }
 }
-

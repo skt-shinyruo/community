@@ -3,7 +3,7 @@ package com.nowcoder.community.message.security;
 import org.springframework.util.StringUtils;
 
 /**
- * 会话 ID 解析器（message-service conversationId）：
+ * 会话 ID 解析器（message 模块 conversationId）：
  * - 约定格式："{smallUserId}_{largeUserId}"
  * - 用于对象级鉴权（IDOR）兜底，避免仅依赖 controller 层校验
  */

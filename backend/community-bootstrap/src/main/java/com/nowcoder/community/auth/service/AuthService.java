@@ -9,15 +9,15 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import com.nowcoder.community.user.api.rpc.dto.UserInternalAuthenticateResponse;
-import com.nowcoder.community.user.api.rpc.dto.UserInternalSessionProfileResponse;
+import com.nowcoder.community.user.api.internal.dto.UserInternalAuthenticateResponse;
+import com.nowcoder.community.user.api.internal.dto.UserInternalSessionProfileResponse;
 
 import java.util.List;
 
 @Service
 public class AuthService {
 
-    private final UserServiceInternalClient userServiceInternalClient;
+    private final UserAuthAccess userAuthAccess;
     private final JwtTokenService jwtTokenService;
     private final RefreshTokenService refreshTokenService;
     private final LoginRateLimitService loginRateLimitService;
@@ -25,14 +25,14 @@ public class AuthService {
     private final ClientIpResolver clientIpResolver;
 
     public AuthService(
-            UserServiceInternalClient userServiceInternalClient,
+            UserAuthAccess userAuthAccess,
             JwtTokenService jwtTokenService,
             RefreshTokenService refreshTokenService,
             LoginRateLimitService loginRateLimitService,
             CaptchaService captchaService,
             ClientIpResolver clientIpResolver
     ) {
-        this.userServiceInternalClient = userServiceInternalClient;
+        this.userAuthAccess = userAuthAccess;
         this.jwtTokenService = jwtTokenService;
         this.refreshTokenService = refreshTokenService;
         this.loginRateLimitService = loginRateLimitService;
@@ -66,7 +66,7 @@ public class AuthService {
 
         UserInternalAuthenticateResponse user;
         try {
-            user = userServiceInternalClient.authenticate(username, password);
+            user = userAuthAccess.authenticate(username, password);
         } catch (BusinessException e) {
             int code = e.getErrorCode() == null ? 0 : e.getErrorCode().getCode();
             boolean invalidCredentials = code == AuthErrorCode.INVALID_CREDENTIALS.getCode()
@@ -76,7 +76,7 @@ public class AuthService {
             if (invalidCredentials || userDisabled) {
                 loginRateLimitService.recordFailure(username, ip, ipSource);
             }
-            // user-service 使用通用码表达鉴权失败（避免跨域依赖 auth 域错误码），auth-service 在边界做语义翻译。
+            // user 模块使用通用码表达鉴权失败（避免跨域依赖 auth 域错误码），auth 模块在边界做语义翻译。
             if (code == CommonErrorCode.UNAUTHORIZED.getCode()) {
                 throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
             }
@@ -105,7 +105,7 @@ public class AuthService {
             throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
         }
 
-        UserInternalSessionProfileResponse profile = userServiceInternalClient.sessionProfile(stored.userId());
+        UserInternalSessionProfileResponse profile = userAuthAccess.sessionProfile(stored.userId());
         if (profile == null || profile.getStatus() == 0) {
             throw new BusinessException(AuthErrorCode.USER_DISABLED);
         }

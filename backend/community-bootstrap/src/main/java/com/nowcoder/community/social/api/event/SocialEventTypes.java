@@ -1,7 +1,7 @@
 package com.nowcoder.community.social.api.event;
 
 /**
- * social-service 作为生产方的事件类型定义。
+ * social 模块作为生产方的事件类型定义。
  */
 public final class SocialEventTypes {
 
@@ -15,4 +15,3 @@ public final class SocialEventTypes {
 
     public static final String BLOCK_RELATION_CHANGED = "BlockRelationChanged";
 }
-

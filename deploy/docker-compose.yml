@@ -97,14 +97,6 @@ services:
           sleep 2
         done
         echo "[kafka-init] creating topics (if not exists)..."
-        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic community.event.post.v1 --replication-factor 1 --partitions 1
-        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic community.event.comment.v1 --replication-factor 1 --partitions 1
-        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic community.event.social.v1 --replication-factor 1 --partitions 1
-        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic community.event.moderation.v1 --replication-factor 1 --partitions 1
-        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic community.event.post.v1.dlq --replication-factor 1 --partitions 1
-        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic community.event.comment.v1.dlq --replication-factor 1 --partitions 1
-        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic community.event.social.v1.dlq --replication-factor 1 --partitions 1
-        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic community.event.moderation.v1.dlq --replication-factor 1 --partitions 1
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic im.command.private_text.v1 --replication-factor 1 --partitions 12
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic im.command.room_text.v1 --replication-factor 1 --partitions 12
         kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic im.event.private_persisted.v1 --replication-factor 1 --partitions 12
@@ -169,7 +161,6 @@ services:
       - DB_PASSWORD=${MYSQL_PASSWORD:-communitypass}
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - ELASTICSEARCH_URIS=http://elasticsearch:9200
       - USER_AVATAR_STORAGE=${USER_AVATAR_STORAGE:-local}
       - USER_FILES_BASE_DIR=${USER_FILES_BASE_DIR:-/data/files}
@@ -198,8 +189,6 @@ services:
       mysql:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      kafka:
         condition: service_healthy
       elasticsearch:
         condition: service_started
@@ -252,6 +241,7 @@ services:
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - IM_CORE_BASE_URL=http://im-core:18082
+      - COMMUNITY_BASE_URL=http://community-app:8080
       - IM_ROOM_FLUSH_INTERVAL_MS=${IM_ROOM_FLUSH_INTERVAL_MS:-50}
       - IM_WS_OUTBOUND_BUFFER_SIZE=${IM_WS_OUTBOUND_BUFFER_SIZE:-256}
       - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}

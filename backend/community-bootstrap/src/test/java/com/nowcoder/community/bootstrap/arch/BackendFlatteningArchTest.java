@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.stream.Stream;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -14,18 +15,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 class BackendFlatteningArchTest {
 
     private static final Pattern MODULE_PATTERN = Pattern.compile("<module>([^<]+)</module>");
-
-    private static final List<String> LEGACY_MODULES = List.of(
-            "auth-service",
-            "user-service",
-            "content-service",
-            "social-service",
-            "message-service",
-            "search-service",
-            "analytics-service",
-            "ops-service",
-            "platform"
-    );
 
     @Test
     void backend_should_not_keep_legacy_split_modules() {
@@ -38,6 +27,10 @@ class BackendFlatteningArchTest {
                 "im",
                 "community-bootstrap"
         );
+        assertThat(detectedMavenModules(backendRoot)).containsExactly(
+                "community-bootstrap",
+                "im"
+        );
 
         Path imRoot = backendRoot.resolve("im");
         List<String> imModules = declaredModules(imRoot.resolve("pom.xml"));
@@ -49,12 +42,11 @@ class BackendFlatteningArchTest {
         assertThat(Files.isDirectory(imRoot.resolve("im-contracts"))).isTrue();
         assertThat(Files.isDirectory(imRoot.resolve("im-core"))).isTrue();
         assertThat(Files.isDirectory(imRoot.resolve("im-realtime"))).isTrue();
-
-        for (String module : LEGACY_MODULES) {
-            assertThat(backendRoot.resolve(module))
-                    .as("legacy module should be removed: %s", module)
-                    .doesNotExist();
-        }
+        assertThat(detectedMavenModules(imRoot)).containsExactly(
+                "im-contracts",
+                "im-core",
+                "im-realtime"
+        );
     }
 
     private Path detectBackendRoot() {
@@ -66,6 +58,19 @@ class BackendFlatteningArchTest {
             return current.getParent();
         }
         throw new IllegalStateException("Unable to detect backend root from " + current);
+    }
+
+    private List<String> detectedMavenModules(Path root) {
+        try (Stream<Path> paths = Files.list(root)) {
+            return paths
+                    .filter(Files::isDirectory)
+                    .filter(path -> Files.isRegularFile(path.resolve("pom.xml")))
+                    .map(path -> path.getFileName().toString())
+                    .sorted()
+                    .toList();
+        } catch (Exception e) {
+            throw new IllegalStateException("Unable to list Maven modules at " + root, e);
+        }
     }
 
     private List<String> declaredModules(Path pomFile) {

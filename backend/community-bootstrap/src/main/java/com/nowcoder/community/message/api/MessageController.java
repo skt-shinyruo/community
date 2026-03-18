@@ -10,9 +10,10 @@ import com.nowcoder.community.message.api.dto.SendMessageRequest;
 import com.nowcoder.community.message.api.dto.ConversationItemResponse;
 import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.service.PrivateMessageService;
-import com.nowcoder.community.message.service.UserServiceClient;
+import com.nowcoder.community.message.service.UserLookupService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,7 +25,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import org.springframework.util.StringUtils;
 
 import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
 
@@ -32,15 +32,15 @@ import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUM
 @RequestMapping("/api/messages")
 public class MessageController {
 
-	    private final PrivateMessageService privateMessageService;
-	    private final UserServiceClient userServiceClient;
-	    private final IdempotencyGuard idempotencyGuard;
+    private final PrivateMessageService privateMessageService;
+    private final UserLookupService userLookupService;
+    private final IdempotencyGuard idempotencyGuard;
 
-	    public MessageController(PrivateMessageService privateMessageService, UserServiceClient userServiceClient, IdempotencyGuard idempotencyGuard) {
-	        this.privateMessageService = privateMessageService;
-	        this.userServiceClient = userServiceClient;
-	        this.idempotencyGuard = idempotencyGuard;
-	    }
+    public MessageController(PrivateMessageService privateMessageService, UserLookupService userLookupService, IdempotencyGuard idempotencyGuard) {
+        this.privateMessageService = privateMessageService;
+        this.userLookupService = userLookupService;
+        this.idempotencyGuard = idempotencyGuard;
+    }
 
     @GetMapping("/conversations")
     public Result<List<LetterItemResponse>> conversations(
@@ -87,33 +87,33 @@ public class MessageController {
         return Result.ok(privateMessageService.unreadCount(userId, conversationId));
     }
 
-	    @PostMapping
-	    public Result<Void> send(
-	            Authentication authentication,
-	            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
-	            @Valid @RequestBody SendMessageRequest request
-	    ) {
-	        int fromId = CurrentUser.requireUserId(authentication);
+    @PostMapping
+    public Result<Void> send(
+            Authentication authentication,
+            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
+            @Valid @RequestBody SendMessageRequest request
+    ) {
+        int fromId = CurrentUser.requireUserId(authentication);
 
-	        Integer toId = request.getToId();
-	        String toName = request.getToName();
+        Integer toId = request.getToId();
+        String toName = request.getToName();
         if ((toId == null || toId <= 0) && !StringUtils.hasText(toName)) {
             throw new BusinessException(INVALID_ARGUMENT, "toId/toName 至少提供一个");
         }
-	        if (toId == null || toId <= 0) {
-	            toId = userServiceClient.safeResolveUserIdByUsername(toName);
-	            if (toId == null || toId <= 0) {
-	                throw new BusinessException(INVALID_ARGUMENT, "目标用户不存在");
-		            }
-		        }
-		        int resolvedToId = toId;
-		        String content = request.getContent();
-			        idempotencyGuard.executeRequired("message:send_message", fromId, idempotencyKey, Void.class, () -> {
-			            privateMessageService.send(fromId, resolvedToId, content);
-			            return null;
-			        });
-		        return Result.ok();
-		    }
+        if (toId == null || toId <= 0) {
+            toId = userLookupService.safeResolveUserIdByUsername(toName);
+            if (toId == null || toId <= 0) {
+                throw new BusinessException(INVALID_ARGUMENT, "目标用户不存在");
+            }
+        }
+        int resolvedToId = toId;
+        String content = request.getContent();
+        idempotencyGuard.executeRequired("message:send_message", fromId, idempotencyKey, Void.class, () -> {
+            privateMessageService.send(fromId, resolvedToId, content);
+            return null;
+        });
+        return Result.ok();
+    }
 
     @PutMapping("/read")
     public Result<Void> markRead(Authentication authentication, @Valid @RequestBody MarkReadRequest request) {

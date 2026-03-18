@@ -40,14 +40,14 @@
 - 查看服务存活：`up{job="community-app"}`
 - 结合时间窗口排查：先看 `up`，再看对应服务日志
 
-### 2.3 Kafka DLQ 指标（P0）
-当消费端重试耗尽或出现不可恢复异常时，消息会被投递到 DLQ（`<topic>.dlq`）。  
-为避免“默默积压无人知”，P0 增加 DLQ publish 指标：
+### 2.3 Kafka DLQ 指标（IM）
+当 IM 消费端出现不可恢复异常时，消息会被投递到 DLQ（`<topic>.dlq`，见 `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/KafkaConfig.java`）。
 
-- 指标：`kafka_dlq_published_total{original_topic="...", error_type="..."}`
-- 适用服务：`message-service`、`search-service`（统一在各自的 `KafkaErrorHandlerConfig` recoverer 内递增）
+当前仓库说明：
+- `community-bootstrap` 的投影/通知链路使用本地 DB outbox（不依赖 Spring Kafka）。
+- IM 当前未实现统一的 DLQ publish 指标（如需要可在后续补充，例如实现 `kafka_dlq_published_total{original_topic="...", error_type="..."}`）。
 
-常用查询：
+如果后续补齐该指标，可用查询：
 - 近 5 分钟 DLQ 新增：`sum by (job, original_topic) (increase(kafka_dlq_published_total[5m]))`
 
 ---
@@ -60,7 +60,7 @@
 
 当前包含两类：
 1. 服务不可用：`up == 0` 持续一段时间
-2. Kafka DLQ：
+2. Kafka DLQ（可选，需要实现 `kafka_dlq_published_total` 指标）：
    - 近 5 分钟 DLQ publish 增量 > 0（提示需要排查与评估是否回放）
 
 ### 3.2 Alertmanager
@@ -76,12 +76,7 @@ Alertmanager 配置位于：
 2. 再决定是否回放：
    - 如果是“短暂依赖抖动/下游短暂不可用”导致的失败，一般可回放
    - 如果是“代码 bug/数据不合法”导致的失败，应先修复再回放
-3. 回放操作（脚本）：
-   - Dry run（默认）：`DRY_RUN=true MAX_MESSAGES=10 backend/scripts/kafka-replay-dlq.sh <topic>.dlq`
-   - 真正回推：`DRY_RUN=false MAX_MESSAGES=10 SLEEP_MS=50 backend/scripts/kafka-replay-dlq.sh <topic>.dlq`
-   - 脚本约束：
-     - topic 必须以 `community.event.` 开头且以 `.dlq` 结尾（白名单前缀）
-     - 默认 `MAX_MESSAGES=50`，避免误操作一次性回放过多
+3. 回放操作：当前仓库未提供 DLQ 回放脚本；建议使用 Kafka 客户端工具在受控窗口内回放，并限量/限速。
 
 ---
 

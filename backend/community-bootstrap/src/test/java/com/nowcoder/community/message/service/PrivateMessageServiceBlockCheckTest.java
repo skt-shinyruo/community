@@ -21,7 +21,7 @@ class PrivateMessageServiceBlockCheckTest {
     @Test
     void sendShouldRejectWhenEitherBlocked() {
         MessageMapper messageMapper = mock(MessageMapper.class);
-        UserServiceClient userServiceClient = mock(UserServiceClient.class);
+        UserLookupService userLookupService = mock(UserLookupService.class);
         BlockQueryApplicationService blockQueryApplicationService = mock(BlockQueryApplicationService.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         OwnerGuard ownerGuard = mock(OwnerGuard.class);
@@ -30,7 +30,7 @@ class PrivateMessageServiceBlockCheckTest {
 
         PrivateMessageService service = new PrivateMessageService(
                 messageMapper,
-                userServiceClient,
+                userLookupService,
                 blockQueryApplicationService,
                 moderationGuard,
                 ownerGuard

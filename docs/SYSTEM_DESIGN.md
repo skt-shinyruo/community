@@ -18,14 +18,14 @@
 - External（对外业务）：`/api/**`
 - Files（静态文件）：`/files/**`
 - Ops（对外运维）：`/api/ops/**`（ADMIN-only）
-- Internal（跨模块同步调用）：**进程内接口调用**（契约在 `*-api` 或 `backend/platform/contracts-core`）
+- Internal（跨模块同步调用）：**进程内接口调用**（契约在各模块 `api` 包或 contracts 包）
   - 约束：尽量避免跨模块 JOIN；跨模块数据聚合优先走“内部接口 + 批量/缓存”
 
 ### 1.2 身份与会话：auth（入口）+ user（SSOT）
 - auth 模块（对外入口）：登录/刷新/登出闭环（签发 JWT access token + refresh cookie）；验证码、注册/激活、找回密码等账号安全能力
 - user 模块（SSOT）：身份域数据与会话状态（`user`、`auth_refresh_token`）归 user 模块（MySQL）管理
   - `auth.refresh.store=db` 时，refresh token 仅存 `token_hash`，便于撤销/旋转（familyId 族）
-  - A-1 下 auth ↔ user 的交互是同进程内部接口调用（保留 `*RpcService` 命名以维持契约边界）
+  - A-1 下 auth ↔ user 的交互是同进程内部接口调用（通过 `UserAuthApi` 等内部接口 + `ModuleCallSupport` 统一错误映射与指标）
 
 ### 1.3 业务域模块（示例）
 - content：帖子/评论/回复（写主存储并发布事件）
@@ -40,9 +40,9 @@
 
 - dev/local：默认使用 `backend/community-bootstrap/src/main/resources/application.yml` + 环境变量（`deploy/.env`）。
 - prod：必须显式启用 `prod` profile，此时：
-  - `backend/platform/common` 的 `StartupValidation` 会启用启动期校验：关键密钥缺失会直接阻断启动（fail-closed）
+  - 启动期校验会启用 fail-closed：关键密钥缺失会直接阻断启动（见 `backend/community-bootstrap/src/main/java/com/nowcoder/community/infra/startup/StartupValidation.java` 与各模块的 `StartupValidator`）
   - 建议通过 secret store / KMS 注入 `JWT_HMAC_SECRET`、metrics basic-auth 等敏感配置，避免默认值上线
-- 启动期校验（Startup Validation）：`common` 在 `prod` 下启用启动校验，关键密钥缺失会直接阻断启动（fail-closed），避免“带着默认值上线”。
+- 启动期校验（Startup Validation）：`prod` 下启用启动校验，关键密钥缺失会直接阻断启动（fail-closed），避免“带着默认值上线”。
 
 运维约定：
 - 生产部署入口必须显式设置 `SPRING_PROFILES_ACTIVE=prod`（避免 dev/default 默认值误用）。
@@ -106,8 +106,8 @@
 - 公共读接口（例如评论/回复列表）不得暴露治理字段（如 `status`、`deletedReason` 等）
 - 契约通过回归测试固化，避免后续重构/联表扩展时不小心把字段带出
 
-示例：
-- `message/message-service/src/test/java/com/nowcoder/community/message/api/MessageControllerTest.java`
+示例（仓库内单体模块）：
+- `backend/community-bootstrap/src/test/java/com/nowcoder/community/message/api/MessageControllerTest.java`
 
 ### 2.6 HTTP 写接口幂等（Idempotency-Key）
 
@@ -120,22 +120,19 @@
   - 并发同 key：返回 `409`（提示“处理中，可重试”）
 
 配置（SSOT）：`backend/community-bootstrap/src/main/resources/application.yml` 的 `http.idempotency.*`
-示例脚本：`backend/scripts/curl-idempotent-post.sh`
+示例：当前仓库暂无脚本；可直接在 HTTP 客户端里设置 header `Idempotency-Key`。
 
 ---
 
 ## 3. 异步事件：本地事务事件（最终一致）
 
 ### 3.1 Topic 约定（SSOT）
-事件 topic 的 SSOT：`backend/platform/contracts-event-core/src/main/java/com/nowcoder/community/contracts/event/EventTopics.java`：
-- `community.event.post.v1`
-- `community.event.comment.v1`
-- `community.event.social.v1`
-- `community.event.moderation.v1`
-- 写路径与投影/通知解耦：运行时不依赖 Kafka；关键投影（通知/积分/搜索）通过本地 DB Outbox 可靠投递（可重试）。
+当前单体业务链路：投影/通知通过本地 DB outbox 实现（不依赖 Kafka）。
+
+IM 链路：使用 Kafka 作为 backplane（topic 常量见 `backend/im/im-contracts/src/main/java/com/nowcoder/community/im/contracts/ImTopics.java`）。
 
 ### 3.2 事件契约：Envelope + 校验（SSOT）
-代码位置（SSOT）：`backend/platform/contracts-event-core/src/main/java/com/nowcoder/community/contracts/event/EventEnvelope.java`。
+代码位置（SSOT）：`backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/event/EventEnvelope.java`。
 
 事件消息使用统一 envelope（概念字段）：
 - `eventId`：全局唯一，用于幂等
@@ -158,9 +155,11 @@ unknown handling 为可配置策略（consumer 级别）：
 - message：消费评论/社交事件，生成通知
 - search：消费帖子/评论等事件，更新 ES 索引
 
+说明：这里的“消费”指单体内的事务事件 + outbox handler，并非通过 Kafka 订阅 `community.event.*`。
+
 补充：搜索属于“事件驱动投影”，因此天然最终一致：
 - 写成功后到可搜索存在短暂延迟（事务提交 + 本地监听 + ES refresh）
-- 若出现长时间缺失/冷启动缺口：优先排查监听链路与 ES 健康，必要时执行 reindex（`POST /api/ops/search/reindex` 或 `backend/scripts/search-reindex.sh`）
+- 若出现长时间缺失/冷启动缺口：优先排查监听链路与 ES 健康，必要时执行 reindex（`POST /api/ops/search/reindex`）。
 
 ---
 
@@ -168,11 +167,11 @@ unknown handling 为可配置策略（consumer 级别）：
 
 按当前需求取舍：仓库已移除跨域本地投影（`*_projection` 表、Redis 投影、投影消费者与 backfill 入口），统一改为 **同进程内部接口实时回源 SSOT**。
 
-典型场景（均为进程内接口调用，非网络 RPC）：
-- content/message 写路径反骚扰（拉黑校验）：调 `social` 的 `SocialBlockRpcService#isEitherBlocked`（默认 fail-closed）
-- content/message 写路径处罚状态守卫：调 `user` 的 `UserModerationRpcService#getStatus`（默认 fail-closed）
-- social 写路径可信解析（entity resolve）：回源 `content` SSOT（`EntityResolveRpcService#resolveEntity`，默认 fail-closed）
-- user 读路径聚合展示（主页点赞/关注/粉丝）：调 `social` 的 read RPC（展示类读路径允许按配置 fail-open）
+典型场景（均为进程内接口调用，非网络调用）：
+- content/message 写路径反骚扰（拉黑校验）：调 `social` 的内部应用服务（默认 fail-closed）
+- content/message 写路径处罚状态守卫：调 `user` 的 `UserModerationApi#getStatus`（默认 fail-closed）
+- social 写路径可信解析（entity resolve）：回源 `content` SSOT（`EntityResolveApi#resolveEntity`，默认 fail-closed）
+- user 读路径聚合展示（主页点赞/关注/粉丝）：调 `social` 的读应用服务（展示类读路径允许按配置 fail-open）
 
 风险与约束：
 - 同步依赖链会让“模块边界”更显性；因此需要强约束编译期依赖图（禁止环）
@@ -183,30 +182,24 @@ unknown handling 为可配置策略（consumer 级别）：
 
 ## 5. 幂等与失败处理（P0）
 
-### 5.1 消费幂等（eventId 去重）
-消费端通过记录已消费的 `eventId` 来保证幂等：
-- message 模块：`consumed_event` 表
-- search 模块：`search_consumed_event` 表
+### 5.1 投影幂等（单体）
+本仓库默认使用本地事务事件 + DB outbox：
+- 幂等点位在 outbox 的唯一键（`outbox_event.event_id`）与投影处理器的“读当前状态再写入”（如 search 投影）。
 
-这能避免：
-- 事务后监听重复触发导致的重复副作用（例如重复通知、重复索引更新）
+说明：历史上的 `consumed_event/search_consumed_event` 表在当前单体运行路径下不再使用。
 
-### 5.2 消费侧“事务 + ack”的最小正确性（P0）
-消费端最小正确性目标是：**ack 之前，业务副作用必须已成功提交**。因此：
-- Listener 仅做“调用处理器 + 成功后 ack”
-- 处理器使用 `@Transactional`，并确保幂等记录与业务写入同事务提交
-- 避免“同类内部调用导致事务不生效”的自调用陷阱（建议拆分为独立 `@Service`）
+### 5.2 Outbox worker 的最小正确性（P0）
+Outbox worker 的最小正确性目标是：**标记 succeeded 之前，投影副作用必须已成功提交**。因此：
+- handler 内部需要把副作用做成幂等（或可重试）
+- worker 失败应可重试（带退避）且可观测（error 日志 + retry_count）
 
-### 5.4 消费幂等点位（避免“已 ack 但副作用未落地”）
-本地监听仍应确保副作用尽可能幂等；对幂等副作用（如 ES upsert/delete）优先保持“副作用本身幂等”，避免额外引入本地消息基础设施。
+### 5.4 投影幂等点位（避免“标记成功但副作用未落地”）
+本地 outbox 处理应确保副作用尽可能幂等；对幂等副作用（如 ES upsert/delete）优先保持“副作用本身幂等”。
 
 ### 5.5 事件版本与未知类型/版本处理
 事件演进需要显式约定：
-- 消费端必须校验 `version` 与 `type`
-- 对“不支持版本/未知类型”：
-  - 不应写入 consumed 表（避免未来升级后无法回放）
-  - 不支持版本：默认进入 DLQ（fail-closed，便于排查与离线回放）
-  - 未知类型：由于 topic 按 domain 聚合，默认允许 SKIP 并按 type 去重告警；若该 consumer 订阅的是“单一职责 topic”，可配置为 DLQ
+- 对 outbox payload（投影 topic）：只由本仓库生成，handler 只处理已知结构；未知/坏数据应 fail-closed 并可重试/进入 DEAD。
+- 对 IM Kafka（跨进程）：按 topic/版本做兼容；不支持版本建议进入 DLQ（fail-closed，便于排查与回放）。
 
 ---
 
@@ -216,7 +209,7 @@ unknown handling 为可配置策略（consumer 级别）：
 - 通过 `version` 做向后兼容（先双写/双读，再切换）
 - payload 避免敏感字段（密码/邮箱等）
 - 生产端与消费端都要对“未知类型/未知版本”容错（可跳过并记录）
-- `entityType/targetType` 等关键枚举值必须以 `backend/platform/contracts-core` 的 SSOT 为准：`com.nowcoder.community.contracts.domain.EntityTypes`
+- `entityType/targetType` 等关键枚举值以 `com.nowcoder.community.contracts.domain.EntityTypes` 为准。
 
 ---
 

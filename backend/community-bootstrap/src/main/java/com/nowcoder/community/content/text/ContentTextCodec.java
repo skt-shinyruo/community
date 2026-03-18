@@ -4,7 +4,7 @@ import com.nowcoder.community.content.config.ContentRenderProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * content-service 内部统一的“写入/读出文本兼容”工具：
+ * content 模块内部统一的“写入/读出文本兼容”工具：
  * - 写入：按配置对 '&' 做最小化 escape
  * - 读出：按配置对历史 entity 做一次性白名单解码
  */

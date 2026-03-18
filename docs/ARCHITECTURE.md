@@ -1,7 +1,8 @@
 # 架构文档（与代码保持一致）
 
 > 本项目当前形态：**单后端模块的包级单体（Package-Scoped Monolith）** + 前后端分离。  
-> 对外只有一个后端进程：`community-app`（Spring Boot 3，容器内默认 `8080`；本地 compose 映射为 `12882`）。  
+> 对外业务入口为 `community-app`（Spring Boot 3，容器内默认 `8080`；本地 compose 映射为 `12882`）。  
+> IM 作为独立服务保留：`im-realtime`（WebSocket，`18081`）与 `im-core`（HTTP，`18082`）。
 > 对外 API 前缀稳定：`/api/**`；静态文件前缀稳定：`/files/**`。  
 >
 > 约定：本文档中的命令与路径默认以**仓库根目录**作为工作目录（除非特别说明）。
@@ -48,7 +49,7 @@ flowchart TD
 
 补充说明：
 - **单体发布**：后端整体一起发布/回滚；因此“运行期耦合”是显式接受的取舍。
-- **单模块构建**：`backend/` 只保留一个 Maven 子模块 `community-bootstrap/`；原有领域与平台代码全部收敛到该模块内。
+- **单体模块构建**：`community-bootstrap` 是主业务单体模块；IM 相关模块（`im-core`/`im-realtime`/`im-contracts`）独立构建与部署。
 - **包级边界**：领域仍按 `com.nowcoder.community.auth`、`content`、`social`、`search` 等包组织，并在包内继续细分 `api / application / domain / infra`。
 
 ---
@@ -86,7 +87,7 @@ flowchart TD
 - `com.nowcoder.community.analytics`：统计/分析
 - `com.nowcoder.community.ops`：运维平面（`/api/ops/**`）
 
-跨域协作优先通过对方的 `application` 或 `api` 包完成；不再为进程内调用保留 `Result` unwrap、超时分类、伪“下游服务不可用”等 RPC 语义。
+跨域协作优先通过对方的 `application` 或 `api` 包完成；模块间调用通过 `ModuleCallSupport`（统一错误映射与指标）收敛，但不再使用旧的“可拆分契约”命名。
 
 ### 2.4 共享基础设施（同模块内包）
 - `com.nowcoder.community.contracts.*`：错误码、业务异常、协议对象
@@ -143,7 +144,7 @@ flowchart TD
 
 建议的检索线索：
 - traceId：`community-app` 注入并透传 `X-Trace-Id`（便于串联一次请求内的日志）
-- 审计日志：`backend/platform/common` 的审计 filter 会对非 GET 的 `/api/**` 打印审计日志（前缀类似 `"[audit][service=community-app]"`）
+- 审计日志：`backend/community-bootstrap/src/main/java/com/nowcoder/community/infra/web/AuditLogFilter.java` 会对非 GET 的 `/api/**` 打印审计日志（前缀类似 `"[audit][app=community-app]"`）
 
 ### 5.2 指标与告警
 - Prometheus 抓取 `community-app` 的 `/actuator/prometheus`（见 `deploy/observability/prometheus.yml`）

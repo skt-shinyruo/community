@@ -1,9 +1,9 @@
 package com.nowcoder.community.social.api.dto;
 
 /**
- * social-service 内部聚合只读响应：
- * - 面向 user-service 等“聚合展示”场景，避免同一页面 fan-out 多次调用；
- * - 开发阶段 internal 接口默认放行；生产建议通过网络隔离/网关策略收敛暴露面，并避免对外暴露 /internal/**。
+ * social 模块内部聚合只读响应：
+ * - 面向 user 等“聚合展示”场景，避免同一页面 fan-out 多次调用；
+ * - internal 接口仅供模块间调用；生产建议通过网关策略/访问控制避免对外暴露 /internal/**。
  */
 public class InternalUserProfileStatsResponse {
 
@@ -14,7 +14,7 @@ public class InternalUserProfileStatsResponse {
 
     /**
      * 预留字段：若未来做“部分字段降级/未知”可置为 true。
-     * 当前实现由调用方（client）决定是否 fail-open，因此默认 false。
+     * 当前实现由调用方决定是否 fail-open，因此默认 false。
      */
     private boolean degraded;
 

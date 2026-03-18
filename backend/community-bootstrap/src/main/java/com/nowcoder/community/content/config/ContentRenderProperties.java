@@ -4,7 +4,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * 内容渲染/兼容策略配置（content-service）：
+ * 内容渲染/兼容策略配置（content 模块）：
  * - 历史数据兼容（读路径一次性解码）
  * - 新写入策略（仅对 '&' 做最小化 escape，避免用户输入 literal entity 语义变化）
  */
@@ -43,4 +43,3 @@ public class ContentRenderProperties {
         this.escapeAmpersandOnWriteEnabled = escapeAmpersandOnWriteEnabled;
     }
 }
-

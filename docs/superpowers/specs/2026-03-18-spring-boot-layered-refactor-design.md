@@ -105,6 +105,13 @@ com.nowcoder.community
     dto
 ```
 
+Naming normalization for existing `community-bootstrap` packages:
+
+- current `api` packages become `controller` unless they contain DTO-only types
+- current `dao` packages become `mapper` or `repository`
+- current `api/internal` packages are absorbed into ordinary `service` and `dto` packages of the owning domain
+- package moves should favor semantic clarity over mechanical 1:1 renaming
+
 ### IM Modules
 
 The IM stack keeps separate deployable/runtime modules, but each module also shifts toward a classic Spring organization:
@@ -278,6 +285,9 @@ Refactor domain by domain:
 - move DTO assembly to controllers or dedicated mapper/assembler helpers if needed
 - update tests to target the new service/controller structure
 - delete obsolete `application` classes
+- rename old `api` packages to `controller` where they currently hold HTTP endpoints
+- rename old `dao` packages to `mapper` or `repository` according to actual persistence usage
+- absorb `api/internal` DTOs and interfaces into normal service and dto ownership
 
 ### Phase 5: Refactor IM modules
 
@@ -291,6 +301,7 @@ For `im-contracts`:
 - rename it to `im-common`
 - retain only real shared process-boundary artifacts
 - migrate or delete anything that is merely module-local but currently shared for convenience
+- update `backend/im/pom.xml`, child module dependencies, artifact references, and Java package imports accordingly
 
 ### Phase 6: Remove dead architectural scaffolding and update docs
 
@@ -385,6 +396,7 @@ The refactor is complete only when all of the following are true.
 - `application` is gone as a primary architectural layer
 - `contracts.internal.*` is gone
 - `common.*` is the default home for cross-cutting shared code inside `community-bootstrap`
+- old naming centered on `api`, `dao`, and `api/internal` has been normalized to `controller`, `mapper` or `repository`, `service`, and domain-owned `dto`
 - `im-contracts` has been reduced to a minimal shared module and renamed to `im-common`
 
 ### Dependency behavior

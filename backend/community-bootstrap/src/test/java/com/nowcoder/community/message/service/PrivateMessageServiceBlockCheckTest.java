@@ -6,6 +6,7 @@ import com.nowcoder.community.message.dao.MessageMapper;
 import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.security.OwnerGuard;
 import com.nowcoder.community.social.application.BlockQueryApplicationService;
+import com.nowcoder.community.user.api.internal.dto.UserSummary;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 
@@ -26,6 +27,9 @@ class PrivateMessageServiceBlockCheckTest {
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         OwnerGuard ownerGuard = mock(OwnerGuard.class);
 
+        UserSummary target = new UserSummary();
+        target.setId(2);
+        when(userLookupService.safeGetUser(2)).thenReturn(target);
         when(blockQueryApplicationService.isEitherBlocked(1, 2)).thenReturn(true);
 
         PrivateMessageService service = new PrivateMessageService(

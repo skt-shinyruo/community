@@ -11,6 +11,7 @@ import com.nowcoder.community.message.api.dto.ConversationItemResponse;
 import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.service.PrivateMessageService;
 import com.nowcoder.community.message.service.UserLookupService;
+import com.nowcoder.community.user.api.UserErrorCode;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
@@ -103,8 +104,10 @@ public class MessageController {
         if (toId == null || toId <= 0) {
             toId = userLookupService.safeResolveUserIdByUsername(toName);
             if (toId == null || toId <= 0) {
-                throw new BusinessException(INVALID_ARGUMENT, "目标用户不存在");
+                throw new BusinessException(UserErrorCode.USER_NOT_FOUND, "目标用户不存在");
             }
+        } else if (userLookupService.safeGetUser(toId) == null) {
+            throw new BusinessException(UserErrorCode.USER_NOT_FOUND, "目标用户不存在");
         }
         int resolvedToId = toId;
         String content = request.getContent();

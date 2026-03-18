@@ -38,7 +38,7 @@ public final class ConversationIdParser {
             return null;
         }
         if (ua >= ub) {
-            // conversationId 由 min/max 生成：必须严格递增
+            // conversationId 由 min/max 生成：必须严格递增；自发私信 "u_u" 不应被持久化
             return null;
         }
         return new ConversationMembers(ua, ub);

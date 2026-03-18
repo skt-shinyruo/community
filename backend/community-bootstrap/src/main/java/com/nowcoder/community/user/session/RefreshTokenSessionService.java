@@ -35,6 +35,17 @@ public class RefreshTokenSessionService {
         return new RefreshTokenRecord(r.tokenHash(), r.userId(), r.familyId(), r.expiresAt(), r.revokedAt());
     }
 
+    public RefreshTokenRecord consume(String tokenHash) {
+        if (!isValidTokenHash(tokenHash)) {
+            return null;
+        }
+        RefreshTokenSessionRepository.RefreshTokenRecord r = repository.consumeActive(tokenHash.trim(), Instant.now());
+        if (r == null) {
+            return null;
+        }
+        return new RefreshTokenRecord(r.tokenHash(), r.userId(), r.familyId(), r.expiresAt(), r.revokedAt());
+    }
+
     public void revoke(String tokenHash) {
         if (!isValidTokenHash(tokenHash)) {
             return;

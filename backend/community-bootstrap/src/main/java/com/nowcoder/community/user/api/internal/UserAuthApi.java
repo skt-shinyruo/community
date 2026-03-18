@@ -33,6 +33,8 @@ public interface UserAuthApi {
 
     Result<UserInternalRefreshTokenRecordResponse> findRefreshTokenOrNull(String tokenHash);
 
+    Result<UserInternalRefreshTokenRecordResponse> consumeRefreshToken(String tokenHash);
+
     Result<Void> revokeRefreshToken(String tokenHash);
 
     Result<Void> revokeRefreshTokenFamily(String familyId);

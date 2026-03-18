@@ -42,6 +42,20 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
     @Override
     public StoredRefreshToken find(String refreshToken) {
         String json = redisTemplate.opsForValue().get(KEY_PREFIX_TOKEN + refreshToken);
+        return readRecord(json);
+    }
+
+    @Override
+    public StoredRefreshToken consume(String refreshToken) {
+        String json = redisTemplate.opsForValue().getAndDelete(KEY_PREFIX_TOKEN + refreshToken);
+        StoredRefreshToken found = readRecord(json);
+        if (found != null) {
+            redisTemplate.opsForSet().remove(KEY_PREFIX_FAMILY + found.familyId(), refreshToken);
+        }
+        return found;
+    }
+
+    private StoredRefreshToken readRecord(String json) {
         if (json == null) {
             return null;
         }

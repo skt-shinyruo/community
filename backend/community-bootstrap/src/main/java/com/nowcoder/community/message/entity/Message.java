@@ -4,6 +4,16 @@ import java.util.Date;
 
 public class Message {
 
+    /**
+     * System notices use sender id 0 because application user ids are strictly positive.
+     */
+    public static final int SYSTEM_NOTICE_SENDER_ID = 0;
+
+    /**
+     * Historical notice rows used sender id 1 before the explicit sentinel was introduced.
+     */
+    public static final int LEGACY_NOTICE_SENDER_ID = 1;
+
     private int id;
     private int fromId;
     private int toId;
@@ -68,4 +78,3 @@ public class Message {
         this.createTime = createTime;
     }
 }
-

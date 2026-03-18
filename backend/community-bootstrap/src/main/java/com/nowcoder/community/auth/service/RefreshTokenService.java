@@ -23,9 +23,15 @@ public class RefreshTokenService {
         return issue(userId, familyId);
     }
 
-    public IssuedRefreshToken rotate(RefreshTokenStore.StoredRefreshToken existing) {
-        refreshTokenStore.revoke(existing.refreshToken());
-        return issue(existing.userId(), existing.familyId());
+    public IssuedRefreshToken rotate(String refreshToken) {
+        RefreshTokenStore.StoredRefreshToken consumed = refreshTokenStore.consume(refreshToken);
+        if (consumed == null) {
+            return null;
+        }
+        if (consumed.expiresAt().isBefore(Instant.now())) {
+            return null;
+        }
+        return issue(consumed.userId(), consumed.familyId());
     }
 
     public RefreshTokenStore.StoredRefreshToken find(String refreshToken) {

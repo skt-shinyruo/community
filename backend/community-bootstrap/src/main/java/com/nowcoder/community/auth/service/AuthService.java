@@ -110,7 +110,10 @@ public class AuthService {
             throw new BusinessException(AuthErrorCode.USER_DISABLED);
         }
 
-        RefreshTokenService.IssuedRefreshToken rotated = refreshTokenService.rotate(stored);
+        RefreshTokenService.IssuedRefreshToken rotated = refreshTokenService.rotate(refreshToken);
+        if (rotated == null) {
+            throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
+        }
         List<String> authorities = profile.getAuthorities() == null ? List.of() : profile.getAuthorities();
         String accessToken = jwtTokenService.createAccessToken(profile.getUserId(), profile.getUsername(), authorities);
         return new RefreshResult(accessToken, rotated.cookie());

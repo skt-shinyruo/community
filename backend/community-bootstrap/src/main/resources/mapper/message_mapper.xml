@@ -12,6 +12,21 @@
         from_id, to_id, conversation_id, content, status, create_time
     </sql>
 
+    <!--
+      Rollout note: legacy notice rows with from_id = 1 are still treated as notices
+      only for the known notice topics below. Real user 1 conversations keep numeric
+      conversation ids like "1_2" and must stay visible as letters.
+    -->
+    <sql id="noticePredicate">
+        (
+            from_id = 0
+            or (
+                from_id = 1
+                and conversation_id in ('comment', 'like', 'follow', 'moderation')
+            )
+        )
+    </sql>
+
     <insert id="insertMessage" parameterType="com.nowcoder.community.message.entity.Message" keyProperty="id">
         insert into message(<include refid="insertFields"></include>)
         values(#{fromId},#{toId},#{conversationId},#{content},#{status},#{createTime})
@@ -23,7 +38,7 @@
         where id in (
         select max(id) from message
         where status != 2
-          and from_id != 1
+          and not <include refid="noticePredicate"/>
           and (from_id = #{userId} or to_id = #{userId})
         group by conversation_id
         )
@@ -38,7 +53,7 @@
             sum(case when status = 0 and to_id = #{userId} then 1 else 0 end) as unreadCount
         from message
         where status != 2
-          and from_id != 1
+          and not <include refid="noticePredicate"/>
           and conversation_id in
         <foreach collection="conversationIds" item="cid" open="(" separator="," close=")">
             #{cid}
@@ -50,7 +65,7 @@
         select count(m.maxid) from (
                                        select max(id) as maxid from message
                                        where status != 2
-                                         and from_id != 1
+                                         and not <include refid="noticePredicate"/>
                                          and (from_id = #{userId} or to_id = #{userId})
                                        group by conversation_id
                                    ) as m
@@ -60,7 +75,7 @@
         select <include refid="selectFields"></include>
         from message
         where status != 2
-          and from_id != 1
+          and not <include refid="noticePredicate"/>
           and conversation_id = #{conversationId}
           and (from_id = #{userId} or to_id = #{userId})
         order by id desc
@@ -71,7 +86,7 @@
         select count(id)
         from message
         where status != 2
-          and from_id != 1
+          and not <include refid="noticePredicate"/>
           and conversation_id = #{conversationId}
     </select>
 
@@ -79,7 +94,7 @@
         select count(id)
         from message
         where status = 0
-          and from_id != 1
+          and not <include refid="noticePredicate"/>
           and to_id = #{userId}
         <if test="conversationId!=null">
             and conversation_id = #{conversationId}
@@ -90,7 +105,7 @@
         select <include refid="selectFields"></include>
         from message
         where status != 2
-          and from_id = 1
+          and <include refid="noticePredicate"/>
           and to_id = #{userId}
           and conversation_id = #{topic}
         order by create_time desc
@@ -100,7 +115,7 @@
     <select id="selectNoticeCount" resultType="int">
         select count(id) from message
         where status != 2
-          and from_id = 1
+          and <include refid="noticePredicate"/>
           and to_id = #{userId}
           and conversation_id = #{topic}
     </select>
@@ -108,7 +123,7 @@
     <select id="selectNoticeUnreadCount" resultType="int">
         select count(id) from message
         where status = 0
-          and from_id = 1
+          and <include refid="noticePredicate"/>
           and to_id = #{userId}
           <if test="topic!=null">
               and conversation_id = #{topic}
@@ -117,7 +132,7 @@
 
     <update id="updateLettersStatusForRecipient">
         update message set status = #{status}
-        where from_id != 1
+        where not <include refid="noticePredicate"/>
           and to_id = #{userId}
           and id in
         <foreach collection="ids" item="id" open="(" separator="," close=")">
@@ -127,7 +142,7 @@
 
     <update id="updateNoticesStatusForRecipient">
         update message set status = #{status}
-        where from_id = 1
+        where <include refid="noticePredicate"/>
           and to_id = #{userId}
           and id in
         <foreach collection="ids" item="id" open="(" separator="," close=")">

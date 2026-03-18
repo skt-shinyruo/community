@@ -143,6 +143,7 @@ TTL 配置（可按环境调整）：
 
 ## 7. 本地安全建议（即便是开发环境）
 - 修改 `.env` 中的 `JWT_HMAC_SECRET`（>= 32 字节），不要长期用默认值
+- `im-core` 会在启动时拒绝空值和已知占位密钥（例如仓库中的 dev placeholder）；本地联调也必须显式提供一个非占位、长度 >= 32 字节的共享密钥
 - 不要把 `.env`（含真实密钥）提交到版本库
 - 默认不暴露内部依赖端口到宿主机；需要浏览器访问观测组件时，再启用 `observability` profile（例如在 `deploy/.env` 设置 `COMPOSE_PROFILES=observability`）
 

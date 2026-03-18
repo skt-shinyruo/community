@@ -1,17 +1,19 @@
 create table if not exists user (
-  id int primary key,
-  username varchar(255),
+  id int auto_increment primary key,
+  username varchar(255) not null,
   password varchar(255),
   salt varchar(255),
-  email varchar(255),
-  type int,
-  status int,
+  email varchar(255) not null,
+  type int default 0,
+  status int default 0,
   activation_code varchar(255),
   header_url varchar(255),
-  create_time timestamp,
+  create_time timestamp default current_timestamp,
   score int default 0,
   mute_until timestamp,
-  ban_until timestamp
+  ban_until timestamp,
+  constraint uk_user_username unique (username),
+  constraint uk_user_email unique (email)
 );
 
 create table if not exists user_score_log (

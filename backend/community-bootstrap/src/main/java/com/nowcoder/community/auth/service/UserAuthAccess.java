@@ -112,6 +112,16 @@ public class UserAuthAccess {
         );
     }
 
+    public UserInternalRefreshTokenRecordResponse consumeRefreshToken(String tokenHash) {
+        return ModuleCallSupport.callResult(
+                meterRegistry,
+                TARGET_MODULE,
+                "refreshConsume",
+                () -> userAuthApi.consumeRefreshToken(tokenHash),
+                failClosed()
+        );
+    }
+
     public void revokeRefreshToken(String tokenHash) {
         ModuleCallSupport.callResult(
                 meterRegistry,

@@ -60,6 +60,32 @@ public class RefreshTokenSessionRepository {
         );
     }
 
+    public RefreshTokenRecord consumeActive(String tokenHash, Instant now) {
+        if (!StringUtils.hasText(tokenHash) || now == null) {
+            return null;
+        }
+        RefreshTokenRecord record = find(tokenHash);
+        if (record == null || record.revokedAt() != null || record.expiresAt() == null || !record.expiresAt().isAfter(now)) {
+            return null;
+        }
+        int updated = jdbcTemplate.update(
+                """
+                        update auth_refresh_token
+                        set revoked_at = ?
+                        where token_hash = ?
+                          and revoked_at is null
+                          and expires_at > ?
+                        """,
+                Timestamp.from(now),
+                tokenHash.trim(),
+                Timestamp.from(now)
+        );
+        if (updated <= 0) {
+            return null;
+        }
+        return record;
+    }
+
     public void revoke(String tokenHash) {
         if (!StringUtils.hasText(tokenHash)) {
             return;

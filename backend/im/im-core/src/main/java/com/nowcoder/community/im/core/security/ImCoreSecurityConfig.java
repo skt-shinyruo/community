@@ -20,13 +20,19 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import javax.crypto.SecretKey;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 @Configuration
 public class ImCoreSecurityConfig {
 
+    private static final Set<String> PLACEHOLDER_JWT_SECRETS = Set.of(
+            "dev-secret-please-change-at-least-32bytes",
+            "dev-jwt-hmac-secret-please-change-me-123456"
+    );
+
     @Bean
-    public JwtDecoder jwtDecoder(@Value("${security.jwt.hmac-secret}") String secret) {
-        SecretKey key = JwtSecretSupport.hmacSha256KeyOrThrow(secret);
+    public JwtDecoder jwtDecoder(@Value("${security.jwt.hmac-secret:}") String secret) {
+        SecretKey key = JwtSecretSupport.hmacSha256KeyOrThrow(requireNonPlaceholderJwtSecret(secret));
         return NimbusJwtDecoder.withSecretKey(key)
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
@@ -76,5 +82,15 @@ public class ImCoreSecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
+    }
+
+    private static String requireNonPlaceholderJwtSecret(String secret) {
+        String value = secret == null ? "" : secret.trim();
+        if (PLACEHOLDER_JWT_SECRETS.contains(value)) {
+            throw new IllegalArgumentException(
+                    "security.jwt.hmac-secret must not use a known placeholder; set JWT_HMAC_SECRET to a unique value >= 32 bytes"
+            );
+        }
+        return value;
     }
 }

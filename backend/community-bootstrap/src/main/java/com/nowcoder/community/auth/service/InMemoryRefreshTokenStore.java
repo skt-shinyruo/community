@@ -24,6 +24,11 @@ public class InMemoryRefreshTokenStore implements RefreshTokenStore {
     }
 
     @Override
+    public StoredRefreshToken consume(String refreshToken) {
+        return tokens.remove(refreshToken);
+    }
+
+    @Override
     public void revoke(String refreshToken) {
         tokens.remove(refreshToken);
     }

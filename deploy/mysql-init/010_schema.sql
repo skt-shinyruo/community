@@ -107,7 +107,9 @@ create table if not exists user (
   create_time timestamp null default current_timestamp,
   score int not null default 0,
   mute_until timestamp null default null,
-  ban_until timestamp null default null
+  ban_until timestamp null default null,
+  unique key uk_user_username (username),
+  unique key uk_user_email (email)
 );
 
 -- refresh token（SSOT=DB）：auth 模块不直连 MySQL，改由 user 模块托管会话状态
@@ -156,6 +158,30 @@ set @has_ban_until := (
     and column_name = 'ban_until'
 );
 set @sql := if(@has_ban_until = 0, 'alter table user add column ban_until timestamp null default null', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
+set @has_user_username_uk := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'user'
+    and index_name = 'uk_user_username'
+);
+set @sql := if(@has_user_username_uk = 0, 'alter table user add constraint uk_user_username unique (username)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
+set @has_user_email_uk := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'user'
+    and index_name = 'uk_user_email'
+);
+set @sql := if(@has_user_email_uk = 0, 'alter table user add constraint uk_user_email unique (email)', 'select 1');
 prepare stmt from @sql;
 execute stmt;
 deallocate prepare stmt;

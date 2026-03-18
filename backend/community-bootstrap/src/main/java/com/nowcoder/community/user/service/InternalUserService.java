@@ -4,6 +4,7 @@ import com.nowcoder.community.contracts.api.CommonErrorCode;
 import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.user.dao.UserMapper;
 import com.nowcoder.community.user.entity.User;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +16,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Random;
 import java.util.UUID;
 
@@ -29,6 +31,8 @@ public class InternalUserService {
     public static final int ACTIVATION_SUCCESS = 0;
     public static final int ACTIVATION_REPEAT = 1;
     public static final int ACTIVATION_FAILURE = 2;
+    private static final String USERNAME_UNIQUE_CONSTRAINT = "uk_user_username";
+    private static final String EMAIL_UNIQUE_CONSTRAINT = "uk_user_email";
 
     private final UserMapper userMapper;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
@@ -89,16 +93,16 @@ public class InternalUserService {
     public User register(String username, String password, String email) {
         String u = safeTrim(username);
         String p = safeTrim(password);
-        String e = safeTrim(email);
+        String emailValue = safeTrim(email);
 
-        if (!StringUtils.hasText(u) || !StringUtils.hasText(p) || !StringUtils.hasText(e)) {
+        if (!StringUtils.hasText(u) || !StringUtils.hasText(p) || !StringUtils.hasText(emailValue)) {
             throw new BusinessException(INVALID_ARGUMENT, "用户名/密码/邮箱不能为空");
         }
 
         if (userMapper.selectByName(u) != null) {
             throw new BusinessException(USER_ALREADY_EXISTS);
         }
-        if (userMapper.selectByEmail(e) != null) {
+        if (userMapper.selectByEmail(emailValue) != null) {
             throw new BusinessException(EMAIL_ALREADY_EXISTS);
         }
 
@@ -106,14 +110,30 @@ public class InternalUserService {
         user.setUsername(u);
         user.setPassword(passwordEncoder.encode(p));
         user.setSalt("");
-        user.setEmail(e);
+        user.setEmail(emailValue);
         user.setType(0);
         user.setStatus(0);
         user.setActivationCode(uuid());
         user.setHeaderUrl(String.format("http://images.nowcoder.com/head/%dt.png", new Random().nextInt(1000)));
         user.setCreateTime(new Date());
 
-        userMapper.insertUser(user);
+        try {
+            userMapper.insertUser(user);
+        } catch (DataIntegrityViolationException ex) {
+            if (causedByConstraint(ex, USERNAME_UNIQUE_CONSTRAINT)) {
+                throw new BusinessException(USER_ALREADY_EXISTS, ex);
+            }
+            if (causedByConstraint(ex, EMAIL_UNIQUE_CONSTRAINT)) {
+                throw new BusinessException(EMAIL_ALREADY_EXISTS, ex);
+            }
+            if (userMapper.selectByName(u) != null) {
+                throw new BusinessException(USER_ALREADY_EXISTS, ex);
+            }
+            if (userMapper.selectByEmail(emailValue) != null) {
+                throw new BusinessException(EMAIL_ALREADY_EXISTS, ex);
+            }
+            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败", ex);
+        }
         if (user.getId() <= 0) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败");
         }
@@ -339,6 +359,17 @@ public class InternalUserService {
         }
         String legacy = md5(rawPassword + salt);
         return stored.equals(legacy);
+    }
+
+    private boolean causedByConstraint(Throwable error, String constraintName) {
+        String expected = constraintName.toLowerCase(Locale.ROOT);
+        for (Throwable current = error; current != null; current = current.getCause()) {
+            String message = current.getMessage();
+            if (message != null && message.toLowerCase(Locale.ROOT).contains(expected)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isLegacyPassword(User user) {

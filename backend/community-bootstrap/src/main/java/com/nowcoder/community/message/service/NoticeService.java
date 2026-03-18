@@ -13,7 +13,7 @@ import java.util.List;
 @Service
 public class NoticeService {
 
-    public static final int SYSTEM_USER_ID = 1;
+    public static final int SYSTEM_NOTICE_SENDER_ID = Message.SYSTEM_NOTICE_SENDER_ID;
     public static final int STATUS_UNREAD = 0;
     public static final int STATUS_READ = 1;
 
@@ -25,7 +25,7 @@ public class NoticeService {
 
     public void createNotice(int toUserId, String topic, String contentJson) {
         Message msg = new Message();
-        msg.setFromId(SYSTEM_USER_ID);
+        msg.setFromId(SYSTEM_NOTICE_SENDER_ID);
         msg.setToId(toUserId);
         msg.setConversationId(topic);
         msg.setContent(contentJson);

@@ -39,6 +39,19 @@ public class DbRefreshTokenStore implements RefreshTokenStore {
             return null;
         }
         UserInternalRefreshTokenRecordResponse record = userAuthAccess.findRefreshTokenOrNull(sha256Hex(refreshToken));
+        return toStoredRefreshToken(refreshToken, record);
+    }
+
+    @Override
+    public StoredRefreshToken consume(String refreshToken) {
+        if (!StringUtils.hasText(refreshToken)) {
+            return null;
+        }
+        UserInternalRefreshTokenRecordResponse record = userAuthAccess.consumeRefreshToken(sha256Hex(refreshToken));
+        return toStoredRefreshToken(refreshToken, record);
+    }
+
+    private StoredRefreshToken toStoredRefreshToken(String refreshToken, UserInternalRefreshTokenRecordResponse record) {
         if (record == null) {
             return null;
         }

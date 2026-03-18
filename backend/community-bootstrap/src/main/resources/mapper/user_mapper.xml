@@ -34,7 +34,7 @@
         where email = #{email}
     </select>
 
-    <insert id="insertUser" parameterType="com.nowcoder.community.user.entity.User" keyProperty="id">
+    <insert id="insertUser" parameterType="com.nowcoder.community.user.entity.User" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         insert into user (<include refid="insertFields"></include>)
         values(#{username}, #{password}, #{salt}, #{email}, #{type}, #{status}, #{activationCode}, #{headerUrl},
         #{createTime})

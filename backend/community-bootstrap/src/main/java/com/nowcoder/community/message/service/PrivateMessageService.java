@@ -1,5 +1,7 @@
 package com.nowcoder.community.message.service;
 
+import com.nowcoder.community.contracts.api.CommonErrorCode;
+import com.nowcoder.community.contracts.exception.BusinessException;
 import com.nowcoder.community.social.application.BlockQueryApplicationService;
 import com.nowcoder.community.message.api.MessageErrorCode;
 import com.nowcoder.community.message.dao.MessageMapper;
@@ -9,6 +11,7 @@ import com.nowcoder.community.message.api.dto.UserSummaryResponse;
 import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.security.OwnerGuard;
 import com.nowcoder.community.message.service.dto.ConversationStats;
+import com.nowcoder.community.user.api.UserErrorCode;
 import com.nowcoder.community.user.api.internal.dto.UserSummary;
 import com.nowcoder.community.infra.pagination.Pagination;
 import org.springframework.stereotype.Service;
@@ -115,10 +118,11 @@ public class PrivateMessageService {
     }
 
     public void send(int fromId, int toId, String content) {
+        assertValidRecipient(fromId, toId);
         moderationGuard.assertCanSendMessage(fromId);
         if (blockQueryApplicationService != null && blockQueryApplicationService.isEitherBlocked(fromId, toId)) {
-            throw new com.nowcoder.community.contracts.exception.BusinessException(
-                    com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN,
+            throw new BusinessException(
+                    CommonErrorCode.FORBIDDEN,
                     "双方存在拉黑关系，无法发送私信"
             );
         }
@@ -143,6 +147,19 @@ public class PrivateMessageService {
         int small = Math.min(fromId, toId);
         int large = Math.max(fromId, toId);
         return small + "_" + large;
+    }
+
+    private void assertValidRecipient(int fromId, int toId) {
+        if (toId <= 0) {
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "toId 非法");
+        }
+        if (fromId == toId) {
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "不能给自己发送私信");
+        }
+        UserSummary target = userLookupService.safeGetUser(toId);
+        if (target == null || target.getId() <= 0) {
+            throw new BusinessException(UserErrorCode.USER_NOT_FOUND, "目标用户不存在");
+        }
     }
 
     private LetterItemResponse toLetterItem(Message m) {

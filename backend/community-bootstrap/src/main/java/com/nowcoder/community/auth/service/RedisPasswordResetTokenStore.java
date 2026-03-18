@@ -32,9 +32,7 @@ public class RedisPasswordResetTokenStore implements PasswordResetTokenStore {
         if (!StringUtils.hasText(token)) {
             return null;
         }
-        String key = KEY_PREFIX + token.trim();
-        String value = redisTemplate.opsForValue().get(key);
-        redisTemplate.delete(key);
+        String value = redisTemplate.opsForValue().getAndDelete(KEY_PREFIX + token.trim());
         if (!StringUtils.hasText(value)) {
             return null;
         }

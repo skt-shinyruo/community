@@ -8,6 +8,8 @@ public interface RefreshTokenStore {
 
     StoredRefreshToken find(String refreshToken);
 
+    StoredRefreshToken consume(String refreshToken);
+
     void revoke(String refreshToken);
 
     void revokeFamily(String familyId);
@@ -15,4 +17,3 @@ public interface RefreshTokenStore {
     record StoredRefreshToken(String refreshToken, int userId, String familyId, Instant expiresAt) {
     }
 }
-

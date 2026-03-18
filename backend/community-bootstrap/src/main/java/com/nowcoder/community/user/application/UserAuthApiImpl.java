@@ -142,6 +142,28 @@ public class UserAuthApiImpl implements UserAuthApi {
     public Result<UserInternalRefreshTokenRecordResponse> findRefreshTokenOrNull(String tokenHash) {
         try {
             RefreshTokenSessionService.RefreshTokenRecord record = refreshTokenSessionService.find(safeTrim(tokenHash));
+            return toRefreshTokenRecordResult(record);
+        } catch (BusinessException e) {
+            return error(e);
+        } catch (RuntimeException e) {
+            return Result.error(CommonErrorCode.INTERNAL_ERROR);
+        }
+    }
+
+    @Override
+    public Result<UserInternalRefreshTokenRecordResponse> consumeRefreshToken(String tokenHash) {
+        try {
+            RefreshTokenSessionService.RefreshTokenRecord record = refreshTokenSessionService.consume(safeTrim(tokenHash));
+            return toRefreshTokenRecordResult(record);
+        } catch (BusinessException e) {
+            return error(e);
+        } catch (RuntimeException e) {
+            return Result.error(CommonErrorCode.INTERNAL_ERROR);
+        }
+    }
+
+    private Result<UserInternalRefreshTokenRecordResponse> toRefreshTokenRecordResult(RefreshTokenSessionService.RefreshTokenRecord record) {
+        try {
             if (record == null) {
                 return Result.ok(null);
             }
@@ -152,8 +174,6 @@ public class UserAuthApiImpl implements UserAuthApi {
             resp.setExpiresAt(record.expiresAt());
             resp.setRevokedAt(record.revokedAt());
             return Result.ok(resp);
-        } catch (BusinessException e) {
-            return error(e);
         } catch (RuntimeException e) {
             return Result.error(CommonErrorCode.INTERNAL_ERROR);
         }

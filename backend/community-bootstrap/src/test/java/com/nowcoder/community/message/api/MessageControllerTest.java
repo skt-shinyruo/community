@@ -1,5 +1,8 @@
 package com.nowcoder.community.message.api;
 
+import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.infra.idempotency.IdempotencyGuard;
+import com.nowcoder.community.message.api.dto.SendMessageRequest;
 import com.nowcoder.community.message.api.dto.ConversationItemResponse;
 import com.nowcoder.community.message.dao.MessageMapper;
 import com.nowcoder.community.message.entity.Message;
@@ -9,19 +12,25 @@ import com.nowcoder.community.message.service.UserModerationGuard;
 import com.nowcoder.community.message.service.UserLookupService;
 import com.nowcoder.community.message.service.dto.ConversationStats;
 import com.nowcoder.community.social.application.BlockQueryApplicationService;
+import com.nowcoder.community.user.api.UserErrorCode;
 import com.nowcoder.community.user.api.internal.dto.UserSummary;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class MessageControllerTest {
@@ -82,5 +91,38 @@ class MessageControllerTest {
 
         verify(userLookupService, times(1)).safeBatchGetUsers(Set.of(2, 3));
         verify(messageMapper, times(1)).selectConversationStats(anyInt(), any());
+    }
+
+    @Test
+    void sendShouldRejectDirectInvalidToIdBeforeIdempotentDispatch() {
+        PrivateMessageService privateMessageService = mock(PrivateMessageService.class);
+        UserLookupService userLookupService = mock(UserLookupService.class);
+        IdempotencyGuard idempotencyGuard = mock(IdempotencyGuard.class);
+        MessageController controller = new MessageController(privateMessageService, userLookupService, idempotencyGuard);
+
+        SendMessageRequest request = new SendMessageRequest();
+        request.setToId(404);
+        request.setContent("hello");
+
+        when(userLookupService.safeGetUser(404)).thenReturn(null);
+
+        BusinessException ex = catchThrowableOfType(
+                () -> controller.send(authentication(7), "idem-404", request),
+                BusinessException.class
+        );
+
+        assertThat(ex).isNotNull();
+        assertThat(ex.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND);
+        assertThat(ex.getMessage()).isEqualTo("目标用户不存在");
+        verify(userLookupService).safeGetUser(404);
+        verifyNoInteractions(privateMessageService, idempotencyGuard);
+    }
+
+    private Authentication authentication(int userId) {
+        Jwt jwt = Jwt.withTokenValue("token-" + userId)
+                .header("alg", "none")
+                .subject(String.valueOf(userId))
+                .build();
+        return new TestingAuthenticationToken(jwt, null);
     }
 }

@@ -1,9 +1,9 @@
 package com.nowcoder.community.infra.web;
 
-import com.nowcoder.community.contracts.api.Result;
-import com.nowcoder.community.contracts.trace.TraceHeaders;
+import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.infra.trace.TraceId;
-import com.nowcoder.community.contracts.trace.TraceIdCodec;
+import com.nowcoder.community.common.trace.TraceIdCodec;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageConverter;

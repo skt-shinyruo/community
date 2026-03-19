@@ -1,4 +1,4 @@
-package com.nowcoder.community.contracts.event;
+package com.nowcoder.community.common.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;

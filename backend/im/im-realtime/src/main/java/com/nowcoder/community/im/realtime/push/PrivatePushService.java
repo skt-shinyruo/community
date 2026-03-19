@@ -2,7 +2,7 @@ package com.nowcoder.community.im.realtime.push;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.im.contracts.event.PrivateMessagePersistedEventV1;
+import com.nowcoder.community.im.common.event.PrivateMessagePersistedEventV1;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
 import org.springframework.stereotype.Component;
 

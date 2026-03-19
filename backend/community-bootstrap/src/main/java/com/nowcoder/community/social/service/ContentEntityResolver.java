@@ -1,18 +1,16 @@
 package com.nowcoder.community.social.service;
 
-import com.nowcoder.community.contracts.domain.EntityTypes;
-import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.contracts.api.CommonErrorCode;
-import com.nowcoder.community.contracts.internal.api.EntityResolveApi;
-import com.nowcoder.community.infra.modulecall.ModuleCallOptions;
-import com.nowcoder.community.infra.modulecall.ModuleCallSupport;
+import com.nowcoder.community.common.constants.EntityTypes;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.content.service.ContentEntityService;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import static com.nowcoder.community.contracts.api.CommonErrorCode.SERVICE_UNAVAILABLE;
+import static com.nowcoder.community.common.exception.CommonErrorCode.SERVICE_UNAVAILABLE;
 
 /**
  * 内容实体元信息解析器（social 写路径可信只读依赖）：
@@ -24,17 +22,15 @@ public class ContentEntityResolver {
 
     private static final Logger log = LoggerFactory.getLogger(ContentEntityResolver.class);
     private final MeterRegistry meterRegistry;
-    private final EntityResolveApi entityResolveApi;
+    private final ContentEntityService contentEntityService;
 
     public ContentEntityResolver(
             MeterRegistry meterRegistry,
-            EntityResolveApi entityResolveApi
+            ContentEntityService contentEntityService
     ) {
         this.meterRegistry = meterRegistry;
-        this.entityResolveApi = entityResolveApi;
+        this.contentEntityService = contentEntityService;
     }
-
-    private static final String TARGET_MODULE = "content";
 
     public ResolvedEntity resolve(int entityType, int entityId) {
         if (entityId <= 0) {
@@ -49,25 +45,18 @@ public class ContentEntityResolver {
 
     private ResolvedEntity resolveInternal(int entityType, int entityId) {
         try {
-            return ModuleCallSupport.callResultAndThen(
-                    meterRegistry,
-                    TARGET_MODULE,
-                    "resolveEntity",
-                    () -> entityResolveApi.resolveEntity(entityType, entityId),
-                    data -> {
-                        int entityUserId = data == null ? 0 : data.getEntityUserId();
-                        int postId = data == null ? 0 : data.getPostId();
-                        if (entityUserId <= 0 || postId <= 0) {
-                            count(entityType, "internal-api", "incomplete");
-                            throw new BusinessException(SERVICE_UNAVAILABLE, "内容实体解析结果缺失或不完整");
-                        }
-                        count(entityType, "internal-api", "success");
-                        return new ResolvedEntity(entityUserId, postId);
-                    },
-                    ModuleCallOptions.<ResolvedEntity>failClosed().withWarnLogger((m, e) -> log.warn(m, e))
-            );
+            ContentEntityService.ResolvedEntity data = contentEntityService.resolve(entityType, entityId);
+            int entityUserId = data == null ? 0 : data.entityUserId();
+            int postId = data == null ? 0 : data.postId();
+            if (entityUserId <= 0 || postId <= 0) {
+                count(entityType, "service", "incomplete");
+                throw new BusinessException(SERVICE_UNAVAILABLE, "内容实体解析结果缺失或不完整");
+            }
+            count(entityType, "service", "success");
+            return new ResolvedEntity(entityUserId, postId);
         } catch (RuntimeException e) {
-            count(entityType, "internal-api", "error");
+            count(entityType, "service", "error");
+            log.warn("[content-entity-resolve] entityType={} entityId={} failed", entityType, entityId, e);
             throw e;
         }
     }

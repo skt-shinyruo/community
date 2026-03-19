@@ -55,7 +55,7 @@
 
         <dependency>
             <groupId>com.nowcoder.community</groupId>
-            <artifactId>im-contracts</artifactId>
+            <artifactId>im-common</artifactId>
             <version>${project.version}</version>
         </dependency>
 

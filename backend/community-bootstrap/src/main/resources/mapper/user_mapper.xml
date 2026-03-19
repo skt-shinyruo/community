@@ -3,7 +3,7 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="com.nowcoder.community.user.dao.UserMapper">
+<mapper namespace="com.nowcoder.community.user.mapper.UserMapper">
 
     <sql id="insertFields">
         username, password, salt, email, type, status, activation_code, header_url, create_time

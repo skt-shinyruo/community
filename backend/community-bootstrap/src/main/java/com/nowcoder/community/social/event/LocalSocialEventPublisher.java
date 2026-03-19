@@ -1,9 +1,9 @@
 package com.nowcoder.community.social.event;
 
-import com.nowcoder.community.social.api.event.SocialEventTypes;
-import com.nowcoder.community.social.api.event.payload.BlockPayload;
-import com.nowcoder.community.social.api.event.payload.FollowPayload;
-import com.nowcoder.community.social.api.event.payload.LikePayload;
+import com.nowcoder.community.social.event.SocialEventTypes;
+import com.nowcoder.community.social.event.payload.BlockPayload;
+import com.nowcoder.community.social.event.payload.FollowPayload;
+import com.nowcoder.community.social.event.payload.LikePayload;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;

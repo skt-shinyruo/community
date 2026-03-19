@@ -1,7 +1,7 @@
 package com.nowcoder.community.search.repo;
 
-import com.nowcoder.community.content.api.event.payload.PostPayload;
-import com.nowcoder.community.search.api.dto.SearchPostItem;
+import com.nowcoder.community.content.event.payload.PostPayload;
+import com.nowcoder.community.search.dto.SearchPostItem;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;

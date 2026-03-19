@@ -1,12 +1,12 @@
 package com.nowcoder.community.infra.security.auth;
 
-import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.common.exception.BusinessException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.util.StringUtils;
 
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.UNAUTHORIZED;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.exception.CommonErrorCode.UNAUTHORIZED;
 
 /**
  * Current user helpers (JWT resource server).

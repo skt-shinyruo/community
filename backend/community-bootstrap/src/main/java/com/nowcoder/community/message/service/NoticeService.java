@@ -1,8 +1,8 @@
 package com.nowcoder.community.message.service;
 
-import com.nowcoder.community.message.dao.MessageMapper;
-import com.nowcoder.community.message.api.dto.LetterItemResponse;
-import com.nowcoder.community.message.api.dto.NoticeTopicSummaryResponse;
+import com.nowcoder.community.message.mapper.MessageMapper;
+import com.nowcoder.community.message.dto.LetterItemResponse;
+import com.nowcoder.community.message.dto.NoticeTopicSummaryResponse;
 import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.infra.pagination.Pagination;
 import org.springframework.stereotype.Service;

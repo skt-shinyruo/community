@@ -1,6 +1,6 @@
 package com.nowcoder.community.auth.service;
 
-import com.nowcoder.community.user.api.internal.dto.UserInternalRefreshTokenRecordResponse;
+import com.nowcoder.community.user.session.RefreshTokenSessionService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -19,10 +19,10 @@ import java.time.Instant;
 @ConditionalOnProperty(name = "auth.refresh.store", havingValue = "db")
 public class DbRefreshTokenStore implements RefreshTokenStore {
 
-    private final UserAuthAccess userAuthAccess;
+    private final RefreshTokenSessionService refreshTokenSessionService;
 
-    public DbRefreshTokenStore(UserAuthAccess userAuthAccess) {
-        this.userAuthAccess = userAuthAccess;
+    public DbRefreshTokenStore(RefreshTokenSessionService refreshTokenSessionService) {
+        this.refreshTokenSessionService = refreshTokenSessionService;
     }
 
     @Override
@@ -30,7 +30,7 @@ public class DbRefreshTokenStore implements RefreshTokenStore {
         if (!StringUtils.hasText(refreshToken) || userId <= 0 || !StringUtils.hasText(familyId) || expiresAt == null) {
             return;
         }
-        userAuthAccess.storeRefreshToken(sha256Hex(refreshToken), userId, familyId, expiresAt);
+        refreshTokenSessionService.store(sha256Hex(refreshToken), userId, familyId, expiresAt);
     }
 
     @Override
@@ -38,7 +38,7 @@ public class DbRefreshTokenStore implements RefreshTokenStore {
         if (!StringUtils.hasText(refreshToken)) {
             return null;
         }
-        UserInternalRefreshTokenRecordResponse record = userAuthAccess.findRefreshTokenOrNull(sha256Hex(refreshToken));
+        RefreshTokenSessionService.RefreshTokenRecord record = refreshTokenSessionService.find(sha256Hex(refreshToken));
         return toStoredRefreshToken(refreshToken, record);
     }
 
@@ -47,21 +47,21 @@ public class DbRefreshTokenStore implements RefreshTokenStore {
         if (!StringUtils.hasText(refreshToken)) {
             return null;
         }
-        UserInternalRefreshTokenRecordResponse record = userAuthAccess.consumeRefreshToken(sha256Hex(refreshToken));
+        RefreshTokenSessionService.RefreshTokenRecord record = refreshTokenSessionService.consume(sha256Hex(refreshToken));
         return toStoredRefreshToken(refreshToken, record);
     }
 
-    private StoredRefreshToken toStoredRefreshToken(String refreshToken, UserInternalRefreshTokenRecordResponse record) {
+    private StoredRefreshToken toStoredRefreshToken(String refreshToken, RefreshTokenSessionService.RefreshTokenRecord record) {
         if (record == null) {
             return null;
         }
-        if (record.getRevokedAt() != null) {
+        if (record.revokedAt() != null) {
             return null;
         }
-        if (record.getExpiresAt() == null) {
+        if (record.expiresAt() == null) {
             return null;
         }
-        return new StoredRefreshToken(refreshToken, record.getUserId(), record.getFamilyId(), record.getExpiresAt());
+        return new StoredRefreshToken(refreshToken, record.userId(), record.familyId(), record.expiresAt());
     }
 
     @Override
@@ -69,7 +69,7 @@ public class DbRefreshTokenStore implements RefreshTokenStore {
         if (!StringUtils.hasText(refreshToken)) {
             return;
         }
-        userAuthAccess.revokeRefreshToken(sha256Hex(refreshToken));
+        refreshTokenSessionService.revoke(sha256Hex(refreshToken));
     }
 
     @Override
@@ -77,7 +77,7 @@ public class DbRefreshTokenStore implements RefreshTokenStore {
         if (!StringUtils.hasText(familyId)) {
             return;
         }
-        userAuthAccess.revokeRefreshTokenFamily(familyId.trim());
+        refreshTokenSessionService.revokeFamily(familyId.trim());
     }
 
     private String sha256Hex(String value) {

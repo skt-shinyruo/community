@@ -1,8 +1,8 @@
 package com.nowcoder.community.search.repo;
 
 // ES 实现：基于 alias 写入/查询，并支持指定索引写入。
-import com.nowcoder.community.content.api.event.payload.PostPayload;
-import com.nowcoder.community.search.api.dto.SearchPostItem;
+import com.nowcoder.community.content.event.payload.PostPayload;
+import com.nowcoder.community.search.dto.SearchPostItem;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;

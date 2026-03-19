@@ -1,7 +1,7 @@
 package com.nowcoder.community.search.service;
 
-import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.search.api.SearchErrorCode;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.search.exception.SearchErrorCode;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 

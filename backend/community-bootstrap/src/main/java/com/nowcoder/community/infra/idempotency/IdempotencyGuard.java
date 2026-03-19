@@ -2,9 +2,9 @@ package com.nowcoder.community.infra.idempotency;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.nowcoder.community.contracts.api.CommonErrorCode;
-import com.nowcoder.community.contracts.api.SimpleErrorCode;
-import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.common.exception.SimpleErrorCode;
+import com.nowcoder.community.common.exception.BusinessException;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.springframework.beans.factory.ObjectProvider;

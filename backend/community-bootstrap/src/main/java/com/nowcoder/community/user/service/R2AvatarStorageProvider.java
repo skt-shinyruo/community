@@ -1,7 +1,7 @@
 package com.nowcoder.community.user.service;
 
-import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.user.api.dto.AvatarUploadTokenResponse;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.dto.AvatarUploadTokenResponse;
 import com.nowcoder.community.user.config.AvatarStorageProperties;
 import com.nowcoder.community.user.config.R2Properties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -21,8 +21,8 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.io.InputStream;
 
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INTERNAL_ERROR;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 /**
  * Cloudflare R2 implementation (S3 compatible).

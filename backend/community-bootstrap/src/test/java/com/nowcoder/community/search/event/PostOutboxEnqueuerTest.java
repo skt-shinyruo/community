@@ -2,8 +2,8 @@ package com.nowcoder.community.search.event;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.content.api.event.ContentEventTypes;
-import com.nowcoder.community.content.api.event.payload.PostPayload;
+import com.nowcoder.community.content.event.ContentEventTypes;
+import com.nowcoder.community.content.event.payload.PostPayload;
 import com.nowcoder.community.content.event.ContentLocalEvent;
 import com.nowcoder.community.infra.outbox.JdbcOutboxEventStore;
 import org.junit.jupiter.api.Test;

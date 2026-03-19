@@ -1,12 +1,12 @@
 package com.nowcoder.community.infra.security.jwt;
 
-import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.common.exception.BusinessException;
 
 import java.nio.charset.StandardCharsets;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 public final class JwtSecretKeys {
 

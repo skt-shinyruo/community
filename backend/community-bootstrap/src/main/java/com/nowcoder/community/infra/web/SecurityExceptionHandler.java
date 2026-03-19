@@ -1,11 +1,11 @@
 package com.nowcoder.community.infra.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.contracts.api.CommonErrorCode;
-import com.nowcoder.community.contracts.api.Result;
-import com.nowcoder.community.contracts.trace.TraceHeaders;
+import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.infra.trace.TraceId;
-import com.nowcoder.community.contracts.trace.TraceIdCodec;
+import com.nowcoder.community.common.trace.TraceIdCodec;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;

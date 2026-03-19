@@ -1,8 +1,8 @@
 package com.nowcoder.community.auth.service;
 
 import com.nowcoder.community.auth.config.RegistrationProperties;
-import com.nowcoder.community.contracts.api.CommonErrorCode;
-import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.common.exception.BusinessException;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.springframework.mail.MailException;

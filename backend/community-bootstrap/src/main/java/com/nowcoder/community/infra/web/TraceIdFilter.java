@@ -1,8 +1,8 @@
 package com.nowcoder.community.infra.web;
 
 import com.nowcoder.community.infra.trace.TraceContext;
-import com.nowcoder.community.contracts.trace.TraceHeaders;
-import com.nowcoder.community.contracts.trace.TraceIdCodec;
+import com.nowcoder.community.common.trace.TraceHeaders;
+import com.nowcoder.community.common.trace.TraceIdCodec;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

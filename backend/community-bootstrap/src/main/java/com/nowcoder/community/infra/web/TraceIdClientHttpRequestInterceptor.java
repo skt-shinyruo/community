@@ -1,7 +1,7 @@
 package com.nowcoder.community.infra.web;
 
 import com.nowcoder.community.infra.trace.TraceId;
-import com.nowcoder.community.contracts.trace.TraceHeaders;
+import com.nowcoder.community.common.trace.TraceHeaders;
 import org.springframework.http.HttpRequest;
 import org.springframework.http.client.ClientHttpRequestExecution;
 import org.springframework.http.client.ClientHttpRequestInterceptor;

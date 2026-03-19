@@ -1,6 +1,6 @@
 package com.nowcoder.community.user.service;
 
-import com.nowcoder.community.user.api.dto.AvatarUploadTokenResponse;
+import com.nowcoder.community.user.dto.AvatarUploadTokenResponse;
 import org.springframework.web.multipart.MultipartFile;
 
 /**

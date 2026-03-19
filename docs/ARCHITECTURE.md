@@ -14,7 +14,7 @@
 > 目的：用一张表快速对齐“谁暴露 API / 谁 owns 数据 / 谁做鉴权（JWT 验签 + 授权矩阵）”。
 >
 > 说明：MySQL 已收敛为单一 schema（默认 `community`），但**数据所有权（SSOT）仍按模块划分**；
-> 约束上建议保持“禁止跨模块 JOIN、跨模块只通过内部接口拿数据”，避免演化为“大泥球”。
+> 约束上建议保持“禁止跨模块 JOIN、跨模块通过聚焦的 service/dto 回源拿数据”，避免演化为“大泥球”。
 
 | 能力/域 | 对外 API（入口） | 数据/状态 SSOT（owner） | 鉴权/授权 SSOT（执行位置） |
 | --- | --- | --- | --- |
@@ -49,8 +49,8 @@ flowchart TD
 
 补充说明：
 - **单体发布**：后端整体一起发布/回滚；因此“运行期耦合”是显式接受的取舍。
-- **单体模块构建**：`community-bootstrap` 是主业务单体模块；IM 相关模块（`im-core`/`im-realtime`/`im-contracts`）独立构建与部署。
-- **包级边界**：领域仍按 `com.nowcoder.community.auth`、`content`、`social`、`search` 等包组织，并在包内继续细分 `api / application / domain / infra`。
+- **单体模块构建**：`community-bootstrap` 是主业务单体模块；IM 相关模块（`im-core`/`im-realtime`/`im-common`）独立构建与部署。
+- **包级边界**：领域仍按 `com.nowcoder.community.auth`、`content`、`social`、`search` 等顶层包组织；域内默认按 Spring Boot 分层思路组织（controller/service/dto/entity/mapper），安全/事件/错误码也按职责落在各自域包内。
 
 ---
 
@@ -87,10 +87,10 @@ flowchart TD
 - `com.nowcoder.community.analytics`：统计/分析
 - `com.nowcoder.community.ops`：运维平面（`/api/ops/**`）
 
-跨域协作优先通过对方的 `application` 或 `api` 包完成；模块间调用通过 `ModuleCallSupport`（统一错误映射与指标）收敛，但不再使用旧的“可拆分契约”命名。
+跨域协作默认通过对方的聚焦 service 或 domain-owned dto 完成；同 JVM 内部不再通过 `application`、`contracts.internal.*`、`ModuleCallSupport` 来模拟远程调用。
 
 ### 2.4 共享基础设施（同模块内包）
-- `com.nowcoder.community.contracts.*`：错误码、业务异常、协议对象
+- `com.nowcoder.community.common.*`：错误码、业务异常、trace、统一 Web 响应、通用事件 envelope 等横切能力
 - `com.nowcoder.community.infra.*`：安全、trace、web、idempotency、scheduler 等横切能力
 - `com.nowcoder.community.bootstrap.*`：启动入口与装配代码
 
@@ -129,7 +129,7 @@ flowchart TD
 
 ### 4.2 典型写路径：发帖 → 本地编排 → 事件投影
 1. 前端 `POST /api/posts`
-2. `content.application.PostApplicationService` 在本地完成参数清洗、幂等包装与命令调用
+2. `content.service.PostFacadeService` 在本地完成参数清洗、幂等包装与命令调用
 3. `PostCommandService` 在事务内写主存储并发布帖子领域事件
 4. 帖子领域事件目前仍通过桥接层进入既有事件发布链路，用于搜索/通知等投影；reindex 等运维动作已收敛为单进程 single-flight 协调
 

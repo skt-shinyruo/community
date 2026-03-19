@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.service;
 
 import com.nowcoder.community.infra.tx.AfterCommitExecutor;
-import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.domain.event.PostDomainEventPublisher;
 import com.nowcoder.community.content.score.PostScoreQueue;
@@ -13,9 +13,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Date;
 import java.util.List;
 
-import static com.nowcoder.community.content.api.ContentErrorCode.POST_NOT_FOUND;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.content.exception.ContentErrorCode.POST_NOT_FOUND;
+import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 /**
  * 帖子写路径命令服务：

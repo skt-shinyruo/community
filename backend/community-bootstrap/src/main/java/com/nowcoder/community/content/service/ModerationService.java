@@ -1,14 +1,14 @@
 // 治理服务：处理举报审核与处置动作（隐藏/删除/警告/禁言/封禁），并记录审计与通知。
 package com.nowcoder.community.content.service;
 
-import com.nowcoder.community.content.api.event.payload.CommentPayload;
-import com.nowcoder.community.content.api.event.payload.ModerationCommandPayload;
-import com.nowcoder.community.content.api.event.payload.ModerationPayload;
-import com.nowcoder.community.content.api.event.payload.PostPayload;
-import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.content.dao.CommentMapper;
-import com.nowcoder.community.content.dao.DiscussPostMapper;
-import com.nowcoder.community.content.dao.ModerationActionMapper;
+import com.nowcoder.community.content.event.payload.CommentPayload;
+import com.nowcoder.community.content.event.payload.ModerationCommandPayload;
+import com.nowcoder.community.content.event.payload.ModerationPayload;
+import com.nowcoder.community.content.event.payload.PostPayload;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.content.mapper.CommentMapper;
+import com.nowcoder.community.content.mapper.DiscussPostMapper;
+import com.nowcoder.community.content.mapper.ModerationActionMapper;
 import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.entity.ModerationAction;
@@ -23,10 +23,10 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 
-import static com.nowcoder.community.content.api.ContentErrorCode.COMMENT_NOT_FOUND;
-import static com.nowcoder.community.content.api.ContentErrorCode.POST_NOT_FOUND;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.content.exception.ContentErrorCode.COMMENT_NOT_FOUND;
+import static com.nowcoder.community.content.exception.ContentErrorCode.POST_NOT_FOUND;
+import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
 public class ModerationService {

@@ -2,8 +2,8 @@ package com.nowcoder.community.im.realtime.ws;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.im.contracts.command.SendPrivateTextCommandV1;
-import com.nowcoder.community.im.contracts.command.SendRoomTextCommandV1;
+import com.nowcoder.community.im.common.command.SendPrivateTextCommandV1;
+import com.nowcoder.community.im.common.command.SendRoomTextCommandV1;
 import com.nowcoder.community.im.realtime.client.CommunityGovernanceClient;
 import com.nowcoder.community.im.realtime.client.ImCoreClient;
 import com.nowcoder.community.im.realtime.kafka.CommandProducer;

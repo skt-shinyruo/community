@@ -1,23 +1,22 @@
 package com.nowcoder.community.auth.service;
 
-import com.nowcoder.community.auth.api.AuthErrorCode;
-import com.nowcoder.community.contracts.api.CommonErrorCode;
-import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.auth.exception.AuthErrorCode;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.web.net.ClientIpResolver;
+import com.nowcoder.community.user.entity.User;
+import com.nowcoder.community.user.service.InternalUserService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import com.nowcoder.community.user.api.internal.dto.UserInternalAuthenticateResponse;
-import com.nowcoder.community.user.api.internal.dto.UserInternalSessionProfileResponse;
 
 import java.util.List;
 
 @Service
 public class AuthService {
 
-    private final UserAuthAccess userAuthAccess;
+    private final InternalUserService internalUserService;
     private final JwtTokenService jwtTokenService;
     private final RefreshTokenService refreshTokenService;
     private final LoginRateLimitService loginRateLimitService;
@@ -25,14 +24,14 @@ public class AuthService {
     private final ClientIpResolver clientIpResolver;
 
     public AuthService(
-            UserAuthAccess userAuthAccess,
+            InternalUserService internalUserService,
             JwtTokenService jwtTokenService,
             RefreshTokenService refreshTokenService,
             LoginRateLimitService loginRateLimitService,
             CaptchaService captchaService,
             ClientIpResolver clientIpResolver
     ) {
-        this.userAuthAccess = userAuthAccess;
+        this.internalUserService = internalUserService;
         this.jwtTokenService = jwtTokenService;
         this.refreshTokenService = refreshTokenService;
         this.loginRateLimitService = loginRateLimitService;
@@ -64,33 +63,24 @@ public class AuthService {
             throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
         }
 
-        UserInternalAuthenticateResponse user;
+        User user;
         try {
-            user = userAuthAccess.authenticate(username, password);
+            user = internalUserService.authenticate(username, password);
         } catch (BusinessException e) {
             int code = e.getErrorCode() == null ? 0 : e.getErrorCode().getCode();
-            boolean invalidCredentials = code == AuthErrorCode.INVALID_CREDENTIALS.getCode()
-                    || code == CommonErrorCode.UNAUTHORIZED.getCode();
-            boolean userDisabled = code == AuthErrorCode.USER_DISABLED.getCode()
-                    || code == CommonErrorCode.FORBIDDEN.getCode();
+            boolean invalidCredentials = code == AuthErrorCode.INVALID_CREDENTIALS.getCode();
+            boolean userDisabled = code == AuthErrorCode.USER_DISABLED.getCode();
             if (invalidCredentials || userDisabled) {
                 loginRateLimitService.recordFailure(username, ip, ipSource);
-            }
-            // user 模块使用通用码表达鉴权失败（避免跨域依赖 auth 域错误码），auth 模块在边界做语义翻译。
-            if (code == CommonErrorCode.UNAUTHORIZED.getCode()) {
-                throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
-            }
-            if (code == CommonErrorCode.FORBIDDEN.getCode()) {
-                throw new BusinessException(AuthErrorCode.USER_DISABLED);
             }
             throw e;
         }
 
         loginRateLimitService.reset(username, ip);
 
-        List<String> authorities = user.getAuthorities() == null ? List.of() : user.getAuthorities();
-        String accessToken = jwtTokenService.createAccessToken(user.getUserId(), user.getUsername(), authorities);
-        RefreshTokenService.IssuedRefreshToken refreshToken = refreshTokenService.issue(user.getUserId());
+        List<String> authorities = internalUserService.authoritiesOf(user);
+        String accessToken = jwtTokenService.createAccessToken(user.getId(), user.getUsername(), authorities);
+        RefreshTokenService.IssuedRefreshToken refreshToken = refreshTokenService.issue(user.getId());
         return new LoginResult(accessToken, refreshToken.cookie());
     }
 
@@ -105,7 +95,7 @@ public class AuthService {
             throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
         }
 
-        UserInternalSessionProfileResponse profile = userAuthAccess.sessionProfile(stored.userId());
+        User profile = internalUserService.getSessionProfile(stored.userId());
         if (profile == null || profile.getStatus() == 0) {
             throw new BusinessException(AuthErrorCode.USER_DISABLED);
         }
@@ -114,8 +104,8 @@ public class AuthService {
         if (rotated == null) {
             throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
         }
-        List<String> authorities = profile.getAuthorities() == null ? List.of() : profile.getAuthorities();
-        String accessToken = jwtTokenService.createAccessToken(profile.getUserId(), profile.getUsername(), authorities);
+        List<String> authorities = internalUserService.authoritiesOf(profile);
+        String accessToken = jwtTokenService.createAccessToken(profile.getId(), profile.getUsername(), authorities);
         return new RefreshResult(accessToken, rotated.cookie());
     }
 

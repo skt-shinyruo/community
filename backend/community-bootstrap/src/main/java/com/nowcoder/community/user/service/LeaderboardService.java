@@ -1,7 +1,7 @@
 package com.nowcoder.community.user.service;
 
-import com.nowcoder.community.user.api.dto.LeaderboardItemResponse;
-import com.nowcoder.community.user.dao.UserMapper;
+import com.nowcoder.community.user.dto.LeaderboardItemResponse;
+import com.nowcoder.community.user.mapper.UserMapper;
 import com.nowcoder.community.user.entity.User;
 import org.springframework.stereotype.Service;
 

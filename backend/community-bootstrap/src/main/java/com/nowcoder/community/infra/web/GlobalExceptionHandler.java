@@ -1,9 +1,9 @@
 package com.nowcoder.community.infra.web;
 
-import com.nowcoder.community.contracts.api.CommonErrorCode;
-import com.nowcoder.community.contracts.api.ErrorCode;
-import com.nowcoder.community.contracts.api.Result;
-import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.common.exception.ErrorCode;
+import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.trace.TraceId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

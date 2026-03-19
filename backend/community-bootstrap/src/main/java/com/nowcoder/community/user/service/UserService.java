@@ -1,7 +1,7 @@
 package com.nowcoder.community.user.service;
 
-import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.user.dao.UserMapper;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.mapper.UserMapper;
 import com.nowcoder.community.user.entity.User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -9,8 +9,8 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.user.api.UserErrorCode.USER_NOT_FOUND;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND;
 
 @Service
 public class UserService {
@@ -52,7 +52,7 @@ public class UserService {
         }
         int updated = userMapper.updateHeader(uid, url);
         if (updated <= 0) {
-            throw new BusinessException(com.nowcoder.community.contracts.api.CommonErrorCode.INTERNAL_ERROR, "更新头像失败");
+            throw new BusinessException(com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR, "更新头像失败");
         }
     }
 

@@ -1,19 +1,19 @@
 package com.nowcoder.community.content.service;
 
 // 评论领域服务：负责评论写入与基础校验、评论事件发布。
-import com.nowcoder.community.social.application.BlockQueryApplicationService;
-import com.nowcoder.community.content.api.event.payload.CommentPayload;
-import com.nowcoder.community.contracts.domain.EntityTypes;
-import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.content.event.payload.CommentPayload;
+import com.nowcoder.community.common.constants.EntityTypes;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.pagination.Pagination;
 import com.nowcoder.community.infra.tx.AfterCommitExecutor;
-import com.nowcoder.community.content.dao.CommentMapper;
+import com.nowcoder.community.content.mapper.CommentMapper;
 import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.event.ContentEventPublisher;
 import com.nowcoder.community.content.score.PostScoreQueue;
 import com.nowcoder.community.content.text.ContentTextCodec;
 import com.nowcoder.community.content.util.SensitiveFilter;
+import com.nowcoder.community.social.block.BlockService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -25,10 +25,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.nowcoder.community.content.api.ContentErrorCode.COMMENT_NOT_FOUND;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.NOT_FOUND;
+import static com.nowcoder.community.content.exception.ContentErrorCode.COMMENT_NOT_FOUND;
+import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 
 @Service
 public class CommentService {
@@ -43,7 +43,7 @@ public class CommentService {
     private final SensitiveFilter sensitiveFilter;
     private final PostScoreQueue postScoreQueue;
     private final ContentEventPublisher eventPublisher;
-    private final BlockQueryApplicationService blockQueryApplicationService;
+    private final BlockService blockService;
     private final UserModerationGuard moderationGuard;
     private final ContentTextCodec textCodec;
 
@@ -53,7 +53,7 @@ public class CommentService {
             SensitiveFilter sensitiveFilter,
             PostScoreQueue postScoreQueue,
             ContentEventPublisher eventPublisher,
-            BlockQueryApplicationService blockQueryApplicationService,
+            BlockService blockService,
             UserModerationGuard moderationGuard,
             ContentTextCodec textCodec
     ) {
@@ -62,7 +62,7 @@ public class CommentService {
         this.sensitiveFilter = sensitiveFilter;
         this.postScoreQueue = postScoreQueue;
         this.eventPublisher = eventPublisher;
-        this.blockQueryApplicationService = blockQueryApplicationService;
+        this.blockService = blockService;
         this.moderationGuard = moderationGuard;
         this.textCodec = textCodec;
     }
@@ -158,7 +158,7 @@ public class CommentService {
 
         // 反骚扰：双方任意一方拉黑另一方，都禁止互动（评论/回复）。
         if (targetUserId != null && targetUserId > 0) {
-            if (blockQueryApplicationService != null && blockQueryApplicationService.isEitherBlocked(actorUserId, targetUserId)) {
+            if (blockService != null && blockService.isEitherBlocked(actorUserId, targetUserId)) {
                 throw new BusinessException(FORBIDDEN, "双方存在拉黑关系，无法执行该操作");
             }
         }

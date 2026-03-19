@@ -1,7 +1,7 @@
 package com.nowcoder.community.search.event;
 
-import com.nowcoder.community.content.api.event.ContentEventTypes;
-import com.nowcoder.community.content.api.event.payload.PostPayload;
+import com.nowcoder.community.content.event.ContentEventTypes;
+import com.nowcoder.community.content.event.payload.PostPayload;
 import com.nowcoder.community.content.event.ContentLocalEvent;
 import com.nowcoder.community.search.repo.PostSearchRepository;
 import org.junit.jupiter.api.Test;

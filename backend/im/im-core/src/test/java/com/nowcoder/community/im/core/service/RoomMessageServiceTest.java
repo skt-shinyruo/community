@@ -1,7 +1,7 @@
 package com.nowcoder.community.im.core.service;
 
-import com.nowcoder.community.im.contracts.command.SendRoomTextCommandV1;
-import com.nowcoder.community.im.core.db.RoomMessageRepository;
+import com.nowcoder.community.im.common.command.SendRoomTextCommandV1;
+import com.nowcoder.community.im.core.repository.RoomMessageRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

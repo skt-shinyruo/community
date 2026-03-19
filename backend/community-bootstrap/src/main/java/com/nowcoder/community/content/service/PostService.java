@@ -1,8 +1,8 @@
 package com.nowcoder.community.content.service;
 
 // 帖子领域服务：封装帖子查询与状态/计数更新等操作。
-import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.content.dao.DiscussPostMapper;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.content.mapper.DiscussPostMapper;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.infra.pagination.Pagination;
 import org.springframework.stereotype.Service;
@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import java.util.Date;
 import java.util.List;
 
-import static com.nowcoder.community.content.api.ContentErrorCode.POST_NOT_FOUND;
+import static com.nowcoder.community.content.exception.ContentErrorCode.POST_NOT_FOUND;
 
 @Service
 public class PostService {

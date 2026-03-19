@@ -1,8 +1,8 @@
 package com.nowcoder.community.analytics.service;
 
 import com.nowcoder.community.analytics.repo.InMemoryAnalyticsRepository;
-import com.nowcoder.community.analytics.api.AnalyticsErrorCode;
-import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.analytics.exception.AnalyticsErrorCode;
+import com.nowcoder.community.common.exception.BusinessException;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;

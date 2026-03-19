@@ -1,8 +1,8 @@
 package com.nowcoder.community.content.service;
 
-import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.content.dao.PostTagMapper;
-import com.nowcoder.community.content.dao.TagMapper;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.content.mapper.PostTagMapper;
+import com.nowcoder.community.content.mapper.TagMapper;
 import com.nowcoder.community.content.entity.HotTag;
 import com.nowcoder.community.content.entity.PostTagName;
 import com.nowcoder.community.content.entity.Tag;
@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
 public class TagService {

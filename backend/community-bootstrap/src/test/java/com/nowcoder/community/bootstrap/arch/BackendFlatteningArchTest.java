@@ -35,15 +35,15 @@ class BackendFlatteningArchTest {
         Path imRoot = backendRoot.resolve("im");
         List<String> imModules = declaredModules(imRoot.resolve("pom.xml"));
         assertThat(imModules).containsExactly(
-                "im-contracts",
+                "im-common",
                 "im-core",
                 "im-realtime"
         );
-        assertThat(Files.isDirectory(imRoot.resolve("im-contracts"))).isTrue();
+        assertThat(Files.isDirectory(imRoot.resolve("im-common"))).isTrue();
         assertThat(Files.isDirectory(imRoot.resolve("im-core"))).isTrue();
         assertThat(Files.isDirectory(imRoot.resolve("im-realtime"))).isTrue();
         assertThat(detectedMavenModules(imRoot)).containsExactly(
-                "im-contracts",
+                "im-common",
                 "im-core",
                 "im-realtime"
         );

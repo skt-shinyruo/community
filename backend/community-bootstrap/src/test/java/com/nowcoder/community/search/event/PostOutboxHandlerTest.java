@@ -1,8 +1,8 @@
 package com.nowcoder.community.search.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.content.application.PostScanApplicationService;
-import com.nowcoder.community.content.api.event.payload.PostPayload;
+import com.nowcoder.community.content.service.PostScanService;
+import com.nowcoder.community.content.event.payload.PostPayload;
 import com.nowcoder.community.infra.outbox.OutboxEvent;
 import com.nowcoder.community.search.repo.PostSearchRepository;
 import org.junit.jupiter.api.Test;
@@ -22,7 +22,7 @@ class PostOutboxHandlerTest {
     void handlerShouldUpsertWhenPostIsActive() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
-        PostScanApplicationService postScanApplicationService = mock(PostScanApplicationService.class);
+        PostScanService postScanApplicationService = mock(PostScanService.class);
         PostSearchRepository repository = mock(PostSearchRepository.class);
 
         PostPayload doc = new PostPayload();
@@ -45,7 +45,7 @@ class PostOutboxHandlerTest {
     void handlerShouldDeleteWhenPostIsDeleted() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
-        PostScanApplicationService postScanApplicationService = mock(PostScanApplicationService.class);
+        PostScanService postScanApplicationService = mock(PostScanService.class);
         PostSearchRepository repository = mock(PostSearchRepository.class);
 
         PostPayload doc = new PostPayload();

@@ -1,7 +1,7 @@
 package com.nowcoder.community.infra.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.contracts.api.CommonErrorCode;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.infra.trace.TraceId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;

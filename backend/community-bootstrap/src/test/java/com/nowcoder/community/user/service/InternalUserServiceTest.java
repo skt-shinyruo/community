@@ -1,8 +1,8 @@
 package com.nowcoder.community.user.service;
 
-import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.user.api.UserErrorCode;
-import com.nowcoder.community.user.dao.UserMapper;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.exception.UserErrorCode;
+import com.nowcoder.community.user.mapper.UserMapper;
 import com.nowcoder.community.user.entity.User;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

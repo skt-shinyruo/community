@@ -1,8 +1,8 @@
 package com.nowcoder.community.infra.web;
 
-import com.nowcoder.community.contracts.api.CommonErrorCode;
-import com.nowcoder.community.contracts.api.Result;
-import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.trace.TraceId;
 import jakarta.validation.ConstraintViolationException;
 import org.junit.jupiter.api.AfterEach;

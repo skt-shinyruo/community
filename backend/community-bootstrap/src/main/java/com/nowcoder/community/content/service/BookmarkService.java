@@ -1,8 +1,8 @@
 // 收藏服务：支持收藏/取消收藏、收藏状态查询与收藏列表分页。
 package com.nowcoder.community.content.service;
 
-import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.content.dao.BookmarkMapper;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.content.mapper.BookmarkMapper;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.infra.pagination.Pagination;
 import org.springframework.stereotype.Service;
@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import java.util.Date;
 import java.util.List;
 
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
 public class BookmarkService {

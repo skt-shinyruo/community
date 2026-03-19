@@ -1,8 +1,8 @@
 package com.nowcoder.community.search.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.content.application.PostScanApplicationService;
-import com.nowcoder.community.content.api.event.payload.PostPayload;
+import com.nowcoder.community.content.event.payload.PostPayload;
+import com.nowcoder.community.content.service.PostScanService;
 import com.nowcoder.community.infra.outbox.OutboxEvent;
 import com.nowcoder.community.infra.outbox.OutboxHandler;
 import com.nowcoder.community.search.repo.PostSearchRepository;
@@ -22,16 +22,16 @@ public class PostOutboxHandler implements OutboxHandler {
     public static final String TOPIC = "projection.search.post";
 
     private final ObjectMapper objectMapper;
-    private final PostScanApplicationService postScanApplicationService;
+    private final PostScanService postScanService;
     private final PostSearchRepository postSearchRepository;
 
     public PostOutboxHandler(
             ObjectMapper objectMapper,
-            PostScanApplicationService postScanApplicationService,
+            PostScanService postScanService,
             PostSearchRepository postSearchRepository
     ) {
         this.objectMapper = objectMapper;
-        this.postScanApplicationService = postScanApplicationService;
+        this.postScanService = postScanService;
         this.postSearchRepository = postSearchRepository;
     }
 
@@ -57,7 +57,7 @@ public class PostOutboxHandler implements OutboxHandler {
             return;
         }
 
-        PostPayload doc = postScanApplicationService.getPostPayloadAllowDeleted(postId);
+        PostPayload doc = postScanService.getPostPayloadAllowDeleted(postId);
         if (doc == null || doc.getPostId() <= 0 || doc.getStatus() == 2) {
             postSearchRepository.delete(postId);
             return;

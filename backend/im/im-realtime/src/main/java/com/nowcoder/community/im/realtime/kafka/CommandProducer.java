@@ -1,8 +1,8 @@
 package com.nowcoder.community.im.realtime.kafka;
 
-import com.nowcoder.community.im.contracts.ImTopics;
-import com.nowcoder.community.im.contracts.command.SendPrivateTextCommandV1;
-import com.nowcoder.community.im.contracts.command.SendRoomTextCommandV1;
+import com.nowcoder.community.im.common.ImTopics;
+import com.nowcoder.community.im.common.command.SendPrivateTextCommandV1;
+import com.nowcoder.community.im.common.command.SendRoomTextCommandV1;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Component;

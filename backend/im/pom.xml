@@ -12,13 +12,12 @@
 
     <artifactId>im</artifactId>
     <name>im</name>
-    <description>IM aggregate: contracts + core + realtime</description>
+    <description>IM aggregate: common + core + realtime</description>
     <packaging>pom</packaging>
 
     <modules>
-        <module>im-contracts</module>
+        <module>im-common</module>
         <module>im-core</module>
         <module>im-realtime</module>
     </modules>
 </project>
-

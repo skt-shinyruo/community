@@ -15,7 +15,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Architecture guardrails for the flattened monolith:
- * - Domain packages may depend on other domains only via stable entry packages ({@code ..<domain>.api..}, {@code ..<domain>.application..}, or {@code ..<domain>.event..}).
+ * - Domain packages may collaborate with other domains via service/entity/dto/event style entry points.
+ * - Cross-domain dependencies must not reach the callee's controller/api web surface, application layer, or persistence internals.
  * - Domain packages must not depend on bootstrap/app wiring packages, except the security-rule SPI used by domain-owned auth rules.
  *
  * <p>These tests are meant to prevent "big ball of mud" erosion as modules evolve.</p>
@@ -70,16 +71,7 @@ public class ModuleBoundaryArchTest {
                     continue;
                 }
 
-                String allowedApiPrefix = ROOT + "." + targetDomain + ".api";
-                String allowedApplicationPrefix = ROOT + "." + targetDomain + ".application";
-                String allowedEventPrefix = ROOT + "." + targetDomain + ".event";
-                boolean allowed = targetPkg.startsWith(allowedApiPrefix + ".")
-                        || targetPkg.equals(allowedApiPrefix)
-                        || targetPkg.startsWith(allowedApplicationPrefix + ".")
-                        || targetPkg.equals(allowedApplicationPrefix)
-                        || targetPkg.startsWith(allowedEventPrefix + ".")
-                        || targetPkg.equals(allowedEventPrefix);
-                if (!allowed) {
+                if (isDisallowedCrossDomainTarget(targetDomain, target, targetPkg)) {
                     violations.add("[" + origin.getName() + "] -> [" + target.getName() + "] (" + dep.getDescription() + ")");
                 }
             }
@@ -87,8 +79,44 @@ public class ModuleBoundaryArchTest {
 
         violations.sort(Comparator.naturalOrder());
         assertThat(violations)
-                .as("Cross-domain dependencies must go through the callee's api/application/event package only")
+                .as("Cross-domain dependencies must not reach web, application, or persistence internals")
                 .isEmpty();
+    }
+
+    private static boolean isDisallowedCrossDomainTarget(String targetDomain, JavaClass target, String targetPkg) {
+        String domainRoot = ROOT + "." + targetDomain;
+        if (isPackageOrSubpackage(targetPkg, domainRoot + ".application")
+                || isPackageOrSubpackage(targetPkg, domainRoot + ".dao")
+                || isPackageOrSubpackage(targetPkg, domainRoot + ".mapper")
+                || isPackageOrSubpackage(targetPkg, domainRoot + ".repo")
+                || isPackageOrSubpackage(targetPkg, domainRoot + ".repository")
+                || isPackageOrSubpackage(targetPkg, domainRoot + ".api.internal")
+                || isPackageOrSubpackage(targetPkg, domainRoot + ".controller")) {
+            return true;
+        }
+
+        String apiPrefix = domainRoot + ".api";
+        if (isPackageOrSubpackage(targetPkg, apiPrefix)) {
+            return !isAllowedApiTarget(targetPkg, target);
+        }
+        return false;
+    }
+
+    private static boolean isAllowedApiTarget(String targetPkg, JavaClass target) {
+        return hasPackageSegment(targetPkg, "dto")
+                || hasPackageSegment(targetPkg, "event")
+                || hasPackageSegment(targetPkg, "security")
+                || target.getSimpleName().endsWith("ErrorCode");
+    }
+
+    private static boolean isPackageOrSubpackage(String pkg, String prefix) {
+        return pkg.equals(prefix) || pkg.startsWith(prefix + ".");
+    }
+
+    private static boolean hasPackageSegment(String pkg, String segment) {
+        return pkg.equals(ROOT + "." + segment)
+                || pkg.endsWith("." + segment)
+                || pkg.contains("." + segment + ".");
     }
 
     private static String domainOf(String pkg) {

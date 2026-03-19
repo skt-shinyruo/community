@@ -1,18 +1,18 @@
 package com.nowcoder.community.message.service;
 
-import com.nowcoder.community.contracts.api.CommonErrorCode;
-import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.social.application.BlockQueryApplicationService;
-import com.nowcoder.community.message.api.MessageErrorCode;
-import com.nowcoder.community.message.dao.MessageMapper;
-import com.nowcoder.community.message.api.dto.ConversationItemResponse;
-import com.nowcoder.community.message.api.dto.LetterItemResponse;
-import com.nowcoder.community.message.api.dto.UserSummaryResponse;
+import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.message.exception.MessageErrorCode;
+import com.nowcoder.community.message.mapper.MessageMapper;
+import com.nowcoder.community.message.dto.ConversationItemResponse;
+import com.nowcoder.community.message.dto.LetterItemResponse;
+import com.nowcoder.community.message.dto.UserSummaryResponse;
 import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.security.OwnerGuard;
 import com.nowcoder.community.message.service.dto.ConversationStats;
-import com.nowcoder.community.user.api.UserErrorCode;
-import com.nowcoder.community.user.api.internal.dto.UserSummary;
+import com.nowcoder.community.social.block.BlockService;
+import com.nowcoder.community.user.exception.UserErrorCode;
+import com.nowcoder.community.user.dto.UserSummary;
 import com.nowcoder.community.infra.pagination.Pagination;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -29,20 +29,20 @@ public class PrivateMessageService {
 
     private final MessageMapper messageMapper;
     private final UserLookupService userLookupService;
-    private final BlockQueryApplicationService blockQueryApplicationService;
+    private final BlockService blockService;
     private final UserModerationGuard moderationGuard;
     private final OwnerGuard ownerGuard;
 
     public PrivateMessageService(
             MessageMapper messageMapper,
             UserLookupService userLookupService,
-            BlockQueryApplicationService blockQueryApplicationService,
+            BlockService blockService,
             UserModerationGuard moderationGuard,
             OwnerGuard ownerGuard
     ) {
         this.messageMapper = messageMapper;
         this.userLookupService = userLookupService;
-        this.blockQueryApplicationService = blockQueryApplicationService;
+        this.blockService = blockService;
         this.moderationGuard = moderationGuard;
         this.ownerGuard = ownerGuard;
     }
@@ -120,7 +120,7 @@ public class PrivateMessageService {
     public void send(int fromId, int toId, String content) {
         assertValidRecipient(fromId, toId);
         moderationGuard.assertCanSendMessage(fromId);
-        if (blockQueryApplicationService != null && blockQueryApplicationService.isEitherBlocked(fromId, toId)) {
+        if (blockService != null && blockService.isEitherBlocked(fromId, toId)) {
             throw new BusinessException(
                     CommonErrorCode.FORBIDDEN,
                     "双方存在拉黑关系，无法发送私信"

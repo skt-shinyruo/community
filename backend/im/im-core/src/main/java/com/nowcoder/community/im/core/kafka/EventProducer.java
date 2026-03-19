@@ -1,9 +1,9 @@
 package com.nowcoder.community.im.core.kafka;
 
-import com.nowcoder.community.im.contracts.ImTopics;
-import com.nowcoder.community.im.contracts.event.PrivateMessagePersistedEventV1;
-import com.nowcoder.community.im.contracts.event.RoomMemberChangedEventV1;
-import com.nowcoder.community.im.contracts.event.RoomMessagePersistedEventV1;
+import com.nowcoder.community.im.common.ImTopics;
+import com.nowcoder.community.im.common.event.PrivateMessagePersistedEventV1;
+import com.nowcoder.community.im.common.event.RoomMemberChangedEventV1;
+import com.nowcoder.community.im.common.event.RoomMessagePersistedEventV1;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 

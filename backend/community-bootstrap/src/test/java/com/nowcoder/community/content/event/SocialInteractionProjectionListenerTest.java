@@ -1,9 +1,9 @@
 package com.nowcoder.community.content.event;
 
-import com.nowcoder.community.contracts.domain.EntityTypes;
+import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.content.score.PostScoreQueue;
-import com.nowcoder.community.social.api.event.SocialEventTypes;
-import com.nowcoder.community.social.api.event.payload.LikePayload;
+import com.nowcoder.community.social.event.SocialEventTypes;
+import com.nowcoder.community.social.event.payload.LikePayload;
 import com.nowcoder.community.social.event.SocialLocalEvent;
 import org.junit.jupiter.api.Test;
 

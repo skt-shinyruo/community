@@ -1,10 +1,10 @@
 package com.nowcoder.community.infra.pagination;
 
-import com.nowcoder.community.content.dao.BookmarkMapper;
-import com.nowcoder.community.content.dao.CommentMapper;
-import com.nowcoder.community.content.dao.DiscussPostMapper;
-import com.nowcoder.community.content.dao.ModerationActionMapper;
-import com.nowcoder.community.content.dao.ReportMapper;
+import com.nowcoder.community.content.mapper.BookmarkMapper;
+import com.nowcoder.community.content.mapper.CommentMapper;
+import com.nowcoder.community.content.mapper.DiscussPostMapper;
+import com.nowcoder.community.content.mapper.ModerationActionMapper;
+import com.nowcoder.community.content.mapper.ReportMapper;
 import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.entity.ModerationAction;
@@ -20,13 +20,12 @@ import com.nowcoder.community.content.event.ContentEventPublisher;
 import com.nowcoder.community.content.score.PostScoreQueue;
 import com.nowcoder.community.content.text.ContentTextCodec;
 import com.nowcoder.community.content.util.SensitiveFilter;
-import com.nowcoder.community.message.dao.MessageMapper;
+import com.nowcoder.community.message.mapper.MessageMapper;
 import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.security.OwnerGuard;
 import com.nowcoder.community.message.service.NoticeService;
 import com.nowcoder.community.message.service.PrivateMessageService;
 import com.nowcoder.community.message.service.UserLookupService;
-import com.nowcoder.community.social.application.BlockQueryApplicationService;
 import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.social.event.SocialEventPublisher;
 import com.nowcoder.community.social.follow.FollowRepository;
@@ -37,7 +36,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 
-import static com.nowcoder.community.contracts.domain.EntityTypes.USER;
+import static com.nowcoder.community.common.constants.EntityTypes.USER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -73,7 +72,7 @@ class PaginationOffsetOverflowTest {
                 mock(SensitiveFilter.class),
                 mock(PostScoreQueue.class),
                 mock(ContentEventPublisher.class),
-                mock(BlockQueryApplicationService.class),
+                mock(BlockService.class),
                 mock(UserModerationGuard.class),
                 new ContentTextCodec(new ContentRenderProperties())
         );
@@ -111,7 +110,7 @@ class PaginationOffsetOverflowTest {
         PrivateMessageService service = new PrivateMessageService(
                 messageMapper,
                 mock(UserLookupService.class),
-                mock(BlockQueryApplicationService.class),
+                mock(BlockService.class),
                 mock(com.nowcoder.community.message.service.UserModerationGuard.class),
                 mock(OwnerGuard.class)
         );
@@ -170,7 +169,7 @@ class PaginationOffsetOverflowTest {
         ModerationService service = new ModerationService(
                 mock(ReportService.class),
                 actionMapper,
-                mock(com.nowcoder.community.content.dao.DiscussPostMapper.class),
+                mock(com.nowcoder.community.content.mapper.DiscussPostMapper.class),
                 mock(CommentMapper.class),
                 mock(ContentEventPublisher.class)
         );

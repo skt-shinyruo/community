@@ -1,12 +1,12 @@
 package com.nowcoder.community.message.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.content.api.event.ContentEventTypes;
-import com.nowcoder.community.content.api.event.payload.CommentPayload;
+import com.nowcoder.community.content.event.ContentEventTypes;
+import com.nowcoder.community.content.event.payload.CommentPayload;
 import com.nowcoder.community.content.event.ContentLocalEvent;
 import com.nowcoder.community.message.service.NoticeService;
-import com.nowcoder.community.social.api.event.SocialEventTypes;
-import com.nowcoder.community.social.api.event.payload.LikePayload;
+import com.nowcoder.community.social.event.SocialEventTypes;
+import com.nowcoder.community.social.event.payload.LikePayload;
 import com.nowcoder.community.social.event.SocialLocalEvent;
 import org.junit.jupiter.api.Test;
 

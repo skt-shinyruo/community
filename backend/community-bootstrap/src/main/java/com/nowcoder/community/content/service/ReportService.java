@@ -1,10 +1,10 @@
 // 举报服务：负责举报写入、去重、基础校验与后台分页查询。
 package com.nowcoder.community.content.service;
 
-import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.contracts.domain.EntityTypes;
-import com.nowcoder.community.content.dao.CommentMapper;
-import com.nowcoder.community.content.dao.ReportMapper;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.constants.EntityTypes;
+import com.nowcoder.community.content.mapper.CommentMapper;
+import com.nowcoder.community.content.mapper.ReportMapper;
 import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.entity.Report;
 import com.nowcoder.community.infra.pagination.Pagination;
@@ -15,9 +15,9 @@ import org.springframework.util.StringUtils;
 import java.util.Date;
 import java.util.List;
 
-import static com.nowcoder.community.content.api.ContentErrorCode.COMMENT_NOT_FOUND;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.NOT_FOUND;
+import static com.nowcoder.community.content.exception.ContentErrorCode.COMMENT_NOT_FOUND;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 
 @Service
 public class ReportService {

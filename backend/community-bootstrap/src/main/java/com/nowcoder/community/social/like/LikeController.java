@@ -1,8 +1,8 @@
 package com.nowcoder.community.social.like;
 
-import com.nowcoder.community.contracts.api.Result;
-import com.nowcoder.community.contracts.domain.EntityTypes;
-import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.common.constants.EntityTypes;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.social.like.dto.LikeRequest;
 import com.nowcoder.community.social.like.dto.LikeResponse;
@@ -21,7 +21,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @RestController
 @RequestMapping("/api/likes")

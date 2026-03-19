@@ -1,8 +1,8 @@
 package com.nowcoder.community.social.follow;
 
-import com.nowcoder.community.contracts.api.Result;
-import com.nowcoder.community.contracts.domain.EntityTypes;
-import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.common.constants.EntityTypes;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.social.follow.dto.FollowItem;
 import com.nowcoder.community.social.follow.dto.FollowRequest;
@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @RestController
 @RequestMapping("/api/follows")

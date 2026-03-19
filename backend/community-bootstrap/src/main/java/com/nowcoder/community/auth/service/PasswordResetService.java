@@ -1,10 +1,11 @@
 package com.nowcoder.community.auth.service;
 
 import com.nowcoder.community.auth.config.PasswordResetProperties;
-import com.nowcoder.community.auth.api.AuthErrorCode;
-import com.nowcoder.community.contracts.api.CommonErrorCode;
-import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.user.api.internal.dto.UserInternalUserByEmailResponse;
+import com.nowcoder.community.auth.exception.AuthErrorCode;
+import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.entity.User;
+import com.nowcoder.community.user.service.InternalUserService;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -16,20 +17,20 @@ public class PasswordResetService {
 
     private final PasswordResetProperties properties;
     private final PasswordResetTokenStore tokenStore;
-    private final UserAuthAccess userAuthAccess;
+    private final InternalUserService internalUserService;
     private final MailService mailService;
     private final CaptchaService captchaService;
 
     public PasswordResetService(
             PasswordResetProperties properties,
             PasswordResetTokenStore tokenStore,
-            UserAuthAccess userAuthAccess,
+            InternalUserService internalUserService,
             MailService mailService,
             CaptchaService captchaService
     ) {
         this.properties = properties;
         this.tokenStore = tokenStore;
-        this.userAuthAccess = userAuthAccess;
+        this.internalUserService = internalUserService;
         this.mailService = mailService;
         this.captchaService = captchaService;
     }
@@ -49,15 +50,15 @@ public class PasswordResetService {
         String resetBaseUrl = normalizeResetBaseUrlOrThrow();
 
         String normalizedEmail = email.trim();
-        UserInternalUserByEmailResponse user = userAuthAccess.findByEmailOrNull(normalizedEmail);
-        if (user == null || user.getUserId() <= 0 || user.getStatus() == 0) {
+        User user = internalUserService.findByEmailOrNull(normalizedEmail);
+        if (user == null || user.getId() <= 0 || user.getStatus() == 0) {
             // 防用户枚举：邮箱不存在/未激活等情况也返回“已发送”（但不实际下发 token/邮件）
             return new RequestResult(true, "");
         }
 
         String token = uuid();
         Duration ttl = Duration.ofSeconds(Math.max(60, properties.getTtlSeconds()));
-        tokenStore.store(token, user.getUserId(), ttl);
+        tokenStore.store(token, user.getId(), ttl);
 
         String resetLink = buildResetLink(resetBaseUrl, token);
         mailService.sendPasswordResetMail(user.getEmail(), resetLink);
@@ -84,7 +85,7 @@ public class PasswordResetService {
             throw new BusinessException(AuthErrorCode.PASSWORD_RESET_INVALID);
         }
 
-        userAuthAccess.updatePassword(userId, newPassword.trim());
+        internalUserService.updatePassword(userId, newPassword.trim());
         return true;
     }
 

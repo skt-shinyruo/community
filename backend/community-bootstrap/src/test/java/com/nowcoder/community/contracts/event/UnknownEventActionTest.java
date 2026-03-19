@@ -1,4 +1,4 @@
-package com.nowcoder.community.contracts.event;
+package com.nowcoder.community.common.event;
 
 import org.junit.jupiter.api.Test;
 

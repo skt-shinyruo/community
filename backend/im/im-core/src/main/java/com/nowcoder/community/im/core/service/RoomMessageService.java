@@ -1,11 +1,11 @@
 package com.nowcoder.community.im.core.service;
 
-import com.nowcoder.community.im.contracts.command.SendRoomTextCommandV1;
-import com.nowcoder.community.im.contracts.event.RoomMessagePersistedEventV1;
-import com.nowcoder.community.im.core.db.RoomMessageRepository;
-import com.nowcoder.community.im.core.db.RoomReadStateRepository;
-import com.nowcoder.community.im.core.db.RoomRepository;
-import com.nowcoder.community.im.core.db.SeqAllocator;
+import com.nowcoder.community.im.common.command.SendRoomTextCommandV1;
+import com.nowcoder.community.im.common.event.RoomMessagePersistedEventV1;
+import com.nowcoder.community.im.core.repository.RoomMessageRepository;
+import com.nowcoder.community.im.core.repository.RoomReadStateRepository;
+import com.nowcoder.community.im.core.repository.RoomRepository;
+import com.nowcoder.community.im.core.repository.SeqAllocator;
 import com.nowcoder.community.im.core.support.IdGenerator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;

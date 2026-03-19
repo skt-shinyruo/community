@@ -1,6 +1,8 @@
 package com.nowcoder.community.user.service;
 
-import com.nowcoder.community.social.application.SocialReadApplicationService;
+import com.nowcoder.community.common.constants.EntityTypes;
+import com.nowcoder.community.social.follow.FollowService;
+import com.nowcoder.community.social.like.LikeService;
 import com.nowcoder.community.user.config.UserSocialProfileProperties;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
@@ -19,14 +21,14 @@ class UserSocialProfileServiceTest {
         UserSocialProfileProperties properties = new UserSocialProfileProperties();
         properties.setDegradeOnError(true);
 
-        SocialReadApplicationService applicationService = mock(SocialReadApplicationService.class);
-        UserSocialProfileService service = new UserSocialProfileService(registry, properties, applicationService);
+        LikeService likeService = mock(LikeService.class);
+        FollowService followService = mock(FollowService.class);
+        UserSocialProfileService service = new UserSocialProfileService(registry, properties, likeService, followService);
         RuntimeException downstreamError = new RuntimeException("downstream error");
-        when(applicationService.userProfileStats(anyInt(), any())).thenThrow(downstreamError);
-        when(applicationService.userLikeCount(anyInt())).thenThrow(downstreamError);
-        when(applicationService.followeeCount(anyInt())).thenThrow(downstreamError);
-        when(applicationService.followerCount(anyInt())).thenThrow(downstreamError);
-        when(applicationService.hasFollowedUser(anyInt(), anyInt())).thenThrow(downstreamError);
+        when(likeService.userLikeCount(anyInt())).thenThrow(downstreamError);
+        when(followService.followeeCount(anyInt(), anyInt())).thenThrow(downstreamError);
+        when(followService.followerCount(anyInt(), anyInt())).thenThrow(downstreamError);
+        when(followService.hasFollowed(anyInt(), anyInt(), anyInt())).thenThrow(downstreamError);
 
         UserSocialProfileService.UserProfileStats stats = service.safeUserProfileStats(1, 2);
         assertThat(stats).isNotNull();

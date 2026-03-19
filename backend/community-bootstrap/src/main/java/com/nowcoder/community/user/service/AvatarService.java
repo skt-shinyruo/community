@@ -1,7 +1,7 @@
 package com.nowcoder.community.user.service;
 
-import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.user.api.dto.AvatarUploadTokenResponse;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.dto.AvatarUploadTokenResponse;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -10,8 +10,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.concurrent.TimeUnit;
 import java.util.UUID;
 
-import static com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
 public class AvatarService {

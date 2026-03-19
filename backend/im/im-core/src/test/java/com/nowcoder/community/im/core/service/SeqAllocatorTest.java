@@ -1,8 +1,8 @@
 package com.nowcoder.community.im.core.service;
 
-import com.nowcoder.community.im.core.db.ConversationRepository;
-import com.nowcoder.community.im.core.db.RoomRepository;
-import com.nowcoder.community.im.core.db.SeqAllocator;
+import com.nowcoder.community.im.core.repository.ConversationRepository;
+import com.nowcoder.community.im.core.repository.RoomRepository;
+import com.nowcoder.community.im.core.repository.SeqAllocator;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

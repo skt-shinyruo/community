@@ -1,9 +1,9 @@
 package com.nowcoder.community.content.event;
 
-import com.nowcoder.community.content.api.event.payload.CommentPayload;
-import com.nowcoder.community.content.api.event.payload.ModerationCommandPayload;
-import com.nowcoder.community.content.api.event.payload.ModerationPayload;
-import com.nowcoder.community.content.api.event.payload.PostPayload;
+import com.nowcoder.community.content.event.payload.CommentPayload;
+import com.nowcoder.community.content.event.payload.ModerationCommandPayload;
+import com.nowcoder.community.content.event.payload.ModerationPayload;
+import com.nowcoder.community.content.event.payload.PostPayload;
 
 public interface ContentEventPublisher {
 

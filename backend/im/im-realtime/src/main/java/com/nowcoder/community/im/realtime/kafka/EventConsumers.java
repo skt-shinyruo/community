@@ -1,9 +1,9 @@
 package com.nowcoder.community.im.realtime.kafka;
 
-import com.nowcoder.community.im.contracts.ImTopics;
-import com.nowcoder.community.im.contracts.event.PrivateMessagePersistedEventV1;
-import com.nowcoder.community.im.contracts.event.RoomMemberChangedEventV1;
-import com.nowcoder.community.im.contracts.event.RoomMessagePersistedEventV1;
+import com.nowcoder.community.im.common.ImTopics;
+import com.nowcoder.community.im.common.event.PrivateMessagePersistedEventV1;
+import com.nowcoder.community.im.common.event.RoomMemberChangedEventV1;
+import com.nowcoder.community.im.common.event.RoomMessagePersistedEventV1;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
 import com.nowcoder.community.im.realtime.presence.RoomLocalIndex;
 import com.nowcoder.community.im.realtime.push.PrivatePushService;

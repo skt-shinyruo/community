@@ -1,13 +1,13 @@
 package com.nowcoder.community.content.service;
 
-import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.contracts.internal.dto.UserModerationStatus;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.service.InternalUserService;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 
-import static com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 /**
  * 用户发言权限守卫（模块回源）：直接调用 user 模块的治理接口获取禁言/封禁状态。
@@ -17,10 +17,10 @@ import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUM
 @Service
 public class UserModerationGuard {
 
-    private final UserModerationAccess userModerationAccess;
+    private final InternalUserService internalUserService;
 
-    public UserModerationGuard(UserModerationAccess userModerationAccess) {
-        this.userModerationAccess = userModerationAccess;
+    public UserModerationGuard(InternalUserService internalUserService) {
+        this.internalUserService = internalUserService;
     }
 
     public void assertCanSpeak(int userId) {
@@ -28,7 +28,7 @@ public class UserModerationGuard {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
 
-        UserModerationStatus status = userModerationAccess.getStatus(userId);
+        InternalUserService.ModerationStatus status = internalUserService.moderationStatus(userId);
         Instant now = Instant.now();
 
         if (status != null && status.getBanUntil() != null && status.getBanUntil().isAfter(now)) {

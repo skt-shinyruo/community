@@ -1,7 +1,7 @@
 package com.nowcoder.community.social.like;
 
-import com.nowcoder.community.social.api.event.payload.LikePayload;
-import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.social.event.payload.LikePayload;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.social.event.SocialEventPublisher;
 import com.nowcoder.community.social.like.dto.LikeRequest;
@@ -20,11 +20,11 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
-import static com.nowcoder.community.contracts.domain.EntityTypes.COMMENT;
-import static com.nowcoder.community.contracts.domain.EntityTypes.POST;
-import static com.nowcoder.community.contracts.domain.EntityTypes.USER;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.FORBIDDEN;
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.constants.EntityTypes.COMMENT;
+import static com.nowcoder.community.common.constants.EntityTypes.POST;
+import static com.nowcoder.community.common.constants.EntityTypes.USER;
+import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
 public class LikeService {

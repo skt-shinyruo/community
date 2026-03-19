@@ -1,6 +1,6 @@
 package com.nowcoder.community.user.service;
 
-import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.config.AvatarStorageProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Component;
@@ -10,7 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Component
 @EnableConfigurationProperties(AvatarStorageProperties.class)

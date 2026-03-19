@@ -1,8 +1,8 @@
 package com.nowcoder.community.user.service;
 
-import com.nowcoder.community.contracts.api.CommonErrorCode;
-import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.user.dao.UserMapper;
+import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.mapper.UserMapper;
 import com.nowcoder.community.user.entity.User;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -20,10 +20,10 @@ import java.util.Locale;
 import java.util.Random;
 import java.util.UUID;
 
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.user.api.UserErrorCode.EMAIL_ALREADY_EXISTS;
-import static com.nowcoder.community.user.api.UserErrorCode.USER_ALREADY_EXISTS;
-import static com.nowcoder.community.user.api.UserErrorCode.USER_NOT_FOUND;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.user.exception.UserErrorCode.EMAIL_ALREADY_EXISTS;
+import static com.nowcoder.community.user.exception.UserErrorCode.USER_ALREADY_EXISTS;
+import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND;
 
 @Service
 public class InternalUserService {

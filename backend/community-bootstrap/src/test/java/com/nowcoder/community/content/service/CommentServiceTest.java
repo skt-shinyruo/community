@@ -1,16 +1,16 @@
 package com.nowcoder.community.content.service;
 
-import com.nowcoder.community.contracts.api.CommonErrorCode;
-import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.config.ContentRenderProperties;
-import com.nowcoder.community.content.dao.CommentMapper;
+import com.nowcoder.community.content.mapper.CommentMapper;
 import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.event.ContentEventPublisher;
 import com.nowcoder.community.content.score.PostScoreQueue;
 import com.nowcoder.community.content.text.ContentTextCodec;
 import com.nowcoder.community.content.util.SensitiveFilter;
-import com.nowcoder.community.social.application.BlockQueryApplicationService;
+import com.nowcoder.community.social.block.BlockService;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -33,7 +33,7 @@ class CommentServiceTest {
         SensitiveFilter sensitiveFilter = mock(SensitiveFilter.class);
         PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
-        BlockQueryApplicationService blockQueryApplicationService = mock(BlockQueryApplicationService.class);
+        BlockService blockQueryApplicationService = mock(BlockService.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
 
@@ -79,7 +79,7 @@ class CommentServiceTest {
         SensitiveFilter sensitiveFilter = mock(SensitiveFilter.class);
         PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
-        BlockQueryApplicationService blockQueryApplicationService = mock(BlockQueryApplicationService.class);
+        BlockService blockQueryApplicationService = mock(BlockService.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
 
@@ -125,7 +125,7 @@ class CommentServiceTest {
         SensitiveFilter sensitiveFilter = mock(SensitiveFilter.class);
         PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
-        BlockQueryApplicationService blockQueryApplicationService = mock(BlockQueryApplicationService.class);
+        BlockService blockQueryApplicationService = mock(BlockService.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
 
@@ -170,7 +170,7 @@ class CommentServiceTest {
         SensitiveFilter sensitiveFilter = mock(SensitiveFilter.class);
         PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
-        BlockQueryApplicationService blockQueryApplicationService = mock(BlockQueryApplicationService.class);
+        BlockService blockQueryApplicationService = mock(BlockService.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
 
@@ -211,7 +211,7 @@ class CommentServiceTest {
         SensitiveFilter sensitiveFilter = mock(SensitiveFilter.class);
         PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
-        BlockQueryApplicationService blockQueryApplicationService = mock(BlockQueryApplicationService.class);
+        BlockService blockQueryApplicationService = mock(BlockService.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
 

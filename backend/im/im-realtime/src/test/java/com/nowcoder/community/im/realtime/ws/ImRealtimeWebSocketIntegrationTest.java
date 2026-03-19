@@ -7,10 +7,10 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
-import com.nowcoder.community.im.contracts.ImTopics;
-import com.nowcoder.community.im.contracts.event.PrivateMessagePersistedEventV1;
-import com.nowcoder.community.im.contracts.event.RoomMemberChangedEventV1;
-import com.nowcoder.community.im.contracts.event.RoomMessagePersistedEventV1;
+import com.nowcoder.community.im.common.ImTopics;
+import com.nowcoder.community.im.common.event.PrivateMessagePersistedEventV1;
+import com.nowcoder.community.im.common.event.RoomMemberChangedEventV1;
+import com.nowcoder.community.im.common.event.RoomMessagePersistedEventV1;
 import com.nowcoder.community.im.realtime.client.CommunityGovernanceClient;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
 import com.nowcoder.community.im.realtime.presence.RoomLocalIndex;
@@ -19,6 +19,7 @@ import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -27,8 +28,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
@@ -45,9 +48,12 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -94,6 +100,9 @@ class ImRealtimeWebSocketIntegrationTest {
 
     @Autowired
     private RoomLocalIndex roomLocalIndex;
+
+    @Autowired
+    private KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
 
     @MockBean
     private CommunityGovernanceClient governanceClient;
@@ -156,6 +165,15 @@ class ImRealtimeWebSocketIntegrationTest {
 
             JsonNode authOk = awaitType(received, "auth_ok", Duration.ofSeconds(5));
             assertThat(authOk.path("userId").asInt()).isEqualTo(userId);
+
+            awaitRealtimeEventAssignments(
+                    Set.of(
+                            ImTopics.EVENT_PRIVATE_PERSISTED_V1,
+                            ImTopics.EVENT_ROOM_PERSISTED_V1,
+                            ImTopics.EVENT_ROOM_MEMBER_CHANGED_V1
+                    ),
+                    Duration.ofSeconds(8)
+            );
 
             outbound.tryEmitNext("{\"type\":\"sendPrivateText\",\"clientMsgId\":\"c1\",\"toUserId\":" + toUserId + ",\"content\":\"hi\"}");
             JsonNode privateAck = awaitType(received, "sendAck", Duration.ofSeconds(5));
@@ -271,6 +289,32 @@ class ImRealtimeWebSocketIntegrationTest {
             Thread.sleep(50L);
         }
         throw new AssertionError("Timed out waiting for in-process room join (userId=" + userId + ", roomId=" + roomId + ")");
+    }
+
+    private void awaitRealtimeEventAssignments(Set<String> expectedTopics, Duration timeout) throws Exception {
+        long deadlineMs = System.currentTimeMillis() + timeout.toMillis();
+        while (System.currentTimeMillis() < deadlineMs) {
+            Set<String> assignedTopics = new HashSet<>();
+            for (MessageListenerContainer container : kafkaListenerEndpointRegistry.getListenerContainers()) {
+                if (container == null || !container.isRunning()) {
+                    continue;
+                }
+                Collection<TopicPartition> partitions = container.getAssignedPartitions();
+                if (partitions == null || partitions.isEmpty()) {
+                    continue;
+                }
+                for (TopicPartition partition : partitions) {
+                    if (partition != null && partition.topic() != null) {
+                        assignedTopics.add(partition.topic());
+                    }
+                }
+            }
+            if (assignedTopics.containsAll(expectedTopics)) {
+                return;
+            }
+            Thread.sleep(50L);
+        }
+        throw new AssertionError("Timed out waiting for realtime Kafka assignments: " + expectedTopics);
     }
 
     private boolean roomIndexContains(long roomId, String connectionId) {

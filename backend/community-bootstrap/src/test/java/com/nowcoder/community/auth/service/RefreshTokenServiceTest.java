@@ -1,10 +1,11 @@
 package com.nowcoder.community.auth.service;
 
-import com.nowcoder.community.auth.api.AuthErrorCode;
-import com.nowcoder.community.contracts.exception.BusinessException;
+import com.nowcoder.community.auth.exception.AuthErrorCode;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.security.jwt.JwtProperties;
 import com.nowcoder.community.infra.web.net.ClientIpResolver;
-import com.nowcoder.community.user.api.internal.dto.UserInternalSessionProfileResponse;
+import com.nowcoder.community.user.entity.User;
+import com.nowcoder.community.user.service.InternalUserService;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -84,23 +85,23 @@ class RefreshTokenServiceTest {
     }
 
     private static AuthService authService(RefreshTokenService refreshTokenService) {
-        UserAuthAccess userAuthAccess = mock(UserAuthAccess.class);
+        InternalUserService internalUserService = mock(InternalUserService.class);
         JwtTokenService jwtTokenService = mock(JwtTokenService.class);
         LoginRateLimitService loginRateLimitService = mock(LoginRateLimitService.class);
         CaptchaService captchaService = mock(CaptchaService.class);
         ClientIpResolver clientIpResolver = mock(ClientIpResolver.class);
 
-        UserInternalSessionProfileResponse profile = new UserInternalSessionProfileResponse();
-        profile.setUserId(7);
+        User profile = new User();
+        profile.setId(7);
         profile.setUsername("alice");
         profile.setStatus(1);
-        profile.setAuthorities(List.of("user"));
 
-        when(userAuthAccess.sessionProfile(7)).thenReturn(profile);
+        when(internalUserService.getSessionProfile(7)).thenReturn(profile);
+        when(internalUserService.authoritiesOf(profile)).thenReturn(List.of("user"));
         when(jwtTokenService.createAccessToken(7, "alice", List.of("user"))).thenReturn("access-token");
 
         return new AuthService(
-                userAuthAccess,
+                internalUserService,
                 jwtTokenService,
                 refreshTokenService,
                 loginRateLimitService,

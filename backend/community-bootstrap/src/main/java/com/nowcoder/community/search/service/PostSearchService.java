@@ -1,13 +1,13 @@
 package com.nowcoder.community.search.service;
 
 // 帖子搜索服务：支持基于 alias 的零停机重建。
-import com.nowcoder.community.search.api.dto.SearchPostItem;
-import com.nowcoder.community.content.application.PostScanApplicationService;
-import com.nowcoder.community.content.application.dto.PostScanResult;
+import com.nowcoder.community.search.dto.SearchPostItem;
+import com.nowcoder.community.content.dto.PostScanResult;
+import com.nowcoder.community.content.service.PostScanService;
 import com.nowcoder.community.search.config.PostScanProperties;
 import com.nowcoder.community.search.repo.PostSearchRepository;
 import com.nowcoder.community.search.repo.PostIndexManager;
-import com.nowcoder.community.content.api.event.payload.PostPayload;
+import com.nowcoder.community.content.event.payload.PostPayload;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -18,18 +18,18 @@ import java.util.List;
 public class PostSearchService {
 
     private final PostSearchRepository postSearchRepository;
-    private final PostScanApplicationService postScanApplicationService;
+    private final PostScanService postScanService;
     private final int scanPageSize;
     private final ObjectProvider<PostIndexManager> postIndexManagerProvider;
 
     public PostSearchService(
             PostSearchRepository postSearchRepository,
-            PostScanApplicationService postScanApplicationService,
+            PostScanService postScanService,
             PostScanProperties properties,
             ObjectProvider<PostIndexManager> postIndexManagerProvider
     ) {
         this.postSearchRepository = postSearchRepository;
-        this.postScanApplicationService = postScanApplicationService;
+        this.postScanService = postScanService;
         this.scanPageSize = Math.min(1000, Math.max(1, properties.getPageSize()));
         this.postIndexManagerProvider = postIndexManagerProvider;
     }
@@ -63,7 +63,7 @@ public class PostSearchService {
         int afterId = 0;
 
         while (true) {
-            PostScanResult page = postScanApplicationService.scanPosts(afterId, scanPageSize);
+            PostScanResult page = postScanService.scanPosts(afterId, scanPageSize);
             if (page == null || page.getItems() == null || page.getItems().isEmpty()) {
                 break;
             }

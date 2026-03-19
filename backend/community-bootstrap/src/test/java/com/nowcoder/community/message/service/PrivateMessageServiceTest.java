@@ -1,11 +1,11 @@
 package com.nowcoder.community.message.service;
 
-import com.nowcoder.community.contracts.api.CommonErrorCode;
-import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.message.dao.MessageMapper;
+import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.message.mapper.MessageMapper;
 import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.security.OwnerGuard;
-import com.nowcoder.community.social.application.BlockQueryApplicationService;
+import com.nowcoder.community.social.block.BlockService;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.ibatis.annotations.Mapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,7 +47,7 @@ class PrivateMessageServiceTest {
     void sendShouldRejectUnknownPositiveRecipientBeforePersisting() {
         MessageMapper mapper = mock(MessageMapper.class);
         UserLookupService userLookupService = mock(UserLookupService.class);
-        BlockQueryApplicationService blockQueryApplicationService = mock(BlockQueryApplicationService.class);
+        BlockService blockService = mock(BlockService.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
 
         when(userLookupService.safeGetUser(404)).thenReturn(null);
@@ -55,7 +55,7 @@ class PrivateMessageServiceTest {
         PrivateMessageService service = new PrivateMessageService(
                 mapper,
                 userLookupService,
-                blockQueryApplicationService,
+                blockService,
                 moderationGuard,
                 ownerGuard()
         );
@@ -67,20 +67,20 @@ class PrivateMessageServiceTest {
 
         assertThat(ex).isNotNull();
         assertThat(ex.getMessage()).isEqualTo("目标用户不存在");
-        verifyNoInteractions(mapper, blockQueryApplicationService);
+        verifyNoInteractions(mapper, blockService);
     }
 
     @Test
     void sendShouldRejectSelfMessagesBeforePersistingConversationId() {
         MessageMapper mapper = mock(MessageMapper.class);
         UserLookupService userLookupService = mock(UserLookupService.class);
-        BlockQueryApplicationService blockQueryApplicationService = mock(BlockQueryApplicationService.class);
+        BlockService blockService = mock(BlockService.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
 
         PrivateMessageService service = new PrivateMessageService(
                 mapper,
                 userLookupService,
-                blockQueryApplicationService,
+                blockService,
                 moderationGuard,
                 ownerGuard()
         );
@@ -93,7 +93,7 @@ class PrivateMessageServiceTest {
         assertThat(ex).isNotNull();
         assertThat(ex.getErrorCode()).isEqualTo(CommonErrorCode.INVALID_ARGUMENT);
         assertThat(ex.getMessage()).isEqualTo("不能给自己发送私信");
-        verifyNoInteractions(mapper, userLookupService, blockQueryApplicationService);
+        verifyNoInteractions(mapper, userLookupService, blockService);
     }
 
     @Test
@@ -127,7 +127,7 @@ class PrivateMessageServiceTest {
     @EnableAutoConfiguration
     @MapperScan(
             annotationClass = Mapper.class,
-            basePackages = "com.nowcoder.community.message.dao"
+            basePackages = "com.nowcoder.community.message.mapper"
     )
     static class MapperOnlyTestConfig {
     }

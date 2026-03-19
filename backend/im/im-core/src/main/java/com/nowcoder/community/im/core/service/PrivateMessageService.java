@@ -1,11 +1,11 @@
 package com.nowcoder.community.im.core.service;
 
-import com.nowcoder.community.im.contracts.command.SendPrivateTextCommandV1;
-import com.nowcoder.community.im.contracts.event.PrivateMessagePersistedEventV1;
-import com.nowcoder.community.im.core.db.ConversationReadStateRepository;
-import com.nowcoder.community.im.core.db.ConversationRepository;
-import com.nowcoder.community.im.core.db.PrivateMessageRepository;
-import com.nowcoder.community.im.core.db.SeqAllocator;
+import com.nowcoder.community.im.common.command.SendPrivateTextCommandV1;
+import com.nowcoder.community.im.common.event.PrivateMessagePersistedEventV1;
+import com.nowcoder.community.im.core.repository.ConversationReadStateRepository;
+import com.nowcoder.community.im.core.repository.ConversationRepository;
+import com.nowcoder.community.im.core.repository.PrivateMessageRepository;
+import com.nowcoder.community.im.core.repository.SeqAllocator;
 import com.nowcoder.community.im.core.support.ConversationIdSupport;
 import com.nowcoder.community.im.core.support.IdGenerator;
 import org.springframework.beans.factory.annotation.Value;

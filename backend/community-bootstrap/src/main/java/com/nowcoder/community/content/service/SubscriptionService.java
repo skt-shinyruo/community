@@ -1,14 +1,14 @@
 // 订阅服务：MVP 先支持订阅分类（category），用于“仅看订阅”筛选。
 package com.nowcoder.community.content.service;
 
-import com.nowcoder.community.contracts.exception.BusinessException;
-import com.nowcoder.community.content.dao.SubscriptionCategoryMapper;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.content.mapper.SubscriptionCategoryMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
 import java.util.List;
 
-import static com.nowcoder.community.contracts.api.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
 public class SubscriptionService {

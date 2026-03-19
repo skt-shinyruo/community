@@ -1,7 +1,7 @@
 package com.nowcoder.community.user.event;
 
-import com.nowcoder.community.content.api.event.ContentEventTypes;
-import com.nowcoder.community.content.api.event.payload.ModerationCommandPayload;
+import com.nowcoder.community.content.event.ContentEventTypes;
+import com.nowcoder.community.content.event.payload.ModerationCommandPayload;
 import com.nowcoder.community.content.event.ContentLocalEvent;
 import com.nowcoder.community.user.service.InternalUserService;
 import org.junit.jupiter.api.Test;

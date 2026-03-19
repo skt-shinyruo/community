@@ -1,7 +1,7 @@
 // 拉黑 API：登录用户对其他用户拉黑/解除拉黑，并查询拉黑列表与状态。
 package com.nowcoder.community.social.block;
 
-import com.nowcoder.community.contracts.api.Result;
+import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;

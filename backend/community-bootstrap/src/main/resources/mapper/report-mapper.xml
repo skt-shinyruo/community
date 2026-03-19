@@ -2,7 +2,7 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.nowcoder.community.content.dao.ReportMapper">
+<mapper namespace="com.nowcoder.community.content.mapper.ReportMapper">
 
     <sql id="selectFields">
         id, reporter_id, target_type, target_id, reason, detail, status, create_time

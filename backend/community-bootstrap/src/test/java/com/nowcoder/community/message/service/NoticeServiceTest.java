@@ -1,6 +1,6 @@
 package com.nowcoder.community.message.service;
 
-import com.nowcoder.community.message.dao.MessageMapper;
+import com.nowcoder.community.message.mapper.MessageMapper;
 import com.nowcoder.community.message.entity.Message;
 import org.apache.ibatis.annotations.Mapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -79,7 +79,7 @@ class NoticeServiceTest {
     @EnableAutoConfiguration
     @MapperScan(
             annotationClass = Mapper.class,
-            basePackages = "com.nowcoder.community.message.dao"
+            basePackages = "com.nowcoder.community.message.mapper"
     )
     static class MapperOnlyTestConfig {
     }

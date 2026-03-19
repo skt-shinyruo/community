@@ -1,8 +1,8 @@
 package com.nowcoder.community.im.core.kafka;
 
-import com.nowcoder.community.im.contracts.ImTopics;
-import com.nowcoder.community.im.contracts.command.SendPrivateTextCommandV1;
-import com.nowcoder.community.im.contracts.command.SendRoomTextCommandV1;
+import com.nowcoder.community.im.common.ImTopics;
+import com.nowcoder.community.im.common.command.SendPrivateTextCommandV1;
+import com.nowcoder.community.im.common.command.SendRoomTextCommandV1;
 import com.nowcoder.community.im.core.service.PrivateMessageService;
 import com.nowcoder.community.im.core.service.RoomMessageService;
 import org.slf4j.Logger;

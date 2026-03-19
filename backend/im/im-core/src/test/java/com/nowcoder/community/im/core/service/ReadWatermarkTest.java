@@ -1,7 +1,7 @@
 package com.nowcoder.community.im.core.service;
 
-import com.nowcoder.community.im.core.db.ConversationReadStateRepository;
-import com.nowcoder.community.im.core.db.RoomReadStateRepository;
+import com.nowcoder.community.im.core.repository.ConversationReadStateRepository;
+import com.nowcoder.community.im.core.repository.RoomReadStateRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

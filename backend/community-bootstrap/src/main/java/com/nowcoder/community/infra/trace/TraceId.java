@@ -1,6 +1,6 @@
 package com.nowcoder.community.infra.trace;
 
-import com.nowcoder.community.contracts.trace.TraceIdCodec;
+import com.nowcoder.community.common.trace.TraceIdCodec;
 
 /**
  * traceId 线程上下文（运行期实现）：

@@ -67,17 +67,17 @@ Redis 主要用于：
 `community.event.*`：历史遗留的跨服务 topic（当前仓库默认不创建/不使用）；`community-bootstrap` 运行时不依赖 Kafka（投影/通知通过本地 DB outbox 实现）。
 
 ### 3.2 事件契约
-事件契约分为两层（contracts + domain）：
+事件契约分为两层（common + domain）：
 
-1) **通用事件协议（contracts）：** `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/event/`
-- `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/event/EventEnvelope.java`
-- `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/event/EventEnvelopeParser.java`
-- `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/event/UnknownEventAction.java`
-- `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/event/EventTopicConventions.java`
+1) **通用事件协议（common）：** `backend/community-bootstrap/src/main/java/com/nowcoder/community/common/event/`
+- `backend/community-bootstrap/src/main/java/com/nowcoder/community/common/event/EventEnvelope.java`
+- `backend/community-bootstrap/src/main/java/com/nowcoder/community/common/event/EventEnvelopeParser.java`
+- `backend/community-bootstrap/src/main/java/com/nowcoder/community/common/event/UnknownEventAction.java`
+- `backend/community-bootstrap/src/main/java/com/nowcoder/community/common/event/EventTopicConventions.java`
 
 2) **域事件契约（生产方域 owns semantics，当前同模块内）：**
-- content：`backend/community-bootstrap/src/main/java/com/nowcoder/community/content/api/event/ContentEventTypes.java` + `backend/community-bootstrap/src/main/java/com/nowcoder/community/content/api/event/payload/*`
-- social：`backend/community-bootstrap/src/main/java/com/nowcoder/community/social/api/event/SocialEventTypes.java` + `backend/community-bootstrap/src/main/java/com/nowcoder/community/social/api/event/payload/*`
+- content：`backend/community-bootstrap/src/main/java/com/nowcoder/community/content/event/ContentEventTypes.java` + `backend/community-bootstrap/src/main/java/com/nowcoder/community/content/event/payload/*`
+- social：`backend/community-bootstrap/src/main/java/com/nowcoder/community/social/event/SocialEventTypes.java` + `backend/community-bootstrap/src/main/java/com/nowcoder/community/social/event/payload/*`
 
 ---
 

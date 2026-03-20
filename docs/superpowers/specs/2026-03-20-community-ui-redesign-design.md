@@ -41,7 +41,7 @@ Current UI problems observed from code review:
 - Topbar, sidebar, right panel, auth shell, and admin pages use inconsistent interaction and icon language
 - Mobile behavior adapts the shell but not the content patterns
 - Several pages still present mock tabs, placeholder charts, fake trending modules, or debugging-style UX
-- Messaging, notifications, settings, and admin pages feel like isolated utilities instead of part of one product
+- Messaging, notices (`/notices` route family), settings, and admin pages feel like isolated utilities instead of part of one product
 
 The redesign must solve these problems systemically rather than by touching isolated pages.
 
@@ -314,6 +314,12 @@ Settings:
 - reorganize into grouped sections such as account, preferences, and sensitive actions
 - align forms and explanations with the shared system
 
+Bookmarks, leaderboard, and follow/follower pages:
+
+- these pages do not need a bespoke visual language separate from the rest of the public product
+- they should inherit the established public list/profile patterns from earlier redesign stages
+- their success criterion is consistency with the redesigned public product, not invention of new page grammar
+
 ### 8.6 Admin Pages
 
 Analytics:
@@ -497,3 +503,12 @@ Secondary compatibility routes that still require a final regression check:
 - `/auth/activation/:userId/:code`
 - `/403`
 - `/:pathMatch(.*)*`
+
+Additional in-scope routes that must still be covered during regression verification even if they inherit an existing page pattern:
+
+- `/bookmarks`
+- `/leaderboard`
+- `/users/:userId/followees`
+- `/users/:userId/followers`
+- `/notices`
+- `/notices/:topic`

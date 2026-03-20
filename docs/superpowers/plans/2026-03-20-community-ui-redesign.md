@@ -26,6 +26,8 @@
   Role: shared component visuals for controls, cards, chips, modals, page header, tags.
 - `frontend/src/styles/layout.css`
   Role: shell structure, topbar/sidebar/right panel/mobile behavior, auth shell.
+- `frontend/src/router/navigation.js`
+  Role: navigation SSOT for sidebar/mobile IA and posts query helper state.
 - `frontend/src/styles/pages.css`
   Role: page-level shared patterns, currently centered on table-like topic list.
 - `frontend/src/components/layout/AppShell.vue`
@@ -172,6 +174,8 @@
 **Files:**
 - Modify: `frontend/src/App.vue`
 - Modify: `frontend/src/styles/layout.css`
+- Modify: `frontend/src/router/navigation.js`
+- Modify: `frontend/src/router/navigation.test.js`
 - Modify: `frontend/src/components/layout/AppShell.vue`
 - Modify: `frontend/src/components/layout/AuthShell.vue`
 - Modify: `frontend/src/components/layout/Topbar.vue`
@@ -194,15 +198,23 @@
   - quieter left navigation for public pages
   - right panel as contextual support rather than decorative filler
   - mobile navigation that complements the new shells instead of mirroring desktop mechanically
+  - navigation SSOT updates in `frontend/src/router/navigation.js` so sidebar/mobile information architecture matches the redesigned product
+  - drawer-based primary mobile navigation behavior consistent with the approved spec rather than preserving the current bottom-nav-first model
 
-- [ ] **Step 3: Remove fake or credibility-damaging shell content**
+- [ ] **Step 3: Update navigation tests to lock the new shell information architecture**
+
+  Update:
+  - `frontend/src/router/navigation.test.js` expectations for sidebar/mobile navigation
+  - any route-access or auth/mobile assertions needed to keep the new navigation contract explicit
+
+- [ ] **Step 4: Remove fake or credibility-damaging shell content**
 
   Replace:
   - hard-coded trending placeholders
   - dead footer/privacy/terms placeholders
   - shell-level debug-looking elements that do not belong in product UI
 
-- [ ] **Step 4: Verify shell behavior on route transitions and auth/public switching**
+- [ ] **Step 5: Verify shell behavior on route transitions and auth/public switching**
 
   Check:
   - auth routes still bypass the main workspace shell
@@ -210,23 +222,23 @@
   - admin routes render with the quieter admin desk framing
   - right panel and mobile navigation do not break route transitions
 
-- [ ] **Step 5: Re-run frontend verification after shell changes**
+- [ ] **Step 6: Re-run frontend verification after shell changes**
 
   Run:
   - `cd frontend && npm test`
   - `cd frontend && npm run build`
 
-- [ ] **Step 6: Checkpoint the diff for the shell task**
+- [ ] **Step 7: Checkpoint the diff for the shell task**
 
   Note: do not create a git commit unless the user explicitly asks for one.
 
 ---
 
-After Task 2, Tasks 3-6 are designed to run in parallel because they use disjoint write scopes and should consume the shared foundation rather than editing it.
+Task 3 must land before parallel page-family work begins, because it locks the public-product grammar that Tasks 4-6 are meant to inherit.
 
 Parallel execution rule:
 
-- workers for Tasks 3-6 should stay within their listed files
+- workers for Tasks 4-6 should stay within their listed files
 - if a worker discovers a missing shared primitive or shared-style blocker, stop and surface the blocker instead of editing Task 1 or Task 2 files opportunistically
 - page-family-specific styling should prefer scoped styles inside the task-local view/component files unless the shared foundation is clearly insufficient
 
@@ -277,6 +289,10 @@ Parallel execution rule:
 - [ ] **Step 5: Checkpoint the diff for the public core task**
 
   Note: do not create a git commit unless the user explicitly asks for one.
+
+---
+
+After Task 3 is complete and visually stable in the worktree, Tasks 4-6 may run in parallel against that locked public grammar.
 
 ### Task 4: Rewrite Supporting Personal And Social Surfaces To Match The New Product
 

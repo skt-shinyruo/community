@@ -1,6 +1,6 @@
 # im-load
 
-自研 IM 压测/长连稳定性工具（面向 `im-realtime` + `im-core`）。
+自研 IM 压测/长连稳定性工具（链路覆盖 `project-gateway` -> `im-realtime` / `im-core`，也支持在回滚 / 排障时直连 IM 服务）。
 
 覆盖目标（最小可用版）：
 - 大量 WebSocket 长连接在线（连接/鉴权/保活）
@@ -14,12 +14,18 @@
 
 ## 前置
 
-1) 启动服务（推荐 docker compose，暴露 IM 端口）：
+1) 启动服务（推荐 docker compose，暴露 `project-gateway` 与 IM 直连端口）：
 
 ```bash
 cp deploy/.env.example deploy/.env
 docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 ```
+
+推荐入口：
+
+- 外部 WebSocket：`ws://localhost:12880/ws/im`
+- 外部 HTTP：`http://localhost:12880/api/im/**`
+- 直连回滚 / 排障：`ws://localhost:18081/internal/ws/im`、`http://localhost:18082`
 
 2) 确保压测端拿到相同的 JWT secret（与服务端一致）：
 
@@ -38,9 +44,11 @@ npm install
 
 ## 模式一：connect-only（只测长连 + 鉴权）
 
+以下示例统一显式传 `project-gateway` 地址，避免落到工具当前的直连默认值。
+
 ```bash
 node src/index.mjs connect-only \
-  --wsUrl ws://localhost:18081/ws/im \
+  --wsUrl ws://localhost:12880/ws/im \
   --connections 20000 \
   --startUserId 1 \
   --durationSec 600 \
@@ -57,8 +65,8 @@ node src/index.mjs connect-only \
 
 ```bash
 node src/index.mjs private \
-  --wsUrl ws://localhost:18081/ws/im \
-  --coreBaseUrl http://localhost:18082 \
+  --wsUrl ws://localhost:12880/ws/im \
+  --coreBaseUrl http://localhost:12880 \
   --connections 2000 \
   --startUserId 1 \
   --durationSec 600 \
@@ -81,12 +89,12 @@ node src/index.mjs private \
 
 机器 A：
 ```bash
-node src/index.mjs connect-only --connections 50000 --startUserId 1 --durationSec 600
+node src/index.mjs connect-only --wsUrl ws://localhost:12880/ws/im --connections 50000 --startUserId 1 --durationSec 600
 ```
 
 机器 B：
 ```bash
-node src/index.mjs connect-only --connections 50000 --startUserId 50001 --durationSec 600
+node src/index.mjs connect-only --wsUrl ws://localhost:12880/ws/im --connections 50000 --startUserId 50001 --durationSec 600
 ```
 
 ---
@@ -94,8 +102,8 @@ node src/index.mjs connect-only --connections 50000 --startUserId 50001 --durati
 ## 常用参数
 
 - `--jwtSecret`：不传则读取环境变量 `JWT_HMAC_SECRET`
-- `--wsUrl`：`im-realtime` WS 地址（本地默认 `ws://localhost:18081/ws/im`）
-- `--coreBaseUrl`：`im-core` HTTP 地址（本地默认 `http://localhost:18082`）
+- `--wsUrl`：WebSocket 地址。外部客户端推荐 `ws://localhost:12880/ws/im`；当前内置默认值也已切到该地址。若要直连 worker 调试，请显式传 `ws://localhost:18081/internal/ws/im`
+- `--coreBaseUrl`：HTTP 基地址。外部客户端推荐 `http://localhost:12880`（访问 `/api/im/**`）；当前内置默认值也已切到该地址。若要直连 `im-core` 调试，请显式传 `http://localhost:18082`
 - `--durationSec`：持续时间（默认 600 秒）
 - `--connections`：连接数
 - `--startUserId`：起始 userId（用于切分压测负载）

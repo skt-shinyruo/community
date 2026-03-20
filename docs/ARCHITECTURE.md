@@ -1,8 +1,9 @@
 # 架构文档（与代码保持一致）
 
 > 本项目当前形态：**单后端模块的包级单体（Package-Scoped Monolith）** + 前后端分离。  
-> 对外业务入口为 `community-app`（Spring Boot 3，容器内默认 `8080`；本地 compose 映射为 `12882`）。  
-> IM 作为独立服务保留：`im-realtime`（WebSocket，`18081`）与 `im-core`（HTTP，`18082`）。
+> 默认对外业务入口为 `project-gateway`（Spring Boot WebFlux，容器内默认 `8080`；本地 compose 映射为 `12880`）。  
+> `community-app` 继续作为主业务单体 owner（本地调试端口 `12882`），IM 作为独立服务保留：`im-realtime`（worker，`18081`）与 `im-core`（HTTP，`18082`）。
+> 直连 `12882/18081/18082` 仅保留为回滚与诊断路径。
 > 对外 API 前缀稳定：`/api/**`；静态文件前缀稳定：`/files/**`。  
 >
 > 约定：本文档中的命令与路径默认以**仓库根目录**作为工作目录（除非特别说明）。
@@ -18,8 +19,8 @@
 
 | 能力/域 | 对外 API（入口） | 数据/状态 SSOT（owner） | 鉴权/授权 SSOT（执行位置） |
 | --- | --- | --- | --- |
-| 统一入口（edge） | `community-app`：`/api/**`、`/files/**` | - | `community-app`：统一 CORS；`/api/auth/login\|refresh\|logout` OriginGuard；统一异常/traceId/审计日志 |
-| 认证与会话（auth） | `community-app`：`/api/auth/**` | refresh token：`user` 模块（MySQL `auth_refresh_token`）；验证码/重置码：`auth` 模块（Redis） | `community-app` SecurityFilterChain（JWT resource server）；cookie 会话入口额外 OriginGuard |
+| 统一入口（edge） | `project-gateway`：`/api/**`、`/files/**`、`/ws/im` | - | `project-gateway`：统一 CORS、traceId、HTTP/WS 路由、基础限流与灰度骨架 |
+| 认证与会话（auth） | `project-gateway -> community-app`：`/api/auth/**` | refresh token：`user` 模块（MySQL `auth_refresh_token`）；验证码/重置码：`auth` 模块（Redis） | `community-app` SecurityFilterChain（JWT resource server）；cookie 会话入口额外 OriginGuard |
 | 身份域（user） | `community-app`：`/api/users/**`、`/files/**` | `user` 模块（MySQL `user` 等） | `community-app` SecurityFilterChain（`/api/users/admin/**` 强制 ADMIN） |
 | 内容域（content） | `community-app`：`/api/posts/**`、`/api/categories/**`、`/api/tags/**`、`/api/reports/**`、`/api/moderation/**` | `content` 模块（MySQL + Redis 缓存） | `community-app` SecurityFilterChain（写接口需登录；审核/置顶/加精/删除需 ADMIN/MODERATOR） |
 | 社交域（social） | `community-app`：`/api/likes/**`、`/api/follows/**`、`/api/blocks/**` | `social` 模块（MySQL/Redis，见 `social.storage`） | `community-app` SecurityFilterChain（部分 GET 允许匿名） |
@@ -35,7 +36,10 @@
 ```mermaid
 flowchart TD
     Browser[Browser] --> FE["Vue3 SPA<br/>(frontend)"]
-    FE --> APP["Spring Boot 3<br/>(community-app)<br/>/api/** + /files/**"]
+    FE --> GW["Spring Boot WebFlux<br/>(project-gateway)<br/>/api/** + /files/** + /ws/im"]
+    GW --> APP["Spring Boot 3<br/>(community-app)<br/>main business owner"]
+    GW --> IMCORE["Spring Boot<br/>(im-core)<br/>/api/im/** owner"]
+    GW --> IMRT["Spring Boot WebFlux<br/>(im-realtime)<br/>internal WS worker"]
 
     APP --> MySQL[(MySQL<br/>schema: community)]
     APP --> Redis[(Redis)]
@@ -61,7 +65,8 @@ flowchart TD
 - 运行形态（本地 compose）：容器内执行 `vite build` 后用 `vite preview` 对外提供静态站点（端口 `12881`）。
 - API 调用策略：
   - 优先使用 `VITE_API_BASE_URL`（如配置）。
-  - 否则在 `localhost/127.0.0.1:12881` 场景默认推导 API 基址为 `http://<host>:12882`（详见 `frontend/src/api/http.js`）。
+  - 否则在 `localhost/127.0.0.1:5173|12881|12888` 场景默认推导 API / IM HTTP 基址为 `http://<host>:12880`、IM WebSocket 为 `ws(s)://<host>:12880/ws/im`（详见 `frontend/src/api/http.js`、`frontend/src/api/imCoreHttp.js`、`frontend/src/im/imRealtimeClient.js`）。
+  - 非本地部署默认回落为 same-origin，相对路径仍由 edge / ingress 处理。
 
 ### 2.2 后端单体入口（`backend/community-bootstrap/`）
 - 唯一 deployable：`community-app`（`mvn -pl :community-bootstrap -am package`）
@@ -74,6 +79,7 @@ flowchart TD
 - 统一对外安全边界：`backend/community-bootstrap/.../CommunitySecurityConfig`
   - 对外路径稳定：`/api/**`、`/files/**`
   - `/api/ops/**` ADMIN-only（对高成本入口集中收敛）
+  - 在 gateway-first 形态下，`community-app` 不再直接面向浏览器默认流量，而是作为 `project-gateway` 的 HTTP upstream。
 
 ### 2.3 领域包（以包为边界）
 
@@ -103,10 +109,11 @@ flowchart TD
 - `observability` profile：可选观测/日志栈（Prometheus/Grafana/Loki/Promtail/Alertmanager），默认仅绑定到 `127.0.0.1` 暴露端口（`12883+`）。
 
 ### 3.2 对外暴露端口（默认推荐）
+- Project Gateway（统一入口，过渡中）：`http://localhost:12880`
 - frontend：`http://localhost:12881`
-- backend（community-app）：`http://localhost:12882`
-- IM Realtime（WebSocket）：`ws://localhost:18081/ws/im`
-- IM Core（HTTP）：`http://localhost:18082`
+- backend（community-app，回滚/诊断）：`http://localhost:12882`
+- IM Realtime（internal worker，回滚/诊断）：`ws://localhost:18081/internal/ws/im`
+- IM Core（回滚/诊断）：`http://localhost:18082`
 - MailHog UI（dev mailbox）：`http://localhost:8025`（仅本机）
 
 ### 3.3 观测/日志端口（可选开启）
@@ -123,15 +130,17 @@ flowchart TD
 
 ### 4.1 典型读路径：帖子列表
 1. 浏览器请求 `http://localhost:12881`
-2. 前端通过 Axios 请求 `http://localhost:12882/api/posts?order=latest&page=0&size=10`
-3. `community-app` SecurityFilterChain 按路径规则鉴权（匿名读放行，写接口需登录/角色）
-4. `content` 模块查询 MySQL/Redis 组装结果并返回
+2. 前端通过 Axios 请求 `http://localhost:12880/api/posts?order=latest&page=0&size=10`
+3. `project-gateway` 负责 CORS、traceId、路由判定，并将 `/api/**` 转发到 `community-app`
+4. `community-app` SecurityFilterChain 按路径规则鉴权（匿名读放行，写接口需登录/角色）
+5. `content` 模块查询 MySQL/Redis 组装结果并返回
 
 ### 4.2 典型写路径：发帖 → 本地编排 → 事件投影
-1. 前端 `POST /api/posts`
-2. `content.service.PostFacadeService` 在本地完成参数清洗、幂等包装与命令调用
-3. `PostCommandService` 在事务内写主存储并发布帖子领域事件
-4. 帖子领域事件目前仍通过桥接层进入既有事件发布链路，用于搜索/通知等投影；reindex 等运维动作已收敛为单进程 single-flight 协调
+1. 前端 `POST http://localhost:12880/api/posts`
+2. `project-gateway` 将请求转发到 `community-app`
+3. `content.service.PostFacadeService` 在本地完成参数清洗、幂等包装与命令调用
+4. `PostCommandService` 在事务内写主存储并发布帖子领域事件
+5. 帖子领域事件目前仍通过桥接层进入既有事件发布链路，用于搜索/通知等投影；reindex 等运维动作已收敛为单进程 single-flight 协调
 
 ---
 
@@ -158,10 +167,15 @@ flowchart TD
 ## 6. 本地启动（推荐方式）
 
 1. 准备环境变量：`cp deploy/.env.example deploy/.env`
-2. 启动（前端直连后端单体）：
+2. 启动（gateway-first）：
    - `docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build`
 3. （可选）开启观测/日志端口：
    - 在 `deploy/.env` 中添加 `COMPOSE_PROFILES=observability`，然后执行：`docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d`
+
+默认访问方式：
+- 页面入口：`http://localhost:12881`
+- 统一 edge：`http://localhost:12880`
+- 直连端口 `12882/18081/18082` 仅作为回滚与诊断路径保留
 
 更完整的启动与运维说明见：`deploy/README.md`。
 

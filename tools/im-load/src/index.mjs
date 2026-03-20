@@ -1,8 +1,8 @@
 import WebSocket from "ws";
 import jwt from "jsonwebtoken";
 
-const DEFAULT_WS_URL = "ws://localhost:18081/ws/im";
-const DEFAULT_CORE_BASE_URL = "http://localhost:18082";
+const DEFAULT_WS_URL = "ws://localhost:12880/ws/im";
+const DEFAULT_CORE_BASE_URL = "http://localhost:12880";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -474,4 +474,3 @@ main().catch((e) => {
   console.error(e?.stack ?? String(e));
   process.exit(1);
 });
-

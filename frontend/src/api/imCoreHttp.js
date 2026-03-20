@@ -11,9 +11,11 @@ function resolveImCoreBaseUrl() {
   try {
     const loc = globalThis?.location
     if (!loc) return ''
+    if (loc.port === '8080') return ''
     const isLocalHost = loc.hostname === 'localhost' || loc.hostname === '127.0.0.1'
-    if (isLocalHost) {
-      return `${loc.protocol}//${loc.hostname}:18082`
+    const isKnownFrontendPort = loc.port === '5173' || loc.port === '12881' || loc.port === '12888'
+    if (isLocalHost && isKnownFrontendPort) {
+      return `${loc.protocol}//${loc.hostname}:12880`
     }
   } catch {}
 

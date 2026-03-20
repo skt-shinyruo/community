@@ -20,7 +20,7 @@
 
 私信主链路涉及以下组件：
 
-- 前端或 IM 客户端：通过 WebSocket 连接 `im-realtime`
+- 前端或 IM 客户端：外部默认通过 `project-gateway` 暴露的 `ws://localhost:12880/ws/im` 与 `http://localhost:12880/api/im/**` 进入系统；`ws://localhost:18081/internal/ws/im` 和 `http://localhost:18082` 保留为回滚 / 排障时的直连路径
 - `im-realtime`：WebSocket 接入、鉴权、协议解析、治理校验、Kafka command 生产、在线推送
 - `community-app`：提供私信发送治理校验接口
 - Kafka：承担 `command` 与 `event` 的跨服务 backplane
@@ -86,7 +86,11 @@ sequenceDiagram
 
 ### 3.1 WebSocket 鉴权与连接建立
 
-私信链路的外部入口是 `im-realtime` 的 WebSocket handler：
+私信链路对外推荐入口是 `project-gateway` 暴露的：
+
+- `ws://localhost:12880/ws/im`
+
+gateway 会把这个 WebSocket 路径转发到 `im-realtime` 的 WebSocket handler：
 
 - `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/ws/ImWebSocketHandler.java`
 
@@ -101,6 +105,8 @@ sequenceDiagram
 
 - 私信本身不依赖房间索引，但私信和群聊共用同一个 WebSocket 入口与连接模型
 - 首次鉴权成功时，`im-realtime` 还会调用 `im-core` 的 internal API 拉取用户所在房间，完成房间本地索引 bootstrap；这一步主要服务于群聊链路
+- 断线补拉、会话列表、已读和未读汇总等 HTTP 能力，对外同样推荐走 `project-gateway` 的 `http://localhost:12880/api/im/**`
+- `ws://localhost:18081/internal/ws/im` 与 `http://localhost:18082` 直连口继续保留，主要用于回滚和排障
 
 关键代码：
 
@@ -285,6 +291,13 @@ command 中包含的关键字段有：
 
 当用户断线、重连、切设备或临时错过实时推送时，恢复路径依赖 `im-core` 的 HTTP 查询接口。
 
+对外客户端重连与补拉时，推荐继续走 `project-gateway`：
+
+- WebSocket：`ws://localhost:12880/ws/im`
+- HTTP：`http://localhost:12880/api/im/**`
+
+只有在回滚或排障时，才改用 `ws://localhost:18081/ws/im` 与 `http://localhost:18082` 直连 IM 服务。
+
 恢复时序如下：
 
 ```mermaid
@@ -318,6 +331,8 @@ sequenceDiagram
 - 历史消息以 `im-core` 数据库为准
 - 未读数由 `lastSeq - lastReadSeq` 计算
 - 已读水位更新也要写回 `im-core`
+
+对外访问这些接口时，路径保持不变，但推荐统一经由 `project-gateway` 的 `http://localhost:12880` 暴露。
 
 ---
 

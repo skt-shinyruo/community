@@ -11,6 +11,7 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 
 import javax.crypto.SecretKey;
+import java.util.Locale;
 
 @Configuration
 @EnableWebFluxSecurity
@@ -25,9 +26,19 @@ public class ImRealtimeSecurityConfig {
     @Bean
     public SecurityWebFilterChain webFluxSecurityFilterChain(
             ServerHttpSecurity http,
-            @Value("${im.ws.path:/ws/im}") String wsPath
+            @Value("${im.ws.path:/ws/im}") String wsPath,
+            @Value("${im.edge.mode:direct-public-edge}") String edgeMode,
+            @Value("${im.edge.direct-public.ws-path:/ws/im}") String directPublicWsPath,
+            @Value("${im.edge.internal-worker.ws-path:/internal/ws/im}") String internalWorkerWsPath
     ) {
-        String wsPathValue = (wsPath == null || wsPath.isBlank()) ? "/ws/im" : wsPath;
+        String normalizedEdgeMode = normalizeEdgeMode(edgeMode);
+        String wsPathValue = normalizeWsPath(wsPath);
+        validateModeCompatiblePath(
+                normalizedEdgeMode,
+                wsPathValue,
+                normalizeWsPath(directPublicWsPath),
+                normalizeWsPath(internalWorkerWsPath)
+        );
         // WebSocket auth is handled at message-level (first 'auth' frame).
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
@@ -40,5 +51,43 @@ public class ImRealtimeSecurityConfig {
                         .anyExchange().denyAll()
                 )
                 .build();
+    }
+
+    private static String normalizeEdgeMode(String edgeMode) {
+        String candidate = edgeMode == null ? "" : edgeMode.trim().toLowerCase(Locale.ROOT);
+        return switch (candidate) {
+            case "", "direct-public-edge", "direct-public", "public-edge", "public" -> "direct-public-edge";
+            case "internal-worker", "worker" -> "internal-worker";
+            default -> throw new IllegalArgumentException("Unsupported im.edge.mode: " + edgeMode);
+        };
+    }
+
+    private static String normalizeWsPath(String wsPath) {
+        if (wsPath == null || wsPath.isBlank()) {
+            return "/ws/im";
+        }
+        return wsPath.startsWith("/") ? wsPath : "/" + wsPath;
+    }
+
+    private static void validateModeCompatiblePath(
+            String edgeMode,
+            String actualWsPath,
+            String directPublicWsPath,
+            String internalWorkerWsPath
+    ) {
+        if ("internal-worker".equals(edgeMode)
+                && actualWsPath.equals(directPublicWsPath)
+                && !actualWsPath.equals(internalWorkerWsPath)) {
+            throw new IllegalStateException(
+                    "im.edge.mode=internal-worker cannot expose the direct-public websocket path"
+            );
+        }
+        if ("direct-public-edge".equals(edgeMode)
+                && actualWsPath.equals(internalWorkerWsPath)
+                && !actualWsPath.equals(directPublicWsPath)) {
+            throw new IllegalStateException(
+                    "im.edge.mode=direct-public-edge cannot expose the internal-worker websocket path"
+            );
+        }
     }
 }

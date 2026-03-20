@@ -13,7 +13,7 @@ function resolveWsUrl() {
     const isLocalHost = loc.hostname === 'localhost' || loc.hostname === '127.0.0.1'
     if (isLocalHost) {
       const scheme = loc.protocol === 'https:' ? 'wss' : 'ws'
-      return `${scheme}://${loc.hostname}:18081/ws/im`
+      return `${scheme}://${loc.hostname}:12880/ws/im`
     }
     // Default: same origin (if an edge proxy/ingress routes /ws/im to im-realtime)
     const scheme = loc.protocol === 'https:' ? 'wss' : 'ws'

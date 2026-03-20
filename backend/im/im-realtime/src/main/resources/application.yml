@@ -24,6 +24,12 @@ security:
     hmac-secret: ${JWT_HMAC_SECRET:dev-secret-please-change-at-least-32bytes}
 
 im:
+  edge:
+    mode: ${IM_EDGE_MODE:direct-public-edge}
+    direct-public:
+      ws-path: ${IM_DIRECT_PUBLIC_WS_PATH:/ws/im}
+    internal-worker:
+      ws-path: ${IM_INTERNAL_WORKER_WS_PATH:/internal/ws/im}
   core:
     base-url: ${IM_CORE_BASE_URL:http://localhost:18082}
   community:
@@ -33,7 +39,9 @@ im:
     event:
       concurrency: ${IM_REALTIME_KAFKA_EVENT_CONCURRENCY:3}
   ws:
-    path: ${IM_WS_PATH:/ws/im}
+    # Single bind path for the current handler implementation. Public edge keeps /ws/im;
+    # internal worker mode should bind /internal/ws/im and let project-gateway stay public.
+    path: ${IM_WS_PATH:${IM_DIRECT_PUBLIC_WS_PATH:/ws/im}}
     outbound-buffer-size: ${IM_WS_OUTBOUND_BUFFER_SIZE:256}
     room-flush-interval-ms: ${IM_ROOM_FLUSH_INTERVAL_MS:100}
   cors:

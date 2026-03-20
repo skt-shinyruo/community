@@ -21,9 +21,9 @@
     </properties>
 
     <modules>
-        <module>im</module>
-        <module>project-gateway</module>
-        <module>community-bootstrap</module>
+        <module>community-im</module>
+        <module>community-gateway</module>
+        <module>community-app</module>
     </modules>
 
     <build>

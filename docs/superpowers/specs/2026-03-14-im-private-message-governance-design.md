@@ -10,7 +10,7 @@
 - 前端 `/messages` 路由实际走 IM：
   - HTTP：`/api/im/**`（im-core）
   - WebSocket：`/ws/im`（im-realtime）
-- community-bootstrap 仍保留完整的“站内私信”HTTP API：`/api/messages/**`，并在写路径显式做了治理校验（禁言/拉黑/目标用户存在性）。
+- community-app 仍保留完整的“站内私信”HTTP API：`/api/messages/**`，并在写路径显式做了治理校验（禁言/拉黑/目标用户存在性）。
 - IM 私信写入链路（WS -> Kafka -> im-core 持久化）缺少治理校验，存在绕过社区治理规则的风险。
 - im-core 会话 read 接口仅用字符串解析判断成员，且在会话不存在时仍可能 upsert read_state，造成脏数据。
 - im-core HTTP 返回体/错误体与主站 `Result<T>` 体系不一致，导致前端需要维护两套错误处理（`http` vs `imCoreHttp`）。
@@ -34,7 +34,7 @@
 
 #### 2.3.1 `Result<T>` 统一 envelope（JSON Schema 约定）
 
-本项目（community-bootstrap 与 im-core）统一使用如下 envelope（字段名与类型为约定）：
+本项目（community-app 与 im-core）统一使用如下 envelope（字段名与类型为约定）：
 
 - `code: number`：业务码（通用错误码优先复用 `CommonErrorCode`，如 400/401/403/404/500/503；成功为 0）
 - `message: string`：对用户可读的错误语义（成功可为 `"OK"`）
@@ -66,7 +66,7 @@
 
 采用“社区侧提供治理校验 API + IM WS 入口前置校验”的方式：
 
-1) community-bootstrap 新增 **IM 私信发送治理校验 API**（普通 `/api/**`，JWT 鉴权）  
+1) community-app 新增 **IM 私信发送治理校验 API**（普通 `/api/**`，JWT 鉴权）  
 2) im-realtime 在 `sendPrivateText` 处理时调用该校验 API：  
    - 校验通过：才投递 Kafka command  
    - 校验失败：立即通过 WS 返回 `sendError`（并携带 message）  
@@ -96,7 +96,7 @@
 - 生产环境将 Kafka ACL 作为“治理收敛上线前置条件”。验收口径：使用非 `im-realtime` 身份写入 `COMMAND_PRIVATE_TEXT_V1` 必须失败。
 - 若运行环境无法提供 producer 身份隔离（ACL 不可用/过粗），必须在风险评估中明确承认残余风险：内部非预期 producer 仍可能绕过治理校验。
 
-## 4. community-bootstrap：治理校验 API
+## 4. community-app：治理校验 API
 
 ### 4.1 Endpoint
 
@@ -151,7 +151,7 @@
 
 ### 5.1 连接态保存 accessToken
 
-`auth` 帧验签成功后，将原始 access token 保存在连接上下文中（仅用于调用 community-bootstrap 校验 API）。
+`auth` 帧验签成功后，将原始 access token 保存在连接上下文中（仅用于调用 community-app 校验 API）。
 
 安全约束：
 
@@ -291,7 +291,7 @@ im-core 增加与主站一致的 header：
 
 ## 9. 测试与验证计划
 
-- community-bootstrap：
+- community-app：
   - 单测：治理校验 API 的禁言/拉黑/用户不存在分支返回 message 正确
 - im-core：
   - 单测：`markRead` 对不存在会话不写 read_state（可通过 repository 查询验证）

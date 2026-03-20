@@ -9,7 +9,7 @@ describe('http base URL resolution', () => {
     vi.unstubAllGlobals()
   })
 
-  it('should prefer project-gateway for local frontend origins', async () => {
+  it('should prefer community-gateway for local frontend origins', async () => {
     vi.stubGlobal('location', {
       protocol: 'http:',
       hostname: 'localhost',

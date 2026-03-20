@@ -1,6 +1,6 @@
 # backend
 
-本目录是后端工程根目录（Java 17 + Spring Boot 3 + Maven 单后端模块）。
+本目录是后端工程根目录（Java 17 + Spring Boot 3 + Maven 多模块）。
 仓库根目录同时包含前端工程：`../frontend/`。
 
 > 约定：仓库级入口（部署/文档）从仓库根目录执行；后端构建/测试从 `backend/` 执行。
@@ -17,12 +17,12 @@
 
 ## 本地开发 / 测试
 - 单测：`mvn test`
-- 打包后端单体：`mvn -q -DskipTests -pl :community-bootstrap -am package`
+- 打包后端单体：`mvn -q -DskipTests -pl :community-app -am package`
 
 ## 目录结构（后端）
-- `community-bootstrap/`：唯一后端模块与 deployable
-- `community-bootstrap/src/main/java/com/nowcoder/community/*`：按领域与基础设施包组织代码
-- `community-bootstrap/src/main/resources/`：统一资源、mapper、自动配置清单
+- `community-app/`：主业务单体与 deployable
+- `community-gateway/`：统一 HTTP / WS edge
+- `community-im/`：IM 聚合模块（下含 `im-common`、`im-core`、`im-realtime`）
 
 ## 仓库级入口
 - 部署与 compose：`../deploy/`

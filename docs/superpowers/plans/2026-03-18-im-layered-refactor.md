@@ -13,13 +13,13 @@
 ### Task 1: Rename `im-contracts` To `im-common` Across Build, Packages, And Runtime Config
 
 **Files:**
-- Modify: `backend/im/pom.xml`
-- Modify: `backend/im/im-contracts/pom.xml`
-- Modify: `backend/im/im-core/pom.xml`
-- Modify: `backend/im/im-realtime/pom.xml`
-- Modify: `backend/im/im-core/src/main/resources/application.yml`
-- Modify: `backend/im/im-realtime/src/main/resources/application.yml`
-- Modify: `backend/community-bootstrap/src/test/java/com/nowcoder/community/bootstrap/arch/BackendFlatteningArchTest.java`
+- Modify: `backend/community-im/pom.xml`
+- Modify: `backend/community-im/im-contracts/pom.xml`
+- Modify: `backend/community-im/im-core/pom.xml`
+- Modify: `backend/community-im/im-realtime/pom.xml`
+- Modify: `backend/community-im/im-core/src/main/resources/application.yml`
+- Modify: `backend/community-im/im-realtime/src/main/resources/application.yml`
+- Modify: `backend/community-app/src/test/java/com/nowcoder/community/app/arch/BackendFlatteningArchTest.java`
 - Modify: `docs/ARCHITECTURE.md`
 - Modify: `docs/SYSTEM_DESIGN.md`
 
@@ -50,8 +50,8 @@
 - [ ] **Step 5: Run the shared-module and architecture checks**
 
   Run:
-  - `mvn -pl backend/im/im-common test`
-  - `mvn -pl backend/community-bootstrap -Dtest=BackendFlatteningArchTest test`
+  - `mvn -pl backend/community-im/im-common test`
+  - `mvn -pl backend/community-app -Dtest=BackendFlatteningArchTest test`
 
 - [ ] **Step 6: Checkpoint the diff for this task**
 
@@ -60,24 +60,24 @@
 ### Task 2: Rewire IM Core And Realtime To The New Shared Module
 
 **Files:**
-- Modify: `backend/im/im-common/src/main/java/com/nowcoder/community/im/common/ImTopics.java`
-- Modify: `backend/im/im-common/src/main/java/com/nowcoder/community/im/common/command/SendPrivateTextCommandV1.java`
-- Modify: `backend/im/im-common/src/main/java/com/nowcoder/community/im/common/command/SendRoomTextCommandV1.java`
-- Modify: `backend/im/im-common/src/main/java/com/nowcoder/community/im/common/event/PrivateMessagePersistedEventV1.java`
-- Modify: `backend/im/im-common/src/main/java/com/nowcoder/community/im/common/event/RoomMessagePersistedEventV1.java`
-- Modify: `backend/im/im-common/src/main/java/com/nowcoder/community/im/common/event/RoomMemberChangedEventV1.java`
-- Modify: `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/CommandConsumers.java`
-- Modify: `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/EventProducer.java`
-- Modify: `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/KafkaRoomMemberChangePublisher.java`
-- Modify: `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/service/PrivateMessageService.java`
-- Modify: `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/service/RoomMessageService.java`
-- Modify: `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/CommandProducer.java`
-- Modify: `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/EventConsumers.java`
-- Modify: `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/push/PrivatePushService.java`
-- Modify: `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/ws/ImWebSocketHandler.java`
-- Test: `backend/im/im-common/src/test/java/com/nowcoder/community/im/common/JsonContractsTest.java`
-- Test: `backend/im/im-core/src/test/java/com/nowcoder/community/im/core/kafka/ImCoreKafkaIntegrationTest.java`
-- Test: `backend/im/im-realtime/src/test/java/com/nowcoder/community/im/realtime/ws/ImRealtimeWebSocketIntegrationTest.java`
+- Modify: `backend/community-im/im-common/src/main/java/com/nowcoder/community/im/common/ImTopics.java`
+- Modify: `backend/community-im/im-common/src/main/java/com/nowcoder/community/im/common/command/SendPrivateTextCommandV1.java`
+- Modify: `backend/community-im/im-common/src/main/java/com/nowcoder/community/im/common/command/SendRoomTextCommandV1.java`
+- Modify: `backend/community-im/im-common/src/main/java/com/nowcoder/community/im/common/event/PrivateMessagePersistedEventV1.java`
+- Modify: `backend/community-im/im-common/src/main/java/com/nowcoder/community/im/common/event/RoomMessagePersistedEventV1.java`
+- Modify: `backend/community-im/im-common/src/main/java/com/nowcoder/community/im/common/event/RoomMemberChangedEventV1.java`
+- Modify: `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/CommandConsumers.java`
+- Modify: `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/EventProducer.java`
+- Modify: `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/KafkaRoomMemberChangePublisher.java`
+- Modify: `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/service/PrivateMessageService.java`
+- Modify: `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/service/RoomMessageService.java`
+- Modify: `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/CommandProducer.java`
+- Modify: `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/EventConsumers.java`
+- Modify: `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/push/PrivatePushService.java`
+- Modify: `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/ws/ImWebSocketHandler.java`
+- Test: `backend/community-im/im-common/src/test/java/com/nowcoder/community/im/common/JsonContractsTest.java`
+- Test: `backend/community-im/im-core/src/test/java/com/nowcoder/community/im/core/kafka/ImCoreKafkaIntegrationTest.java`
+- Test: `backend/community-im/im-realtime/src/test/java/com/nowcoder/community/im/realtime/ws/ImRealtimeWebSocketIntegrationTest.java`
 
 Note:
 - the `im-common` paths listed in this task are the post-Task-1 locations created by the shared-module rename and package move
@@ -99,9 +99,9 @@ Note:
 - [ ] **Step 3: Re-run focused cross-module messaging tests**
 
   Run:
-  - `mvn -pl backend/im/im-common -Dtest=JsonContractsTest test`
-  - `mvn -pl backend/im/im-core -Dtest=ImCoreKafkaIntegrationTest test`
-  - `mvn -pl backend/im/im-realtime -Dtest=ImRealtimeWebSocketIntegrationTest test`
+  - `mvn -pl backend/community-im/im-common -Dtest=JsonContractsTest test`
+  - `mvn -pl backend/community-im/im-core -Dtest=ImCoreKafkaIntegrationTest test`
+  - `mvn -pl backend/community-im/im-realtime -Dtest=ImRealtimeWebSocketIntegrationTest test`
 
 - [ ] **Step 4: Checkpoint the diff for this task**
 
@@ -110,25 +110,25 @@ Note:
 ### Task 3: Normalize `im-core` To Conventional Layer Naming
 
 **Files:**
-- Modify: `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/api/ConversationController.java`
-- Modify: `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/api/RoomController.java`
-- Modify: `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/api/UnreadController.java`
-- Modify: `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/api/InternalRealtimeBootstrapController.java`
-- Modify: `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/api/Result.java`
-- Modify: `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/api/ErrorCode.java`
-- Modify: `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/api/CommonErrorCode.java`
-- Modify: `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/db/ConversationRepository.java`
-- Modify: `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/db/ConversationReadStateRepository.java`
-- Modify: `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/db/PrivateMessageRepository.java`
-- Modify: `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/db/RoomRepository.java`
-- Modify: `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/db/RoomMemberRepository.java`
-- Modify: `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/db/RoomMessageRepository.java`
-- Modify: `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/db/RoomReadStateRepository.java`
-- Modify: `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/db/SeqAllocator.java`
-- Modify: `backend/im/im-core/src/test/java/com/nowcoder/community/im/core/api/ImCoreApiControllerTest.java`
-- Test: `backend/im/im-core/src/test/java/com/nowcoder/community/im/core/service/PrivateMessageServiceTest.java`
-- Test: `backend/im/im-core/src/test/java/com/nowcoder/community/im/core/service/RoomMessageServiceTest.java`
-- Test: `backend/im/im-core/src/test/java/com/nowcoder/community/im/core/api/ImCoreApiControllerTest.java`
+- Modify: `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/api/ConversationController.java`
+- Modify: `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/api/RoomController.java`
+- Modify: `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/api/UnreadController.java`
+- Modify: `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/api/InternalRealtimeBootstrapController.java`
+- Modify: `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/api/Result.java`
+- Modify: `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/api/ErrorCode.java`
+- Modify: `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/api/CommonErrorCode.java`
+- Modify: `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/db/ConversationRepository.java`
+- Modify: `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/db/ConversationReadStateRepository.java`
+- Modify: `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/db/PrivateMessageRepository.java`
+- Modify: `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/db/RoomRepository.java`
+- Modify: `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/db/RoomMemberRepository.java`
+- Modify: `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/db/RoomMessageRepository.java`
+- Modify: `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/db/RoomReadStateRepository.java`
+- Modify: `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/db/SeqAllocator.java`
+- Modify: `backend/community-im/im-core/src/test/java/com/nowcoder/community/im/core/api/ImCoreApiControllerTest.java`
+- Test: `backend/community-im/im-core/src/test/java/com/nowcoder/community/im/core/service/PrivateMessageServiceTest.java`
+- Test: `backend/community-im/im-core/src/test/java/com/nowcoder/community/im/core/service/RoomMessageServiceTest.java`
+- Test: `backend/community-im/im-core/src/test/java/com/nowcoder/community/im/core/api/ImCoreApiControllerTest.java`
 
 - [ ] **Step 1: Rename `api` packages by responsibility**
 
@@ -152,7 +152,7 @@ Note:
 - [ ] **Step 4: Re-run focused IM core tests**
 
   Run:
-  - `mvn -pl backend/im/im-core -Dtest=PrivateMessageServiceTest,RoomMessageServiceTest,ImCoreApiControllerTest test`
+  - `mvn -pl backend/community-im/im-core -Dtest=PrivateMessageServiceTest,RoomMessageServiceTest,ImCoreApiControllerTest test`
 
 - [ ] **Step 5: Checkpoint the diff for this task**
 
@@ -161,14 +161,14 @@ Note:
 ### Task 4: Align `im-realtime` To The New Shared Boundary And Stable Runtime Shape
 
 **Files:**
-- Modify: `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/ws/ImWebSocketHandler.java`
-- Modify: `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/ws/WebSocketConfig.java`
-- Modify: `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/CommandProducer.java`
-- Modify: `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/EventConsumers.java`
-- Modify: `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/client/ImCoreClient.java`
-- Modify: `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/client/CommunityGovernanceClient.java`
-- Modify: `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/security/JwtVerifier.java`
-- Modify: `backend/im/im-realtime/src/test/java/com/nowcoder/community/im/realtime/ws/ImRealtimeWebSocketIntegrationTest.java`
+- Modify: `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/ws/ImWebSocketHandler.java`
+- Modify: `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/ws/WebSocketConfig.java`
+- Modify: `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/CommandProducer.java`
+- Modify: `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/EventConsumers.java`
+- Modify: `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/client/ImCoreClient.java`
+- Modify: `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/client/CommunityGovernanceClient.java`
+- Modify: `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/security/JwtVerifier.java`
+- Modify: `backend/community-im/im-realtime/src/test/java/com/nowcoder/community/im/realtime/ws/ImRealtimeWebSocketIntegrationTest.java`
 
 - [ ] **Step 1: Update realtime code to the renamed shared DTO package**
 
@@ -186,7 +186,7 @@ Note:
 - [ ] **Step 3: Re-run focused realtime tests**
 
   Run:
-  - `mvn -pl backend/im/im-realtime -Dtest=ImRealtimeWebSocketIntegrationTest test`
+  - `mvn -pl backend/community-im/im-realtime -Dtest=ImRealtimeWebSocketIntegrationTest test`
 
 - [ ] **Step 4: Checkpoint the diff for this task**
 
@@ -197,22 +197,22 @@ Note:
 **Files:**
 - Modify: `docs/ARCHITECTURE.md`
 - Modify: `docs/SYSTEM_DESIGN.md`
-- Verify only: `backend/im/im-common`
-- Verify only: `backend/im/im-core`
-- Verify only: `backend/im/im-realtime`
+- Verify only: `backend/community-im/im-common`
+- Verify only: `backend/community-im/im-core`
+- Verify only: `backend/community-im/im-realtime`
 
 - [ ] **Step 1: Run focused module tests for all touched IM areas**
 
   Run:
-  - `mvn -pl backend/im/im-common test`
-  - `mvn -pl backend/im/im-core -Dtest=PrivateMessageServiceTest,RoomMessageServiceTest,ImCoreKafkaIntegrationTest,ImCoreApiControllerTest test`
-  - `mvn -pl backend/im/im-realtime -Dtest=ImRealtimeWebSocketIntegrationTest test`
+  - `mvn -pl backend/community-im/im-common test`
+  - `mvn -pl backend/community-im/im-core -Dtest=PrivateMessageServiceTest,RoomMessageServiceTest,ImCoreKafkaIntegrationTest,ImCoreApiControllerTest test`
+  - `mvn -pl backend/community-im/im-realtime -Dtest=ImRealtimeWebSocketIntegrationTest test`
 
 - [ ] **Step 2: Run broad module-level verification**
 
   Run:
-  - `mvn -pl backend/im/im-core test`
-  - `mvn -pl backend/im/im-realtime test`
+  - `mvn -pl backend/community-im/im-core test`
+  - `mvn -pl backend/community-im/im-realtime test`
 
 - [ ] **Step 3: Re-check the IM end state against the approved spec**
 

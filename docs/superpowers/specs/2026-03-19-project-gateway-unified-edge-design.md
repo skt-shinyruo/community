@@ -1,13 +1,13 @@
 # Project Gateway Unified Edge Design
 
 日期：2026-03-19  
-主题：统一项目 Gateway，收口 `community-bootstrap`、`im-core`、`im-realtime` 的对外入口，并演进为真正的 IM 接入层
+主题：统一项目 Gateway，收口 `community-app`、`im-core`、`im-realtime` 的对外入口，并演进为真正的 IM 接入层
 
 ## 1. 背景
 
 当前项目的对外入口存在三个明显边界：
 
-- `community-bootstrap`：主站 HTTP 业务入口
+- `community-app`：主站 HTTP 业务入口
 - `im-core`：IM HTTP 读接口与部分内部接口
 - `im-realtime`：IM WebSocket 长连接入口
 
@@ -19,7 +19,7 @@
 4. IM 长连接、HTTP 读接口、治理能力和灰度发布没有统一的 edge 策略面
 5. `im-realtime` 目前既是公网接入点，又是 IM 实时 worker，职责耦合较重
 
-本设计的目标，是把这些入口收口到一个统一的 `project-gateway`，并逐步把它演进成真正的项目级边界层与 IM 接入层。
+本设计的目标，是把这些入口收口到一个统一的 `community-gateway`，并逐步把它演进成真正的项目级边界层与 IM 接入层。
 
 ---
 
@@ -27,8 +27,8 @@
 
 ### 2.1 核心目标
 
-1. 提供统一的项目级入口，前端和客户端未来只认 `project-gateway`
-2. 将 `community-bootstrap`、`im-core` 的 HTTP 对外接口纳入统一 gateway
+1. 提供统一的项目级入口，前端和客户端未来只认 `community-gateway`
+2. 将 `community-app`、`im-core` 的 HTTP 对外接口纳入统一 gateway
 3. 将 `im-realtime` 的 WebSocket 接入纳入统一 gateway
 4. 让 gateway 终止外部 WebSocket，读取第一帧 `auth`，完成 JWT 校验并提取 `userId`
 5. 让 gateway 基于 `userId` / shard 做稳定路由，而不是依赖传统 sticky session
@@ -49,7 +49,7 @@
 
 本设计不包括以下事项：
 
-- 不把 `community-bootstrap` 或 `im-core` 的业务实现并入 gateway
+- 不把 `community-app` 或 `im-core` 的业务实现并入 gateway
 - 不让 gateway 成为 IM 权威状态存储
 - 不在第一阶段重写 `im-realtime` 的现有私信/群聊业务协议
 - 不在第一阶段实现跨机房连接迁移或实时连接热迁移
@@ -138,9 +138,9 @@ HTTP 流量与 IM 长连接分别进入不同网关。
 - 平台治理面会分裂
 - 不符合“全项目统一 gateway”的目标
 
-### 方案 C：统一 `project-gateway` + IM 接入层能力
+### 方案 C：统一 `community-gateway` + IM 接入层能力
 
-新增一个独立的 `project-gateway`，同时承担：
+新增一个独立的 `community-gateway`，同时承担：
 
 - 项目统一 HTTP 入口
 - IM WebSocket 入口
@@ -178,7 +178,7 @@ HTTP 流量与 IM 长连接分别进入不同网关。
 
 目标架构下，对外只暴露一个统一入口：
 
-- `project-gateway`
+- `community-gateway`
 
 对外客户端与前端只面对：
 
@@ -187,13 +187,13 @@ HTTP 流量与 IM 长连接分别进入不同网关。
 
 后端内部结构变为：
 
-- `project-gateway`
+- `community-gateway`
   - HTTP edge
   - WS edge
   - shard router
   - policy plane
   - bridge manager
-- `community-bootstrap`
+- `community-app`
   - 主站 HTTP 业务服务
 - `im-core`
   - IM 权威状态服务
@@ -202,9 +202,9 @@ HTTP 流量与 IM 长连接分别进入不同网关。
 
 ### 5.2 HTTP 流量
 
-HTTP 流量全部先进入 `project-gateway`：
+HTTP 流量全部先进入 `community-gateway`：
 
-- 主站 API -> 转发到 `community-bootstrap`
+- 主站 API -> 转发到 `community-app`
 - IM HTTP 读接口 -> 转发到 `im-core`
 
 gateway 负责：
@@ -218,7 +218,7 @@ gateway 负责：
 
 ### 5.3 WebSocket 流量
 
-WebSocket 连接也全部先进入 `project-gateway`：
+WebSocket 连接也全部先进入 `community-gateway`：
 
 1. gateway 接住外部 `/ws/im`
 2. 终止外部 WebSocket
@@ -256,7 +256,7 @@ WebSocket 连接也全部先进入 `project-gateway`：
 职责：
 
 - 对外统一 HTTP 入口
-- 路由到 `community-bootstrap` / `im-core`
+- 路由到 `community-app` / `im-core`
 - 统一 request id / traceId
 - 统一 access log / metrics
 - 统一限流与灰度入口
@@ -329,13 +329,13 @@ WebSocket 连接也全部先进入 `project-gateway`：
 ### 7.1 HTTP
 
 ```text
-Client -> project-gateway -> community-bootstrap / im-core
+Client -> community-gateway -> community-app / im-core
 ```
 
 ### 7.2 WebSocket
 
 ```text
-Client -> project-gateway
+Client -> community-gateway
        -> 首帧 auth
        -> JWT 校验 + userId 提取
        -> shard router 选 worker
@@ -478,8 +478,8 @@ WS 失败分层处理：
 
 ### Phase 1：统一项目入口
 
-- 新建 `project-gateway`
-- 收口 `community-bootstrap` / `im-core` HTTP
+- 新建 `community-gateway`
+- 收口 `community-app` / `im-core` HTTP
 - 对外统一入口
 - IM WebSocket 先透明转发
 - 收口基础 trace / 限流 / 灰度开关
@@ -542,7 +542,7 @@ WS 失败分层处理：
 
 ### 13.1 HTTP
 
-- `community-bootstrap` 现有主要 HTTP 路由经 gateway 后行为不变
+- `community-app` 现有主要 HTTP 路由经 gateway 后行为不变
 - `im-core` 读接口经 gateway 后行为不变
 - traceId、错误 envelope、限流命中、灰度命中可观测
 
@@ -600,7 +600,7 @@ WS 失败分层处理：
 缓解：
 
 - gateway 只承担 edge 和接入层责任
-- 业务 owner 仍在 `community-bootstrap` 与 `im-core`
+- 业务 owner 仍在 `community-app` 与 `im-core`
 
 ---
 
@@ -609,7 +609,7 @@ WS 失败分层处理：
 满足以下条件时，本设计可视为成功落地：
 
 1. 前端和客户端只需面对统一项目入口
-2. `community-bootstrap`、`im-core` 的对外 HTTP 由 gateway 统一收口
+2. `community-app`、`im-core` 的对外 HTTP 由 gateway 统一收口
 3. IM WebSocket 由 gateway 统一收口
 4. gateway 可基于首帧 `auth` 提取 `userId` 并选择 worker
 5. `im-realtime` 成为内部 worker，而不是公网接入点
@@ -621,7 +621,7 @@ WS 失败分层处理：
 
 ## 16. 结论
 
-推荐新增独立的 `project-gateway`，将其建设为本项目统一 edge 与 IM 接入层：
+推荐新增独立的 `community-gateway`，将其建设为本项目统一 edge 与 IM 接入层：
 
 - 对 HTTP：统一收口项目级入口与治理策略
 - 对 IM：终止外部 WS、做首帧鉴权、按 `userId/shard` 路由到内部 `im-realtime` worker

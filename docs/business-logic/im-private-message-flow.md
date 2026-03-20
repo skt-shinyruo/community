@@ -20,7 +20,7 @@
 
 私信主链路涉及以下组件：
 
-- 前端或 IM 客户端：外部默认通过 `project-gateway` 暴露的 `ws://localhost:12880/ws/im` 与 `http://localhost:12880/api/im/**` 进入系统；`ws://localhost:18081/internal/ws/im` 和 `http://localhost:18082` 保留为回滚 / 排障时的直连路径
+- 前端或 IM 客户端：外部默认通过 `community-gateway` 暴露的 `ws://localhost:12880/ws/im` 与 `http://localhost:12880/api/im/**` 进入系统；`ws://localhost:18081/internal/ws/im` 和 `http://localhost:18082` 保留为回滚 / 排障时的直连路径
 - `im-realtime`：WebSocket 接入、鉴权、协议解析、治理校验、Kafka command 生产、在线推送
 - `community-app`：提供私信发送治理校验接口
 - Kafka：承担 `command` 与 `event` 的跨服务 backplane
@@ -29,7 +29,7 @@
 
 核心 topic 常量定义在：
 
-- `backend/im/im-common/src/main/java/com/nowcoder/community/im/contracts/ImTopics.java`
+- `backend/community-im/im-common/src/main/java/com/nowcoder/community/im/contracts/ImTopics.java`
 
 当前私信主链路使用的 topic：
 
@@ -86,13 +86,13 @@ sequenceDiagram
 
 ### 3.1 WebSocket 鉴权与连接建立
 
-私信链路对外推荐入口是 `project-gateway` 暴露的：
+私信链路对外推荐入口是 `community-gateway` 暴露的：
 
 - `ws://localhost:12880/ws/im`
 
 gateway 会把这个 WebSocket 路径转发到 `im-realtime` 的 WebSocket handler：
 
-- `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/ws/ImWebSocketHandler.java`
+- `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/ws/ImWebSocketHandler.java`
 
 关键行为：
 
@@ -105,7 +105,7 @@ gateway 会把这个 WebSocket 路径转发到 `im-realtime` 的 WebSocket handl
 
 - 私信本身不依赖房间索引，但私信和群聊共用同一个 WebSocket 入口与连接模型
 - 首次鉴权成功时，`im-realtime` 还会调用 `im-core` 的 internal API 拉取用户所在房间，完成房间本地索引 bootstrap；这一步主要服务于群聊链路
-- 断线补拉、会话列表、已读和未读汇总等 HTTP 能力，对外同样推荐走 `project-gateway` 的 `http://localhost:12880/api/im/**`
+- 断线补拉、会话列表、已读和未读汇总等 HTTP 能力，对外同样推荐走 `community-gateway` 的 `http://localhost:12880/api/im/**`
 - `ws://localhost:18081/internal/ws/im` 与 `http://localhost:18082` 直连口继续保留，主要用于回滚和排障
 
 关键代码：
@@ -145,7 +145,7 @@ gateway 会把这个 WebSocket 路径转发到 `im-realtime` 的 WebSocket handl
 
 调用方：
 
-- `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/client/CommunityGovernanceClient.java`
+- `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/client/CommunityGovernanceClient.java`
 
 接口路径：
 
@@ -204,7 +204,7 @@ command 中包含的关键字段有：
 
 `im-core` 通过 Kafka listener 消费私信 command：
 
-- `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/CommandConsumers.java`
+- `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/CommandConsumers.java`
 
 消费方法：
 
@@ -243,7 +243,7 @@ command 中包含的关键字段有：
 
 发布组件：
 
-- `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/EventProducer.java`
+- `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/EventProducer.java`
 
 这样做的意义是：
 
@@ -257,7 +257,7 @@ command 中包含的关键字段有：
 
 `im-realtime` 消费 `im.event.private_persisted.v1`：
 
-- `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/EventConsumers.java`
+- `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/EventConsumers.java`
 
 收到事件后，会交给：
 
@@ -291,7 +291,7 @@ command 中包含的关键字段有：
 
 当用户断线、重连、切设备或临时错过实时推送时，恢复路径依赖 `im-core` 的 HTTP 查询接口。
 
-对外客户端重连与补拉时，推荐继续走 `project-gateway`：
+对外客户端重连与补拉时，推荐继续走 `community-gateway`：
 
 - WebSocket：`ws://localhost:12880/ws/im`
 - HTTP：`http://localhost:12880/api/im/**`
@@ -332,7 +332,7 @@ sequenceDiagram
 - 未读数由 `lastSeq - lastReadSeq` 计算
 - 已读水位更新也要写回 `im-core`
 
-对外访问这些接口时，路径保持不变，但推荐统一经由 `project-gateway` 的 `http://localhost:12880` 暴露。
+对外访问这些接口时，路径保持不变，但推荐统一经由 `community-gateway` 的 `http://localhost:12880` 暴露。
 
 ---
 
@@ -389,7 +389,7 @@ sequenceDiagram
 
 未读汇总实现位于：
 
-- `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/service/UnreadService.java`
+- `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/service/UnreadService.java`
 
 其计算逻辑本质上是：
 
@@ -402,31 +402,31 @@ sequenceDiagram
 ### `im-realtime`
 
 - WebSocket 入口：
-  - `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/ws/ImWebSocketHandler.java`
+  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/ws/ImWebSocketHandler.java`
 - 私信治理校验 client：
-  - `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/client/CommunityGovernanceClient.java`
+  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/client/CommunityGovernanceClient.java`
 - 向 Kafka 写 command：
-  - `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/CommandProducer.java`
+  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/CommandProducer.java`
 - 消费 persisted event：
-  - `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/EventConsumers.java`
+  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/EventConsumers.java`
 - 推送给在线用户：
-  - `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/push/PrivatePushService.java`
+  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/push/PrivatePushService.java`
 - 在线连接注册表：
-  - `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/presence/ConnectionRegistry.java`
+  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/presence/ConnectionRegistry.java`
 
 ### `im-core`
 
 - 消费私信 command：
-  - `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/CommandConsumers.java`
+  - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/CommandConsumers.java`
 - 私信持久化主服务：
-  - `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/service/PrivateMessageService.java`
+  - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/service/PrivateMessageService.java`
 - 发布 persisted event：
-  - `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/EventProducer.java`
+  - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/EventProducer.java`
 - 会话列表 / 历史 / markRead：
-  - `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/controller/ConversationController.java`
+  - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/controller/ConversationController.java`
 - 未读汇总：
-  - `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/controller/UnreadController.java`
-  - `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/service/UnreadService.java`
+  - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/controller/UnreadController.java`
+  - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/service/UnreadService.java`
 
 ---
 

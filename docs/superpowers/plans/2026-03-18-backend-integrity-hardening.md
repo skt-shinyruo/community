@@ -14,11 +14,11 @@
 
 **Files:**
 - Modify: `deploy/mysql-init/010_schema.sql`
-- Modify: `backend/community-bootstrap/src/test/resources/schema.sql`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/service/InternalUserService.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/dao/UserMapper.java`
-- Modify: `backend/community-bootstrap/src/main/resources/mapper/user_mapper.xml`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/user/service/InternalUserServiceTest.java`
+- Modify: `backend/community-app/src/test/resources/schema.sql`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/service/InternalUserService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/dao/UserMapper.java`
+- Modify: `backend/community-app/src/main/resources/mapper/user_mapper.xml`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/user/service/InternalUserServiceTest.java`
 
 - [ ] **Step 1: Write the failing tests for duplicate username/email registration handling**
 
@@ -29,7 +29,7 @@
 
 - [ ] **Step 2: Run the targeted test command and confirm RED**
 
-  Run: `mvn -pl backend/community-bootstrap -Dtest=InternalUserServiceTest test`
+  Run: `mvn -pl backend/community-app -Dtest=InternalUserServiceTest test`
 
 - [ ] **Step 3: Add database-level uniqueness constraints in schema init and test schema**
 
@@ -47,7 +47,7 @@
 
 - [ ] **Step 5: Re-run the targeted registration tests and verify GREEN**
 
-  Run: `mvn -pl backend/community-bootstrap -Dtest=InternalUserServiceTest test`
+  Run: `mvn -pl backend/community-app -Dtest=InternalUserServiceTest test`
 
 - [ ] **Step 6: Checkpoint the diff for this task**
 
@@ -56,26 +56,26 @@
 ### Task 2: Auth Token Atomicity And JWT Validation Hardening
 
 **Files:**
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/auth/service/AuthService.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/auth/service/RefreshTokenService.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/auth/service/RefreshTokenStore.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/auth/service/DbRefreshTokenStore.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/auth/service/RedisRefreshTokenStore.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/auth/service/InMemoryRefreshTokenStore.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/auth/service/UserAuthAccess.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/application/UserAuthApiImpl.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/api/internal/UserAuthApi.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/session/RefreshTokenSessionService.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/session/RefreshTokenSessionRepository.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/auth/service/PasswordResetService.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/auth/service/PasswordResetTokenStore.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/auth/service/RedisPasswordResetTokenStore.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/auth/service/InMemoryPasswordResetTokenStore.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/infra/security/autoconfig/ServletInfraSecurityConfig.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/auth/service/RefreshTokenServiceTest.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/auth/service/RedisPasswordResetTokenStoreTest.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/auth/service/InMemoryPasswordResetTokenStoreTest.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/infra/security/autoconfig/JwtDecoderIssuerValidationTest.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/auth/service/AuthService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/auth/service/RefreshTokenService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/auth/service/RefreshTokenStore.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/auth/service/DbRefreshTokenStore.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/auth/service/RedisRefreshTokenStore.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/auth/service/InMemoryRefreshTokenStore.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/auth/service/UserAuthAccess.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/application/UserAuthApiImpl.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/api/internal/UserAuthApi.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/session/RefreshTokenSessionService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/session/RefreshTokenSessionRepository.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/auth/service/PasswordResetService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/auth/service/PasswordResetTokenStore.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/auth/service/RedisPasswordResetTokenStore.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/auth/service/InMemoryPasswordResetTokenStore.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/infra/security/autoconfig/ServletInfraSecurityConfig.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/auth/service/RefreshTokenServiceTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/auth/service/RedisPasswordResetTokenStoreTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/auth/service/InMemoryPasswordResetTokenStoreTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/infra/security/autoconfig/JwtDecoderIssuerValidationTest.java`
 
 - [ ] **Step 1: Write failing tests for one-time token consumption and issuer validation**
 
@@ -88,7 +88,7 @@
 
 - [ ] **Step 2: Run the targeted auth/security tests and confirm RED**
 
-  Run: `mvn -pl backend/community-bootstrap -Dtest=RefreshTokenServiceTest,RedisPasswordResetTokenStoreTest,InMemoryPasswordResetTokenStoreTest,JwtDecoderIssuerValidationTest test`
+  Run: `mvn -pl backend/community-app -Dtest=RefreshTokenServiceTest,RedisPasswordResetTokenStoreTest,InMemoryPasswordResetTokenStoreTest,JwtDecoderIssuerValidationTest test`
 
 - [ ] **Step 3: Introduce atomic consume/rotate primitives at the storage boundary**
 
@@ -112,7 +112,7 @@
 
 - [ ] **Step 6: Re-run the targeted auth/security tests and verify GREEN**
 
-  Run: `mvn -pl backend/community-bootstrap -Dtest=RefreshTokenServiceTest,RedisPasswordResetTokenStoreTest,InMemoryPasswordResetTokenStoreTest,JwtDecoderIssuerValidationTest test`
+  Run: `mvn -pl backend/community-app -Dtest=RefreshTokenServiceTest,RedisPasswordResetTokenStoreTest,InMemoryPasswordResetTokenStoreTest,JwtDecoderIssuerValidationTest test`
 
 - [ ] **Step 7: Checkpoint the diff for this task**
 
@@ -121,16 +121,16 @@
 ### Task 3: Message Integrity And Notice Modeling
 
 **Files:**
-- Modify: `backend/community-bootstrap/src/main/resources/mapper/message_mapper.xml`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/message/api/MessageController.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/message/service/PrivateMessageService.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/message/service/NoticeService.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/message/security/ConversationIdParser.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/message/entity/Message.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/message/dao/MessageMapper.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/message/service/PrivateMessageServiceTest.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/message/service/NoticeServiceTest.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/message/api/MessageControllerTest.java`
+- Modify: `backend/community-app/src/main/resources/mapper/message_mapper.xml`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/message/api/MessageController.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/message/service/PrivateMessageService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/message/service/NoticeService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/message/security/ConversationIdParser.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/message/entity/Message.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/message/dao/MessageMapper.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/message/service/PrivateMessageServiceTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/message/service/NoticeServiceTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/message/api/MessageControllerTest.java`
 
 - [ ] **Step 1: Write failing tests for invalid/self-message and notice separation cases**
 
@@ -142,7 +142,7 @@
 
 - [ ] **Step 2: Run the targeted message tests and confirm RED**
 
-  Run: `mvn -pl backend/community-bootstrap -Dtest=PrivateMessageServiceTest,NoticeServiceTest,MessageControllerTest test`
+  Run: `mvn -pl backend/community-app -Dtest=PrivateMessageServiceTest,NoticeServiceTest,MessageControllerTest test`
 
 - [ ] **Step 3: Fix write-path validation before persistence**
 
@@ -166,7 +166,7 @@
 
 - [ ] **Step 6: Re-run the targeted message tests and verify GREEN**
 
-  Run: `mvn -pl backend/community-bootstrap -Dtest=PrivateMessageServiceTest,NoticeServiceTest,MessageControllerTest test`
+  Run: `mvn -pl backend/community-app -Dtest=PrivateMessageServiceTest,NoticeServiceTest,MessageControllerTest test`
 
 - [ ] **Step 7: Checkpoint the diff for this task**
 
@@ -175,9 +175,9 @@
 ### Task 4: IM JWT Secret Hardening
 
 **Files:**
-- Modify: `backend/im/im-core/src/main/resources/application.yml`
-- Modify: `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/security/ImCoreSecurityConfig.java`
-- Test: `backend/im/im-core/src/test/java/com/nowcoder/community/im/core/security/ImCoreSecurityConfigTest.java`
+- Modify: `backend/community-im/im-core/src/main/resources/application.yml`
+- Modify: `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/security/ImCoreSecurityConfig.java`
+- Test: `backend/community-im/im-core/src/test/java/com/nowcoder/community/im/core/security/ImCoreSecurityConfigTest.java`
 - Optionally Modify: `docs/SECURITY.md`
 
 - [ ] **Step 1: Write the failing test for missing/default IM JWT secret handling**
@@ -188,7 +188,7 @@
 
 - [ ] **Step 2: Run the targeted IM security test and confirm RED**
 
-  Run: `mvn -pl backend/im/im-core -Dtest=ImCoreSecurityConfigTest test`
+  Run: `mvn -pl backend/community-im/im-core -Dtest=ImCoreSecurityConfigTest test`
 
 - [ ] **Step 3: Remove the dangerous default fallback and require explicit configuration**
 
@@ -198,7 +198,7 @@
 
 - [ ] **Step 4: Re-run the targeted IM security test and verify GREEN**
 
-  Run: `mvn -pl backend/im/im-core -Dtest=ImCoreSecurityConfigTest test`
+  Run: `mvn -pl backend/community-im/im-core -Dtest=ImCoreSecurityConfigTest test`
 
 - [ ] **Step 5: Checkpoint the diff for this task**
 
@@ -212,14 +212,14 @@
 - [ ] **Step 1: Run the focused suites for all touched areas**
 
   Run:
-  - `mvn -pl backend/community-bootstrap -Dtest=InternalUserServiceTest,RefreshTokenServiceTest,RedisPasswordResetTokenStoreTest,JwtDecoderIssuerValidationTest,PrivateMessageServiceTest,NoticeServiceTest,MessageControllerTest test`
-  - `mvn -pl backend/im/im-core -Dtest=ImCoreSecurityConfigTest test`
+  - `mvn -pl backend/community-app -Dtest=InternalUserServiceTest,RefreshTokenServiceTest,RedisPasswordResetTokenStoreTest,JwtDecoderIssuerValidationTest,PrivateMessageServiceTest,NoticeServiceTest,MessageControllerTest test`
+  - `mvn -pl backend/community-im/im-core -Dtest=ImCoreSecurityConfigTest test`
 
 - [ ] **Step 2: Run a broader module-level verification**
 
   Run:
-  - `mvn -pl backend/community-bootstrap test`
-  - `mvn -pl backend/im/im-core test`
+  - `mvn -pl backend/community-app test`
+  - `mvn -pl backend/community-im/im-core test`
 
 - [ ] **Step 3: Re-check the original findings against code and schema**
 

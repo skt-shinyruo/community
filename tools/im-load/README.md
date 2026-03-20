@@ -1,6 +1,6 @@
 # im-load
 
-自研 IM 压测/长连稳定性工具（链路覆盖 `project-gateway` -> `im-realtime` / `im-core`，也支持在回滚 / 排障时直连 IM 服务）。
+自研 IM 压测/长连稳定性工具（链路覆盖 `community-gateway` -> `im-realtime` / `im-core`，也支持在回滚 / 排障时直连 IM 服务）。
 
 覆盖目标（最小可用版）：
 - 大量 WebSocket 长连接在线（连接/鉴权/保活）
@@ -14,7 +14,7 @@
 
 ## 前置
 
-1) 启动服务（推荐 docker compose，暴露 `project-gateway` 与 IM 直连端口）：
+1) 启动服务（推荐 docker compose，暴露 `community-gateway` 与 IM 直连端口）：
 
 ```bash
 cp deploy/.env.example deploy/.env
@@ -44,7 +44,7 @@ npm install
 
 ## 模式一：connect-only（只测长连 + 鉴权）
 
-以下示例统一显式传 `project-gateway` 地址，避免落到工具当前的直连默认值。
+以下示例统一显式传 `community-gateway` 地址，避免落到工具当前的直连默认值。
 
 ```bash
 node src/index.mjs connect-only \

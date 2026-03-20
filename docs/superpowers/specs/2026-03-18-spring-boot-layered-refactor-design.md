@@ -4,7 +4,7 @@
 
 The current backend codebase mixes a modular-monolith style with contract-first boundaries:
 
-- `backend/community-bootstrap` uses domain top-level packages such as `auth`, `user`, `content`, `social`, `message`, `search`, and `analytics`
+- `backend/community-app` uses domain top-level packages such as `auth`, `user`, `content`, `social`, `message`, `search`, and `analytics`
 - cross-domain synchronous calls inside the same JVM frequently go through `contracts.internal.api`, `*Access`, `*ApiImpl`, and `ModuleCallSupport`
 - `application` packages act as orchestration layers above `service`
 - shared concerns live under `com.nowcoder.community.contracts.*`
@@ -35,7 +35,7 @@ The refactor does not need to preserve existing external protocols verbatim. Fun
 
 ### Community Bootstrap
 
-`backend/community-bootstrap` will keep domain-first top-level packages, but each domain will adopt classic Spring layering internally.
+`backend/community-app` will keep domain-first top-level packages, but each domain will adopt classic Spring layering internally.
 
 Target shape:
 
@@ -105,7 +105,7 @@ com.nowcoder.community
     dto
 ```
 
-Naming normalization for existing `community-bootstrap` packages:
+Naming normalization for existing `community-app` packages:
 
 - top-level `*.api` packages must not be renamed mechanically
 - classes under `*.api` that are actual HTTP endpoints move to `controller`
@@ -140,7 +140,7 @@ HTTP-specific DTOs or module-local helper types should move back into the owning
 
 The single JVM backend should stop using internal contract interfaces as the default collaboration mechanism.
 
-The following patterns are considered legacy and should be removed from `community-bootstrap` mainline code:
+The following patterns are considered legacy and should be removed from `community-app` mainline code:
 
 - `contracts.internal.api.*`
 - `*ApiImpl` used only to satisfy internal contracts
@@ -259,7 +259,7 @@ Move single-process shared code out of `contracts`:
 
 After this phase, `contracts` should no longer be the default import source for ordinary monolith code.
 
-### Phase 3: Replace internal call wrappers in `community-bootstrap`
+### Phase 3: Replace internal call wrappers in `community-app`
 
 Identify and migrate all chains built on:
 
@@ -309,7 +309,7 @@ For `im-contracts`:
 - rename it to `im-common`
 - retain only real shared process-boundary artifacts
 - migrate or delete anything that is merely module-local but currently shared for convenience
-- update `backend/im/pom.xml`, child module dependencies, artifact references, and Java package imports accordingly
+- update `backend/community-im/pom.xml`, child module dependencies, artifact references, and Java package imports accordingly
 - update runtime configuration that currently references `com.nowcoder.community.im.contracts.*`, especially Kafka `spring.json.trusted.packages`
 - update tests and architecture assertions that currently require the `im-contracts` module or package name
 - update IM-facing docs and descriptions that currently refer to `im-contracts`
@@ -406,10 +406,10 @@ The refactor is complete only when all of the following are true.
 
 ### Structure
 
-- `community-bootstrap` uses business-domain top-level packages with classic Spring layering inside each domain
+- `community-app` uses business-domain top-level packages with classic Spring layering inside each domain
 - `application` is gone as a primary architectural layer
 - `contracts.internal.*` is gone
-- `common.*` is the default home for cross-cutting shared code inside `community-bootstrap`
+- `common.*` is the default home for cross-cutting shared code inside `community-app`
 - old naming centered on `api`, `dao`, and `api/internal` has been normalized to `controller`, `mapper` or `repository`, `service`, and domain-owned `dto`
 - event, security, and error-code packages that currently happen to sit under `api` have been moved by responsibility rather than blindly folded into `controller`
 - `im-contracts` has been reduced to a minimal shared module and renamed to `im-common`
@@ -454,7 +454,7 @@ Developers should no longer default to creating:
 ## Recommended Execution Order
 
 1. Introduce `common` and migrate cross-cutting types from `contracts`
-2. Replace `community-bootstrap` internal API call paths with direct service calls
+2. Replace `community-app` internal API call paths with direct service calls
 3. Collapse `application` into `service`
 4. Refactor IM modules and rename `im-contracts` to `im-common`
 5. Remove dead code and obsolete scaffolding

@@ -2,7 +2,7 @@
 
 本仓库的 IM（`im-realtime` / `im-core`）在设计上目标是支撑**大量 WebSocket 长连接在线**与**峰值期间文本消息写入**，正确性依赖 “WS best-effort 推送 + 断线补拉（HTTP）”。
 
-对外客户端与压测流量，当前推荐统一通过 `project-gateway` 的 `http://localhost:12880` 进入 IM：
+对外客户端与压测流量，当前推荐统一通过 `community-gateway` 的 `http://localhost:12880` 进入 IM：
 
 - WebSocket：`ws://localhost:12880/ws/im`
 - HTTP：`http://localhost:12880/api/im/**`
@@ -36,7 +36,7 @@
 - 目标：断线后通过 `im-core` history API 补齐（正确性路径）
 - 模式：`private --reconnectEverySec ...`
 
-## 本地启动（推荐通过 project-gateway 暴露 IM 入口）
+## 本地启动（推荐通过 community-gateway 暴露 IM 入口）
 
 ```bash
 cp deploy/.env.example deploy/.env
@@ -44,7 +44,7 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 ```
 
 端口：
-- `project-gateway`：`http://localhost:12880`
+- `community-gateway`：`http://localhost:12880`
   - 外部 WebSocket 入口：`ws://localhost:12880/ws/im`
   - 外部 HTTP 入口：`http://localhost:12880/api/im/**`
 - `im-realtime` 直连：`ws://localhost:18081/internal/ws/im`（回滚 / 排障）

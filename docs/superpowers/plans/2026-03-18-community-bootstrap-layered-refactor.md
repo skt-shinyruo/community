@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Refactor `backend/community-bootstrap` from contract-first modular-monolith patterns to business-domain packages with classic Spring Boot layering and direct service-to-service collaboration.
+**Goal:** Refactor `backend/community-app` from contract-first modular-monolith patterns to business-domain packages with classic Spring Boot layering and direct service-to-service collaboration.
 
 **Architecture:** The refactor should first establish `common` as the new home for cross-cutting code, then replace in-process internal API wrappers with direct domain service wiring, and only after that collapse `application` and legacy package naming. Keep the repository buildable after each task; do not mix package moves, semantic rewrites, and verification into one unbounded batch.
 
@@ -13,20 +13,20 @@
 ### Task 1: Introduce `common` And Move Cross-Cutting Foundations
 
 **Files:**
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/api/Result.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/api/ErrorCode.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/api/CommonErrorCode.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/api/SimpleErrorCode.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/exception/BusinessException.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/domain/EntityTypes.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/validation/ValidationLimits.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/trace/TraceHeaders.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/trace/TraceIdCodec.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/event/EventEnvelope.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/event/EventEnvelopeParser.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/event/EventTopicConventions.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/event/UnknownEventAction.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/infra/web/ResultTest.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/contracts/api/Result.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/contracts/api/ErrorCode.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/contracts/api/CommonErrorCode.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/contracts/api/SimpleErrorCode.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/contracts/exception/BusinessException.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/contracts/domain/EntityTypes.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/contracts/validation/ValidationLimits.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/contracts/trace/TraceHeaders.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/contracts/trace/TraceIdCodec.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/contracts/event/EventEnvelope.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/contracts/event/EventEnvelopeParser.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/contracts/event/EventTopicConventions.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/contracts/event/UnknownEventAction.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/infra/web/ResultTest.java`
 
 - [ ] **Step 1: Create the destination package structure under `common`**
 
@@ -57,7 +57,7 @@
 - [ ] **Step 4: Run the focused foundation tests and compile checks**
 
   Run:
-  - `mvn -pl backend/community-bootstrap -Dtest=ResultTest,GlobalExceptionHandlerTest test`
+  - `mvn -pl backend/community-app -Dtest=ResultTest,GlobalExceptionHandlerTest test`
 
 - [ ] **Step 5: Leave a temporary compatibility shim only if the tree does not yet compile without it**
 
@@ -72,13 +72,13 @@
 ### Task 2: Rebuild The HTTP Error And Trace Stack On Top Of `common`
 
 **Files:**
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/infra/web/GlobalExceptionHandler.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/infra/web/SecurityExceptionHandler.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/auth/web/AuthOriginGuardFilter.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/infra/web/ResultTraceIdAdvice.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/infra/web/TraceIdFilter.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/infra/web/GlobalExceptionHandlerTest.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/auth/api/AuthControllerUnitTest.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/infra/web/GlobalExceptionHandler.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/infra/web/SecurityExceptionHandler.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/auth/web/AuthOriginGuardFilter.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/infra/web/ResultTraceIdAdvice.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/infra/web/TraceIdFilter.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/infra/web/GlobalExceptionHandlerTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/auth/api/AuthControllerUnitTest.java`
 
 - [ ] **Step 1: Update infrastructure imports to the new `common` packages**
 
@@ -104,7 +104,7 @@
 - [ ] **Step 4: Run focused web/security tests**
 
   Run:
-  - `mvn -pl backend/community-bootstrap -Dtest=GlobalExceptionHandlerTest,AuthControllerUnitTest test`
+  - `mvn -pl backend/community-app -Dtest=GlobalExceptionHandlerTest,AuthControllerUnitTest test`
 
 - [ ] **Step 5: Checkpoint the diff for this task**
 
@@ -113,23 +113,23 @@
 ### Task 3: Replace The `auth -> user` Internal API Chain With Direct Services
 
 **Files:**
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/auth/service/AuthService.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/auth/service/RegistrationService.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/auth/service/PasswordResetService.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/auth/service/DbRefreshTokenStore.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/auth/service/UserAuthAccess.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/application/UserAuthApiImpl.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/api/internal/UserAuthApi.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/api/internal/dto/UserInternalAuthenticateResponse.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/api/internal/dto/UserInternalSessionProfileResponse.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/api/internal/dto/UserInternalRegisterResponse.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/api/internal/dto/UserInternalActivationResponse.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/api/internal/dto/UserInternalUserByEmailResponse.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/api/internal/dto/UserInternalRefreshTokenRecordResponse.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/service/InternalUserService.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/session/RefreshTokenSessionService.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/auth/service/UserAuthAccessTest.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/auth/service/RefreshTokenServiceTest.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/auth/service/AuthService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/auth/service/RegistrationService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/auth/service/PasswordResetService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/auth/service/DbRefreshTokenStore.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/auth/service/UserAuthAccess.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/application/UserAuthApiImpl.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/api/internal/UserAuthApi.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/api/internal/dto/UserInternalAuthenticateResponse.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/api/internal/dto/UserInternalSessionProfileResponse.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/api/internal/dto/UserInternalRegisterResponse.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/api/internal/dto/UserInternalActivationResponse.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/api/internal/dto/UserInternalUserByEmailResponse.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/api/internal/dto/UserInternalRefreshTokenRecordResponse.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/service/InternalUserService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/session/RefreshTokenSessionService.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/auth/service/UserAuthAccessTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/auth/service/RefreshTokenServiceTest.java`
 
 - [ ] **Step 1: Write or update failing tests around direct auth-to-user collaboration**
 
@@ -155,7 +155,7 @@
 - [ ] **Step 4: Re-run targeted auth tests and verify GREEN**
 
   Run:
-  - `mvn -pl backend/community-bootstrap -Dtest=UserAuthAccessTest,RefreshTokenServiceTest test`
+  - `mvn -pl backend/community-app -Dtest=UserAuthAccessTest,RefreshTokenServiceTest test`
 
 - [ ] **Step 5: Checkpoint the diff for this task**
 
@@ -164,15 +164,15 @@
 ### Task 4: Replace The `user -> social` And Search/Ops Internal Orchestration Layers
 
 **Files:**
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/service/UserSocialProfileService.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/social/application/SocialReadApplicationService.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/social/application/dto/SocialUserProfileStats.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/content/like/SocialLikeQueryService.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/search/application/SearchOpsApiImpl.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/search/api/ops/SearchOpsApi.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/ops/api/OpsController.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/social/application/SocialReadApplicationServiceTest.java`
-- Create: `backend/community-bootstrap/src/test/java/com/nowcoder/community/ops/api/OpsControllerTest.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/service/UserSocialProfileService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/social/application/SocialReadApplicationService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/social/application/dto/SocialUserProfileStats.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/like/SocialLikeQueryService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/search/application/SearchOpsApiImpl.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/search/api/ops/SearchOpsApi.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/ops/api/OpsController.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/social/application/SocialReadApplicationServiceTest.java`
+- Create: `backend/community-app/src/test/java/com/nowcoder/community/ops/api/OpsControllerTest.java`
 
 - [ ] **Step 1: Replace `SocialReadApplicationService` with direct social service composition**
 
@@ -197,7 +197,7 @@
 - [ ] **Step 4: Run the focused tests for user-social and ops-search paths**
 
   Run:
-  - `mvn -pl backend/community-bootstrap -Dtest=SocialReadApplicationServiceTest,OpsControllerTest test`
+  - `mvn -pl backend/community-app -Dtest=SocialReadApplicationServiceTest,OpsControllerTest test`
 
 - [ ] **Step 5: Checkpoint the diff for this task**
 
@@ -206,30 +206,30 @@
 ### Task 5: Replace The `content/social/message <-> user/content/social` Internal Wrappers
 
 **Files:**
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/content/service/UserModerationAccess.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/content/service/UserModerationGuard.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/message/service/UserModerationAccess.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/message/service/UserModerationGuard.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/message/service/UserLookupService.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/message/service/PrivateMessageService.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/social/service/ContentEntityResolver.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/social/like/LikeService.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/content/service/CommentService.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/im/api/ImGovernanceController.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/social/application/BlockQueryApplicationService.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/content/application/EntityResolveApiImpl.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/application/UserModerationApiImpl.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/application/UserReadApiImpl.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/internal/api/EntityResolveApi.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/internal/api/UserModerationApi.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/internal/dto/EntityResolveResponse.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/contracts/internal/dto/UserModerationStatus.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/api/internal/UserReadApi.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/api/internal/dto/UserSummary.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/message/service/UserLookupServiceResolveCacheTest.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/message/service/PrivateMessageServiceBlockCheckTest.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/content/service/CommentServiceTest.java`
-- Create: `backend/community-bootstrap/src/test/java/com/nowcoder/community/social/service/ContentEntityResolverTest.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/service/UserModerationAccess.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/service/UserModerationGuard.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/message/service/UserModerationAccess.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/message/service/UserModerationGuard.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/message/service/UserLookupService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/message/service/PrivateMessageService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/social/service/ContentEntityResolver.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/social/like/LikeService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/service/CommentService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/im/api/ImGovernanceController.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/social/application/BlockQueryApplicationService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/application/EntityResolveApiImpl.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/application/UserModerationApiImpl.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/application/UserReadApiImpl.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/contracts/internal/api/EntityResolveApi.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/contracts/internal/api/UserModerationApi.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/contracts/internal/dto/EntityResolveResponse.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/contracts/internal/dto/UserModerationStatus.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/api/internal/UserReadApi.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/api/internal/dto/UserSummary.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/message/service/UserLookupServiceResolveCacheTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/message/service/PrivateMessageServiceBlockCheckTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/content/service/CommentServiceTest.java`
+- Create: `backend/community-app/src/test/java/com/nowcoder/community/social/service/ContentEntityResolverTest.java`
 
 - [ ] **Step 1: Replace moderation lookups with direct user-service collaboration**
 
@@ -266,7 +266,7 @@
 - [ ] **Step 6: Re-run the targeted cross-domain tests and verify GREEN**
 
   Run:
-  - `mvn -pl backend/community-bootstrap -Dtest=UserLookupServiceResolveCacheTest,PrivateMessageServiceBlockCheckTest,CommentServiceTest,ContentEntityResolverTest test`
+  - `mvn -pl backend/community-app -Dtest=UserLookupServiceResolveCacheTest,PrivateMessageServiceBlockCheckTest,CommentServiceTest,ContentEntityResolverTest test`
 
 - [ ] **Step 7: Checkpoint the diff for this task**
 
@@ -275,25 +275,25 @@
 ### Task 6: Collapse Remaining `application` Packages And Normalize Naming
 
 **Files:**
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/content/application/PostApplicationService.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/content/application/PostScanApplicationService.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/content/application/dto/PostScanResult.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/content/api/PostController.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/search/api/SearchController.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/auth/api/AuthController.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/api/UserController.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/api/AdminUserController.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/api/FilesController.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/api/LeaderboardController.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/message/api/MessageController.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/message/api/NoticeController.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/content/dao/CommentMapper.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/content/dao/DiscussPostMapper.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/message/dao/MessageMapper.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/dao/UserMapper.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/content/application/PostApplicationServiceTest.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/content/application/PostScanApplicationServiceTest.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/social/application/BlockQueryApplicationServiceTest.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/application/PostApplicationService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/application/PostScanApplicationService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/application/dto/PostScanResult.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/api/PostController.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/search/api/SearchController.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/auth/api/AuthController.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/api/UserController.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/api/AdminUserController.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/api/FilesController.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/api/LeaderboardController.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/message/api/MessageController.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/message/api/NoticeController.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/dao/CommentMapper.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/dao/DiscussPostMapper.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/message/dao/MessageMapper.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/dao/UserMapper.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/content/application/PostApplicationServiceTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/content/application/PostScanApplicationServiceTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/social/application/BlockQueryApplicationServiceTest.java`
 
 - [ ] **Step 1: Move business orchestration from `application` into conventional services**
 
@@ -319,7 +319,7 @@
 - [ ] **Step 4: Re-run targeted package-normalization tests**
 
   Run:
-  - `mvn -pl backend/community-bootstrap -Dtest=PostApplicationServiceTest,PostScanApplicationServiceTest,BlockQueryApplicationServiceTest test`
+  - `mvn -pl backend/community-app -Dtest=PostApplicationServiceTest,PostScanApplicationServiceTest,BlockQueryApplicationServiceTest test`
 
 - [ ] **Step 5: Checkpoint the diff for this task**
 
@@ -328,12 +328,12 @@
 ### Task 7: Remove `ModuleCallSupport`, Update Docs, And Verify The Module
 
 **Files:**
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/infra/modulecall/ModuleCallSupport.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/infra/modulecall/ModuleCallOptions.java`
-- Modify: `backend/community-bootstrap/src/test/java/com/nowcoder/community/infra/modulecall/ModuleCallSupportTest.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/infra/modulecall/ModuleCallSupport.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/infra/modulecall/ModuleCallOptions.java`
+- Modify: `backend/community-app/src/test/java/com/nowcoder/community/infra/modulecall/ModuleCallSupportTest.java`
 - Modify: `docs/ARCHITECTURE.md`
 - Modify: `docs/SYSTEM_DESIGN.md`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/bootstrap/arch/BackendFlatteningArchTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/app/arch/BackendFlatteningArchTest.java`
 
 - [ ] **Step 1: Remove remaining production usages of `ModuleCallSupport` and `ModuleCallOptions`**
 
@@ -358,8 +358,8 @@
 - [ ] **Step 4: Run focused and broad module verification**
 
   Run:
-  - `mvn -pl backend/community-bootstrap -Dtest=GlobalExceptionHandlerTest,AuthControllerUnitTest,RefreshTokenServiceTest,CommentServiceTest,MessageControllerTest test`
-  - `mvn -pl backend/community-bootstrap test`
+  - `mvn -pl backend/community-app -Dtest=GlobalExceptionHandlerTest,AuthControllerUnitTest,RefreshTokenServiceTest,CommentServiceTest,MessageControllerTest test`
+  - `mvn -pl backend/community-app test`
 
 - [ ] **Step 5: Re-check the architectural end state against the approved spec**
 
@@ -369,7 +369,7 @@
   - no single-process internal `Result<T>` transport
   - old `api/dao/api-internal` naming has been normalized by responsibility
 
-- [ ] **Step 6: Prepare the final review summary for the `community-bootstrap` track**
+- [ ] **Step 6: Prepare the final review summary for the `community-app` track**
 
   Include:
   - exact tests run

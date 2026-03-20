@@ -2,17 +2,17 @@
 
 本文档聚焦“系统设计层面”的关键点：模块边界、数据流、事件契约、最终一致、幂等与失败处理。其目标是让开发者理解“为什么这样拆”“链路如何走”“如何安全演进”。
 
-本项目当前形态：**A-1 业务域顶层分包的单体**。后端整体一起发布，对外只有一个进程：`community-app`。
+本项目当前形态：**`community-app` 主业务单体 + `community-gateway` 统一入口 + `community-im` IM 聚合模块**。默认浏览器流量先进入 `community-gateway`，再路由到 `community-app` 或 IM 服务。
 
 ---
 
 ## 1. 模块边界（按职责划分）
 
-### 1.1 统一入口：community-app（HTTP edge）
-- 浏览器唯一后端入口：`/api/**`
-- 静态文件入口：`/files/**`（头像等）
-- 对外运维入口：`/api/ops/**`（高风险操作；仅管理员可触发，建议通过 Ops Console 等受控入口执行）
-- 统一能力（应用内横切）：鉴权（JWT resource server + 路径级授权矩阵）、CORS、OriginGuard（仅 cookie 会话入口）、审计、traceId、统一错误协议
+### 1.1 统一入口：community-gateway + community-app
+- 默认浏览器后端入口：`community-gateway` 暴露的 `/api/**`、`/files/**`、`/ws/im`
+- `community-app` 仍是主业务 owner，承接主站 `/api/**`、`/files/**`、`/api/ops/**`
+- `community-gateway` 负责入口级路由、CORS、traceId、HTTP/WS 边缘策略
+- `community-app` 负责业务鉴权矩阵、OriginGuard、审计、统一错误协议
 
 边界与弃用窗口（SSOT）：
 - External（对外业务）：`/api/**`
@@ -38,9 +38,9 @@
 
 本项目通过 profile 明确区分“开发便捷”与“生产安全默认态”：
 
-- dev/local：默认使用 `backend/community-bootstrap/src/main/resources/application.yml` + 环境变量（`deploy/.env`）。
+- dev/local：默认使用 `backend/community-app/src/main/resources/application.yml` + 环境变量（`deploy/.env`）。
 - prod：必须显式启用 `prod` profile，此时：
-  - 启动期校验会启用 fail-closed：关键密钥缺失会直接阻断启动（见 `backend/community-bootstrap/src/main/java/com/nowcoder/community/infra/startup/StartupValidation.java` 与各模块的 `StartupValidator`）
+  - 启动期校验会启用 fail-closed：关键密钥缺失会直接阻断启动（见 `backend/community-app/src/main/java/com/nowcoder/community/infra/startup/StartupValidation.java` 与各模块的 `StartupValidator`）
   - 建议通过 secret store / KMS 注入 `JWT_HMAC_SECRET`、metrics basic-auth 等敏感配置，避免默认值上线
 - 启动期校验（Startup Validation）：`prod` 下启用启动校验，关键密钥缺失会直接阻断启动（fail-closed），避免“带着默认值上线”。
 
@@ -53,13 +53,15 @@
 
 ### 2.1 读路径（示例：帖子列表）
 1. 前端请求 `/api/posts?...`
-2. `community-app` SecurityFilterChain 按路径规则鉴权（读接口多为 permitAll）
-3. `content` 模块读 MySQL/Redis 组装结果返回
+2. `community-gateway` 将请求路由到 `community-app`
+3. `community-app` SecurityFilterChain 按路径规则鉴权（读接口多为 permitAll）
+4. `content` 模块读 MySQL/Redis 组装结果返回
 
 ### 2.2 写路径（示例：发帖/评论/点赞/关注）
 1. 前端请求写接口（携带 JWT）
-2. `community-app` 统一鉴权/审计（以及关键 cookie 会话入口的 OriginGuard）
-3. 目标模块写入主存储（DB/Redis），并通过同进程事务事件驱动后续投影
+2. `community-gateway` 将请求路由到 `community-app`
+3. `community-app` 统一鉴权/审计（以及关键 cookie 会话入口的 OriginGuard）
+4. 目标模块写入主存储（DB/Redis），并通过同进程事务事件驱动后续投影
 
 ### 2.3 错误协议（HTTP status + Result.code）
 本项目对外 HTTP 统一返回 `Result<T>` 结构；同进程内部 service 协作不再用 `Result<T>` 作为 transport，但仍保持统一异常语义。对外协议同时要求：
@@ -107,7 +109,7 @@
 - 契约通过回归测试固化，避免后续重构/联表扩展时不小心把字段带出
 
 示例（仓库内单体模块）：
-- `backend/community-bootstrap/src/test/java/com/nowcoder/community/message/controller/MessageControllerTest.java`
+- `backend/community-app/src/test/java/com/nowcoder/community/message/controller/MessageControllerTest.java`
 
 ### 2.6 HTTP 写接口幂等（Idempotency-Key）
 
@@ -119,7 +121,7 @@
   - 重复请求：直接复用缓存响应（避免重复写入/重复通知等副作用）
   - 并发同 key：返回 `409`（提示“处理中，可重试”）
 
-配置（SSOT）：`backend/community-bootstrap/src/main/resources/application.yml` 的 `http.idempotency.*`
+配置（SSOT）：`backend/community-app/src/main/resources/application.yml` 的 `http.idempotency.*`
 示例：当前仓库暂无脚本；可直接在 HTTP 客户端里设置 header `Idempotency-Key`。
 
 ---
@@ -129,10 +131,10 @@
 ### 3.1 Topic 约定（SSOT）
 当前单体业务链路：投影/通知通过本地 DB outbox 实现（不依赖 Kafka）。
 
-IM 链路：使用 Kafka 作为 backplane（topic 常量见 `backend/im/im-common/src/main/java/com/nowcoder/community/im/common/ImTopics.java`）。
+IM 链路：使用 Kafka 作为 backplane（topic 常量见 `backend/community-im/im-common/src/main/java/com/nowcoder/community/im/common/ImTopics.java`）。
 
 ### 3.2 事件契约：Envelope + 校验（SSOT）
-代码位置（SSOT）：`backend/community-bootstrap/src/main/java/com/nowcoder/community/common/event/EventEnvelope.java`。
+代码位置（SSOT）：`backend/community-app/src/main/java/com/nowcoder/community/common/event/EventEnvelope.java`。
 
 事件消息使用统一 envelope（概念字段）：
 - `eventId`：全局唯一，用于幂等

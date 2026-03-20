@@ -9,7 +9,7 @@
 ## 1. 端口规划（本地）
 
 ### 1.1 必要对外端口（默认）
-- Project Gateway（统一入口，过渡中）：`http://localhost:12880`
+- Community Gateway（统一入口）：`http://localhost:12880`
 - 前端（Vue3 SPA）：`http://localhost:12881`
 - 后端（community-app，回滚/诊断）：`http://localhost:12882`
 - IM Realtime（internal worker，回滚/诊断）：`ws://localhost:18081/internal/ws/im`
@@ -37,7 +37,7 @@
 ### 2.1 文件分工
 - `deploy/docker-compose.yml`（业务必需全栈）
   - 依赖：MySQL / Redis / Kafka / Elasticsearch
-  - 业务：`project-gateway` + `community-app` + `frontend` + IM（`im-core` / `im-realtime`）
+  - 业务：`community-gateway` + `community-app` + `frontend` + IM（`im-core` / `im-realtime`）
   - 辅助：MailHog（dev mailbox，UI `http://localhost:8025`，仅本机）
   - **过渡期暴露统一入口 `12880`，同时保留 `12881/12882/18081/18082` 便于联调与回滚；依赖端口仍不映射到宿主机（fail-closed）**
 - `observability` profile（可选）
@@ -111,7 +111,7 @@ IM 专用客户端默认策略：
 - 如需强制直连调试，可分别覆盖 `VITE_IM_CORE_BASE_URL` 与 `VITE_IM_WS_URL`
 
 本地开发（HMR）场景下：
-- 默认浏览器流量已经直接走 `project-gateway:12880`，不再依赖 Vite proxy 才能访问后端；
+- 默认浏览器流量已经直接走 `community-gateway:12880`，不再依赖 Vite proxy 才能访问后端；
 - 如需自定义目标，可显式配置 `VITE_API_BASE_URL` / `VITE_IM_CORE_BASE_URL` / `VITE_IM_WS_URL`；
 - 直连 `12882/18081/18082` 仅建议用于回滚、排障和链路对照。
 

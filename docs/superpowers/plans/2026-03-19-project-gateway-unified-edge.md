@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a new `project-gateway` service that becomes the unified project edge for `community-bootstrap`, `im-core`, and `im-realtime`, including HTTP routing, gateway-level policies, WebSocket first-frame auth, stable `userId`/shard routing, and internal worker bridging.
+**Goal:** Build a new `community-gateway` service that becomes the unified project edge for `community-app`, `im-core`, and `im-realtime`, including HTTP routing, gateway-level policies, WebSocket first-frame auth, stable `userId`/shard routing, and internal worker bridging.
 
-**Architecture:** Add a new `backend/project-gateway` Spring Boot WebFlux module that owns the external HTTP and WebSocket edge. Keep `community-bootstrap` and `im-core` as business owners, and keep `im-realtime` as the internal IM session worker. Roll out in phases: HTTP edge first, then external WebSocket termination, then shard routing and worker bridge, then cutover and hardening.
+**Architecture:** Add a new `backend/community-gateway` Spring Boot WebFlux module that owns the external HTTP and WebSocket edge. Keep `community-app` and `im-core` as business owners, and keep `im-realtime` as the internal IM session worker. Roll out in phases: HTTP edge first, then external WebSocket termination, then shard routing and worker bridge, then cutover and hardening.
 
 **Tech Stack:** Java 17, Spring Boot 3.2, Spring WebFlux, Reactor Netty WebSocket client/server, Spring Security, Micrometer, Maven multi-module build, Docker Compose local stack, Vue frontend.
 
@@ -18,7 +18,7 @@ These waves are the intended execution order once implementation begins. Inside 
 
 ### Wave 0: Foundation
 
-- Task 1: Create `project-gateway` module skeleton and local runtime wiring
+- Task 1: Create `community-gateway` module skeleton and local runtime wiring
 
 This wave is serial and should stay with the main thread because it establishes module layout, build wiring, and the initial file structure.
 
@@ -52,14 +52,14 @@ These can run in parallel after the gateway path is functionally complete.
 
 ---
 
-## Task 1: Create `project-gateway` Module Skeleton And Local Runtime Wiring
+## Task 1: Create `community-gateway` Module Skeleton And Local Runtime Wiring
 
 **Files:**
 - Modify: `backend/pom.xml`
-- Create: `backend/project-gateway/pom.xml`
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/ProjectGatewayApplication.java`
-- Create: `backend/project-gateway/src/main/resources/application.yml`
-- Create: `backend/project-gateway/src/test/java/com/nowcoder/community/gateway/ProjectGatewayApplicationTest.java`
+- Create: `backend/community-gateway/pom.xml`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/CommunityGatewayApplication.java`
+- Create: `backend/community-gateway/src/main/resources/application.yml`
+- Create: `backend/community-gateway/src/test/java/com/nowcoder/community/gateway/CommunityGatewayApplicationTest.java`
 - Modify: `deploy/docker-compose.yml`
 - Modify: `docs/ARCHITECTURE.md`
 - Modify: `docs/DEPLOYMENT.md`
@@ -79,7 +79,7 @@ The new module should use:
 
 - [ ] **Step 2: Write the failing context-load test**
 
-Create `backend/project-gateway/src/test/java/com/nowcoder/community/gateway/ProjectGatewayApplicationTest.java` with a minimal `@SpringBootTest` context-load test.
+Create `backend/community-gateway/src/test/java/com/nowcoder/community/gateway/CommunityGatewayApplicationTest.java` with a minimal `@SpringBootTest` context-load test.
 
 Expected initial failure reason:
 - module not yet compiled correctly, or
@@ -90,7 +90,7 @@ Expected initial failure reason:
 Run:
 
 ```bash
-mvn -f backend/pom.xml -pl :project-gateway -am -Dtest=ProjectGatewayApplicationTest test
+mvn -f backend/pom.xml -pl :community-gateway -am -Dtest=CommunityGatewayApplicationTest test
 ```
 
 Expected:
@@ -99,7 +99,7 @@ Expected:
 - [ ] **Step 4: Implement the minimal bootable gateway app**
 
 Add:
-- `ProjectGatewayApplication`
+- `CommunityGatewayApplication`
 - minimal `application.yml`
 - health actuator exposure
 
@@ -108,7 +108,7 @@ Use port `8080` internally. In local compose, expose the gateway on host port `1
 - [ ] **Step 5: Add local compose wiring**
 
 Update `deploy/docker-compose.yml`:
-- add `project-gateway` service
+- add `community-gateway` service
 - route it to `community-app`, `im-core`, and `im-realtime` through internal Docker DNS
 - keep existing direct ports for `community-app`, `im-core`, and `im-realtime` during transition
 
@@ -117,7 +117,7 @@ Update `deploy/docker-compose.yml`:
 Run:
 
 ```bash
-mvn -f backend/pom.xml -pl :project-gateway -am -Dtest=ProjectGatewayApplicationTest test
+mvn -f backend/pom.xml -pl :community-gateway -am -Dtest=CommunityGatewayApplicationTest test
 ```
 
 Expected:
@@ -126,7 +126,7 @@ Expected:
 - [ ] **Step 7: Update architecture and deployment docs with the transitional port layout**
 
 Document that:
-- `project-gateway` is the new unified edge
+- `community-gateway` is the new unified edge
 - local rollout initially exposes it on `12880`
 - direct service ports remain temporarily available during cutover
 
@@ -135,16 +135,16 @@ Document that:
 ## Task 2: Implement HTTP Upstream Routing
 
 **Files:**
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/http/UpstreamRouteProperties.java`
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/http/ProxyHttpHandler.java`
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/http/HttpProxyRouter.java`
-- Create: `backend/project-gateway/src/test/java/com/nowcoder/community/gateway/http/HttpRoutingIntegrationTest.java`
-- Modify: `backend/project-gateway/src/main/resources/application.yml`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/http/UpstreamRouteProperties.java`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/http/ProxyHttpHandler.java`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/http/HttpProxyRouter.java`
+- Create: `backend/community-gateway/src/test/java/com/nowcoder/community/gateway/http/HttpRoutingIntegrationTest.java`
+- Modify: `backend/community-gateway/src/main/resources/application.yml`
 
 - [ ] **Step 1: Write the failing HTTP routing integration test**
 
 Create `HttpRoutingIntegrationTest` that boots the gateway against two in-process stub upstreams and verifies:
-- `/api/posts` proxies to the `community-bootstrap` upstream
+- `/api/posts` proxies to the `community-app` upstream
 - `/api/im/conversations` proxies to the `im-core` upstream
 - unknown paths still fail closed
 
@@ -153,7 +153,7 @@ Create `HttpRoutingIntegrationTest` that boots the gateway against two in-proces
 Run:
 
 ```bash
-mvn -f backend/pom.xml -pl :project-gateway -am -Dtest=HttpRoutingIntegrationTest test
+mvn -f backend/pom.xml -pl :community-gateway -am -Dtest=HttpRoutingIntegrationTest test
 ```
 
 Expected:
@@ -162,7 +162,7 @@ Expected:
 - [ ] **Step 3: Implement route properties and proxy handler**
 
 Define explicit route ownership:
-- `community-bootstrap` owns general `/api/**`, `/files/**`, `/actuator/**` only if explicitly allowed
+- `community-app` owns general `/api/**`, `/files/**`, `/actuator/**` only if explicitly allowed
 - `im-core` owns `/api/im/**`
 - internal paths such as `/internal/**` must not be exposed publicly by the gateway
 
@@ -182,7 +182,7 @@ Add `HttpProxyRouter` so that route ownership is explicit and testable. Do not u
 Run:
 
 ```bash
-mvn -f backend/pom.xml -pl :project-gateway -am -Dtest=HttpRoutingIntegrationTest test
+mvn -f backend/pom.xml -pl :community-gateway -am -Dtest=HttpRoutingIntegrationTest test
 ```
 
 Expected:
@@ -193,16 +193,16 @@ Expected:
 ## Task 3: Implement HTTP Edge Policies And Observability Baseline
 
 **Files:**
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/edge/TraceIdWebFilter.java`
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/edge/AccessLogWebFilter.java`
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/edge/RateLimitProperties.java`
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/edge/InMemoryRateLimiter.java`
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/edge/RateLimitWebFilter.java`
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/edge/TrafficPolicyProperties.java`
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/edge/TrafficPolicyEvaluator.java`
-- Create: `backend/project-gateway/src/test/java/com/nowcoder/community/gateway/edge/RateLimitWebFilterTest.java`
-- Create: `backend/project-gateway/src/test/java/com/nowcoder/community/gateway/edge/TrafficPolicyEvaluatorTest.java`
-- Modify: `backend/project-gateway/src/main/resources/application.yml`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/edge/TraceIdWebFilter.java`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/edge/AccessLogWebFilter.java`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/edge/RateLimitProperties.java`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/edge/InMemoryRateLimiter.java`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/edge/RateLimitWebFilter.java`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/edge/TrafficPolicyProperties.java`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/edge/TrafficPolicyEvaluator.java`
+- Create: `backend/community-gateway/src/test/java/com/nowcoder/community/gateway/edge/RateLimitWebFilterTest.java`
+- Create: `backend/community-gateway/src/test/java/com/nowcoder/community/gateway/edge/TrafficPolicyEvaluatorTest.java`
+- Modify: `backend/community-gateway/src/main/resources/application.yml`
 
 - [ ] **Step 1: Write the failing rate-limit and traffic-policy tests**
 
@@ -216,7 +216,7 @@ Cover:
 Run:
 
 ```bash
-mvn -f backend/pom.xml -pl :project-gateway -am -Dtest=RateLimitWebFilterTest,TrafficPolicyEvaluatorTest test
+mvn -f backend/pom.xml -pl :community-gateway -am -Dtest=RateLimitWebFilterTest,TrafficPolicyEvaluatorTest test
 ```
 
 Expected:
@@ -250,7 +250,7 @@ Do not implement dynamic control-plane storage yet.
 Run:
 
 ```bash
-mvn -f backend/pom.xml -pl :project-gateway -am -Dtest=RateLimitWebFilterTest,TrafficPolicyEvaluatorTest test
+mvn -f backend/pom.xml -pl :community-gateway -am -Dtest=RateLimitWebFilterTest,TrafficPolicyEvaluatorTest test
 ```
 
 Expected:
@@ -261,11 +261,11 @@ Expected:
 ## Task 4: Add WebSocket Edge Skeleton And Transparent Proxy Baseline
 
 **Files:**
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/ws/GatewayWebSocketConfig.java`
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/ws/ExternalImWebSocketHandler.java`
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/ws/WsProxyProperties.java`
-- Create: `backend/project-gateway/src/test/java/com/nowcoder/community/gateway/ws/WsTransparentProxyIntegrationTest.java`
-- Modify: `backend/project-gateway/src/main/resources/application.yml`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/ws/GatewayWebSocketConfig.java`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/ws/ExternalImWebSocketHandler.java`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/ws/WsProxyProperties.java`
+- Create: `backend/community-gateway/src/test/java/com/nowcoder/community/gateway/ws/WsTransparentProxyIntegrationTest.java`
+- Modify: `backend/community-gateway/src/main/resources/application.yml`
 
 - [ ] **Step 1: Write the failing transparent WebSocket proxy integration test**
 
@@ -281,7 +281,7 @@ This test should not include first-frame auth parsing yet. It is only establishi
 Run:
 
 ```bash
-mvn -f backend/pom.xml -pl :project-gateway -am -Dtest=WsTransparentProxyIntegrationTest test
+mvn -f backend/pom.xml -pl :community-gateway -am -Dtest=WsTransparentProxyIntegrationTest test
 ```
 
 Expected:
@@ -296,7 +296,7 @@ Add the external `/ws/im` mapping and a minimal Reactor Netty bridge that can co
 Run:
 
 ```bash
-mvn -f backend/pom.xml -pl :project-gateway -am -Dtest=WsTransparentProxyIntegrationTest test
+mvn -f backend/pom.xml -pl :community-gateway -am -Dtest=WsTransparentProxyIntegrationTest test
 ```
 
 Expected:
@@ -307,12 +307,12 @@ Expected:
 ## Task 5: Add First-Frame Auth State Machine And JWT Validation
 
 **Files:**
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/security/GatewayJwtDecoderConfig.java`
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/ws/AuthFrameParser.java`
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/ws/ExternalWsSessionState.java`
-- Create: `backend/project-gateway/src/test/java/com/nowcoder/community/gateway/ws/WsAuthStateMachineIntegrationTest.java`
-- Modify: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/ws/ExternalImWebSocketHandler.java`
-- Modify: `backend/project-gateway/src/main/resources/application.yml`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/security/GatewayJwtDecoderConfig.java`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/ws/AuthFrameParser.java`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/ws/ExternalWsSessionState.java`
+- Create: `backend/community-gateway/src/test/java/com/nowcoder/community/gateway/ws/WsAuthStateMachineIntegrationTest.java`
+- Modify: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/ws/ExternalImWebSocketHandler.java`
+- Modify: `backend/community-gateway/src/main/resources/application.yml`
 
 - [ ] **Step 1: Write the failing auth state machine integration test**
 
@@ -327,7 +327,7 @@ Cover:
 Run:
 
 ```bash
-mvn -f backend/pom.xml -pl :project-gateway -am -Dtest=WsAuthStateMachineIntegrationTest test
+mvn -f backend/pom.xml -pl :community-gateway -am -Dtest=WsAuthStateMachineIntegrationTest test
 ```
 
 Expected:
@@ -355,7 +355,7 @@ Do not combine these states with shard routing logic yet.
 Run:
 
 ```bash
-mvn -f backend/pom.xml -pl :project-gateway -am -Dtest=WsAuthStateMachineIntegrationTest test
+mvn -f backend/pom.xml -pl :community-gateway -am -Dtest=WsAuthStateMachineIntegrationTest test
 ```
 
 Expected:
@@ -366,14 +366,14 @@ Expected:
 ## Task 6: Implement Shard Router And Worker Registry
 
 **Files:**
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/shard/WorkerDescriptor.java`
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/shard/WorkerRegistryProperties.java`
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/shard/WorkerRegistry.java`
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/shard/ShardRouter.java`
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/shard/ConsistentHashShardRouter.java`
-- Create: `backend/project-gateway/src/test/java/com/nowcoder/community/gateway/shard/ConsistentHashShardRouterTest.java`
-- Create: `backend/project-gateway/src/test/java/com/nowcoder/community/gateway/shard/WorkerRegistryTest.java`
-- Modify: `backend/project-gateway/src/main/resources/application.yml`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/shard/WorkerDescriptor.java`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/shard/WorkerRegistryProperties.java`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/shard/WorkerRegistry.java`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/shard/ShardRouter.java`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/shard/ConsistentHashShardRouter.java`
+- Create: `backend/community-gateway/src/test/java/com/nowcoder/community/gateway/shard/ConsistentHashShardRouterTest.java`
+- Create: `backend/community-gateway/src/test/java/com/nowcoder/community/gateway/shard/WorkerRegistryTest.java`
+- Modify: `backend/community-gateway/src/main/resources/application.yml`
 
 - [ ] **Step 1: Write the failing shard router and worker registry tests**
 
@@ -388,7 +388,7 @@ Cover:
 Run:
 
 ```bash
-mvn -f backend/pom.xml -pl :project-gateway -am -Dtest=ConsistentHashShardRouterTest,WorkerRegistryTest test
+mvn -f backend/pom.xml -pl :community-gateway -am -Dtest=ConsistentHashShardRouterTest,WorkerRegistryTest test
 ```
 
 Expected:
@@ -411,7 +411,7 @@ Use `userId` as the routing key. The router must not depend on IP or cookie affi
 Run:
 
 ```bash
-mvn -f backend/pom.xml -pl :project-gateway -am -Dtest=ConsistentHashShardRouterTest,WorkerRegistryTest test
+mvn -f backend/pom.xml -pl :community-gateway -am -Dtest=ConsistentHashShardRouterTest,WorkerRegistryTest test
 ```
 
 Expected:
@@ -422,15 +422,15 @@ Expected:
 ## Task 7: Implement Internal Worker Bridge And `im-realtime` Worker-Mode Cutover
 
 **Files:**
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/ws/InternalWorkerBridge.java`
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/ws/InternalWorkerBridgeFactory.java`
-- Create: `backend/project-gateway/src/test/java/com/nowcoder/community/gateway/ws/InternalWorkerBridgeIntegrationTest.java`
-- Create: `backend/project-gateway/src/test/java/com/nowcoder/community/gateway/ws/GatewayPrivateFlowCompatibilityTest.java`
-- Create: `backend/project-gateway/src/test/java/com/nowcoder/community/gateway/ws/GatewayRoomFlowCompatibilityTest.java`
-- Modify: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/ws/ExternalImWebSocketHandler.java`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/ws/InternalWorkerBridge.java`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/ws/InternalWorkerBridgeFactory.java`
+- Create: `backend/community-gateway/src/test/java/com/nowcoder/community/gateway/ws/InternalWorkerBridgeIntegrationTest.java`
+- Create: `backend/community-gateway/src/test/java/com/nowcoder/community/gateway/ws/GatewayPrivateFlowCompatibilityTest.java`
+- Create: `backend/community-gateway/src/test/java/com/nowcoder/community/gateway/ws/GatewayRoomFlowCompatibilityTest.java`
+- Modify: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/ws/ExternalImWebSocketHandler.java`
 - Modify: `deploy/docker-compose.yml`
-- Modify: `backend/im/im-realtime/src/main/resources/application.yml`
-- Modify: `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/security/ImRealtimeSecurityConfig.java`
+- Modify: `backend/community-im/im-realtime/src/main/resources/application.yml`
+- Modify: `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/security/ImRealtimeSecurityConfig.java`
 
 - [ ] **Step 1: Write the failing bridge integration tests**
 
@@ -445,7 +445,7 @@ Cover:
 Run:
 
 ```bash
-mvn -f backend/pom.xml -pl :project-gateway -am -Dtest=InternalWorkerBridgeIntegrationTest,GatewayPrivateFlowCompatibilityTest,GatewayRoomFlowCompatibilityTest test
+mvn -f backend/pom.xml -pl :community-gateway -am -Dtest=InternalWorkerBridgeIntegrationTest,GatewayPrivateFlowCompatibilityTest,GatewayRoomFlowCompatibilityTest test
 ```
 
 Expected:
@@ -472,7 +472,7 @@ First cut can keep the same handler path and message protocol, but the config mu
 Run:
 
 ```bash
-mvn -f backend/pom.xml -pl :project-gateway -am -Dtest=InternalWorkerBridgeIntegrationTest,GatewayPrivateFlowCompatibilityTest,GatewayRoomFlowCompatibilityTest test
+mvn -f backend/pom.xml -pl :community-gateway -am -Dtest=InternalWorkerBridgeIntegrationTest,GatewayPrivateFlowCompatibilityTest,GatewayRoomFlowCompatibilityTest test
 ```
 
 Expected:
@@ -511,7 +511,7 @@ Keep env overrides for non-local environments.
 - [ ] **Step 3: Update compose to expose gateway-first traffic**
 
 Expose:
-- `project-gateway` on `12880`
+- `community-gateway` on `12880`
 
 Keep direct service ports available temporarily for rollback and debugging.
 
@@ -520,7 +520,7 @@ Keep direct service ports available temporarily for rollback and debugging.
 Run:
 
 ```bash
-docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build project-gateway community-app im-core im-realtime frontend
+docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build community-gateway community-app im-core im-realtime frontend
 curl -i http://localhost:12880/actuator/health
 ```
 
@@ -531,7 +531,7 @@ Expected:
 - [ ] **Step 5: Update the business-logic docs to show gateway-first paths**
 
 Adjust both IM flow docs so they describe:
-- external client -> `project-gateway`
+- external client -> `community-gateway`
 - internal worker selection / forwarding
 
 ---
@@ -539,10 +539,10 @@ Adjust both IM flow docs so they describe:
 ## Task 9: Add End-To-End Validation, Rollout Controls, And Gateway Docs
 
 **Files:**
-- Create: `backend/project-gateway/src/test/java/com/nowcoder/community/gateway/e2e/GatewayEndToEndSmokeTest.java`
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/edge/RolloutModeProperties.java`
-- Create: `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/edge/RolloutModeResolver.java`
-- Modify: `backend/project-gateway/src/main/resources/application.yml`
+- Create: `backend/community-gateway/src/test/java/com/nowcoder/community/gateway/e2e/GatewayEndToEndSmokeTest.java`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/edge/RolloutModeProperties.java`
+- Create: `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/edge/RolloutModeResolver.java`
+- Modify: `backend/community-gateway/src/main/resources/application.yml`
 - Modify: `docs/SECURITY.md`
 - Modify: `docs/LOAD_TESTING.md`
 - Modify: `docs/README.md`
@@ -561,7 +561,7 @@ Cover rollout modes:
 Run:
 
 ```bash
-mvn -f backend/pom.xml -pl :project-gateway -am -Dtest=GatewayEndToEndSmokeTest test
+mvn -f backend/pom.xml -pl :community-gateway -am -Dtest=GatewayEndToEndSmokeTest test
 ```
 
 Expected:
@@ -587,7 +587,7 @@ Document:
 Run:
 
 ```bash
-mvn -f backend/pom.xml -pl :project-gateway -am test
+mvn -f backend/pom.xml -pl :community-gateway -am test
 ```
 
 Expected:
@@ -614,20 +614,20 @@ Use fresh workers with disjoint write sets.
 ### Recommended worker ownership
 
 - Worker A:
-  - `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/http/**`
-  - `backend/project-gateway/src/test/java/com/nowcoder/community/gateway/http/**`
+  - `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/http/**`
+  - `backend/community-gateway/src/test/java/com/nowcoder/community/gateway/http/**`
 
 - Worker B:
-  - `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/edge/**`
-  - `backend/project-gateway/src/test/java/com/nowcoder/community/gateway/edge/**`
+  - `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/edge/**`
+  - `backend/community-gateway/src/test/java/com/nowcoder/community/gateway/edge/**`
 
 - Worker C:
-  - `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/ws/**`
-  - `backend/project-gateway/src/test/java/com/nowcoder/community/gateway/ws/**`
+  - `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/ws/**`
+  - `backend/community-gateway/src/test/java/com/nowcoder/community/gateway/ws/**`
 
 - Worker D:
-  - `backend/project-gateway/src/main/java/com/nowcoder/community/gateway/shard/**`
-  - `backend/project-gateway/src/test/java/com/nowcoder/community/gateway/shard/**`
+  - `backend/community-gateway/src/main/java/com/nowcoder/community/gateway/shard/**`
+  - `backend/community-gateway/src/test/java/com/nowcoder/community/gateway/shard/**`
 
 - Worker E:
   - `frontend/src/api/http.js`
@@ -637,7 +637,7 @@ Use fresh workers with disjoint write sets.
 
 - Main thread only:
   - `backend/pom.xml`
-  - `backend/project-gateway/pom.xml`
+  - `backend/community-gateway/pom.xml`
   - `deploy/docker-compose.yml`
   - gateway app skeleton
   - cross-cutting WS bridge contracts
@@ -655,8 +655,8 @@ Use fresh workers with disjoint write sets.
 
 ## Final Verification Checklist
 
-- [ ] `project-gateway` module builds and passes its test suite
-- [ ] `community-bootstrap` routes still work via gateway
+- [ ] `community-gateway` module builds and passes its test suite
+- [ ] `community-app` routes still work via gateway
 - [ ] `im-core` HTTP read routes still work via gateway
 - [ ] private-message flow works via gateway
 - [ ] room-message flow works via gateway
@@ -667,4 +667,4 @@ Use fresh workers with disjoint write sets.
 
 ---
 
-Plan complete and saved to `docs/superpowers/plans/2026-03-19-project-gateway-unified-edge.md`. After review approval, this is ready for execution.
+Plan complete and saved to `docs/superpowers/plans/2026-03-19-community-gateway-unified-edge.md`. After review approval, this is ready for execution.

@@ -9,7 +9,7 @@ describe('imCoreHttp base URL resolution', () => {
     vi.unstubAllGlobals()
   })
 
-  it('should prefer project-gateway for local IM HTTP traffic', async () => {
+  it('should prefer community-gateway for local IM HTTP traffic', async () => {
     vi.stubGlobal('location', {
       protocol: 'http:',
       hostname: '127.0.0.1',

@@ -15,5 +15,5 @@
 8. `docs/business-logic/`：按业务能力拆开的实现逻辑文档，关注“具体功能在当前代码里如何落地”
 
 ## 文档范围说明
-- 本仓库默认本地运行模式：**前端直连 community-app**（frontend `12881` / backend `12882`），不依赖 `community-edge`（Nginx）。
+- 本仓库默认本地运行模式：**前端经由 community-gateway 进入后端**（frontend `12881` / gateway `12880`），同时保留 `community-app` / IM 直连口用于回滚与排障。
 - `helloagents/` 下的内容属于项目内置的知识库与历史方案包；本 `docs/` 目录侧重给普通开发者快速理解与上手。

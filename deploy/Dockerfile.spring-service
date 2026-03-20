@@ -17,7 +17,7 @@ ARG MODULE
 RUN --mount=type=cache,target=/root/.m2/repository,sharing=locked \
     set -eu; \
     if [ -z "${MODULE:-}" ]; then \
-      echo "[docker-build] ERROR: build-arg MODULE is required (Maven artifactId, e.g. community-bootstrap)."; \
+      echo "[docker-build] ERROR: build-arg MODULE is required (Maven artifactId, e.g. community-app)."; \
       exit 1; \
     fi; \
     build_one() { mvn -q -DskipTests -pl ":${MODULE}" -am package; }; \

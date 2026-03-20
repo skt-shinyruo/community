@@ -1,0 +1,49 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: community-gateway
+
+security:
+  jwt:
+    hmac-secret: ${JWT_HMAC_SECRET:gateway-dev-jwt-hmac-secret-please-change-123456}
+    issuer: ${JWT_ISSUER:community-auth}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+gateway:
+  cors:
+    allowed-origins:
+      - http://localhost:5173
+      - http://localhost:12881
+      - http://localhost:12888
+  http:
+    routes:
+      - id: bootstrap-api
+        path-prefix: /api
+        uri: ${COMMUNITY_APP_BASE_URL:http://localhost:12882}
+      - id: im-core
+        path-prefix: /api/im
+        uri: ${IM_CORE_BASE_URL:http://localhost:18082}
+      - id: bootstrap-files
+        path-prefix: /files
+        uri: ${COMMUNITY_APP_BASE_URL:http://localhost:12882}
+    rate-limit:
+      enabled: true
+      fail-open-on-error: true
+      policies: {}
+    traffic-policy:
+      default-policy-id: baseline
+      default-tags:
+        plane: http
+      rules: []
+  ws:
+    proxy:
+      path: /ws/im
+      auth-required: false
+      default-worker-uri: ${IM_REALTIME_WS_BASE_URL:ws://localhost:18081/ws/im}

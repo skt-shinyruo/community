@@ -21,7 +21,7 @@
 
 群聊主链路涉及以下组件：
 
-- 前端或 IM 客户端：外部默认通过 `project-gateway` 暴露的 `ws://localhost:12880/ws/im` 与 `http://localhost:12880/api/im/**` 进入系统；`ws://localhost:18081/internal/ws/im` 和 `http://localhost:18082` 保留为回滚 / 排障时的直连路径
+- 前端或 IM 客户端：外部默认通过 `community-gateway` 暴露的 `ws://localhost:12880/ws/im` 与 `http://localhost:12880/api/im/**` 进入系统；`ws://localhost:18081/internal/ws/im` 和 `http://localhost:18082` 保留为回滚 / 排障时的直连路径
 - `im-realtime`：WebSocket 接入、鉴权、协议解析、Kafka command 生产、房间在线索引、群聊更新推送
 - Kafka：承担 `command` 与 `event` 的跨服务 backplane
 - `im-core`：群消息持久化、顺序号分配、幂等、群成员校验、历史查询、未读状态
@@ -29,7 +29,7 @@
 
 核心 topic 常量定义在：
 
-- `backend/im/im-common/src/main/java/com/nowcoder/community/im/contracts/ImTopics.java`
+- `backend/community-im/im-common/src/main/java/com/nowcoder/community/im/contracts/ImTopics.java`
 
 当前群聊主链路使用的 topic：
 
@@ -84,13 +84,13 @@ sequenceDiagram
 
 ### 3.1 WebSocket 鉴权与房间 bootstrap
 
-群聊和私信共用同一个对外 WebSocket 入口，外部客户端推荐通过 `project-gateway` 的：
+群聊和私信共用同一个对外 WebSocket 入口，外部客户端推荐通过 `community-gateway` 的：
 
 - `ws://localhost:12880/ws/im`
 
 接入；gateway 最终会把请求转发到：
 
-- `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/ws/ImWebSocketHandler.java`
+- `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/ws/ImWebSocketHandler.java`
 
 连接鉴权成功后，`im-realtime` 会做两件和群聊直接相关的事情：
 
@@ -99,7 +99,7 @@ sequenceDiagram
 
 对应调用 client：
 
-- `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/client/ImCoreClient.java`
+- `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/client/ImCoreClient.java`
 
 对应 internal API：
 
@@ -112,7 +112,7 @@ sequenceDiagram
 
 这样做的目的，是让实时层知道“本机当前哪些连接属于哪些房间”，后面群聊更新才能只扇出给房间内在线用户。
 
-对外客户端配套的房间历史、已读等 HTTP 请求，也推荐统一走 `project-gateway` 的 `http://localhost:12880/api/im/**`；`http://localhost:18082` 直连口保留为回滚 / 排障路径。
+对外客户端配套的房间历史、已读等 HTTP 请求，也推荐统一走 `community-gateway` 的 `http://localhost:12880/api/im/**`；`http://localhost:18082` 直连口保留为回滚 / 排障路径。
 
 ---
 
@@ -182,7 +182,7 @@ sequenceDiagram
 
 `im-core` 通过 Kafka listener 消费群消息 command：
 
-- `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/CommandConsumers.java`
+- `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/CommandConsumers.java`
 
 消费方法：
 
@@ -242,7 +242,7 @@ sequenceDiagram
 
 `im-realtime` 消费 `im.event.room_persisted.v1`：
 
-- `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/EventConsumers.java`
+- `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/EventConsumers.java`
 
 收到 `RoomMessagePersistedEventV1` 后，它不会直接推送消息内容，而是调用：
 
@@ -276,7 +276,7 @@ sequenceDiagram
 
 ### 3.7 客户端根据 `roomUpdatedBatch` 回拉群消息
 
-由于 `roomUpdatedBatch` 只携带房间更新状态，不携带正文，客户端在收到更新后需要主动调用 `im-core` HTTP API 拉取增量消息。对外默认入口是 `project-gateway` 的 `http://localhost:12880/api/im/**`，只有回滚 / 排障时才直连 `http://localhost:18082`：
+由于 `roomUpdatedBatch` 只携带房间更新状态，不携带正文，客户端在收到更新后需要主动调用 `im-core` HTTP API 拉取增量消息。对外默认入口是 `community-gateway` 的 `http://localhost:12880/api/im/**`，只有回滚 / 排障时才直连 `http://localhost:18082`：
 
 - `GET /api/im/rooms/{roomId}/messages?afterSeq=...`
 
@@ -342,7 +342,7 @@ sequenceDiagram
 
 ### 5.1 连接级恢复
 
-用户重连并重新完成 WebSocket `auth` 后，`im-realtime` 会再次从 `im-core` 拉取该用户当前所属房间列表，重建本地房间索引。对外客户端推荐继续通过 `project-gateway` 的 `ws://localhost:12880/ws/im` 重连；`ws://localhost:18081/ws/im` 直连口保留为回滚 / 排障路径。
+用户重连并重新完成 WebSocket `auth` 后，`im-realtime` 会再次从 `im-core` 拉取该用户当前所属房间列表，重建本地房间索引。对外客户端推荐继续通过 `community-gateway` 的 `ws://localhost:12880/ws/im` 重连；`ws://localhost:18081/ws/im` 直连口保留为回滚 / 排障路径。
 
 这一步解决的是：
 
@@ -350,7 +350,7 @@ sequenceDiagram
 
 ### 5.2 消息级恢复
 
-群聊正文恢复依赖 `im-core` 的房间历史接口。对外默认仍经由 `project-gateway` 的 `http://localhost:12880/api/im/**` 访问，路径本身保持不变：
+群聊正文恢复依赖 `im-core` 的房间历史接口。对外默认仍经由 `community-gateway` 的 `http://localhost:12880/api/im/**` 访问，路径本身保持不变：
 
 - `GET /api/im/rooms/{roomId}/messages?afterSeq=lastSeq`
 
@@ -462,38 +462,38 @@ sequenceDiagram
 ### `im-realtime`
 
 - WebSocket 入口：
-  - `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/ws/ImWebSocketHandler.java`
+  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/ws/ImWebSocketHandler.java`
 - `im-core` 房间 bootstrap client：
-  - `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/client/ImCoreClient.java`
+  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/client/ImCoreClient.java`
 - 向 Kafka 写 room command：
-  - `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/CommandProducer.java`
+  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/CommandProducer.java`
 - 消费 room persisted / member changed event：
-  - `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/EventConsumers.java`
+  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/EventConsumers.java`
 - 房间维度合并：
-  - `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/push/RoomFanoutCoalescer.java`
+  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/push/RoomFanoutCoalescer.java`
 - 连接维度合并：
-  - `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/push/RoomUpdateCoalescer.java`
+  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/push/RoomUpdateCoalescer.java`
 - 在线连接注册表：
-  - `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/presence/ConnectionRegistry.java`
+  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/presence/ConnectionRegistry.java`
 - 房间本地索引：
-  - `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/presence/RoomLocalIndex.java`
+  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/presence/RoomLocalIndex.java`
 - 连接对象中的房间状态：
-  - `backend/im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/presence/WsConnection.java`
+  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/presence/WsConnection.java`
 
 ### `im-core`
 
 - 消费 room command：
-  - `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/CommandConsumers.java`
+  - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/CommandConsumers.java`
 - 群消息持久化主服务：
-  - `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/service/RoomMessageService.java`
+  - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/service/RoomMessageService.java`
 - 房间成员管理：
-  - `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/service/RoomMembershipService.java`
+  - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/service/RoomMembershipService.java`
 - 发布 room persisted / member changed event：
-  - `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/EventProducer.java`
+  - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/EventProducer.java`
 - 房间创建 / join / leave / 历史 / markRead：
-  - `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/controller/RoomController.java`
+  - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/controller/RoomController.java`
 - realtime bootstrap internal API：
-  - `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/controller/InternalRealtimeBootstrapController.java`
+  - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/controller/InternalRealtimeBootstrapController.java`
 
 ### 前端
 

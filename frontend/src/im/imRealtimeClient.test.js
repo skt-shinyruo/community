@@ -35,7 +35,7 @@ describe('imRealtimeClient URL resolution', () => {
     vi.unstubAllGlobals()
   })
 
-  it('should prefer project-gateway websocket URL for local origins', async () => {
+  it('should prefer community-gateway websocket URL for local origins', async () => {
     vi.stubGlobal('location', {
       protocol: 'http:',
       hostname: 'localhost',

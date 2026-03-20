@@ -41,10 +41,10 @@
 - 结合时间窗口排查：先看 `up`，再看对应服务日志
 
 ### 2.3 Kafka DLQ 指标（IM）
-当 IM 消费端出现不可恢复异常时，消息会被投递到 DLQ（`<topic>.dlq`，见 `backend/im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/KafkaConfig.java`）。
+当 IM 消费端出现不可恢复异常时，消息会被投递到 DLQ（`<topic>.dlq`，见 `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/KafkaConfig.java`）。
 
 当前仓库说明：
-- `community-bootstrap` 的投影/通知链路使用本地 DB outbox（不依赖 Spring Kafka）。
+- `community-app` 的投影/通知链路使用本地 DB outbox（不依赖 Spring Kafka）。
 - IM 当前未实现统一的 DLQ publish 指标（如需要可在后续补充，例如实现 `kafka_dlq_published_total{original_topic="...", error_type="..."}`）。
 
 如果后续补齐该指标，可用查询：

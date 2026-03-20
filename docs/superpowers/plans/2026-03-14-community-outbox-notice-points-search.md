@@ -13,20 +13,20 @@
 ## Task 1: Outbox core infra (DB-backed queue)
 
 **Files:**
-- Create: `backend/community-bootstrap/src/main/java/com/nowcoder/community/infra/outbox/OutboxEvent.java`
-- Create: `backend/community-bootstrap/src/main/java/com/nowcoder/community/infra/outbox/OutboxEventStatus.java`
-- Create: `backend/community-bootstrap/src/main/java/com/nowcoder/community/infra/outbox/OutboxProperties.java`
-- Create: `backend/community-bootstrap/src/main/java/com/nowcoder/community/infra/outbox/JdbcOutboxEventStore.java`
-- Create: `backend/community-bootstrap/src/main/java/com/nowcoder/community/infra/outbox/OutboxWorker.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/infra/outbox/JdbcOutboxEventStoreTest.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/infra/outbox/OutboxWorkerRetryTest.java`
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/infra/outbox/OutboxEvent.java`
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/infra/outbox/OutboxEventStatus.java`
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/infra/outbox/OutboxProperties.java`
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/infra/outbox/JdbcOutboxEventStore.java`
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/infra/outbox/OutboxWorker.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/infra/outbox/JdbcOutboxEventStoreTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/infra/outbox/OutboxWorkerRetryTest.java`
 
 - [x] **Step 1: Write failing tests for claim + retry**
   - Insert one `PENDING` row into `outbox_event`.
   - Worker claims it (`PROCESSING` + lease), handler throws -> row becomes `PENDING` again with `retry_count=1` and `next_retry_at > now`.
 
 - [x] **Step 2: Run tests to verify RED**
-  - Run: `cd backend && mvn -pl community-bootstrap test -Dtest=JdbcOutboxEventStoreTest,OutboxWorkerRetryTest`
+  - Run: `cd backend && mvn -pl community-app test -Dtest=JdbcOutboxEventStoreTest,OutboxWorkerRetryTest`
   - Expected: FAIL (missing classes).
 
 - [x] **Step 3: Implement minimal JDBC store + worker**
@@ -42,15 +42,15 @@
 ## Task 2: Enqueue outbox events on BEFORE_COMMIT
 
 **Files:**
-- Create: `backend/community-bootstrap/src/main/java/com/nowcoder/community/message/event/NoticeOutboxEnqueuer.java`
-- Create: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/event/PointsOutboxEnqueuer.java`
-- Create: `backend/community-bootstrap/src/main/java/com/nowcoder/community/search/event/PostOutboxEnqueuer.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/message/event/NoticeProjectionListener.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/event/PointsProjectionListener.java`
-- Modify: `backend/community-bootstrap/src/main/java/com/nowcoder/community/search/event/PostProjectionListener.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/message/event/NoticeOutboxEnqueuerTest.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/user/event/PointsOutboxEnqueuerTest.java`
-- Test: `backend/community-bootstrap/src/test/java/com/nowcoder/community/search/event/PostOutboxEnqueuerTest.java`
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/message/event/NoticeOutboxEnqueuer.java`
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/user/event/PointsOutboxEnqueuer.java`
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/search/event/PostOutboxEnqueuer.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/message/event/NoticeProjectionListener.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/event/PointsProjectionListener.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/search/event/PostProjectionListener.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/message/event/NoticeOutboxEnqueuerTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/user/event/PointsOutboxEnqueuerTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/search/event/PostOutboxEnqueuerTest.java`
 
 - [x] **Step 1: Write failing tests for enqueuers**
   - Given a `ContentLocalEvent` / `SocialLocalEvent`, verify `JdbcOutboxEventStore.enqueue(...)` called with:
@@ -67,12 +67,12 @@
 ## Task 3: Outbox handlers (notice / points / search)
 
 **Files:**
-- Create: `backend/community-bootstrap/src/main/java/com/nowcoder/community/message/event/NoticeOutboxHandler.java`
-- Create: `backend/community-bootstrap/src/main/java/com/nowcoder/community/user/event/PointsOutboxHandler.java`
-- Create: `backend/community-bootstrap/src/main/java/com/nowcoder/community/search/event/PostOutboxHandler.java`
-- Modify: `backend/community-bootstrap/src/test/java/com/nowcoder/community/bootstrap/arch/NoDistributedProjectionInfraArchTest.java`
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/message/event/NoticeOutboxHandler.java`
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/user/event/PointsOutboxHandler.java`
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/search/event/PostOutboxHandler.java`
+- Modify: `backend/community-app/src/test/java/com/nowcoder/community/app/arch/NoDistributedProjectionInfraArchTest.java`
 - Modify: `docs/SYSTEM_DESIGN.md`
-- Modify: `backend/community-bootstrap/src/main/resources/application.yml`
+- Modify: `backend/community-app/src/main/resources/application.yml`
 
 - [x] **Step 1: Write failing tests for handler dispatch**
   - Worker sees `topic=projection.points` -> calls `PointsService.applyPoints(...)`.
@@ -90,4 +90,4 @@
   - Update `docs/SYSTEM_DESIGN.md` to reflect local outbox for reliability.
 
 - [x] **Step 4: Run full module tests**
-  - Run: `cd backend && mvn -pl community-bootstrap test`
+  - Run: `cd backend && mvn -pl community-app test`

@@ -146,7 +146,7 @@ services:
       # dockerfile 路径相对 build context（backend/）
       dockerfile: ../deploy/Dockerfile.spring-service
       args:
-        MODULE: community-bootstrap
+        MODULE: community-app
     container_name: community-app
     ports:
       - "12882:8080"
@@ -203,15 +203,15 @@ services:
       - "12881:12881"
     depends_on:
       - community-app
-      - project-gateway
+      - community-gateway
 
-  project-gateway:
+  community-gateway:
     build:
       context: ../backend
       dockerfile: ../deploy/Dockerfile.spring-service
       args:
-        MODULE: project-gateway
-    container_name: project-gateway
+        MODULE: community-gateway
+    container_name: community-gateway
     ports:
       - "12880:8080"
     environment:

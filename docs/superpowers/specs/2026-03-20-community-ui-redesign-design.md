@@ -77,6 +77,51 @@ Admin-facing routes should feel like one quiet operations desk:
 
 The public and admin products should share the same technical foundation and token system, but not the same emotional presentation.
 
+### 4.3 Route Scope Classification
+
+To keep planning explicit, every current route family is classified below.
+
+#### Core redesign
+
+These routes are first-class redesign targets and may receive substantial template/layout changes:
+
+- `/posts`
+- `/posts/:postId`
+- `/search`
+- `/messages`
+- `/messages/:conversationId`
+- `/notices`
+- `/notices/:topic`
+- `/bookmarks`
+- `/leaderboard`
+- `/settings`
+- `/users/:userId`
+- `/users/:userId/followees`
+- `/users/:userId/followers`
+- `/analytics`
+- `/moderation`
+- `/ops`
+- `/admin/users`
+
+#### Final polish / compatibility pass
+
+These routes must be visually aligned with the new system, but do not drive the core design language:
+
+- `/auth/login`
+- `/auth/register`
+- `/auth/password/reset`
+- `/auth/activation/:userId/:code`
+- `/403`
+- `/:pathMatch(.*)*`
+
+For these pages, the goal is not bespoke redesign depth. The goal is clear visual compatibility with the new system, good spacing, clean state handling, and removal of obviously outdated styling.
+
+#### Out of scope for product redesign
+
+- `/dev`
+
+`/dev` must remain functional, but does not need the same product-grade redesign treatment as user-facing or admin-facing routes.
+
 ---
 
 ## 5. Visual Language
@@ -338,6 +383,8 @@ The redesign may change:
 - iconography
 - responsive rules
 
+Route-level removals or merges are not a primary goal of this redesign. The implementation may remove fake widgets, placeholder sections, dead links, and mock content inside existing routes. Actual route removal or route merging should only happen if a route is demonstrably placeholder-only and has no meaningful user workflow value. Planning should assume route continuity unless a specific route is called out explicitly.
+
 ---
 
 ## 12. Migration Strategy Expectations
@@ -353,6 +400,39 @@ Recommended migration order:
 5. final consistency pass and responsive cleanup
 
 This order matters because public core path and shell decisions define the visual grammar for the rest of the app.
+
+Routes mapped to each stage:
+
+1. token system and shell foundations
+   - all shared shell/layout primitives
+   - public/admin visual split
+2. public core path
+   - `/posts`
+   - `/posts/:postId`
+   - `/search`
+   - `/users/:userId`
+3. supporting social pages
+   - `/messages`
+   - `/messages/:conversationId`
+   - `/notices`
+   - `/notices/:topic`
+   - `/settings`
+   - `/users/:userId/followees`
+   - `/users/:userId/followers`
+   - `/bookmarks`
+   - `/leaderboard`
+4. admin product pages
+   - `/analytics`
+   - `/moderation`
+   - `/ops`
+   - `/admin/users`
+5. final consistency pass
+   - `/auth/login`
+   - `/auth/register`
+   - `/auth/password/reset`
+   - `/auth/activation/:userId/:code`
+   - `/403`
+   - `/:pathMatch(.*)*`
 
 ---
 
@@ -393,3 +473,27 @@ Implementation planning should specifically cover:
 - responsive rules
 - removal of placeholder/mock UI
 - validation and regression checks on major routes
+
+The verification matrix for planning should treat the following as major routes:
+
+- `/posts`
+- `/posts/:postId`
+- `/search`
+- `/users/:userId`
+- `/messages`
+- `/messages/:conversationId`
+- `/notices`
+- `/settings`
+- `/analytics`
+- `/moderation`
+- `/ops`
+- `/admin/users`
+
+Secondary compatibility routes that still require a final regression check:
+
+- `/auth/login`
+- `/auth/register`
+- `/auth/password/reset`
+- `/auth/activation/:userId/:code`
+- `/403`
+- `/:pathMatch(.*)*`

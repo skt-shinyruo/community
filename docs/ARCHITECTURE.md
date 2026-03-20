@@ -2,8 +2,8 @@
 
 > 本项目当前形态：**Maven 多模块后端**，其中 `community-app` 是包级单体（Package-Scoped Monolith），`community-gateway` 负责统一入口，IM 保留独立运行模块。  
 > 默认对外业务入口为 `community-gateway`（Spring Boot WebFlux，容器内默认 `8080`；本地 compose 映射为 `12880`）。  
-> `community-app` 继续作为主业务单体 owner（本地调试端口 `12882`），IM 作为独立服务保留：`im-realtime`（worker，`18081`）与 `im-core`（HTTP，`18082`）。
-> 直连 `12882/18081/18082` 仅保留为回滚与诊断路径。
+> `community-app` 继续作为主业务单体 owner，IM 作为独立服务保留：`im-realtime`（worker）与 `im-core`（HTTP）。
+> 直连 `12882/18081/18082` 仅保留为回滚与诊断路径，且默认不暴露到宿主机；需要时通过 `debug` profile 绑定到 `127.0.0.1`。
 > 对外 API 前缀稳定：`/api/**`；静态文件前缀稳定：`/files/**`。  
 >
 > 约定：本文档中的命令与路径默认以**仓库根目录**作为工作目录（除非特别说明）。
@@ -107,16 +107,18 @@ flowchart TD
 ## 3. 运行拓扑与端口规划（本地 docker compose）
 
 ### 3.1 Compose 文件分工（以 `deploy/README.md` 为准）
-- `deploy/docker-compose.yml`：业务必需全栈（frontend + `community-app` + IM + MySQL/Redis/Kafka/ES + MailHog），默认暴露业务入口端口（`12881/12882/18081/18082`）与 MailHog UI（`8025`，仅本机），但不暴露依赖端口（fail-closed）。
+- `deploy/docker-compose.yml`：业务必需全栈（frontend + `community-gateway` + `community-app` + IM + MySQL/Redis/Kafka/ES + MailHog），默认暴露统一入口（`12880/12881`）与 MailHog UI（`8025`，仅本机）；`debug` profile 才会额外暴露 `12882/18081/18082` 到 `127.0.0.1`，依赖端口仍不暴露（fail-closed）。
 - `observability` profile：可选观测/日志栈（Prometheus/Grafana/Loki/Promtail/Alertmanager），默认仅绑定到 `127.0.0.1` 暴露端口（`12883+`）。
 
 ### 3.2 对外暴露端口（默认推荐）
 - Community Gateway（统一入口）：`http://localhost:12880`
 - frontend：`http://localhost:12881`
+- MailHog UI（dev mailbox）：`http://localhost:8025`（仅本机）
+
+### 3.2.1 Debug Profile（localhost-only）
 - backend（community-app，回滚/诊断）：`http://localhost:12882`
 - IM Realtime（internal worker，回滚/诊断）：`ws://localhost:18081/internal/ws/im`
 - IM Core（回滚/诊断）：`http://localhost:18082`
-- MailHog UI（dev mailbox）：`http://localhost:8025`（仅本机）
 
 ### 3.3 观测/日志端口（可选开启）
 - Grafana：`http://localhost:12883`（默认账号密码 `admin/admin`）
@@ -177,7 +179,7 @@ flowchart TD
 默认访问方式：
 - 页面入口：`http://localhost:12881`
 - 统一 edge：`http://localhost:12880`
-- 直连端口 `12882/18081/18082` 仅作为回滚与诊断路径保留
+- 直连端口 `12882/18081/18082` 仅作为回滚与诊断路径保留，默认不暴露；需要时通过 `debug` profile 开启
 
 更完整的启动与运维说明见：`deploy/README.md`。
 

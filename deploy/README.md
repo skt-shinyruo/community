@@ -1,13 +1,13 @@
 # deploy/
 
-本目录存放 docker compose 与构建/初始化/观测配置，用于本地/演练环境一键启动全栈（推荐：前端直连后端单体）。
+本目录存放 docker compose 与构建/初始化/观测配置，用于本地/演练环境一键启动全栈（推荐：gateway-first；直连排障口通过 `debug` profile 按需开启）。
 
 > 约定：本文档中的命令默认从**仓库根目录**执行。
 
 默认 compose project name 固定为 `community`（避免在 Docker Desktop 里显示为 `deploy` 造成歧义）；如需覆盖可使用 `docker compose -p <name>`。
 
 ## 文件/目录说明
-- `docker-compose.yml`：业务必需全栈（frontend + `community-app` + IM + MySQL/Redis/Kafka/ES + MailHog），默认暴露业务入口端口（`12881/12882/18081/18082`），内部依赖端口不映射到宿主机（fail-closed）。
+- `docker-compose.yml`：业务必需全栈（frontend + `community-gateway` + `community-app` + IM + MySQL/Redis/Kafka/ES + MailHog），默认仅暴露统一入口（`12880/12881`）与 MailHog UI（`8025`）；`debug` profile 才会额外映射 `12882/18081/18082` 到宿主机，内部依赖端口仍不映射（fail-closed）。
 - `Dockerfile.frontend`：构建并运行前端（Vite build + preview，对外 `12881`）。
 - `Dockerfile.spring-service`：统一构建 Spring Boot 模块镜像（build arg：`MODULE`，取 Maven `artifactId`，例如 `community-app`）。
 - `.env.example`：环境变量示例（复制为 `.env` 使用）。
@@ -18,23 +18,29 @@
 
 ## 一键启动（推荐）
 1. 准备环境变量：`cp deploy/.env.example deploy/.env`
-   - 建议至少修改 `JWT_HMAC_SECRET`（>= 32 bytes），不要长期用默认值
+   - 建议至少修改 `JWT_HMAC_SECRET`（>= 32 bytes）；示例默认值现在可直接启动本地 compose，但不要长期使用
 2. 启动：`docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build`
 3. 访问：
    - 前端：`http://localhost:12881`
-   - API（backend）：`http://localhost:12882/api/...`
+   - 统一入口（API / files / IM）：`http://localhost:12880`
    - MailHog UI（dev mailbox）：`http://localhost:8025`（仅本机）
 
 > 可选：开启观测/日志（Grafana/Loki/Prometheus/Alertmanager）
 > - 在 `deploy/.env` 中添加：`COMPOSE_PROFILES=observability`
 > - 然后执行同一条启动命令即可（端口 `12883+`，默认仅绑定到 `127.0.0.1`）
+>
+> 可选：开启直连排障端口（localhost only）
+> - 临时一次性：`COMPOSE_PROFILES=debug docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d`
+> - 若需要和观测一起开启：`COMPOSE_PROFILES=observability,debug docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d`
 
 ## 端口（默认映射到宿主机）
+- Community Gateway（统一入口）：`http://localhost:12880`
 - 前端（Vite preview）：`http://localhost:12881`
-- 后端（community-app）：`http://localhost:12882`
-- IM Realtime（WebSocket）：`ws://localhost:18081/ws/im`
-- IM Core（HTTP）：`http://localhost:18082`
 - MailHog UI：`http://localhost:8025`（仅绑定到 `127.0.0.1`）
+- `debug` profile（仅绑定到 `127.0.0.1`，用于回滚/诊断）：
+  - community-app：`http://localhost:12882`
+  - IM Realtime internal worker：`ws://localhost:18081/internal/ws/im`
+  - IM Core：`http://localhost:18082`
 - 观测/日志（需启用 `observability` profile，均仅绑定到 `127.0.0.1`）：
   - Grafana：`http://localhost:12883`
   - Loki：`http://localhost:12884`
@@ -43,6 +49,7 @@
 
 ## 常用 docker compose 命令速查（从仓库根目录执行）
 - 启动：`docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build`
+- 启动 + 直连排障端口：`COMPOSE_PROFILES=debug docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d`
 - 查看状态：`docker compose -f deploy/docker-compose.yml ps`
 - 查看日志：`docker compose -f deploy/docker-compose.yml logs -f --tail=200`
 - 停止：`docker compose -f deploy/docker-compose.yml --env-file deploy/.env down`

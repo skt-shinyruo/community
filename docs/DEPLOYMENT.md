@@ -11,12 +11,13 @@
 ### 1.1 必要对外端口（默认）
 - Community Gateway（统一入口）：`http://localhost:12880`
 - 前端（Vue3 SPA）：`http://localhost:12881`
-- 后端（community-app，回滚/诊断）：`http://localhost:12882`
-- IM Realtime（internal worker，回滚/诊断）：`ws://localhost:18081/internal/ws/im`
-- IM Core（回滚/诊断）：`http://localhost:18082`
 
 ### 1.2 可选对外端口（本地辅助）
 - MailHog UI（dev mailbox）：`http://localhost:8025`（默认启用；仅绑定到 `127.0.0.1`）
+- `debug` profile（仅绑定到 `127.0.0.1`，回滚/排障）：
+  - community-app：`http://localhost:12882`
+  - im-realtime internal worker：`ws://localhost:18081/internal/ws/im`
+  - im-core：`http://localhost:18082`
 
 > 观测/日志端口仅在启用 `observability` profile 时才会映射到宿主机（见下文）。
 
@@ -39,7 +40,9 @@
   - 依赖：MySQL / Redis / Kafka / Elasticsearch
   - 业务：`community-gateway` + `community-app` + `frontend` + IM（`im-core` / `im-realtime`）
   - 辅助：MailHog（dev mailbox，UI `http://localhost:8025`，仅本机）
-  - **过渡期暴露统一入口 `12880`，同时保留 `12881/12882/18081/18082` 便于联调与回滚；依赖端口仍不映射到宿主机（fail-closed）**
+  - **默认仅暴露统一入口 `12880` 与前端 `12881`；直连 `12882/18081/18082` 仅在 `debug` profile 下按需映射到 `127.0.0.1`；依赖端口仍不映射到宿主机（fail-closed）**
+- `debug` profile（可选）
+  - 直连排障：`community-app` / `im-core` / `im-realtime` 的 localhost-only 端口映射
 - `observability` profile（可选）
   - 观测：Prometheus / Alertmanager / Loki / Promtail / Grafana
   - 绑定到 `127.0.0.1` 暴露观测端口（`12883+`），用于浏览器访问 Grafana/Loki/Prometheus/Alertmanager
@@ -54,7 +57,7 @@
    - `JWT_HMAC_SECRET`：开发环境也建议改成自己的一串 >= 32 字节密钥（auth/login 签发、资源接口验签需要一致）
    - 运行自检：当前仓库未提供 `backend/scripts/doctor.sh`；如需可后续补充一个不输出敏感值的检查脚本。
 
-### 3.2 启动（前端直连后端）
+### 3.2 启动（gateway-first，本地默认）
 ```bash
 docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 ```
@@ -69,9 +72,10 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 - 前端默认 IM WebSocket -> `ws://localhost:12880/ws/im`
 
 保留的直连入口：
-- `12882`（`community-app`）
-- `18082`（`im-core`）
-- `18081/internal/ws/im`（`im-realtime` internal worker）
+- 需启用 `debug` profile 后才会暴露到宿主机：
+  - `12882`（`community-app`）
+  - `18082`（`im-core`）
+  - `18081/internal/ws/im`（`im-realtime` internal worker）
 
 ### 3.3 启动 + 额外开放观测端口
 ```bash
@@ -80,9 +84,15 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 
 # 方式 2（临时一次性）：不改文件，直接在命令前加环境变量
 # COMPOSE_PROFILES=observability docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+
+# 方式 3（排障临时开启直连端口）
+# COMPOSE_PROFILES=debug docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
+
+# 方式 4（同时开启观测 + 调试直连）
+# COMPOSE_PROFILES=observability,debug docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
 ```
 
-> 注意：profile 只影响“本次 up 会包含哪些 services”；如果你曾经启用过 `observability`，之后去掉 profile 不会自动停止已启动的观测容器，需要手动 stop/remove 或执行 `docker compose ... down`。
+> 注意：profile 只影响“本次 up 会包含哪些 services”；如果你曾经启用过 `observability` 或 `debug`，之后去掉 profile 不会自动停止已启动的对应容器，需要手动 stop/remove 或执行 `docker compose ... down`。
 
 ---
 
@@ -113,7 +123,7 @@ IM 专用客户端默认策略：
 本地开发（HMR）场景下：
 - 默认浏览器流量已经直接走 `community-gateway:12880`，不再依赖 Vite proxy 才能访问后端；
 - 如需自定义目标，可显式配置 `VITE_API_BASE_URL` / `VITE_IM_CORE_BASE_URL` / `VITE_IM_WS_URL`；
-- 直连 `12882/18081/18082` 仅建议用于回滚、排障和链路对照。
+- 直连 `12882/18081/18082` 仅建议用于回滚、排障和链路对照，且默认不暴露；需要时通过 `debug` profile 临时开启。
 
 ---
 

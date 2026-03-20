@@ -7,7 +7,7 @@
 - WebSocket：`ws://localhost:12880/ws/im`
 - HTTP：`http://localhost:12880/api/im/**`
 
-`ws://localhost:18081/internal/ws/im` 与 `http://localhost:18082` 仍保留为回滚 / 排障时的直连路径。
+`ws://localhost:18081/internal/ws/im` 与 `http://localhost:18082` 仍保留为回滚 / 排障时的直连路径，但默认不暴露；需要时通过 `debug` profile 开启。
 
 ## 工具
 
@@ -47,5 +47,7 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 - `community-gateway`：`http://localhost:12880`
   - 外部 WebSocket 入口：`ws://localhost:12880/ws/im`
   - 外部 HTTP 入口：`http://localhost:12880/api/im/**`
-- `im-realtime` 直连：`ws://localhost:18081/internal/ws/im`（回滚 / 排障）
-- `im-core` 直连：`http://localhost:18082`（回滚 / 排障）
+- 若需要直连排障口，请额外开启：
+  - `COMPOSE_PROFILES=debug docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d`
+  - `im-realtime` 直连：`ws://localhost:18081/internal/ws/im`
+  - `im-core` 直连：`http://localhost:18082`

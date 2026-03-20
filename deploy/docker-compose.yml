@@ -84,7 +84,7 @@ services:
     container_name: community-kafka-init
     depends_on:
       kafka:
-        condition: service_healthy
+        condition: service_started
     entrypoint: ["/bin/bash", "-lc"]
     # NOTE: 必须确保整个脚本作为“单一参数”传给 bash -lc；
     # 否则会退化为只执行 `set`，导致 topic 未创建。
@@ -148,8 +148,6 @@ services:
       args:
         MODULE: community-app
     container_name: community-app
-    ports:
-      - "12882:8080"
     environment:
       - SERVER_PORT=8080
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}
@@ -190,8 +188,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      elasticsearch:
-        condition: service_started
+      es-init:
+        condition: service_completed_successfully
 
   frontend:
     build:
@@ -199,6 +197,8 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile.frontend
     container_name: community-frontend
+    environment:
+      - VITE_PREVIEW_PROXY_TARGET=http://community-gateway:8080
     ports:
       - "12881:12881"
     depends_on:
@@ -241,8 +241,6 @@ services:
       args:
         MODULE: im-core
     container_name: im-core
-    ports:
-      - "18082:18082"
     environment:
       - SERVER_PORT=18082
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
@@ -264,8 +262,6 @@ services:
       args:
         MODULE: im-realtime
     container_name: im-realtime
-    ports:
-      - "18081:18081"
     environment:
       - SERVER_PORT=18081
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
@@ -282,6 +278,41 @@ services:
         condition: service_completed_successfully
       im-core:
         condition: service_started
+
+  # Debug-only localhost port exposure. These sidecars proxy traffic back into the
+  # compose network so the default stack stays closed while debug mode keeps familiar ports.
+  community-app-debug-port:
+    profiles: ["debug"]
+    image: caddy:2.8-alpine
+    container_name: community-app-debug-port
+    command: ["caddy", "reverse-proxy", "--from", ":8080", "--to", "community-app:8080"]
+    depends_on:
+      community-app:
+        condition: service_started
+    ports:
+      - "127.0.0.1:12882:8080"
+
+  im-core-debug-port:
+    profiles: ["debug"]
+    image: caddy:2.8-alpine
+    container_name: im-core-debug-port
+    command: ["caddy", "reverse-proxy", "--from", ":18082", "--to", "im-core:18082"]
+    depends_on:
+      im-core:
+        condition: service_started
+    ports:
+      - "127.0.0.1:18082:18082"
+
+  im-realtime-debug-port:
+    profiles: ["debug"]
+    image: caddy:2.8-alpine
+    container_name: im-realtime-debug-port
+    command: ["caddy", "reverse-proxy", "--from", ":18081", "--to", "im-realtime:18081"]
+    depends_on:
+      im-realtime:
+        condition: service_started
+    ports:
+      - "127.0.0.1:18081:18081"
 
   prometheus:
     profiles: ["observability"]

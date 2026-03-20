@@ -7,7 +7,7 @@
 
 ## 快速开始（本地）
 
-后端 + 前端容器一键启动（推荐）：
+全栈容器一键启动（gateway-first，推荐）：
 
 ```bash
 cp deploy/.env.example deploy/.env
@@ -23,7 +23,8 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 
 访问：
 - 前端：`http://localhost:12881`
-- 后端：`http://localhost:12882/api/...`
+- 统一入口：`http://localhost:12880/api/...`
+- 调试直连端口（需 `COMPOSE_PROFILES=debug`）：`12882 / 18081 / 18082`
 
 ## 文档入口
 - 后端工程：`backend/README.md`

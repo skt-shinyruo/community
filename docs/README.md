@@ -6,7 +6,7 @@
 
 ## 推荐阅读顺序
 1. `docs/ARCHITECTURE.md`：总体架构、模块边界、端口、关键链路（读/写/事件）、可观测性入口
-2. `docs/DEPLOYMENT.md`：本地启动（docker compose profiles）、端口暴露策略、前端直连后端单体的工作方式
+2. `docs/DEPLOYMENT.md`：本地启动（docker compose profiles）、端口暴露策略、gateway-first 的工作方式
 3. `docs/OBSERVABILITY.md`：日志/指标/告警（Grafana + Loki + Prometheus + Alertmanager）与排障建议
 4. `docs/SYSTEM_DESIGN.md`：系统设计（同步 API + 异步事件、最终一致、幂等、DLQ）
 5. `docs/SECURITY.md`：鉴权模型（JWT + refresh cookie）、CORS、限流、审计日志、内部 token

@@ -1,64 +1,89 @@
 <template>
   <div class="page chat-page">
     <UiCard class="chat-card">
-      <!-- Header -->
       <div class="chat-header">
-        <UiPageHeader>
-          <template #title>
-            <div class="row" style="gap: 10px; align-items: center">
-              <RouterLink to="/messages" class="btn-icon" aria-label="返回会话列表" title="返回">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="15 18 9 12 15 6"></polyline>
-                </svg>
-              </RouterLink>
-              <span>{{ displayTitle }}</span>
-            </div>
-          </template>
-          <template #subtitle>会话详情</template>
-          <template #actions>
-            <UiButton variant="secondary" @click="load" :disabled="loading">刷新</UiButton>
-          </template>
-        </UiPageHeader>
+        <div class="chat-header-main">
+          <RouterLink to="/messages" class="chat-back-link" aria-label="返回会话列表" title="返回收件箱">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+            <span>返回收件箱</span>
+          </RouterLink>
+
+          <UiPageHeader class="chat-title-block">
+            <template #title>{{ targetId ? '私信线程' : '当前对话' }}</template>
+            <template #subtitle>
+              <span v-if="targetId">与一位社区成员继续交流，保持这段线程的上下文完整。</span>
+              <span v-else>在同一个线程里继续推进这段私信。</span>
+            </template>
+          </UiPageHeader>
+        </div>
+
+        <div class="chat-header-actions">
+          <div class="chat-status-pill" :class="{ online: imRealtimeClient?.state?.connected }">
+            {{ imRealtimeClient?.state?.connected ? '实时已连接' : '实时未连接' }}
+          </div>
+          <UiButton variant="secondary" @click="load" :disabled="loading">刷新</UiButton>
+        </div>
       </div>
 
       <UiDivider />
 
-      <!-- Messages Area -->
       <div class="chat-area" ref="chatArea">
-        <UiEmpty v-if="error && items.length === 0" type="error">{{ error }}</UiEmpty>
-        <div v-else-if="loading && items.length === 0" class="muted" style="text-align: center; margin-top: 20px">加载中…</div>
-        <UiEmpty v-else-if="items.length === 0">暂无消息，打个招呼吧。</UiEmpty>
+        <div class="chat-timeline-label">消息时间线</div>
+
+        <UiEmpty v-if="error && items.length === 0" type="error" class="chat-state">{{ error }}</UiEmpty>
+        <div v-else-if="loading && items.length === 0" class="muted chat-state">正在同步会话…</div>
+        <UiEmpty v-else-if="items.length === 0" class="chat-state">
+          暂无消息
+          <template #description>你可以直接发出第一条消息，让这段对话开始流动起来。</template>
+        </UiEmpty>
 
         <div v-else class="message-list">
           <div v-for="m in sortedItems" :key="m.id" class="message-row" :class="{ mine: m.fromId === meId }">
+            <div class="message-meta">
+              <span class="message-author">{{ m.fromId === meId ? '我' : '对方' }}</span>
+              <span class="message-time">{{ formatTimeShort(m.createTime) }}</span>
+            </div>
             <div class="message-bubble">{{ m.content }}</div>
-            <div class="message-time">{{ formatTimeShort(m.createTime) }}</div>
           </div>
         </div>
       </div>
 
-      <!-- Input Area -->
-      <div class="chat-input-area">
-        <textarea
-          class="chat-input"
-          v-model="content"
-          placeholder="输入消息…"
-          @keydown.enter.prevent="send"
-          rows="1"
-        ></textarea>
-        <button
-          class="send-btn"
-          type="button"
-          aria-label="发送消息"
-          title="发送"
-          @click="send"
-          :disabled="sending || !content.trim()"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="22" y1="2" x2="11" y2="13"></line>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-          </svg>
-        </button>
+      <UiDivider />
+
+      <div class="chat-composer">
+        <div class="chat-composer-copy">
+          <div class="chat-composer-label">继续这段对话</div>
+          <div class="chat-composer-hint">按 Enter 即可发送新消息。</div>
+        </div>
+
+        <div v-if="error && items.length > 0" class="error chat-inline-error">{{ error }}</div>
+
+        <div class="chat-input-area">
+          <textarea
+            id="conversation-message-input"
+            name="conversation-message"
+            class="chat-input"
+            v-model="content"
+            placeholder="写一条清晰、具体的消息…"
+            @keydown.enter.prevent="send"
+            rows="1"
+          ></textarea>
+          <button
+            class="send-btn"
+            type="button"
+            aria-label="发送消息"
+            title="发送"
+            @click="send"
+            :disabled="sending || !content.trim()"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
       </div>
     </UiCard>
   </div>
@@ -90,12 +115,6 @@ const pendingClientMsgIds = new Set()
 
 const conversationId = computed(() => props.conversationId || '')
 const targetId = computed(() => parseTargetId())
-
-// Try to guess other user name or just show Conversation ID
-const displayTitle = computed(() => {
-   if (targetId.value) return `与用户 #${targetId.value} 的对话`
-   return '私信'
-})
 
 const sortedItems = computed(() => {
    // Ensure chronological order
@@ -236,7 +255,9 @@ onMounted(() => {
 
 <style scoped>
 .chat-page {
-  gap: var(--space-4);
+  max-width: 980px;
+  margin: 0 auto;
+  gap: var(--space-5);
 }
 
 .chat-card {
@@ -244,113 +265,250 @@ onMounted(() => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  min-height: 72vh;
+  min-height: 78vh;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 97%, white 3%), var(--surface));
 }
 
 .chat-header {
-  padding: 14px 16px;
+  padding: 18px 22px;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.chat-header-main {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.chat-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.chat-back-link:hover {
+  color: var(--text-1);
+}
+
+.chat-title-block :deep(.ui-page-header) {
+  gap: 0;
+}
+
+.chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.chat-status-pill {
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-2);
+  background: color-mix(in srgb, var(--surface) 82%, var(--bg) 18%);
+  border: 1px solid var(--border);
+}
+
+.chat-status-pill.online {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success-weak) 70%, white 30%);
+  border-color: color-mix(in srgb, var(--success) 22%, var(--border) 78%);
 }
 
 .chat-area {
-   flex: 1;
-   background: var(--bg);
-   overflow-y: auto;
-   padding: 24px;
-   display: flex;
-   flex-direction: column;
+  flex: 1;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg) 85%, var(--surface) 15%), var(--bg));
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-timeline-label {
+  align-self: center;
+  margin-bottom: 18px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 88%, var(--bg) 12%);
+  color: var(--text-3);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.chat-state {
+  margin: auto 0;
 }
 
 .message-list {
-   display: flex;
-   flex-direction: column;
-   gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 .message-row {
-   display: flex;
-   flex-direction: column;
-   align-items: flex-start; /* Friend messages left */
-   max-width: 70%;
-   align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: min(72%, 620px);
+  align-self: flex-start;
+  gap: 6px;
 }
+
 .message-row.mine {
-   align-items: flex-end; /* My messages right */
-   align-self: flex-end;
+  align-items: flex-end;
+  align-self: flex-end;
+}
+
+.message-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px;
+}
+
+.message-author {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-2);
 }
 
 .message-bubble {
-   padding: 12px 16px;
-   background: var(--surface);
-   border-radius: 12px;
-   border-top-left-radius: 2px;
-   box-shadow: var(--shadow-sm);
-   font-size: 15px;
-   line-height: 1.5;
-   color: var(--text-1);
+  padding: 14px 18px;
+  background: color-mix(in srgb, var(--surface) 90%, white 10%);
+  border-radius: 18px;
+  border-top-left-radius: 6px;
+  box-shadow: var(--shadow-sm);
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--text-1);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
+
 .message-row.mine .message-bubble {
-   background: var(--accent);
-   color: white;
-   border-top-left-radius: 12px;
-   border-top-right-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 88%, white 12%);
+  color: white;
+  border-top-left-radius: 18px;
+  border-top-right-radius: 6px;
 }
 
 .message-time {
-   font-size: 11px;
-   color: var(--text-3);
-   margin-top: 4px;
-   padding: 0 4px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.chat-composer {
+  padding: 20px 24px 24px;
+  display: grid;
+  gap: 14px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, white 4%), var(--surface));
+}
+
+.chat-composer-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.chat-composer-label {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.chat-composer-hint {
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.chat-inline-error {
+  margin: 0;
 }
 
 .chat-input-area {
-   padding: 16px 24px;
-   background: var(--surface);
-   border-top: 1px solid var(--border);
-   display: flex;
-   gap: 12px;
-   align-items: flex-end;
+  padding: 12px;
+  background: color-mix(in srgb, var(--surface) 75%, var(--bg) 25%);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
 }
+
 .chat-input {
-   flex: 1;
-   background: var(--bg);
-   border: none;
-   border-radius: 20px;
-   padding: 12px 16px;
-   font-family: inherit;
-   font-size: 15px;
-   outline: none;
-   resize: none;
-   min-height: 44px;
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-radius: 16px;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.5;
+  outline: none;
+  resize: none;
+  min-height: 48px;
 }
+
 .chat-input:focus {
-   box-shadow: var(--focus-ring);
+  box-shadow: none;
 }
+
 .send-btn {
-   width: 44px; height: 44px;
-   border-radius: 50%;
-   background: var(--accent);
-   color: white;
-   border: none;
-   display: flex; 
-   align-items: center; 
-   justify-content: center;
-   cursor: pointer;
-   transition: transform 0.1s;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: white;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.12s ease, opacity 0.12s ease;
 }
-.send-btn:active { transform: scale(0.95); }
-.send-btn:disabled { opacity: 0.5; cursor: default; }
+
+.send-btn:active {
+  transform: scale(0.96);
+}
+
+.send-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
 
 @media (max-width: 768px) {
   .chat-header {
-    padding: 12px;
+    padding: 16px;
+    flex-direction: column;
   }
 
   .chat-area {
     padding: 16px;
   }
 
-  .chat-input-area {
+  .chat-composer {
     padding: 12px;
+  }
+
+  .chat-input-area {
+    border-radius: 20px;
+  }
+
+  .message-row {
+    max-width: 88%;
   }
 }
 </style>

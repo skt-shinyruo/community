@@ -1,6 +1,7 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.content.dto.CommentResponse;
+import com.nowcoder.community.content.dto.BatchPostSummaryRequest;
 import com.nowcoder.community.content.dto.CreateCommentRequest;
 import com.nowcoder.community.content.dto.CreatePostRequest;
 import com.nowcoder.community.content.dto.CreatePostResponse;
@@ -59,6 +60,12 @@ public class PostController {
     ) {
         int userId = CurrentUser.requireUserId(authentication);
         return Result.ok(postFacadeService.create(userId, idempotencyKey, request));
+    }
+
+    @PostMapping("/batch-summary")
+    public Result<List<PostSummaryResponse>> batchSummary(@Valid @RequestBody BatchPostSummaryRequest request) {
+        List<Integer> postIds = request == null ? List.of() : request.getPostIds();
+        return Result.ok(postFacadeService.listPostsByIds(postIds));
     }
 
     @GetMapping("/{postId}")

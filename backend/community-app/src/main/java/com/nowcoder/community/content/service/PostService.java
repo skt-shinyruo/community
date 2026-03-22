@@ -8,7 +8,9 @@ import com.nowcoder.community.infra.pagination.Pagination;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static com.nowcoder.community.content.exception.ContentErrorCode.POST_NOT_FOUND;
 
@@ -37,6 +39,45 @@ public class PostService {
         }
         Integer safeCategoryId = (categoryId != null && categoryId > 0) ? categoryId : null;
         return discussPostMapper.selectDiscussPosts(0, safeCategoryId, null, safeTag, Pagination.safeOffset(p, s), s, orderMode);
+    }
+
+    public List<DiscussPost> listPostsByUser(int userId, int page, int size) {
+        int uid = Math.max(0, userId);
+        if (uid <= 0) {
+            return List.of();
+        }
+        int p = Math.max(0, page);
+        int s = Math.min(50, Math.max(1, size));
+        return discussPostMapper.selectDiscussPosts(uid, null, null, null, Pagination.safeOffset(p, s), s, ORDER_LATEST);
+    }
+
+    public List<DiscussPost> listPostsByIds(List<Integer> postIds) {
+        if (postIds == null || postIds.isEmpty()) {
+            return List.of();
+        }
+
+        LinkedHashMap<Integer, Boolean> orderedIds = new LinkedHashMap<>();
+        for (Integer rawId : postIds) {
+            int id = rawId == null ? 0 : rawId;
+            if (id <= 0) continue;
+            orderedIds.putIfAbsent(id, Boolean.TRUE);
+            if (orderedIds.size() >= 200) break;
+        }
+        if (orderedIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<DiscussPost> rows = discussPostMapper.selectDiscussPostsByIds(List.copyOf(orderedIds.keySet()));
+        Map<Integer, DiscussPost> byId = new LinkedHashMap<>();
+        for (DiscussPost post : rows) {
+            if (post == null || post.getId() <= 0) continue;
+            byId.put(post.getId(), post);
+        }
+
+        return orderedIds.keySet().stream()
+                .map(byId::get)
+                .filter(post -> post != null)
+                .toList();
     }
 
     public DiscussPost getById(int postId) {

@@ -1,60 +1,69 @@
 <template>
-  <div class="page" style="max-width: 860px; margin: 0 auto">
-    <UiCard flat>
+  <div class="page user-management-page">
+    <UiCard flat class="admin-page-header">
       <UiPageHeader>
         <template #title>用户管理</template>
-        <template #subtitle>授予/回收角色（仅管理员）。操作会记录审计日志。</template>
+        <template #subtitle>在明确理由、明确风险和明确审计责任的前提下授予或回收角色。</template>
       </UiPageHeader>
     </UiCard>
 
-    <UiCard style="margin-top: 12px">
-      <div class="stack" style="gap: 12px">
-        <div style="font-weight: 800">搜索用户</div>
-        <div class="muted" style="font-size: 12px">输入 userId / username / email 任意一个即可。</div>
+    <UiCard class="user-search-card">
+      <div class="user-card-head">
+        <div>
+          <div class="user-card-eyebrow">Lookup</div>
+          <div class="user-card-title">搜索用户</div>
+        </div>
+      </div>
+      <div class="muted user-card-note">输入 `userId`、`username` 或 `email` 任意一个即可定位目标用户。</div>
 
-        <div class="row" style="gap: 8px; flex-wrap: wrap">
-          <UiInput v-model.trim="qUserId" placeholder="userId" autocomplete="off" style="max-width: 140px" />
-          <UiInput v-model.trim="qUsername" placeholder="username" autocomplete="off" style="max-width: 200px" />
-          <UiInput v-model.trim="qEmail" placeholder="email" autocomplete="off" style="max-width: 260px" />
+      <div class="user-search-grid">
+          <UiInput v-model.trim="qUserId" name="user-search-id" placeholder="userId" autocomplete="off" class="user-input user-input--id" />
+          <UiInput v-model.trim="qUsername" name="user-search-username" placeholder="username" autocomplete="off" class="user-input user-input--name" />
+          <UiInput v-model.trim="qEmail" name="user-search-email" placeholder="email" autocomplete="off" class="user-input user-input--email" />
           <UiButton variant="secondary" :disabled="loading" @click="onSearch">
             {{ loading ? '搜索中…' : '搜索' }}
           </UiButton>
-        </div>
-
-        <div v-if="error" class="error">{{ error }}</div>
-        <div v-if="successMsg" class="success">{{ successMsg }}</div>
       </div>
+
+      <div v-if="error" class="error">{{ error }}</div>
+      <div v-if="successMsg" class="success">{{ successMsg }}</div>
     </UiCard>
 
-    <UiCard v-if="user" style="margin-top: 12px">
-      <div class="stack" style="gap: 12px">
-        <div style="font-weight: 800">用户信息</div>
-        <div class="muted" style="font-size: 12px">
+    <UiCard v-if="user" class="user-detail-card">
+      <div class="user-card-head">
+        <div>
+          <div class="user-card-eyebrow">Target User</div>
+          <div class="user-card-title">用户信息</div>
+        </div>
+      </div>
+
+      <div class="user-summary-line muted">
           #{{ user.id }} · {{ user.username }} · {{ user.email || '（无邮箱）' }} · status={{ user.status }} · 当前角色：{{
             typeLabel(user.type)
           }}
-        </div>
+      </div>
 
-        <div class="stack" style="gap: 8px">
-          <div class="muted" style="font-size: 12px">目标角色</div>
-          <select v-model="nextType" class="input" :disabled="loading" style="max-width: 240px">
+      <div class="user-role-grid">
+        <div class="user-field">
+          <div class="user-field-label">目标角色</div>
+          <select v-model="nextType" name="user-next-role" class="input user-select" :disabled="loading">
             <option :value="0">USER（普通用户）</option>
             <option :value="2">MODERATOR（版主）</option>
             <option :value="1">ADMIN（管理员）</option>
           </select>
-          <div class="muted" style="font-size: 12px">
+          <div class="muted user-field-help">
             提示：提升为 ADMIN 风险较高；建议填写明确原因并避免误操作。禁止降级自己（避免锁死管理入口）。
           </div>
         </div>
 
-        <div class="stack" style="gap: 8px">
-          <div class="muted" style="font-size: 12px">原因（必填）</div>
-          <UiInput v-model.trim="reason" placeholder="例如：自托管初始管理员 / 运营团队授予版主权限" autocomplete="off" />
+        <div class="user-field">
+          <div class="user-field-label">原因（必填）</div>
+          <UiInput v-model.trim="reason" name="user-role-reason" placeholder="例如：自托管初始管理员 / 运营团队授予版主权限" autocomplete="off" />
         </div>
+      </div>
 
-        <div class="row" style="justify-content: flex-end; gap: 8px; flex-wrap: wrap">
-          <UiButton variant="secondary" :disabled="loading" @click="openConfirm">提交变更</UiButton>
-        </div>
+      <div class="user-actions">
+        <UiButton variant="secondary" :disabled="loading" @click="openConfirm">提交变更</UiButton>
       </div>
     </UiCard>
 
@@ -106,7 +115,7 @@ const confirmMessage = computed(() => {
   if (!user.value) return '是否继续？'
   const from = typeLabel(user.value.type)
   const to = typeLabel(nextType.value)
-  return `用户 #${user.value.id}（${user.value.username}）角色变更：${from} -> ${to}；原因：${reason.value || '（空）'}`
+  return `成员 ${user.value.username}（#${user.value.id}）角色变更：${from} -> ${to}；原因：${reason.value || '（空）'}`
 })
 
 async function onSearch() {
@@ -177,3 +186,84 @@ async function onConfirmUpdate() {
 }
 </script>
 
+<style scoped>
+.user-management-page {
+  max-width: 920px;
+}
+
+.user-search-card,
+.user-detail-card {
+  display: grid;
+  gap: 14px;
+}
+
+.user-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.user-card-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 4px;
+}
+
+.user-card-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-1);
+}
+
+.user-card-note,
+.user-summary-line {
+  font-size: 13px;
+}
+
+.user-search-grid {
+  display: grid;
+  grid-template-columns: 140px 200px minmax(220px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.user-role-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.user-field {
+  display: grid;
+  gap: 8px;
+}
+
+.user-field-label {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.user-select {
+  max-width: 260px;
+}
+
+.user-field-help {
+  font-size: 12px;
+}
+
+.user-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .user-search-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

@@ -50,14 +50,14 @@
 }
 
 .empty {
-  padding: 12px 0;
+  padding: 14px 0;
 }
 
 /* Search Highlight */
 em {
   font-style: normal;
   background: var(--highlight-bg);
-  padding: 0 2px;
+  padding: 0 3px;
   border-radius: 4px;
 }
 

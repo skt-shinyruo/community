@@ -2,6 +2,9 @@ package com.nowcoder.community.user.controller;
 
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.content.dto.PostSummaryResponse;
+import com.nowcoder.community.content.dto.UserRecentCommentResponse;
+import com.nowcoder.community.content.service.PostFacadeService;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.user.dto.AvatarUploadTokenResponse;
 import com.nowcoder.community.user.dto.BatchUserSummaryRequest;
@@ -43,12 +46,14 @@ public class UserController {
     private final AvatarService avatarService;
     private final UserSocialProfileService userSocialProfileService;
     private final PointsService pointsService;
+    private final PostFacadeService postFacadeService;
 
-    public UserController(UserService userService, AvatarService avatarService, UserSocialProfileService userSocialProfileService, PointsService pointsService) {
+    public UserController(UserService userService, AvatarService avatarService, UserSocialProfileService userSocialProfileService, PointsService pointsService, PostFacadeService postFacadeService) {
         this.userService = userService;
         this.avatarService = avatarService;
         this.userSocialProfileService = userSocialProfileService;
         this.pointsService = pointsService;
+        this.postFacadeService = postFacadeService;
     }
 
     @GetMapping("/{userId}")
@@ -76,6 +81,22 @@ public class UserController {
         resp.setSocialDegraded(stats.isDegraded());
         resp.setHasFollowed(viewerId > 0 ? stats.isHasFollowed() : false);
         return Result.ok(resp);
+    }
+
+    @GetMapping("/{userId}/recent-posts")
+    public Result<List<PostSummaryResponse>> recentPosts(@PathVariable int userId,
+                                                         @RequestParam(required = false) Integer page,
+                                                         @RequestParam(required = false) Integer size) {
+        userService.getById(userId);
+        return Result.ok(postFacadeService.listPostsByUser(userId, page, size));
+    }
+
+    @GetMapping("/{userId}/recent-comments")
+    public Result<List<UserRecentCommentResponse>> recentComments(@PathVariable int userId,
+                                                                  @RequestParam(required = false) Integer page,
+                                                                  @RequestParam(required = false) Integer size) {
+        userService.getById(userId);
+        return Result.ok(postFacadeService.listRecentCommentsByUser(userId, page, size));
     }
 
     @GetMapping("/resolve")

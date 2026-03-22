@@ -1,72 +1,103 @@
 <template>
-  <div class="page" style="max-width: 860px; margin: 0 auto">
-    <UiPageHeader>
-      <template #title>搜索</template>
-      <template #subtitle>支持帖子关键词高亮；管理员可重建索引。</template>
-      <template #actions>
-        <UiButton variant="secondary" v-if="auth.isAdmin" @click="openReindexConfirm" :disabled="loading">
-          {{ loading ? '处理中…' : '重建索引' }}
-        </UiButton>
-      </template>
-    </UiPageHeader>
+  <div class="page search-page">
+    <section class="search-masthead">
+      <div class="search-masthead-copy">
+        <div class="search-eyebrow">Discussion Search</div>
+        <UiPageHeader class="search-header">
+          <template #title>搜索</template>
+          <template #subtitle>从标题、摘要和标签里快速定位值得继续读下去的讨论。</template>
+          <template #actions>
+            <UiButton variant="secondary" v-if="auth.isAdmin" @click="openReindexConfirm" :disabled="loading">
+              {{ loading ? '处理中…' : '重建索引' }}
+            </UiButton>
+          </template>
+        </UiPageHeader>
+        <div class="search-dek">
+          先找到社区现在在讨论什么，再决定点进哪条线程。关键词给方向，分类和标签负责收窄语境。
+        </div>
+      </div>
 
-	    <!-- Search Box -->
-	    <UiCard class="search-card">
-	      <div class="row search-row">
-	        <UiInput
-	          v-model.trim="keyword"
-	          placeholder="输入关键词…"
-	          autocomplete="off"
-	          @keydown.enter="onSearch"
-	        />
-	        <UiButton @click="onSearch" :disabled="loading" style="min-width: 96px">
-	          {{ loading ? '搜索中…' : '搜索' }}
-	        </UiButton>
-	      </div>
-	      <div class="row search-filters">
-	        <select
-	          class="input search-select"
-	          :disabled="loading"
-	          :value="String(categoryId || '')"
-	          aria-label="分类筛选"
-	          @change="replaceQuery({ categoryId: $event?.target?.value || '' })"
-	        >
-	          <option value="">全部分类</option>
-	          <option v-for="c in categories" :key="c.id" :value="String(c.id)">{{ c.name }}</option>
-	        </select>
-	
-	        <div class="search-tag">
-	          <UiInput
-	            v-model.trim="tagDraft"
-	            placeholder="标签（可选）"
-	            autocomplete="off"
-	            :disabled="loading"
-	            :list="tagSuggestNames.length > 0 ? tagDatalistId : null"
-	            @keydown.enter="onSearch"
-	            @blur="commitTag"
-	          />
-	          <datalist v-if="tagSuggestNames.length > 0" :id="tagDatalistId">
-	            <option v-for="t in tagSuggestNames" :key="t" :value="t"></option>
-	          </datalist>
-	        </div>
+      <UiCard class="search-card">
+        <div class="search-card-kicker">
+          <span class="search-card-label">搜索范围</span>
+          <span class="search-card-summary">
+            <template v-if="keyword || tagDraft || categoryId">
+              当前聚焦
+              {{ keyword ? `“${keyword}”` : '全部关键词' }}
+              <template v-if="categoryId"> · {{ categoryLabel(categoryId) }}</template>
+              <template v-if="tagDraft"> · #{{ normalizeTag(tagDraft) }}</template>
+            </template>
+            <template v-else>尚未添加限定词，正在浏览全部讨论范围。</template>
+          </span>
+        </div>
 
-	        <UiButton variant="ghost" @click="clearFilters" :disabled="loading">
-	          清空筛选
-	        </UiButton>
-	      </div>
-	      <div class="muted" style="font-size: 12px; margin-top: 10px">
-	        提示：也可使用顶栏快捷键 {{ isMac ? '⌘' : 'Ctrl' }} K 进行全局搜索。
-	      </div>
-	      <div class="muted" style="font-size: 12px; margin-top: 6px">
-	        说明：搜索索引为最终一致，发帖/编辑后结果可能延迟数秒到数十秒；如长时间未更新，可尝试刷新或联系管理员重建索引/排查消费滞后。
-	      </div>
-	    </UiCard>
+        <div class="search-searchbar">
+          <UiInput
+            v-model.trim="keyword"
+            name="search-keyword"
+            placeholder="输入关键词…"
+            autocomplete="off"
+            @keydown.enter="onSearch"
+          />
+          <UiButton @click="onSearch" :disabled="loading" class="search-submit-btn">
+            {{ loading ? '搜索中…' : '搜索' }}
+          </UiButton>
+        </div>
+        <div class="search-filters">
+          <select
+            name="search-category-filter"
+            class="input search-select"
+            :disabled="loading"
+            :value="String(categoryId || '')"
+            aria-label="分类筛选"
+            @change="replaceQuery({ categoryId: $event?.target?.value || '' })"
+          >
+            <option value="">全部分类</option>
+            <option v-for="c in categories" :key="c.id" :value="String(c.id)">{{ c.name }}</option>
+          </select>
 
-    <UiEmpty v-if="error && items.length === 0" type="error" style="margin-top: 12px">{{ error }}</UiEmpty>
-    <div v-else-if="error" class="error" style="margin-top: 12px">{{ error }}</div>
+          <div class="search-tag">
+            <UiInput
+              v-model.trim="tagDraft"
+              name="search-tag-filter"
+              placeholder="标签（可选）"
+              autocomplete="off"
+              :disabled="loading"
+              :list="tagSuggestNames.length > 0 ? tagDatalistId : null"
+              @keydown.enter="onSearch"
+              @blur="commitTag"
+            />
+            <datalist v-if="tagSuggestNames.length > 0" :id="tagDatalistId">
+              <option v-for="t in tagSuggestNames" :key="t" :value="t"></option>
+            </datalist>
+          </div>
+
+          <UiButton variant="ghost" @click="clearFilters" :disabled="loading">清空筛选</UiButton>
+        </div>
+        <div class="search-help">
+          <div class="muted search-help-line">提示：也可使用顶栏快捷键 {{ isMac ? '⌘' : 'Ctrl' }} K 进行全局搜索。</div>
+          <div class="muted search-help-line">说明：搜索索引为最终一致，发帖/编辑后结果可能延迟数秒到数十秒；如长时间未更新，可尝试刷新或联系管理员重建索引/排查消费滞后。</div>
+        </div>
+      </UiCard>
+    </section>
+
+    <UiEmpty v-if="error && items.length === 0" type="error" class="search-state">{{ error }}</UiEmpty>
+    <div v-else-if="error" class="error search-state">{{ error }}</div>
 
     <!-- Results Feed -->
-    <div class="stack" style="margin-top: 24px; gap: 16px">
+    <div class="search-results">
+      <div v-if="items.length > 0" class="search-results-head">
+        <div>
+          <div class="search-results-eyebrow">Matched Discussions</div>
+          <div class="search-results-title">搜索结果</div>
+        </div>
+        <div class="search-results-meta">
+          <span>{{ items.length }} 条</span>
+          <span>第 {{ page + 1 }} 页</span>
+          <span v-if="keyword">关键词 · “{{ keyword }}”</span>
+        </div>
+      </div>
+
       <UiEmpty v-if="!loading && items.length === 0 && !error" type="search">
         暂无结果
         <template #description>换个关键词试试，或回到帖子列表浏览。</template>
@@ -77,62 +108,82 @@
       </UiEmpty>
       <div v-else-if="loading && items.length === 0" class="muted">加载中…</div>
 
-	      <div v-else class="topic-list">
-	        <div
-	          v-for="it in items"
-	          :key="it.postId"
-	          class="topic-row topic-row--search"
-	          role="link"
-	          tabindex="0"
-	          @keydown.enter="router.push(`/posts/${it.postId}`)"
-	          @click="router.push(`/posts/${it.postId}`)"
-	        >
-	          <div class="topic-main">
-	            <div class="topic-title-row">
-	              <div class="topic-title" v-html="titleHtml(it)"></div>
-	            </div>
-	            <div
-	              v-if="(Number(it.categoryId || 0) > 0) || (Array.isArray(it.tags) && it.tags.length > 0)"
-	              class="topic-taxonomy"
-	              @click.stop
-	            >
-	              <button
-	                v-if="Number(it.categoryId || 0) > 0"
-	                class="topic-taxonomy-btn"
-	                type="button"
-	                :aria-label="`筛选分类 ${categoryLabel(it.categoryId)}`"
-	                @click="replaceQuery({ categoryId: it.categoryId })"
-	              >
-	                <span class="tag topic-category">{{ categoryLabel(it.categoryId) }}</span>
-	              </button>
-	
-	              <button
-	                v-for="t in (Array.isArray(it.tags) ? it.tags : [])"
-	                :key="t"
-	                class="topic-taxonomy-btn"
-	                type="button"
-	                :aria-label="`筛选标签 ${t}`"
-	                @click="replaceQuery({ tag: t })"
-	              >
-	                <span class="tag">#{{ t }}</span>
-	              </button>
-	            </div>
-	            <div class="topic-snippet" v-if="contentHtml(it)" v-html="contentHtml(it)"></div>
-	            <div class="topic-meta">
-	              <span>搜索结果</span>
-	            </div>
-	          </div>
+      <div v-else class="search-result-list">
+        <article
+          v-for="it in items"
+          :key="it.postId"
+          class="search-result-card"
+          role="link"
+          tabindex="0"
+          @keydown.enter="router.push(`/posts/${it.postId}`)"
+          @click="router.push(`/posts/${it.postId}`)"
+        >
+          <div class="search-result-head">
+            <div class="search-result-taxonomy">
+              <button
+                v-if="Number(it.categoryId || 0) > 0"
+                class="search-taxonomy-btn"
+                type="button"
+                :aria-label="`筛选分类 ${categoryLabel(it.categoryId)}`"
+                @click.stop="replaceQuery({ categoryId: it.categoryId })"
+              >
+                <span class="tag topic-category">{{ categoryLabel(it.categoryId) }}</span>
+              </button>
 
-          <div class="topic-stats" @click.stop aria-label="搜索元信息">
-            <div class="topic-stat" title="相关度">S {{ Number(it.score || 0).toFixed(2) }}</div>
-            <div class="topic-stat" title="帖子 ID">#{{ it.postId }}</div>
+              <button
+                v-for="t in (Array.isArray(it.tags) ? it.tags : [])"
+                :key="t"
+                class="search-taxonomy-btn"
+                type="button"
+                :aria-label="`筛选标签 ${t}`"
+                @click.stop="replaceQuery({ tag: t })"
+              >
+                <span class="tag">#{{ t }}</span>
+              </button>
+            </div>
+            <div class="search-result-score">
+              <span class="search-result-score-label">匹配度</span>
+              <strong>S {{ Number(it.score || 0).toFixed(2) }}</strong>
+            </div>
           </div>
-        </div>
+
+          <div class="search-result-kicker">讨论线程</div>
+          <div class="search-result-title" v-html="titleHtml(it)"></div>
+          <div class="search-result-snippet" v-if="contentHtml(it)" v-html="contentHtml(it)"></div>
+          <div v-if="searchActivity(it)" class="search-result-activity" :title="searchActivity(it)?.copy || ''">
+            <div class="search-result-activity-head">
+              <UiAvatar
+                :src="it.lastReplyUser?.headerUrl || ''"
+                :name="it.lastReplyUser?.username || ''"
+                :size="18"
+              />
+              <span class="search-result-activity-label">
+                {{ searchActivity(it)?.label }}
+              </span>
+            </div>
+            <div class="search-result-activity-copy">{{ searchActivity(it)?.copy }}</div>
+          </div>
+          <div class="search-result-context">
+            <div class="search-result-author">
+              <UiAvatar :src="it.author?.headerUrl || ''" :name="it.author?.username || ''" :size="18" />
+              <span>{{ it.author?.username || `成员 ${it.userId || '—'}` }}</span>
+            </div>
+            <span>{{ formatTimeAgo(it.lastActivityTime || it.createTime) }}</span>
+            <span>{{ Number(it.commentCount || 0) }} 回复</span>
+            <span>{{ Number(it.likeCount || 0) }} 赞</span>
+          </div>
+
+          <div class="search-result-foot">
+            <span>帖子 #{{ it.postId }}</span>
+            <span>{{ categoryLabel(it.categoryId) || '未分类讨论' }}</span>
+            <span>可继续阅读</span>
+          </div>
+        </article>
       </div>
     </div>
     
     <!-- Pagination (Simple) -->
-    <div style="margin-top: 24px; display: flex; justify-content: center; gap: 12px" v-if="items.length > 0 || page > 0">
+    <div class="search-pagination" v-if="items.length > 0 || page > 0">
        <UiButton variant="secondary" @click="prevPage" :disabled="page <= 0 || loading">上一页</UiButton>
        <UiButton variant="secondary" @click="nextPage" :disabled="!hasNext || loading">下一页</UiButton>
     </div>
@@ -140,15 +191,15 @@
     <div v-if="reindexConfirmOpen" class="modal-mask" @click.self="reindexConfirmOpen = false">
       <div class="modal-card card">
         <div class="stack">
-          <div style="font-weight: 700">重建索引</div>
+          <div class="search-modal-title">重建索引</div>
           <div class="muted">此操作可能耗时较长，会对搜索/下游产生负载，是否继续？</div>
 
-          <div class="row" style="justify-content: flex-end">
+          <div class="search-modal-actions">
             <UiButton variant="secondary" @click="reindexConfirmOpen = false">取消</UiButton>
             <UiButton @click="onConfirmReindex" :disabled="loading">继续</UiButton>
           </div>
 
-          <div class="muted" style="font-size: 12px">
+          <div class="muted search-modal-note">
             提示：该操作仅管理员可执行；若失败可查看错误提示或进入 Ops Console 获取引导。
           </div>
         </div>
@@ -162,9 +213,14 @@
 	import { useRoute, useRouter } from 'vue-router'
 	import { useAuthStore } from '../stores/auth'
 	import { searchPosts, reindex } from '../api/services/searchService'
+	import { batchPostSummaries } from '../api/services/postService'
 	import { suggestTags as apiSuggestTags } from '../api/services/taxonomyService'
+	import { usePostMetaCacheStore } from '../stores/postMetaCache'
+	import { formatTimeAgo } from '../utils/time'
+	import UiAvatar from '../components/ui/UiAvatar.vue'
 	import { emOnlyHtml } from '../utils/highlight'
 	import { useTaxonomyStore } from '../stores/taxonomy'
+	import { applySearchHydration, applySearchSummaries, collectSearchHydrationIds, describeSearchActivity } from './searchResultSurface'
 	import UiCard from '../components/ui/UiCard.vue'
 	import UiPageHeader from '../components/ui/UiPageHeader.vue'
 	import UiInput from '../components/ui/UiInput.vue'
@@ -176,6 +232,7 @@ const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 const showToast = inject('showToast', () => {})
+const postMetaCache = usePostMetaCacheStore()
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(navigator.platform || '')
 
@@ -264,7 +321,28 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 	      page: page.value,
 	      size: size.value
 	    })
-	    items.value = data
+	    let summaries = []
+	    let users = {}
+	    let likeCounts = {}
+	    try {
+	      const resp = await batchPostSummaries(data.map((item) => item?.postId))
+	      summaries = Array.isArray(resp?.data) ? resp.data : []
+	    } catch {
+	      summaries = []
+	    }
+	    const merged = applySearchSummaries(data, summaries)
+	    const { userIds, postIds } = collectSearchHydrationIds(merged)
+	    try {
+	      users = await postMetaCache.ensureUserSummaries(userIds)
+	    } catch {
+	      users = {}
+	    }
+	    try {
+	      likeCounts = await postMetaCache.ensureLikeCounts(1, postIds)
+	    } catch {
+	      likeCounts = {}
+	    }
+	    items.value = applySearchHydration(merged, { users, likeCounts })
 	    emit('trace', traceId || '')
 	  } catch (e) {
 	    error.value = e?.message || '搜索失败'
@@ -326,6 +404,10 @@ async function onReindex() {
       showToast({ type: 'error', title: '重建失败', text: e?.message || '请求失败' })
     }
   }
+}
+
+function searchActivity(item) {
+  return describeSearchActivity(item)
 }
 
 function openReindexConfirm() {
@@ -411,30 +493,376 @@ async function onConfirmReindex() {
 	</script>
 
 <style scoped>
-.search-card {
-  margin-top: 12px;
-  padding: 16px;
+.search-page {
+  max-width: 920px;
 }
 
-	.search-row {
-	  gap: 12px;
-	}
+.search-masthead {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  gap: 20px;
+  align-items: start;
+}
 
-	.search-filters {
-	  margin-top: 12px;
-	  gap: 12px;
-	  flex-wrap: wrap;
-	  align-items: center;
-	}
+.search-masthead-copy {
+  display: grid;
+  gap: 14px;
+  padding: 6px 0;
+}
 
-	.search-select {
-	  height: 38px;
-	  min-width: 160px;
-	  font-size: 13px;
-	}
+.search-eyebrow,
+.search-results-eyebrow,
+.search-result-kicker {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
 
-	.search-tag {
-	  min-width: 220px;
-	  flex: 1;
-	}
-	</style>
+.search-dek {
+  max-width: 52ch;
+  color: var(--text-2);
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.search-card {
+  margin-top: 12px;
+  padding: 22px;
+  border-radius: 26px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent 28%);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 86%, var(--bg) 14%), var(--surface)),
+    repeating-linear-gradient(
+      180deg,
+      transparent,
+      transparent 28px,
+      color-mix(in srgb, var(--border) 14%, transparent 86%) 28px,
+      color-mix(in srgb, var(--border) 14%, transparent 86%) 29px
+    );
+  box-shadow: var(--shadow-md);
+}
+
+.search-card-kicker {
+  display: grid;
+  gap: 6px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
+}
+
+.search-card-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.search-card-summary {
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.search-searchbar {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.search-submit-btn {
+  min-width: 104px;
+}
+
+.search-filters {
+  margin-top: 14px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.search-select {
+  height: 38px;
+  min-width: 160px;
+  font-size: 13px;
+}
+
+.search-tag {
+  min-width: 220px;
+  flex: 1;
+}
+
+.search-help {
+  margin-top: 16px;
+  display: grid;
+  gap: 6px;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
+}
+
+.search-help-line {
+  font-size: 12px;
+}
+
+.search-state {
+  margin-top: 12px;
+}
+
+.search-results {
+  margin-top: 24px;
+  display: grid;
+  gap: 16px;
+}
+
+.search-results-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent 30%);
+}
+
+.search-results-title {
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-size: clamp(24px, 3vw, 34px);
+  line-height: 1.1;
+  color: var(--text-1);
+}
+
+.search-results-meta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  color: var(--text-3);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.search-result-list {
+  display: grid;
+  gap: 14px;
+}
+
+.search-result-card {
+  display: grid;
+  gap: 14px;
+  padding: 22px 22px 18px;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
+  border-radius: 24px;
+  border-left: 4px solid color-mix(in srgb, var(--accent) 42%, var(--border) 58%);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, white 4%), var(--surface)),
+    repeating-linear-gradient(
+      180deg,
+      transparent,
+      transparent 30px,
+      color-mix(in srgb, var(--border) 13%, transparent 87%) 30px,
+      color-mix(in srgb, var(--border) 13%, transparent 87%) 31px
+    );
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+}
+
+.search-result-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-strong);
+  background-color: color-mix(in srgb, var(--surface) 92%, var(--bg) 8%);
+}
+
+.search-result-head,
+.search-result-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.search-result-taxonomy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.search-taxonomy-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
+.search-result-score {
+  display: grid;
+  justify-items: end;
+  color: var(--text-3);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.search-result-score strong {
+  font-size: 15px;
+  letter-spacing: normal;
+  color: var(--text-1);
+}
+
+.search-result-score-label {
+  color: var(--text-3);
+}
+
+.search-result-title {
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-size: clamp(24px, 2.7vw, 32px);
+  line-height: 1.22;
+  color: var(--text-1);
+  font-weight: 800;
+  max-width: 22ch;
+}
+
+.search-result-snippet {
+  color: var(--text-2);
+  font-size: 15px;
+  line-height: 1.85;
+  max-width: 64ch;
+}
+
+.search-result-context {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.search-result-activity {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent 28%);
+  background: color-mix(in srgb, var(--surface) 88%, var(--bg) 12%);
+}
+
+.search-result-activity-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.search-result-activity-label {
+  font-weight: 600;
+}
+
+.search-result-activity-copy {
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.65;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.search-result-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+}
+
+.search-result-snippet :deep(em),
+.search-result-title :deep(em) {
+  font-style: normal;
+  background: color-mix(in srgb, var(--accent) 18%, transparent 82%);
+  color: inherit;
+  box-shadow: inset 0 -0.45em 0 color-mix(in srgb, var(--accent) 14%, transparent 86%);
+}
+
+.search-result-foot {
+  color: var(--text-3);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.search-pagination {
+  margin-top: 24px;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.search-modal-title {
+  font-weight: 700;
+}
+
+.search-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.search-modal-note {
+  font-size: 12px;
+}
+
+@media (max-width: 768px) {
+  .search-masthead {
+    grid-template-columns: 1fr;
+  }
+
+  .search-searchbar {
+    flex-direction: column;
+  }
+
+  .search-submit-btn {
+    width: 100%;
+  }
+
+  .search-card {
+    padding: 18px;
+  }
+
+  .search-result-card {
+    padding: 18px;
+  }
+
+  .search-result-title {
+    max-width: none;
+  }
+}
+
+html[data-theme='dark'] .search-card,
+html[data-theme='dark'] .search-result-card {
+  border-color: #2f2f2f;
+  background:
+    linear-gradient(180deg, #151515, #0f0f0f),
+    repeating-linear-gradient(
+      180deg,
+      transparent,
+      transparent 30px,
+      rgba(255, 255, 255, 0.03) 30px,
+      rgba(255, 255, 255, 0.03) 31px
+    );
+  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.22);
+}
+
+html[data-theme='dark'] .search-result-card:hover {
+  background-color: #141414;
+}
+
+html[data-theme='dark'] .search-result-activity {
+  border-color: #2d2d2d;
+  background: color-mix(in srgb, var(--surface) 92%, black 8%);
+}
+</style>

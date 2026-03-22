@@ -1,90 +1,120 @@
 <template>
   <div class="page reading">
-    <UiCard>
-      <div style="padding: 12px 16px 0 16px">
-         <UiBreadcrumb />
+    <UiCard class="post-detail-shell">
+      <div class="post-detail-breadcrumb">
+        <UiBreadcrumb />
       </div>
       <UiPageHeader>
         <template #title>
-           <UiButton variant="ghost" class="post-detail-back" @click="$router.back()">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-              返回
-           </UiButton>
+          帖子详情
+        </template>
+        <template #subtitle>
+          阅读主贴、追踪评论线程，并在同一页内完成互动。
         </template>
         <template #actions>
+          <UiButton variant="ghost" class="post-detail-back" @click="$router.back()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            返回
+          </UiButton>
           <UiButton variant="secondary" @click="reload" :disabled="loading">{{ loading ? '加载中…' : '刷新' }}</UiButton>
         </template>
       </UiPageHeader>
 
-      <div v-if="error" class="error" style="margin-top: 12px">{{ error }}</div>
-      <div v-else-if="loading" class="muted" style="margin-top: 12px">加载中…</div>
-      <UiEmpty v-else-if="!post" style="margin-top: 12px">暂无数据</UiEmpty>
+      <div v-if="error" class="error post-detail-state">{{ error }}</div>
+      <div v-else-if="loading" class="muted post-detail-state">加载中…</div>
+      <UiEmpty v-else-if="!post" class="post-detail-state">暂无数据</UiEmpty>
 
-      <div v-else class="stack" style="margin-top: 4px; padding: 0 4px">
-         <!-- Prominent Header -->
-        <div class="stack" style="gap: 12px">
-           <div class="row" style="gap: 8px; flex-wrap: wrap; align-items: center">
-             <div class="vote-box-detail">
-               <button class="vote-btn-d up" :class="{ active: post.liked }" aria-label="点赞" @click="togglePostLike">
-                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-               </button>
-               <span class="vote-count-d">{{ post.likeCount || 0 }}</span>
-               <button class="vote-btn-d down" aria-label="点踩（占位）">
-                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
-               </button>
-             </div>
+      <div v-else class="post-detail-layout">
+        <article class="post-article-card">
+          <div class="post-article-frame">
+            <div class="post-article-head">
+              <div class="post-article-vote">
+                <div class="post-article-vote-label">Audience</div>
+                <div class="vote-box-detail">
+                  <button class="vote-btn-d up" :class="{ active: post.liked }" aria-label="点赞" @click="togglePostLike">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                  </button>
+                  <span class="vote-count-d">{{ post.likeCount || 0 }}</span>
+                  <button class="vote-btn-d down" aria-label="点踩（占位）">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+                  </button>
+                </div>
+              </div>
 
-               <div style="flex: 1">
-                 <h1 style="font-weight: 800; font-size: 24px; line-height: 1.3; margin: 0 0 8px 0; color: var(--text-1)">
-                   {{ post.title }}
-                 </h1>
-                 <div class="row muted" style="gap: 8px; flex-wrap: wrap; font-size: 13px; align-items: center">
-                   <UiBadge v-if="post.type === 1" variant="accent">置顶</UiBadge>
-                    <UiBadge v-if="post.status === 1" variant="success">加精</UiBadge>
-                    <UiBadge v-if="post.status === 2" variant="danger">已删除</UiBadge>
+              <div class="post-article-main">
+                <div class="post-article-kicker">
+                  <span class="post-article-kicker-label">讨论线程</span>
+                  <span class="post-article-kicker-meta">帖子 #{{ post.id || postId }}</span>
+                </div>
 
-                    <RouterLink
-                      v-if="Number(post.categoryId || 0) > 0"
-                      class="taxonomy-link"
-                      :to="{ name: 'posts', query: { categoryId: String(post.categoryId) } }"
-                      :title="`查看分类 ${categoryLabel(post.categoryId)}`"
-                    >
-                      <span class="tag topic-category">{{ categoryLabel(post.categoryId) }}</span>
-                    </RouterLink>
+                <div class="post-article-taxonomy">
+                  <UiBadge v-if="post.type === 1" variant="accent">置顶</UiBadge>
+                  <UiBadge v-if="post.status === 1" variant="success">加精</UiBadge>
+                  <UiBadge v-if="post.status === 2" variant="danger">已删除</UiBadge>
 
-                    <RouterLink
-                      v-for="t in (Array.isArray(post.tags) ? post.tags : [])"
-                      :key="t"
-                      class="taxonomy-link"
-                      :to="{ name: 'posts', query: { tag: t } }"
-                      :title="`查看标签 ${t}`"
-                    >
-                      <span class="tag">#{{ t }}</span>
-                    </RouterLink>
-                    
-                    <UiUserCard :user="postAuthor">
-                      <div class="row" style="gap: 6px; cursor: pointer">
-                        <UiAvatar :src="postAuthor?.headerUrl || ''" :name="postAuthor?.username || ''" :size="20" />
-                        <span style="font-weight: 600; color: var(--text-1)">{{ postAuthor?.username || `user#${post.userId}` }}</span>
-                      </div>
-                    </UiUserCard>
-                    
-                    <UiRoleBadge :user="postAuthor" size="md" />
-                    <UiBadge style="height: 18px; font-size: 11px">LV {{ Math.floor((postAuthor?.score || 0) / 100) + 1 }}</UiBadge>
+                  <RouterLink
+                    v-if="Number(post.categoryId || 0) > 0"
+                    class="taxonomy-link"
+                    :to="{ name: 'posts', query: { categoryId: String(post.categoryId) } }"
+                    :title="`查看分类 ${categoryLabel(post.categoryId)}`"
+                  >
+                    <span class="tag topic-category">{{ categoryLabel(post.categoryId) }}</span>
+                  </RouterLink>
 
-                    <span>发布于 {{ formatTime(post.createTime) }}</span>
-                    <span v-if="Number(post.editCount || 0) > 0" :title="post.updateTime ? formatTime(post.updateTime) : ''">· 已编辑</span>
-                 </div>
-               </div>
-             </div>
- 
-             <div class="divider"></div>
- 
-             <UiMarkdown :content="post.content" />
+                  <RouterLink
+                    v-for="t in (Array.isArray(post.tags) ? post.tags : [])"
+                    :key="t"
+                    class="taxonomy-link"
+                    :to="{ name: 'posts', query: { tag: t } }"
+                    :title="`查看标签 ${t}`"
+                  >
+                    <span class="tag">#{{ t }}</span>
+                  </RouterLink>
+                </div>
+
+                <h1 class="post-article-title">{{ post.title }}</h1>
+                <div class="post-article-dek">主贴先交代问题与上下文，评论继续推进分歧、补充证据和回应。</div>
+
+                <div class="post-article-meta">
+                  <UiUserCard :user="postAuthor">
+                    <div class="post-article-author">
+                      <UiAvatar :src="postAuthor?.headerUrl || ''" :name="postAuthor?.username || ''" :size="20" />
+                      <span class="post-article-author-name">{{ postAuthor?.username || `成员 ${post.userId}` }}</span>
+                    </div>
+                  </UiUserCard>
+
+                  <UiRoleBadge :user="postAuthor" size="md" />
+                  <UiBadge>LV {{ Math.floor((postAuthor?.score || 0) / 100) + 1 }}</UiBadge>
+
+                  <span>发布于 {{ formatTime(post.createTime) }}</span>
+                  <span v-if="Number(post.editCount || 0) > 0" :title="post.updateTime ? formatTime(post.updateTime) : ''">· 已编辑</span>
+                </div>
+
+                <div class="post-article-ledger">
+                  <div class="post-ledger-item">
+                    <span class="post-ledger-label">赞同</span>
+                    <strong>{{ post.likeCount || 0 }}</strong>
+                  </div>
+                  <div class="post-ledger-item">
+                    <span class="post-ledger-label">回复</span>
+                    <strong>{{ post.commentCount || 0 }}</strong>
+                  </div>
+                  <div class="post-ledger-item">
+                    <span class="post-ledger-label">当前状态</span>
+                    <strong>{{ Number(post.editCount || 0) > 0 ? '持续更新' : '等待回应' }}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
- 
-          <!-- Ops -->
-          <div class="row" style="gap: 8px; flex-wrap: wrap; margin-top: 16px">
+
+          <div class="divider"></div>
+
+          <div class="post-article-body">
+            <UiMarkdown :content="post.content" />
+          </div>
+
+          <div class="post-article-actions">
             <template v-if="authed">
               <UiButton variant="secondary" @click="toggleBookmark" :disabled="actionLoading">
                 {{ post.bookmarked ? '已收藏' : '收藏' }}
@@ -128,184 +158,191 @@
               </UiButton>
             </template>
           </div>
-        </div>
-      </UiCard>
- 
-      <UiCard>
-        <UiPageHeader>
-          <template #title>回复 {{ post?.commentCount || 0 }}</template>
-          <template #actions>
-            <UiButton variant="secondary" @click="reloadComments" :disabled="commentsLoading">
-              {{ commentsLoading ? '加载中…' : '刷新' }}
-            </UiButton>
-          </template>
-        </UiPageHeader>
- 
-        <div style="margin-top: 12px">
-          <UiPagination :page="commentsPage" :has-next="commentsHasNext" @prev="prevCommentsPage" @next="nextCommentsPage" />
-        </div>
- 
-        <div v-if="commentsError" class="error" style="margin-top: 12px">{{ commentsError }}</div>
- 
-        <div style="margin-top: 12px">
-          <UiEmpty v-if="!commentsLoading && comments.length === 0 && !commentsError">暂无评论</UiEmpty>
-          <div v-else-if="commentsLoading && comments.length === 0" class="muted">加载中…</div>
-          <div v-else class="stack" style="gap: 16px">
-            <div
-              v-for="c in comments"
-              :key="c.id"
-              class="comment-thread"
-              :id="commentAnchorId(c.id)"
-              style="position: relative"
-            >
-              <!-- Thread Line (Visual) -->
-              <div class="thread-line" v-if="c._repliesExpanded && c._replies.length > 0"></div>
+        </article>
 
-              <div class="row" style="justify-content: space-between; align-items: flex-start">
-                <div class="row" style="align-items: center; gap: 8px">
-                  <UiUserCard :user="c.user">
-                    <UiAvatar :src="c.user?.headerUrl || ''" :name="c.user?.username || ''" :size="28" style="cursor: pointer" />
-                  </UiUserCard>
+        <section class="post-comments-card">
+          <div class="post-comments-kicker">
+            <span class="post-comments-kicker-label">Thread Context</span>
+            <span class="post-comments-kicker-meta">按回复关系继续往下读</span>
+          </div>
 
-                  <div class="stack" style="gap: 0">
-                    <div class="row" style="gap: 6px; align-items: center">
-                      <UiUserCard :user="c.user">
-                        <router-link :to="`/users/${c.userId}`" style="font-weight: 700; font-size: 13px; color: var(--text-1)">
-                          {{ c.user?.username || `user#${c.userId}` }}
-                        </router-link>
-                      </UiUserCard>
+          <UiPageHeader>
+            <template #title>回复 {{ post?.commentCount || 0 }}</template>
+            <template #subtitle>评论像讨论现场，回复会保留明确的上下文关系。</template>
+            <template #actions>
+              <UiButton variant="secondary" @click="reloadComments" :disabled="commentsLoading">
+                {{ commentsLoading ? '加载中…' : '刷新' }}
+              </UiButton>
+            </template>
+          </UiPageHeader>
 
-                      <UiBadge v-if="c.userId === post.userId" variant="secondary" style="height: 16px; font-size: 10px">OP</UiBadge>
-                      <UiRoleBadge :user="c.user" />
-                    </div>
-                    <span class="muted" style="font-size: 11px">
-                      {{ formatTime(c.createTime) }}
-                      <span v-if="Number(c.editCount || 0) > 0" :title="c.updateTime ? formatTime(c.updateTime) : ''">· 已编辑</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
+          <div class="post-comments-toolbar">
+            <UiPagination :page="commentsPage" :has-next="commentsHasNext" @prev="prevCommentsPage" @next="nextCommentsPage" />
+          </div>
 
-              <div class="comment-content" style="padding-left: 36px">
-                <div v-if="isBlockedUser(c.userId)" class="muted blocked-placeholder">已屏蔽该用户内容</div>
-                <UiMarkdown v-else variant="compact" :content="c.content" />
+          <div v-if="commentsError" class="error post-comments-error">{{ commentsError }}</div>
 
-                <div v-if="!isBlockedUser(c.userId)" class="row muted comment-actions" style="gap: 12px; margin-top: 8px; font-size: 12px">
-                  <button
-                    class="comment-action"
-                    type="button"
-                    :aria-label="c.liked ? '取消点赞评论' : '点赞评论'"
-                    @click="toggleCommentLike(c)"
-                  >
-                    <span aria-hidden="true" :class="{ 'red-text': c.liked }">❤️</span>
-                    <span>{{ c.likeCount || 0 }}</span>
-                  </button>
+          <div class="post-comments-body">
+            <UiEmpty v-if="!commentsLoading && comments.length === 0 && !commentsError">暂无评论</UiEmpty>
+            <div v-else-if="commentsLoading && comments.length === 0" class="muted">加载中…</div>
+            <div v-else class="post-comment-thread-list">
+              <div
+                v-for="c in comments"
+                :key="c.id"
+                class="comment-thread"
+                :id="commentAnchorId(c.id)"
+              >
+                <!-- Thread Line (Visual) -->
+                <div class="thread-line" v-if="c._repliesExpanded && c._replies.length > 0"></div>
 
-                  <button class="comment-action" type="button" aria-label="回复评论" @click="startReply(c)">回复</button>
+                <div class="comment-thread-head">
+                  <div class="comment-author">
+                    <UiUserCard :user="c.user">
+                      <UiAvatar class="comment-author-avatar" :src="c.user?.headerUrl || ''" :name="c.user?.username || ''" :size="28" />
+                    </UiUserCard>
 
-                  <button v-if="canEditComment(c)" class="comment-action" type="button" aria-label="编辑评论" @click="openEditComment(c)">
-                    编辑
-                  </button>
+                    <div class="comment-author-stack">
+                      <div class="comment-author-line">
+                        <UiUserCard :user="c.user">
+                          <router-link :to="`/users/${c.userId}`" class="comment-author-link">
+                            {{ c.user?.username || `成员 ${c.userId}` }}
+                          </router-link>
+                        </UiUserCard>
 
-                  <button
-                    v-if="(c.replyCount || 0) > 0 || c._repliesExpanded"
-                    class="comment-action"
-                    type="button"
-                    :aria-label="c._repliesExpanded ? '收起回复' : `展开 ${c.replyCount || 0} 条回复`"
-                    @click="toggleReplies(c)"
-                  >
-                    {{ c._repliesExpanded ? '收起回复' : `展开 ${c.replyCount || 0} 条回复` }}
-                  </button>
-                </div>
-
-                <!-- Reply Input -->
-                <div v-if="!isBlockedUser(c.userId) && c._replying" class="card flat reply-editor">
-                  <div v-if="c._replyQuote" class="reply-quote">
-                    <div class="row" style="justify-content: space-between; gap: 8px">
-                      <div class="muted" style="font-size: 12px">
-                        引用 {{ c._replyQuote?.username || `user#${c._replyQuote?.userId || ''}` }}
+                        <UiBadge v-if="c.userId === post.userId" variant="secondary" class="comment-op-badge">OP</UiBadge>
+                        <UiRoleBadge :user="c.user" />
                       </div>
-                      <button class="btn-icon sm" type="button" aria-label="取消引用" title="取消引用" @click="clearReplyQuote(c)">
-                        ×
-                      </button>
-                    </div>
-                    <div class="reply-quote-content">{{ c._replyQuote?.preview || '' }}</div>
-                  </div>
-
-                  <UiTextarea
-                    :model-value="c._replyDraft"
-                    :model-modifiers="{ trim: true }"
-                    :rows="3"
-                    placeholder="回复…（支持 Markdown）"
-                    @update:modelValue="(v) => setReplyDraft(c, v)"
-                  />
-                  <div v-if="c._replyError" class="error" style="margin-top: 6px; font-size: 12px">{{ c._replyError }}</div>
-                  <div class="row" style="justify-content: flex-end; margin-top: 8px; gap: 8px">
-                    <UiButton variant="secondary" @click="cancelReply(c)" :disabled="c._replySubmitting">收起</UiButton>
-                    <UiButton @click="submitReply(c)" :disabled="c._replySubmitting">提交</UiButton>
-                  </div>
-                </div>
-
-                <!-- Replies List -->
-                <div v-if="!isBlockedUser(c.userId) && c._repliesExpanded" style="margin-top: 12px; display: grid; gap: 12px">
-                  <div class="muted" v-if="c._repliesLoading">加载中…</div>
-                  <div v-else-if="c._replies.length === 0" class="muted">暂无回复</div>
-                  <div v-else v-for="r in c._replies" :key="r.id" class="reply-item" :id="replyAnchorId(r.id)">
-                    <div class="row" style="align-items: center; gap: 8px">
-                      <UiUserCard :user="r.user">
-                        <UiAvatar :src="r.user?.headerUrl || ''" :name="r.user?.username || ''" :size="20" />
-                      </UiUserCard>
-
-                      <span style="font-weight: 600; font-size: 12px">{{ r.user?.username || `user#${r.userId}` }}</span>
-
-                      <UiBadge v-if="r.userId === post.userId" variant="secondary" style="height: 16px; font-size: 10px">OP</UiBadge>
-                      <UiRoleBadge :user="r.user" />
-
-                      <span class="muted" style="font-size: 12px">回复 {{ r.targetUser?.username || '楼主' }}</span>
-                      <span class="muted" style="font-size: 12px">
-                        · {{ formatTime(r.createTime) }}
-                        <span v-if="Number(r.editCount || 0) > 0" :title="r.updateTime ? formatTime(r.updateTime) : ''">· 已编辑</span>
+                      <span class="muted comment-author-meta">
+                        {{ formatTime(c.createTime) }}
+                        <span v-if="Number(c.editCount || 0) > 0" :title="c.updateTime ? formatTime(c.updateTime) : ''">· 已编辑</span>
                       </span>
                     </div>
+                  </div>
+                  <div class="comment-thread-index">评论 {{ c.id }}</div>
+                </div>
 
-                    <div style="margin-top: 4px; padding-left: 28px">
-                      <div v-if="isBlockedUser(r.userId)" class="muted blocked-placeholder">已屏蔽该用户内容</div>
-                      <UiMarkdown v-else variant="compact" :content="r.content" />
+                <div class="comment-content">
+                  <div v-if="isBlockedUser(c.userId)" class="muted blocked-placeholder">已屏蔽该用户内容</div>
+                  <UiMarkdown v-else variant="compact" :content="c.content" />
+
+                  <div v-if="!isBlockedUser(c.userId)" class="row muted comment-actions">
+                    <button
+                      class="comment-action"
+                      type="button"
+                      :aria-label="c.liked ? '取消点赞评论' : '点赞评论'"
+                      @click="toggleCommentLike(c)"
+                    >
+                      <span aria-hidden="true" :class="{ 'red-text': c.liked }">❤️</span>
+                      <span>{{ c.likeCount || 0 }}</span>
+                    </button>
+
+                    <button class="comment-action" type="button" aria-label="回复评论" @click="startReply(c)">回复</button>
+
+                    <button v-if="canEditComment(c)" class="comment-action" type="button" aria-label="编辑评论" @click="openEditComment(c)">
+                      编辑
+                    </button>
+
+                    <button
+                      v-if="(c.replyCount || 0) > 0 || c._repliesExpanded"
+                      class="comment-action"
+                      type="button"
+                      :aria-label="c._repliesExpanded ? '收起回复' : `展开 ${c.replyCount || 0} 条回复`"
+                      @click="toggleReplies(c)"
+                    >
+                      {{ c._repliesExpanded ? '收起回复' : `展开 ${c.replyCount || 0} 条回复` }}
+                    </button>
+                  </div>
+
+                  <!-- Reply Input -->
+                  <div v-if="!isBlockedUser(c.userId) && c._replying" class="card flat reply-editor">
+                    <div v-if="c._replyQuote" class="reply-quote">
+                      <div class="reply-quote-head">
+                        <div class="muted reply-quote-label">
+                          引用 {{ c._replyQuote?.username || `成员 ${c._replyQuote?.userId || ''}` }}
+                        </div>
+                        <button class="btn-icon sm" type="button" aria-label="取消引用" title="取消引用" @click="clearReplyQuote(c)">
+                          ×
+                        </button>
+                      </div>
+                      <div class="reply-quote-content">{{ c._replyQuote?.preview || '' }}</div>
                     </div>
 
-                    <div v-if="!isBlockedUser(r.userId)" class="row muted comment-actions" style="gap: 12px; margin-top: 6px; padding-left: 28px; font-size: 12px">
-                      <button
-                        class="comment-action"
-                        type="button"
-                        :aria-label="r.liked ? '取消点赞回复' : '点赞回复'"
-                        @click="toggleReplyLike(c, r)"
-                      >
-                        <span aria-hidden="true" :class="{ 'red-text': r.liked }">❤️</span>
-                        <span>{{ r.likeCount || 0 }}</span>
-                      </button>
-                      <button class="comment-action" type="button" aria-label="回复该回复" @click="startReply(c, r)">回复</button>
-                      <button v-if="canEditComment(r)" class="comment-action" type="button" aria-label="编辑回复" @click="openEditComment(r)">
-                        编辑
-                      </button>
+                    <UiTextarea
+                      :model-value="c._replyDraft"
+                      :model-modifiers="{ trim: true }"
+                      :rows="3"
+                      placeholder="回复…（支持 Markdown）"
+                      @update:modelValue="(v) => setReplyDraft(c, v)"
+                    />
+                    <div v-if="c._replyError" class="error reply-editor-error">{{ c._replyError }}</div>
+                    <div class="reply-editor-actions">
+                      <UiButton variant="secondary" @click="cancelReply(c)" :disabled="c._replySubmitting">收起</UiButton>
+                      <UiButton @click="submitReply(c)" :disabled="c._replySubmitting">提交</UiButton>
                     </div>
                   </div>
 
-                  <UiPagination
-                    v-if="repliesHasNext(c) || c._repliesPage > 0"
-                    :page="c._repliesPage"
-                    :has-next="repliesHasNext(c)"
-                    @prev="prevRepliesPage(c)"
-                    @next="nextRepliesPage(c)"
-                    style="margin-top: 8px"
-                  />
+                  <!-- Replies List -->
+                  <div v-if="!isBlockedUser(c.userId) && c._repliesExpanded" class="reply-list">
+                    <div class="muted" v-if="c._repliesLoading">加载中…</div>
+                    <div v-else-if="c._replies.length === 0" class="muted">暂无回复</div>
+                    <div v-else v-for="r in c._replies" :key="r.id" class="reply-item" :id="replyAnchorId(r.id)">
+                      <div class="reply-item-head">
+                        <UiUserCard :user="r.user">
+                          <UiAvatar :src="r.user?.headerUrl || ''" :name="r.user?.username || ''" :size="20" />
+                        </UiUserCard>
+
+                        <span class="reply-author-name">{{ r.user?.username || `成员 ${r.userId}` }}</span>
+
+                        <UiBadge v-if="r.userId === post.userId" variant="secondary" class="comment-op-badge">OP</UiBadge>
+                        <UiRoleBadge :user="r.user" />
+
+                        <span class="muted reply-target">回复 {{ r.targetUser?.username || '楼主' }}</span>
+                        <span class="muted reply-meta">
+                          · {{ formatTime(r.createTime) }}
+                          <span v-if="Number(r.editCount || 0) > 0" :title="r.updateTime ? formatTime(r.updateTime) : ''">· 已编辑</span>
+                        </span>
+                      </div>
+
+                      <div class="reply-body">
+                        <div v-if="isBlockedUser(r.userId)" class="muted blocked-placeholder">已屏蔽该用户内容</div>
+                        <UiMarkdown v-else variant="compact" :content="r.content" />
+                      </div>
+
+                      <div v-if="!isBlockedUser(r.userId)" class="row muted comment-actions reply-actions">
+                        <button
+                          class="comment-action"
+                          type="button"
+                          :aria-label="r.liked ? '取消点赞回复' : '点赞回复'"
+                          @click="toggleReplyLike(c, r)"
+                        >
+                          <span aria-hidden="true" :class="{ 'red-text': r.liked }">❤️</span>
+                          <span>{{ r.likeCount || 0 }}</span>
+                        </button>
+                        <button class="comment-action" type="button" aria-label="回复该回复" @click="startReply(c, r)">回复</button>
+                        <button v-if="canEditComment(r)" class="comment-action" type="button" aria-label="编辑回复" @click="openEditComment(r)">
+                          编辑
+                        </button>
+                      </div>
+                    </div>
+
+                    <UiPagination
+                      v-if="repliesHasNext(c) || c._repliesPage > 0"
+                      class="reply-pagination"
+                      :page="c._repliesPage"
+                      :has-next="repliesHasNext(c)"
+                      @prev="prevRepliesPage(c)"
+                      @next="nextRepliesPage(c)"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </section>
+      </div>
     </UiCard>
 
-    <UiCard v-if="authed">
+    <UiCard v-if="authed" class="comment-composer-card">
       <UiPageHeader>
         <template #title>发表评论</template>
         <template #subtitle>参与讨论 · 支持回复树</template>
@@ -314,7 +351,7 @@
         </template>
       </UiPageHeader>
 
-      <div class="stack" style="margin-top: 12px">
+      <div class="stack comment-composer">
         <UiTextarea
           :model-value="newComment"
           :model-modifiers="{ trim: true }"
@@ -511,7 +548,7 @@ function buildQuoteMarkdown(quote) {
 
   const username = String(quote?.username || '').trim()
   const userId = Number(quote?.userId || 0)
-  const who = username ? `@${username}` : userId ? `user#${userId}` : '用户'
+  const who = username ? `@${username}` : userId ? `成员 ${userId}` : '用户'
 
   const lines = raw
     .split('\n')
@@ -1309,19 +1346,220 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.post-detail-shell {
+  display: grid;
+  gap: 14px;
+}
+
+.post-detail-breadcrumb {
+  padding: 12px 16px 0 16px;
+}
+
+.post-detail-state {
+  margin-top: 12px;
+}
+
+.post-detail-layout {
+  display: grid;
+  gap: 18px;
+  margin-top: 4px;
+  padding: 0 4px;
+}
+
+.post-article-frame {
+  position: relative;
+  display: grid;
+  gap: 18px;
+}
+
+.post-article-card,
+.post-comments-card {
+  display: grid;
+  gap: 14px;
+  padding: 24px;
+  border-radius: 26px;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 95%, white 5%), var(--surface)),
+    repeating-linear-gradient(
+      180deg,
+      transparent,
+      transparent 32px,
+      color-mix(in srgb, var(--border) 11%, transparent 89%) 32px,
+      color-mix(in srgb, var(--border) 11%, transparent 89%) 33px
+    );
+  box-shadow: var(--shadow-md);
+}
+
+.post-article-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.post-article-main {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.post-article-taxonomy,
+.post-article-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.post-article-kicker,
+.post-comments-kicker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.post-article-kicker-label,
+.post-comments-kicker-label,
+.post-ledger-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.post-article-kicker-meta,
+.post-comments-kicker-meta {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.post-article-title {
+  margin: 0;
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-size: clamp(32px, 3.4vw, 44px);
+  line-height: 1.12;
+  color: var(--text-1);
+}
+
+.post-article-dek {
+  max-width: 60ch;
+  color: var(--text-2);
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.post-article-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.post-article-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.post-article-author-name {
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.post-article-ledger {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.post-ledger-item {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent 28%);
+  background: color-mix(in srgb, var(--surface) 82%, var(--bg) 18%);
+}
+
+.post-ledger-item strong {
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--text-1);
+}
+
+.post-article-body {
+  max-width: 70ch;
+}
+
+.post-article-body :deep(p),
+.post-article-body :deep(li),
+.post-article-body :deep(blockquote) {
+  font-size: 16px;
+  line-height: 1.9;
+}
+
+.post-article-body :deep(h1),
+.post-article-body :deep(h2),
+.post-article-body :deep(h3) {
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  line-height: 1.2;
+}
+
+.post-article-body :deep(p:first-child) {
+  font-size: 18px;
+}
+
+.post-comments-toolbar,
+.post-comments-body {
+  margin-top: 4px;
+}
+
+.post-comments-error {
+  margin-top: 4px;
+}
+
+.post-comment-thread-list {
+  display: grid;
+  gap: 16px;
+}
+
 .vote-box-detail {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-right: 16px;
-  background: var(--surface-2);
-  border-radius: 8px;
-  padding: 4px;
+  background: color-mix(in srgb, var(--surface) 70%, var(--bg) 30%);
+  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent 26%);
+  border-radius: 18px;
+  padding: 10px 8px;
+}
+
+.post-article-vote {
+  display: grid;
+  gap: 8px;
+}
+
+.post-article-vote-label {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  align-self: center;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-3);
 }
 
 .post-detail-back {
-  padding-left: 0;
-  margin-left: -8px;
+  min-height: 34px;
 }
 
 .vote-btn-d {
@@ -1337,7 +1575,7 @@ onMounted(() => {
   color: var(--accent);
 }
 .vote-btn-d.up.active {
-  color: #ff4500;
+  color: var(--editorial-accent);
 }
 .vote-count-d {
   font-size: 15px;
@@ -1370,13 +1608,89 @@ onMounted(() => {
 }
 
 .comment-thread {
-  padding: 12px;
-  border-radius: 16px;
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface) 78%, var(--bg) 22%);
+  position: relative;
+  padding: 16px 16px 16px 18px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
+  border-left: 3px solid color-mix(in srgb, var(--accent) 26%, var(--border) 74%);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, var(--bg) 8%), var(--surface)),
+    repeating-linear-gradient(
+      180deg,
+      transparent,
+      transparent 28px,
+      color-mix(in srgb, var(--border) 10%, transparent 90%) 28px,
+      color-mix(in srgb, var(--border) 10%, transparent 90%) 29px
+    );
+}
+
+.comment-thread-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.comment-author {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.comment-author-avatar {
+  cursor: pointer;
+}
+
+.comment-author-stack {
+  display: grid;
+  gap: 0;
+}
+
+.comment-author-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.comment-author-link {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text-1);
+  text-decoration: none;
+}
+
+.comment-author-link:hover {
+  color: var(--text-1);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--text-1) 30%, transparent 70%);
+  text-underline-offset: 3px;
+}
+
+.comment-op-badge {
+  height: 16px;
+  font-size: 10px;
+}
+
+.comment-author-meta {
+  font-size: 11px;
+}
+
+.comment-thread-index {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-3);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.comment-content {
+  padding-left: 36px;
 }
 
 .comment-actions {
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 12px;
   flex-wrap: wrap;
 }
 
@@ -1403,17 +1717,17 @@ onMounted(() => {
 }
 
 .reply-item {
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-radius: 14px;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
+  background: color-mix(in srgb, var(--surface) 94%, var(--bg) 6%);
 }
 
 .reply-editor {
-  padding: 10px;
+  padding: 12px;
   margin-top: 10px;
   border-radius: 14px;
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--surface) 88%, var(--bg) 12%);
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent 30%);
 }
 
@@ -1423,14 +1737,88 @@ onMounted(() => {
   margin-bottom: 10px;
 }
 
+.reply-quote-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.reply-quote-label,
+.reply-quote-content {
+  font-size: 12px;
+}
+
 .reply-quote-content {
   margin-top: 6px;
-  font-size: 12px;
   color: var(--text-2);
+}
+
+.reply-editor-error {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.reply-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.reply-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
 }
 
 .red-text {
   color: var(--danger);
+}
+
+.reply-item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.reply-author-name,
+.reply-target,
+.reply-meta {
+  font-size: 12px;
+}
+
+.reply-author-name {
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.reply-body {
+  margin-top: 4px;
+  padding-left: 28px;
+}
+
+.reply-actions {
+  margin-top: 6px;
+  padding-left: 28px;
+}
+
+.reply-pagination,
+.comment-composer {
+  margin-top: 12px;
+}
+
+.comment-composer-card {
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, white 6%), var(--surface)),
+    repeating-linear-gradient(
+      180deg,
+      transparent,
+      transparent 30px,
+      color-mix(in srgb, var(--border) 10%, transparent 90%) 30px,
+      color-mix(in srgb, var(--border) 10%, transparent 90%) 31px
+    );
 }
 
 .blocked-placeholder {
@@ -1438,5 +1826,41 @@ onMounted(() => {
   border-radius: 12px;
   border: 1px dashed var(--border);
   background: var(--surface-2);
+}
+
+@media (max-width: 768px) {
+  .post-article-head {
+    grid-template-columns: 1fr;
+  }
+
+  .post-article-card,
+  .post-comments-card {
+    padding: 16px;
+  }
+
+  .post-article-vote {
+    grid-template-columns: auto 1fr;
+    align-items: start;
+  }
+
+  .post-article-vote-label {
+    writing-mode: initial;
+    transform: none;
+  }
+
+  .post-article-ledger {
+    grid-template-columns: 1fr;
+  }
+
+  .comment-thread-head {
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .comment-content,
+  .reply-body,
+  .reply-actions {
+    padding-left: 0;
+  }
 }
 </style>

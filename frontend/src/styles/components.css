@@ -4,11 +4,10 @@
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  /* Subtle border */
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: var(--card-padding);
   box-shadow: var(--shadow-sm);
-  transition: all 0.2s ease-in-out;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .card:hover {
@@ -36,9 +35,9 @@
   height: var(--control-height);
   padding: 0 var(--control-padding-x);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: 14px;
   outline: none;
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 92%, var(--bg) 8%);
   color: var(--text-1);
   font-size: var(--text-sm);
   transition: all 0.2s ease;
@@ -73,9 +72,9 @@
   height: var(--control-height);
   padding: 0 var(--control-padding-x);
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: 999px;
   cursor: pointer;
-  font-weight: 500;
+  font-weight: 700;
   font-size: var(--text-sm);
   background: var(--accent);
   color: #fff;
@@ -96,7 +95,7 @@
 
 .btn:hover {
   background: var(--accent-hover);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-md);
 }
 
 .btn:active {
@@ -115,7 +114,7 @@
 }
 
 .btn.secondary {
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 84%, var(--bg) 16%);
   color: var(--text-1);
   border-color: var(--border);
   box-shadow: var(--shadow-sm);
@@ -134,12 +133,12 @@
 .btn.ghost {
   background: transparent;
   color: var(--text-2);
-  border-color: transparent;
+  border-color: color-mix(in srgb, var(--border) 45%, transparent);
   box-shadow: none;
 }
 
 .btn.ghost:hover {
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
   color: var(--text-1);
 }
 
@@ -149,7 +148,7 @@
 
 .btn-icon {
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   cursor: pointer;
   padding: 8px;
   border-radius: 999px;
@@ -162,6 +161,7 @@
 
 .btn-icon:hover {
   background: var(--surface-2);
+  border-color: var(--border);
   color: var(--text-1);
 }
 
@@ -233,7 +233,7 @@
   align-items: center;
   gap: 6px;
   transition: all 0.15s ease-out;
-  box-shadow: none;
+  box-shadow: var(--shadow-sm);
 }
 
 .chip:hover {
@@ -283,6 +283,7 @@
   box-shadow: var(--shadow-xl);
   overflow: hidden;
   animation: modalIn 0.2s ease-out;
+  border: 1px solid var(--border);
 }
 
 @keyframes modalIn {
@@ -313,7 +314,7 @@
 
 .page-title {
   font-weight: 800;
-  font-size: var(--text-xl);
+  font-size: var(--text-2xl);
   line-height: var(--line-tight);
 }
 
@@ -332,7 +333,7 @@
 /* Avatars & Badges */
 .avatar {
   border-radius: 50%;
-  background: color-mix(in srgb, var(--surface) 65%, var(--bg) 35%);
+  background: color-mix(in srgb, var(--surface) 54%, var(--surface-2) 46%);
   border: 1px solid var(--border);
   display: inline-grid;
   place-items: center;
@@ -361,6 +362,7 @@
   border: 1px solid var(--border);
   background: var(--surface-2);
   color: var(--text-2);
+  letter-spacing: 0.01em;
 }
 
 .badge-accent {
@@ -392,10 +394,10 @@
   align-items: center;
   height: 22px;
   padding: 0 8px;
-  border-radius: 8px;
+  border-radius: 999px;
   font-size: var(--text-xs);
   border: 1px solid var(--border);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 84%, var(--bg) 16%);
   color: var(--text-2);
 }
 

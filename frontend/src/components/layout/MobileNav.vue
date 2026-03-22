@@ -1,6 +1,6 @@
-<!-- MobileNav：移动端底部导航（与 Sidebar 共用 navigation SSOT）。 -->
+<!-- MobileNav：移动端快速入口。主导航由侧边抽屉承担，这里只保留高频动作。 -->
 <template>
-  <nav class="mobile-nav" aria-label="移动端底部导航">
+  <nav class="mobile-nav" aria-label="移动端快速入口">
     <RouterLink
       v-for="item in items"
       :key="item.key"
@@ -73,6 +73,10 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { getMobileNavigation, isNavItemActive } from '../../router/navigation'
 
+defineProps({
+  mode: { type: String, default: 'public' }
+})
+
 const route = useRoute()
 const auth = useAuthStore()
 
@@ -95,20 +99,23 @@ const items = computed(() =>
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
     position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    left: 14px;
+    right: 14px;
+    bottom: 14px;
     z-index: 60;
-    height: 64px;
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-    background: color-mix(in srgb, var(--bg) 82%, var(--surface) 18%);
-    border-top: 1px solid var(--border);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    min-height: 64px;
+    padding: 4px;
+    padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--surface) 88%, var(--bg) 12%);
+    box-shadow: var(--shadow-lg);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
   }
 
   .mobile-nav-item {
-    height: 64px;
+    min-height: 56px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -116,10 +123,12 @@ const items = computed(() =>
     gap: 4px;
     color: var(--text-2);
     text-decoration: none;
+    border-radius: 14px;
   }
 
   .mobile-nav-item.active {
     color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
   }
 
   .mobile-nav-text {

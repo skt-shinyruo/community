@@ -1,9 +1,9 @@
 <!-- Topbar：全局顶部栏（页面标题 + 搜索 + 主题/密度 + 用户操作）。 -->
 <template>
-  <div class="app-topbar">
-    <div class="row" style="min-width: 240px">
+  <div class="app-topbar" :class="`app-topbar--${props.mode}`">
+    <div class="topbar-leading">
       <button
-        class="btn-icon"
+        class="btn-icon topbar-menu-btn"
         type="button"
         aria-label="折叠或展开侧边栏"
         title="折叠/展开侧边栏"
@@ -12,20 +12,26 @@
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
       </button>
       <div class="topbar-title">
+        <div class="topbar-title-eyebrow">{{ modeEyebrow }}</div>
+        <div class="topbar-title-main-row">
         <div class="topbar-title-main">{{ title }}</div>
+          <span v-if="props.mode === 'admin'" class="topbar-mode-badge">Admin</span>
+        </div>
         <div v-if="subtitle" class="topbar-title-sub">{{ subtitle }}</div>
       </div>
     </div>
 
-    <div class="topbar-search">
-      <div style="position: relative; width: 100%">
-         <span style="position: absolute; left: 10px; top: 10px; color: var(--muted)">
+    <div v-if="props.mode === 'public'" class="topbar-search">
+      <div class="topbar-search-field">
+         <span class="topbar-search-icon">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
          </span>
          <input
+          id="topbar-global-search"
+          name="global-search"
+          type="search"
           ref="searchInputEl"
-          class="input"
-          style="padding-left: 32px; border-radius: 20px"
+          class="input topbar-search-input"
           :placeholder="`搜索… (${isMac ? '⌘' : 'Ctrl'} K)`"
           aria-label="全局搜索"
           v-model.trim="searchKeyword"
@@ -34,7 +40,7 @@
       </div>
     </div>
 
-    <div class="row" style="justify-content: flex-end; min-width: 320px; gap: 8px">
+    <div class="topbar-actions">
       <button
         class="btn-icon"
         type="button"
@@ -58,6 +64,7 @@
       </button>
 
       <button
+        v-if="props.mode === 'public'"
         class="btn-icon"
         @click="ui.toggleRightPanel"
         :title="ui.rightPanelOpen ? '隐藏侧栏' : '显示侧栏'"
@@ -66,12 +73,15 @@
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="15" y1="3" x2="15" y2="21"></line></svg>
       </button>
 
-      <div style="width: 1px; height: 24px; background: var(--border); margin: 0 4px"></div>
+      <div class="topbar-divider"></div>
 
       <template v-if="auth.authed">
-        <RouterLink v-if="auth.userId" :to="`/users/${auth.userId}`" class="row" style="gap: 6px; align-items: center">
+        <RouterLink v-if="auth.userId" :to="`/users/${auth.userId}`" class="topbar-user-link">
            <UiAvatar :src="auth.me?.headerUrl || ''" :name="auth.username || ''" :size="32" />
-           <UiRoleBadge :user="auth.me" />
+          <span class="topbar-user-meta">
+            <span class="topbar-user-name">{{ auth.username || `成员 ${auth.userId}` }}</span>
+            <UiRoleBadge :user="auth.me" />
+          </span>
         </RouterLink>
         <button class="btn-icon" type="button" aria-label="登出" @click="onLogout" title="登出">
            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
@@ -79,7 +89,7 @@
       </template>
 
       <template v-else>
-        <RouterLink class="btn primary" to="/auth/login" style="height: 32px; padding: 0 16px; font-size: 13px">登录</RouterLink>
+        <RouterLink class="btn topbar-login-btn" to="/auth/login">登录</RouterLink>
       </template>
     </div>
   </div>
@@ -93,6 +103,10 @@ import { useUiStore } from '../../stores/ui'
 import http from '../../api/http'
 import UiAvatar from '../ui/UiAvatar.vue'
 import UiRoleBadge from '../ui/UiRoleBadge.vue'
+
+const props = defineProps({
+  mode: { type: String, default: 'public' }
+})
 
 const route = useRoute()
 const router = useRouter()
@@ -116,6 +130,8 @@ const title = computed(() => {
 })
 
 const subtitle = computed(() => resolveMetaText(route.meta?.subtitle))
+
+const modeEyebrow = computed(() => (props.mode === 'admin' ? 'Operations Desk' : 'Discussion Workspace'))
 
 async function onLogout() {
   try {

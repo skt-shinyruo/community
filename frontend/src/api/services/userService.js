@@ -32,6 +32,20 @@ export async function getUserProfile(userId, { force = false } = {}) {
   }
 }
 
+export async function listUserRecentPosts(userId, { page = 0, size = 3 } = {}) {
+  const uid = Number(userId || 0)
+  const resp = await http.get(`/api/users/${uid}/recent-posts`, { params: { page, size } })
+  const { data, traceId } = unwrapResultBody(resp.data, '获取用户最近帖子')
+  return { data: Array.isArray(data) ? data : [], traceId }
+}
+
+export async function listUserRecentComments(userId, { page = 0, size = 3 } = {}) {
+  const uid = Number(userId || 0)
+  const resp = await http.get(`/api/users/${uid}/recent-comments`, { params: { page, size } })
+  const { data, traceId } = unwrapResultBody(resp.data, '获取用户最近评论')
+  return { data: Array.isArray(data) ? data : [], traceId }
+}
+
 export async function resolveUserByUsername(username) {
   const resp = await http.get('/api/users/resolve', { params: { username } })
   const { data, traceId } = unwrapResultBody(resp.data, '按用户名查询用户')

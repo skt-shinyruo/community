@@ -24,6 +24,8 @@
 
 use community;
 
+set names utf8mb4;
+
 -- Outbox (reliable event delivery) - shared SSOT.
 create table if not exists outbox_event (
   id bigint auto_increment primary key,

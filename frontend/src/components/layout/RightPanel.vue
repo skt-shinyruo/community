@@ -1,45 +1,53 @@
-<!-- RightPanel：右侧上下文面板（热门话题、社区规范）。 -->
+<!-- RightPanel：公共产品的上下文辅助栏，只展示真实可用的信息与入口。 -->
 <template>
   <div class="right-panel">
     <div class="right-panel-header">
-      <div class="right-panel-title">探索</div>
+      <div>
+        <div class="right-panel-eyebrow">{{ eyebrow }}</div>
+        <div class="right-panel-title">{{ title }}</div>
+      </div>
     </div>
 
     <div class="right-panel-body">
-      <!-- Quick Filters -->
       <section class="card right-card">
         <div class="right-card-header">
-          <div class="right-card-title">快速筛选</div>
+          <div class="right-card-title">快速入口</div>
         </div>
         <div class="quick-links">
-          <RouterLink class="quick-link" :to="{ name: 'posts' }">最新</RouterLink>
-          <RouterLink class="quick-link" :to="{ name: 'posts', query: { order: 'hot' } }">热门</RouterLink>
-          <RouterLink v-if="auth.authed" class="quick-link" :to="{ name: 'posts', query: { type: 'unread' } }">未读</RouterLink>
-          <RouterLink class="quick-link" :to="{ name: 'posts', query: { type: 'top' } }">置顶</RouterLink>
-          <RouterLink class="quick-link" :to="{ name: 'posts', query: { type: 'wonderful' } }">精华</RouterLink>
+          <RouterLink class="quick-link" :to="{ name: 'posts' }">最新讨论</RouterLink>
+          <RouterLink class="quick-link" :to="{ name: 'posts', query: { order: 'hot' } }">热门话题</RouterLink>
+          <RouterLink class="quick-link" :to="{ name: 'leaderboard' }">作者排行</RouterLink>
+          <RouterLink v-if="auth.authed" class="quick-link" :to="{ name: 'bookmarks' }">我的收藏</RouterLink>
+          <RouterLink v-if="auth.authed" class="quick-link" :to="{ name: 'posts', query: { subscribed: '1' } }">关注分类</RouterLink>
         </div>
       </section>
 
-      <!-- Trending Section -->
       <section class="card right-card">
         <div class="right-card-header">
-          <div class="right-card-title">热门话题</div>
+          <div class="right-card-title">讨论提示</div>
         </div>
-        <div class="right-card-list">
-          <button v-for="i in 4" :key="i" class="topic-item" type="button">
-            <span class="topic-rank">{{ i }}</span>
-            <span class="topic-title">#社区设计规范讨论</span>
-            <span class="topic-meta">230 讨论</span>
-          </button>
+        <div class="guidelines">
+          <div class="guideline-row">
+            <div class="guideline-kicker">01</div>
+            <span class="guideline-text">先读清上下文，再进入讨论。标题、摘要和最新评论应该能帮助你快速建立判断。</span>
+          </div>
+          <div class="guideline-row">
+            <div class="guideline-kicker">02</div>
+            <span class="guideline-text">标签和分类只是线索，不是主角。真正重要的是讨论本身是否值得展开。</span>
+          </div>
+          <div class="guideline-row">
+            <div class="guideline-kicker">03</div>
+            <span class="guideline-text">如果你准备回复，尽量引用观点而不是只回情绪，这样线程会更清晰。</span>
+          </div>
         </div>
       </section>
 
-      <!-- Categories -->
       <section class="card right-card">
         <div class="right-card-header">
           <div class="right-card-title">分类</div>
+          <div class="right-card-hint">{{ categories.length }} 项</div>
         </div>
-        <div class="right-card-list" v-if="categories.length > 0">
+        <div v-if="categories.length > 0" class="right-card-list">
           <div v-for="c in categories" :key="c.id" class="category-row">
             <RouterLink
               class="category-item"
@@ -83,102 +91,71 @@
             </button>
           </div>
         </div>
-        <div v-else class="muted" style="font-size: 12px">暂无分类</div>
+        <UiEmpty v-else class="right-empty">暂无分类</UiEmpty>
       </section>
 
-      <!-- Tags / Keywords -->
       <section class="card right-card">
         <div class="right-card-header">
           <div class="right-card-title">热门标签</div>
+          <div class="right-card-hint">来自真实使用数据</div>
         </div>
-        <div class="tag-cloud">
+        <div v-if="hotTags.length > 0" class="tag-cloud">
           <RouterLink
             v-for="t in hotTags"
             :key="t.name"
             class="tag-pill"
             :to="{ name: 'posts', query: { tag: t.name } }"
-            :title="`${t.useCount || 0} 使用`"
+            :title="`${t.useCount || 0} 次使用`"
           >
             #{{ t.name }}
           </RouterLink>
         </div>
-        <div class="muted" style="font-size: 12px; margin-top: 10px">点击标签将过滤帖子列表。</div>
-      </section>
-
-      <!-- Guidelines -->
-      <section class="card right-card">
-        <div class="right-card-header">
-          <div class="right-card-title">社区规范</div>
-        </div>
-        <div class="guidelines">
-          <div class="guideline-row">
-            <svg
-              class="guideline-icon"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              aria-hidden="true"
-            >
-              <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z" />
-              <circle cx="12" cy="10" r="3" />
-            </svg>
-            <span class="guideline-text">友善交流，理性讨论，共建优质社区氛围。</span>
-          </div>
-          <div class="guideline-row">
-            <svg
-              class="guideline-icon"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
-            </svg>
-            <span class="guideline-text">禁止发布广告、灌水及违规内容。</span>
-          </div>
-        </div>
+        <UiEmpty v-else class="right-empty">暂无热门标签</UiEmpty>
       </section>
 
       <section v-if="auth.isAdminOrModerator" class="card right-card">
         <div class="right-card-header">
-          <div class="right-card-title">管理</div>
+          <div class="right-card-title">治理入口</div>
         </div>
         <div class="admin-links">
           <RouterLink class="admin-link" :to="{ name: 'moderation' }">治理后台</RouterLink>
           <RouterLink class="admin-link" :to="{ name: 'analytics' }">统计面板</RouterLink>
         </div>
       </section>
-
-      <!-- Footer/Copyright -->
-      <div class="right-footer muted">
-        © 2026 Community Inc.<br />
-        <a href="#" style="text-decoration: underline">Privacy</a> · <a href="#" style="text-decoration: underline">Terms</a>
-      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, watch } from 'vue'
+import { useRoute, RouterLink } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useTaxonomyStore } from '../../stores/taxonomy'
 import { useSocialPrefsStore } from '../../stores/socialPrefs'
 import { subscribeCategory, unsubscribeCategory } from '../../api/services/subscriptionService'
-import { RouterLink } from 'vue-router'
+import UiEmpty from '../ui/UiEmpty.vue'
 
+const route = useRoute()
 const auth = useAuthStore()
 const taxonomy = useTaxonomyStore()
 const prefs = useSocialPrefsStore()
 
 const categories = computed(() => (Array.isArray(taxonomy.categories) ? taxonomy.categories : []))
 const hotTags = computed(() => (Array.isArray(taxonomy.hotTags) ? taxonomy.hotTags : []))
+
+const eyebrow = computed(() => {
+  if (String(route.name || '') === 'postDetail') return 'Thread Context'
+  if (String(route.name || '') === 'search') return 'Search Context'
+  if (String(route.name || '') === 'userProfile') return 'Member Context'
+  return 'Side Context'
+})
+
+const title = computed(() => {
+  if (String(route.name || '') === 'postDetail') return '线程侧栏'
+  if (String(route.name || '') === 'search') return '搜索侧栏'
+  if (String(route.name || '') === 'userProfile') return '成员侧栏'
+  return '上下文侧栏'
+})
 
 function isSubscribedCategory(categoryId) {
   return prefs.subscribedCategorySet.has(Number(categoryId || 0))
@@ -215,15 +192,31 @@ watch(
   }
 )
 </script>
+
 <style scoped>
+.right-panel-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--editorial-accent);
+  margin-bottom: 6px;
+}
+
 .right-panel-title {
+  font-family: var(--font-display);
   font-weight: 800;
-  font-size: 16px;
-  letter-spacing: 0.2px;
+  font-size: 28px;
+  letter-spacing: -0.03em;
+  color: var(--editorial-ink);
 }
 
 .right-card {
-  padding: 14px 14px;
+  padding: 18px;
+  border-radius: 24px;
+  border-color: color-mix(in srgb, var(--editorial-rule) 84%, #fff 16%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), color-mix(in srgb, var(--editorial-paper-2) 92%, #fff 8%));
+  box-shadow: 0 18px 28px rgba(0, 0, 0, 0.08);
 }
 
 .right-card:hover {
@@ -237,223 +230,155 @@ watch(
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .right-card-title {
-  font-weight: 700;
+  font-weight: 800;
   font-size: 13px;
-  color: var(--text-2);
+  color: var(--editorial-ink);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.quick-links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.right-card-hint {
+  font-size: 11px;
+  color: var(--text-3);
 }
 
-.quick-link {
-  display: inline-flex;
-  align-items: center;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-2);
-  font-size: 12px;
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.quick-link:hover {
-  background: var(--surface-2);
-  border-color: var(--border-strong);
-  color: var(--text-1);
-  text-decoration: none;
-}
-
+.quick-links,
 .tag-cloud {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
+.quick-link,
 .tag-pill {
   display: inline-flex;
   align-items: center;
-  height: 28px;
-  padding: 0 10px;
+  min-height: 34px;
+  padding: 0 12px;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--accent) 6%, var(--surface) 94%);
-  color: var(--text-1);
+  border: 1px solid var(--editorial-rule);
+  text-decoration: none;
   font-size: 12px;
-  font-weight: 700;
-  text-decoration: none;
+  font-weight: 800;
 }
 
+.quick-link {
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--editorial-ink);
+}
+
+.quick-link:hover,
 .tag-pill:hover {
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface) 90%);
-  border-color: color-mix(in srgb, var(--accent) 18%, var(--border) 82%);
-  color: var(--text-1);
   text-decoration: none;
+  border-color: var(--border-strong);
 }
 
+.tag-pill {
+  background: color-mix(in srgb, var(--editorial-accent) 9%, var(--surface) 91%);
+  color: var(--editorial-ink);
+}
+
+.guidelines,
+.right-card-list,
 .admin-links {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
-.admin-link {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 10px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  background: var(--surface);
-  color: var(--text-1);
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.admin-link:hover {
-  background: var(--surface-2);
-  border-color: var(--border);
-  text-decoration: none;
-}
-
-.right-card-list {
+.guideline-row {
   display: grid;
-  gap: 6px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.guideline-kicker {
+  width: 34px;
+  height: 24px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--editorial-accent);
+  background: var(--editorial-accent-soft);
+}
+
+.guideline-text {
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .category-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 8px;
 }
 
-.topic-item {
+.category-item,
+.admin-link {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
-  gap: 10px;
   align-items: center;
-  padding: 10px 10px;
-  border-radius: 10px;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: 16px;
+  text-decoration: none;
+  color: inherit;
   border: 1px solid transparent;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.18s ease-out;
-  text-align: left;
-}
-.topic-item:hover {
-  background: var(--surface-2);
-  border-color: var(--border);
-}
-
-.topic-rank {
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  font-size: 12px;
-  color: var(--text-3);
-}
-
-.topic-title {
-  font-weight: 600;
-  color: var(--text-1);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.topic-meta {
-  font-size: 12px;
-  color: var(--text-3);
-}
-
-.topic-item:nth-child(1) .topic-rank {
-  background: #fef08a; /* Goldish */
-  color: #854d0e;
-}
-
-.topic-item:nth-child(2) .topic-rank {
-  background: #e2e8f0; /* Silver */
-  color: #475569;
-}
-
-.topic-item:nth-child(3) .topic-rank {
-  background: #fed7aa; /* Bronze */
-  color: #9a3412;
 }
 
 .category-item {
-  display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: center;
-  padding: 10px 10px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.18s ease-out;
-  text-align: left;
-  text-decoration: none;
-  color: inherit;
+  flex: 1;
 }
 
-.category-item:hover {
-  background: var(--surface-2);
-  border-color: var(--border);
+.category-item:hover,
+.admin-link:hover {
+  background: color-mix(in srgb, var(--editorial-accent) 6%, var(--surface) 94%);
+  border-color: var(--editorial-rule);
   text-decoration: none;
 }
 
 .category-name {
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-1);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .category-meta {
   font-size: 12px;
   color: var(--text-3);
+}
+
+.admin-link {
+  background: var(--surface);
   font-weight: 700;
 }
 
-.guidelines {
-  display: grid;
-  gap: 10px;
-  font-size: 13px;
-  color: var(--text-1);
+.right-empty :deep(.empty) {
+  padding: 0;
 }
 
-.guideline-row {
-  display: grid;
-  grid-template-columns: 18px 1fr;
-  gap: 10px;
-  align-items: start;
+html[data-theme='dark'] .right-card {
+  border-color: #2f2f2f;
+  background: linear-gradient(180deg, #161616, #101010);
+  box-shadow: 0 18px 28px rgba(0, 0, 0, 0.22);
 }
 
-.guideline-icon {
-  color: var(--text-2);
+html[data-theme='dark'] .quick-link,
+html[data-theme='dark'] .tag-pill,
+html[data-theme='dark'] .admin-link {
+  background: #141414;
+  border-color: #2f2f2f;
 }
 
-.guideline-text {
-  line-height: 1.5;
-}
-
-.right-footer {
-  font-size: 12px;
-  line-height: 1.6;
-  padding: 2px 4px;
+html[data-theme='dark'] .category-item:hover,
+html[data-theme='dark'] .admin-link:hover {
+  background: #1a1a1a;
 }
 </style>

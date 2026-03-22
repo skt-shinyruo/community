@@ -1,5 +1,5 @@
 <template>
-  <UiCard>
+  <UiCard class="auth-view-card reset-card">
     <UiPageHeader>
       <template #title>找回密码</template>
       <template #subtitle>
@@ -11,45 +11,45 @@
       </template>
     </UiPageHeader>
 
-    <div class="stack" style="margin-top: 12px">
+    <div class="reset-form">
       <div v-if="error" class="error">{{ error }}</div>
       <div v-if="successMsg" class="muted">{{ successMsg }}</div>
 
-      <div v-if="mode === 'request'" class="stack" style="gap: 12px">
-        <div class="stack" style="gap: 8px">
-          <div class="muted" style="font-size: 12px">邮箱</div>
+      <div v-if="mode === 'request'" class="reset-stack">
+        <div class="reset-field">
+          <div class="reset-label">邮箱</div>
           <UiInput v-model.trim="form.email" placeholder="name@example.com" autocomplete="email" />
         </div>
       </div>
 
-      <div v-else class="stack" style="gap: 12px">
-        <div class="stack" style="gap: 8px">
-          <div class="muted" style="font-size: 12px">新密码</div>
+      <div v-else class="reset-stack">
+        <div class="reset-field">
+          <div class="reset-label">新密码</div>
           <UiInput v-model.trim="form.newPassword" placeholder="请输入新密码" type="password" autocomplete="new-password" />
         </div>
-        <div class="muted" style="font-size: 12px">resetToken：{{ shortToken }}</div>
+        <div class="muted reset-token-note">resetToken：{{ shortToken }}</div>
       </div>
 
-      <div class="stack" style="gap: 10px">
-        <div class="row" style="justify-content: space-between; flex-wrap: wrap">
-          <div class="muted" style="font-size: 12px">验证码</div>
+      <div class="reset-stack">
+        <div class="reset-row">
+          <div class="reset-label">验证码</div>
           <UiButton variant="secondary" @click="refreshCaptcha" :disabled="loading">刷新</UiButton>
         </div>
-        <div class="row" style="align-items: center; flex-wrap: wrap">
-          <UiInput v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" style="max-width: 180px" />
+        <div class="reset-captcha-row">
+          <UiInput v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" class="reset-captcha-input" />
           <img
             v-if="captchaSrc"
             :src="captchaSrc"
             alt="验证码"
             title="点击刷新验证码"
-            style="height: 40px; width: 120px; cursor: pointer; border: 1px solid var(--border); border-radius: 10px"
+            class="reset-captcha-img"
             @click="refreshCaptcha"
           />
         </div>
       </div>
 
-      <div class="row" style="justify-content: space-between; flex-wrap: wrap">
-        <div class="row">
+      <div class="reset-actions">
+        <div class="reset-primary-actions">
           <UiButton v-if="mode === 'request'" @click="onRequestReset" :disabled="loading">
             {{ loading ? '提交中…' : '发送重置链接' }}
           </UiButton>
@@ -61,11 +61,11 @@
       </div>
 
       <UiCard v-if="debugResetLink" flat>
-        <div class="stack" style="gap: 10px">
-          <div style="font-weight: 800">本地/测试重置链接</div>
-          <div class="muted" style="word-break: break-all; font-size: 12px">{{ debugResetLink }}</div>
+        <div class="reset-debug-block">
+          <div class="reset-debug-title">本地 / 测试重置链接</div>
+          <div class="muted reset-debug-link">{{ debugResetLink }}</div>
           <UiButton variant="secondary" @click="openResetLink">打开重置页</UiButton>
-          <div class="muted" style="font-size: 12px">说明：生产环境应通过邮件发送（此链接通常不回传）。</div>
+          <div class="muted reset-debug-note">说明：生产环境应通过邮件发送（此链接通常不回传）。</div>
         </div>
       </UiCard>
     </div>
@@ -207,3 +207,67 @@ watch(
 
 onMounted(refreshCaptcha)
 </script>
+
+<style scoped>
+.reset-card {
+  display: grid;
+  gap: 12px;
+}
+
+.reset-form,
+.reset-stack,
+.reset-field,
+.reset-debug-block {
+  display: grid;
+  gap: 10px;
+}
+
+.reset-form {
+  margin-top: 12px;
+}
+
+.reset-label,
+.reset-token-note,
+.reset-debug-note {
+  font-size: 12px;
+}
+
+.reset-row,
+.reset-captcha-row,
+.reset-actions,
+.reset-primary-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.reset-row {
+  justify-content: space-between;
+}
+
+.reset-captcha-input {
+  max-width: 180px;
+}
+
+.reset-captcha-img {
+  height: 40px;
+  width: 120px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.reset-actions {
+  justify-content: space-between;
+}
+
+.reset-debug-title {
+  font-weight: 800;
+}
+
+.reset-debug-link {
+  word-break: break-all;
+  font-size: 12px;
+}
+</style>

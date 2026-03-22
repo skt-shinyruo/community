@@ -1,30 +1,30 @@
 <template>
-  <UiCard>
+  <UiCard class="auth-view-card">
     <UiPageHeader>
       <template #title>注册</template>
-      <template #subtitle>创建账号 · 加入社区参与讨论</template>
+      <template #subtitle>创建你的身份，加入一个以阅读和讨论为核心的社区空间。</template>
     </UiPageHeader>
 
     <div class="stack auth-form">
-      <div class="stack" style="gap: 8px">
+      <div class="auth-field">
         <div class="field-label">用户名</div>
         <UiInput v-model.trim="form.username" placeholder="请输入用户名" autocomplete="username" />
       </div>
 
-      <div class="stack" style="gap: 8px">
+      <div class="auth-field">
         <div class="field-label">邮箱</div>
         <UiInput v-model.trim="form.email" placeholder="name@example.com" autocomplete="email" />
       </div>
 
-      <div class="stack" style="gap: 8px">
+      <div class="auth-field">
         <div class="field-label">密码</div>
         <UiInput v-model.trim="form.password" placeholder="请输入密码" type="password" autocomplete="new-password" />
       </div>
 
-      <div class="stack" style="gap: 8px">
+      <div class="auth-field">
         <div class="field-label">验证码</div>
         <div class="row captcha-row">
-          <UiInput v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" style="flex: 1" />
+          <UiInput v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" class="captcha-input" />
           <img
             v-if="captchaSrc"
             :src="captchaSrc"
@@ -39,7 +39,7 @@
       <div v-if="error" class="error">{{ error }}</div>
       <div v-if="successMsg" class="success">{{ successMsg }}</div>
 
-      <UiButton @click="onRegister" :disabled="loading" style="height: 44px; font-size: 15px">
+      <UiButton @click="onRegister" :disabled="loading" class="auth-submit-btn">
         {{ loading ? '注册中…' : '注册' }}
       </UiButton>
 
@@ -53,10 +53,10 @@
 
     <template v-if="activationLink">
       <UiDivider />
-      <div class="stack" style="gap: 10px">
-        <div style="font-weight: 800; font-size: 13px">开发/测试激活链接</div>
-        <div class="muted" style="word-break: break-all; font-size: 12px">{{ activationLink }}</div>
-        <div class="row" style="justify-content: flex-end">
+      <div class="auth-debug-block">
+        <div class="auth-debug-title">开发/测试激活链接</div>
+        <div class="muted auth-debug-link">{{ activationLink }}</div>
+        <div class="auth-debug-actions">
           <UiButton variant="secondary" @click="goActivation">打开激活页</UiButton>
         </div>
       </div>
@@ -160,10 +160,19 @@ onMounted(refreshCaptcha)
   gap: 14px;
 }
 
+.auth-field {
+  display: grid;
+  gap: 8px;
+}
+
 .field-label {
   font-size: 13px;
   font-weight: 700;
   color: var(--text-1);
+}
+
+.captcha-input {
+  flex: 1;
 }
 
 .captcha-row {
@@ -176,6 +185,11 @@ onMounted(refreshCaptcha)
   border-radius: 8px;
   cursor: pointer;
   border: 1px solid var(--border);
+}
+
+.auth-submit-btn {
+  min-height: 44px;
+  font-size: 15px;
 }
 
 .auth-links {
@@ -193,5 +207,25 @@ onMounted(refreshCaptcha)
 
 .auth-link:hover {
   text-decoration: underline;
+}
+
+.auth-debug-block {
+  display: grid;
+  gap: 10px;
+}
+
+.auth-debug-title {
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.auth-debug-link {
+  word-break: break-all;
+  font-size: 12px;
+}
+
+.auth-debug-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 </style>

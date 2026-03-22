@@ -136,7 +136,7 @@ export const POSTS_ORDER_OPTIONS = Object.freeze([
   { key: POSTS_ORDER.HOT, label: '热门' }
 ])
 
-// sidebar/mobile 共享的导航配置（不直接依赖 UI 组件，便于测试与复用）。
+// 导航 SSOT：侧边抽屉承载主导航，移动端底栏只承载快速入口。
 const NAV_DEFS = Object.freeze([
   {
     key: 'explore',
@@ -332,7 +332,7 @@ export function getSidebarNavigation(ctx = {}) {
 export function getMobileNavigation(ctx = {}) {
   const groups = getSidebarNavigation(ctx)
 
-  // 移动端底部只保留核心入口，避免拥挤：帖子/搜索/私信/我的。
+  // 移动端底栏只保留高频快速入口；主导航依然由 sidebar/drawer 承载。
   const allowKeys = new Set(['posts', 'search', 'messages', 'profile'])
   const flat = groups.flatMap((g) => g.items || [])
   return flat.filter((it) => allowKeys.has(it.key))
@@ -350,19 +350,19 @@ export function getBreadcrumbItems(route) {
   }
 
   if (name === 'userProfile') {
-    return [{ label: `用户 #${params.userId || ''}` }]
+    return [{ label: '成员档案' }]
   }
 
   if (name === 'followees') {
     return [
-      { label: `用户 #${params.userId || ''}`, to: { name: 'userProfile', params: { userId: String(params.userId || '') } } },
+      { label: '成员档案', to: { name: 'userProfile', params: { userId: String(params.userId || '') } } },
       { label: '关注列表' }
     ]
   }
 
   if (name === 'followers') {
     return [
-      { label: `用户 #${params.userId || ''}`, to: { name: 'userProfile', params: { userId: String(params.userId || '') } } },
+      { label: '成员档案', to: { name: 'userProfile', params: { userId: String(params.userId || '') } } },
       { label: '粉丝列表' }
     ]
   }

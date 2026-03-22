@@ -86,6 +86,7 @@ public class InMemoryPostSearchRepository implements PostSearchRepository {
         for (PostPayload post : matched.subList(from, to)) {
             SearchPostItem item = new SearchPostItem();
             item.setPostId(post.getPostId());
+            item.setUserId(post.getUserId());
             item.setCategoryId(post.getCategoryId());
             item.setTags(post.getTags() == null ? List.of() : post.getTags());
             item.setTitle(post.getTitle());

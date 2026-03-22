@@ -20,6 +20,8 @@ public interface DiscussPostMapper {
             @Param("orderMode") int orderMode
     );
 
+    List<DiscussPost> selectDiscussPostsByIds(@Param("postIds") List<Integer> postIds);
+
     /**
      * 供内部重建索引等后台任务使用：按主键游标向后扫描帖子，避免 offset 分页在大表上的性能问题。
      */

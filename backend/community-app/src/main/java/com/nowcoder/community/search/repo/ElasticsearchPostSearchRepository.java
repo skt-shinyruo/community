@@ -134,6 +134,7 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
         SearchPostItem item = new SearchPostItem();
         if (doc != null) {
             item.setPostId(doc.getPostId() == null ? 0 : doc.getPostId());
+            item.setUserId(doc.getUserId() == null ? 0 : doc.getUserId());
             item.setCategoryId(doc.getCategoryId());
             item.setTags(doc.getTags() == null ? List.of() : doc.getTags());
             item.setTitle(doc.getTitle());

@@ -1,63 +1,96 @@
 <template>
-  <div class="page" style="max-width: 1000px; margin: 0 auto">
+  <div class="page bookmarks-page">
     <UiBreadcrumb />
 
-    <UiCard>
+    <UiCard flat class="bookmarks-hero">
       <UiPageHeader>
         <template #title>我的收藏</template>
+        <template #subtitle>把值得回来的帖子整理成一份更像阅读清单的个人列表。</template>
         <template #actions>
           <UiButton variant="secondary" :disabled="loading" @click="reload">刷新</UiButton>
         </template>
       </UiPageHeader>
 
-      <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
-      <div v-else-if="loading" class="muted" style="padding: 16px">加载中…</div>
+      <div class="bookmarks-hero-grid">
+        <div class="bookmarks-hero-card">
+          <span class="bookmarks-eyebrow">Reading List</span>
+          <strong>{{ items.length }}</strong>
+          <p>把暂时不想丢失的讨论留在这里，之后可以直接回到帖子继续读或回复。</p>
+        </div>
+        <div class="bookmarks-hero-card">
+          <span class="bookmarks-eyebrow">状态</span>
+          <strong>{{ hasNext ? '仍可继续加载' : '已全部展开' }}</strong>
+          <p>列表会延续帖子页的讨论语法，而不是退回到功能页式的平铺卡片。</p>
+        </div>
+      </div>
+    </UiCard>
 
-      <div v-else class="stack" style="gap: 12px">
-        <UiEmpty v-if="items.length === 0">暂无收藏</UiEmpty>
+    <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
+    <div v-else-if="loading" class="muted bookmarks-state">正在加载收藏内容…</div>
 
-        <div v-for="p in items" :key="p.id" class="card flat bookmark-item" @click="openPost(p)">
-          <div class="row" style="justify-content: space-between; gap: 12px; align-items: flex-start">
-            <div style="min-width: 0">
-              <div class="row" style="gap: 8px; flex-wrap: wrap; align-items: center">
-                <UiBadge v-if="p.type === 1" variant="accent" style="height: 18px; font-size: 11px">置顶</UiBadge>
-                <UiBadge v-if="p.status === 1" variant="success" style="height: 18px; font-size: 11px">精华</UiBadge>
-                <div class="bookmark-title">{{ p.title }}</div>
-              </div>
+    <UiCard class="bookmarks-shell" v-else>
+      <div class="bookmarks-shell-head">
+        <div>
+          <div class="bookmarks-eyebrow">Saved Discussions</div>
+          <h2>收藏列表</h2>
+          <p>保留帖子语境、活跃度与主题标签，方便你快速判断要不要重新点进某条讨论。</p>
+        </div>
+      </div>
 
-              <div class="row muted" style="gap: 8px; margin-top: 8px; flex-wrap: wrap; font-size: 12px" @click.stop>
-                <RouterLink
-                  v-if="Number(p.categoryId || 0) > 0"
-                  class="taxonomy-link"
-                  :to="{ name: 'posts', query: { categoryId: String(p.categoryId) } }"
-                >
-                  <span class="tag topic-category">{{ categoryLabel(p.categoryId) }}</span>
-                </RouterLink>
+      <div class="bookmarks-list">
+        <UiEmpty v-if="items.length === 0" class="bookmarks-empty">
+          暂无收藏
+          <template #description>你收藏过的帖子会出现在这里，适合作为稍后继续阅读的个人清单。</template>
+        </UiEmpty>
 
-                <RouterLink
-                  v-for="t in (Array.isArray(p.tags) ? p.tags : [])"
-                  :key="t"
-                  class="taxonomy-link"
-                  :to="{ name: 'posts', query: { tag: t } }"
-                >
-                  <span class="tag">#{{ t }}</span>
-                </RouterLink>
-              </div>
+        <article v-for="p in items" :key="p.id" class="bookmark-item" @click="openPost(p)">
+          <div class="bookmark-head">
+            <div class="bookmark-taxonomy" @click.stop>
+              <UiBadge v-if="p.type === 1" variant="accent" class="bookmark-status-badge">置顶</UiBadge>
+              <UiBadge v-if="p.status === 1" variant="success" class="bookmark-status-badge">精华</UiBadge>
+              <RouterLink
+                v-if="Number(p.categoryId || 0) > 0"
+                class="taxonomy-link"
+                :to="{ name: 'posts', query: { categoryId: String(p.categoryId) } }"
+              >
+                <span class="tag topic-category">{{ categoryLabel(p.categoryId) }}</span>
+              </RouterLink>
+
+              <RouterLink
+                v-for="t in (Array.isArray(p.tags) ? p.tags : [])"
+                :key="t"
+                class="taxonomy-link"
+                :to="{ name: 'posts', query: { tag: t } }"
+              >
+                <span class="tag">#{{ t }}</span>
+              </RouterLink>
             </div>
 
-            <div class="muted" style="text-align: right; font-size: 12px; white-space: nowrap">
-              <div>{{ Number(p.commentCount || 0) }} 回复</div>
-              <div style="margin-top: 6px" :title="formatTime(p.lastActivityTime || p.createTime)">
-                {{ formatTimeAgo(p.lastActivityTime || p.createTime) }}
-              </div>
+            <div class="bookmark-activity" :title="formatTime(p.lastActivityTime || p.createTime)">
+              最近活跃 {{ formatTimeAgo(p.lastActivityTime || p.createTime) }}
             </div>
           </div>
-        </div>
 
-        <div class="row" style="justify-content: center; margin-top: 8px">
+          <h2 class="bookmark-title">{{ p.title }}</h2>
+
+          <p v-if="p.content" class="bookmark-snippet">
+            {{ p.content.slice(0, 140) }}{{ (p.content?.length || 0) > 140 ? '…' : '' }}
+          </p>
+
+          <div class="bookmark-footer">
+            <div class="bookmark-stats">
+              <span>{{ Number(p.commentCount || 0) }} 回复</span>
+              <span>收藏后可随时回到原帖继续讨论</span>
+            </div>
+            <div class="bookmark-open">打开帖子</div>
+          </div>
+        </article>
+
+        <div class="bookmark-load-more">
           <UiButton v-if="hasNext" variant="secondary" :disabled="loadingMore" @click="loadMore">
             {{ loadingMore ? '加载中…' : '加载更多' }}
           </UiButton>
+          <div v-else-if="items.length > 0" class="muted bookmarks-end">已经到底了</div>
         </div>
       </div>
     </UiCard>
@@ -155,21 +188,172 @@ watch(
 </script>
 
 <style scoped>
+.bookmarks-page {
+  max-width: 1000px;
+  margin: 0 auto;
+  gap: var(--space-5);
+}
+
+.bookmarks-hero {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.bookmarks-hero-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.bookmarks-hero-card {
+  padding: 18px 20px;
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, var(--accent) 16%);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, white 8%), var(--surface));
+  display: grid;
+  gap: 6px;
+}
+
+.bookmarks-hero-card strong {
+  font-size: clamp(1.6rem, 3vw, 2.15rem);
+  line-height: 1;
+}
+
+.bookmarks-hero-card p,
+.bookmarks-shell-head p {
+  margin: 0;
+  color: var(--text-2);
+  line-height: 1.55;
+}
+
+.bookmarks-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  font-weight: 700;
+}
+
+.bookmarks-state {
+  padding: 20px 0;
+}
+
+.bookmark-status-badge {
+  height: 18px;
+  font-size: 11px;
+}
+
+.bookmarks-shell {
+  padding: 0;
+  overflow: hidden;
+}
+
+.bookmarks-shell-head {
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 92%, var(--bg) 8%);
+}
+
+.bookmarks-shell-head h2 {
+  margin: 6px 0 4px;
+  font-size: 1.15rem;
+}
+
+.bookmarks-list {
+  display: grid;
+}
+
+.bookmarks-empty {
+  padding: 48px 24px;
+}
+
 .bookmark-item {
   cursor: pointer;
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 14px;
+  transition: background 0.18s ease;
+}
+
+.bookmark-item:last-of-type {
+  border-bottom: none;
 }
 
 .bookmark-item:hover {
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-sm);
+  background: color-mix(in srgb, var(--surface) 92%, var(--accent-weak) 8%);
+}
+
+.bookmark-head,
+.bookmark-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.bookmark-taxonomy,
+.bookmark-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .bookmark-title {
   font-weight: 800;
   color: var(--text-1);
   line-height: 1.3;
-  font-size: 14px;
+  font-size: 1.05rem;
   word-break: break-word;
+  margin: 0;
+}
+
+.bookmark-snippet {
+  margin: 0;
+  color: var(--text-2);
+  line-height: 1.65;
+}
+
+.bookmark-activity,
+.bookmark-stats {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.bookmark-open {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.bookmark-load-more {
+  display: flex;
+  justify-content: center;
+  padding: 18px 24px 24px;
+}
+
+.bookmarks-end {
+  padding: 8px 0;
+}
+
+@media (max-width: 768px) {
+  .bookmarks-hero-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bookmarks-shell-head,
+  .bookmark-item,
+  .bookmark-load-more {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .bookmark-head,
+  .bookmark-footer {
+    flex-direction: column;
+  }
 }
 </style>
-

@@ -14,7 +14,7 @@
 
         <div class="stack" style="gap: 8px">
           <div class="muted" style="font-size: 12px">原因</div>
-          <select v-model="reason" class="input" :disabled="submitting">
+          <select v-model="reason" name="report-reason" class="input" :disabled="submitting">
             <option v-for="r in reasons" :key="r" :value="r">{{ r }}</option>
           </select>
         </div>
@@ -23,6 +23,7 @@
           <div class="muted" style="font-size: 12px">补充说明（可选）</div>
           <UiTextarea
             v-model.trim="detail"
+            name="report-detail"
             :rows="4"
             placeholder="请描述具体情况（例如：违规内容位置、截图说明等）"
             :disabled="submitting"

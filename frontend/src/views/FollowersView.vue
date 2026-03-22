@@ -1,43 +1,74 @@
 <!-- 粉丝列表页：对齐 legacy /followers/{userId} 页面能力（分页 + 用户摘要）。 -->
 <template>
-  <div class="page">
+  <div class="page relations-page">
     <UiBreadcrumb />
-    <UiCard>
+
+    <UiCard flat class="relations-hero">
       <UiPageHeader>
-        <template #title>粉丝列表</template>
-        <template #subtitle>userId={{ userId }}</template>
+        <template #title>粉丝</template>
+        <template #subtitle>查看哪些成员正在关注这位用户的公开发言与社区存在感。</template>
         <template #actions>
           <UiButton variant="secondary" @click="load" :disabled="loading">{{ loading ? '加载中…' : '刷新' }}</UiButton>
         </template>
       </UiPageHeader>
+
+      <div class="relations-hero-grid">
+        <div class="relations-hero-card">
+          <span class="relations-eyebrow">Followers</span>
+          <strong>{{ items.length }}</strong>
+          <p>把粉丝关系整理为更稳定的个人网络视图，而不是只剩原始用户编号和时间字段。</p>
+        </div>
+        <div class="relations-hero-card">
+          <span class="relations-eyebrow">资料对象</span>
+          <strong>当前关系视图</strong>
+          <p>当前页面对应成员 #{{ userId }}，保留原有分页、关注状态判断与操作逻辑，只调整层次与信息表达。</p>
+        </div>
+      </div>
     </UiCard>
 
-    <UiCard>
-      <div style="margin-bottom: 12px">
+    <div v-if="error && items.length > 0" class="error relations-banner">{{ error }}</div>
+
+    <UiCard class="relations-shell">
+      <div class="relations-shell-head">
+        <div>
+          <div class="relations-eyebrow">Network</div>
+          <h2>正在关注这位成员的人</h2>
+          <p>可继续跳转到对方主页，或者在你已登录时直接调整与对方的关注状态。</p>
+        </div>
+      </div>
+
+      <div class="relations-toolbar">
         <UiPagination :page="page" :has-next="hasNext" @prev="prevPage" @next="nextPage" />
       </div>
 
-      <UiEmpty v-if="error && items.length === 0" type="error">{{ error }}</UiEmpty>
-      <div v-else-if="loading && items.length === 0" class="muted" style="padding: 12px; text-align: center">加载中…</div>
-      <UiEmpty v-else-if="items.length === 0">暂无数据</UiEmpty>
-      <div v-else class="stack" style="gap: 8px">
-        <div class="card flat" v-for="it in items" :key="it.targetId" style="padding: 12px">
-          <div class="row" style="justify-content: space-between; align-items: flex-start; flex-wrap: wrap">
-            <div class="row" style="align-items: center; gap: 10px; flex-wrap: wrap">
-              <UiAvatar :src="it.user?.headerUrl || ''" :name="it.user?.username || ''" :size="36" />
-              <div class="stack" style="gap: 4px">
-                <RouterLink :to="`/users/${it.targetId}`" style="font-weight: 800">
-                  {{ it.user?.username || `user#${it.targetId}` }}
+      <UiEmpty v-if="error && items.length === 0" type="error" class="relations-state">{{ error }}</UiEmpty>
+      <div v-else-if="loading && items.length === 0" class="muted relations-state">正在加载粉丝关系…</div>
+      <UiEmpty v-else-if="items.length === 0" class="relations-state">
+        暂无数据
+        <template #description>当前没有可显示的粉丝关系，稍后刷新再看即可。</template>
+      </UiEmpty>
+
+      <div v-else class="relations-list">
+        <article class="relation-card" v-for="it in items" :key="it.targetId">
+          <div class="relation-main">
+            <UiAvatar :src="it.user?.headerUrl || ''" :name="it.user?.username || ''" :size="44" />
+            <div class="relation-copy">
+              <div class="relation-name-row">
+                <RouterLink :to="`/users/${it.targetId}`" class="relation-name">
+                  {{ it.user?.username || '社区成员' }}
                 </RouterLink>
-                <div class="muted" style="font-size: 12px">followTime={{ formatTime(it.followTime) }}</div>
+                <span class="relation-pill">新关注者</span>
               </div>
-            </div>
-            <div class="row" v-if="authed && meId !== it.targetId" style="flex-wrap: wrap">
-              <UiButton v-if="!it.hasFollowed" @click="doFollow(it)">关注</UiButton>
-              <UiButton variant="secondary" v-else @click="doUnfollow(it)">取关</UiButton>
+              <div class="relation-summary">对方正在关注这位成员的公开动态，也可以继续查看其个人主页。</div>
+              <div class="relation-meta">建立关系于 {{ formatTime(it.followTime) }}</div>
             </div>
           </div>
-        </div>
+
+          <div class="relation-actions" v-if="authed && meId !== it.targetId">
+            <UiButton v-if="!it.hasFollowed" @click="doFollow(it)">关注</UiButton>
+            <UiButton variant="secondary" v-else @click="doUnfollow(it)">取关</UiButton>
+          </div>
+        </article>
       </div>
     </UiCard>
   </div>
@@ -144,3 +175,174 @@ async function prevPage() {
 
 onMounted(load)
 </script>
+
+<style scoped>
+.relations-page {
+  max-width: 980px;
+  margin: 0 auto;
+  gap: var(--space-5);
+}
+
+.relations-hero {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.relations-hero-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.relations-hero-card {
+  padding: 18px 20px;
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, var(--accent) 16%);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, white 8%), var(--surface));
+  display: grid;
+  gap: 6px;
+}
+
+.relations-hero-card strong {
+  font-size: clamp(1.6rem, 3vw, 2.15rem);
+  line-height: 1;
+}
+
+.relations-hero-card p,
+.relations-shell-head p {
+  margin: 0;
+  color: var(--text-2);
+  line-height: 1.55;
+}
+
+.relations-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  font-weight: 700;
+}
+
+.relations-banner {
+  margin-top: -6px;
+}
+
+.relations-shell {
+  padding: 0;
+  overflow: hidden;
+}
+
+.relations-shell-head {
+  padding: 22px 24px 12px;
+}
+
+.relations-shell-head h2 {
+  margin: 6px 0 4px;
+  font-size: 1.15rem;
+}
+
+.relations-toolbar {
+  padding: 0 24px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.relations-state {
+  padding: 48px 24px;
+}
+
+.relations-list {
+  display: grid;
+}
+
+.relation-card {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.relation-card:last-child {
+  border-bottom: none;
+}
+
+.relation-main {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+}
+
+.relation-copy {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.relation-name-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.relation-name {
+  font-weight: 800;
+  color: var(--text-1);
+  text-decoration: none;
+}
+
+.relation-name:hover {
+  color: var(--accent);
+}
+
+.relation-pill {
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, white 82%);
+}
+
+.relation-summary,
+.relation-meta {
+  color: var(--text-2);
+}
+
+.relation-summary {
+  line-height: 1.55;
+}
+
+.relation-meta {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.relation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .relations-hero-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .relations-shell-head,
+  .relations-toolbar,
+  .relation-card {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .relation-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+</style>

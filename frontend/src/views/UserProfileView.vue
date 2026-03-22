@@ -1,16 +1,29 @@
 <template>
-  <div class="page">
+  <div class="page profile-page">
     <UiBreadcrumb />
 
-    <UiCard flat>
-      <UiPageHeader>
-        <template #title>个人主页</template>
-        <template #subtitle>资料与互动概览</template>
-        <template #actions>
-          <UiButton variant="secondary" :disabled="loading" @click="reload">刷新</UiButton>
-        </template>
-      </UiPageHeader>
-    </UiCard>
+    <section class="profile-intro">
+      <div class="profile-intro-copy">
+        <div class="profile-eyebrow">Member Activity</div>
+        <UiCard flat class="profile-page-header">
+          <UiPageHeader>
+            <template #title>个人主页</template>
+            <template #subtitle>查看公开资料、社交关系和在社区里的讨论存在感。</template>
+            <template #actions>
+              <UiButton variant="secondary" :disabled="loading" @click="reload">刷新</UiButton>
+            </template>
+          </UiPageHeader>
+        </UiCard>
+        <div class="profile-intro-dek">
+          这里先看这个成员在社区里扮演什么角色，再看关系、积分和公开资料。
+        </div>
+      </div>
+
+      <div class="profile-intro-note">
+        <span class="profile-intro-note-label">First Screen</span>
+        <p>第一屏先交代身份、关系和社区存在感，后续再接最近讨论与互动。</p>
+      </div>
+    </section>
 
     <UiCard v-if="error">
       <UiEmpty type="error">{{ error }}</UiEmpty>
@@ -21,16 +34,20 @@
     </UiCard>
 
     <UiCard v-else class="profile-card">
-      <!-- Cover & Avatar -->
-      <div class="profile-cover"></div>
+      <div class="profile-cover">
+        <div class="profile-cover-sheet">
+          <div class="profile-cover-kicker">Member Snapshot</div>
+          <div class="profile-cover-title">{{ profile?.username || `成员 ${profile?.id}` }}</div>
+          <div class="profile-cover-subtitle">关注关系、积分和公开信息会先汇总在这里，帮助你判断这个成员在社区里的存在感。</div>
+        </div>
+      </div>
 
       <div class="profile-body">
         <div class="profile-avatar-wrapper">
-          <UiAvatar :src="profile?.headerUrl || ''" :name="profile?.username || ''" :size="120" style="font-size: 48px" />
+          <UiAvatar :src="profile?.headerUrl || ''" :name="profile?.username || ''" :size="120" />
         </div>
 
-        <!-- Actions -->
-        <div class="row profile-actions">
+        <div class="profile-actions">
           <template v-if="authed && meUserId && meUserId !== Number(userId)">
             <UiButton v-if="followStatus === false" @click="doFollow(true)" :disabled="actionLoading" class="primary">关注</UiButton>
             <UiButton variant="secondary" v-else-if="followStatus === true" @click="doFollow(false)" :disabled="actionLoading">取消关注</UiButton>
@@ -39,12 +56,12 @@
               :variant="isBlocked ? 'dangerSecondary' : 'secondary'"
               :disabled="actionLoading"
               @click="toggleBlock"
-              style="min-width: 96px"
+              class="profile-action-btn"
             >
               {{ isBlocked ? '已屏蔽' : '屏蔽' }}
             </UiButton>
             <UiButton variant="secondary" :disabled="actionLoading" @click="reportOpen = true">举报</UiButton>
-            <RouterLink class="btn-icon" :to="`/messages`" title="发私信" aria-label="发私信">
+            <RouterLink class="btn-icon profile-message-link" :to="`/messages`" title="发私信" aria-label="发私信">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
             </RouterLink>
           </template>
@@ -53,21 +70,25 @@
           </template>
         </div>
 
-        <!-- Info -->
         <div class="profile-info">
-          <div class="row profile-name-row">
-            <h1 class="profile-name">{{ profile?.username || `user#${profile?.id}` }}</h1>
-            <UiRoleBadge :user="profile" size="md" />
-            <span class="tag" title="等级（基于积分）">LV {{ Number(profile?.level || 1) }}</span>
-            <span class="tag" title="积分">{{ Number(profile?.score || 0) }} 分</span>
+          <div class="profile-info-kicker">
+            <span class="profile-info-kicker-label">公开身份</span>
+            <span class="profile-info-kicker-meta">用户 ID · {{ userId }}</span>
           </div>
-          <div class="muted" style="margin-top: 4px">用户 ID：{{ userId }} · 加入 {{ joinedYear || '—' }}</div>
-          <div style="margin-top: 10px">
+          <div class="profile-name-row">
+            <h1 class="profile-name">{{ profile?.username || `成员 ${profile?.id}` }}</h1>
+            <UiRoleBadge :user="profile" size="md" />
+            <span class="profile-chip" title="等级（基于积分）">LV {{ Number(profile?.level || 1) }}</span>
+            <span class="profile-chip" title="积分">{{ Number(profile?.score || 0) }} 分</span>
+          </div>
+          <div class="profile-meta muted">用户 ID：{{ userId }} · 加入 {{ joinedYear || '—' }}</div>
+          <div class="profile-cta-row">
             <RouterLink class="btn secondary" :to="{ name: 'leaderboard' }">查看排行榜</RouterLink>
+            <RouterLink class="btn ghost" :to="{ name: 'followees', params: { userId } }">查看关注</RouterLink>
+            <RouterLink class="btn ghost" :to="{ name: 'followers', params: { userId } }">查看粉丝</RouterLink>
           </div>
         </div>
 
-        <!-- Stats -->
         <div class="profile-stats-bar">
           <div class="profile-stat">
             <span class="profile-stat-val">{{ socialDegraded ? '—' : (profile?.likeCount || 0) }}</span>
@@ -82,20 +103,88 @@
             <span class="profile-stat-label">粉丝</span>
           </div>
         </div>
-        <div v-if="socialDegraded" class="muted" style="padding: 0 24px; margin-top: 8px; font-size: 12px">
+        <div v-if="socialDegraded" class="muted profile-degraded-note">
           统计暂不可用（下游服务降级），可稍后刷新。
         </div>
 
-        <!-- Mock Tabs -->
-        <div class="row" style="padding: 0 24px; gap: 32px; border-bottom: 1px solid var(--border)">
-          <div style="padding: 12px 0; border-bottom: 2px solid var(--accent); font-weight: 600; color: var(--text-1); cursor: pointer">帖子</div>
-          <div style="padding: 12px 0; border-bottom: 2px solid transparent; font-weight: 500; color: var(--text-3); cursor: pointer">评论</div>
-          <div style="padding: 12px 0; border-bottom: 2px solid transparent; font-weight: 500; color: var(--text-3); cursor: pointer">点赞</div>
-        </div>
+        <div class="profile-sections">
+          <section class="profile-section">
+            <div class="profile-section-head">
+              <div>
+                <div class="profile-section-eyebrow">Overview</div>
+                <div class="profile-section-title">公开资料</div>
+              </div>
+            </div>
+            <div class="profile-summary-grid">
+              <div class="profile-summary-card">
+                <div class="profile-summary-label">当前身份</div>
+                <div class="profile-summary-value">{{ profile?.username || `成员 ${profile?.id}` }}</div>
+                <div class="profile-summary-text">这是其他人进入你主页时看到的公开身份信息。</div>
+              </div>
+              <div class="profile-summary-card">
+                <div class="profile-summary-label">社区影响力</div>
+                <div class="profile-summary-value">{{ Number(profile?.score || 0) }} 分</div>
+                <div class="profile-summary-text">积分与等级共同决定你在排行榜和讨论中的可见度。</div>
+              </div>
+              <div class="profile-summary-card">
+                <div class="profile-summary-label">社交状态</div>
+                <div class="profile-summary-value">{{ followStatusText }}</div>
+                <div class="profile-summary-text">如果你已登录，这里反映你与该用户当前的关注关系。</div>
+              </div>
+            </div>
+          </section>
 
-        <!-- Content Area (Placeholder) -->
-        <div style="padding: 24px; min-height: 200px">
-          <UiEmpty>暂无动态</UiEmpty>
+          <section class="profile-section">
+            <div class="profile-section-head">
+              <div>
+                <div class="profile-section-eyebrow">Recent Activity</div>
+                <div class="profile-section-title">社区动向</div>
+              </div>
+              <div class="profile-section-note">基于当前可用的公开关系与统计</div>
+            </div>
+            <div v-if="profileTimeline.length > 0" class="profile-post-feed">
+              <RouterLink
+                v-for="item in profileTimeline"
+                :key="item.key"
+                class="profile-post-card"
+                :to="item.route"
+              >
+                <div class="profile-post-taxonomy">
+                  <span class="tag topic-category">{{ item.title }}</span>
+                </div>
+                <div class="profile-post-title">{{ item.headline }}</div>
+                <div v-if="item.contextUser" class="profile-post-context">
+                  <span class="profile-post-context-label">{{ item.contextLabel }}</span>
+                  <UiAvatar :src="item.contextUser?.headerUrl || ''" :name="item.contextUser?.username || ''" :size="18" />
+                  <span class="profile-post-context-name">{{ item.contextUser?.username || '社区成员' }}</span>
+                </div>
+                <div class="profile-post-body">{{ item.body }}</div>
+                <div class="profile-post-meta">
+                  <span :title="formatTime(item.timestamp)">
+                    活跃于 {{ formatTimeAgo(item.timestamp) }}
+                  </span>
+                </div>
+              </RouterLink>
+            </div>
+            <div class="profile-signal-grid">
+              <article v-for="signal in communitySignals" :key="signal.key" class="profile-signal-card">
+                <div class="profile-signal-label">{{ signal.label }}</div>
+                <div class="profile-signal-value">{{ signal.value }}</div>
+                <div class="profile-signal-text">{{ signal.text }}</div>
+              </article>
+            </div>
+            <div class="profile-next-steps">
+              <RouterLink
+                v-for="step in communityNextSteps"
+                :key="step.key"
+                class="btn"
+                :class="step.variant"
+                :to="step.to"
+              >
+                {{ step.label }}
+              </RouterLink>
+            </div>
+          </section>
         </div>
       </div>
     </UiCard>
@@ -114,10 +203,13 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { usePostMetaCacheStore } from '../stores/postMetaCache'
 import { useSocialPrefsStore } from '../stores/socialPrefs'
-import { getUserProfile } from '../api/services/userService'
+import { useTaxonomyStore } from '../stores/taxonomy'
+import { getUserProfile, listUserRecentComments, listUserRecentPosts } from '../api/services/userService'
 import { followUser, unfollowUser, getFollowStatus } from '../api/services/socialService'
 import { blockUser, unblockUser } from '../api/services/blockService'
+import { formatTime, formatTimeAgo } from '../utils/time'
 import UiCard from '../components/ui/UiCard.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
@@ -126,16 +218,23 @@ import UiEmpty from '../components/ui/UiEmpty.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiRoleBadge from '../components/ui/UiRoleBadge.vue'
 import ReportModal from '../components/modals/ReportModal.vue'
+import { buildCommunityNextSteps, buildCommunitySignals } from './userProfileSurface'
+import { buildProfileTimeline, collectTimelineUserIds } from './userProfileTimeline'
 
 const emit = defineEmits(['trace'])
 
 const route = useRoute()
 const auth = useAuthStore()
 const authed = computed(() => !!auth.accessToken)
+const taxonomy = useTaxonomyStore()
+const postMetaCache = usePostMetaCacheStore()
 
 const userId = computed(() => String(route.params.userId || ''))
 
 const profile = ref(null)
+const recentPosts = ref([])
+const recentComments = ref([])
+const timelineUsers = ref({})
 const loading = ref(false)
 const error = ref('')
 const socialDegraded = computed(() => !!profile.value?.socialDegraded)
@@ -156,6 +255,43 @@ const joinedYear = computed(() => {
   return Number.isFinite(y) ? String(y) : ''
 })
 
+const isSelfProfile = computed(() => !!meUserId.value && meUserId.value === Number(userId.value))
+
+const communitySignals = computed(() =>
+  buildCommunitySignals({
+    profile: profile.value,
+    joinedYear: joinedYear.value,
+    socialDegraded: socialDegraded.value,
+    followStatus: followStatus.value,
+    authed: authed.value,
+    isSelf: isSelfProfile.value
+  })
+)
+
+const communityNextSteps = computed(() =>
+  buildCommunityNextSteps({
+    authed: authed.value,
+    isSelf: isSelfProfile.value,
+    userId: userId.value
+  })
+)
+
+const profileTimeline = computed(() =>
+  buildProfileTimeline({
+    posts: recentPosts.value,
+    comments: recentComments.value,
+    usersById: timelineUsers.value,
+    limit: 6
+  })
+)
+
+function categoryLabel(id) {
+  const cid = Number(id || 0)
+  if (!cid) return ''
+  const category = taxonomy.categoriesById.get(cid)
+  return category?.name || `分类#${cid}`
+}
+
 async function loadProfile() {
   error.value = ''
   loading.value = true
@@ -166,6 +302,44 @@ async function loadProfile() {
     error.value = e?.message || '加载失败'
   } finally {
     loading.value = false
+  }
+}
+
+async function loadRecentPosts() {
+  try {
+    const { data, traceId } = await listUserRecentPosts(userId.value, { page: 0, size: 3 })
+    recentPosts.value = Array.isArray(data) ? data : []
+    emit('trace', traceId || '')
+  } catch {
+    recentPosts.value = []
+  }
+}
+
+async function loadRecentComments() {
+  try {
+    const { data, traceId } = await listUserRecentComments(userId.value, { page: 0, size: 3 })
+    recentComments.value = Array.isArray(data) ? data : []
+    emit('trace', traceId || '')
+  } catch {
+    recentComments.value = []
+  }
+}
+
+async function loadTimelineUsers() {
+  const ids = collectTimelineUserIds({
+    posts: recentPosts.value,
+    comments: recentComments.value
+  })
+
+  if (ids.length === 0) {
+    timelineUsers.value = {}
+    return
+  }
+
+  try {
+    timelineUsers.value = await postMetaCache.ensureUserSummaries(ids)
+  } catch {
+    timelineUsers.value = {}
   }
 }
 
@@ -205,10 +379,16 @@ async function doFollow(follow) {
 async function reload() {
   await loadProfile()
   await loadFollowStatus()
+  await loadRecentPosts()
+  await loadRecentComments()
+  await loadTimelineUsers()
 }
 
 onMounted(reload)
 watch(() => route.params.userId, reload)
+onMounted(() => {
+  taxonomy.ensureCategories()
+})
 
 watch(
   () => auth.authed,
@@ -246,19 +426,107 @@ async function toggleBlock() {
 </script>
 
 <style scoped>
+.profile-page {
+  max-width: 980px;
+}
+
+.profile-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 20px;
+  align-items: start;
+}
+
+.profile-intro-copy {
+  display: grid;
+  gap: 14px;
+}
+
+.profile-eyebrow,
+.profile-cover-kicker,
+.profile-info-kicker-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.profile-intro-dek {
+  max-width: 56ch;
+  color: var(--text-2);
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.profile-intro-note {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding: 18px 18px 18px 20px;
+  border-radius: 22px;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, var(--bg) 8%), var(--surface));
+}
+
+.profile-intro-note-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.profile-intro-note p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
 .profile-card {
   padding: 0;
   overflow: hidden;
+  border-radius: 28px;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
+  box-shadow: var(--shadow-md);
 }
 
 .profile-cover {
-  height: 160px;
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--accent) 22%, var(--surface) 78%),
-    color-mix(in srgb, var(--accent) 10%, var(--bg) 90%)
-  );
+  position: relative;
+  min-height: 240px;
+  padding: 24px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 26%, transparent 74%), transparent 42%),
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 18%, var(--surface) 82%), color-mix(in srgb, var(--accent) 8%, var(--bg) 92%));
   border-bottom: 1px solid var(--border);
+}
+
+.profile-cover-sheet {
+  max-width: 360px;
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--surface) 88%, white 12%);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent 30%);
+  box-shadow: var(--shadow-sm);
+}
+
+.profile-cover-title {
+  font-family: var(--font-sans);
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.08;
+  color: var(--text-1);
+}
+
+.profile-cover-subtitle {
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.75;
 }
 
 .profile-body {
@@ -278,10 +546,19 @@ async function toggleBlock() {
 }
 
 .profile-actions {
+  display: flex;
   justify-content: flex-end;
   padding: 16px 24px 0 0;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.profile-action-btn {
+  min-width: 96px;
+}
+
+.profile-message-link {
+  align-self: center;
 }
 
 .profile-info {
@@ -289,7 +566,24 @@ async function toggleBlock() {
   padding: 0 24px;
 }
 
+.profile-info-kicker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.profile-info-kicker-meta {
+  font-size: 12px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 .profile-name-row {
+  display: flex;
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
@@ -297,30 +591,57 @@ async function toggleBlock() {
 
 .profile-name {
   margin: 0;
-  font-size: 28px;
+  font-family: var(--font-sans);
+  font-size: clamp(32px, 3vw, 42px);
   font-weight: 800;
+  line-height: 1.05;
+}
+
+.profile-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface) 90%);
+  color: var(--text-1);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.profile-meta {
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.profile-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
 }
 
 .profile-stats-bar {
   margin-top: 18px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface) 85%, var(--bg) 15%);
+  gap: 12px;
+  padding: 0 24px;
+  background: transparent;
 }
 
 .profile-stat {
-  padding: 14px 10px;
-  text-align: center;
-}
-
-.profile-stat + .profile-stat {
-  border-left: 1px solid var(--border);
+  padding: 18px 16px;
+  text-align: left;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, var(--bg) 6%), var(--surface));
 }
 
 .profile-stat-val {
   display: block;
+  font-family: var(--font-sans);
+  font-size: clamp(28px, 3vw, 38px);
   font-weight: 800;
   color: var(--text-1);
   line-height: var(--line-tight);
@@ -333,9 +654,222 @@ async function toggleBlock() {
   color: var(--text-2);
 }
 
+.profile-degraded-note {
+  padding: 0 24px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.profile-sections {
+  display: grid;
+  gap: 18px;
+  padding: 20px 24px 24px;
+}
+
+.profile-section {
+  display: grid;
+  gap: 14px;
+}
+
+.profile-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.profile-section-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 4px;
+}
+
+.profile-section-title {
+  font-family: var(--font-sans);
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text-1);
+}
+
+.profile-section-note {
+  color: var(--text-3);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.profile-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.profile-summary-card {
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
+  border-radius: 20px;
+  padding: 18px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, var(--bg) 6%), var(--surface)),
+    repeating-linear-gradient(
+      180deg,
+      transparent,
+      transparent 26px,
+      color-mix(in srgb, var(--border) 11%, transparent 89%) 26px,
+      color-mix(in srgb, var(--border) 11%, transparent 89%) 27px
+    );
+  display: grid;
+  gap: 8px;
+}
+
+.profile-summary-label {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.profile-summary-value {
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-1);
+  line-height: 1.2;
+}
+
+.profile-summary-text {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-2);
+}
+
+.profile-signal-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.profile-post-feed {
+  display: grid;
+  gap: 12px;
+}
+
+.profile-post-card {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, var(--bg) 6%), var(--surface));
+  color: inherit;
+  text-decoration: none;
+}
+
+.profile-post-card:hover {
+  text-decoration: none;
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.profile-post-taxonomy,
+.profile-post-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.profile-post-context {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--text-2);
+}
+
+.profile-post-context-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.profile-post-context-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+
+.profile-post-title {
+  font-family: var(--font-sans);
+  font-size: clamp(20px, 2.2vw, 24px);
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--text-1);
+}
+
+.profile-post-body {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-2);
+}
+
+.profile-post-meta {
+  font-size: 12px;
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+}
+
+.profile-signal-card {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, var(--bg) 6%), var(--surface));
+}
+
+.profile-signal-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.profile-signal-value {
+  font-family: var(--font-sans);
+  font-size: clamp(22px, 2.2vw, 28px);
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--text-1);
+}
+
+.profile-signal-text {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-2);
+}
+
+.profile-next-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 @media (max-width: 768px) {
+  .profile-intro {
+    grid-template-columns: 1fr;
+  }
+
   .profile-body {
     margin-top: -48px;
+  }
+
+  .profile-cover {
+    min-height: 220px;
+    padding: 16px;
   }
 
   .profile-avatar-wrapper {
@@ -349,6 +883,28 @@ async function toggleBlock() {
 
   .profile-info {
     padding: 0 16px;
+  }
+
+  .profile-stats-bar {
+    grid-template-columns: 1fr;
+    padding: 0 16px;
+  }
+
+  .profile-degraded-note {
+    padding: 0 16px;
+  }
+
+  .profile-sections {
+    padding: 16px;
+  }
+
+  .profile-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-post-feed,
+  .profile-signal-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

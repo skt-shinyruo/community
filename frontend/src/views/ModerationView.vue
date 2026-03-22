@@ -1,28 +1,29 @@
 <template>
-  <div class="page" style="max-width: 1100px; margin: 0 auto">
+  <div class="page moderation-page">
     <UiBreadcrumb />
 
-    <UiCard>
+    <UiCard class="moderation-shell">
       <UiPageHeader>
         <template #title>治理后台</template>
+        <template #subtitle>聚焦待处理举报、处置审计和高风险动作的执行上下文。</template>
         <template #actions>
           <UiButton variant="secondary" :disabled="loading" @click="reload">刷新</UiButton>
         </template>
       </UiPageHeader>
 
-      <div class="row" style="gap: 10px; flex-wrap: wrap; margin-top: 8px">
+      <div class="moderation-tabs">
         <UiButton :variant="tab === 'reports' ? 'primary' : 'secondary'" @click="tab = 'reports'">举报队列</UiButton>
         <UiButton :variant="tab === 'actions' ? 'primary' : 'secondary'" @click="tab = 'actions'">处置审计</UiButton>
       </div>
 
-      <UiEmpty v-if="error" type="error" style="margin-top: 12px">{{ error }}</UiEmpty>
-      <div v-else-if="loading" class="muted" style="padding: 16px">加载中…</div>
+      <UiEmpty v-if="error" type="error" class="moderation-state">{{ error }}</UiEmpty>
+      <div v-else-if="loading" class="muted moderation-loading">加载中…</div>
 
-      <div v-else style="margin-top: 12px">
+      <div v-else class="moderation-body">
         <template v-if="tab === 'reports'">
-          <div class="row" style="gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px">
-            <div class="muted" style="font-size: 12px">状态</div>
-            <select v-model="statusFilter" class="input" style="height: 32px; width: 160px">
+          <div class="moderation-filter-bar">
+            <div class="moderation-filter-label muted">状态</div>
+            <select v-model="statusFilter" name="moderation-status-filter" class="input moderation-filter-select">
               <option value="">全部</option>
               <option value="0">待处理</option>
               <option value="1">已处理</option>
@@ -32,33 +33,33 @@
 
           <UiEmpty v-if="reports.length === 0">暂无举报</UiEmpty>
 
-          <div v-else class="stack" style="gap: 10px">
-            <div v-for="r in reports" :key="r.id" class="card flat report-row">
-              <div class="row" style="justify-content: space-between; gap: 12px; align-items: flex-start">
-                <div style="min-width: 0; flex: 1">
-                  <div class="row" style="gap: 8px; flex-wrap: wrap; align-items: center">
+          <div v-else class="moderation-list">
+            <div v-for="r in reports" :key="r.id" class="card flat report-row moderation-report-card">
+              <div class="moderation-report-layout">
+                <div class="moderation-report-main">
+                  <div class="moderation-report-tags">
                     <span class="tag">#{{ r.id }}</span>
                     <span class="tag">{{ targetTypeLabel(r.targetType) }} #{{ r.targetId }}</span>
-                    <UiBadge v-if="Number(r.status) === 0" variant="warning" style="height: 18px; font-size: 11px">待处理</UiBadge>
-                    <UiBadge v-else-if="Number(r.status) === 1" variant="success" style="height: 18px; font-size: 11px">已处理</UiBadge>
-                    <UiBadge v-else variant="secondary" style="height: 18px; font-size: 11px">已驳回</UiBadge>
+                    <UiBadge v-if="Number(r.status) === 0" variant="warning" class="moderation-status-badge">待处理</UiBadge>
+                    <UiBadge v-else-if="Number(r.status) === 1" variant="success" class="moderation-status-badge">已处理</UiBadge>
+                    <UiBadge v-else variant="secondary" class="moderation-status-badge">已驳回</UiBadge>
                   </div>
 
-                  <div style="margin-top: 8px; font-weight: 800; color: var(--text-1)">{{ r.reason }}</div>
-                  <div v-if="r.detail" class="muted" style="margin-top: 6px; font-size: 12px; white-space: pre-wrap">{{ r.detail }}</div>
+                  <div class="moderation-report-title">{{ r.reason }}</div>
+                  <div v-if="r.detail" class="muted moderation-report-detail">{{ r.detail }}</div>
 
-                  <div class="muted" style="margin-top: 8px; font-size: 12px">
+                  <div class="muted moderation-report-meta">
                     举报人：{{ r.reporterId }} · {{ formatTime(r.createTime) }}
                   </div>
                 </div>
 
-                <div class="stack" style="gap: 8px; min-width: 220px">
+                <div class="moderation-report-side">
                   <UiButton variant="secondary" :disabled="actionLoading" @click="openActionModal(r)">处置</UiButton>
                 </div>
               </div>
             </div>
 
-            <div class="row" style="justify-content: center; margin-top: 8px">
+            <div class="moderation-pagination">
               <UiButton v-if="reportsHasNext" variant="secondary" :disabled="loadingMore" @click="loadMoreReports">
                 {{ loadingMore ? '加载中…' : '加载更多' }}
               </UiButton>
@@ -69,21 +70,21 @@
         <template v-else>
           <UiEmpty v-if="actions.length === 0">暂无处置记录</UiEmpty>
 
-          <div v-else class="stack" style="gap: 10px">
-            <div v-for="a in actions" :key="a.id" class="card flat">
-              <div class="row" style="justify-content: space-between; gap: 12px; align-items: center">
-                <div class="row" style="gap: 10px; flex-wrap: wrap; align-items: center">
+          <div v-else class="moderation-list">
+            <div v-for="a in actions" :key="a.id" class="card flat moderation-action-card">
+              <div class="moderation-action-head">
+                <div class="moderation-report-tags">
                   <span class="tag">#{{ a.id }}</span>
                   <span class="tag">report #{{ a.reportId }}</span>
                   <span class="tag">{{ a.action }}</span>
                 </div>
-                <div class="muted" style="font-size: 12px">{{ formatTime(a.createTime) }}</div>
+                <div class="muted moderation-report-meta">{{ formatTime(a.createTime) }}</div>
               </div>
-              <div style="margin-top: 8px; font-weight: 700">{{ a.reason }}</div>
-              <div class="muted" style="margin-top: 6px; font-size: 12px">操作者：{{ a.actorId }} · 时长：{{ Number(a.durationSeconds || 0) }}s</div>
+              <div class="moderation-report-title">{{ a.reason }}</div>
+              <div class="muted moderation-report-meta">操作者：{{ a.actorId }} · 时长：{{ Number(a.durationSeconds || 0) }}s</div>
             </div>
 
-            <div class="row" style="justify-content: center; margin-top: 8px">
+            <div class="moderation-pagination">
               <UiButton v-if="actionsHasNext" variant="secondary" :disabled="loadingMore" @click="loadMoreActions">
                 {{ loadingMore ? '加载中…' : '加载更多' }}
               </UiButton>
@@ -96,20 +97,20 @@
 
   <!-- Action Modal -->
   <div v-if="actionModalOpen" class="modal-mask" @click.self="closeActionModal">
-    <div class="modal-card card" style="max-width: 680px">
-      <div class="stack" style="padding: 16px; gap: 12px">
-        <div class="row" style="justify-content: space-between; gap: 12px; align-items: center">
-          <div style="font-weight: 800">处置举报 #{{ selectedReport?.id }}</div>
+    <div class="modal-card card moderation-modal">
+      <div class="moderation-modal-body">
+        <div class="moderation-modal-head">
+          <div class="moderation-modal-title">处置举报 #{{ selectedReport?.id }}</div>
           <button class="btn-icon sm" type="button" aria-label="关闭" title="关闭" @click="closeActionModal">×</button>
         </div>
 
-        <div class="muted" style="font-size: 12px">
+        <div class="muted moderation-modal-meta">
           目标：{{ targetTypeLabel(selectedReport?.targetType) }} #{{ selectedReport?.targetId }}
         </div>
 
-        <div class="stack" style="gap: 8px">
-          <div class="muted" style="font-size: 12px">动作</div>
-          <select v-model="actionForm.action" class="input" style="height: 36px" :disabled="actionLoading">
+        <div class="moderation-modal-field">
+          <div class="muted moderation-modal-label">动作</div>
+          <select v-model="actionForm.action" name="moderation-action-type" class="input moderation-modal-select" :disabled="actionLoading">
             <option value="reject">驳回</option>
             <option value="hide">隐藏</option>
             <option value="delete">删除</option>
@@ -119,15 +120,15 @@
           </select>
         </div>
 
-        <div class="stack" style="gap: 8px">
-          <div class="muted" style="font-size: 12px">理由（必填）</div>
-          <UiTextarea v-model.trim="actionForm.reason" :rows="3" placeholder="简要说明处置原因" :disabled="actionLoading" />
+        <div class="moderation-modal-field">
+          <div class="muted moderation-modal-label">理由（必填）</div>
+            <UiTextarea v-model.trim="actionForm.reason" name="moderation-action-reason" :rows="3" placeholder="简要说明处置原因" :disabled="actionLoading" />
         </div>
 
-        <div v-if="actionNeedsDuration" class="stack" style="gap: 8px">
-          <div class="muted" style="font-size: 12px">时长</div>
-          <div class="row" style="gap: 10px; flex-wrap: wrap">
-            <select v-model="actionForm.durationPreset" class="input" style="height: 36px; width: 200px" :disabled="actionLoading">
+        <div v-if="actionNeedsDuration" class="moderation-modal-field">
+          <div class="muted moderation-modal-label">时长</div>
+          <div class="moderation-modal-duration">
+            <select v-model="actionForm.durationPreset" name="moderation-duration-preset" class="input moderation-modal-select moderation-modal-select--duration" :disabled="actionLoading">
               <option value="3600">1 小时</option>
               <option value="86400">1 天</option>
               <option value="604800">7 天</option>
@@ -138,17 +139,17 @@
             <UiInput
               v-if="actionForm.durationPreset === 'custom'"
               v-model.trim="actionForm.durationSeconds"
-              class="input"
-              style="height: 36px; width: 200px"
+              name="moderation-duration-seconds"
+              class="moderation-modal-custom-duration"
               placeholder="秒，例如 600"
               :disabled="actionLoading"
             />
           </div>
         </div>
 
-        <div v-if="actionError" class="error" style="font-size: 12px">{{ actionError }}</div>
+        <div v-if="actionError" class="error moderation-modal-error">{{ actionError }}</div>
 
-        <div class="row" style="justify-content: flex-end; gap: 10px">
+        <div class="moderation-modal-actions">
           <UiButton variant="secondary" :disabled="actionLoading" @click="closeActionModal">取消</UiButton>
           <UiButton :disabled="actionLoading" @click="submitAction">{{ actionLoading ? '处理中…' : '确认处置' }}</UiButton>
         </div>
@@ -337,9 +338,193 @@ async function submitAction() {
 </script>
 
 <style scoped>
+.moderation-page {
+  max-width: 1120px;
+}
+
+.moderation-shell {
+  display: grid;
+  gap: 14px;
+}
+
+.moderation-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.moderation-state {
+  margin-top: 12px;
+}
+
+.moderation-loading {
+  padding: 16px;
+}
+
+.moderation-body {
+  margin-top: 12px;
+  display: grid;
+  gap: 14px;
+}
+
+.moderation-filter-bar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.moderation-filter-label {
+  font-size: 12px;
+}
+
+.moderation-filter-select {
+  height: 32px;
+  width: 160px;
+}
+
+.moderation-list {
+  display: grid;
+  gap: 10px;
+}
+
 .report-row:hover {
   border-color: var(--border-strong);
   box-shadow: var(--shadow-sm);
 }
-</style>
 
+.moderation-report-card,
+.moderation-action-card {
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--admin-surface) 70%, var(--surface) 30%);
+}
+
+.moderation-report-layout {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.moderation-report-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.moderation-report-side {
+  min-width: 160px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.moderation-report-tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.moderation-status-badge {
+  height: 18px;
+  font-size: 11px;
+}
+
+.moderation-report-title {
+  margin-top: 8px;
+  font-weight: 800;
+  color: var(--text-1);
+}
+
+.moderation-report-detail {
+  margin-top: 6px;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.moderation-report-meta {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.moderation-action-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.moderation-pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.moderation-modal {
+  max-width: 680px;
+}
+
+.moderation-modal-body {
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.moderation-modal-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.moderation-modal-title {
+  font-weight: 800;
+}
+
+.moderation-modal-meta,
+.moderation-modal-label,
+.moderation-modal-error {
+  font-size: 12px;
+}
+
+.moderation-modal-field {
+  display: grid;
+  gap: 8px;
+}
+
+.moderation-modal-select {
+  height: 36px;
+}
+
+.moderation-modal-select--duration,
+.moderation-modal-custom-duration {
+  width: 200px;
+}
+
+.moderation-modal-duration {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.moderation-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 768px) {
+  .moderation-report-layout,
+  .moderation-action-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .moderation-report-side {
+    min-width: 0;
+    justify-content: flex-start;
+  }
+}
+</style>

@@ -13,6 +13,9 @@ import com.nowcoder.community.content.util.SensitiveFilter;
 import com.nowcoder.community.social.block.BlockService;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -25,6 +28,38 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class CommentServiceTest {
+
+    @Test
+    void listRecentCommentsByUserShouldDelegateWithSafePagination() {
+        CommentMapper commentMapper = mock(CommentMapper.class);
+        PostService postService = mock(PostService.class);
+        SensitiveFilter sensitiveFilter = mock(SensitiveFilter.class);
+        PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
+        ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
+        BlockService blockQueryApplicationService = mock(BlockService.class);
+        UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
+        ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
+
+        CommentService service = new CommentService(
+                commentMapper,
+                postService,
+                sensitiveFilter,
+                postScoreQueue,
+                eventPublisher,
+                blockQueryApplicationService,
+                moderationGuard,
+                textCodec
+        );
+
+        Comment comment = new Comment();
+        comment.setId(11);
+        when(commentMapper.selectRecentCommentsByUser(7, 5, 5)).thenReturn(List.of(comment));
+
+        List<Comment> rows = service.listRecentCommentsByUser(7, 1, 5);
+
+        assertThat(rows).hasSize(1);
+        verify(commentMapper).selectRecentCommentsByUser(7, 5, 5);
+    }
 
     @Test
     void addReplyShouldFailWhenTargetCommentNotBelongToPost() {

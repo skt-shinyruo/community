@@ -2,15 +2,15 @@
 <template>
   <div class="app-shell" :class="shellClass">
     <aside class="app-sidebar" :class="{ 'mobile-open': !ui.sidebarCollapsed }">
-      <SidebarNav />
+      <SidebarNav :mode="props.mode" />
     </aside>
 
     <div class="app-main">
-      <Topbar />
+      <Topbar :mode="props.mode" />
       <div class="app-content">
         <slot />
       </div>
-      <MobileNav />
+      <MobileNav v-if="props.mode !== 'admin'" :mode="props.mode" />
     </div>
 
     <aside v-if="hasRight" class="app-right">
@@ -26,12 +26,18 @@ import SidebarNav from './SidebarNav.vue'
 import Topbar from './Topbar.vue'
 import MobileNav from './MobileNav.vue'
 
+const props = defineProps({
+  mode: { type: String, default: 'public' }
+})
+
 const ui = useUiStore()
 const slots = useSlots()
-const hasRight = computed(() => !!slots.right && ui.rightPanelOpen)
+const hasRight = computed(() => props.mode === 'public' && !!slots.right && ui.rightPanelOpen)
 
 const shellClass = computed(() => ({
   'sidebar-collapsed': ui.sidebarCollapsed,
-  'has-right': hasRight.value
+  'has-right': hasRight.value,
+  'app-shell--public': props.mode === 'public',
+  'app-shell--admin': props.mode === 'admin'
 }))
 </script>

@@ -22,6 +22,7 @@ public class PostSummaryResponse {
     private Integer lastReplyUserId;
     private Date lastReplyTime;
     private Date lastActivityTime;
+    private String lastReplyPreview;
 
     public int getId() {
         return id;
@@ -125,5 +126,13 @@ public class PostSummaryResponse {
 
     public void setLastActivityTime(Date lastActivityTime) {
         this.lastActivityTime = lastActivityTime;
+    }
+
+    public String getLastReplyPreview() {
+        return lastReplyPreview;
+    }
+
+    public void setLastReplyPreview(String lastReplyPreview) {
+        this.lastReplyPreview = lastReplyPreview;
     }
 }

@@ -1,41 +1,82 @@
 <template>
-  <div class="page" style="max-width: 800px; margin: 0 auto">
-    <UiPageHeader>
+  <div class="page conversations-page">
+    <UiCard flat class="conversations-hero">
+      <UiPageHeader>
         <template #title>私信</template>
+        <template #subtitle>把仍在推进的讨论、协作和跟进放回同一个收件箱里。</template>
         <template #actions>
-           <UiButton variant="secondary" @click="load" :disabled="loading">刷新</UiButton>
+          <UiButton variant="secondary" @click="load" :disabled="loading">刷新</UiButton>
         </template>
-    </UiPageHeader>
+      </UiPageHeader>
 
-    <div v-if="error && items.length > 0" class="error" style="margin-top: 12px">{{ error }}</div>
+      <div class="conversations-hero-grid">
+        <div class="conversations-hero-card">
+          <span class="conversations-hero-label">当前会话</span>
+          <strong>{{ items.length }}</strong>
+          <p>最近二十条对话会集中展示在这里，方便你快速回到正在进行的交流。</p>
+        </div>
+        <div class="conversations-hero-card">
+          <span class="conversations-hero-label">未读消息</span>
+          <strong>{{ items.reduce((total, c) => total + Number(c?.unreadCount || 0), 0) }}</strong>
+          <p>优先处理还没读完的线程，避免重要回复埋在工具式列表里。</p>
+        </div>
+      </div>
+    </UiCard>
 
-    <UiCard style="margin-top: 12px; padding: 0; overflow: hidden">
-       <UiEmpty v-if="error && items.length === 0" type="error" style="padding: 40px">{{ error }}</UiEmpty>
-       <div v-else-if="loading && items.length === 0" class="muted" style="padding: 40px; text-align: center">加载中…</div>
-       <UiEmpty v-else-if="items.length === 0" style="padding: 40px">暂无会话</UiEmpty>
-       
-       <div class="conv-list">
-          <RouterLink 
-            v-for="c in items" 
-            :key="c.conversationId" 
-            :to="`/messages/${encodeURIComponent(c.conversationId)}`"
-            class="conv-item"
-            :class="{ unread: c.unreadCount > 0 }"
-          >
-             <UiAvatar :src="''" :name="`U#${c?.otherUserId || '?'}`" :size="48" />
-             
-             <div class="conv-content">
-                <div class="conv-top">
-                   <span class="conv-name">{{ `用户 #${c?.otherUserId || '?'}` }}</span>
-                   <span class="conv-time" v-if="c.lastMessage">{{ formatTimeShort(c.lastMessage.createdAtEpochMs) }}</span>
-                </div>
-                <div class="conv-bottom">
-                   <span class="conv-preview">{{ c.lastMessage?.content || '（暂无消息）' }}</span>
-                   <span v-if="c.unreadCount > 0" class="unread-badge">{{ c.unreadCount }}</span>
-                </div>
-             </div>
-          </RouterLink>
-       </div>
+    <div v-if="error && items.length > 0" class="error conversations-banner">{{ error }}</div>
+
+    <UiCard class="conversations-shell">
+      <div class="conversations-shell-head">
+        <div>
+          <div class="conversations-eyebrow">Inbox</div>
+          <h2>最近对话</h2>
+          <p>按照最近一条消息排序，直接回到具体线程继续回复。</p>
+        </div>
+        <div class="conversations-head-meta muted">
+          {{ items.filter((c) => Number(c?.unreadCount || 0) > 0).length }} 个对话待处理
+        </div>
+      </div>
+
+      <UiEmpty v-if="error && items.length === 0" type="error" class="conversations-empty">{{ error }}</UiEmpty>
+      <div v-else-if="loading && items.length === 0" class="muted conversations-state">正在整理你的收件箱…</div>
+      <UiEmpty v-else-if="items.length === 0" class="conversations-empty">
+        暂无会话
+        <template #description>当有人与你发起私信后，这里会显示最新线程和未读状态。</template>
+      </UiEmpty>
+
+      <div v-else class="conv-list">
+        <RouterLink
+          v-for="c in items"
+          :key="c.conversationId"
+          :to="`/messages/${encodeURIComponent(c.conversationId)}`"
+          class="conv-item"
+          :class="{ unread: c.unreadCount > 0 }"
+        >
+          <div class="conv-avatar-wrap">
+            <UiAvatar :src="''" :name="`社区成员 ${c?.otherUserId || ''}`" :size="52" />
+            <span v-if="c.unreadCount > 0" class="conv-dot" aria-hidden="true"></span>
+          </div>
+
+          <div class="conv-content">
+            <div class="conv-top">
+              <div class="conv-heading">
+                <span class="conv-name">{{ c.unreadCount > 0 ? '有新消息待查看' : '继续这段对话' }}</span>
+                <span class="conv-context">成员 #{{ c?.otherUserId || '?' }}</span>
+              </div>
+              <span class="conv-time" v-if="c.lastMessage">{{ formatTimeShort(c.lastMessage.createdAtEpochMs) }}</span>
+            </div>
+
+            <div class="conv-preview">
+              {{ c.lastMessage?.content || '暂时还没有文本消息，打开线程可以继续交流。' }}
+            </div>
+
+            <div class="conv-footer">
+              <span class="conv-status">{{ c.unreadCount > 0 ? '等待你的回复' : '线程已同步' }}</span>
+              <span v-if="c.unreadCount > 0" class="unread-badge">{{ c.unreadCount }} 条未读</span>
+            </div>
+          </div>
+        </RouterLink>
+      </div>
     </UiCard>
   </div>
 </template>
@@ -83,42 +124,234 @@ onMounted(load)
 </script>
 
 <style scoped>
+.conversations-page {
+  max-width: 960px;
+  margin: 0 auto;
+  gap: var(--space-5);
+}
+
+.conversations-hero {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.conversations-hero-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.conversations-hero-card {
+  padding: 18px 20px;
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, var(--accent) 14%);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 90%, white 10%), var(--surface));
+  display: grid;
+  gap: 6px;
+}
+
+.conversations-hero-card strong {
+  font-size: clamp(1.75rem, 3vw, 2.3rem);
+  line-height: 1;
+  color: var(--text-1);
+}
+
+.conversations-hero-card p {
+  margin: 0;
+  color: var(--text-2);
+  line-height: 1.55;
+}
+
+.conversations-hero-label,
+.conversations-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  font-weight: 700;
+}
+
+.conversations-banner {
+  margin-top: -6px;
+}
+
+.conversations-shell {
+  padding: 0;
+  overflow: hidden;
+}
+
+.conversations-shell-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-end;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 92%, var(--bg) 8%);
+}
+
+.conversations-shell-head h2 {
+  margin: 6px 0 4px;
+  font-size: 1.15rem;
+}
+
+.conversations-shell-head p {
+  margin: 0;
+  color: var(--text-2);
+  line-height: 1.55;
+}
+
+.conversations-head-meta {
+  white-space: nowrap;
+}
+
+.conversations-state,
+.conversations-empty {
+  padding: 48px 24px;
+}
+
 .conv-list {
   display: flex;
   flex-direction: column;
 }
+
 .conv-item {
   display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 16px 20px;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 20px 24px;
   text-decoration: none;
   color: var(--text-1);
   border-bottom: 1px solid var(--border);
-  transition: background 0.2s;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
-.conv-item:last-child { border-bottom: none; }
-.conv-item:hover { background: var(--surface-2); }
-.conv-item.unread { background: var(--bg); }
-.conv-item.unread:hover { background: var(--surface-2); }
 
-.conv-content { flex: 1; min-width: 0; }
-.conv-top { display: flex; justify-content: space-between; margin-bottom: 4px; }
-.conv-name { font-weight: 600; font-size: 15px; }
-.conv-time { font-size: 12px; color: var(--text-3); }
+.conv-item:last-child {
+  border-bottom: none;
+}
 
-.conv-bottom { display: flex; justify-content: space-between; align-items: center; }
-.conv-preview { font-size: 14px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90%; }
-.conv-item.unread .conv-preview { color: var(--text-1); font-weight: 500; }
+.conv-item:hover {
+  background: color-mix(in srgb, var(--surface) 92%, var(--accent-weak) 8%);
+}
+
+.conv-item.unread {
+  background: color-mix(in srgb, var(--surface) 88%, var(--accent-weak) 12%);
+}
+
+.conv-item.unread:hover {
+  background: color-mix(in srgb, var(--surface) 84%, var(--accent-weak) 16%);
+}
+
+.conv-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.conv-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+}
+
+.conv-content {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.conv-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.conv-heading {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.conv-name {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.conv-context {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.conv-time {
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.conv-preview {
+  font-size: 14px;
+  color: var(--text-2);
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.conv-item.unread .conv-preview {
+  color: var(--text-1);
+}
+
+.conv-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.conv-status {
+  font-size: 12px;
+  color: var(--text-3);
+}
 
 .unread-badge {
-   background: var(--accent);
-   color: white;
-   font-size: 11px;
-   font-weight: 700;
-   padding: 2px 6px;
-   border-radius: 10px;
-   min-width: 18px;
-   text-align: center;
+  background: color-mix(in srgb, var(--accent) 18%, white 82%);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 10px;
+  border-radius: 999px;
+  min-width: 18px;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .conversations-hero-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .conversations-shell-head,
+  .conv-item {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .conversations-shell-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .conv-top,
+  .conv-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 </style>

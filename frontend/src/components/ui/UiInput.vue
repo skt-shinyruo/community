@@ -4,6 +4,8 @@
     class="input"
     :class="inputClass"
     :type="type"
+    :id="resolvedId"
+    :name="resolvedName"
     :placeholder="placeholder"
     :autocomplete="autocomplete"
     :value="modelValue"
@@ -13,7 +15,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, useAttrs, useId } from 'vue'
 
 const props = defineProps({
   modelValue: { type: [String, Number], default: '' },
@@ -25,8 +27,12 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:modelValue'])
+const attrs = useAttrs()
+const uid = useId()
 
 const inputClass = computed(() => (props.multiline ? 'multiline' : ''))
+const resolvedId = computed(() => String(attrs.id || `ui-input-${uid}`))
+const resolvedName = computed(() => String(attrs.name || attrs.id || `ui-input-${uid}`))
 
 function onInput(e) {
   let value = e?.target?.value ?? ''

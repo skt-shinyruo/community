@@ -2,15 +2,25 @@
 <template>
   <div class="auth-shell">
     <div class="auth-topbar">
-      <RouterLink to="/posts" class="auth-brand">Community</RouterLink>
-      <div class="row" style="gap: 8px">
-        <button class="btn secondary" @click="ui.toggleDensity">{{ ui.density === 'compact' ? '紧凑' : '舒适' }}</button>
-        <button class="btn secondary" @click="ui.toggleTheme">{{ ui.theme === 'dark' ? '深色' : '浅色' }}</button>
+      <RouterLink to="/posts" class="auth-brand">
+        <span class="auth-brand-mark" aria-hidden="true">C</span>
+        <span class="auth-brand-copy">
+          <span class="auth-brand-title">Community</span>
+          <span class="auth-brand-subtitle">回到讨论广场</span>
+        </span>
+      </RouterLink>
+      <div class="auth-shell-actions">
+        <button class="btn secondary auth-shell-btn" @click="ui.toggleDensity">
+          {{ ui.density === 'compact' ? '舒适版式' : '紧凑版式' }}
+        </button>
+        <button class="btn secondary auth-shell-btn" @click="ui.toggleTheme">
+          {{ ui.theme === 'dark' ? '切到浅色' : '切到深色' }}
+        </button>
       </div>
     </div>
 
     <div class="auth-content">
-      <div class="auth-card">
+      <div class="auth-card auth-card-frame">
         <slot />
       </div>
     </div>
@@ -22,4 +32,3 @@ import { useUiStore } from '../../stores/ui'
 
 const ui = useUiStore()
 </script>
-

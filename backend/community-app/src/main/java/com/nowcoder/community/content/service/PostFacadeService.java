@@ -6,6 +6,7 @@ import com.nowcoder.community.content.dto.CreatePostRequest;
 import com.nowcoder.community.content.dto.CreatePostResponse;
 import com.nowcoder.community.content.dto.PostDetailResponse;
 import com.nowcoder.community.content.dto.PostSummaryResponse;
+import com.nowcoder.community.content.dto.UserRecentCommentResponse;
 import com.nowcoder.community.content.dto.UpdateCommentRequest;
 import com.nowcoder.community.content.dto.UpdatePostRequest;
 import com.nowcoder.community.content.entity.Comment;
@@ -82,12 +83,28 @@ public class PostFacadeService {
             posts = postService.listPosts(p, s, orderMode, categoryId, tag);
         }
 
-        List<Integer> postIds = posts.stream().map(DiscussPost::getId).toList();
-        Map<Integer, Comment> lastActivities = commentService.getLatestPostActivitiesByPostIds(postIds);
-        Map<Integer, List<String>> tagsByPostId = tagService.getTagsByPostIds(postIds);
+        return assembleSummaries(posts);
+    }
 
-        return posts.stream()
-                .map(post -> toSummary(post, lastActivities.get(post.getId()), tagsByPostId.get(post.getId())))
+    public List<PostSummaryResponse> listPostsByUser(int userId, Integer page, Integer size) {
+        int p = page == null ? 0 : page;
+        int s = size == null ? 3 : size;
+        List<DiscussPost> posts = postService.listPostsByUser(userId, p, s);
+        return assembleSummaries(posts);
+    }
+
+    public List<PostSummaryResponse> listPostsByIds(List<Integer> postIds) {
+        List<DiscussPost> posts = postService.listPostsByIds(postIds);
+        return assembleSummaries(posts);
+    }
+
+    public List<UserRecentCommentResponse> listRecentCommentsByUser(int userId, Integer page, Integer size) {
+        int p = page == null ? 0 : page;
+        int s = size == null ? 3 : size;
+        List<Comment> comments = commentService.listRecentCommentsByUser(userId, p, s);
+        return comments.stream()
+                .map(this::toRecentComment)
+                .filter(value -> value != null)
                 .collect(Collectors.toList());
     }
 
@@ -186,6 +203,42 @@ public class PostFacadeService {
         log.info("[audit] action=post_delete actorUserId={} postId={}", actorUserId, postId);
     }
 
+    private List<PostSummaryResponse> assembleSummaries(List<DiscussPost> posts) {
+        List<Integer> postIds = posts.stream().map(DiscussPost::getId).toList();
+        Map<Integer, Comment> lastActivities = commentService.getLatestPostActivitiesByPostIds(postIds);
+        Map<Integer, List<String>> tagsByPostId = tagService.getTagsByPostIds(postIds);
+
+        return posts.stream()
+                .map(post -> toSummary(post, lastActivities.get(post.getId()), tagsByPostId.get(post.getId())))
+                .collect(Collectors.toList());
+    }
+
+    private UserRecentCommentResponse toRecentComment(Comment comment) {
+        if (comment == null || comment.getId() <= 0) {
+            return null;
+        }
+
+        try {
+            int postId;
+            if (comment.getEntityType() == CommentService.ENTITY_TYPE_POST) {
+                postId = comment.getEntityId();
+            } else if (comment.getEntityType() == CommentService.ENTITY_TYPE_COMMENT) {
+                Comment parent = commentService.getById(comment.getEntityId());
+                if (parent.getEntityType() != CommentService.ENTITY_TYPE_POST || parent.getEntityId() <= 0) {
+                    return null;
+                }
+                postId = parent.getEntityId();
+            } else {
+                return null;
+            }
+
+            DiscussPost post = postService.getById(postId);
+            return UserRecentCommentResponse.from(comment, postId, textCodec.decodeOnRead(post.getTitle()), textCodec::decodeOnRead);
+        } catch (BusinessException ex) {
+            return null;
+        }
+    }
+
     private PostSummaryResponse toSummary(DiscussPost post, Comment lastActivity, List<String> tags) {
         PostSummaryResponse response = new PostSummaryResponse();
         response.setId(post.getId());
@@ -202,6 +255,7 @@ public class PostFacadeService {
         if (lastActivity != null && lastActivity.getUserId() > 0 && lastActivity.getCreateTime() != null) {
             response.setLastReplyUserId(lastActivity.getUserId());
             response.setLastReplyTime(lastActivity.getCreateTime());
+            response.setLastReplyPreview(textCodec.decodeOnRead(lastActivity.getContent()));
         }
 
         if (response.getLastReplyTime() != null) {

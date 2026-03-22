@@ -79,6 +79,24 @@ public class CommentService {
         return commentMapper.selectCommentsByEntity(ENTITY_TYPE_COMMENT, commentId, Pagination.safeOffset(p, s), s);
     }
 
+    public List<Comment> listRecentCommentsByUser(int userId, int page, int size) {
+        int uid = Math.max(0, userId);
+        if (uid <= 0) {
+            return List.of();
+        }
+        int p = Math.max(0, page);
+        int s = Math.min(50, Math.max(1, size));
+        return commentMapper.selectRecentCommentsByUser(uid, Pagination.safeOffset(p, s), s);
+    }
+
+    public Comment getById(int commentId) {
+        Comment comment = commentMapper.selectCommentById(commentId);
+        if (comment == null || comment.getId() <= 0 || comment.getStatus() != 0) {
+            throw new BusinessException(COMMENT_NOT_FOUND);
+        }
+        return comment;
+    }
+
     public void assertCommentBelongsToPost(int postId, int commentId) {
         if (postId <= 0 || commentId <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "postId/commentId 非法");

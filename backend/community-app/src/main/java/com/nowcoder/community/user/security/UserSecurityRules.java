@@ -14,6 +14,7 @@ public class UserSecurityRules implements ApiSecurityRules {
         auth.requestMatchers(HttpMethod.GET, "/files/**").permitAll();
         auth.requestMatchers("/api/users/admin/**").hasRole("ADMIN");
         auth.requestMatchers(HttpMethod.GET, "/api/users/*").permitAll();
+        auth.requestMatchers(HttpMethod.GET, "/api/users/*/recent-posts", "/api/users/*/recent-comments").permitAll();
         auth.requestMatchers(HttpMethod.POST, "/api/users/batch-summary").permitAll();
     }
 }

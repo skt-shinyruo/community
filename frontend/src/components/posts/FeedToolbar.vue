@@ -19,6 +19,7 @@
 
       <label v-if="showSubscribedToggle" class="subscribed-toggle" :class="{ disabled: disabled }" title="仅显示你订阅的分类">
         <input
+          name="posts-subscribed-only"
           type="checkbox"
           :disabled="disabled"
           :checked="!!subscribed"
@@ -29,6 +30,8 @@
 
       <div class="taxonomy-controls" v-if="categories.length > 0">
         <select
+          id="posts-category-filter"
+          name="posts-category-filter"
           class="input taxonomy-select"
           :disabled="disabled"
           :value="String(categoryId || '')"
@@ -43,6 +46,8 @@
       <div class="taxonomy-controls">
         <UiInput
           v-model.trim="tagDraft"
+          id="posts-tag-filter"
+          name="posts-tag-filter"
           placeholder="标签（回车确认）"
           autocomplete="off"
           :disabled="disabled"
@@ -61,7 +66,7 @@
       <UiButton
         v-if="showClear"
         variant="secondary"
-        style="height: 32px"
+        class="feed-toolbar-button"
         :disabled="disabled"
         title="清空筛选与排序"
         @click="$emit('clear')"
@@ -69,7 +74,7 @@
         清空
       </UiButton>
 
-      <UiButton variant="ghost" style="height: 32px" :disabled="disabled" @click="$emit('refresh')">
+      <UiButton variant="ghost" class="feed-toolbar-button" :disabled="disabled" @click="$emit('refresh')">
         刷新
       </UiButton>
     </div>
@@ -121,11 +126,11 @@ function commitTag() {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: 10px 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
+  padding: 14px 16px;
+  background: linear-gradient(180deg, rgba(255, 251, 246, 0.96), rgba(246, 237, 226, 0.94));
+  border: 1px solid color-mix(in srgb, var(--editorial-rule) 82%, #fff 18%);
+  border-radius: 24px;
+  box-shadow: 0 18px 28px rgba(83, 47, 25, 0.08);
 }
 
 .feed-toolbar-left {
@@ -145,13 +150,13 @@ function commitTag() {
   align-items: center;
   gap: 8px;
   padding: 0 10px;
-  height: 32px;
+  height: 34px;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid var(--editorial-rule);
+  background: rgba(255, 249, 242, 0.92);
   color: var(--text-2);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
   user-select: none;
 }
 
@@ -170,21 +175,25 @@ function commitTag() {
 }
 
 .taxonomy-select {
-  height: 32px;
+  height: 34px;
   font-size: 13px;
-  min-width: 140px;
+  min-width: 168px;
 }
 
 .taxonomy-tag-input {
-  height: 32px;
+  height: 34px;
   font-size: 13px;
-  width: 180px;
+  width: 220px;
 }
 
 .feed-toolbar-right {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+}
+
+.feed-toolbar-button {
+  height: 32px;
 }
 
 @media (max-width: 768px) {

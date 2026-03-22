@@ -11,6 +11,8 @@ public interface CommentMapper {
 
     List<Comment> selectCommentsByEntity(int entityType, int entityId, int offset, int limit);
 
+    List<Comment> selectRecentCommentsByUser(@Param("userId") int userId, @Param("offset") int offset, @Param("limit") int limit);
+
     int selectCountByEntity(int entityType, int entityId);
 
     /**

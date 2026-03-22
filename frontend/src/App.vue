@@ -2,19 +2,19 @@
 <template>
   <UiToast ref="toastRef" />
 
-  <div v-if="isAuthRoute" style="min-height: 100vh; background: var(--bg)">
+  <div v-if="isAuthRoute" class="auth-app-frame">
     <AuthShell>
       <RouterView @trace="app.setTraceId($event)" />
     </AuthShell>
   </div>
 
-  <AppShell v-else>
+  <AppShell v-else :mode="shellMode">
     <RouterView v-slot="{ Component }">
       <Transition name="fade" mode="out-in">
         <component :is="Component" @trace="app.setTraceId($event)" />
       </Transition>
     </RouterView>
-    <template #right>
+    <template v-if="showRightPanel" #right>
       <RightPanel />
     </template>
   </AppShell>
@@ -57,6 +57,26 @@ const isAuthRoute = computed(() => {
   if (name === 'login' || name === 'register' || name === 'activation') return true
   const path = String(route.path || '')
   return path.startsWith('/auth/')
+})
+
+const isAdminRoute = computed(() => String(route.meta?.navGroup || '') === 'admin')
+
+const shellMode = computed(() => (isAdminRoute.value ? 'admin' : 'public'))
+
+const RIGHT_PANEL_ROUTE_NAMES = new Set([
+  'posts',
+  'postDetail',
+  'search',
+  'userProfile',
+  'followees',
+  'followers',
+  'bookmarks',
+  'leaderboard'
+])
+
+const showRightPanel = computed(() => {
+  if (isAuthRoute.value || isAdminRoute.value) return false
+  return RIGHT_PANEL_ROUTE_NAMES.has(String(route.name || ''))
 })
 
 async function refreshMe() {

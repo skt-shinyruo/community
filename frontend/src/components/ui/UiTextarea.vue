@@ -2,6 +2,8 @@
 <template>
   <textarea
     class="input multiline"
+    :id="resolvedId"
+    :name="resolvedName"
     :rows="rows"
     :placeholder="placeholder"
     :value="modelValue"
@@ -11,6 +13,8 @@
 </template>
 
 <script setup>
+import { computed, useAttrs, useId } from 'vue'
+
 const props = defineProps({
   modelValue: { type: String, default: '' },
   modelModifiers: { type: Object, default: () => ({}) },
@@ -19,6 +23,10 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:modelValue'])
+const attrs = useAttrs()
+const uid = useId()
+const resolvedId = computed(() => String(attrs.id || `ui-textarea-${uid}`))
+const resolvedName = computed(() => String(attrs.name || attrs.id || `ui-textarea-${uid}`))
 
 function onInput(e) {
   let value = e?.target?.value ?? ''

@@ -55,6 +55,16 @@
         limit #{limit}
     </select>
 
+    <select id="selectDiscussPostsByIds" resultType="com.nowcoder.community.content.entity.DiscussPost">
+        select <include refid="selectFields"></include>
+        from discuss_post
+        where status != 2
+          and id in
+          <foreach collection="postIds" item="pid" open="(" separator="," close=")">
+              #{pid}
+          </foreach>
+    </select>
+
     <select id="selectDiscussPostRows" resultType="int">
         select count(id)
         from discuss_post

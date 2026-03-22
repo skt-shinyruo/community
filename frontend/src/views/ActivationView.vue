@@ -1,21 +1,21 @@
 <!-- 激活页面：展示激活成功/重复/失败三态（对齐 legacy 语义）。 -->
 <template>
-  <UiCard>
+  <UiCard class="auth-view-card activation-card">
     <UiPageHeader>
       <template #title>账号激活</template>
-      <template #subtitle>验证激活码并完成账号激活</template>
+      <template #subtitle>验证激活码并确认你的账号状态。</template>
       <template #actions>
         <RouterLink class="btn secondary" to="/auth/login">去登录</RouterLink>
       </template>
     </UiPageHeader>
 
-    <div style="margin-top: 12px">
+    <div class="activation-body">
       <div v-if="loading" class="muted">请求中…</div>
       <div v-else-if="error" class="error">{{ error }}</div>
 
-      <UiCard v-else flat>
-        <div class="stack" style="gap: 8px">
-          <div style="font-weight: 800">{{ title }}</div>
+      <UiCard v-else flat class="activation-result-card">
+        <div class="activation-result-stack">
+          <div class="activation-result-title">{{ title }}</div>
           <div class="muted">{{ desc }}</div>
           <RouterLink class="btn ghost" to="/posts">返回社区</RouterLink>
         </div>
@@ -67,3 +67,30 @@ async function run() {
 
 onMounted(run)
 </script>
+
+<style scoped>
+.activation-card {
+  display: grid;
+  gap: 12px;
+}
+
+.activation-body {
+  margin-top: 12px;
+}
+
+.activation-result-card {
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 88%, var(--bg) 12%);
+  padding: 16px;
+}
+
+.activation-result-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.activation-result-title {
+  font-weight: 800;
+}
+</style>

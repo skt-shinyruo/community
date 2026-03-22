@@ -111,10 +111,13 @@ describe('router/navigation', () => {
     const anonKeys = anon.map((it) => it.key)
     expect(anonKeys).toEqual(expect.arrayContaining(['posts', 'search']))
     expect(anonKeys).not.toContain('messages')
+    expect(anonKeys).not.toContain('analytics')
     expect(anonKeys).not.toContain('profile')
 
     const authed = getMobileNavigation({ authed: true, userId: 8 })
     const authedKeys = authed.map((it) => it.key)
     expect(authedKeys).toEqual(expect.arrayContaining(['posts', 'search', 'messages', 'profile']))
+    expect(authedKeys).not.toContain('bookmarks')
+    expect(authedKeys).not.toContain('analytics')
   })
 })

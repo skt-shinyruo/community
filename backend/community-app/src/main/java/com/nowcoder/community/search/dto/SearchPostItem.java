@@ -6,6 +6,7 @@ import java.util.List;
 public class SearchPostItem {
 
     private int postId;
+    private int userId;
     private Integer categoryId;
     private List<String> tags;
     private String title;
@@ -20,6 +21,14 @@ public class SearchPostItem {
 
     public void setPostId(int postId) {
         this.postId = postId;
+    }
+
+    public int getUserId() {
+        return userId;
+    }
+
+    public void setUserId(int userId) {
+        this.userId = userId;
     }
 
     public Integer getCategoryId() {

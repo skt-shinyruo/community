@@ -3,8 +3,11 @@
   <div class="sidebar">
     <div class="sidebar-header">
       <RouterLink :to="{ name: 'posts' }" class="sidebar-brand" aria-label="返回帖子列表" @click="onNavClick">
-        <div class="sidebar-brand-mark" aria-hidden="true">C</div>
-        <span v-if="!ui.sidebarCollapsed" class="sidebar-brand-text">Community</span>
+        <div class="sidebar-brand-mark" aria-hidden="true">{{ props.mode === 'admin' ? 'M' : 'C' }}</div>
+        <span v-if="!ui.sidebarCollapsed" class="sidebar-brand-copy">
+          <span class="sidebar-brand-text">{{ props.mode === 'admin' ? 'Moderation Desk' : 'Community' }}</span>
+          <span class="sidebar-brand-sub">{{ props.mode === 'admin' ? '运营工作台' : '讨论版编辑部' }}</span>
+        </span>
       </RouterLink>
 
       <button
@@ -227,8 +230,8 @@
       </div>
     </div>
 
-    <div class="sidebar-footer row" style="justify-content: space-between">
-      <div class="row" style="gap: 6px">
+    <div class="sidebar-footer">
+      <div class="sidebar-footer-actions">
         <button
           class="btn-icon"
           type="button"
@@ -260,14 +263,19 @@
         </button>
       </div>
 
-      <RouterLink v-if="auth.authed && auth.userId" :to="{ name: 'userProfile', params: { userId: String(auth.userId) } }" class="row" style="gap: 10px" @click="onNavClick">
+      <RouterLink
+        v-if="auth.authed && auth.userId"
+        :to="{ name: 'userProfile', params: { userId: String(auth.userId) } }"
+        class="sidebar-user-link"
+        @click="onNavClick"
+      >
         <UiAvatar :src="auth.me?.headerUrl || ''" :name="auth.username || ''" :size="28" />
         <div v-if="!ui.sidebarCollapsed" class="sidebar-user">
-          <div class="row" style="gap: 6px; align-items: center">
-            <div class="sidebar-user-name truncate">{{ auth.username || `user#${auth.userId}` }}</div>
+          <div class="sidebar-user-row">
+            <div class="sidebar-user-name truncate">{{ auth.username || `成员 ${auth.userId}` }}</div>
             <UiRoleBadge :user="auth.me" />
           </div>
-          <div class="sidebar-user-meta muted truncate">ID {{ auth.userId }}</div>
+          <div class="sidebar-user-meta muted truncate">{{ props.mode === 'admin' ? '治理视图已启用' : '继续你的讨论与阅读' }}</div>
         </div>
       </RouterLink>
     </div>
@@ -285,6 +293,10 @@ import { useUiStore } from '../../stores/ui'
 import UiAvatar from '../ui/UiAvatar.vue'
 import UiRoleBadge from '../ui/UiRoleBadge.vue'
 import { getSidebarNavigation, isNavItemActive } from '../../router/navigation'
+
+const props = defineProps({
+  mode: { type: String, default: 'public' }
+})
 
 const auth = useAuthStore()
 const ui = useUiStore()

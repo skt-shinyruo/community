@@ -1,25 +1,25 @@
 <template>
-  <UiCard>
+  <UiCard class="auth-view-card">
     <UiPageHeader>
       <template #title>登录</template>
-      <template #subtitle>欢迎回来 · 输入账号信息以继续</template>
+      <template #subtitle>回到讨论广场前，先确认你的身份与当前登录状态。</template>
     </UiPageHeader>
 
     <div class="stack auth-form">
-      <div class="stack" style="gap: 8px">
+      <div class="auth-field">
         <div class="field-label">用户名</div>
         <UiInput v-model.trim="form.username" placeholder="请输入用户名" autocomplete="username" />
       </div>
 
-      <div class="stack" style="gap: 8px">
+      <div class="auth-field">
         <div class="field-label">密码</div>
         <UiInput v-model.trim="form.password" placeholder="请输入密码" type="password" autocomplete="current-password" />
       </div>
 
-      <div v-if="captchaRequired" class="stack" style="gap: 8px">
+      <div v-if="captchaRequired" class="auth-field">
         <div class="field-label">验证码</div>
         <div class="row captcha-row">
-          <UiInput v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" style="flex: 1" />
+          <UiInput v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" class="captcha-input" />
           <img
             v-if="captchaSrc"
             :src="captchaSrc"
@@ -33,11 +33,11 @@
 
       <div v-if="error" class="error">{{ error }}</div>
 
-      <div class="row" style="justify-content: flex-end; margin-top: 6px">
+      <div class="auth-secondary-row">
         <RouterLink class="btn ghost" to="/auth/password/reset">忘记密码？</RouterLink>
       </div>
 
-      <UiButton @click="onLogin" :disabled="loading" style="height: 44px; font-size: 15px">
+      <UiButton @click="onLogin" :disabled="loading" class="auth-submit-btn">
         {{ loading ? '登录中…' : '登录' }}
       </UiButton>
 
@@ -133,10 +133,19 @@ async function onLogin() {
   gap: 14px;
 }
 
+.auth-field {
+  display: grid;
+  gap: 8px;
+}
+
 .field-label {
   font-size: 13px;
   font-weight: 700;
   color: var(--text-1);
+}
+
+.captcha-input {
+  flex: 1;
 }
 
 .captcha-row {
@@ -149,6 +158,17 @@ async function onLogin() {
   border-radius: 8px;
   cursor: pointer;
   border: 1px solid var(--border);
+}
+
+.auth-secondary-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.auth-submit-btn {
+  min-height: 44px;
+  font-size: 15px;
 }
 
 .auth-links {

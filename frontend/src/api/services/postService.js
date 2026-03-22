@@ -22,6 +22,13 @@ export async function createPost({ title, content, categoryId, tags } = {}) {
   return { data, traceId }
 }
 
+export async function batchPostSummaries(postIds) {
+  const ids = Array.isArray(postIds) ? postIds.map((id) => Number(id || 0)).filter((id) => id > 0) : []
+  const resp = await http.post('/api/posts/batch-summary', { postIds: ids })
+  const { data, traceId } = unwrapResultBody(resp.data, '批量获取帖子摘要')
+  return { data: Array.isArray(data) ? data : [], traceId }
+}
+
 export async function getPostDetail(postId) {
   const resp = await http.get(`/api/posts/${postId}`)
   const { data, traceId } = unwrapResultBody(resp.data, '获取帖子详情')

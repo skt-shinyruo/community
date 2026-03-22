@@ -26,6 +26,145 @@ create table if not exists user_score_log (
   constraint uk_event_id unique (event_id)
 );
 
+create table if not exists reward_account (
+  user_id int not null primary key,
+  available_balance int not null default 0,
+  frozen_balance int not null default 0,
+  version int not null default 0,
+  update_time timestamp default current_timestamp
+);
+
+create table if not exists reward_ledger (
+  id bigint auto_increment primary key,
+  user_id int not null,
+  event_id varchar(64) not null,
+  event_type varchar(64) not null,
+  delta int not null,
+  balance_after int not null,
+  frozen_balance_after int not null default 0,
+  biz_key varchar(128),
+  source_module varchar(64),
+  remark varchar(255),
+  create_time timestamp default current_timestamp,
+  constraint uk_reward_ledger_event_id unique (event_id)
+);
+
+create table if not exists reward_grant_record (
+  id bigint auto_increment primary key,
+  grant_id varchar(64) not null,
+  user_id int not null,
+  grant_type varchar(64) not null,
+  source_event_id varchar(64) not null,
+  source_event_type varchar(64) not null,
+  growth_delta int not null default 0,
+  reward_delta int not null default 0,
+  status varchar(32) not null,
+  create_time timestamp default current_timestamp,
+  constraint uk_reward_grant_id unique (grant_id)
+);
+
+create table if not exists growth_check_in (
+  id bigint auto_increment primary key,
+  user_id int not null,
+  biz_date date not null,
+  streak_count int not null,
+  create_time timestamp default current_timestamp,
+  constraint uk_growth_check_in_user_date unique (user_id, biz_date)
+);
+
+create table if not exists task_template (
+  task_code varchar(64) primary key,
+  task_type varchar(32) not null,
+  period_type varchar(16) not null,
+  trigger_event_type varchar(64) not null,
+  target_value int not null,
+  reward_growth_delta int not null default 0,
+  reward_balance_delta int not null default 0,
+  claim_required boolean not null default false,
+  display_order int not null default 0,
+  status varchar(16) not null,
+  create_time timestamp default current_timestamp,
+  update_time timestamp default current_timestamp
+);
+
+create table if not exists user_task_progress (
+  id bigint auto_increment primary key,
+  user_id int not null,
+  task_code varchar(64) not null,
+  period_key varchar(32) not null,
+  current_value int not null,
+  target_value int not null,
+  status varchar(16) not null,
+  reached_at timestamp null,
+  claimed_at timestamp null,
+  reward_grant_id varchar(64),
+  last_source_event_id varchar(64),
+  update_time timestamp default current_timestamp,
+  constraint uk_user_task_period unique (user_id, task_code, period_key)
+);
+
+create table if not exists user_task_event_log (
+  id bigint auto_increment primary key,
+  user_id int not null,
+  task_code varchar(64) not null,
+  period_key varchar(32) not null,
+  source_event_id varchar(64) not null,
+  create_time timestamp default current_timestamp,
+  constraint uk_user_task_event unique (user_id, task_code, period_key, source_event_id)
+);
+
+create table if not exists admin_reward_adjustment (
+  id bigint auto_increment primary key,
+  actor_user_id int not null,
+  target_user_id int not null,
+  asset_type varchar(32) not null,
+  delta int not null,
+  before_value int not null,
+  after_value int not null,
+  reason varchar(255) not null,
+  confirm_token varchar(64),
+  create_time timestamp default current_timestamp
+);
+
+create table if not exists admin_reward_order_action (
+  id bigint auto_increment primary key,
+  order_id bigint not null,
+  actor_user_id int not null,
+  action varchar(16) not null,
+  from_status varchar(16) not null,
+  to_status varchar(16) not null,
+  note varchar(255) not null,
+  create_time timestamp default current_timestamp
+);
+
+create table if not exists reward_item (
+  id bigint auto_increment primary key,
+  item_name varchar(128) not null,
+  item_desc varchar(255),
+  cost_balance int not null,
+  stock int not null,
+  per_user_limit int not null default 0,
+  fulfillment_mode varchar(16) not null,
+  status varchar(16) not null,
+  create_time timestamp default current_timestamp,
+  update_time timestamp default current_timestamp
+);
+
+create table if not exists reward_order (
+  id bigint auto_increment primary key,
+  redeem_request_id varchar(64) not null,
+  user_id int not null,
+  item_id bigint not null,
+  status varchar(16) not null,
+  cost_balance_snapshot int not null,
+  fulfillment_mode_snapshot varchar(16) not null,
+  item_name_snapshot varchar(128) not null,
+  item_desc_snapshot varchar(255),
+  create_time timestamp default current_timestamp,
+  update_time timestamp default current_timestamp,
+  constraint uk_reward_order_user_request unique (user_id, redeem_request_id)
+);
+
 create table if not exists user_consumed_event (
   id bigint auto_increment primary key,
   event_id varchar(64) not null,
@@ -172,6 +311,13 @@ create index if not exists idx_outbox_status_updated on outbox_event(status, upd
 create index if not exists idx_outbox_status_created on outbox_event(status, created_at, id);
 
 delete from user_score_log;
+delete from reward_ledger;
+delete from reward_grant_record;
+delete from admin_reward_adjustment;
+delete from admin_reward_order_action;
+delete from reward_account;
+delete from growth_check_in;
+delete from user_task_progress;
 delete from user_consumed_event;
 delete from auth_refresh_token;
 delete from comment;
@@ -200,3 +346,10 @@ key(id) values
 
 insert into discuss_post(id, user_id, category_id, title, content, type, status, create_time, update_time, edit_count, comment_count, score)
 values (100, 1, 1, 'hello world', 'hello content', 0, 0, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP(), 0, 0, 0.0);
+
+merge into task_template(task_code, task_type, period_type, trigger_event_type, target_value, reward_growth_delta, reward_balance_delta, claim_required, display_order, status)
+key(task_code) values
+  ('DAILY_CHECK_IN', 'CHECK_IN', 'DAILY', 'DailyCheckIn', 1, 2, 1, false, 10, 'ACTIVE'),
+  ('DAILY_POST', 'CONTENT', 'DAILY', 'PostPublished', 1, 3, 1, false, 20, 'ACTIVE'),
+  ('WEEKLY_COMMENTER', 'CONTENT', 'WEEKLY', 'CommentCreated', 2, 4, 1, false, 30, 'ACTIVE'),
+  ('LIFETIME_RECEIVE_LIKE', 'SOCIAL', 'LIFETIME', 'LikeCreated', 3, 6, 2, false, 40, 'ACTIVE');

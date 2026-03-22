@@ -120,6 +120,8 @@
         <div class="admin-links">
           <RouterLink class="admin-link" :to="{ name: 'moderation' }">治理后台</RouterLink>
           <RouterLink class="admin-link" :to="{ name: 'analytics' }">统计面板</RouterLink>
+          <RouterLink v-if="auth.authorities.includes('ROLE_ADMIN')" class="admin-link" :to="{ name: 'growthAdmin' }">成长账户</RouterLink>
+          <RouterLink v-if="auth.authorities.includes('ROLE_ADMIN')" class="admin-link" :to="{ name: 'rewardOps' }">奖励运营</RouterLink>
         </div>
       </section>
     </div>

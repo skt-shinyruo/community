@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.growth.mapper.AdminRewardAdjustmentMapper">
+
+    <insert id="insert" parameterType="com.nowcoder.community.growth.entity.AdminRewardAdjustment" useGeneratedKeys="true" keyProperty="id">
+        insert into admin_reward_adjustment(
+            actor_user_id,
+            target_user_id,
+            asset_type,
+            delta,
+            before_value,
+            after_value,
+            reason,
+            confirm_token
+        ) values (
+            #{actorUserId},
+            #{targetUserId},
+            #{assetType},
+            #{delta},
+            #{beforeValue},
+            #{afterValue},
+            #{reason},
+            #{confirmToken}
+        )
+    </insert>
+
+    <select id="selectRecentByTargetUserId" resultType="com.nowcoder.community.growth.entity.AdminRewardAdjustment">
+        select id, actor_user_id, target_user_id, asset_type, delta, before_value, after_value, reason, confirm_token, create_time
+        from admin_reward_adjustment
+        where target_user_id = #{targetUserId}
+        order by id desc
+        limit #{limit}
+    </select>
+
+</mapper>

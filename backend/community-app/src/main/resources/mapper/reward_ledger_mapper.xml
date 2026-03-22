@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.growth.mapper.RewardLedgerMapper">
+
+    <insert id="insert">
+        insert into reward_ledger(user_id, event_id, event_type, delta, balance_after, frozen_balance_after, source_module, remark)
+        values(#{userId}, #{eventId}, #{eventType}, #{delta}, #{balanceAfter}, #{frozenBalanceAfter}, #{sourceModule}, #{remark})
+    </insert>
+
+    <select id="selectRecentByUserId" resultType="com.nowcoder.community.growth.entity.RewardLedgerEntry">
+        select id, user_id, event_id, event_type, delta, balance_after, frozen_balance_after, biz_key, source_module, remark, create_time
+        from reward_ledger
+        where user_id = #{userId}
+        order by id desc
+        limit #{limit}
+    </select>
+
+</mapper>

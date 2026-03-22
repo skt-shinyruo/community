@@ -205,6 +205,9 @@ create table if not exists user_consumed_event (
 -- NOTE: 作为“成长体系”的 SSOT，当前仅落地最小可用：
 -- - user.score：累计积分（用于等级与榜单）
 -- - user_score_log：事件幂等与积分流水（event_id 唯一）
+-- - reward_account / reward_ledger：奖励余额账户与流水
+-- - reward_grant_record：统一发放编排记录
+-- - admin_reward_adjustment：后台手工调整审计
 
 use community;
 
@@ -217,6 +220,165 @@ create table if not exists user_score_log (
   create_time timestamp null default current_timestamp,
   unique key uk_event_id (event_id),
   key idx_user_time (user_id, create_time)
+);
+
+create table if not exists reward_account (
+  user_id int not null primary key,
+  available_balance int not null default 0,
+  frozen_balance int not null default 0,
+  version int not null default 0,
+  update_time timestamp null default current_timestamp
+);
+
+create table if not exists reward_ledger (
+  id bigint auto_increment primary key,
+  user_id int not null,
+  event_id varchar(64) not null,
+  event_type varchar(64) not null,
+  delta int not null,
+  balance_after int not null,
+  frozen_balance_after int not null default 0,
+  biz_key varchar(128) default null,
+  source_module varchar(64) default null,
+  remark varchar(255) default null,
+  create_time timestamp null default current_timestamp,
+  unique key uk_reward_ledger_event_id (event_id),
+  key idx_reward_ledger_user_time (user_id, create_time)
+);
+
+create table if not exists reward_grant_record (
+  id bigint auto_increment primary key,
+  grant_id varchar(64) not null,
+  user_id int not null,
+  grant_type varchar(64) not null,
+  source_event_id varchar(64) not null,
+  source_event_type varchar(64) not null,
+  growth_delta int not null default 0,
+  reward_delta int not null default 0,
+  status varchar(32) not null,
+  create_time timestamp null default current_timestamp,
+  unique key uk_reward_grant_id (grant_id),
+  key idx_reward_grant_user_time (user_id, create_time)
+);
+
+create table if not exists admin_reward_adjustment (
+  id bigint auto_increment primary key,
+  actor_user_id int not null,
+  target_user_id int not null,
+  asset_type varchar(32) not null,
+  delta int not null,
+  before_value int not null,
+  after_value int not null,
+  reason varchar(255) not null,
+  confirm_token varchar(64) default null,
+  create_time timestamp null default current_timestamp,
+  key idx_admin_reward_adjustment_target_time (target_user_id, create_time),
+  key idx_admin_reward_adjustment_actor_time (actor_user_id, create_time)
+);
+
+create table if not exists admin_reward_order_action (
+  id bigint auto_increment primary key,
+  order_id bigint not null,
+  actor_user_id int not null,
+  action varchar(16) not null,
+  from_status varchar(16) not null,
+  to_status varchar(16) not null,
+  note varchar(255) not null,
+  create_time timestamp null default current_timestamp,
+  key idx_admin_reward_order_action_order_time (order_id, create_time),
+  key idx_admin_reward_order_action_actor_time (actor_user_id, create_time)
+);
+
+create table if not exists growth_check_in (
+  id bigint auto_increment primary key,
+  user_id int not null,
+  biz_date date not null,
+  streak_count int not null,
+  create_time timestamp null default current_timestamp,
+  unique key uk_growth_check_in_user_date (user_id, biz_date),
+  key idx_growth_check_in_user_date (user_id, biz_date)
+);
+
+create table if not exists task_template (
+  task_code varchar(64) primary key,
+  task_type varchar(32) not null,
+  period_type varchar(16) not null,
+  trigger_event_type varchar(64) not null,
+  target_value int not null,
+  reward_growth_delta int not null default 0,
+  reward_balance_delta int not null default 0,
+  claim_required tinyint(1) not null default 0,
+  display_order int not null default 0,
+  status varchar(16) not null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  key idx_task_template_trigger (trigger_event_type, status, display_order)
+);
+
+create table if not exists user_task_progress (
+  id bigint auto_increment primary key,
+  user_id int not null,
+  task_code varchar(64) not null,
+  period_key varchar(32) not null,
+  current_value int not null,
+  target_value int not null,
+  status varchar(16) not null,
+  reached_at timestamp null default null,
+  claimed_at timestamp null default null,
+  reward_grant_id varchar(64) default null,
+  last_source_event_id varchar(64) default null,
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  unique key uk_user_task_period (user_id, task_code, period_key),
+  key idx_user_task_lookup (user_id, status, update_time)
+);
+
+create table if not exists user_task_event_log (
+  id bigint auto_increment primary key,
+  user_id int not null,
+  task_code varchar(64) not null,
+  period_key varchar(32) not null,
+  source_event_id varchar(64) not null,
+  create_time timestamp null default current_timestamp,
+  unique key uk_user_task_event (user_id, task_code, period_key, source_event_id),
+  key idx_user_task_event_lookup (user_id, task_code, period_key, create_time)
+);
+
+insert ignore into task_template(task_code, task_type, period_type, trigger_event_type, target_value, reward_growth_delta, reward_balance_delta, claim_required, display_order, status)
+values
+  ('DAILY_CHECK_IN', 'CHECK_IN', 'DAILY', 'DailyCheckIn', 1, 2, 1, 0, 10, 'ACTIVE'),
+  ('DAILY_POST', 'CONTENT', 'DAILY', 'PostPublished', 1, 3, 1, 0, 20, 'ACTIVE'),
+  ('WEEKLY_COMMENTER', 'CONTENT', 'WEEKLY', 'CommentCreated', 2, 4, 1, 0, 30, 'ACTIVE'),
+  ('LIFETIME_RECEIVE_LIKE', 'SOCIAL', 'LIFETIME', 'LikeCreated', 3, 6, 2, 0, 40, 'ACTIVE');
+
+create table if not exists reward_item (
+  id bigint auto_increment primary key,
+  item_name varchar(128) not null,
+  item_desc varchar(255) default null,
+  cost_balance int not null,
+  stock int not null,
+  per_user_limit int not null default 0,
+  fulfillment_mode varchar(16) not null,
+  status varchar(16) not null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  key idx_reward_item_status_sort (status, update_time)
+);
+
+create table if not exists reward_order (
+  id bigint auto_increment primary key,
+  redeem_request_id varchar(64) not null,
+  user_id int not null,
+  item_id bigint not null,
+  status varchar(16) not null,
+  cost_balance_snapshot int not null,
+  fulfillment_mode_snapshot varchar(16) not null,
+  item_name_snapshot varchar(128) not null,
+  item_desc_snapshot varchar(255) default null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  unique key uk_reward_order_user_request (user_id, redeem_request_id),
+  key idx_reward_order_user_time (user_id, create_time),
+  key idx_reward_order_user_item_status (user_id, item_id, status)
 );
 
 

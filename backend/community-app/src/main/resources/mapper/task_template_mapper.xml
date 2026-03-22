@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.growth.mapper.TaskTemplateMapper">
+
+    <select id="selectActiveByTriggerEventType" resultType="com.nowcoder.community.growth.entity.TaskTemplate">
+        select task_code, task_type, period_type, trigger_event_type, target_value, reward_growth_delta,
+               reward_balance_delta, claim_required, display_order, status, create_time, update_time
+        from task_template
+        where trigger_event_type = #{triggerEventType}
+          and status = 'ACTIVE'
+        order by display_order asc, task_code asc
+    </select>
+
+    <select id="selectActiveOrdered" resultType="com.nowcoder.community.growth.entity.TaskTemplate">
+        select task_code, task_type, period_type, trigger_event_type, target_value, reward_growth_delta,
+               reward_balance_delta, claim_required, display_order, status, create_time, update_time
+        from task_template
+        where status = 'ACTIVE'
+        order by display_order asc, task_code asc
+    </select>
+
+</mapper>

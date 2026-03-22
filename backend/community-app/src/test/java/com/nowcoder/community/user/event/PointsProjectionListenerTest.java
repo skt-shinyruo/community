@@ -3,10 +3,10 @@ package com.nowcoder.community.user.event;
 import com.nowcoder.community.content.event.ContentEventTypes;
 import com.nowcoder.community.content.event.payload.PostPayload;
 import com.nowcoder.community.content.event.ContentLocalEvent;
+import com.nowcoder.community.growth.service.UnifiedGrantService;
 import com.nowcoder.community.social.event.SocialEventTypes;
 import com.nowcoder.community.social.event.payload.LikePayload;
 import com.nowcoder.community.social.event.SocialLocalEvent;
-import com.nowcoder.community.user.service.PointsService;
 import org.junit.jupiter.api.Test;
 
 import static org.mockito.Mockito.mock;
@@ -16,21 +16,31 @@ class PointsProjectionListenerTest {
 
     @Test
     void postPublishedShouldAwardAuthorPoints() {
-        PointsService pointsService = mock(PointsService.class);
-        PointsProjectionListener listener = new PointsProjectionListener(pointsService);
+        UnifiedGrantService unifiedGrantService = mock(UnifiedGrantService.class);
+        PointsProjectionListener listener = new PointsProjectionListener(unifiedGrantService);
 
         PostPayload payload = new PostPayload();
         payload.setUserId(7);
 
         listener.onContentEvent(new ContentLocalEvent("post-evt-1", ContentEventTypes.POST_PUBLISHED, payload));
 
-        verify(pointsService).applyPoints(7, "post-evt-1", ContentEventTypes.POST_PUBLISHED, 10);
+        verify(unifiedGrantService).applyGrant(
+                7,
+                "post-evt-1:points",
+                ContentEventTypes.POST_PUBLISHED,
+                "post-evt-1",
+                ContentEventTypes.POST_PUBLISHED,
+                10,
+                0,
+                "points",
+                "content-event"
+        );
     }
 
     @Test
     void likeRemovedShouldSubtractPointsFromEntityOwner() {
-        PointsService pointsService = mock(PointsService.class);
-        PointsProjectionListener listener = new PointsProjectionListener(pointsService);
+        UnifiedGrantService unifiedGrantService = mock(UnifiedGrantService.class);
+        PointsProjectionListener listener = new PointsProjectionListener(unifiedGrantService);
 
         LikePayload payload = new LikePayload();
         payload.setActorUserId(2);
@@ -38,6 +48,16 @@ class PointsProjectionListenerTest {
 
         listener.onSocialEvent(new SocialLocalEvent("like-evt-2", SocialEventTypes.LIKE_REMOVED, payload));
 
-        verify(pointsService).applyPoints(9, "like-evt-2", SocialEventTypes.LIKE_REMOVED, -1);
+        verify(unifiedGrantService).applyGrant(
+                9,
+                "like-evt-2:points",
+                SocialEventTypes.LIKE_REMOVED,
+                "like-evt-2",
+                SocialEventTypes.LIKE_REMOVED,
+                -1,
+                0,
+                "points",
+                "social-event"
+        );
     }
 }

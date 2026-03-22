@@ -21,6 +21,11 @@ import FolloweesView from '../views/FolloweesView.vue'
 import FollowersView from '../views/FollowersView.vue'
 import BookmarksView from '../views/BookmarksView.vue'
 import LeaderboardView from '../views/LeaderboardView.vue'
+import GrowthCenterView from '../views/GrowthCenterView.vue'
+import RewardShopView from '../views/RewardShopView.vue'
+import RewardOrderHistoryView from '../views/RewardOrderHistoryView.vue'
+import GrowthAdminView from '../views/GrowthAdminView.vue'
+import RewardOpsView from '../views/RewardOpsView.vue'
 import ModerationView from '../views/ModerationView.vue'
 import OpsConsoleView from '../views/OpsConsoleView.vue'
 import UserManagementView from '../views/UserManagementView.vue'
@@ -83,6 +88,36 @@ const router = createRouter({
       name: 'search',
       component: SearchView,
       meta: { title: '搜索', subtitle: '从关键词、分类和标签里定位正在发生的讨论。', navGroup: 'explore' }
+    },
+    {
+      path: '/growth',
+      name: 'growthCenter',
+      component: GrowthCenterView,
+      meta: { title: '成长中心', subtitle: '在一个入口里查看签到、任务进度和奖励余额。', navGroup: 'me', requiresAuth: true }
+    },
+    {
+      path: '/rewards/shop',
+      name: 'rewardShop',
+      component: RewardShopView,
+      meta: { title: '奖励商城', subtitle: '用奖励积分兑换自动或人工发放的权益。', navGroup: 'me', requiresAuth: true }
+    },
+    {
+      path: '/rewards/orders',
+      name: 'rewardOrders',
+      component: RewardOrderHistoryView,
+      meta: { title: '兑换记录', subtitle: '查看每一笔兑换的当前状态与快照。', navGroup: 'me', requiresAuth: true }
+    },
+    {
+      path: '/admin/growth',
+      name: 'growthAdmin',
+      component: GrowthAdminView,
+      meta: { title: '成长账户后台', subtitle: '查询成长账户并执行带审计的手工调账。', navGroup: 'admin', requiresAuth: true, roles: ['ROLE_ADMIN'] }
+    },
+    {
+      path: '/admin/rewards',
+      name: 'rewardOps',
+      component: RewardOpsView,
+      meta: { title: '奖励运营后台', subtitle: '管理商品、履约订单和奖励运营指标。', navGroup: 'admin', requiresAuth: true, roles: ['ROLE_ADMIN'] }
     },
     {
       path: '/preview/editorial',

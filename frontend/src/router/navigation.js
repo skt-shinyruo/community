@@ -232,6 +232,22 @@ const NAV_DEFS = Object.freeze([
     title: '我的',
     items: [
       {
+        key: 'growth',
+        label: '成长中心',
+        icon: 'sparkle',
+        requiresAuth: true,
+        to: () => ({ name: 'growthCenter' }),
+        activeNames: ['growthCenter']
+      },
+      {
+        key: 'rewardShop',
+        label: '奖励商城',
+        icon: 'gift',
+        requiresAuth: true,
+        to: () => ({ name: 'rewardShop' }),
+        activeNames: ['rewardShop', 'rewardOrders']
+      },
+      {
         key: 'bookmarks',
         label: '收藏',
         icon: 'bookmark',
@@ -295,6 +311,24 @@ const NAV_DEFS = Object.freeze([
         roles: ['ROLE_ADMIN', 'ROLE_MODERATOR'],
         to: () => ({ name: 'analytics' }),
         activeNames: ['analytics']
+      },
+      {
+        key: 'growthAdmin',
+        label: '成长账户',
+        icon: 'analytics',
+        requiresAuth: true,
+        roles: ['ROLE_ADMIN'],
+        to: () => ({ name: 'growthAdmin' }),
+        activeNames: ['growthAdmin']
+      },
+      {
+        key: 'rewardOps',
+        label: '奖励运营',
+        icon: 'gift',
+        requiresAuth: true,
+        roles: ['ROLE_ADMIN'],
+        to: () => ({ name: 'rewardOps' }),
+        activeNames: ['rewardOps']
       }
     ]
   },
@@ -333,7 +367,7 @@ export function getMobileNavigation(ctx = {}) {
   const groups = getSidebarNavigation(ctx)
 
   // 移动端底栏只保留高频快速入口；主导航依然由 sidebar/drawer 承载。
-  const allowKeys = new Set(['posts', 'search', 'messages', 'profile'])
+  const allowKeys = new Set(['posts', 'search', 'growth', 'messages', 'profile'])
   const flat = groups.flatMap((g) => g.items || [])
   return flat.filter((it) => allowKeys.has(it.key))
 }

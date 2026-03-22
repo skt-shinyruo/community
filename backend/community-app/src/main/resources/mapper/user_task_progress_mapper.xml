@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.growth.mapper.UserTaskProgressMapper">
+
+    <select id="selectByUserTaskAndPeriod" resultType="com.nowcoder.community.growth.entity.UserTaskProgress">
+        select id, user_id, task_code, period_key, current_value, target_value, status, reached_at, claimed_at,
+               reward_grant_id, last_source_event_id, update_time
+        from user_task_progress
+        where user_id = #{userId}
+          and task_code = #{taskCode}
+          and period_key = #{periodKey}
+    </select>
+
+    <select id="selectByUserTaskAndPeriodForUpdate" resultType="com.nowcoder.community.growth.entity.UserTaskProgress">
+        select id, user_id, task_code, period_key, current_value, target_value, status, reached_at, claimed_at,
+               reward_grant_id, last_source_event_id, update_time
+        from user_task_progress
+        where user_id = #{userId}
+          and task_code = #{taskCode}
+          and period_key = #{periodKey}
+        for update
+    </select>
+
+    <insert id="insert">
+        insert into user_task_progress(user_id, task_code, period_key, current_value, target_value, status, last_source_event_id, update_time)
+        values(#{userId}, #{taskCode}, #{periodKey}, 0, #{targetValue}, #{status}, #{lastSourceEventId}, current_timestamp)
+    </insert>
+
+    <update id="updateProgress">
+        update user_task_progress
+        set current_value = #{currentValue},
+            status = #{status},
+            reached_at = #{reachedAt},
+            claimed_at = #{claimedAt},
+            reward_grant_id = #{rewardGrantId},
+            last_source_event_id = #{lastSourceEventId},
+            update_time = current_timestamp
+        where id = #{id}
+    </update>
+
+</mapper>

@@ -1,11 +1,10 @@
 package com.nowcoder.community.user.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.growth.service.UnifiedGrantService;
 import com.nowcoder.community.infra.outbox.OutboxEvent;
-import com.nowcoder.community.user.service.PointsService;
 import org.junit.jupiter.api.Test;
 
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -14,9 +13,9 @@ class PointsOutboxHandlerTest {
     @Test
     void handlerShouldCallPointsServiceWithSourceEventId() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
-        PointsService pointsService = mock(PointsService.class);
+        UnifiedGrantService unifiedGrantService = mock(UnifiedGrantService.class);
 
-        PointsOutboxHandler handler = new PointsOutboxHandler(objectMapper, pointsService);
+        PointsOutboxHandler handler = new PointsOutboxHandler(objectMapper, unifiedGrantService);
 
         String payloadJson = objectMapper.writeValueAsString(java.util.Map.of(
                 "userId", 7,
@@ -39,7 +38,16 @@ class PointsOutboxHandlerTest {
 
         handler.handle(event);
 
-        verify(pointsService).applyPoints(eq(7), eq("src-1"), eq("PostPublished"), eq(10));
+        verify(unifiedGrantService).applyGrant(
+                7,
+                "src-1:points",
+                "PostPublished",
+                "src-1",
+                "PostPublished",
+                10,
+                0,
+                "points",
+                "outbox-event"
+        );
     }
 }
-

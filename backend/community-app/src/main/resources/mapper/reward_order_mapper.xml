@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.growth.mapper.RewardOrderMapper">
+
+    <resultMap id="rewardOrderMap" type="com.nowcoder.community.growth.entity.RewardOrder">
+        <id column="id" property="id"/>
+        <result column="redeem_request_id" property="redeemRequestId"/>
+        <result column="user_id" property="userId"/>
+        <result column="item_id" property="itemId"/>
+        <result column="status" property="status"/>
+        <result column="cost_balance_snapshot" property="costBalanceSnapshot"/>
+        <result column="fulfillment_mode_snapshot" property="fulfillmentModeSnapshot"/>
+        <result column="item_name_snapshot" property="itemNameSnapshot"/>
+        <result column="item_desc_snapshot" property="itemDescSnapshot"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <select id="selectById" resultMap="rewardOrderMap">
+        select id, redeem_request_id, user_id, item_id, status, cost_balance_snapshot,
+               fulfillment_mode_snapshot, item_name_snapshot, item_desc_snapshot, create_time, update_time
+        from reward_order
+        where id = #{id}
+    </select>
+
+    <select id="selectByIdForUpdate" resultMap="rewardOrderMap">
+        select id, redeem_request_id, user_id, item_id, status, cost_balance_snapshot,
+               fulfillment_mode_snapshot, item_name_snapshot, item_desc_snapshot, create_time, update_time
+        from reward_order
+        where id = #{id}
+        for update
+    </select>
+
+    <select id="selectByUserIdAndRedeemRequestId" resultMap="rewardOrderMap">
+        select id, redeem_request_id, user_id, item_id, status, cost_balance_snapshot,
+               fulfillment_mode_snapshot, item_name_snapshot, item_desc_snapshot, create_time, update_time
+        from reward_order
+        where user_id = #{userId}
+          and redeem_request_id = #{redeemRequestId}
+    </select>
+
+    <select id="selectByUserIdAndRedeemRequestIdForUpdate" resultMap="rewardOrderMap">
+        select id, redeem_request_id, user_id, item_id, status, cost_balance_snapshot,
+               fulfillment_mode_snapshot, item_name_snapshot, item_desc_snapshot, create_time, update_time
+        from reward_order
+        where user_id = #{userId}
+          and redeem_request_id = #{redeemRequestId}
+        for update
+    </select>
+
+    <select id="selectByUserId" resultMap="rewardOrderMap">
+        select id, redeem_request_id, user_id, item_id, status, cost_balance_snapshot,
+               fulfillment_mode_snapshot, item_name_snapshot, item_desc_snapshot, create_time, update_time
+        from reward_order
+        where user_id = #{userId}
+        order by id desc
+    </select>
+
+    <select id="selectAll" resultMap="rewardOrderMap">
+        select id, redeem_request_id, user_id, item_id, status, cost_balance_snapshot,
+               fulfillment_mode_snapshot, item_name_snapshot, item_desc_snapshot, create_time, update_time
+        from reward_order
+        order by id desc
+    </select>
+
+    <select id="countActiveUserOrdersForItem" resultType="int">
+        select count(*)
+        from reward_order
+        where user_id = #{userId}
+          and item_id = #{itemId}
+          and status in ('PENDING', 'PROCESSING', 'FULFILLED')
+    </select>
+
+    <select id="countByStatus" resultType="int">
+        select count(*)
+        from reward_order
+        where status = #{status}
+    </select>
+
+    <insert id="insert" parameterType="com.nowcoder.community.growth.entity.RewardOrder" useGeneratedKeys="true" keyProperty="id">
+        insert into reward_order(
+            redeem_request_id,
+            user_id,
+            item_id,
+            status,
+            cost_balance_snapshot,
+            fulfillment_mode_snapshot,
+            item_name_snapshot,
+            item_desc_snapshot
+        ) values (
+            #{redeemRequestId},
+            #{userId},
+            #{itemId},
+            #{status},
+            #{costBalanceSnapshot},
+            #{fulfillmentModeSnapshot},
+            #{itemNameSnapshot},
+            #{itemDescSnapshot}
+        )
+    </insert>
+
+    <update id="updateStatus">
+        update reward_order
+        set status = #{toStatus},
+            update_time = current_timestamp
+        where id = #{id}
+          and status = #{fromStatus}
+    </update>
+
+</mapper>

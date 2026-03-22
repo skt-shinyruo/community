@@ -51,3 +51,6 @@ frontend/.env*
 
 ### Tools ###
 tools/**/node_modules/
+
+### Local docs ###
+docs/superpowers/

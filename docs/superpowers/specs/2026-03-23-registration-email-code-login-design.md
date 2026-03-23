@@ -41,7 +41,8 @@
 2. 用户输入验证码后，后端完成账号激活并直接签发登录态
 3. 登录态的签发逻辑与用户名密码登录保持一致，继续沿用现有 access token + refresh cookie 模型
 4. 未完成邮箱验证的账号仍然不可通过密码登录
-5. 新流程对现有登录、刷新、登出、找回密码能力不产生回归
+5. 删除旧的激活链接逻辑，不保留兼容分支
+6. 新流程对现有登录、刷新、登出、找回密码能力不产生回归
 
 ### 2.2 用户体验目标
 
@@ -230,6 +231,7 @@
 - 只有邮箱验证码验证成功后，才会变为 `status=1`
 - `AuthService.login()` 对 `status=0` 的拦截逻辑继续保留
 - 已激活用户不应再依赖注册验证码流程获取新的登录态
+- 注册流程不再生成、返回、校验 `activationCode`
 
 ### 6.3 验证码模型
 
@@ -258,9 +260,12 @@
 
 - `store` 语义与密码重置保持一致，支持 `redis` / `memory`
 - `expose-code` 仅用于本地/测试联调，生产环境必须关闭
-- 原有 `auth.registration.activation-base-url` 将不再作为主流程依赖
 
-如果项目需要短期兼容旧激活链接，可保留原配置，但不再作为注册成功的必要前置校验。
+需要同步删除以下旧配置与启动校验：
+
+- `auth.registration.activation-base-url`
+- `auth.registration.expose-activation-link`
+- `AuthStartupValidator` 中对 `AUTH_ACTIVATION_BASE_URL` 的强依赖
 
 ### 7.2 存储抽象
 
@@ -309,6 +314,14 @@ Redis 实现可以固定 key 前缀存储序列化后的验证码条目。
 
 这样可以避免 `RegistrationService` 同时承担“创建用户”和“验证后登录”两种职责。
 
+同时需要删除旧的激活链路逻辑：
+
+- `RegistrationService.activate(...)`
+- `RegistrationService` 中的 `ACTIVATION_*` 常量
+- `InternalUserService.activate(...)`
+- `InternalUserService` 中的 `ACTIVATION_*` 常量
+- `InternalUserService.register()` 中 `activationCode` 的生成与写入
+
 ### 7.4 登录态签发复用
 
 需要把 `AuthService.login()` 中“根据已确认身份的用户对象签发 access token + refresh cookie”的逻辑抽成可复用内部方法，例如：
@@ -347,7 +360,7 @@ Redis 实现可以固定 key 前缀存储序列化后的验证码条目。
 
 说明：
 
-- `activationIssued` 和 `activationLink` 不再作为主流程字段
+- `activationIssued` 和 `activationLink` 字段从 `RegisterResponse` 中删除
 - `maskedEmail` 用于前端提示“验证码已发送到 xxx”
 
 #### 7.5.2 新增重发接口
@@ -396,14 +409,14 @@ Redis 实现可以固定 key 前缀存储序列化后的验证码条目。
 
 ### 7.6 邮件设计
 
-`MailService` 由“发送激活链接”扩展为“发送注册验证码”。
+`MailService` 由“发送激活链接”改为“发送注册验证码”。
 
 推荐修改为：
 
 - `void sendRegistrationCodeMail(String toEmail, String code)`
 - `void sendPasswordResetMail(String toEmail, String resetLink)`
 
-不建议继续保留 `sendActivationMail(String toEmail, String activationLink)` 作为主接口。
+`sendActivationMail(String toEmail, String activationLink)` 从接口和实现中删除。
 
 邮件内容改为：
 
@@ -413,17 +426,25 @@ Redis 实现可以固定 key 前缀存储序列化后的验证码条目。
 
 日志降级实现也应改为输出 code，而不是 activationLink。
 
-### 7.7 兼容性策略
+### 7.7 旧逻辑删除范围
 
-兼容性建议分两步：
+旧激活链接逻辑不保留兼容分支，实施时应直接删除以下后端代码：
 
-1. 第一阶段
-   - 前端切换到验证码流程
-   - 后端保留旧 `GET /api/auth/activation/{userId}/{code}`，但不再从注册流程使用
-2. 第二阶段
-   - 待确认无旧流量依赖后，删除旧激活接口和相关前端页面
+- `AuthController` 中 `GET /api/auth/activation/{userId}/{code}`
+- `AuthSecurityRules` 中对 `/api/auth/activation/*/*` 的放行规则
+- `RegistrationService.buildActivationLink(...)`
+- `RegisterResponse.activationIssued`
+- `RegisterResponse.activationLink`
+- `RegistrationProperties.activationBaseUrl`
+- `RegistrationProperties.exposeActivationLink`
+- `MailService.sendActivationMail(...)`
+- `SmtpMailService` 中激活链接邮件模板与实现
+- `LogMailService` 中激活链接日志输出
+- `User.activationCode` 及其读写路径
+- 不再需要的内部 DTO，例如 `InternalActivateRequest`
+- 所有围绕 `activationCode` 的无效测试、断言和常量
 
-这样能降低一次性改动风险，也便于本地环境排查。
+如果仓库内维护数据库迁移，则 `activation_code` 列也应在同一轮移除；如果迁移由外部流程管理，本轮至少必须做到应用代码完全不再读写该列。
 
 ---
 
@@ -458,15 +479,16 @@ Redis 实现可以固定 key 前缀存储序列化后的验证码条目。
 
 这与当前密码登录成功后的前端收口行为保持一致。
 
-### 8.3 当前激活页处理
+### 8.3 旧前端激活页删除
 
-现有 `/auth/activation/:userId/:code` 页面不再作为主流程页面。
+现有前端激活页与相关调试入口直接删除，不保留兼容路由。
 
-短期处理建议：
+需要删除的前端旧逻辑包括：
 
-- 保留页面和路由兼容旧链接
-- 注册页不再展示 `activationLink`
-- 待确认线上无依赖后再移除页面与接口
+- `frontend/src/views/ActivationView.vue`
+- `frontend/src/router/index.js` 中 `/auth/activation/:userId/:code` 路由
+- `frontend/src/api/services/authService.js` 中 `activation(...)` API
+- `frontend/src/views/RegisterView.vue` 中 `activationLink` 调试展示与跳转逻辑
 
 ### 8.4 前端提示与状态
 
@@ -567,10 +589,10 @@ Redis 实现可以固定 key 前缀存储序列化后的验证码条目。
 推荐实施顺序：
 
 1. 先补后端验证码 store、服务、DTO、接口和邮件改造
-2. 抽取 `AuthService` 的公共签发逻辑
-3. 写后端测试并跑通
-4. 再改前端注册页为两段式流程
-5. 保留旧激活页兼容，最后决定是否删除
+2. 抽取 `AuthService` 的公共签发逻辑，并同步删除旧激活接口、配置和常量
+3. 写后端测试并跑通，确保旧激活路径已不存在
+4. 再改前端注册页为两段式流程，并同步删除旧激活页、路由、API 和调试链接
+5. 跑前后端回归测试，确认仓库内不再存在激活链接主流程代码
 
 这样可以保证：
 
@@ -584,10 +606,10 @@ Redis 实现可以固定 key 前缀存储序列化后的验证码条目。
 
 ### 12.1 主要风险
 
-- 如果直接删除旧激活接口，可能影响仍在使用旧邮件链接的环境
 - 如果验证码只按 `userId` 存储，需要保证前端可靠保留 `userId`
 - 如果不加 resend cooldown，邮件发送接口可能被滥用
 - 如果验证成功后对“已激活用户”仍重复签发 token，幂等边界会不清晰
+- 删除旧逻辑后，所有依赖 `AUTH_ACTIVATION_BASE_URL`、`activationLink` 或激活页路由的测试与联调脚本都必须同步更新
 
 ### 12.2 设计结论
 
@@ -597,4 +619,4 @@ Redis 实现可以固定 key 前缀存储序列化后的验证码条目。
 - 注册验证码仅服务于未激活用户
 - 验证成功后直接签发登录态
 - 前端采用注册页内两段式流程
-- 旧激活链接接口先兼容保留，不再作为主流程
+- 旧激活链接接口、页面、配置和 DTO 全量删除，不保留兼容分支

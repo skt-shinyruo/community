@@ -9,7 +9,7 @@
 ## 文件/目录说明
 - `docker-compose.yml`：业务必需全栈（frontend + `community-gateway` + `community-app` + IM + MySQL/Redis/Kafka/ES + MailHog），默认仅暴露统一入口（`12880/12881`）与 MailHog UI（`8025`）；`debug` profile 才会额外映射 `12882/18081/18082` 到宿主机，内部依赖端口仍不映射（fail-closed）。
 - `Dockerfile.frontend`：构建并运行前端（Vite build + preview，对外 `12881`）。
-- `Dockerfile.spring-service`：统一构建 Spring Boot 模块镜像（build arg：`MODULE`，取 Maven `artifactId`，例如 `community-app`）。
+- `Dockerfile.backend-service`：统一构建 Spring Boot 模块镜像（build arg：`MODULE`，取 Maven `artifactId`，例如 `community-app`）。
 - `.env.example`：环境变量示例（复制为 `.env` 使用）。
 - `.env`：本地环境变量（不要提交包含敏感信息的版本）。
 - `mysql-init/`：MySQL 初始化脚本（建表 + 种子数据）。

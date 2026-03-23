@@ -144,7 +144,7 @@ services:
       # 后端工程在 backend/ 下；镜像构建以 backend 作为 build context
       context: ../backend
       # dockerfile 路径相对 build context（backend/）
-      dockerfile: ../deploy/Dockerfile.spring-service
+      dockerfile: ../deploy/Dockerfile.backend-service
       args:
         MODULE: community-app
     container_name: community-app
@@ -208,7 +208,7 @@ services:
   community-gateway:
     build:
       context: ../backend
-      dockerfile: ../deploy/Dockerfile.spring-service
+      dockerfile: ../deploy/Dockerfile.backend-service
       args:
         MODULE: community-gateway
     container_name: community-gateway
@@ -237,7 +237,7 @@ services:
   im-core:
     build:
       context: ../backend
-      dockerfile: ../deploy/Dockerfile.spring-service
+      dockerfile: ../deploy/Dockerfile.backend-service
       args:
         MODULE: im-core
     container_name: im-core
@@ -258,7 +258,7 @@ services:
   im-realtime:
     build:
       context: ../backend
-      dockerfile: ../deploy/Dockerfile.spring-service
+      dockerfile: ../deploy/Dockerfile.backend-service
       args:
         MODULE: im-realtime
     container_name: im-realtime

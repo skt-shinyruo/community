@@ -37,6 +37,9 @@ class RegistrationServiceTest {
     @Mock
     private RegistrationCodeStore registrationCodeStore;
 
+    @Mock
+    private RegistrationSessionStore registrationSessionStore;
+
     private RegistrationProperties properties;
     private RegistrationService service;
 
@@ -45,7 +48,14 @@ class RegistrationServiceTest {
         properties = new RegistrationProperties();
         properties.getCode().setExposeCode(true);
         properties.getCode().setTtlSeconds(600);
-        service = new RegistrationService(internalUserService, properties, mailService, captchaService, registrationCodeStore);
+        service = new RegistrationService(
+                internalUserService,
+                properties,
+                mailService,
+                captchaService,
+                registrationCodeStore,
+                registrationSessionStore
+        );
     }
 
     @Test
@@ -65,16 +75,20 @@ class RegistrationServiceTest {
         when(internalUserService.register("alice", "secret", "alice@example.com", Duration.ofMinutes(30))).thenReturn(created);
         when(registrationCodeStore.issue(eq(7), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
                 .thenReturn(RegistrationCodeStore.IssueResult.ISSUED);
+        when(registrationSessionStore.issue(eq(7), eq(Duration.ofMinutes(30))))
+                .thenReturn("0123456789abcdef0123456789abcdef");
 
         HttpServletRequest httpRequest = new MockHttpServletRequest();
         RegisterResponse response = service.register(request, httpRequest);
 
         assertThat(response.getUserId()).isEqualTo(7);
+        assertThat(response.getRegistrationToken()).isNotBlank().matches("[a-f0-9]{32}");
         assertThat(response.isEmailCodeIssued()).isTrue();
         assertThat(response.getMaskedEmail()).isNotBlank().contains("@").isNotEqualTo("alice@example.com");
         assertThat(response.getDebugEmailCode()).matches("\\d{6}");
         verify(internalUserService).register("alice", "secret", "alice@example.com", Duration.ofMinutes(30));
         verify(registrationCodeStore).issue(eq(7), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)));
+        verify(registrationSessionStore).issue(eq(7), eq(Duration.ofMinutes(30)));
         verify(mailService).sendRegistrationCodeMail(eq("alice@example.com"), matches("\\d{6}"));
     }
 }

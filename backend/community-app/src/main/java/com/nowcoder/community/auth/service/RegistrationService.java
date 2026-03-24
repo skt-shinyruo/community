@@ -23,13 +23,22 @@ public class RegistrationService {
     private final MailService mailService;
     private final CaptchaService captchaService;
     private final RegistrationCodeStore registrationCodeStore;
+    private final RegistrationSessionStore registrationSessionStore;
 
-    public RegistrationService(InternalUserService internalUserService, RegistrationProperties properties, MailService mailService, CaptchaService captchaService, RegistrationCodeStore registrationCodeStore) {
+    public RegistrationService(
+            InternalUserService internalUserService,
+            RegistrationProperties properties,
+            MailService mailService,
+            CaptchaService captchaService,
+            RegistrationCodeStore registrationCodeStore,
+            RegistrationSessionStore registrationSessionStore
+    ) {
         this.internalUserService = internalUserService;
         this.properties = properties;
         this.mailService = mailService;
         this.captchaService = captchaService;
         this.registrationCodeStore = registrationCodeStore;
+        this.registrationSessionStore = registrationSessionStore;
     }
 
     public RegisterResponse register(RegisterRequest request, HttpServletRequest httpRequest) {
@@ -68,6 +77,11 @@ public class RegistrationService {
 
         RegisterResponse resp = new RegisterResponse();
         resp.setUserId(created.getId());
+        String registrationToken = registrationSessionStore == null ? null : registrationSessionStore.issue(created.getId(), pendingUserTtl);
+        if (!StringUtils.hasText(registrationToken)) {
+            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "注册上下文创建失败");
+        }
+        resp.setRegistrationToken(registrationToken);
         resp.setEmailCodeIssued(true);
         resp.setMaskedEmail(maskEmail(email));
         if (properties.getCode().isExposeCode()) {

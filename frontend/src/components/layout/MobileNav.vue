@@ -1,6 +1,6 @@
-<!-- MobileNav：移动端快速入口。主导航由侧边抽屉承担，这里只保留高频动作。 -->
+<!-- MobileNav：移动端主导航（固定 Posts / Search / Me / More）。 -->
 <template>
-  <nav class="mobile-nav" aria-label="移动端快速入口">
+  <nav class="mobile-nav" aria-label="移动端主导航">
     <RouterLink
       v-for="item in items"
       :key="item.key"
@@ -37,7 +37,7 @@
         </svg>
 
         <svg
-          v-else-if="item.icon === 'messages'"
+          v-else-if="item.icon === 'messages' && item.key !== 'more'"
           width="20"
           height="20"
           viewBox="0 0 24 24"
@@ -59,6 +59,20 @@
         >
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
           <circle cx="12" cy="7" r="4" />
+        </svg>
+
+        <svg
+          v-else-if="item.icon === 'more' || item.key === 'more'"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <circle cx="5" cy="12" r="1.5" />
+          <circle cx="12" cy="12" r="1.5" />
+          <circle cx="19" cy="12" r="1.5" />
         </svg>
       </span>
 
@@ -97,7 +111,7 @@ const items = computed(() =>
 @media (max-width: 768px) {
   .mobile-nav {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     position: fixed;
     left: 14px;
     right: 14px;
@@ -115,7 +129,7 @@ const items = computed(() =>
   }
 
   .mobile-nav-item {
-    min-height: 56px;
+    min-height: 58px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -128,7 +142,7 @@ const items = computed(() =>
 
   .mobile-nav-item.active {
     color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
   }
 
   .mobile-nav-text {

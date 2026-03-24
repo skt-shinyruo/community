@@ -1,64 +1,43 @@
 <!-- 通知详情页：按 topic 展示通知列表，并支持标记已读。 -->
 <template>
   <div class="page notice-detail-page">
-    <UiCard flat class="notice-detail-hero">
-      <UiPageHeader>
-        <template #title>
-          {{
-            topic === 'comment'
-              ? '评论通知'
-              : topic === 'like'
-                ? '点赞通知'
-                : topic === 'follow'
-                  ? '关注通知'
-                  : topic === 'moderation'
-                    ? '治理通知'
-                    : '通知详情'
-          }}
-        </template>
-        <template #subtitle>
-          {{
-            topic === 'comment'
-              ? '回到需要你继续阅读或回复的评论线程。'
-              : topic === 'like'
-                ? '集中查看哪些内容最近收到了新的认可。'
-                : topic === 'follow'
-                  ? '查看最近新增的关注与社交变化。'
-                  : topic === 'moderation'
-                    ? '查看治理动作和处理结果的最新更新。'
-                    : '查看这一类通知的详细记录。'
-          }}
-        </template>
-        <template #actions>
-          <UiButton variant="secondary" @click="markAllRead" :disabled="loading || items.length === 0">标记本页已读</UiButton>
-          <UiButton variant="secondary" @click="load" :disabled="loading">{{ loading ? '加载中…' : '刷新' }}</UiButton>
-          <RouterLink class="btn ghost" to="/notices">返回通知汇总</RouterLink>
-        </template>
-      </UiPageHeader>
-
-      <div class="notice-detail-hero-grid">
-        <div class="notice-detail-hero-card">
-          <span class="notice-detail-hero-label">本页通知</span>
-          <strong>{{ items.length }}</strong>
-          <p>保留同一主题里的阅读顺序和状态，方便你按上下文逐条处理。</p>
-        </div>
-        <div class="notice-detail-hero-card">
-          <span class="notice-detail-hero-label">当前页码</span>
-          <strong>{{ page + 1 }}</strong>
-          <p>翻页时会继续沿用当前主题，不需要在不同消息类型之间频繁切换。</p>
-        </div>
-      </div>
-    </UiCard>
-
     <div v-if="error && items.length > 0" class="error notice-detail-banner">{{ error }}</div>
 
     <UiCard class="notice-detail-shell">
       <div class="notice-detail-shell-head">
-        <div>
-          <div class="notice-detail-eyebrow">Threaded Notices</div>
-          <h2>按时间阅读</h2>
-          <p>每条通知都保留自己的时间和状态，并提供返回帖子或原始内容的入口。</p>
-        </div>
+        <UiPageHeader>
+          <template #title>
+            {{
+              topic === 'comment'
+                ? '评论通知'
+                : topic === 'like'
+                  ? '点赞通知'
+                  : topic === 'follow'
+                    ? '关注通知'
+                    : topic === 'moderation'
+                      ? '治理通知'
+                      : '通知详情'
+            }}
+          </template>
+          <template #subtitle>
+            {{
+              topic === 'comment'
+                ? '回到需要你继续阅读或回复的评论线程。'
+                : topic === 'like'
+                  ? '集中查看哪些内容最近收到了新的认可。'
+                  : topic === 'follow'
+                    ? '查看最近新增的关注与社交变化。'
+                    : topic === 'moderation'
+                      ? '查看治理动作和处理结果的最新更新。'
+                      : '查看这一类通知的详细记录。'
+            }}
+          </template>
+          <template #actions>
+            <UiButton variant="secondary" @click="markAllRead" :disabled="loading || items.length === 0">标记本页已读</UiButton>
+            <UiButton variant="secondary" @click="load" :disabled="loading">{{ loading ? '加载中…' : '刷新' }}</UiButton>
+            <RouterLink class="btn ghost" to="/notices">返回通知汇总</RouterLink>
+          </template>
+        </UiPageHeader>
       </div>
 
       <div class="notice-detail-toolbar">
@@ -249,38 +228,6 @@ onMounted(load)
   gap: var(--space-5);
 }
 
-.notice-detail-hero {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.notice-detail-hero-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.notice-detail-hero-card {
-  padding: 18px 20px;
-  border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, var(--border) 84%, var(--accent) 16%);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, white 8%), var(--surface));
-  display: grid;
-  gap: 6px;
-}
-
-.notice-detail-hero-card strong {
-  font-size: clamp(1.75rem, 3vw, 2.3rem);
-  line-height: 1;
-}
-
-.notice-detail-hero-card p {
-  margin: 0;
-  color: var(--text-2);
-  line-height: 1.55;
-}
-
 .notice-detail-hero-label,
 .notice-detail-eyebrow,
 .notice-card-eyebrow {
@@ -304,15 +251,12 @@ onMounted(load)
   padding: 22px 24px 12px;
 }
 
-.notice-detail-shell-head h2 {
-  margin: 6px 0 4px;
-  font-size: 1.15rem;
+.notice-detail-shell-head :deep(.page-header) {
+  gap: 0;
 }
 
-.notice-detail-shell-head p {
-  margin: 0;
-  color: var(--text-2);
-  line-height: 1.55;
+.notice-detail-shell-head :deep(.page-header-subtitle) {
+  margin: 4px 0 0;
 }
 
 .notice-detail-toolbar {
@@ -401,10 +345,6 @@ onMounted(load)
 }
 
 @media (max-width: 768px) {
-  .notice-detail-hero-grid {
-    grid-template-columns: 1fr;
-  }
-
   .notice-detail-shell-head,
   .notice-detail-toolbar,
   .notice-card {

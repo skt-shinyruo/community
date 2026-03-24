@@ -39,7 +39,7 @@
 - `frontend/src/components/layout/SidebarNav.vue`
   Role: main navigation and signed-in identity block.
 - `frontend/src/components/layout/RightPanel.vue`
-  Role: contextual support column; currently mixes real data with fake content.
+  Role: legacy contextual support column; under the newer public-shell direction this is a removal/decommission target, not a redesign target.
 - `frontend/src/components/layout/MobileNav.vue`
   Role: mobile bottom navigation.
 - `frontend/src/components/ui/UiButton.vue`
@@ -196,10 +196,11 @@
   Implement:
   - less crowded topbar with stronger title/search/action hierarchy
   - quieter left navigation for public pages
-  - right panel as contextual support rather than decorative filler
+  - remove the public right panel rather than redesigning it as contextual support
   - mobile navigation that complements the new shells instead of mirroring desktop mechanically
   - navigation SSOT updates in `frontend/src/router/navigation.js` so sidebar/mobile information architecture matches the redesigned product
-  - drawer-based primary mobile navigation behavior consistent with the approved spec rather than preserving the current bottom-nav-first model
+  - bottom-tab public mobile navigation behavior consistent with the approved public-shell spec: `Posts / Search / Me / More`
+  - move low-frequency global actions into overflow menus instead of leaving them as topbar button rows
 
 - [ ] **Step 3: Update navigation tests to lock the new shell information architecture**
 
@@ -213,22 +214,42 @@
   - hard-coded trending placeholders
   - dead footer/privacy/terms placeholders
   - shell-level debug-looking elements that do not belong in product UI
+  - right-panel-specific placeholder or contextual modules that no longer exist in the new public shell
 
-- [ ] **Step 5: Verify shell behavior on route transitions and auth/public switching**
+- [ ] **Step 5: Remove public right-panel state and route dependencies**
+
+  Remove or collapse:
+  - `right` slot usage for public shell
+  - route-name allowlists that decide when public right-panel content mounts
+  - topbar actions dedicated to toggling the public right panel
+  - public-shell layout branches that reserve width for a third column
+
+- [ ] **Step 6: Verify shell behavior on route transitions and auth/public switching**
 
   Check:
   - auth routes still bypass the main workspace shell
   - public routes render the redesigned workspace shell
   - admin routes render with the quieter admin desk framing
-  - right panel and mobile navigation do not break route transitions
+  - removed public right-panel behavior does not leave dead controls or layout gaps
+  - mobile bottom tabs and overflow menus do not break route transitions
 
-- [ ] **Step 6: Re-run frontend verification after shell changes**
+- [ ] **Step 7: Re-run frontend verification after shell changes**
 
   Run:
   - `cd frontend && npm test`
   - `cd frontend && npm run build`
 
-- [ ] **Step 7: Checkpoint the diff for the shell task**
+  Manually verify:
+  - `/posts`
+  - `/search`
+  - `/posts/:postId`
+  - `/leaderboard`
+  - `/bookmarks`
+  - `/users/:userId`
+  - `/users/:userId/followees`
+  - `/users/:userId/followers`
+
+- [ ] **Step 8: Checkpoint the diff for the shell task**
 
   Note: do not create a git commit unless the user explicitly asks for one.
 

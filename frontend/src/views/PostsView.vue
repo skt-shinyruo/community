@@ -1,62 +1,58 @@
 <template>
-  <div class="page">
-    <UiCard flat class="posts-live-card">
-      <div class="posts-live-head">
-        <div class="posts-live-copy">
-          <div class="posts-live-kicker">Live Discussions</div>
-          <h1 class="posts-live-title">社区现在正在讨论什么？</h1>
-          <p class="posts-live-dek">
-            打开首页就进入最新讨论流。作者、摘要、最新评论和未读提示会一起告诉你，哪些线程正在变热，哪些值得立刻点进去。
-          </p>
-        </div>
+  <div class="page posts-page">
+    <section class="posts-toolbar-stage">
+      <FeedToolbar
+        :order="order"
+        :filter="filter"
+        :subscribed="subscribed"
+        :show-subscribed-toggle="authed"
+        :category-id="categoryId"
+        :tag="tag"
+        :categories="categories"
+        :tag-suggestions="tagSuggestions"
+        :order-options="orderOptions"
+        :filter-options="filterOptions"
+        :show-clear="showClear"
+        :disabled="loading"
+        @update:order="setOrder"
+        @update:filter="setFilter"
+        @update:subscribed="setSubscribed"
+        @update:categoryId="setCategoryId"
+        @update:tag="setTag"
+        @refresh="reload"
+        @clear="clearQuery"
+      />
 
-        <div class="posts-live-rail">
-          <div class="posts-live-rail-title">即时概览</div>
-          <div class="posts-live-metrics">
-            <div class="posts-live-metric">
-              <strong>{{ items.length || 0 }}</strong>
-              <span>当前页讨论</span>
-            </div>
-            <div class="posts-live-metric">
-              <strong>{{ categories.length }}</strong>
-              <span>公开分类</span>
-            </div>
-            <div class="posts-live-metric">
-              <strong>{{ newSinceLastSeenCount || 0 }}</strong>
-              <span>新增未读</span>
-            </div>
-          </div>
-          <div class="posts-live-pulse">
-            <div class="posts-live-pulse-title">当前节奏</div>
-            <div v-if="pulseTopics.length > 0" class="posts-live-pulse-list">
-              <div v-for="topic in pulseTopics" :key="topic.id" class="posts-live-pulse-item">
-                <div class="posts-live-pulse-name">{{ topic.title }}</div>
-                <div class="posts-live-pulse-meta">{{ topic.label }}</div>
-              </div>
-            </div>
-            <div v-else class="posts-live-pulse-empty">切到热门或发起一篇讨论，让时间线先动起来。</div>
-          </div>
-          <div class="posts-live-actions">
-            <UiButton variant="secondary" :disabled="loading" @click="reload">刷新</UiButton>
-            <UiButton v-if="authed" :disabled="creating" @click="isPublishFocused = true">发帖</UiButton>
-            <UiButton v-else variant="ghost" @click="goLogin">登录后参与</UiButton>
-          </div>
-        </div>
+      <div class="posts-context-strip">
+        <span class="posts-context-item"><strong>{{ items.length || 0 }}</strong> 条当前讨论</span>
+        <span class="posts-context-sep" aria-hidden="true">/</span>
+        <span class="posts-context-item"><strong>{{ categories.length }}</strong> 个公开分类</span>
+        <template v-if="newSinceLastSeenCount > 0">
+          <span class="posts-context-sep" aria-hidden="true">/</span>
+          <span class="posts-context-item posts-context-item--accent"><strong>{{ newSinceLastSeenCount }}</strong> 条新增未读</span>
+        </template>
       </div>
-    </UiCard>
+    </section>
 
-    <!-- Publish Area -->
-    <UiCard v-if="authed" class="posts-composer" :class="{ focused: isPublishFocused }">
-      <div v-if="!isPublishFocused" @click="isPublishFocused = true" class="posts-composer-prompt cursor-pointer">
-        <UiAvatar :src="me?.headerUrl" :name="me?.username || ''" :size="32" />
-        <div class="input-fake muted">
-           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
-           <span>开启一个值得读下去的讨论……</span>
-        </div>
-        <UiButton variant="ghost" disabled>发布</UiButton>
-      </div>
+    <div class="posts-feed">
+      <button
+        v-if="authed && !isPublishFocused"
+        type="button"
+        class="posts-feed-compose-strip"
+        @click="isPublishFocused = true"
+      >
+        <span class="posts-feed-compose-leading">
+          <UiAvatar :src="me?.headerUrl" :name="me?.username || ''" :size="30" />
+          <span class="posts-feed-compose-copy">
+            <span class="posts-feed-compose-title">发起讨论</span>
+            <span class="posts-feed-compose-sub">把今天最值得展开的问题直接丢进时间线。</span>
+          </span>
+        </span>
+        <span class="posts-feed-compose-action">开始</span>
+      </button>
 
-      <div v-else class="posts-composer-editor">
+      <UiCard v-if="authed && isPublishFocused" class="posts-composer">
+        <div class="posts-composer-editor">
         <div class="posts-composer-head">
           <div class="posts-composer-title">发起讨论</div>
           <button
@@ -122,72 +118,43 @@
             </UiButton>
           </div>
         </div>
+        </div>
+      </UiCard>
+
+      <!-- Skeletons Loading State -->
+      <div v-if="loading && items.length === 0" class="posts-skeletons">
+         <div v-for="i in 3" :key="i" class="posts-skeleton-card">
+            <div class="posts-skeleton-meta">
+              <div class="skeleton skeleton-text posts-skeleton-pill"></div>
+              <div class="skeleton skeleton-text posts-skeleton-pill posts-skeleton-pill--sm"></div>
+            </div>
+            <div class="skeleton skeleton-text posts-skeleton-title"></div>
+            <div class="skeleton skeleton-text posts-skeleton-line"></div>
+            <div class="skeleton skeleton-text posts-skeleton-line posts-skeleton-line--short"></div>
+            <div class="skeleton skeleton-text posts-skeleton-footer"></div>
+         </div>
       </div>
-    </UiCard>
 
-    <!-- Feed Toolbar -->
-    <div class="posts-toolbar">
-      <FeedToolbar
-        :order="order"
-        :filter="filter"
-        :subscribed="subscribed"
-        :show-subscribed-toggle="authed"
-        :category-id="categoryId"
-        :tag="tag"
-        :categories="categories"
-        :tag-suggestions="tagSuggestions"
-        :order-options="orderOptions"
-        :filter-options="filterOptions"
-        :show-clear="showClear"
-        :disabled="loading"
-        @update:order="setOrder"
-        @update:filter="setFilter"
-        @update:subscribed="setSubscribed"
-        @update:categoryId="setCategoryId"
-        @update:tag="setTag"
-        @refresh="reload"
-        @clear="clearQuery"
-      />
-    </div>
+      <!-- Post List -->
+      <UiEmpty v-if="error && items.length === 0" type="error">{{ error }}</UiEmpty>
+      <div v-else-if="error" class="error">{{ error }}</div>
 
-    <!-- Skeletons Loading State -->
-    <div v-if="loading && items.length === 0" class="posts-skeletons">
-       <div v-for="i in 3" :key="i" class="posts-skeleton-card">
-          <div class="posts-skeleton-meta">
-            <div class="skeleton skeleton-text posts-skeleton-pill"></div>
-            <div class="skeleton skeleton-text posts-skeleton-pill posts-skeleton-pill--sm"></div>
-          </div>
-          <div class="skeleton skeleton-text posts-skeleton-title"></div>
-          <div class="skeleton skeleton-text posts-skeleton-line"></div>
-          <div class="skeleton skeleton-text posts-skeleton-line posts-skeleton-line--short"></div>
-          <div class="skeleton skeleton-text posts-skeleton-footer"></div>
-       </div>
-    </div>
-
-    <!-- Post List -->
-    <UiEmpty v-if="error && items.length === 0" type="error">{{ error }}</UiEmpty>
-    <div v-else-if="error" class="error">{{ error }}</div>
-
-    <div class="posts-feed">
       <div v-if="blockedHiddenCount > 0" class="muted posts-muted-note">
         已隐藏 {{ blockedHiddenCount }} 条来自已屏蔽用户的帖子
       </div>
 
-      <section v-if="!loading && items.length === 0 && !error" class="posts-empty-stage">
-        <div class="posts-empty-main">
-          <div class="posts-empty-kicker">讨论流暂时空白</div>
-          <h2 class="posts-empty-title">还没有新的讨论进入这条时间线。</h2>
-          <p class="posts-empty-copy">
-            试试切换到「热门」，或者直接发起一个问题。
-            {{ authed ? '你现在就可以把今天最值得讨论的话题抛出来。' : '登录后就能把第一篇主帖送上时间线。' }}
-          </p>
-          <div class="posts-empty-actions">
-            <UiButton variant="secondary" :disabled="loading" @click="reload">刷新时间线</UiButton>
-            <UiButton v-if="!authed" variant="ghost" @click="goLogin">登录</UiButton>
-            <UiButton v-else variant="ghost" @click="isPublishFocused = true">发起讨论</UiButton>
-          </div>
-        </div>
-      </section>
+      <UiEmpty v-if="!loading && items.length === 0 && !error" class="posts-empty-inline">
+        暂时还没有新的讨论进入这条时间线
+        <template #description>
+          试试切换到「热门」，或者直接发起一个问题。
+          {{ authed ? '你现在就可以把今天最值得讨论的话题抛出来。' : '登录后就能把第一篇主帖送上时间线。' }}
+        </template>
+        <template #actions>
+          <UiButton variant="secondary" :disabled="loading" @click="reload">刷新时间线</UiButton>
+          <UiButton v-if="!authed" variant="ghost" @click="goLogin">登录</UiButton>
+          <UiButton v-else variant="ghost" @click="isPublishFocused = true">发起讨论</UiButton>
+        </template>
+      </UiEmpty>
 
       <div v-if="shouldShowNewHint" class="topic-new-hint">
         <div class="topic-new-hint-left">
@@ -316,7 +283,6 @@ import UiInput from '../components/ui/UiInput.vue'
 import UiTextarea from '../components/ui/UiTextarea.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiBadge from '../components/ui/UiBadge.vue'
-import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import FeedToolbar from '../components/posts/FeedToolbar.vue'
 import { listPosts, createPost as apiCreatePost } from '../api/services/postService'
 import { setLike } from '../api/services/socialService'
@@ -654,15 +620,6 @@ const canJumpToLastSeen = computed(() =>
   })
 )
 
-const pulseTopics = computed(() => {
-  const list = Array.isArray(items.value) ? items.value.slice(0, 3) : []
-  return list.map((p) => ({
-    id: p.id,
-    title: p.title,
-    label: `${categoryLabel(p.categoryId) || '未分类'} · ${Number(p.commentCount || 0)} 回复`
-  }))
-})
-
 function getLastSeenDividerEl() {
   const r = lastSeenDividerRef.value
   if (Array.isArray(r)) return r[0] || null
@@ -977,172 +934,114 @@ watch(isDefaultLatestFeed, (v) => {
 </script>
 
 <style scoped>
-.posts-live-card {
-  margin-bottom: 4px;
+.posts-page {
+  gap: 18px;
 }
 
-.posts-live-head {
+.posts-toolbar-stage {
   display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.95fr);
-  gap: 22px;
-  padding: 30px 32px;
-  border-radius: 32px;
-  border: 1px solid var(--border);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), var(--surface-2));
-  box-shadow: var(--shadow-lg);
+  gap: 8px;
 }
 
-.posts-live-copy {
-  min-width: 0;
-  display: grid;
-  align-content: start;
-  gap: 16px;
-}
-
-.posts-live-kicker {
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-
-.posts-live-title {
-  margin: 0;
-  max-width: 9ch;
-  font-family: var(--font-display);
-  font-size: clamp(38px, 4.8vw, 64px);
-  line-height: 0.96;
-  letter-spacing: -0.05em;
-  color: var(--text-1);
-}
-
-.posts-live-dek {
-  max-width: 62ch;
-  margin: 0;
-  font-size: 16px;
-  line-height: 1.8;
-  color: var(--text-2);
-}
-
-.posts-live-actions {
+.posts-context-strip {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
+  padding: 0 2px;
+  font-size: 12px;
+  color: var(--text-3);
 }
 
-.posts-live-rail {
+.posts-context-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.posts-context-item strong {
+  color: var(--text-1);
+  font-size: 13px;
+}
+
+.posts-context-item--accent {
+  color: var(--accent);
+}
+
+.posts-context-sep {
+  color: var(--text-3);
+}
+
+.posts-feed {
+  display: grid;
+  gap: 12px;
+}
+
+.posts-feed-compose-strip {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 18px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent 22%);
+  background: color-mix(in srgb, var(--surface) 94%, var(--bg) 6%);
+  color: inherit;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.posts-feed-compose-strip:hover {
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--surface) 96%, var(--bg) 4%);
+}
+
+.posts-feed-compose-leading {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.posts-feed-compose-copy {
   min-width: 0;
   display: grid;
-  align-content: start;
-  gap: 16px;
-  padding: 20px;
-  border-radius: 26px;
-  border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface-2) 78%, var(--surface) 22%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  gap: 3px;
+  text-align: left;
 }
 
-.posts-live-rail-title,
-.posts-live-pulse-title {
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-1);
-}
-
-.posts-live-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.posts-live-metric {
-  display: grid;
-  gap: 6px;
-  padding: 14px 12px;
-  border-radius: 18px;
-  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent 16%);
-  background: var(--surface);
-}
-
-.posts-live-metric strong {
-  font-family: var(--font-display);
-  font-size: 30px;
-  line-height: 1;
-  color: var(--text-1);
-}
-
-.posts-live-metric span {
-  font-size: 11px;
-  line-height: 1.6;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-
-.posts-live-pulse {
-  display: grid;
-  gap: 10px;
-  padding: 16px;
-  border-radius: 22px;
-  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent 18%);
-  background: color-mix(in srgb, var(--surface) 88%, var(--surface-2) 12%);
-}
-
-.posts-live-pulse-list {
-  display: grid;
-  gap: 10px;
-}
-
-.posts-live-pulse-item {
-  display: grid;
-  gap: 4px;
-  padding-top: 10px;
-  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent 28%);
-}
-
-.posts-live-pulse-item:first-child {
-  padding-top: 0;
-  border-top: none;
-}
-
-.posts-live-pulse-name {
+.posts-feed-compose-title {
   font-size: 14px;
-  font-weight: 700;
-  line-height: 1.5;
+  font-weight: 800;
   color: var(--text-1);
 }
 
-.posts-live-pulse-meta,
-.posts-live-pulse-empty {
-  font-size: 12px;
-  line-height: 1.65;
+.posts-feed-compose-sub {
   color: var(--text-3);
+  font-size: 12px;
+}
+
+.posts-feed-compose-action {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .posts-composer {
-  border-radius: 28px;
-  border: 1px solid var(--border);
-  background: linear-gradient(180deg, var(--surface), var(--surface-2));
-  box-shadow: var(--shadow-md);
-  transition: box-shadow 0.18s ease-out, border-color 0.18s ease-out, transform 0.18s ease-out;
-}
-
-.posts-composer.focused {
-  transform: translateY(-2px);
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-lg);
-}
-
-.posts-composer-prompt {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 16px;
+  border-radius: 22px;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, #fff 4%), var(--surface));
+  box-shadow: var(--shadow-sm);
 }
 
 .posts-composer-editor {
@@ -1158,8 +1057,8 @@ watch(isDefaultLatestFeed, (v) => {
 }
 
 .posts-composer-title {
-  font-family: var(--font-display);
-  font-size: 28px;
+  font-size: 18px;
+  font-weight: 800;
   line-height: 1;
   color: var(--text-1);
 }
@@ -1245,34 +1144,9 @@ watch(isDefaultLatestFeed, (v) => {
   margin-bottom: 10px;
 }
 
-.input-fake {
-  flex: 1;
-  min-height: 54px;
-  background: var(--surface);
-  padding: 0 18px;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  font-size: 15px;
-  cursor: text;
-  color: var(--text-2);
-  transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
-  box-shadow: var(--shadow-sm);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.input-fake:hover {
-  border-color: var(--border-strong);
-  background: var(--surface);
-  box-shadow: var(--shadow-md);
-  color: var(--text-1);
-}
-
 .posts-skeletons,
 .posts-feed {
   display: grid;
-  gap: 16px;
 }
 
 .posts-skeleton-card {
@@ -1327,77 +1201,39 @@ watch(isDefaultLatestFeed, (v) => {
   color: var(--text-2);
 }
 
-.posts-empty-stage {
-  display: grid;
-  gap: 14px;
-  padding: 28px;
-  border-radius: 30px;
-  border: 1px solid var(--border);
-  background: linear-gradient(180deg, var(--surface), var(--surface-2));
-  box-shadow: var(--shadow-md);
+.posts-empty-inline :deep(.empty-state) {
+  padding: 8px 0 2px;
 }
 
-.posts-empty-main {
-  display: grid;
-  align-content: start;
-  gap: 14px;
-}
-
-.posts-empty-kicker {
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-
-.posts-empty-title {
-  margin: 0;
-  max-width: 14ch;
-  font-family: var(--font-display);
-  font-size: clamp(30px, 3.7vw, 44px);
-  line-height: 1.02;
-  letter-spacing: -0.04em;
-  color: var(--text-1);
-}
-
-.posts-empty-copy {
-  max-width: 56ch;
-  margin: 0;
-  color: var(--text-2);
-  font-size: 15px;
-  line-height: 1.75;
-}
-
-.posts-empty-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+.posts-empty-inline :deep(.empty-card) {
+  width: 100%;
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--border) 74%, transparent 26%);
+  border-radius: 24px;
+  box-shadow: none;
 }
 
 .topic-new-hint {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding: 18px 22px;
-  border-radius: 24px;
-  border: 1px solid color-mix(in srgb, var(--border-strong) 34%, var(--border) 66%);
-  background: linear-gradient(180deg, var(--surface), var(--surface-2));
-  box-shadow: var(--shadow-sm);
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent 26%);
+  background: color-mix(in srgb, var(--surface) 94%, var(--bg) 6%);
+  box-shadow: none;
 }
 
 .topic-new-hint-left {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-1);
 }
 
 .topic-new-hint-num {
-  font-family: var(--font-display);
-  font-size: 28px;
-  line-height: 0;
-  color: var(--text-1);
+  font-size: 15px;
+  line-height: 1;
+  color: var(--accent);
 }
 
 .topic-new-hint-actions {
@@ -1412,7 +1248,7 @@ watch(isDefaultLatestFeed, (v) => {
 
 .discussion-feed {
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .discussion-divider {
@@ -1435,12 +1271,12 @@ watch(isDefaultLatestFeed, (v) => {
 .discussion-card {
   position: relative;
   display: grid;
-  gap: 14px;
-  padding: 24px 26px;
-  border-radius: 28px;
+  gap: 12px;
+  padding: 20px 22px;
+  border-radius: 24px;
   border: 1px solid var(--border);
   background: linear-gradient(180deg, var(--surface), var(--surface-2));
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
   cursor: pointer;
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
   overflow: hidden;
@@ -1519,19 +1355,19 @@ watch(isDefaultLatestFeed, (v) => {
 
 .discussion-card-title {
   margin: 0;
-  max-width: 26ch;
+  max-width: 32ch;
   font-family: var(--font-display);
-  font-size: clamp(26px, 2.6vw, 34px);
-  line-height: 1.08;
-  letter-spacing: -0.04em;
+  font-size: clamp(22px, 2.2vw, 28px);
+  line-height: 1.12;
+  letter-spacing: -0.03em;
   color: var(--text-1);
 }
 
 .discussion-card-snippet {
   max-width: 70ch;
   color: var(--text-2);
-  font-size: 15px;
-  line-height: 1.9;
+  font-size: 14px;
+  line-height: 1.7;
 }
 
 .discussion-card-meta {
@@ -1621,22 +1457,7 @@ watch(isDefaultLatestFeed, (v) => {
 }
 
 @media (max-width: 768px) {
-  .posts-live-head,
-  .posts-empty-stage {
-    grid-template-columns: 1fr;
-    padding: 22px;
-  }
-
-  .posts-live-title,
-  .posts-empty-title {
-    max-width: none;
-  }
-
-  .posts-live-metrics {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .posts-composer-prompt,
+  .posts-feed-compose-strip,
   .posts-composer-actions,
   .discussion-card-foot {
     grid-template-columns: 1fr;
@@ -1662,33 +1483,23 @@ watch(isDefaultLatestFeed, (v) => {
   }
 
   .discussion-card {
-    padding: 22px 20px;
+    padding: 18px 18px;
   }
 
   .discussion-card-title {
-    font-size: clamp(24px, 7vw, 30px);
+    font-size: clamp(20px, 6.2vw, 24px);
   }
 }
 
-@media (max-width: 640px) {
-  .posts-live-metrics {
-    grid-template-columns: 1fr;
-  }
-}
-
-html[data-theme='dark'] .posts-live-head,
+html[data-theme='dark'] .posts-context-chip,
 html[data-theme='dark'] .posts-composer,
 html[data-theme='dark'] .posts-skeleton-card,
-html[data-theme='dark'] .posts-empty-stage,
 html[data-theme='dark'] .discussion-card {
   border-color: var(--border);
   background: linear-gradient(180deg, var(--surface-2), #0f0f0f);
   box-shadow: 0 20px 36px rgba(0, 0, 0, 0.26);
 }
 
-html[data-theme='dark'] .posts-live-rail,
-html[data-theme='dark'] .posts-live-metric,
-html[data-theme='dark'] .posts-live-pulse,
 html[data-theme='dark'] .input-fake,
 html[data-theme='dark'] .discussion-category-chip,
 html[data-theme='dark'] .discussion-like-btn {
@@ -1707,8 +1518,7 @@ html[data-theme='dark'] .topic-new-hint {
   box-shadow: 0 18px 28px rgba(0, 0, 0, 0.24);
 }
 
-html[data-theme='dark'] .posts-live-kicker,
-html[data-theme='dark'] .posts-empty-kicker,
+html[data-theme='dark'] .posts-context-chip,
 html[data-theme='dark'] .discussion-divider {
   color: var(--text-3);
 }

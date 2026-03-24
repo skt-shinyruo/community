@@ -1,35 +1,14 @@
 <template>
   <div class="page notices-page">
-    <UiCard flat class="notices-hero">
-      <UiPageHeader>
-        <template #title>通知</template>
-        <template #subtitle>把互动、关注和治理提醒整理成可快速处理的收件箱。</template>
-        <template #actions>
-          <UiButton variant="secondary" @click="load" :disabled="loading">{{ loading ? '刷新中…' : '刷新' }}</UiButton>
-        </template>
-      </UiPageHeader>
-
-      <div class="notices-hero-grid">
-        <div class="notices-hero-card">
-          <span class="notices-hero-label">通知分类</span>
-          <strong>{{ items.length }}</strong>
-          <p>把不同来源的提醒拆成独立流，避免一页堆满杂乱的系统信息。</p>
-        </div>
-        <div class="notices-hero-card">
-          <span class="notices-hero-label">待处理</span>
-          <strong>{{ items.reduce((total, it) => total + Number(it?.unreadCount || 0), 0) }}</strong>
-          <p>优先查看仍有未读内容的通知流，直接回到更具体的详情页。</p>
-        </div>
-      </div>
-    </UiCard>
-
     <UiCard class="notices-shell">
       <div class="notices-shell-head">
-        <div>
-          <div class="notices-eyebrow">Inbox</div>
-          <h2>所有通知流</h2>
-          <p>每个通知主题会保留自己的阅读状态和上下文，不再像测试面板一样平铺展示。</p>
-        </div>
+        <UiPageHeader>
+          <template #title>通知</template>
+          <template #subtitle>把互动、关注和治理提醒整理成可快速处理的收件箱。</template>
+          <template #actions>
+            <UiButton variant="secondary" @click="load" :disabled="loading">{{ loading ? '刷新中…' : '刷新' }}</UiButton>
+          </template>
+        </UiPageHeader>
         <div class="muted notices-head-meta">
           {{ items.filter((it) => Number(it?.unreadCount || 0) > 0).length }} 个主题有新动态
         </div>
@@ -152,38 +131,6 @@ onMounted(load)
   gap: var(--space-5);
 }
 
-.notices-hero {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.notices-hero-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.notices-hero-card {
-  padding: 18px 20px;
-  border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, var(--border) 84%, var(--accent) 16%);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, white 8%), var(--surface));
-  display: grid;
-  gap: 6px;
-}
-
-.notices-hero-card strong {
-  font-size: clamp(1.75rem, 3vw, 2.3rem);
-  line-height: 1;
-}
-
-.notices-hero-card p {
-  margin: 0;
-  color: var(--text-2);
-  line-height: 1.55;
-}
-
 .notices-hero-label,
 .notices-eyebrow {
   font-size: 11px;
@@ -208,15 +155,12 @@ onMounted(load)
   background: color-mix(in srgb, var(--surface) 92%, var(--bg) 8%);
 }
 
-.notices-shell-head h2 {
-  margin: 6px 0 4px;
-  font-size: 1.15rem;
+.notices-shell-head :deep(.page-header) {
+  gap: 0;
 }
 
-.notices-shell-head p {
-  margin: 0;
-  color: var(--text-2);
-  line-height: 1.55;
+.notices-shell-head :deep(.page-header-subtitle) {
+  margin: 4px 0 0;
 }
 
 .notices-head-meta {
@@ -346,10 +290,6 @@ onMounted(load)
 }
 
 @media (max-width: 768px) {
-  .notices-hero-grid {
-    grid-template-columns: 1fr;
-  }
-
   .notices-shell-head,
   .inbox-item {
     padding-left: 18px;

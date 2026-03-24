@@ -2,29 +2,6 @@
   <div class="page profile-page">
     <UiBreadcrumb />
 
-    <section class="profile-intro">
-      <div class="profile-intro-copy">
-        <div class="profile-eyebrow">Member Activity</div>
-        <UiCard flat class="profile-page-header">
-          <UiPageHeader>
-            <template #title>个人主页</template>
-            <template #subtitle>查看公开资料、社交关系和在社区里的讨论存在感。</template>
-            <template #actions>
-              <UiButton variant="secondary" :disabled="loading" @click="reload">刷新</UiButton>
-            </template>
-          </UiPageHeader>
-        </UiCard>
-        <div class="profile-intro-dek">
-          这里先看这个成员在社区里扮演什么角色，再看关系、积分和公开资料。
-        </div>
-      </div>
-
-      <div class="profile-intro-note">
-        <span class="profile-intro-note-label">First Screen</span>
-        <p>第一屏先交代身份、关系和社区存在感，后续再接最近讨论与互动。</p>
-      </div>
-    </section>
-
     <UiCard v-if="error">
       <UiEmpty type="error">{{ error }}</UiEmpty>
     </UiCard>
@@ -48,6 +25,7 @@
         </div>
 
         <div class="profile-actions">
+          <UiButton variant="secondary" :disabled="loading" @click="reload">刷新</UiButton>
           <template v-if="authed && meUserId && meUserId !== Number(userId)">
             <UiButton v-if="followStatus === false" @click="doFollow(true)" :disabled="actionLoading" class="primary">关注</UiButton>
             <UiButton variant="secondary" v-else-if="followStatus === true" @click="doFollow(false)" :disabled="actionLoading">取消关注</UiButton>
@@ -188,20 +166,19 @@
         </div>
       </div>
     </UiCard>
-  </div>
 
-  <ReportModal
-    v-if="reportOpen"
-    target-type="user"
-    :target-id="Number(userId || 0)"
-    @close="reportOpen = false"
-    @submitted="reportOpen = false"
-  />
+    <ReportModal
+      v-if="reportOpen"
+      target-type="user"
+      :target-id="Number(userId || 0)"
+      @close="reportOpen = false"
+      @submitted="reportOpen = false"
+    />
+  </div>
 </template>
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { usePostMetaCacheStore } from '../stores/postMetaCache'
 import { useSocialPrefsStore } from '../stores/socialPrefs'
@@ -215,21 +192,22 @@ import UiButton from '../components/ui/UiButton.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
-import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiRoleBadge from '../components/ui/UiRoleBadge.vue'
 import ReportModal from '../components/modals/ReportModal.vue'
-import { buildCommunityNextSteps, buildCommunitySignals } from './userProfileSurface'
+import { buildCommunityNextSteps, buildCommunitySignals, describeFollowStatusText } from './userProfileSurface'
 import { buildProfileTimeline, collectTimelineUserIds } from './userProfileTimeline'
 
 const emit = defineEmits(['trace'])
+const props = defineProps({
+  userId: { type: String, default: '' }
+})
 
-const route = useRoute()
 const auth = useAuthStore()
 const authed = computed(() => !!auth.accessToken)
 const taxonomy = useTaxonomyStore()
 const postMetaCache = usePostMetaCacheStore()
 
-const userId = computed(() => String(route.params.userId || ''))
+const userId = computed(() => String(props.userId || ''))
 
 const profile = ref(null)
 const recentPosts = ref([])
@@ -256,6 +234,13 @@ const joinedYear = computed(() => {
 })
 
 const isSelfProfile = computed(() => !!meUserId.value && meUserId.value === Number(userId.value))
+const followStatusText = computed(() =>
+  describeFollowStatusText({
+    followStatus: followStatus.value,
+    authed: authed.value,
+    isSelf: isSelfProfile.value
+  })
+)
 
 const communitySignals = computed(() =>
   buildCommunitySignals({
@@ -385,7 +370,7 @@ async function reload() {
 }
 
 onMounted(reload)
-watch(() => route.params.userId, reload)
+watch(userId, reload)
 onMounted(() => {
   taxonomy.ensureCategories()
 })
@@ -430,18 +415,6 @@ async function toggleBlock() {
   max-width: 980px;
 }
 
-.profile-intro {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  gap: 20px;
-  align-items: start;
-}
-
-.profile-intro-copy {
-  display: grid;
-  gap: 14px;
-}
-
 .profile-eyebrow,
 .profile-cover-kicker,
 .profile-info-kicker-label {
@@ -450,38 +423,6 @@ async function toggleBlock() {
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--text-3);
-}
-
-.profile-intro-dek {
-  max-width: 56ch;
-  color: var(--text-2);
-  font-size: 15px;
-  line-height: 1.8;
-}
-
-.profile-intro-note {
-  display: grid;
-  gap: 10px;
-  align-content: start;
-  padding: 18px 18px 18px 20px;
-  border-radius: 22px;
-  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, var(--bg) 8%), var(--surface));
-}
-
-.profile-intro-note-label {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-
-.profile-intro-note p {
-  margin: 0;
-  color: var(--text-2);
-  font-size: 14px;
-  line-height: 1.7;
 }
 
 .profile-card {
@@ -859,10 +800,6 @@ async function toggleBlock() {
 }
 
 @media (max-width: 768px) {
-  .profile-intro {
-    grid-template-columns: 1fr;
-  }
-
   .profile-body {
     margin-top: -48px;
   }

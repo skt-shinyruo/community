@@ -1,24 +1,18 @@
 <template>
   <div class="page reading">
     <UiCard class="post-detail-shell">
-      <div class="post-detail-breadcrumb">
-        <UiBreadcrumb />
-      </div>
-      <UiPageHeader>
-        <template #title>
-          帖子详情
-        </template>
-        <template #subtitle>
-          阅读主贴、追踪评论线程，并在同一页内完成互动。
-        </template>
-        <template #actions>
+      <div class="post-detail-head">
+        <div class="post-detail-breadcrumb">
+          <UiBreadcrumb />
+        </div>
+        <div class="post-detail-shell-actions">
           <UiButton variant="ghost" class="post-detail-back" @click="$router.back()">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
             返回
           </UiButton>
           <UiButton variant="secondary" @click="reload" :disabled="loading">{{ loading ? '加载中…' : '刷新' }}</UiButton>
-        </template>
-      </UiPageHeader>
+        </div>
+      </div>
 
       <div v-if="error" class="error post-detail-state">{{ error }}</div>
       <div v-else-if="loading" class="muted post-detail-state">加载中…</div>
@@ -73,7 +67,6 @@
                 </div>
 
                 <h1 class="post-article-title">{{ post.title }}</h1>
-                <div class="post-article-dek">主贴先交代问题与上下文，评论继续推进分歧、补充证据和回应。</div>
 
                 <div class="post-article-meta">
                   <UiUserCard :user="postAuthor">
@@ -115,13 +108,13 @@
           </div>
 
           <div class="post-article-actions">
-            <template v-if="authed">
+            <div v-if="authed" class="post-article-action-group">
               <UiButton variant="secondary" @click="toggleBookmark" :disabled="actionLoading">
                 {{ post.bookmarked ? '已收藏' : '收藏' }}
               </UiButton>
-            </template>
+            </div>
 
-            <template v-if="authed && post.userId === meUserId">
+            <div v-if="authed && post.userId === meUserId" class="post-article-action-group">
               <UiButton
                 variant="secondary"
                 :disabled="actionLoading || !canEditPost"
@@ -133,9 +126,9 @@
               <UiButton variant="dangerSecondary" :disabled="actionLoading || post.status === 2" @click="confirmAuthorDelete">
                 {{ post.status === 2 ? '已删除' : '删除' }}
               </UiButton>
-            </template>
+            </div>
 
-            <template v-if="authed && post.userId !== meUserId">
+            <div v-if="authed && post.userId !== meUserId" class="post-article-action-group">
               <UiButton v-if="followStatus === false" @click="follow(true)" :disabled="actionLoading">关注作者</UiButton>
               <UiButton v-else-if="followStatus === true" variant="secondary" @click="follow(false)" :disabled="actionLoading">
                 取关作者
@@ -144,9 +137,9 @@
               <UiButton :variant="isBlockedAuthor ? 'dangerSecondary' : 'secondary'" :disabled="actionLoading" @click="toggleBlockAuthor">
                 {{ isBlockedAuthor ? '已屏蔽' : '屏蔽' }}
               </UiButton>
-            </template>
+            </div>
  
-            <template v-if="authed && auth.isAdminOrModerator">
+            <div v-if="authed && auth.isAdminOrModerator" class="post-article-action-group post-article-action-group--moderation">
               <UiButton variant="secondary" @click="confirmModeration('top')" :disabled="actionLoading || post.type === 1">
                 {{ post.type === 1 ? '已置顶' : '置顶' }}
               </UiButton>
@@ -156,25 +149,20 @@
               <UiButton variant="dangerSecondary" @click="confirmModeration('delete')" :disabled="actionLoading || post.status === 2">
                 {{ post.status === 2 ? '已删除' : '删除' }}
               </UiButton>
-            </template>
+            </div>
           </div>
         </article>
 
         <section class="post-comments-card">
-          <div class="post-comments-kicker">
-            <span class="post-comments-kicker-label">Thread Context</span>
-            <span class="post-comments-kicker-meta">按回复关系继续往下读</span>
+          <div class="post-comments-head">
+            <div class="post-comments-head-copy">
+              <div class="post-comments-title">回复 {{ post?.commentCount || 0 }}</div>
+              <div class="post-comments-meta">按回复关系继续往下读</div>
+            </div>
+            <UiButton variant="secondary" @click="reloadComments" :disabled="commentsLoading">
+              {{ commentsLoading ? '加载中…' : '刷新' }}
+            </UiButton>
           </div>
-
-          <UiPageHeader>
-            <template #title>回复 {{ post?.commentCount || 0 }}</template>
-            <template #subtitle>评论像讨论现场，回复会保留明确的上下文关系。</template>
-            <template #actions>
-              <UiButton variant="secondary" @click="reloadComments" :disabled="commentsLoading">
-                {{ commentsLoading ? '加载中…' : '刷新' }}
-              </UiButton>
-            </template>
-          </UiPageHeader>
 
           <div class="post-comments-toolbar">
             <UiPagination :page="commentsPage" :has-next="commentsHasNext" @prev="prevCommentsPage" @next="nextCommentsPage" />
@@ -1348,22 +1336,37 @@ onMounted(() => {
 <style scoped>
 .post-detail-shell {
   display: grid;
-  gap: 14px;
+  gap: 12px;
+}
+
+.post-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .post-detail-breadcrumb {
-  padding: 12px 16px 0 16px;
+  padding: 12px 0 0;
+}
+
+.post-detail-shell-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .post-detail-state {
-  margin-top: 12px;
+  margin-top: 4px;
 }
 
 .post-detail-layout {
   display: grid;
-  gap: 18px;
+  gap: 14px;
   margin-top: 4px;
-  padding: 0 4px;
+  padding: 0 2px;
 }
 
 .post-article-frame {
@@ -1375,26 +1378,18 @@ onMounted(() => {
 .post-article-card,
 .post-comments-card {
   display: grid;
-  gap: 14px;
-  padding: 24px;
-  border-radius: 26px;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 22px;
   border: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface) 95%, white 5%), var(--surface)),
-    repeating-linear-gradient(
-      180deg,
-      transparent,
-      transparent 32px,
-      color-mix(in srgb, var(--border) 11%, transparent 89%) 32px,
-      color-mix(in srgb, var(--border) 11%, transparent 89%) 33px
-    );
-  box-shadow: var(--shadow-md);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 95%, white 5%), var(--surface));
+  box-shadow: var(--shadow-sm);
 }
 
 .post-article-head {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 18px;
+  gap: 14px;
   align-items: start;
 }
 
@@ -1413,7 +1408,7 @@ onMounted(() => {
 }
 
 .post-article-kicker,
-.post-comments-kicker {
+.post-comments-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1422,7 +1417,6 @@ onMounted(() => {
 }
 
 .post-article-kicker-label,
-.post-comments-kicker-label,
 .post-ledger-label {
   font-size: 11px;
   font-weight: 800;
@@ -1432,7 +1426,7 @@ onMounted(() => {
 }
 
 .post-article-kicker-meta,
-.post-comments-kicker-meta {
+.post-comments-meta {
   font-size: 12px;
   color: var(--text-3);
 }
@@ -1440,16 +1434,9 @@ onMounted(() => {
 .post-article-title {
   margin: 0;
   font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
-  font-size: clamp(32px, 3.4vw, 44px);
-  line-height: 1.12;
+  font-size: clamp(28px, 3vw, 38px);
+  line-height: 1.1;
   color: var(--text-1);
-}
-
-.post-article-dek {
-  max-width: 60ch;
-  color: var(--text-2);
-  font-size: 15px;
-  line-height: 1.8;
 }
 
 .post-article-meta {
@@ -1474,24 +1461,24 @@ onMounted(() => {
 }
 
 .post-article-ledger {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 4px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 2px;
 }
 
 .post-ledger-item {
-  display: grid;
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
-  padding: 14px 16px;
-  border-radius: 18px;
+  padding: 8px 12px;
+  border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--border) 72%, transparent 28%);
   background: color-mix(in srgb, var(--surface) 82%, var(--bg) 18%);
 }
 
 .post-ledger-item strong {
-  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
-  font-size: 28px;
+  font-size: 14px;
   line-height: 1;
   color: var(--text-1);
 }
@@ -1500,11 +1487,23 @@ onMounted(() => {
   max-width: 70ch;
 }
 
+.post-article-action-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.post-article-action-group--moderation {
+  padding-left: 4px;
+  border-left: 1px solid color-mix(in srgb, var(--border) 82%, transparent 18%);
+}
+
 .post-article-body :deep(p),
 .post-article-body :deep(li),
 .post-article-body :deep(blockquote) {
   font-size: 16px;
-  line-height: 1.9;
+  line-height: 1.8;
 }
 
 .post-article-body :deep(h1),
@@ -1515,7 +1514,7 @@ onMounted(() => {
 }
 
 .post-article-body :deep(p:first-child) {
-  font-size: 18px;
+  font-size: 17px;
 }
 
 .post-comments-toolbar,
@@ -1538,8 +1537,8 @@ onMounted(() => {
   align-items: center;
   background: color-mix(in srgb, var(--surface) 70%, var(--bg) 30%);
   border: 1px solid color-mix(in srgb, var(--border) 74%, transparent 26%);
-  border-radius: 18px;
-  padding: 10px 8px;
+  border-radius: 16px;
+  padding: 8px 6px;
 }
 
 .post-article-vote {
@@ -1578,7 +1577,7 @@ onMounted(() => {
   color: var(--editorial-accent);
 }
 .vote-count-d {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 800;
   margin: 4px 0;
   color: var(--text-1);
@@ -1675,12 +1674,24 @@ onMounted(() => {
   font-size: 11px;
 }
 
+.post-comments-title,
 .comment-thread-index {
   font-size: 11px;
   font-weight: 700;
   color: var(--text-3);
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.post-comments-head-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.post-comments-title {
+  color: var(--text-1);
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .comment-content {
@@ -1829,6 +1840,11 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
+  .post-detail-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .post-article-head {
     grid-template-columns: 1fr;
   }
@@ -1849,7 +1865,12 @@ onMounted(() => {
   }
 
   .post-article-ledger {
-    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .post-article-action-group--moderation {
+    padding-left: 0;
+    border-left: none;
   }
 
   .comment-thread-head {

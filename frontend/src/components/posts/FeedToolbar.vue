@@ -125,18 +125,18 @@ function commitTag() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
-  padding: 14px 16px;
-  background: linear-gradient(180deg, rgba(255, 251, 246, 0.96), rgba(246, 237, 226, 0.94));
-  border: 1px solid color-mix(in srgb, var(--editorial-rule) 82%, #fff 18%);
-  border-radius: 24px;
-  box-shadow: 0 18px 28px rgba(83, 47, 25, 0.08);
+  gap: 10px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--surface) 92%, var(--bg) 8%);
+  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent 26%);
+  border-radius: 18px;
+  box-shadow: none;
 }
 
 .feed-toolbar-left {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -152,8 +152,8 @@ function commitTag() {
   padding: 0 10px;
   height: 34px;
   border-radius: 999px;
-  border: 1px solid var(--editorial-rule);
-  background: rgba(255, 249, 242, 0.92);
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent 20%);
+  background: color-mix(in srgb, var(--surface) 88%, var(--bg) 12%);
   color: var(--text-2);
   font-size: 12px;
   font-weight: 800;
@@ -165,7 +165,7 @@ function commitTag() {
 }
 
 .subscribed-toggle:hover {
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--surface-2) 78%, transparent);
   border-color: var(--border-strong);
   color: var(--text-1);
 }
@@ -175,36 +175,40 @@ function commitTag() {
 }
 
 .taxonomy-select {
-  height: 34px;
+  height: 32px;
   font-size: 13px;
-  min-width: 168px;
+  min-width: 160px;
 }
 
 .taxonomy-tag-input {
-  height: 34px;
+  height: 32px;
   font-size: 13px;
-  width: 220px;
+  width: 200px;
 }
 
 .feed-toolbar-right {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 8px;
+  margin-left: auto;
 }
 
 .feed-toolbar-button {
-  height: 32px;
+  height: 30px;
+  min-width: 64px;
 }
 
 @media (max-width: 768px) {
   .feed-toolbar {
     align-items: flex-start;
     flex-direction: column;
+    padding: 10px;
   }
 
   .feed-toolbar-right {
     width: 100%;
-    justify-content: flex-end;
+    justify-content: flex-start;
+    margin-left: 0;
   }
 }
 </style>

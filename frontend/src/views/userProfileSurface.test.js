@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildCommunitySignals, buildCommunityNextSteps } from './userProfileSurface'
+import { buildCommunitySignals, buildCommunityNextSteps, describeFollowStatusText } from './userProfileSurface'
 
 describe('userProfileSurface', () => {
   it('builds a self-view summary with editable next steps', () => {
@@ -45,5 +45,12 @@ describe('userProfileSurface', () => {
 
     const nextSteps = buildCommunityNextSteps({ authed: true, isSelf: false })
     expect(nextSteps.map((item) => item.label)).toEqual(['去讨论区看看', '查看关注', '查看粉丝'])
+  })
+
+  it('describes follow status for self, followed, available, and anonymous states', () => {
+    expect(describeFollowStatusText({ authed: true, isSelf: true, followStatus: null })).toBe('这是你的主页')
+    expect(describeFollowStatusText({ authed: true, isSelf: false, followStatus: true })).toBe('你已关注')
+    expect(describeFollowStatusText({ authed: true, isSelf: false, followStatus: false })).toBe('公开可关注')
+    expect(describeFollowStatusText({ authed: false, isSelf: false, followStatus: null })).toBe('公开可见')
   })
 })

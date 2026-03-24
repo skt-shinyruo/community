@@ -2,20 +2,13 @@
   <div class="page reward-shop-page">
     <UiBreadcrumb />
 
-    <UiCard flat class="reward-shop-hero">
-      <UiPageHeader>
-        <template #title>奖励商城</template>
-        <template #subtitle>奖励积分在这里变成可消费权益，成长值和排行榜则继续保持独立。</template>
-        <template #actions>
-          <div class="reward-shop-actions">
-            <UiButton variant="secondary" :disabled="loading || redeeming" @click="reload">
-              {{ loading ? '刷新中…' : '刷新' }}
-            </UiButton>
-            <UiButton variant="secondary" @click="goOrders">兑换记录</UiButton>
-          </div>
-        </template>
-      </UiPageHeader>
-
+    <section class="reward-shop-head">
+      <div class="reward-shop-actions">
+        <UiButton variant="secondary" :disabled="loading || redeeming" @click="reload">
+          {{ loading ? '刷新中…' : '刷新' }}
+        </UiButton>
+        <UiButton variant="secondary" @click="goOrders">兑换记录</UiButton>
+      </div>
       <div class="reward-shop-hero-grid">
         <div class="reward-shop-hero-card">
           <span class="reward-shop-label">可用奖励</span>
@@ -28,7 +21,7 @@
           <p>自动发放与人工发放分开标识，避免兑换后不知道进入了哪条履约路径。</p>
         </div>
       </div>
-    </UiCard>
+    </section>
 
     <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
     <div v-else-if="loading && state.items.length === 0" class="muted reward-shop-state">正在加载奖励商城…</div>
@@ -87,7 +80,6 @@ import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
-import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiTag from '../components/ui/UiTag.vue'
 import { buildRewardShopState } from './rewardShopState'
 
@@ -165,7 +157,7 @@ onMounted(reload)
   gap: var(--space-5);
 }
 
-.reward-shop-hero {
+.reward-shop-head {
   display: grid;
   gap: var(--space-4);
 }

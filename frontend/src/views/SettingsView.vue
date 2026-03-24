@@ -1,25 +1,5 @@
 <template>
   <div class="page settings-page">
-    <UiCard flat class="settings-hero">
-      <UiPageHeader>
-        <template #title>设置</template>
-        <template #subtitle>维护你的公开资料与头像，让个人身份在社区里保持清晰一致。</template>
-      </UiPageHeader>
-
-      <div class="settings-hero-grid">
-        <div class="settings-hero-card">
-          <span class="settings-eyebrow">Profile</span>
-          <strong>{{ auth.username || '当前账号' }}</strong>
-          <p>这里管理会公开展示给其他成员的信息，优先保持识别度与一致性。</p>
-        </div>
-        <div class="settings-hero-card">
-          <span class="settings-eyebrow">Avatar</span>
-          <strong>{{ token.fileName ? '准备更新' : '保持当前头像' }}</strong>
-          <p>头像上传流程保持原有业务逻辑，但呈现方式会更接近完整产品设置页。</p>
-        </div>
-      </div>
-    </UiCard>
-
     <UiCard class="settings-panel">
       <section class="settings-section">
         <div class="settings-section-head">
@@ -135,7 +115,6 @@ import { unwrapResultBody } from '../api/result'
 import UiCard from '../components/ui/UiCard.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiButton from '../components/ui/UiButton.vue'
-import UiPageHeader from '../components/ui/UiPageHeader.vue'
 
 const emit = defineEmits(['trace'])
 const auth = useAuthStore()
@@ -251,33 +230,6 @@ async function uploadAndUpdate() {
   gap: var(--space-5);
 }
 
-.settings-hero {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.settings-hero-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.settings-hero-card {
-  padding: 18px 20px;
-  border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, var(--border) 84%, var(--accent) 16%);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, white 8%), var(--surface));
-  display: grid;
-  gap: 6px;
-}
-
-.settings-hero-card strong {
-  font-size: clamp(1.45rem, 3vw, 2rem);
-  line-height: 1.1;
-}
-
-.settings-hero-card p,
 .settings-section-head p,
 .settings-note-card p {
   margin: 0;
@@ -438,7 +390,6 @@ async function uploadAndUpdate() {
 }
 
 @media (max-width: 900px) {
-  .settings-hero-grid,
   .settings-summary-grid,
   .settings-upload-meta {
     grid-template-columns: 1fr;

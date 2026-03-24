@@ -147,13 +147,7 @@ const NAV_DEFS = Object.freeze([
         label: '帖子',
         icon: 'posts',
         to: () => ({ name: 'posts' }),
-        isActive: (route) => {
-          const name = getRouteName(route)
-          if (name === 'postDetail') return true
-          if (name !== 'posts') return false
-          const { filter } = normalizePostsQuery(getRouteQuery(route))
-          return filter === POSTS_FILTER.ALL
-        }
+        activeNames: ['posts', 'postDetail']
       },
       {
         key: 'search',
@@ -168,62 +162,6 @@ const NAV_DEFS = Object.freeze([
         icon: 'trophy',
         to: () => ({ name: 'leaderboard' }),
         activeNames: ['leaderboard']
-      }
-    ]
-  },
-  {
-    key: 'filters',
-    title: '筛选',
-    items: [
-      {
-        key: 'postsUnread',
-        label: '未读',
-        icon: 'dot',
-        requiresAuth: true,
-        to: () => ({ name: 'posts', query: { type: POSTS_FILTER.UNREAD } }),
-        isActive: (route) => {
-          const name = getRouteName(route)
-          if (name !== 'posts') return false
-          const { filter } = normalizePostsQuery(getRouteQuery(route))
-          return filter === POSTS_FILTER.UNREAD
-        }
-      },
-      {
-        key: 'postsSubscribed',
-        label: '订阅',
-        icon: 'star',
-        requiresAuth: true,
-        to: () => ({ name: 'posts', query: { subscribed: '1' } }),
-        isActive: (route) => {
-          const name = getRouteName(route)
-          if (name !== 'posts') return false
-          const { subscribed } = normalizePostsQuery(getRouteQuery(route))
-          return subscribed === true
-        }
-      },
-      {
-        key: 'postsTop',
-        label: '置顶',
-        icon: 'pin',
-        to: () => ({ name: 'posts', query: { type: POSTS_FILTER.TOP } }),
-        isActive: (route) => {
-          const name = getRouteName(route)
-          if (name !== 'posts') return false
-          const { filter } = normalizePostsQuery(getRouteQuery(route))
-          return filter === POSTS_FILTER.TOP
-        }
-      },
-      {
-        key: 'postsWonderful',
-        label: '精华',
-        icon: 'sparkle',
-        to: () => ({ name: 'posts', query: { type: POSTS_FILTER.WONDERFUL } }),
-        isActive: (route) => {
-          const name = getRouteName(route)
-          if (name !== 'posts') return false
-          const { filter } = normalizePostsQuery(getRouteQuery(route))
-          return filter === POSTS_FILTER.WONDERFUL
-        }
       }
     ]
   },
@@ -363,13 +301,85 @@ export function getSidebarNavigation(ctx = {}) {
   })).filter((g) => Array.isArray(g.items) && g.items.length > 0)
 }
 
+function findNavItem(groups, key) {
+  return groups.flatMap((g) => g.items || []).find((it) => it.key === key) || null
+}
+
+function findNavGroupDef(key) {
+  return NAV_DEFS.find((g) => g.key === key) || null
+}
+
+function collectActiveNames(items) {
+  const names = new Set()
+
+  for (const item of items || []) {
+    if (!item) continue
+    if (Array.isArray(item.activeNames) && item.activeNames.length > 0) {
+      item.activeNames.map(String).forEach((name) => names.add(name))
+      continue
+    }
+
+    const to = resolveTo(item.to, {})
+    if (to && typeof to === 'object' && to.name) {
+      names.add(String(to.name))
+    }
+  }
+
+  return Array.from(names)
+}
+
 export function getMobileNavigation(ctx = {}) {
   const groups = getSidebarNavigation(ctx)
+  const meGroup = groups.find((group) => group?.key === 'me') || null
+  const meGroupDef = findNavGroupDef('me')
+  const authGroupDef = findNavGroupDef('auth')
+  const posts = findNavItem(groups, 'posts') || {
+    key: 'posts',
+    label: '帖子',
+    icon: 'posts',
+    to: { name: 'posts' },
+    activeNames: ['posts', 'postDetail']
+  }
+  const search = findNavItem(groups, 'search') || {
+    key: 'search',
+    label: '搜索',
+    icon: 'search',
+    to: { name: 'search' },
+    activeNames: ['search']
+  }
+  const profile = findNavItem(groups, 'profile')
+  const login = findNavItem(groups, 'login')
+  const firstMeItem = Array.isArray(meGroup?.items) ? meGroup.items[0] || null : null
+  const leaderboard = findNavItem(groups, 'leaderboard') || {
+    key: 'leaderboard',
+    label: '排行榜',
+    icon: 'trophy',
+    to: { name: 'leaderboard' },
+    activeNames: ['leaderboard']
+  }
+  const meActiveNames = collectActiveNames([
+    ...((meGroupDef && meGroupDef.items) || []),
+    ...((authGroupDef && authGroupDef.items) || [])
+  ])
+  const moreActiveNames = collectActiveNames([leaderboard])
 
-  // 移动端底栏只保留高频快速入口；主导航依然由 sidebar/drawer 承载。
-  const allowKeys = new Set(['posts', 'search', 'growth', 'messages', 'profile'])
-  const flat = groups.flatMap((g) => g.items || [])
-  return flat.filter((it) => allowKeys.has(it.key))
+  const me = {
+    key: 'me',
+    label: '我',
+    icon: 'user',
+    to: profile?.to || firstMeItem?.to || login?.to || { name: 'login' },
+    activeNames: meActiveNames
+  }
+  const more = {
+    key: 'more',
+    label: '更多',
+    // MobileNav currently renders only a small fixed icon set; reuse a supported icon until it gets a dedicated "more" glyph.
+    icon: 'messages',
+    to: leaderboard.to || { name: 'leaderboard' },
+    activeNames: moreActiveNames
+  }
+
+  return [posts, search, me, more]
 }
 
 export function getBreadcrumbItems(route) {

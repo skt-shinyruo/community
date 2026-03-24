@@ -14,9 +14,6 @@
         <component :is="Component" @trace="app.setTraceId($event)" />
       </Transition>
     </RouterView>
-    <template v-if="showRightPanel" #right>
-      <RightPanel />
-    </template>
   </AppShell>
 
   <UiScrollTop />
@@ -31,7 +28,6 @@ import { useAppStore } from './stores/app'
 import { imRealtimeClient } from './im/imRealtimeClient'
 import AppShell from './components/layout/AppShell.vue'
 import AuthShell from './components/layout/AuthShell.vue'
-import RightPanel from './components/layout/RightPanel.vue'
 import UiToast from './components/ui/UiToast.vue'
 import UiScrollTop from './components/ui/UiScrollTop.vue'
 
@@ -62,22 +58,6 @@ const isAuthRoute = computed(() => {
 const isAdminRoute = computed(() => String(route.meta?.navGroup || '') === 'admin')
 
 const shellMode = computed(() => (isAdminRoute.value ? 'admin' : 'public'))
-
-const RIGHT_PANEL_ROUTE_NAMES = new Set([
-  'posts',
-  'postDetail',
-  'search',
-  'userProfile',
-  'followees',
-  'followers',
-  'bookmarks',
-  'leaderboard'
-])
-
-const showRightPanel = computed(() => {
-  if (isAuthRoute.value || isAdminRoute.value) return false
-  return RIGHT_PANEL_ROUTE_NAMES.has(String(route.name || ''))
-})
 
 async function bootstrapSession() {
   if (!shouldBootstrapSession({ auth })) {

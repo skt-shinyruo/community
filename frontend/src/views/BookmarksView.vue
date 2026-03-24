@@ -2,39 +2,18 @@
   <div class="page bookmarks-page">
     <UiBreadcrumb />
 
-    <UiCard flat class="bookmarks-hero">
-      <UiPageHeader>
-        <template #title>我的收藏</template>
-        <template #subtitle>把值得回来的帖子整理成一份更像阅读清单的个人列表。</template>
-        <template #actions>
-          <UiButton variant="secondary" :disabled="loading" @click="reload">刷新</UiButton>
-        </template>
-      </UiPageHeader>
-
-      <div class="bookmarks-hero-grid">
-        <div class="bookmarks-hero-card">
-          <span class="bookmarks-eyebrow">Reading List</span>
-          <strong>{{ items.length }}</strong>
-          <p>把暂时不想丢失的讨论留在这里，之后可以直接回到帖子继续读或回复。</p>
-        </div>
-        <div class="bookmarks-hero-card">
-          <span class="bookmarks-eyebrow">状态</span>
-          <strong>{{ hasNext ? '仍可继续加载' : '已全部展开' }}</strong>
-          <p>列表会延续帖子页的讨论语法，而不是退回到功能页式的平铺卡片。</p>
-        </div>
-      </div>
-    </UiCard>
-
     <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
     <div v-else-if="loading" class="muted bookmarks-state">正在加载收藏内容…</div>
 
     <UiCard class="bookmarks-shell" v-else>
       <div class="bookmarks-shell-head">
-        <div>
-          <div class="bookmarks-eyebrow">Saved Discussions</div>
-          <h2>收藏列表</h2>
-          <p>保留帖子语境、活跃度与主题标签，方便你快速判断要不要重新点进某条讨论。</p>
-        </div>
+        <UiPageHeader>
+          <template #title>我的收藏</template>
+          <template #subtitle>把值得回来的帖子整理成一份更像阅读清单的个人列表。</template>
+          <template #actions>
+            <UiButton variant="secondary" :disabled="loading" @click="reload">刷新</UiButton>
+          </template>
+        </UiPageHeader>
       </div>
 
       <div class="bookmarks-list">
@@ -194,39 +173,6 @@ watch(
   gap: var(--space-5);
 }
 
-.bookmarks-hero {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.bookmarks-hero-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.bookmarks-hero-card {
-  padding: 18px 20px;
-  border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, var(--border) 84%, var(--accent) 16%);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, white 8%), var(--surface));
-  display: grid;
-  gap: 6px;
-}
-
-.bookmarks-hero-card strong {
-  font-size: clamp(1.6rem, 3vw, 2.15rem);
-  line-height: 1;
-}
-
-.bookmarks-hero-card p,
-.bookmarks-shell-head p {
-  margin: 0;
-  color: var(--text-2);
-  line-height: 1.55;
-}
-
 .bookmarks-eyebrow {
   font-size: 11px;
   letter-spacing: 0.16em;
@@ -255,9 +201,12 @@ watch(
   background: color-mix(in srgb, var(--surface) 92%, var(--bg) 8%);
 }
 
-.bookmarks-shell-head h2 {
-  margin: 6px 0 4px;
-  font-size: 1.15rem;
+.bookmarks-shell-head :deep(.page-header) {
+  gap: 0;
+}
+
+.bookmarks-shell-head :deep(.page-header-subtitle) {
+  margin: 4px 0 0;
 }
 
 .bookmarks-list {
@@ -340,10 +289,6 @@ watch(
 }
 
 @media (max-width: 768px) {
-  .bookmarks-hero-grid {
-    grid-template-columns: 1fr;
-  }
-
   .bookmarks-shell-head,
   .bookmark-item,
   .bookmark-load-more {

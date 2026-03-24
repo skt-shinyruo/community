@@ -3,6 +3,13 @@ function toCount(value) {
   return Number.isFinite(count) && count > 0 ? count : 0
 }
 
+export function describeFollowStatusText({ followStatus, authed, isSelf } = {}) {
+  if (isSelf) return '这是你的主页'
+  if (followStatus === true) return '你已关注'
+  if (authed) return '公开可关注'
+  return '公开可见'
+}
+
 export function buildCommunitySignals({
   profile,
   joinedYear,
@@ -18,13 +25,7 @@ export function buildCommunitySignals({
   const followeeCount = toCount(profile?.followeeCount)
   const score = toCount(profile?.score)
 
-  const statusValue = isSelf
-    ? '这是你的主页'
-    : followStatus === true
-      ? '你已关注'
-      : authed
-        ? '公开可关注'
-        : '公开可见'
+  const statusValue = describeFollowStatusText({ followStatus, authed, isSelf })
 
   return [
     {

@@ -1,84 +1,75 @@
 <template>
   <div class="page search-page">
-    <section class="search-masthead">
-      <div class="search-masthead-copy">
-        <div class="search-eyebrow">Discussion Search</div>
-        <UiPageHeader class="search-header">
-          <template #title>搜索</template>
-          <template #subtitle>从标题、摘要和标签里快速定位值得继续读下去的讨论。</template>
-          <template #actions>
-            <UiButton variant="secondary" v-if="auth.isAdmin" @click="openReindexConfirm" :disabled="loading">
-              {{ loading ? '处理中…' : '重建索引' }}
-            </UiButton>
-          </template>
-        </UiPageHeader>
-        <div class="search-dek">
-          先找到社区现在在讨论什么，再决定点进哪条线程。关键词给方向，分类和标签负责收窄语境。
-        </div>
+    <section class="search-workbench">
+      <div class="search-searchbar">
+        <UiInput
+          v-model.trim="keyword"
+          name="search-keyword"
+          placeholder="输入关键词…"
+          autocomplete="off"
+          @keydown.enter="onSearch"
+        />
+        <UiButton @click="onSearch" :disabled="loading" class="search-submit-btn">
+          {{ loading ? '搜索中…' : '搜索' }}
+        </UiButton>
       </div>
 
-      <UiCard class="search-card">
-        <div class="search-card-kicker">
-          <span class="search-card-label">搜索范围</span>
-          <span class="search-card-summary">
-            <template v-if="keyword || tagDraft || categoryId">
-              当前聚焦
-              {{ keyword ? `“${keyword}”` : '全部关键词' }}
-              <template v-if="categoryId"> · {{ categoryLabel(categoryId) }}</template>
-              <template v-if="tagDraft"> · #{{ normalizeTag(tagDraft) }}</template>
-            </template>
-            <template v-else>尚未添加限定词，正在浏览全部讨论范围。</template>
-          </span>
-        </div>
+      <div class="search-filters">
+        <select
+          name="search-category-filter"
+          class="input search-select"
+          :disabled="loading"
+          :value="String(categoryId || '')"
+          aria-label="分类筛选"
+          @change="replaceQuery({ categoryId: $event?.target?.value || '' })"
+        >
+          <option value="">全部分类</option>
+          <option v-for="c in categories" :key="c.id" :value="String(c.id)">{{ c.name }}</option>
+        </select>
 
-        <div class="search-searchbar">
+        <div class="search-tag">
           <UiInput
-            v-model.trim="keyword"
-            name="search-keyword"
-            placeholder="输入关键词…"
+            v-model.trim="tagDraft"
+            name="search-tag-filter"
+            placeholder="标签（可选）"
             autocomplete="off"
-            @keydown.enter="onSearch"
-          />
-          <UiButton @click="onSearch" :disabled="loading" class="search-submit-btn">
-            {{ loading ? '搜索中…' : '搜索' }}
-          </UiButton>
-        </div>
-        <div class="search-filters">
-          <select
-            name="search-category-filter"
-            class="input search-select"
             :disabled="loading"
-            :value="String(categoryId || '')"
-            aria-label="分类筛选"
-            @change="replaceQuery({ categoryId: $event?.target?.value || '' })"
-          >
-            <option value="">全部分类</option>
-            <option v-for="c in categories" :key="c.id" :value="String(c.id)">{{ c.name }}</option>
-          </select>
-
-          <div class="search-tag">
-            <UiInput
-              v-model.trim="tagDraft"
-              name="search-tag-filter"
-              placeholder="标签（可选）"
-              autocomplete="off"
-              :disabled="loading"
-              :list="tagSuggestNames.length > 0 ? tagDatalistId : null"
-              @keydown.enter="onSearch"
-              @blur="commitTag"
-            />
-            <datalist v-if="tagSuggestNames.length > 0" :id="tagDatalistId">
-              <option v-for="t in tagSuggestNames" :key="t" :value="t"></option>
-            </datalist>
-          </div>
-
-          <UiButton variant="ghost" @click="clearFilters" :disabled="loading">清空筛选</UiButton>
+            :list="tagSuggestNames.length > 0 ? tagDatalistId : null"
+            @keydown.enter="onSearch"
+            @blur="commitTag"
+          />
+          <datalist v-if="tagSuggestNames.length > 0" :id="tagDatalistId">
+            <option v-for="t in tagSuggestNames" :key="t" :value="t"></option>
+          </datalist>
         </div>
-        <div class="search-help">
-          <div class="muted search-help-line">提示：也可使用顶栏快捷键 {{ isMac ? '⌘' : 'Ctrl' }} K 进行全局搜索。</div>
-          <div class="muted search-help-line">说明：搜索索引为最终一致，发帖/编辑后结果可能延迟数秒到数十秒；如长时间未更新，可尝试刷新或联系管理员重建索引/排查消费滞后。</div>
+
+        <UiButton variant="ghost" @click="clearFilters" :disabled="loading">清空筛选</UiButton>
+        <UiButton
+          v-if="auth.isAdmin"
+          variant="ghost"
+          class="search-reindex-btn"
+          @click="openReindexConfirm"
+          :disabled="loading"
+        >
+          {{ loading ? '处理中…' : '重建索引' }}
+        </UiButton>
+      </div>
+
+      <div class="search-toolbar-note">
+        <div class="search-active-summary">
+          <template v-if="keyword || tagDraft || categoryId">
+            当前聚焦
+            {{ keyword ? `“${keyword}”` : '全部关键词' }}
+            <template v-if="categoryId"> · {{ categoryLabel(categoryId) }}</template>
+            <template v-if="tagDraft"> · #{{ normalizeTag(tagDraft) }}</template>
+          </template>
+          <template v-else>尚未添加限定词，正在浏览全部讨论范围。</template>
         </div>
-      </UiCard>
+
+        <div class="muted search-help">
+          顶栏快捷键 {{ isMac ? '⌘' : 'Ctrl' }} K 可直接进入搜索。索引为最终一致，发帖或编辑后结果可能延迟数秒到数十秒。
+        </div>
+      </div>
     </section>
 
     <UiEmpty v-if="error && items.length === 0" type="error" class="search-state">{{ error }}</UiEmpty>
@@ -87,10 +78,7 @@
     <!-- Results Feed -->
     <div class="search-results">
       <div v-if="items.length > 0" class="search-results-head">
-        <div>
-          <div class="search-results-eyebrow">Matched Discussions</div>
-          <div class="search-results-title">搜索结果</div>
-        </div>
+        <div class="search-results-title">搜索结果</div>
         <div class="search-results-meta">
           <span>{{ items.length }} 条</span>
           <span>第 {{ page + 1 }} 页</span>
@@ -221,8 +209,6 @@
 	import { emOnlyHtml } from '../utils/highlight'
 	import { useTaxonomyStore } from '../stores/taxonomy'
 	import { applySearchHydration, applySearchSummaries, collectSearchHydrationIds, describeSearchActivity } from './searchResultSurface'
-	import UiCard from '../components/ui/UiCard.vue'
-	import UiPageHeader from '../components/ui/UiPageHeader.vue'
 	import UiInput from '../components/ui/UiInput.vue'
 	import UiButton from '../components/ui/UiButton.vue'
 	import UiEmpty from '../components/ui/UiEmpty.vue'
@@ -494,24 +480,19 @@ async function onConfirmReindex() {
 
 <style scoped>
 .search-page {
-  max-width: 920px;
+  max-width: 980px;
 }
 
-.search-masthead {
+.search-workbench {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
-  gap: 20px;
-  align-items: start;
+  gap: 12px;
+  padding: 18px 20px;
+  border-radius: 22px;
+  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent 26%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 95%, #fff 5%), var(--surface));
+  box-shadow: none;
 }
 
-.search-masthead-copy {
-  display: grid;
-  gap: 14px;
-  padding: 6px 0;
-}
-
-.search-eyebrow,
-.search-results-eyebrow,
 .search-result-kicker {
   font-size: 11px;
   font-weight: 800;
@@ -520,63 +501,31 @@ async function onConfirmReindex() {
   color: var(--text-3);
 }
 
-.search-dek {
-  max-width: 52ch;
+.search-active-summary {
   color: var(--text-2);
-  font-size: 15px;
-  line-height: 1.75;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
-.search-card {
-  margin-top: 12px;
-  padding: 22px;
-  border-radius: 26px;
-  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent 28%);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface) 86%, var(--bg) 14%), var(--surface)),
-    repeating-linear-gradient(
-      180deg,
-      transparent,
-      transparent 28px,
-      color-mix(in srgb, var(--border) 14%, transparent 86%) 28px,
-      color-mix(in srgb, var(--border) 14%, transparent 86%) 29px
-    );
-  box-shadow: var(--shadow-md);
-}
-
-.search-card-kicker {
+.search-toolbar-note {
   display: grid;
-  gap: 6px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
-}
-
-.search-card-label {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-
-.search-card-summary {
-  color: var(--text-2);
-  font-size: 14px;
-  line-height: 1.7;
+  gap: 4px;
 }
 
 .search-searchbar {
   display: flex;
   gap: 12px;
-  margin-top: 16px;
 }
 
 .search-submit-btn {
   min-width: 104px;
 }
 
+.search-reindex-btn {
+  min-width: 96px;
+}
+
 .search-filters {
-  margin-top: 14px;
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
@@ -595,15 +544,8 @@ async function onConfirmReindex() {
 }
 
 .search-help {
-  margin-top: 16px;
-  display: grid;
-  gap: 6px;
-  padding-top: 14px;
-  border-top: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
-}
-
-.search-help-line {
   font-size: 12px;
+  line-height: 1.6;
 }
 
 .search-state {
@@ -611,9 +553,9 @@ async function onConfirmReindex() {
 }
 
 .search-results {
-  margin-top: 24px;
+  margin-top: 18px;
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
 
 .search-results-head {
@@ -650,30 +592,20 @@ async function onConfirmReindex() {
 
 .search-result-card {
   display: grid;
-  gap: 14px;
-  padding: 22px 22px 18px;
+  gap: 12px;
+  padding: 18px 20px;
   border: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
-  border-radius: 24px;
-  border-left: 4px solid color-mix(in srgb, var(--accent) 42%, var(--border) 58%);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, white 4%), var(--surface)),
-    repeating-linear-gradient(
-      180deg,
-      transparent,
-      transparent 30px,
-      color-mix(in srgb, var(--border) 13%, transparent 87%) 30px,
-      color-mix(in srgb, var(--border) 13%, transparent 87%) 31px
-    );
-  box-shadow: var(--shadow-sm);
+  border-radius: 22px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, white 4%), var(--surface));
+  box-shadow: none;
   cursor: pointer;
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
 .search-result-card:hover {
   transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
   border-color: var(--border-strong);
-  background-color: color-mix(in srgb, var(--surface) 92%, var(--bg) 8%);
 }
 
 .search-result-head,
@@ -719,17 +651,17 @@ async function onConfirmReindex() {
 
 .search-result-title {
   font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
-  font-size: clamp(24px, 2.7vw, 32px);
-  line-height: 1.22;
+  font-size: clamp(21px, 2.2vw, 27px);
+  line-height: 1.18;
   color: var(--text-1);
   font-weight: 800;
-  max-width: 22ch;
+  max-width: 28ch;
 }
 
 .search-result-snippet {
   color: var(--text-2);
-  font-size: 15px;
-  line-height: 1.85;
+  font-size: 14px;
+  line-height: 1.7;
   max-width: 64ch;
 }
 
@@ -817,10 +749,6 @@ async function onConfirmReindex() {
 }
 
 @media (max-width: 768px) {
-  .search-masthead {
-    grid-template-columns: 1fr;
-  }
-
   .search-searchbar {
     flex-direction: column;
   }
@@ -829,7 +757,7 @@ async function onConfirmReindex() {
     width: 100%;
   }
 
-  .search-card {
+  .search-workbench {
     padding: 18px;
   }
 
@@ -842,23 +770,15 @@ async function onConfirmReindex() {
   }
 }
 
-html[data-theme='dark'] .search-card,
+html[data-theme='dark'] .search-workbench,
 html[data-theme='dark'] .search-result-card {
   border-color: #2f2f2f;
-  background:
-    linear-gradient(180deg, #151515, #0f0f0f),
-    repeating-linear-gradient(
-      180deg,
-      transparent,
-      transparent 30px,
-      rgba(255, 255, 255, 0.03) 30px,
-      rgba(255, 255, 255, 0.03) 31px
-    );
-  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.22);
+  background: linear-gradient(180deg, #151515, #0f0f0f);
+  box-shadow: none;
 }
 
 html[data-theme='dark'] .search-result-card:hover {
-  background-color: #141414;
+  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.2);
 }
 
 html[data-theme='dark'] .search-result-activity {

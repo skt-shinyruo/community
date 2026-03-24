@@ -1,37 +1,16 @@
 <template>
   <div class="page conversations-page">
-    <UiCard flat class="conversations-hero">
-      <UiPageHeader>
-        <template #title>私信</template>
-        <template #subtitle>把仍在推进的讨论、协作和跟进放回同一个收件箱里。</template>
-        <template #actions>
-          <UiButton variant="secondary" @click="load" :disabled="loading">刷新</UiButton>
-        </template>
-      </UiPageHeader>
-
-      <div class="conversations-hero-grid">
-        <div class="conversations-hero-card">
-          <span class="conversations-hero-label">当前会话</span>
-          <strong>{{ items.length }}</strong>
-          <p>最近二十条对话会集中展示在这里，方便你快速回到正在进行的交流。</p>
-        </div>
-        <div class="conversations-hero-card">
-          <span class="conversations-hero-label">未读消息</span>
-          <strong>{{ items.reduce((total, c) => total + Number(c?.unreadCount || 0), 0) }}</strong>
-          <p>优先处理还没读完的线程，避免重要回复埋在工具式列表里。</p>
-        </div>
-      </div>
-    </UiCard>
-
     <div v-if="error && items.length > 0" class="error conversations-banner">{{ error }}</div>
 
     <UiCard class="conversations-shell">
       <div class="conversations-shell-head">
-        <div>
-          <div class="conversations-eyebrow">Inbox</div>
-          <h2>最近对话</h2>
-          <p>按照最近一条消息排序，直接回到具体线程继续回复。</p>
-        </div>
+        <UiPageHeader>
+          <template #title>私信</template>
+          <template #subtitle>把仍在推进的讨论、协作和跟进放回同一个收件箱里。</template>
+          <template #actions>
+            <UiButton variant="secondary" @click="load" :disabled="loading">刷新</UiButton>
+          </template>
+        </UiPageHeader>
         <div class="conversations-head-meta muted">
           {{ items.filter((c) => Number(c?.unreadCount || 0) > 0).length }} 个对话待处理
         </div>
@@ -130,39 +109,6 @@ onMounted(load)
   gap: var(--space-5);
 }
 
-.conversations-hero {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.conversations-hero-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.conversations-hero-card {
-  padding: 18px 20px;
-  border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, var(--border) 86%, var(--accent) 14%);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface) 90%, white 10%), var(--surface));
-  display: grid;
-  gap: 6px;
-}
-
-.conversations-hero-card strong {
-  font-size: clamp(1.75rem, 3vw, 2.3rem);
-  line-height: 1;
-  color: var(--text-1);
-}
-
-.conversations-hero-card p {
-  margin: 0;
-  color: var(--text-2);
-  line-height: 1.55;
-}
-
 .conversations-hero-label,
 .conversations-eyebrow {
   font-size: 11px;
@@ -191,15 +137,12 @@ onMounted(load)
   background: color-mix(in srgb, var(--surface) 92%, var(--bg) 8%);
 }
 
-.conversations-shell-head h2 {
-  margin: 6px 0 4px;
-  font-size: 1.15rem;
+.conversations-shell-head :deep(.page-header) {
+  gap: 0;
 }
 
-.conversations-shell-head p {
-  margin: 0;
-  color: var(--text-2);
-  line-height: 1.55;
+.conversations-shell-head :deep(.page-header-subtitle) {
+  margin: 4px 0 0;
 }
 
 .conversations-head-meta {
@@ -333,10 +276,6 @@ onMounted(load)
 }
 
 @media (max-width: 768px) {
-  .conversations-hero-grid {
-    grid-template-columns: 1fr;
-  }
-
   .conversations-shell-head,
   .conv-item {
     padding-left: 18px;

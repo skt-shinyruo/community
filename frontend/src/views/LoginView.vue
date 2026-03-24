@@ -5,7 +5,7 @@
       <template #subtitle>回到讨论广场前，先确认你的身份与当前登录状态。</template>
     </UiPageHeader>
 
-    <div class="stack auth-form">
+    <form class="stack auth-form" @submit.prevent="onLogin">
       <div class="auth-field">
         <div class="field-label">用户名</div>
         <UiInput v-model.trim="form.username" placeholder="请输入用户名" autocomplete="username" />
@@ -37,7 +37,7 @@
         <RouterLink class="btn ghost" to="/auth/password/reset">忘记密码？</RouterLink>
       </div>
 
-      <UiButton @click="onLogin" :disabled="loading" class="auth-submit-btn">
+      <UiButton type="submit" :disabled="loading" class="auth-submit-btn">
         {{ loading ? '登录中…' : '登录' }}
       </UiButton>
 
@@ -47,7 +47,7 @@
         <span class="muted">·</span>
         <RouterLink to="/posts" class="muted">返回社区</RouterLink>
       </div>
-    </div>
+    </form>
   </UiCard>
 </template>
 

@@ -1,6 +1,6 @@
 // 路由守卫：处理登录态与页面级权限（体验层），最终权限仍以后端为准。
 
-import { ensureSessionReady } from '../auth/session'
+import { ensureSessionReady, shouldBootstrapSession } from '../auth/session'
 import { useAuthStore } from '../stores/auth'
 
 export async function authGuard(to) {
@@ -9,8 +9,16 @@ export async function authGuard(to) {
   const requiresAuth = !!to.meta?.requiresAuth
   const roles = Array.isArray(to.meta?.roles) ? to.meta.roles : []
   const shouldResolveSession = requiresAuth || roles.length > 0 || to.name === 'login'
+  const canAttemptSessionRestore = !!auth.accessToken || shouldBootstrapSession({ auth })
 
   if (shouldResolveSession) {
+    if (!canAttemptSessionRestore) {
+      if (to.name === 'login') {
+        return
+      }
+      return { name: 'login', query: { redirect: to.fullPath } }
+    }
+
     const session = await ensureSessionReady({ auth })
     if (to.name === 'login') {
       if (session.state === 'ready' || (session.state === 'error' && auth.accessToken)) {

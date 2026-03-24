@@ -3,38 +3,17 @@
   <div class="page relations-page">
     <UiBreadcrumb />
 
-    <UiCard flat class="relations-hero">
-      <UiPageHeader>
-        <template #title>关注</template>
-        <template #subtitle>查看这位成员正在持续关注的公开身份与关系变化。</template>
-        <template #actions>
-          <UiButton variant="secondary" @click="load" :disabled="loading">{{ loading ? '加载中…' : '刷新' }}</UiButton>
-        </template>
-      </UiPageHeader>
-
-      <div class="relations-hero-grid">
-        <div class="relations-hero-card">
-          <span class="relations-eyebrow">Followees</span>
-          <strong>{{ items.length }}</strong>
-          <p>把公开社交关系整理成更接近个人档案延展页的阅读体验。</p>
-        </div>
-        <div class="relations-hero-card">
-          <span class="relations-eyebrow">资料对象</span>
-          <strong>当前关系视图</strong>
-          <p>当前列表对应成员 #{{ userId }}，仅改变呈现方式，不改动分页、关注状态和操作逻辑。</p>
-        </div>
-      </div>
-    </UiCard>
-
     <div v-if="error && items.length > 0" class="error relations-banner">{{ error }}</div>
 
     <UiCard class="relations-shell">
       <div class="relations-shell-head">
-        <div>
-          <div class="relations-eyebrow">Network</div>
-          <h2>正在关注的人</h2>
-          <p>这里展示的是公开可见的关注关系，适合继续跳转到对方主页或调整关注状态。</p>
-        </div>
+        <UiPageHeader>
+          <template #title>关注</template>
+          <template #subtitle>查看这位成员正在持续关注的公开身份与关系变化。</template>
+          <template #actions>
+            <UiButton variant="secondary" @click="load" :disabled="loading">{{ loading ? '加载中…' : '刷新' }}</UiButton>
+          </template>
+        </UiPageHeader>
       </div>
 
       <div class="relations-toolbar">
@@ -186,39 +165,6 @@ onMounted(load)
   gap: var(--space-5);
 }
 
-.relations-hero {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.relations-hero-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.relations-hero-card {
-  padding: 18px 20px;
-  border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, var(--border) 84%, var(--accent) 16%);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, white 8%), var(--surface));
-  display: grid;
-  gap: 6px;
-}
-
-.relations-hero-card strong {
-  font-size: clamp(1.6rem, 3vw, 2.15rem);
-  line-height: 1;
-}
-
-.relations-hero-card p,
-.relations-shell-head p {
-  margin: 0;
-  color: var(--text-2);
-  line-height: 1.55;
-}
-
 .relations-eyebrow {
   font-size: 11px;
   letter-spacing: 0.16em;
@@ -240,9 +186,12 @@ onMounted(load)
   padding: 22px 24px 12px;
 }
 
-.relations-shell-head h2 {
-  margin: 6px 0 4px;
-  font-size: 1.15rem;
+.relations-shell-head :deep(.page-header) {
+  gap: 0;
+}
+
+.relations-shell-head :deep(.page-header-subtitle) {
+  margin: 4px 0 0;
 }
 
 .relations-toolbar {
@@ -332,10 +281,6 @@ onMounted(load)
 }
 
 @media (max-width: 768px) {
-  .relations-hero-grid {
-    grid-template-columns: 1fr;
-  }
-
   .relations-shell-head,
   .relations-toolbar,
   .relation-card {

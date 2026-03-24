@@ -2,39 +2,18 @@
   <div class="page leaderboard-page">
     <UiBreadcrumb />
 
-    <UiCard flat class="leaderboard-hero">
-      <UiPageHeader>
-        <template #title>排行榜</template>
-        <template #subtitle>查看当前社区里最活跃、最有影响力的公开身份。</template>
-        <template #actions>
-          <UiButton variant="secondary" :disabled="loading" @click="reload">刷新</UiButton>
-        </template>
-      </UiPageHeader>
-
-      <div class="leaderboard-hero-grid">
-        <div class="leaderboard-hero-card">
-          <span class="leaderboard-eyebrow">Top Profile</span>
-          <strong>{{ items[0]?.username || '等待刷新' }}</strong>
-          <p>榜首会随着公开积分变化实时调整，适合作为当前社区活跃度的切面。</p>
-        </div>
-        <div class="leaderboard-hero-card">
-          <span class="leaderboard-eyebrow">上榜人数</span>
-          <strong>{{ items.length }}</strong>
-          <p>列表保留层级感和个人身份信息，而不是只显示一串排名与用户编号。</p>
-        </div>
-      </div>
-    </UiCard>
-
     <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
     <div v-else-if="loading" class="muted leaderboard-state">正在加载排行榜…</div>
 
     <UiCard v-else class="leaderboard-shell">
       <div class="leaderboard-shell-head">
-        <div>
-          <div class="leaderboard-eyebrow">Community Ranking</div>
-          <h2>公开积分榜</h2>
-          <p>榜单成员的头像、等级和分值都会直接映射到个人主页与公开互动里。</p>
-        </div>
+        <UiPageHeader>
+          <template #title>排行榜</template>
+          <template #subtitle>查看当前社区里最活跃、最有影响力的公开身份。</template>
+          <template #actions>
+            <UiButton variant="secondary" :disabled="loading" @click="reload">刷新</UiButton>
+          </template>
+        </UiPageHeader>
       </div>
 
       <UiEmpty v-if="items.length === 0" class="leaderboard-empty">暂无数据</UiEmpty>
@@ -117,39 +96,6 @@ onMounted(reload)
   gap: var(--space-5);
 }
 
-.leaderboard-hero {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.leaderboard-hero-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.leaderboard-hero-card {
-  padding: 18px 20px;
-  border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, var(--border) 84%, var(--accent) 16%);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, white 8%), var(--surface));
-  display: grid;
-  gap: 6px;
-}
-
-.leaderboard-hero-card strong {
-  font-size: clamp(1.6rem, 3vw, 2.15rem);
-  line-height: 1;
-}
-
-.leaderboard-hero-card p,
-.leaderboard-shell-head p {
-  margin: 0;
-  color: var(--text-2);
-  line-height: 1.55;
-}
-
 .leaderboard-eyebrow {
   font-size: 11px;
   letter-spacing: 0.16em;
@@ -173,9 +119,12 @@ onMounted(reload)
   background: color-mix(in srgb, var(--surface) 92%, var(--bg) 8%);
 }
 
-.leaderboard-shell-head h2 {
-  margin: 6px 0 4px;
-  font-size: 1.15rem;
+.leaderboard-shell-head :deep(.page-header) {
+  gap: 0;
+}
+
+.leaderboard-shell-head :deep(.page-header-subtitle) {
+  margin: 4px 0 0;
 }
 
 .leaderboard-empty {
@@ -278,10 +227,6 @@ onMounted(reload)
 }
 
 @media (max-width: 768px) {
-  .leaderboard-hero-grid {
-    grid-template-columns: 1fr;
-  }
-
   .leaderboard-shell-head,
   .leaderboard-row {
     padding-left: 18px;

@@ -6,7 +6,7 @@
         <div class="sidebar-brand-mark" aria-hidden="true">{{ props.mode === 'admin' ? 'M' : 'C' }}</div>
         <span v-if="!ui.sidebarCollapsed" class="sidebar-brand-copy">
           <span class="sidebar-brand-text">{{ props.mode === 'admin' ? 'Moderation Desk' : 'Community' }}</span>
-          <span class="sidebar-brand-sub">{{ props.mode === 'admin' ? '运营工作台' : '讨论版编辑部' }}</span>
+          <span class="sidebar-brand-sub">{{ props.mode === 'admin' ? '运营工作台' : '讨论区工作台' }}</span>
         </span>
       </RouterLink>
 
@@ -230,41 +230,8 @@
       </div>
     </div>
 
-    <div class="sidebar-footer">
-      <div class="sidebar-footer-actions">
-        <button
-          class="btn-icon"
-          type="button"
-          :title="ui.theme === 'dark' ? '切换到浅色' : '切换到深色'"
-          :aria-label="ui.theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'"
-          @click="ui.toggleTheme"
-        >
-          <span v-if="ui.theme === 'dark'" aria-hidden="true">☀️</span>
-          <span v-else aria-hidden="true">🌙</span>
-        </button>
-
-        <button
-          class="btn-icon"
-          type="button"
-          :title="ui.density === 'compact' ? '切换到舒适' : '切换到紧凑'"
-          :aria-label="ui.density === 'compact' ? '切换到舒适密度' : '切换到紧凑密度'"
-          @click="ui.toggleDensity"
-        >
-          <svg v-if="ui.density === 'compact'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <line x1="3" y1="8" x2="21" y2="8" />
-            <line x1="3" y1="12" x2="21" y2="12" />
-            <line x1="3" y1="16" x2="21" y2="16" />
-          </svg>
-          <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <rect x="3" y="4" width="18" height="16" rx="2" />
-            <line x1="3" y1="10" x2="21" y2="10" />
-            <line x1="3" y1="15" x2="21" y2="15" />
-          </svg>
-        </button>
-      </div>
-
+    <div v-if="auth.authed && auth.userId" class="sidebar-footer">
       <RouterLink
-        v-if="auth.authed && auth.userId"
         :to="{ name: 'userProfile', params: { userId: String(auth.userId) } }"
         class="sidebar-user-link"
         @click="onNavClick"

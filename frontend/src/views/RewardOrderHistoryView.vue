@@ -2,21 +2,6 @@
   <div class="page reward-orders-page">
     <UiBreadcrumb />
 
-    <UiCard flat class="reward-orders-hero">
-      <UiPageHeader>
-        <template #title>兑换记录</template>
-        <template #subtitle>所有兑换结果都在这里保留状态快照，便于用户理解自己的兑换去向。</template>
-        <template #actions>
-          <div class="reward-orders-actions">
-            <UiButton variant="secondary" :disabled="loading" @click="reload">
-              {{ loading ? '刷新中…' : '刷新' }}
-            </UiButton>
-            <UiButton variant="secondary" @click="goShop">返回商城</UiButton>
-          </div>
-        </template>
-      </UiPageHeader>
-    </UiCard>
-
     <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
     <UiEmpty v-else-if="!loading && state.orders.length === 0">
       暂无兑换记录
@@ -25,6 +10,20 @@
     <div v-else-if="loading && state.orders.length === 0" class="muted reward-orders-state">正在加载兑换记录…</div>
 
     <UiCard v-else class="reward-orders-list">
+      <div class="reward-orders-head">
+        <UiPageHeader>
+          <template #title>兑换记录</template>
+          <template #subtitle>所有兑换结果都在这里保留状态快照，便于用户理解自己的兑换去向。</template>
+          <template #actions>
+            <div class="reward-orders-actions">
+              <UiButton variant="secondary" :disabled="loading" @click="reload">
+                {{ loading ? '刷新中…' : '刷新' }}
+              </UiButton>
+              <UiButton variant="secondary" @click="goShop">返回商城</UiButton>
+            </div>
+          </template>
+        </UiPageHeader>
+      </div>
       <article v-for="order in state.orders" :key="order.id" class="reward-order-row">
         <div class="reward-order-main">
           <div class="reward-order-title-row">
@@ -95,10 +94,22 @@ onMounted(reload)
   gap: var(--space-5);
 }
 
-.reward-orders-hero,
 .reward-orders-list {
   display: grid;
   gap: var(--space-4);
+}
+
+.reward-orders-head {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.reward-orders-head :deep(.page-header) {
+  gap: 0;
+}
+
+.reward-orders-head :deep(.page-header-subtitle) {
+  margin: 4px 0 0;
 }
 
 .reward-orders-actions {

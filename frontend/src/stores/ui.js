@@ -20,8 +20,7 @@ export const useUiStore = defineStore('ui', {
   state: () => ({
     theme: 'light', // light | dark
     density: 'compact', // comfortable | compact
-    sidebarCollapsed: false,
-    rightPanelOpen: true
+    sidebarCollapsed: false
   }),
   actions: {
     init() {
@@ -35,15 +34,10 @@ export const useUiStore = defineStore('ui', {
       // 技术社区默认更偏紧凑（PC 主场景信息密度更高）；老用户以 localStorage 为准不受影响。
       const density = clampEnum(parsed?.density, ['comfortable', 'compact'], 'compact')
       const sidebarCollapsed = typeof parsed?.sidebarCollapsed === 'boolean' ? parsed.sidebarCollapsed : window.innerWidth < 980
-      const rightPanelOpen =
-        typeof parsed?.rightPanelOpen === 'boolean'
-          ? parsed.rightPanelOpen
-          : window.innerWidth >= 1200
 
       this.theme = theme
       this.density = density
       this.sidebarCollapsed = sidebarCollapsed
-      this.rightPanelOpen = rightPanelOpen
 
       this.applyToDocument()
       this.persist()
@@ -62,8 +56,7 @@ export const useUiStore = defineStore('ui', {
         JSON.stringify({
           theme: this.theme,
           density: this.density,
-          sidebarCollapsed: this.sidebarCollapsed,
-          rightPanelOpen: this.rightPanelOpen
+          sidebarCollapsed: this.sidebarCollapsed
         })
       )
     },
@@ -95,11 +88,6 @@ export const useUiStore = defineStore('ui', {
 
     setSidebarCollapsed(v) {
       this.sidebarCollapsed = !!v
-      this.persist()
-    },
-
-    toggleRightPanel() {
-      this.rightPanelOpen = !this.rightPanelOpen
       this.persist()
     }
   }

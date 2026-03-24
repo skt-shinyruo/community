@@ -30,6 +30,11 @@ The following decisions were explicitly confirmed during brainstorming:
 - Placeholder handling: mock and half-finished UI may be removed rather than preserved
 - Recommended overall approach: "discussion workspace"
 
+Follow-up constraint:
+
+- public shell, public core page opening, and public mobile navigation were later narrowed by `docs/superpowers/specs/2026-03-23-community-public-shell-design.md`
+- when this document conflicts with that follow-up spec on `/posts`, `/posts/:postId`, `/search`, or shared public shell behavior, the 2026-03-23 spec wins
+
 ---
 
 ## 3. User Experience Problems to Solve
@@ -211,11 +216,15 @@ Loading, empty, success, warning, and error states should be visually coherent a
 
 ### 7.1 Public Shell
 
+The detailed public-shell contract in this section is partially superseded by `docs/superpowers/specs/2026-03-23-community-public-shell-design.md`.
+
+Use this section for broad intent only. For implementation-level direction on public shell, follow the newer spec.
+
 Public shell should remain multi-panel on desktop, but with changed emphasis:
 
 - left navigation remains available, but becomes quieter and more structural
 - center content becomes the dominant visual area
-- right panel becomes contextual support rather than a decorative column
+- historical note: this document originally assumed a contextual right panel, but the follow-up 2026-03-23 public-shell spec removes the public right panel entirely
 - topbar becomes simpler and less crowded, with search and essential actions only
 
 ### 7.2 Admin Shell
@@ -230,7 +239,7 @@ Admin pages should reuse the same technical shell but present as a tool desk:
 
 Mobile must not simply shrink desktop shapes. It needs dedicated patterns:
 
-- drawer-based primary navigation
+- historical note: this document originally pointed toward drawer-based primary navigation, but the follow-up 2026-03-23 public-shell spec fixes public mobile navigation to bottom tabs `Posts / Search / Me / More`
 - simpler topbar
 - bottom action access where appropriate
 - single-column discussion cards

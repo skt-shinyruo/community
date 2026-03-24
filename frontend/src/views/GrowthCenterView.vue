@@ -2,22 +2,15 @@
   <div class="page growth-page">
     <UiBreadcrumb />
 
-    <UiCard flat class="growth-hero">
-      <UiPageHeader>
-        <template #title>成长中心</template>
-        <template #subtitle>把签到、任务和奖励余额集中成一个稳定入口，用户能一眼看清今天的节奏与回报。</template>
-        <template #actions>
-          <div class="growth-hero-actions">
-            <UiButton variant="secondary" :disabled="loading || submitting" @click="reload">
-              {{ loading ? '刷新中…' : '刷新' }}
-            </UiButton>
-            <UiButton :disabled="submitting || header.checkedInToday" @click="handleCheckIn">
-              {{ header.checkedInToday ? '今日已签到' : (submitting ? '签到中…' : '立即签到') }}
-            </UiButton>
-          </div>
-        </template>
-      </UiPageHeader>
-
+    <section class="growth-head">
+      <div class="growth-hero-actions">
+        <UiButton variant="secondary" :disabled="loading || submitting" @click="reload">
+          {{ loading ? '刷新中…' : '刷新' }}
+        </UiButton>
+        <UiButton :disabled="submitting || header.checkedInToday" @click="handleCheckIn">
+          {{ header.checkedInToday ? '今日已签到' : (submitting ? '签到中…' : '立即签到') }}
+        </UiButton>
+      </div>
       <div class="growth-hero-grid">
         <div class="growth-hero-card">
           <span class="growth-hero-label">等级</span>
@@ -35,7 +28,7 @@
           <p>{{ header.streakText }}</p>
         </div>
       </div>
-    </UiCard>
+    </section>
 
     <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
     <div v-else-if="loading && !ready" class="muted growth-state">正在加载成长中心…</div>
@@ -67,9 +60,7 @@ import {
 } from '../api/services/growthService'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
-import UiCard from '../components/ui/UiCard.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
-import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { buildGrowthCenterState } from './growthCenterState'
 import SignInCalendarView from './SignInCalendarView.vue'
 import TaskCenterView from './TaskCenterView.vue'
@@ -147,7 +138,7 @@ onMounted(reload)
   gap: var(--space-5);
 }
 
-.growth-hero {
+.growth-head {
   display: grid;
   gap: var(--space-4);
 }

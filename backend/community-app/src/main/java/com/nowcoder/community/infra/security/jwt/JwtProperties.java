@@ -11,6 +11,12 @@ public class JwtProperties {
     private long accessTokenTtlSeconds = 900;
     private long refreshTokenTtlSeconds = 604800;
 
+    /**
+     * Refresh token reuse grace window. If a revoked refresh token is presented again outside this window,
+     * we treat it as suspicious reuse and revoke the entire token family.
+     */
+    private long refreshReuseGraceSeconds = 10;
+
     private String refreshCookieName = "refresh_token";
     private String refreshCookiePath = "/api/auth";
     private String refreshCookieSameSite = "Lax";
@@ -48,6 +54,14 @@ public class JwtProperties {
         this.refreshTokenTtlSeconds = refreshTokenTtlSeconds;
     }
 
+    public long getRefreshReuseGraceSeconds() {
+        return refreshReuseGraceSeconds;
+    }
+
+    public void setRefreshReuseGraceSeconds(long refreshReuseGraceSeconds) {
+        this.refreshReuseGraceSeconds = refreshReuseGraceSeconds;
+    }
+
     public String getRefreshCookieName() {
         return refreshCookieName;
     }
@@ -80,4 +94,3 @@ public class JwtProperties {
         this.refreshCookieSecure = refreshCookieSecure;
     }
 }
-

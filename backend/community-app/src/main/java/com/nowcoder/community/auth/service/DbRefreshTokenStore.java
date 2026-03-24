@@ -1,6 +1,8 @@
 package com.nowcoder.community.auth.service;
 
+import com.nowcoder.community.infra.security.jwt.JwtProperties;
 import com.nowcoder.community.user.session.RefreshTokenSessionService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -8,6 +10,7 @@ import org.springframework.util.StringUtils;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.Instant;
 
 /**
@@ -20,9 +23,16 @@ import java.time.Instant;
 public class DbRefreshTokenStore implements RefreshTokenStore {
 
     private final RefreshTokenSessionService refreshTokenSessionService;
+    private final JwtProperties jwtProperties;
 
     public DbRefreshTokenStore(RefreshTokenSessionService refreshTokenSessionService) {
+        this(refreshTokenSessionService, new JwtProperties());
+    }
+
+    @Autowired
+    public DbRefreshTokenStore(RefreshTokenSessionService refreshTokenSessionService, JwtProperties jwtProperties) {
         this.refreshTokenSessionService = refreshTokenSessionService;
+        this.jwtProperties = jwtProperties == null ? new JwtProperties() : jwtProperties;
     }
 
     @Override
@@ -47,8 +57,39 @@ public class DbRefreshTokenStore implements RefreshTokenStore {
         if (!StringUtils.hasText(refreshToken)) {
             return null;
         }
-        RefreshTokenSessionService.RefreshTokenRecord record = refreshTokenSessionService.consume(sha256Hex(refreshToken));
-        return toStoredRefreshToken(refreshToken, record);
+        String tokenHash = sha256Hex(refreshToken);
+        RefreshTokenSessionService.RefreshTokenRecord record = refreshTokenSessionService.consume(tokenHash);
+        if (record != null) {
+            return toStoredRefreshToken(refreshToken, record);
+        }
+
+        // Consume failed: try to detect suspicious reuse of a revoked token.
+        RefreshTokenSessionService.RefreshTokenRecord found = refreshTokenSessionService.find(tokenHash);
+        maybeRevokeFamilyOnReuse(found);
+        return null;
+    }
+
+    private void maybeRevokeFamilyOnReuse(RefreshTokenSessionService.RefreshTokenRecord record) {
+        if (record == null) {
+            return;
+        }
+        Instant revokedAt = record.revokedAt();
+        if (revokedAt == null) {
+            return;
+        }
+        Instant now = Instant.now();
+        Instant expiresAt = record.expiresAt();
+        if (expiresAt == null || !expiresAt.isAfter(now)) {
+            return;
+        }
+
+        long graceSeconds = jwtProperties.getRefreshReuseGraceSeconds();
+        if (graceSeconds < 0) {
+            graceSeconds = 0;
+        }
+        if (Duration.between(revokedAt, now).compareTo(Duration.ofSeconds(graceSeconds)) > 0) {
+            revokeFamily(record.familyId());
+        }
     }
 
     private StoredRefreshToken toStoredRefreshToken(String refreshToken, RefreshTokenSessionService.RefreshTokenRecord record) {

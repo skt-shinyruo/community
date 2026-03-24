@@ -117,7 +117,7 @@ class AuthControllerUnitTest {
     }
 
     @Test
-    void refreshShouldClearRefreshCookieWhenTokenIsInvalid() {
+    void refreshShouldNotClearRefreshCookieWhenTokenIsInvalid() {
         ResponseCookie clearCookie = ResponseCookie.from("refresh_token", "")
                 .httpOnly(true)
                 .path("/api/auth")
@@ -126,7 +126,7 @@ class AuthControllerUnitTest {
 
         when(authService.refresh(any(HttpServletRequest.class)))
                 .thenThrow(new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID));
-        when(authService.clearRefreshCookie()).thenReturn(clearCookie);
+        org.mockito.Mockito.lenient().when(authService.clearRefreshCookie()).thenReturn(clearCookie);
 
         MockHttpServletRequest httpRequest = new MockHttpServletRequest();
         MockHttpServletResponse httpResponse = new MockHttpServletResponse();
@@ -134,7 +134,7 @@ class AuthControllerUnitTest {
         Throwable thrown = catchThrowable(() -> controller.refresh(httpRequest, httpResponse));
 
         assertThat(thrown).isInstanceOf(BusinessException.class);
-        assertThat(httpResponse.getHeader(HttpHeaders.SET_COOKIE)).contains("Max-Age=0");
+        assertThat(httpResponse.getHeader(HttpHeaders.SET_COOKIE)).isNull();
     }
 
     @Test

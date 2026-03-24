@@ -5,6 +5,10 @@ import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.trace.TraceId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.MethodParameter;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.StringHttpMessageConverter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -38,6 +42,49 @@ class ResultTest {
     }
 
     @Test
+    void adviceShouldWrapPlainBodyIntoResultAndFillTraceId() throws Exception {
+        TraceId.set("t4");
+        SamplePayload payload = new SamplePayload("hello");
+
+        ResultTraceIdAdvice advice = new ResultTraceIdAdvice();
+        Object body = advice.beforeBodyWrite(payload, returnType("plainPayload"), null, null, null, null);
+
+        assertThat(body).isInstanceOf(Result.class);
+        Result<?> result = (Result<?>) body;
+        assertThat(result.getCode()).isEqualTo(0);
+        assertThat(result.getData()).isSameAs(payload);
+        assertThat(result.getTraceId()).isEqualTo("t4");
+    }
+
+    @Test
+    void supportsShouldSkipStringResponses() throws Exception {
+        ResultTraceIdAdvice advice = new ResultTraceIdAdvice();
+
+        assertThat(advice.supports(returnType("plainString"), StringHttpMessageConverter.class)).isFalse();
+    }
+
+    @Test
+    void supportsShouldSkipResponseEntityResponses() throws Exception {
+        ResultTraceIdAdvice advice = new ResultTraceIdAdvice();
+
+        assertThat(advice.supports(returnType("resourceResponse"), StringHttpMessageConverter.class)).isFalse();
+    }
+
+    @Test
+    void supportsShouldKeepResponseEntityResultResponsesEnabled() throws Exception {
+        ResultTraceIdAdvice advice = new ResultTraceIdAdvice();
+
+        assertThat(advice.supports(returnType("wrappedResponse"), null)).isTrue();
+    }
+
+    @Test
+    void supportsShouldSkipVoidResponses() throws Exception {
+        ResultTraceIdAdvice advice = new ResultTraceIdAdvice();
+
+        assertThat(advice.supports(returnType("noContent"), StringHttpMessageConverter.class)).isFalse();
+    }
+
+    @Test
     void shouldSerializeToJson() throws Exception {
         TraceId.set("t3");
         ObjectMapper mapper = new ObjectMapper();
@@ -46,5 +93,44 @@ class ResultTest {
         assertThat(json).contains("\"data\":\"x\"");
         assertThat(json).contains("\"traceId\":null");
         assertThat(json).contains("\"timestamp\":");
+    }
+
+    private static MethodParameter returnType(String methodName) throws NoSuchMethodException {
+        return new MethodParameter(SampleReturnTypes.class.getMethod(methodName), -1);
+    }
+
+    static class SampleReturnTypes {
+
+        public SamplePayload plainPayload() {
+            return null;
+        }
+
+        public String plainString() {
+            return "";
+        }
+
+        public ResponseEntity<Resource> resourceResponse() {
+            return ResponseEntity.ok().build();
+        }
+
+        public ResponseEntity<Result<String>> wrappedResponse() {
+            return ResponseEntity.ok(Result.ok("x"));
+        }
+
+        public void noContent() {
+        }
+    }
+
+    static class SamplePayload {
+
+        private final String value;
+
+        SamplePayload(String value) {
+            this.value = value;
+        }
+
+        public String getValue() {
+            return value;
+        }
     }
 }

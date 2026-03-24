@@ -17,14 +17,15 @@ describe('authGuard', () => {
     shouldBootstrapSession.mockReturnValue(false)
   })
 
-  it('should redirect to login without attempting session restore when route requires auth and no token or session hint', async () => {
+  it('should attempt silent restore for protected routes even when there is no token or session hint', async () => {
     const auth = useAuthStore()
     auth.clear()
+    ensureSessionReady.mockResolvedValue({ state: 'anonymous' })
 
     const to = { name: 'dev', fullPath: '/dev', meta: { requiresAuth: true } }
     const result = await authGuard(to)
     expect(result).toEqual({ name: 'login', query: { redirect: '/dev' } })
-    expect(ensureSessionReady).not.toHaveBeenCalled()
+    expect(ensureSessionReady).toHaveBeenCalledTimes(1)
   })
 
   it('should attempt session restore for protected routes when a previous session hint exists', async () => {

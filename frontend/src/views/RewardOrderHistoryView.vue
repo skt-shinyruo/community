@@ -2,28 +2,29 @@
   <div class="page reward-orders-page">
     <UiBreadcrumb />
 
-    <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
-    <UiEmpty v-else-if="!loading && state.orders.length === 0">
+    <div v-if="surface.showHeader" class="reward-orders-head">
+      <UiPageHeader>
+        <template #title>{{ surface.title }}</template>
+        <template #subtitle>{{ surface.subtitle }}</template>
+        <template #actions>
+          <div class="reward-orders-actions">
+            <UiButton variant="secondary" :disabled="loading" @click="reload">
+              {{ loading ? '刷新中…' : '刷新' }}
+            </UiButton>
+            <UiButton v-if="surface.canReturnToShop" variant="secondary" @click="goShop">返回商城</UiButton>
+          </div>
+        </template>
+      </UiPageHeader>
+    </div>
+
+    <UiEmpty v-if="surface.bodyState === 'error'" type="error">{{ error }}</UiEmpty>
+    <UiEmpty v-else-if="surface.bodyState === 'empty'">
       暂无兑换记录
       <template #description>兑换成功后，自动发放和人工履约都会在这里保留一条状态记录。</template>
     </UiEmpty>
-    <div v-else-if="loading && state.orders.length === 0" class="muted reward-orders-state">正在加载兑换记录…</div>
+    <div v-else-if="surface.bodyState === 'loading'" class="muted reward-orders-state">正在加载兑换记录…</div>
 
     <UiCard v-else class="reward-orders-list">
-      <div class="reward-orders-head">
-        <UiPageHeader>
-          <template #title>兑换记录</template>
-          <template #subtitle>所有兑换结果都在这里保留状态快照，便于用户理解自己的兑换去向。</template>
-          <template #actions>
-            <div class="reward-orders-actions">
-              <UiButton variant="secondary" :disabled="loading" @click="reload">
-                {{ loading ? '刷新中…' : '刷新' }}
-              </UiButton>
-              <UiButton variant="secondary" @click="goShop">返回商城</UiButton>
-            </div>
-          </template>
-        </UiPageHeader>
-      </div>
       <article v-for="order in state.orders" :key="order.id" class="reward-order-row">
         <div class="reward-order-main">
           <div class="reward-order-title-row">
@@ -52,6 +53,7 @@ import UiEmpty from '../components/ui/UiEmpty.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiTag from '../components/ui/UiTag.vue'
 import { buildRewardShopState } from './rewardShopState'
+import { buildRewardOrderHistorySurface } from './rewardOrderHistorySurface'
 
 const router = useRouter()
 
@@ -64,6 +66,14 @@ const state = computed(() =>
     rewardBalance: 0,
     items: [],
     orders: orders.value
+  })
+)
+
+const surface = computed(() =>
+  buildRewardOrderHistorySurface({
+    loading: loading.value,
+    error: error.value,
+    orders: state.value.orders
   })
 )
 
@@ -94,9 +104,19 @@ onMounted(reload)
   gap: var(--space-5);
 }
 
+.reward-orders-head {
+  padding: 0 0 8px;
+  margin-bottom: 4px;
+}
+
 .reward-orders-list {
   display: grid;
   gap: var(--space-4);
+}
+
+.reward-orders-list,
+.reward-orders-head {
+  width: 100%;
 }
 
 .reward-orders-head {

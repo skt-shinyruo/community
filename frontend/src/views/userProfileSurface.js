@@ -3,10 +3,14 @@ function toCount(value) {
   return Number.isFinite(count) && count > 0 ? count : 0
 }
 
-export function describeFollowStatusText({ followStatus, authed, isSelf } = {}) {
+export function describeFollowStatusText({ followStatus, followStatusState = 'idle', authed, isSelf } = {}) {
   if (isSelf) return '这是你的主页'
   if (followStatus === true) return '你已关注'
-  if (authed) return '公开可关注'
+  if (authed) {
+    if (followStatus === false && followStatusState === 'ready') return '公开可关注'
+    if (followStatusState === 'error') return '关系暂不可用'
+    return '关系查询中'
+  }
   return '公开可见'
 }
 
@@ -15,6 +19,7 @@ export function buildCommunitySignals({
   joinedYear,
   socialDegraded,
   followStatus,
+  followStatusState,
   authed,
   isSelf
 } = {}) {
@@ -25,7 +30,7 @@ export function buildCommunitySignals({
   const followeeCount = toCount(profile?.followeeCount)
   const score = toCount(profile?.score)
 
-  const statusValue = describeFollowStatusText({ followStatus, authed, isSelf })
+  const statusValue = describeFollowStatusText({ followStatus, followStatusState, authed, isSelf })
 
   return [
     {

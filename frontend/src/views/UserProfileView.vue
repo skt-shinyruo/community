@@ -27,8 +27,23 @@
         <div class="profile-actions">
           <UiButton variant="secondary" :disabled="loading" @click="reload">刷新</UiButton>
           <template v-if="authed && meUserId && meUserId !== Number(userId)">
-            <UiButton v-if="followStatus === false" @click="doFollow(true)" :disabled="actionLoading" class="primary">关注</UiButton>
-            <UiButton variant="secondary" v-else-if="followStatus === true" @click="doFollow(false)" :disabled="actionLoading">取消关注</UiButton>
+            <UiButton
+              v-if="followStatus === false && followStatusState === 'ready'"
+              @click="doFollow(true)"
+              :disabled="actionLoading"
+              class="primary"
+            >
+              关注
+            </UiButton>
+            <UiButton
+              variant="secondary"
+              v-else-if="followStatus === true && followStatusState === 'ready'"
+              @click="doFollow(false)"
+              :disabled="actionLoading"
+            >
+              取消关注
+            </UiButton>
+            <UiButton variant="secondary" v-else-if="followStatusState === 'error'" disabled>暂不可用</UiButton>
             <UiButton variant="secondary" v-else disabled>查询中…</UiButton>
             <UiButton
               :variant="isBlocked ? 'dangerSecondary' : 'secondary'"
@@ -220,6 +235,7 @@ const socialDegraded = computed(() => !!profile.value?.socialDegraded)
 const meUserId = computed(() => Number(auth.userId || 0))
 const actionLoading = ref(false)
 const followStatus = ref(null)
+const followStatusState = ref('idle')
 const reportOpen = ref(false)
 
 const prefs = useSocialPrefsStore()
@@ -237,6 +253,7 @@ const isSelfProfile = computed(() => !!meUserId.value && meUserId.value === Numb
 const followStatusText = computed(() =>
   describeFollowStatusText({
     followStatus: followStatus.value,
+    followStatusState: followStatusState.value,
     authed: authed.value,
     isSelf: isSelfProfile.value
   })
@@ -248,6 +265,7 @@ const communitySignals = computed(() =>
     joinedYear: joinedYear.value,
     socialDegraded: socialDegraded.value,
     followStatus: followStatus.value,
+    followStatusState: followStatusState.value,
     authed: authed.value,
     isSelf: isSelfProfile.value
   })
@@ -331,14 +349,18 @@ async function loadTimelineUsers() {
 async function loadFollowStatus() {
   if (!authed.value || !meUserId.value || meUserId.value === Number(userId.value)) {
     followStatus.value = null
+    followStatusState.value = 'idle'
     return
   }
+  followStatusState.value = 'loading'
   try {
     const resp = await getFollowStatus(3, Number(userId.value), { force: true })
     emit('trace', resp?.traceId || '')
     followStatus.value = resp?.data ?? null
+    followStatusState.value = typeof resp?.data === 'boolean' ? 'ready' : 'error'
   } catch {
     followStatus.value = null
+    followStatusState.value = 'error'
   }
 }
 

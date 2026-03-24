@@ -50,7 +50,9 @@ describe('userProfileSurface', () => {
   it('describes follow status for self, followed, available, and anonymous states', () => {
     expect(describeFollowStatusText({ authed: true, isSelf: true, followStatus: null })).toBe('这是你的主页')
     expect(describeFollowStatusText({ authed: true, isSelf: false, followStatus: true })).toBe('你已关注')
-    expect(describeFollowStatusText({ authed: true, isSelf: false, followStatus: false })).toBe('公开可关注')
+    expect(describeFollowStatusText({ authed: true, isSelf: false, followStatus: false, followStatusState: 'ready' })).toBe('公开可关注')
+    expect(describeFollowStatusText({ authed: true, isSelf: false, followStatus: null, followStatusState: 'loading' })).toBe('关系查询中')
+    expect(describeFollowStatusText({ authed: true, isSelf: false, followStatus: null, followStatusState: 'error' })).toBe('关系暂不可用')
     expect(describeFollowStatusText({ authed: false, isSelf: false, followStatus: null })).toBe('公开可见')
   })
 })

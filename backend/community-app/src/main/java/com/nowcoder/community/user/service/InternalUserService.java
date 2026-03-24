@@ -12,13 +12,13 @@ import org.springframework.util.DigestUtils;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
-import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.user.exception.UserErrorCode.EMAIL_ALREADY_EXISTS;
@@ -27,10 +27,6 @@ import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND
 
 @Service
 public class InternalUserService {
-
-    public static final int ACTIVATION_SUCCESS = 0;
-    public static final int ACTIVATION_REPEAT = 1;
-    public static final int ACTIVATION_FAILURE = 2;
     private static final String USERNAME_UNIQUE_CONSTRAINT = "uk_user_username";
     private static final String EMAIL_UNIQUE_CONSTRAINT = "uk_user_email";
 
@@ -81,6 +77,20 @@ public class InternalUserService {
         return user;
     }
 
+    public void activateUser(int userId) {
+        if (userId <= 0) {
+            throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
+        }
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(USER_NOT_FOUND);
+        }
+        int updated = userMapper.updateStatus(userId, 1);
+        if (updated <= 0) {
+            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "更新用户状态失败");
+        }
+    }
+
     public User findByEmailOrNull(String email) {
         String e = safeTrim(email);
         if (!StringUtils.hasText(e)) {
@@ -90,7 +100,7 @@ public class InternalUserService {
     }
 
     @Transactional
-    public User register(String username, String password, String email) {
+    public User register(String username, String password, String email, Duration pendingTtl) {
         String u = safeTrim(username);
         String p = safeTrim(password);
         String emailValue = safeTrim(email);
@@ -98,6 +108,10 @@ public class InternalUserService {
         if (!StringUtils.hasText(u) || !StringUtils.hasText(p) || !StringUtils.hasText(emailValue)) {
             throw new BusinessException(INVALID_ARGUMENT, "用户名/密码/邮箱不能为空");
         }
+
+        Date pendingCutoff = pendingUserCutoff(pendingTtl);
+        cleanupExpiredPendingConflict(userMapper.selectByName(u), pendingCutoff);
+        cleanupExpiredPendingConflict(userMapper.selectByEmail(emailValue), pendingCutoff);
 
         if (userMapper.selectByName(u) != null) {
             throw new BusinessException(USER_ALREADY_EXISTS);
@@ -113,7 +127,6 @@ public class InternalUserService {
         user.setEmail(emailValue);
         user.setType(0);
         user.setStatus(0);
-        user.setActivationCode(uuid());
         user.setHeaderUrl(String.format("http://images.nowcoder.com/head/%dt.png", new Random().nextInt(1000)));
         user.setCreateTime(new Date());
 
@@ -140,22 +153,26 @@ public class InternalUserService {
         return user;
     }
 
-    public int activate(int userId, String activationCode) {
-        if (userId <= 0 || !StringUtils.hasText(activationCode)) {
-            return ACTIVATION_FAILURE;
+    public User getPendingRegistrationUser(int userId, Duration pendingTtl) {
+        if (userId <= 0) {
+            throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         User user = userMapper.selectById(userId);
         if (user == null) {
-            return ACTIVATION_FAILURE;
+            throw new BusinessException(USER_NOT_FOUND);
         }
-        if (user.getStatus() == 1) {
-            return ACTIVATION_REPEAT;
+
+        Date cutoff = pendingUserCutoff(pendingTtl);
+        if (isExpiredPendingUser(user, cutoff)) {
+            userMapper.deletePendingUserIfExpired(user.getId(), 0, cutoff);
+            throw new BusinessException(USER_NOT_FOUND, "注册已过期，请重新注册");
         }
-        if (activationCode.equals(user.getActivationCode())) {
-            userMapper.updateStatus(userId, 1);
-            return ACTIVATION_SUCCESS;
-        }
-        return ACTIVATION_FAILURE;
+        return user;
+    }
+
+    public int cleanupExpiredPendingUsers(Duration pendingTtl) {
+        Date cutoff = pendingUserCutoff(pendingTtl);
+        return userMapper.deleteExpiredPendingUsers(0, cutoff);
     }
 
     public void updatePassword(int userId, String newPassword) {
@@ -304,6 +321,29 @@ public class InternalUserService {
         return Math.min(max, s);
     }
 
+    private void cleanupExpiredPendingConflict(User user, Date cutoff) {
+        if (isExpiredPendingUser(user, cutoff)) {
+            userMapper.deletePendingUserIfExpired(user.getId(), 0, cutoff);
+        }
+    }
+
+    private boolean isExpiredPendingUser(User user, Date cutoff) {
+        if (user == null || cutoff == null) {
+            return false;
+        }
+        if (user.getStatus() != 0 || user.getCreateTime() == null) {
+            return false;
+        }
+        return !user.getCreateTime().after(cutoff);
+    }
+
+    private Date pendingUserCutoff(Duration pendingTtl) {
+        Duration ttl = pendingTtl == null || pendingTtl.isZero() || pendingTtl.isNegative()
+                ? Duration.ofMinutes(30)
+                : pendingTtl;
+        return Date.from(Instant.now().minus(ttl));
+    }
+
     public static class ModerationStatus {
         private int userId;
         private Instant muteUntil;
@@ -390,10 +430,6 @@ public class InternalUserService {
 
     private String md5(String input) {
         return DigestUtils.md5DigestAsHex(input.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private String uuid() {
-        return UUID.randomUUID().toString().replace("-", "");
     }
 
     private String safeTrim(String s) {

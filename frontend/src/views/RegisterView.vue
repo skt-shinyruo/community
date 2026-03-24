@@ -6,42 +6,86 @@
     </UiPageHeader>
 
     <div class="stack auth-form">
-      <div class="auth-field">
-        <div class="field-label">用户名</div>
-        <UiInput v-model.trim="form.username" placeholder="请输入用户名" autocomplete="username" />
-      </div>
-
-      <div class="auth-field">
-        <div class="field-label">邮箱</div>
-        <UiInput v-model.trim="form.email" placeholder="name@example.com" autocomplete="email" />
-      </div>
-
-      <div class="auth-field">
-        <div class="field-label">密码</div>
-        <UiInput v-model.trim="form.password" placeholder="请输入密码" type="password" autocomplete="new-password" />
-      </div>
-
-      <div class="auth-field">
-        <div class="field-label">验证码</div>
-        <div class="row captcha-row">
-          <UiInput v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" class="captcha-input" />
-          <img
-            v-if="captchaSrc"
-            :src="captchaSrc"
-            alt="验证码"
-            title="点击刷新验证码"
-            class="captcha-img"
-            @click="refreshCaptcha"
-          />
+      <template v-if="flow.step === 'form'">
+        <div class="auth-field">
+          <div class="field-label">用户名</div>
+          <UiInput v-model.trim="form.username" placeholder="请输入用户名" autocomplete="username" />
         </div>
-      </div>
+
+        <div class="auth-field">
+          <div class="field-label">邮箱</div>
+          <UiInput v-model.trim="form.email" placeholder="name@example.com" autocomplete="email" />
+        </div>
+
+        <div class="auth-field">
+          <div class="field-label">密码</div>
+          <UiInput v-model.trim="form.password" placeholder="请输入密码" type="password" autocomplete="new-password" />
+        </div>
+
+        <div class="auth-field">
+          <div class="field-label">图形验证码</div>
+          <div class="row captcha-row">
+            <UiInput v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" class="captcha-input" />
+            <img
+              v-if="captchaSrc"
+              :src="captchaSrc"
+              alt="验证码"
+              title="点击刷新验证码"
+              class="captcha-img"
+              @click="refreshCaptcha"
+            />
+          </div>
+        </div>
+      </template>
+
+      <template v-else>
+        <div class="verify-block">
+          <div class="verify-title">输入邮箱验证码</div>
+          <div class="muted">
+            验证码已发送至 {{ flow.maskedEmail || '你的邮箱' }}，输入后将直接登录。
+          </div>
+        </div>
+
+        <div class="auth-field">
+          <div class="field-label">邮箱验证码</div>
+          <UiInput v-model.trim="form.emailCode" placeholder="请输入邮箱验证码" autocomplete="one-time-code" />
+        </div>
+
+        <div class="auth-field">
+          <div class="field-label">重发图形验证码</div>
+          <div class="row captcha-row">
+            <UiInput v-model.trim="form.captcha" placeholder="重新发送前请输入图形验证码" autocomplete="off" class="captcha-input" />
+            <img
+              v-if="captchaSrc"
+              :src="captchaSrc"
+              alt="验证码"
+              title="点击刷新验证码"
+              class="captcha-img"
+              @click="refreshCaptcha"
+            />
+          </div>
+        </div>
+      </template>
 
       <div v-if="error" class="error">{{ error }}</div>
       <div v-if="successMsg" class="success">{{ successMsg }}</div>
 
-      <UiButton @click="onRegister" :disabled="loading" class="auth-submit-btn">
-        {{ loading ? '注册中…' : '注册' }}
-      </UiButton>
+      <template v-if="flow.step === 'form'">
+        <UiButton @click="onRegister" :disabled="loading" class="auth-submit-btn">
+          {{ loading ? '注册中…' : '注册' }}
+        </UiButton>
+      </template>
+
+      <template v-else>
+        <div class="verify-actions">
+          <UiButton @click="onVerifyCode" :disabled="loading" class="auth-submit-btn">
+            {{ loading ? '验证中…' : '验证并登录' }}
+          </UiButton>
+          <UiButton variant="secondary" @click="onResendCode" :disabled="loading">
+            {{ loading ? '发送中…' : '重新发送验证码' }}
+          </UiButton>
+        </div>
+      </template>
 
       <div class="row auth-links">
         <span class="muted">已有账号？</span>
@@ -49,43 +93,62 @@
         <span class="muted">·</span>
         <RouterLink to="/posts" class="muted">返回社区</RouterLink>
       </div>
-    </div>
 
-    <template v-if="activationLink">
-      <UiDivider />
       <div class="auth-debug-block">
-        <div class="auth-debug-title">开发/测试激活链接</div>
-        <div class="muted auth-debug-link">{{ activationLink }}</div>
-        <div class="auth-debug-actions">
-          <UiButton variant="secondary" @click="goActivation">打开激活页</UiButton>
-        </div>
+        <template v-if="flow.debugEmailCode">
+          <div class="auth-debug-title">开发/测试验证码</div>
+          <div class="muted auth-debug-link">{{ flow.debugEmailCode }}</div>
+        </template>
       </div>
-    </template>
+    </div>
   </UiCard>
 </template>
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { register as apiRegister, issueCaptcha } from '../api/services/authService'
+import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
+import { buildRegisterFlowState, clearRegisterFlowState, persistRegisterFlowState, resolveRegisterFlowError, restoreRegisterFlowState } from './registerFlowState'
+import { me as apiMe, register as apiRegister, resendRegisterCode, verifyRegisterCode, issueCaptcha } from '../api/services/authService'
 import UiCard from '../components/ui/UiCard.vue'
-import UiDivider from '../components/ui/UiDivider.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 
 const emit = defineEmits(['trace'])
+const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 
-const form = reactive({ username: '', password: '', email: '', captcha: '' })
+const form = reactive({ username: '', password: '', email: '', captcha: '', emailCode: '' })
 const loading = ref(false)
 const error = ref('')
 const successMsg = ref('')
 
-const resultUserId = ref(0)
-const activationLink = ref('')
+const flow = ref(restoreRegisterFlowState())
 const captchaId = ref('')
 const captchaSrc = ref('')
+
+if (flow.value.step === 'verify') {
+  successMsg.value = flow.value.successMessage
+}
+
+function applyFlow(nextFlow) {
+  const normalized = buildRegisterFlowState(nextFlow)
+  flow.value = normalized
+  if (normalized.step === 'verify') {
+    persistRegisterFlowState(normalized)
+  } else {
+    clearRegisterFlowState()
+  }
+}
+
+function resetPersistedFlow(message) {
+  applyFlow(buildRegisterFlowState())
+  form.emailCode = ''
+  successMsg.value = ''
+  error.value = message
+}
 
 async function refreshCaptcha() {
   try {
@@ -103,8 +166,7 @@ async function refreshCaptcha() {
 async function onRegister() {
   error.value = ''
   successMsg.value = ''
-  activationLink.value = ''
-  resultUserId.value = 0
+  applyFlow(buildRegisterFlowState())
 
   if (!form.username || !form.password || !form.email || !form.captcha) {
     error.value = '请填写完整信息'
@@ -121,13 +183,11 @@ async function onRegister() {
       captchaCode: form.captcha
     })
     emit('trace', traceId || '')
-    resultUserId.value = data?.userId ?? 0
-    activationLink.value = data?.activationLink || ''
-    if (activationLink.value) {
-      successMsg.value = '注册成功：请使用下方链接完成激活（仅本地/测试环境回传）。'
-    } else {
-      successMsg.value = '注册成功：请前往邮箱完成激活；若长时间未收到邮件，请联系管理员。'
-    }
+    applyFlow(buildRegisterFlowState(data))
+    successMsg.value = flow.value.successMessage
+    form.password = ''
+    form.captcha = ''
+    await refreshCaptcha()
   } catch (e) {
     error.value = e?.message || '注册失败'
     if (e?.code === 10006 || e?.code === 10005) {
@@ -138,16 +198,86 @@ async function onRegister() {
   }
 }
 
-function goActivation() {
-  if (!activationLink.value) return
+async function onResendCode() {
+  error.value = ''
+  successMsg.value = ''
+
+  if (!flow.value.userId) {
+    error.value = '缺少注册上下文，请重新注册'
+    return
+  }
+  if (!form.captcha) {
+    error.value = '请输入图形验证码后再重发'
+    return
+  }
+
+  loading.value = true
   try {
-    const u = new URL(activationLink.value)
-    const parts = u.pathname.split('/').filter(Boolean)
-    const code = parts[parts.length - 1]
-    const userId = parts[parts.length - 2]
-    router.push({ name: 'activation', params: { userId, code } })
-  } catch {
-    error.value = '链接解析失败'
+    const { data, traceId } = await resendRegisterCode(flow.value.userId, {
+      captchaId: captchaId.value,
+      captchaCode: form.captcha
+    })
+    emit('trace', traceId || '')
+    applyFlow({
+      ...flow.value,
+      maskedEmail: data?.maskedEmail || flow.value.maskedEmail,
+      debugEmailCode: data?.debugEmailCode || '',
+      emailCodeIssued: data?.issued === true
+    })
+    successMsg.value = `验证码已重新发送至 ${flow.value.maskedEmail || '你的邮箱'}。`
+    form.captcha = ''
+    await refreshCaptcha()
+  } catch (e) {
+    const resolved = resolveRegisterFlowError(e)
+    if (resolved.resetFlow) {
+      resetPersistedFlow(resolved.message || '注册上下文已失效，请重新注册')
+      return
+    }
+    error.value = resolved.message || '重发失败'
+    if (e?.code === 10005 || e?.code === 10006) {
+      await refreshCaptcha()
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+async function onVerifyCode() {
+  error.value = ''
+  successMsg.value = ''
+
+  if (!flow.value.userId) {
+    error.value = '缺少注册上下文，请重新注册'
+    return
+  }
+  if (!form.emailCode) {
+    error.value = '请输入邮箱验证码'
+    return
+  }
+
+  loading.value = true
+  try {
+    const { data, traceId } = await verifyRegisterCode(flow.value.userId, form.emailCode)
+    emit('trace', traceId || '')
+    const token = data?.accessToken
+    if (!token) throw new Error('No access token returned')
+
+    auth.setAccessToken(token)
+    try {
+      const me = await apiMe()
+      auth.setMe(me?.data || null)
+    } catch {}
+
+    clearRegisterFlowState()
+    const redirect = route.query.redirect
+    router.replace(redirect && redirect.startsWith('/') ? redirect : { name: 'posts' })
+  } catch (e) {
+    const resolved = resolveRegisterFlowError(e)
+    if (resolved.resetFlow) {
+      resetPersistedFlow(resolved.message || '注册上下文已失效，请重新注册')
+      return
+    }
+    error.value = resolved.message || '验证失败'
   }
 }
 
@@ -209,6 +339,24 @@ onMounted(refreshCaptcha)
   text-decoration: underline;
 }
 
+.verify-block {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 88%, var(--bg) 12%);
+}
+
+.verify-title {
+  font-weight: 800;
+}
+
+.verify-actions {
+  display: grid;
+  gap: 10px;
+}
+
 .auth-debug-block {
   display: grid;
   gap: 10px;
@@ -222,10 +370,5 @@ onMounted(refreshCaptcha)
 .auth-debug-link {
   word-break: break-all;
   font-size: 12px;
-}
-
-.auth-debug-actions {
-  display: flex;
-  justify-content: flex-end;
 }
 </style>

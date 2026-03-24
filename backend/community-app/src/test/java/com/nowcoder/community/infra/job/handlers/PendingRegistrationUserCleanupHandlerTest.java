@@ -1,0 +1,77 @@
+package com.nowcoder.community.infra.job.handlers;
+
+import com.nowcoder.community.auth.config.RegistrationProperties;
+import com.nowcoder.community.user.service.InternalUserService;
+import com.xxl.job.core.context.XxlJobContext;
+import com.xxl.job.core.handler.annotation.XxlJob;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+
+import java.lang.reflect.Method;
+import java.time.Duration;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+class PendingRegistrationUserCleanupHandlerTest {
+
+    @AfterEach
+    void tearDown() {
+        XxlJobContext.setXxlJobContext(null);
+    }
+
+    @Test
+    void cleanupShouldDelegateToInternalUserServiceWithConfiguredTtlAndReportDeletedCount() {
+        InternalUserService internalUserService = mock(InternalUserService.class);
+        RegistrationProperties properties = new RegistrationProperties();
+        properties.getPendingUser().setTtlSeconds(1800);
+        when(internalUserService.cleanupExpiredPendingUsers(Duration.ofMinutes(30))).thenReturn(2);
+
+        PendingRegistrationUserCleanupHandler handler =
+                new PendingRegistrationUserCleanupHandler(internalUserService, properties);
+        XxlJobContext context = new XxlJobContext(1L, "", 2L, System.currentTimeMillis(), "", 0, 1);
+        XxlJobContext.setXxlJobContext(context);
+
+        handler.cleanup();
+
+        verify(internalUserService, times(1)).cleanupExpiredPendingUsers(Duration.ofMinutes(30));
+        verifyNoMoreInteractions(internalUserService);
+        assertThat(context.getHandleCode()).isEqualTo(XxlJobContext.HANDLE_CODE_SUCCESS);
+        assertThat(context.getHandleMsg()).contains("2");
+    }
+
+    @Test
+    void cleanupShouldUsePendingRegistrationUserCleanupJobName() throws NoSuchMethodException {
+        Method method = PendingRegistrationUserCleanupHandler.class.getDeclaredMethod("cleanup");
+
+        XxlJob annotation = method.getAnnotation(XxlJob.class);
+
+        assertThat(annotation).isNotNull();
+        assertThat(annotation.value()).isEqualTo("pendingRegistrationUserCleanup");
+    }
+
+    @Test
+    void cleanupShouldMarkFailureWithoutThrowingWhenCleanupFails() {
+        InternalUserService internalUserService = mock(InternalUserService.class);
+        RegistrationProperties properties = new RegistrationProperties();
+        properties.getPendingUser().setTtlSeconds(1800);
+        when(internalUserService.cleanupExpiredPendingUsers(Duration.ofMinutes(30)))
+                .thenThrow(new RuntimeException("boom"));
+
+        PendingRegistrationUserCleanupHandler handler =
+                new PendingRegistrationUserCleanupHandler(internalUserService, properties);
+        XxlJobContext context = new XxlJobContext(1L, "", 2L, System.currentTimeMillis(), "", 0, 1);
+        XxlJobContext.setXxlJobContext(context);
+
+        handler.cleanup();
+
+        verify(internalUserService, times(1)).cleanupExpiredPendingUsers(Duration.ofMinutes(30));
+        verifyNoMoreInteractions(internalUserService);
+        assertThat(context.getHandleCode()).isEqualTo(XxlJobContext.HANDLE_CODE_FAIL);
+        assertThat(context.getHandleMsg()).contains("boom");
+    }
+}

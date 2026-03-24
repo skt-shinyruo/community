@@ -42,8 +42,15 @@ auth:
     ttl-seconds: 600
     expose-reset-link: true
   registration:
-    activation-base-url: http://localhost:8080
-    expose-activation-link: true
+    pending-user:
+      ttl-seconds: 1800
+      cleanup-interval-ms: 300000
+    code:
+      store: memory
+      ttl-seconds: 600
+      max-failures: 3
+      resend-cooldown-seconds: 60
+      expose-code: true
     mail:
       enabled: false
   login-rate-limit:
@@ -96,3 +103,7 @@ http:
   idempotency:
     enabled: true
     store: DB
+
+xxl:
+  job:
+    enabled: false

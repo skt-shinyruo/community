@@ -6,11 +6,11 @@
 <mapper namespace="com.nowcoder.community.user.mapper.UserMapper">
 
     <sql id="insertFields">
-        username, password, salt, email, type, status, activation_code, header_url, create_time
+        username, password, salt, email, type, status, header_url, create_time
     </sql>
 
     <sql id="selectFields">
-        id, username, password, salt, email, type, status, activation_code, header_url, create_time, score, mute_until, ban_until
+        id, username, password, salt, email, type, status, header_url, create_time, score, mute_until, ban_until
     </sql>
 
     <select id="selectById" resultType="com.nowcoder.community.user.entity.User">
@@ -36,9 +36,24 @@
 
     <insert id="insertUser" parameterType="com.nowcoder.community.user.entity.User" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         insert into user (<include refid="insertFields"></include>)
-        values(#{username}, #{password}, #{salt}, #{email}, #{type}, #{status}, #{activationCode}, #{headerUrl},
+        values(#{username}, #{password}, #{salt}, #{email}, #{type}, #{status}, #{headerUrl},
         #{createTime})
     </insert>
+
+    <delete id="deletePendingUserIfExpired">
+        delete from user
+        where id = #{id}
+          and status = #{status}
+          and create_time is not null
+          and create_time &lt;= #{cutoff}
+    </delete>
+
+    <delete id="deleteExpiredPendingUsers">
+        delete from user
+        where status = #{status}
+          and create_time is not null
+          and create_time &lt;= #{cutoff}
+    </delete>
 
     <update id="updateStatus">
         update user set status = #{status} where id = #{id}

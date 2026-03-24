@@ -342,7 +342,7 @@ const NAV_DEFS = Object.freeze([
         icon: 'login',
         hideWhenAuthed: true,
         to: () => ({ name: 'login' }),
-        activeNames: ['login', 'register', 'passwordReset', 'activation']
+        activeNames: ['login', 'register', 'passwordReset']
       }
     ]
   }

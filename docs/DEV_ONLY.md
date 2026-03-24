@@ -35,15 +35,15 @@
 
 ---
 
-## 3) 敏感链接回传（仅 dev/演练）
+## 3) 调试验证码/重置链接回传（仅 dev/演练）
 
-本地 compose 默认不回传 `activationLink/resetLink`（更贴近生产安全态），而是通过 MailHog 接收邮件完成闭环：
+本地 compose 默认不回传注册验证码/`resetLink`（更贴近生产安全态），而是通过 MailHog 接收邮件完成闭环：
 - MailHog UI：`http://localhost:8025`（仅本机）
 
 如需 dev-only 快捷模式（无 SMTP 也能跑通闭环），可显式开启回传：
 - `AUTH_MAIL_ENABLED=false`
-- `AUTH_EXPOSE_ACTIVATION_LINK=true`
+- `AUTH_REGISTRATION_EXPOSE_CODE=true`
 - `AUTH_EXPOSE_RESET_LINK=true`
 
 生产约束（SSOT）：
-- prod profile 下禁止回传 activationLink/resetLink，并要求启用 SMTP（见 `docs/SECURITY.md` 与 `deploy/README.md`）。
+- prod profile 下禁止回传注册验证码/`resetLink`，并要求启用 SMTP（见 `docs/SECURITY.md` 与 `deploy/README.md`）。

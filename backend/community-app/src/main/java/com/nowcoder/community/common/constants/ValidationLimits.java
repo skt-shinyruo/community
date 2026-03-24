@@ -16,6 +16,8 @@ public final class ValidationLimits {
     public static final int EMAIL_MAX = 128;
     public static final int CAPTCHA_ID_MAX = 64;
     public static final int CAPTCHA_CODE_MAX = 16;
+    public static final int REGISTRATION_EMAIL_CODE_MIN = 6;
+    public static final int REGISTRATION_EMAIL_CODE_MAX = 16;
 
     // 内容相关
     public static final int POST_TITLE_MAX = 128;

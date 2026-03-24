@@ -25,12 +25,12 @@ public class SmtpMailService implements MailService {
     }
 
     @Override
-    public void sendActivationMail(String toEmail, String activationLink) {
+    public void sendRegistrationCodeMail(String toEmail, String code) {
         if (!StringUtils.hasText(toEmail)) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "email 不能为空");
         }
-        if (!StringUtils.hasText(activationLink)) {
-            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "activationLink 不能为空");
+        if (!StringUtils.hasText(code)) {
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "code 不能为空");
         }
 
         try {
@@ -39,10 +39,10 @@ public class SmtpMailService implements MailService {
             helper.setFrom(properties.getMail().getFrom());
             helper.setTo(toEmail);
             helper.setSubject(properties.getMail().getSubject());
-            helper.setText(buildHtml(activationLink), true);
+            helper.setText(buildRegistrationCodeHtml(code), true);
             mailSender.send(mime);
         } catch (MessagingException | MailException e) {
-            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "发送激活邮件失败");
+            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "发送注册验证码邮件失败");
         }
     }
 
@@ -68,14 +68,14 @@ public class SmtpMailService implements MailService {
         }
     }
 
-    private String buildHtml(String activationLink) {
+    private String buildRegistrationCodeHtml(String code) {
         return """
                 <div>
-                  <p>欢迎注册社区账号，请点击下面的链接完成激活：</p>
-                  <p><a href="%s" target="_blank" rel="noreferrer">%s</a></p>
-                  <p>如果不是本人操作，请忽略此邮件。</p>
+                  <p>欢迎注册社区账号，你的注册验证码如下：</p>
+                  <p style="font-size: 24px; font-weight: 800; letter-spacing: 4px;">%s</p>
+                  <p>验证码用于完成邮箱验证并登录，请勿泄露给他人。</p>
                 </div>
-                """.formatted(activationLink, activationLink);
+                """.formatted(code);
     }
 
     private String buildResetHtml(String resetLink) {

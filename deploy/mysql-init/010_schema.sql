@@ -92,7 +92,7 @@ create table if not exists http_idempotency (
 -- Identity schema (keep in MYSQL_DATABASE=community for P0).
 -- NOTE:
 -- - 身份域数据所有权已收敛到 user 模块；
--- - auth 模块已不再直连 MySQL（通过调用 user 模块内部 API 完成鉴权/注册/激活/重置密码等）。
+-- - auth 模块已不再直连 MySQL（通过调用 user 模块内部 API 完成鉴权/注册/邮箱验证/重置密码等）。
 
 use community;
 
@@ -104,7 +104,6 @@ create table if not exists user (
   email varchar(255),
   type int default 0,
   status int default 0,
-  activation_code varchar(255),
   header_url varchar(255),
   create_time timestamp null default current_timestamp,
   score int not null default 0,
@@ -943,9 +942,9 @@ use community;
 
 use community;
 
-insert into user (id, username, password, salt, email, type, status, activation_code, header_url, create_time)
+insert into user (id, username, password, salt, email, type, status, header_url, create_time)
 values
-  (1, 'aaa', 'be5cdc88ad25c5aa86b9a9e1c3573e79', 'salt', 'aaa@example.com', 0, 1, 'ac', 'http://example.com/a.png', now()),
-  (2, 'bbb', 'be5cdc88ad25c5aa86b9a9e1c3573e79', 'salt', 'bbb@example.com', 0, 1, 'ac', 'http://example.com/b.png', now()),
-  (3, 'admin', 'be5cdc88ad25c5aa86b9a9e1c3573e79', 'salt', 'admin@example.com', 1, 1, 'ac', 'http://example.com/admin.png', now())
+  (1, 'aaa', 'be5cdc88ad25c5aa86b9a9e1c3573e79', 'salt', 'aaa@example.com', 0, 1, 'http://example.com/a.png', now()),
+  (2, 'bbb', 'be5cdc88ad25c5aa86b9a9e1c3573e79', 'salt', 'bbb@example.com', 0, 1, 'http://example.com/b.png', now()),
+  (3, 'admin', 'be5cdc88ad25c5aa86b9a9e1c3573e79', 'salt', 'admin@example.com', 1, 1, 'http://example.com/admin.png', now())
 on duplicate key update username = values(username);

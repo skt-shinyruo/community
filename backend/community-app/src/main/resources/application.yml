@@ -66,14 +66,21 @@ auth:
     ttl-seconds: 60
     max-failures: 3
   registration:
-    activation-base-url: ${AUTH_ACTIVATION_BASE_URL:}
-    expose-activation-link: ${AUTH_EXPOSE_ACTIVATION_LINK:true}
+    pending-user:
+      ttl-seconds: ${AUTH_REGISTRATION_PENDING_USER_TTL_SECONDS:1800}
+      cleanup-interval-ms: ${AUTH_REGISTRATION_PENDING_USER_CLEANUP_INTERVAL_MS:300000}
+    code:
+      store: redis
+      ttl-seconds: ${AUTH_REGISTRATION_CODE_TTL_SECONDS:600}
+      max-failures: ${AUTH_REGISTRATION_CODE_MAX_FAILURES:3}
+      resend-cooldown-seconds: ${AUTH_REGISTRATION_CODE_RESEND_COOLDOWN_SECONDS:60}
+      expose-code: ${AUTH_REGISTRATION_EXPOSE_CODE:false}
     mail:
       enabled: ${AUTH_MAIL_ENABLED:false}
       from: ${AUTH_MAIL_FROM:no-reply@community.local}
-      subject: 激活账号
+      subject: 注册验证码
   password-reset:
-    reset-base-url: ${AUTH_PASSWORD_RESET_BASE_URL:${AUTH_ACTIVATION_BASE_URL:}}
+    reset-base-url: ${AUTH_PASSWORD_RESET_BASE_URL:}
     store: redis
     ttl-seconds: 600
     expose-reset-link: ${AUTH_EXPOSE_RESET_LINK:true}
@@ -89,6 +96,16 @@ http:
   idempotency:
     enabled: true
     store: DB
+
+xxl:
+  job:
+    enabled: false
+    admin:
+      addresses: ${XXL_JOB_ADMIN_ADDRESSES:}
+      accessToken: ${XXL_JOB_ACCESS_TOKEN:}
+    executor:
+      appname: ${XXL_JOB_EXECUTOR_APPNAME:}
+      address: ${XXL_JOB_EXECUTOR_ADDRESS:}
 
 content:
   storage: redis

@@ -6,28 +6,24 @@ import org.springframework.stereotype.Service;
 @Service
 public class SearchAdminService {
 
-    private final PostSearchService postSearchService;
+    private final SearchReindexExecutionService searchReindexExecutionService;
     private final ReindexJobService reindexJobService;
 
-    public SearchAdminService(PostSearchService postSearchService, ReindexJobService reindexJobService) {
-        this.postSearchService = postSearchService;
+    public SearchAdminService(SearchReindexExecutionService searchReindexExecutionService,
+                              ReindexJobService reindexJobService) {
+        this.searchReindexExecutionService = searchReindexExecutionService;
         this.reindexJobService = reindexJobService;
     }
 
     public SearchReindexResponse reindex() {
-        ReindexJobService.ReindexJob job = reindexJobService.tryStart();
-        if (job == null || !job.acquired()) {
-            reindexJobService.conflict(job == null ? null : job.jobId());
+        SearchReindexExecutionService.ExecutionResult result = searchReindexExecutionService.execute();
+        if (result.skipped()) {
+            reindexJobService.conflict(result.jobId());
         }
 
-        try {
-            int count = postSearchService.clearAndReindexFromContentService();
-            SearchReindexResponse response = new SearchReindexResponse();
-            response.setJobId(job.jobId());
-            response.setIndexedCount(count);
-            return response;
-        } finally {
-            reindexJobService.finish(job.jobId());
-        }
+        SearchReindexResponse response = new SearchReindexResponse();
+        response.setJobId(result.jobId());
+        response.setIndexedCount(result.indexedCount());
+        return response;
     }
 }

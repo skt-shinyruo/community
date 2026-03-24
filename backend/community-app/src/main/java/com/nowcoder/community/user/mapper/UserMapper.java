@@ -19,6 +19,10 @@ public interface UserMapper {
 
     int insertUser(User user);
 
+    int deletePendingUserIfExpired(@Param("id") int id, @Param("status") int status, @Param("cutoff") java.util.Date cutoff);
+
+    int deleteExpiredPendingUsers(@Param("status") int status, @Param("cutoff") java.util.Date cutoff);
+
     int updateStatus(int id, int status);
 
     int updateHeader(int id, String headerUrl);

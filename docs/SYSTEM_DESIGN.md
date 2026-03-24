@@ -163,6 +163,23 @@ unknown handling 为可配置策略（consumer 级别）：
 - 写成功后到可搜索存在短暂延迟（事务提交 + 本地监听 + ES refresh）
 - 若出现长时间缺失/冷启动缺口：优先排查监听链路与 ES 健康，必要时执行 reindex（`POST /api/ops/search/reindex`）。
 
+### 3.5 离散后台任务调度（XXL-JOB）
+当前仓库把后台工作分成两类：
+
+1. 持续型本地 worker
+   - 例如 outbox worker、帖子热度刷新
+   - 继续留在应用内 `@Scheduled`，追求低延迟和持续轮询
+2. 离散型清理/运维任务
+   - 例如 `pendingRegistrationUserCleanup`
+   - 例如 `searchReindex`
+   - 通过 `xxl-job-admin` 统一调度和记录执行历史
+
+phase 1 的运行边界是：
+- `community-app` 是唯一 XXL executor
+- `pendingRegistrationUserCleanup` 与 `searchReindex` 通过 XXL handler 进入业务 service
+- `PendingRegistrationUserCleanupJob` 仅在无 admin 的本地开发环境里保留兜底；这份 compose 栈作为 XXL-enabled 路径会显式关闭本地 scheduler，避免双跑
+- `PostScoreRefresher` 与 `OutboxWorkerScheduler` 明确保留本地调度，不迁入 XXL
+
 ---
 
 ## 4. 同进程内部回源（去投影，直接 service 协作）

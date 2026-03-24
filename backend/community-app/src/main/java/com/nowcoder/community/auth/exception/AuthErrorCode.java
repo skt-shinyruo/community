@@ -20,7 +20,12 @@ public enum AuthErrorCode implements ErrorCode {
 
     PASSWORD_RESET_INVALID(10007, "重置凭证无效或已过期", 400),
 
-    CAPTCHA_GENERATE_FAILED(10008, "验证码生成失败", 500);
+    CAPTCHA_GENERATE_FAILED(10008, "验证码生成失败", 500),
+
+    REGISTRATION_CODE_INVALID(10009, "注册验证码不正确", 400),
+    REGISTRATION_CODE_EXPIRED(10010, "注册验证码已过期", 400),
+    REGISTRATION_CODE_RESEND_COOLDOWN(10011, "注册验证码发送过于频繁", 429),
+    REGISTRATION_CODE_TOO_MANY_ATTEMPTS(10012, "注册验证码错误次数过多，请重新获取", 400);
 
     private final int code;
     private final String message;

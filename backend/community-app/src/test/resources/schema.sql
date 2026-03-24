@@ -6,7 +6,6 @@ create table if not exists user (
   email varchar(255) not null,
   type int default 0,
   status int default 0,
-  activation_code varchar(255),
   header_url varchar(255),
   create_time timestamp default current_timestamp,
   score int default 0,
@@ -334,10 +333,10 @@ delete from outbox_event;
 delete from discuss_post;
 delete from user;
 
-merge into user (id, username, password, salt, email, type, status, activation_code, header_url, create_time, score)
+merge into user (id, username, password, salt, email, type, status, header_url, create_time, score)
 key(id) values
-  (1, 'u1', 'p', 's', 'u1@example.com', 0, 1, 'ac', 'http://old.local/a.png', CURRENT_TIMESTAMP(), 0),
-  (2, 'u2', 'p', 's', 'u2@example.com', 0, 1, 'ac2', 'http://old.local/b.png', CURRENT_TIMESTAMP(), 0);
+  (1, 'u1', 'p', 's', 'u1@example.com', 0, 1, 'http://old.local/a.png', CURRENT_TIMESTAMP(), 0),
+  (2, 'u2', 'p', 's', 'u2@example.com', 0, 1, 'http://old.local/b.png', CURRENT_TIMESTAMP(), 0);
 
 merge into category (id, name, description, position, create_time)
 key(id) values

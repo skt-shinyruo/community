@@ -1,0 +1,120 @@
+package com.nowcoder.community.auth.service;
+
+import com.nowcoder.community.auth.config.RegistrationProperties;
+import com.nowcoder.community.auth.dto.RegisterCodeResendResponse;
+import com.nowcoder.community.auth.exception.AuthErrorCode;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.user.entity.User;
+import com.nowcoder.community.user.service.InternalUserService;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+import java.time.Duration;
+import java.util.concurrent.ThreadLocalRandom;
+
+@Service
+public class RegistrationVerificationService {
+
+    private final InternalUserService internalUserService;
+    private final RegistrationProperties properties;
+    private final RegistrationCodeStore registrationCodeStore;
+    private final MailService mailService;
+    private final CaptchaService captchaService;
+    private final AuthService authService;
+
+    public RegistrationVerificationService(
+            InternalUserService internalUserService,
+            RegistrationProperties properties,
+            RegistrationCodeStore registrationCodeStore,
+            MailService mailService,
+            CaptchaService captchaService,
+            AuthService authService
+    ) {
+        this.internalUserService = internalUserService;
+        this.properties = properties;
+        this.registrationCodeStore = registrationCodeStore;
+        this.mailService = mailService;
+        this.captchaService = captchaService;
+        this.authService = authService;
+    }
+
+    public RegisterCodeResendResponse resendCode(int userId, String captchaId, String captchaCode) {
+        if (!StringUtils.hasText(captchaId) || !StringUtils.hasText(captchaCode)) {
+            throw new BusinessException(AuthErrorCode.CAPTCHA_REQUIRED);
+        }
+        if (!captchaService.verify(captchaId, captchaCode)) {
+            throw new BusinessException(AuthErrorCode.CAPTCHA_INVALID);
+        }
+
+        User user = requirePendingUser(userId);
+
+        String code = generateCode();
+        Duration ttl = Duration.ofSeconds(Math.max(60, properties.getCode().getTtlSeconds()));
+        Duration cooldown = Duration.ofSeconds(Math.max(0, properties.getCode().getResendCooldownSeconds()));
+        RegistrationCodeStore.IssueResult issueResult = registrationCodeStore.issue(user.getId(), code, ttl, cooldown);
+        if (issueResult == RegistrationCodeStore.IssueResult.COOLDOWN_ACTIVE) {
+            throw new BusinessException(AuthErrorCode.REGISTRATION_CODE_RESEND_COOLDOWN);
+        }
+        mailService.sendRegistrationCodeMail(user.getEmail(), code);
+
+        RegisterCodeResendResponse response = new RegisterCodeResendResponse();
+        response.setIssued(true);
+        response.setMaskedEmail(maskEmail(user.getEmail()));
+        if (properties.getCode().isExposeCode()) {
+            response.setDebugEmailCode(code);
+        }
+        return response;
+    }
+
+    public AuthService.LoginResult verifyAndLogin(int userId, String code) {
+        if (userId <= 0 || !StringUtils.hasText(code)) {
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "userId/code 不能为空");
+        }
+
+        User user = requirePendingUser(userId);
+        RegistrationCodeStore.VerifyResult result = registrationCodeStore.verifyAndConsume(userId, code.trim());
+        if (result == RegistrationCodeStore.VerifyResult.SUCCESS) {
+            internalUserService.activateUser(userId);
+            user.setStatus(1);
+            return authService.issueLoginResult(user);
+        }
+        if (result == RegistrationCodeStore.VerifyResult.EXPIRED) {
+            throw new BusinessException(AuthErrorCode.REGISTRATION_CODE_EXPIRED);
+        }
+        if (result == RegistrationCodeStore.VerifyResult.TOO_MANY_ATTEMPTS) {
+            throw new BusinessException(AuthErrorCode.REGISTRATION_CODE_TOO_MANY_ATTEMPTS);
+        }
+        throw new BusinessException(AuthErrorCode.REGISTRATION_CODE_INVALID);
+    }
+
+    private User requirePendingUser(int userId) {
+        Duration pendingUserTtl = Duration.ofSeconds(Math.max(60, properties.getPendingUser().getTtlSeconds()));
+        User user = internalUserService.getPendingRegistrationUser(userId, pendingUserTtl);
+        if (user.getStatus() != 0) {
+            throw new BusinessException(AuthErrorCode.USER_DISABLED, "账号已激活，请直接登录");
+        }
+        return user;
+    }
+
+    private String generateCode() {
+        return Integer.toString(ThreadLocalRandom.current().nextInt(100000, 1000000));
+    }
+
+    private String maskEmail(String email) {
+        String normalized = email == null ? "" : email.trim();
+        int at = normalized.indexOf('@');
+        if (at <= 0) {
+            return normalized;
+        }
+        String local = normalized.substring(0, at);
+        String domain = normalized.substring(at);
+        if (local.length() <= 1) {
+            return "*" + domain;
+        }
+        if (local.length() == 2) {
+            return local.charAt(0) + "*" + domain;
+        }
+        return local.charAt(0) + "***" + local.charAt(local.length() - 1) + domain;
+    }
+}

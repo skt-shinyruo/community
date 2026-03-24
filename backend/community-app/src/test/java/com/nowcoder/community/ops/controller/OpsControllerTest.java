@@ -1,7 +1,9 @@
 package com.nowcoder.community.ops.controller;
 
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.search.dto.SearchReindexResponse;
+import com.nowcoder.community.search.exception.SearchErrorCode;
 import com.nowcoder.community.search.service.SearchAdminService;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
@@ -31,5 +33,21 @@ class OpsControllerTest {
         assertThat(result.getBody().getData()).isNotNull();
         assertThat(result.getBody().getData().getJobId()).isEqualTo("job-1");
         assertThat(result.getBody().getData().getIndexedCount()).isEqualTo(42);
+    }
+
+    @Test
+    void reindexShouldTreatConflictFromServiceAsErrorResult() {
+        SearchAdminService searchAdminService = mock(SearchAdminService.class);
+        when(searchAdminService.reindex())
+                .thenThrow(new BusinessException(SearchErrorCode.REINDEX_RUNNING, "reindex 任务正在执行 (jobId=job-1)"));
+
+        OpsController controller = new OpsController(new SimpleMeterRegistry(), searchAdminService);
+
+        ResponseEntity<Result<SearchReindexResponse>> result = controller.reindex();
+
+        assertThat(result.getStatusCode().is2xxSuccessful()).isFalse();
+        assertThat(result.getBody()).isNotNull();
+        assertThat(result.getBody().getCode()).isNotEqualTo(0);
+        assertThat(result.getBody().getData()).isNull();
     }
 }

@@ -77,7 +77,10 @@ public class AuthService {
         }
 
         loginRateLimitService.reset(username, ip);
+        return issueLoginResult(user);
+    }
 
+    public LoginResult issueLoginResult(User user) {
         List<String> authorities = internalUserService.authoritiesOf(user);
         String accessToken = jwtTokenService.createAccessToken(user.getId(), user.getUsername(), authorities);
         RefreshTokenService.IssuedRefreshToken refreshToken = refreshTokenService.issue(user.getId());

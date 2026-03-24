@@ -1,4 +1,4 @@
-// 认证相关 API：登录、注册、激活、验证码、查询当前用户信息。
+// 认证相关 API：登录、注册、注册验证码、图形验证码、查询当前用户信息。
 
 import http from '../http'
 import { unwrapResultBody } from '../result'
@@ -32,9 +32,15 @@ export async function register({ username, password, email, captchaId = '', capt
   return { data, traceId }
 }
 
-export async function activation(userId, code) {
-  const resp = await http.get(`/api/auth/activation/${encodeURIComponent(userId)}/${encodeURIComponent(code)}`)
-  const { data, traceId } = unwrapResultBody(resp.data, '激活')
+export async function resendRegisterCode(userId, { captchaId = '', captchaCode = '' } = {}) {
+  const resp = await http.post('/api/auth/register/code/resend', { userId, captchaId, captchaCode })
+  const { data, traceId } = unwrapResultBody(resp.data, '重发注册验证码')
+  return { data, traceId }
+}
+
+export async function verifyRegisterCode(userId, code) {
+  const resp = await http.post('/api/auth/register/code/verify', { userId, code })
+  const { data, traceId } = unwrapResultBody(resp.data, '验证注册验证码')
   return { data, traceId }
 }
 

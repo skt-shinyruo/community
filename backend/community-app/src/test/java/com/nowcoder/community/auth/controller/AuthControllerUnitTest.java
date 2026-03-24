@@ -4,10 +4,16 @@ import com.nowcoder.community.auth.dto.LoginRequest;
 import com.nowcoder.community.auth.dto.LoginResponse;
 import com.nowcoder.community.auth.dto.MeResponse;
 import com.nowcoder.community.auth.dto.CaptchaIssueResponse;
+import com.nowcoder.community.auth.dto.RegisterCodeResendRequest;
+import com.nowcoder.community.auth.dto.RegisterCodeResendResponse;
+import com.nowcoder.community.auth.dto.RegisterCodeVerifyRequest;
+import com.nowcoder.community.auth.dto.RegisterRequest;
+import com.nowcoder.community.auth.dto.RegisterResponse;
 import com.nowcoder.community.auth.service.AuthService;
 import com.nowcoder.community.auth.service.CaptchaService;
 import com.nowcoder.community.auth.service.PasswordResetService;
 import com.nowcoder.community.auth.service.RegistrationService;
+import com.nowcoder.community.auth.service.RegistrationVerificationService;
 import com.nowcoder.community.common.web.Result;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,11 +53,14 @@ class AuthControllerUnitTest {
     @Mock
     private PasswordResetService passwordResetService;
 
+    @Mock
+    private RegistrationVerificationService registrationVerificationService;
+
     private AuthController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new AuthController(authService, registrationService, captchaService, passwordResetService);
+        controller = new AuthController(authService, registrationService, registrationVerificationService, captchaService, passwordResetService);
     }
 
     @Test
@@ -157,5 +166,78 @@ class AuthControllerUnitTest {
         assertThat(resp.getCode()).isEqualTo(0);
         assertThat(resp.getData()).isNotNull();
         assertThat(resp.getData().getCaptchaId()).isEqualTo("cid");
+    }
+
+    @Test
+    void registerShouldReturnNewRegisterResponseContract() {
+        RegisterRequest request = new RegisterRequest();
+        request.setUsername("alice");
+        request.setPassword("secret");
+        request.setEmail("alice@example.com");
+        request.setCaptchaId("cid");
+        request.setCaptchaCode("abcd");
+
+        RegisterResponse registerResponse = new RegisterResponse();
+        registerResponse.setUserId(7);
+        registerResponse.setEmailCodeIssued(true);
+        registerResponse.setMaskedEmail("a***@example.com");
+        registerResponse.setDebugEmailCode("123456");
+
+        when(registrationService.register(eq(request), any(HttpServletRequest.class))).thenReturn(registerResponse);
+
+        MockHttpServletRequest httpRequest = new MockHttpServletRequest();
+        Result<RegisterResponse> response = controller.register(request, httpRequest);
+
+        assertThat(response.getCode()).isEqualTo(0);
+        assertThat(response.getData()).isNotNull();
+        assertThat(response.getData().isEmailCodeIssued()).isTrue();
+        assertThat(response.getData().getMaskedEmail()).isEqualTo("a***@example.com");
+        assertThat(response.getData().getDebugEmailCode()).isEqualTo("123456");
+    }
+
+    @Test
+    void resendRegisterCodeShouldReturnResponse() {
+        RegisterCodeResendRequest request = new RegisterCodeResendRequest();
+        request.setUserId(7);
+        request.setCaptchaId("cid");
+        request.setCaptchaCode("abcd");
+
+        RegisterCodeResendResponse resendResponse = new RegisterCodeResendResponse();
+        resendResponse.setIssued(true);
+        resendResponse.setMaskedEmail("a***@example.com");
+        resendResponse.setDebugEmailCode("123456");
+
+        when(registrationVerificationService.resendCode(7, "cid", "abcd")).thenReturn(resendResponse);
+
+        Result<RegisterCodeResendResponse> response = controller.resendRegisterCode(request);
+
+        assertThat(response.getCode()).isEqualTo(0);
+        assertThat(response.getData()).isNotNull();
+        assertThat(response.getData().isIssued()).isTrue();
+        assertThat(response.getData().getMaskedEmail()).isEqualTo("a***@example.com");
+        assertThat(response.getData().getDebugEmailCode()).isEqualTo("123456");
+    }
+
+    @Test
+    void verifyRegisterCodeShouldSetRefreshCookieAndReturnAccessToken() {
+        RegisterCodeVerifyRequest request = new RegisterCodeVerifyRequest();
+        request.setUserId(7);
+        request.setCode("123456");
+
+        ResponseCookie refreshCookie = ResponseCookie.from("refresh_token", "rt3")
+                .httpOnly(true)
+                .path("/api/auth")
+                .build();
+
+        when(registrationVerificationService.verifyAndLogin(7, "123456"))
+                .thenReturn(new AuthService.LoginResult("at3", refreshCookie));
+
+        MockHttpServletResponse httpResponse = new MockHttpServletResponse();
+        Result<LoginResponse> response = controller.verifyRegisterCode(request, httpResponse);
+
+        assertThat(response.getCode()).isEqualTo(0);
+        assertThat(response.getData()).isNotNull();
+        assertThat(response.getData().getAccessToken()).isEqualTo("at3");
+        assertThat(httpResponse.getHeader(HttpHeaders.SET_COOKIE)).contains("refresh_token=rt3");
     }
 }

@@ -5,6 +5,9 @@ import com.nowcoder.community.auth.dto.LoginResponse;
 import com.nowcoder.community.auth.dto.MeResponse;
 import com.nowcoder.community.auth.dto.CaptchaVerifyRequest;
 import com.nowcoder.community.auth.dto.CaptchaIssueResponse;
+import com.nowcoder.community.auth.dto.RegisterCodeResendRequest;
+import com.nowcoder.community.auth.dto.RegisterCodeResendResponse;
+import com.nowcoder.community.auth.dto.RegisterCodeVerifyRequest;
 import com.nowcoder.community.auth.dto.RegisterRequest;
 import com.nowcoder.community.auth.dto.RegisterResponse;
 import com.nowcoder.community.auth.dto.PasswordResetConfirmRequest;
@@ -14,6 +17,7 @@ import com.nowcoder.community.auth.service.AuthService;
 import com.nowcoder.community.auth.service.CaptchaService;
 import com.nowcoder.community.auth.service.PasswordResetService;
 import com.nowcoder.community.auth.service.RegistrationService;
+import com.nowcoder.community.auth.service.RegistrationVerificationService;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,7 +29,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -37,17 +40,20 @@ public class AuthController {
 
     private final AuthService authService;
     private final RegistrationService registrationService;
+    private final RegistrationVerificationService registrationVerificationService;
     private final CaptchaService captchaService;
     private final PasswordResetService passwordResetService;
 
     public AuthController(
             AuthService authService,
             RegistrationService registrationService,
+            RegistrationVerificationService registrationVerificationService,
             CaptchaService captchaService,
             PasswordResetService passwordResetService
     ) {
         this.authService = authService;
         this.registrationService = registrationService;
+        this.registrationVerificationService = registrationVerificationService;
         this.captchaService = captchaService;
         this.passwordResetService = passwordResetService;
     }
@@ -96,10 +102,20 @@ public class AuthController {
         return Result.ok(registrationService.register(request, httpRequest));
     }
 
-    @GetMapping("/activation/{userId}/{code}")
-    public Result<Integer> activation(@PathVariable int userId, @PathVariable String code) {
-        // 0=success, 1=repeat, 2=failure（与旧单体 CommunityConstant 对齐）
-        return Result.ok(registrationService.activate(userId, code));
+    @PostMapping("/register/code/resend")
+    public Result<RegisterCodeResendResponse> resendRegisterCode(@Valid @RequestBody RegisterCodeResendRequest request) {
+        return Result.ok(registrationVerificationService.resendCode(
+                request.getUserId(),
+                request.getCaptchaId(),
+                request.getCaptchaCode()
+        ));
+    }
+
+    @PostMapping("/register/code/verify")
+    public Result<LoginResponse> verifyRegisterCode(@Valid @RequestBody RegisterCodeVerifyRequest request, HttpServletResponse response) {
+        AuthService.LoginResult result = registrationVerificationService.verifyAndLogin(request.getUserId(), request.getCode());
+        response.addHeader(HttpHeaders.SET_COOKIE, result.refreshCookie().toString());
+        return Result.ok(new LoginResponse(result.accessToken()));
     }
 
     @GetMapping("/captcha")

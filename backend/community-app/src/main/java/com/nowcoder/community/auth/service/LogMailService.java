@@ -19,12 +19,11 @@ public class LogMailService implements MailService {
     }
 
     @Override
-    public void sendActivationMail(String toEmail, String activationLink) {
-        // 默认降级行为：不依赖 SMTP，避免本地/CI 被邮箱配置阻塞
-        log.info("[mail][activation][disabled] to={}, subject={}, link={}",
+    public void sendRegistrationCodeMail(String toEmail, String code) {
+        log.info("[mail][registration-code][disabled] to={}, subject={}, code={}",
                 toEmail,
                 properties.getMail().getSubject(),
-                activationLink
+                code
         );
     }
 

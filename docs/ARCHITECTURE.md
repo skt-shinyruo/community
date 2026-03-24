@@ -99,7 +99,7 @@ flowchart TD
 
 ### 2.4 共享基础设施（同模块内包）
 - `com.nowcoder.community.common.*`：错误码、业务异常、trace、统一 Web 响应、通用事件 envelope 等横切能力
-- `com.nowcoder.community.infra.*`：安全、trace、web、idempotency、scheduler 等横切能力
+- `com.nowcoder.community.infra.*`：安全、trace、web、idempotency、scheduler、job（XXL executor handler）等横切能力
 - `com.nowcoder.community.app.*`：启动入口与装配代码
 
 ---
@@ -107,13 +107,14 @@ flowchart TD
 ## 3. 运行拓扑与端口规划（本地 docker compose）
 
 ### 3.1 Compose 文件分工（以 `deploy/README.md` 为准）
-- `deploy/docker-compose.yml`：业务必需全栈（frontend + `community-gateway` + `community-app` + IM + MySQL/Redis/Kafka/ES + MailHog），默认暴露统一入口（`12880/12881`）与 MailHog UI（`8025`，仅本机）；`debug` profile 才会额外暴露 `12882/18081/18082` 到 `127.0.0.1`，依赖端口仍不暴露（fail-closed）。
+- `deploy/docker-compose.yml`：业务必需全栈（frontend + `community-gateway` + `community-app` + IM + MySQL/Redis/Kafka/ES + MailHog + `xxl-job-admin`），默认暴露统一入口（`12880/12881`）、MailHog UI（`8025`，仅本机）与 XXL-JOB Admin UI（`12887`，仅本机）；`debug` profile 才会额外暴露 `12882/18081/18082` 到 `127.0.0.1`，依赖端口仍不暴露（fail-closed）。
 - `observability` profile：可选观测/日志栈（Prometheus/Grafana/Loki/Promtail/Alertmanager），默认仅绑定到 `127.0.0.1` 暴露端口（`12883+`）。
 
 ### 3.2 对外暴露端口（默认推荐）
 - Community Gateway（统一入口）：`http://localhost:12880`
 - frontend：`http://localhost:12881`
 - MailHog UI（dev mailbox）：`http://localhost:8025`（仅本机）
+- XXL-JOB Admin UI：`http://localhost:12887/xxl-job-admin`（仅本机）
 
 ### 3.2.1 Debug Profile（localhost-only）
 - backend（community-app，回滚/诊断）：`http://localhost:12882`
@@ -145,6 +146,16 @@ flowchart TD
 3. `content.service.PostFacadeService` 在本地完成参数清洗、幂等包装与命令调用
 4. `PostCommandService` 在事务内写主存储并发布帖子领域事件
 5. 帖子领域事件目前仍通过桥接层进入既有事件发布链路，用于搜索/通知等投影；reindex 等运维动作已收敛为单进程 single-flight 协调
+
+### 4.3 典型后台运维路径：XXL-JOB 调度
+1. 运维人员访问 `http://localhost:12887/xxl-job-admin`
+2. `xxl-job-admin` 基于 `xxl_job` schema 管理任务定义、执行记录与调度状态
+3. `community-app` 作为 phase 1 唯一 executor，注册 `pendingRegistrationUserCleanup` 与 `searchReindex`
+4. 清理类/运维类离散任务通过 XXL handler 进入业务 service
+5. 高频/持续 worker 仍保留在应用内：
+   - `PendingRegistrationUserCleanupJob` 仅作为无 admin 的本地兜底
+   - `PostScoreRefresher` 继续本地 `@Scheduled`
+   - `OutboxWorkerScheduler` 继续本地 `@Scheduled`
 
 ---
 

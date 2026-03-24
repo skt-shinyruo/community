@@ -2,7 +2,7 @@ package com.nowcoder.community.auth.service;
 
 public interface MailService {
 
-    void sendActivationMail(String toEmail, String activationLink);
+    void sendRegistrationCodeMail(String toEmail, String code);
 
     void sendPasswordResetMail(String toEmail, String resetLink);
 }

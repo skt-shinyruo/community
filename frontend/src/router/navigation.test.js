@@ -87,6 +87,9 @@ describe('router/navigation', () => {
 
     const profile = authed.flatMap((g) => g.items).find((it) => it.key === 'profile')
     expect(profile?.to).toEqual({ name: 'userProfile', params: { userId: '12' } })
+
+    const authItem = anon.flatMap((g) => g.items).find((it) => it.key === 'login')
+    expect(authItem?.activeNames || []).not.toContain('activation')
   })
 
   it('isNavItemActive should match posts filter states', () => {

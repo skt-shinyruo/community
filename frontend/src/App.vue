@@ -54,7 +54,7 @@ if (typeof window !== 'undefined') {
 
 const isAuthRoute = computed(() => {
   const name = String(route.name || '')
-  if (name === 'login' || name === 'register' || name === 'activation') return true
+  if (name === 'login' || name === 'register') return true
   const path = String(route.path || '')
   return path.startsWith('/auth/')
 })

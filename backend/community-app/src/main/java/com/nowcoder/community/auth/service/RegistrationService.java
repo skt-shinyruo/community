@@ -12,23 +12,24 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.Duration;
+import java.util.concurrent.ThreadLocalRandom;
+
 @Service
 public class RegistrationService {
-
-    public static final int ACTIVATION_SUCCESS = 0;
-    public static final int ACTIVATION_REPEAT = 1;
-    public static final int ACTIVATION_FAILURE = 2;
 
     private final InternalUserService internalUserService;
     private final RegistrationProperties properties;
     private final MailService mailService;
     private final CaptchaService captchaService;
+    private final RegistrationCodeStore registrationCodeStore;
 
-    public RegistrationService(InternalUserService internalUserService, RegistrationProperties properties, MailService mailService, CaptchaService captchaService) {
+    public RegistrationService(InternalUserService internalUserService, RegistrationProperties properties, MailService mailService, CaptchaService captchaService, RegistrationCodeStore registrationCodeStore) {
         this.internalUserService = internalUserService;
         this.properties = properties;
         this.mailService = mailService;
         this.captchaService = captchaService;
+        this.registrationCodeStore = registrationCodeStore;
     }
 
     public RegisterResponse register(RegisterRequest request, HttpServletRequest httpRequest) {
@@ -50,45 +51,50 @@ public class RegistrationService {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "用户名/密码/邮箱不能为空");
         }
 
-        // 先做配置校验：避免创建用户后才发现无法生成激活链接，造成“已创建但无法激活”的隐蔽失败。
-        String activationBaseUrl = normalizeActivationBaseUrlOrThrow();
-
-        User created = internalUserService.register(username, password, email);
-        if (created == null || created.getId() <= 0 || !StringUtils.hasText(created.getActivationCode())) {
+        Duration pendingUserTtl = Duration.ofSeconds(Math.max(60, properties.getPendingUser().getTtlSeconds()));
+        User created = internalUserService.register(username, password, email, pendingUserTtl);
+        if (created == null || created.getId() <= 0) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败");
         }
 
-        String activationLink = buildActivationLink(activationBaseUrl, created.getId(), created.getActivationCode());
-        mailService.sendActivationMail(email, activationLink);
+        String code = generateCode();
+        Duration ttl = Duration.ofSeconds(Math.max(60, properties.getCode().getTtlSeconds()));
+        Duration cooldown = Duration.ofSeconds(Math.max(0, properties.getCode().getResendCooldownSeconds()));
+        RegistrationCodeStore.IssueResult issueResult = registrationCodeStore.issue(created.getId(), code, ttl, cooldown);
+        if (issueResult != RegistrationCodeStore.IssueResult.ISSUED) {
+            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "注册验证码签发失败");
+        }
+        mailService.sendRegistrationCodeMail(email, code);
 
         RegisterResponse resp = new RegisterResponse();
         resp.setUserId(created.getId());
-        resp.setActivationIssued(true);
-        if (properties.isExposeActivationLink()) {
-            resp.setActivationLink(activationLink);
+        resp.setEmailCodeIssued(true);
+        resp.setMaskedEmail(maskEmail(email));
+        if (properties.getCode().isExposeCode()) {
+            resp.setDebugEmailCode(code);
         }
         return resp;
     }
 
-    public int activate(int userId, String code) {
-        return internalUserService.activate(userId, code);
+    private String generateCode() {
+        return Integer.toString(ThreadLocalRandom.current().nextInt(100000, 1000000));
     }
 
-    private String normalizeActivationBaseUrlOrThrow() {
-        String base = properties.getActivationBaseUrl();
-        if (!StringUtils.hasText(base)) {
-            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR,
-                    "未配置 auth.registration.activation-base-url，无法生成激活链接");
+    private String maskEmail(String email) {
+        String normalized = safeTrim(email);
+        int at = normalized.indexOf('@');
+        if (at <= 0) {
+            return normalized;
         }
-        String normalized = base.trim();
-        if (normalized.endsWith("/")) {
-            normalized = normalized.substring(0, normalized.length() - 1);
+        String local = normalized.substring(0, at);
+        String domain = normalized.substring(at);
+        if (local.length() <= 1) {
+            return "*" + domain;
         }
-        return normalized;
-    }
-
-    private String buildActivationLink(String activationBaseUrl, int userId, String activationCode) {
-        return activationBaseUrl + "/api/auth/activation/" + userId + "/" + activationCode;
+        if (local.length() == 2) {
+            return local.charAt(0) + "*" + domain;
+        }
+        return local.charAt(0) + "***" + local.charAt(local.length() - 1) + domain;
     }
 
     private String safeTrim(String s) {

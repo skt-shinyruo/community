@@ -8,7 +8,6 @@ import PostsView from '../views/PostsView.vue'
 import PostDetailView from '../views/PostDetailView.vue'
 import UserProfileView from '../views/UserProfileView.vue'
 import RegisterView from '../views/RegisterView.vue'
-import ActivationView from '../views/ActivationView.vue'
 import PasswordResetView from '../views/PasswordResetView.vue'
 import SearchView from '../views/SearchView.vue'
 import ConversationsView from '../views/ConversationsView.vue'
@@ -53,17 +52,6 @@ const router = createRouter({
       name: 'passwordReset',
       component: PasswordResetView,
       meta: { title: '找回密码', subtitle: '通过邮箱和验证码重新确认你的登录凭据。', navGroup: 'auth' }
-    },
-    {
-      path: '/auth/activation/:userId/:code',
-      name: 'activation',
-      component: ActivationView,
-      props: true,
-      meta: {
-        title: '账号激活',
-        subtitle: '确认激活状态并继续进入社区。',
-        navGroup: 'auth'
-      }
     },
     { path: '/', redirect: { name: 'posts' } },
     {

@@ -9,6 +9,15 @@ services:
       - MYSQL_DATABASE=${MYSQL_DATABASE:-community}
       - MYSQL_USER=${MYSQL_USER:-community}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD:-communitypass}
+      - XXL_JOB_MYSQL_USER=${XXL_JOB_MYSQL_USER:-xxl_job}
+      - XXL_JOB_MYSQL_PASSWORD=${XXL_JOB_MYSQL_PASSWORD:-xxljobpass}
+      - XXL_JOB_ADMIN_USERNAME=${XXL_JOB_ADMIN_USERNAME:-admin}
+      - XXL_JOB_ADMIN_PASSWORD=${XXL_JOB_ADMIN_PASSWORD:-dev-local-xxl-admin}
+      - XXL_JOB_EXECUTOR_APPNAME=${XXL_JOB_EXECUTOR_APPNAME:-community-app}
+      - XXL_JOB_EXECUTOR_TITLE=${XXL_JOB_EXECUTOR_TITLE:-CommunityApp}
+      - XXL_JOB_AUTHOR=${XXL_JOB_AUTHOR:-community}
+      - XXL_JOB_ALARM_EMAIL=${XXL_JOB_ALARM_EMAIL:-}
+      - XXL_JOB_PENDING_REGISTRATION_CLEANUP_CRON=${XXL_JOB_PENDING_REGISTRATION_CLEANUP_CRON:-0 0/5 * * * ?}
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
@@ -34,7 +43,18 @@ services:
       timeout: 3s
       retries: 30
 
-  # Dev mailbox：用于本地接收 SMTP 邮件（激活/找回密码），UI 仅绑定到宿主机 127.0.0.1
+  xxl-job-admin:
+    image: xuxueli/xxl-job-admin:3.3.2
+    container_name: community-xxl-job-admin
+    environment:
+      - PARAMS=--spring.datasource.url=jdbc:mysql://mysql:3306/xxl_job?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true --spring.datasource.username=${XXL_JOB_MYSQL_USER:-xxl_job} --spring.datasource.password=${XXL_JOB_MYSQL_PASSWORD:-xxljobpass} --xxl.job.accessToken=${XXL_JOB_ACCESS_TOKEN:?XXL_JOB_ACCESS_TOKEN is required}
+    ports:
+      - "127.0.0.1:${XXL_JOB_ADMIN_PORT:-12887}:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  # Dev mailbox：用于本地接收 SMTP 邮件（注册验证码/找回密码），UI 仅绑定到宿主机 127.0.0.1
   mailhog:
     image: mailhog/mailhog:v1.0.1
     container_name: community-mailhog
@@ -163,10 +183,17 @@ services:
       - USER_AVATAR_STORAGE=${USER_AVATAR_STORAGE:-local}
       - USER_FILES_BASE_DIR=${USER_FILES_BASE_DIR:-/data/files}
       - USER_PUBLIC_BASE_URL=${USER_PUBLIC_BASE_URL:-http://localhost:12881}
-      - AUTH_ACTIVATION_BASE_URL=${AUTH_ACTIVATION_BASE_URL:-http://localhost:12881}
       - AUTH_MAIL_ENABLED=${AUTH_MAIL_ENABLED:-true}
-      - AUTH_EXPOSE_ACTIVATION_LINK=${AUTH_EXPOSE_ACTIVATION_LINK:-false}
+      - AUTH_REGISTRATION_PENDING_USER_TTL_SECONDS=${AUTH_REGISTRATION_PENDING_USER_TTL_SECONDS:-1800}
+      - AUTH_REGISTRATION_PENDING_USER_CLEANUP_INTERVAL_MS=${AUTH_REGISTRATION_PENDING_USER_CLEANUP_INTERVAL_MS:-300000}
+      - AUTH_REGISTRATION_PENDING_USER_LOCAL_SCHEDULER_ENABLED=false
+      - AUTH_REGISTRATION_EXPOSE_CODE=${AUTH_REGISTRATION_EXPOSE_CODE:-false}
       - AUTH_EXPOSE_RESET_LINK=${AUTH_EXPOSE_RESET_LINK:-false}
+      - XXL_JOB_ENABLED=${XXL_JOB_ENABLED:-true}
+      - XXL_JOB_ADMIN_ADDRESSES=${XXL_JOB_ADMIN_ADDRESSES:-http://xxl-job-admin:8080/xxl-job-admin}
+      - XXL_JOB_EXECUTOR_APPNAME=${XXL_JOB_EXECUTOR_APPNAME:-community-app}
+      - XXL_JOB_EXECUTOR_ADDRESS=${XXL_JOB_EXECUTOR_ADDRESS:-http://community-app:9999/}
+      - XXL_JOB_ACCESS_TOKEN=${XXL_JOB_ACCESS_TOKEN:?XXL_JOB_ACCESS_TOKEN is required}
       - SPRING_MAIL_HOST=${SPRING_MAIL_HOST:-mailhog}
       - SPRING_MAIL_PORT=${SPRING_MAIL_PORT:-1025}
       - SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:-false}
@@ -186,6 +213,8 @@ services:
         condition: service_started
       mysql:
         condition: service_healthy
+      xxl-job-admin:
+        condition: service_started
       redis:
         condition: service_healthy
       es-init:

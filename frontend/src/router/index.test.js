@@ -52,6 +52,7 @@ describe('router/index', () => {
     expect(resolvedA.name).toBe('editorialPreviewA')
     expect(resolvedB.name).toBe('editorialPreviewB')
     expect(resolvedC.name).toBe('editorialPreviewC')
+    expect(router.getRoutes().some((route) => route.name === 'activation')).toBe(false)
     expect(resolvedA.meta?.requiresAuth).not.toBe(true)
     expect(resolvedA.meta?.navGroup).toBe('system')
   })

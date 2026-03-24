@@ -11,7 +11,6 @@ public class User {
     private String email;
     private int type;
     private int status;
-    private String activationCode;
     private String headerUrl;
     private Date createTime;
     private int score;
@@ -72,14 +71,6 @@ public class User {
 
     public void setStatus(int status) {
         this.status = status;
-    }
-
-    public String getActivationCode() {
-        return activationCode;
-    }
-
-    public void setActivationCode(String activationCode) {
-        this.activationCode = activationCode;
     }
 
     public String getHeaderUrl() {

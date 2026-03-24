@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { clearSessionHint, setSessionHint } from '../auth/sessionHint'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -21,6 +22,11 @@ export const useAuthStore = defineStore('auth', {
       this.accessToken = token || ''
       // 登录态变化后，me 需要重新拉取；这里先清空，交由调用方刷新。
       this.me = null
+      if (this.accessToken) {
+        setSessionHint()
+      } else {
+        clearSessionHint()
+      }
     },
     setMe(me) {
       this.me = me || null
@@ -28,6 +34,7 @@ export const useAuthStore = defineStore('auth', {
     clear() {
       this.accessToken = ''
       this.me = null
+      clearSessionHint()
     }
   }
 })

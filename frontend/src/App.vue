@@ -25,9 +25,9 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { useRoute, RouterView } from 'vue-router'
+import { ensureSessionReady, shouldBootstrapSession } from './auth/session'
 import { useAuthStore } from './stores/auth'
 import { useAppStore } from './stores/app'
-import { me } from './api/services/authService'
 import { imRealtimeClient } from './im/imRealtimeClient'
 import AppShell from './components/layout/AppShell.vue'
 import AuthShell from './components/layout/AuthShell.vue'
@@ -79,20 +79,17 @@ const showRightPanel = computed(() => {
   return RIGHT_PANEL_ROUTE_NAMES.has(String(route.name || ''))
 })
 
-async function refreshMe() {
-  if (!auth.accessToken) return
-  try {
-    const { data, traceId } = await me()
-    auth.setMe(data)
-    if (traceId) {
-      app.setTraceId(traceId)
-    }
-  } catch (e) {
-    // 这里不强制登出；交由请求拦截器处理 refresh 失败场景
+async function bootstrapSession() {
+  if (!shouldBootstrapSession({ auth })) {
+    return
+  }
+  const session = await ensureSessionReady({ auth })
+  if (session.state === 'anonymous') {
+    auth.clear()
   }
 }
 
-onMounted(refreshMe)
+onMounted(bootstrapSession)
 
 // IM realtime lifecycle: connect on login, disconnect on logout or token refresh.
 watch(

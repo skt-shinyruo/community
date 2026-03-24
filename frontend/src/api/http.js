@@ -113,6 +113,7 @@ http.interceptors.response.use(
     const status = error?.response?.status
     const original = error?.config || {}
     const url = original?.url || ''
+    const skipGlobalErrorToast = !!original?.skipGlobalErrorToast
     const result = error?.response?.data
     const resultMessage = typeof result?.message === 'string' ? result.message : ''
     const traceId = typeof result?.traceId === 'string' ? result.traceId : ''
@@ -120,7 +121,7 @@ http.interceptors.response.use(
     const isAuthEndpoint = url.includes('/api/auth/login') || url.includes('/api/auth/refresh') || url.includes('/api/auth/register')
 
     // Global Error Toast for non-2xx / network errors (prefer backend Result.message + traceId)
-    if (status >= 500 || error.code === 'ERR_NETWORK') {
+    if (!skipGlobalErrorToast && (status >= 500 || error.code === 'ERR_NETWORK')) {
       if (typeof window !== 'undefined' && window.$toast) {
         const text = resultMessage || error.message || '服务异常，请稍后重试。'
         const traceSuffix = traceId ? ` (traceId=${traceId})` : ''
@@ -137,7 +138,7 @@ http.interceptors.response.use(
       try {
         if (!refreshingPromise) {
           refreshingPromise = http
-            .post('/api/auth/refresh')
+            .post('/api/auth/refresh', null, { skipGlobalErrorToast: true })
             .finally(() => {
               refreshingPromise = null
             })
@@ -161,7 +162,7 @@ http.interceptors.response.use(
     }
 
     // 对 4xx 也尽量展示后端 message/traceId，便于定位（但避免影响 refresh 重试逻辑）
-    if (status >= 400 && status < 500 && typeof window !== 'undefined' && window.$toast) {
+    if (!skipGlobalErrorToast && status >= 400 && status < 500 && typeof window !== 'undefined' && window.$toast) {
       const title = status === 401 ? '未登录或登录失效' : '请求失败'
       const text = resultMessage || error.message || '请求失败'
       const traceSuffix = traceId ? ` (traceId=${traceId})` : ''

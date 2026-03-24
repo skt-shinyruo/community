@@ -54,8 +54,9 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ensureSessionReady } from '../auth/session'
 import { useAuthStore } from '../stores/auth'
-import { login as apiLogin, me as apiMe, issueCaptcha } from '../api/services/authService'
+import { login as apiLogin, issueCaptcha } from '../api/services/authService'
 import UiCard from '../components/ui/UiCard.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -103,12 +104,14 @@ async function onLogin() {
     emit('trace', traceId || '')
     const token = data?.accessToken
     if (!token) throw new Error('No access token returned')
-    
+
     auth.setAccessToken(token)
-    try {
-      const me = await apiMe()
-      auth.setMe(me?.data || null)
-    } catch {}
+    const session = await ensureSessionReady({ auth })
+    if (session.state === 'anonymous') {
+      auth.clear()
+      error.value = '登录状态已失效，请重新登录'
+      return
+    }
 
     const redirect = route.query.redirect
     router.replace(redirect && redirect.startsWith('/') ? redirect : { name: 'posts' })

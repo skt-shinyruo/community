@@ -9,11 +9,13 @@ import com.nowcoder.community.auth.dto.RegisterCodeResendResponse;
 import com.nowcoder.community.auth.dto.RegisterCodeVerifyRequest;
 import com.nowcoder.community.auth.dto.RegisterRequest;
 import com.nowcoder.community.auth.dto.RegisterResponse;
+import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.auth.service.AuthService;
 import com.nowcoder.community.auth.service.CaptchaService;
 import com.nowcoder.community.auth.service.PasswordResetService;
 import com.nowcoder.community.auth.service.RegistrationService;
 import com.nowcoder.community.auth.service.RegistrationVerificationService;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.Result;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +34,7 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -111,6 +114,27 @@ class AuthControllerUnitTest {
         String setCookie = httpResponse.getHeader(HttpHeaders.SET_COOKIE);
         assertThat(setCookie).isNotBlank();
         assertThat(setCookie).contains("refresh_token=rt2");
+    }
+
+    @Test
+    void refreshShouldClearRefreshCookieWhenTokenIsInvalid() {
+        ResponseCookie clearCookie = ResponseCookie.from("refresh_token", "")
+                .httpOnly(true)
+                .path("/api/auth")
+                .maxAge(0)
+                .build();
+
+        when(authService.refresh(any(HttpServletRequest.class)))
+                .thenThrow(new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID));
+        when(authService.clearRefreshCookie()).thenReturn(clearCookie);
+
+        MockHttpServletRequest httpRequest = new MockHttpServletRequest();
+        MockHttpServletResponse httpResponse = new MockHttpServletResponse();
+
+        Throwable thrown = catchThrowable(() -> controller.refresh(httpRequest, httpResponse));
+
+        assertThat(thrown).isInstanceOf(BusinessException.class);
+        assertThat(httpResponse.getHeader(HttpHeaders.SET_COOKIE)).contains("Max-Age=0");
     }
 
     @Test

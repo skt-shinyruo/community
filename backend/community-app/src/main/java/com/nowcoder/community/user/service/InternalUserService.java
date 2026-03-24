@@ -1,9 +1,10 @@
 package com.nowcoder.community.user.service;
 
+import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.user.mapper.UserMapper;
 import com.nowcoder.community.user.entity.User;
+import com.nowcoder.community.user.mapper.UserMapper;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -41,19 +42,19 @@ public class InternalUserService {
         String u = safeTrim(username);
         String p = safeTrim(password);
         if (!StringUtils.hasText(u) || !StringUtils.hasText(p)) {
-            throw new BusinessException(CommonErrorCode.UNAUTHORIZED, "用户名或密码错误");
+            throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
         }
 
         User user = userMapper.selectByName(u);
         if (user == null) {
-            throw new BusinessException(CommonErrorCode.UNAUTHORIZED, "用户名或密码错误");
+            throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
         }
         if (user.getStatus() == 0) {
-            throw new BusinessException(CommonErrorCode.FORBIDDEN, "账号未激活或被禁用");
+            throw new BusinessException(AuthErrorCode.USER_DISABLED);
         }
 
         if (!passwordMatches(user, p)) {
-            throw new BusinessException(CommonErrorCode.UNAUTHORIZED, "用户名或密码错误");
+            throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
         }
 
         // 渐进 rehash：legacy(MD5+salt) -> bcrypt（仅在校验通过后触发）

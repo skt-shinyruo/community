@@ -10,6 +10,7 @@ describe('http', () => {
     setActivePinia(createPinia())
     useAuthStore().clear()
     vi.stubGlobal('location', { href: '' })
+    vi.stubGlobal('window', { $toast: vi.fn() })
   })
 
   it('should attach Authorization header when accessToken exists', async () => {
@@ -53,6 +54,15 @@ describe('http', () => {
     await expect(http.get('/api/protected')).rejects.toBeTruthy()
     expect(useAuthStore().accessToken).toBe('')
     expect(globalThis.location.href).toBe('/#/auth/login')
+    mock.restore()
+  })
+
+  it('should suppress global error toast when request opts out', async () => {
+    const mock = new MockAdapter(http)
+    mock.onPost('/api/auth/refresh').replyOnce(401, { code: 10004, message: '刷新令牌无效', traceId: 'trace-1' })
+
+    await expect(http.post('/api/auth/refresh', null, { skipGlobalErrorToast: true })).rejects.toBeTruthy()
+    expect(globalThis.window.$toast).not.toHaveBeenCalled()
     mock.restore()
   })
 })

@@ -77,6 +77,7 @@ sequenceDiagram
     participant API as AuthController
     participant REG as RegistrationService
     participant USER as InternalUserService
+    participant SESS as RegistrationSessionStore
     participant CODE as RegistrationCodeStore
     participant MAIL as MailService
     participant DB as MySQL
@@ -90,7 +91,8 @@ sequenceDiagram
     USER-->>REG: created userId
     REG->>CODE: issue(userId, code, ttl, cooldown)
     REG->>MAIL: sendRegistrationCodeMail(email, code)
-    REG-->>FE: userId + maskedEmail + emailCodeIssued
+    REG->>SESS: issue(userId, pendingTtl)
+    REG-->>FE: userId + registrationToken + maskedEmail + emailCodeIssued
     FE->>FE: 切到 verify 阶段并缓存上下文
 ```
 
@@ -107,7 +109,9 @@ sequenceDiagram
 5. 生成 6 位数字邮箱验证码
 6. 通过 `RegistrationCodeStore.issue(...)` 写入验证码
 7. 通过 `MailService.sendRegistrationCodeMail(...)` 发信
-8. 返回 `userId + emailCodeIssued + maskedEmail`
+8. 创建并返回注册上下文：
+   - 响应中包含 `userId`（调试/展示用）
+   - **响应中包含 `registrationToken`（后续重发/验证使用）**
 
 当前注册接口的行为不是“创建即可登录”，而是“创建待激活用户并进入邮箱验证阶段”。
 
@@ -150,7 +154,7 @@ sequenceDiagram
 
 请求字段：
 
-- `userId`
+- `registrationToken`
 - `captchaId`
 - `captchaCode`
 
@@ -160,6 +164,7 @@ sequenceDiagram
 - 只允许对仍处于 pending 状态的用户重发
 - 服务端有 resend cooldown，默认 `60` 秒
 - 新验证码签发后，仅最后一次发送的验证码有效
+- `registrationToken` 会在服务端解析为 `userId`（存储在 `RegistrationSessionStore`，TTL 与 pending user TTL 一致）
 
 ### 4.2 验证验证码并自动登录
 
@@ -167,18 +172,19 @@ sequenceDiagram
 
 请求字段：
 
-- `userId`
+- `registrationToken`
 - `code`
 
 后端处理顺序：
 
 1. `RegistrationVerificationService.verifyAndLogin(...)` 校验参数
-2. 确认该用户仍然是未激活 pending user
-3. `RegistrationCodeStore.verifyAndConsume(...)` 执行原子比对与消费
-4. 成功后调用 `InternalUserService.activateUser(userId)`，把 `status` 更新为 `1`
-5. 调用 `AuthService.issueLoginResult(user)` 签发登录态
-6. 响应体返回 `accessToken`
-7. 响应头通过 `Set-Cookie` 写入 refresh cookie
+2. `registrationToken -> userId`（缺失/过期视为注册上下文失效）
+3. 确认该用户仍然是未激活 pending user
+4. `RegistrationCodeStore.verifyAndConsume(...)` 执行原子比对与消费
+5. 成功后调用 `InternalUserService.activateUser(userId)`，把 `status` 更新为 `1`
+6. 调用 `AuthService.issueLoginResult(user)` 签发登录态
+7. 响应体返回 `accessToken`，并通过 `Set-Cookie` 写入 refresh cookie
+8. best-effort 删除注册上下文（避免 token 被复用）
 
 这条链路的关键点是：
 
@@ -377,6 +383,7 @@ sequenceDiagram
 - key：`community.register.pending`
 - value 包含：
   - `userId`
+  - `registrationToken`
   - `emailCodeIssued`
   - `maskedEmail`
   - `debugEmailCode`

@@ -146,7 +146,8 @@
 
 做法：
 
-- 应用统一通过 OTel agent / SDK 发送 `logs / metrics / traces`
+- 应用统一通过 OTel agent / SDK 发送 `traces / metrics`
+- 应用继续输出结构化日志，由 gateway collector 统一接入为 logs signal
 - 统一经过 gateway collector 进行补全、治理、采样、导出
 - Elastic 作为统一后端
 
@@ -198,17 +199,17 @@
 目标架构如下：
 
 ```text
-community-gateway
-community-app
-im-core
-im-realtime
-    -> OpenTelemetry SDK / Java agent
-    -> OTLP
-    -> observability-gateway-collector
+community-gateway / community-app / im-core / im-realtime
+    -> OTel Java agent
+    -> OTLP (traces / metrics)
+    -> observability-gateway-edot-collector
     -> Elastic Observability
-       - Elasticsearch
-       - Kibana
-       - Alerting
+
+community-gateway / community-app / im-core / im-realtime
+    -> stdout structured logs
+    -> docker container json logs
+    -> filelog receiver in observability-gateway-edot-collector
+    -> Elastic Observability
 ```
 
 第一阶段采用“单 gateway collector”的拓扑，而不是多级 collector 拓扑。原因：
@@ -225,7 +226,8 @@ im-realtime
 - 输出结构化业务日志
 - 暴露必要的业务上下文
 - 保留与补齐关键安全、审计、异步日志
-- 通过 OTel agent / SDK 发出 traces / metrics，并通过结构化日志或兼容的日志桥接进入 collector
+- 通过 OTel agent / SDK 发出 traces / metrics
+- 在容器化运行路径下，把结构化日志输出到 stdout，交由 collector 的日志 receiver 统一接入
 
 gateway collector 负责：
 
@@ -233,7 +235,9 @@ gateway collector 负责：
 - 批量、重试、memory limiter、backpressure 防护
 - 脱敏和字段治理
 - trace 采样
-- 把 OTLP 数据导出到 Elastic
+- 通过 OTLP receiver 接收 traces / metrics
+- 通过日志 receiver 接收容器 stdout 日志
+- 把处理后的 signals 导出到 Elastic
 
 Elastic 负责：
 
@@ -247,25 +251,45 @@ Elastic 负责：
 - `traces`
   - 第一阶段优先使用 OTel Java agent 自动采集 HTTP、JDBC、Kafka、HTTP client 等通用链路
 - `metrics`
-  - 第一阶段优先使用 OTel agent / runtime metrics 与现有应用指标并存，后续再统一收口
+  - 第一阶段优先使用 OTel agent / runtime metrics 与现有应用指标并存
+  - 现有 Prometheus 抓取的应用指标仍是 Phase 1 告警与服务健康看板的权威来源
+  - OTel metrics 在 Phase 1 主要用于 Elastic 侧关联与探索，不作为第一批告警的唯一依据
 - `logs`
   - 业务日志继续由应用输出结构化日志
-  - 第一阶段统一进入 gateway collector，再导出到 Elastic
-  - 是否直接采用 OTLP log export 作为应用到 collector 的实现细节，不在本设计中提前锁死；其选择应以“低侵入、稳定、便于本地与生产同构”为准
+  - Phase 1 明确采用“容器 stdout -> docker json log -> collector filelog receiver -> Elastic”的接入方式
+  - 该路径复用当前仓库已有的容器日志采集思路，便于从现有 `Promtail` 方案迁移到 collector 方案
+  - OTLP logs 作为后续优化项保留，不作为 Phase 1 前提
 
 这意味着第一阶段不要求所有日志都改成“手工 SDK 发 OTLP 日志”，而是优先统一字段模型、上下文关联和 collector 入口。
 
-### 5.4 本地与生产的统一性
+### 5.4 Trace Header Bridge 规则
 
-本地和生产保持同构链路：
+Phase 1 对 `traceparent` 与 `X-Trace-Id` 的桥接规则统一如下：
 
-- 都经过 OTel -> collector -> Elastic
+1. 若入站请求存在合法 `traceparent`，则其携带的 trace id 是标准 `trace.id` 的唯一权威来源。
+2. 若 `traceparent` 缺失或非法，但 `X-Trace-Id` 可以被规范化为合法 32 位小写 hex，则使用该值作为标准 `trace.id`，并向下游补齐对应 `traceparent`。
+3. 若二者都缺失或非法，则生成新的标准 `trace.id`。
+4. 响应头继续回写 `X-Trace-Id`，其值始终等于最终采用的标准 `trace.id`。
+5. 非法 `X-Trace-Id` 不得直接进入标准 trace 字段；如需排查兼容问题，仅允许在边界层以布尔型或受控调试字段标记“legacy trace header invalid”，不记录原始值。
+
+这条规则的目标是：
+
+- 优先遵守 W3C Trace Context
+- 不打破现有 `X-Trace-Id` 使用习惯
+- 避免不同服务分别决定“谁是主 trace id”
+
+### 5.5 本地与生产的统一性
+
+在启用 observability profile 的容器化运行路径下，本地与生产保持同构链路：
+
+- traces / metrics 都经过 `OTel -> EDOT gateway collector -> Elastic`
+- logs 都经过 `stdout -> container json logs -> collector filelog receiver -> Elastic`
 - 都使用相同字段模型
 - 差异仅体现在输出格式和规模：
   - 生产环境：JSON 日志
-  - 本地开发：可读文本日志，但字段语义必须一致
+  - 开发阶段的直接本地运行（如 `mvn spring-boot:run`）：允许保留可读文本日志，但该路径不属于 Phase 1 的 ingestion 验收范围
 
-这避免后续出现“本地 grep 思维，生产 Kibana 思维”的割裂。
+这避免后续出现“本地 grep 思维，生产 Kibana 思维”的割裂，同时不强行要求所有非容器本地运行场景在第一阶段也完成同样的采集接入。
 
 ---
 
@@ -302,6 +326,12 @@ Elastic 负责：
 - `host.name`
 - `container.id`
 - `process.pid`
+
+`service.version` 的来源在本方案中固定为：
+
+- 容器化部署：优先使用镜像 tag 或构建时注入的 git SHA
+- 本地 Maven 运行：默认使用模块 `pom.xml` 中的项目版本
+- 若上述信息均不可用，可临时回退为 `unknown`，但不作为生产验收合格状态
 
 ### 6.3 事件分类
 
@@ -384,6 +414,11 @@ HTTP / gateway 事件：
 
 邮箱、手机号、用户名等标识原则上采用“非必须不全量记录”的策略。
 
+敏感信息治理的责任边界明确如下：
+
+- 应用侧“禁止输出敏感字段”是主保证
+- collector 侧的脱敏 / 清洗只作为 defense-in-depth，不应被视为可以容忍应用先输出敏感数据的理由
+
 ---
 
 ## 7. 服务级落地方案
@@ -407,7 +442,7 @@ HTTP / gateway 事件：
   - method / path / status / duration / trace.id
 - `integration`
   - 路由失败、后端不可达
-- `exception` 或 `integration`
+- `security` 或 `integration`
   - fail-open / degrade 决策
 - `access`
   - WS 握手、拒绝、断开摘要
@@ -427,6 +462,11 @@ HTTP / gateway 事件：
 
 - 使用 OTel Java agent 自动采集 servlet、jdbc、redis、http client、es client
 - 保留现有 audit / exception 日志，并升级为统一结构化事件
+
+说明：
+
+- JDBC、HTTP client、Kafka 等通用链路直接依赖 Java agent 自动采集
+- Redis / Elasticsearch 的自动采集以仓库中实际使用的客户端库和版本为准；若 agent 覆盖不足，再在 implementation plan 中决定是否补充定向 instrumentation
 
 第一阶段必须补的事件：
 
@@ -517,10 +557,10 @@ HTTP / gateway 事件：
 
 ### 8.1 Collector 拓扑
 
-第一阶段采用单 gateway collector：
+第一阶段采用单 `EDOT Collector` gateway：
 
 ```text
-apps -> OTLP -> observability-gateway-collector -> Elastic
+apps -> OTLP / filelog -> observability-gateway-edot-collector -> Elastic
 ```
 
 后续如需扩容，可演进为：
@@ -528,6 +568,12 @@ apps -> OTLP -> observability-gateway-collector -> Elastic
 ```text
 apps -> local collector(optional) -> gateway collector -> Elastic
 ```
+
+对于本仓库目标覆盖的本地 `docker compose` 与未来 self-managed / ECK / ECE 类部署，Phase 1 的后端 ingress 选型固定为：
+
+- 使用 `EDOT Collector` 的 gateway mode 作为统一接入层
+- 不将“应用或边缘 collector 直接发送到 APM Server 的 OpenTelemetry intake”作为 Phase 1 正式方案
+- 若未来迁移到 Elastic Cloud Hosted / Serverless，可再评估是否切换到 Managed OTLP Endpoint
 
 ### 8.2 Collector 责任边界
 
@@ -537,6 +583,7 @@ Collector 负责：
 - batch / retry / memory limiter
 - 脱敏与字段清洗
 - trace 采样
+- 日志 receiver 对接容器 stdout 日志文件
 - 导出到 Elastic
 
 Collector 不负责：
@@ -568,6 +615,11 @@ Collector 不负责：
 - `community.job_id`
 - `community.event_id`
 
+Phase 1 不要求同时完成 metrics 权威来源切换：
+
+- Prometheus / actuator 指标仍用于当前服务健康和基础告警
+- Elastic 中的 metrics 主要用于统一关联、探索和后续迁移准备
+
 ---
 
 ## 9. Kibana 消费与告警
@@ -585,6 +637,7 @@ Collector 不负责：
 
 建议第一批告警包括：
 
+- 仍由 Prometheus 负责的服务可用性与基础健康告警
 - `community.category=exception` 短时间激增
 - `community.category=security and community.action=login and community.outcome=denied`
 - `community.category=async and community.outcome=dead`
@@ -619,8 +672,9 @@ Collector 不负责：
 交付物：
 
 - `deploy/` 下新增 Elastic observability profile
-- gateway collector
+- gateway 模式的 `EDOT Collector`
 - 后端四服务的 OTel 运行参数接入
+- 容器 stdout 日志进入 collector 的 filelog 接入
 - 本地 compose 同构链路
 
 ### Phase 2：统一日志输出
@@ -630,6 +684,7 @@ Collector 不负责：
 - 后端统一 JSON / text 双格式日志方案
 - `community-app` 与 `im-core` 的 trace / log correlation 对齐
 - 现有 access / audit / exception 日志升级为结构化事件
+- `service.version` 注入来源在 compose / 本地运行中落地
 
 ### Phase 3：关键业务事件补齐
 
@@ -660,10 +715,12 @@ Collector 不负责：
 - 四个核心服务都有基础 traces
 - 至少一条跨服务请求可以按 `trace.id` 串联
 - collector 不出现持续导出失败、背压或显著丢数
+- 在 observability compose profile 下，容器 stdout 日志能够通过 collector 进入 Elastic，而不依赖 Promtail
 
 ### 11.2 字段模型
 
 - 关键日志都带 `service.name`、`trace.id`、`community.category`、`community.action`、`community.outcome`
+- 关键日志的 `service.version` 来源可解释且在 compose 环境中稳定
 - HTTP 访问事件带 method / path / status / duration
 - 审计事件带 actor / target / action / outcome
 - 异步事件至少带 `job_id / event_id / topic` 之一
@@ -726,7 +783,18 @@ Collector 不负责：
 - 第一阶段允许少量日志规则
 - 长期目标逐步迁移到 metrics 告警
 
-### 12.4 trace 与旧 traceId 双轨混乱
+### 12.4 指标双写期的口径冲突
+
+风险：
+
+- Prometheus 指标与 Elastic 指标并存时，Dashboard 和告警可能使用了不同口径
+
+控制：
+
+- Phase 1 明确 Prometheus 是基础健康告警的权威来源
+- Elastic metrics 主要用于关联分析，待后续显式切换后再承担主告警职责
+
+### 12.5 trace 与旧 traceId 双轨混乱
 
 风险：
 
@@ -736,8 +804,9 @@ Collector 不负责：
 
 - 兼容期保留 `X-Trace-Id`
 - 文档中明确标准主键是 `trace.id`
+- 通过统一 bridge 规则定义 `traceparent` 与 `X-Trace-Id` 的优先级和回写行为
 
-### 12.5 项目范围失控
+### 12.6 项目范围失控
 
 风险：
 

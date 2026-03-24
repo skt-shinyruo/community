@@ -116,6 +116,16 @@ public class RefreshTokenSessionRepository {
         );
     }
 
+    public int deleteExpiredBefore(Instant cutoff) {
+        if (cutoff == null) {
+            return 0;
+        }
+        return jdbcTemplate.update(
+                "delete from auth_refresh_token where expires_at <= ?",
+                Timestamp.from(cutoff)
+        );
+    }
+
     private RefreshTokenRecord mapOneOrNull(ResultSet rs) throws java.sql.SQLException {
         if (rs == null || !rs.next()) {
             return null;

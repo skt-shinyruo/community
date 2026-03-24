@@ -61,6 +61,9 @@ gateway:
 auth:
   refresh:
     store: db
+    cleanup:
+      enabled: ${AUTH_REFRESH_CLEANUP_ENABLED:true}
+      interval-ms: ${AUTH_REFRESH_CLEANUP_INTERVAL_MS:3600000}
   captcha:
     store: redis
     ttl-seconds: 60

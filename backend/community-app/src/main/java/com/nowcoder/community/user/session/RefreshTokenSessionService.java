@@ -60,6 +60,13 @@ public class RefreshTokenSessionService {
         return repository.revokeFamily(familyId.trim());
     }
 
+    public int deleteExpiredBefore(Instant cutoff) {
+        if (cutoff == null) {
+            return 0;
+        }
+        return repository.deleteExpiredBefore(cutoff);
+    }
+
     private boolean isValidTokenHash(String tokenHash) {
         if (!StringUtils.hasText(tokenHash)) {
             return false;

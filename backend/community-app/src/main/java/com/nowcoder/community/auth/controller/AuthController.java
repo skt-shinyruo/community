@@ -114,7 +114,7 @@ public class AuthController {
     @PostMapping("/register/code/resend")
     public Result<RegisterCodeResendResponse> resendRegisterCode(@Valid @RequestBody RegisterCodeResendRequest request) {
         return Result.ok(registrationVerificationService.resendCode(
-                request.getUserId(),
+                request.getRegistrationToken(),
                 request.getCaptchaId(),
                 request.getCaptchaCode()
         ));
@@ -122,7 +122,7 @@ public class AuthController {
 
     @PostMapping("/register/code/verify")
     public Result<LoginResponse> verifyRegisterCode(@Valid @RequestBody RegisterCodeVerifyRequest request, HttpServletResponse response) {
-        AuthService.LoginResult result = registrationVerificationService.verifyAndLogin(request.getUserId(), request.getCode());
+        AuthService.LoginResult result = registrationVerificationService.verifyAndLogin(request.getRegistrationToken(), request.getCode());
         response.addHeader(HttpHeaders.SET_COOKIE, result.refreshCookie().toString());
         return Result.ok(new LoginResponse(result.accessToken()));
     }

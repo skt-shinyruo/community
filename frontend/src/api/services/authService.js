@@ -39,14 +39,14 @@ export async function register({ username, password, email, captchaId = '', capt
   return { data, traceId }
 }
 
-export async function resendRegisterCode(userId, { captchaId = '', captchaCode = '' } = {}) {
-  const resp = await http.post('/api/auth/register/code/resend', { userId, captchaId, captchaCode })
+export async function resendRegisterCode(registrationToken, { captchaId = '', captchaCode = '' } = {}) {
+  const resp = await http.post('/api/auth/register/code/resend', { registrationToken, captchaId, captchaCode })
   const { data, traceId } = unwrapResultBody(resp.data, '重发注册验证码')
   return { data, traceId }
 }
 
-export async function verifyRegisterCode(userId, code) {
-  const resp = await http.post('/api/auth/register/code/verify', { userId, code })
+export async function verifyRegisterCode(registrationToken, code) {
+  const resp = await http.post('/api/auth/register/code/verify', { registrationToken, code })
   const { data, traceId } = unwrapResultBody(resp.data, '验证注册验证码')
   return { data, traceId }
 }

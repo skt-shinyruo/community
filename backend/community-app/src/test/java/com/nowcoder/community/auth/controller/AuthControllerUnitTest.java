@@ -203,6 +203,7 @@ class AuthControllerUnitTest {
 
         RegisterResponse registerResponse = new RegisterResponse();
         registerResponse.setUserId(7);
+        registerResponse.setRegistrationToken("0123456789abcdef0123456789abcdef");
         registerResponse.setEmailCodeIssued(true);
         registerResponse.setMaskedEmail("a***@example.com");
         registerResponse.setDebugEmailCode("123456");
@@ -214,6 +215,7 @@ class AuthControllerUnitTest {
 
         assertThat(response.getCode()).isEqualTo(0);
         assertThat(response.getData()).isNotNull();
+        assertThat(response.getData().getRegistrationToken()).isEqualTo("0123456789abcdef0123456789abcdef");
         assertThat(response.getData().isEmailCodeIssued()).isTrue();
         assertThat(response.getData().getMaskedEmail()).isEqualTo("a***@example.com");
         assertThat(response.getData().getDebugEmailCode()).isEqualTo("123456");
@@ -222,7 +224,7 @@ class AuthControllerUnitTest {
     @Test
     void resendRegisterCodeShouldReturnResponse() {
         RegisterCodeResendRequest request = new RegisterCodeResendRequest();
-        request.setUserId(7);
+        request.setRegistrationToken("token");
         request.setCaptchaId("cid");
         request.setCaptchaCode("abcd");
 
@@ -231,7 +233,7 @@ class AuthControllerUnitTest {
         resendResponse.setMaskedEmail("a***@example.com");
         resendResponse.setDebugEmailCode("123456");
 
-        when(registrationVerificationService.resendCode(7, "cid", "abcd")).thenReturn(resendResponse);
+        when(registrationVerificationService.resendCode("token", "cid", "abcd")).thenReturn(resendResponse);
 
         Result<RegisterCodeResendResponse> response = controller.resendRegisterCode(request);
 
@@ -245,7 +247,7 @@ class AuthControllerUnitTest {
     @Test
     void verifyRegisterCodeShouldSetRefreshCookieAndReturnAccessToken() {
         RegisterCodeVerifyRequest request = new RegisterCodeVerifyRequest();
-        request.setUserId(7);
+        request.setRegistrationToken("token");
         request.setCode("123456");
 
         ResponseCookie refreshCookie = ResponseCookie.from("refresh_token", "rt3")
@@ -253,7 +255,7 @@ class AuthControllerUnitTest {
                 .path("/api/auth")
                 .build();
 
-        when(registrationVerificationService.verifyAndLogin(7, "123456"))
+        when(registrationVerificationService.verifyAndLogin("token", "123456"))
                 .thenReturn(new AuthService.LoginResult("at3", refreshCookie));
 
         MockHttpServletResponse httpResponse = new MockHttpServletResponse();

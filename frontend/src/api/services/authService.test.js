@@ -22,6 +22,7 @@ describe('api/services/authService', () => {
       httpStatus: 200,
       data: {
         userId: 7,
+        registrationToken: '0123456789abcdef0123456789abcdef',
         emailCodeIssued: true,
         maskedEmail: 'a***e@example.com',
         debugEmailCode: '123456'
@@ -41,6 +42,7 @@ describe('api/services/authService', () => {
     expect(resp.traceId).toBe('trace-register')
     expect(resp.data).toEqual({
       userId: 7,
+      registrationToken: '0123456789abcdef0123456789abcdef',
       emailCodeIssued: true,
       maskedEmail: 'a***e@example.com',
       debugEmailCode: '123456'
@@ -52,7 +54,7 @@ describe('api/services/authService', () => {
     mock = new MockAdapter(http)
     mock.onPost('/api/auth/register/code/resend').reply((config) => {
       expect(JSON.parse(config.data)).toEqual({
-        userId: 7,
+        registrationToken: 'token',
         captchaId: 'cid',
         captchaCode: 'abcd'
       })
@@ -70,7 +72,7 @@ describe('api/services/authService', () => {
       }]
     })
 
-    const resp = await resendRegisterCode(7, { captchaId: 'cid', captchaCode: 'abcd' })
+    const resp = await resendRegisterCode('token', { captchaId: 'cid', captchaCode: 'abcd' })
 
     expect(resp.traceId).toBe('trace-resend')
     expect(resp.data.issued).toBe(true)
@@ -82,7 +84,7 @@ describe('api/services/authService', () => {
     mock = new MockAdapter(http)
     mock.onPost('/api/auth/register/code/verify').reply((config) => {
       expect(JSON.parse(config.data)).toEqual({
-        userId: 7,
+        registrationToken: 'token',
         code: '123456'
       })
       return [200, {
@@ -97,7 +99,7 @@ describe('api/services/authService', () => {
       }]
     })
 
-    const resp = await verifyRegisterCode(7, '123456')
+    const resp = await verifyRegisterCode('token', '123456')
 
     expect(resp.traceId).toBe('trace-verify')
     expect(resp.data).toEqual({

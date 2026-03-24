@@ -13,14 +13,16 @@ function getStorage() {
 
 export function buildRegisterFlowState(registerData = null) {
   const userId = Number(registerData?.userId || 0)
+  const registrationToken = safeString(registerData?.registrationToken)
   const emailCodeIssued = registerData?.emailCodeIssued === true
   const maskedEmail = safeString(registerData?.maskedEmail)
   const debugEmailCode = safeString(registerData?.debugEmailCode)
-  const step = emailCodeIssued && userId > 0 ? 'verify' : 'form'
+  const step = emailCodeIssued && (registrationToken || userId > 0) ? 'verify' : 'form'
 
   return {
     step,
     userId,
+    registrationToken,
     emailCodeIssued,
     maskedEmail,
     debugEmailCode,
@@ -41,6 +43,7 @@ export function persistRegisterFlowState(flowState, storage = getStorage()) {
   }
   storage.setItem(STORAGE_KEY, JSON.stringify({
     userId: normalized.userId,
+    registrationToken: normalized.registrationToken,
     emailCodeIssued: normalized.emailCodeIssued,
     maskedEmail: normalized.maskedEmail,
     debugEmailCode: normalized.debugEmailCode

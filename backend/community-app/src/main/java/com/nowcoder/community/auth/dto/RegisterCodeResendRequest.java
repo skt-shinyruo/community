@@ -1,13 +1,14 @@
 package com.nowcoder.community.auth.dto;
 
 import com.nowcoder.community.common.constants.ValidationLimits;
-import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public class RegisterCodeResendRequest {
 
-    @Positive
-    private int userId;
+    @NotBlank
+    @Size(max = 64)
+    private String registrationToken;
 
     @Size(max = ValidationLimits.CAPTCHA_ID_MAX)
     private String captchaId;
@@ -15,12 +16,12 @@ public class RegisterCodeResendRequest {
     @Size(max = ValidationLimits.CAPTCHA_CODE_MAX)
     private String captchaCode;
 
-    public int getUserId() {
-        return userId;
+    public String getRegistrationToken() {
+        return registrationToken;
     }
 
-    public void setUserId(int userId) {
-        this.userId = userId;
+    public void setRegistrationToken(String registrationToken) {
+        this.registrationToken = registrationToken;
     }
 
     public String getCaptchaId() {

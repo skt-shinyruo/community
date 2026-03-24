@@ -203,7 +203,7 @@ async function onResendCode() {
   error.value = ''
   successMsg.value = ''
 
-  if (!flow.value.userId) {
+  if (!flow.value.registrationToken) {
     error.value = '缺少注册上下文，请重新注册'
     return
   }
@@ -214,7 +214,7 @@ async function onResendCode() {
 
   loading.value = true
   try {
-    const { data, traceId } = await resendRegisterCode(flow.value.userId, {
+    const { data, traceId } = await resendRegisterCode(flow.value.registrationToken, {
       captchaId: captchaId.value,
       captchaCode: form.captcha
     })
@@ -247,7 +247,7 @@ async function onVerifyCode() {
   error.value = ''
   successMsg.value = ''
 
-  if (!flow.value.userId) {
+  if (!flow.value.registrationToken) {
     error.value = '缺少注册上下文，请重新注册'
     return
   }
@@ -258,7 +258,7 @@ async function onVerifyCode() {
 
   loading.value = true
   try {
-    const { data, traceId } = await verifyRegisterCode(flow.value.userId, form.emailCode)
+    const { data, traceId } = await verifyRegisterCode(flow.value.registrationToken, form.emailCode)
     emit('trace', traceId || '')
     const token = data?.accessToken
     if (!token) throw new Error('No access token returned')

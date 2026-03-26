@@ -20,3 +20,4 @@
 - `auth-registration-login-flow.md`：认证注册、邮箱验证码验证、密码登录与会话续期链路说明
 - `im-private-message-flow.md`：IM 私信链路实现说明
 - `im-room-message-flow.md`：IM 群聊链路实现说明
+- `social-like-follow-outbox-flow.md`：点赞、关注与社交事件 outbox 链路说明

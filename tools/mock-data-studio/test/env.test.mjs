@@ -178,6 +178,38 @@ test('loadConfig rejects invalid AI timeout/max-items values', () => {
   )
 })
 
+test('loadConfig parses reindex auth secret from JWT_HMAC_SECRET fallback', () => {
+  const config = loadConfig({
+    JWT_HMAC_SECRET: 'dev-jwt-hmac-secret-please-change-me-123456',
+    MOCK_DATA_STUDIO_DB_URL: 'mysql://mysql:3306/community',
+    MOCK_DATA_STUDIO_DB_USER: 'community',
+    MOCK_DATA_STUDIO_DB_PASSWORD: 'communitypass'
+  })
+
+  assert.deepEqual(config.reindexAuth, {
+    jwtHmacSecret: 'dev-jwt-hmac-secret-please-change-me-123456',
+    jwtIssuer: 'community-auth',
+    jwtTtlSeconds: 120
+  })
+})
+
+test('loadConfig allows overriding reindex auth issuer and ttl', () => {
+  const config = loadConfig({
+    MOCK_DATA_STUDIO_REINDEX_JWT_HMAC_SECRET: 'reindex-secret-1234567890abcdefghijklmnopqrstuvwxyz',
+    MOCK_DATA_STUDIO_REINDEX_JWT_ISSUER: 'community-auth-dev',
+    MOCK_DATA_STUDIO_REINDEX_JWT_TTL_SECONDS: '45',
+    MOCK_DATA_STUDIO_DB_URL: 'mysql://mysql:3306/community',
+    MOCK_DATA_STUDIO_DB_USER: 'community',
+    MOCK_DATA_STUDIO_DB_PASSWORD: 'communitypass'
+  })
+
+  assert.deepEqual(config.reindexAuth, {
+    jwtHmacSecret: 'reindex-secret-1234567890abcdefghijklmnopqrstuvwxyz',
+    jwtIssuer: 'community-auth-dev',
+    jwtTtlSeconds: 45
+  })
+})
+
 test('startup prints a prefixed config error and exits non-zero when required env is missing', () => {
   const hermeticEnv = {
     PATH: process.env.PATH,

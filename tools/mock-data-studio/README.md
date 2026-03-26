@@ -130,6 +130,16 @@ curl -X DELETE http://127.0.0.1:12888/api/batches/1
 - `MOCK_DATA_STUDIO_OPENAI_MODEL`：默认 `gpt-4.1-mini`
 - `MOCK_DATA_STUDIO_OPENAI_TIMEOUT_MS`：默认 `8000`
 - `MOCK_DATA_STUDIO_AI_MAX_ITEMS_PER_JOB`：默认 `20`；超出预算的文本保持规则生成结果
+- `MOCK_DATA_STUDIO_REINDEX_JWT_HMAC_SECRET`：可选；为空时回退 `JWT_HMAC_SECRET`
+- `MOCK_DATA_STUDIO_REINDEX_JWT_ISSUER`：默认 `community-auth`
+- `MOCK_DATA_STUDIO_REINDEX_JWT_TTL_SECONDS`：默认 `120`
+
+## 搜索重建说明
+
+- content-like 结果会在作业结束时调用 `POST /api/ops/search/reindex`
+- `community-app` 的 `/api/ops/**` 要求 `ROLE_ADMIN`
+- `mock-data-studio` 会在本地 dev 中生成一个短时 `ROLE_ADMIN` JWT 来触发该操作
+- 默认优先使用 `MOCK_DATA_STUDIO_REINDEX_JWT_HMAC_SECRET`，未设置时回退 `JWT_HMAC_SECRET`
 
 ## 写入说明
 

@@ -97,6 +97,10 @@
   - `MOCK_DATA_STUDIO_OPENAI_MODEL`：默认 `gpt-4.1-mini`
   - `MOCK_DATA_STUDIO_OPENAI_TIMEOUT_MS`：默认 `8000`
   - `MOCK_DATA_STUDIO_AI_MAX_ITEMS_PER_JOB`：默认 `20`（超过预算的文本保留规则生成文案）
+  - `MOCK_DATA_STUDIO_REINDEX_JWT_HMAC_SECRET`：可选；为空时回退 `JWT_HMAC_SECRET`
+  - `MOCK_DATA_STUDIO_REINDEX_JWT_ISSUER`：默认 `community-auth`
+  - `MOCK_DATA_STUDIO_REINDEX_JWT_TTL_SECONDS`：默认 `120`
+- `mock-data-studio` 在本地 dev 中会用短时 `ROLE_ADMIN` JWT 调用 `POST /api/ops/search/reindex`；不放开 ops 匿名访问。
 - planner 使用 sidecar metadata 批次记录目标与已生成实体引用；当前已会把以下新增行写回 `demo_entity_ref`：
   - 社区：`user` / `discuss_post` / `comment` / `social_follow` / `social_like`
   - message/moderation：`message`（私信 + notices）/ `report` / `moderation_action`

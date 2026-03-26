@@ -7,6 +7,8 @@ const DEFAULT_AUTO_FILL_SCENE_KEY = 'tech-community-hot-start'
 const DEFAULT_AI_MODEL = 'gpt-4.1-mini'
 const DEFAULT_AI_TIMEOUT_MS = 8000
 const DEFAULT_AI_MAX_ITEMS_PER_JOB = 20
+const DEFAULT_REINDEX_JWT_ISSUER = 'community-auth'
+const DEFAULT_REINDEX_JWT_TTL_SECONDS = 120
 
 const TRUE_VALUES = new Set(['1', 'true', 'yes', 'on'])
 const FALSE_VALUES = new Set(['0', 'false', 'no', 'off'])
@@ -146,6 +148,18 @@ export function loadConfig(env = process.env) {
     upstreams: {
       communityAppBaseUrl,
       imCoreBaseUrl
+    },
+    reindexAuth: {
+      jwtHmacSecret: parseOptionalString(
+        env.MOCK_DATA_STUDIO_REINDEX_JWT_HMAC_SECRET,
+        parseOptionalString(env.JWT_HMAC_SECRET, null)
+      ),
+      jwtIssuer: parseOptionalString(env.MOCK_DATA_STUDIO_REINDEX_JWT_ISSUER, DEFAULT_REINDEX_JWT_ISSUER),
+      jwtTtlSeconds: parsePositiveInteger(
+        env.MOCK_DATA_STUDIO_REINDEX_JWT_TTL_SECONDS,
+        DEFAULT_REINDEX_JWT_TTL_SECONDS,
+        'MOCK_DATA_STUDIO_REINDEX_JWT_TTL_SECONDS'
+      )
     },
     ai: {
       provider: 'openai',

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>mock-data-studio</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">mock-data-studio</p>
+          <h1>生成、状态、历史、详情</h1>
+          <p class="page-summary">本地开发用最小操作台：查看运行态、发起任务、轮询 job、浏览 batch 历史与详情。</p>
+        </div>
+        <div class="header-actions">
+          <button id="refresh-all" type="button">刷新全部</button>
+        </div>
+      </header>
+
+      <main class="page-grid">
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Runtime</p>
+              <h2>运行态状态</h2>
+            </div>
+            <button id="refresh-runtime" type="button">刷新状态</button>
+          </div>
+          <div id="runtime-summary" class="runtime-summary"></div>
+          <div id="runtime-status-grid" class="runtime-status-grid"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Generate</p>
+              <h2>生成控制</h2>
+            </div>
+          </div>
+
+          <form id="generate-form" class="generate-form">
+            <div class="field-group">
+              <span class="field-label">模式切换</span>
+              <div id="mode-switch" class="mode-switch"></div>
+            </div>
+
+            <div class="field-grid">
+              <label class="field">
+                <span>场景预设</span>
+                <select id="scene-preset"></select>
+              </label>
+
+              <label class="field">
+                <span>Requested By</span>
+                <input id="requested-by" type="text" value="local-dev">
+              </label>
+            </div>
+
+            <div class="field-group">
+              <span class="field-label">预览计数</span>
+              <div class="count-grid">
+                <label class="field">
+                  <span>用户</span>
+                  <input id="count-users" type="number" min="0" step="1">
+                </label>
+                <label class="field">
+                  <span>帖子</span>
+                  <input id="count-posts" type="number" min="0" step="1">
+                </label>
+                <label class="field">
+                  <span>评论</span>
+                  <input id="count-comments" type="number" min="0" step="1">
+                </label>
+                <label class="field">
+                  <span>关注</span>
+                  <input id="count-socialFollows" type="number" min="0" step="1">
+                </label>
+                <label class="field">
+                  <span>点赞</span>
+                  <input id="count-socialLikes" type="number" min="0" step="1">
+                </label>
+              </div>
+            </div>
+
+            <label class="toggle-field">
+              <input id="ai-enhancement" type="checkbox">
+              <span>AI 增强预览</span>
+            </label>
+
+            <div class="generate-actions">
+              <button id="submit-generate" type="submit">提交生成</button>
+              <div id="job-status" class="job-status">尚未提交 job。</div>
+            </div>
+          </form>
+
+          <div class="preview-block">
+            <div>
+              <p class="panel-kicker">Preview</p>
+              <h3>请求预览</h3>
+            </div>
+            <pre id="generate-preview">加载中…</pre>
+          </div>
+        </section>
+
+        <section class="panel panel-history">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">History</p>
+              <h2>批次历史</h2>
+            </div>
+            <button id="refresh-history" type="button">刷新历史</button>
+          </div>
+          <div id="history-summary" class="history-summary"></div>
+          <div class="table-wrap">
+            <table id="batch-history-table" class="history-table">
+              <thead>
+                <tr>
+                  <th>批次</th>
+                  <th>类型</th>
+                  <th>状态</th>
+                  <th>目标 / 实际</th>
+                  <th>最近 Job</th>
+                  <th>创建时间</th>
+                </tr>
+              </thead>
+              <tbody id="batch-history-body">
+                <tr>
+                  <td colspan="6">加载中…</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <aside class="panel panel-detail">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Detail</p>
+              <h2>批次详情</h2>
+            </div>
+          </div>
+          <div id="batch-detail">请选择一个批次查看详情。</div>
+        </aside>
+      </main>
+    </div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

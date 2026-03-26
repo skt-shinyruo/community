@@ -60,30 +60,7 @@
 
         <div v-if="error && items.length > 0" class="error chat-inline-error">{{ error }}</div>
 
-        <div class="chat-input-area">
-          <textarea
-            id="conversation-message-input"
-            name="conversation-message"
-            class="chat-input"
-            v-model="content"
-            placeholder="写一条清晰、具体的消息…"
-            @keydown.enter.prevent="send"
-            rows="1"
-          ></textarea>
-          <button
-            class="send-btn"
-            type="button"
-            aria-label="发送消息"
-            title="发送"
-            @click="send"
-            :disabled="sending || !content.trim()"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="22" y1="2" x2="11" y2="13"></line>
-              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-            </svg>
-          </button>
-        </div>
+        <ConversationComposer v-model="content" :disabled="sending" @submit="send" />
       </div>
     </UiCard>
   </div>
@@ -94,6 +71,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { listImConversationMessages, markImConversationRead } from '../api/services/imCoreChatService'
 import { imRealtimeClient } from '../im/imRealtimeClient'
+import ConversationComposer from '../components/scene/ConversationComposer.vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiDivider from '../components/ui/UiDivider.vue'
@@ -438,57 +416,6 @@ onMounted(() => {
   margin: 0;
 }
 
-.chat-input-area {
-  padding: 12px;
-  background: color-mix(in srgb, var(--surface) 75%, var(--bg) 25%);
-  border: 1px solid var(--border);
-  border-radius: 24px;
-  display: flex;
-  gap: 12px;
-  align-items: flex-end;
-}
-
-.chat-input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  border-radius: 16px;
-  padding: 10px 12px;
-  font-family: inherit;
-  font-size: 15px;
-  line-height: 1.5;
-  outline: none;
-  resize: none;
-  min-height: 48px;
-}
-
-.chat-input:focus {
-  box-shadow: none;
-}
-
-.send-btn {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: white;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: transform 0.12s ease, opacity 0.12s ease;
-}
-
-.send-btn:active {
-  transform: scale(0.96);
-}
-
-.send-btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
 @media (max-width: 768px) {
   .chat-header {
     padding: 16px;
@@ -501,10 +428,6 @@ onMounted(() => {
 
   .chat-composer {
     padding: 12px;
-  }
-
-  .chat-input-area {
-    border-radius: 20px;
   }
 
   .message-row {

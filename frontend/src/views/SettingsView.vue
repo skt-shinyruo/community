@@ -72,7 +72,15 @@
             </div>
 
             <div class="settings-upload-actions">
-              <input type="file" name="avatar-file" accept="image/*" @change="onPickFile" class="input file-input" />
+              <UiFileInput
+                v-model="pickedFile"
+                name="avatar-file"
+                accept="image/*"
+                button-text="选择图片"
+                :disabled="loading"
+                clearable
+                class="settings-avatar-file-input"
+              />
               <UiButton @click="uploadAndUpdate" :disabled="loading || !pickedFile">
                 {{ loading ? '上传中…' : '上传并保存' }}
               </UiButton>
@@ -115,6 +123,7 @@ import { unwrapResultBody } from '../api/result'
 import UiCard from '../components/ui/UiCard.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiButton from '../components/ui/UiButton.vue'
+import UiFileInput from '../components/ui/UiFileInput.vue'
 
 const emit = defineEmits(['trace'])
 const auth = useAuthStore()
@@ -167,11 +176,6 @@ async function loadToken() {
   } finally {
     loading.value = false
   }
-}
-
-function onPickFile(e) {
-  const f = e?.target?.files?.[0]
-  pickedFile.value = f || null
 }
 
 async function uploadToBackend({ file, fileName, uploadUrl }) {
@@ -347,12 +351,6 @@ async function uploadAndUpdate() {
   background: color-mix(in srgb, var(--surface) 92%, var(--bg) 8%);
 }
 
-.file-input {
-  padding: 8px;
-  height: auto;
-  min-width: 240px;
-}
-
 .upload-area {
   background: var(--surface);
   padding: 16px;
@@ -373,6 +371,11 @@ async function uploadAndUpdate() {
   gap: 10px;
   flex-wrap: wrap;
   align-items: center;
+}
+
+.settings-avatar-file-input {
+  flex: 1 1 300px;
+  min-width: min(100%, 300px);
 }
 
 .settings-note-card {
@@ -408,7 +411,7 @@ async function uploadAndUpdate() {
     align-items: flex-start;
   }
 
-  .file-input {
+  .settings-avatar-file-input {
     min-width: 0;
     width: 100%;
   }

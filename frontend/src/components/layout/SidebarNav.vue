@@ -10,9 +10,7 @@
         </span>
       </RouterLink>
 
-      <button
-        class="btn-icon"
-        type="button"
+      <UiIconButton
         :aria-label="ui.sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
         :title="ui.sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'"
         @click="ui.toggleSidebar"
@@ -23,7 +21,7 @@
         <svg v-else width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M15 18l-6-6 6-6" />
         </svg>
-      </button>
+      </UiIconButton>
     </div>
 
     <div class="sidebar-scroll">
@@ -258,6 +256,7 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useUiStore } from '../../stores/ui'
 import UiAvatar from '../ui/UiAvatar.vue'
+import UiIconButton from '../ui/UiIconButton.vue'
 import UiRoleBadge from '../ui/UiRoleBadge.vue'
 import { getSidebarNavigation, isNavItemActive } from '../../router/navigation'
 

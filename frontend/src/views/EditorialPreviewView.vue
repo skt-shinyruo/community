@@ -77,7 +77,7 @@
               <div class="live-composer">
                 <UiAvatar name="Mara" :size="28" />
                 <div class="live-composer-input">你今天准备发起什么讨论？</div>
-                <button class="btn secondary" type="button">发帖</button>
+                <UiButton variant="secondary">发帖</UiButton>
               </div>
 
               <div class="live-feed">
@@ -153,7 +153,7 @@
           <h3 class="support-title">更像进入讨论，而不是数据库过滤器</h3>
           <div class="support-searchbar">
             <div class="input">首页改版 讨论质量</div>
-            <button class="btn secondary" type="button">搜索</button>
+            <UiButton variant="secondary">搜索</UiButton>
           </div>
           <div class="support-result-list">
             <article v-for="item in searchSamples" :key="item.id" class="support-result">
@@ -213,6 +213,7 @@
 <script setup>
 import { computed } from 'vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
+import UiButton from '../components/ui/UiButton.vue'
 
 const props = defineProps({
   variant: { type: String, default: 'a' }

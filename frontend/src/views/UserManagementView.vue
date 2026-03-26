@@ -46,11 +46,14 @@
       <div class="user-role-grid">
         <div class="user-field">
           <div class="user-field-label">目标角色</div>
-          <select v-model="nextType" name="user-next-role" class="input user-select" :disabled="loading">
-            <option :value="0">USER（普通用户）</option>
-            <option :value="2">MODERATOR（版主）</option>
-            <option :value="1">ADMIN（管理员）</option>
-          </select>
+          <UiSelect
+            v-model="nextType"
+            name="user-next-role"
+            class="user-select"
+            aria-label="目标角色"
+            :disabled="loading"
+            :options="roleOptions"
+          />
           <div class="muted user-field-help">
             提示：提升为 ADMIN 风险较高；建议填写明确原因并避免误操作。禁止降级自己（避免锁死管理入口）。
           </div>
@@ -86,6 +89,7 @@ import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiModalConfirm from '../components/ui/UiModalConfirm.vue'
+import UiSelect from '../components/ui/UiSelect.vue'
 import { adminSearchUser, adminUpdateUserRole } from '../api/services/adminUserService'
 
 const emit = defineEmits(['trace'])
@@ -103,6 +107,11 @@ const user = ref(null)
 const nextType = ref(0)
 const reason = ref('')
 const confirmOpen = ref(false)
+const roleOptions = [
+  { label: 'USER（普通用户）', value: 0 },
+  { label: 'MODERATOR（版主）', value: 2 },
+  { label: 'ADMIN（管理员）', value: 1 }
+]
 
 function typeLabel(t) {
   const v = Number(t || 0)
@@ -248,6 +257,10 @@ async function onConfirmUpdate() {
 
 .user-select {
   max-width: 260px;
+}
+
+.user-select :deep(.ui-select-trigger) {
+  height: var(--control-height);
 }
 
 .user-field-help {

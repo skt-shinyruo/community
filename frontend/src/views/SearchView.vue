@@ -15,32 +15,30 @@
       </div>
 
       <div class="search-filters">
-        <select
+        <UiSelect
           name="search-category-filter"
-          class="input search-select"
+          class="search-select"
           :disabled="loading"
-          :value="String(categoryId || '')"
+          :model-value="String(categoryId || '')"
           aria-label="分类筛选"
-          @change="replaceQuery({ categoryId: $event?.target?.value || '' })"
-        >
-          <option value="">全部分类</option>
-          <option v-for="c in categories" :key="c.id" :value="String(c.id)">{{ c.name }}</option>
-        </select>
+          :options="categoryOptions"
+          placeholder="全部分类"
+          @update:modelValue="replaceQuery({ categoryId: $event || '' })"
+        />
 
         <div class="search-tag">
-          <UiInput
+          <UiAutosuggestInput
             v-model.trim="tagDraft"
             name="search-tag-filter"
             placeholder="标签（可选）"
             autocomplete="off"
             :disabled="loading"
-            :list="tagSuggestNames.length > 0 ? tagDatalistId : null"
+            :suggestions="tagSuggestNames"
+            :commit-on-enter="false"
+            :commit-on-blur="true"
             @keydown.enter="onSearch"
-            @blur="commitTag"
+            @commit="commitTag"
           />
-          <datalist v-if="tagSuggestNames.length > 0" :id="tagDatalistId">
-            <option v-for="t in tagSuggestNames" :key="t" :value="t"></option>
-          </datalist>
         </div>
 
         <UiButton variant="ghost" @click="clearFilters" :disabled="loading">清空筛选</UiButton>
@@ -108,26 +106,26 @@
         >
           <div class="search-result-head">
             <div class="search-result-taxonomy">
-              <button
+              <UiButton
                 v-if="Number(it.categoryId || 0) > 0"
                 class="search-taxonomy-btn"
-                type="button"
+                variant="ghost"
                 :aria-label="`筛选分类 ${categoryLabel(it.categoryId)}`"
                 @click.stop="replaceQuery({ categoryId: it.categoryId })"
               >
                 <span class="tag topic-category">{{ categoryLabel(it.categoryId) }}</span>
-              </button>
+              </UiButton>
 
-              <button
+              <UiButton
                 v-for="t in (Array.isArray(it.tags) ? it.tags : [])"
                 :key="t"
                 class="search-taxonomy-btn"
-                type="button"
+                variant="ghost"
                 :aria-label="`筛选标签 ${t}`"
                 @click.stop="replaceQuery({ tag: t })"
               >
                 <span class="tag">#{{ t }}</span>
-              </button>
+              </UiButton>
             </div>
             <div class="search-result-score">
               <span class="search-result-score-label">匹配度</span>
@@ -209,9 +207,11 @@
 	import { emOnlyHtml } from '../utils/highlight'
 	import { useTaxonomyStore } from '../stores/taxonomy'
 	import { applySearchHydration, applySearchSummaries, collectSearchHydrationIds, describeSearchActivity } from './searchResultSurface'
-	import UiInput from '../components/ui/UiInput.vue'
+		import UiAutosuggestInput from '../components/ui/UiAutosuggestInput.vue'
+		import UiInput from '../components/ui/UiInput.vue'
 	import UiButton from '../components/ui/UiButton.vue'
 	import UiEmpty from '../components/ui/UiEmpty.vue'
+	import UiSelect from '../components/ui/UiSelect.vue'
 
 const emit = defineEmits(['trace'])
 const auth = useAuthStore()
@@ -225,8 +225,7 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 	const keyword = ref('')
 	const categoryId = ref('')
 	const tagDraft = ref('')
-	const tagDatalistId = 'search-tag-suggest'
-	const tagSuggestNames = ref([])
+		const tagSuggestNames = ref([])
 	const page = ref(0)
 	const size = ref(10)
 	const loading = ref(false)
@@ -237,6 +236,13 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 
 	const taxonomy = useTaxonomyStore()
 	const categories = computed(() => (Array.isArray(taxonomy.categories) ? taxonomy.categories : []))
+	const categoryOptions = computed(() => [
+	  { label: '全部分类', value: '' },
+	  ...categories.value.map((category) => ({
+	    label: category.name,
+	    value: String(category.id)
+	  }))
+	])
 
 	function categoryLabel(id) {
 	  const cid = Number(id || 0)
@@ -533,8 +539,12 @@ async function onConfirmReindex() {
 }
 
 .search-select {
-  height: 38px;
+  width: auto;
   min-width: 160px;
+}
+
+.search-select :deep(.ui-select-trigger) {
+  height: 38px;
   font-size: 13px;
 }
 
@@ -625,9 +635,12 @@ async function onConfirmReindex() {
 }
 
 .search-taxonomy-btn {
+  min-height: 0;
+  height: auto;
   border: none;
   background: transparent;
   padding: 0;
+  box-shadow: none;
 }
 
 .search-result-score {

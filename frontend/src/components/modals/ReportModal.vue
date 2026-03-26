@@ -5,7 +5,7 @@
       <div class="stack" style="padding: 16px">
         <div class="row" style="justify-content: space-between; gap: 12px; align-items: center">
           <div style="font-weight: 800">举报</div>
-          <button class="btn-icon sm" type="button" aria-label="关闭" title="关闭" @click="$emit('close')">×</button>
+          <UiIconButton aria-label="关闭" title="关闭" size="sm" @click="$emit('close')">×</UiIconButton>
         </div>
 
         <div class="muted" style="font-size: 12px">
@@ -14,9 +14,13 @@
 
         <div class="stack" style="gap: 8px">
           <div class="muted" style="font-size: 12px">原因</div>
-          <select v-model="reason" name="report-reason" class="input" :disabled="submitting">
-            <option v-for="r in reasons" :key="r" :value="r">{{ r }}</option>
-          </select>
+          <UiSelect
+            v-model="reason"
+            name="report-reason"
+            class="report-reason-select"
+            :disabled="submitting"
+            :options="reasonOptions"
+          />
         </div>
 
         <div class="stack" style="gap: 8px">
@@ -46,6 +50,8 @@
 <script setup>
 import { computed, ref } from 'vue'
 import UiButton from '../ui/UiButton.vue'
+import UiIconButton from '../ui/UiIconButton.vue'
+import UiSelect from '../ui/UiSelect.vue'
 import UiTextarea from '../ui/UiTextarea.vue'
 import { createReport } from '../../api/services/reportService'
 
@@ -56,16 +62,16 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'submitted'])
 
-const reasons = [
-  '垃圾广告',
-  '人身攻击',
-  '色情低俗',
-  '违法信息',
-  '侵权/盗版',
-  '其他'
+const reasonOptions = [
+  { label: '垃圾广告', value: '垃圾广告' },
+  { label: '人身攻击', value: '人身攻击' },
+  { label: '色情低俗', value: '色情低俗' },
+  { label: '违法信息', value: '违法信息' },
+  { label: '侵权/盗版', value: '侵权/盗版' },
+  { label: '其他', value: '其他' }
 ]
 
-const reason = ref(reasons[0])
+const reason = ref(reasonOptions[0]?.value || '')
 const detail = ref('')
 const submitting = ref(false)
 const error = ref('')
@@ -103,3 +109,13 @@ async function submit() {
   emit('close')
 }
 </script>
+
+<style scoped>
+.report-reason-select {
+  width: 100%;
+}
+
+.report-reason-select :deep(.ui-select-trigger) {
+  width: 100%;
+}
+</style>

@@ -17,48 +17,44 @@
         @update:model-value="$emit('update:filter', $event)"
       />
 
-      <label v-if="showSubscribedToggle" class="subscribed-toggle" :class="{ disabled: disabled }" title="仅显示你订阅的分类">
-        <input
-          name="posts-subscribed-only"
-          type="checkbox"
-          :disabled="disabled"
-          :checked="!!subscribed"
-          @change="$emit('update:subscribed', !!$event?.target?.checked)"
-        />
-        <span>仅看订阅</span>
-      </label>
+      <UiCheckbox
+        v-if="showSubscribedToggle"
+        class="subscribed-toggle"
+        name="posts-subscribed-only"
+        :disabled="disabled"
+        :model-value="!!subscribed"
+        label="仅看订阅"
+        @update:modelValue="$emit('update:subscribed', $event)"
+      />
 
       <div class="taxonomy-controls" v-if="categories.length > 0">
-        <select
+        <UiSelect
           id="posts-category-filter"
           name="posts-category-filter"
-          class="input taxonomy-select"
+          class="taxonomy-select"
           :disabled="disabled"
-          :value="String(categoryId || '')"
+          :model-value="String(categoryId || '')"
           aria-label="分类"
-          @change="$emit('update:categoryId', $event?.target?.value || '')"
-        >
-          <option value="">全部分类</option>
-          <option v-for="c in categories" :key="c.id" :value="String(c.id)">{{ c.name }}</option>
-        </select>
+          :options="categoryOptions"
+          placeholder="全部分类"
+          @update:modelValue="$emit('update:categoryId', $event || '')"
+        />
       </div>
 
       <div class="taxonomy-controls">
-        <UiInput
+        <UiAutosuggestInput
           v-model.trim="tagDraft"
           id="posts-tag-filter"
           name="posts-tag-filter"
           placeholder="标签（回车确认）"
           autocomplete="off"
           :disabled="disabled"
-          :list="tagSuggestions.length > 0 ? tagDatalistId : null"
+          :suggestions="tagSuggestions"
+          :commit-on-enter="true"
+          :commit-on-blur="true"
           class="taxonomy-tag-input"
-          @keydown.enter.prevent="commitTag"
-          @blur="commitTag"
+          @commit="$emit('update:tag', $event)"
         />
-        <datalist v-if="tagSuggestions.length > 0" :id="tagDatalistId">
-          <option v-for="t in tagSuggestions" :key="t" :value="t"></option>
-        </datalist>
       </div>
     </div>
 
@@ -82,10 +78,12 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import UiAutosuggestInput from '../ui/UiAutosuggestInput.vue'
 import UiButton from '../ui/UiButton.vue'
+import UiCheckbox from '../ui/UiCheckbox.vue'
 import UiChips from '../ui/UiChips.vue'
-import UiInput from '../ui/UiInput.vue'
+import UiSelect from '../ui/UiSelect.vue'
 
 const props = defineProps({
   order: { type: String, default: 'latest' },
@@ -105,7 +103,13 @@ const props = defineProps({
 const emit = defineEmits(['update:order', 'update:filter', 'update:subscribed', 'update:categoryId', 'update:tag', 'refresh', 'clear'])
 
 const tagDraft = ref(String(props.tag || ''))
-const tagDatalistId = 'posts-tag-suggest'
+const categoryOptions = computed(() => [
+  { label: '全部分类', value: '' },
+  ...(Array.isArray(props.categories) ? props.categories : []).map((category) => ({
+    label: category.name,
+    value: String(category.id)
+  }))
+])
 
 watch(
   () => props.tag,
@@ -114,10 +118,6 @@ watch(
   }
 )
 
-function commitTag() {
-  const next = String(tagDraft.value || '').trim()
-  emit('update:tag', next)
-}
 </script>
 
 <style scoped>
@@ -160,7 +160,7 @@ function commitTag() {
   user-select: none;
 }
 
-.subscribed-toggle input {
+.subscribed-toggle :deep(.ui-checkbox-input) {
   accent-color: var(--accent);
 }
 
@@ -175,9 +175,13 @@ function commitTag() {
 }
 
 .taxonomy-select {
+  width: auto;
+  min-width: 160px;
+}
+
+.taxonomy-select :deep(.ui-select-trigger) {
   height: 32px;
   font-size: 13px;
-  min-width: 160px;
 }
 
 .taxonomy-tag-input {

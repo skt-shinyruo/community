@@ -23,12 +23,13 @@
         <template v-if="tab === 'reports'">
           <div class="moderation-filter-bar">
             <div class="moderation-filter-label muted">状态</div>
-            <select v-model="statusFilter" name="moderation-status-filter" class="input moderation-filter-select">
-              <option value="">全部</option>
-              <option value="0">待处理</option>
-              <option value="1">已处理</option>
-              <option value="2">已驳回</option>
-            </select>
+            <UiSelect
+              v-model="statusFilter"
+              name="moderation-status-filter"
+              class="moderation-filter-select"
+              aria-label="举报状态"
+              :options="statusFilterOptions"
+            />
           </div>
 
           <UiEmpty v-if="reports.length === 0">暂无举报</UiEmpty>
@@ -101,7 +102,7 @@
       <div class="moderation-modal-body">
         <div class="moderation-modal-head">
           <div class="moderation-modal-title">处置举报 #{{ selectedReport?.id }}</div>
-          <button class="btn-icon sm" type="button" aria-label="关闭" title="关闭" @click="closeActionModal">×</button>
+          <UiIconButton aria-label="关闭" title="关闭" size="sm" @click="closeActionModal">×</UiIconButton>
         </div>
 
         <div class="muted moderation-modal-meta">
@@ -110,14 +111,14 @@
 
         <div class="moderation-modal-field">
           <div class="muted moderation-modal-label">动作</div>
-          <select v-model="actionForm.action" name="moderation-action-type" class="input moderation-modal-select" :disabled="actionLoading">
-            <option value="reject">驳回</option>
-            <option value="hide">隐藏</option>
-            <option value="delete">删除</option>
-            <option value="warn">警告</option>
-            <option value="mute">禁言</option>
-            <option value="ban">封禁</option>
-          </select>
+          <UiSelect
+            v-model="actionForm.action"
+            name="moderation-action-type"
+            class="moderation-modal-select"
+            aria-label="处置动作"
+            :disabled="actionLoading"
+            :options="actionOptions"
+          />
         </div>
 
         <div class="moderation-modal-field">
@@ -128,13 +129,14 @@
         <div v-if="actionNeedsDuration" class="moderation-modal-field">
           <div class="muted moderation-modal-label">时长</div>
           <div class="moderation-modal-duration">
-            <select v-model="actionForm.durationPreset" name="moderation-duration-preset" class="input moderation-modal-select moderation-modal-select--duration" :disabled="actionLoading">
-              <option value="3600">1 小时</option>
-              <option value="86400">1 天</option>
-              <option value="604800">7 天</option>
-              <option value="2592000">30 天</option>
-              <option value="custom">自定义</option>
-            </select>
+            <UiSelect
+              v-model="actionForm.durationPreset"
+              name="moderation-duration-preset"
+              class="moderation-modal-select moderation-modal-select--duration"
+              aria-label="处置时长"
+              :disabled="actionLoading"
+              :options="durationPresetOptions"
+            />
 
             <UiInput
               v-if="actionForm.durationPreset === 'custom'"
@@ -165,8 +167,10 @@ import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiIconButton from '../components/ui/UiIconButton.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
+import UiSelect from '../components/ui/UiSelect.vue'
 import UiTextarea from '../components/ui/UiTextarea.vue'
 import { formatTime } from '../utils/time'
 import { listActions, listReports, takeAction } from '../api/services/moderationService'
@@ -183,12 +187,33 @@ const reportsPage = ref(0)
 const reportsSize = 20
 const reportsHasNext = ref(true)
 const statusFilter = ref('0')
+const statusFilterOptions = [
+  { label: '全部', value: '' },
+  { label: '待处理', value: '0' },
+  { label: '已处理', value: '1' },
+  { label: '已驳回', value: '2' }
+]
 
 // actions
 const actions = ref([])
 const actionsPage = ref(0)
 const actionsSize = 20
 const actionsHasNext = ref(true)
+const actionOptions = [
+  { label: '驳回', value: 'reject' },
+  { label: '隐藏', value: 'hide' },
+  { label: '删除', value: 'delete' },
+  { label: '警告', value: 'warn' },
+  { label: '禁言', value: 'mute' },
+  { label: '封禁', value: 'ban' }
+]
+const durationPresetOptions = [
+  { label: '1 小时', value: '3600' },
+  { label: '1 天', value: '86400' },
+  { label: '7 天', value: '604800' },
+  { label: '30 天', value: '2592000' },
+  { label: '自定义', value: 'custom' }
+]
 
 function targetTypeLabel(t) {
   const n = Number(t || 0)
@@ -380,8 +405,11 @@ async function submitAction() {
 }
 
 .moderation-filter-select {
-  height: 32px;
   width: 160px;
+}
+
+.moderation-filter-select :deep(.ui-select-trigger) {
+  height: 32px;
 }
 
 .moderation-list {
@@ -495,6 +523,10 @@ async function submitAction() {
 }
 
 .moderation-modal-select {
+  width: 100%;
+}
+
+.moderation-modal-select :deep(.ui-select-trigger) {
   height: 36px;
 }
 

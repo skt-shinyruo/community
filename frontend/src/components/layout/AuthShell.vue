@@ -10,12 +10,12 @@
         </span>
       </RouterLink>
       <div class="auth-shell-actions">
-        <button class="btn secondary auth-shell-btn" @click="ui.toggleDensity">
+        <UiButton variant="secondary" class="auth-shell-btn" @click="ui.toggleDensity">
           {{ ui.density === 'compact' ? '舒适版式' : '紧凑版式' }}
-        </button>
-        <button class="btn secondary auth-shell-btn" @click="ui.toggleTheme">
+        </UiButton>
+        <UiButton variant="secondary" class="auth-shell-btn" @click="ui.toggleTheme">
           {{ ui.theme === 'dark' ? '切到浅色' : '切到深色' }}
-        </button>
+        </UiButton>
       </div>
     </div>
 
@@ -28,6 +28,7 @@
 </template>
 
 <script setup>
+import UiButton from '../ui/UiButton.vue'
 import { useUiStore } from '../../stores/ui'
 
 const ui = useUiStore()

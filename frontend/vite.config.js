@@ -33,6 +33,10 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [vue()],
+    test: {
+      environment: 'jsdom',
+      setupFiles: './src/test/setup.js'
+    },
     server: {
       port: devPort,
       strictPort: true,

@@ -25,13 +25,13 @@
               <div class="post-article-vote">
                 <div class="post-article-vote-label">Audience</div>
                 <div class="vote-box-detail">
-                  <button class="vote-btn-d up" :class="{ active: post.liked }" aria-label="点赞" @click="togglePostLike">
+                  <UiIconButton class="vote-btn-d up" :class="{ active: post.liked }" aria-label="点赞" @click="togglePostLike">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-                  </button>
+                  </UiIconButton>
                   <span class="vote-count-d">{{ post.likeCount || 0 }}</span>
-                  <button class="vote-btn-d down" aria-label="点踩（占位）">
+                  <UiIconButton class="vote-btn-d down" aria-label="点踩（占位）">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
-                  </button>
+                  </UiIconButton>
                 </div>
               </div>
 
@@ -214,31 +214,31 @@
                   <UiMarkdown v-else variant="compact" :content="c.content" />
 
                   <div v-if="!isBlockedUser(c.userId)" class="row muted comment-actions">
-                    <button
+                    <UiButton
                       class="comment-action"
-                      type="button"
+                      variant="ghost"
                       :aria-label="c.liked ? '取消点赞评论' : '点赞评论'"
                       @click="toggleCommentLike(c)"
                     >
                       <span aria-hidden="true" :class="{ 'red-text': c.liked }">❤️</span>
                       <span>{{ c.likeCount || 0 }}</span>
-                    </button>
+                    </UiButton>
 
-                    <button class="comment-action" type="button" aria-label="回复评论" @click="startReply(c)">回复</button>
+                    <UiButton class="comment-action" variant="ghost" aria-label="回复评论" @click="startReply(c)">回复</UiButton>
 
-                    <button v-if="canEditComment(c)" class="comment-action" type="button" aria-label="编辑评论" @click="openEditComment(c)">
+                    <UiButton v-if="canEditComment(c)" class="comment-action" variant="ghost" aria-label="编辑评论" @click="openEditComment(c)">
                       编辑
-                    </button>
+                    </UiButton>
 
-                    <button
+                    <UiButton
                       v-if="(c.replyCount || 0) > 0 || c._repliesExpanded"
                       class="comment-action"
-                      type="button"
+                      variant="ghost"
                       :aria-label="c._repliesExpanded ? '收起回复' : `展开 ${c.replyCount || 0} 条回复`"
                       @click="toggleReplies(c)"
                     >
                       {{ c._repliesExpanded ? '收起回复' : `展开 ${c.replyCount || 0} 条回复` }}
-                    </button>
+                    </UiButton>
                   </div>
 
                   <!-- Reply Input -->
@@ -248,9 +248,9 @@
                         <div class="muted reply-quote-label">
                           引用 {{ c._replyQuote?.username || `成员 ${c._replyQuote?.userId || ''}` }}
                         </div>
-                        <button class="btn-icon sm" type="button" aria-label="取消引用" title="取消引用" @click="clearReplyQuote(c)">
+                        <UiIconButton size="sm" aria-label="取消引用" title="取消引用" @click="clearReplyQuote(c)">
                           ×
-                        </button>
+                        </UiIconButton>
                       </div>
                       <div class="reply-quote-content">{{ c._replyQuote?.preview || '' }}</div>
                     </div>
@@ -297,19 +297,19 @@
                       </div>
 
                       <div v-if="!isBlockedUser(r.userId)" class="row muted comment-actions reply-actions">
-                        <button
+                        <UiButton
                           class="comment-action"
-                          type="button"
+                          variant="ghost"
                           :aria-label="r.liked ? '取消点赞回复' : '点赞回复'"
                           @click="toggleReplyLike(c, r)"
                         >
                           <span aria-hidden="true" :class="{ 'red-text': r.liked }">❤️</span>
                           <span>{{ r.likeCount || 0 }}</span>
-                        </button>
-                        <button class="comment-action" type="button" aria-label="回复该回复" @click="startReply(c, r)">回复</button>
-                        <button v-if="canEditComment(r)" class="comment-action" type="button" aria-label="编辑回复" @click="openEditComment(r)">
+                        </UiButton>
+                        <UiButton class="comment-action" variant="ghost" aria-label="回复该回复" @click="startReply(c, r)">回复</UiButton>
+                        <UiButton v-if="canEditComment(r)" class="comment-action" variant="ghost" aria-label="编辑回复" @click="openEditComment(r)">
                           编辑
-                        </button>
+                        </UiButton>
                       </div>
                     </div>
 
@@ -400,6 +400,7 @@ import UiMarkdown from '../components/ui/UiMarkdown.vue'
 import UiPagination from '../components/ui/UiPagination.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
 import UiButton from '../components/ui/UiButton.vue'
+import UiIconButton from '../components/ui/UiIconButton.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiBadge from '../components/ui/UiBadge.vue'
 import UiRoleBadge from '../components/ui/UiRoleBadge.vue'
@@ -1708,19 +1709,24 @@ onMounted(() => {
 .comment-action {
   background: transparent;
   border: 1px solid transparent;
+  min-height: 0;
+  height: auto;
   padding: 4px 6px;
   border-radius: 8px;
-  cursor: pointer;
   color: var(--text-2);
   display: inline-flex;
   align-items: center;
   gap: 4px;
   font: inherit;
+  font-weight: inherit;
+  justify-content: flex-start;
+  box-shadow: none;
 }
 
 .comment-action:hover {
   background: var(--surface-2);
   color: var(--text-1);
+  box-shadow: none;
 }
 
 .comment-action:focus-visible {

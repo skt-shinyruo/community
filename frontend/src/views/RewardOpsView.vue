@@ -40,14 +40,18 @@
           <UiInput v-model.trim="itemForm.costBalance" placeholder="积分成本" />
           <UiInput v-model.trim="itemForm.stock" placeholder="库存" />
           <UiInput v-model.trim="itemForm.perUserLimit" placeholder="每人限兑" />
-          <select v-model="itemForm.fulfillmentMode" class="input">
-            <option value="AUTO">自动发放</option>
-            <option value="MANUAL">人工发放</option>
-          </select>
-          <select v-model="itemForm.status" class="input">
-            <option value="ACTIVE">启用</option>
-            <option value="INACTIVE">停用</option>
-          </select>
+          <UiSelect
+            v-model="itemForm.fulfillmentMode"
+            class="reward-ops-form-select"
+            aria-label="履约方式"
+            :options="fulfillmentModeOptions"
+          />
+          <UiSelect
+            v-model="itemForm.status"
+            class="reward-ops-form-select"
+            aria-label="商品状态"
+            :options="itemStatusOptions"
+          />
           <UiButton :disabled="savingItem" @click="saveItem">{{ savingItem ? '保存中…' : '保存商品' }}</UiButton>
         </div>
       </UiCard>
@@ -105,6 +109,7 @@ import UiCard from '../components/ui/UiCard.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
+import UiSelect from '../components/ui/UiSelect.vue'
 import UiTag from '../components/ui/UiTag.vue'
 import { buildGrowthAdminState } from './growthAdminState'
 
@@ -115,6 +120,14 @@ const error = ref('')
 const items = ref([])
 const orders = ref([])
 const metrics = ref({})
+const fulfillmentModeOptions = [
+  { label: '自动发放', value: 'AUTO' },
+  { label: '人工发放', value: 'MANUAL' }
+]
+const itemStatusOptions = [
+  { label: '启用', value: 'ACTIVE' },
+  { label: '停用', value: 'INACTIVE' }
+]
 
 const itemForm = ref({
   itemId: '',
@@ -241,6 +254,15 @@ onMounted(reload)
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   align-items: center;
+}
+
+.reward-ops-form-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.reward-ops-form-select :deep(.ui-select-trigger) {
+  height: var(--control-height);
 }
 
 .reward-ops-label {

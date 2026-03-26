@@ -5,7 +5,7 @@
       <div class="stack" style="padding: 16px; gap: 12px">
         <div class="row" style="justify-content: space-between; gap: 12px; align-items: center">
           <div style="font-weight: 800">{{ headerTitle }}</div>
-          <button class="btn-icon sm" type="button" aria-label="关闭" title="关闭" @click="$emit('close')">×</button>
+          <UiIconButton aria-label="关闭" title="关闭" size="sm" @click="$emit('close')">×</UiIconButton>
         </div>
 
         <div v-if="mode === 'post'" class="stack" style="gap: 8px">
@@ -37,6 +37,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import UiButton from '../ui/UiButton.vue'
+import UiIconButton from '../ui/UiIconButton.vue'
 import UiInput from '../ui/UiInput.vue'
 import UiTextarea from '../ui/UiTextarea.vue'
 

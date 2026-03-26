@@ -22,8 +22,7 @@ body {
 
 button,
 input,
-textarea,
-select {
+textarea {
   font: inherit;
 }
 
@@ -44,7 +43,7 @@ pre {
 }
 
 /* Focus: component styles provide focus ring; base removes default outline. */
-:where(a, button, input, textarea, select):focus-visible {
+:where(a, button, input, textarea):focus-visible {
   outline: none;
 }
 

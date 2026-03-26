@@ -41,16 +41,15 @@
           <p>必须带原因和确认，不允许无痕修改。</p>
         </div>
         <div class="growth-admin-adjust-grid">
-          <select v-model="adjustForm.assetType" class="input">
-            <option value="REWARD_BALANCE">奖励余额</option>
-            <option value="SCORE">成长值</option>
-          </select>
+          <UiSelect
+            v-model="adjustForm.assetType"
+            class="growth-admin-adjust-select"
+            aria-label="调账资产类型"
+            :options="assetTypeOptions"
+          />
           <UiInput v-model.trim="adjustForm.delta" placeholder="变更值，如 5 或 -3" />
           <UiInput v-model.trim="adjustForm.reason" placeholder="原因" />
-          <label class="growth-admin-confirm">
-            <input v-model="adjustForm.confirm" type="checkbox" />
-            已确认
-          </label>
+          <UiCheckbox v-model="adjustForm.confirm" class="growth-admin-confirm" label="已确认" />
           <UiButton :disabled="adjusting" @click="submitAdjustment">{{ adjusting ? '提交中…' : '执行调账' }}</UiButton>
         </div>
       </UiCard>
@@ -91,9 +90,11 @@ import {
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
+import UiCheckbox from '../components/ui/UiCheckbox.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
+import UiSelect from '../components/ui/UiSelect.vue'
 import UiTag from '../components/ui/UiTag.vue'
 import { buildGrowthAdminState } from './growthAdminState'
 
@@ -103,6 +104,10 @@ const error = ref('')
 const account = ref(null)
 const ledgers = ref([])
 const adjustments = ref([])
+const assetTypeOptions = [
+  { label: '奖励余额', value: 'REWARD_BALANCE' },
+  { label: '成长值', value: 'SCORE' }
+]
 
 const searchForm = ref({
   userId: '',
@@ -203,6 +208,20 @@ async function submitAdjustment() {
 .growth-admin-section {
   display: grid;
   gap: 12px;
+}
+
+.growth-admin-adjust-select {
+  width: 100%;
+}
+
+.growth-admin-adjust-select :deep(.ui-select-trigger) {
+  height: var(--control-height);
+}
+
+.growth-admin-confirm :deep(.ui-checkbox-copy) {
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .growth-admin-account-head,

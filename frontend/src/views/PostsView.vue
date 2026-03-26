@@ -35,9 +35,9 @@
     </section>
 
     <div class="posts-feed">
-      <button
+      <UiButton
         v-if="authed && !isPublishFocused"
-        type="button"
+        variant="secondary"
         class="posts-feed-compose-strip"
         @click="isPublishFocused = true"
       >
@@ -49,20 +49,19 @@
           </span>
         </span>
         <span class="posts-feed-compose-action">开始</span>
-      </button>
+      </UiButton>
 
       <UiCard v-if="authed && isPublishFocused" class="posts-composer">
         <div class="posts-composer-editor">
         <div class="posts-composer-head">
           <div class="posts-composer-title">发起讨论</div>
-          <button
-            class="btn ghost posts-composer-close"
-            type="button"
+          <UiIconButton
+            class="posts-composer-close"
             aria-label="关闭发帖编辑器"
             @click="isPublishFocused = false"
           >
             ×
-          </button>
+          </UiIconButton>
         </div>
         <UiInput v-model.trim="newTitle" name="post-title" placeholder="标题" autocomplete="off" class="posts-composer-input" />
         <UiTextarea v-model.trim="newContent" name="post-content" placeholder="正文内容..." :rows="6" class="posts-composer-textarea" />
@@ -70,42 +69,44 @@
         <div class="posts-composer-meta">
           <div class="posts-composer-field posts-composer-field--category">
             <div class="posts-composer-label">分类（可选）</div>
-            <select v-model="newCategoryId" name="post-category" class="input" :disabled="creating">
-              <option value="">不选择</option>
-              <option v-for="c in categories" :key="c.id" :value="String(c.id)">{{ c.name }}</option>
-            </select>
+            <UiSelect
+              v-model="newCategoryId"
+              name="post-category"
+              class="posts-composer-category-select"
+              :disabled="creating"
+              :options="composerCategoryOptions"
+              placeholder="不选择"
+            />
           </div>
 
           <div class="posts-composer-field posts-composer-field--tags">
             <div class="posts-composer-label">标签（回车/逗号添加，最多 5 个）</div>
-            <UiInput
+            <UiAutosuggestInput
               v-model.trim="newTagDraft"
               name="post-tag-draft"
               placeholder="例如：Java（输入后回车确认）"
               autocomplete="off"
               :disabled="creating"
-              :list="composerTagSuggest.length > 0 ? composerTagDatalistId : null"
-              @keydown.enter.prevent="commitNewTags"
+              :suggestions="composerTagSuggestNames"
+              :commit-on-enter="true"
+              :commit-on-blur="true"
+              @commit="commitNewTags"
               @keydown="onTagDraftKeydown"
-              @blur="commitNewTags"
             />
-            <datalist v-if="composerTagSuggest.length > 0" :id="composerTagDatalistId">
-              <option v-for="t in composerTagSuggest" :key="t.name" :value="t.name"></option>
-            </datalist>
             <div v-if="newTagError" class="error posts-composer-error">{{ newTagError }}</div>
 
             <div v-if="newTags.length > 0" class="posts-composer-tags">
-              <button
+              <UiButton
                 v-for="t in newTags"
                 :key="t"
-                type="button"
+                variant="ghost"
                 class="tag-btn"
                 :title="`移除标签 ${t}`"
                 @click="removeNewTag(t)"
               >
                 <span class="tag">#{{ t }}</span>
                 <span class="tag-btn-x" aria-hidden="true">×</span>
-              </button>
+              </UiButton>
             </div>
           </div>
         </div>
@@ -219,10 +220,10 @@
             <div class="discussion-card-foot">
               <div class="discussion-card-stats">
                 <span class="discussion-stat">{{ Number(p.commentCount || 0) }} 回复</span>
-                <button
+                <UiButton
+                  variant="ghost"
                   class="discussion-like-btn"
                   :class="{ active: p.liked }"
-                  type="button"
                   :aria-label="p.liked ? '取消点赞' : '点赞'"
                   @click.stop="togglePostLike(p)"
                 >
@@ -230,14 +231,14 @@
                     <path d="M12 19V5M5 12l7-7 7 7" />
                   </svg>
                   <span>{{ p.likeCount || 0 }} 赞</span>
-                </button>
+                </UiButton>
               </div>
 
               <div class="discussion-card-activity">
                 <template v-if="activityUserId(p)">
-                  <button
+                  <UiButton
+                    variant="ghost"
                     class="discussion-activity-user"
-                    type="button"
                     :aria-label="`查看用户 ${activityUser(p)?.username || `成员 ${activityUserId(p)}`}`"
                     @click.stop="router.push({ name: 'userProfile', params: { userId: String(activityUserId(p)) } })"
                   >
@@ -247,7 +248,7 @@
                       :size="18"
                     />
                     <span>{{ activityUser(p)?.username || `成员 ${activityUserId(p)}` }}</span>
-                  </button>
+                  </UiButton>
                   <span class="discussion-activity-time">{{ formatTimeAgo(activityTime(p)) }}</span>
                 </template>
                 <span v-else class="discussion-activity-time" :title="formatTime(activityTime(p))">
@@ -278,8 +279,11 @@ import { useAuthStore } from '../stores/auth'
 import { useSocialPrefsStore } from '../stores/socialPrefs'
 import UiCard from '../components/ui/UiCard.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiAutosuggestInput from '../components/ui/UiAutosuggestInput.vue'
 import UiButton from '../components/ui/UiButton.vue'
+import UiIconButton from '../components/ui/UiIconButton.vue'
 import UiInput from '../components/ui/UiInput.vue'
+import UiSelect from '../components/ui/UiSelect.vue'
 import UiTextarea from '../components/ui/UiTextarea.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiBadge from '../components/ui/UiBadge.vue'
@@ -333,6 +337,13 @@ const filterOptions = POSTS_FILTER_OPTIONS
 
 const taxonomy = useTaxonomyStore()
 const categories = computed(() => (Array.isArray(taxonomy.categories) ? taxonomy.categories : []))
+const composerCategoryOptions = computed(() => [
+  { label: '不选择', value: '' },
+  ...categories.value.map((category) => ({
+    label: category.name,
+    value: String(category.id)
+  }))
+])
 
 function categoryLabel(id) {
   const cid = Number(id || 0)
@@ -436,8 +447,10 @@ const newTagDraft = ref('')
 const newTags = ref([])
 const newTagError = ref('')
 
-const composerTagDatalistId = 'composer-tag-suggest'
 const composerTagSuggest = ref([])
+const composerTagSuggestNames = computed(() =>
+  (Array.isArray(composerTagSuggest.value) ? composerTagSuggest.value : []).map((tag) => String(tag?.name || '').trim()).filter(Boolean)
+)
 const creating = ref(false)
 const createError = ref('')
 
@@ -980,6 +993,7 @@ watch(isDefaultLatestFeed, (v) => {
 
 .posts-feed-compose-strip {
   width: 100%;
+  height: auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1090,6 +1104,14 @@ watch(isDefaultLatestFeed, (v) => {
 
 .posts-composer-field--category {
   flex: 0 0 220px;
+}
+
+.posts-composer-category-select {
+  width: 100%;
+}
+
+.posts-composer-category-select :deep(.ui-select-trigger) {
+  width: 100%;
 }
 
 .posts-composer-field--tags {
@@ -1399,6 +1421,7 @@ watch(isDefaultLatestFeed, (v) => {
   align-items: center;
   gap: 6px;
   min-height: 34px;
+  height: auto;
   padding: 0 14px;
   border-radius: 999px;
   border: 1px solid var(--border);
@@ -1421,11 +1444,14 @@ watch(isDefaultLatestFeed, (v) => {
 .discussion-activity-user {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 8px;
+  height: auto;
   border: none;
   background: transparent;
   padding: 0;
   color: inherit;
+  box-shadow: none;
 }
 
 .discussion-activity-time,

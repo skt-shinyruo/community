@@ -54,7 +54,7 @@
             <div class="side-title">开发工具</div>
             <div class="stack tools-stack">
               <RouterLink to="/dev" class="btn secondary sm">组件库</RouterLink>
-              <button class="btn secondary sm" @click="refreshAll">刷新数据</button>
+              <UiButton variant="secondary" class="sm" @click="refreshAll">刷新数据</UiButton>
             </div>
           </UiCard>
         </div>

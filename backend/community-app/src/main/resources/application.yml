@@ -53,8 +53,11 @@ gateway:
     enabled: true
     allowed-origins:
       - http://localhost:5173
+      - http://127.0.0.1:5173
       - http://localhost:12881
+      - http://127.0.0.1:12881
       - http://localhost:12888
+      - http://127.0.0.1:12888
     # 生产建议 fail-closed：allowlist 漏配时拒绝敏感 cookie 会话入口（login/refresh/logout）。
     fail-open-when-allowlist-empty: false
 

@@ -55,6 +55,7 @@ class HttpRoutingIntegrationTest {
         registry.add("gateway.http.routes[2].path-prefix", () -> "/files");
         registry.add("gateway.http.routes[2].uri", HttpRoutingIntegrationTest::bootstrapBaseUrl);
         registry.add("gateway.cors.allowed-origins[0]", () -> "http://localhost:12881");
+        registry.add("gateway.cors.allowed-origins[1]", () -> "http://127.0.0.1:12881");
     }
 
     @AfterAll
@@ -143,6 +144,26 @@ class HttpRoutingIntegrationTest {
                 .exchange()
                 .expectStatus().isOk()
                 .expectHeader().valueEquals("Access-Control-Allow-Origin", "http://localhost:12881")
+                .expectHeader().valueMatches("Vary", ".*Origin.*")
+                .expectHeader().valueMatches("Access-Control-Allow-Methods", ".*POST.*");
+
+        assertThat(BOOTSTRAP_CAPTURES).isEmpty();
+        assertThat(IM_CAPTURES).isEmpty();
+    }
+
+    @Test
+    void shouldAllow127LoopbackGatewayCorsPreflightWithoutLeakingToUpstream() {
+        BOOTSTRAP_CAPTURES.clear();
+        IM_CAPTURES.clear();
+
+        webTestClient.options()
+                .uri("/api/posts")
+                .header("Origin", "http://127.0.0.1:12881")
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "Authorization,Content-Type")
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().valueEquals("Access-Control-Allow-Origin", "http://127.0.0.1:12881")
                 .expectHeader().valueMatches("Vary", ".*Origin.*")
                 .expectHeader().valueMatches("Access-Control-Allow-Methods", ".*POST.*");
 

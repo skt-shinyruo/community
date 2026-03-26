@@ -47,3 +47,46 @@
 
 生产约束（SSOT）：
 - prod profile 下禁止回传注册验证码/`resetLink`，并要求启用 SMTP（见 `docs/SECURITY.md` 与 `deploy/README.md`）。
+
+---
+
+## 4) Mock Data Studio（仅 dev / 演示）
+
+本地 compose 现在包含 `mock-data-studio` dev-only 控制面，用于生成可删除的演示数据；当前阶段暴露：
+- `GET /`
+- `GET /health`
+- `GET /api/runtime-status`
+- `POST /api/jobs`
+- `GET /api/jobs/:jobId`
+- `GET /api/batches`
+- `GET /api/batches/:batchId`
+- `DELETE /api/batches/:batchId`
+- 环境变量解析与启动日志
+
+访问方式：
+- `http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12888}/`
+- `http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12888}/health`（仅绑定到宿主机 `127.0.0.1`）
+- `http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12888}/api/runtime-status`
+- `http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12888}/api/jobs`
+
+当前默认开关：
+- `MOCK_DATA_STUDIO_ENABLED=true`
+- `MOCK_DATA_STUDIO_HOST_PORT=12888`
+- `MOCK_DATA_STUDIO_PORT=12888`
+- `MOCK_DATA_AUTO_FILL_ENABLED=false`
+- `MOCK_DATA_AUTO_FILL_SCENE=tech-community-hot-start`
+- `MOCK_DATA_DEFAULT_USERS=100`
+- `MOCK_DATA_DEFAULT_POSTS=800`
+- `MOCK_DATA_DEFAULT_COMMENTS=2500`
+
+说明：
+- `MOCK_DATA_STUDIO_PORT` 表示 studio 进程监听端口；`MOCK_DATA_STUDIO_HOST_PORT` 表示 compose 暴露到宿主机的 localhost-only 端口。
+- `MOCK_DATA_AUTO_FILL_ENABLED=true` 会在服务启动后自动提交一次缺口填充 job；若 job 失败，会通过现有 batch/job 元数据记录为 failed，而不是只写启动日志。
+- auto-fill scene 目前支持 `tech-community-hot-start`、`moderation-pressure`、`im-busy`、`reward-ops-busy`。
+- `tech-community-hot-start` 当前会同时补充：
+  - 社区 Phase 1：`user` / `discuss_post` / `comment` / `social_follow` / `social_like`
+  - 社区 Phase 2：`message`（私信 + notices）、`report`、`moderation_action`
+  - growth / reward：`growth_check_in`、`user_task_progress`、`reward_account`、`reward_ledger`、`reward_grant_record`、`reward_item`、`reward_order`
+  - IM：`im_core.im_room` / `im_room_member` / `im_room_message` / `im_conversation` / `im_private_message`
+- 所有新增行都会记录到 `demo_entity_ref`，因此手动批次支持依赖顺序删除；批次详情页会按 target / actual / failure summary 展示这些 Phase 2 实体。
+- 这些开关只代表 studio 侧本地控制面行为，不会改变 prod 的 fail-closed 安全约束。

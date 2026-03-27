@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
@@ -39,6 +40,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -61,6 +63,8 @@ class InternalWorkerBridgeIntegrationTest {
     private static volatile DisposableServer workerB;
     private static final LinkedBlockingQueue<String> WORKER_A_INBOUND = new LinkedBlockingQueue<>();
     private static final LinkedBlockingQueue<String> WORKER_B_INBOUND = new LinkedBlockingQueue<>();
+    private static final LinkedBlockingQueue<Map<String, String>> WORKER_A_HANDSHAKES = new LinkedBlockingQueue<>();
+    private static final LinkedBlockingQueue<Map<String, String>> WORKER_B_HANDSHAKES = new LinkedBlockingQueue<>();
 
     @Autowired
     @org.springframework.boot.test.web.server.LocalServerPort
@@ -95,6 +99,8 @@ class InternalWorkerBridgeIntegrationTest {
     void shouldSelectShardWorkerByUserIdAndForwardAuthBeforeSubsequentFrames() throws Exception {
         WORKER_A_INBOUND.clear();
         WORKER_B_INBOUND.clear();
+        WORKER_A_HANDSHAKES.clear();
+        WORKER_B_HANDSHAKES.clear();
 
         String userId = userIdFor("worker-b");
         String token = signHs256(JWT_SECRET, JWT_ISSUER, userId, Instant.now().plusSeconds(120));
@@ -117,14 +123,81 @@ class InternalWorkerBridgeIntegrationTest {
         assertThat(WORKER_B_INBOUND.poll(5, TimeUnit.SECONDS)).contains("\"type\":\"ping\"");
     }
 
+    @Test
+    void shouldForwardTraceHeadersFromExternalHandshakeToWorkerHandshake() throws Exception {
+        WORKER_A_INBOUND.clear();
+        WORKER_B_INBOUND.clear();
+        WORKER_A_HANDSHAKES.clear();
+        WORKER_B_HANDSHAKES.clear();
+
+        String userId = userIdFor("worker-b");
+        String token = signHs256(JWT_SECRET, JWT_ISSUER, userId, Instant.now().plusSeconds(120));
+        String traceId = "11111111111111111111111111111111";
+        String traceparent = "00-" + traceId + "-2222222222222222-01";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Trace-Id", traceId);
+        headers.set("traceparent", traceparent);
+
+        List<String> received = runSession(List.of(
+                "{\"type\":\"auth\",\"accessToken\":\"" + token + "\"}",
+                "{\"type\":\"ping\"}"
+        ), 2, headers);
+
+        JsonNode authOk = OBJECT_MAPPER.readTree(received.get(0));
+        JsonNode pong = OBJECT_MAPPER.readTree(received.get(1));
+
+        assertThat(authOk.path("type").asText("")).isEqualTo("auth_ok");
+        assertThat(pong.path("type").asText("")).isEqualTo("pong");
+        assertThat(WORKER_A_HANDSHAKES.poll(200, TimeUnit.MILLISECONDS)).isNull();
+        assertThat(WORKER_B_HANDSHAKES.poll(5, TimeUnit.SECONDS))
+                .containsEntry("X-Trace-Id", traceId)
+                .containsEntry("traceparent", traceparent);
+    }
+
+    @Test
+    void shouldForwardGatewayGeneratedTraceHeadersWhenBrowserHandshakeHasNoCustomHeaders() throws Exception {
+        WORKER_A_INBOUND.clear();
+        WORKER_B_INBOUND.clear();
+        WORKER_A_HANDSHAKES.clear();
+        WORKER_B_HANDSHAKES.clear();
+
+        String userId = userIdFor("worker-b");
+        String token = signHs256(JWT_SECRET, JWT_ISSUER, userId, Instant.now().plusSeconds(120));
+
+        List<String> received = runSession(List.of(
+                "{\"type\":\"auth\",\"accessToken\":\"" + token + "\"}",
+                "{\"type\":\"ping\"}"
+        ), 2);
+
+        JsonNode authOk = OBJECT_MAPPER.readTree(received.get(0));
+        JsonNode pong = OBJECT_MAPPER.readTree(received.get(1));
+
+        assertThat(authOk.path("type").asText("")).isEqualTo("auth_ok");
+        assertThat(pong.path("type").asText("")).isEqualTo("pong");
+
+        Map<String, String> handshake = WORKER_B_HANDSHAKES.poll(5, TimeUnit.SECONDS);
+        assertThat(handshake).isNotNull();
+        String traceId = handshake.get("X-Trace-Id");
+        String traceparent = handshake.get("traceparent");
+        assertThat(traceId).matches("^[0-9a-f]{32}$");
+        assertThat(traceparent)
+                .startsWith("00-" + traceId + "-")
+                .endsWith("-01");
+    }
+
     private List<String> runSession(List<String> outboundFrames, int expectedMessages) throws Exception {
+        return runSession(outboundFrames, expectedMessages, new HttpHeaders());
+    }
+
+    private List<String> runSession(List<String> outboundFrames, int expectedMessages, HttpHeaders headers) throws Exception {
         LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
         Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
 
         ReactorNettyWebSocketClient client = new ReactorNettyWebSocketClient();
         URI gatewayUri = URI.create("ws://localhost:" + port + "/ws/im");
 
-        Disposable sessionHandle = client.execute(gatewayUri, session -> {
+        Disposable sessionHandle = client.execute(gatewayUri, headers, session -> {
                     Mono<Void> send = session.send(outbound.asFlux().map(session::textMessage));
                     Mono<Void> receive = session.receive()
                             .map(WebSocketMessage::getPayloadAsText)
@@ -152,25 +225,33 @@ class InternalWorkerBridgeIntegrationTest {
 
     private static synchronized String workerAUri() {
         if (workerA == null) {
-            workerA = startWorker("worker-a", WORKER_A_INBOUND);
+            workerA = startWorker("worker-a", WORKER_A_INBOUND, WORKER_A_HANDSHAKES);
         }
         return "ws://127.0.0.1:" + workerA.port() + "/internal/ws/im";
     }
 
     private static synchronized String workerBUri() {
         if (workerB == null) {
-            workerB = startWorker("worker-b", WORKER_B_INBOUND);
+            workerB = startWorker("worker-b", WORKER_B_INBOUND, WORKER_B_HANDSHAKES);
         }
         return "ws://127.0.0.1:" + workerB.port() + "/internal/ws/im";
     }
 
-    private static DisposableServer startWorker(String workerId, LinkedBlockingQueue<String> inboundFrames) {
+    private static DisposableServer startWorker(
+            String workerId,
+            LinkedBlockingQueue<String> inboundFrames,
+            LinkedBlockingQueue<Map<String, String>> handshakeHeaders
+    ) {
         return HttpServer.create()
                 .host("127.0.0.1")
                 .port(0)
                 .route(routes -> routes.ws("/internal/ws/im", (in, out) ->
                         out.sendString(in.receive()
                                 .asString()
+                                .doOnSubscribe(ignored -> handshakeHeaders.offer(Map.of(
+                                        "X-Trace-Id", normalizeHeader(in.headers().get("X-Trace-Id")),
+                                        "traceparent", normalizeHeader(in.headers().get("traceparent"))
+                                )))
                                 .doOnNext(inboundFrames::offer)
                                 .handle((text, sink) -> {
                                     JsonNode node = parse(text);
@@ -189,6 +270,10 @@ class InternalWorkerBridgeIntegrationTest {
                                 }))
                 ))
                 .bindNow(Duration.ofSeconds(5));
+    }
+
+    private static String normalizeHeader(String value) {
+        return value == null ? "" : value;
     }
 
     private static String jwtSubject(String token) {

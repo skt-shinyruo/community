@@ -31,6 +31,8 @@ management:
       enabled: true
 
 community:
+  logging:
+    service-version: ${SERVICE_VERSION:@project.version@}
   metrics:
     basic-auth:
       username: ${METRICS_BASIC_AUTH_USERNAME:prometheus}
@@ -142,8 +144,6 @@ user:
     storage: ${USER_AVATAR_STORAGE:local}
     files-base-dir: ${USER_FILES_BASE_DIR:/tmp/community-files}
     public-base-url: ${USER_PUBLIC_BASE_URL:http://localhost:12881}
-  social-profile:
-    degrade-on-error: true
 
 message:
   idempotency:
@@ -151,7 +151,6 @@ message:
     retention-days: 7
     cleanup-interval-ms: 21600000
   user-lookup:
-    fail-open: false
     resolve-cache:
       ttl: 60s
       max-size: 5000

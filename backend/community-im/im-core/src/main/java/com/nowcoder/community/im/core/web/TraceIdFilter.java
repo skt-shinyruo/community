@@ -1,7 +1,7 @@
 package com.nowcoder.community.im.core.web;
 
 import com.nowcoder.community.im.core.trace.TraceHeaders;
-import com.nowcoder.community.im.core.trace.TraceId;
+import com.nowcoder.community.im.core.trace.TraceContext;
 import com.nowcoder.community.im.core.trace.TraceIdCodec;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;
@@ -31,15 +31,14 @@ public class TraceIdFilter implements Filter {
                 req.getHeader(TraceHeaders.HEADER_TRACEPARENT)
         );
 
-        TraceId.set(traceId);
+        TraceContext.set(traceId);
         resp.setHeader(TraceHeaders.HEADER_TRACE_ID, traceId);
         resp.setHeader(TraceHeaders.HEADER_TRACEPARENT, TraceIdCodec.buildTraceparent(traceId));
 
         try {
             chain.doFilter(request, response);
         } finally {
-            TraceId.clear();
+            TraceContext.clear();
         }
     }
 }
-

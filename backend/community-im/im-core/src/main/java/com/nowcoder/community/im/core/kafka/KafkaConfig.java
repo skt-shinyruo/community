@@ -4,6 +4,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,11 +16,17 @@ import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.util.backoff.FixedBackOff;
 
+import java.util.Locale;
+
 @Configuration
 @ConditionalOnClass(KafkaTemplate.class)
 public class KafkaConfig {
 
     private static final Logger log = LoggerFactory.getLogger(KafkaConfig.class);
+    private static final String CATEGORY_ASYNC = "async";
+    private static final String MDC_CATEGORY = "community.category";
+    private static final String MDC_ACTION = "community.action";
+    private static final String MDC_OUTCOME = "community.outcome";
 
     @Bean
     public ConcurrentKafkaListenerContainerFactory<Object, Object> kafkaListenerContainerFactory(
@@ -39,8 +46,18 @@ public class KafkaConfig {
                 kafkaTemplate,
                 (ConsumerRecord<?, ?> record, Exception ex) -> {
                     String dlqTopic = record.topic() + ".dlq";
-                    log.warn("[kafka] publish to dlq (topic={}, partition={}, offset={}, dlqTopic={}): {}",
-                            record.topic(), record.partition(), record.offset(), dlqTopic, ex.toString());
+                    warnEvent(
+                            "kafka_dlq_recover",
+                            "degraded",
+                            null,
+                            "community.source_topic", record.topic(),
+                            "community.dlq_topic", dlqTopic,
+                            "community.kafka_partition", record.partition(),
+                            "community.kafka_offset", record.offset(),
+                            "community.reason_code", exceptionReasonCode(ex),
+                            "community.error_class", errorClass(ex),
+                            "community.error_message", errorMessage(ex)
+                    );
                     return new TopicPartition(dlqTopic, record.partition());
                 }
         );
@@ -51,5 +68,120 @@ public class KafkaConfig {
         // Treat common validation errors as non-retryable.
         handler.addNotRetryableExceptions(IllegalArgumentException.class, SecurityException.class);
         return handler;
+    }
+
+    private void warnEvent(String action, String outcome, Throwable throwable, Object... keyValues) {
+        logEvent(action, outcome, true, throwable, keyValues);
+    }
+
+    private void logEvent(String action, String outcome, boolean warn, Throwable throwable, Object... keyValues) {
+        if (keyValues.length % 2 != 0) {
+            throw new IllegalArgumentException("Kafka event keyValues must contain key/value pairs");
+        }
+        String previousCategory = MDC.get(MDC_CATEGORY);
+        String previousAction = MDC.get(MDC_ACTION);
+        String previousOutcome = MDC.get(MDC_OUTCOME);
+        MDC.put(MDC_CATEGORY, CATEGORY_ASYNC);
+        MDC.put(MDC_ACTION, action);
+        MDC.put(MDC_OUTCOME, outcome);
+        try {
+            String message = buildMessage(action, outcome, keyValues);
+            if (warn) {
+                if (throwable == null) {
+                    log.warn(message);
+                } else {
+                    log.warn(message, throwable);
+                }
+                return;
+            }
+            log.info(message);
+        } finally {
+            restore(MDC_CATEGORY, previousCategory);
+            restore(MDC_ACTION, previousAction);
+            restore(MDC_OUTCOME, previousOutcome);
+        }
+    }
+
+    private String buildMessage(String action, String outcome, Object... keyValues) {
+        StringBuilder message = new StringBuilder(160);
+        appendToken(message, MDC_CATEGORY, CATEGORY_ASYNC);
+        appendToken(message, MDC_ACTION, action);
+        appendToken(message, MDC_OUTCOME, outcome);
+        for (int i = 0; i < keyValues.length; i += 2) {
+            appendToken(message, String.valueOf(keyValues[i]), keyValues[i + 1]);
+        }
+        return message.toString();
+    }
+
+    private void appendToken(StringBuilder message, String key, Object value) {
+        if (message.length() > 0) {
+            message.append(' ');
+        }
+        message.append(key).append('=').append(encodeTokenValue(value));
+    }
+
+    private String encodeTokenValue(Object value) {
+        if (value == null) {
+            return "-";
+        }
+        String raw = String.valueOf(value);
+        if (raw.isEmpty()) {
+            return "-";
+        }
+        StringBuilder encoded = new StringBuilder(raw.length());
+        for (int i = 0; i < raw.length(); i++) {
+            char ch = raw.charAt(i);
+            if (Character.isWhitespace(ch) || Character.isISOControl(ch) || ch == '=' || ch == '%') {
+                encoded.append('%');
+                String hex = Integer.toHexString(ch).toUpperCase(Locale.ROOT);
+                if (hex.length() == 1) {
+                    encoded.append('0');
+                }
+                encoded.append(hex);
+            } else {
+                encoded.append(ch);
+            }
+        }
+        return encoded.toString();
+    }
+
+    private String exceptionReasonCode(Throwable throwable) {
+        if (throwable == null) {
+            return "unknown";
+        }
+        String simpleName = throwable.getClass().getSimpleName();
+        if (simpleName.endsWith("Exception")) {
+            simpleName = simpleName.substring(0, simpleName.length() - "Exception".length());
+        } else if (simpleName.endsWith("Error")) {
+            simpleName = simpleName.substring(0, simpleName.length() - "Error".length());
+        }
+        if (simpleName.isEmpty()) {
+            return "unknown";
+        }
+        StringBuilder out = new StringBuilder(simpleName.length() + 8);
+        for (int i = 0; i < simpleName.length(); i++) {
+            char ch = simpleName.charAt(i);
+            if (Character.isUpperCase(ch) && i > 0) {
+                out.append('_');
+            }
+            out.append(Character.toLowerCase(ch));
+        }
+        return out.toString();
+    }
+
+    private String errorClass(Throwable throwable) {
+        return throwable == null ? null : throwable.getClass().getName();
+    }
+
+    private String errorMessage(Throwable throwable) {
+        return throwable == null ? null : throwable.getMessage();
+    }
+
+    private void restore(String key, String previousValue) {
+        if (previousValue == null) {
+            MDC.remove(key);
+            return;
+        }
+        MDC.put(key, previousValue);
     }
 }

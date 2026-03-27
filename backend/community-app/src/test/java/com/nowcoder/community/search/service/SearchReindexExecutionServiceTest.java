@@ -1,6 +1,9 @@
 package com.nowcoder.community.search.service;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -10,10 +13,11 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(OutputCaptureExtension.class)
 class SearchReindexExecutionServiceTest {
 
     @Test
-    void executeShouldRunReindexAndReleaseJobWhenAcquired() {
+    void executeShouldRunReindexAndReleaseJobWhenAcquired(CapturedOutput output) {
         PostSearchService postSearchService = mock(PostSearchService.class);
         ReindexJobService reindexJobService = mock(ReindexJobService.class);
         when(reindexJobService.tryStart()).thenReturn(new ReindexJobService.ReindexJob("job-1", true));
@@ -32,10 +36,18 @@ class SearchReindexExecutionServiceTest {
         verify(postSearchService).clearAndReindexFromContentService();
         verify(reindexJobService).finish("job-1");
         verifyNoMoreInteractions(postSearchService, reindexJobService);
+        assertThat(output.getAll())
+                .contains("community.category=async")
+                .contains("community.action=search_reindex_start")
+                .contains("community.outcome=success")
+                .contains("community.job_id=job-1")
+                .contains("community.action=search_reindex")
+                .contains("community.outcome=success")
+                .contains("community.indexed_count=42");
     }
 
     @Test
-    void executeShouldReturnSkippedResultWhenJobAlreadyRunning() {
+    void executeShouldReturnSkippedResultWhenJobAlreadyRunning(CapturedOutput output) {
         PostSearchService postSearchService = mock(PostSearchService.class);
         ReindexJobService reindexJobService = mock(ReindexJobService.class);
         when(reindexJobService.tryStart()).thenReturn(new ReindexJobService.ReindexJob("job-1", false));
@@ -52,10 +64,16 @@ class SearchReindexExecutionServiceTest {
         verify(reindexJobService).tryStart();
         verifyNoInteractions(postSearchService);
         verifyNoMoreInteractions(reindexJobService);
+        assertThat(output.getAll())
+                .contains("community.category=async")
+                .contains("community.action=search_reindex")
+                .contains("community.outcome=skipped")
+                .contains("community.reason_code=already_running")
+                .contains("community.job_id=job-1");
     }
 
     @Test
-    void executeShouldReleaseJobWhenReindexFails() {
+    void executeShouldReleaseJobWhenReindexFails(CapturedOutput output) {
         PostSearchService postSearchService = mock(PostSearchService.class);
         ReindexJobService reindexJobService = mock(ReindexJobService.class);
         RuntimeException boom = new RuntimeException("boom");
@@ -72,5 +90,15 @@ class SearchReindexExecutionServiceTest {
         verify(postSearchService).clearAndReindexFromContentService();
         verify(reindexJobService).finish("job-1");
         verifyNoMoreInteractions(postSearchService, reindexJobService);
+        assertThat(output.getAll())
+                .contains("community.category=async")
+                .contains("community.action=search_reindex_start")
+                .contains("community.outcome=success")
+                .contains("community.job_id=job-1")
+                .contains("community.action=search_reindex")
+                .contains("community.outcome=failure")
+                .contains("community.reason_code=reindex_failed")
+                .contains("community.job_id=job-1")
+                .doesNotContain("community.action=search_reindex community.outcome=success");
     }
 }

@@ -1,16 +1,28 @@
 package com.nowcoder.community.auth.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.web.net.ClientIpResolver;
 import com.nowcoder.community.user.entity.User;
-import com.nowcoder.community.user.mapper.UserMapper;
-import com.nowcoder.community.user.service.InternalUserService;
+import com.nowcoder.community.user.service.UserCredentialService;
+import com.nowcoder.community.user.service.UserQueryService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.logging.LoggingInitializationContext;
+import org.springframework.boot.logging.LoggingSystem;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.ResponseCookie;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
@@ -21,22 +33,28 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(OutputCaptureExtension.class)
 class AuthServiceLoginTest {
 
-    private final UserMapper userMapper = mock(UserMapper.class);
+    private static final String SERVICE_VERSION = "test-service-version";
+
+    private final UserCredentialService userCredentialService = mock(UserCredentialService.class);
+    private final UserQueryService userQueryService = mock(UserQueryService.class);
     private final JwtTokenService jwtTokenService = mock(JwtTokenService.class);
     private final RefreshTokenService refreshTokenService = mock(RefreshTokenService.class);
     private final LoginRateLimitService loginRateLimitService = mock(LoginRateLimitService.class);
     private final CaptchaService captchaService = mock(CaptchaService.class);
     private final ClientIpResolver clientIpResolver = mock(ClientIpResolver.class);
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final LoggingSystem loggingSystem = LoggingSystem.get(getClass().getClassLoader());
 
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
-        InternalUserService internalUserService = new InternalUserService(userMapper);
         authService = new AuthService(
-                internalUserService,
+                userCredentialService,
+                userQueryService,
                 jwtTokenService,
                 refreshTokenService,
                 loginRateLimitService,
@@ -46,9 +64,15 @@ class AuthServiceLoginTest {
         when(clientIpResolver.resolve(any())).thenReturn(new ClientIpResolver.ResolvedClientIp("127.0.0.1", ClientIpResolver.SOURCE_REMOTE));
     }
 
+    @AfterEach
+    void tearDown() {
+        loggingSystem.cleanUp();
+    }
+
     @Test
-    void loginShouldRecordFailureWhenCredentialsAreInvalid() {
-        when(userMapper.selectByName("alice")).thenReturn(null);
+    void loginShouldRecordFailureWhenCredentialsAreInvalid(CapturedOutput output) {
+        when(userCredentialService.authenticate("alice", "wrong-password"))
+                .thenThrow(new BusinessException(AuthErrorCode.INVALID_CREDENTIALS));
 
         Throwable thrown = catchThrowable(() -> authService.login("alice", "wrong-password", null, null, new MockHttpServletRequest()));
 
@@ -57,15 +81,20 @@ class AuthServiceLoginTest {
         assertThat(error.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_CREDENTIALS);
         verify(loginRateLimitService).recordFailure("alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE);
         verify(loginRateLimitService, never()).reset(any(), any());
+        assertThat(output.getAll())
+                .contains("community.category=security")
+                .contains("community.action=login")
+                .contains("community.outcome=denied")
+                .contains("community.reason_code=invalid_credentials")
+                .contains("username=alice")
+                .contains("source.ip=127.0.0.1")
+                .doesNotContain("wrong-password");
     }
 
     @Test
-    void loginShouldRecordFailureWhenUserIsDisabled() {
-        User disabledUser = new User();
-        disabledUser.setId(7);
-        disabledUser.setUsername("alice");
-        disabledUser.setStatus(0);
-        when(userMapper.selectByName("alice")).thenReturn(disabledUser);
+    void loginShouldRecordFailureWhenUserIsDisabled(CapturedOutput output) {
+        when(userCredentialService.authenticate("alice", "secret"))
+                .thenThrow(new BusinessException(AuthErrorCode.USER_DISABLED));
 
         Throwable thrown = catchThrowable(() -> authService.login("alice", "secret", null, null, new MockHttpServletRequest()));
 
@@ -74,21 +103,28 @@ class AuthServiceLoginTest {
         assertThat(error.getErrorCode()).isEqualTo(AuthErrorCode.USER_DISABLED);
         verify(loginRateLimitService).recordFailure("alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE);
         verify(loginRateLimitService, never()).reset(any(), any());
+        assertThat(output.getAll())
+                .contains("community.category=security")
+                .contains("community.action=login")
+                .contains("community.outcome=denied")
+                .contains("community.reason_code=user_disabled")
+                .contains("username=alice")
+                .contains("source.ip=127.0.0.1")
+                .doesNotContain("secret");
     }
 
     @Test
-    void loginShouldResetRateLimitAfterSuccessfulAuthentication() {
-        BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    void loginShouldResetRateLimitAfterSuccessfulAuthentication(CapturedOutput output) {
         User user = new User();
         user.setId(7);
         user.setUsername("alice");
         user.setStatus(1);
         user.setType(0);
-        user.setPassword(passwordEncoder.encode("secret"));
-        when(userMapper.selectByName("alice")).thenReturn(user);
+        when(userCredentialService.authenticate("alice", "secret")).thenReturn(user);
 
         ResponseCookie cookie = ResponseCookie.from("refresh_token", "rt").path("/api/auth").httpOnly(true).build();
-        when(jwtTokenService.createAccessToken(eq(7), eq("alice"), eq(java.util.List.of("ROLE_USER")))).thenReturn("access-token");
+        when(userCredentialService.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
+        when(jwtTokenService.createAccessToken(eq(7), eq("alice"), eq(List.of("ROLE_USER")))).thenReturn("access-token");
         when(refreshTokenService.issue(7)).thenReturn(new RefreshTokenService.IssuedRefreshToken("rt", cookie));
 
         AuthService.LoginResult result = authService.login("alice", "secret", null, null, new MockHttpServletRequest());
@@ -97,5 +133,141 @@ class AuthServiceLoginTest {
         assertThat(result.refreshCookie()).isEqualTo(cookie);
         verify(loginRateLimitService).reset("alice", "127.0.0.1");
         verify(loginRateLimitService, never()).recordFailure(any(), any(), any());
+        assertThat(output.getAll())
+                .contains("community.category=security")
+                .contains("community.action=login")
+                .contains("community.outcome=success")
+                .contains("user.id=7")
+                .contains("username=alice")
+                .contains("source.ip=127.0.0.1")
+                .doesNotContain("secret")
+                .doesNotContain("access-token");
+    }
+
+    @Test
+    void loginShouldLogDeniedWhenCaptchaIsRequiredButMissing(CapturedOutput output) {
+        when(loginRateLimitService.isCaptchaRequired("alice", "127.0.0.1")).thenReturn(true);
+
+        Throwable thrown = catchThrowable(() -> authService.login("alice", "secret", "cid", "", new MockHttpServletRequest()));
+
+        assertThat(thrown).isInstanceOf(BusinessException.class);
+        BusinessException error = (BusinessException) thrown;
+        assertThat(error.getErrorCode()).isEqualTo(AuthErrorCode.CAPTCHA_REQUIRED);
+        verify(loginRateLimitService).recordFailure("alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE);
+        assertThat(output.getAll())
+                .contains("community.category=security")
+                .contains("community.action=login")
+                .contains("community.outcome=denied")
+                .contains("community.reason_code=captcha_required")
+                .contains("username=alice")
+                .contains("source.ip=127.0.0.1")
+                .doesNotContain("secret")
+                .doesNotContain("cid");
+    }
+
+    @Test
+    void loginShouldLogDeniedWhenCaptchaIsInvalid(CapturedOutput output) {
+        when(loginRateLimitService.isCaptchaRequired("alice", "127.0.0.1")).thenReturn(true);
+        when(captchaService.verify("cid", "bad-code")).thenReturn(false);
+
+        Throwable thrown = catchThrowable(() -> authService.login("alice", "secret", "cid", "bad-code", new MockHttpServletRequest()));
+
+        assertThat(thrown).isInstanceOf(BusinessException.class);
+        BusinessException error = (BusinessException) thrown;
+        assertThat(error.getErrorCode()).isEqualTo(AuthErrorCode.CAPTCHA_INVALID);
+        verify(loginRateLimitService).recordFailure("alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE);
+        assertThat(output.getAll())
+                .contains("community.category=security")
+                .contains("community.action=login")
+                .contains("community.outcome=denied")
+                .contains("community.reason_code=captcha_invalid")
+                .contains("username=alice")
+                .contains("source.ip=127.0.0.1")
+                .doesNotContain("secret")
+                .doesNotContain("bad-code")
+                .doesNotContain("cid");
+    }
+
+    @Test
+    void loginShouldNotLogSuccessWhenTokenIssuanceFails(CapturedOutput output) {
+        User user = new User();
+        user.setId(7);
+        user.setUsername("alice");
+        user.setStatus(1);
+        user.setType(0);
+        when(userCredentialService.authenticate("alice", "secret")).thenReturn(user);
+        when(userCredentialService.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
+        when(jwtTokenService.createAccessToken(eq(7), eq("alice"), eq(List.of("ROLE_USER")))).thenReturn("access-token");
+        when(refreshTokenService.issue(7)).thenThrow(new RuntimeException("issue failed"));
+
+        Throwable thrown = catchThrowable(() -> authService.login("alice", "secret", null, null, new MockHttpServletRequest()));
+
+        assertThat(thrown).isInstanceOf(RuntimeException.class).hasMessage("issue failed");
+        assertThat(output.getAll()).doesNotContain("community.category=security community.action=login community.outcome=success");
+    }
+
+    @Test
+    void loginShouldEncodeUnsafeCharactersInSecurityEventTokens(CapturedOutput output) {
+        String spoofedUsername = "alice bob=\nroot";
+        when(userCredentialService.authenticate(spoofedUsername, "secret"))
+                .thenThrow(new BusinessException(AuthErrorCode.INVALID_CREDENTIALS));
+
+        Throwable thrown = catchThrowable(() -> authService.login(spoofedUsername, "secret", null, null, new MockHttpServletRequest()));
+
+        assertThat(thrown).isInstanceOf(BusinessException.class);
+        assertThat(output.getAll())
+                .contains("username=alice%20bob%3D%0Aroot")
+                .doesNotContain("username=alice bob=")
+                .doesNotContain("community.reason_code=invalid_credentials username=alice bob=\nroot");
+    }
+
+    @Test
+    void loginDeniedShouldExposeCommunityFieldsAsTopLevelJsonInProductionLogging(CapturedOutput output) {
+        initializeProductionLogging("community-app");
+        when(userCredentialService.authenticate("alice", "wrong-password"))
+                .thenThrow(new BusinessException(AuthErrorCode.INVALID_CREDENTIALS));
+
+        Throwable thrown = catchThrowable(() -> authService.login("alice", "wrong-password", null, null, new MockHttpServletRequest()));
+
+        assertThat(thrown).isInstanceOf(BusinessException.class);
+
+        JsonNode event = findJsonEvent(output);
+        assertThat(event.path("service.name").asText()).isEqualTo("community-app");
+        assertThat(event.path("service.version").asText()).isEqualTo(SERVICE_VERSION);
+        assertThat(event.path("community.category").asText()).isEqualTo("security");
+        assertThat(event.path("community.action").asText()).isEqualTo("login");
+        assertThat(event.path("community.outcome").asText()).isEqualTo("denied");
+        assertThat(event.path("message").asText())
+                .contains("community.reason_code=invalid_credentials")
+                .contains("source.ip=127.0.0.1");
+    }
+
+    private void initializeProductionLogging(String serviceName) {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setProperty("spring.application.name", serviceName);
+        environment.setProperty("community.logging.service-version", SERVICE_VERSION);
+        environment.setProperty("spring.profiles.active", "prod");
+
+        loggingSystem.cleanUp();
+        loggingSystem.beforeInitialize();
+        loggingSystem.initialize(new LoggingInitializationContext(environment), "classpath:logback-spring.xml", null);
+    }
+
+    private JsonNode findJsonEvent(CapturedOutput output) {
+        return Arrays.stream(output.getAll().split("\\R"))
+                .map(String::trim)
+                .filter(line -> !line.isEmpty() && line.startsWith("{"))
+                .map(this::readJson)
+                .filter(event -> event != null && AuthService.class.getName().equals(event.path("logger").asText()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No structured log event found for " + AuthService.class.getName() + " in output: " + output.getAll()));
+    }
+
+    private JsonNode readJson(String line) {
+        try {
+            return objectMapper.readTree(line);
+        } catch (IOException ex) {
+            return null;
+        }
     }
 }

@@ -25,6 +25,7 @@ public class WsConnection {
 
     private volatile Integer userId;
     private volatile String accessToken = "";
+    private volatile String traceId = "";
 
     private final Set<Long> joinedRooms = ConcurrentHashMap.newKeySet();
     private final ConcurrentHashMap<Long, Long> pendingRoomSeq = new ConcurrentHashMap<>();
@@ -54,6 +55,14 @@ public class WsConnection {
 
     public String accessToken() {
         return accessToken;
+    }
+
+    public String traceId() {
+        return traceId;
+    }
+
+    public void bindTrace(String traceId) {
+        this.traceId = traceId == null ? "" : traceId;
     }
 
     public void bindUser(int userId) {

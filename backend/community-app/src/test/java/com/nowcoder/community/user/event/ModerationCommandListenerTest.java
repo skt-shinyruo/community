@@ -3,18 +3,28 @@ package com.nowcoder.community.user.event;
 import com.nowcoder.community.content.event.ContentEventTypes;
 import com.nowcoder.community.content.event.payload.ModerationCommandPayload;
 import com.nowcoder.community.content.event.ContentLocalEvent;
-import com.nowcoder.community.user.service.InternalUserService;
+import com.nowcoder.community.user.service.UserModerationService;
 import org.junit.jupiter.api.Test;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 class ModerationCommandListenerTest {
 
     @Test
+    void listenerShouldOnlyExposeUserModerationServiceConstructor() {
+        assertThat(ModerationCommandListener.class.getDeclaredConstructors())
+                .singleElement()
+                .satisfies(constructor -> assertThat(constructor.getParameterTypes()).containsExactly(
+                        UserModerationService.class
+                ));
+    }
+
+    @Test
     void moderationCommandShouldApplyModerationLocally() {
-        InternalUserService internalUserService = mock(InternalUserService.class);
-        ModerationCommandListener listener = new ModerationCommandListener(internalUserService);
+        UserModerationService userModerationService = mock(UserModerationService.class);
+        ModerationCommandListener listener = new ModerationCommandListener(userModerationService);
 
         ModerationCommandPayload payload = new ModerationCommandPayload();
         payload.setUserId(5);
@@ -23,6 +33,6 @@ class ModerationCommandListenerTest {
 
         listener.onContentEvent(new ContentLocalEvent("moderation-evt-1", ContentEventTypes.MODERATION_COMMAND_REQUESTED, payload));
 
-        verify(internalUserService).applyModeration(5, "mute", 60);
+        verify(userModerationService).applyModeration(5, "mute", 60);
     }
 }

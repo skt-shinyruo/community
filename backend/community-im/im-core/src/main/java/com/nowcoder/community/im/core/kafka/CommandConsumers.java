@@ -7,13 +7,20 @@ import com.nowcoder.community.im.core.service.PrivateMessageService;
 import com.nowcoder.community.im.core.service.RoomMessageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
+
+import java.util.Locale;
 
 @Component
 public class CommandConsumers {
 
     private static final Logger log = LoggerFactory.getLogger(CommandConsumers.class);
+    private static final String CATEGORY_ASYNC = "async";
+    private static final String MDC_CATEGORY = "community.category";
+    private static final String MDC_ACTION = "community.action";
+    private static final String MDC_OUTCOME = "community.outcome";
 
     private final PrivateMessageService privateMessageService;
     private final RoomMessageService roomMessageService;
@@ -40,8 +47,16 @@ public class CommandConsumers {
         }
         var event = privateMessageService.persist(cmd);
         eventProducer.publishPrivatePersisted(event);
-        log.debug("[im-core] persisted private (conversationId={}, seq={}, messageId={})",
-                event.conversationId(), event.seq(), event.messageId());
+        debugEvent(
+                "im_private_command_persist",
+                "success",
+                "user.id", event.fromUserId(),
+                "community.target_type", "conversation",
+                "community.target_id", event.conversationId(),
+                "community.message_seq", event.seq(),
+                "community.message_id", event.messageId(),
+                "community.client_msg_id", cmd.clientMsgId()
+        );
     }
 
     @KafkaListener(
@@ -55,7 +70,98 @@ public class CommandConsumers {
         }
         var event = roomMessageService.persist(cmd);
         eventProducer.publishRoomPersisted(event);
-        log.debug("[im-core] persisted room (roomId={}, seq={}, messageId={})",
-                event.roomId(), event.seq(), event.messageId());
+        debugEvent(
+                "im_room_command_persist",
+                "success",
+                "user.id", event.fromUserId(),
+                "community.target_type", "room",
+                "community.target_id", event.roomId(),
+                "community.message_seq", event.seq(),
+                "community.message_id", event.messageId(),
+                "community.client_msg_id", cmd.clientMsgId()
+        );
+    }
+
+    private void debugEvent(String action, String outcome, Object... keyValues) {
+        logEvent(action, outcome, false, null, keyValues);
+    }
+
+    private void logEvent(String action, String outcome, boolean warn, Throwable throwable, Object... keyValues) {
+        if (keyValues.length % 2 != 0) {
+            throw new IllegalArgumentException("IM command consumer event keyValues must contain key/value pairs");
+        }
+        String previousCategory = MDC.get(MDC_CATEGORY);
+        String previousAction = MDC.get(MDC_ACTION);
+        String previousOutcome = MDC.get(MDC_OUTCOME);
+        MDC.put(MDC_CATEGORY, CATEGORY_ASYNC);
+        MDC.put(MDC_ACTION, action);
+        MDC.put(MDC_OUTCOME, outcome);
+        try {
+            String message = buildMessage(action, outcome, keyValues);
+            if (warn) {
+                if (throwable == null) {
+                    log.warn(message);
+                } else {
+                    log.warn(message, throwable);
+                }
+                return;
+            }
+            log.debug(message);
+        } finally {
+            restore(MDC_CATEGORY, previousCategory);
+            restore(MDC_ACTION, previousAction);
+            restore(MDC_OUTCOME, previousOutcome);
+        }
+    }
+
+    private String buildMessage(String action, String outcome, Object... keyValues) {
+        StringBuilder message = new StringBuilder(160);
+        appendToken(message, MDC_CATEGORY, CATEGORY_ASYNC);
+        appendToken(message, MDC_ACTION, action);
+        appendToken(message, MDC_OUTCOME, outcome);
+        for (int i = 0; i < keyValues.length; i += 2) {
+            appendToken(message, String.valueOf(keyValues[i]), keyValues[i + 1]);
+        }
+        return message.toString();
+    }
+
+    private void appendToken(StringBuilder message, String key, Object value) {
+        if (message.length() > 0) {
+            message.append(' ');
+        }
+        message.append(key).append('=').append(encodeTokenValue(value));
+    }
+
+    private String encodeTokenValue(Object value) {
+        if (value == null) {
+            return "-";
+        }
+        String raw = String.valueOf(value);
+        if (raw.isEmpty()) {
+            return "-";
+        }
+        StringBuilder encoded = new StringBuilder(raw.length());
+        for (int i = 0; i < raw.length(); i++) {
+            char ch = raw.charAt(i);
+            if (Character.isWhitespace(ch) || Character.isISOControl(ch) || ch == '=' || ch == '%') {
+                encoded.append('%');
+                String hex = Integer.toHexString(ch).toUpperCase(Locale.ROOT);
+                if (hex.length() == 1) {
+                    encoded.append('0');
+                }
+                encoded.append(hex);
+            } else {
+                encoded.append(ch);
+            }
+        }
+        return encoded.toString();
+    }
+
+    private void restore(String key, String previousValue) {
+        if (previousValue == null) {
+            MDC.remove(key);
+            return;
+        }
+        MDC.put(key, previousValue);
     }
 }

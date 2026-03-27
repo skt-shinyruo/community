@@ -2,11 +2,13 @@ package com.nowcoder.community.infra.outbox;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -17,6 +19,10 @@ import java.util.Map;
 public class OutboxWorker {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxWorker.class);
+    private static final String CATEGORY_ASYNC = "async";
+    private static final String MDC_CATEGORY = "community.category";
+    private static final String MDC_ACTION = "community.action";
+    private static final String MDC_OUTCOME = "community.outcome";
 
     private final JdbcOutboxEventStore store;
     private final Map<String, OutboxHandler> handlers;
@@ -49,10 +55,21 @@ public class OutboxWorker {
         try {
             int recovered = store.recoverExpiredLeases(now);
             if (recovered > 0) {
-                log.warn("[outbox] recovered {} expired leases", recovered);
+                warnEvent(
+                        "outbox_lease_recovery",
+                        "degraded",
+                        null,
+                        "community.reason_code", "expired_leases_recovered",
+                        "community.recovered_count", recovered
+                );
             }
         } catch (RuntimeException e) {
-            log.warn("[outbox] recoverExpiredLeases failed: {}", e.toString());
+            warnEvent(
+                    "outbox_lease_recovery",
+                    "failure",
+                    e,
+                    "community.reason_code", "recover_failed"
+            );
         }
 
         List<OutboxEvent> due = store.findDuePending(properties.getBatchSize(), now);
@@ -73,7 +90,18 @@ public class OutboxWorker {
 
             OutboxHandler handler = handlers.get(event.topic());
             if (handler == null) {
-                store.markFailedAndScheduleRetry(event.id(), now, now.plus(Duration.ofSeconds(10)), "no handler for topic=" + event.topic());
+                Instant nextRetryAt = now.plus(Duration.ofSeconds(10));
+                store.markFailedAndScheduleRetry(event.id(), now, nextRetryAt, "no handler for topic=" + event.topic());
+                warnEvent(
+                        "outbox_dispatch",
+                        "degraded",
+                        null,
+                        "community.reason_code", "no_handler",
+                        "community.event_id", event.eventId(),
+                        "community.topic", event.topic(),
+                        "community.retry_count", Math.max(0, event.retryCount()) + 1,
+                        "community.next_retry_at", nextRetryAt
+                );
                 continue;
             }
 
@@ -93,20 +121,32 @@ public class OutboxWorker {
         int nextAttemptNumber = currentRetryCount + 1;
         if (nextAttemptNumber > properties.getMaxRetries()) {
             store.markDead(event.id(), now, e.toString());
-            log.warn("[outbox] event moved to DEAD (eventId={}, topic={}, retries={}): {}", event.eventId(), event.topic(), nextAttemptNumber, e.toString());
+            warnEvent(
+                    "outbox_dispatch",
+                    "dead",
+                    null,
+                    "community.event_id", event.eventId(),
+                    "community.topic", event.topic(),
+                    "community.retry_count", nextAttemptNumber,
+                    "community.error_class", e.getClass().getName(),
+                    "community.error_message", e.getMessage()
+            );
             return;
         }
 
         Duration delay = backoffDelay(currentRetryCount, properties.getBaseBackoff(), properties.getMaxBackoff());
         Instant nextRetryAt = now.plus(delay);
         store.markFailedAndScheduleRetry(event.id(), now, nextRetryAt, e.toString());
-        log.warn(
-                "[outbox] handler failed, scheduled retry (eventId={}, topic={}, retryCount={}, nextRetryAt={}): {}",
-                event.eventId(),
-                event.topic(),
-                nextAttemptNumber,
-                nextRetryAt,
-                e.toString()
+        warnEvent(
+                "outbox_dispatch",
+                "retry",
+                null,
+                "community.event_id", event.eventId(),
+                "community.topic", event.topic(),
+                "community.retry_count", nextAttemptNumber,
+                "community.next_retry_at", nextRetryAt,
+                "community.error_class", e.getClass().getName(),
+                "community.error_message", e.getMessage()
         );
     }
 
@@ -127,5 +167,79 @@ public class OutboxWorker {
         }
         return candidate;
     }
-}
 
+    private void warnEvent(String action, String outcome, Throwable throwable, Object... keyValues) {
+        if (keyValues.length % 2 != 0) {
+            throw new IllegalArgumentException("Outbox event keyValues must contain key/value pairs");
+        }
+        String previousCategory = MDC.get(MDC_CATEGORY);
+        String previousAction = MDC.get(MDC_ACTION);
+        String previousOutcome = MDC.get(MDC_OUTCOME);
+        MDC.put(MDC_CATEGORY, CATEGORY_ASYNC);
+        MDC.put(MDC_ACTION, action);
+        MDC.put(MDC_OUTCOME, outcome);
+        try {
+            String message = buildMessage(action, outcome, keyValues);
+            if (throwable == null) {
+                log.warn(message);
+            } else {
+                log.warn(message, throwable);
+            }
+        } finally {
+            restore(MDC_CATEGORY, previousCategory);
+            restore(MDC_ACTION, previousAction);
+            restore(MDC_OUTCOME, previousOutcome);
+        }
+    }
+
+    private String buildMessage(String action, String outcome, Object... keyValues) {
+        StringBuilder message = new StringBuilder(192);
+        appendToken(message, MDC_CATEGORY, CATEGORY_ASYNC);
+        appendToken(message, MDC_ACTION, action);
+        appendToken(message, MDC_OUTCOME, outcome);
+        for (int i = 0; i < keyValues.length; i += 2) {
+            appendToken(message, String.valueOf(keyValues[i]), keyValues[i + 1]);
+        }
+        return message.toString();
+    }
+
+    private void appendToken(StringBuilder message, String key, Object value) {
+        if (message.length() > 0) {
+            message.append(' ');
+        }
+        message.append(key).append('=').append(encodeTokenValue(value));
+    }
+
+    private String encodeTokenValue(Object value) {
+        if (value == null) {
+            return "-";
+        }
+        String raw = String.valueOf(value);
+        if (raw.isEmpty()) {
+            return "-";
+        }
+        StringBuilder encoded = new StringBuilder(raw.length());
+        for (int i = 0; i < raw.length(); i++) {
+            char ch = raw.charAt(i);
+            if (Character.isWhitespace(ch) || Character.isISOControl(ch) || ch == '=' || ch == '%') {
+                encoded.append('%');
+                String hex = Integer.toHexString(ch).toUpperCase(Locale.ROOT);
+                if (hex.length() == 1) {
+                    encoded.append('0');
+                }
+                encoded.append(hex);
+            } else {
+                encoded.append(ch);
+            }
+        }
+        return encoded.toString();
+    }
+
+    private void restore(String key, String previousValue) {
+        if (previousValue == null) {
+            MDC.remove(key);
+            return;
+        }
+        MDC.put(key, previousValue);
+    }
+}

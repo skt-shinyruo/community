@@ -6,12 +6,14 @@ import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.exception.UserErrorCode;
-import com.nowcoder.community.user.service.InternalUserService;
+import com.nowcoder.community.user.service.UserRegistrationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.ResponseCookie;
 
 import java.time.Duration;
@@ -28,11 +30,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class RegistrationVerificationServiceTest {
 
     @Mock
-    private InternalUserService internalUserService;
+    private UserRegistrationService userRegistrationService;
 
     @Mock
     private RegistrationCodeStore registrationCodeStore;
@@ -58,7 +60,7 @@ class RegistrationVerificationServiceTest {
         properties.getCode().setExposeCode(true);
         properties.getCode().setTtlSeconds(600);
         service = new RegistrationVerificationService(
-                internalUserService,
+                userRegistrationService,
                 properties,
                 registrationCodeStore,
                 mailService,
@@ -77,7 +79,7 @@ class RegistrationVerificationServiceTest {
 
         when(captchaService.verify("cid", "abcd")).thenReturn(true);
         when(registrationSessionStore.findUserId("token")).thenReturn(7);
-        when(internalUserService.getPendingRegistrationUser(7, Duration.ofMinutes(30))).thenReturn(user);
+        when(userRegistrationService.getPendingRegistrationUser(7, Duration.ofMinutes(30))).thenReturn(user);
         when(registrationCodeStore.issue(eq(7), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
                 .thenReturn(RegistrationCodeStore.IssueResult.ISSUED);
 
@@ -99,7 +101,7 @@ class RegistrationVerificationServiceTest {
 
         when(captchaService.verify("cid", "abcd")).thenReturn(true);
         when(registrationSessionStore.findUserId("token")).thenReturn(7);
-        when(internalUserService.getPendingRegistrationUser(7, Duration.ofMinutes(30))).thenReturn(user);
+        when(userRegistrationService.getPendingRegistrationUser(7, Duration.ofMinutes(30))).thenReturn(user);
         when(registrationCodeStore.issue(eq(7), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
                 .thenReturn(RegistrationCodeStore.IssueResult.COOLDOWN_ACTIVE);
 
@@ -112,7 +114,7 @@ class RegistrationVerificationServiceTest {
     }
 
     @Test
-    void verifyAndLoginShouldActivateInactiveUserAndReturnLoginResult() {
+    void verifyAndLoginShouldActivateInactiveUserAndReturnLoginResult(CapturedOutput output) {
         User user = new User();
         user.setId(7);
         user.setUsername("alice");
@@ -122,7 +124,7 @@ class RegistrationVerificationServiceTest {
         ResponseCookie cookie = ResponseCookie.from("refresh_token", "rt").path("/api/auth").build();
 
         when(registrationSessionStore.findUserId("token")).thenReturn(7);
-        when(internalUserService.getPendingRegistrationUser(7, Duration.ofMinutes(30))).thenReturn(user);
+        when(userRegistrationService.getPendingRegistrationUser(7, Duration.ofMinutes(30))).thenReturn(user);
         when(registrationCodeStore.verifyAndConsume(7, "222222")).thenReturn(RegistrationCodeStore.VerifyResult.SUCCESS);
         when(authService.issueLoginResult(any(User.class))).thenReturn(new AuthService.LoginResult("access-token", cookie));
 
@@ -130,9 +132,17 @@ class RegistrationVerificationServiceTest {
 
         assertThat(result.accessToken()).isEqualTo("access-token");
         assertThat(result.refreshCookie()).isEqualTo(cookie);
-        verify(internalUserService).activateUser(7);
+        verify(userRegistrationService).activateUser(7);
         verify(registrationSessionStore).delete("token");
         verify(authService).issueLoginResult(eq(user));
+        assertThat(output.getAll())
+                .contains("community.category=security")
+                .contains("community.action=registration_verify")
+                .contains("community.outcome=success")
+                .contains("user.id=7")
+                .contains("username=alice")
+                .doesNotContain("token")
+                .doesNotContain("222222");
     }
 
     @Test
@@ -143,7 +153,7 @@ class RegistrationVerificationServiceTest {
         user.setStatus(0);
 
         when(registrationSessionStore.findUserId("token")).thenReturn(7);
-        when(internalUserService.getPendingRegistrationUser(7, Duration.ofMinutes(30))).thenReturn(user);
+        when(userRegistrationService.getPendingRegistrationUser(7, Duration.ofMinutes(30))).thenReturn(user);
         when(registrationCodeStore.verifyAndConsume(7, "111111")).thenReturn(RegistrationCodeStore.VerifyResult.MISMATCH);
 
         assertThatThrownBy(() -> service.verifyAndLogin("token", "111111"))
@@ -152,7 +162,7 @@ class RegistrationVerificationServiceTest {
                 .isEqualTo(AuthErrorCode.REGISTRATION_CODE_INVALID);
 
         verify(authService, never()).issueLoginResult(any(User.class));
-        verify(internalUserService, never()).activateUser(anyInt());
+        verify(userRegistrationService, never()).activateUser(anyInt());
         verify(registrationSessionStore, never()).delete(any());
     }
 
@@ -160,7 +170,7 @@ class RegistrationVerificationServiceTest {
     void resendCodeShouldTreatExpiredPendingUserAsStaleContext() {
         when(captchaService.verify("cid", "abcd")).thenReturn(true);
         when(registrationSessionStore.findUserId("token")).thenReturn(7);
-        when(internalUserService.getPendingRegistrationUser(7, Duration.ofMinutes(30)))
+        when(userRegistrationService.getPendingRegistrationUser(7, Duration.ofMinutes(30)))
                 .thenThrow(new BusinessException(UserErrorCode.USER_NOT_FOUND, "注册已过期，请重新注册"));
 
         assertThatThrownBy(() -> service.resendCode("token", "cid", "abcd"))
@@ -179,6 +189,6 @@ class RegistrationVerificationServiceTest {
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(UserErrorCode.USER_NOT_FOUND);
 
-        verifyNoInteractions(internalUserService, registrationCodeStore, mailService);
+        verifyNoInteractions(userRegistrationService, registrationCodeStore, mailService);
     }
 }

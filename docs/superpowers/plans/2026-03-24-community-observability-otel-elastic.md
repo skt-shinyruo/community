@@ -4,7 +4,7 @@
 
 **Goal:** Add a production-oriented `OpenTelemetry + Elastic` observability foundation for the backend services, including EDOT collector deployment, trace header bridging, structured logging, and the first batch of high-value business/security/async logs.
 
-**Architecture:** Keep the current service boundaries and evolve observability in layers. Phase 1 uses `OTel Java agent` for traces/metrics and `stdout structured logs -> container json log -> EDOT filelog receiver` for logs, so the repo can migrate from the current Promtail/Loki setup without requiring every service to emit OTLP logs on day one. The implementation then aligns `traceparent` and `X-Trace-Id`, adds module-local JSON/text logback configs, and fills the highest-value event logs in auth, content, async, and IM flows before adding Kibana assets and runbooks.
+**Architecture:** Keep the current service boundaries and evolve observability in layers. Phase 1 uses `OTel Java agent` for traces/metrics and `backend structured JSON file appender -> shared named volume -> EDOT filelog receiver` for logs, so the repo can migrate from the current Promtail/Loki setup without requiring every service to emit OTLP logs on day one or bind host log directories. The implementation then aligns `traceparent` and `X-Trace-Id`, adds module-local JSON/text logback configs, and fills the highest-value event logs in auth, content, async, and IM flows before adding Kibana assets and runbooks.
 
 **Tech Stack:** Docker Compose, Elastic / Kibana, EDOT Collector, OpenTelemetry Java agent, Spring Boot 3.2, Logback, SLF4J, Maven, JUnit 5, OutputCaptureExtension.
 
@@ -110,7 +110,7 @@
   - Keep the current `observability` profile intact so Promtail/Loki/Grafana remain available during migration.
   - Create `deploy/observability-elastic/edot-collector.yml` with:
     - OTLP receiver for traces/metrics
-    - filelog receiver for Docker json logs
+    - filelog receiver for the shared backend log volume
     - batch / memory limiter processors
     - resource processor for `service.namespace=community`
     - Elastic exporter path chosen by the spec

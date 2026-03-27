@@ -1,19 +1,17 @@
 package com.nowcoder.community.message.service;
 
-import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.message.exception.MessageErrorCode;
-import com.nowcoder.community.message.mapper.MessageMapper;
+import com.nowcoder.community.infra.pagination.Pagination;
 import com.nowcoder.community.message.dto.ConversationItemResponse;
 import com.nowcoder.community.message.dto.LetterItemResponse;
 import com.nowcoder.community.message.dto.UserSummaryResponse;
 import com.nowcoder.community.message.entity.Message;
+import com.nowcoder.community.message.exception.MessageErrorCode;
+import com.nowcoder.community.message.mapper.MessageMapper;
 import com.nowcoder.community.message.security.OwnerGuard;
 import com.nowcoder.community.message.service.dto.ConversationStats;
-import com.nowcoder.community.social.block.BlockService;
-import com.nowcoder.community.user.exception.UserErrorCode;
 import com.nowcoder.community.user.dto.UserSummary;
-import com.nowcoder.community.infra.pagination.Pagination;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -28,22 +26,20 @@ import java.util.stream.Collectors;
 public class PrivateMessageService {
 
     private final MessageMapper messageMapper;
-    private final UserLookupService userLookupService;
-    private final BlockService blockService;
-    private final UserModerationGuard moderationGuard;
+    private final MessageUserQueryService messageUserQueryService;
+    private final PrivateMessageGovernanceService governanceService;
     private final OwnerGuard ownerGuard;
 
+    @Autowired
     public PrivateMessageService(
             MessageMapper messageMapper,
-            UserLookupService userLookupService,
-            BlockService blockService,
-            UserModerationGuard moderationGuard,
+            MessageUserQueryService messageUserQueryService,
+            PrivateMessageGovernanceService governanceService,
             OwnerGuard ownerGuard
     ) {
         this.messageMapper = messageMapper;
-        this.userLookupService = userLookupService;
-        this.blockService = blockService;
-        this.moderationGuard = moderationGuard;
+        this.messageUserQueryService = messageUserQueryService;
+        this.governanceService = governanceService;
         this.ownerGuard = ownerGuard;
     }
 
@@ -82,7 +78,7 @@ public class PrivateMessageService {
                 .map(m -> m.getFromId() == userId ? m.getToId() : m.getFromId())
                 .filter(id -> id > 0)
                 .collect(Collectors.toSet());
-        Map<Integer, UserSummary> userMap = userLookupService.safeBatchGetUsers(targetIds);
+        Map<Integer, UserSummary> userMap = messageUserQueryService.getUserSummariesByIds(targetIds);
 
         return latest.stream().map(m -> {
             ConversationItemResponse item = new ConversationItemResponse();
@@ -118,14 +114,7 @@ public class PrivateMessageService {
     }
 
     public void send(int fromId, int toId, String content) {
-        assertValidRecipient(fromId, toId);
-        moderationGuard.assertCanSendMessage(fromId);
-        if (blockService != null && blockService.isEitherBlocked(fromId, toId)) {
-            throw new BusinessException(
-                    CommonErrorCode.FORBIDDEN,
-                    "双方存在拉黑关系，无法发送私信"
-            );
-        }
+        governanceService.validateCanSendPrivateMessage(fromId, toId);
         Message msg = new Message();
         msg.setFromId(fromId);
         msg.setToId(toId);
@@ -147,19 +136,6 @@ public class PrivateMessageService {
         int small = Math.min(fromId, toId);
         int large = Math.max(fromId, toId);
         return small + "_" + large;
-    }
-
-    private void assertValidRecipient(int fromId, int toId) {
-        if (toId <= 0) {
-            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "toId 非法");
-        }
-        if (fromId == toId) {
-            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "不能给自己发送私信");
-        }
-        UserSummary target = userLookupService.safeGetUser(toId);
-        if (target == null || target.getId() <= 0) {
-            throw new BusinessException(UserErrorCode.USER_NOT_FOUND, "目标用户不存在");
-        }
     }
 
     private LetterItemResponse toLetterItem(Message m) {

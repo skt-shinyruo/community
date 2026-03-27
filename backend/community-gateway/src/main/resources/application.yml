@@ -5,6 +5,10 @@ spring:
   application:
     name: community-gateway
 
+community:
+  logging:
+    service-version: ${SERVICE_VERSION:@project.version@}
+
 security:
   jwt:
     hmac-secret: ${JWT_HMAC_SECRET:gateway-dev-jwt-hmac-secret-please-change-123456}

@@ -1,5 +1,9 @@
 package com.nowcoder.community.im.realtime.ws;
 
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -8,10 +12,12 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.nowcoder.community.im.common.ImTopics;
+import com.nowcoder.community.im.common.command.SendPrivateTextCommandV1;
 import com.nowcoder.community.im.common.event.PrivateMessagePersistedEventV1;
 import com.nowcoder.community.im.common.event.RoomMemberChangedEventV1;
 import com.nowcoder.community.im.common.event.RoomMessagePersistedEventV1;
 import com.nowcoder.community.im.realtime.client.CommunityGovernanceClient;
+import com.nowcoder.community.im.realtime.kafka.CommandProducer;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
 import com.nowcoder.community.im.realtime.presence.RoomLocalIndex;
 import com.nowcoder.community.im.realtime.presence.WsConnection;
@@ -24,10 +30,12 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.http.HttpHeaders;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -36,6 +44,8 @@ import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClient;
 import org.springframework.web.reactive.socket.WebSocketMessage;
@@ -43,6 +53,9 @@ import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -53,14 +66,20 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -82,6 +101,15 @@ import static org.mockito.Mockito.when;
         "im.ws.room-flush-interval-ms=10"
 })
 class ImRealtimeWebSocketIntegrationTest {
+
+    private enum ImCoreBootstrapMode {
+        EMPTY,
+        FAILURE
+    }
+
+    private static final AtomicReference<ImCoreBootstrapMode> IM_CORE_BOOTSTRAP_MODE = new AtomicReference<>(ImCoreBootstrapMode.EMPTY);
+    private static final LinkedBlockingQueue<Map<String, String>> IM_CORE_REQUEST_HEADERS = new LinkedBlockingQueue<>();
+    private static HttpServer imCoreServer;
 
     @LocalServerPort
     private int port;
@@ -107,10 +135,19 @@ class ImRealtimeWebSocketIntegrationTest {
     @MockBean
     private CommunityGovernanceClient governanceClient;
 
+    @SpyBean
+    private CommandProducer commandProducer;
+
     @Value("${security.jwt.hmac-secret}")
     private String jwtSecret;
 
     private Consumer<String, String> commandConsumer;
+
+    @DynamicPropertySource
+    static void registerDynamicProperties(DynamicPropertyRegistry registry) {
+        ensureImCoreServer();
+        registry.add("im.core.base-url", () -> "http://127.0.0.1:" + imCoreServer.getAddress().getPort());
+    }
 
     @AfterEach
     void tearDown() {
@@ -120,11 +157,13 @@ class ImRealtimeWebSocketIntegrationTest {
             } catch (RuntimeException ignore) {
             }
         }
+        IM_CORE_BOOTSTRAP_MODE.set(ImCoreBootstrapMode.EMPTY);
+        IM_CORE_REQUEST_HEADERS.clear();
     }
 
     @Test
     void websocket_shouldAuth_sendCommands_andReceivePrivateAndRoomPush() throws Exception {
-        when(governanceClient.validateSendPrivateMessage(anyString(), anyInt()))
+        when(governanceClient.validateSendPrivateMessage(anyString(), anyInt(), anyString()))
                 .thenReturn(Mono.just(CommunityGovernanceClient.Decision.allow("")));
 
         int userId = 100;
@@ -247,8 +286,223 @@ class ImRealtimeWebSocketIntegrationTest {
         } finally {
             done.tryEmitEmpty();
             outbound.tryEmitComplete();
-            ws.dispose();
         }
+    }
+
+    @Test
+    void websocket_shouldLogAuthDeniedWhenTokenIsInvalid() throws Exception {
+        String headerTraceId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        String expectedTraceId = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        ListAppender<ILoggingEvent> logs = startWsLogCapture();
+        LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
+        Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
+        Sinks.Empty<Void> done = Sinks.empty();
+        CountDownLatch connected = new CountDownLatch(1);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Trace-Id", headerTraceId);
+        headers.set("traceparent", "00-" + expectedTraceId + "-1234567890abcdef-01");
+
+        Disposable ws = openWebSocket(received, outbound, done, connected, headers);
+        try {
+            assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
+
+            outbound.tryEmitNext("{\"type\":\"auth\",\"accessToken\":\"invalid.jwt.token\"}");
+
+            JsonNode authError = awaitType(received, "auth_error", Duration.ofSeconds(5));
+            assertThat(authError.path("message").asText("")).isEqualTo("invalid token");
+
+            ILoggingEvent authEvent = awaitLogEvent(logs, "community.action=ws_auth", Duration.ofSeconds(5));
+            assertThat(authEvent.getThrowableProxy()).isNull();
+            assertThat(authEvent.getFormattedMessage())
+                    .contains("community.category=security")
+                    .contains("community.action=ws_auth")
+                    .contains("community.outcome=denied")
+                    .contains("community.reason_code=invalid_token")
+                    .contains("community.error_class=org.springframework.security.oauth2.jwt.BadJwtException")
+                    .contains("community.error_message=")
+                    .doesNotContain("\n")
+                    .doesNotContain("invalid.jwt.token");
+            assertThat(authEvent.getMDCPropertyMap()).containsEntry("traceId", expectedTraceId);
+        } finally {
+            done.tryEmitEmpty();
+            outbound.tryEmitComplete();
+            stopWsLogCapture(logs);
+        }
+    }
+
+    @Test
+    void websocket_shouldLogBootstrapFailureAndDisconnectSummary() throws Exception {
+        IM_CORE_BOOTSTRAP_MODE.set(ImCoreBootstrapMode.FAILURE);
+        ListAppender<ILoggingEvent> logs = startWsLogCapture();
+
+        LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
+        Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
+        Sinks.Empty<Void> done = Sinks.empty();
+        CountDownLatch connected = new CountDownLatch(1);
+
+        Disposable ws = openWebSocket(received, outbound, done, connected);
+        try {
+            assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
+
+            String token = signHs256(jwtSecret, "100", Instant.now().plusSeconds(120));
+            outbound.tryEmitNext("{\"type\":\"auth\",\"accessToken\":\"" + token + "\"}");
+
+            JsonNode authOk = awaitType(received, "auth_ok", Duration.ofSeconds(5));
+            assertThat(authOk.path("userId").asInt()).isEqualTo(100);
+
+            ILoggingEvent bootstrapEvent = awaitLogEvent(logs, "community.action=ws_room_bootstrap", Duration.ofSeconds(5));
+            assertThat(bootstrapEvent.getThrowableProxy()).isNull();
+            assertThat(bootstrapEvent.getFormattedMessage())
+                    .contains("community.category=integration")
+                    .contains("community.error_class=org.springframework.web.reactive.function.client.WebClientResponseException$ServiceUnavailable")
+                    .contains("community.error_message=")
+                    .doesNotContain("\n");
+        } finally {
+            done.tryEmitEmpty();
+            outbound.tryEmitComplete();
+        }
+
+        try {
+            awaitLogContains(logs, "community.action=ws_disconnect", Duration.ofSeconds(5));
+            assertThat(logOutput(logs))
+                    .contains("community.category=integration")
+                    .contains("community.action=ws_room_bootstrap")
+                    .contains("community.outcome=degraded")
+                    .contains("community.reason_code=bootstrap_failed")
+                    .contains("user.id=100")
+                    .contains("community.category=access")
+                    .contains("community.action=ws_disconnect")
+                    .contains("community.outcome=success")
+                    .contains("community.joined_room_count=0");
+        } finally {
+            stopWsLogCapture(logs);
+        }
+    }
+
+    @Test
+    void websocket_shouldLogKafkaSendFailureWithoutMessageContent() throws Exception {
+        when(governanceClient.validateSendPrivateMessage(anyString(), anyInt(), anyString()))
+                .thenReturn(Mono.just(CommunityGovernanceClient.Decision.allow("")));
+        doReturn(CompletableFuture.failedFuture(new RuntimeException("broker unavailable")))
+                .when(commandProducer).sendPrivateText(any(SendPrivateTextCommandV1.class));
+        ListAppender<ILoggingEvent> logs = startWsLogCapture();
+
+        LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
+        Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
+        Sinks.Empty<Void> done = Sinks.empty();
+        CountDownLatch connected = new CountDownLatch(1);
+
+        Disposable ws = openWebSocket(received, outbound, done, connected);
+        try {
+            assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
+
+            String token = signHs256(jwtSecret, "100", Instant.now().plusSeconds(120));
+            outbound.tryEmitNext("{\"type\":\"auth\",\"accessToken\":\"" + token + "\"}");
+            JsonNode authOk = awaitType(received, "auth_ok", Duration.ofSeconds(5));
+            assertThat(authOk.path("userId").asInt()).isEqualTo(100);
+
+            outbound.tryEmitNext("{\"type\":\"sendPrivateText\",\"clientMsgId\":\"c-fail\",\"toUserId\":200,\"content\":\"secret-payload\"}");
+
+            JsonNode sendError = awaitType(received, "sendError", Duration.ofSeconds(5));
+            assertThat(sendError.path("cmd").asText("")).isEqualTo("sendPrivateText");
+            assertThat(sendError.path("clientMsgId").asText("")).isEqualTo("c-fail");
+
+            ILoggingEvent enqueueEvent = awaitLogEvent(logs, "community.action=ws_command_enqueue", Duration.ofSeconds(5));
+            assertThat(enqueueEvent.getThrowableProxy()).isNull();
+            assertThat(enqueueEvent.getFormattedMessage())
+                    .contains("community.category=integration")
+                    .contains("community.action=ws_command_enqueue")
+                    .contains("community.outcome=failure")
+                    .contains("community.reason_code=kafka_send_failed")
+                    .contains("user.id=100")
+                    .contains("community.command=sendPrivateText")
+                    .contains("community.client_msg_id=c-fail")
+                    .contains("community.error_class=java.lang.RuntimeException")
+                    .contains("community.error_message=broker%20unavailable")
+                    .doesNotContain("\n")
+                    .doesNotContain("secret-payload");
+        } finally {
+            done.tryEmitEmpty();
+            outbound.tryEmitComplete();
+            stopWsLogCapture(logs);
+        }
+    }
+
+    @Test
+    void websocket_shouldForwardHandshakeTraceHeadersToImCoreBootstrapAndDisconnectLog() throws Exception {
+        String headerTraceId = "cccccccccccccccccccccccccccccccc";
+        String expectedTraceId = "dddddddddddddddddddddddddddddddd";
+        ListAppender<ILoggingEvent> logs = startWsLogCapture();
+
+        LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
+        Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
+        Sinks.Empty<Void> done = Sinks.empty();
+        CountDownLatch connected = new CountDownLatch(1);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Trace-Id", headerTraceId);
+        headers.set("traceparent", "00-" + expectedTraceId + "-fedcba0987654321-01");
+
+        Disposable ws = openWebSocket(received, outbound, done, connected, headers);
+        try {
+            assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
+
+            String token = signHs256(jwtSecret, "100", Instant.now().plusSeconds(120));
+            outbound.tryEmitNext("{\"type\":\"auth\",\"accessToken\":\"" + token + "\"}");
+
+            JsonNode authOk = awaitType(received, "auth_ok", Duration.ofSeconds(5));
+            assertThat(authOk.path("userId").asInt()).isEqualTo(100);
+
+            Map<String, String> requestHeaders = IM_CORE_REQUEST_HEADERS.poll(5, TimeUnit.SECONDS);
+            assertThat(requestHeaders).isNotNull();
+            assertThat(requestHeaders).containsEntry("X-Trace-Id", expectedTraceId);
+            assertThat(requestHeaders.get("traceparent"))
+                    .startsWith("00-" + expectedTraceId + "-")
+                    .endsWith("-01");
+        } finally {
+            done.tryEmitEmpty();
+            outbound.tryEmitComplete();
+        }
+
+        try {
+            ILoggingEvent disconnectEvent = awaitLogEvent(logs, "community.action=ws_disconnect", Duration.ofSeconds(5));
+            assertThat(disconnectEvent.getMDCPropertyMap()).containsEntry("traceId", expectedTraceId);
+        } finally {
+            stopWsLogCapture(logs);
+        }
+    }
+
+    private Disposable openWebSocket(
+            LinkedBlockingQueue<String> received,
+            Sinks.Many<String> outbound,
+            Sinks.Empty<Void> done,
+            CountDownLatch connected
+    ) {
+        return openWebSocket(received, outbound, done, connected, new HttpHeaders());
+    }
+
+    private Disposable openWebSocket(
+            LinkedBlockingQueue<String> received,
+            Sinks.Many<String> outbound,
+            Sinks.Empty<Void> done,
+            CountDownLatch connected,
+            HttpHeaders headers
+    ) {
+        ReactorNettyWebSocketClient client = new ReactorNettyWebSocketClient();
+        URI uri = URI.create("ws://localhost:" + port + "/ws/im");
+        return client.execute(uri, headers, session -> {
+                    connected.countDown();
+
+                    Mono<Void> send = session.send(outbound.asFlux().map(session::textMessage));
+                    Mono<Void> recv = session.receive()
+                            .map(WebSocketMessage::getPayloadAsText)
+                            .doOnNext(received::offer)
+                            .then();
+                    Mono<Void> closer = done.asMono().then(session.close());
+                    return Mono.when(send, recv, closer);
+                })
+                .subscribe();
     }
 
     private Consumer<String, String> newCommandStringConsumer(String groupId) {
@@ -315,6 +569,114 @@ class ImRealtimeWebSocketIntegrationTest {
             Thread.sleep(50L);
         }
         throw new AssertionError("Timed out waiting for realtime Kafka assignments: " + expectedTopics);
+    }
+
+    private void awaitLogContains(ListAppender<ILoggingEvent> logs, String token, Duration timeout) throws Exception {
+        awaitLogEvent(logs, token, timeout);
+    }
+
+    private ILoggingEvent awaitLogEvent(ListAppender<ILoggingEvent> logs, String token, Duration timeout) throws Exception {
+        long deadlineMs = System.currentTimeMillis() + timeout.toMillis();
+        while (System.currentTimeMillis() < deadlineMs) {
+            if (logs != null && logs.list != null) {
+                for (ILoggingEvent event : logs.list) {
+                    if (event != null && event.getFormattedMessage() != null && event.getFormattedMessage().contains(token)) {
+                        return event;
+                    }
+                }
+            }
+            Thread.sleep(50L);
+        }
+        throw new AssertionError("Timed out waiting for log token=" + token + " in output: " + logOutput(logs));
+    }
+
+    private ListAppender<ILoggingEvent> startWsLogCapture() {
+        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(ImWebSocketHandler.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        return appender;
+    }
+
+    private void stopWsLogCapture(ListAppender<ILoggingEvent> appender) {
+        if (appender == null) {
+            return;
+        }
+        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(ImWebSocketHandler.class);
+        logger.detachAppender(appender);
+        appender.stop();
+    }
+
+    private String logOutput(ListAppender<ILoggingEvent> appender) {
+        if (appender == null || appender.list == null || appender.list.isEmpty()) {
+            return "";
+        }
+        return appender.list.stream()
+                .map(ILoggingEvent::getFormattedMessage)
+                .collect(Collectors.joining("\n"));
+    }
+
+    private static void ensureImCoreServer() {
+        if (imCoreServer != null) {
+            return;
+        }
+        try {
+            HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+            server.createContext("/internal/im/realtime/users", ImRealtimeWebSocketIntegrationTest::handleImCoreBootstrapRequest);
+            server.start();
+            imCoreServer = server;
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to start im-core mock server", e);
+        }
+    }
+
+    private static void handleImCoreBootstrapRequest(HttpExchange exchange) throws IOException {
+        try (exchange) {
+            if (exchange == null) {
+                return;
+            }
+            String path = exchange.getRequestURI() == null ? "" : String.valueOf(exchange.getRequestURI().getPath());
+            if (!path.matches("/internal/im/realtime/users/\\d+/rooms")) {
+                writeJson(exchange, 404, "{\"message\":\"not found\"}");
+                return;
+            }
+            IM_CORE_REQUEST_HEADERS.offer(captureHeaders(exchange));
+            if (IM_CORE_BOOTSTRAP_MODE.get() == ImCoreBootstrapMode.FAILURE) {
+                writeJson(exchange, 503, "{\"message\":\"bootstrap unavailable\"}");
+                return;
+            }
+            writeJson(exchange, 200, "{\"roomIds\":[],\"nextCursorExclusive\":0,\"hasMore\":false}");
+        }
+    }
+
+    private static Map<String, String> captureHeaders(HttpExchange exchange) {
+        Map<String, String> captured = new HashMap<>();
+        if (exchange == null || exchange.getRequestHeaders() == null) {
+            return captured;
+        }
+        captured.put("X-Trace-Id", firstHeader(exchange, "X-Trace-Id"));
+        captured.put("traceparent", firstHeader(exchange, "traceparent"));
+        return captured;
+    }
+
+    private static String firstHeader(HttpExchange exchange, String name) {
+        if (exchange == null || exchange.getRequestHeaders() == null || name == null) {
+            return "";
+        }
+        List<String> values = exchange.getRequestHeaders().get(name);
+        if (values == null || values.isEmpty() || values.get(0) == null) {
+            return "";
+        }
+        return values.get(0);
+    }
+
+    private static void writeJson(HttpExchange exchange, int status, String body) throws IOException {
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "application/json;charset=UTF-8");
+        exchange.sendResponseHeaders(status, bytes.length);
+        try (OutputStream outputStream = exchange.getResponseBody()) {
+            outputStream.write(bytes);
+        }
     }
 
     private boolean roomIndexContains(long roomId, String connectionId) {

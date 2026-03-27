@@ -129,6 +129,7 @@ services:
         echo "[kafka-init] done."
     restart: "no"
 
+  # Shared base Elasticsearch node for app search and the optional Elastic observability profile.
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.12.2
     container_name: community-elasticsearch
@@ -169,10 +170,19 @@ services:
       dockerfile: ../deploy/Dockerfile.backend-service
       args:
         MODULE: community-app
+        OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
     container_name: community-app
     environment:
       - SERVER_PORT=8080
-      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}
+      - OTEL_ENABLED=${OTEL_ENABLED:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+      - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+      - OTEL_SERVICE_NAME=community-app
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+      - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+      - COMMUNITY_LOGGING_DIR=/var/log/community
+      - COMMUNITY_LOGGING_FILE_NAME=community-app.json.log
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
       - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:?METRICS_BASIC_AUTH_PASSWORD is required}
@@ -210,6 +220,7 @@ services:
       - R2_PATH_STYLE=${R2_PATH_STYLE:-true}
     volumes:
       - user_files:/data/files
+      - observability_logs:/var/log/community
     depends_on:
       mailhog:
         condition: service_started
@@ -242,11 +253,21 @@ services:
       dockerfile: ../deploy/Dockerfile.backend-service
       args:
         MODULE: community-gateway
+        OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
     container_name: community-gateway
     ports:
       - "12880:8080"
     environment:
       - SERVER_PORT=8080
+      - OTEL_ENABLED=${OTEL_ENABLED:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+      - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+      - OTEL_SERVICE_NAME=community-gateway
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+      - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+      - COMMUNITY_LOGGING_DIR=/var/log/community
+      - COMMUNITY_LOGGING_FILE_NAME=community-gateway.json.log
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
       - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-}
@@ -264,6 +285,8 @@ services:
         condition: service_started
       im-realtime:
         condition: service_started
+    volumes:
+      - observability_logs:/var/log/community
 
   im-core:
     build:
@@ -271,9 +294,19 @@ services:
       dockerfile: ../deploy/Dockerfile.backend-service
       args:
         MODULE: im-core
+        OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
     container_name: im-core
     environment:
       - SERVER_PORT=18082
+      - OTEL_ENABLED=${OTEL_ENABLED:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+      - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+      - OTEL_SERVICE_NAME=im-core
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+      - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+      - COMMUNITY_LOGGING_DIR=/var/log/community
+      - COMMUNITY_LOGGING_FILE_NAME=im-core.json.log
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - IM_CORE_DB_URL=jdbc:mysql://mysql:3306/${IM_MYSQL_DATABASE:-im_core}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
@@ -285,6 +318,8 @@ services:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
+    volumes:
+      - observability_logs:/var/log/community
 
   im-realtime:
     build:
@@ -292,9 +327,19 @@ services:
       dockerfile: ../deploy/Dockerfile.backend-service
       args:
         MODULE: im-realtime
+        OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
     container_name: im-realtime
     environment:
       - SERVER_PORT=18081
+      - OTEL_ENABLED=${OTEL_ENABLED:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+      - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+      - OTEL_SERVICE_NAME=im-realtime
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+      - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+      - COMMUNITY_LOGGING_DIR=/var/log/community
+      - COMMUNITY_LOGGING_FILE_NAME=im-realtime.json.log
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - IM_EDGE_MODE=internal-worker
@@ -309,6 +354,8 @@ services:
         condition: service_completed_successfully
       im-core:
         condition: service_started
+    volumes:
+      - observability_logs:/var/log/community
 
   mock-data-studio:
     build:
@@ -450,8 +497,7 @@ services:
     container_name: community-promtail
     volumes:
       - ./observability/promtail-config.yml:/etc/promtail/config.yml:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/log:/var/log:ro
+      - observability_logs:/var/log/community:ro
     command: ["-config.file=/etc/promtail/config.yml"]
     depends_on:
       - loki
@@ -472,6 +518,44 @@ services:
       - prometheus
       - loki
 
+  elasticsearch-observability-port:
+    profiles: ["observability-elastic"]
+    # Keep localhost access profile-gated here so the shared base Elasticsearch service stays unchanged.
+    image: caddy:2.8-alpine
+    container_name: community-elasticsearch-observability-port
+    command: ["caddy", "reverse-proxy", "--from", ":9200", "--to", "elasticsearch:9200"]
+    depends_on:
+      elasticsearch:
+        condition: service_started
+    ports:
+      - "127.0.0.1:${ELASTICSEARCH_PORT:-12888}:9200"
+
+  kibana:
+    profiles: ["observability-elastic"]
+    image: docker.elastic.co/kibana/kibana:8.12.2
+    container_name: community-kibana
+    ports:
+      - "127.0.0.1:${KIBANA_PORT:-12889}:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      elasticsearch:
+        condition: service_started
+
+  observability-gateway-edot-collector:
+    profiles: ["observability-elastic"]
+    image: docker.elastic.co/elastic-agent/elastic-otel-collector:9.3.2
+    container_name: community-observability-gateway-edot-collector
+    user: "0:0"
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./observability-elastic/edot-collector.yml:/etc/otelcol/config.yaml:ro
+      - observability_logs:/var/log/community:ro
+    depends_on:
+      elasticsearch:
+        condition: service_started
+    restart: unless-stopped
+
 volumes:
   mysql_data: {}
   redis_data: {}
@@ -483,3 +567,4 @@ volumes:
   prometheus_data: {}
   grafana_data: {}
   loki_data: {}
+  observability_logs: {}

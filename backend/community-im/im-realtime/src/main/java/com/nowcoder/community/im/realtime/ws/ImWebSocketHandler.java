@@ -12,8 +12,11 @@ import com.nowcoder.community.im.realtime.presence.RoomLocalIndex;
 import com.nowcoder.community.im.realtime.presence.WsConnection;
 import com.nowcoder.community.im.realtime.security.JwtVerifier;
 import com.nowcoder.community.im.realtime.support.ConversationIdSupport;
+import com.nowcoder.community.im.realtime.trace.TraceHeaders;
+import com.nowcoder.community.im.realtime.trace.TraceIdCodec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -25,6 +28,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.UUID;
@@ -33,6 +37,13 @@ import java.util.UUID;
 public class ImWebSocketHandler implements WebSocketHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ImWebSocketHandler.class);
+    private static final String CATEGORY_ACCESS = "access";
+    private static final String CATEGORY_SECURITY = "security";
+    private static final String CATEGORY_INTEGRATION = "integration";
+    private static final String MDC_CATEGORY = "community.category";
+    private static final String MDC_ACTION = "community.action";
+    private static final String MDC_OUTCOME = "community.outcome";
+    private static final String MDC_TRACE_ID = "traceId";
 
     private final ObjectMapper objectMapper;
     private final JwtVerifier jwtVerifier;
@@ -69,6 +80,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
     @Override
     public Mono<Void> handle(WebSocketSession session) {
         WsConnection conn = new WsConnection(session.getId(), session, maxOutboundBacklog);
+        conn.bindTrace(resolveTraceId(session));
 
         AtomicBoolean cleaned = new AtomicBoolean(false);
         Runnable cleanupOnce = () -> {
@@ -117,6 +129,15 @@ public class ImWebSocketHandler implements WebSocketHandler {
         }
 
         if (conn.userId() == null && !"auth".equals(type)) {
+            warnEvent(
+                    CATEGORY_SECURITY,
+                    "ws_auth",
+                    "denied",
+                    conn.traceId(),
+                    null,
+                    "community.reason_code", "auth_required",
+                    "community.connection_id", conn.connectionId()
+            );
             conn.trySendText(WsProtocol.authError("auth required"));
             conn.closeAsync(Duration.ofSeconds(1));
             return Mono.empty();
@@ -141,6 +162,16 @@ public class ImWebSocketHandler implements WebSocketHandler {
             Integer previous = conn.userId();
             if (previous != null) {
                 if (previous != verified.userId()) {
+                    warnEvent(
+                            CATEGORY_SECURITY,
+                            "ws_auth",
+                            "denied",
+                            conn.traceId(),
+                            null,
+                            "community.reason_code", "user_mismatch",
+                            "community.connection_id", conn.connectionId(),
+                            "user.id", previous
+                    );
                     conn.trySendText(WsProtocol.authError("user mismatch"));
                     conn.closeAsync(Duration.ofSeconds(1));
                     return Mono.empty();
@@ -156,9 +187,20 @@ public class ImWebSocketHandler implements WebSocketHandler {
             conn.trySendText(WsProtocol.authOk(verified.userId()));
 
             // Best-effort bootstrap: pull membership from im-core (paged) and build local indexes.
-            Disposable sub = imCoreClient.listAllRoomIdsForUser(verified.userId(), accessToken)
+            Disposable sub = imCoreClient.listAllRoomIdsForUser(verified.userId(), accessToken, conn.traceId())
                     .onBackpressureBuffer(2048)
-                    .doOnError(ex -> log.warn("[im-ws] room bootstrap failed (userId={}): {}", verified.userId(), ex.toString()))
+                    .doOnError(ex -> warnEvent(
+                            CATEGORY_INTEGRATION,
+                            "ws_room_bootstrap",
+                            "degraded",
+                            conn.traceId(),
+                            null,
+                            "community.reason_code", "bootstrap_failed",
+                            "community.connection_id", conn.connectionId(),
+                            "user.id", verified.userId(),
+                            "community.error_class", errorClass(ex),
+                            "community.error_message", errorMessage(ex)
+                    ))
                     .onErrorResume(ex -> Flux.empty())
                     .subscribe(roomId -> {
                         roomLocalIndex.add(roomId, conn.connectionId());
@@ -166,6 +208,17 @@ public class ImWebSocketHandler implements WebSocketHandler {
                     });
             conn.setRoomBootstrapSubscription(sub);
         } catch (Exception e) {
+            warnEvent(
+                CATEGORY_SECURITY,
+                "ws_auth",
+                "denied",
+                conn.traceId(),
+                null,
+                "community.reason_code", "invalid_token",
+                "community.connection_id", conn.connectionId(),
+                    "community.error_class", errorClass(e),
+                    "community.error_message", errorMessage(e)
+            );
             conn.trySendText(WsProtocol.authError("invalid token"));
             conn.closeAsync(Duration.ofSeconds(1));
         }
@@ -207,7 +260,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
             return Mono.empty();
         }
 
-        return governanceClient.validateSendPrivateMessage(accessToken, toUserId)
+        return governanceClient.validateSendPrivateMessage(accessToken, toUserId, conn.traceId())
                 .flatMap(decision -> {
                     if (decision == null || !decision.allowed()) {
                         int code = decision == null ? 503 : decision.code();
@@ -287,6 +340,19 @@ public class ImWebSocketHandler implements WebSocketHandler {
             return;
         }
         if (future == null) {
+            warnEvent(
+                    CATEGORY_INTEGRATION,
+                    "ws_command_enqueue",
+                    "failure",
+                    conn.traceId(),
+                    null,
+                    "community.reason_code", "kafka_send_failed",
+                    "community.connection_id", conn.connectionId(),
+                    "user.id", conn.userId(),
+                    "community.command", cmdType,
+                    "community.client_msg_id", clientMsgId,
+                    "community.request_id", requestId
+            );
             conn.trySendText(WsProtocol.sendError(cmdType, clientMsgId, requestId, "kafka send failed"));
             return;
         }
@@ -294,8 +360,21 @@ public class ImWebSocketHandler implements WebSocketHandler {
             future.whenComplete((ok, ex) -> {
                 try {
                     if (ex != null) {
-                        log.warn("[im-ws] kafka send failed (userId={}, cmd={}, clientMsgId={}, requestId={}): {}",
-                                conn.userId(), cmdType, clientMsgId, requestId, ex.toString());
+                        warnEvent(
+                                CATEGORY_INTEGRATION,
+                                "ws_command_enqueue",
+                                "failure",
+                                conn.traceId(),
+                                null,
+                                "community.reason_code", "kafka_send_failed",
+                                "community.connection_id", conn.connectionId(),
+                                "user.id", conn.userId(),
+                                "community.command", cmdType,
+                                "community.client_msg_id", clientMsgId,
+                                "community.request_id", requestId,
+                                "community.error_class", errorClass(ex),
+                                "community.error_message", errorMessage(ex)
+                        );
                         conn.trySendText(WsProtocol.sendError(cmdType, clientMsgId, requestId, "kafka send failed"));
                         return;
                     }
@@ -304,11 +383,31 @@ public class ImWebSocketHandler implements WebSocketHandler {
                 }
             });
         } catch (RuntimeException e) {
+            warnEvent(
+                    CATEGORY_INTEGRATION,
+                    "ws_command_enqueue",
+                    "failure",
+                    conn.traceId(),
+                    null,
+                    "community.reason_code", "kafka_send_failed",
+                    "community.connection_id", conn.connectionId(),
+                    "user.id", conn.userId(),
+                    "community.command", cmdType,
+                    "community.client_msg_id", clientMsgId,
+                    "community.request_id", requestId,
+                    "community.error_class", errorClass(e),
+                    "community.error_message", errorMessage(e)
+            );
             conn.trySendText(WsProtocol.sendError(cmdType, clientMsgId, requestId, "kafka send failed"));
         }
     }
 
     private void cleanup(WsConnection conn) {
+        if (conn == null) {
+            return;
+        }
+        int joinedRoomCount = conn.joinedRoomsView().size();
+        int outboundBacklog = conn.outboundBacklog();
         try {
             conn.disposeRoomBootstrapSubscription();
             connectionRegistry.unregister(conn);
@@ -317,6 +416,17 @@ public class ImWebSocketHandler implements WebSocketHandler {
             }
             conn.complete();
         } catch (RuntimeException ignore) {
+        } finally {
+            infoEvent(
+                    CATEGORY_ACCESS,
+                    "ws_disconnect",
+                    "success",
+                    conn.traceId(),
+                    "community.connection_id", conn.connectionId(),
+                    "user.id", conn.userId(),
+                    "community.joined_room_count", joinedRoomCount,
+                    "community.outbound_backlog", outboundBacklog
+            );
         }
     }
 
@@ -326,5 +436,117 @@ public class ImWebSocketHandler implements WebSocketHandler {
         } catch (RuntimeException e) {
             return String.valueOf(System.currentTimeMillis());
         }
+    }
+
+    private String resolveTraceId(WebSocketSession session) {
+        if (session == null || session.getHandshakeInfo() == null || session.getHandshakeInfo().getHeaders() == null) {
+            return TraceIdCodec.generateTraceId();
+        }
+        String traceIdHeader = session.getHandshakeInfo().getHeaders().getFirst(TraceHeaders.HEADER_TRACE_ID);
+        String traceparentHeader = session.getHandshakeInfo().getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT);
+        return TraceIdCodec.resolveTraceId(traceIdHeader, traceparentHeader);
+    }
+
+    private void infoEvent(String category, String action, String outcome, String traceId, Object... keyValues) {
+        logEvent(category, action, outcome, traceId, false, null, keyValues);
+    }
+
+    private void warnEvent(String category, String action, String outcome, String traceId, Throwable throwable, Object... keyValues) {
+        logEvent(category, action, outcome, traceId, true, throwable, keyValues);
+    }
+
+    private void logEvent(String category, String action, String outcome, String traceId, boolean warn, Throwable throwable, Object... keyValues) {
+        if (keyValues.length % 2 != 0) {
+            throw new IllegalArgumentException("IM realtime event keyValues must contain key/value pairs");
+        }
+        String previousCategory = MDC.get(MDC_CATEGORY);
+        String previousAction = MDC.get(MDC_ACTION);
+        String previousOutcome = MDC.get(MDC_OUTCOME);
+        String previousTraceId = MDC.get(MDC_TRACE_ID);
+        String resolvedCategory = StringUtils.hasText(category) ? category.trim() : CATEGORY_INTEGRATION;
+        MDC.put(MDC_CATEGORY, resolvedCategory);
+        MDC.put(MDC_ACTION, action);
+        MDC.put(MDC_OUTCOME, outcome);
+        if (StringUtils.hasText(traceId)) {
+            MDC.put(MDC_TRACE_ID, traceId);
+        } else {
+            MDC.remove(MDC_TRACE_ID);
+        }
+        try {
+            String message = buildMessage(resolvedCategory, action, outcome, keyValues);
+            if (warn) {
+                if (throwable == null) {
+                    log.warn(message);
+                } else {
+                    log.warn(message, throwable);
+                }
+                return;
+            }
+            log.info(message);
+        } finally {
+            restore(MDC_CATEGORY, previousCategory);
+            restore(MDC_ACTION, previousAction);
+            restore(MDC_OUTCOME, previousOutcome);
+            restore(MDC_TRACE_ID, previousTraceId);
+        }
+    }
+
+    private String buildMessage(String category, String action, String outcome, Object... keyValues) {
+        StringBuilder message = new StringBuilder(192);
+        appendToken(message, MDC_CATEGORY, category);
+        appendToken(message, MDC_ACTION, action);
+        appendToken(message, MDC_OUTCOME, outcome);
+        for (int i = 0; i < keyValues.length; i += 2) {
+            appendToken(message, String.valueOf(keyValues[i]), keyValues[i + 1]);
+        }
+        return message.toString();
+    }
+
+    private void appendToken(StringBuilder message, String key, Object value) {
+        if (message.length() > 0) {
+            message.append(' ');
+        }
+        message.append(key).append('=').append(encodeTokenValue(value));
+    }
+
+    private String encodeTokenValue(Object value) {
+        if (value == null) {
+            return "-";
+        }
+        String raw = String.valueOf(value);
+        if (raw.isEmpty()) {
+            return "-";
+        }
+        StringBuilder encoded = new StringBuilder(raw.length());
+        for (int i = 0; i < raw.length(); i++) {
+            char ch = raw.charAt(i);
+            if (Character.isWhitespace(ch) || Character.isISOControl(ch) || ch == '=' || ch == '%') {
+                encoded.append('%');
+                String hex = Integer.toHexString(ch).toUpperCase(Locale.ROOT);
+                if (hex.length() == 1) {
+                    encoded.append('0');
+                }
+                encoded.append(hex);
+            } else {
+                encoded.append(ch);
+            }
+        }
+        return encoded.toString();
+    }
+
+    private void restore(String key, String previousValue) {
+        if (previousValue == null) {
+            MDC.remove(key);
+            return;
+        }
+        MDC.put(key, previousValue);
+    }
+
+    private String errorClass(Throwable throwable) {
+        return throwable == null ? null : throwable.getClass().getName();
+    }
+
+    private String errorMessage(Throwable throwable) {
+        return throwable == null ? null : throwable.getMessage();
     }
 }

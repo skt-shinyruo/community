@@ -1,6 +1,8 @@
 package com.nowcoder.community.im.realtime.client;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.nowcoder.community.im.realtime.trace.TraceHeaders;
+import com.nowcoder.community.im.realtime.trace.TraceIdCodec;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -8,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClient.RequestHeadersSpec;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -35,19 +38,32 @@ public class CommunityGovernanceClient {
         this.timeout = Duration.ofMillis(ms);
     }
 
-    public Mono<Decision> validateSendPrivateMessage(String bearerAccessToken, int toUserId) {
+    public Mono<Decision> validateSendPrivateMessage(String bearerAccessToken, int toUserId, String traceId) {
         String token = StringUtils.hasText(bearerAccessToken) ? bearerAccessToken.trim() : "";
         if (!StringUtils.hasText(token)) {
             return Mono.just(Decision.deny(401, "未登录或登录已失效", ""));
         }
-        return webClient.post()
+        RequestHeadersSpec<?> request = webClient.post()
                 .uri("/api/im-governance/private-messages/validate")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .bodyValue(new ValidatePrivateMessageRequest(toUserId))
+                .bodyValue(new ValidatePrivateMessageRequest(toUserId));
+
+        applyTraceHeaders(request, traceId);
+
+        return request
                 .exchangeToMono(this::decodeDecision)
                 .timeout(timeout)
                 .onErrorResume(ex -> Mono.just(Decision.deny(503, "治理校验服务不可用，请稍后重试", "")));
+    }
+
+    private static void applyTraceHeaders(RequestHeadersSpec<?> request, String traceId) {
+        String normalizedTraceId = TraceIdCodec.normalizeTraceId(traceId);
+        if (normalizedTraceId == null) {
+            return;
+        }
+        request.header(TraceHeaders.HEADER_TRACE_ID, normalizedTraceId);
+        request.header(TraceHeaders.HEADER_TRACEPARENT, TraceIdCodec.buildTraceparent(normalizedTraceId));
     }
 
     private Mono<Decision> decodeDecision(ClientResponse resp) {

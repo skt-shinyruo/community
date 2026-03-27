@@ -25,7 +25,7 @@
 - auth 模块（对外入口）：登录/刷新/登出闭环（签发 JWT access token + refresh cookie）；验证码、注册/激活、找回密码等账号安全能力
 - user 模块（SSOT）：身份域数据与会话状态（`user`、`auth_refresh_token`）归 user 模块（MySQL）管理
   - `auth.refresh.store=db` 时，refresh token 仅存 `token_hash`，便于撤销/旋转（familyId 族）
-  - A-1 下 auth ↔ user 的交互已改为同进程直接 service 调用（如 `InternalUserService`、`RefreshTokenSessionService`），错误语义由调用方显式收敛
+  - A-1 下 auth ↔ user 的交互已改为同进程直接 service 调用（如 `UserCredentialService`、`UserQueryService`、`UserRegistrationService`），错误语义由调用方显式收敛
 
 ### 1.3 业务域模块（示例）
 - content：帖子/评论/回复（写主存储并发布事件）
@@ -188,9 +188,9 @@ phase 1 的运行边界是：
 
 典型场景（均为进程内调用，非网络调用）：
 - content/message 写路径反骚扰（拉黑校验）：直接调 `social` 的 `BlockService`（默认 fail-closed）
-- content/message 写路径处罚状态守卫：直接调 `user` 的 `InternalUserService#moderationStatus`（默认 fail-closed）
+- content/message 写路径处罚状态守卫：直接调 `user` 的 `UserModerationService#moderationStatus`（默认 fail-closed）
 - social 写路径可信解析（entity resolve）：直接回源 `content` 的 `ContentEntityService`（默认 fail-closed）
-- user 读路径聚合展示（主页点赞/关注/粉丝）：直接调 `social` 的 `LikeService`/`FollowService`，展示类读路径允许按配置降级
+- user 读路径聚合展示（主页点赞/关注/粉丝）：直接调 `social` 的 `LikeService`/`FollowService` 同步组装结果，当前不提供配置驱动的 fail-open 降级开关，异常按调用链直接返回
 
 风险与约束：
 - 同步依赖链会让“模块边界”更显性；因此需要强约束编译期依赖图（禁止环）

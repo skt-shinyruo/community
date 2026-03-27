@@ -1,6 +1,7 @@
 package com.nowcoder.community.gateway.ws;
 
 import org.springframework.stereotype.Component;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.reactive.socket.WebSocketSession;
 import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClient;
 import reactor.core.publisher.Flux;
@@ -10,6 +11,9 @@ import java.net.URI;
 
 @Component
 public class InternalWorkerBridgeFactory {
+
+    private static final String HEADER_TRACE_ID = "X-Trace-Id";
+    private static final String HEADER_TRACEPARENT = "traceparent";
 
     private final ReactorNettyWebSocketClient client;
 
@@ -28,13 +32,28 @@ public class InternalWorkerBridgeFactory {
 
         @Override
         public Mono<Void> bridge(WebSocketSession externalSession, Flux<String> outboundFrames) {
-            return client.execute(workerUri, internal -> {
+            HttpHeaders traceHeaders = buildTraceHeaders(externalSession);
+            return client.execute(workerUri, traceHeaders, internal -> {
                 Mono<Void> clientToWorker = internal.send(outboundFrames.map(internal::textMessage));
                 Mono<Void> workerToClient = externalSession.send(
                         internal.receive().map(message -> externalSession.textMessage(message.getPayloadAsText()))
                 );
                 return Mono.when(clientToWorker, workerToClient);
             });
+        }
+
+        private HttpHeaders buildTraceHeaders(WebSocketSession externalSession) {
+            HttpHeaders handshakeHeaders = externalSession.getHandshakeInfo().getHeaders();
+            HttpHeaders headers = new HttpHeaders();
+            String traceId = handshakeHeaders.getFirst(HEADER_TRACE_ID);
+            if (traceId != null && !traceId.isBlank()) {
+                headers.set(HEADER_TRACE_ID, traceId.trim());
+            }
+            String traceparent = handshakeHeaders.getFirst(HEADER_TRACEPARENT);
+            if (traceparent != null && !traceparent.isBlank()) {
+                headers.set(HEADER_TRACEPARENT, traceparent.trim());
+            }
+            return headers;
         }
     }
 }

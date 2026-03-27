@@ -3,11 +3,14 @@ package com.nowcoder.community.auth.service;
 import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.auth.dto.RegisterCodeResendResponse;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
+import com.nowcoder.community.auth.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.exception.UserErrorCode;
-import com.nowcoder.community.user.service.InternalUserService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import com.nowcoder.community.user.service.UserRegistrationService;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -17,7 +20,9 @@ import java.util.concurrent.ThreadLocalRandom;
 @Service
 public class RegistrationVerificationService {
 
-    private final InternalUserService internalUserService;
+    private static final Logger log = LoggerFactory.getLogger(RegistrationVerificationService.class);
+
+    private final UserRegistrationService userRegistrationService;
     private final RegistrationProperties properties;
     private final RegistrationCodeStore registrationCodeStore;
     private final MailService mailService;
@@ -26,7 +31,7 @@ public class RegistrationVerificationService {
     private final AuthService authService;
 
     public RegistrationVerificationService(
-            InternalUserService internalUserService,
+            UserRegistrationService userRegistrationService,
             RegistrationProperties properties,
             RegistrationCodeStore registrationCodeStore,
             MailService mailService,
@@ -34,7 +39,7 @@ public class RegistrationVerificationService {
             RegistrationSessionStore registrationSessionStore,
             AuthService authService
     ) {
-        this.internalUserService = internalUserService;
+        this.userRegistrationService = userRegistrationService;
         this.properties = properties;
         this.registrationCodeStore = registrationCodeStore;
         this.mailService = mailService;
@@ -82,9 +87,12 @@ public class RegistrationVerificationService {
         User user = requirePendingUser(userId);
         RegistrationCodeStore.VerifyResult result = registrationCodeStore.verifyAndConsume(userId, code.trim());
         if (result == RegistrationCodeStore.VerifyResult.SUCCESS) {
-            internalUserService.activateUser(userId);
+            userRegistrationService.activateUser(userId);
             user.setStatus(1);
             AuthService.LoginResult loginResult = authService.issueLoginResult(user);
+            SecurityEventLogger.info(log, "registration_verify", "success",
+                    "user.id", userId,
+                    "username", user.getUsername());
             try {
                 registrationSessionStore.delete(registrationToken);
             } catch (RuntimeException ignored) {
@@ -114,7 +122,7 @@ public class RegistrationVerificationService {
 
     private User requirePendingUser(int userId) {
         Duration pendingUserTtl = Duration.ofSeconds(Math.max(60, properties.getPendingUser().getTtlSeconds()));
-        User user = internalUserService.getPendingRegistrationUser(userId, pendingUserTtl);
+        User user = userRegistrationService.getPendingRegistrationUser(userId, pendingUserTtl);
         if (user.getStatus() != 0) {
             throw new BusinessException(AuthErrorCode.USER_DISABLED, "账号已激活，请直接登录");
         }

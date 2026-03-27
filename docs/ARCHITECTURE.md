@@ -109,6 +109,7 @@ flowchart TD
 ### 3.1 Compose 文件分工（以 `deploy/README.md` 为准）
 - `deploy/docker-compose.yml`：业务必需全栈（frontend + `community-gateway` + `community-app` + IM + MySQL/Redis/Kafka/ES + MailHog + `xxl-job-admin`），默认暴露统一入口（`12880/12881`）、MailHog UI（`8025`，仅本机）与 XXL-JOB Admin UI（`12887`，仅本机）；`debug` profile 才会额外暴露 `12882/18081/18082` 到 `127.0.0.1`，依赖端口仍不暴露（fail-closed）。
 - `observability` profile：可选观测/日志栈（Prometheus/Grafana/Loki/Promtail/Alertmanager），默认仅绑定到 `127.0.0.1` 暴露端口（`12883+`）。
+- `observability-elastic` profile：可选 Elastic 观测栈（Elasticsearch localhost 入口 / Kibana / EDOT collector）；base compose 下 backend services 默认会把结构化 JSON 日志写入共享 `observability_logs` volume，因此只启用这个 profile 也能得到 fielded logs。
 
 ### 3.2 对外暴露端口（默认推荐）
 - Community Gateway（统一入口）：`http://localhost:12880`
@@ -124,6 +125,8 @@ flowchart TD
 ### 3.3 观测/日志端口（可选开启）
 - Grafana：`http://localhost:12883`（默认账号密码 `admin/admin`）
 - Loki：`http://localhost:12884`
+- Elasticsearch localhost 入口（`observability-elastic`）：`http://localhost:12888`
+- Kibana（`observability-elastic`）：`http://localhost:12889`
 - Prometheus：`http://localhost:12885`
 - Alertmanager：`http://localhost:12886`
 
@@ -162,7 +165,7 @@ flowchart TD
 ## 5. 可观测性与日志检索
 
 ### 5.1 日志
-- 采集：Promtail 读取 Docker 容器 json log（见 `deploy/observability/promtail-config.yml`）
+- 采集：Promtail 读取 backend services 写入共享 `observability_logs` volume 的 JSON 日志文件（见 `deploy/observability/promtail-config.yml`）
 - 存储：Loki
 - 检索：Grafana → Explore → 选择 Loki
 

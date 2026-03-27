@@ -21,10 +21,22 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 ```
 
+（可选）开启 Elastic Observability（Kibana / EDOT collector / fielded logs）：
+
+```bash
+# 只开 observability-elastic profile：base compose 已经会把结构化 JSON 日志写入共享 volume
+COMPOSE_PROFILES=observability-elastic docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+
+# 如需让容器 stdout 也切到 JSON，再额外加载 override
+docker compose -f deploy/docker-compose.yml -f deploy/observability-elastic/docker-compose.override.yml --env-file deploy/.env --profile observability-elastic up -d --build
+```
+
 访问：
 - 前端：`http://localhost:12881`
 - 统一入口：`http://localhost:12880/api/...`
 - 调试直连端口（需 `COMPOSE_PROFILES=debug`）：`12882 / 18081 / 18082`
+- Kibana（需 `COMPOSE_PROFILES=observability-elastic`）：`http://localhost:12889`
+- Elasticsearch localhost 入口（需 `COMPOSE_PROFILES=observability-elastic`）：`http://localhost:12888`
 
 ## 文档入口
 - 后端工程：`backend/README.md`

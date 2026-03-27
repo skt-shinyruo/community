@@ -9,8 +9,8 @@ import com.nowcoder.community.message.dto.MarkReadRequest;
 import com.nowcoder.community.message.dto.SendMessageRequest;
 import com.nowcoder.community.message.dto.ConversationItemResponse;
 import com.nowcoder.community.message.entity.Message;
+import com.nowcoder.community.message.service.MessageUserQueryService;
 import com.nowcoder.community.message.service.PrivateMessageService;
-import com.nowcoder.community.message.service.UserLookupService;
 import com.nowcoder.community.user.exception.UserErrorCode;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
@@ -34,12 +34,16 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 public class MessageController {
 
     private final PrivateMessageService privateMessageService;
-    private final UserLookupService userLookupService;
+    private final MessageUserQueryService messageUserQueryService;
     private final IdempotencyGuard idempotencyGuard;
 
-    public MessageController(PrivateMessageService privateMessageService, UserLookupService userLookupService, IdempotencyGuard idempotencyGuard) {
+    public MessageController(
+            PrivateMessageService privateMessageService,
+            MessageUserQueryService messageUserQueryService,
+            IdempotencyGuard idempotencyGuard
+    ) {
         this.privateMessageService = privateMessageService;
-        this.userLookupService = userLookupService;
+        this.messageUserQueryService = messageUserQueryService;
         this.idempotencyGuard = idempotencyGuard;
     }
 
@@ -102,11 +106,11 @@ public class MessageController {
             throw new BusinessException(INVALID_ARGUMENT, "toId/toName 至少提供一个");
         }
         if (toId == null || toId <= 0) {
-            toId = userLookupService.safeResolveUserIdByUsername(toName);
+            toId = messageUserQueryService.findUserIdByUsernameOrNull(toName);
             if (toId == null || toId <= 0) {
                 throw new BusinessException(UserErrorCode.USER_NOT_FOUND, "目标用户不存在");
             }
-        } else if (userLookupService.safeGetUser(toId) == null) {
+        } else if (messageUserQueryService.findUserSummaryByIdOrNull(toId) == null) {
             throw new BusinessException(UserErrorCode.USER_NOT_FOUND, "目标用户不存在");
         }
         int resolvedToId = toId;

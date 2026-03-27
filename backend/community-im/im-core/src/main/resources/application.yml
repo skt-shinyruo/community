@@ -23,6 +23,10 @@ spring:
 server:
   port: 18082
 
+community:
+  logging:
+    service-version: ${SERVICE_VERSION:@project.version@}
+
 security:
   jwt:
     hmac-secret: ${JWT_HMAC_SECRET:}

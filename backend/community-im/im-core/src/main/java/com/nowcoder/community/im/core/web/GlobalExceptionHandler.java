@@ -5,6 +5,7 @@ import com.nowcoder.community.im.core.web.Result;
 import com.nowcoder.community.im.core.trace.TraceId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +23,10 @@ import org.springframework.web.server.ResponseStatusException;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final String CATEGORY = "exception";
+    private static final String MDC_CATEGORY = "community.category";
+    private static final String MDC_ACTION = "community.action";
+    private static final String MDC_OUTCOME = "community.outcome";
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Result<Void>> handleAccessDenied(AccessDeniedException e) {
@@ -89,14 +94,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<Result<Void>> handleDataAccess(DataAccessException e) {
-        log.error("[im-core][data-access] traceId={}", TraceId.get(), e);
+        errorEvent("data_access_exception", () -> log.error("[im-core][data-access] traceId={}", TraceId.get(), e));
         return ResponseEntity.status(httpStatusOf(CommonErrorCode.SERVICE_UNAVAILABLE.getHttpStatus()))
                 .body(Result.error(CommonErrorCode.SERVICE_UNAVAILABLE));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Result<Void>> handleGeneric(Exception e) {
-        log.error("[im-core][unhandled] traceId={}", TraceId.get(), e);
+        errorEvent("unhandled_exception", () -> log.error("[im-core][unhandled] traceId={}", TraceId.get(), e));
         return ResponseEntity.status(httpStatusOf(CommonErrorCode.INTERNAL_ERROR.getHttpStatus()))
                 .body(Result.error(CommonErrorCode.INTERNAL_ERROR));
     }
@@ -108,5 +113,28 @@ public class GlobalExceptionHandler {
         }
         return HttpStatus.INTERNAL_SERVER_ERROR;
     }
-}
 
+    private void errorEvent(String action, Runnable logAction) {
+        String previousCategory = MDC.get(MDC_CATEGORY);
+        String previousAction = MDC.get(MDC_ACTION);
+        String previousOutcome = MDC.get(MDC_OUTCOME);
+        MDC.put(MDC_CATEGORY, CATEGORY);
+        MDC.put(MDC_ACTION, action);
+        MDC.put(MDC_OUTCOME, "failure");
+        try {
+            logAction.run();
+        } finally {
+            restore(MDC_CATEGORY, previousCategory);
+            restore(MDC_ACTION, previousAction);
+            restore(MDC_OUTCOME, previousOutcome);
+        }
+    }
+
+    private void restore(String key, String previousValue) {
+        if (previousValue == null) {
+            MDC.remove(key);
+            return;
+        }
+        MDC.put(key, previousValue);
+    }
+}

@@ -54,14 +54,25 @@ RUN --mount=type=cache,target=/root/.m2/repository,sharing=locked \
 
 FROM eclipse-temurin:17-jre-jammy
 
+ARG OTEL_JAVA_AGENT_VERSION=2.23.0
+
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+RUN set -eu; \
+    agent_base_url="https://repo.maven.apache.org/maven2/io/opentelemetry/javaagent/opentelemetry-javaagent/${OTEL_JAVA_AGENT_VERSION}/opentelemetry-javaagent-${OTEL_JAVA_AGENT_VERSION}.jar"; \
+    mkdir -p /otel /opt/community; \
+    curl -fsSL "${agent_base_url}" -o /otel/opentelemetry-javaagent.jar; \
+    curl -fsSL "${agent_base_url}.sha256" -o /tmp/opentelemetry-javaagent.jar.sha256; \
+    printf '%s  %s\n' "$(cat /tmp/opentelemetry-javaagent.jar.sha256)" "/otel/opentelemetry-javaagent.jar" | sha256sum -c -; \
+    rm -f /tmp/opentelemetry-javaagent.jar.sha256
 COPY --from=build /workspace/app.jar /app/app.jar
+COPY scripts/run-backend-service.sh /opt/community/run-backend-service.sh
+RUN chmod 0755 /opt/community/run-backend-service.sh
 
 ENV JAVA_OPTS=""
 
 HEALTHCHECK --interval=10s --timeout=3s --retries=30 \
   CMD curl -fsS "http://localhost:${SERVER_PORT:-8080}/actuator/health" >/dev/null || exit 1
 
-ENTRYPOINT ["bash", "-lc", "java ${JAVA_OPTS} -jar /app/app.jar"]
+ENTRYPOINT ["/opt/community/run-backend-service.sh"]

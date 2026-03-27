@@ -1,0 +1,16 @@
+services:
+  community-app:
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev},json-logs,volume-log-export
+
+  community-gateway:
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev},json-logs,volume-log-export
+
+  im-core:
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev},json-logs,volume-log-export
+
+  im-realtime:
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev},json-logs,volume-log-export

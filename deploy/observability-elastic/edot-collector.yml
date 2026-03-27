@@ -1,0 +1,70 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+  filelog/community:
+    include:
+      - /var/log/community/*.json.log
+    # Phase 1 keeps restart behavior simple and avoids replaying old local compose file logs.
+    start_at: end
+    include_file_path: true
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+  transform/logs_bodymap:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - set(body, ParseJSON(body)) where IsString(body) and IsMatch(body, "^\\s*\\{")
+          - set(body["trace.id"], body["trace_id"]) where IsMap(body) and body["trace_id"] != nil and (body["trace.id"] == nil or body["trace.id"] == "")
+          - set(body["span.id"], body["span_id"]) where IsMap(body) and body["span_id"] != nil and (body["span.id"] == nil or body["span.id"] == "")
+          - delete_key(body, "trace_id") where IsMap(body) and body["trace_id"] != nil
+          - delete_key(body, "span_id") where IsMap(body) and body["span_id"] != nil
+      - context: scope
+        statements:
+          - set(attributes["elastic.mapping.mode"], "bodymap")
+  # OTLP traces/metrics and filelog-backed application logs all belong to the community services.
+  resource/community_service_namespace:
+    attributes:
+      - key: service.namespace
+        value: community
+        action: upsert
+  batch:
+    send_batch_size: 1024
+    timeout: 5s
+  batch/metrics:
+    send_batch_size: 512
+    timeout: 15s
+
+exporters:
+  elasticsearch/otel:
+    endpoints:
+      - http://elasticsearch:9200
+    mapping:
+      mode: otel
+  elasticsearch/logs:
+    endpoints:
+      - http://elasticsearch:9200
+    logs_index: logs-community-default
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource/community_service_namespace, batch]
+      exporters: [elasticsearch/otel]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resource/community_service_namespace, batch/metrics]
+      exporters: [elasticsearch/otel]
+    logs:
+      receivers: [filelog/community]
+      processors: [memory_limiter, transform/logs_bodymap, batch]
+      exporters: [elasticsearch/logs]

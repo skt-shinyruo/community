@@ -206,8 +206,8 @@ community-gateway / community-app / im-core / im-realtime
     -> Elastic Observability
 
 community-gateway / community-app / im-core / im-realtime
-    -> stdout structured logs
-    -> docker container json logs
+    -> backend structured JSON file appender
+    -> shared named volume
     -> filelog receiver in observability-gateway-edot-collector
     -> Elastic Observability
 ```
@@ -256,8 +256,8 @@ Elastic 负责：
   - OTel metrics 在 Phase 1 主要用于 Elastic 侧关联与探索，不作为第一批告警的唯一依据
 - `logs`
   - 业务日志继续由应用输出结构化日志
-  - Phase 1 明确采用“容器 stdout -> docker json log -> collector filelog receiver -> Elastic”的接入方式
-  - 该路径复用当前仓库已有的容器日志采集思路，便于从现有 `Promtail` 方案迁移到 collector 方案
+  - Phase 1 明确采用“backend structured JSON file appender -> shared named volume -> collector filelog receiver -> Elastic”的接入方式
+  - 该路径避免依赖 Docker daemon 私有日志目录，同时让 Promtail 与 collector 可以共用同一份 backend JSON 日志文件
   - OTLP logs 作为后续优化项保留，不作为 Phase 1 前提
 
 这意味着第一阶段不要求所有日志都改成“手工 SDK 发 OTLP 日志”，而是优先统一字段模型、上下文关联和 collector 入口。
@@ -283,7 +283,7 @@ Phase 1 对 `traceparent` 与 `X-Trace-Id` 的桥接规则统一如下：
 在启用 observability profile 的容器化运行路径下，本地与生产保持同构链路：
 
 - traces / metrics 都经过 `OTel -> EDOT gateway collector -> Elastic`
-- logs 都经过 `stdout -> container json logs -> collector filelog receiver -> Elastic`
+- logs 都经过 `backend JSON file appender -> shared volume -> collector filelog receiver -> Elastic`
 - 都使用相同字段模型
 - 差异仅体现在输出格式和规模：
   - 生产环境：JSON 日志

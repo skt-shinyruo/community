@@ -19,12 +19,14 @@
   - im-realtime internal worker：`ws://localhost:18081/internal/ws/im`
   - im-core：`http://localhost:18082`
 
-> 观测/日志端口仅在启用 `observability` profile 时才会映射到宿主机（见下文）。
+> 观测/日志端口通过 profile 按需映射到宿主机（见下文）。
 
 - Grafana：`http://localhost:12883`（默认 `admin/admin`）
 - Loki：`http://localhost:12884`
 - Prometheus：`http://localhost:12885`
 - Alertmanager：`http://localhost:12886`
+- Elasticsearch localhost 入口（`observability-elastic`）：`http://localhost:12888`
+- Kibana（`observability-elastic`）：`http://localhost:12889`
 
 ---
 
@@ -46,6 +48,10 @@
 - `observability` profile（可选）
   - 观测：Prometheus / Alertmanager / Loki / Promtail / Grafana
   - 绑定到 `127.0.0.1` 暴露观测端口（`12883+`），用于浏览器访问 Grafana/Loki/Prometheus/Alertmanager
+- `observability-elastic` profile（可选）
+  - 观测：Elasticsearch localhost 入口 / Kibana / EDOT collector
+  - base compose 下 backend services 默认会把结构化 JSON 日志写入共享 `observability_logs` volume，因此只启用这个 profile 也能得到 fielded logs
+  - 如果额外加载 `deploy/observability-elastic/docker-compose.override.yml`，容器 stdout 也会切到 JSON，便于 `docker compose logs` 排障
 
 ---
 
@@ -90,6 +96,12 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 
 # 方式 4（同时开启观测 + 调试直连）
 # COMPOSE_PROFILES=observability,debug docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
+
+# 方式 5（开启 Elastic Observability；base compose 已能产出 fielded logs）
+# COMPOSE_PROFILES=observability-elastic docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+
+# 方式 6（开启 Elastic Observability，并让容器 stdout 也切到 JSON）
+# docker compose -f deploy/docker-compose.yml -f deploy/observability-elastic/docker-compose.override.yml --env-file deploy/.env --profile observability-elastic up -d --build
 ```
 
 > 注意：profile 只影响“本次 up 会包含哪些 services”；如果你曾经启用过 `observability` 或 `debug`，之后去掉 profile 不会自动停止已启动的对应容器，需要手动 stop/remove 或执行 `docker compose ... down`。

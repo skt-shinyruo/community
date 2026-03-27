@@ -1,0 +1,54 @@
+package com.nowcoder.community.message.service;
+
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.social.block.BlockService;
+import com.nowcoder.community.user.exception.UserErrorCode;
+import com.nowcoder.community.user.service.UserQueryService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+@Service
+public class PrivateMessageGovernanceService {
+
+    private final UserQueryService userQueryService;
+    private final UserModerationGuard moderationGuard;
+    private final BlockService blockService;
+
+    @Autowired
+    public PrivateMessageGovernanceService(
+            UserQueryService userQueryService,
+            UserModerationGuard moderationGuard,
+            BlockService blockService
+    ) {
+        this.userQueryService = userQueryService;
+        this.moderationGuard = moderationGuard;
+        this.blockService = blockService;
+    }
+
+    public void validateCanSendPrivateMessage(int fromUserId, int toUserId) {
+        if (fromUserId <= 0) {
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "fromUserId 非法");
+        }
+        if (toUserId <= 0) {
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "toUserId 非法");
+        }
+        if (fromUserId == toUserId) {
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "不能给自己发送私信");
+        }
+
+        userQueryService.getById(fromUserId);
+        moderationGuard.assertCanSendMessage(fromUserId);
+        try {
+            userQueryService.getById(toUserId);
+        } catch (BusinessException e) {
+            if (e.getErrorCode() == UserErrorCode.USER_NOT_FOUND) {
+                throw new BusinessException(UserErrorCode.USER_NOT_FOUND, "目标用户不存在");
+            }
+            throw e;
+        }
+        if (blockService != null && blockService.isEitherBlocked(fromUserId, toUserId)) {
+            throw new BusinessException(CommonErrorCode.FORBIDDEN, "双方存在拉黑关系，无法发送私信");
+        }
+    }
+}

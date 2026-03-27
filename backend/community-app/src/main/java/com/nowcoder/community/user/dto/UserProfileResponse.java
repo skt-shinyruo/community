@@ -20,9 +20,7 @@ public class UserProfileResponse {
     private Boolean hasFollowed;
 
     /**
-     * social 聚合读路径是否发生降级（fail-open）。
-     *
-     * <p>用于区分“真实为 0”与“依赖故障/超时导致的占位 0”，避免误导用户。</p>
+     * 兼容旧响应结构保留的字段；本地聚合成功时固定为 false。
      */
     private boolean socialDegraded;
 

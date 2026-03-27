@@ -1,7 +1,8 @@
 package com.nowcoder.community.content.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.user.service.InternalUserService;
+import com.nowcoder.community.user.service.UserModerationService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -17,10 +18,11 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 @Service("contentUserModerationGuard")
 public class UserModerationGuard {
 
-    private final InternalUserService internalUserService;
+    private final UserModerationService userModerationService;
 
-    public UserModerationGuard(InternalUserService internalUserService) {
-        this.internalUserService = internalUserService;
+    @Autowired
+    public UserModerationGuard(UserModerationService userModerationService) {
+        this.userModerationService = userModerationService;
     }
 
     public void assertCanSpeak(int userId) {
@@ -28,7 +30,7 @@ public class UserModerationGuard {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
 
-        InternalUserService.ModerationStatus status = internalUserService.moderationStatus(userId);
+        UserModerationService.ModerationStatus status = userModerationService.moderationStatus(userId);
         Instant now = Instant.now();
 
         if (status != null && status.getBanUntil() != null && status.getBanUntil().isAfter(now)) {

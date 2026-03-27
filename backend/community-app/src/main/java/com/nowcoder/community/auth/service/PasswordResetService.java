@@ -6,9 +6,10 @@ import com.nowcoder.community.auth.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.entity.User;
-import com.nowcoder.community.user.service.InternalUserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.nowcoder.community.user.service.UserCredentialService;
+import com.nowcoder.community.user.service.UserQueryService;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -22,20 +23,23 @@ public class PasswordResetService {
 
     private final PasswordResetProperties properties;
     private final PasswordResetTokenStore tokenStore;
-    private final InternalUserService internalUserService;
+    private final UserQueryService userQueryService;
+    private final UserCredentialService userCredentialService;
     private final MailService mailService;
     private final CaptchaService captchaService;
 
     public PasswordResetService(
             PasswordResetProperties properties,
             PasswordResetTokenStore tokenStore,
-            InternalUserService internalUserService,
+            UserQueryService userQueryService,
+            UserCredentialService userCredentialService,
             MailService mailService,
             CaptchaService captchaService
     ) {
         this.properties = properties;
         this.tokenStore = tokenStore;
-        this.internalUserService = internalUserService;
+        this.userQueryService = userQueryService;
+        this.userCredentialService = userCredentialService;
         this.mailService = mailService;
         this.captchaService = captchaService;
     }
@@ -55,7 +59,7 @@ public class PasswordResetService {
         String resetBaseUrl = normalizeResetBaseUrlOrThrow();
 
         String normalizedEmail = email.trim();
-        User user = internalUserService.findByEmailOrNull(normalizedEmail);
+        User user = userQueryService.findByEmailOrNull(normalizedEmail);
         if (user == null || user.getId() <= 0 || user.getStatus() == 0) {
             // 防用户枚举：邮箱不存在/未激活等情况也返回“已发送”（但不实际下发 token/邮件）
             SecurityEventLogger.info(log, "password_reset_request", "skipped",
@@ -98,7 +102,7 @@ public class PasswordResetService {
             throw new BusinessException(AuthErrorCode.PASSWORD_RESET_INVALID);
         }
 
-        internalUserService.updatePassword(userId, newPassword.trim());
+        userCredentialService.updatePassword(userId, newPassword.trim());
         SecurityEventLogger.info(log, "password_reset_confirm", "success",
                 "user.id", userId);
         return true;

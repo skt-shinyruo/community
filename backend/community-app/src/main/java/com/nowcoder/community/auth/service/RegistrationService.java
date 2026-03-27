@@ -8,7 +8,7 @@ import com.nowcoder.community.auth.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.entity.User;
-import com.nowcoder.community.user.service.InternalUserService;
+import com.nowcoder.community.user.service.UserRegistrationService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,7 +23,7 @@ public class RegistrationService {
 
     private static final Logger log = LoggerFactory.getLogger(RegistrationService.class);
 
-    private final InternalUserService internalUserService;
+    private final UserRegistrationService userRegistrationService;
     private final RegistrationProperties properties;
     private final MailService mailService;
     private final CaptchaService captchaService;
@@ -31,14 +31,14 @@ public class RegistrationService {
     private final RegistrationSessionStore registrationSessionStore;
 
     public RegistrationService(
-            InternalUserService internalUserService,
+            UserRegistrationService userRegistrationService,
             RegistrationProperties properties,
             MailService mailService,
             CaptchaService captchaService,
             RegistrationCodeStore registrationCodeStore,
             RegistrationSessionStore registrationSessionStore
     ) {
-        this.internalUserService = internalUserService;
+        this.userRegistrationService = userRegistrationService;
         this.properties = properties;
         this.mailService = mailService;
         this.captchaService = captchaService;
@@ -66,7 +66,7 @@ public class RegistrationService {
         }
 
         Duration pendingUserTtl = Duration.ofSeconds(Math.max(60, properties.getPendingUser().getTtlSeconds()));
-        User created = internalUserService.register(username, password, email, pendingUserTtl);
+        User created = userRegistrationService.register(username, password, email, pendingUserTtl);
         if (created == null || created.getId() <= 0) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败");
         }

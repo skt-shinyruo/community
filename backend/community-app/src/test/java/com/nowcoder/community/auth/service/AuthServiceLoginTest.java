@@ -6,8 +6,8 @@ import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.web.net.ClientIpResolver;
 import com.nowcoder.community.user.entity.User;
-import com.nowcoder.community.user.mapper.UserMapper;
-import com.nowcoder.community.user.service.InternalUserService;
+import com.nowcoder.community.user.service.UserCredentialService;
+import com.nowcoder.community.user.service.UserQueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,10 +19,10 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.ResponseCookie;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
@@ -38,7 +38,8 @@ class AuthServiceLoginTest {
 
     private static final String SERVICE_VERSION = "test-service-version";
 
-    private final UserMapper userMapper = mock(UserMapper.class);
+    private final UserCredentialService userCredentialService = mock(UserCredentialService.class);
+    private final UserQueryService userQueryService = mock(UserQueryService.class);
     private final JwtTokenService jwtTokenService = mock(JwtTokenService.class);
     private final RefreshTokenService refreshTokenService = mock(RefreshTokenService.class);
     private final LoginRateLimitService loginRateLimitService = mock(LoginRateLimitService.class);
@@ -51,9 +52,9 @@ class AuthServiceLoginTest {
 
     @BeforeEach
     void setUp() {
-        InternalUserService internalUserService = new InternalUserService(userMapper);
         authService = new AuthService(
-                internalUserService,
+                userCredentialService,
+                userQueryService,
                 jwtTokenService,
                 refreshTokenService,
                 loginRateLimitService,
@@ -70,7 +71,8 @@ class AuthServiceLoginTest {
 
     @Test
     void loginShouldRecordFailureWhenCredentialsAreInvalid(CapturedOutput output) {
-        when(userMapper.selectByName("alice")).thenReturn(null);
+        when(userCredentialService.authenticate("alice", "wrong-password"))
+                .thenThrow(new BusinessException(AuthErrorCode.INVALID_CREDENTIALS));
 
         Throwable thrown = catchThrowable(() -> authService.login("alice", "wrong-password", null, null, new MockHttpServletRequest()));
 
@@ -91,11 +93,8 @@ class AuthServiceLoginTest {
 
     @Test
     void loginShouldRecordFailureWhenUserIsDisabled(CapturedOutput output) {
-        User disabledUser = new User();
-        disabledUser.setId(7);
-        disabledUser.setUsername("alice");
-        disabledUser.setStatus(0);
-        when(userMapper.selectByName("alice")).thenReturn(disabledUser);
+        when(userCredentialService.authenticate("alice", "secret"))
+                .thenThrow(new BusinessException(AuthErrorCode.USER_DISABLED));
 
         Throwable thrown = catchThrowable(() -> authService.login("alice", "secret", null, null, new MockHttpServletRequest()));
 
@@ -116,17 +115,16 @@ class AuthServiceLoginTest {
 
     @Test
     void loginShouldResetRateLimitAfterSuccessfulAuthentication(CapturedOutput output) {
-        BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
         User user = new User();
         user.setId(7);
         user.setUsername("alice");
         user.setStatus(1);
         user.setType(0);
-        user.setPassword(passwordEncoder.encode("secret"));
-        when(userMapper.selectByName("alice")).thenReturn(user);
+        when(userCredentialService.authenticate("alice", "secret")).thenReturn(user);
 
         ResponseCookie cookie = ResponseCookie.from("refresh_token", "rt").path("/api/auth").httpOnly(true).build();
-        when(jwtTokenService.createAccessToken(eq(7), eq("alice"), eq(java.util.List.of("ROLE_USER")))).thenReturn("access-token");
+        when(userCredentialService.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
+        when(jwtTokenService.createAccessToken(eq(7), eq("alice"), eq(List.of("ROLE_USER")))).thenReturn("access-token");
         when(refreshTokenService.issue(7)).thenReturn(new RefreshTokenService.IssuedRefreshToken("rt", cookie));
 
         AuthService.LoginResult result = authService.login("alice", "secret", null, null, new MockHttpServletRequest());
@@ -192,15 +190,14 @@ class AuthServiceLoginTest {
 
     @Test
     void loginShouldNotLogSuccessWhenTokenIssuanceFails(CapturedOutput output) {
-        BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
         User user = new User();
         user.setId(7);
         user.setUsername("alice");
         user.setStatus(1);
         user.setType(0);
-        user.setPassword(passwordEncoder.encode("secret"));
-        when(userMapper.selectByName("alice")).thenReturn(user);
-        when(jwtTokenService.createAccessToken(eq(7), eq("alice"), eq(java.util.List.of("ROLE_USER")))).thenReturn("access-token");
+        when(userCredentialService.authenticate("alice", "secret")).thenReturn(user);
+        when(userCredentialService.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
+        when(jwtTokenService.createAccessToken(eq(7), eq("alice"), eq(List.of("ROLE_USER")))).thenReturn("access-token");
         when(refreshTokenService.issue(7)).thenThrow(new RuntimeException("issue failed"));
 
         Throwable thrown = catchThrowable(() -> authService.login("alice", "secret", null, null, new MockHttpServletRequest()));
@@ -212,7 +209,8 @@ class AuthServiceLoginTest {
     @Test
     void loginShouldEncodeUnsafeCharactersInSecurityEventTokens(CapturedOutput output) {
         String spoofedUsername = "alice bob=\nroot";
-        when(userMapper.selectByName(spoofedUsername)).thenReturn(null);
+        when(userCredentialService.authenticate(spoofedUsername, "secret"))
+                .thenThrow(new BusinessException(AuthErrorCode.INVALID_CREDENTIALS));
 
         Throwable thrown = catchThrowable(() -> authService.login(spoofedUsername, "secret", null, null, new MockHttpServletRequest()));
 
@@ -226,7 +224,8 @@ class AuthServiceLoginTest {
     @Test
     void loginDeniedShouldExposeCommunityFieldsAsTopLevelJsonInProductionLogging(CapturedOutput output) {
         initializeProductionLogging("community-app");
-        when(userMapper.selectByName("alice")).thenReturn(null);
+        when(userCredentialService.authenticate("alice", "wrong-password"))
+                .thenThrow(new BusinessException(AuthErrorCode.INVALID_CREDENTIALS));
 
         Throwable thrown = catchThrowable(() -> authService.login("alice", "wrong-password", null, null, new MockHttpServletRequest()));
 

@@ -25,7 +25,9 @@
   - `RegistrationService`：注册与验证码签发
   - `RegistrationVerificationService`：验证码重发、验证、激活并自动登录
   - `AuthService`：密码登录、refresh、logout、统一签发登录态
-  - `InternalUserService`：用户创建、密码校验、激活、角色映射
+  - `UserRegistrationService`：用户创建、待激活用户读取、激活、过期待激活用户清理
+  - `UserCredentialService`：密码校验、密码升级、角色映射
+  - `UserQueryService`：refresh 会话恢复所需的用户资料读取
 - Redis：
   - 图形验证码
   - 登录失败计数与验证码兜底
@@ -76,7 +78,7 @@ sequenceDiagram
     participant FE as RegisterView
     participant API as AuthController
     participant REG as RegistrationService
-    participant USER as InternalUserService
+    participant USER as UserRegistrationService
     participant SESS as RegistrationSessionStore
     participant CODE as RegistrationCodeStore
     participant MAIL as MailService
@@ -105,7 +107,7 @@ sequenceDiagram
 1. `RegistrationService.register()` 校验请求体不能为空
 2. 强制要求 `captchaId` 与 `captchaCode`
 3. `CaptchaService.verify(...)` 校验图形验证码；成功后立即一次性消费
-4. `InternalUserService.register(...)` 创建用户
+4. `UserRegistrationService.register(...)` 创建用户
 5. 生成 6 位数字邮箱验证码
 6. 通过 `RegistrationCodeStore.issue(...)` 写入验证码
 7. 通过 `MailService.sendRegistrationCodeMail(...)` 发信
@@ -117,7 +119,7 @@ sequenceDiagram
 
 ### 3.3 用户创建细节
 
-`InternalUserService.register(...)` 会先做 pending user 冲突清理：
+`UserRegistrationService.register(...)` 会先做 pending user 冲突清理：
 
 - 如果同用户名或同邮箱下存在已过期、且 `status=0` 的未激活用户，会先删除
 - 之后再重新检查用户名与邮箱唯一性
@@ -181,7 +183,7 @@ sequenceDiagram
 2. `registrationToken -> userId`（缺失/过期视为注册上下文失效）
 3. 确认该用户仍然是未激活 pending user
 4. `RegistrationCodeStore.verifyAndConsume(...)` 执行原子比对与消费
-5. 成功后调用 `InternalUserService.activateUser(userId)`，把 `status` 更新为 `1`
+5. 成功后调用 `UserRegistrationService.activateUser(userId)`，把 `status` 更新为 `1`
 6. 调用 `AuthService.issueLoginResult(user)` 签发登录态
 7. 响应体返回 `accessToken`，并通过 `Set-Cookie` 写入 refresh cookie
 8. best-effort 删除注册上下文（避免 token 被复用）
@@ -219,7 +221,7 @@ sequenceDiagram
     participant AUTH as AuthService
     participant LIMIT as LoginRateLimitService
     participant CAP as CaptchaService
-    participant USER as InternalUserService
+    participant USER as UserCredentialService
 
     U->>FE: 输入 username/password
     FE->>API: POST /api/auth/login
@@ -255,7 +257,7 @@ sequenceDiagram
 
 ### 5.3 用户名密码校验
 
-`InternalUserService.authenticate(...)` 承担用户名密码校验：
+`UserCredentialService.authenticate(...)` 承担用户名密码校验：
 
 - 根据 `username` 查用户
 - 用户不存在则返回 `INVALID_CREDENTIALS`

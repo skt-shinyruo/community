@@ -1,8 +1,8 @@
 package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.user.mapper.UserMapper;
 import com.nowcoder.community.user.entity.User;
+import com.nowcoder.community.user.mapper.UserMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -10,34 +10,24 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND;
 
 @Service
 public class UserService {
 
     private final UserMapper userMapper;
+    private final UserQueryService userQueryService;
 
-    public UserService(UserMapper userMapper) {
+    public UserService(UserMapper userMapper, UserQueryService userQueryService) {
         this.userMapper = userMapper;
+        this.userQueryService = userQueryService;
     }
 
     public User getById(int userId) {
-        User user = userMapper.selectById(userId);
-        if (user == null) {
-            throw new BusinessException(USER_NOT_FOUND);
-        }
-        return user;
+        return userQueryService.getById(userId);
     }
 
     public User getByUsername(String username) {
-        if (!StringUtils.hasText(username)) {
-            throw new BusinessException(INVALID_ARGUMENT, "username 不能为空");
-        }
-        User user = userMapper.selectByName(username);
-        if (user == null) {
-            throw new BusinessException(USER_NOT_FOUND);
-        }
-        return user;
+        return userQueryService.getByUsername(username);
     }
 
     @Transactional
@@ -57,9 +47,6 @@ public class UserService {
     }
 
     public List<User> listUserSummariesByIds(List<Integer> ids) {
-        if (ids == null || ids.isEmpty()) {
-            return List.of();
-        }
-        return userMapper.selectUserSummariesByIds(ids);
+        return userQueryService.listUserSummariesByIds(ids);
     }
 }

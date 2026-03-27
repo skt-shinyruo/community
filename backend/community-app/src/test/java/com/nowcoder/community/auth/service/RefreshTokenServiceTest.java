@@ -5,7 +5,8 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.security.jwt.JwtProperties;
 import com.nowcoder.community.infra.web.net.ClientIpResolver;
 import com.nowcoder.community.user.entity.User;
-import com.nowcoder.community.user.service.InternalUserService;
+import com.nowcoder.community.user.service.UserCredentialService;
+import com.nowcoder.community.user.service.UserQueryService;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -26,6 +27,21 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class RefreshTokenServiceTest {
+
+    @Test
+    void authServiceShouldOnlyExposeFocusedServiceConstructor() {
+        assertThat(AuthService.class.getDeclaredConstructors())
+                .singleElement()
+                .satisfies(constructor -> assertThat(constructor.getParameterTypes()).containsExactly(
+                        UserCredentialService.class,
+                        UserQueryService.class,
+                        JwtTokenService.class,
+                        RefreshTokenService.class,
+                        LoginRateLimitService.class,
+                        CaptchaService.class,
+                        ClientIpResolver.class
+                ));
+    }
 
     @Test
     void refreshShouldRejectReplayWhenSameTokenIsPresentedConcurrently() throws Exception {
@@ -85,7 +101,8 @@ class RefreshTokenServiceTest {
     }
 
     private static AuthService authService(RefreshTokenService refreshTokenService) {
-        InternalUserService internalUserService = mock(InternalUserService.class);
+        UserCredentialService userCredentialService = mock(UserCredentialService.class);
+        UserQueryService userQueryService = mock(UserQueryService.class);
         JwtTokenService jwtTokenService = mock(JwtTokenService.class);
         LoginRateLimitService loginRateLimitService = mock(LoginRateLimitService.class);
         CaptchaService captchaService = mock(CaptchaService.class);
@@ -96,12 +113,13 @@ class RefreshTokenServiceTest {
         profile.setUsername("alice");
         profile.setStatus(1);
 
-        when(internalUserService.getSessionProfile(7)).thenReturn(profile);
-        when(internalUserService.authoritiesOf(profile)).thenReturn(List.of("user"));
+        when(userQueryService.getById(7)).thenReturn(profile);
+        when(userCredentialService.authoritiesOf(profile)).thenReturn(List.of("user"));
         when(jwtTokenService.createAccessToken(7, "alice", List.of("user"))).thenReturn("access-token");
 
         return new AuthService(
-                internalUserService,
+                userCredentialService,
+                userQueryService,
                 jwtTokenService,
                 refreshTokenService,
                 loginRateLimitService,

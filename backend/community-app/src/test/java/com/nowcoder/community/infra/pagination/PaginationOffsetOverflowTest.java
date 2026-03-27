@@ -25,7 +25,8 @@ import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.security.OwnerGuard;
 import com.nowcoder.community.message.service.NoticeService;
 import com.nowcoder.community.message.service.PrivateMessageService;
-import com.nowcoder.community.message.service.UserLookupService;
+import com.nowcoder.community.message.service.PrivateMessageGovernanceService;
+import com.nowcoder.community.message.service.MessageUserQueryService;
 import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.social.event.SocialEventPublisher;
 import com.nowcoder.community.social.follow.FollowRepository;
@@ -109,9 +110,8 @@ class PaginationOffsetOverflowTest {
 
         PrivateMessageService service = new PrivateMessageService(
                 messageMapper,
-                mock(UserLookupService.class),
-                mock(BlockService.class),
-                mock(com.nowcoder.community.message.service.UserModerationGuard.class),
+                mock(MessageUserQueryService.class),
+                mock(PrivateMessageGovernanceService.class),
                 mock(OwnerGuard.class)
         );
 

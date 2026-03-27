@@ -3,17 +3,25 @@ package com.nowcoder.community.infra.web;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.infra.trace.TraceContext;
 import com.nowcoder.community.infra.trace.TraceId;
 import jakarta.validation.ConstraintViolationException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.logging.LoggingInitializationContext;
+import org.springframework.boot.logging.LoggingSystem;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -21,12 +29,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ExtendWith(OutputCaptureExtension.class)
 class GlobalExceptionHandlerTest {
 
+    private static final String SERVICE_VERSION = "test-service-version";
+
     private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
     private final ResultTraceIdAdvice advice = new ResultTraceIdAdvice();
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final LoggingSystem loggingSystem = LoggingSystem.get(getClass().getClassLoader());
 
     @AfterEach
     void tearDown() {
-        TraceId.clear();
+        TraceContext.clear();
+        loggingSystem.cleanUp();
     }
 
     @Test
@@ -40,6 +53,37 @@ class GlobalExceptionHandlerTest {
         assertThat(resp.getBody().getCode()).isEqualTo(400);
         assertThat(resp.getBody().getMessage()).isEqualTo("bad");
         assertThat(resp.getBody().getTraceId()).isEqualTo("t-err-1");
+    }
+
+    @Test
+    void serverErrorBusinessExceptionShouldBeLoggedWithExceptionTaxonomy(CapturedOutput output) {
+        initializeProductionLogging("community-app");
+        TraceContext.set("mdc-err-business");
+        TraceId.set("thread-err-business");
+
+        ResponseEntity<Result<Void>> response = handler.handleBusiness(new BusinessException(CommonErrorCode.INTERNAL_ERROR, "server exploded"));
+
+        assertThat(response.getStatusCode().value()).isEqualTo(500);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getCode()).isEqualTo(CommonErrorCode.INTERNAL_ERROR.getCode());
+
+        JsonNode event = findJsonEvent(output, GlobalExceptionHandler.class.getName());
+        assertThat(event.path("service.name").asText()).isEqualTo("community-app");
+        assertThat(event.path("service.version").asText()).isEqualTo(SERVICE_VERSION);
+        assertThat(event.path("trace.id").asText()).isEqualTo("mdc-err-business");
+        assertThat(event.path("community.category").asText()).isEqualTo("exception");
+        assertThat(event.path("community.action").asText()).isEqualTo("business_exception");
+        assertThat(event.path("community.outcome").asText()).isEqualTo("failure");
+        assertThat(event.path("level").asText()).isEqualTo("ERROR");
+        assertThat(event.path("message").asText())
+                .contains("[exception][business]")
+                .contains("traceId=thread-err-business")
+                .contains("code=500")
+                .contains("status=500")
+                .contains("message=server exploded")
+                .doesNotContain("community.category=")
+                .doesNotContain("community.action=")
+                .doesNotContain("community.outcome=");
     }
 
     @Test
@@ -74,7 +118,9 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void dataAccessExceptionShouldBeServiceUnavailableAndLogged(CapturedOutput output) {
-        TraceId.set("t-err-5");
+        initializeProductionLogging("community-app");
+        TraceContext.set("mdc-err-5");
+        TraceId.set("thread-err-5");
         DataAccessException ex = new DataAccessException("db down") {
             @Override
             public synchronized Throwable fillInStackTrace() {
@@ -87,13 +133,28 @@ class GlobalExceptionHandlerTest {
         assertThat(resp.getStatusCode().value()).isEqualTo(503);
         assertThat(resp.getBody()).isNotNull();
         assertThat(resp.getBody().getCode()).isEqualTo(CommonErrorCode.SERVICE_UNAVAILABLE.getCode());
-        assertThat(resp.getBody().getTraceId()).isEqualTo("t-err-5");
-        assertThat(output.getAll()).contains("[exception][data-access] traceId=t-err-5");
+        assertThat(resp.getBody().getTraceId()).isEqualTo("thread-err-5");
+
+        JsonNode event = findJsonEvent(output, GlobalExceptionHandler.class.getName());
+        assertThat(event.path("service.name").asText()).isEqualTo("community-app");
+        assertThat(event.path("service.version").asText()).isEqualTo(SERVICE_VERSION);
+        assertThat(event.path("trace.id").asText()).isEqualTo("mdc-err-5");
+        assertThat(event.path("community.category").asText()).isEqualTo("exception");
+        assertThat(event.path("community.action").asText()).isEqualTo("data_access_exception");
+        assertThat(event.path("community.outcome").asText()).isEqualTo("failure");
+        assertThat(event.path("level").asText()).isEqualTo("ERROR");
+        assertThat(event.path("message").asText())
+                .contains("[exception][data-access] traceId=thread-err-5")
+                .doesNotContain("community.category=")
+                .doesNotContain("community.action=")
+                .doesNotContain("community.outcome=");
     }
 
     @Test
     void unknownExceptionShouldBeLogged(CapturedOutput output) {
-        TraceId.set("t-err-6");
+        initializeProductionLogging("community-app");
+        TraceContext.set("mdc-err-6");
+        TraceId.set("thread-err-6");
         RuntimeException ex = new RuntimeException("boom-2") {
             @Override
             public synchronized Throwable fillInStackTrace() {
@@ -102,7 +163,21 @@ class GlobalExceptionHandlerTest {
         };
         handler.handleGeneric(ex);
 
-        assertThat(output.getAll()).contains("[exception][unhandled] traceId=t-err-6");
+        JsonNode event = findJsonEvent(output, GlobalExceptionHandler.class.getName());
+
+        assertThat(event.path("service.name").asText()).isEqualTo("community-app");
+        assertThat(event.path("service.version").asText()).isEqualTo(SERVICE_VERSION);
+        assertThat(event.path("trace.id").asText()).isEqualTo("mdc-err-6");
+        assertThat(event.path("community.category").asText()).isEqualTo("exception");
+        assertThat(event.path("community.action").asText()).isEqualTo("unhandled_exception");
+        assertThat(event.path("community.outcome").asText()).isEqualTo("failure");
+        assertThat(event.path("level").asText()).isEqualTo("ERROR");
+        assertThat(event.path("logger").asText()).isEqualTo(GlobalExceptionHandler.class.getName());
+        assertThat(event.path("message").asText())
+                .contains("[exception][unhandled] traceId=thread-err-6")
+                .doesNotContain("community.category=")
+                .doesNotContain("community.action=")
+                .doesNotContain("community.outcome=");
     }
 
     @Test
@@ -116,5 +191,34 @@ class GlobalExceptionHandlerTest {
         assertThat(resp.getBody()).isNotNull();
         assertThat(resp.getBody().getCode()).isEqualTo(400);
         assertThat(resp.getBody().getTraceId()).isEqualTo("t-err-4");
+    }
+
+    private void initializeProductionLogging(String serviceName) {
+        MockEnvironment environment = new MockEnvironment();
+        environment.setProperty("spring.application.name", serviceName);
+        environment.setProperty("community.logging.service-version", SERVICE_VERSION);
+        environment.setProperty("spring.profiles.active", "prod");
+
+        loggingSystem.cleanUp();
+        loggingSystem.beforeInitialize();
+        loggingSystem.initialize(new LoggingInitializationContext(environment), "classpath:logback-spring.xml", null);
+    }
+
+    private JsonNode findJsonEvent(CapturedOutput output, String loggerName) {
+        return Arrays.stream(output.getAll().split("\\R"))
+                .map(String::trim)
+                .filter(line -> !line.isEmpty() && line.startsWith("{"))
+                .map(this::readJson)
+                .filter(event -> event != null && loggerName.equals(event.path("logger").asText()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No structured log event found for " + loggerName + " in output: " + output.getAll()));
+    }
+
+    private JsonNode readJson(String line) {
+        try {
+            return objectMapper.readTree(line);
+        } catch (IOException ex) {
+            return null;
+        }
     }
 }

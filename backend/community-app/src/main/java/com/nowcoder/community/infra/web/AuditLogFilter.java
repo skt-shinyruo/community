@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -23,6 +24,11 @@ import java.io.IOException;
 public class AuditLogFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(AuditLogFilter.class);
+    private static final String CATEGORY = "audit";
+    private static final String ACTION = "http_write_request";
+    private static final String MDC_CATEGORY = "community.category";
+    private static final String MDC_ACTION = "community.action";
+    private static final String MDC_OUTCOME = "community.outcome";
 
     private final String appName;
 
@@ -62,9 +68,14 @@ public class AuditLogFilter extends OncePerRequestFilter {
             int status = response.getStatus();
             String userId = resolveUserId();
             String traceId = TraceId.get();
-            log.info(
-                    "[audit][app={}] method={} path={} status={} userId={} traceId={} costMs={}",
-                    appName, method, path, status, userId, traceId, costMs
+            infoEvent(
+                    resolveOutcome(status),
+                    method,
+                    path,
+                    status,
+                    userId,
+                    traceId,
+                    costMs
             );
         }
     }
@@ -79,5 +90,42 @@ public class AuditLogFilter extends OncePerRequestFilter {
             return "-";
         }
         return name;
+    }
+
+    private void infoEvent(String outcome, String method, String path, int status, String userId, String traceId, long costMs) {
+        String previousCategory = MDC.get(MDC_CATEGORY);
+        String previousAction = MDC.get(MDC_ACTION);
+        String previousOutcome = MDC.get(MDC_OUTCOME);
+        MDC.put(MDC_CATEGORY, CATEGORY);
+        MDC.put(MDC_ACTION, ACTION);
+        MDC.put(MDC_OUTCOME, outcome);
+        try {
+            log.info(
+                    "[audit][app={}] method={} path={} status={} userId={} traceId={} costMs={}",
+                    appName, method, path, status, userId, traceId, costMs
+            );
+        } finally {
+            restore(MDC_CATEGORY, previousCategory);
+            restore(MDC_ACTION, previousAction);
+            restore(MDC_OUTCOME, previousOutcome);
+        }
+    }
+
+    private String resolveOutcome(int status) {
+        if (status >= 200 && status < 400) {
+            return "success";
+        }
+        if (status == 401 || status == 403) {
+            return "denied";
+        }
+        return "failure";
+    }
+
+    private void restore(String key, String previousValue) {
+        if (previousValue == null) {
+            MDC.remove(key);
+            return;
+        }
+        MDC.put(key, previousValue);
     }
 }

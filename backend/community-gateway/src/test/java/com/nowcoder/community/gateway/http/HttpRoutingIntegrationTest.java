@@ -36,6 +36,7 @@ class HttpRoutingIntegrationTest {
 
     private static final BlockingQueue<RequestCapture> BOOTSTRAP_CAPTURES = new LinkedBlockingQueue<>();
     private static final BlockingQueue<RequestCapture> IM_CAPTURES = new LinkedBlockingQueue<>();
+    private static final String TRACEPARENT_HEADER = "traceparent";
 
     private static volatile DisposableServer bootstrapServer;
     private static volatile DisposableServer imServer;
@@ -76,10 +77,11 @@ class HttpRoutingIntegrationTest {
         webTestClient.post()
                 .uri("/api/posts?draft=true&limit=10")
                 .header("Authorization", "Bearer test-token")
-                .header("X-Trace-Id", "trace-123")
+                .header("X-Trace-Id", "ABCDEFABCDEFABCDEFABCDEFABCDEFAB")
                 .bodyValue("{\"title\":\"Gateway\"}")
                 .exchange()
                 .expectStatus().isOk()
+                .expectHeader().valueEquals("X-Trace-Id", "abcdefabcdefabcdefabcdefabcdefab")
                 .expectBody()
                 .jsonPath("$.upstream").isEqualTo("bootstrap");
 
@@ -90,18 +92,38 @@ class HttpRoutingIntegrationTest {
         assertThat(capture.query()).isEqualTo("draft=true&limit=10");
         assertThat(capture.body()).isEqualTo("{\"title\":\"Gateway\"}");
         assertThat(capture.authorization()).isEqualTo("Bearer test-token");
-        assertThat(capture.traceId()).isEqualTo("trace-123");
+        assertThat(capture.traceId()).isEqualTo("abcdefabcdefabcdefabcdefabcdefab");
+        assertThat(capture.traceparent()).startsWith("00-abcdefabcdefabcdefabcdefabcdefab-");
+    }
+
+    @Test
+    void shouldPreferTraceparentTraceIdWhenProxying() throws Exception {
+        BOOTSTRAP_CAPTURES.clear();
+
+        webTestClient.get()
+                .uri("/api/posts")
+                .header("X-Trace-Id", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+                .header(TRACEPARENT_HEADER, traceparent("4bf92f3577b34da6a3ce929d0e0e4736"))
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().valueEquals("X-Trace-Id", "4bf92f3577b34da6a3ce929d0e0e4736");
+
+        RequestCapture capture = BOOTSTRAP_CAPTURES.poll(5, TimeUnit.SECONDS);
+        assertThat(capture).isNotNull();
+        assertThat(capture.traceId()).isEqualTo("4bf92f3577b34da6a3ce929d0e0e4736");
+        assertThat(capture.traceparent()).startsWith("00-4bf92f3577b34da6a3ce929d0e0e4736-");
     }
 
     @Test
     void shouldPreferLongestPrefixForImRoutes() throws Exception {
         BOOTSTRAP_CAPTURES.clear();
         IM_CAPTURES.clear();
+        String traceId = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
         webTestClient.get()
                 .uri("/api/im/conversations?unreadOnly=true")
                 .header("Authorization", "Bearer im-token")
-                .header("X-Trace-Id", "trace-im")
+                .header("X-Trace-Id", traceId)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
@@ -112,7 +134,7 @@ class HttpRoutingIntegrationTest {
         assertThat(capture.path()).isEqualTo("/api/im/conversations");
         assertThat(capture.query()).isEqualTo("unreadOnly=true");
         assertThat(capture.authorization()).isEqualTo("Bearer im-token");
-        assertThat(capture.traceId()).isEqualTo("trace-im");
+        assertThat(capture.traceId()).isEqualTo(traceId);
         assertThat(BOOTSTRAP_CAPTURES).isEmpty();
     }
 
@@ -179,7 +201,8 @@ class HttpRoutingIntegrationTest {
                                     URI.create(request.uri()).getRawQuery(),
                                     body,
                                     request.requestHeaders().get("Authorization"),
-                                    request.requestHeaders().get("X-Trace-Id")
+                                    request.requestHeaders().get("X-Trace-Id"),
+                                    request.requestHeaders().get(TRACEPARENT_HEADER)
                             ));
                             return response.header("Content-Type", "application/json")
                                     .sendString(Mono.just("{\"upstream\":\"" + upstreamName + "\"}"))
@@ -194,8 +217,13 @@ class HttpRoutingIntegrationTest {
             String query,
             String body,
             String authorization,
-            String traceId
+            String traceId,
+            String traceparent
     ) {
+    }
+
+    private static String traceparent(String traceId) {
+        return "00-" + traceId + "-00f067aa0ba902b7-01";
     }
 
     @TestConfiguration(proxyBeanMethods = false)

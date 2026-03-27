@@ -1,6 +1,7 @@
 package com.nowcoder.community.auth.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.auth.logging.SecurityEventLogger;
 import com.nowcoder.community.infra.security.origin.OriginGuardProperties;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.web.Result;
@@ -80,11 +81,12 @@ public class AuthOriginGuardFilter extends OncePerRequestFilter {
         if (allowed == null || allowed.isEmpty()) {
             if (properties.isFailOpenWhenAllowlistEmpty()) {
                 if (warnedEmptyAllowlist.compareAndSet(false, true)) {
-                    log.warn("[origin-guard] allowed-origins 为空，已退化为 fail-open（建议在配置中心补齐 allowlist）");
+                    logSecurityEvent("degraded", "allowlist_empty_fail_open", request, origin);
                 }
                 filterChain.doFilter(request, response);
                 return;
             }
+            logSecurityEvent("denied", "allowlist_missing", request, origin);
             forbidden(response, "Origin allowlist 未配置");
             return;
         }
@@ -94,6 +96,7 @@ public class AuthOriginGuardFilter extends OncePerRequestFilter {
             return;
         }
 
+        logSecurityEvent("denied", "origin_not_allowed", request, origin);
         forbidden(response, "Origin 不被允许");
     }
 
@@ -137,5 +140,13 @@ public class AuthOriginGuardFilter extends OncePerRequestFilter {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         Result<?> body = Result.error(CommonErrorCode.FORBIDDEN.getCode(), message);
         response.getWriter().write(objectMapper.writeValueAsString(body));
+    }
+
+    private void logSecurityEvent(String outcome, String reason, HttpServletRequest request, String origin) {
+        String path = request == null ? "-" : request.getRequestURI();
+        SecurityEventLogger.warn(log, "origin_guard", outcome,
+                "community.reason_code", reason,
+                "origin", origin,
+                "path", path);
     }
 }

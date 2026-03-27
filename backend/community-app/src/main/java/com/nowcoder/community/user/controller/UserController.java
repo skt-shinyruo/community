@@ -1,5 +1,6 @@
 package com.nowcoder.community.user.controller;
 
+import com.nowcoder.community.auth.logging.SecurityEventLogger;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.dto.PostSummaryResponse;
@@ -18,6 +19,8 @@ import com.nowcoder.community.user.service.PointsService;
 import com.nowcoder.community.user.service.UserSocialProfileService;
 import com.nowcoder.community.user.service.UserService;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -41,6 +44,8 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
+
+    private static final Logger log = LoggerFactory.getLogger(UserController.class);
 
     private final UserService userService;
     private final AvatarService avatarService;
@@ -161,7 +166,18 @@ public class UserController {
         if (currentUserId != userId) {
             throw new BusinessException(FORBIDDEN, "只能操作自己的头像");
         }
-        return Result.ok(avatarService.createUploadToken(userId));
+        AvatarUploadTokenResponse response = avatarService.createUploadToken(userId);
+        SecurityEventLogger.info(
+                log,
+                "avatar_upload_token",
+                "success",
+                "user.id", userId,
+                "community.target_type", "user",
+                "community.target_id", userId,
+                "community.avatar_provider", response == null ? null : response.getProvider(),
+                "community.avatar_file_name", response == null ? null : response.getFileName()
+        );
+        return Result.ok(response);
     }
 
     @PostMapping(value = "/{userId}/avatar/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -171,6 +187,17 @@ public class UserController {
             throw new BusinessException(FORBIDDEN, "只能操作自己的头像");
         }
         avatarService.upload(userId, fileName, file);
+        SecurityEventLogger.info(
+                log,
+                "avatar_upload",
+                "success",
+                "user.id", userId,
+                "community.target_type", "user",
+                "community.target_id", userId,
+                "community.avatar_file_name", fileName,
+                "community.file_content_type", file == null ? null : file.getContentType(),
+                "community.file_size_bytes", file == null ? null : file.getSize()
+        );
         return Result.ok();
     }
 
@@ -183,6 +210,15 @@ public class UserController {
         avatarService.assertAndConsumeUploadTicket(userId, request.getFileName());
         String url = avatarService.buildAvatarUrl(request.getFileName());
         userService.updateHeaderUrl(userId, url);
+        SecurityEventLogger.info(
+                log,
+                "avatar_update",
+                "success",
+                "user.id", userId,
+                "community.target_type", "user",
+                "community.target_id", userId,
+                "community.avatar_file_name", request.getFileName()
+        );
         return Result.ok();
     }
 }

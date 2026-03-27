@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.ResponseCookie;
 
 import java.time.Duration;
@@ -28,7 +30,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class RegistrationVerificationServiceTest {
 
     @Mock
@@ -112,7 +114,7 @@ class RegistrationVerificationServiceTest {
     }
 
     @Test
-    void verifyAndLoginShouldActivateInactiveUserAndReturnLoginResult() {
+    void verifyAndLoginShouldActivateInactiveUserAndReturnLoginResult(CapturedOutput output) {
         User user = new User();
         user.setId(7);
         user.setUsername("alice");
@@ -133,6 +135,14 @@ class RegistrationVerificationServiceTest {
         verify(internalUserService).activateUser(7);
         verify(registrationSessionStore).delete("token");
         verify(authService).issueLoginResult(eq(user));
+        assertThat(output.getAll())
+                .contains("community.category=security")
+                .contains("community.action=registration_verify")
+                .contains("community.outcome=success")
+                .contains("user.id=7")
+                .contains("username=alice")
+                .doesNotContain("token")
+                .doesNotContain("222222");
     }
 
     @Test

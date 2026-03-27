@@ -3,11 +3,14 @@ package com.nowcoder.community.auth.service;
 import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.auth.dto.RegisterCodeResendResponse;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
+import com.nowcoder.community.auth.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.exception.UserErrorCode;
 import com.nowcoder.community.user.service.InternalUserService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -16,6 +19,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class RegistrationVerificationService {
+
+    private static final Logger log = LoggerFactory.getLogger(RegistrationVerificationService.class);
 
     private final InternalUserService internalUserService;
     private final RegistrationProperties properties;
@@ -85,6 +90,9 @@ public class RegistrationVerificationService {
             internalUserService.activateUser(userId);
             user.setStatus(1);
             AuthService.LoginResult loginResult = authService.issueLoginResult(user);
+            SecurityEventLogger.info(log, "registration_verify", "success",
+                    "user.id", userId,
+                    "username", user.getUsername());
             try {
                 registrationSessionStore.delete(registrationToken);
             } catch (RuntimeException ignored) {

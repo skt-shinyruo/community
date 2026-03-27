@@ -16,8 +16,6 @@ import com.nowcoder.community.content.text.ContentTextCodec;
 import com.nowcoder.community.content.util.SensitiveFilter;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.idempotency.IdempotencyGuard;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -28,8 +26,6 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.UNAUTHORIZ
 
 @Service
 public class PostFacadeService {
-
-    private static final Logger log = LoggerFactory.getLogger(PostFacadeService.class);
 
     private final PostService postService;
     private final CommentService commentService;
@@ -170,7 +166,6 @@ public class PostFacadeService {
 
     public void deleteByAuthor(int userId, int postId) {
         postCommandService.deletePostByAuthor(userId, postId);
-        log.info("[audit] action=post_delete_author actorUserId={} postId={}", userId, postId);
     }
 
     public void updateComment(int userId, int postId, int commentId, UpdateCommentRequest request) {
@@ -190,17 +185,14 @@ public class PostFacadeService {
 
     public void top(int actorUserId, int postId) {
         postCommandService.topPost(actorUserId, postId);
-        log.info("[audit] action=post_top actorUserId={} postId={}", actorUserId, postId);
     }
 
     public void wonderful(int actorUserId, int postId) {
         postCommandService.markWonderful(actorUserId, postId);
-        log.info("[audit] action=post_wonderful actorUserId={} postId={}", actorUserId, postId);
     }
 
     public void delete(int actorUserId, int postId) {
         postCommandService.adminDelete(actorUserId, postId);
-        log.info("[audit] action=post_delete actorUserId={} postId={}", actorUserId, postId);
     }
 
     private List<PostSummaryResponse> assembleSummaries(List<DiscussPost> posts) {

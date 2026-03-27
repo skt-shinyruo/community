@@ -1,12 +1,16 @@
 package com.nowcoder.community.infra.outbox;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 
 import java.sql.Timestamp;
+import java.util.Arrays;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -15,11 +19,17 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(OutputCaptureExtension.class)
 class OutboxWorkerRetryTest {
 
     @Test
-    void workerShouldRetryFailedHandlerAndEventuallySucceed() {
+    void workerShouldRetryFailedHandlerAndEventuallySucceed(CapturedOutput output) {
         EmbeddedDatabase db = new EmbeddedDatabaseBuilder()
                 .setType(EmbeddedDatabaseType.H2)
                 .build();
@@ -67,6 +77,15 @@ class OutboxWorkerRetryTest {
 
             worker.pollOnce();
             assertThat(attempts.get()).isEqualTo(1);
+            String retryLine = findLogLine(output, "community.action=outbox_dispatch community.outcome=retry");
+            assertThat(retryLine)
+                    .contains("community.category=async")
+                    .contains("community.event_id=e-2:points")
+                    .contains("community.topic=projection.points")
+                    .contains("community.retry_count=1")
+                    .contains("community.error_class=java.lang.RuntimeException")
+                    .contains("community.error_message=boom");
+            assertThat(output.getAll()).doesNotContain("\tat ");
 
             String statusAfterFail = jdbcTemplate.queryForObject(
                     "select status from outbox_event where event_id = ?",
@@ -109,6 +128,111 @@ class OutboxWorkerRetryTest {
         } finally {
             db.shutdown();
         }
+    }
+
+    @Test
+    void workerShouldLogDeadWhenRetryLimitExceeded(CapturedOutput output) {
+        Instant now = Instant.parse("2026-03-14T00:00:00Z");
+        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
+        OutboxProperties properties = enabledProperties();
+        properties.setMaxRetries(0);
+        OutboxEvent event = new OutboxEvent(
+                1L,
+                "e-dead:points",
+                "projection.points",
+                "1",
+                "{}",
+                OutboxEventStatus.PENDING,
+                0,
+                null,
+                null
+        );
+        OutboxHandler handler = new OutboxHandler() {
+            @Override
+            public String topic() {
+                return "projection.points";
+            }
+
+            @Override
+            public void handle(OutboxEvent ignored) {
+                throw new RuntimeException("boom");
+            }
+        };
+
+        when(store.recoverExpiredLeases(now)).thenReturn(0);
+        when(store.findDuePending(properties.getBatchSize(), now)).thenReturn(java.util.List.of(event));
+        when(store.tryClaimProcessing(eq(1L), any(), eq(now))).thenReturn(true);
+
+        OutboxWorker worker = new OutboxWorker(store, Map.of(handler.topic(), handler), properties, Clock.fixed(now, ZoneOffset.UTC));
+
+        int processed = worker.pollOnce();
+
+        assertThat(processed).isEqualTo(1);
+        verify(store).markDead(1L, now, "java.lang.RuntimeException: boom");
+        String deadLine = findLogLine(output, "community.action=outbox_dispatch community.outcome=dead");
+        assertThat(deadLine)
+                .contains("community.category=async")
+                .contains("community.event_id=e-dead:points")
+                .contains("community.topic=projection.points")
+                .contains("community.retry_count=1")
+                .contains("community.error_class=java.lang.RuntimeException")
+                .contains("community.error_message=boom");
+        assertThat(output.getAll()).doesNotContain("\tat ");
+    }
+
+    @Test
+    void workerShouldLogDegradedWhenNoHandlerIsRegistered(CapturedOutput output) {
+        Instant now = Instant.parse("2026-03-14T00:00:00Z");
+        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
+        OutboxProperties properties = enabledProperties();
+        OutboxEvent event = new OutboxEvent(
+                1L,
+                "e-missing:points",
+                "projection.points",
+                "1",
+                "{}",
+                OutboxEventStatus.PENDING,
+                0,
+                null,
+                null
+        );
+
+        when(store.recoverExpiredLeases(now)).thenReturn(0);
+        when(store.findDuePending(properties.getBatchSize(), now)).thenReturn(java.util.List.of(event));
+        when(store.tryClaimProcessing(eq(1L), any(), eq(now))).thenReturn(true);
+
+        OutboxWorker worker = new OutboxWorker(store, Map.of(), properties, Clock.fixed(now, ZoneOffset.UTC));
+
+        int processed = worker.pollOnce();
+
+        assertThat(processed).isEqualTo(1);
+        verify(store).markFailedAndScheduleRetry(1L, now, now.plus(Duration.ofSeconds(10)), "no handler for topic=projection.points");
+        assertThat(output.getAll())
+                .contains("community.category=async")
+                .contains("community.action=outbox_dispatch")
+                .contains("community.outcome=degraded")
+                .contains("community.reason_code=no_handler")
+                .contains("community.event_id=e-missing:points")
+                .contains("community.topic=projection.points");
+    }
+
+    private static OutboxProperties enabledProperties() {
+        OutboxProperties properties = new OutboxProperties();
+        properties.setEnabled(true);
+        properties.setBatchSize(10);
+        properties.setProcessingLease(Duration.ofSeconds(30));
+        properties.setBaseBackoff(Duration.ofSeconds(1));
+        properties.setMaxBackoff(Duration.ofSeconds(60));
+        properties.setMaxRetries(3);
+        return properties;
+    }
+
+    private String findLogLine(CapturedOutput output, String pattern) {
+        return Arrays.stream(output.getAll().split("\\R"))
+                .map(String::trim)
+                .filter(line -> line.contains(pattern))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No log line matched pattern: " + pattern + "\nOutput was:\n" + output.getAll()));
     }
 
     private static void createOutboxSchema(JdbcTemplate jdbcTemplate) {

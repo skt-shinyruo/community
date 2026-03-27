@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 
 import java.time.Duration;
@@ -22,7 +24,7 @@ import static org.mockito.ArgumentMatchers.matches;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class RegistrationServiceTest {
 
     @Mock
@@ -59,7 +61,7 @@ class RegistrationServiceTest {
     }
 
     @Test
-    void registerShouldIssueEmailCodeAndReturnMaskedEmailAndDebugCode() {
+    void registerShouldIssueEmailCodeAndReturnMaskedEmailAndDebugCode(CapturedOutput output) {
         RegisterRequest request = new RegisterRequest();
         request.setUsername("alice");
         request.setPassword("secret");
@@ -90,5 +92,16 @@ class RegistrationServiceTest {
         verify(registrationCodeStore).issue(eq(7), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)));
         verify(registrationSessionStore).issue(eq(7), eq(Duration.ofMinutes(30)));
         verify(mailService).sendRegistrationCodeMail(eq("alice@example.com"), matches("\\d{6}"));
+        assertThat(output.getAll())
+                .contains("community.category=security")
+                .contains("community.action=registration_code_issue")
+                .contains("community.outcome=success")
+                .contains("user.id=7")
+                .contains("username=alice")
+                .contains("masked.email=" + response.getMaskedEmail())
+                .doesNotContain("secret")
+                .doesNotContain("alice@example.com")
+                .doesNotContain(response.getRegistrationToken())
+                .doesNotContain(response.getDebugEmailCode());
     }
 }

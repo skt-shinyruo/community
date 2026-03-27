@@ -1,12 +1,15 @@
 package com.nowcoder.community.auth.service;
 
 import com.nowcoder.community.auth.exception.AuthErrorCode;
+import com.nowcoder.community.auth.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.web.net.ClientIpResolver;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.service.InternalUserService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -15,6 +18,8 @@ import java.util.List;
 
 @Service
 public class AuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
     private final InternalUserService internalUserService;
     private final JwtTokenService jwtTokenService;
@@ -49,17 +54,32 @@ public class AuthService {
         if (loginRateLimitService.isCaptchaRequired(username, ip)) {
             if (!StringUtils.hasText(captchaId) || !StringUtils.hasText(captchaCode)) {
                 loginRateLimitService.recordFailure(username, ip, ipSource);
+                SecurityEventLogger.info(log, "login", "denied",
+                        "community.reason_code", "captcha_required",
+                        "username", username,
+                        "source.ip", ip,
+                        "ip.source", ipSource);
                 throw new BusinessException(AuthErrorCode.CAPTCHA_REQUIRED);
             }
             boolean ok = captchaService.verify(captchaId, captchaCode);
             if (!ok) {
                 loginRateLimitService.recordFailure(username, ip, ipSource);
+                SecurityEventLogger.info(log, "login", "denied",
+                        "community.reason_code", "captcha_invalid",
+                        "username", username,
+                        "source.ip", ip,
+                        "ip.source", ipSource);
                 throw new BusinessException(AuthErrorCode.CAPTCHA_INVALID);
             }
         }
 
         if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) {
             loginRateLimitService.recordFailure(username, ip, ipSource);
+            SecurityEventLogger.info(log, "login", "denied",
+                    "community.reason_code", "invalid_credentials",
+                    "username", username,
+                    "source.ip", ip,
+                    "ip.source", ipSource);
             throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
         }
 
@@ -72,12 +92,24 @@ public class AuthService {
             boolean userDisabled = code == AuthErrorCode.USER_DISABLED.getCode();
             if (invalidCredentials || userDisabled) {
                 loginRateLimitService.recordFailure(username, ip, ipSource);
+                String reason = invalidCredentials ? "invalid_credentials" : "user_disabled";
+                SecurityEventLogger.info(log, "login", "denied",
+                        "community.reason_code", reason,
+                        "username", username,
+                        "source.ip", ip,
+                        "ip.source", ipSource);
             }
             throw e;
         }
 
         loginRateLimitService.reset(username, ip);
-        return issueLoginResult(user);
+        LoginResult loginResult = issueLoginResult(user);
+        SecurityEventLogger.info(log, "login", "success",
+                "user.id", user.getId(),
+                "username", user.getUsername(),
+                "source.ip", ip,
+                "ip.source", ipSource);
+        return loginResult;
     }
 
     public LoginResult issueLoginResult(User user) {

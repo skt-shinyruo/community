@@ -4,11 +4,14 @@ import com.nowcoder.community.auth.dto.RegisterRequest;
 import com.nowcoder.community.auth.dto.RegisterResponse;
 import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
+import com.nowcoder.community.auth.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.service.InternalUserService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -17,6 +20,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class RegistrationService {
+
+    private static final Logger log = LoggerFactory.getLogger(RegistrationService.class);
 
     private final InternalUserService internalUserService;
     private final RegistrationProperties properties;
@@ -87,6 +92,10 @@ public class RegistrationService {
         if (properties.getCode().isExposeCode()) {
             resp.setDebugEmailCode(code);
         }
+        SecurityEventLogger.info(log, "registration_code_issue", "success",
+                "user.id", created.getId(),
+                "username", username,
+                "masked.email", maskEmail(email));
         return resp;
     }
 

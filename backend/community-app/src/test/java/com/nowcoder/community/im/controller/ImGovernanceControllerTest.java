@@ -1,0 +1,47 @@
+package com.nowcoder.community.im.controller;
+
+import com.nowcoder.community.app.CommunityAppApplication;
+import com.nowcoder.community.message.service.PrivateMessageGovernanceService;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+
+import static org.mockito.Mockito.verify;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest(classes = CommunityAppApplication.class)
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+class ImGovernanceControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
+    private PrivateMessageGovernanceService governanceService;
+
+    @Test
+    void validateSendPrivateMessageShouldDelegateToSharedGovernanceService() throws Exception {
+        mockMvc.perform(post("/api/im-governance/private-messages/validate")
+                        .with(jwt().jwt(jwt -> jwt.subject("7")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "toUserId": 9
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.message").value("OK"));
+
+        verify(governanceService).validateCanSendPrivateMessage(7, 9);
+    }
+}

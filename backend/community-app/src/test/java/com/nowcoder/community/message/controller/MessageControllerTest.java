@@ -7,11 +7,10 @@ import com.nowcoder.community.message.dto.ConversationItemResponse;
 import com.nowcoder.community.message.mapper.MessageMapper;
 import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.security.OwnerGuard;
+import com.nowcoder.community.message.service.MessageUserQueryService;
+import com.nowcoder.community.message.service.PrivateMessageGovernanceService;
 import com.nowcoder.community.message.service.PrivateMessageService;
-import com.nowcoder.community.message.service.UserModerationGuard;
-import com.nowcoder.community.message.service.UserLookupService;
 import com.nowcoder.community.message.service.dto.ConversationStats;
-import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.user.exception.UserErrorCode;
 import com.nowcoder.community.user.dto.UserSummary;
 import org.junit.jupiter.api.Test;
@@ -38,16 +37,13 @@ class MessageControllerTest {
     @Test
     void conversationItemsShouldBatchUserLookupAndAvoidNPlusOne() {
         MessageMapper messageMapper = mock(MessageMapper.class);
-        UserLookupService userLookupService = mock(UserLookupService.class);
-        BlockService blockService = mock(BlockService.class);
-        UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
+        MessageUserQueryService messageUserQueryService = mock(MessageUserQueryService.class);
         OwnerGuard ownerGuard = mock(OwnerGuard.class);
 
         PrivateMessageService service = new PrivateMessageService(
                 messageMapper,
-                userLookupService,
-                blockService,
-                moderationGuard,
+                messageUserQueryService,
+                mock(PrivateMessageGovernanceService.class),
                 ownerGuard
         );
 
@@ -84,27 +80,27 @@ class MessageControllerTest {
         u3.setId(3);
         u3.setUsername("u3");
 
-        when(userLookupService.safeBatchGetUsers(any())).thenReturn(Map.of(2, u2, 3, u3));
+        when(messageUserQueryService.getUserSummariesByIds(any())).thenReturn(Map.of(2, u2, 3, u3));
 
         List<ConversationItemResponse> items = service.listConversationItems(userId, 0, 10);
         assertThat(items).hasSize(2);
 
-        verify(userLookupService, times(1)).safeBatchGetUsers(Set.of(2, 3));
+        verify(messageUserQueryService, times(1)).getUserSummariesByIds(Set.of(2, 3));
         verify(messageMapper, times(1)).selectConversationStats(anyInt(), any());
     }
 
     @Test
     void sendShouldRejectDirectInvalidToIdBeforeIdempotentDispatch() {
         PrivateMessageService privateMessageService = mock(PrivateMessageService.class);
-        UserLookupService userLookupService = mock(UserLookupService.class);
+        MessageUserQueryService messageUserQueryService = mock(MessageUserQueryService.class);
         IdempotencyGuard idempotencyGuard = mock(IdempotencyGuard.class);
-        MessageController controller = new MessageController(privateMessageService, userLookupService, idempotencyGuard);
+        MessageController controller = new MessageController(privateMessageService, messageUserQueryService, idempotencyGuard);
 
         SendMessageRequest request = new SendMessageRequest();
         request.setToId(404);
         request.setContent("hello");
 
-        when(userLookupService.safeGetUser(404)).thenReturn(null);
+        when(messageUserQueryService.findUserSummaryByIdOrNull(404)).thenReturn(null);
 
         BusinessException ex = catchThrowableOfType(
                 () -> controller.send(authentication(7), "idem-404", request),
@@ -114,7 +110,7 @@ class MessageControllerTest {
         assertThat(ex).isNotNull();
         assertThat(ex.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND);
         assertThat(ex.getMessage()).isEqualTo("目标用户不存在");
-        verify(userLookupService).safeGetUser(404);
+        verify(messageUserQueryService).findUserSummaryByIdOrNull(404);
         verifyNoInteractions(privateMessageService, idempotencyGuard);
     }
 

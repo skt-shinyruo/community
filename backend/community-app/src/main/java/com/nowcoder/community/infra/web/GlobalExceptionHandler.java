@@ -7,6 +7,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.trace.TraceId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,6 +29,10 @@ import jakarta.validation.ConstraintViolationException;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final String CATEGORY = "exception";
+    private static final String MDC_CATEGORY = "community.category";
+    private static final String MDC_ACTION = "community.action";
+    private static final String MDC_OUTCOME = "community.outcome";
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Result<Void>> handleBusiness(BusinessException e) {
@@ -38,7 +43,11 @@ public class GlobalExceptionHandler {
             message = errorCode.getMessage();
         }
         if (status >= 500) {
-            log.error("[exception][business] traceId={} code={} status={} message={}", TraceId.get(), errorCode.getCode(), status, message, e);
+            String resolvedMessage = message;
+            errorEvent("business_exception", () -> log.error(
+                    "[exception][business] traceId={} code={} status={} message={}",
+                    TraceId.get(), errorCode.getCode(), status, resolvedMessage, e
+            ));
         }
         Result<Void> body = Result.error(errorCode.getCode(), message, errorCode.getHttpStatus());
         return ResponseEntity.status(httpStatusOf(errorCode.getHttpStatus())).body(body);
@@ -109,14 +118,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<Result<Void>> handleDataAccess(DataAccessException e) {
-        log.error("[exception][data-access] traceId={}", TraceId.get(), e);
+        errorEvent("data_access_exception", () -> log.error("[exception][data-access] traceId={}", TraceId.get(), e));
         return ResponseEntity.status(httpStatusOf(CommonErrorCode.SERVICE_UNAVAILABLE.getHttpStatus()))
                 .body(Result.error(CommonErrorCode.SERVICE_UNAVAILABLE));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Result<Void>> handleGeneric(Exception e) {
-        log.error("[exception][unhandled] traceId={}", TraceId.get(), e);
+        errorEvent("unhandled_exception", () -> log.error("[exception][unhandled] traceId={}", TraceId.get(), e));
         return ResponseEntity.status(httpStatusOf(CommonErrorCode.INTERNAL_ERROR.getHttpStatus()))
                 .body(Result.error(CommonErrorCode.INTERNAL_ERROR));
     }
@@ -127,5 +136,29 @@ public class GlobalExceptionHandler {
         } catch (IllegalArgumentException ignored) {
         }
         return HttpStatus.INTERNAL_SERVER_ERROR;
+    }
+
+    private void errorEvent(String action, Runnable logAction) {
+        String previousCategory = MDC.get(MDC_CATEGORY);
+        String previousAction = MDC.get(MDC_ACTION);
+        String previousOutcome = MDC.get(MDC_OUTCOME);
+        MDC.put(MDC_CATEGORY, CATEGORY);
+        MDC.put(MDC_ACTION, action);
+        MDC.put(MDC_OUTCOME, "failure");
+        try {
+            logAction.run();
+        } finally {
+            restore(MDC_CATEGORY, previousCategory);
+            restore(MDC_ACTION, previousAction);
+            restore(MDC_OUTCOME, previousOutcome);
+        }
+    }
+
+    private void restore(String key, String previousValue) {
+        if (previousValue == null) {
+            MDC.remove(key);
+            return;
+        }
+        MDC.put(key, previousValue);
     }
 }

@@ -1,12 +1,14 @@
 package com.nowcoder.community.search.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.content.service.PostScanService;
-import com.nowcoder.community.content.event.payload.PostPayload;
+import com.nowcoder.community.content.api.model.PostScanView;
+import com.nowcoder.community.content.api.query.PostScanQueryApi;
 import com.nowcoder.community.infra.outbox.OutboxEvent;
 import com.nowcoder.community.search.repo.PostSearchRepository;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -22,15 +24,24 @@ class PostOutboxHandlerTest {
     void handlerShouldUpsertWhenPostIsActive() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
-        PostScanService postScanApplicationService = mock(PostScanService.class);
+        PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         PostSearchRepository repository = mock(PostSearchRepository.class);
 
-        PostPayload doc = new PostPayload();
-        doc.setPostId(101);
-        doc.setStatus(0);
-        when(postScanApplicationService.getPostPayloadAllowDeleted(101)).thenReturn(doc);
+        PostScanView.PostProjectionView doc = new PostScanView.PostProjectionView(
+                101,
+                7,
+                3,
+                List.of("java"),
+                "title",
+                "content",
+                0,
+                0,
+                Instant.parse("2026-03-28T00:00:00Z"),
+                1.5
+        );
+        when(postScanQueryApi.getPostProjectionAllowDeleted(101)).thenReturn(doc);
 
-        PostOutboxHandler handler = new PostOutboxHandler(objectMapper, postScanApplicationService, repository);
+        PostOutboxHandler handler = new PostOutboxHandler(objectMapper, postScanQueryApi, repository);
 
         String payloadJson = objectMapper.writeValueAsString(Map.of("postId", 101, "sourceEventId", "src-s1", "sourceEventType", "PostUpdated"));
         OutboxEvent event = new OutboxEvent(1L, "src-s1:search_post", PostOutboxHandler.TOPIC, "101", payloadJson, "PENDING", 0, null, null);
@@ -45,15 +56,24 @@ class PostOutboxHandlerTest {
     void handlerShouldDeleteWhenPostIsDeleted() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
-        PostScanService postScanApplicationService = mock(PostScanService.class);
+        PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         PostSearchRepository repository = mock(PostSearchRepository.class);
 
-        PostPayload doc = new PostPayload();
-        doc.setPostId(101);
-        doc.setStatus(2); // deleted
-        when(postScanApplicationService.getPostPayloadAllowDeleted(101)).thenReturn(doc);
+        PostScanView.PostProjectionView doc = new PostScanView.PostProjectionView(
+                101,
+                7,
+                3,
+                List.of("java"),
+                "title",
+                "content",
+                0,
+                2,
+                Instant.parse("2026-03-28T00:00:00Z"),
+                1.5
+        );
+        when(postScanQueryApi.getPostProjectionAllowDeleted(101)).thenReturn(doc);
 
-        PostOutboxHandler handler = new PostOutboxHandler(objectMapper, postScanApplicationService, repository);
+        PostOutboxHandler handler = new PostOutboxHandler(objectMapper, postScanQueryApi, repository);
 
         String payloadJson = objectMapper.writeValueAsString(Map.of("postId", 101, "sourceEventId", "src-s2", "sourceEventType", "PostDeleted"));
         OutboxEvent event = new OutboxEvent(1L, "src-s2:search_post", PostOutboxHandler.TOPIC, "101", payloadJson, "PENDING", 0, null, null);

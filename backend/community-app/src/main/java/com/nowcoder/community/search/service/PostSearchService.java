@@ -1,13 +1,13 @@
 package com.nowcoder.community.search.service;
 
 // 帖子搜索服务：支持基于 alias 的零停机重建。
-import com.nowcoder.community.search.dto.SearchPostItem;
-import com.nowcoder.community.content.dto.PostScanResult;
-import com.nowcoder.community.content.service.PostScanService;
-import com.nowcoder.community.search.config.PostScanProperties;
-import com.nowcoder.community.search.repo.PostSearchRepository;
-import com.nowcoder.community.search.repo.PostIndexManager;
+import com.nowcoder.community.content.api.model.PostScanView;
+import com.nowcoder.community.content.api.query.PostScanQueryApi;
 import com.nowcoder.community.content.event.payload.PostPayload;
+import com.nowcoder.community.search.config.PostScanProperties;
+import com.nowcoder.community.search.dto.SearchPostItem;
+import com.nowcoder.community.search.repo.PostIndexManager;
+import com.nowcoder.community.search.repo.PostSearchRepository;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -18,18 +18,18 @@ import java.util.List;
 public class PostSearchService {
 
     private final PostSearchRepository postSearchRepository;
-    private final PostScanService postScanService;
+    private final PostScanQueryApi postScanQueryApi;
     private final int scanPageSize;
     private final ObjectProvider<PostIndexManager> postIndexManagerProvider;
 
     public PostSearchService(
             PostSearchRepository postSearchRepository,
-            PostScanService postScanService,
+            PostScanQueryApi postScanQueryApi,
             PostScanProperties properties,
             ObjectProvider<PostIndexManager> postIndexManagerProvider
     ) {
         this.postSearchRepository = postSearchRepository;
-        this.postScanService = postScanService;
+        this.postScanQueryApi = postScanQueryApi;
         this.scanPageSize = Math.min(1000, Math.max(1, properties.getPageSize()));
         this.postIndexManagerProvider = postIndexManagerProvider;
     }
@@ -63,12 +63,13 @@ public class PostSearchService {
         int afterId = 0;
 
         while (true) {
-            PostScanResult page = postScanService.scanPosts(afterId, scanPageSize);
-            if (page == null || page.getItems() == null || page.getItems().isEmpty()) {
+            PostScanView page = postScanQueryApi.scanPosts(afterId, scanPageSize);
+            if (page == null || page.items().isEmpty()) {
                 break;
             }
 
-            for (PostPayload post : page.getItems()) {
+            for (PostScanView.PostProjectionView projection : page.items()) {
+                PostPayload post = toPostPayload(projection);
                 if (targetIndex == null) {
                     postSearchRepository.upsert(post);
                 } else {
@@ -77,14 +78,14 @@ public class PostSearchService {
                 total++;
             }
 
-            int nextAfterId = page.getNextAfterId();
+            int nextAfterId = page.nextAfterId();
             if (nextAfterId <= afterId) {
                 // 防御：避免服务端 bug 导致 afterId 不推进而死循环
                 break;
             }
             afterId = nextAfterId;
 
-            if (!page.isHasMore()) {
+            if (!page.hasMore()) {
                 break;
             }
         }
@@ -95,5 +96,20 @@ public class PostSearchService {
         }
 
         return total;
+    }
+
+    private PostPayload toPostPayload(PostScanView.PostProjectionView projection) {
+        PostPayload payload = new PostPayload();
+        payload.setPostId(projection.postId());
+        payload.setUserId(projection.userId());
+        payload.setCategoryId(projection.categoryId());
+        payload.setTags(projection.tags());
+        payload.setTitle(projection.title());
+        payload.setContent(projection.content());
+        payload.setType(projection.type());
+        payload.setStatus(projection.status());
+        payload.setCreateTime(projection.createTime());
+        payload.setScore(projection.score());
+        return payload;
     }
 }

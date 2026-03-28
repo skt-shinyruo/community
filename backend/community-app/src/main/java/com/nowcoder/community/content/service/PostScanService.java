@@ -1,9 +1,9 @@
 package com.nowcoder.community.content.service;
 
-import com.nowcoder.community.content.event.payload.PostPayload;
-import com.nowcoder.community.content.dto.PostScanResult;
-import com.nowcoder.community.content.mapper.DiscussPostMapper;
+import com.nowcoder.community.content.api.model.PostScanView;
+import com.nowcoder.community.content.api.query.PostScanQueryApi;
 import com.nowcoder.community.content.entity.DiscussPost;
+import com.nowcoder.community.content.mapper.DiscussPostMapper;
 import com.nowcoder.community.content.text.ContentTextCodec;
 import org.springframework.stereotype.Service;
 
@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-public class PostScanService {
+public class PostScanService implements PostScanQueryApi {
 
     private final DiscussPostMapper discussPostMapper;
     private final TagService tagService;
@@ -23,7 +23,8 @@ public class PostScanService {
         this.textCodec = textCodec;
     }
 
-    public PostScanResult scanPosts(int afterId, int limit) {
+    @Override
+    public PostScanView scanPosts(int afterId, int limit) {
         int safeAfterId = Math.max(0, afterId);
         int safeLimit = limit <= 0 ? 500 : Math.min(1000, Math.max(1, limit));
 
@@ -36,20 +37,15 @@ public class PostScanService {
         Map<Integer, List<String>> tagsByPostId = tagService.getTagsByPostIds(postIds);
         Map<Integer, List<String>> safeTagsByPostId = tagsByPostId == null ? Map.of() : tagsByPostId;
 
-        List<PostPayload> items = posts.stream()
-                .map(post -> toPostPayload(post, safeTagsByPostId.getOrDefault(post.getId(), List.of())))
+        List<PostScanView.PostProjectionView> items = posts.stream()
+                .map(post -> toPostProjectionView(post, safeTagsByPostId.getOrDefault(post.getId(), List.of())))
                 .toList();
-
-        PostScanResult response = new PostScanResult();
-        response.setItems(items);
 
         int nextAfterId = safeAfterId;
         if (!posts.isEmpty()) {
             nextAfterId = posts.get(posts.size() - 1).getId();
         }
-        response.setNextAfterId(nextAfterId);
-        response.setHasMore(posts.size() == safeLimit);
-        return response;
+        return new PostScanView(items, nextAfterId, posts.size() == safeLimit);
     }
 
     /**
@@ -57,7 +53,8 @@ public class PostScanService {
      *
      * <p>Returns {@code null} when the post does not exist.</p>
      */
-    public PostPayload getPostPayloadAllowDeleted(int postId) {
+    @Override
+    public PostScanView.PostProjectionView getPostProjectionAllowDeleted(int postId) {
         int pid = Math.max(0, postId);
         if (pid <= 0) {
             return null;
@@ -70,21 +67,21 @@ public class PostScanService {
 
         Map<Integer, List<String>> tagsByPostId = tagService.getTagsByPostIds(List.of(pid));
         List<String> tags = tagsByPostId == null ? List.of() : tagsByPostId.getOrDefault(pid, List.of());
-        return toPostPayload(post, tags);
+        return toPostProjectionView(post, tags);
     }
 
-    private PostPayload toPostPayload(DiscussPost post, List<String> tags) {
-        PostPayload payload = new PostPayload();
-        payload.setPostId(post.getId());
-        payload.setUserId(post.getUserId());
-        payload.setCategoryId(post.getCategoryId());
-        payload.setTags(tags);
-        payload.setTitle(textCodec.decodeOnRead(post.getTitle()));
-        payload.setContent(textCodec.decodeOnRead(post.getContent()));
-        payload.setType(post.getType());
-        payload.setStatus(post.getStatus());
-        payload.setCreateTime(post.getCreateTime() == null ? null : post.getCreateTime().toInstant());
-        payload.setScore(post.getScore());
-        return payload;
+    private PostScanView.PostProjectionView toPostProjectionView(DiscussPost post, List<String> tags) {
+        return new PostScanView.PostProjectionView(
+                post.getId(),
+                post.getUserId(),
+                post.getCategoryId(),
+                tags,
+                textCodec.decodeOnRead(post.getTitle()),
+                textCodec.decodeOnRead(post.getContent()),
+                post.getType(),
+                post.getStatus(),
+                post.getCreateTime() == null ? null : post.getCreateTime().toInstant(),
+                post.getScore()
+        );
     }
 }

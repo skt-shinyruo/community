@@ -1,9 +1,10 @@
 package com.nowcoder.community.content.service;
 
+import com.nowcoder.community.content.api.model.PostScanView;
+import com.nowcoder.community.content.api.query.PostScanQueryApi;
 import com.nowcoder.community.content.config.ContentRenderProperties;
-import com.nowcoder.community.content.dto.PostScanResult;
-import com.nowcoder.community.content.mapper.DiscussPostMapper;
 import com.nowcoder.community.content.entity.DiscussPost;
+import com.nowcoder.community.content.mapper.DiscussPostMapper;
 import com.nowcoder.community.content.text.ContentTextCodec;
 import org.junit.jupiter.api.Test;
 
@@ -17,7 +18,7 @@ import static org.mockito.Mockito.when;
 class PostScanServiceTest {
 
     @Test
-    void scanPostsShouldBuildPayloadsAndCursor() {
+    void scanPostsShouldBuildProjectionViewsAndCursor() {
         DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
         TagService tagService = mock(TagService.class);
         ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
@@ -35,16 +36,47 @@ class PostScanServiceTest {
         when(discussPostMapper.selectDiscussPostsAfterId(0, 5)).thenReturn(List.of(post));
         when(tagService.getTagsByPostIds(List.of(10))).thenReturn(Map.of(10, List.of("java")));
 
-        PostScanService service = new PostScanService(discussPostMapper, tagService, textCodec);
+        PostScanQueryApi service = new PostScanService(discussPostMapper, tagService, textCodec);
 
-        PostScanResult response = service.scanPosts(0, 5);
+        PostScanView response = service.scanPosts(0, 5);
 
-        assertThat(response.getItems()).hasSize(1);
-        assertThat(response.getItems().get(0).getPostId()).isEqualTo(10);
-        assertThat(response.getItems().get(0).getTitle()).isEqualTo("<title>");
-        assertThat(response.getItems().get(0).getContent()).isEqualTo("<content>");
-        assertThat(response.getItems().get(0).getTags()).containsExactly("java");
-        assertThat(response.getNextAfterId()).isEqualTo(10);
-        assertThat(response.isHasMore()).isFalse();
+        assertThat(response.items()).hasSize(1);
+        assertThat(response.items().get(0).postId()).isEqualTo(10);
+        assertThat(response.items().get(0).title()).isEqualTo("<title>");
+        assertThat(response.items().get(0).content()).isEqualTo("<content>");
+        assertThat(response.items().get(0).tags()).containsExactly("java");
+        assertThat(response.nextAfterId()).isEqualTo(10);
+        assertThat(response.hasMore()).isFalse();
+    }
+
+    @Test
+    void getPostProjectionAllowDeletedShouldReturnProjectionView() {
+        DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
+        TagService tagService = mock(TagService.class);
+        ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
+
+        DiscussPost post = new DiscussPost();
+        post.setId(11);
+        post.setUserId(3);
+        post.setCategoryId(4);
+        post.setTitle("&lt;arch&gt;");
+        post.setContent("&lt;boundary&gt;");
+        post.setType(1);
+        post.setStatus(2);
+        post.setScore(2.5);
+
+        when(discussPostMapper.selectDiscussPostById(11)).thenReturn(post);
+        when(tagService.getTagsByPostIds(List.of(11))).thenReturn(Map.of(11, List.of("search")));
+
+        PostScanQueryApi service = new PostScanService(discussPostMapper, tagService, textCodec);
+
+        PostScanView.PostProjectionView projection = service.getPostProjectionAllowDeleted(11);
+
+        assertThat(projection).isNotNull();
+        assertThat(projection.postId()).isEqualTo(11);
+        assertThat(projection.title()).isEqualTo("<arch>");
+        assertThat(projection.content()).isEqualTo("<boundary>");
+        assertThat(projection.tags()).containsExactly("search");
+        assertThat(projection.status()).isEqualTo(2);
     }
 }

@@ -1,8 +1,9 @@
 package com.nowcoder.community.search.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.content.api.model.PostScanView;
+import com.nowcoder.community.content.api.query.PostScanQueryApi;
 import com.nowcoder.community.content.event.payload.PostPayload;
-import com.nowcoder.community.content.service.PostScanService;
 import com.nowcoder.community.infra.outbox.OutboxEvent;
 import com.nowcoder.community.infra.outbox.OutboxHandler;
 import com.nowcoder.community.search.repo.PostSearchRepository;
@@ -22,16 +23,16 @@ public class PostOutboxHandler implements OutboxHandler {
     public static final String TOPIC = "projection.search.post";
 
     private final ObjectMapper objectMapper;
-    private final PostScanService postScanService;
+    private final PostScanQueryApi postScanQueryApi;
     private final PostSearchRepository postSearchRepository;
 
     public PostOutboxHandler(
             ObjectMapper objectMapper,
-            PostScanService postScanService,
+            PostScanQueryApi postScanQueryApi,
             PostSearchRepository postSearchRepository
     ) {
         this.objectMapper = objectMapper;
-        this.postScanService = postScanService;
+        this.postScanQueryApi = postScanQueryApi;
         this.postSearchRepository = postSearchRepository;
     }
 
@@ -57,13 +58,28 @@ public class PostOutboxHandler implements OutboxHandler {
             return;
         }
 
-        PostPayload doc = postScanService.getPostPayloadAllowDeleted(postId);
-        if (doc == null || doc.getPostId() <= 0 || doc.getStatus() == 2) {
+        PostScanView.PostProjectionView projection = postScanQueryApi.getPostProjectionAllowDeleted(postId);
+        if (projection == null || projection.postId() <= 0 || projection.status() == 2) {
             postSearchRepository.delete(postId);
             return;
         }
 
-        postSearchRepository.upsert(doc);
+        postSearchRepository.upsert(toPostPayload(projection));
+    }
+
+    private PostPayload toPostPayload(PostScanView.PostProjectionView projection) {
+        PostPayload payload = new PostPayload();
+        payload.setPostId(projection.postId());
+        payload.setUserId(projection.userId());
+        payload.setCategoryId(projection.categoryId());
+        payload.setTags(projection.tags());
+        payload.setTitle(projection.title());
+        payload.setContent(projection.content());
+        payload.setType(projection.type());
+        payload.setStatus(projection.status());
+        payload.setCreateTime(projection.createTime());
+        payload.setScore(projection.score());
+        return payload;
     }
 
     public static class PostOutboxPayload {

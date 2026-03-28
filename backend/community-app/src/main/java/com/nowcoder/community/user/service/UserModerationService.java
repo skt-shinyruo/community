@@ -2,6 +2,8 @@ package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.user.api.model.UserModerationStateView;
+import com.nowcoder.community.user.api.query.UserModerationQueryApi;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.mapper.UserMapper;
 import org.springframework.stereotype.Service;
@@ -17,12 +19,18 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND;
 
 @Service
-public class UserModerationService {
+public class UserModerationService implements UserModerationQueryApi {
 
     private final UserMapper userMapper;
 
     public UserModerationService(UserMapper userMapper) {
         this.userMapper = userMapper;
+    }
+
+    @Override
+    public UserModerationStateView getModerationState(int userId) {
+        ModerationStatus status = moderationStatus(userId);
+        return new UserModerationStateView(status.getUserId(), status.getMuteUntil(), status.getBanUntil());
     }
 
     public ModerationStatus moderationStatus(int userId) {

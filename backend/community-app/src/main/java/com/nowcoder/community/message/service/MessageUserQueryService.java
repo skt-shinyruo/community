@@ -1,10 +1,8 @@
 package com.nowcoder.community.message.service;
 
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.api.model.UserSummaryView;
+import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import com.nowcoder.community.user.dto.UserSummary;
-import com.nowcoder.community.user.entity.User;
-import com.nowcoder.community.user.exception.UserErrorCode;
-import com.nowcoder.community.user.service.UserQueryService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -20,17 +18,17 @@ public class MessageUserQueryService {
 
     private final Duration resolveCacheTtl;
     private final int resolveCacheMaxSize;
-    private final UserQueryService userQueryService;
+    private final UserLookupQueryApi userLookupQueryApi;
     private final ConcurrentHashMap<String, ResolveCacheEntry> resolveCache = new ConcurrentHashMap<>();
 
     public MessageUserQueryService(
             @Value("${message.user-lookup.resolve-cache.ttl:60s}") Duration resolveCacheTtl,
             @Value("${message.user-lookup.resolve-cache.max-size:5000}") int resolveCacheMaxSize,
-            UserQueryService userQueryService
+            UserLookupQueryApi userLookupQueryApi
     ) {
         this.resolveCacheTtl = resolveCacheTtl == null || resolveCacheTtl.isNegative() ? Duration.ofSeconds(60) : resolveCacheTtl;
         this.resolveCacheMaxSize = Math.max(0, resolveCacheMaxSize);
-        this.userQueryService = userQueryService;
+        this.userLookupQueryApi = userLookupQueryApi;
     }
 
     public Integer findUserIdByUsernameOrNull(String username) {
@@ -42,14 +40,7 @@ public class MessageUserQueryService {
         if (userId <= 0) {
             return null;
         }
-        try {
-            return toSummary(userQueryService.getById(userId));
-        } catch (BusinessException e) {
-            if (e.getErrorCode() == UserErrorCode.USER_NOT_FOUND) {
-                return null;
-            }
-            throw e;
-        }
+        return toSummary(userLookupQueryApi.getSummaryById(userId));
     }
 
     public Map<Integer, UserSummary> getUserSummariesByIds(Set<Integer> userIds) {
@@ -62,12 +53,12 @@ public class MessageUserQueryService {
         if (ids.isEmpty()) {
             return Map.of();
         }
-        List<User> users = userQueryService.listUserSummariesByIds(ids);
+        List<UserSummaryView> users = userLookupQueryApi.listSummariesByIds(ids);
         if (users == null || users.isEmpty()) {
             return Map.of();
         }
         Map<Integer, UserSummary> userSummaries = new ConcurrentHashMap<>(users.size());
-        for (User user : users) {
+        for (UserSummaryView user : users) {
             UserSummary summary = toSummary(user);
             if (summary == null || summary.getId() <= 0) {
                 continue;
@@ -88,29 +79,21 @@ public class MessageUserQueryService {
             return cached;
         }
 
-        UserSummary summary;
-        try {
-            summary = toSummary(userQueryService.getByUsername(key));
-        } catch (BusinessException e) {
-            if (e.getErrorCode() == UserErrorCode.USER_NOT_FOUND) {
-                return null;
-            }
-            throw e;
-        }
+        UserSummary summary = toSummary(userLookupQueryApi.getSummaryByUsername(key));
         if (summary != null && summary.getId() > 0 && StringUtils.hasText(summary.getUsername())) {
             putResolveCache(summary.getUsername(), summary);
         }
         return summary;
     }
 
-    private UserSummary toSummary(User user) {
-        if (user == null || user.getId() <= 0) {
+    private UserSummary toSummary(UserSummaryView user) {
+        if (user == null || user.id() <= 0) {
             return null;
         }
         UserSummary summary = new UserSummary();
-        summary.setId(user.getId());
-        summary.setUsername(user.getUsername());
-        summary.setHeaderUrl(user.getHeaderUrl());
+        summary.setId(user.id());
+        summary.setUsername(user.username());
+        summary.setHeaderUrl(user.headerUrl());
         return summary;
     }
 

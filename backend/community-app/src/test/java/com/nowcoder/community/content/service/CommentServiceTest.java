@@ -284,4 +284,48 @@ class CommentServiceTest {
         verify(commentMapper).insertComment(any(Comment.class));
         verify(eventPublisher).publishCommentCreated(any());
     }
+
+    @Test
+    void updateCommentShouldEscapeFilterAndPersist() {
+        CommentMapper commentMapper = mock(CommentMapper.class);
+        PostService postService = mock(PostService.class);
+        SensitiveFilter sensitiveFilter = mock(SensitiveFilter.class);
+        PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
+        ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
+        BlockService blockQueryApplicationService = mock(BlockService.class);
+        UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
+        ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
+
+        CommentService service = new CommentService(
+                commentMapper,
+                postService,
+                sensitiveFilter,
+                postScoreQueue,
+                eventPublisher,
+                blockQueryApplicationService,
+                moderationGuard,
+                textCodec
+        );
+
+        DiscussPost post = new DiscussPost();
+        post.setId(100);
+        when(postService.getById(100)).thenReturn(post);
+
+        Comment existed = new Comment();
+        existed.setId(200);
+        existed.setUserId(1);
+        existed.setStatus(0);
+        existed.setEntityType(CommentService.ENTITY_TYPE_POST);
+        existed.setEntityId(100);
+        existed.setCreateTime(new java.util.Date());
+        when(commentMapper.selectCommentById(200)).thenReturn(existed);
+
+        doNothing().when(moderationGuard).assertCanSpeak(eq(1));
+        when(sensitiveFilter.filter("hello &amp; world")).thenReturn("clean");
+        when(commentMapper.updateCommentContent(eq(200), eq("clean"), any())).thenReturn(1);
+
+        service.updateComment(1, 100, 200, "hello & world");
+
+        verify(commentMapper).updateCommentContent(eq(200), eq("clean"), any());
+    }
 }

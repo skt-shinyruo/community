@@ -15,7 +15,7 @@
 > 目的：用一张表快速对齐“谁暴露 API / 谁 owns 数据 / 谁做鉴权（JWT 验签 + 授权矩阵）”。
 >
 > 说明：MySQL 已收敛为单一 schema（默认 `community`），但**数据所有权（SSOT）仍按模块划分**；
-> 约束上建议保持“禁止跨模块 JOIN、跨模块通过聚焦的 service/dto 回源拿数据”，避免演化为“大泥球”。
+> 约束上当前应以“禁止跨模块 JOIN、跨模块同步协作默认通过 owner-domain `api.query` / `api.action` / `api.model` 回源拿数据”为目标边界，并继续收敛剩余迁移期调用点，避免演化为“大泥球”。
 
 | 能力/域 | 对外 API（入口） | 数据/状态 SSOT（owner） | 鉴权/授权 SSOT（执行位置） |
 | --- | --- | --- | --- |
@@ -95,7 +95,7 @@ flowchart TD
 - `com.nowcoder.community.analytics`：统计/分析
 - `com.nowcoder.community.ops`：运维平面（`/api/ops/**`）
 
-跨域协作默认通过对方的聚焦 service 或 domain-owned dto 完成；同 JVM 内部不再通过 `application`、`contracts.internal.*`、`ModuleCallSupport` 来模拟远程调用。
+跨域同步协作当前默认应优先通过 owner-domain 暴露的 `api.query`、`api.action`、`api.model` 完成；这是本分支正在收敛的正式边界。`service`、`entity`、`mapper` 仍应视为域内实现细节，但少量历史调用点与对应护栏仍在按迁移计划继续收口；同 JVM 内部也不再通过 `application`、`contracts.internal.*`、`ModuleCallSupport` 来模拟远程调用。
 
 ### 2.4 共享基础设施（同模块内包）
 - `com.nowcoder.community.common.*`：错误码、业务异常、trace、统一 Web 响应、通用事件 envelope 等横切能力
@@ -146,9 +146,9 @@ flowchart TD
 ### 4.2 典型写路径：发帖 → 本地编排 → 事件投影
 1. 前端 `POST http://localhost:12880/api/posts`
 2. `community-gateway` 将请求转发到 `community-app`
-3. `content.service.PostFacadeService` 在本地完成参数清洗、幂等包装与命令调用
-4. `PostCommandService` 在事务内写主存储并发布帖子领域事件
-5. 帖子领域事件目前仍通过桥接层进入既有事件发布链路，用于搜索/通知等投影；reindex 等运维动作已收敛为单进程 single-flight 协调
+3. `content.controller.PostController` 通过 owner-domain 的 `content.api.action.PostPublishingActionApi` 进入写路径，当前由 `PostPublishingActionService` 负责参数清洗、幂等包装与命令编排
+4. `PostCommandService` 在事务内写主存储并发布帖子领域事件，读路径仍通过 `content.api.query.*` 提供
+5. 帖子领域事件继续驱动搜索、通知、积分等本地投影；跨域同步协作模型统一落在 `content.api.model` / `user.api.model` 等 owner-domain API 包下，reindex 等运维动作已收敛为单进程 single-flight 协调
 
 ### 4.3 典型后台运维路径：XXL-JOB 调度
 1. 运维人员访问 `http://localhost:12887/xxl-job-admin`

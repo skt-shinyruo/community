@@ -1,5 +1,6 @@
 package com.nowcoder.community.user.service;
 
+import com.nowcoder.community.user.api.action.UserPointsActionApi;
 import com.nowcoder.community.user.mapper.UserMapper;
 import com.nowcoder.community.user.mapper.UserScoreLogMapper;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -9,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
-public class PointsService {
+public class PointsService implements UserPointsActionApi {
 
     public static final int LEVEL_SCORE_STEP = 100;
 
@@ -34,6 +35,7 @@ public class PointsService {
      * @return true 表示首次入账成功；false 表示已处理过（重复事件）
      */
     @Transactional
+    @Override
     public boolean applyPoints(int userId, String eventId, String eventType, int delta) {
         if (userId <= 0) {
             throw new com.nowcoder.community.common.exception.BusinessException(INVALID_ARGUMENT, "userId 非法");
@@ -62,4 +64,3 @@ public class PointsService {
         return true;
     }
 }
-

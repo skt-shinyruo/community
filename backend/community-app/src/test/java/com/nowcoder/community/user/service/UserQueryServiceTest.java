@@ -1,8 +1,9 @@
 package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.api.model.UserGrowthProfileView;
+import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.entity.User;
-import com.nowcoder.community.user.exception.UserErrorCode;
 import com.nowcoder.community.user.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,14 +25,32 @@ class UserQueryServiceTest {
     private UserMapper userMapper;
 
     @Test
-    void getByIdShouldThrowNotFoundWhenUserMissing() {
+    void getSummaryByIdShouldRejectNonPositiveUserId() {
+        UserQueryService service = new UserQueryService(userMapper);
+
+        assertThatThrownBy(() -> service.getSummaryById(0))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException businessException = (BusinessException) ex;
+                    assertThat(businessException.getErrorCode()).isEqualTo(INVALID_ARGUMENT);
+                    assertThat(businessException.getMessage()).isEqualTo("userId 非法");
+                });
+    }
+
+    @Test
+    void getSummaryByIdShouldReturnNullWhenUserMissing() {
         UserQueryService service = new UserQueryService(userMapper);
         when(userMapper.selectById(7)).thenReturn(null);
 
-        assertThatThrownBy(() -> service.getById(7))
-                .isInstanceOf(BusinessException.class)
-                .extracting(ex -> ((BusinessException) ex).getErrorCode())
-                .isEqualTo(UserErrorCode.USER_NOT_FOUND);
+        assertThat(service.getSummaryById(7)).isNull();
+    }
+
+    @Test
+    void getSummaryByUsernameShouldReturnNullWhenUserMissing() {
+        UserQueryService service = new UserQueryService(userMapper);
+        when(userMapper.selectByName("ghost")).thenReturn(null);
+
+        assertThat(service.getSummaryByUsername("ghost")).isNull();
     }
 
     @Test
@@ -48,26 +67,56 @@ class UserQueryServiceTest {
     }
 
     @Test
-    void findByEmailOrNullShouldTrimAndDelegateToMapper() {
+    void findSummaryByEmailOrNullShouldTrimAndDelegateToMapper() {
         UserQueryService service = new UserQueryService(userMapper);
         User user = user(9, "alice");
+        user.setHeaderUrl("h1");
+        user.setType(2);
         when(userMapper.selectByEmail("alice@example.com")).thenReturn(user);
 
-        User found = service.findByEmailOrNull("  alice@example.com  ");
+        UserSummaryView found = service.findSummaryByEmailOrNull("  alice@example.com  ");
 
-        assertThat(found).isSameAs(user);
+        assertThat(found).extracting(
+                UserSummaryView::id,
+                UserSummaryView::username,
+                UserSummaryView::headerUrl,
+                UserSummaryView::type
+        ).containsExactly(9, "alice", "h1", 2);
         verify(userMapper).selectByEmail("alice@example.com");
     }
 
     @Test
-    void listUserSummariesByIdsShouldIgnoreInvalidIdsAndPreserveMapperRows() {
+    void listSummariesByIdsShouldIgnoreInvalidIdsAndProjectViews() {
         UserQueryService service = new UserQueryService(userMapper);
         when(userMapper.selectUserSummariesByIds(List.of(1, 2)))
                 .thenReturn(List.of(user(1, "alice"), user(2, "bob")));
 
-        assertThat(service.listUserSummariesByIds(List.of(0, 1, 2, 2)))
-                .extracting(User::getId)
+        assertThat(service.listSummariesByIds(List.of(0, 1, 2, 2)))
+                .extracting(UserSummaryView::id)
                 .containsExactly(1, 2);
+    }
+
+    @Test
+    void getGrowthProfileShouldProjectScoreLevelAndUserFields() {
+        UserQueryService service = new UserQueryService(userMapper);
+        User user = user(5, "alice");
+        user.setScore(250);
+        user.setEmail("alice@example.com");
+        user.setStatus(1);
+        user.setHeaderUrl("h5");
+        when(userMapper.selectById(5)).thenReturn(user);
+
+        UserGrowthProfileView profile = service.getGrowthProfile(5);
+
+        assertThat(profile).extracting(
+                UserGrowthProfileView::userId,
+                UserGrowthProfileView::username,
+                UserGrowthProfileView::score,
+                UserGrowthProfileView::level,
+                UserGrowthProfileView::email,
+                UserGrowthProfileView::status,
+                UserGrowthProfileView::headerUrl
+        ).containsExactly(5, "alice", 250, 3, "alice@example.com", 1, "h5");
     }
 
     private User user(int id, String username) {

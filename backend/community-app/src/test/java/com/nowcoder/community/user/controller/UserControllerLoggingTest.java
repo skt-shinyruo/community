@@ -1,11 +1,12 @@
 package com.nowcoder.community.user.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.content.service.PostFacadeService;
+import com.nowcoder.community.content.api.query.PostReadQueryApi;
 import com.nowcoder.community.user.dto.AvatarUploadTokenResponse;
 import com.nowcoder.community.user.dto.UpdateAvatarRequest;
 import com.nowcoder.community.user.service.AvatarService;
 import com.nowcoder.community.user.service.PointsService;
+import com.nowcoder.community.user.service.UserQueryService;
 import com.nowcoder.community.user.service.UserService;
 import com.nowcoder.community.user.service.UserSocialProfileService;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,19 +28,22 @@ import static org.mockito.Mockito.when;
 class UserControllerLoggingTest {
 
     private AvatarService avatarService;
+    private UserQueryService userQueryService;
     private UserService userService;
     private UserController controller;
 
     @BeforeEach
     void setUp() {
+        userQueryService = mock(UserQueryService.class);
         userService = mock(UserService.class);
         avatarService = mock(AvatarService.class);
         controller = new UserController(
+                userQueryService,
                 userService,
                 avatarService,
                 mock(UserSocialProfileService.class),
                 mock(PointsService.class),
-                mock(PostFacadeService.class)
+                mock(PostReadQueryApi.class)
         );
     }
 

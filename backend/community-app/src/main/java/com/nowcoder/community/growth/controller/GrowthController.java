@@ -7,9 +7,8 @@ import com.nowcoder.community.growth.service.GrowthBusinessTimeService;
 import com.nowcoder.community.growth.service.RewardAccountService;
 import com.nowcoder.community.growth.service.TaskCenterService;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
-import com.nowcoder.community.user.entity.User;
-import com.nowcoder.community.user.service.PointsService;
-import com.nowcoder.community.user.service.UserService;
+import com.nowcoder.community.user.api.model.UserGrowthProfileView;
+import com.nowcoder.community.user.api.query.UserProfileQueryApi;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,21 +21,18 @@ import java.time.LocalDate;
 @RequestMapping("/api/growth")
 public class GrowthController {
 
-    private final UserService userService;
-    private final PointsService pointsService;
+    private final UserProfileQueryApi userProfileQueryApi;
     private final RewardAccountService rewardAccountService;
     private final TaskCenterService taskCenterService;
     private final GrowthBusinessTimeService growthBusinessTimeService;
 
     public GrowthController(
-            UserService userService,
-            PointsService pointsService,
+            UserProfileQueryApi userProfileQueryApi,
             RewardAccountService rewardAccountService,
             TaskCenterService taskCenterService,
             GrowthBusinessTimeService growthBusinessTimeService
     ) {
-        this.userService = userService;
-        this.pointsService = pointsService;
+        this.userProfileQueryApi = userProfileQueryApi;
         this.rewardAccountService = rewardAccountService;
         this.taskCenterService = taskCenterService;
         this.growthBusinessTimeService = growthBusinessTimeService;
@@ -45,12 +41,12 @@ public class GrowthController {
     @GetMapping("/summary")
     public Result<GrowthSummaryResponse> summary(Authentication authentication) {
         int userId = CurrentUser.requireUserId(authentication);
-        User user = userService.getById(userId);
+        UserGrowthProfileView profile = userProfileQueryApi.getGrowthProfile(userId);
 
         GrowthSummaryResponse resp = new GrowthSummaryResponse();
         resp.setUserId(userId);
-        resp.setScore(user.getScore());
-        resp.setLevel(pointsService.levelForScore(user.getScore()));
+        resp.setScore(profile.score());
+        resp.setLevel(profile.level());
         resp.setRewardBalance(rewardAccountService.availableBalanceOf(userId));
         resp.setFrozenBalance(rewardAccountService.frozenBalanceOf(userId));
         return Result.ok(resp);

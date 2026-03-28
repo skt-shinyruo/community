@@ -2,6 +2,7 @@ package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.user.api.model.UserModerationStateView;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.exception.UserErrorCode;
 import com.nowcoder.community.user.mapper.UserMapper;
@@ -33,15 +34,15 @@ class UserModerationServiceTest {
     private UserMapper userMapper;
 
     @Test
-    void moderationStatusShouldProjectMuteAndBanTimestamps() {
+    void getModerationStateShouldProjectMuteAndBanTimestamps() {
         UserModerationService service = new UserModerationService(userMapper);
         when(userMapper.selectById(7)).thenReturn(userWithModeration(7));
 
-        UserModerationService.ModerationStatus status = service.moderationStatus(7);
+        UserModerationStateView status = service.getModerationState(7);
 
-        assertThat(status.getUserId()).isEqualTo(7);
-        assertThat(status.getMuteUntil()).isEqualTo(Instant.parse("2026-03-27T10:15:30Z"));
-        assertThat(status.getBanUntil()).isEqualTo(Instant.parse("2026-03-28T10:15:30Z"));
+        assertThat(status.userId()).isEqualTo(7);
+        assertThat(status.muteUntil()).isEqualTo(Instant.parse("2026-03-27T10:15:30Z"));
+        assertThat(status.banUntil()).isEqualTo(Instant.parse("2026-03-28T10:15:30Z"));
     }
 
     @Test

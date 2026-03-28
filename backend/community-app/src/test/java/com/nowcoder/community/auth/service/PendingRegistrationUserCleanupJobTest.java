@@ -1,7 +1,7 @@
 package com.nowcoder.community.auth.service;
 
 import com.nowcoder.community.auth.config.RegistrationProperties;
-import com.nowcoder.community.user.service.UserRegistrationService;
+import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -17,28 +17,28 @@ class PendingRegistrationUserCleanupJobTest {
 
     @Test
     void cleanupShouldDoNothingWhenLocalSchedulerDisabled() {
-        UserRegistrationService userRegistrationService = mock(UserRegistrationService.class);
+        UserRegistrationActionApi userRegistrationActionApi = mock(UserRegistrationActionApi.class);
         RegistrationProperties properties = new RegistrationProperties();
         properties.getPendingUser().setLocalSchedulerEnabled(false);
 
-        PendingRegistrationUserCleanupJob job = new PendingRegistrationUserCleanupJob(userRegistrationService, properties);
+        PendingRegistrationUserCleanupJob job = new PendingRegistrationUserCleanupJob(userRegistrationActionApi, properties);
         job.cleanup();
 
-        verifyNoInteractions(userRegistrationService);
+        verifyNoInteractions(userRegistrationActionApi);
     }
 
     @Test
     void cleanupShouldDelegateToUserRegistrationServiceWithConfiguredTtlWhenLocalSchedulerEnabled() {
-        UserRegistrationService userRegistrationService = mock(UserRegistrationService.class);
+        UserRegistrationActionApi userRegistrationActionApi = mock(UserRegistrationActionApi.class);
         RegistrationProperties properties = new RegistrationProperties();
         properties.getPendingUser().setTtlSeconds(1800);
         properties.getPendingUser().setLocalSchedulerEnabled(true);
-        when(userRegistrationService.cleanupExpiredPendingUsers(Duration.ofMinutes(30))).thenReturn(2);
+        when(userRegistrationActionApi.cleanupExpiredPendingUsers(Duration.ofMinutes(30))).thenReturn(2);
 
-        PendingRegistrationUserCleanupJob job = new PendingRegistrationUserCleanupJob(userRegistrationService, properties);
+        PendingRegistrationUserCleanupJob job = new PendingRegistrationUserCleanupJob(userRegistrationActionApi, properties);
         job.cleanup();
 
-        verify(userRegistrationService, times(1)).cleanupExpiredPendingUsers(Duration.ofMinutes(30));
-        verifyNoMoreInteractions(userRegistrationService);
+        verify(userRegistrationActionApi, times(1)).cleanupExpiredPendingUsers(Duration.ofMinutes(30));
+        verifyNoMoreInteractions(userRegistrationActionApi);
     }
 }

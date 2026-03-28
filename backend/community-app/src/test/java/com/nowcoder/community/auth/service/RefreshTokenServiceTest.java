@@ -4,9 +4,8 @@ import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.security.jwt.JwtProperties;
 import com.nowcoder.community.infra.web.net.ClientIpResolver;
-import com.nowcoder.community.user.entity.User;
-import com.nowcoder.community.user.service.UserCredentialService;
-import com.nowcoder.community.user.service.UserQueryService;
+import com.nowcoder.community.user.api.model.UserCredentialView;
+import com.nowcoder.community.user.api.query.UserCredentialQueryApi;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -23,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -33,8 +33,7 @@ class RefreshTokenServiceTest {
         assertThat(AuthService.class.getDeclaredConstructors())
                 .singleElement()
                 .satisfies(constructor -> assertThat(constructor.getParameterTypes()).containsExactly(
-                        UserCredentialService.class,
-                        UserQueryService.class,
+                        UserCredentialQueryApi.class,
                         JwtTokenService.class,
                         RefreshTokenService.class,
                         LoginRateLimitService.class,
@@ -100,26 +99,42 @@ class RefreshTokenServiceTest {
                 .hasSize(1);
     }
 
+    @Test
+    void refreshShouldBuildAccessTokenFromCredentialLookupOnly() {
+        RefreshTokenService refreshTokenService = new RefreshTokenService(jwtProperties(), new InMemoryRefreshTokenStore());
+        RefreshTokenService.IssuedRefreshToken issued = refreshTokenService.issue(7);
+        AuthService authService = authService(refreshTokenService, new UserCredentialView(7, "alice", 1, 2, "h1"));
+
+        MockHttpServletRequest request = refreshRequest(issued.refreshToken());
+        AuthService.RefreshResult result = authService.refresh(request);
+
+        assertThat(result.accessToken()).isEqualTo("access-token");
+    }
+
     private static AuthService authService(RefreshTokenService refreshTokenService) {
-        UserCredentialService userCredentialService = mock(UserCredentialService.class);
-        UserQueryService userQueryService = mock(UserQueryService.class);
+        return authService(refreshTokenService, new UserCredentialView(7, "alice", 1, 0, "h1"));
+    }
+
+    private static AuthService authService(RefreshTokenService refreshTokenService, UserCredentialView credentialView) {
+        UserCredentialQueryApi userCredentialQueryApi = mock(UserCredentialQueryApi.class);
         JwtTokenService jwtTokenService = mock(JwtTokenService.class);
         LoginRateLimitService loginRateLimitService = mock(LoginRateLimitService.class);
         CaptchaService captchaService = mock(CaptchaService.class);
         ClientIpResolver clientIpResolver = mock(ClientIpResolver.class);
 
-        User profile = new User();
-        profile.setId(7);
-        profile.setUsername("alice");
-        profile.setStatus(1);
-
-        when(userQueryService.getById(7)).thenReturn(profile);
-        when(userCredentialService.authoritiesOf(profile)).thenReturn(List.of("user"));
+        when(userCredentialQueryApi.getByUserId(7)).thenReturn(credentialView);
+        when(userCredentialQueryApi.authoritiesOf(argThat(user ->
+                user != null
+                        && user.userId() == 7
+                        && user.username().equals("alice")
+                        && user.status() == 1
+                        && user.type() == credentialView.type()
+                        && user.headerUrl().equals("h1")
+        ))).thenReturn(List.of("user"));
         when(jwtTokenService.createAccessToken(7, "alice", List.of("user"))).thenReturn("access-token");
 
         return new AuthService(
-                userCredentialService,
-                userQueryService,
+                userCredentialQueryApi,
                 jwtTokenService,
                 refreshTokenService,
                 loginRateLimitService,
@@ -211,6 +226,36 @@ class RefreshTokenServiceTest {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
+        }
+    }
+
+    private static final class InMemoryRefreshTokenStore implements RefreshTokenStore {
+
+        private final ConcurrentHashMap<String, StoredRefreshToken> tokens = new ConcurrentHashMap<>();
+
+        @Override
+        public void store(String refreshToken, int userId, String familyId, Instant expiresAt) {
+            tokens.put(refreshToken, new StoredRefreshToken(refreshToken, userId, familyId, expiresAt));
+        }
+
+        @Override
+        public StoredRefreshToken find(String refreshToken) {
+            return tokens.get(refreshToken);
+        }
+
+        @Override
+        public StoredRefreshToken consume(String refreshToken) {
+            return tokens.remove(refreshToken);
+        }
+
+        @Override
+        public void revoke(String refreshToken) {
+            tokens.remove(refreshToken);
+        }
+
+        @Override
+        public void revokeFamily(String familyId) {
+            tokens.entrySet().removeIf(entry -> familyId.equals(entry.getValue().familyId()));
         }
     }
 }

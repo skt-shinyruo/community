@@ -3,9 +3,11 @@ package com.nowcoder.community.user.controller;
 import com.nowcoder.community.auth.logging.SecurityEventLogger;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.content.api.model.PostSummaryView;
+import com.nowcoder.community.content.api.model.RecentUserCommentView;
+import com.nowcoder.community.content.api.query.PostReadQueryApi;
 import com.nowcoder.community.content.dto.PostSummaryResponse;
 import com.nowcoder.community.content.dto.UserRecentCommentResponse;
-import com.nowcoder.community.content.service.PostFacadeService;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.user.dto.AvatarUploadTokenResponse;
 import com.nowcoder.community.user.dto.BatchUserSummaryRequest;
@@ -16,6 +18,7 @@ import com.nowcoder.community.user.dto.UserSummaryResponse;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.service.AvatarService;
 import com.nowcoder.community.user.service.PointsService;
+import com.nowcoder.community.user.service.UserQueryService;
 import com.nowcoder.community.user.service.UserSocialProfileService;
 import com.nowcoder.community.user.service.UserService;
 import jakarta.validation.Valid;
@@ -47,23 +50,30 @@ public class UserController {
 
     private static final Logger log = LoggerFactory.getLogger(UserController.class);
 
+    private final UserQueryService userQueryService;
     private final UserService userService;
     private final AvatarService avatarService;
     private final UserSocialProfileService userSocialProfileService;
     private final PointsService pointsService;
-    private final PostFacadeService postFacadeService;
+    private final PostReadQueryApi postReadQueryApi;
 
-    public UserController(UserService userService, AvatarService avatarService, UserSocialProfileService userSocialProfileService, PointsService pointsService, PostFacadeService postFacadeService) {
+    public UserController(UserQueryService userQueryService,
+                          UserService userService,
+                          AvatarService avatarService,
+                          UserSocialProfileService userSocialProfileService,
+                          PointsService pointsService,
+                          PostReadQueryApi postReadQueryApi) {
+        this.userQueryService = userQueryService;
         this.userService = userService;
         this.avatarService = avatarService;
         this.userSocialProfileService = userSocialProfileService;
         this.pointsService = pointsService;
-        this.postFacadeService = postFacadeService;
+        this.postReadQueryApi = postReadQueryApi;
     }
 
     @GetMapping("/{userId}")
     public Result<UserProfileResponse> getUser(Authentication authentication, @PathVariable int userId) {
-        User user = userService.getById(userId);
+        User user = userQueryService.getById(userId);
         UserProfileResponse resp = new UserProfileResponse();
         resp.setId(user.getId());
         resp.setUsername(user.getUsername());
@@ -92,21 +102,25 @@ public class UserController {
     public Result<List<PostSummaryResponse>> recentPosts(@PathVariable int userId,
                                                          @RequestParam(required = false) Integer page,
                                                          @RequestParam(required = false) Integer size) {
-        userService.getById(userId);
-        return Result.ok(postFacadeService.listPostsByUser(userId, page, size));
+        userQueryService.getById(userId);
+        return Result.ok(postReadQueryApi.listPostsByUser(userId, page, size).stream()
+                .map(UserController::toPostSummaryResponse)
+                .toList());
     }
 
     @GetMapping("/{userId}/recent-comments")
     public Result<List<UserRecentCommentResponse>> recentComments(@PathVariable int userId,
                                                                   @RequestParam(required = false) Integer page,
                                                                   @RequestParam(required = false) Integer size) {
-        userService.getById(userId);
-        return Result.ok(postFacadeService.listRecentCommentsByUser(userId, page, size));
+        userQueryService.getById(userId);
+        return Result.ok(postReadQueryApi.listRecentCommentsByUser(userId, page, size).stream()
+                .map(UserController::toRecentCommentResponse)
+                .toList());
     }
 
     @GetMapping("/resolve")
     public Result<UserResolveResponse> resolveByUsername(@RequestParam String username) {
-        User user = userService.getByUsername(username);
+        User user = userQueryService.getByUsername(username);
         UserResolveResponse resp = new UserResolveResponse();
         resp.setId(user.getId());
         resp.setUsername(user.getUsername());
@@ -136,7 +150,7 @@ public class UserController {
         }
 
         List<Integer> ids = new ArrayList<>(dedup);
-        List<User> users = userService.listUserSummariesByIds(ids);
+        List<User> users = userQueryService.listUserSummariesByIds(ids);
         Map<Integer, UserSummaryResponse> map = new HashMap<>();
         for (User u : users) {
             if (u == null || u.getId() <= 0) {
@@ -220,5 +234,38 @@ public class UserController {
                 "community.avatar_file_name", request.getFileName()
         );
         return Result.ok();
+    }
+
+    private static PostSummaryResponse toPostSummaryResponse(PostSummaryView view) {
+        PostSummaryResponse response = new PostSummaryResponse();
+        response.setId(view.id());
+        response.setUserId(view.userId());
+        response.setTitle(view.title());
+        response.setType(view.type());
+        response.setStatus(view.status());
+        response.setCreateTime(view.createTime());
+        response.setCommentCount(view.commentCount());
+        response.setScore(view.score());
+        response.setCategoryId(view.categoryId());
+        response.setTags(view.tags());
+        response.setLastReplyUserId(view.lastReplyUserId());
+        response.setLastReplyTime(view.lastReplyTime());
+        response.setLastActivityTime(view.lastActivityTime());
+        response.setLastReplyPreview(view.lastReplyPreview());
+        return response;
+    }
+
+    private static UserRecentCommentResponse toRecentCommentResponse(RecentUserCommentView view) {
+        UserRecentCommentResponse response = new UserRecentCommentResponse();
+        response.setId(view.id());
+        response.setUserId(view.userId());
+        response.setEntityType(view.entityType());
+        response.setEntityId(view.entityId());
+        response.setTargetId(view.targetId());
+        response.setPostId(view.postId());
+        response.setPostTitle(view.postTitle());
+        response.setContent(view.content());
+        response.setCreateTime(view.createTime());
+        return response;
     }
 }

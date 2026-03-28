@@ -2,10 +2,9 @@ package com.nowcoder.community.message.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.user.api.model.UserSummaryView;
+import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import com.nowcoder.community.user.dto.UserSummary;
-import com.nowcoder.community.user.entity.User;
-import com.nowcoder.community.user.exception.UserErrorCode;
-import com.nowcoder.community.user.service.UserQueryService;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -26,18 +25,26 @@ import static org.mockito.Mockito.when;
 class MessageUserQueryServiceTest {
 
     @Test
+    void messageUserQueryServiceShouldDependOnUserLookupQueryApi() {
+        assertThat(MessageUserQueryService.class.getDeclaredConstructors())
+                .singleElement()
+                .satisfies(constructor -> assertThat(constructor.getParameterTypes()).containsExactly(
+                        Duration.class,
+                        int.class,
+                        UserLookupQueryApi.class
+                ));
+    }
+
+    @Test
     void findUserIdByUsernameOrNullShouldUseShortTtlCache() {
-        UserQueryService userQueryService = mock(UserQueryService.class);
-        User user = new User();
-        user.setId(123);
-        user.setUsername("alice");
-        user.setHeaderUrl("h");
-        when(userQueryService.getByUsername("alice")).thenReturn(user);
+        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
+        when(userLookupQueryApi.getSummaryByUsername("alice"))
+                .thenReturn(new UserSummaryView(123, "alice", "h", 0));
 
         MessageUserQueryService service = new MessageUserQueryService(
                 Duration.ofSeconds(60),
                 10,
-                userQueryService
+                userLookupQueryApi
         );
 
         Integer id1 = service.findUserIdByUsernameOrNull("alice ");
@@ -46,36 +53,36 @@ class MessageUserQueryServiceTest {
         assertThat(id1).isEqualTo(123);
         assertThat(id2).isEqualTo(123);
 
-        verify(userQueryService, times(1)).getByUsername("alice");
+        verify(userLookupQueryApi, times(1)).getSummaryByUsername("alice");
     }
 
     @Test
-    void findUserSummaryByIdOrNullShouldReturnNullWhenUserNotFound() {
-        UserQueryService userQueryService = mock(UserQueryService.class);
-        when(userQueryService.getById(404)).thenThrow(new BusinessException(UserErrorCode.USER_NOT_FOUND));
+    void findUserSummaryByIdOrNullShouldReturnNullWhenLookupApiReturnsNull() {
+        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
+        when(userLookupQueryApi.getSummaryById(404)).thenReturn(null);
 
         MessageUserQueryService service = new MessageUserQueryService(
                 Duration.ofSeconds(60),
                 10,
-                userQueryService
+                userLookupQueryApi
         );
 
         UserSummary summary = service.findUserSummaryByIdOrNull(404);
 
         assertThat(summary).isNull();
-        verify(userQueryService).getById(404);
+        verify(userLookupQueryApi).getSummaryById(404);
     }
 
     @Test
     void findUserSummaryByIdOrNullShouldPropagateNonUserNotFoundBusinessException() {
-        UserQueryService userQueryService = mock(UserQueryService.class);
+        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
         BusinessException exception = new BusinessException(CommonErrorCode.FORBIDDEN, "denied");
-        when(userQueryService.getById(7)).thenThrow(exception);
+        when(userLookupQueryApi.getSummaryById(7)).thenThrow(exception);
 
         MessageUserQueryService service = new MessageUserQueryService(
                 Duration.ofSeconds(60),
                 10,
-                userQueryService
+                userLookupQueryApi
         );
 
         assertThatThrownBy(() -> service.findUserSummaryByIdOrNull(7))
@@ -84,14 +91,14 @@ class MessageUserQueryServiceTest {
 
     @Test
     void findUserIdByUsernameOrNullShouldPropagateNonUserNotFoundBusinessException() {
-        UserQueryService userQueryService = mock(UserQueryService.class);
+        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
         BusinessException exception = new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "bad username");
-        when(userQueryService.getByUsername("alice")).thenThrow(exception);
+        when(userLookupQueryApi.getSummaryByUsername("alice")).thenThrow(exception);
 
         MessageUserQueryService service = new MessageUserQueryService(
                 Duration.ofSeconds(60),
                 10,
-                userQueryService
+                userLookupQueryApi
         );
 
         assertThatThrownBy(() -> service.findUserIdByUsernameOrNull("alice"))
@@ -99,43 +106,38 @@ class MessageUserQueryServiceTest {
     }
 
     @Test
-    void findUserIdByUsernameOrNullShouldReturnNullWhenUserNotFound() {
-        UserQueryService userQueryService = mock(UserQueryService.class);
-        when(userQueryService.getByUsername("alice")).thenThrow(new BusinessException(UserErrorCode.USER_NOT_FOUND));
+    void findUserIdByUsernameOrNullShouldReturnNullWhenLookupApiReturnsNull() {
+        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
+        when(userLookupQueryApi.getSummaryByUsername("alice")).thenReturn(null);
 
         MessageUserQueryService service = new MessageUserQueryService(
                 Duration.ofSeconds(60),
                 10,
-                userQueryService
+                userLookupQueryApi
         );
 
         Integer userId = service.findUserIdByUsernameOrNull("alice");
 
         assertThat(userId).isNull();
-        verify(userQueryService).getByUsername("alice");
+        verify(userLookupQueryApi).getSummaryByUsername("alice");
     }
 
     @Test
-    void getUserSummariesByIdsShouldMapUsersAndFilterInvalidEntries() {
-        UserQueryService userQueryService = mock(UserQueryService.class);
-        User validUser = new User();
-        validUser.setId(2);
-        validUser.setUsername("bob");
-        validUser.setHeaderUrl("h2");
-
-        User invalidUser = new User();
-        invalidUser.setId(0);
-        invalidUser.setUsername("nobody");
-
-        when(userQueryService.listUserSummariesByIds(argThat(ids ->
+    void getUserSummariesByIdsShouldMapViewsAndFilterInvalidEntries() {
+        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
+        when(userLookupQueryApi.listSummariesByIds(argThat(ids ->
                 ids != null && ids.size() == 2 && ids.containsAll(List.of(2, 3))
         )))
-                .thenReturn(Arrays.asList(validUser, null, invalidUser));
+                .thenReturn(Arrays.asList(
+                        new UserSummaryView(2, "bob", "h2", 0),
+                        null,
+                        new UserSummaryView(0, "nobody", "h3", 0)
+                ));
 
         MessageUserQueryService service = new MessageUserQueryService(
                 Duration.ofSeconds(60),
                 10,
-                userQueryService
+                userLookupQueryApi
         );
 
         Map<Integer, UserSummary> result = service.getUserSummariesByIds(Set.of(0, -1, 2, 3));
@@ -143,23 +145,23 @@ class MessageUserQueryServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(2)).extracting(UserSummary::getId, UserSummary::getUsername, UserSummary::getHeaderUrl)
                 .containsExactly(2, "bob", "h2");
-        verify(userQueryService).listUserSummariesByIds(argThat(ids ->
+        verify(userLookupQueryApi).listSummariesByIds(argThat(ids ->
                 ids != null && ids.size() == 2 && ids.containsAll(List.of(2, 3))
         ));
     }
 
     @Test
     void getUserSummariesByIdsShouldReturnEmptyMapWhenNoPositiveIdsRemain() {
-        UserQueryService userQueryService = mock(UserQueryService.class);
+        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
         MessageUserQueryService service = new MessageUserQueryService(
                 Duration.ofSeconds(60),
                 10,
-                userQueryService
+                userLookupQueryApi
         );
 
         Map<Integer, UserSummary> result = service.getUserSummariesByIds(Set.of(0, -1));
 
         assertThat(result).isEmpty();
-        verifyNoInteractions(userQueryService);
+        verifyNoInteractions(userLookupQueryApi);
     }
 }

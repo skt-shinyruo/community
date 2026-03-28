@@ -3,9 +3,9 @@ package com.nowcoder.community.auth.service;
 import com.nowcoder.community.auth.config.PasswordResetProperties;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.user.entity.User;
-import com.nowcoder.community.user.service.UserCredentialService;
-import com.nowcoder.community.user.service.UserQueryService;
+import com.nowcoder.community.user.api.action.UserCredentialActionApi;
+import com.nowcoder.community.user.api.model.UserCredentialView;
+import com.nowcoder.community.user.api.query.UserCredentialQueryApi;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,10 +34,10 @@ class PasswordResetServiceTest {
     private PasswordResetTokenStore tokenStore;
 
     @Mock
-    private UserQueryService userQueryService;
+    private UserCredentialQueryApi userCredentialQueryApi;
 
     @Mock
-    private UserCredentialService userCredentialService;
+    private UserCredentialActionApi userCredentialActionApi;
 
     @Mock
     private MailService mailService;
@@ -57,8 +57,8 @@ class PasswordResetServiceTest {
         service = new PasswordResetService(
                 properties,
                 tokenStore,
-                userQueryService,
-                userCredentialService,
+                userCredentialQueryApi,
+                userCredentialActionApi,
                 mailService,
                 captchaService
         );
@@ -66,13 +66,10 @@ class PasswordResetServiceTest {
 
     @Test
     void requestResetShouldLogIssuedEventWithoutResetLink(CapturedOutput output) {
-        User user = new User();
-        user.setId(7);
-        user.setEmail("alice@example.com");
-        user.setStatus(1);
+        UserCredentialView user = new UserCredentialView(7, "alice", 1, 0, null);
 
         when(captchaService.verify("cid", "1234")).thenReturn(true);
-        when(userQueryService.findByEmailOrNull("alice@example.com")).thenReturn(user);
+        when(userCredentialQueryApi.findByEmailOrNull("alice@example.com")).thenReturn(user);
 
         PasswordResetService.RequestResult result = service.requestReset(" alice@example.com ", "cid", "1234");
 
@@ -94,7 +91,7 @@ class PasswordResetServiceTest {
     @Test
     void requestResetShouldLogSkippedHiddenNoopForUnknownEmail(CapturedOutput output) {
         when(captchaService.verify("cid", "1234")).thenReturn(true);
-        when(userQueryService.findByEmailOrNull("alice@example.com")).thenReturn(null);
+        when(userCredentialQueryApi.findByEmailOrNull("alice@example.com")).thenReturn(null);
 
         PasswordResetService.RequestResult result = service.requestReset(" alice@example.com ", "cid", "1234");
 
@@ -120,7 +117,7 @@ class PasswordResetServiceTest {
         boolean result = service.confirmReset(" token-123 ", " new-password ", "cid", "1234");
 
         assertThat(result).isTrue();
-        verify(userCredentialService).updatePassword(7, "new-password");
+        verify(userCredentialActionApi).updatePassword(7, "new-password");
         assertThat(output.getAll())
                 .contains("community.category=security")
                 .contains("community.action=password_reset_confirm")

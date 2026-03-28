@@ -1,0 +1,147 @@
+package com.nowcoder.community.content.service;
+
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.content.api.model.PostDetailView;
+import com.nowcoder.community.content.api.model.PostSummaryView;
+import com.nowcoder.community.content.api.model.RecentUserCommentView;
+import com.nowcoder.community.content.api.query.PostReadQueryApi;
+import com.nowcoder.community.content.assembler.PostDetailAssembler;
+import com.nowcoder.community.content.assembler.PostSummaryAssembler;
+import com.nowcoder.community.content.assembler.RecentUserCommentAssembler;
+import com.nowcoder.community.content.entity.Comment;
+import com.nowcoder.community.content.entity.DiscussPost;
+import com.nowcoder.community.content.like.LikeQueryService;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Map;
+
+import static com.nowcoder.community.common.exception.CommonErrorCode.UNAUTHORIZED;
+
+@Service
+public class PostReadQueryService implements PostReadQueryApi {
+
+    private final PostService postService;
+    private final CommentService commentService;
+    private final LikeQueryService likeQueryService;
+    private final TagService tagService;
+    private final BookmarkService bookmarkService;
+    private final SubscriptionService subscriptionService;
+    private final PostSummaryAssembler postSummaryAssembler;
+    private final PostDetailAssembler postDetailAssembler;
+    private final RecentUserCommentAssembler recentUserCommentAssembler;
+
+    public PostReadQueryService(
+            PostService postService,
+            CommentService commentService,
+            LikeQueryService likeQueryService,
+            TagService tagService,
+            BookmarkService bookmarkService,
+            SubscriptionService subscriptionService,
+            PostSummaryAssembler postSummaryAssembler,
+            PostDetailAssembler postDetailAssembler,
+            RecentUserCommentAssembler recentUserCommentAssembler
+    ) {
+        this.postService = postService;
+        this.commentService = commentService;
+        this.likeQueryService = likeQueryService;
+        this.tagService = tagService;
+        this.bookmarkService = bookmarkService;
+        this.subscriptionService = subscriptionService;
+        this.postSummaryAssembler = postSummaryAssembler;
+        this.postDetailAssembler = postDetailAssembler;
+        this.recentUserCommentAssembler = recentUserCommentAssembler;
+    }
+
+    @Override
+    public List<PostSummaryView> listPosts(int currentUserId, String order, Integer categoryId, String tag, Boolean subscribed, Integer page, Integer size) {
+        int p = page == null ? 0 : page;
+        int s = size == null ? 10 : size;
+        int orderMode = "hot".equalsIgnoreCase(order) ? PostService.ORDER_HOT : PostService.ORDER_LATEST;
+
+        List<DiscussPost> posts;
+        if (Boolean.TRUE.equals(subscribed)) {
+            if (currentUserId <= 0) {
+                throw new BusinessException(UNAUTHORIZED, "未获取到认证信息");
+            }
+            List<Integer> subscribedCategoryIds = subscriptionService.listSubscribedCategoryIds(currentUserId);
+            posts = postService.listSubscribedPosts(currentUserId, subscribedCategoryIds, p, s, orderMode, categoryId, tag);
+        } else {
+            posts = postService.listPosts(p, s, orderMode, categoryId, tag);
+        }
+
+        return assembleSummaries(posts);
+    }
+
+    @Override
+    public List<PostSummaryView> listPostsByUser(int userId, Integer page, Integer size) {
+        int p = page == null ? 0 : page;
+        int s = size == null ? 3 : size;
+        return assembleSummaries(postService.listPostsByUser(userId, p, s));
+    }
+
+    @Override
+    public List<PostSummaryView> listPostsByIds(List<Integer> postIds) {
+        return assembleSummaries(postService.listPostsByIds(postIds));
+    }
+
+    @Override
+    public PostDetailView getPostDetail(int currentUserId, int postId) {
+        DiscussPost post = postService.getById(postId);
+        List<String> tags = tagService.getTagsByPostIds(List.of(postId)).getOrDefault(postId, List.of());
+        long likeCount = likeQueryService.countPostLikes(postId);
+        boolean liked = likeQueryService.hasLikedPost(currentUserId, postId);
+        boolean bookmarked = currentUserId > 0 && bookmarkService.hasBookmarked(currentUserId, postId);
+        return postDetailAssembler.assemble(post, tags, likeCount, liked, bookmarked);
+    }
+
+    @Override
+    public List<RecentUserCommentView> listRecentCommentsByUser(int userId, Integer page, Integer size) {
+        int p = page == null ? 0 : page;
+        int s = size == null ? 3 : size;
+        List<Comment> comments = commentService.listRecentCommentsByUser(userId, p, s);
+        if (comments == null || comments.isEmpty()) {
+            return List.of();
+        }
+        return comments.stream()
+                .map(this::toRecentComment)
+                .filter(view -> view != null)
+                .toList();
+    }
+
+    private List<PostSummaryView> assembleSummaries(List<DiscussPost> posts) {
+        if (posts == null || posts.isEmpty()) {
+            return List.of();
+        }
+        List<Integer> postIds = posts.stream().map(DiscussPost::getId).toList();
+        Map<Integer, Comment> lastActivities = commentService.getLatestPostActivitiesByPostIds(postIds);
+        Map<Integer, List<String>> tagsByPostId = tagService.getTagsByPostIds(postIds);
+        return posts.stream()
+                .map(post -> postSummaryAssembler.assemble(post, lastActivities.get(post.getId()), tagsByPostId.get(post.getId())))
+                .toList();
+    }
+
+    private RecentUserCommentView toRecentComment(Comment comment) {
+        if (comment == null || comment.getId() <= 0) {
+            return null;
+        }
+        try {
+            int postId;
+            if (comment.getEntityType() == CommentService.ENTITY_TYPE_POST) {
+                postId = comment.getEntityId();
+            } else if (comment.getEntityType() == CommentService.ENTITY_TYPE_COMMENT) {
+                Comment parent = commentService.getById(comment.getEntityId());
+                if (parent.getEntityType() != CommentService.ENTITY_TYPE_POST || parent.getEntityId() <= 0) {
+                    return null;
+                }
+                postId = parent.getEntityId();
+            } else {
+                return null;
+            }
+            DiscussPost post = postService.getById(postId);
+            return recentUserCommentAssembler.assemble(comment, postId, post.getTitle());
+        } catch (BusinessException ex) {
+            return null;
+        }
+    }
+}

@@ -4,9 +4,8 @@ import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.auth.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.web.net.ClientIpResolver;
-import com.nowcoder.community.user.entity.User;
-import com.nowcoder.community.user.service.UserCredentialService;
-import com.nowcoder.community.user.service.UserQueryService;
+import com.nowcoder.community.user.api.model.UserCredentialView;
+import com.nowcoder.community.user.api.query.UserCredentialQueryApi;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -22,8 +21,7 @@ public class AuthService {
 
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
-    private final UserCredentialService userCredentialService;
-    private final UserQueryService userQueryService;
+    private final UserCredentialQueryApi userCredentialQueryApi;
     private final JwtTokenService jwtTokenService;
     private final RefreshTokenService refreshTokenService;
     private final LoginRateLimitService loginRateLimitService;
@@ -31,16 +29,14 @@ public class AuthService {
     private final ClientIpResolver clientIpResolver;
 
     public AuthService(
-            UserCredentialService userCredentialService,
-            UserQueryService userQueryService,
+            UserCredentialQueryApi userCredentialQueryApi,
             JwtTokenService jwtTokenService,
             RefreshTokenService refreshTokenService,
             LoginRateLimitService loginRateLimitService,
             CaptchaService captchaService,
             ClientIpResolver clientIpResolver
     ) {
-        this.userCredentialService = userCredentialService;
-        this.userQueryService = userQueryService;
+        this.userCredentialQueryApi = userCredentialQueryApi;
         this.jwtTokenService = jwtTokenService;
         this.refreshTokenService = refreshTokenService;
         this.loginRateLimitService = loginRateLimitService;
@@ -87,7 +83,7 @@ public class AuthService {
             throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
         }
 
-        User user;
+        UserCredentialView user;
         try {
             user = authenticateUser(username, password);
         } catch (BusinessException e) {
@@ -109,17 +105,17 @@ public class AuthService {
         loginRateLimitService.reset(username, ip);
         LoginResult loginResult = issueLoginResult(user);
         SecurityEventLogger.info(log, "login", "success",
-                "user.id", user.getId(),
-                "username", user.getUsername(),
+                "user.id", user.userId(),
+                "username", user.username(),
                 "source.ip", ip,
                 "ip.source", ipSource);
         return loginResult;
     }
 
-    public LoginResult issueLoginResult(User user) {
+    public LoginResult issueLoginResult(UserCredentialView user) {
         List<String> authorities = authoritiesOf(user);
-        String accessToken = jwtTokenService.createAccessToken(user.getId(), user.getUsername(), authorities);
-        RefreshTokenService.IssuedRefreshToken refreshToken = refreshTokenService.issue(user.getId());
+        String accessToken = jwtTokenService.createAccessToken(user.userId(), user.username(), authorities);
+        RefreshTokenService.IssuedRefreshToken refreshToken = refreshTokenService.issue(user.userId());
         return new LoginResult(accessToken, refreshToken.cookie());
     }
 
@@ -134,8 +130,8 @@ public class AuthService {
             throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
         }
 
-        User profile = getProfile(stored.userId());
-        if (profile == null || profile.getStatus() == 0) {
+        UserCredentialView credentialView = getCredential(stored.userId());
+        if (credentialView == null || credentialView.status() == 0) {
             throw new BusinessException(AuthErrorCode.USER_DISABLED);
         }
 
@@ -143,8 +139,12 @@ public class AuthService {
         if (rotated == null) {
             throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
         }
-        List<String> authorities = authoritiesOf(profile);
-        String accessToken = jwtTokenService.createAccessToken(profile.getId(), profile.getUsername(), authorities);
+        List<String> authorities = authoritiesOf(credentialView);
+        String accessToken = jwtTokenService.createAccessToken(
+                credentialView.userId(),
+                credentialView.username(),
+                authorities
+        );
         return new RefreshResult(accessToken, rotated.cookie());
     }
 
@@ -159,16 +159,16 @@ public class AuthService {
         return refreshTokenService.clearCookie();
     }
 
-    private User authenticateUser(String username, String password) {
-        return userCredentialService.authenticate(username, password);
+    private UserCredentialView authenticateUser(String username, String password) {
+        return userCredentialQueryApi.authenticate(username, password);
     }
 
-    private User getProfile(int userId) {
-        return userQueryService.getById(userId);
+    private UserCredentialView getCredential(int userId) {
+        return userCredentialQueryApi.getByUserId(userId);
     }
 
-    private List<String> authoritiesOf(User user) {
-        return userCredentialService.authoritiesOf(user);
+    private List<String> authoritiesOf(UserCredentialView user) {
+        return userCredentialQueryApi.authoritiesOf(user);
     }
 
     private String readCookie(HttpServletRequest request, String name) {

@@ -1,5 +1,14 @@
 package com.nowcoder.community.content.controller;
 
+import com.nowcoder.community.content.api.action.CommentActionApi;
+import com.nowcoder.community.content.api.action.PostModerationActionApi;
+import com.nowcoder.community.content.api.action.PostPublishingActionApi;
+import com.nowcoder.community.content.api.model.CommentView;
+import com.nowcoder.community.content.api.model.PostCreateResult;
+import com.nowcoder.community.content.api.model.PostDetailView;
+import com.nowcoder.community.content.api.model.PostSummaryView;
+import com.nowcoder.community.content.api.query.CommentReadQueryApi;
+import com.nowcoder.community.content.api.query.PostReadQueryApi;
 import com.nowcoder.community.content.dto.CommentResponse;
 import com.nowcoder.community.content.dto.BatchPostSummaryRequest;
 import com.nowcoder.community.content.dto.CreateCommentRequest;
@@ -9,7 +18,6 @@ import com.nowcoder.community.content.dto.PostDetailResponse;
 import com.nowcoder.community.content.dto.PostSummaryResponse;
 import com.nowcoder.community.content.dto.UpdateCommentRequest;
 import com.nowcoder.community.content.dto.UpdatePostRequest;
-import com.nowcoder.community.content.service.PostFacadeService;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.idempotency.IdempotencyGuard;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
@@ -32,10 +40,24 @@ import java.util.List;
 @RequestMapping("/api/posts")
 public class PostController {
 
-    private final PostFacadeService postFacadeService;
+    private final PostReadQueryApi postReadQueryApi;
+    private final CommentReadQueryApi commentReadQueryApi;
+    private final PostPublishingActionApi postPublishingActionApi;
+    private final PostModerationActionApi postModerationActionApi;
+    private final CommentActionApi commentActionApi;
 
-    public PostController(PostFacadeService postFacadeService) {
-        this.postFacadeService = postFacadeService;
+    public PostController(
+            PostReadQueryApi postReadQueryApi,
+            CommentReadQueryApi commentReadQueryApi,
+            PostPublishingActionApi postPublishingActionApi,
+            PostModerationActionApi postModerationActionApi,
+            CommentActionApi commentActionApi
+    ) {
+        this.postReadQueryApi = postReadQueryApi;
+        this.commentReadQueryApi = commentReadQueryApi;
+        this.postPublishingActionApi = postPublishingActionApi;
+        this.postModerationActionApi = postModerationActionApi;
+        this.commentActionApi = commentActionApi;
     }
 
     @GetMapping
@@ -48,8 +70,11 @@ public class PostController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        Integer currentUserId = CurrentUser.tryUserId(authentication);
-        return Result.ok(postFacadeService.list(currentUserId, order, categoryId, tag, subscribed, page, size));
+        Integer maybeCurrentUserId = CurrentUser.tryUserId(authentication);
+        int currentUserId = maybeCurrentUserId == null ? 0 : maybeCurrentUserId;
+        return Result.ok(postReadQueryApi.listPosts(currentUserId, order, categoryId, tag, subscribed, page, size).stream()
+                .map(this::toPostSummaryResponse)
+                .toList());
     }
 
     @PostMapping
@@ -59,20 +84,30 @@ public class PostController {
             @Valid @RequestBody CreatePostRequest request
     ) {
         int userId = CurrentUser.requireUserId(authentication);
-        return Result.ok(postFacadeService.create(userId, idempotencyKey, request));
+        PostCreateResult result = postPublishingActionApi.create(
+                userId,
+                idempotencyKey,
+                request.getTitle(),
+                request.getContent(),
+                request.getCategoryId(),
+                request.getTags()
+        );
+        return Result.ok(toCreatePostResponse(result));
     }
 
     @PostMapping("/batch-summary")
     public Result<List<PostSummaryResponse>> batchSummary(@Valid @RequestBody BatchPostSummaryRequest request) {
         List<Integer> postIds = request == null ? List.of() : request.getPostIds();
-        return Result.ok(postFacadeService.listPostsByIds(postIds));
+        return Result.ok(postReadQueryApi.listPostsByIds(postIds).stream()
+                .map(this::toPostSummaryResponse)
+                .toList());
     }
 
     @GetMapping("/{postId}")
     public Result<PostDetailResponse> detail(Authentication authentication, @PathVariable int postId) {
         Integer maybeCurrentUserId = CurrentUser.tryUserId(authentication);
         int currentUserId = maybeCurrentUserId == null ? 0 : maybeCurrentUserId;
-        return Result.ok(postFacadeService.detail(currentUserId, postId));
+        return Result.ok(toPostDetailResponse(postReadQueryApi.getPostDetail(currentUserId, postId)));
     }
 
     @GetMapping("/{postId}/comments")
@@ -81,7 +116,9 @@ public class PostController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        return Result.ok(postFacadeService.comments(postId, page, size));
+        return Result.ok(commentReadQueryApi.comments(postId, page, size).stream()
+                .map(this::toCommentResponse)
+                .toList());
     }
 
     @PostMapping("/{postId}/comments")
@@ -92,20 +129,28 @@ public class PostController {
             @Valid @RequestBody CreateCommentRequest request
     ) {
         int userId = CurrentUser.requireUserId(authentication);
-        return Result.ok(postFacadeService.addComment(userId, idempotencyKey, postId, request));
+        return Result.ok(commentActionApi.addComment(
+                userId,
+                idempotencyKey,
+                postId,
+                request.getEntityType(),
+                request.getEntityId(),
+                request.getTargetId(),
+                request.getContent()
+        ));
     }
 
     @PutMapping("/{postId}")
     public Result<Void> updatePost(Authentication authentication, @PathVariable int postId, @Valid @RequestBody UpdatePostRequest request) {
         int userId = CurrentUser.requireUserId(authentication);
-        postFacadeService.updatePost(userId, postId, request);
+        postPublishingActionApi.updatePost(userId, postId, request.getTitle(), request.getContent(), request.getCategoryId(), request.getTags());
         return Result.ok();
     }
 
     @DeleteMapping("/{postId}")
     public Result<Void> deleteByAuthor(Authentication authentication, @PathVariable int postId) {
         int userId = CurrentUser.requireUserId(authentication);
-        postFacadeService.deleteByAuthor(userId, postId);
+        postPublishingActionApi.deleteByAuthor(userId, postId);
         return Result.ok();
     }
 
@@ -117,7 +162,7 @@ public class PostController {
             @Valid @RequestBody UpdateCommentRequest request
     ) {
         int userId = CurrentUser.requireUserId(authentication);
-        postFacadeService.updateComment(userId, postId, commentId, request);
+        commentActionApi.updateComment(userId, postId, commentId, request.getContent());
         return Result.ok();
     }
 
@@ -128,27 +173,89 @@ public class PostController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        return Result.ok(postFacadeService.replies(postId, commentId, page, size));
+        return Result.ok(commentReadQueryApi.replies(postId, commentId, page, size).stream()
+                .map(this::toCommentResponse)
+                .toList());
     }
 
     @PostMapping("/{postId}/top")
     public Result<Void> top(Authentication authentication, @PathVariable int postId) {
         int actorUserId = CurrentUser.requireUserId(authentication);
-        postFacadeService.top(actorUserId, postId);
+        postModerationActionApi.top(actorUserId, postId);
         return Result.ok();
     }
 
     @PostMapping("/{postId}/wonderful")
     public Result<Void> wonderful(Authentication authentication, @PathVariable int postId) {
         int actorUserId = CurrentUser.requireUserId(authentication);
-        postFacadeService.wonderful(actorUserId, postId);
+        postModerationActionApi.wonderful(actorUserId, postId);
         return Result.ok();
     }
 
     @PostMapping("/{postId}/delete")
     public Result<Void> delete(Authentication authentication, @PathVariable int postId) {
         int actorUserId = CurrentUser.requireUserId(authentication);
-        postFacadeService.delete(actorUserId, postId);
+        postModerationActionApi.delete(actorUserId, postId);
         return Result.ok();
+    }
+
+    private CreatePostResponse toCreatePostResponse(PostCreateResult result) {
+        CreatePostResponse response = new CreatePostResponse();
+        response.setPostId(result.postId());
+        return response;
+    }
+
+    private PostSummaryResponse toPostSummaryResponse(PostSummaryView view) {
+        PostSummaryResponse response = new PostSummaryResponse();
+        response.setId(view.id());
+        response.setUserId(view.userId());
+        response.setTitle(view.title());
+        response.setType(view.type());
+        response.setStatus(view.status());
+        response.setCreateTime(view.createTime());
+        response.setCommentCount(view.commentCount());
+        response.setScore(view.score());
+        response.setCategoryId(view.categoryId());
+        response.setTags(view.tags());
+        response.setLastReplyUserId(view.lastReplyUserId());
+        response.setLastReplyTime(view.lastReplyTime());
+        response.setLastActivityTime(view.lastActivityTime());
+        response.setLastReplyPreview(view.lastReplyPreview());
+        return response;
+    }
+
+    private PostDetailResponse toPostDetailResponse(PostDetailView view) {
+        PostDetailResponse response = new PostDetailResponse();
+        response.setId(view.id());
+        response.setUserId(view.userId());
+        response.setTitle(view.title());
+        response.setContent(view.content());
+        response.setType(view.type());
+        response.setStatus(view.status());
+        response.setCreateTime(view.createTime());
+        response.setUpdateTime(view.updateTime());
+        response.setEditCount(view.editCount());
+        response.setCommentCount(view.commentCount());
+        response.setScore(view.score());
+        response.setCategoryId(view.categoryId());
+        response.setTags(view.tags());
+        response.setLikeCount(view.likeCount());
+        response.setLiked(view.liked());
+        response.setBookmarked(view.bookmarked());
+        return response;
+    }
+
+    private CommentResponse toCommentResponse(CommentView view) {
+        CommentResponse response = new CommentResponse();
+        response.setId(view.id());
+        response.setUserId(view.userId());
+        response.setEntityType(view.entityType());
+        response.setEntityId(view.entityId());
+        response.setTargetId(view.targetId());
+        response.setContent(view.content());
+        response.setCreateTime(view.createTime());
+        response.setUpdateTime(view.updateTime());
+        response.setEditCount(view.editCount());
+        return response;
     }
 }

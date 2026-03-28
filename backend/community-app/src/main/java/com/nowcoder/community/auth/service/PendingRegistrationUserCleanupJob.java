@@ -1,7 +1,7 @@
 package com.nowcoder.community.auth.service;
 
 import com.nowcoder.community.auth.config.RegistrationProperties;
-import com.nowcoder.community.user.service.UserRegistrationService;
+import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -14,11 +14,11 @@ public class PendingRegistrationUserCleanupJob {
 
     private static final Logger log = LoggerFactory.getLogger(PendingRegistrationUserCleanupJob.class);
 
-    private final UserRegistrationService userRegistrationService;
+    private final UserRegistrationActionApi userRegistrationActionApi;
     private final RegistrationProperties properties;
 
-    public PendingRegistrationUserCleanupJob(UserRegistrationService userRegistrationService, RegistrationProperties properties) {
-        this.userRegistrationService = userRegistrationService;
+    public PendingRegistrationUserCleanupJob(UserRegistrationActionApi userRegistrationActionApi, RegistrationProperties properties) {
+        this.userRegistrationActionApi = userRegistrationActionApi;
         this.properties = properties;
     }
 
@@ -29,7 +29,7 @@ public class PendingRegistrationUserCleanupJob {
         }
         try {
             Duration ttl = Duration.ofSeconds(Math.max(60, properties.getPendingUser().getTtlSeconds()));
-            int deleted = userRegistrationService.cleanupExpiredPendingUsers(ttl);
+            int deleted = userRegistrationActionApi.cleanupExpiredPendingUsers(ttl);
             if (deleted > 0) {
                 log.info("[registration] cleaned up expired pending users count={}", deleted);
             }

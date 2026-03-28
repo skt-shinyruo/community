@@ -1,11 +1,12 @@
 package com.nowcoder.community.app.security;
 
-import com.nowcoder.community.content.dto.UserRecentCommentResponse;
-import com.nowcoder.community.content.service.PostFacadeService;
+import com.nowcoder.community.content.api.model.PostSummaryView;
+import com.nowcoder.community.content.api.model.RecentUserCommentView;
+import com.nowcoder.community.content.api.query.PostReadQueryApi;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.service.AvatarService;
 import com.nowcoder.community.user.service.PointsService;
-import com.nowcoder.community.user.service.UserService;
+import com.nowcoder.community.user.service.UserQueryService;
 import com.nowcoder.community.user.service.UserSocialProfileService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,10 +36,10 @@ class PublicReadEndpointSecurityTest {
     private MockMvc mockMvc;
 
     @MockBean
-    private PostFacadeService postFacadeService;
+    private PostReadQueryApi postReadQueryApi;
 
     @MockBean
-    private UserService userService;
+    private UserQueryService userQueryService;
 
     @MockBean
     private AvatarService avatarService;
@@ -51,7 +52,7 @@ class PublicReadEndpointSecurityTest {
 
     @Test
     void unauthenticatedBatchPostSummaryShouldBeAllowed() throws Exception {
-        when(postFacadeService.listPostsByIds(anyList())).thenReturn(List.of());
+        when(postReadQueryApi.listPostsByIds(anyList())).thenReturn(List.<PostSummaryView>of());
 
         mockMvc.perform(post("/api/posts/batch-summary")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -65,9 +66,9 @@ class PublicReadEndpointSecurityTest {
         user.setId(42);
         user.setUsername("u42");
 
-        when(userService.getById(42)).thenReturn(user);
-        when(postFacadeService.listPostsByUser(anyInt(), any(), any())).thenReturn(List.of());
-        when(postFacadeService.listRecentCommentsByUser(anyInt(), any(), any())).thenReturn(List.<UserRecentCommentResponse>of());
+        when(userQueryService.getById(42)).thenReturn(user);
+        when(postReadQueryApi.listPostsByUser(anyInt(), any(), any())).thenReturn(List.<PostSummaryView>of());
+        when(postReadQueryApi.listRecentCommentsByUser(anyInt(), any(), any())).thenReturn(List.<RecentUserCommentView>of());
 
         mockMvc.perform(get("/api/users/42/recent-posts"))
                 .andExpect(status().isOk());

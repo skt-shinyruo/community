@@ -4,7 +4,7 @@ import com.nowcoder.community.content.event.ContentEventTypes;
 import com.nowcoder.community.content.event.payload.CommentPayload;
 import com.nowcoder.community.content.event.payload.PostPayload;
 import com.nowcoder.community.content.event.ContentLocalEvent;
-import com.nowcoder.community.growth.service.UnifiedGrantService;
+import com.nowcoder.community.growth.api.action.GrowthGrantActionApi;
 import com.nowcoder.community.social.event.SocialEventTypes;
 import com.nowcoder.community.social.event.payload.LikePayload;
 import com.nowcoder.community.social.event.SocialLocalEvent;
@@ -20,13 +20,11 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class PointsProjectionListener {
 
     private static final Logger log = LoggerFactory.getLogger(PointsProjectionListener.class);
-    private static final String GRANT_SUFFIX = ":points";
-    private static final String SOURCE_MODULE = "points";
 
-    private final UnifiedGrantService unifiedGrantService;
+    private final GrowthGrantActionApi growthGrantActionApi;
 
-    public PointsProjectionListener(UnifiedGrantService unifiedGrantService) {
-        this.unifiedGrantService = unifiedGrantService;
+    public PointsProjectionListener(GrowthGrantActionApi growthGrantActionApi) {
+        this.growthGrantActionApi = growthGrantActionApi;
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = false)
@@ -36,11 +34,11 @@ public class PointsProjectionListener {
         }
         try {
             if (ContentEventTypes.POST_PUBLISHED.equals(event.type()) && event.payload() instanceof PostPayload payload) {
-                unifiedGrantService.applyGrant(payload.getUserId(), event.eventId() + GRANT_SUFFIX, event.type(), event.eventId(), event.type(), 10, 0, SOURCE_MODULE, "content-event");
+                growthGrantActionApi.applyPointsProjection(payload.getUserId(), event.eventId(), event.type(), 10);
                 return;
             }
             if (ContentEventTypes.COMMENT_CREATED.equals(event.type()) && event.payload() instanceof CommentPayload payload) {
-                unifiedGrantService.applyGrant(payload.getUserId(), event.eventId() + GRANT_SUFFIX, event.type(), event.eventId(), event.type(), 2, 0, SOURCE_MODULE, "content-event");
+                growthGrantActionApi.applyPointsProjection(payload.getUserId(), event.eventId(), event.type(), 2);
             }
         } catch (RuntimeException e) {
             log.warn("[points] projection failed after commit (eventId={}, type={}): {}", event.eventId(), event.type(), e.toString());
@@ -58,11 +56,11 @@ public class PointsProjectionListener {
         }
         try {
             if (SocialEventTypes.LIKE_CREATED.equals(event.type())) {
-                unifiedGrantService.applyGrant(toUserId, event.eventId() + GRANT_SUFFIX, event.type(), event.eventId(), event.type(), 1, 0, SOURCE_MODULE, "social-event");
+                growthGrantActionApi.applyPointsProjection(toUserId, event.eventId(), event.type(), 1);
                 return;
             }
             if (SocialEventTypes.LIKE_REMOVED.equals(event.type())) {
-                unifiedGrantService.applyGrant(toUserId, event.eventId() + GRANT_SUFFIX, event.type(), event.eventId(), event.type(), -1, 0, SOURCE_MODULE, "social-event");
+                growthGrantActionApi.applyPointsProjection(toUserId, event.eventId(), event.type(), -1);
             }
         } catch (RuntimeException e) {
             log.warn("[points] projection failed after commit (eventId={}, type={}): {}", event.eventId(), event.type(), e.toString());

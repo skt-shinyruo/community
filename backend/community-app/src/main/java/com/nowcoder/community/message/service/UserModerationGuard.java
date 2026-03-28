@@ -1,8 +1,8 @@
 package com.nowcoder.community.message.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.user.service.UserModerationService;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.nowcoder.community.user.api.model.UserModerationStateView;
+import com.nowcoder.community.user.api.query.UserModerationQueryApi;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -18,11 +18,10 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 @Service("messageUserModerationGuard")
 public class UserModerationGuard {
 
-    private final UserModerationService userModerationService;
+    private final UserModerationQueryApi userModerationQueryApi;
 
-    @Autowired
-    public UserModerationGuard(UserModerationService userModerationService) {
-        this.userModerationService = userModerationService;
+    public UserModerationGuard(UserModerationQueryApi userModerationQueryApi) {
+        this.userModerationQueryApi = userModerationQueryApi;
     }
 
     public void assertCanSendMessage(int userId) {
@@ -30,13 +29,13 @@ public class UserModerationGuard {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
 
-        UserModerationService.ModerationStatus status = userModerationService.moderationStatus(userId);
+        UserModerationStateView status = userModerationQueryApi.getModerationState(userId);
         Instant now = Instant.now();
 
-        if (status != null && status.getBanUntil() != null && status.getBanUntil().isAfter(now)) {
+        if (status != null && status.banUntil() != null && status.banUntil().isAfter(now)) {
             throw new BusinessException(FORBIDDEN, "账号已被封禁，无法发送私信");
         }
-        if (status != null && status.getMuteUntil() != null && status.getMuteUntil().isAfter(now)) {
+        if (status != null && status.muteUntil() != null && status.muteUntil().isAfter(now)) {
             throw new BusinessException(FORBIDDEN, "你已被禁言，暂时无法发送私信");
         }
     }

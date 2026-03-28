@@ -3,8 +3,8 @@ package com.nowcoder.community.auth.service;
 import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.auth.dto.RegisterRequest;
 import com.nowcoder.community.auth.dto.RegisterResponse;
-import com.nowcoder.community.user.entity.User;
-import com.nowcoder.community.user.service.UserRegistrationService;
+import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
+import com.nowcoder.community.user.api.model.PendingRegistrationUserView;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,7 +28,7 @@ import static org.mockito.Mockito.when;
 class RegistrationServiceTest {
 
     @Mock
-    private UserRegistrationService userRegistrationService;
+    private UserRegistrationActionApi userRegistrationActionApi;
 
     @Mock
     private MailService mailService;
@@ -51,7 +51,7 @@ class RegistrationServiceTest {
         properties.getCode().setExposeCode(true);
         properties.getCode().setTtlSeconds(600);
         service = new RegistrationService(
-                userRegistrationService,
+                userRegistrationActionApi,
                 properties,
                 mailService,
                 captchaService,
@@ -69,12 +69,10 @@ class RegistrationServiceTest {
         request.setCaptchaId("cid");
         request.setCaptchaCode("abcd");
 
-        User created = new User();
-        created.setId(7);
-        created.setEmail("alice@example.com");
+        PendingRegistrationUserView created = new PendingRegistrationUserView(7, "alice", "alice@example.com", 0, 0, null);
 
         when(captchaService.verify("cid", "abcd")).thenReturn(true);
-        when(userRegistrationService.register("alice", "secret", "alice@example.com", Duration.ofMinutes(30))).thenReturn(created);
+        when(userRegistrationActionApi.registerPendingUser("alice", "secret", "alice@example.com", Duration.ofMinutes(30))).thenReturn(created);
         when(registrationCodeStore.issue(eq(7), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
                 .thenReturn(RegistrationCodeStore.IssueResult.ISSUED);
         when(registrationSessionStore.issue(eq(7), eq(Duration.ofMinutes(30))))
@@ -88,7 +86,7 @@ class RegistrationServiceTest {
         assertThat(response.isEmailCodeIssued()).isTrue();
         assertThat(response.getMaskedEmail()).isNotBlank().contains("@").isNotEqualTo("alice@example.com");
         assertThat(response.getDebugEmailCode()).matches("\\d{6}");
-        verify(userRegistrationService).register("alice", "secret", "alice@example.com", Duration.ofMinutes(30));
+        verify(userRegistrationActionApi).registerPendingUser("alice", "secret", "alice@example.com", Duration.ofMinutes(30));
         verify(registrationCodeStore).issue(eq(7), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)));
         verify(registrationSessionStore).issue(eq(7), eq(Duration.ofMinutes(30)));
         verify(mailService).sendRegistrationCodeMail(eq("alice@example.com"), matches("\\d{6}"));

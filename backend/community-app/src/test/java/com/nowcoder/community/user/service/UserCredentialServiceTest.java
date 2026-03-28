@@ -2,6 +2,7 @@ package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
@@ -61,13 +62,47 @@ class UserCredentialServiceTest {
         user.setPassword(md5("secretabc"));
         when(userMapper.selectByName("alice")).thenReturn(user);
 
-        User authenticated = service.authenticate("alice", "secret");
+        UserCredentialView authenticated = service.authenticate("alice", "secret");
 
         ArgumentCaptor<String> passwordCaptor = ArgumentCaptor.forClass(String.class);
         verify(userMapper).updatePassword(eq(7), passwordCaptor.capture());
-        assertThat(authenticated).isSameAs(user);
+        assertThat(authenticated).extracting(
+                UserCredentialView::userId,
+                UserCredentialView::username,
+                UserCredentialView::status,
+                UserCredentialView::type
+        ).containsExactly(7, "alice", 1, 0);
         assertThat(new BCryptPasswordEncoder().matches("secret", passwordCaptor.getValue())).isTrue();
         assertThat(user.getPassword()).isEqualTo(passwordCaptor.getValue());
+    }
+
+    @Test
+    void getByUserIdShouldProjectCredentialView() {
+        UserCredentialService service = new UserCredentialService(userMapper);
+        User user = activeUser(7, "alice");
+        user.setHeaderUrl("h7");
+        when(userMapper.selectById(7)).thenReturn(user);
+
+        UserCredentialView credential = service.getByUserId(7);
+
+        assertThat(credential).extracting(
+                UserCredentialView::userId,
+                UserCredentialView::username,
+                UserCredentialView::status,
+                UserCredentialView::type,
+                UserCredentialView::headerUrl
+        ).containsExactly(7, "alice", 1, 0, "h7");
+    }
+
+    @Test
+    void getByUserIdShouldRejectMissingUser() {
+        UserCredentialService service = new UserCredentialService(userMapper);
+        when(userMapper.selectById(7)).thenReturn(null);
+
+        assertThatThrownBy(() -> service.getByUserId(7))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(USER_NOT_FOUND);
     }
 
     @Test
@@ -97,14 +132,11 @@ class UserCredentialServiceTest {
     @Test
     void authoritiesOfShouldMapUserTypesToExpectedRoles() {
         UserCredentialService service = new UserCredentialService(userMapper);
-        User admin = activeUser(1, "admin");
-        admin.setType(1);
-        User moderator = activeUser(2, "mod");
-        moderator.setType(2);
-        User regular = activeUser(3, "user");
-        regular.setType(0);
+        UserCredentialView admin = new UserCredentialView(1, "admin", 1, 1, "h1");
+        UserCredentialView moderator = new UserCredentialView(2, "mod", 1, 2, "h2");
+        UserCredentialView regular = new UserCredentialView(3, "user", 1, 0, "h3");
 
-        assertThat(service.authoritiesOf(null)).isEmpty();
+        assertThat(service.authoritiesOf((UserCredentialView) null)).isEmpty();
         assertThat(service.authoritiesOf(admin)).isEqualTo(List.of("ROLE_ADMIN"));
         assertThat(service.authoritiesOf(moderator)).isEqualTo(List.of("ROLE_MODERATOR"));
         assertThat(service.authoritiesOf(regular)).isEqualTo(List.of("ROLE_USER"));

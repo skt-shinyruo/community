@@ -2,7 +2,8 @@ package com.nowcoder.community.message.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import com.nowcoder.community.user.service.UserModerationService;
+import com.nowcoder.community.user.api.model.UserModerationStateView;
+import com.nowcoder.community.user.api.query.UserModerationQueryApi;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -16,19 +17,17 @@ import static org.mockito.Mockito.when;
 class UserModerationGuardTest {
 
     @Test
-    void constructorShouldUseUserModerationServiceForActiveMute() {
-        UserModerationService userModerationService = mock(UserModerationService.class);
-        UserModerationService.ModerationStatus status = new UserModerationService.ModerationStatus();
-        status.setUserId(7);
-        status.setMuteUntil(Instant.now().plusSeconds(60));
-        when(userModerationService.moderationStatus(7)).thenReturn(status);
-        UserModerationGuard guard = new UserModerationGuard(userModerationService);
+    void constructorShouldUseUserModerationQueryApiForActiveMute() {
+        UserModerationQueryApi userModerationQueryApi = mock(UserModerationQueryApi.class);
+        UserModerationStateView status = new UserModerationStateView(7, Instant.now().plusSeconds(60), null);
+        when(userModerationQueryApi.getModerationState(7)).thenReturn(status);
+        UserModerationGuard guard = new UserModerationGuard(userModerationQueryApi);
 
         BusinessException ex = catchThrowableOfType(() -> guard.assertCanSendMessage(7), BusinessException.class);
 
         assertThat(ex).isNotNull();
         assertThat(ex.getErrorCode()).isEqualTo(CommonErrorCode.FORBIDDEN);
         assertThat(ex.getMessage()).isEqualTo("你已被禁言，暂时无法发送私信");
-        verify(userModerationService).moderationStatus(7);
+        verify(userModerationQueryApi).getModerationState(7);
     }
 }

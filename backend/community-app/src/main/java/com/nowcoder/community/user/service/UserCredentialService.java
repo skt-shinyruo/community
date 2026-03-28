@@ -3,6 +3,9 @@ package com.nowcoder.community.user.service;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.user.api.action.UserCredentialActionApi;
+import com.nowcoder.community.user.api.model.UserCredentialView;
+import com.nowcoder.community.user.api.query.UserCredentialQueryApi;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.mapper.UserMapper;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -17,7 +20,7 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND;
 
 @Service
-public class UserCredentialService {
+public class UserCredentialService implements UserCredentialQueryApi, UserCredentialActionApi {
 
     private final UserMapper userMapper;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
@@ -26,7 +29,33 @@ public class UserCredentialService {
         this.userMapper = userMapper;
     }
 
-    public User authenticate(String username, String password) {
+    @Override
+    public UserCredentialView authenticate(String username, String password) {
+        return toCredentialView(authenticateEntity(username, password));
+    }
+
+    @Override
+    public UserCredentialView getByUserId(int userId) {
+        if (userId <= 0) {
+            throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
+        }
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(USER_NOT_FOUND);
+        }
+        return toCredentialView(user);
+    }
+
+    @Override
+    public UserCredentialView findByEmailOrNull(String email) {
+        String value = safeTrim(email);
+        if (!StringUtils.hasText(value)) {
+            throw new BusinessException(INVALID_ARGUMENT, "email 不能为空");
+        }
+        return toCredentialView(userMapper.selectByEmail(value));
+    }
+
+    public User authenticateEntity(String username, String password) {
         String trimmedUsername = safeTrim(username);
         String trimmedPassword = safeTrim(password);
         if (!StringUtils.hasText(trimmedUsername) || !StringUtils.hasText(trimmedPassword)) {
@@ -54,6 +83,7 @@ public class UserCredentialService {
         return user;
     }
 
+    @Override
     public void updatePassword(int userId, String newPassword) {
         if (userId <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
@@ -75,14 +105,16 @@ public class UserCredentialService {
         }
     }
 
-    public List<String> authoritiesOf(User user) {
-        if (user == null) {
-            return List.of();
-        }
-        if (user.getType() == 1) {
+    @Override
+    public List<String> authoritiesOf(UserCredentialView user) {
+        return user == null ? List.of() : authoritiesForType(user.type());
+    }
+
+    private List<String> authoritiesForType(int type) {
+        if (type == 1) {
             return List.of("ROLE_ADMIN");
         }
-        if (user.getType() == 2) {
+        if (type == 2) {
             return List.of("ROLE_MODERATOR");
         }
         return List.of("ROLE_USER");
@@ -125,6 +157,13 @@ public class UserCredentialService {
             return false;
         }
         return stored.startsWith("$2a$") || stored.startsWith("$2b$") || stored.startsWith("$2y$");
+    }
+
+    private UserCredentialView toCredentialView(User user) {
+        if (user == null || user.getId() <= 0) {
+            return null;
+        }
+        return new UserCredentialView(user.getId(), user.getUsername(), user.getStatus(), user.getType(), user.getHeaderUrl());
     }
 
     private String md5(String input) {

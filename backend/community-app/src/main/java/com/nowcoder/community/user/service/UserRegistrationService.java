@@ -2,6 +2,10 @@ package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
+import com.nowcoder.community.user.api.model.PendingRegistrationUserView;
+import com.nowcoder.community.user.api.model.UserCredentialView;
+import com.nowcoder.community.user.api.query.UserPendingRegistrationQueryApi;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.mapper.UserMapper;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -22,7 +26,7 @@ import static com.nowcoder.community.user.exception.UserErrorCode.USER_ALREADY_E
 import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND;
 
 @Service
-public class UserRegistrationService {
+public class UserRegistrationService implements UserRegistrationActionApi, UserPendingRegistrationQueryApi {
 
     private static final String USERNAME_UNIQUE_CONSTRAINT = "uk_user_username";
     private static final String EMAIL_UNIQUE_CONSTRAINT = "uk_user_email";
@@ -32,6 +36,12 @@ public class UserRegistrationService {
 
     public UserRegistrationService(UserMapper userMapper) {
         this.userMapper = userMapper;
+    }
+
+    @Override
+    @Transactional
+    public PendingRegistrationUserView registerPendingUser(String username, String password, String email, Duration pendingTtl) {
+        return toPendingRegistrationView(register(username, password, email, pendingTtl));
     }
 
     @Transactional
@@ -88,6 +98,11 @@ public class UserRegistrationService {
         return user;
     }
 
+    @Override
+    public PendingRegistrationUserView getPendingUser(int userId, Duration pendingTtl) {
+        return toPendingRegistrationView(getPendingRegistrationUser(userId, pendingTtl));
+    }
+
     public User getPendingRegistrationUser(int userId, Duration pendingTtl) {
         if (userId <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
@@ -105,7 +120,9 @@ public class UserRegistrationService {
         return user;
     }
 
-    public void activateUser(int userId) {
+    @Override
+    @Transactional
+    public UserCredentialView activatePendingUser(int userId) {
         if (userId <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
@@ -117,8 +134,15 @@ public class UserRegistrationService {
         if (updated <= 0) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "更新用户状态失败");
         }
+        user.setStatus(1);
+        return toCredentialView(user);
     }
 
+    public void activateUser(int userId) {
+        activatePendingUser(userId);
+    }
+
+    @Override
     public int cleanupExpiredPendingUsers(Duration pendingTtl) {
         return userMapper.deleteExpiredPendingUsers(0, pendingUserCutoff(pendingTtl));
     }
@@ -159,5 +183,32 @@ public class UserRegistrationService {
 
     private String safeTrim(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private PendingRegistrationUserView toPendingRegistrationView(User user) {
+        if (user == null || user.getId() <= 0) {
+            return null;
+        }
+        return new PendingRegistrationUserView(
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getStatus(),
+                user.getType(),
+                user.getHeaderUrl()
+        );
+    }
+
+    private UserCredentialView toCredentialView(User user) {
+        if (user == null || user.getId() <= 0) {
+            return null;
+        }
+        return new UserCredentialView(
+                user.getId(),
+                user.getUsername(),
+                user.getStatus(),
+                user.getType(),
+                user.getHeaderUrl()
+        );
     }
 }

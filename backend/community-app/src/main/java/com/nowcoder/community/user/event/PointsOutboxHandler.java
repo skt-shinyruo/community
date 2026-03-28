@@ -1,7 +1,7 @@
 package com.nowcoder.community.user.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.growth.service.UnifiedGrantService;
+import com.nowcoder.community.growth.api.action.GrowthGrantActionApi;
 import com.nowcoder.community.infra.outbox.OutboxEvent;
 import com.nowcoder.community.infra.outbox.OutboxHandler;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -17,14 +17,12 @@ public class PointsOutboxHandler implements OutboxHandler {
 
     public static final String TOPIC = "projection.points";
 
-    private static final String SOURCE_MODULE = "points";
-
     private final ObjectMapper objectMapper;
-    private final UnifiedGrantService unifiedGrantService;
+    private final GrowthGrantActionApi growthGrantActionApi;
 
-    public PointsOutboxHandler(ObjectMapper objectMapper, UnifiedGrantService unifiedGrantService) {
+    public PointsOutboxHandler(ObjectMapper objectMapper, GrowthGrantActionApi growthGrantActionApi) {
         this.objectMapper = objectMapper;
-        this.unifiedGrantService = unifiedGrantService;
+        this.growthGrantActionApi = growthGrantActionApi;
     }
 
     @Override
@@ -56,17 +54,7 @@ public class PointsOutboxHandler implements OutboxHandler {
             return;
         }
 
-        unifiedGrantService.applyGrant(
-                userId,
-                event.eventId(),
-                sourceEventType.trim(),
-                sourceEventId.trim(),
-                sourceEventType.trim(),
-                delta,
-                0,
-                SOURCE_MODULE,
-                "outbox-event"
-        );
+        growthGrantActionApi.applyPointsProjection(userId, sourceEventId.trim(), sourceEventType.trim(), delta);
     }
 
     public static class PointsOutboxPayload {

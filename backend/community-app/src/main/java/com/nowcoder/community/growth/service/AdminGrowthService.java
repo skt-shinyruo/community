@@ -8,9 +8,11 @@ import com.nowcoder.community.growth.entity.RewardLedgerEntry;
 import com.nowcoder.community.growth.exception.GrowthErrorCode;
 import com.nowcoder.community.growth.mapper.AdminRewardAdjustmentMapper;
 import com.nowcoder.community.growth.mapper.RewardLedgerMapper;
-import com.nowcoder.community.user.entity.User;
-import com.nowcoder.community.user.mapper.UserMapper;
-import com.nowcoder.community.user.service.PointsService;
+import com.nowcoder.community.user.api.action.UserPointsActionApi;
+import com.nowcoder.community.user.api.model.UserGrowthProfileView;
+import com.nowcoder.community.user.api.model.UserSummaryView;
+import com.nowcoder.community.user.api.query.UserLookupQueryApi;
+import com.nowcoder.community.user.api.query.UserProfileQueryApi;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -23,41 +25,45 @@ public class AdminGrowthService {
 
     private static final int DEFAULT_LEDGER_LIMIT = 5;
 
-    private final UserMapper userMapper;
-    private final PointsService pointsService;
+    private final UserLookupQueryApi userLookupQueryApi;
+    private final UserProfileQueryApi userProfileQueryApi;
+    private final UserPointsActionApi userPointsActionApi;
     private final RewardAccountService rewardAccountService;
     private final RewardLedgerMapper rewardLedgerMapper;
     private final AdminRewardAdjustmentMapper adminRewardAdjustmentMapper;
 
     public AdminGrowthService(
-            UserMapper userMapper,
-            PointsService pointsService,
+            UserLookupQueryApi userLookupQueryApi,
+            UserProfileQueryApi userProfileQueryApi,
+            UserPointsActionApi userPointsActionApi,
             RewardAccountService rewardAccountService,
             RewardLedgerMapper rewardLedgerMapper,
             AdminRewardAdjustmentMapper adminRewardAdjustmentMapper
     ) {
-        this.userMapper = userMapper;
-        this.pointsService = pointsService;
+        this.userLookupQueryApi = userLookupQueryApi;
+        this.userProfileQueryApi = userProfileQueryApi;
+        this.userPointsActionApi = userPointsActionApi;
         this.rewardAccountService = rewardAccountService;
         this.rewardLedgerMapper = rewardLedgerMapper;
         this.adminRewardAdjustmentMapper = adminRewardAdjustmentMapper;
     }
 
     public AdminGrowthUserResponse search(Integer userId, String username, String email) {
-        User user = resolveUser(userId, username, email);
-        if (user == null) {
+        UserSummaryView summary = resolveUser(userId, username, email);
+        if (summary == null) {
             return null;
         }
+        UserGrowthProfileView profile = userProfileQueryApi.getGrowthProfile(summary.id());
 
         AdminGrowthUserResponse response = new AdminGrowthUserResponse();
-        response.setUserId(user.getId());
-        response.setUsername(user.getUsername());
-        response.setEmail(user.getEmail());
-        response.setScore(user.getScore());
-        response.setLevel(pointsService.levelForScore(user.getScore()));
-        response.setRewardBalance(rewardAccountService.availableBalanceOf(user.getId()));
-        response.setFrozenBalance(rewardAccountService.frozenBalanceOf(user.getId()));
-        response.setRecentRewardLedgers(rewardLedgerMapper.selectRecentByUserId(user.getId(), DEFAULT_LEDGER_LIMIT));
+        response.setUserId(profile.userId());
+        response.setUsername(profile.username());
+        response.setEmail(profile.email());
+        response.setScore(profile.score());
+        response.setLevel(profile.level());
+        response.setRewardBalance(rewardAccountService.availableBalanceOf(profile.userId()));
+        response.setFrozenBalance(rewardAccountService.frozenBalanceOf(profile.userId()));
+        response.setRecentRewardLedgers(rewardLedgerMapper.selectRecentByUserId(profile.userId(), DEFAULT_LEDGER_LIMIT));
         return response;
     }
 
@@ -82,8 +88,8 @@ public class AdminGrowthService {
             throw new BusinessException(GrowthErrorCode.INVALID_REQUEST, "reason required");
         }
 
-        User target = userMapper.selectById(request.getTargetUserId());
-        if (target == null || target.getId() <= 0) {
+        UserSummaryView target = findSummaryByIdOrNull(request.getTargetUserId());
+        if (target == null || target.id() <= 0) {
             throw new BusinessException(GrowthErrorCode.TARGET_USER_NOT_FOUND, "target user not found");
         }
 
@@ -91,32 +97,32 @@ public class AdminGrowthService {
         int beforeValue;
         int afterValue;
         if ("SCORE".equals(assetType)) {
-            beforeValue = target.getScore();
-            pointsService.applyPoints(
-                    target.getId(),
+            beforeValue = userProfileQueryApi.getGrowthProfile(target.id()).score();
+            userPointsActionApi.applyPoints(
+                    target.id(),
                     "admin-adjust:" + UUID.randomUUID(),
                     "AdminGrowthAdjust",
                     request.getDelta()
             );
-            afterValue = userMapper.selectById(target.getId()).getScore();
+            afterValue = userProfileQueryApi.getGrowthProfile(target.id()).score();
         } else if ("REWARD_BALANCE".equals(assetType)) {
-            beforeValue = rewardAccountService.availableBalanceOf(target.getId());
+            beforeValue = rewardAccountService.availableBalanceOf(target.id());
             rewardAccountService.applyAvailableDelta(
-                    target.getId(),
+                    target.id(),
                     "admin-adjust:" + UUID.randomUUID(),
                     "AdminRewardAdjust",
                     request.getDelta(),
                     "growth-admin",
                     reason
             );
-            afterValue = rewardAccountService.availableBalanceOf(target.getId());
+            afterValue = rewardAccountService.availableBalanceOf(target.id());
         } else {
             throw new BusinessException(GrowthErrorCode.INVALID_REQUEST, "unsupported asset type");
         }
 
         AdminRewardAdjustment adjustment = new AdminRewardAdjustment();
         adjustment.setActorUserId(actorUserId);
-        adjustment.setTargetUserId(target.getId());
+        adjustment.setTargetUserId(target.id());
         adjustment.setAssetType(assetType);
         adjustment.setDelta(request.getDelta());
         adjustment.setBeforeValue(beforeValue);
@@ -125,20 +131,28 @@ public class AdminGrowthService {
         adjustment.setConfirmToken("confirmed");
         adminRewardAdjustmentMapper.insert(adjustment);
 
-        return search(target.getId(), null, null);
+        return search(target.id(), null, null);
     }
 
-    private User resolveUser(Integer userId, String username, String email) {
+    private UserSummaryView resolveUser(Integer userId, String username, String email) {
         if (userId != null && userId > 0) {
-            return userMapper.selectById(userId);
+            return findSummaryByIdOrNull(userId);
         }
         if (StringUtils.hasText(username)) {
-            return userMapper.selectByName(username.trim());
+            return findSummaryByUsernameOrNull(username.trim());
         }
         if (StringUtils.hasText(email)) {
-            return userMapper.selectByEmail(email.trim());
+            return userLookupQueryApi.findSummaryByEmailOrNull(email.trim());
         }
         throw new BusinessException(GrowthErrorCode.INVALID_REQUEST, "userId/username/email required");
+    }
+
+    private UserSummaryView findSummaryByIdOrNull(int userId) {
+        return userLookupQueryApi.getSummaryById(userId);
+    }
+
+    private UserSummaryView findSummaryByUsernameOrNull(String username) {
+        return userLookupQueryApi.getSummaryByUsername(username);
     }
 
     private int positiveLimit(int limit) {

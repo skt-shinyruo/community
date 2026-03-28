@@ -1,7 +1,7 @@
 package com.nowcoder.community.infra.job.handlers;
 
 import com.nowcoder.community.auth.config.RegistrationProperties;
-import com.nowcoder.community.user.service.UserRegistrationService;
+import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import org.slf4j.Logger;
@@ -17,12 +17,12 @@ public class PendingRegistrationUserCleanupHandler {
 
     private static final Logger log = LoggerFactory.getLogger(PendingRegistrationUserCleanupHandler.class);
 
-    private final UserRegistrationService userRegistrationService;
+    private final UserRegistrationActionApi userRegistrationActionApi;
     private final RegistrationProperties properties;
 
-    public PendingRegistrationUserCleanupHandler(UserRegistrationService userRegistrationService,
+    public PendingRegistrationUserCleanupHandler(UserRegistrationActionApi userRegistrationActionApi,
                                                  RegistrationProperties properties) {
-        this.userRegistrationService = userRegistrationService;
+        this.userRegistrationActionApi = userRegistrationActionApi;
         this.properties = properties;
     }
 
@@ -30,7 +30,7 @@ public class PendingRegistrationUserCleanupHandler {
     public void cleanup() {
         try {
             Duration ttl = Duration.ofSeconds(Math.max(60, properties.getPendingUser().getTtlSeconds()));
-            int deleted = userRegistrationService.cleanupExpiredPendingUsers(ttl);
+            int deleted = userRegistrationActionApi.cleanupExpiredPendingUsers(ttl);
             String result = "[registration] pending-user cleanup deleted-count=" + deleted;
             XxlJobHelper.log(result);
             XxlJobHelper.handleSuccess(result);

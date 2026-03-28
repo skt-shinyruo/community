@@ -7,8 +7,8 @@ import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.auth.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.user.entity.User;
-import com.nowcoder.community.user.service.UserRegistrationService;
+import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
+import com.nowcoder.community.user.api.model.PendingRegistrationUserView;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,7 +23,7 @@ public class RegistrationService {
 
     private static final Logger log = LoggerFactory.getLogger(RegistrationService.class);
 
-    private final UserRegistrationService userRegistrationService;
+    private final UserRegistrationActionApi userRegistrationActionApi;
     private final RegistrationProperties properties;
     private final MailService mailService;
     private final CaptchaService captchaService;
@@ -31,14 +31,14 @@ public class RegistrationService {
     private final RegistrationSessionStore registrationSessionStore;
 
     public RegistrationService(
-            UserRegistrationService userRegistrationService,
+            UserRegistrationActionApi userRegistrationActionApi,
             RegistrationProperties properties,
             MailService mailService,
             CaptchaService captchaService,
             RegistrationCodeStore registrationCodeStore,
             RegistrationSessionStore registrationSessionStore
     ) {
-        this.userRegistrationService = userRegistrationService;
+        this.userRegistrationActionApi = userRegistrationActionApi;
         this.properties = properties;
         this.mailService = mailService;
         this.captchaService = captchaService;
@@ -66,36 +66,37 @@ public class RegistrationService {
         }
 
         Duration pendingUserTtl = Duration.ofSeconds(Math.max(60, properties.getPendingUser().getTtlSeconds()));
-        User created = userRegistrationService.register(username, password, email, pendingUserTtl);
-        if (created == null || created.getId() <= 0) {
+        PendingRegistrationUserView created = userRegistrationActionApi.registerPendingUser(username, password, email, pendingUserTtl);
+        if (created == null || created.userId() <= 0) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败");
         }
+        String targetEmail = StringUtils.hasText(created.email()) ? created.email() : email;
 
         String code = generateCode();
         Duration ttl = Duration.ofSeconds(Math.max(60, properties.getCode().getTtlSeconds()));
         Duration cooldown = Duration.ofSeconds(Math.max(0, properties.getCode().getResendCooldownSeconds()));
-        RegistrationCodeStore.IssueResult issueResult = registrationCodeStore.issue(created.getId(), code, ttl, cooldown);
+        RegistrationCodeStore.IssueResult issueResult = registrationCodeStore.issue(created.userId(), code, ttl, cooldown);
         if (issueResult != RegistrationCodeStore.IssueResult.ISSUED) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "注册验证码签发失败");
         }
-        mailService.sendRegistrationCodeMail(email, code);
+        mailService.sendRegistrationCodeMail(targetEmail, code);
 
         RegisterResponse resp = new RegisterResponse();
-        resp.setUserId(created.getId());
-        String registrationToken = registrationSessionStore == null ? null : registrationSessionStore.issue(created.getId(), pendingUserTtl);
+        resp.setUserId(created.userId());
+        String registrationToken = registrationSessionStore == null ? null : registrationSessionStore.issue(created.userId(), pendingUserTtl);
         if (!StringUtils.hasText(registrationToken)) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "注册上下文创建失败");
         }
         resp.setRegistrationToken(registrationToken);
         resp.setEmailCodeIssued(true);
-        resp.setMaskedEmail(maskEmail(email));
+        resp.setMaskedEmail(maskEmail(targetEmail));
         if (properties.getCode().isExposeCode()) {
             resp.setDebugEmailCode(code);
         }
         SecurityEventLogger.info(log, "registration_code_issue", "success",
-                "user.id", created.getId(),
+                "user.id", created.userId(),
                 "username", username,
-                "masked.email", maskEmail(email));
+                "masked.email", maskEmail(targetEmail));
         return resp;
     }
 

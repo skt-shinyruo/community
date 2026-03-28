@@ -3,7 +3,8 @@ package com.nowcoder.community.social.service;
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import com.nowcoder.community.content.service.ContentEntityService;
+import com.nowcoder.community.content.api.model.ResolvedContentRef;
+import com.nowcoder.community.content.api.query.ContentEntityQueryApi;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.slf4j.Logger;
@@ -22,14 +23,14 @@ public class ContentEntityResolver {
 
     private static final Logger log = LoggerFactory.getLogger(ContentEntityResolver.class);
     private final MeterRegistry meterRegistry;
-    private final ContentEntityService contentEntityService;
+    private final ContentEntityQueryApi contentEntityQueryApi;
 
     public ContentEntityResolver(
             MeterRegistry meterRegistry,
-            ContentEntityService contentEntityService
+            ContentEntityQueryApi contentEntityQueryApi
     ) {
         this.meterRegistry = meterRegistry;
-        this.contentEntityService = contentEntityService;
+        this.contentEntityQueryApi = contentEntityQueryApi;
     }
 
     public ResolvedEntity resolve(int entityType, int entityId) {
@@ -45,7 +46,7 @@ public class ContentEntityResolver {
 
     private ResolvedEntity resolveInternal(int entityType, int entityId) {
         try {
-            ContentEntityService.ResolvedEntity data = contentEntityService.resolve(entityType, entityId);
+            ResolvedContentRef data = contentEntityQueryApi.resolve(entityType, entityId);
             int entityUserId = data == null ? 0 : data.entityUserId();
             int postId = data == null ? 0 : data.postId();
             if (entityUserId <= 0 || postId <= 0) {

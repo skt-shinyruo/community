@@ -41,6 +41,21 @@ class UnifiedGrantServiceTest {
     }
 
     @Test
+    void pointsProjectionActionShouldOwnGrantBookkeepingAndRemainIdempotent() {
+        boolean first = service.applyPointsProjection(1, "post-evt-1", "PostPublished", 10);
+        boolean second = service.applyPointsProjection(1, "post-evt-1", "PostPublished", 10);
+
+        assertThat(first).isTrue();
+        assertThat(second).isFalse();
+        assertThat(currentScore(1)).isEqualTo(10);
+        assertThat(currentRewardBalance(1)).isZero();
+        assertThat(countRows("reward_grant_record")).isEqualTo(1);
+        assertThat(countRows("user_score_log")).isEqualTo(1);
+        assertThat(countRows("reward_ledger")).isZero();
+        assertThat(storedGrantId("post-evt-1")).isEqualTo("post-evt-1:points");
+    }
+
+    @Test
     void sameGrantShouldOnlyApplyOnce() {
         boolean first = service.applyGrant(1, "grant-1", "DailyTask", "src-1", "TaskCompleted", 10, 5, "growth", "daily reward");
         boolean second = service.applyGrant(1, "grant-1", "DailyTask", "src-1", "TaskCompleted", 10, 5, "growth", "daily reward");
@@ -120,5 +135,13 @@ class UnifiedGrantServiceTest {
     private int countRows(String tableName) {
         Integer count = jdbcTemplate.queryForObject("select count(*) from " + tableName, Integer.class);
         return count == null ? 0 : count;
+    }
+
+    private String storedGrantId(String sourceEventId) {
+        return jdbcTemplate.queryForObject(
+                "select grant_id from reward_grant_record where source_event_id = ?",
+                String.class,
+                sourceEventId
+        );
     }
 }

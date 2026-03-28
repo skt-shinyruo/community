@@ -6,11 +6,13 @@ import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.auth.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import com.nowcoder.community.user.entity.User;
+import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
+import com.nowcoder.community.user.api.model.PendingRegistrationUserView;
+import com.nowcoder.community.user.api.model.UserCredentialView;
+import com.nowcoder.community.user.api.query.UserPendingRegistrationQueryApi;
 import com.nowcoder.community.user.exception.UserErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import com.nowcoder.community.user.service.UserRegistrationService;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -22,7 +24,8 @@ public class RegistrationVerificationService {
 
     private static final Logger log = LoggerFactory.getLogger(RegistrationVerificationService.class);
 
-    private final UserRegistrationService userRegistrationService;
+    private final UserPendingRegistrationQueryApi userPendingRegistrationQueryApi;
+    private final UserRegistrationActionApi userRegistrationActionApi;
     private final RegistrationProperties properties;
     private final RegistrationCodeStore registrationCodeStore;
     private final MailService mailService;
@@ -31,7 +34,8 @@ public class RegistrationVerificationService {
     private final AuthService authService;
 
     public RegistrationVerificationService(
-            UserRegistrationService userRegistrationService,
+            UserPendingRegistrationQueryApi userPendingRegistrationQueryApi,
+            UserRegistrationActionApi userRegistrationActionApi,
             RegistrationProperties properties,
             RegistrationCodeStore registrationCodeStore,
             MailService mailService,
@@ -39,7 +43,8 @@ public class RegistrationVerificationService {
             RegistrationSessionStore registrationSessionStore,
             AuthService authService
     ) {
-        this.userRegistrationService = userRegistrationService;
+        this.userPendingRegistrationQueryApi = userPendingRegistrationQueryApi;
+        this.userRegistrationActionApi = userRegistrationActionApi;
         this.properties = properties;
         this.registrationCodeStore = registrationCodeStore;
         this.mailService = mailService;
@@ -57,20 +62,20 @@ public class RegistrationVerificationService {
         }
 
         int userId = resolveUserIdOrThrow(registrationToken);
-        User user = requirePendingUser(userId);
+        PendingRegistrationUserView user = requirePendingUser(userId);
 
         String code = generateCode();
         Duration ttl = Duration.ofSeconds(Math.max(60, properties.getCode().getTtlSeconds()));
         Duration cooldown = Duration.ofSeconds(Math.max(0, properties.getCode().getResendCooldownSeconds()));
-        RegistrationCodeStore.IssueResult issueResult = registrationCodeStore.issue(user.getId(), code, ttl, cooldown);
+        RegistrationCodeStore.IssueResult issueResult = registrationCodeStore.issue(user.userId(), code, ttl, cooldown);
         if (issueResult == RegistrationCodeStore.IssueResult.COOLDOWN_ACTIVE) {
             throw new BusinessException(AuthErrorCode.REGISTRATION_CODE_RESEND_COOLDOWN);
         }
-        mailService.sendRegistrationCodeMail(user.getEmail(), code);
+        mailService.sendRegistrationCodeMail(user.email(), code);
 
         RegisterCodeResendResponse response = new RegisterCodeResendResponse();
         response.setIssued(true);
-        response.setMaskedEmail(maskEmail(user.getEmail()));
+        response.setMaskedEmail(maskEmail(user.email()));
         if (properties.getCode().isExposeCode()) {
             response.setDebugEmailCode(code);
         }
@@ -84,15 +89,17 @@ public class RegistrationVerificationService {
 
         int userId = resolveUserIdOrThrow(registrationToken);
 
-        User user = requirePendingUser(userId);
+        PendingRegistrationUserView user = requirePendingUser(userId);
         RegistrationCodeStore.VerifyResult result = registrationCodeStore.verifyAndConsume(userId, code.trim());
         if (result == RegistrationCodeStore.VerifyResult.SUCCESS) {
-            userRegistrationService.activateUser(userId);
-            user.setStatus(1);
-            AuthService.LoginResult loginResult = authService.issueLoginResult(user);
+            UserCredentialView activatedUser = userRegistrationActionApi.activatePendingUser(userId);
+            if (activatedUser == null || activatedUser.userId() <= 0) {
+                throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "激活用户失败");
+            }
+            AuthService.LoginResult loginResult = authService.issueLoginResult(activatedUser);
             SecurityEventLogger.info(log, "registration_verify", "success",
-                    "user.id", userId,
-                    "username", user.getUsername());
+                    "user.id", activatedUser.userId(),
+                    "username", activatedUser.username());
             try {
                 registrationSessionStore.delete(registrationToken);
             } catch (RuntimeException ignored) {
@@ -120,10 +127,10 @@ public class RegistrationVerificationService {
         return userId;
     }
 
-    private User requirePendingUser(int userId) {
+    private PendingRegistrationUserView requirePendingUser(int userId) {
         Duration pendingUserTtl = Duration.ofSeconds(Math.max(60, properties.getPendingUser().getTtlSeconds()));
-        User user = userRegistrationService.getPendingRegistrationUser(userId, pendingUserTtl);
-        if (user.getStatus() != 0) {
+        PendingRegistrationUserView user = userPendingRegistrationQueryApi.getPendingUser(userId, pendingUserTtl);
+        if (user.status() != 0) {
             throw new BusinessException(AuthErrorCode.USER_DISABLED, "账号已激活，请直接登录");
         }
         return user;

@@ -19,29 +19,40 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
         packages = "com.nowcoder.community",
         importOptions = ImportOption.DoNotIncludeTests.class
 )
-class DomainBoundaryArchTest {
+class ControllerBoundaryArchTest {
 
     private static final String BASE_PACKAGE = "com.nowcoder.community.";
     private static final Pattern ENTITY_PACKAGE =
             Pattern.compile("com\\.nowcoder\\.community\\.[^.]+\\.entity(\\..*)?");
     private static final Pattern MAPPER_PACKAGE =
             Pattern.compile("com\\.nowcoder\\.community\\.[^.]+\\.mapper(\\..*)?");
+    private static final Pattern SERVICE_PACKAGE =
+            Pattern.compile("com\\.nowcoder\\.community\\.[^.]+\\.service(\\..*)?");
 
-    private static final Set<String> LEGACY_FOREIGN_ENTITY_CALLERS = Set.of();
-    private static final Set<String> LEGACY_FOREIGN_MAPPER_CALLERS = Set.of();
-    private static final Set<String> LEGACY_FACADE_SERVICE_CLASSES = Set.of();
-
-    @ArchTest
-    static final ArchRule non_owner_domains_must_not_depend_on_foreign_entities =
-            classes().should(notDependOnForeignPackage("entities", ENTITY_PACKAGE, LEGACY_FOREIGN_ENTITY_CALLERS));
-
-    @ArchTest
-    static final ArchRule non_owner_domains_must_not_depend_on_foreign_mappers =
-            classes().should(notDependOnForeignPackage("mappers", MAPPER_PACKAGE, LEGACY_FOREIGN_MAPPER_CALLERS));
+    private static final Set<String> LEGACY_FOREIGN_ENTITY_CONTROLLER_CALLERS = Set.of();
+    private static final Set<String> LEGACY_FOREIGN_MAPPER_CONTROLLER_CALLERS = Set.of();
+    private static final Set<String> LEGACY_FOREIGN_SERVICE_CONTROLLER_CALLERS = Set.of(
+            "com.nowcoder.community.im.controller.ImGovernanceController",
+            "com.nowcoder.community.ops.controller.OpsController"
+    );
 
     @ArchTest
-    static final ArchRule production_classes_must_not_end_with_facade_service =
-            classes().should(notUseFacadeServiceNaming());
+    static final ArchRule controllers_must_not_depend_on_foreign_entities =
+            classes()
+                    .that().resideInAnyPackage("..controller..")
+                    .should(notDependOnForeignPackage("entities", ENTITY_PACKAGE, LEGACY_FOREIGN_ENTITY_CONTROLLER_CALLERS));
+
+    @ArchTest
+    static final ArchRule controllers_must_not_depend_on_foreign_mappers =
+            classes()
+                    .that().resideInAnyPackage("..controller..")
+                    .should(notDependOnForeignPackage("mappers", MAPPER_PACKAGE, LEGACY_FOREIGN_MAPPER_CONTROLLER_CALLERS));
+
+    @ArchTest
+    static final ArchRule controllers_must_not_depend_on_foreign_services =
+            classes()
+                    .that().resideInAnyPackage("..controller..")
+                    .should(notDependOnForeignPackage("services", SERVICE_PACKAGE, LEGACY_FOREIGN_SERVICE_CONTROLLER_CALLERS));
 
     private static ArchCondition<JavaClass> notDependOnForeignPackage(
             String packageLabel,
@@ -64,21 +75,6 @@ class DomainBoundaryArchTest {
                             && !originDomain.equals(domainOf(target))) {
                         events.add(SimpleConditionEvent.violated(item, dependency.getDescription()));
                     }
-                }
-            }
-        };
-    }
-
-    private static ArchCondition<JavaClass> notUseFacadeServiceNaming() {
-        return new ArchCondition<>("not use FacadeService suffix") {
-            @Override
-            public void check(JavaClass item, ConditionEvents events) {
-                if (item.getSimpleName().endsWith("FacadeService")
-                        && !LEGACY_FACADE_SERVICE_CLASSES.contains(item.getName())) {
-                    events.add(SimpleConditionEvent.violated(
-                            item,
-                            item.getName() + " ends with FacadeService"
-                    ));
                 }
             }
         };

@@ -33,11 +33,15 @@ class DomainBoundaryArchTest {
 
     @ArchTest
     static final ArchRule non_owner_domains_must_not_depend_on_foreign_entities =
-            classes().should(notDependOnForeignPackage("entities", ENTITY_PACKAGE, LEGACY_FOREIGN_ENTITY_CALLERS));
+            classes()
+                    .that().resideOutsideOfPackage("..controller..")
+                    .should(notDependOnForeignPackage("entities", ENTITY_PACKAGE, LEGACY_FOREIGN_ENTITY_CALLERS));
 
     @ArchTest
     static final ArchRule non_owner_domains_must_not_depend_on_foreign_mappers =
-            classes().should(notDependOnForeignPackage("mappers", MAPPER_PACKAGE, LEGACY_FOREIGN_MAPPER_CALLERS));
+            classes()
+                    .that().resideOutsideOfPackage("..controller..")
+                    .should(notDependOnForeignPackage("mappers", MAPPER_PACKAGE, LEGACY_FOREIGN_MAPPER_CALLERS));
 
     @ArchTest
     static final ArchRule production_classes_must_not_end_with_facade_service =

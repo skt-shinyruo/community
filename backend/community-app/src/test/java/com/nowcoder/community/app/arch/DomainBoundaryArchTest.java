@@ -26,9 +26,16 @@ class DomainBoundaryArchTest {
             Pattern.compile("com\\.nowcoder\\.community\\.[^.]+\\.entity(\\..*)?");
     private static final Pattern MAPPER_PACKAGE =
             Pattern.compile("com\\.nowcoder\\.community\\.[^.]+\\.mapper(\\..*)?");
+    private static final Pattern SERVICE_PACKAGE =
+            Pattern.compile("com\\.nowcoder\\.community\\.[^.]+\\.service(\\..*)?");
 
     private static final Set<String> LEGACY_FOREIGN_ENTITY_CALLERS = Set.of();
     private static final Set<String> LEGACY_FOREIGN_MAPPER_CALLERS = Set.of();
+    private static final Set<String> LEGACY_FOREIGN_SERVICE_CALLERS = Set.of(
+            "com.nowcoder.community.infra.job.handlers.SearchReindexHandler",
+            "com.nowcoder.community.search.event.PostOutboxHandler",
+            "com.nowcoder.community.search.service.PostSearchService"
+    );
     private static final Set<String> LEGACY_FACADE_SERVICE_CLASSES = Set.of();
 
     @ArchTest
@@ -42,6 +49,12 @@ class DomainBoundaryArchTest {
             classes()
                     .that().resideOutsideOfPackage("..controller..")
                     .should(notDependOnForeignPackage("mappers", MAPPER_PACKAGE, LEGACY_FOREIGN_MAPPER_CALLERS));
+
+    @ArchTest
+    static final ArchRule non_owner_domains_must_not_depend_on_foreign_services =
+            classes()
+                    .that().resideOutsideOfPackage("..controller..")
+                    .should(notDependOnForeignPackage("services", SERVICE_PACKAGE, LEGACY_FOREIGN_SERVICE_CALLERS));
 
     @ArchTest
     static final ArchRule production_classes_must_not_end_with_facade_service =

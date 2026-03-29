@@ -95,7 +95,7 @@ flowchart TD
 - `com.nowcoder.community.analytics`：统计/分析
 - `com.nowcoder.community.ops`：运维平面（`/api/ops/**`）
 
-跨域同步协作当前默认应优先通过 owner-domain 暴露的 `api.query`、`api.action`、`api.model` 完成；这是本分支正在收敛的正式边界。`service`、`entity`、`mapper` 仍应视为域内实现细节，但少量历史调用点与对应护栏仍在按迁移计划继续收口；同 JVM 内部也不再通过 `application`、`contracts.internal.*`、`ModuleCallSupport` 来模拟远程调用。
+跨域同步协作统一通过 owner-domain 暴露的 `api.query`、`api.action`、`api.model` 完成；`service`、`entity`、`mapper` 均视为域内实现细节，不再作为默认跨域入口。当前分支上的 `DomainBoundaryArchTest` 与 `ControllerBoundaryArchTest` 已默认绿色，同 JVM 内部也不再通过 `application`、`contracts.internal.*`、`ModuleCallSupport` 来模拟远程调用。
 
 ### 2.4 共享基础设施（同模块内包）
 - `com.nowcoder.community.common.*`：错误码、业务异常、trace、统一 Web 响应、通用事件 envelope 等横切能力

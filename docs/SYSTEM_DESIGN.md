@@ -18,14 +18,15 @@
 - External（对外业务）：`/api/**`
 - Files（静态文件）：`/files/**`
 - Ops（对外运维）：`/api/ops/**`（ADMIN-only）
-- Internal（跨模块同步调用）：**进程内直接 service 协作**
-  - 约束：尽量避免跨模块 JOIN；跨模块数据聚合优先走“聚焦 service/dto + 批量/缓存”
+- Internal（跨模块同步调用）：**统一通过 owner-domain `api.query` / `api.action` / `api.model` 协作**
+  - 约束：尽量避免跨模块 JOIN；跨模块数据聚合优先走 owner-domain API + 批量/缓存
+  - 边界：`service`、`entity`、`mapper` 仅作为 owner 域内部实现细节，不再作为默认跨域入口
 
 ### 1.2 身份与会话：auth（入口）+ user（SSOT）
 - auth 模块（对外入口）：登录/刷新/登出闭环（签发 JWT access token + refresh cookie）；验证码、注册/激活、找回密码等账号安全能力
 - user 模块（SSOT）：身份域数据与会话状态（`user`、`auth_refresh_token`）归 user 模块（MySQL）管理
   - `auth.refresh.store=db` 时，refresh token 仅存 `token_hash`，便于撤销/旋转（familyId 族）
-  - A-1 下 auth ↔ user 的交互已改为同进程直接 service 调用（如 `UserCredentialService`、`UserQueryService`、`UserRegistrationService`），错误语义由调用方显式收敛
+  - auth ↔ user 的同步协作已收敛为 user owner-domain API（如 `user.api.query.UserCredentialQueryApi`、`user.api.action.UserRegistrationActionApi` 等），不再直接依赖 `user.service` / `user.entity`
 
 ### 1.3 业务域模块（示例）
 - content：帖子/评论/回复（写主存储并发布事件）

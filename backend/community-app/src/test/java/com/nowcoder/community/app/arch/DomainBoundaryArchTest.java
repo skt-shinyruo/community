@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 @AnalyzeClasses(
         packages = "com.nowcoder.community",
@@ -57,6 +58,13 @@ class DomainBoundaryArchTest {
     @ArchTest
     static final ArchRule production_classes_must_not_end_with_facade_service =
             classes().should(notUseFacadeServiceNaming());
+
+    @ArchTest
+    static final ArchRule content_api_must_not_depend_on_content_legacy_transport_or_event_payloads =
+            noClasses()
+                    .that().resideInAnyPackage("..content.api..")
+                    .should().dependOnClassesThat().resideInAnyPackage("..content.dto..", "..content.event.payload..")
+                    .because("content.api is the synchronous collaboration boundary and must not leak DTOs or event payloads");
 
     private static ArchCondition<JavaClass> notDependOnForeignPackage(
             String packageLabel,

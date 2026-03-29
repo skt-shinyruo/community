@@ -3,10 +3,10 @@ package com.nowcoder.community.search.event;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.content.api.model.PostScanView;
 import com.nowcoder.community.content.api.query.PostScanQueryApi;
-import com.nowcoder.community.content.event.payload.PostPayload;
 import com.nowcoder.community.infra.outbox.OutboxEvent;
 import com.nowcoder.community.infra.outbox.OutboxHandler;
 import com.nowcoder.community.search.repo.PostSearchRepository;
+import com.nowcoder.community.search.service.PostSearchPayloadMapper;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -64,22 +64,7 @@ public class PostOutboxHandler implements OutboxHandler {
             return;
         }
 
-        postSearchRepository.upsert(toPostPayload(projection));
-    }
-
-    private PostPayload toPostPayload(PostScanView.PostProjectionView projection) {
-        PostPayload payload = new PostPayload();
-        payload.setPostId(projection.postId());
-        payload.setUserId(projection.userId());
-        payload.setCategoryId(projection.categoryId());
-        payload.setTags(projection.tags());
-        payload.setTitle(projection.title());
-        payload.setContent(projection.content());
-        payload.setType(projection.type());
-        payload.setStatus(projection.status());
-        payload.setCreateTime(projection.createTime());
-        payload.setScore(projection.score());
-        return payload;
+        postSearchRepository.upsert(PostSearchPayloadMapper.toPayload(projection));
     }
 
     public static class PostOutboxPayload {

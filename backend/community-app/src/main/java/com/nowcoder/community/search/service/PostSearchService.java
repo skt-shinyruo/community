@@ -3,7 +3,6 @@ package com.nowcoder.community.search.service;
 // 帖子搜索服务：支持基于 alias 的零停机重建。
 import com.nowcoder.community.content.api.model.PostScanView;
 import com.nowcoder.community.content.api.query.PostScanQueryApi;
-import com.nowcoder.community.content.event.payload.PostPayload;
 import com.nowcoder.community.search.config.PostScanProperties;
 import com.nowcoder.community.search.dto.SearchPostItem;
 import com.nowcoder.community.search.repo.PostIndexManager;
@@ -69,11 +68,10 @@ public class PostSearchService {
             }
 
             for (PostScanView.PostProjectionView projection : page.items()) {
-                PostPayload post = toPostPayload(projection);
                 if (targetIndex == null) {
-                    postSearchRepository.upsert(post);
+                    postSearchRepository.upsert(PostSearchPayloadMapper.toPayload(projection));
                 } else {
-                    postSearchRepository.upsertToIndex(post, targetIndex);
+                    postSearchRepository.upsertToIndex(PostSearchPayloadMapper.toPayload(projection), targetIndex);
                 }
                 total++;
             }
@@ -96,20 +94,5 @@ public class PostSearchService {
         }
 
         return total;
-    }
-
-    private PostPayload toPostPayload(PostScanView.PostProjectionView projection) {
-        PostPayload payload = new PostPayload();
-        payload.setPostId(projection.postId());
-        payload.setUserId(projection.userId());
-        payload.setCategoryId(projection.categoryId());
-        payload.setTags(projection.tags());
-        payload.setTitle(projection.title());
-        payload.setContent(projection.content());
-        payload.setType(projection.type());
-        payload.setStatus(projection.status());
-        payload.setCreateTime(projection.createTime());
-        payload.setScore(projection.score());
-        return payload;
     }
 }

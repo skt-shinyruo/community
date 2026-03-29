@@ -3,16 +3,19 @@ package com.nowcoder.community.search.event;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.content.api.model.PostScanView;
 import com.nowcoder.community.content.api.query.PostScanQueryApi;
+import com.nowcoder.community.content.event.payload.PostPayload;
 import com.nowcoder.community.infra.outbox.OutboxEvent;
 import com.nowcoder.community.search.repo.PostSearchRepository;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -48,8 +51,21 @@ class PostOutboxHandlerTest {
 
         handler.handle(event);
 
-        verify(repository).upsert(any());
+        ArgumentCaptor<PostPayload> payloadCaptor = ArgumentCaptor.forClass(PostPayload.class);
+        verify(repository).upsert(payloadCaptor.capture());
         verify(repository, never()).delete(eq(101));
+
+        PostPayload payload = payloadCaptor.getValue();
+        assertThat(payload.getPostId()).isEqualTo(101);
+        assertThat(payload.getUserId()).isEqualTo(7);
+        assertThat(payload.getCategoryId()).isEqualTo(3);
+        assertThat(payload.getTags()).containsExactly("java");
+        assertThat(payload.getTitle()).isEqualTo("title");
+        assertThat(payload.getContent()).isEqualTo("content");
+        assertThat(payload.getType()).isEqualTo(0);
+        assertThat(payload.getStatus()).isEqualTo(0);
+        assertThat(payload.getCreateTime()).isEqualTo(Instant.parse("2026-03-28T00:00:00Z"));
+        assertThat(payload.getScore()).isEqualTo(1.5);
     }
 
     @Test

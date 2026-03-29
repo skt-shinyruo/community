@@ -2,13 +2,14 @@ package com.nowcoder.community.message.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.message.api.action.PrivateMessageGovernanceActionApi;
 import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import com.nowcoder.community.user.exception.UserErrorCode;
 import org.springframework.stereotype.Service;
 
 @Service
-public class PrivateMessageGovernanceService {
+public class PrivateMessageGovernanceService implements PrivateMessageGovernanceActionApi {
 
     private final UserLookupQueryApi userLookupQueryApi;
     private final UserModerationGuard moderationGuard;
@@ -24,6 +25,7 @@ public class PrivateMessageGovernanceService {
         this.blockService = blockService;
     }
 
+    @Override
     public void validateCanSendPrivateMessage(int fromUserId, int toUserId) {
         if (fromUserId <= 0) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "fromUserId 非法");

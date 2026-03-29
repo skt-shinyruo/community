@@ -29,7 +29,7 @@ class ImGovernanceControllerTest {
     private PrivateMessageGovernanceService governanceService;
 
     @Test
-    void validateSendPrivateMessageShouldDelegateToSharedGovernanceService() throws Exception {
+    void validateSendPrivateMessageShouldDelegateToPrivateMessageGovernanceAction() throws Exception {
         mockMvc.perform(post("/api/im-governance/private-messages/validate")
                         .with(jwt().jwt(jwt -> jwt.subject("7")))
                         .contentType(MediaType.APPLICATION_JSON)

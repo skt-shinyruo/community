@@ -2,6 +2,7 @@ package com.nowcoder.community.message.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.message.api.action.PrivateMessageGovernanceActionApi;
 import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
@@ -38,6 +39,11 @@ class PrivateMessageGovernanceServiceTest {
                         UserModerationGuard.class,
                         BlockService.class
                 ));
+    }
+
+    @Test
+    void governanceServiceShouldImplementPrivateMessageGovernanceActionApi() {
+        assertThat(PrivateMessageGovernanceActionApi.class).isAssignableFrom(PrivateMessageGovernanceService.class);
     }
 
     @Test

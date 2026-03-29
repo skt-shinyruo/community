@@ -2,7 +2,7 @@ package com.nowcoder.community.im.controller;
 
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
-import com.nowcoder.community.message.service.PrivateMessageGovernanceService;
+import com.nowcoder.community.message.api.action.PrivateMessageGovernanceActionApi;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -18,10 +18,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/im-governance")
 public class ImGovernanceController {
 
-    private final PrivateMessageGovernanceService governanceService;
+    private final PrivateMessageGovernanceActionApi governanceActionApi;
 
-    public ImGovernanceController(PrivateMessageGovernanceService governanceService) {
-        this.governanceService = governanceService;
+    public ImGovernanceController(PrivateMessageGovernanceActionApi governanceActionApi) {
+        this.governanceActionApi = governanceActionApi;
     }
 
     @PostMapping("/private-messages/validate")
@@ -29,7 +29,7 @@ public class ImGovernanceController {
         int fromUserId = CurrentUser.requireUserId(authentication);
         int toUserId = request == null ? 0 : Math.max(0, request.toUserId());
 
-        governanceService.validateCanSendPrivateMessage(fromUserId, toUserId);
+        governanceActionApi.validateCanSendPrivateMessage(fromUserId, toUserId);
 
         return Result.ok();
     }

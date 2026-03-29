@@ -1,5 +1,7 @@
 package com.nowcoder.community.search.service;
 
+import com.nowcoder.community.search.api.action.SearchReindexActionApi;
+import com.nowcoder.community.search.api.model.SearchReindexResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -9,7 +11,7 @@ import org.springframework.util.StringUtils;
 import java.util.Locale;
 
 @Service
-public class SearchReindexExecutionService {
+public class SearchReindexExecutionService implements SearchReindexActionApi {
 
     private static final Logger log = LoggerFactory.getLogger(SearchReindexExecutionService.class);
     private static final String CATEGORY_ASYNC = "async";
@@ -25,7 +27,8 @@ public class SearchReindexExecutionService {
         this.reindexJobService = reindexJobService;
     }
 
-    public ExecutionResult execute() {
+    @Override
+    public SearchReindexResult reindex() {
         ReindexJobService.ReindexJob job = reindexJobService.tryStart();
         if (job == null || !job.acquired()) {
             infoEvent(
@@ -34,7 +37,7 @@ public class SearchReindexExecutionService {
                     "community.reason_code", "already_running",
                     "community.job_id", job == null ? null : job.jobId()
             );
-            return new ExecutionResult(job == null ? null : job.jobId(), 0, true, skippedReason(job));
+            return new SearchReindexResult(job == null ? null : job.jobId(), 0, true, skippedReason(job));
         }
 
         infoEvent(
@@ -50,7 +53,7 @@ public class SearchReindexExecutionService {
                     "community.job_id", job.jobId(),
                     "community.indexed_count", count
             );
-            return new ExecutionResult(job.jobId(), count, false, null);
+            return new SearchReindexResult(job.jobId(), count, false, null);
         } catch (RuntimeException e) {
             warnEvent(
                     "search_reindex",
@@ -69,9 +72,6 @@ public class SearchReindexExecutionService {
         String jobId = job == null ? null : job.jobId();
         String suffix = StringUtils.hasText(jobId) ? " (jobId=" + jobId.trim() + ")" : "";
         return "reindex 任务正在执行" + suffix;
-    }
-
-    public record ExecutionResult(String jobId, int indexedCount, boolean skipped, String reason) {
     }
 
     private void infoEvent(String action, String outcome, Object... keyValues) {

@@ -2,9 +2,10 @@ package com.nowcoder.community.ops.controller;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.search.api.action.SearchReindexActionApi;
+import com.nowcoder.community.search.api.model.SearchReindexResult;
 import com.nowcoder.community.search.dto.SearchReindexResponse;
 import com.nowcoder.community.search.exception.SearchErrorCode;
-import com.nowcoder.community.search.service.SearchAdminService;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;
 
@@ -17,13 +18,10 @@ class OpsControllerTest {
 
     @Test
     void reindexShouldWrapServiceResponseAsOkResult() {
-        SearchAdminService searchAdminService = mock(SearchAdminService.class);
-        SearchReindexResponse response = new SearchReindexResponse();
-        response.setJobId("job-1");
-        response.setIndexedCount(42);
-        when(searchAdminService.reindex()).thenReturn(response);
+        SearchReindexActionApi searchReindexActionApi = mock(SearchReindexActionApi.class);
+        when(searchReindexActionApi.reindex()).thenReturn(new SearchReindexResult("job-1", 42, false, null));
 
-        OpsController controller = new OpsController(searchAdminService);
+        OpsController controller = new OpsController(searchReindexActionApi);
 
         ResponseEntity<Result<SearchReindexResponse>> result = controller.reindex();
 
@@ -37,11 +35,11 @@ class OpsControllerTest {
 
     @Test
     void reindexShouldReturnBusinessErrorWithoutInternalCallMetrics() {
-        SearchAdminService searchAdminService = mock(SearchAdminService.class);
-        when(searchAdminService.reindex())
-                .thenThrow(new BusinessException(SearchErrorCode.REINDEX_RUNNING, "reindex 任务正在执行 (jobId=job-1)"));
+        SearchReindexActionApi searchReindexActionApi = mock(SearchReindexActionApi.class);
+        when(searchReindexActionApi.reindex())
+                .thenReturn(new SearchReindexResult("job-1", 0, true, "reindex 任务正在执行 (jobId=job-1)"));
 
-        OpsController controller = new OpsController(searchAdminService);
+        OpsController controller = new OpsController(searchReindexActionApi);
 
         ResponseEntity<Result<SearchReindexResponse>> result = controller.reindex();
 
@@ -54,10 +52,10 @@ class OpsControllerTest {
 
     @Test
     void reindexShouldPropagateUnexpectedRuntimeFailures() {
-        SearchAdminService searchAdminService = mock(SearchAdminService.class);
-        OpsController controller = new OpsController(searchAdminService);
+        SearchReindexActionApi searchReindexActionApi = mock(SearchReindexActionApi.class);
+        OpsController controller = new OpsController(searchReindexActionApi);
         RuntimeException error = new RuntimeException("boom");
-        when(searchAdminService.reindex()).thenThrow(error);
+        when(searchReindexActionApi.reindex()).thenThrow(error);
 
         assertThatThrownBy(controller::reindex)
                 .isSameAs(error);

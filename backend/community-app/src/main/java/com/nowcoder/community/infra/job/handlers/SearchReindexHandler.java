@@ -1,6 +1,7 @@
 package com.nowcoder.community.infra.job.handlers;
 
-import com.nowcoder.community.search.service.SearchReindexExecutionService;
+import com.nowcoder.community.search.api.action.SearchReindexActionApi;
+import com.nowcoder.community.search.api.model.SearchReindexResult;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import org.slf4j.Logger;
@@ -14,16 +15,16 @@ public class SearchReindexHandler {
 
     private static final Logger log = LoggerFactory.getLogger(SearchReindexHandler.class);
 
-    private final SearchReindexExecutionService searchReindexExecutionService;
+    private final SearchReindexActionApi searchReindexActionApi;
 
-    public SearchReindexHandler(SearchReindexExecutionService searchReindexExecutionService) {
-        this.searchReindexExecutionService = searchReindexExecutionService;
+    public SearchReindexHandler(SearchReindexActionApi searchReindexActionApi) {
+        this.searchReindexActionApi = searchReindexActionApi;
     }
 
     @XxlJob(JOB_NAME)
     public void reindex() {
         try {
-            SearchReindexExecutionService.ExecutionResult result = searchReindexExecutionService.execute();
+            SearchReindexResult result = searchReindexActionApi.reindex();
             if (result.skipped()) {
                 String message = "[search] reindex skipped jobId=" + result.jobId() + " reason=" + result.reason();
                 XxlJobHelper.log(message);

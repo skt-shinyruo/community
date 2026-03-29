@@ -1,6 +1,8 @@
 package com.nowcoder.community.search.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.search.api.action.SearchReindexActionApi;
+import com.nowcoder.community.search.api.model.SearchReindexResult;
 import com.nowcoder.community.search.dto.SearchReindexResponse;
 import com.nowcoder.community.search.exception.SearchErrorCode;
 import org.junit.jupiter.api.Test;
@@ -18,12 +20,12 @@ class SearchAdminServiceTest {
 
     @Test
     void reindexShouldInvokeConflictAndThrowWhenExecutionWasSkipped() {
-        SearchReindexExecutionService executionService = mock(SearchReindexExecutionService.class);
+        SearchReindexActionApi searchReindexActionApi = mock(SearchReindexActionApi.class);
         ReindexJobService reindexJobService = spy(new ReindexJobService());
-        when(executionService.execute())
-                .thenReturn(new SearchReindexExecutionService.ExecutionResult("job-1", 0, true, "reindex 任务正在执行 (jobId=job-1)"));
+        when(searchReindexActionApi.reindex())
+                .thenReturn(new SearchReindexResult("job-1", 0, true, "reindex 任务正在执行 (jobId=job-1)"));
 
-        SearchAdminService service = new SearchAdminService(executionService, reindexJobService);
+        SearchAdminService service = new SearchAdminService(searchReindexActionApi, reindexJobService);
 
         assertThatThrownBy(service::reindex)
                 .isInstanceOf(BusinessException.class)
@@ -31,26 +33,26 @@ class SearchAdminServiceTest {
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(SearchErrorCode.REINDEX_RUNNING);
 
-        verify(executionService).execute();
+        verify(searchReindexActionApi).reindex();
         verify(reindexJobService).conflict("job-1");
-        verifyNoMoreInteractions(executionService, reindexJobService);
+        verifyNoMoreInteractions(searchReindexActionApi, reindexJobService);
     }
 
     @Test
     void reindexShouldReturnResponseFromSuccessfulExecution() {
-        SearchReindexExecutionService executionService = mock(SearchReindexExecutionService.class);
+        SearchReindexActionApi searchReindexActionApi = mock(SearchReindexActionApi.class);
         ReindexJobService reindexJobService = mock(ReindexJobService.class);
-        when(executionService.execute())
-                .thenReturn(new SearchReindexExecutionService.ExecutionResult("job-2", 42, false, null));
+        when(searchReindexActionApi.reindex())
+                .thenReturn(new SearchReindexResult("job-2", 42, false, null));
 
-        SearchAdminService service = new SearchAdminService(executionService, reindexJobService);
+        SearchAdminService service = new SearchAdminService(searchReindexActionApi, reindexJobService);
 
         SearchReindexResponse response = service.reindex();
 
         assertThat(response.getJobId()).isEqualTo("job-2");
         assertThat(response.getIndexedCount()).isEqualTo(42);
-        verify(executionService).execute();
+        verify(searchReindexActionApi).reindex();
         verifyNoInteractions(reindexJobService);
-        verifyNoMoreInteractions(executionService);
+        verifyNoMoreInteractions(searchReindexActionApi);
     }
 }

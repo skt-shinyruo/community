@@ -32,9 +32,7 @@ class DomainBoundaryArchTest {
 
     private static final Set<String> LEGACY_FOREIGN_ENTITY_CALLERS = Set.of();
     private static final Set<String> LEGACY_FOREIGN_MAPPER_CALLERS = Set.of();
-    private static final Set<String> LEGACY_FOREIGN_SERVICE_CALLERS = Set.of(
-            "com.nowcoder.community.infra.job.handlers.SearchReindexHandler"
-    );
+    private static final Set<String> LEGACY_FOREIGN_SERVICE_CALLERS = Set.of();
     private static final Set<String> LEGACY_FACADE_SERVICE_CLASSES = Set.of();
 
     @ArchTest

@@ -32,8 +32,7 @@ class ControllerBoundaryArchTest {
     private static final Set<String> LEGACY_FOREIGN_ENTITY_CONTROLLER_CALLERS = Set.of();
     private static final Set<String> LEGACY_FOREIGN_MAPPER_CONTROLLER_CALLERS = Set.of();
     private static final Set<String> LEGACY_FOREIGN_SERVICE_CONTROLLER_CALLERS = Set.of(
-            "com.nowcoder.community.im.controller.ImGovernanceController",
-            "com.nowcoder.community.ops.controller.OpsController"
+            "com.nowcoder.community.im.controller.ImGovernanceController"
     );
 
     @ArchTest

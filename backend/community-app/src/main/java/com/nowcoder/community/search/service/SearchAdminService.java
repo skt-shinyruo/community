@@ -1,22 +1,24 @@
 package com.nowcoder.community.search.service;
 
+import com.nowcoder.community.search.api.action.SearchReindexActionApi;
+import com.nowcoder.community.search.api.model.SearchReindexResult;
 import com.nowcoder.community.search.dto.SearchReindexResponse;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SearchAdminService {
 
-    private final SearchReindexExecutionService searchReindexExecutionService;
+    private final SearchReindexActionApi searchReindexActionApi;
     private final ReindexJobService reindexJobService;
 
-    public SearchAdminService(SearchReindexExecutionService searchReindexExecutionService,
+    public SearchAdminService(SearchReindexActionApi searchReindexActionApi,
                               ReindexJobService reindexJobService) {
-        this.searchReindexExecutionService = searchReindexExecutionService;
+        this.searchReindexActionApi = searchReindexActionApi;
         this.reindexJobService = reindexJobService;
     }
 
     public SearchReindexResponse reindex() {
-        SearchReindexExecutionService.ExecutionResult result = searchReindexExecutionService.execute();
+        SearchReindexResult result = searchReindexActionApi.reindex();
         if (result.skipped()) {
             reindexJobService.conflict(result.jobId());
         }

@@ -1,5 +1,7 @@
 package com.nowcoder.community.search.service;
 
+import com.nowcoder.community.search.api.action.SearchReindexActionApi;
+import com.nowcoder.community.search.api.model.SearchReindexResult;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -23,10 +25,10 @@ class SearchReindexExecutionServiceTest {
         when(reindexJobService.tryStart()).thenReturn(new ReindexJobService.ReindexJob("job-1", true));
         when(postSearchService.clearAndReindexFromContentService()).thenReturn(42);
 
-        SearchReindexExecutionService service =
+        SearchReindexActionApi service =
                 new SearchReindexExecutionService(postSearchService, reindexJobService);
 
-        SearchReindexExecutionService.ExecutionResult result = service.execute();
+        SearchReindexResult result = service.reindex();
 
         assertThat(result.jobId()).isEqualTo("job-1");
         assertThat(result.indexedCount()).isEqualTo(42);
@@ -52,10 +54,10 @@ class SearchReindexExecutionServiceTest {
         ReindexJobService reindexJobService = mock(ReindexJobService.class);
         when(reindexJobService.tryStart()).thenReturn(new ReindexJobService.ReindexJob("job-1", false));
 
-        SearchReindexExecutionService service =
+        SearchReindexActionApi service =
                 new SearchReindexExecutionService(postSearchService, reindexJobService);
 
-        SearchReindexExecutionService.ExecutionResult result = service.execute();
+        SearchReindexResult result = service.reindex();
 
         assertThat(result.jobId()).isEqualTo("job-1");
         assertThat(result.indexedCount()).isZero();
@@ -80,10 +82,10 @@ class SearchReindexExecutionServiceTest {
         when(reindexJobService.tryStart()).thenReturn(new ReindexJobService.ReindexJob("job-1", true));
         when(postSearchService.clearAndReindexFromContentService()).thenThrow(boom);
 
-        SearchReindexExecutionService service =
+        SearchReindexActionApi service =
                 new SearchReindexExecutionService(postSearchService, reindexJobService);
 
-        assertThatThrownBy(service::execute)
+        assertThatThrownBy(service::reindex)
                 .isSameAs(boom);
 
         verify(reindexJobService).tryStart();

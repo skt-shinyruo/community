@@ -4,10 +4,13 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.ErrorCode;
 import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.search.api.action.SearchReindexActionApi;
+import com.nowcoder.community.search.api.model.SearchReindexResult;
 import com.nowcoder.community.search.dto.SearchReindexResponse;
-import com.nowcoder.community.search.service.SearchAdminService;
+import com.nowcoder.community.search.exception.SearchErrorCode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -23,19 +26,37 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/ops")
 public class OpsController {
 
-    private final SearchAdminService searchAdminService;
+    private final SearchReindexActionApi searchReindexActionApi;
 
-    public OpsController(SearchAdminService searchAdminService) {
-        this.searchAdminService = searchAdminService;
+    public OpsController(SearchReindexActionApi searchReindexActionApi) {
+        this.searchReindexActionApi = searchReindexActionApi;
     }
 
     @PostMapping("/search/reindex")
     public ResponseEntity<Result<SearchReindexResponse>> reindex() {
         try {
-            return ResponseEntity.ok(Result.ok(searchAdminService.reindex()));
+            SearchReindexResult result = searchReindexActionApi.reindex();
+            if (result.skipped()) {
+                throw reindexRunning(result);
+            }
+            return ResponseEntity.ok(Result.ok(toResponse(result)));
         } catch (BusinessException e) {
             return businessError(e);
         }
+    }
+
+    private SearchReindexResponse toResponse(SearchReindexResult result) {
+        SearchReindexResponse response = new SearchReindexResponse();
+        response.setJobId(result.jobId());
+        response.setIndexedCount(result.indexedCount());
+        return response;
+    }
+
+    private BusinessException reindexRunning(SearchReindexResult result) {
+        String message = StringUtils.hasText(result.reason())
+                ? result.reason().trim()
+                : SearchErrorCode.REINDEX_RUNNING.getMessage();
+        return new BusinessException(SearchErrorCode.REINDEX_RUNNING, message);
     }
 
     private ResponseEntity<Result<SearchReindexResponse>> businessError(BusinessException e) {

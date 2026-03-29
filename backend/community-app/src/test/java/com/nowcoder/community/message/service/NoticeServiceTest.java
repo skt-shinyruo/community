@@ -34,7 +34,7 @@ class NoticeServiceTest {
     @BeforeEach
     void setUp() {
         jdbcTemplate.update("delete from message");
-        noticeService = new NoticeService(messageMapper);
+        noticeService = new NoticeService(messageMapper, new MessageItemAssembler());
     }
 
     @Test

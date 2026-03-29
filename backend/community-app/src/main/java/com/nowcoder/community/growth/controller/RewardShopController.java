@@ -5,8 +5,6 @@ import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.growth.dto.RedeemRewardRequest;
 import com.nowcoder.community.growth.dto.RewardItemResponse;
 import com.nowcoder.community.growth.dto.RewardOrderResponse;
-import com.nowcoder.community.growth.entity.RewardItem;
-import com.nowcoder.community.growth.entity.RewardOrder;
 import com.nowcoder.community.growth.exception.GrowthErrorCode;
 import com.nowcoder.community.growth.service.RewardCatalogService;
 import com.nowcoder.community.growth.service.RewardOrderQueryService;
@@ -44,13 +42,13 @@ public class RewardShopController {
     @GetMapping("/items")
     public Result<List<RewardItemResponse>> items(Authentication authentication) {
         int userId = CurrentUser.requireUserId(authentication);
-        return Result.ok(rewardCatalogService.listItemsForUser(userId).stream().map(this::toItemResponse).toList());
+        return Result.ok(rewardCatalogService.listItemResponsesForUser(userId));
     }
 
     @GetMapping("/items/{itemId}")
     public Result<RewardItemResponse> item(Authentication authentication, @PathVariable long itemId) {
         int userId = CurrentUser.requireUserId(authentication);
-        return Result.ok(toItemResponse(rewardCatalogService.getItemForUser(userId, itemId)));
+        return Result.ok(rewardCatalogService.getItemResponseForUser(userId, itemId));
     }
 
     @PostMapping("/redeem")
@@ -63,38 +61,12 @@ public class RewardShopController {
         if (requestId == null || requestId.isBlank()) {
             requestId = "reward-redeem:" + UUID.randomUUID();
         }
-        RewardOrder order = rewardRedemptionService.redeem(userId, request.getItemId(), requestId);
-        return Result.ok(toOrderResponse(order));
+        return Result.ok(rewardRedemptionService.redeemResponse(userId, request.getItemId(), requestId));
     }
 
     @GetMapping("/orders")
     public Result<List<RewardOrderResponse>> orders(Authentication authentication) {
         int userId = CurrentUser.requireUserId(authentication);
-        return Result.ok(rewardOrderQueryService.listOrdersForUser(userId).stream().map(this::toOrderResponse).toList());
-    }
-
-    private RewardItemResponse toItemResponse(RewardItem item) {
-        RewardItemResponse response = new RewardItemResponse();
-        response.setId(item.getId());
-        response.setItemName(item.getItemName());
-        response.setItemDesc(item.getItemDesc());
-        response.setCostBalance(item.getCostBalance());
-        response.setStock(item.getStock());
-        response.setPerUserLimit(item.getPerUserLimit());
-        response.setFulfillmentMode(item.getFulfillmentMode());
-        response.setStatus(item.getStatus());
-        return response;
-    }
-
-    private RewardOrderResponse toOrderResponse(RewardOrder order) {
-        RewardOrderResponse response = new RewardOrderResponse();
-        response.setId(order.getId());
-        response.setItemId(order.getItemId());
-        response.setStatus(order.getStatus());
-        response.setCostBalanceSnapshot(order.getCostBalanceSnapshot());
-        response.setFulfillmentModeSnapshot(order.getFulfillmentModeSnapshot());
-        response.setItemNameSnapshot(order.getItemNameSnapshot());
-        response.setItemDescSnapshot(order.getItemDescSnapshot());
-        return response;
+        return Result.ok(rewardOrderQueryService.listOrderResponsesForUser(userId));
     }
 }

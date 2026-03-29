@@ -1,11 +1,12 @@
 package com.nowcoder.community.content.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.content.mapper.PostTagMapper;
-import com.nowcoder.community.content.mapper.TagMapper;
+import com.nowcoder.community.content.dto.HotTagResponse;
 import com.nowcoder.community.content.entity.HotTag;
 import com.nowcoder.community.content.entity.PostTagName;
 import com.nowcoder.community.content.entity.Tag;
+import com.nowcoder.community.content.mapper.PostTagMapper;
+import com.nowcoder.community.content.mapper.TagMapper;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
@@ -43,6 +44,12 @@ public class TagService {
         int l = limit == null ? DEFAULT_HOT_TAG_LIMIT : limit;
         l = Math.max(1, Math.min(MAX_HOT_TAG_LIMIT, l));
         return tagMapper.selectHotTags(l);
+    }
+
+    public List<HotTagResponse> listHotTagResponses(Integer limit) {
+        return listHotTags(limit).stream()
+                .map(this::toHotTagResponse)
+                .toList();
     }
 
     public List<HotTag> suggestTags(String q, Integer limit) {
@@ -83,6 +90,12 @@ public class TagService {
             }
         }
         return merged;
+    }
+
+    public List<HotTagResponse> suggestTagResponses(String q, Integer limit) {
+        return suggestTags(q, limit).stream()
+                .map(this::toHotTagResponse)
+                .toList();
     }
 
     public Map<Integer, List<String>> getTagsByPostIds(List<Integer> postIds) {
@@ -198,5 +211,12 @@ public class TagService {
             }
             throw new BusinessException(INVALID_ARGUMENT, "标签写入失败");
         }
+    }
+
+    private HotTagResponse toHotTagResponse(HotTag hotTag) {
+        HotTagResponse response = new HotTagResponse();
+        response.setName(hotTag.getName());
+        response.setUseCount(hotTag.getUseCount());
+        return response;
     }
 }

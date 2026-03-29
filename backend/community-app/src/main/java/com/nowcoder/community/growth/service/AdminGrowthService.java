@@ -2,7 +2,9 @@ package com.nowcoder.community.growth.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.growth.dto.AdminAdjustBalanceRequest;
+import com.nowcoder.community.growth.dto.AdminRewardAdjustmentResponse;
 import com.nowcoder.community.growth.dto.AdminGrowthUserResponse;
+import com.nowcoder.community.growth.dto.RewardLedgerEntryResponse;
 import com.nowcoder.community.growth.entity.AdminRewardAdjustment;
 import com.nowcoder.community.growth.entity.RewardLedgerEntry;
 import com.nowcoder.community.growth.exception.GrowthErrorCode;
@@ -63,16 +65,18 @@ public class AdminGrowthService {
         response.setLevel(profile.level());
         response.setRewardBalance(rewardAccountService.availableBalanceOf(profile.userId()));
         response.setFrozenBalance(rewardAccountService.frozenBalanceOf(profile.userId()));
-        response.setRecentRewardLedgers(rewardLedgerMapper.selectRecentByUserId(profile.userId(), DEFAULT_LEDGER_LIMIT));
+        response.setRecentRewardLedgers(toRewardLedgerResponses(
+                rewardLedgerMapper.selectRecentByUserId(profile.userId(), DEFAULT_LEDGER_LIMIT)
+        ));
         return response;
     }
 
-    public List<RewardLedgerEntry> recentRewardLedgers(int userId, int limit) {
-        return rewardLedgerMapper.selectRecentByUserId(userId, positiveLimit(limit));
+    public List<RewardLedgerEntryResponse> recentRewardLedgerResponses(int userId, int limit) {
+        return toRewardLedgerResponses(rewardLedgerMapper.selectRecentByUserId(userId, positiveLimit(limit)));
     }
 
-    public List<AdminRewardAdjustment> recentAdjustments(int userId, int limit) {
-        return adminRewardAdjustmentMapper.selectRecentByTargetUserId(userId, positiveLimit(limit));
+    public List<AdminRewardAdjustmentResponse> recentAdjustmentResponses(int userId, int limit) {
+        return toAdjustmentResponses(adminRewardAdjustmentMapper.selectRecentByTargetUserId(userId, positiveLimit(limit)));
     }
 
     @Transactional
@@ -157,5 +161,50 @@ public class AdminGrowthService {
 
     private int positiveLimit(int limit) {
         return limit > 0 ? limit : DEFAULT_LEDGER_LIMIT;
+    }
+
+    private List<RewardLedgerEntryResponse> toRewardLedgerResponses(List<RewardLedgerEntry> entries) {
+        if (entries == null || entries.isEmpty()) {
+            return List.of();
+        }
+        return entries.stream().map(this::toRewardLedgerResponse).toList();
+    }
+
+    private RewardLedgerEntryResponse toRewardLedgerResponse(RewardLedgerEntry entry) {
+        RewardLedgerEntryResponse response = new RewardLedgerEntryResponse();
+        response.setId(entry.getId());
+        response.setUserId(entry.getUserId());
+        response.setEventId(entry.getEventId());
+        response.setEventType(entry.getEventType());
+        response.setDelta(entry.getDelta());
+        response.setBalanceAfter(entry.getBalanceAfter());
+        response.setFrozenBalanceAfter(entry.getFrozenBalanceAfter());
+        response.setBizKey(entry.getBizKey());
+        response.setSourceModule(entry.getSourceModule());
+        response.setRemark(entry.getRemark());
+        response.setCreateTime(entry.getCreateTime());
+        return response;
+    }
+
+    private List<AdminRewardAdjustmentResponse> toAdjustmentResponses(List<AdminRewardAdjustment> adjustments) {
+        if (adjustments == null || adjustments.isEmpty()) {
+            return List.of();
+        }
+        return adjustments.stream().map(this::toAdjustmentResponse).toList();
+    }
+
+    private AdminRewardAdjustmentResponse toAdjustmentResponse(AdminRewardAdjustment adjustment) {
+        AdminRewardAdjustmentResponse response = new AdminRewardAdjustmentResponse();
+        response.setId(adjustment.getId());
+        response.setActorUserId(adjustment.getActorUserId());
+        response.setTargetUserId(adjustment.getTargetUserId());
+        response.setAssetType(adjustment.getAssetType());
+        response.setDelta(adjustment.getDelta());
+        response.setBeforeValue(adjustment.getBeforeValue());
+        response.setAfterValue(adjustment.getAfterValue());
+        response.setReason(adjustment.getReason());
+        response.setConfirmToken(adjustment.getConfirmToken());
+        response.setCreateTime(adjustment.getCreateTime());
+        return response;
     }
 }

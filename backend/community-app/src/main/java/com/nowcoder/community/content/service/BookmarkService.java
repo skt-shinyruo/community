@@ -2,13 +2,17 @@
 package com.nowcoder.community.content.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.content.api.model.PostSummaryView;
+import com.nowcoder.community.content.assembler.PostSummaryAssembler;
 import com.nowcoder.community.content.mapper.BookmarkMapper;
+import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.infra.pagination.Pagination;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
@@ -17,10 +21,22 @@ public class BookmarkService {
 
     private final BookmarkMapper bookmarkMapper;
     private final PostService postService;
+    private final CommentService commentService;
+    private final TagService tagService;
+    private final PostSummaryAssembler postSummaryAssembler;
 
-    public BookmarkService(BookmarkMapper bookmarkMapper, PostService postService) {
+    public BookmarkService(
+            BookmarkMapper bookmarkMapper,
+            PostService postService,
+            CommentService commentService,
+            TagService tagService,
+            PostSummaryAssembler postSummaryAssembler
+    ) {
         this.bookmarkMapper = bookmarkMapper;
         this.postService = postService;
+        this.commentService = commentService;
+        this.tagService = tagService;
+        this.postSummaryAssembler = postSummaryAssembler;
     }
 
     public void add(int userId, int postId) {
@@ -53,5 +69,18 @@ public class BookmarkService {
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
         return bookmarkMapper.selectBookmarkedPosts(userId, Pagination.safeOffset(p, s), s);
+    }
+
+    public List<PostSummaryView> listBookmarkedPostSummaries(int userId, int page, int size) {
+        List<DiscussPost> posts = listBookmarkedPosts(userId, page, size);
+        if (posts == null || posts.isEmpty()) {
+            return List.of();
+        }
+        List<Integer> postIds = posts.stream().map(DiscussPost::getId).toList();
+        Map<Integer, Comment> lastActivities = commentService.getLatestPostActivitiesByPostIds(postIds);
+        Map<Integer, List<String>> tagsByPostId = tagService.getTagsByPostIds(postIds);
+        return posts.stream()
+                .map(post -> postSummaryAssembler.assemble(post, lastActivities.get(post.getId()), tagsByPostId.get(post.getId())))
+                .toList();
     }
 }

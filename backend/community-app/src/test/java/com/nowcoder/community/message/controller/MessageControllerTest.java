@@ -7,6 +7,7 @@ import com.nowcoder.community.message.dto.ConversationItemResponse;
 import com.nowcoder.community.message.mapper.MessageMapper;
 import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.security.OwnerGuard;
+import com.nowcoder.community.message.service.MessageItemAssembler;
 import com.nowcoder.community.message.service.MessageUserQueryService;
 import com.nowcoder.community.message.service.PrivateMessageGovernanceService;
 import com.nowcoder.community.message.service.PrivateMessageService;
@@ -44,7 +45,8 @@ class MessageControllerTest {
                 messageMapper,
                 messageUserQueryService,
                 mock(PrivateMessageGovernanceService.class),
-                ownerGuard
+                ownerGuard,
+                new MessageItemAssembler()
         );
 
         int userId = 1;

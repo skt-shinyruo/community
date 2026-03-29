@@ -2,6 +2,7 @@ package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.api.model.UserGrowthProfileView;
+import com.nowcoder.community.user.api.model.UserProfileView;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.mapper.UserMapper;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Date;
 import java.util.List;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -117,6 +119,32 @@ class UserQueryServiceTest {
                 UserGrowthProfileView::status,
                 UserGrowthProfileView::headerUrl
         ).containsExactly(5, "alice", 250, 3, "alice@example.com", 1, "h5");
+    }
+
+    @Test
+    void getProfileShouldProjectFullProfileView() {
+        UserQueryService service = new UserQueryService(userMapper);
+        User user = user(6, "bob");
+        Date createTime = new Date();
+        user.setHeaderUrl("h6");
+        user.setType(2);
+        user.setStatus(1);
+        user.setScore(120);
+        user.setCreateTime(createTime);
+        when(userMapper.selectById(6)).thenReturn(user);
+
+        UserProfileView profile = service.getProfile(6);
+
+        assertThat(profile).extracting(
+                UserProfileView::userId,
+                UserProfileView::username,
+                UserProfileView::headerUrl,
+                UserProfileView::type,
+                UserProfileView::status,
+                UserProfileView::createTime,
+                UserProfileView::score,
+                UserProfileView::level
+        ).containsExactly(6, "bob", "h6", 2, 1, createTime, 120, 2);
     }
 
     private User user(int id, String username) {

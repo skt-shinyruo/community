@@ -55,7 +55,8 @@ class PrivateMessageServiceTest {
                         MessageMapper.class,
                         MessageUserQueryService.class,
                         PrivateMessageGovernanceService.class,
-                        OwnerGuard.class
+                        OwnerGuard.class,
+                        MessageItemAssembler.class
                 ));
     }
 
@@ -71,7 +72,8 @@ class PrivateMessageServiceTest {
                 mapper,
                 mock(MessageUserQueryService.class),
                 governanceService,
-                ownerGuard()
+                ownerGuard(),
+                new MessageItemAssembler()
         );
 
         BusinessException ex = catchThrowableOfType(
@@ -97,7 +99,8 @@ class PrivateMessageServiceTest {
                 mapper,
                 mock(MessageUserQueryService.class),
                 governanceService,
-                ownerGuard()
+                ownerGuard(),
+                new MessageItemAssembler()
         );
 
         BusinessException ex = catchThrowableOfType(
@@ -121,7 +124,8 @@ class PrivateMessageServiceTest {
                 mapper,
                 mock(MessageUserQueryService.class),
                 governanceService,
-                ownerGuard()
+                ownerGuard(),
+                new MessageItemAssembler()
         );
 
         service.send(7, 9, "hello");
@@ -152,7 +156,8 @@ class PrivateMessageServiceTest {
                 mapper,
                 mock(MessageUserQueryService.class),
                 governanceService,
-                ownerGuard()
+                ownerGuard(),
+                new MessageItemAssembler()
         );
 
         BusinessException ex = catchThrowableOfType(
@@ -179,7 +184,8 @@ class PrivateMessageServiceTest {
                 mapper,
                 mock(MessageUserQueryService.class),
                 governanceService,
-                ownerGuard()
+                ownerGuard(),
+                new MessageItemAssembler()
         );
 
         BusinessException ex = catchThrowableOfType(
@@ -204,7 +210,8 @@ class PrivateMessageServiceTest {
                 messageMapper,
                 mock(MessageUserQueryService.class),
                 mock(PrivateMessageGovernanceService.class),
-                ownerGuard()
+                ownerGuard(),
+                new MessageItemAssembler()
         );
 
         List<Message> letters = service.listLetters(2, "1_2", 0, 10);

@@ -2,7 +2,6 @@ package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.content.dto.HotTagResponse;
-import com.nowcoder.community.content.entity.HotTag;
 import com.nowcoder.community.content.service.TagService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,9 +22,7 @@ public class TagController {
 
     @GetMapping("/hot")
     public Result<List<HotTagResponse>> hot(@RequestParam(required = false) Integer limit) {
-        List<HotTag> tags = tagService.listHotTags(limit);
-        List<HotTagResponse> resp = tags.stream().map(TagController::toResp).toList();
-        return Result.ok(resp);
+        return Result.ok(tagService.listHotTagResponses(limit));
     }
 
     @GetMapping("/suggest")
@@ -33,15 +30,6 @@ public class TagController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) Integer limit
     ) {
-        List<HotTag> tags = tagService.suggestTags(q, limit);
-        List<HotTagResponse> resp = tags.stream().map(TagController::toResp).toList();
-        return Result.ok(resp);
-    }
-
-    private static HotTagResponse toResp(HotTag t) {
-        HotTagResponse r = new HotTagResponse();
-        r.setName(t.getName());
-        r.setUseCount(t.getUseCount());
-        return r;
+        return Result.ok(tagService.suggestTagResponses(q, limit));
     }
 }

@@ -1,24 +1,25 @@
 package com.nowcoder.community.user.controller;
 
 import com.nowcoder.community.auth.logging.SecurityEventLogger;
-import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.content.api.model.PostSummaryView;
 import com.nowcoder.community.content.api.model.RecentUserCommentView;
 import com.nowcoder.community.content.api.query.PostReadQueryApi;
 import com.nowcoder.community.content.dto.PostSummaryResponse;
 import com.nowcoder.community.content.dto.UserRecentCommentResponse;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
+import com.nowcoder.community.user.api.model.UserProfileView;
+import com.nowcoder.community.user.api.model.UserSummaryView;
+import com.nowcoder.community.user.api.query.UserLookupQueryApi;
+import com.nowcoder.community.user.api.query.UserProfileQueryApi;
 import com.nowcoder.community.user.dto.AvatarUploadTokenResponse;
 import com.nowcoder.community.user.dto.BatchUserSummaryRequest;
 import com.nowcoder.community.user.dto.UpdateAvatarRequest;
 import com.nowcoder.community.user.dto.UserProfileResponse;
 import com.nowcoder.community.user.dto.UserResolveResponse;
 import com.nowcoder.community.user.dto.UserSummaryResponse;
-import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.service.AvatarService;
-import com.nowcoder.community.user.service.PointsService;
-import com.nowcoder.community.user.service.UserQueryService;
 import com.nowcoder.community.user.service.UserSocialProfileService;
 import com.nowcoder.community.user.service.UserService;
 import jakarta.validation.Valid;
@@ -43,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
+import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND;
 
 @RestController
 @RequestMapping("/api/users")
@@ -50,39 +52,39 @@ public class UserController {
 
     private static final Logger log = LoggerFactory.getLogger(UserController.class);
 
-    private final UserQueryService userQueryService;
+    private final UserLookupQueryApi userLookupQueryApi;
+    private final UserProfileQueryApi userProfileQueryApi;
     private final UserService userService;
     private final AvatarService avatarService;
     private final UserSocialProfileService userSocialProfileService;
-    private final PointsService pointsService;
     private final PostReadQueryApi postReadQueryApi;
 
-    public UserController(UserQueryService userQueryService,
+    public UserController(UserLookupQueryApi userLookupQueryApi,
+                          UserProfileQueryApi userProfileQueryApi,
                           UserService userService,
                           AvatarService avatarService,
                           UserSocialProfileService userSocialProfileService,
-                          PointsService pointsService,
                           PostReadQueryApi postReadQueryApi) {
-        this.userQueryService = userQueryService;
+        this.userLookupQueryApi = userLookupQueryApi;
+        this.userProfileQueryApi = userProfileQueryApi;
         this.userService = userService;
         this.avatarService = avatarService;
         this.userSocialProfileService = userSocialProfileService;
-        this.pointsService = pointsService;
         this.postReadQueryApi = postReadQueryApi;
     }
 
     @GetMapping("/{userId}")
     public Result<UserProfileResponse> getUser(Authentication authentication, @PathVariable int userId) {
-        User user = userQueryService.getById(userId);
+        UserProfileView user = userProfileQueryApi.getProfile(userId);
         UserProfileResponse resp = new UserProfileResponse();
-        resp.setId(user.getId());
-        resp.setUsername(user.getUsername());
-        resp.setHeaderUrl(user.getHeaderUrl());
-        resp.setType(user.getType());
-        resp.setStatus(user.getStatus());
-        resp.setCreateTime(user.getCreateTime());
-        resp.setScore(user.getScore());
-        resp.setLevel(pointsService.levelForScore(user.getScore()));
+        resp.setId(user.userId());
+        resp.setUsername(user.username());
+        resp.setHeaderUrl(user.headerUrl());
+        resp.setType(user.type());
+        resp.setStatus(user.status());
+        resp.setCreateTime(user.createTime());
+        resp.setScore(user.score());
+        resp.setLevel(user.level());
 
         Integer maybeCurrentUserId = CurrentUser.tryUserId(authentication);
         int currentUserId = maybeCurrentUserId == null ? 0 : maybeCurrentUserId;
@@ -102,7 +104,7 @@ public class UserController {
     public Result<List<PostSummaryResponse>> recentPosts(@PathVariable int userId,
                                                          @RequestParam(required = false) Integer page,
                                                          @RequestParam(required = false) Integer size) {
-        userQueryService.getById(userId);
+        userProfileQueryApi.getProfile(userId);
         return Result.ok(postReadQueryApi.listPostsByUser(userId, page, size).stream()
                 .map(UserController::toPostSummaryResponse)
                 .toList());
@@ -112,7 +114,7 @@ public class UserController {
     public Result<List<UserRecentCommentResponse>> recentComments(@PathVariable int userId,
                                                                   @RequestParam(required = false) Integer page,
                                                                   @RequestParam(required = false) Integer size) {
-        userQueryService.getById(userId);
+        userProfileQueryApi.getProfile(userId);
         return Result.ok(postReadQueryApi.listRecentCommentsByUser(userId, page, size).stream()
                 .map(UserController::toRecentCommentResponse)
                 .toList());
@@ -120,11 +122,14 @@ public class UserController {
 
     @GetMapping("/resolve")
     public Result<UserResolveResponse> resolveByUsername(@RequestParam String username) {
-        User user = userQueryService.getByUsername(username);
+        UserSummaryView user = userLookupQueryApi.getSummaryByUsername(username);
+        if (user == null) {
+            throw new BusinessException(USER_NOT_FOUND);
+        }
         UserResolveResponse resp = new UserResolveResponse();
-        resp.setId(user.getId());
-        resp.setUsername(user.getUsername());
-        resp.setHeaderUrl(user.getHeaderUrl());
+        resp.setId(user.id());
+        resp.setUsername(user.username());
+        resp.setHeaderUrl(user.headerUrl());
         return Result.ok(resp);
     }
 
@@ -150,18 +155,18 @@ public class UserController {
         }
 
         List<Integer> ids = new ArrayList<>(dedup);
-        List<User> users = userQueryService.listUserSummariesByIds(ids);
+        List<UserSummaryView> users = userLookupQueryApi.listSummariesByIds(ids);
         Map<Integer, UserSummaryResponse> map = new HashMap<>();
-        for (User u : users) {
-            if (u == null || u.getId() <= 0) {
+        for (UserSummaryView u : users) {
+            if (u == null || u.id() <= 0) {
                 continue;
             }
             UserSummaryResponse s = new UserSummaryResponse();
-            s.setId(u.getId());
-            s.setUsername(u.getUsername());
-            s.setHeaderUrl(u.getHeaderUrl());
-            s.setType(u.getType());
-            map.put(u.getId(), s);
+            s.setId(u.id());
+            s.setUsername(u.username());
+            s.setHeaderUrl(u.headerUrl());
+            s.setType(u.type());
+            map.put(u.id(), s);
         }
 
         List<UserSummaryResponse> out = new ArrayList<>();

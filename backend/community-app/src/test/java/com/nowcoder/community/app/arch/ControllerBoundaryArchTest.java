@@ -22,34 +22,60 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 class ControllerBoundaryArchTest {
 
     private static final String BASE_PACKAGE = "com.nowcoder.community.";
-    private static final Pattern ENTITY_PACKAGE =
-            Pattern.compile("com\\.nowcoder\\.community\\.[^.]+\\.entity(\\..*)?");
-    private static final Pattern MAPPER_PACKAGE =
-            Pattern.compile("com\\.nowcoder\\.community\\.[^.]+\\.mapper(\\..*)?");
     private static final Pattern SERVICE_PACKAGE =
             Pattern.compile("com\\.nowcoder\\.community\\.[^.]+\\.service(\\..*)?");
 
-    private static final Set<String> LEGACY_FOREIGN_ENTITY_CONTROLLER_CALLERS = Set.of();
-    private static final Set<String> LEGACY_FOREIGN_MAPPER_CONTROLLER_CALLERS = Set.of();
     private static final Set<String> LEGACY_FOREIGN_SERVICE_CONTROLLER_CALLERS = Set.of();
+
+    @ArchTest
+    static final ArchRule controllers_must_not_depend_on_other_controllers =
+            classes()
+                    .that().resideInAnyPackage("..controller..")
+                    .should(ArchitectureRulesSupport.notDependOnLayers(
+                            "not depend on controller packages",
+                            Set.of("controller"),
+                            false,
+                            Set.of()
+                    ));
+
+    @ArchTest
+    static final ArchRule controllers_must_not_depend_on_mappers_or_daos =
+            classes()
+                    .that().resideInAnyPackage("..controller..")
+                    .should(ArchitectureRulesSupport.notDependOnLayers(
+                            "not depend on mapper or dao packages",
+                            Set.of("mapper", "dao"),
+                            false,
+                            ArchitectureRulesSupport.MIGRATION_BASELINE_CONTROLLER_MAPPER_CALLERS
+                    ));
 
     @ArchTest
     static final ArchRule controllers_must_not_depend_on_foreign_entities =
             classes()
                     .that().resideInAnyPackage("..controller..")
-                    .should(notDependOnForeignPackage("entities", ENTITY_PACKAGE, LEGACY_FOREIGN_ENTITY_CONTROLLER_CALLERS));
-
-    @ArchTest
-    static final ArchRule controllers_must_not_depend_on_foreign_mappers =
-            classes()
-                    .that().resideInAnyPackage("..controller..")
-                    .should(notDependOnForeignPackage("mappers", MAPPER_PACKAGE, LEGACY_FOREIGN_MAPPER_CONTROLLER_CALLERS));
+                    .should(ArchitectureRulesSupport.notDependOnLayers(
+                            "not depend on foreign entity packages",
+                            Set.of("entity"),
+                            true,
+                            ArchitectureRulesSupport.MIGRATION_BASELINE_CONTROLLER_FOREIGN_ENTITY_CALLERS
+                    ));
 
     @ArchTest
     static final ArchRule controllers_must_not_depend_on_foreign_services =
             classes()
                     .that().resideInAnyPackage("..controller..")
                     .should(notDependOnForeignPackage("services", SERVICE_PACKAGE, LEGACY_FOREIGN_SERVICE_CONTROLLER_CALLERS));
+
+    @ArchTest
+    static final ArchRule controllers_must_not_depend_on_domain_entities =
+            classes()
+                    .that().resideInAnyPackage("..controller..")
+                    .should(ArchitectureRulesSupport.notDependOnLayers(
+                            "not depend on any entity packages",
+                            Set.of("entity"),
+                            false,
+                            ArchitectureRulesSupport.MIGRATION_BASELINE_CONTROLLER_ENTITY_CALLERS
+                    ));
 
     private static ArchCondition<JavaClass> notDependOnForeignPackage(
             String packageLabel,

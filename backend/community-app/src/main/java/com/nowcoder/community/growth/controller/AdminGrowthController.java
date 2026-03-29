@@ -2,9 +2,9 @@ package com.nowcoder.community.growth.controller;
 
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.growth.dto.AdminAdjustBalanceRequest;
+import com.nowcoder.community.growth.dto.AdminRewardAdjustmentResponse;
 import com.nowcoder.community.growth.dto.AdminGrowthUserResponse;
-import com.nowcoder.community.growth.entity.AdminRewardAdjustment;
-import com.nowcoder.community.growth.entity.RewardLedgerEntry;
+import com.nowcoder.community.growth.dto.RewardLedgerEntryResponse;
 import com.nowcoder.community.growth.service.AdminGrowthService;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import org.springframework.security.core.Authentication;
@@ -44,12 +44,12 @@ public class AdminGrowthController {
     }
 
     @GetMapping("/users/{userId}/ledgers")
-    public Result<List<RewardLedgerEntry>> ledgers(@PathVariable int userId, @RequestParam(defaultValue = "10") int limit) {
-        return Result.ok(adminGrowthService.recentRewardLedgers(userId, limit));
+    public Result<List<RewardLedgerEntryResponse>> ledgers(@PathVariable int userId, @RequestParam(defaultValue = "10") int limit) {
+        return Result.ok(adminGrowthService.recentRewardLedgerResponses(userId, limit));
     }
 
     @GetMapping("/users/{userId}/adjustments")
-    public Result<List<AdminRewardAdjustment>> adjustments(@PathVariable int userId, @RequestParam(defaultValue = "10") int limit) {
-        return Result.ok(adminGrowthService.recentAdjustments(userId, limit));
+    public Result<List<AdminRewardAdjustmentResponse>> adjustments(@PathVariable int userId, @RequestParam(defaultValue = "10") int limit) {
+        return Result.ok(adminGrowthService.recentAdjustmentResponses(userId, limit));
     }
 }

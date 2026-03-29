@@ -3,7 +3,9 @@ package com.nowcoder.community.growth.service;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.growth.dto.AdminAdjustBalanceRequest;
+import com.nowcoder.community.growth.dto.AdminRewardAdjustmentResponse;
 import com.nowcoder.community.growth.dto.AdminGrowthUserResponse;
+import com.nowcoder.community.growth.dto.RewardLedgerEntryResponse;
 import com.nowcoder.community.growth.exception.GrowthErrorCode;
 import com.nowcoder.community.infra.web.net.ClientIpResolver;
 import com.nowcoder.community.user.api.action.UserPointsActionApi;
@@ -18,6 +20,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -100,6 +104,7 @@ class AdminGrowthServiceTest {
         assertThat(response.getRewardBalance()).isEqualTo(15);
         assertThat(response.getFrozenBalance()).isEqualTo(4);
         assertThat(response.getRecentRewardLedgers()).hasSize(2);
+        assertThat(response.getRecentRewardLedgers().get(0).getEventType()).isEqualTo("RewardRedeemed");
     }
 
     @Test
@@ -169,5 +174,46 @@ class AdminGrowthServiceTest {
         assertThat(jdbcTemplate.queryForObject("select before_value from admin_reward_adjustment", Integer.class)).isEqualTo(320);
         assertThat(jdbcTemplate.queryForObject("select after_value from admin_reward_adjustment", Integer.class)).isEqualTo(340);
         verify(userPointsActionApi).applyPoints(eq(1), startsWith("admin-adjust:"), eq("AdminGrowthAdjust"), eq(20));
+    }
+
+    @Test
+    void recentRewardLedgerResponsesShouldProjectLedgerDtos() {
+        jdbcTemplate.update(
+                "insert into reward_ledger(user_id, event_id, event_type, delta, balance_after, frozen_balance_after, biz_key, source_module, remark, create_time) values (1, 'evt-1', 'TaskReward', 5, 10, 2, 'biz-1', 'growth', 'daily', current_timestamp)"
+        );
+
+        List<RewardLedgerEntryResponse> ledgers = service.recentRewardLedgerResponses(1, 10);
+
+        assertThat(ledgers).singleElement().satisfies(ledger -> {
+            assertThat(ledger.getUserId()).isEqualTo(1);
+            assertThat(ledger.getEventId()).isEqualTo("evt-1");
+            assertThat(ledger.getEventType()).isEqualTo("TaskReward");
+            assertThat(ledger.getDelta()).isEqualTo(5);
+            assertThat(ledger.getBalanceAfter()).isEqualTo(10);
+            assertThat(ledger.getFrozenBalanceAfter()).isEqualTo(2);
+            assertThat(ledger.getBizKey()).isEqualTo("biz-1");
+            assertThat(ledger.getSourceModule()).isEqualTo("growth");
+            assertThat(ledger.getRemark()).isEqualTo("daily");
+        });
+    }
+
+    @Test
+    void recentAdjustmentResponsesShouldProjectAdjustmentDtos() {
+        jdbcTemplate.update(
+                "insert into admin_reward_adjustment(actor_user_id, target_user_id, asset_type, delta, before_value, after_value, reason, confirm_token, create_time) values (99, 1, 'REWARD_BALANCE', 5, 10, 15, 'manual compensation', 'confirmed', current_timestamp)"
+        );
+
+        List<AdminRewardAdjustmentResponse> adjustments = service.recentAdjustmentResponses(1, 10);
+
+        assertThat(adjustments).singleElement().satisfies(adjustment -> {
+            assertThat(adjustment.getActorUserId()).isEqualTo(99);
+            assertThat(adjustment.getTargetUserId()).isEqualTo(1);
+            assertThat(adjustment.getAssetType()).isEqualTo("REWARD_BALANCE");
+            assertThat(adjustment.getDelta()).isEqualTo(5);
+            assertThat(adjustment.getBeforeValue()).isEqualTo(10);
+            assertThat(adjustment.getAfterValue()).isEqualTo(15);
+            assertThat(adjustment.getReason()).isEqualTo("manual compensation");
+            assertThat(adjustment.getConfirmToken()).isEqualTo("confirmed");
+        });
     }
 }

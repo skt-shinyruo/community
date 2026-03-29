@@ -6,6 +6,8 @@ import com.nowcoder.community.content.event.payload.ModerationCommandPayload;
 import com.nowcoder.community.content.event.payload.ModerationPayload;
 import com.nowcoder.community.content.event.payload.PostPayload;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.content.dto.ModerationActionResponse;
+import com.nowcoder.community.content.dto.ReportResponse;
 import com.nowcoder.community.content.mapper.CommentMapper;
 import com.nowcoder.community.content.mapper.DiscussPostMapper;
 import com.nowcoder.community.content.mapper.ModerationActionMapper;
@@ -65,6 +67,12 @@ public class ModerationService {
         return reportService.listReports(status, targetType, reporterId, page, size);
     }
 
+    public List<ReportResponse> listReportResponses(Integer status, Integer targetType, Integer reporterId, int page, int size) {
+        return listReports(status, targetType, reporterId, page, size).stream()
+                .map(this::toReportResponse)
+                .toList();
+    }
+
     public List<ModerationAction> listActions(Integer actorId, int page, int size) {
         int p = Math.max(0, page);
         int s = Math.min(100, Math.max(1, size));
@@ -73,6 +81,12 @@ public class ModerationService {
             aid = null;
         }
         return actionMapper.selectActions(aid, Pagination.safeOffset(p, s), s);
+    }
+
+    public List<ModerationActionResponse> listModerationActionResponses(Integer actorId, int page, int size) {
+        return listActions(actorId, page, size).stream()
+                .map(this::toModerationActionResponse)
+                .toList();
     }
 
     @Transactional
@@ -318,6 +332,31 @@ public class ModerationService {
                 || ACTION_WARN.equals(act)
                 || ACTION_MUTE.equals(act)
                 || ACTION_BAN.equals(act);
+    }
+
+    private ReportResponse toReportResponse(Report report) {
+        ReportResponse response = new ReportResponse();
+        response.setId(report.getId());
+        response.setReporterId(report.getReporterId());
+        response.setTargetType(report.getTargetType());
+        response.setTargetId(report.getTargetId());
+        response.setReason(report.getReason());
+        response.setDetail(report.getDetail());
+        response.setStatus(report.getStatus());
+        response.setCreateTime(report.getCreateTime());
+        return response;
+    }
+
+    private ModerationActionResponse toModerationActionResponse(ModerationAction action) {
+        ModerationActionResponse response = new ModerationActionResponse();
+        response.setId(action.getId());
+        response.setReportId(action.getReportId());
+        response.setActorId(action.getActorId());
+        response.setAction(action.getAction());
+        response.setReason(action.getReason());
+        response.setDurationSeconds(action.getDurationSeconds());
+        response.setCreateTime(action.getCreateTime());
+        return response;
     }
 
     private String buildDeletedReason(String action, String reason) {

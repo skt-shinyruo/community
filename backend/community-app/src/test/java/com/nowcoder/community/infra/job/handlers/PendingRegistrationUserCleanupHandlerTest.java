@@ -1,6 +1,5 @@
 package com.nowcoder.community.infra.job.handlers;
 
-import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
 import com.xxl.job.core.context.XxlJobContext;
 import com.xxl.job.core.handler.annotation.XxlJob;
@@ -27,12 +26,10 @@ class PendingRegistrationUserCleanupHandlerTest {
     @Test
     void cleanupShouldDelegateToUserRegistrationServiceWithConfiguredTtlAndReportDeletedCount() {
         UserRegistrationActionApi userRegistrationActionApi = mock(UserRegistrationActionApi.class);
-        RegistrationProperties properties = new RegistrationProperties();
-        properties.getPendingUser().setTtlSeconds(1800);
         when(userRegistrationActionApi.cleanupExpiredPendingUsers(Duration.ofMinutes(30))).thenReturn(2);
 
         PendingRegistrationUserCleanupHandler handler =
-                new PendingRegistrationUserCleanupHandler(userRegistrationActionApi, properties);
+                new PendingRegistrationUserCleanupHandler(userRegistrationActionApi, 1800);
         XxlJobContext context = new XxlJobContext(1L, "", 2L, System.currentTimeMillis(), "", 0, 1);
         XxlJobContext.setXxlJobContext(context);
 
@@ -57,13 +54,11 @@ class PendingRegistrationUserCleanupHandlerTest {
     @Test
     void cleanupShouldMarkFailureWithoutThrowingWhenCleanupFails() {
         UserRegistrationActionApi userRegistrationActionApi = mock(UserRegistrationActionApi.class);
-        RegistrationProperties properties = new RegistrationProperties();
-        properties.getPendingUser().setTtlSeconds(1800);
         when(userRegistrationActionApi.cleanupExpiredPendingUsers(Duration.ofMinutes(30)))
                 .thenThrow(new RuntimeException("boom"));
 
         PendingRegistrationUserCleanupHandler handler =
-                new PendingRegistrationUserCleanupHandler(userRegistrationActionApi, properties);
+                new PendingRegistrationUserCleanupHandler(userRegistrationActionApi, 1800);
         XxlJobContext context = new XxlJobContext(1L, "", 2L, System.currentTimeMillis(), "", 0, 1);
         XxlJobContext.setXxlJobContext(context);
 
@@ -73,5 +68,22 @@ class PendingRegistrationUserCleanupHandlerTest {
         verifyNoMoreInteractions(userRegistrationActionApi);
         assertThat(context.getHandleCode()).isEqualTo(XxlJobContext.HANDLE_CODE_FAIL);
         assertThat(context.getHandleMsg()).contains("boom");
+    }
+
+    @Test
+    void cleanupShouldClampConfiguredTtlToMinimumOneMinute() {
+        UserRegistrationActionApi userRegistrationActionApi = mock(UserRegistrationActionApi.class);
+        when(userRegistrationActionApi.cleanupExpiredPendingUsers(Duration.ofMinutes(1))).thenReturn(0);
+
+        PendingRegistrationUserCleanupHandler handler =
+                new PendingRegistrationUserCleanupHandler(userRegistrationActionApi, 1);
+        XxlJobContext context = new XxlJobContext(1L, "", 2L, System.currentTimeMillis(), "", 0, 1);
+        XxlJobContext.setXxlJobContext(context);
+
+        handler.cleanup();
+
+        verify(userRegistrationActionApi, times(1)).cleanupExpiredPendingUsers(Duration.ofMinutes(1));
+        verifyNoMoreInteractions(userRegistrationActionApi);
+        assertThat(context.getHandleCode()).isEqualTo(XxlJobContext.HANDLE_CODE_SUCCESS);
     }
 }

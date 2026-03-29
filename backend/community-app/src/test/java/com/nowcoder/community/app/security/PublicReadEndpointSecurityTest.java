@@ -3,9 +3,8 @@ package com.nowcoder.community.app.security;
 import com.nowcoder.community.content.api.model.PostSummaryView;
 import com.nowcoder.community.content.api.model.RecentUserCommentView;
 import com.nowcoder.community.content.api.query.PostReadQueryApi;
-import com.nowcoder.community.user.entity.User;
+import com.nowcoder.community.user.api.model.UserProfileView;
 import com.nowcoder.community.user.service.AvatarService;
-import com.nowcoder.community.user.service.PointsService;
 import com.nowcoder.community.user.service.UserQueryService;
 import com.nowcoder.community.user.service.UserSocialProfileService;
 import org.junit.jupiter.api.Test;
@@ -18,6 +17,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
+import java.util.Date;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -47,9 +47,6 @@ class PublicReadEndpointSecurityTest {
     @MockBean
     private UserSocialProfileService userSocialProfileService;
 
-    @MockBean
-    private PointsService pointsService;
-
     @Test
     void unauthenticatedBatchPostSummaryShouldBeAllowed() throws Exception {
         when(postReadQueryApi.listPostsByIds(anyList())).thenReturn(List.<PostSummaryView>of());
@@ -62,11 +59,7 @@ class PublicReadEndpointSecurityTest {
 
     @Test
     void unauthenticatedRecentActivityEndpointsShouldBeAllowed() throws Exception {
-        User user = new User();
-        user.setId(42);
-        user.setUsername("u42");
-
-        when(userQueryService.getById(42)).thenReturn(user);
+        when(userQueryService.getProfile(42)).thenReturn(new UserProfileView(42, "u42", "h42", 0, 0, new Date(), 0, 1));
         when(postReadQueryApi.listPostsByUser(anyInt(), any(), any())).thenReturn(List.<PostSummaryView>of());
         when(postReadQueryApi.listRecentCommentsByUser(anyInt(), any(), any())).thenReturn(List.<RecentUserCommentView>of());
 

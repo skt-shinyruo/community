@@ -1,6 +1,7 @@
 package com.nowcoder.community.growth.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.growth.dto.RewardOrderResponse;
 import com.nowcoder.community.growth.entity.RewardItem;
 import com.nowcoder.community.growth.entity.RewardOrder;
 import com.nowcoder.community.growth.exception.GrowthErrorCode;
@@ -105,6 +106,11 @@ public class RewardRedemptionService {
         return rewardOrderMapper.selectById(rewardOrder.getId());
     }
 
+    @Transactional
+    public RewardOrderResponse redeemResponse(int userId, long itemId, String redeemRequestId) {
+        return toOrderResponse(redeem(userId, itemId, redeemRequestId));
+    }
+
     private void verifyRequestTargetsSameItem(RewardOrder existing, long itemId, String redeemRequestId) {
         if (existing.getItemId() != itemId) {
             throw new BusinessException(
@@ -193,5 +199,17 @@ public class RewardRedemptionService {
             throw new BusinessException(GrowthErrorCode.REWARD_ORDER_NOT_FOUND, "reward order not found: orderId=" + orderId);
         }
         return order;
+    }
+
+    private RewardOrderResponse toOrderResponse(RewardOrder order) {
+        RewardOrderResponse response = new RewardOrderResponse();
+        response.setId(order.getId());
+        response.setItemId(order.getItemId());
+        response.setStatus(order.getStatus());
+        response.setCostBalanceSnapshot(order.getCostBalanceSnapshot());
+        response.setFulfillmentModeSnapshot(order.getFulfillmentModeSnapshot());
+        response.setItemNameSnapshot(order.getItemNameSnapshot());
+        response.setItemDescSnapshot(order.getItemDescSnapshot());
+        return response;
     }
 }

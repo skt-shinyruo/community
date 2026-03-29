@@ -18,9 +18,11 @@ public class NoticeService {
     public static final int STATUS_READ = 1;
 
     private final MessageMapper messageMapper;
+    private final MessageItemAssembler messageItemAssembler;
 
-    public NoticeService(MessageMapper messageMapper) {
+    public NoticeService(MessageMapper messageMapper, MessageItemAssembler messageItemAssembler) {
         this.messageMapper = messageMapper;
+        this.messageItemAssembler = messageItemAssembler;
     }
 
     public void createNotice(int toUserId, String topic, String contentJson) {
@@ -41,6 +43,14 @@ public class NoticeService {
         return messageMapper.selectNotices(userId, topic, offset, s);
     }
 
+    public List<LetterItemResponse> listNoticeItems(int userId, String topic, int page, int size) {
+        List<Message> list = listNotices(userId, topic, page, size);
+        if (list == null || list.isEmpty()) {
+            return List.of();
+        }
+        return list.stream().map(messageItemAssembler::toLetterItem).toList();
+    }
+
     public int unreadCount(int userId, String topic) {
         return messageMapper.selectNoticeUnreadCount(userId, topic);
     }
@@ -58,25 +68,10 @@ public class NoticeService {
             NoticeTopicSummaryResponse r = new NoticeTopicSummaryResponse();
             r.setTopic(topic);
             List<Message> latest = messageMapper.selectNotices(userId, topic, 0, 1);
-            r.setLatest(latest == null || latest.isEmpty() ? null : toLetterItem(latest.get(0)));
+            r.setLatest(latest == null || latest.isEmpty() ? null : messageItemAssembler.toLetterItem(latest.get(0)));
             r.setNoticeCount(messageMapper.selectNoticeCount(userId, topic));
             r.setUnreadCount(messageMapper.selectNoticeUnreadCount(userId, topic));
             return r;
         }).toList();
-    }
-
-    private LetterItemResponse toLetterItem(Message m) {
-        if (m == null) {
-            return null;
-        }
-        LetterItemResponse r = new LetterItemResponse();
-        r.setId(m.getId());
-        r.setFromId(m.getFromId());
-        r.setToId(m.getToId());
-        r.setConversationId(m.getConversationId());
-        r.setContent(m.getContent());
-        r.setStatus(m.getStatus());
-        r.setCreateTime(m.getCreateTime());
-        return r;
     }
 }

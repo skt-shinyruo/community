@@ -1,8 +1,9 @@
 package com.nowcoder.community.content.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.content.mapper.CategoryMapper;
+import com.nowcoder.community.content.dto.CategoryResponse;
 import com.nowcoder.community.content.entity.Category;
+import com.nowcoder.community.content.mapper.CategoryMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -23,6 +24,12 @@ public class CategoryService {
         return categoryMapper.selectCategories();
     }
 
+    public List<CategoryResponse> listCategoryResponses() {
+        return listCategories().stream()
+                .map(this::toCategoryResponse)
+                .toList();
+    }
+
     public Category getById(int id) {
         Category c = categoryMapper.selectCategoryById(id);
         if (c == null) {
@@ -39,5 +46,15 @@ public class CategoryService {
             throw new BusinessException(INVALID_ARGUMENT, "分类参数非法");
         }
         getById(categoryId);
+    }
+
+    private CategoryResponse toCategoryResponse(Category category) {
+        CategoryResponse response = new CategoryResponse();
+        response.setId(category.getId());
+        response.setName(category.getName());
+        response.setDescription(category.getDescription());
+        response.setPosition(category.getPosition());
+        response.setPostCount(category.getPostCount());
+        return response;
     }
 }

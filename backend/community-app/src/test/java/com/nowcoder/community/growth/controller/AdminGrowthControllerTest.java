@@ -2,7 +2,9 @@ package com.nowcoder.community.growth.controller;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.growth.dto.AdminAdjustBalanceRequest;
+import com.nowcoder.community.growth.dto.AdminRewardAdjustmentResponse;
 import com.nowcoder.community.growth.dto.AdminGrowthUserResponse;
+import com.nowcoder.community.growth.dto.RewardLedgerEntryResponse;
 import com.nowcoder.community.growth.service.AdminGrowthService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +14,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.Date;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -94,5 +97,51 @@ class AdminGrowthControllerTest {
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.userId").value(1))
                 .andExpect(jsonPath("$.data.rewardBalance").value(15));
+    }
+
+    @Test
+    void ledgersShouldReturnDtoResponses() throws Exception {
+        RewardLedgerEntryResponse ledger = new RewardLedgerEntryResponse();
+        ledger.setId(11L);
+        ledger.setUserId(1);
+        ledger.setEventType("TaskReward");
+        ledger.setDelta(5);
+        ledger.setBalanceAfter(10);
+        ledger.setCreateTime(new Date());
+        when(adminGrowthService.recentRewardLedgerResponses(1, 10)).thenReturn(List.of(ledger));
+
+        mockMvc.perform(get("/api/growth/admin/users/1/ledgers")
+                        .with(jwt().jwt(jwt -> jwt.subject("99")).authorities(() -> "ROLE_ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].id").value(11))
+                .andExpect(jsonPath("$.data[0].eventType").value("TaskReward"))
+                .andExpect(jsonPath("$.data[0].delta").value(5))
+                .andExpect(jsonPath("$.data[0].balanceAfter").value(10));
+    }
+
+    @Test
+    void adjustmentsShouldReturnDtoResponses() throws Exception {
+        AdminRewardAdjustmentResponse adjustment = new AdminRewardAdjustmentResponse();
+        adjustment.setId(21L);
+        adjustment.setActorUserId(99);
+        adjustment.setTargetUserId(1);
+        adjustment.setAssetType("REWARD_BALANCE");
+        adjustment.setDelta(5);
+        adjustment.setBeforeValue(10);
+        adjustment.setAfterValue(15);
+        adjustment.setReason("manual compensation");
+        adjustment.setConfirmToken("confirmed");
+        adjustment.setCreateTime(new Date());
+        when(adminGrowthService.recentAdjustmentResponses(1, 10)).thenReturn(List.of(adjustment));
+
+        mockMvc.perform(get("/api/growth/admin/users/1/adjustments")
+                        .with(jwt().jwt(jwt -> jwt.subject("99")).authorities(() -> "ROLE_ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].id").value(21))
+                .andExpect(jsonPath("$.data[0].assetType").value("REWARD_BALANCE"))
+                .andExpect(jsonPath("$.data[0].delta").value(5))
+                .andExpect(jsonPath("$.data[0].beforeValue").value(10))
+                .andExpect(jsonPath("$.data[0].afterValue").value(15))
+                .andExpect(jsonPath("$.data[0].confirmToken").value("confirmed"));
     }
 }

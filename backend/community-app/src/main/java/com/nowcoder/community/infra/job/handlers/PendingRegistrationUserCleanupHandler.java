@@ -1,11 +1,11 @@
 package com.nowcoder.community.infra.job.handlers;
 
-import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -18,18 +18,20 @@ public class PendingRegistrationUserCleanupHandler {
     private static final Logger log = LoggerFactory.getLogger(PendingRegistrationUserCleanupHandler.class);
 
     private final UserRegistrationActionApi userRegistrationActionApi;
-    private final RegistrationProperties properties;
+    private final long pendingUserTtlSeconds;
 
-    public PendingRegistrationUserCleanupHandler(UserRegistrationActionApi userRegistrationActionApi,
-                                                 RegistrationProperties properties) {
+    public PendingRegistrationUserCleanupHandler(
+            UserRegistrationActionApi userRegistrationActionApi,
+            @Value("${auth.registration.pending-user.ttl-seconds:1800}") long pendingUserTtlSeconds
+    ) {
         this.userRegistrationActionApi = userRegistrationActionApi;
-        this.properties = properties;
+        this.pendingUserTtlSeconds = pendingUserTtlSeconds;
     }
 
     @XxlJob(JOB_NAME)
     public void cleanup() {
         try {
-            Duration ttl = Duration.ofSeconds(Math.max(60, properties.getPendingUser().getTtlSeconds()));
+            Duration ttl = Duration.ofSeconds(Math.max(60L, pendingUserTtlSeconds));
             int deleted = userRegistrationActionApi.cleanupExpiredPendingUsers(ttl);
             String result = "[registration] pending-user cleanup deleted-count=" + deleted;
             XxlJobHelper.log(result);

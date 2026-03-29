@@ -1,8 +1,8 @@
 package com.nowcoder.community.growth.controller;
 
 import com.nowcoder.community.app.CommunityAppApplication;
-import com.nowcoder.community.growth.entity.RewardItem;
-import com.nowcoder.community.growth.entity.RewardOrder;
+import com.nowcoder.community.growth.dto.RewardItemResponse;
+import com.nowcoder.community.growth.dto.RewardOrderResponse;
 import com.nowcoder.community.growth.service.RewardCatalogService;
 import com.nowcoder.community.growth.service.RewardOrderQueryService;
 import com.nowcoder.community.growth.service.RewardRedemptionService;
@@ -57,7 +57,7 @@ class RewardShopControllerTest {
 
     @Test
     void rewardShopApisShouldExposeCatalogDetailAndOrderHistory() throws Exception {
-        RewardItem item = new RewardItem();
+        RewardItemResponse item = new RewardItemResponse();
         item.setId(11L);
         item.setItemName("头像框周卡");
         item.setItemDesc("一周头像框权益");
@@ -67,7 +67,7 @@ class RewardShopControllerTest {
         item.setFulfillmentMode("AUTO");
         item.setStatus("ACTIVE");
 
-        RewardOrder order = new RewardOrder();
+        RewardOrderResponse order = new RewardOrderResponse();
         order.setId(101L);
         order.setItemId(11L);
         order.setStatus("FULFILLED");
@@ -76,9 +76,9 @@ class RewardShopControllerTest {
         order.setItemNameSnapshot("头像框周卡");
         order.setItemDescSnapshot("一周头像框权益");
 
-        when(rewardCatalogService.listItemsForUser(1)).thenReturn(List.of(item));
-        when(rewardCatalogService.getItemForUser(1, 11L)).thenReturn(item);
-        when(rewardOrderQueryService.listOrdersForUser(1)).thenReturn(List.of(order));
+        when(rewardCatalogService.listItemResponsesForUser(1)).thenReturn(List.of(item));
+        when(rewardCatalogService.getItemResponseForUser(1, 11L)).thenReturn(item);
+        when(rewardOrderQueryService.listOrderResponsesForUser(1)).thenReturn(List.of(order));
 
         mockMvc.perform(get("/api/growth/shop/items")
                         .with(jwt().jwt(jwt -> jwt.subject("1").claim("username", "u1"))))
@@ -104,7 +104,7 @@ class RewardShopControllerTest {
 
     @Test
     void redeemApiShouldReturnCreatedOrExistingOrderView() throws Exception {
-        RewardOrder order = new RewardOrder();
+        RewardOrderResponse order = new RewardOrderResponse();
         order.setId(102L);
         order.setItemId(12L);
         order.setStatus("PENDING");
@@ -113,7 +113,7 @@ class RewardShopControllerTest {
         order.setItemNameSnapshot("社群资格");
         order.setItemDescSnapshot("人工发放社群资格");
 
-        when(rewardRedemptionService.redeem(eq(1), eq(12L), eq("redeem-req-api-1"))).thenReturn(order);
+        when(rewardRedemptionService.redeemResponse(eq(1), eq(12L), eq("redeem-req-api-1"))).thenReturn(order);
 
         mockMvc.perform(post("/api/growth/shop/redeem")
                         .with(jwt().jwt(jwt -> jwt.subject("1").claim("username", "u1")))

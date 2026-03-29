@@ -2,10 +2,10 @@ package com.nowcoder.community.growth.controller;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.growth.dto.AdminGrowthMetricsResponse;
+import com.nowcoder.community.growth.dto.AdminRewardItemResponse;
 import com.nowcoder.community.growth.dto.AdminRewardItemUpsertRequest;
+import com.nowcoder.community.growth.dto.AdminRewardOrderResponse;
 import com.nowcoder.community.growth.dto.AdminRewardOrderActionRequest;
-import com.nowcoder.community.growth.entity.RewardItem;
-import com.nowcoder.community.growth.entity.RewardOrder;
 import com.nowcoder.community.growth.service.AdminRewardOpsService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,7 +46,7 @@ class AdminRewardOpsControllerTest {
 
     @Test
     void adminItemAndOrderEndpointsShouldReturnOperatorData() throws Exception {
-        RewardItem item = new RewardItem();
+        AdminRewardItemResponse item = new AdminRewardItemResponse();
         item.setId(11L);
         item.setItemName("社群资格");
         item.setStatus("ACTIVE");
@@ -55,7 +55,7 @@ class AdminRewardOpsControllerTest {
         item.setPerUserLimit(1);
         item.setFulfillmentMode("MANUAL");
 
-        RewardOrder order = new RewardOrder();
+        AdminRewardOrderResponse order = new AdminRewardOrderResponse();
         order.setId(101L);
         order.setItemId(11L);
         order.setStatus("PENDING");
@@ -68,8 +68,8 @@ class AdminRewardOpsControllerTest {
         metrics.setPendingOrderCount(1);
         metrics.setRefundedOrderCount(0);
 
-        when(adminRewardOpsService.listItems()).thenReturn(List.of(item));
-        when(adminRewardOpsService.listOrders()).thenReturn(List.of(order));
+        when(adminRewardOpsService.listItemResponses()).thenReturn(List.of(item));
+        when(adminRewardOpsService.listOrderResponses()).thenReturn(List.of(order));
         when(adminRewardOpsService.metrics()).thenReturn(metrics);
 
         mockMvc.perform(get("/api/growth/admin/rewards/items")
@@ -90,18 +90,18 @@ class AdminRewardOpsControllerTest {
 
     @Test
     void adminActionsShouldSupportItemUpsertAndOrderProcessing() throws Exception {
-        RewardItem item = new RewardItem();
+        AdminRewardItemResponse item = new AdminRewardItemResponse();
         item.setId(12L);
         item.setItemName("头像框周卡");
         item.setStatus("ACTIVE");
 
-        RewardOrder order = new RewardOrder();
+        AdminRewardOrderResponse order = new AdminRewardOrderResponse();
         order.setId(102L);
         order.setStatus("FULFILLED");
         order.setItemNameSnapshot("社群资格");
 
-        when(adminRewardOpsService.upsertItem(any(AdminRewardItemUpsertRequest.class))).thenReturn(item);
-        when(adminRewardOpsService.processOrder(eq(99), any(AdminRewardOrderActionRequest.class))).thenReturn(order);
+        when(adminRewardOpsService.upsertItemResponse(any(AdminRewardItemUpsertRequest.class))).thenReturn(item);
+        when(adminRewardOpsService.processOrderResponse(eq(99), any(AdminRewardOrderActionRequest.class))).thenReturn(order);
 
         mockMvc.perform(post("/api/growth/admin/rewards/items")
                         .with(jwt().jwt(jwt -> jwt.subject("99")).authorities(() -> "ROLE_ADMIN"))

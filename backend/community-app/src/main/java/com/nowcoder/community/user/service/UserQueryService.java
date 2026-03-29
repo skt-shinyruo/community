@@ -2,6 +2,7 @@ package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.api.model.UserGrowthProfileView;
+import com.nowcoder.community.user.api.model.UserProfileView;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import com.nowcoder.community.user.api.query.UserProfileQueryApi;
@@ -99,6 +100,11 @@ public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi
     }
 
     @Override
+    public UserProfileView getProfile(int userId) {
+        return toProfileView(getById(userId));
+    }
+
+    @Override
     public UserGrowthProfileView getGrowthProfile(int userId) {
         return toGrowthProfile(getById(userId));
     }
@@ -108,6 +114,22 @@ public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi
             return null;
         }
         return new UserSummaryView(user.getId(), user.getUsername(), user.getHeaderUrl(), user.getType());
+    }
+
+    private UserProfileView toProfileView(User user) {
+        if (user == null || user.getId() <= 0) {
+            return null;
+        }
+        return new UserProfileView(
+                user.getId(),
+                user.getUsername(),
+                user.getHeaderUrl(),
+                user.getType(),
+                user.getStatus(),
+                user.getCreateTime(),
+                user.getScore(),
+                levelForScore(user.getScore())
+        );
     }
 
     private UserGrowthProfileView toGrowthProfile(User user) {

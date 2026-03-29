@@ -2,9 +2,9 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.content.dto.ModerationActionResponse;
 import com.nowcoder.community.content.dto.ModerationActionRequest;
-import com.nowcoder.community.content.entity.ModerationAction;
-import com.nowcoder.community.content.entity.Report;
+import com.nowcoder.community.content.dto.ReportResponse;
 import com.nowcoder.community.content.service.ModerationService;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import jakarta.validation.Valid;
@@ -29,7 +29,7 @@ public class ModerationController {
     }
 
     @GetMapping("/reports")
-    public Result<List<Report>> reports(
+    public Result<List<ReportResponse>> reports(
             @RequestParam(required = false) Integer status,
             @RequestParam(required = false) Integer targetType,
             @RequestParam(required = false) Integer reporterId,
@@ -38,7 +38,7 @@ public class ModerationController {
     ) {
         int p = page == null ? 0 : Math.max(0, page);
         int s = size == null ? 20 : Math.min(100, Math.max(1, size));
-        return Result.ok(moderationService.listReports(status, targetType, reporterId, p, s));
+        return Result.ok(moderationService.listReportResponses(status, targetType, reporterId, p, s));
     }
 
     @PostMapping("/actions")
@@ -55,13 +55,13 @@ public class ModerationController {
     }
 
     @GetMapping("/actions")
-    public Result<List<ModerationAction>> actions(
+    public Result<List<ModerationActionResponse>> actions(
             @RequestParam(required = false) Integer actorId,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
         int p = page == null ? 0 : Math.max(0, page);
         int s = size == null ? 20 : Math.min(100, Math.max(1, size));
-        return Result.ok(moderationService.listActions(actorId, p, s));
+        return Result.ok(moderationService.listModerationActionResponses(actorId, p, s));
     }
 }

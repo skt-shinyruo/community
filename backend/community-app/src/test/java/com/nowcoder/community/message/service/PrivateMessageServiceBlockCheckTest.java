@@ -30,7 +30,8 @@ class PrivateMessageServiceBlockCheckTest {
                 messageMapper,
                 mock(MessageUserQueryService.class),
                 governanceService,
-                ownerGuard
+                ownerGuard,
+                new MessageItemAssembler()
         );
 
         assertThatThrownBy(() -> service.send(1, 2, "hi"))

@@ -8,7 +8,6 @@ import com.nowcoder.community.message.dto.LetterItemResponse;
 import com.nowcoder.community.message.dto.MarkReadRequest;
 import com.nowcoder.community.message.dto.SendMessageRequest;
 import com.nowcoder.community.message.dto.ConversationItemResponse;
-import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.service.MessageUserQueryService;
 import com.nowcoder.community.message.service.PrivateMessageService;
 import com.nowcoder.community.user.exception.UserErrorCode;
@@ -56,8 +55,7 @@ public class MessageController {
         int userId = CurrentUser.requireUserId(authentication);
         int p = page == null ? 0 : Math.max(0, page);
         int s = size == null ? 10 : Math.min(50, Math.max(1, size));
-        List<Message> list = privateMessageService.listConversations(userId, p, s);
-        return Result.ok(list == null ? List.of() : list.stream().map(this::toLetterItem).toList());
+        return Result.ok(privateMessageService.listConversationSummaries(userId, p, s));
     }
 
     @GetMapping("/conversations/detail")
@@ -82,8 +80,7 @@ public class MessageController {
         int userId = CurrentUser.requireUserId(authentication);
         int p = page == null ? 0 : Math.max(0, page);
         int s = size == null ? 10 : Math.min(50, Math.max(1, size));
-        List<Message> list = privateMessageService.listLetters(userId, conversationId, p, s);
-        return Result.ok(list == null ? List.of() : list.stream().map(this::toLetterItem).toList());
+        return Result.ok(privateMessageService.listLetterItems(userId, conversationId, p, s));
     }
 
     @GetMapping("/unread-count")
@@ -127,20 +124,5 @@ public class MessageController {
         int userId = CurrentUser.requireUserId(authentication);
         privateMessageService.markRead(userId, request.getIds());
         return Result.ok();
-    }
-
-    private LetterItemResponse toLetterItem(Message m) {
-        if (m == null) {
-            return null;
-        }
-        LetterItemResponse r = new LetterItemResponse();
-        r.setId(m.getId());
-        r.setFromId(m.getFromId());
-        r.setToId(m.getToId());
-        r.setConversationId(m.getConversationId());
-        r.setContent(m.getContent());
-        r.setStatus(m.getStatus());
-        r.setCreateTime(m.getCreateTime());
-        return r;
     }
 }

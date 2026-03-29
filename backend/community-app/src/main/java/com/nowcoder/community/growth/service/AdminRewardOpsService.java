@@ -2,7 +2,9 @@ package com.nowcoder.community.growth.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.growth.dto.AdminGrowthMetricsResponse;
+import com.nowcoder.community.growth.dto.AdminRewardItemResponse;
 import com.nowcoder.community.growth.dto.AdminRewardItemUpsertRequest;
+import com.nowcoder.community.growth.dto.AdminRewardOrderResponse;
 import com.nowcoder.community.growth.dto.AdminRewardOrderActionRequest;
 import com.nowcoder.community.growth.entity.AdminRewardOrderAction;
 import com.nowcoder.community.growth.entity.RewardItem;
@@ -44,6 +46,10 @@ public class AdminRewardOpsService {
 
     public List<RewardItem> listItems() {
         return rewardItemMapper.selectAllOrdered();
+    }
+
+    public List<AdminRewardItemResponse> listItemResponses() {
+        return listItems().stream().map(this::toItemResponse).toList();
     }
 
     public RewardItem upsertItem(AdminRewardItemUpsertRequest request) {
@@ -88,8 +94,16 @@ public class AdminRewardOpsService {
         return rewardItemMapper.selectById(item.getId());
     }
 
+    public AdminRewardItemResponse upsertItemResponse(AdminRewardItemUpsertRequest request) {
+        return toItemResponse(upsertItem(request));
+    }
+
     public List<RewardOrder> listOrders() {
         return rewardOrderMapper.selectAll();
+    }
+
+    public List<AdminRewardOrderResponse> listOrderResponses() {
+        return listOrders().stream().map(this::toOrderResponse).toList();
     }
 
     @Transactional
@@ -128,11 +142,46 @@ public class AdminRewardOpsService {
         return after;
     }
 
+    public AdminRewardOrderResponse processOrderResponse(int actorUserId, AdminRewardOrderActionRequest request) {
+        return toOrderResponse(processOrder(actorUserId, request));
+    }
+
     public AdminGrowthMetricsResponse metrics() {
         AdminGrowthMetricsResponse response = new AdminGrowthMetricsResponse();
         response.setActiveItemCount(rewardItemMapper.countActiveItems());
         response.setPendingOrderCount(rewardOrderMapper.countByStatus("PENDING"));
         response.setRefundedOrderCount(rewardOrderMapper.countByStatus("REFUNDED"));
+        return response;
+    }
+
+    private AdminRewardItemResponse toItemResponse(RewardItem item) {
+        AdminRewardItemResponse response = new AdminRewardItemResponse();
+        response.setId(item.getId());
+        response.setItemName(item.getItemName());
+        response.setItemDesc(item.getItemDesc());
+        response.setCostBalance(item.getCostBalance());
+        response.setStock(item.getStock());
+        response.setPerUserLimit(item.getPerUserLimit());
+        response.setFulfillmentMode(item.getFulfillmentMode());
+        response.setStatus(item.getStatus());
+        response.setCreateTime(item.getCreateTime());
+        response.setUpdateTime(item.getUpdateTime());
+        return response;
+    }
+
+    private AdminRewardOrderResponse toOrderResponse(RewardOrder order) {
+        AdminRewardOrderResponse response = new AdminRewardOrderResponse();
+        response.setId(order.getId());
+        response.setRedeemRequestId(order.getRedeemRequestId());
+        response.setUserId(order.getUserId());
+        response.setItemId(order.getItemId());
+        response.setStatus(order.getStatus());
+        response.setCostBalanceSnapshot(order.getCostBalanceSnapshot());
+        response.setFulfillmentModeSnapshot(order.getFulfillmentModeSnapshot());
+        response.setItemNameSnapshot(order.getItemNameSnapshot());
+        response.setItemDescSnapshot(order.getItemDescSnapshot());
+        response.setCreateTime(order.getCreateTime());
+        response.setUpdateTime(order.getUpdateTime());
         return response;
     }
 }

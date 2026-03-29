@@ -14,15 +14,18 @@ import com.nowcoder.community.content.service.CommentService;
 import com.nowcoder.community.content.service.ModerationService;
 import com.nowcoder.community.content.service.PostService;
 import com.nowcoder.community.content.service.ReportService;
+import com.nowcoder.community.content.service.TagService;
 import com.nowcoder.community.content.service.UserModerationGuard;
 import com.nowcoder.community.content.config.ContentRenderProperties;
 import com.nowcoder.community.content.event.ContentEventPublisher;
 import com.nowcoder.community.content.score.PostScoreQueue;
 import com.nowcoder.community.content.text.ContentTextCodec;
 import com.nowcoder.community.content.util.SensitiveFilter;
+import com.nowcoder.community.content.assembler.PostSummaryAssembler;
 import com.nowcoder.community.message.mapper.MessageMapper;
 import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.security.OwnerGuard;
+import com.nowcoder.community.message.service.MessageItemAssembler;
 import com.nowcoder.community.message.service.NoticeService;
 import com.nowcoder.community.message.service.PrivateMessageService;
 import com.nowcoder.community.message.service.PrivateMessageGovernanceService;
@@ -112,7 +115,8 @@ class PaginationOffsetOverflowTest {
                 messageMapper,
                 mock(MessageUserQueryService.class),
                 mock(PrivateMessageGovernanceService.class),
-                mock(OwnerGuard.class)
+                mock(OwnerGuard.class),
+                new MessageItemAssembler()
         );
 
         service.listConversations(1, Integer.MAX_VALUE, 50);
@@ -127,7 +131,7 @@ class PaginationOffsetOverflowTest {
         MessageMapper messageMapper = mock(MessageMapper.class);
         when(messageMapper.selectNotices(anyInt(), any(), anyInt(), anyInt())).thenReturn(List.of());
 
-        NoticeService service = new NoticeService(messageMapper);
+        NoticeService service = new NoticeService(messageMapper, new MessageItemAssembler());
         service.listNotices(1, "comment", Integer.MAX_VALUE, 50);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
@@ -140,7 +144,13 @@ class PaginationOffsetOverflowTest {
         BookmarkMapper bookmarkMapper = mock(BookmarkMapper.class);
         when(bookmarkMapper.selectBookmarkedPosts(anyInt(), anyInt(), anyInt())).thenReturn(List.of());
 
-        BookmarkService service = new BookmarkService(bookmarkMapper, mock(PostService.class));
+        BookmarkService service = new BookmarkService(
+                bookmarkMapper,
+                mock(PostService.class),
+                mock(CommentService.class),
+                mock(TagService.class),
+                new PostSummaryAssembler(mock(ContentTextCodec.class))
+        );
         service.listBookmarkedPosts(1, Integer.MAX_VALUE, 50);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);

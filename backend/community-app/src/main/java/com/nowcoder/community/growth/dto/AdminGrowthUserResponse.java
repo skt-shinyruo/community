@@ -1,7 +1,5 @@
 package com.nowcoder.community.growth.dto;
 
-import com.nowcoder.community.growth.entity.RewardLedgerEntry;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -14,7 +12,7 @@ public class AdminGrowthUserResponse {
     private int level;
     private int rewardBalance;
     private int frozenBalance;
-    private List<RewardLedgerEntry> recentRewardLedgers = new ArrayList<>();
+    private List<RewardLedgerEntryResponse> recentRewardLedgers = new ArrayList<>();
 
     public int getUserId() {
         return userId;
@@ -72,11 +70,11 @@ public class AdminGrowthUserResponse {
         this.frozenBalance = frozenBalance;
     }
 
-    public List<RewardLedgerEntry> getRecentRewardLedgers() {
+    public List<RewardLedgerEntryResponse> getRecentRewardLedgers() {
         return recentRewardLedgers;
     }
 
-    public void setRecentRewardLedgers(List<RewardLedgerEntry> recentRewardLedgers) {
+    public void setRecentRewardLedgers(List<RewardLedgerEntryResponse> recentRewardLedgers) {
         this.recentRewardLedgers = recentRewardLedgers == null ? new ArrayList<>() : recentRewardLedgers;
     }
 }

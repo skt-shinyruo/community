@@ -29,18 +29,21 @@ public class PrivateMessageService {
     private final MessageUserQueryService messageUserQueryService;
     private final PrivateMessageGovernanceService governanceService;
     private final OwnerGuard ownerGuard;
+    private final MessageItemAssembler messageItemAssembler;
 
     @Autowired
     public PrivateMessageService(
             MessageMapper messageMapper,
             MessageUserQueryService messageUserQueryService,
             PrivateMessageGovernanceService governanceService,
-            OwnerGuard ownerGuard
+            OwnerGuard ownerGuard,
+            MessageItemAssembler messageItemAssembler
     ) {
         this.messageMapper = messageMapper;
         this.messageUserQueryService = messageUserQueryService;
         this.governanceService = governanceService;
         this.ownerGuard = ownerGuard;
+        this.messageItemAssembler = messageItemAssembler;
     }
 
     public List<Message> listConversations(int userId, int page, int size) {
@@ -48,6 +51,14 @@ public class PrivateMessageService {
         int s = Math.min(50, Math.max(1, size));
         int offset = Pagination.safeOffset(p, s);
         return messageMapper.selectConversations(userId, offset, s);
+    }
+
+    public List<LetterItemResponse> listConversationSummaries(int userId, int page, int size) {
+        List<Message> latest = listConversations(userId, page, size);
+        if (latest == null || latest.isEmpty()) {
+            return List.of();
+        }
+        return latest.stream().map(messageItemAssembler::toLetterItem).toList();
     }
 
     public List<ConversationItemResponse> listConversationItems(int userId, int page, int size) {
@@ -83,7 +94,7 @@ public class PrivateMessageService {
         return latest.stream().map(m -> {
             ConversationItemResponse item = new ConversationItemResponse();
             item.setConversationId(m.getConversationId());
-            item.setLastMessage(toLetterItem(m));
+            item.setLastMessage(messageItemAssembler.toLetterItem(m));
             ConversationStats s = statsMap.get(m.getConversationId());
             item.setLetterCount(s == null ? 0 : s.getLetterCount());
             item.setUnreadCount(s == null ? 0 : s.getUnreadCount());
@@ -107,6 +118,14 @@ public class PrivateMessageService {
         int s = Math.min(50, Math.max(1, size));
         int offset = Pagination.safeOffset(p, s);
         return messageMapper.selectLetters(userId, conversationId, offset, s);
+    }
+
+    public List<LetterItemResponse> listLetterItems(int userId, String conversationId, int page, int size) {
+        List<Message> letters = listLetters(userId, conversationId, page, size);
+        if (letters == null || letters.isEmpty()) {
+            return List.of();
+        }
+        return letters.stream().map(messageItemAssembler::toLetterItem).toList();
     }
 
     public int unreadCount(int userId, String conversationId) {
@@ -138,18 +157,4 @@ public class PrivateMessageService {
         return small + "_" + large;
     }
 
-    private LetterItemResponse toLetterItem(Message m) {
-        if (m == null) {
-            return null;
-        }
-        LetterItemResponse r = new LetterItemResponse();
-        r.setId(m.getId());
-        r.setFromId(m.getFromId());
-        r.setToId(m.getToId());
-        r.setConversationId(m.getConversationId());
-        r.setContent(m.getContent());
-        r.setStatus(m.getStatus());
-        r.setCreateTime(m.getCreateTime());
-        return r;
-    }
 }

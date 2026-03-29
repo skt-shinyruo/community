@@ -3,7 +3,9 @@ package com.nowcoder.community.growth.service;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.growth.dto.AdminGrowthMetricsResponse;
+import com.nowcoder.community.growth.dto.AdminRewardItemResponse;
 import com.nowcoder.community.growth.dto.AdminRewardItemUpsertRequest;
+import com.nowcoder.community.growth.dto.AdminRewardOrderResponse;
 import com.nowcoder.community.growth.dto.AdminRewardOrderActionRequest;
 import com.nowcoder.community.growth.entity.RewardItem;
 import com.nowcoder.community.growth.entity.RewardOrder;
@@ -239,6 +241,43 @@ class AdminRewardOpsServiceTest {
         assertThat(metrics.getActiveItemCount()).isEqualTo(2);
         assertThat(metrics.getPendingOrderCount()).isEqualTo(1);
         assertThat(metrics.getRefundedOrderCount()).isEqualTo(1);
+    }
+
+    @Test
+    void listItemResponsesShouldProjectRewardItems() {
+        insertItem("社群资格", "人工发放", 15, 5, 1, "MANUAL", "ACTIVE");
+
+        AdminRewardItemResponse response = service.listItemResponses().get(0);
+
+        assertThat(response.getItemName()).isEqualTo("社群资格");
+        assertThat(response.getItemDesc()).isEqualTo("人工发放");
+        assertThat(response.getCostBalance()).isEqualTo(15);
+        assertThat(response.getStock()).isEqualTo(5);
+        assertThat(response.getPerUserLimit()).isEqualTo(1);
+        assertThat(response.getFulfillmentMode()).isEqualTo("MANUAL");
+        assertThat(response.getStatus()).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void processOrderResponseShouldProjectOrderFields() {
+        seedRewardAccount(1, 30, 0);
+        long itemId = insertItem("人工勋章", "需要运营发放", 12, 5, 1, "MANUAL", "ACTIVE");
+        RewardOrder pendingOrder = rewardRedemptionService.redeem(1, itemId, "manual-admin-response");
+
+        AdminRewardOrderActionRequest fulfill = new AdminRewardOrderActionRequest();
+        fulfill.setOrderId(pendingOrder.getId());
+        fulfill.setAction("FULFILL");
+        fulfill.setConfirm(true);
+        fulfill.setNote("issued");
+
+        AdminRewardOrderResponse response = service.processOrderResponse(99, fulfill);
+
+        assertThat(response.getId()).isEqualTo(pendingOrder.getId());
+        assertThat(response.getItemId()).isEqualTo(itemId);
+        assertThat(response.getStatus()).isEqualTo("FULFILLED");
+        assertThat(response.getCostBalanceSnapshot()).isEqualTo(12);
+        assertThat(response.getFulfillmentModeSnapshot()).isEqualTo("MANUAL");
+        assertThat(response.getItemNameSnapshot()).isEqualTo("人工勋章");
     }
 
     private void seedRewardAccount(int userId, int availableBalance, int frozenBalance) {

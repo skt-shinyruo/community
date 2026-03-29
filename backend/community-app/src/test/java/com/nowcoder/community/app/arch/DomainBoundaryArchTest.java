@@ -34,6 +34,42 @@ class DomainBoundaryArchTest {
     private static final Set<String> LEGACY_FOREIGN_MAPPER_CALLERS = Set.of();
     private static final Set<String> LEGACY_FOREIGN_SERVICE_CALLERS = Set.of();
     private static final Set<String> LEGACY_FACADE_SERVICE_CLASSES = Set.of();
+    private static final Set<String> FOREIGN_IMPLEMENTATION_LAYERS = Set.of(
+            "controller",
+            "mapper",
+            "dao",
+            "entity",
+            "config",
+            "security"
+    );
+
+    @ArchTest
+    static final ArchRule core_domains_must_not_depend_on_foreign_implementation_layers =
+            classes()
+                    .should(ArchitectureRulesSupport.notDependOnForeignCoreLayers(
+                            "not depend on foreign controller/mapper/dao/entity/config/security packages",
+                            FOREIGN_IMPLEMENTATION_LAYERS,
+                            ArchitectureRulesSupport.MIGRATION_BASELINE_FOREIGN_IMPLEMENTATION_CALLERS
+                    ));
+
+    @ArchTest
+    static final ArchRule core_domains_must_not_depend_on_ops_or_im =
+            classes()
+                    .should(ArchitectureRulesSupport.notDependOnDomainsFromCoreOrigins(
+                            "not depend on ops or im adapter packages",
+                            Set.of("ops", "im"),
+                            Set.of()
+                    ));
+
+    @ArchTest
+    static final ArchRule common_must_not_depend_on_business_or_adapter_domains =
+            classes()
+                    .that().resideInAnyPackage("..common..")
+                    .should(ArchitectureRulesSupport.notDependOnDomains(
+                            "not depend on business or adapter domains",
+                            Set.of("auth", "user", "content", "social", "message", "search", "analytics", "growth", "ops", "im"),
+                            Set.of()
+                    ));
 
     @ArchTest
     static final ArchRule non_owner_domains_must_not_depend_on_foreign_entities =
@@ -54,7 +90,7 @@ class DomainBoundaryArchTest {
                     .should(notDependOnForeignPackage("services", SERVICE_PACKAGE, LEGACY_FOREIGN_SERVICE_CALLERS));
 
     @ArchTest
-    static final ArchRule production_classes_must_not_end_with_facade_service =
+    static final ArchRule production_code_must_not_use_facade_service_naming =
             classes().should(notUseFacadeServiceNaming());
 
     @ArchTest

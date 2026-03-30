@@ -7,6 +7,7 @@ import com.nowcoder.community.growth.api.action.GrowthGrantActionApi;
 import com.nowcoder.community.infra.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.user.service.PointsProjectionService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -27,6 +28,7 @@ public class PointsOutboxEnqueuer {
     private final JdbcOutboxEventStore store;
     private final PointsProjectionService pointsProjectionService;
 
+    @Autowired
     public PointsOutboxEnqueuer(ObjectMapper objectMapper, JdbcOutboxEventStore store, PointsProjectionService pointsProjectionService) {
         this.objectMapper = objectMapper;
         this.store = store;

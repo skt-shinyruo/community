@@ -6,6 +6,7 @@ import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.infra.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.message.service.NoticeProjectionService;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -24,6 +25,7 @@ public class NoticeOutboxEnqueuer {
     private final JdbcOutboxEventStore store;
     private final NoticeProjectionService noticeProjectionService;
 
+    @Autowired
     public NoticeOutboxEnqueuer(ObjectMapper objectMapper, JdbcOutboxEventStore store, NoticeProjectionService noticeProjectionService) {
         this.objectMapper = objectMapper;
         this.store = store;

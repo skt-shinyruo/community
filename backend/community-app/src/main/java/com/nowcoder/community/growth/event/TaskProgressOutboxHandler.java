@@ -6,6 +6,7 @@ import com.nowcoder.community.growth.service.TaskProgressProjectionService;
 import com.nowcoder.community.growth.service.TaskProgressService;
 import com.nowcoder.community.infra.outbox.OutboxEvent;
 import com.nowcoder.community.infra.outbox.OutboxHandler;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -22,6 +23,7 @@ public class TaskProgressOutboxHandler implements OutboxHandler {
     private final ObjectMapper objectMapper;
     private final TaskProgressProjectionService taskProgressProjectionService;
 
+    @Autowired
     public TaskProgressOutboxHandler(ObjectMapper objectMapper, TaskProgressProjectionService taskProgressProjectionService) {
         this.objectMapper = objectMapper;
         this.taskProgressProjectionService = taskProgressProjectionService;

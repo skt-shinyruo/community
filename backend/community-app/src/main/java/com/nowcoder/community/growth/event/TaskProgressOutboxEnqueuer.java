@@ -8,6 +8,7 @@ import com.nowcoder.community.growth.service.TaskProgressProjectionService;
 import com.nowcoder.community.growth.service.TaskProgressService;
 import com.nowcoder.community.infra.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -23,6 +24,7 @@ public class TaskProgressOutboxEnqueuer {
     private final JdbcOutboxEventStore store;
     private final TaskProgressProjectionService taskProgressProjectionService;
 
+    @Autowired
     public TaskProgressOutboxEnqueuer(
             ObjectMapper objectMapper,
             JdbcOutboxEventStore store,

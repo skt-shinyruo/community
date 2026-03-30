@@ -5,6 +5,7 @@ import com.nowcoder.community.growth.service.GrowthBusinessTimeService;
 import com.nowcoder.community.growth.service.TaskProgressProjectionService;
 import com.nowcoder.community.growth.service.TaskProgressService;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -16,6 +17,7 @@ public class TaskProgressProjectionListener {
 
     private final TaskProgressProjectionService taskProgressProjectionService;
 
+    @Autowired
     public TaskProgressProjectionListener(TaskProgressProjectionService taskProgressProjectionService) {
         this.taskProgressProjectionService = taskProgressProjectionService;
     }

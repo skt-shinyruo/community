@@ -7,6 +7,7 @@ import com.nowcoder.community.message.service.NoticeService;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -20,6 +21,7 @@ public class NoticeProjectionListener {
 
     private final NoticeProjectionService noticeProjectionService;
 
+    @Autowired
     public NoticeProjectionListener(NoticeProjectionService noticeProjectionService) {
         this.noticeProjectionService = noticeProjectionService;
     }

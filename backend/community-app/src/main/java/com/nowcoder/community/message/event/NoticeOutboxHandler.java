@@ -5,6 +5,7 @@ import com.nowcoder.community.infra.outbox.OutboxEvent;
 import com.nowcoder.community.infra.outbox.OutboxHandler;
 import com.nowcoder.community.message.service.NoticeProjectionService;
 import com.nowcoder.community.message.service.NoticeService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -21,6 +22,7 @@ public class NoticeOutboxHandler implements OutboxHandler {
     private final ObjectMapper objectMapper;
     private final NoticeProjectionService noticeProjectionService;
 
+    @Autowired
     public NoticeOutboxHandler(ObjectMapper objectMapper, NoticeProjectionService noticeProjectionService) {
         this.objectMapper = objectMapper;
         this.noticeProjectionService = noticeProjectionService;

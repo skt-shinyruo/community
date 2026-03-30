@@ -2,9 +2,9 @@ package com.nowcoder.community.ops.controller;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.ops.dto.SearchReindexResponse;
 import com.nowcoder.community.search.api.action.SearchReindexActionApi;
 import com.nowcoder.community.search.api.model.SearchReindexResult;
-import com.nowcoder.community.search.dto.SearchReindexResponse;
 import com.nowcoder.community.search.exception.SearchErrorCode;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;

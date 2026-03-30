@@ -1,5 +1,11 @@
 package com.nowcoder.community.content.service;
 
+import com.nowcoder.community.content.app.post.AdminDeletePostUseCase;
+import com.nowcoder.community.content.app.post.CreatePostUseCase;
+import com.nowcoder.community.content.app.post.DeleteOwnPostUseCase;
+import com.nowcoder.community.content.app.post.MarkPostWonderfulUseCase;
+import com.nowcoder.community.content.app.post.TopPostUseCase;
+import com.nowcoder.community.content.app.post.UpdatePostUseCase;
 import com.nowcoder.community.content.domain.event.PostDomainEventPublisher;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.score.PostScoreQueue;
@@ -22,35 +28,35 @@ import static org.mockito.Mockito.when;
 @ExtendWith(OutputCaptureExtension.class)
 class PostCommandServiceLoggingTest {
 
-    private PostService postService;
-    private PostScoreQueue postScoreQueue;
-    private CategoryService categoryService;
-    private TagService tagService;
-    private UserModerationGuard moderationGuard;
-    private PostDomainEventPublisher domainEventPublisher;
+    private CreatePostUseCase createPostUseCase;
+    private UpdatePostUseCase updatePostUseCase;
+    private DeleteOwnPostUseCase deleteOwnPostUseCase;
+    private TopPostUseCase topPostUseCase;
+    private MarkPostWonderfulUseCase markPostWonderfulUseCase;
+    private AdminDeletePostUseCase adminDeletePostUseCase;
     private PostCommandService service;
 
     @BeforeEach
     void setUp() {
-        postService = mock(PostService.class);
-        postScoreQueue = mock(PostScoreQueue.class);
-        categoryService = mock(CategoryService.class);
-        tagService = mock(TagService.class);
-        moderationGuard = mock(UserModerationGuard.class);
-        domainEventPublisher = mock(PostDomainEventPublisher.class);
+        createPostUseCase = mock(CreatePostUseCase.class);
+        updatePostUseCase = mock(UpdatePostUseCase.class);
+        deleteOwnPostUseCase = mock(DeleteOwnPostUseCase.class);
+        topPostUseCase = mock(TopPostUseCase.class);
+        markPostWonderfulUseCase = mock(MarkPostWonderfulUseCase.class);
+        adminDeletePostUseCase = mock(AdminDeletePostUseCase.class);
         service = new PostCommandService(
-                postService,
-                postScoreQueue,
-                categoryService,
-                tagService,
-                moderationGuard,
-                domainEventPublisher
+                createPostUseCase,
+                updatePostUseCase,
+                deleteOwnPostUseCase,
+                topPostUseCase,
+                markPostWonderfulUseCase,
+                adminDeletePostUseCase
         );
     }
 
     @Test
     void createPostShouldLogBusinessEvent(CapturedOutput output) {
-        when(postService.create(any(DiscussPost.class))).thenReturn(101);
+        when(createPostUseCase.createPost(7, "Title", "Content", 3, List.of("java"))).thenReturn(101);
 
         int postId = service.createPost(7, "Title", "Content", 3, List.of("java"));
 
@@ -67,8 +73,6 @@ class PostCommandServiceLoggingTest {
 
     @Test
     void updatePostShouldLogBusinessEvent(CapturedOutput output) {
-        when(postService.getByIdAllowDeleted(101)).thenReturn(recentOwnedPost(101, 7));
-
         service.updatePost(7, 101, "Updated", "Body", 3, List.of("spring"));
 
         assertThat(output.getAll())
@@ -83,8 +87,6 @@ class PostCommandServiceLoggingTest {
 
     @Test
     void deletePostByAuthorShouldLogBusinessEvent(CapturedOutput output) {
-        when(postService.getByIdAllowDeleted(101)).thenReturn(recentOwnedPost(101, 7));
-
         service.deletePostByAuthor(7, 101);
 
         assertThat(output.getAll())
@@ -125,8 +127,6 @@ class PostCommandServiceLoggingTest {
 
     @Test
     void adminDeleteShouldLogBusinessEvent(CapturedOutput output) {
-        when(postService.getByIdAllowDeleted(101)).thenReturn(recentOwnedPost(101, 7));
-
         service.adminDelete(99, 101);
 
         assertThat(output.getAll())
@@ -139,12 +139,4 @@ class PostCommandServiceLoggingTest {
                 .contains("community.target_id=101");
     }
 
-    private DiscussPost recentOwnedPost(int postId, int ownerUserId) {
-        DiscussPost post = new DiscussPost();
-        post.setId(postId);
-        post.setUserId(ownerUserId);
-        post.setStatus(0);
-        post.setCreateTime(Date.from(Instant.now().minus(1, ChronoUnit.HOURS)));
-        return post;
-    }
 }

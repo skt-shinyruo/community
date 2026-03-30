@@ -1,7 +1,9 @@
 package com.nowcoder.community.auth.service;
 
 import com.nowcoder.community.infra.security.jwt.JwtProperties;
-import com.nowcoder.community.user.session.RefreshTokenSessionService;
+import com.nowcoder.community.user.api.action.UserRefreshTokenSessionActionApi;
+import com.nowcoder.community.user.api.model.RefreshTokenSessionView;
+import com.nowcoder.community.user.api.query.UserRefreshTokenSessionQueryApi;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -15,23 +17,32 @@ import java.time.Instant;
 
 /**
  * refresh token DB 存储（SSOT=user 模块 MySQL）：
- * - auth 模块不直连 MySQL，通过调用 user 模块内部 API 托管会话状态
+ * - auth 模块不直连 MySQL，通过 user owner-domain API 托管会话状态
  * - 仅存 token_hash（SHA-256 hex），避免明文凭据落库
  */
 @Component
 @ConditionalOnProperty(name = "auth.refresh.store", havingValue = "db")
 public class DbRefreshTokenStore implements RefreshTokenStore {
 
-    private final RefreshTokenSessionService refreshTokenSessionService;
+    private final UserRefreshTokenSessionActionApi refreshTokenSessionActionApi;
+    private final UserRefreshTokenSessionQueryApi refreshTokenSessionQueryApi;
     private final JwtProperties jwtProperties;
 
-    public DbRefreshTokenStore(RefreshTokenSessionService refreshTokenSessionService) {
-        this(refreshTokenSessionService, new JwtProperties());
+    public DbRefreshTokenStore(
+            UserRefreshTokenSessionActionApi refreshTokenSessionActionApi,
+            UserRefreshTokenSessionQueryApi refreshTokenSessionQueryApi
+    ) {
+        this(refreshTokenSessionActionApi, refreshTokenSessionQueryApi, new JwtProperties());
     }
 
     @Autowired
-    public DbRefreshTokenStore(RefreshTokenSessionService refreshTokenSessionService, JwtProperties jwtProperties) {
-        this.refreshTokenSessionService = refreshTokenSessionService;
+    public DbRefreshTokenStore(
+            UserRefreshTokenSessionActionApi refreshTokenSessionActionApi,
+            UserRefreshTokenSessionQueryApi refreshTokenSessionQueryApi,
+            JwtProperties jwtProperties
+    ) {
+        this.refreshTokenSessionActionApi = refreshTokenSessionActionApi;
+        this.refreshTokenSessionQueryApi = refreshTokenSessionQueryApi;
         this.jwtProperties = jwtProperties == null ? new JwtProperties() : jwtProperties;
     }
 
@@ -40,7 +51,7 @@ public class DbRefreshTokenStore implements RefreshTokenStore {
         if (!StringUtils.hasText(refreshToken) || userId <= 0 || !StringUtils.hasText(familyId) || expiresAt == null) {
             return;
         }
-        refreshTokenSessionService.store(sha256Hex(refreshToken), userId, familyId, expiresAt);
+        refreshTokenSessionActionApi.store(sha256Hex(refreshToken), userId, familyId, expiresAt);
     }
 
     @Override
@@ -48,7 +59,7 @@ public class DbRefreshTokenStore implements RefreshTokenStore {
         if (!StringUtils.hasText(refreshToken)) {
             return null;
         }
-        RefreshTokenSessionService.RefreshTokenRecord record = refreshTokenSessionService.find(sha256Hex(refreshToken));
+        RefreshTokenSessionView record = refreshTokenSessionQueryApi.find(sha256Hex(refreshToken));
         return toStoredRefreshToken(refreshToken, record);
     }
 
@@ -58,18 +69,18 @@ public class DbRefreshTokenStore implements RefreshTokenStore {
             return null;
         }
         String tokenHash = sha256Hex(refreshToken);
-        RefreshTokenSessionService.RefreshTokenRecord record = refreshTokenSessionService.consume(tokenHash);
+        RefreshTokenSessionView record = refreshTokenSessionActionApi.consume(tokenHash);
         if (record != null) {
             return toStoredRefreshToken(refreshToken, record);
         }
 
         // Consume failed: try to detect suspicious reuse of a revoked token.
-        RefreshTokenSessionService.RefreshTokenRecord found = refreshTokenSessionService.find(tokenHash);
+        RefreshTokenSessionView found = refreshTokenSessionQueryApi.find(tokenHash);
         maybeRevokeFamilyOnReuse(found);
         return null;
     }
 
-    private void maybeRevokeFamilyOnReuse(RefreshTokenSessionService.RefreshTokenRecord record) {
+    private void maybeRevokeFamilyOnReuse(RefreshTokenSessionView record) {
         if (record == null) {
             return;
         }
@@ -92,7 +103,7 @@ public class DbRefreshTokenStore implements RefreshTokenStore {
         }
     }
 
-    private StoredRefreshToken toStoredRefreshToken(String refreshToken, RefreshTokenSessionService.RefreshTokenRecord record) {
+    private StoredRefreshToken toStoredRefreshToken(String refreshToken, RefreshTokenSessionView record) {
         if (record == null) {
             return null;
         }
@@ -110,7 +121,7 @@ public class DbRefreshTokenStore implements RefreshTokenStore {
         if (!StringUtils.hasText(refreshToken)) {
             return;
         }
-        refreshTokenSessionService.revoke(sha256Hex(refreshToken));
+        refreshTokenSessionActionApi.revoke(sha256Hex(refreshToken));
     }
 
     @Override
@@ -118,7 +129,7 @@ public class DbRefreshTokenStore implements RefreshTokenStore {
         if (!StringUtils.hasText(familyId)) {
             return;
         }
-        refreshTokenSessionService.revokeFamily(familyId.trim());
+        refreshTokenSessionActionApi.revokeFamily(familyId.trim());
     }
 
     private String sha256Hex(String value) {

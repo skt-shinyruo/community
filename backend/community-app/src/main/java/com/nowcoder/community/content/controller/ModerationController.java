@@ -2,6 +2,7 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.content.app.moderation.TakeModerationActionUseCase;
 import com.nowcoder.community.content.dto.ModerationActionResponse;
 import com.nowcoder.community.content.dto.ModerationActionRequest;
 import com.nowcoder.community.content.dto.ReportResponse;
@@ -23,9 +24,11 @@ import java.util.List;
 public class ModerationController {
 
     private final ModerationService moderationService;
+    private final TakeModerationActionUseCase takeModerationActionUseCase;
 
-    public ModerationController(ModerationService moderationService) {
+    public ModerationController(ModerationService moderationService, TakeModerationActionUseCase takeModerationActionUseCase) {
         this.moderationService = moderationService;
+        this.takeModerationActionUseCase = takeModerationActionUseCase;
     }
 
     @GetMapping("/reports")
@@ -44,7 +47,7 @@ public class ModerationController {
     @PostMapping("/actions")
     public Result<Integer> action(Authentication authentication, @Valid @RequestBody ModerationActionRequest request) {
         int actorId = CurrentUser.requireUserId(authentication);
-        int id = moderationService.takeAction(
+        int id = takeModerationActionUseCase.takeAction(
                 actorId,
                 request.getReportId(),
                 request.getAction(),

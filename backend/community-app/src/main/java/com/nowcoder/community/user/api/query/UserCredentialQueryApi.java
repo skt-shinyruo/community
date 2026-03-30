@@ -1,12 +1,13 @@
 package com.nowcoder.community.user.api.query;
 
+import com.nowcoder.community.user.api.model.UserAuthenticationResultView;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 
 import java.util.List;
 
 public interface UserCredentialQueryApi {
 
-    UserCredentialView authenticate(String username, String password);
+    UserAuthenticationResultView authenticate(String username, String password);
 
     UserCredentialView getByUserId(int userId);
 

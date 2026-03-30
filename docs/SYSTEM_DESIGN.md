@@ -21,6 +21,9 @@
 - Internal（跨模块同步调用）：**统一通过 owner-domain `api.query` / `api.action` / `api.model` 协作**
   - 约束：尽量避免跨模块 JOIN；跨模块数据聚合优先走 owner-domain API + 批量/缓存
   - 边界：`service`、`entity`、`mapper` 仅作为 owner 域内部实现细节，不再作为默认跨域入口
+- Async Internal（跨模块异步协作）：**统一通过 owner-domain `contracts.event` 协作**
+  - 当前 contract 形态：`content.contracts.event.*`、`social.contracts.event.*`
+  - 边界：producer 域的 `event` 包负责发布与 transport adapter，consumer 不再直接依赖 foreign `event.payload` 或 foreign local-event wrapper
 
 ### 1.2 身份与会话：auth（入口）+ user（SSOT）
 - auth 模块（对外入口）：登录/刷新/登出闭环（签发 JWT access token + refresh cookie）；验证码、注册/激活、找回密码等账号安全能力
@@ -239,25 +242,32 @@ Redis 方案特点：
 
 IM 链路：使用 Kafka 作为 backplane（topic 常量见 `backend/community-im/im-common/src/main/java/com/nowcoder/community/im/common/ImTopics.java`）。
 
-### 3.2 事件契约：Envelope + 校验（SSOT）
-代码位置（SSOT）：`backend/community-app/src/main/java/com/nowcoder/community/common/event/EventEnvelope.java`。
+### 3.2 事件契约：Owner-Domain Contracts（SSOT）
+当前 `community-app` 内部跨域事件 contract 由 owner-domain 显式暴露：
+- `content.contracts.event.ContentContractEvent` + `content.contracts.event.*`
+- `social.contracts.event.SocialContractEvent` + `social.contracts.event.*`
 
-事件消息使用统一 envelope（概念字段）：
-- `eventId`：全局唯一，用于幂等
-- `traceId`：贯穿请求链路，便于日志串联
-- `type`：事件类型（如 `PostPublished`、`CommentCreated`）
-- `version`：事件版本（当前为 v1）
-- `occurredAt`：发生时间
-- `producer`：生产者模块名
-- `payload`：具体数据（避免敏感字段）
+这些 contract 由 producer 域拥有并版本化，consumer 只理解 contract，不再直接 import producer 的 `event.payload` 或本地 `event` 实现包。
 
-unknown handling 为可配置策略（consumer 级别）：
+`common.event.EventEnvelope` 仍保留为通用 envelope 能力，但它不是当前包级单体内部投影协作的默认 contract 入口；本地投影路径以 owner-domain `contracts.event` 为准。
+
 ### 3.3 事务后本地监听
 当前实现采用：
-1. 写模块在 DB 事务内发布领域事件
-2. 对“必须最终达成”的投影（通知/积分/搜索）使用 `@TransactionalEventListener(phase = BEFORE_COMMIT)` 写入 `community.outbox_event`（同事务提交）
-3. 本地 `@Scheduled` outbox worker 轮询并执行投影 handler（失败自动重试，最终一致）
-4. 对“尽力而为”的本地副作用（如热度队列）仍使用 after-commit 执行，并在监听方做兜底（不影响主链路）
+1. 写模块在 DB 事务内发布 owner-domain contract event（例如 `ContentContractEvent`、`SocialContractEvent`）
+2. owner-domain projection service 先统一完成“该事件是否需要投影、投影目标是什么”的业务判定
+3. 对“必须最终达成”的投影（通知/积分/搜索）使用 `@TransactionalEventListener(phase = BEFORE_COMMIT)` 写入 `community.outbox_event`（同事务提交）
+4. 本地 `@Scheduled` outbox worker 轮询并执行投影 handler（失败自动重试，最终一致）
+5. 若关闭 outbox，本地 `AFTER_COMMIT` listener 仍走同一个 projection service；监听器本身不拥有业务分支，避免双路径同构逻辑长期漂移
+6. 对“尽力而为”的本地副作用（如热度队列）仍使用 after-commit 执行，并在监听方做兜底（不影响主链路）
+
+当前已经显式收口到 shared projection service 的链路包括：
+- message notice：`NoticeProjectionService`
+- user points：`PointsProjectionService`
+- growth task progress：`TaskProgressProjectionService`
+
+下一阶段目标：
+- 继续缩小 ArchUnit migration baseline，把剩余 foreign `service` / `exception` / `session` 依赖迁回 owner-domain API
+- 在语义稳定后，再把 `api` / `contracts` / `impl` 进一步拆成独立 Maven artifact，避免继续依赖“包结构自律”
 
 ### 3.4 典型消费方（最终一致）
 - message：消费评论/社交事件，生成通知
@@ -290,7 +300,7 @@ phase 1 的运行边界是：
 
 ## 4. 同进程内部回源（去投影，直接 service 协作）
 
-按当前需求取舍：仓库已移除跨域本地投影（`*_projection` 表、Redis 投影、投影消费者与 backfill 入口），统一改为 **同进程直接 service 实时回源 SSOT**。
+按当前需求取舍：仓库已移除跨域本地投影（`*_projection` 表、Redis 投影、投影消费者与 backfill 入口），统一改为 **同进程直接 service 实时回源 SSOT**。这里列出的 direct service 协作仍属于 migration baseline，不是最终目标边界；后续仍应优先收敛为 owner-domain `api.*`。
 
 典型场景（均为进程内调用，非网络调用）：
 - content/message 写路径反骚扰（拉黑校验）：直接调 `social` 的 `BlockService`（默认 fail-closed）

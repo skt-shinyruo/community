@@ -2,14 +2,11 @@ package com.nowcoder.community.user.event;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.content.event.ContentEventTypes;
-import com.nowcoder.community.content.event.payload.CommentPayload;
-import com.nowcoder.community.content.event.payload.PostPayload;
-import com.nowcoder.community.content.event.ContentLocalEvent;
+import com.nowcoder.community.content.contracts.event.ContentContractEvent;
+import com.nowcoder.community.growth.api.action.GrowthGrantActionApi;
 import com.nowcoder.community.infra.outbox.JdbcOutboxEventStore;
-import com.nowcoder.community.social.event.SocialEventTypes;
-import com.nowcoder.community.social.event.payload.LikePayload;
-import com.nowcoder.community.social.event.SocialLocalEvent;
+import com.nowcoder.community.social.contracts.event.SocialContractEvent;
+import com.nowcoder.community.user.service.PointsProjectionService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -28,71 +25,46 @@ public class PointsOutboxEnqueuer {
 
     private final ObjectMapper objectMapper;
     private final JdbcOutboxEventStore store;
+    private final PointsProjectionService pointsProjectionService;
 
-    public PointsOutboxEnqueuer(ObjectMapper objectMapper, JdbcOutboxEventStore store) {
+    public PointsOutboxEnqueuer(ObjectMapper objectMapper, JdbcOutboxEventStore store, PointsProjectionService pointsProjectionService) {
         this.objectMapper = objectMapper;
         this.store = store;
+        this.pointsProjectionService = pointsProjectionService;
+    }
+
+    PointsOutboxEnqueuer(ObjectMapper objectMapper, JdbcOutboxEventStore store) {
+        this(objectMapper, store, new PointsProjectionService((GrowthGrantActionApi) null));
     }
 
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT, fallbackExecution = false)
-    public void onContentEvent(ContentLocalEvent event) {
-        if (event == null) {
-            return;
-        }
-        if (ContentEventTypes.POST_PUBLISHED.equals(event.type()) && event.payload() instanceof PostPayload payload) {
-            enqueue(event.eventId(), event.type(), payload.getUserId(), 10);
-            return;
-        }
-        if (ContentEventTypes.COMMENT_CREATED.equals(event.type()) && event.payload() instanceof CommentPayload payload) {
-            enqueue(event.eventId(), event.type(), payload.getUserId(), 2);
-        }
+    public void onContentEvent(ContentContractEvent event) {
+        enqueue(pointsProjectionService.commandForContentEvent(event));
     }
 
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT, fallbackExecution = false)
-    public void onSocialEvent(SocialLocalEvent event) {
-        if (event == null || !(event.payload() instanceof LikePayload payload)) {
-            return;
-        }
-
-        int toUserId = payload.getEntityUserId() == null ? 0 : payload.getEntityUserId();
-        if (toUserId <= 0 || toUserId == payload.getActorUserId()) {
-            return;
-        }
-
-        if (SocialEventTypes.LIKE_CREATED.equals(event.type())) {
-            enqueue(event.eventId(), event.type(), toUserId, 1);
-            return;
-        }
-        if (SocialEventTypes.LIKE_REMOVED.equals(event.type())) {
-            enqueue(event.eventId(), event.type(), toUserId, -1);
-        }
+    public void onSocialEvent(SocialContractEvent event) {
+        enqueue(pointsProjectionService.commandForSocialEvent(event));
     }
 
-    private void enqueue(String sourceEventId, String sourceEventType, int userId, int delta) {
-        if (userId <= 0 || delta == 0) {
+    private void enqueue(PointsProjectionService.PointsProjectionCommand command) {
+        if (command == null || command.userId() <= 0 || command.delta() == 0) {
             return;
         }
-        if (sourceEventId == null || sourceEventId.isBlank()) {
+        if (command.sourceEventId() == null || command.sourceEventId().isBlank()) {
             return;
         }
-        if (sourceEventType == null || sourceEventType.isBlank()) {
+        if (command.sourceEventType() == null || command.sourceEventType().isBlank()) {
             return;
         }
-
-        PointsOutboxHandler.PointsOutboxPayload payload = new PointsOutboxHandler.PointsOutboxPayload();
-        payload.setUserId(userId);
-        payload.setDelta(delta);
-        payload.setSourceEventId(sourceEventId);
-        payload.setSourceEventType(sourceEventType);
 
         String payloadJson;
         try {
-            payloadJson = objectMapper.writeValueAsString(payload);
+            payloadJson = objectMapper.writeValueAsString(command);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("points outbox payload 序列化失败", e);
         }
 
-        store.enqueue(sourceEventId + OUTBOX_EVENT_SUFFIX, PointsOutboxHandler.TOPIC, String.valueOf(userId), payloadJson);
+        store.enqueue(command.sourceEventId() + OUTBOX_EVENT_SUFFIX, PointsOutboxHandler.TOPIC, String.valueOf(command.userId()), payloadJson);
     }
 }
-

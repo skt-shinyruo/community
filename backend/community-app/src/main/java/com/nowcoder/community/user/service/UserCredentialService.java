@@ -1,9 +1,9 @@
 package com.nowcoder.community.user.service;
 
-import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.user.api.action.UserCredentialActionApi;
+import com.nowcoder.community.user.api.model.UserAuthenticationResultView;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.query.UserCredentialQueryApi;
 import com.nowcoder.community.user.entity.User;
@@ -30,8 +30,32 @@ public class UserCredentialService implements UserCredentialQueryApi, UserCreden
     }
 
     @Override
-    public UserCredentialView authenticate(String username, String password) {
-        return toCredentialView(authenticateEntity(username, password));
+    public UserAuthenticationResultView authenticate(String username, String password) {
+        String trimmedUsername = safeTrim(username);
+        String trimmedPassword = safeTrim(password);
+        if (!StringUtils.hasText(trimmedUsername) || !StringUtils.hasText(trimmedPassword)) {
+            return UserAuthenticationResultView.invalidCredentials();
+        }
+
+        User user = userMapper.selectByName(trimmedUsername);
+        if (user == null) {
+            return UserAuthenticationResultView.invalidCredentials();
+        }
+        if (user.getStatus() == 0) {
+            return UserAuthenticationResultView.userDisabled(toCredentialView(user));
+        }
+
+        if (!passwordMatches(user, trimmedPassword)) {
+            return UserAuthenticationResultView.invalidCredentials();
+        }
+
+        if (isLegacyPassword(user)) {
+            String bcrypt = passwordEncoder.encode(trimmedPassword);
+            userMapper.updatePassword(user.getId(), bcrypt);
+            user.setPassword(bcrypt);
+        }
+
+        return UserAuthenticationResultView.authenticated(toCredentialView(user));
     }
 
     @Override
@@ -53,34 +77,6 @@ public class UserCredentialService implements UserCredentialQueryApi, UserCreden
             throw new BusinessException(INVALID_ARGUMENT, "email 不能为空");
         }
         return toCredentialView(userMapper.selectByEmail(value));
-    }
-
-    public User authenticateEntity(String username, String password) {
-        String trimmedUsername = safeTrim(username);
-        String trimmedPassword = safeTrim(password);
-        if (!StringUtils.hasText(trimmedUsername) || !StringUtils.hasText(trimmedPassword)) {
-            throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
-        }
-
-        User user = userMapper.selectByName(trimmedUsername);
-        if (user == null) {
-            throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
-        }
-        if (user.getStatus() == 0) {
-            throw new BusinessException(AuthErrorCode.USER_DISABLED);
-        }
-
-        if (!passwordMatches(user, trimmedPassword)) {
-            throw new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
-        }
-
-        if (isLegacyPassword(user)) {
-            String bcrypt = passwordEncoder.encode(trimmedPassword);
-            userMapper.updatePassword(user.getId(), bcrypt);
-            user.setPassword(bcrypt);
-        }
-
-        return user;
     }
 
     @Override

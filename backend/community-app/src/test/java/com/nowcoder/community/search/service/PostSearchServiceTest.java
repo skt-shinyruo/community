@@ -2,7 +2,7 @@ package com.nowcoder.community.search.service;
 
 import com.nowcoder.community.content.api.model.PostScanView;
 import com.nowcoder.community.content.api.query.PostScanQueryApi;
-import com.nowcoder.community.content.event.payload.PostPayload;
+import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.search.config.PostScanProperties;
 import com.nowcoder.community.search.repo.PostIndexManager;
 import com.nowcoder.community.search.repo.PostSearchRepository;

@@ -1,8 +1,8 @@
 package com.nowcoder.community.social.event;
 
-import com.nowcoder.community.social.event.payload.FollowPayload;
-import com.nowcoder.community.social.event.payload.LikePayload;
-import com.nowcoder.community.social.event.payload.BlockPayload;
+import com.nowcoder.community.social.contracts.event.BlockPayload;
+import com.nowcoder.community.social.contracts.event.FollowPayload;
+import com.nowcoder.community.social.contracts.event.LikePayload;
 
 public interface SocialEventPublisher {
 

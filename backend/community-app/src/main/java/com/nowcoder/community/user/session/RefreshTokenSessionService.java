@@ -1,15 +1,18 @@
 package com.nowcoder.community.user.session;
 
+import com.nowcoder.community.user.api.action.UserRefreshTokenSessionActionApi;
+import com.nowcoder.community.user.api.model.RefreshTokenSessionView;
+import com.nowcoder.community.user.api.query.UserRefreshTokenSessionQueryApi;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 
 /**
- * refresh token 会话托管服务（供 auth 模块内部调用）。
+ * refresh token 会话托管服务（供 auth 模块通过 owner-domain API 调用）。
  */
 @Service
-public class RefreshTokenSessionService {
+public class RefreshTokenSessionService implements UserRefreshTokenSessionQueryApi, UserRefreshTokenSessionActionApi {
 
     private final RefreshTokenSessionRepository repository;
 
@@ -17,6 +20,7 @@ public class RefreshTokenSessionService {
         this.repository = repository;
     }
 
+    @Override
     public void store(String tokenHash, int userId, String familyId, Instant expiresAt) {
         if (!isValidTokenHash(tokenHash) || userId <= 0 || !StringUtils.hasText(familyId) || expiresAt == null) {
             return;
@@ -24,28 +28,25 @@ public class RefreshTokenSessionService {
         repository.store(tokenHash.trim(), userId, familyId.trim(), expiresAt);
     }
 
-    public RefreshTokenRecord find(String tokenHash) {
+    @Override
+    public RefreshTokenSessionView find(String tokenHash) {
         if (!isValidTokenHash(tokenHash)) {
             return null;
         }
-        RefreshTokenSessionRepository.RefreshTokenRecord r = repository.find(tokenHash.trim());
-        if (r == null) {
-            return null;
-        }
-        return new RefreshTokenRecord(r.tokenHash(), r.userId(), r.familyId(), r.expiresAt(), r.revokedAt());
+        RefreshTokenSessionRepository.RefreshTokenRecord record = repository.find(tokenHash.trim());
+        return toView(record);
     }
 
-    public RefreshTokenRecord consume(String tokenHash) {
+    @Override
+    public RefreshTokenSessionView consume(String tokenHash) {
         if (!isValidTokenHash(tokenHash)) {
             return null;
         }
-        RefreshTokenSessionRepository.RefreshTokenRecord r = repository.consumeActive(tokenHash.trim(), Instant.now());
-        if (r == null) {
-            return null;
-        }
-        return new RefreshTokenRecord(r.tokenHash(), r.userId(), r.familyId(), r.expiresAt(), r.revokedAt());
+        RefreshTokenSessionRepository.RefreshTokenRecord record = repository.consumeActive(tokenHash.trim(), Instant.now());
+        return toView(record);
     }
 
+    @Override
     public void revoke(String tokenHash) {
         if (!isValidTokenHash(tokenHash)) {
             return;
@@ -53,6 +54,7 @@ public class RefreshTokenSessionService {
         repository.revoke(tokenHash.trim());
     }
 
+    @Override
     public int revokeFamily(String familyId) {
         if (!StringUtils.hasText(familyId)) {
             return 0;
@@ -60,11 +62,25 @@ public class RefreshTokenSessionService {
         return repository.revokeFamily(familyId.trim());
     }
 
+    @Override
     public int deleteExpiredBefore(Instant cutoff) {
         if (cutoff == null) {
             return 0;
         }
         return repository.deleteExpiredBefore(cutoff);
+    }
+
+    private RefreshTokenSessionView toView(RefreshTokenSessionRepository.RefreshTokenRecord record) {
+        if (record == null) {
+            return null;
+        }
+        return new RefreshTokenSessionView(
+                record.tokenHash(),
+                record.userId(),
+                record.familyId(),
+                record.expiresAt(),
+                record.revokedAt()
+        );
     }
 
     private boolean isValidTokenHash(String tokenHash) {
@@ -83,8 +99,5 @@ public class RefreshTokenSessionService {
             }
         }
         return true;
-    }
-
-    public record RefreshTokenRecord(String tokenHash, int userId, String familyId, Instant expiresAt, Instant revokedAt) {
     }
 }

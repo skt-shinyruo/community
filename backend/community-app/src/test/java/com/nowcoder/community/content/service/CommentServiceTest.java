@@ -10,7 +10,7 @@ import com.nowcoder.community.content.event.ContentEventPublisher;
 import com.nowcoder.community.content.score.PostScoreQueue;
 import com.nowcoder.community.content.text.ContentTextCodec;
 import com.nowcoder.community.content.util.SensitiveFilter;
-import com.nowcoder.community.social.block.BlockService;
+import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -36,7 +36,7 @@ class CommentServiceTest {
         SensitiveFilter sensitiveFilter = mock(SensitiveFilter.class);
         PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
-        BlockService blockQueryApplicationService = mock(BlockService.class);
+        SocialBlockQueryApi blockQueryApplicationService = mock(SocialBlockQueryApi.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
 
@@ -68,7 +68,7 @@ class CommentServiceTest {
         SensitiveFilter sensitiveFilter = mock(SensitiveFilter.class);
         PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
-        BlockService blockQueryApplicationService = mock(BlockService.class);
+        SocialBlockQueryApi blockQueryApplicationService = mock(SocialBlockQueryApi.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
 
@@ -114,7 +114,7 @@ class CommentServiceTest {
         SensitiveFilter sensitiveFilter = mock(SensitiveFilter.class);
         PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
-        BlockService blockQueryApplicationService = mock(BlockService.class);
+        SocialBlockQueryApi blockQueryApplicationService = mock(SocialBlockQueryApi.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
 
@@ -160,7 +160,7 @@ class CommentServiceTest {
         SensitiveFilter sensitiveFilter = mock(SensitiveFilter.class);
         PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
-        BlockService blockQueryApplicationService = mock(BlockService.class);
+        SocialBlockQueryApi blockQueryApplicationService = mock(SocialBlockQueryApi.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
 
@@ -205,7 +205,7 @@ class CommentServiceTest {
         SensitiveFilter sensitiveFilter = mock(SensitiveFilter.class);
         PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
-        BlockService blockQueryApplicationService = mock(BlockService.class);
+        SocialBlockQueryApi blockQueryApplicationService = mock(SocialBlockQueryApi.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
 
@@ -246,7 +246,7 @@ class CommentServiceTest {
         SensitiveFilter sensitiveFilter = mock(SensitiveFilter.class);
         PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
-        BlockService blockQueryApplicationService = mock(BlockService.class);
+        SocialBlockQueryApi blockQueryApplicationService = mock(SocialBlockQueryApi.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
 
@@ -292,7 +292,7 @@ class CommentServiceTest {
         SensitiveFilter sensitiveFilter = mock(SensitiveFilter.class);
         PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
-        BlockService blockQueryApplicationService = mock(BlockService.class);
+        SocialBlockQueryApi blockQueryApplicationService = mock(SocialBlockQueryApi.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
 

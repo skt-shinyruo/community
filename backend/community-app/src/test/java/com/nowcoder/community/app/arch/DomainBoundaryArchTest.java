@@ -34,6 +34,7 @@ class DomainBoundaryArchTest {
     private static final Set<String> LEGACY_FOREIGN_MAPPER_CALLERS = Set.of();
     private static final Set<String> LEGACY_FOREIGN_SERVICE_CALLERS = Set.of();
     private static final Set<String> LEGACY_FACADE_SERVICE_CLASSES = Set.of();
+    private static final Set<String> LEGACY_FOREIGN_NON_COLLABORATION_CALLERS = Set.of();
     private static final Set<String> FOREIGN_IMPLEMENTATION_LAYERS = Set.of(
             "controller",
             "mapper",
@@ -41,6 +42,12 @@ class DomainBoundaryArchTest {
             "entity",
             "config",
             "security"
+    );
+    private static final Set<String> ALLOWED_FOREIGN_COLLABORATION_PACKAGES = Set.of(
+            "api.query",
+            "api.action",
+            "api.model",
+            "contracts"
     );
 
     @ArchTest
@@ -59,6 +66,15 @@ class DomainBoundaryArchTest {
                             "not depend on ops or im adapter packages",
                             Set.of("ops", "im"),
                             Set.of()
+                    ));
+
+    @ArchTest
+    static final ArchRule core_domains_must_only_depend_on_foreign_api_or_contracts =
+            classes()
+                    .should(ArchitectureRulesSupport.onlyDependOnForeignPackagePrefixes(
+                            "only depend on foreign api.query/api.action/api.model/contracts packages",
+                            ALLOWED_FOREIGN_COLLABORATION_PACKAGES,
+                            LEGACY_FOREIGN_NON_COLLABORATION_CALLERS
                     ));
 
     @ArchTest
@@ -97,8 +113,8 @@ class DomainBoundaryArchTest {
     static final ArchRule content_api_must_not_depend_on_content_legacy_transport_or_event_payloads =
             noClasses()
                     .that().resideInAnyPackage("..content.api..")
-                    .should().dependOnClassesThat().resideInAnyPackage("..content.dto..", "..content.event.payload..")
-                    .because("content.api is the synchronous collaboration boundary and must not leak DTOs or event payloads");
+                    .should().dependOnClassesThat().resideInAnyPackage("..content.dto..", "..content.contracts.event..")
+                    .because("content.api is the synchronous collaboration boundary and must not leak DTOs or async event contracts");
 
     private static ArchCondition<JavaClass> notDependOnForeignPackage(
             String packageLabel,

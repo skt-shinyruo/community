@@ -5,9 +5,9 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.mapper.MessageMapper;
 import com.nowcoder.community.message.security.OwnerGuard;
-import com.nowcoder.community.social.block.BlockService;
+import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
+import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import com.nowcoder.community.user.exception.UserErrorCode;
-import com.nowcoder.community.user.service.UserQueryService;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.ibatis.annotations.Mapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,7 +53,7 @@ class PrivateMessageServiceTest {
                 .singleElement()
                 .satisfies(constructor -> assertThat(constructor.getParameterTypes()).containsExactly(
                         MessageMapper.class,
-                        MessageUserQueryService.class,
+                        UserLookupQueryApi.class,
                         PrivateMessageGovernanceService.class,
                         OwnerGuard.class,
                         MessageItemAssembler.class
@@ -70,7 +70,7 @@ class PrivateMessageServiceTest {
 
         PrivateMessageService service = new PrivateMessageService(
                 mapper,
-                mock(MessageUserQueryService.class),
+                mock(UserLookupQueryApi.class),
                 governanceService,
                 ownerGuard(),
                 new MessageItemAssembler()
@@ -97,7 +97,7 @@ class PrivateMessageServiceTest {
 
         PrivateMessageService service = new PrivateMessageService(
                 mapper,
-                mock(MessageUserQueryService.class),
+                mock(UserLookupQueryApi.class),
                 governanceService,
                 ownerGuard(),
                 new MessageItemAssembler()
@@ -122,7 +122,7 @@ class PrivateMessageServiceTest {
 
         PrivateMessageService service = new PrivateMessageService(
                 mapper,
-                mock(MessageUserQueryService.class),
+                mock(UserLookupQueryApi.class),
                 governanceService,
                 ownerGuard(),
                 new MessageItemAssembler()
@@ -146,15 +146,15 @@ class PrivateMessageServiceTest {
     @Test
     void sendShouldRejectInvalidSenderUsingSharedGovernanceContract() {
         MessageMapper mapper = mock(MessageMapper.class);
-        UserQueryService userQueryService = mock(UserQueryService.class);
-        BlockService blockService = mock(BlockService.class);
+        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
+        SocialBlockQueryApi blockService = mock(SocialBlockQueryApi.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         PrivateMessageGovernanceService governanceService =
-                new PrivateMessageGovernanceService(userQueryService, moderationGuard, blockService);
+                new PrivateMessageGovernanceService(userLookupQueryApi, moderationGuard, blockService);
 
         PrivateMessageService service = new PrivateMessageService(
                 mapper,
-                mock(MessageUserQueryService.class),
+                mock(UserLookupQueryApi.class),
                 governanceService,
                 ownerGuard(),
                 new MessageItemAssembler()
@@ -168,21 +168,21 @@ class PrivateMessageServiceTest {
         assertThat(ex).isNotNull();
         assertThat(ex.getErrorCode()).isEqualTo(CommonErrorCode.INVALID_ARGUMENT);
         assertThat(ex.getMessage()).isEqualTo("fromUserId 非法");
-        verifyNoInteractions(mapper, userQueryService, blockService, moderationGuard);
+        verifyNoInteractions(mapper, userLookupQueryApi, blockService, moderationGuard);
     }
 
     @Test
     void sendShouldReuseSharedInvalidRecipientSemantics() {
         MessageMapper mapper = mock(MessageMapper.class);
-        UserQueryService userQueryService = mock(UserQueryService.class);
-        BlockService blockService = mock(BlockService.class);
+        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
+        SocialBlockQueryApi blockService = mock(SocialBlockQueryApi.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         PrivateMessageGovernanceService governanceService =
-                new PrivateMessageGovernanceService(userQueryService, moderationGuard, blockService);
+                new PrivateMessageGovernanceService(userLookupQueryApi, moderationGuard, blockService);
 
         PrivateMessageService service = new PrivateMessageService(
                 mapper,
-                mock(MessageUserQueryService.class),
+                mock(UserLookupQueryApi.class),
                 governanceService,
                 ownerGuard(),
                 new MessageItemAssembler()
@@ -196,7 +196,7 @@ class PrivateMessageServiceTest {
         assertThat(ex).isNotNull();
         assertThat(ex.getErrorCode()).isEqualTo(CommonErrorCode.INVALID_ARGUMENT);
         assertThat(ex.getMessage()).isEqualTo("toUserId 非法");
-        verifyNoInteractions(mapper, userQueryService, blockService, moderationGuard);
+        verifyNoInteractions(mapper, userLookupQueryApi, blockService, moderationGuard);
     }
 
     @Test
@@ -208,7 +208,7 @@ class PrivateMessageServiceTest {
 
         PrivateMessageService service = new PrivateMessageService(
                 messageMapper,
-                mock(MessageUserQueryService.class),
+                mock(UserLookupQueryApi.class),
                 mock(PrivateMessageGovernanceService.class),
                 ownerGuard(),
                 new MessageItemAssembler()

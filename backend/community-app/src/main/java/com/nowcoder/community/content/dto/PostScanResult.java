@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.dto;
 
-import com.nowcoder.community.content.event.payload.PostPayload;
+import com.nowcoder.community.content.contracts.event.PostPayload;
 
 import java.util.List;
 

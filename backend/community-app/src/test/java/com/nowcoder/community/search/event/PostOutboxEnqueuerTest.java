@@ -2,9 +2,9 @@ package com.nowcoder.community.search.event;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.content.event.ContentEventTypes;
-import com.nowcoder.community.content.event.payload.PostPayload;
-import com.nowcoder.community.content.event.ContentLocalEvent;
+import com.nowcoder.community.content.contracts.event.ContentContractEvent;
+import com.nowcoder.community.content.contracts.event.ContentEventTypes;
+import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.infra.outbox.JdbcOutboxEventStore;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -28,7 +28,7 @@ class PostOutboxEnqueuerTest {
         PostPayload payload = new PostPayload();
         payload.setPostId(101);
 
-        enqueuer.onContentEvent(new ContentLocalEvent("evt-s1", ContentEventTypes.POST_UPDATED, payload));
+        enqueuer.onContentEvent(new ContentContractEvent("evt-s1", ContentEventTypes.POST_UPDATED, payload));
 
         ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
         verify(store).enqueue(org.mockito.ArgumentMatchers.eq("evt-s1:search_post"), org.mockito.ArgumentMatchers.eq(PostOutboxHandler.TOPIC), org.mockito.ArgumentMatchers.eq("101"), payloadCaptor.capture());
@@ -39,4 +39,3 @@ class PostOutboxEnqueuerTest {
         assertThat(json.path("sourceEventType").asText()).isEqualTo(ContentEventTypes.POST_UPDATED);
     }
 }
-

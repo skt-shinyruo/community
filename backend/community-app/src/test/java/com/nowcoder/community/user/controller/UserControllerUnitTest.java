@@ -1,22 +1,25 @@
 package com.nowcoder.community.user.controller;
 
 import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.user.app.query.GetUserProfilePageQuery;
+import com.nowcoder.community.user.app.query.UserProfilePageView;
 import com.nowcoder.community.user.api.model.UserProfileView;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
-import com.nowcoder.community.user.api.query.UserProfileQueryApi;
 import com.nowcoder.community.user.dto.BatchUserSummaryRequest;
+import com.nowcoder.community.user.dto.UserProfilePostSummaryResponse;
 import com.nowcoder.community.user.dto.UserProfileResponse;
+import com.nowcoder.community.user.dto.UserRecentCommentItemResponse;
 import com.nowcoder.community.user.dto.UserResolveResponse;
 import com.nowcoder.community.user.dto.UserSummaryResponse;
 import com.nowcoder.community.user.service.AvatarService;
 import com.nowcoder.community.user.service.UserService;
-import com.nowcoder.community.user.service.UserSocialProfileService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 
@@ -35,7 +38,7 @@ class UserControllerUnitTest {
     private UserLookupQueryApi userLookupQueryApi;
 
     @Mock
-    private UserProfileQueryApi userProfileQueryApi;
+    private GetUserProfilePageQuery getUserProfilePageQuery;
 
     @Mock
     private UserService userService;
@@ -43,36 +46,26 @@ class UserControllerUnitTest {
     @Mock
     private AvatarService avatarService;
 
-    @Mock
-    private UserSocialProfileService userSocialProfileService;
-
     private UserController controller;
 
     @BeforeEach
     void setUp() {
         controller = new UserController(
                 userLookupQueryApi,
-                userProfileQueryApi,
+                getUserProfilePageQuery,
                 userService,
-                avatarService,
-                userSocialProfileService,
-                org.mockito.Mockito.mock(com.nowcoder.community.content.api.query.PostReadQueryApi.class)
+                avatarService
         );
     }
 
     @Test
-    void getUserShouldProjectOwnerDomainProfileAndSocialStats() {
+    void getUserShouldDelegateProfileAssemblyToUserOwnedQuery() {
+        Authentication authentication = authentication(42);
         Date createTime = new Date();
-        when(userProfileQueryApi.getProfile(7))
-                .thenReturn(new UserProfileView(7, "alice", "h7", 2, 0, createTime, 250, 3));
-        UserSocialProfileService.UserProfileStats stats = new UserSocialProfileService.UserProfileStats();
-        stats.setLikeCount(12);
-        stats.setFolloweeCount(5);
-        stats.setFollowerCount(8);
-        stats.setHasFollowed(true);
-        when(userSocialProfileService.userProfileStats(7, 42)).thenReturn(stats);
+        when(getUserProfilePageQuery.get(authentication, 7))
+                .thenReturn(new UserProfilePageView(7, "alice", "h7", 2, 0, createTime, 250, 3, 12, 5, 8, true, false));
 
-        Result<UserProfileResponse> result = controller.getUser(authentication(42), 7);
+        Result<UserProfileResponse> result = controller.getUser(authentication, 7);
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).isNotNull();
@@ -88,8 +81,86 @@ class UserControllerUnitTest {
         assertThat(result.getData().getFolloweeCount()).isEqualTo(5);
         assertThat(result.getData().getFollowerCount()).isEqualTo(8);
         assertThat(result.getData().getHasFollowed()).isTrue();
-        verify(userProfileQueryApi).getProfile(7);
-        verify(userSocialProfileService).userProfileStats(7, 42);
+        assertThat(result.getData().isSocialDegraded()).isFalse();
+        verify(getUserProfilePageQuery).get(authentication, 7);
+    }
+
+    @Test
+    void recentPostsShouldReturnUserOwnedPostSummaryResponses() {
+        Date createTime = new Date();
+        Date lastReplyTime = new Date(createTime.getTime() + 1_000);
+        Date lastActivityTime = new Date(createTime.getTime() + 2_000);
+        when(getUserProfilePageQuery.listRecentPosts(7, 1, 5))
+                .thenReturn(List.of(new UserProfilePageView.RecentPostSummaryView(
+                        11,
+                        7,
+                        "first post",
+                        1,
+                        0,
+                        createTime,
+                        4,
+                        9.5,
+                        3,
+                        List.of("java", "spring"),
+                        8,
+                        lastReplyTime,
+                        lastActivityTime,
+                        "latest reply"
+                )));
+
+        Result<List<UserProfilePostSummaryResponse>> result = controller.recentPosts(7, 1, 5);
+
+        assertThat(result.getCode()).isEqualTo(0);
+        assertThat(result.getData()).hasSize(1);
+        UserProfilePostSummaryResponse item = result.getData().get(0);
+        assertThat(item.getId()).isEqualTo(11);
+        assertThat(item.getUserId()).isEqualTo(7);
+        assertThat(item.getTitle()).isEqualTo("first post");
+        assertThat(item.getType()).isEqualTo(1);
+        assertThat(item.getStatus()).isEqualTo(0);
+        assertThat(item.getCreateTime()).isEqualTo(createTime);
+        assertThat(item.getCommentCount()).isEqualTo(4);
+        assertThat(item.getScore()).isEqualTo(9.5);
+        assertThat(item.getCategoryId()).isEqualTo(3);
+        assertThat(item.getTags()).containsExactly("java", "spring");
+        assertThat(item.getLastReplyUserId()).isEqualTo(8);
+        assertThat(item.getLastReplyTime()).isEqualTo(lastReplyTime);
+        assertThat(item.getLastActivityTime()).isEqualTo(lastActivityTime);
+        assertThat(item.getLastReplyPreview()).isEqualTo("latest reply");
+        verify(getUserProfilePageQuery).listRecentPosts(7, 1, 5);
+    }
+
+    @Test
+    void recentCommentsShouldReturnUserOwnedRecentCommentResponses() {
+        Date createTime = new Date();
+        when(getUserProfilePageQuery.listRecentComments(7, 2, 10))
+                .thenReturn(List.of(new UserProfilePageView.RecentCommentItemView(
+                        21,
+                        7,
+                        1,
+                        101,
+                        0,
+                        201,
+                        "post title",
+                        "reply body",
+                        createTime
+                )));
+
+        Result<List<UserRecentCommentItemResponse>> result = controller.recentComments(7, 2, 10);
+
+        assertThat(result.getCode()).isEqualTo(0);
+        assertThat(result.getData()).hasSize(1);
+        UserRecentCommentItemResponse item = result.getData().get(0);
+        assertThat(item.getId()).isEqualTo(21);
+        assertThat(item.getUserId()).isEqualTo(7);
+        assertThat(item.getEntityType()).isEqualTo(1);
+        assertThat(item.getEntityId()).isEqualTo(101);
+        assertThat(item.getTargetId()).isEqualTo(0);
+        assertThat(item.getPostId()).isEqualTo(201);
+        assertThat(item.getPostTitle()).isEqualTo("post title");
+        assertThat(item.getContent()).isEqualTo("reply body");
+        assertThat(item.getCreateTime()).isEqualTo(createTime);
+        verify(getUserProfilePageQuery).listRecentComments(7, 2, 10);
     }
 
     @Test
@@ -132,8 +203,6 @@ class UserControllerUnitTest {
                 .issuedAt(Instant.now())
                 .expiresAt(Instant.now().plusSeconds(60))
                 .build();
-        Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
-        when(authentication.getPrincipal()).thenReturn(jwt);
-        return authentication;
+        return new TestingAuthenticationToken(jwt, null);
     }
 }

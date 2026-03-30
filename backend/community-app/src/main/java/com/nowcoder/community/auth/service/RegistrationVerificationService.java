@@ -10,7 +10,6 @@ import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
 import com.nowcoder.community.user.api.model.PendingRegistrationUserView;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.query.UserPendingRegistrationQueryApi;
-import com.nowcoder.community.user.exception.UserErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -122,7 +121,7 @@ public class RegistrationVerificationService {
         }
         Integer userId = registrationSessionStore == null ? null : registrationSessionStore.findUserId(registrationToken.trim());
         if (userId == null || userId <= 0) {
-            throw new BusinessException(UserErrorCode.USER_NOT_FOUND, "注册上下文已失效，请重新注册");
+            throw new BusinessException(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);
         }
         return userId;
     }

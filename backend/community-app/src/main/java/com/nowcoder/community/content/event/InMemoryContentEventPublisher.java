@@ -1,10 +1,10 @@
 package com.nowcoder.community.content.event;
 
 import com.nowcoder.community.infra.tx.AfterCommitExecutor;
-import com.nowcoder.community.content.event.payload.CommentPayload;
-import com.nowcoder.community.content.event.payload.ModerationCommandPayload;
-import com.nowcoder.community.content.event.payload.ModerationPayload;
-import com.nowcoder.community.content.event.payload.PostPayload;
+import com.nowcoder.community.content.contracts.event.CommentPayload;
+import com.nowcoder.community.content.contracts.event.ModerationCommandPayload;
+import com.nowcoder.community.content.contracts.event.ModerationPayload;
+import com.nowcoder.community.content.contracts.event.PostPayload;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 

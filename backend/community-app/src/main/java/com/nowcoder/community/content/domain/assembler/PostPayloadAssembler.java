@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.domain.assembler;
 
-import com.nowcoder.community.content.event.payload.PostPayload;
+import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.service.PostService;
 import com.nowcoder.community.content.service.TagService;
@@ -49,4 +49,3 @@ public class PostPayloadAssembler {
         return payload;
     }
 }
-

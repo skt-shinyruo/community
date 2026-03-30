@@ -1,9 +1,10 @@
 package com.nowcoder.community.social.event;
 
-import com.nowcoder.community.social.event.SocialEventTypes;
-import com.nowcoder.community.social.event.payload.BlockPayload;
-import com.nowcoder.community.social.event.payload.FollowPayload;
-import com.nowcoder.community.social.event.payload.LikePayload;
+import com.nowcoder.community.social.contracts.event.BlockPayload;
+import com.nowcoder.community.social.contracts.event.FollowPayload;
+import com.nowcoder.community.social.contracts.event.LikePayload;
+import com.nowcoder.community.social.contracts.event.SocialContractEvent;
+import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
@@ -41,6 +42,6 @@ public class LocalSocialEventPublisher implements SocialEventPublisher {
     }
 
     private void publish(String type, Object payload) {
-        applicationEventPublisher.publishEvent(new SocialLocalEvent(UUID.randomUUID().toString(), type, payload));
+        applicationEventPublisher.publishEvent(new SocialContractEvent(UUID.randomUUID().toString(), type, payload));
     }
 }

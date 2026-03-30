@@ -1,14 +1,14 @@
 package com.nowcoder.community.growth.event;
 
-import com.nowcoder.community.content.event.ContentEventTypes;
-import com.nowcoder.community.content.event.ContentLocalEvent;
-import com.nowcoder.community.content.event.payload.PostPayload;
+import com.nowcoder.community.content.contracts.event.ContentContractEvent;
+import com.nowcoder.community.content.contracts.event.ContentEventTypes;
+import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.growth.event.payload.CheckInPayload;
 import com.nowcoder.community.growth.service.GrowthBusinessTimeService;
 import com.nowcoder.community.growth.service.TaskProgressService;
-import com.nowcoder.community.social.event.SocialEventTypes;
-import com.nowcoder.community.social.event.SocialLocalEvent;
-import com.nowcoder.community.social.event.payload.LikePayload;
+import com.nowcoder.community.social.contracts.event.LikePayload;
+import com.nowcoder.community.social.contracts.event.SocialContractEvent;
+import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -37,7 +37,7 @@ class TaskProgressProjectionListenerTest {
         payload.setUserId(7);
         payload.setCreateTime(Instant.parse("2026-03-21T16:30:00Z"));
 
-        listener.onContentEvent(new ContentLocalEvent("post-evt-1", ContentEventTypes.POST_PUBLISHED, payload));
+        listener.onContentEvent(new ContentContractEvent("post-evt-1", ContentEventTypes.POST_PUBLISHED, payload));
 
         verify(taskProgressService).processEvent(7, ContentEventTypes.POST_PUBLISHED, "post-evt-1", LocalDate.of(2026, 3, 22));
     }
@@ -58,7 +58,7 @@ class TaskProgressProjectionListenerTest {
         payload.setEntityUserId(9);
         payload.setCreateTime(Instant.parse("2026-03-22T01:00:00Z"));
 
-        listener.onSocialEvent(new SocialLocalEvent("like-evt-1", SocialEventTypes.LIKE_CREATED, payload));
+        listener.onSocialEvent(new SocialContractEvent("like-evt-1", SocialEventTypes.LIKE_CREATED, payload));
 
         verify(taskProgressService).processEvent(9, SocialEventTypes.LIKE_CREATED, "like-evt-1", LocalDate.of(2026, 3, 22));
     }
@@ -79,7 +79,7 @@ class TaskProgressProjectionListenerTest {
         payload.setEntityUserId(2);
         payload.setCreateTime(Instant.parse("2026-03-22T01:00:00Z"));
 
-        listener.onSocialEvent(new SocialLocalEvent("like-evt-1", SocialEventTypes.LIKE_CREATED, payload));
+        listener.onSocialEvent(new SocialContractEvent("like-evt-1", SocialEventTypes.LIKE_CREATED, payload));
 
         verify(taskProgressService, never()).processEvent(org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
     }

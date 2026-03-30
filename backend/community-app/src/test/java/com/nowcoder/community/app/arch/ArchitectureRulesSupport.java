@@ -66,6 +66,24 @@ final class ArchitectureRulesSupport {
         return false;
     }
 
+    static boolean residesInPackagePrefixes(JavaClass javaClass, Set<String> packagePrefixes) {
+        String packageName = javaClass.getPackageName();
+        if (!packageName.startsWith(ROOT_PACKAGE)) {
+            return false;
+        }
+        int domainEnd = packageName.indexOf('.', ROOT_PACKAGE.length());
+        if (domainEnd < 0 || domainEnd + 1 >= packageName.length()) {
+            return false;
+        }
+        String remainder = packageName.substring(domainEnd + 1);
+        for (String prefix : packagePrefixes) {
+            if (remainder.equals(prefix) || remainder.startsWith(prefix + ".")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     static boolean isWhitelisted(JavaClass javaClass, Set<String> whitelist) {
         return whitelist.contains(javaClass.getFullName());
     }
@@ -180,6 +198,33 @@ final class ArchitectureRulesSupport {
                         if (!CORE_DOMAINS.contains(targetDomain) || originDomain.equals(targetDomain)) {
                             continue;
                         }
+                    }
+                    events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));
+                }
+            }
+        };
+    }
+
+    static ArchCondition<JavaClass> onlyDependOnForeignPackagePrefixes(
+            String description,
+            Set<String> allowedPackagePrefixes,
+            Set<String> legacyOriginWhitelist
+    ) {
+        return new ArchCondition<>(description) {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                if (!isCoreDomain(item) || isWhitelisted(item, legacyOriginWhitelist)) {
+                    return;
+                }
+                String originDomain = domainOf(item);
+                for (Dependency dependency : item.getDirectDependenciesFromSelf()) {
+                    JavaClass target = dependency.getTargetClass();
+                    String targetDomain = domainOf(target);
+                    if (!CORE_DOMAINS.contains(targetDomain) || originDomain.equals(targetDomain)) {
+                        continue;
+                    }
+                    if (residesInPackagePrefixes(target, allowedPackagePrefixes)) {
+                        continue;
                     }
                     events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));
                 }

@@ -1,9 +1,14 @@
 package com.nowcoder.community.message.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.infra.idempotency.IdempotencyGuard;
+import com.nowcoder.community.message.app.ListConversationItemsQuery;
+import com.nowcoder.community.message.app.ListLettersQuery;
+import com.nowcoder.community.message.app.MarkMessagesReadUseCase;
+import com.nowcoder.community.message.app.SendPrivateMessageUseCase;
+import com.nowcoder.community.message.dto.ConversationItemResponse;
 import com.nowcoder.community.message.dto.LetterItemResponse;
-import com.nowcoder.community.message.service.MessageUserQueryService;
+import com.nowcoder.community.message.dto.MarkReadRequest;
+import com.nowcoder.community.message.dto.SendMessageRequest;
 import com.nowcoder.community.message.service.PrivateMessageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,7 +22,9 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -27,42 +34,111 @@ class MessageControllerUnitTest {
     private PrivateMessageService privateMessageService;
 
     @Mock
-    private MessageUserQueryService messageUserQueryService;
+    private ListConversationItemsQuery listConversationItemsQuery;
 
     @Mock
-    private IdempotencyGuard idempotencyGuard;
+    private ListLettersQuery listLettersQuery;
+
+    @Mock
+    private SendPrivateMessageUseCase sendPrivateMessageUseCase;
+
+    @Mock
+    private MarkMessagesReadUseCase markMessagesReadUseCase;
 
     private MessageController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new MessageController(privateMessageService, messageUserQueryService, idempotencyGuard);
+        controller = new MessageController(
+                privateMessageService,
+                listConversationItemsQuery,
+                listLettersQuery,
+                sendPrivateMessageUseCase,
+                markMessagesReadUseCase
+        );
     }
 
     @Test
-    void conversationsShouldDelegateToDtoReturningServiceMethod() {
+    void conversationsShouldDelegateToConversationQuery() {
+        Authentication authentication = authentication(7);
         LetterItemResponse item = new LetterItemResponse();
         item.setId(11);
-        when(privateMessageService.listConversationSummaries(7, 0, 10)).thenReturn(List.of(item));
+        when(listConversationItemsQuery.listConversations(authentication, null, null)).thenReturn(List.of(item));
 
-        Result<List<LetterItemResponse>> result = controller.conversations(authentication(7), null, null);
+        Result<List<LetterItemResponse>> result = controller.conversations(authentication, null, null);
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).containsExactly(item);
-        verify(privateMessageService).listConversationSummaries(7, 0, 10);
+        verify(listConversationItemsQuery).listConversations(authentication, null, null);
     }
 
     @Test
-    void lettersShouldDelegateToDtoReturningServiceMethod() {
-        LetterItemResponse item = new LetterItemResponse();
-        item.setId(12);
-        when(privateMessageService.listLetterItems(7, "1_7", 1, 20)).thenReturn(List.of(item));
+    void conversationItemsShouldDelegateToConversationQuery() {
+        Authentication authentication = authentication(7);
+        ConversationItemResponse item = new ConversationItemResponse();
+        item.setConversationId("1_7");
+        when(listConversationItemsQuery.listConversationItems(authentication, 1, 20)).thenReturn(List.of(item));
 
-        Result<List<LetterItemResponse>> result = controller.letters(authentication(7), "1_7", 1, 20);
+        Result<List<ConversationItemResponse>> result = controller.conversationItems(authentication, 1, 20);
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).containsExactly(item);
-        verify(privateMessageService).listLetterItems(7, "1_7", 1, 20);
+        verify(listConversationItemsQuery).listConversationItems(authentication, 1, 20);
+    }
+
+    @Test
+    void lettersShouldDelegateToListLettersQuery() {
+        Authentication authentication = authentication(7);
+        LetterItemResponse item = new LetterItemResponse();
+        item.setId(12);
+        when(listLettersQuery.listLetters(authentication, "1_7", 1, 20)).thenReturn(List.of(item));
+
+        Result<List<LetterItemResponse>> result = controller.letters(authentication, "1_7", 1, 20);
+
+        assertThat(result.getCode()).isEqualTo(0);
+        assertThat(result.getData()).containsExactly(item);
+        verify(listLettersQuery).listLetters(authentication, "1_7", 1, 20);
+    }
+
+    @Test
+    void sendShouldDelegateToUseCase() {
+        Authentication authentication = authentication(7);
+        SendMessageRequest request = new SendMessageRequest();
+        request.setToName("alice");
+        request.setContent("hello");
+
+        Result<Void> result = controller.send(authentication, "idem-1", request);
+
+        assertThat(result.getCode()).isEqualTo(0);
+        verify(sendPrivateMessageUseCase).send(authentication, "idem-1", request);
+        verifyNoInteractions(privateMessageService);
+    }
+
+    @Test
+    void sendShouldDelegateToUseCaseWhenToIdProvided() {
+        Authentication authentication = authentication(7);
+        SendMessageRequest request = new SendMessageRequest();
+        request.setToId(9);
+        request.setContent("hello");
+
+        Result<Void> result = controller.send(authentication, "idem-2", request);
+
+        assertThat(result.getCode()).isEqualTo(0);
+        verify(sendPrivateMessageUseCase).send(authentication, "idem-2", request);
+        verifyNoInteractions(privateMessageService);
+    }
+
+    @Test
+    void markReadShouldDelegateToUseCase() {
+        Authentication authentication = authentication(7);
+        MarkReadRequest request = new MarkReadRequest();
+        request.setIds(List.of(1, 2));
+
+        Result<Void> result = controller.markRead(authentication, request);
+
+        assertThat(result.getCode()).isEqualTo(0);
+        verify(markMessagesReadUseCase).markRead(authentication, request);
+        verifyNoInteractions(privateMessageService);
     }
 
     private Authentication authentication(int userId) {
@@ -73,7 +149,7 @@ class MessageControllerUnitTest {
                 .expiresAt(Instant.now().plusSeconds(60))
                 .build();
         Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
-        when(authentication.getPrincipal()).thenReturn(jwt);
+        lenient().when(authentication.getPrincipal()).thenReturn(jwt);
         return authentication;
     }
 }

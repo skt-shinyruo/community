@@ -3,7 +3,7 @@ package com.nowcoder.community.search.event;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.content.api.model.PostScanView;
 import com.nowcoder.community.content.api.query.PostScanQueryApi;
-import com.nowcoder.community.content.event.payload.PostPayload;
+import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.infra.outbox.OutboxEvent;
 import com.nowcoder.community.search.repo.PostSearchRepository;
 import org.junit.jupiter.api.Test;

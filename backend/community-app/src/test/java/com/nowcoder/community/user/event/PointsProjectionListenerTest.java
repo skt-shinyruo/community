@@ -1,12 +1,12 @@
 package com.nowcoder.community.user.event;
 
-import com.nowcoder.community.content.event.ContentEventTypes;
-import com.nowcoder.community.content.event.payload.PostPayload;
-import com.nowcoder.community.content.event.ContentLocalEvent;
+import com.nowcoder.community.content.contracts.event.ContentContractEvent;
+import com.nowcoder.community.content.contracts.event.ContentEventTypes;
+import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.growth.api.action.GrowthGrantActionApi;
-import com.nowcoder.community.social.event.SocialEventTypes;
-import com.nowcoder.community.social.event.payload.LikePayload;
-import com.nowcoder.community.social.event.SocialLocalEvent;
+import com.nowcoder.community.social.contracts.event.LikePayload;
+import com.nowcoder.community.social.contracts.event.SocialContractEvent;
+import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import org.junit.jupiter.api.Test;
 
 import static org.mockito.Mockito.mock;
@@ -22,7 +22,7 @@ class PointsProjectionListenerTest {
         PostPayload payload = new PostPayload();
         payload.setUserId(7);
 
-        listener.onContentEvent(new ContentLocalEvent("post-evt-1", ContentEventTypes.POST_PUBLISHED, payload));
+        listener.onContentEvent(new ContentContractEvent("post-evt-1", ContentEventTypes.POST_PUBLISHED, payload));
 
         verify(growthGrantActionApi).applyPointsProjection(
                 7,
@@ -41,7 +41,7 @@ class PointsProjectionListenerTest {
         payload.setActorUserId(2);
         payload.setEntityUserId(9);
 
-        listener.onSocialEvent(new SocialLocalEvent("like-evt-2", SocialEventTypes.LIKE_REMOVED, payload));
+        listener.onSocialEvent(new SocialContractEvent("like-evt-2", SocialEventTypes.LIKE_REMOVED, payload));
 
         verify(growthGrantActionApi).applyPointsProjection(
                 9,

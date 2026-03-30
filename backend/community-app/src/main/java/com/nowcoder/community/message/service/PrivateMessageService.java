@@ -1,6 +1,5 @@
 package com.nowcoder.community.message.service;
 
-import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.pagination.Pagination;
 import com.nowcoder.community.message.dto.ConversationItemResponse;
 import com.nowcoder.community.message.dto.LetterItemResponse;
@@ -10,8 +9,8 @@ import com.nowcoder.community.message.exception.MessageErrorCode;
 import com.nowcoder.community.message.mapper.MessageMapper;
 import com.nowcoder.community.message.security.OwnerGuard;
 import com.nowcoder.community.message.service.dto.ConversationStats;
-import com.nowcoder.community.user.dto.UserSummary;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.nowcoder.community.user.api.model.UserSummaryView;
+import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -26,21 +25,20 @@ import java.util.stream.Collectors;
 public class PrivateMessageService {
 
     private final MessageMapper messageMapper;
-    private final MessageUserQueryService messageUserQueryService;
+    private final UserLookupQueryApi userLookupQueryApi;
     private final PrivateMessageGovernanceService governanceService;
     private final OwnerGuard ownerGuard;
     private final MessageItemAssembler messageItemAssembler;
 
-    @Autowired
     public PrivateMessageService(
             MessageMapper messageMapper,
-            MessageUserQueryService messageUserQueryService,
+            UserLookupQueryApi userLookupQueryApi,
             PrivateMessageGovernanceService governanceService,
             OwnerGuard ownerGuard,
             MessageItemAssembler messageItemAssembler
     ) {
         this.messageMapper = messageMapper;
-        this.messageUserQueryService = messageUserQueryService;
+        this.userLookupQueryApi = userLookupQueryApi;
         this.governanceService = governanceService;
         this.ownerGuard = ownerGuard;
         this.messageItemAssembler = messageItemAssembler;
@@ -89,7 +87,23 @@ public class PrivateMessageService {
                 .map(m -> m.getFromId() == userId ? m.getToId() : m.getFromId())
                 .filter(id -> id > 0)
                 .collect(Collectors.toSet());
-        Map<Integer, UserSummary> userMap = messageUserQueryService.getUserSummariesByIds(targetIds);
+
+        Map<Integer, UserSummaryResponse> userMap = new HashMap<>();
+        if (userLookupQueryApi != null && !targetIds.isEmpty()) {
+            List<UserSummaryView> userSummaries = userLookupQueryApi.listSummariesByIds(targetIds.stream().toList());
+            if (userSummaries != null) {
+                for (UserSummaryView userSummary : userSummaries) {
+                    if (userSummary == null || userSummary.id() <= 0) {
+                        continue;
+                    }
+                    UserSummaryResponse response = new UserSummaryResponse();
+                    response.setId(userSummary.id());
+                    response.setUsername(userSummary.username());
+                    response.setHeaderUrl(userSummary.headerUrl());
+                    userMap.put(userSummary.id(), response);
+                }
+            }
+        }
 
         return latest.stream().map(m -> {
             ConversationItemResponse item = new ConversationItemResponse();
@@ -100,13 +114,9 @@ public class PrivateMessageService {
             item.setUnreadCount(s == null ? 0 : s.getUnreadCount());
 
             int targetId = m.getFromId() == userId ? m.getToId() : m.getFromId();
-            UserSummary target = userMap == null ? null : userMap.get(targetId);
-            if (target != null && target.getId() > 0) {
-                UserSummaryResponse tu = new UserSummaryResponse();
-                tu.setId(target.getId());
-                tu.setUsername(target.getUsername());
-                tu.setHeaderUrl(target.getHeaderUrl());
-                item.setTargetUser(tu);
+            UserSummaryResponse targetUser = userMap.get(targetId);
+            if (targetUser != null && targetUser.getId() > 0) {
+                item.setTargetUser(targetUser);
             }
             return item;
         }).toList();

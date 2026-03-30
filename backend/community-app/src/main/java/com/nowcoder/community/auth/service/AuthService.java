@@ -4,6 +4,7 @@ import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.auth.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.web.net.ClientIpResolver;
+import com.nowcoder.community.user.api.model.UserAuthenticationResultView;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.query.UserCredentialQueryApi;
 import jakarta.servlet.http.Cookie;
@@ -85,7 +86,11 @@ public class AuthService {
 
         UserCredentialView user;
         try {
-            user = authenticateUser(username, password);
+            UserAuthenticationResultView authenticationResult = authenticateUser(username, password);
+            if (!authenticationResult.authenticated()) {
+                throw authenticationFailure(authenticationResult);
+            }
+            user = authenticationResult.user();
         } catch (BusinessException e) {
             int code = e.getErrorCode() == null ? 0 : e.getErrorCode().getCode();
             boolean invalidCredentials = code == AuthErrorCode.INVALID_CREDENTIALS.getCode();
@@ -159,7 +164,14 @@ public class AuthService {
         return refreshTokenService.clearCookie();
     }
 
-    private UserCredentialView authenticateUser(String username, String password) {
+    private BusinessException authenticationFailure(UserAuthenticationResultView authenticationResult) {
+        if (authenticationResult != null && authenticationResult.failure() == UserAuthenticationResultView.Failure.USER_DISABLED) {
+            return new BusinessException(AuthErrorCode.USER_DISABLED);
+        }
+        return new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
+    }
+
+    private UserAuthenticationResultView authenticateUser(String username, String password) {
         return userCredentialQueryApi.authenticate(username, password);
     }
 

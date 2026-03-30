@@ -1,8 +1,8 @@
 package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.constants.EntityTypes;
-import com.nowcoder.community.social.follow.FollowService;
-import com.nowcoder.community.social.like.LikeService;
+import com.nowcoder.community.social.api.query.SocialFollowQueryApi;
+import com.nowcoder.community.social.api.query.SocialLikeQueryApi;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -15,14 +15,14 @@ class UserSocialProfileServiceTest {
 
     @Test
     void userProfileStatsShouldReturnAggregatedCounts() {
-        LikeService likeService = mock(LikeService.class);
-        FollowService followService = mock(FollowService.class);
-        UserSocialProfileService service = new UserSocialProfileService(likeService, followService);
+        SocialLikeQueryApi likeQueryApi = mock(SocialLikeQueryApi.class);
+        SocialFollowQueryApi followQueryApi = mock(SocialFollowQueryApi.class);
+        UserSocialProfileService service = new UserSocialProfileService(likeQueryApi, followQueryApi);
 
-        when(likeService.userLikeCount(1)).thenReturn(5L);
-        when(followService.followeeCount(1, EntityTypes.USER)).thenReturn(2L);
-        when(followService.followerCount(EntityTypes.USER, 1)).thenReturn(3L);
-        when(followService.hasFollowed(2, EntityTypes.USER, 1)).thenReturn(true);
+        when(likeQueryApi.userLikeCount(1)).thenReturn(5L);
+        when(followQueryApi.followeeCount(1, EntityTypes.USER)).thenReturn(2L);
+        when(followQueryApi.followerCount(EntityTypes.USER, 1)).thenReturn(3L);
+        when(followQueryApi.hasFollowed(2, EntityTypes.USER, 1)).thenReturn(true);
 
         UserSocialProfileService.UserProfileStats stats = service.userProfileStats(1, 2);
 
@@ -35,12 +35,12 @@ class UserSocialProfileServiceTest {
 
     @Test
     void userProfileStatsShouldPropagateUnexpectedErrors() {
-        LikeService likeService = mock(LikeService.class);
-        FollowService followService = mock(FollowService.class);
-        UserSocialProfileService service = new UserSocialProfileService(likeService, followService);
+        SocialLikeQueryApi likeQueryApi = mock(SocialLikeQueryApi.class);
+        SocialFollowQueryApi followQueryApi = mock(SocialFollowQueryApi.class);
+        UserSocialProfileService service = new UserSocialProfileService(likeQueryApi, followQueryApi);
 
         RuntimeException error = new RuntimeException("boom");
-        when(likeService.userLikeCount(anyInt())).thenThrow(error);
+        when(likeQueryApi.userLikeCount(anyInt())).thenThrow(error);
 
         assertThatThrownBy(() -> service.userProfileStats(1, 2))
                 .isSameAs(error);

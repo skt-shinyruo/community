@@ -8,7 +8,6 @@ import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
 import com.nowcoder.community.user.api.model.PendingRegistrationUserView;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.query.UserPendingRegistrationQueryApi;
-import com.nowcoder.community.user.exception.UserErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -165,12 +164,12 @@ class RegistrationVerificationServiceTest {
         when(captchaService.verify("cid", "abcd")).thenReturn(true);
         when(registrationSessionStore.findUserId("token")).thenReturn(7);
         when(userPendingRegistrationQueryApi.getPendingUser(7, Duration.ofMinutes(30)))
-                .thenThrow(new BusinessException(UserErrorCode.USER_NOT_FOUND, "注册已过期，请重新注册"));
+                .thenThrow(new BusinessException(AuthErrorCode.REGISTRATION_CONTEXT_INVALID));
 
         assertThatThrownBy(() -> service.resendCode("token", "cid", "abcd"))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
-                .isEqualTo(UserErrorCode.USER_NOT_FOUND);
+                .isEqualTo(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);
     }
 
     @Test
@@ -181,7 +180,7 @@ class RegistrationVerificationServiceTest {
         assertThatThrownBy(() -> service.resendCode("token", "cid", "abcd"))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
-                .isEqualTo(UserErrorCode.USER_NOT_FOUND);
+                .isEqualTo(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);
 
         verifyNoInteractions(userPendingRegistrationQueryApi, userRegistrationActionApi, registrationCodeStore, mailService);
     }

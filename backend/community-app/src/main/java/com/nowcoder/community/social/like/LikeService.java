@@ -1,7 +1,8 @@
 package com.nowcoder.community.social.like;
 
-import com.nowcoder.community.social.event.payload.LikePayload;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.social.api.query.SocialLikeQueryApi;
+import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.social.event.SocialEventPublisher;
 import com.nowcoder.community.social.like.dto.LikeRequest;
@@ -27,7 +28,7 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
-public class LikeService {
+public class LikeService implements SocialLikeQueryApi {
 
     private static final Logger log = LoggerFactory.getLogger(LikeService.class);
 

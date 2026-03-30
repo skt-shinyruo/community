@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.web.net.ClientIpResolver;
+import com.nowcoder.community.user.api.model.UserAuthenticationResultView;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.query.UserCredentialQueryApi;
 import org.junit.jupiter.api.AfterEach;
@@ -97,7 +98,7 @@ class AuthServiceLoginTest {
     @Test
     void loginShouldRecordFailureWhenCredentialsAreInvalid(CapturedOutput output) {
         when(userCredentialQueryApi.authenticate("alice", "wrong-password"))
-                .thenThrow(new BusinessException(AuthErrorCode.INVALID_CREDENTIALS));
+                .thenReturn(UserAuthenticationResultView.invalidCredentials());
 
         Throwable thrown = catchThrowable(() -> authService.login("alice", "wrong-password", null, null, new MockHttpServletRequest()));
 
@@ -118,8 +119,9 @@ class AuthServiceLoginTest {
 
     @Test
     void loginShouldRecordFailureWhenUserIsDisabled(CapturedOutput output) {
+        UserCredentialView disabledUser = new UserCredentialView(7, "alice", 0, 0, "h1");
         when(userCredentialQueryApi.authenticate("alice", "secret"))
-                .thenThrow(new BusinessException(AuthErrorCode.USER_DISABLED));
+                .thenReturn(UserAuthenticationResultView.userDisabled(disabledUser));
 
         Throwable thrown = catchThrowable(() -> authService.login("alice", "secret", null, null, new MockHttpServletRequest()));
 
@@ -141,7 +143,7 @@ class AuthServiceLoginTest {
     @Test
     void loginShouldResetRateLimitAfterSuccessfulAuthentication(CapturedOutput output) {
         UserCredentialView user = new UserCredentialView(7, "alice", 1, 0, "h1");
-        when(userCredentialQueryApi.authenticate("alice", "secret")).thenReturn(user);
+        when(userCredentialQueryApi.authenticate("alice", "secret")).thenReturn(UserAuthenticationResultView.authenticated(user));
 
         ResponseCookie cookie = ResponseCookie.from("refresh_token", "rt").path("/api/auth").httpOnly(true).build();
         when(userCredentialQueryApi.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
@@ -212,7 +214,7 @@ class AuthServiceLoginTest {
     @Test
     void loginShouldNotLogSuccessWhenTokenIssuanceFails(CapturedOutput output) {
         UserCredentialView user = new UserCredentialView(7, "alice", 1, 0, "h1");
-        when(userCredentialQueryApi.authenticate("alice", "secret")).thenReturn(user);
+        when(userCredentialQueryApi.authenticate("alice", "secret")).thenReturn(UserAuthenticationResultView.authenticated(user));
         when(userCredentialQueryApi.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
         when(jwtTokenService.createAccessToken(eq(7), eq("alice"), eq(List.of("ROLE_USER")))).thenReturn("access-token");
         when(refreshTokenService.issue(7)).thenThrow(new RuntimeException("issue failed"));
@@ -227,7 +229,7 @@ class AuthServiceLoginTest {
     void loginShouldEncodeUnsafeCharactersInSecurityEventTokens(CapturedOutput output) {
         String spoofedUsername = "alice bob=\nroot";
         when(userCredentialQueryApi.authenticate(spoofedUsername, "secret"))
-                .thenThrow(new BusinessException(AuthErrorCode.INVALID_CREDENTIALS));
+                .thenReturn(UserAuthenticationResultView.invalidCredentials());
 
         Throwable thrown = catchThrowable(() -> authService.login(spoofedUsername, "secret", null, null, new MockHttpServletRequest()));
 
@@ -242,7 +244,7 @@ class AuthServiceLoginTest {
     void loginDeniedShouldExposeCommunityFieldsAsTopLevelJsonInProductionLogging(CapturedOutput output) {
         initializeProductionLogging("community-app");
         when(userCredentialQueryApi.authenticate("alice", "wrong-password"))
-                .thenThrow(new BusinessException(AuthErrorCode.INVALID_CREDENTIALS));
+                .thenReturn(UserAuthenticationResultView.invalidCredentials());
 
         Throwable thrown = catchThrowable(() -> authService.login("alice", "wrong-password", null, null, new MockHttpServletRequest()));
 

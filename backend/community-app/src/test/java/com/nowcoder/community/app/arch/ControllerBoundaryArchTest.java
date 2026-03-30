@@ -61,6 +61,17 @@ class ControllerBoundaryArchTest {
                     ));
 
     @ArchTest
+    static final ArchRule controllers_must_not_depend_on_foreign_dtos =
+            classes()
+                    .that().resideInAnyPackage("..controller..")
+                    .should(ArchitectureRulesSupport.notDependOnLayers(
+                            "not depend on foreign dto packages",
+                            Set.of("dto"),
+                            true,
+                            Set.of()
+                    ));
+
+    @ArchTest
     static final ArchRule controllers_must_not_depend_on_foreign_services =
             classes()
                     .that().resideInAnyPackage("..controller..")

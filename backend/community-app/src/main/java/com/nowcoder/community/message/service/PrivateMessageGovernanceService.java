@@ -3,9 +3,8 @@ package com.nowcoder.community.message.service;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.message.api.action.PrivateMessageGovernanceActionApi;
-import com.nowcoder.community.social.block.BlockService;
+import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
-import com.nowcoder.community.user.exception.UserErrorCode;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -13,16 +12,16 @@ public class PrivateMessageGovernanceService implements PrivateMessageGovernance
 
     private final UserLookupQueryApi userLookupQueryApi;
     private final UserModerationGuard moderationGuard;
-    private final BlockService blockService;
+    private final SocialBlockQueryApi blockQueryApi;
 
     public PrivateMessageGovernanceService(
             UserLookupQueryApi userLookupQueryApi,
             UserModerationGuard moderationGuard,
-            BlockService blockService
+            SocialBlockQueryApi blockQueryApi
     ) {
         this.userLookupQueryApi = userLookupQueryApi;
         this.moderationGuard = moderationGuard;
-        this.blockService = blockService;
+        this.blockQueryApi = blockQueryApi;
     }
 
     @Override
@@ -37,14 +36,10 @@ public class PrivateMessageGovernanceService implements PrivateMessageGovernance
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "不能给自己发送私信");
         }
 
-        if (userLookupQueryApi.getSummaryById(fromUserId) == null) {
-            throw new BusinessException(UserErrorCode.USER_NOT_FOUND);
-        }
+        userLookupQueryApi.requireSummaryById(fromUserId);
         moderationGuard.assertCanSendMessage(fromUserId);
-        if (userLookupQueryApi.getSummaryById(toUserId) == null) {
-            throw new BusinessException(UserErrorCode.USER_NOT_FOUND, "目标用户不存在");
-        }
-        if (blockService != null && blockService.isEitherBlocked(fromUserId, toUserId)) {
+        userLookupQueryApi.requireSummaryById(toUserId);
+        if (blockQueryApi != null && blockQueryApi.isEitherBlocked(fromUserId, toUserId)) {
             throw new BusinessException(CommonErrorCode.FORBIDDEN, "双方存在拉黑关系，无法发送私信");
         }
     }

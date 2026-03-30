@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.like;
 
 import com.nowcoder.community.common.constants.EntityTypes;
-import com.nowcoder.community.social.like.LikeService;
+import com.nowcoder.community.social.api.query.SocialLikeQueryApi;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -9,10 +9,10 @@ public class SocialLikeQueryService implements LikeQueryService {
 
     private static final int ENTITY_TYPE_POST = EntityTypes.POST;
 
-    private final LikeService likeService;
+    private final SocialLikeQueryApi likeQueryApi;
 
-    public SocialLikeQueryService(LikeService likeService) {
-        this.likeService = likeService;
+    public SocialLikeQueryService(SocialLikeQueryApi likeQueryApi) {
+        this.likeQueryApi = likeQueryApi;
     }
 
     @Override
@@ -20,7 +20,7 @@ public class SocialLikeQueryService implements LikeQueryService {
         if (postId <= 0) {
             return 0L;
         }
-        return likeService.count(ENTITY_TYPE_POST, postId);
+        return likeQueryApi.count(ENTITY_TYPE_POST, postId);
     }
 
     @Override
@@ -28,6 +28,6 @@ public class SocialLikeQueryService implements LikeQueryService {
         if (userId <= 0 || postId <= 0) {
             return false;
         }
-        return likeService.isLiked(userId, ENTITY_TYPE_POST, postId);
+        return likeQueryApi.isLiked(userId, ENTITY_TYPE_POST, postId);
     }
 }

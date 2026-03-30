@@ -1,19 +1,19 @@
 package com.nowcoder.community.message.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.idempotency.IdempotencyGuard;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
+import com.nowcoder.community.message.app.ListConversationItemsQuery;
+import com.nowcoder.community.message.app.ListLettersQuery;
+import com.nowcoder.community.message.app.MarkMessagesReadUseCase;
+import com.nowcoder.community.message.app.SendPrivateMessageUseCase;
+import com.nowcoder.community.message.dto.ConversationItemResponse;
 import com.nowcoder.community.message.dto.LetterItemResponse;
 import com.nowcoder.community.message.dto.MarkReadRequest;
 import com.nowcoder.community.message.dto.SendMessageRequest;
-import com.nowcoder.community.message.dto.ConversationItemResponse;
-import com.nowcoder.community.message.service.MessageUserQueryService;
 import com.nowcoder.community.message.service.PrivateMessageService;
-import com.nowcoder.community.user.exception.UserErrorCode;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,24 +26,28 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
-
 @RestController
 @RequestMapping("/api/messages")
 public class MessageController {
 
     private final PrivateMessageService privateMessageService;
-    private final MessageUserQueryService messageUserQueryService;
-    private final IdempotencyGuard idempotencyGuard;
+    private final ListConversationItemsQuery listConversationItemsQuery;
+    private final ListLettersQuery listLettersQuery;
+    private final SendPrivateMessageUseCase sendPrivateMessageUseCase;
+    private final MarkMessagesReadUseCase markMessagesReadUseCase;
 
     public MessageController(
             PrivateMessageService privateMessageService,
-            MessageUserQueryService messageUserQueryService,
-            IdempotencyGuard idempotencyGuard
+            ListConversationItemsQuery listConversationItemsQuery,
+            ListLettersQuery listLettersQuery,
+            SendPrivateMessageUseCase sendPrivateMessageUseCase,
+            MarkMessagesReadUseCase markMessagesReadUseCase
     ) {
         this.privateMessageService = privateMessageService;
-        this.messageUserQueryService = messageUserQueryService;
-        this.idempotencyGuard = idempotencyGuard;
+        this.listConversationItemsQuery = listConversationItemsQuery;
+        this.listLettersQuery = listLettersQuery;
+        this.sendPrivateMessageUseCase = sendPrivateMessageUseCase;
+        this.markMessagesReadUseCase = markMessagesReadUseCase;
     }
 
     @GetMapping("/conversations")
@@ -52,10 +56,7 @@ public class MessageController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        int userId = CurrentUser.requireUserId(authentication);
-        int p = page == null ? 0 : Math.max(0, page);
-        int s = size == null ? 10 : Math.min(50, Math.max(1, size));
-        return Result.ok(privateMessageService.listConversationSummaries(userId, p, s));
+        return Result.ok(listConversationItemsQuery.listConversations(authentication, page, size));
     }
 
     @GetMapping("/conversations/detail")
@@ -64,10 +65,7 @@ public class MessageController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        int userId = CurrentUser.requireUserId(authentication);
-        int p = page == null ? 0 : Math.max(0, page);
-        int s = size == null ? 10 : Math.min(50, Math.max(1, size));
-        return Result.ok(privateMessageService.listConversationItems(userId, p, s));
+        return Result.ok(listConversationItemsQuery.listConversationItems(authentication, page, size));
     }
 
     @GetMapping("/conversations/{conversationId}")
@@ -77,10 +75,7 @@ public class MessageController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        int userId = CurrentUser.requireUserId(authentication);
-        int p = page == null ? 0 : Math.max(0, page);
-        int s = size == null ? 10 : Math.min(50, Math.max(1, size));
-        return Result.ok(privateMessageService.listLetterItems(userId, conversationId, p, s));
+        return Result.ok(listLettersQuery.listLetters(authentication, conversationId, page, size));
     }
 
     @GetMapping("/unread-count")
@@ -95,34 +90,13 @@ public class MessageController {
             @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
             @Valid @RequestBody SendMessageRequest request
     ) {
-        int fromId = CurrentUser.requireUserId(authentication);
-
-        Integer toId = request.getToId();
-        String toName = request.getToName();
-        if ((toId == null || toId <= 0) && !StringUtils.hasText(toName)) {
-            throw new BusinessException(INVALID_ARGUMENT, "toId/toName 至少提供一个");
-        }
-        if (toId == null || toId <= 0) {
-            toId = messageUserQueryService.findUserIdByUsernameOrNull(toName);
-            if (toId == null || toId <= 0) {
-                throw new BusinessException(UserErrorCode.USER_NOT_FOUND, "目标用户不存在");
-            }
-        } else if (messageUserQueryService.findUserSummaryByIdOrNull(toId) == null) {
-            throw new BusinessException(UserErrorCode.USER_NOT_FOUND, "目标用户不存在");
-        }
-        int resolvedToId = toId;
-        String content = request.getContent();
-        idempotencyGuard.executeRequired("message:send_message", fromId, idempotencyKey, Void.class, () -> {
-            privateMessageService.send(fromId, resolvedToId, content);
-            return null;
-        });
+        sendPrivateMessageUseCase.send(authentication, idempotencyKey, request);
         return Result.ok();
     }
 
     @PutMapping("/read")
     public Result<Void> markRead(Authentication authentication, @Valid @RequestBody MarkReadRequest request) {
-        int userId = CurrentUser.requireUserId(authentication);
-        privateMessageService.markRead(userId, request.getIds());
+        markMessagesReadUseCase.markRead(authentication, request);
         return Result.ok();
     }
 }

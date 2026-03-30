@@ -1,13 +1,13 @@
 package com.nowcoder.community.message.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.content.event.ContentEventTypes;
-import com.nowcoder.community.content.event.payload.CommentPayload;
-import com.nowcoder.community.content.event.ContentLocalEvent;
+import com.nowcoder.community.content.contracts.event.CommentPayload;
+import com.nowcoder.community.content.contracts.event.ContentContractEvent;
+import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.message.service.NoticeService;
-import com.nowcoder.community.social.event.SocialEventTypes;
-import com.nowcoder.community.social.event.payload.LikePayload;
-import com.nowcoder.community.social.event.SocialLocalEvent;
+import com.nowcoder.community.social.contracts.event.LikePayload;
+import com.nowcoder.community.social.contracts.event.SocialContractEvent;
+import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import org.junit.jupiter.api.Test;
 
 import static org.mockito.ArgumentMatchers.contains;
@@ -26,7 +26,7 @@ class NoticeProjectionListenerTest {
         payload.setTargetUserId(9);
         payload.setPostId(100);
 
-        listener.onContentEvent(new ContentLocalEvent("evt-comment-1", ContentEventTypes.COMMENT_CREATED, payload));
+        listener.onContentEvent(new ContentContractEvent("evt-comment-1", ContentEventTypes.COMMENT_CREATED, payload));
 
         verify(noticeService).createNotice(eq(9), eq("comment"), contains("evt-comment-1"));
     }
@@ -40,7 +40,7 @@ class NoticeProjectionListenerTest {
         payload.setEntityUserId(8);
         payload.setEntityId(200);
 
-        listener.onSocialEvent(new SocialLocalEvent("evt-like-1", SocialEventTypes.LIKE_CREATED, payload));
+        listener.onSocialEvent(new SocialContractEvent("evt-like-1", SocialEventTypes.LIKE_CREATED, payload));
 
         verify(noticeService).createNotice(eq(8), eq("like"), contains("evt-like-1"));
     }

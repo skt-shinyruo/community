@@ -1,5 +1,8 @@
 package com.nowcoder.community.content.service;
 
+import com.nowcoder.community.content.app.post.CreatePostUseCase;
+import com.nowcoder.community.content.app.post.DeleteOwnPostUseCase;
+import com.nowcoder.community.content.app.post.UpdatePostUseCase;
 import com.nowcoder.community.content.api.action.PostPublishingActionApi;
 import com.nowcoder.community.content.api.model.PostCreateResult;
 import com.nowcoder.community.content.text.ContentTextCodec;
@@ -13,18 +16,24 @@ import java.util.List;
 public class PostPublishingActionService implements PostPublishingActionApi {
 
     private final SensitiveFilter sensitiveFilter;
-    private final PostCommandService postCommandService;
+    private final CreatePostUseCase createPostUseCase;
+    private final UpdatePostUseCase updatePostUseCase;
+    private final DeleteOwnPostUseCase deleteOwnPostUseCase;
     private final IdempotencyGuard idempotencyGuard;
     private final ContentTextCodec textCodec;
 
     public PostPublishingActionService(
             SensitiveFilter sensitiveFilter,
-            PostCommandService postCommandService,
+            CreatePostUseCase createPostUseCase,
+            UpdatePostUseCase updatePostUseCase,
+            DeleteOwnPostUseCase deleteOwnPostUseCase,
             IdempotencyGuard idempotencyGuard,
             ContentTextCodec textCodec
     ) {
         this.sensitiveFilter = sensitiveFilter;
-        this.postCommandService = postCommandService;
+        this.createPostUseCase = createPostUseCase;
+        this.updatePostUseCase = updatePostUseCase;
+        this.deleteOwnPostUseCase = deleteOwnPostUseCase;
         this.idempotencyGuard = idempotencyGuard;
         this.textCodec = textCodec;
     }
@@ -34,7 +43,7 @@ public class PostPublishingActionService implements PostPublishingActionApi {
         return idempotencyGuard.executeRequired("content:create_post", userId, idempotencyKey, PostCreateResult.class, () -> {
             String safeTitle = sanitize(title);
             String safeContent = sanitize(content);
-            int postId = postCommandService.createPost(userId, safeTitle, safeContent, categoryId, tags);
+            int postId = createPostUseCase.createPost(userId, safeTitle, safeContent, categoryId, tags);
             return new PostCreateResult(postId);
         });
     }
@@ -43,12 +52,12 @@ public class PostPublishingActionService implements PostPublishingActionApi {
     public void updatePost(int userId, int postId, String title, String content, Integer categoryId, List<String> tags) {
         String safeTitle = sanitize(title);
         String safeContent = sanitize(content);
-        postCommandService.updatePost(userId, postId, safeTitle, safeContent, categoryId, tags);
+        updatePostUseCase.updatePost(userId, postId, safeTitle, safeContent, categoryId, tags);
     }
 
     @Override
     public void deleteByAuthor(int userId, int postId) {
-        postCommandService.deletePostByAuthor(userId, postId);
+        deleteOwnPostUseCase.deletePostByAuthor(userId, postId);
     }
 
     private String sanitize(String value) {

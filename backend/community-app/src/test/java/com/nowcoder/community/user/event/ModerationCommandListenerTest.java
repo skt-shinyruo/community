@@ -1,8 +1,8 @@
 package com.nowcoder.community.user.event;
 
-import com.nowcoder.community.content.event.ContentEventTypes;
-import com.nowcoder.community.content.event.payload.ModerationCommandPayload;
-import com.nowcoder.community.content.event.ContentLocalEvent;
+import com.nowcoder.community.content.contracts.event.ContentContractEvent;
+import com.nowcoder.community.content.contracts.event.ContentEventTypes;
+import com.nowcoder.community.content.contracts.event.ModerationCommandPayload;
 import com.nowcoder.community.user.service.UserModerationService;
 import org.junit.jupiter.api.Test;
 
@@ -31,7 +31,7 @@ class ModerationCommandListenerTest {
         payload.setAction("mute");
         payload.setDurationSeconds(60);
 
-        listener.onContentEvent(new ContentLocalEvent("moderation-evt-1", ContentEventTypes.MODERATION_COMMAND_REQUESTED, payload));
+        listener.onContentEvent(new ContentContractEvent("moderation-evt-1", ContentEventTypes.MODERATION_COMMAND_REQUESTED, payload));
 
         verify(userModerationService).applyModeration(5, "mute", 60);
     }

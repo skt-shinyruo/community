@@ -1,6 +1,6 @@
 package com.nowcoder.community.search.repo;
 
-import com.nowcoder.community.content.event.payload.PostPayload;
+import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.search.dto.SearchPostItem;
 import org.junit.jupiter.api.Test;
 

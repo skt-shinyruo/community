@@ -2,14 +2,14 @@ package com.nowcoder.community.user.event;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.content.event.ContentEventTypes;
-import com.nowcoder.community.content.event.payload.CommentPayload;
-import com.nowcoder.community.content.event.payload.PostPayload;
-import com.nowcoder.community.content.event.ContentLocalEvent;
+import com.nowcoder.community.content.contracts.event.CommentPayload;
+import com.nowcoder.community.content.contracts.event.ContentContractEvent;
+import com.nowcoder.community.content.contracts.event.ContentEventTypes;
+import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.infra.outbox.JdbcOutboxEventStore;
-import com.nowcoder.community.social.event.SocialEventTypes;
-import com.nowcoder.community.social.event.payload.LikePayload;
-import com.nowcoder.community.social.event.SocialLocalEvent;
+import com.nowcoder.community.social.contracts.event.LikePayload;
+import com.nowcoder.community.social.contracts.event.SocialContractEvent;
+import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -34,7 +34,7 @@ class PointsOutboxEnqueuerTest {
         payload.setUserId(7);
         payload.setPostId(100);
 
-        enqueuer.onContentEvent(new ContentLocalEvent("evt-1", ContentEventTypes.POST_PUBLISHED, payload));
+        enqueuer.onContentEvent(new ContentContractEvent("evt-1", ContentEventTypes.POST_PUBLISHED, payload));
 
         ArgumentCaptor<String> eventIdCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> topicCaptor = ArgumentCaptor.forClass(String.class);
@@ -67,7 +67,7 @@ class PointsOutboxEnqueuerTest {
         payload.setUserId(3);
         payload.setCommentId(200);
 
-        enqueuer.onContentEvent(new ContentLocalEvent("evt-2", ContentEventTypes.COMMENT_CREATED, payload));
+        enqueuer.onContentEvent(new ContentContractEvent("evt-2", ContentEventTypes.COMMENT_CREATED, payload));
 
         ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
         verify(store).enqueue(org.mockito.ArgumentMatchers.eq("evt-2:points"), org.mockito.ArgumentMatchers.eq(PointsOutboxHandler.TOPIC), org.mockito.ArgumentMatchers.eq("3"), payloadCaptor.capture());
@@ -93,7 +93,7 @@ class PointsOutboxEnqueuerTest {
         payload.setEntityUserId(2);
         payload.setEntityId(99);
 
-        enqueuer.onSocialEvent(new SocialLocalEvent("evt-3", SocialEventTypes.LIKE_CREATED, payload));
+        enqueuer.onSocialEvent(new SocialContractEvent("evt-3", SocialEventTypes.LIKE_CREATED, payload));
 
         ArgumentCaptor<String> payloadCaptor = ArgumentCaptor.forClass(String.class);
         verify(store).enqueue(org.mockito.ArgumentMatchers.eq("evt-3:points"), org.mockito.ArgumentMatchers.eq(PointsOutboxHandler.TOPIC), org.mockito.ArgumentMatchers.eq("2"), payloadCaptor.capture());
@@ -116,9 +116,8 @@ class PointsOutboxEnqueuerTest {
         payload.setActorUserId(5);
         payload.setEntityUserId(5);
 
-        enqueuer.onSocialEvent(new SocialLocalEvent("evt-4", SocialEventTypes.LIKE_CREATED, payload));
+        enqueuer.onSocialEvent(new SocialContractEvent("evt-4", SocialEventTypes.LIKE_CREATED, payload));
 
         verify(store, times(0)).enqueue(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 }
-

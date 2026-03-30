@@ -2,9 +2,9 @@ package com.nowcoder.community.content.event;
 
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.content.score.PostScoreQueue;
-import com.nowcoder.community.social.event.SocialEventTypes;
-import com.nowcoder.community.social.event.payload.LikePayload;
-import com.nowcoder.community.social.event.SocialLocalEvent;
+import com.nowcoder.community.social.contracts.event.LikePayload;
+import com.nowcoder.community.social.contracts.event.SocialContractEvent;
+import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import org.junit.jupiter.api.Test;
 
 import static org.mockito.Mockito.mock;
@@ -23,8 +23,8 @@ class SocialInteractionProjectionListenerTest {
         payload.setEntityId(123);
         payload.setPostId(123);
 
-        listener.onSocialEvent(new SocialLocalEvent("like-created-1", SocialEventTypes.LIKE_CREATED, payload));
-        listener.onSocialEvent(new SocialLocalEvent("like-removed-1", SocialEventTypes.LIKE_REMOVED, payload));
+        listener.onSocialEvent(new SocialContractEvent("like-created-1", SocialEventTypes.LIKE_CREATED, payload));
+        listener.onSocialEvent(new SocialContractEvent("like-removed-1", SocialEventTypes.LIKE_REMOVED, payload));
 
         verify(queue, times(2)).add(123);
     }

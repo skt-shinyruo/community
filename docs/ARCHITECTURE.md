@@ -95,7 +95,9 @@ flowchart TD
 - `com.nowcoder.community.analytics`：统计/分析
 - `com.nowcoder.community.ops`：运维平面（`/api/ops/**`）
 
-跨域同步协作统一通过 owner-domain 暴露的 `api.query`、`api.action`、`api.model` 完成；`service`、`entity`、`mapper` 均视为域内实现细节，不再作为默认跨域入口。当前分支上的 `DomainBoundaryArchTest` 与 `ControllerBoundaryArchTest` 已默认绿色，同 JVM 内部也不再通过 `application`、`contracts.internal.*`、`ModuleCallSupport` 来模拟远程调用。
+跨域同步协作统一通过 owner-domain 暴露的 `api.query`、`api.action`、`api.model` 完成；跨域异步协作统一通过 owner-domain 暴露的 `contracts.event` 完成。`service`、`entity`、`mapper` 以及 producer 域的 `event` 实现包均视为域内实现细节，不再作为默认跨域入口。当前分支上的 `DomainBoundaryArchTest` 与 `ControllerBoundaryArchTest` 已默认绿色；其中同步边界采用 allowlist 规则，遗留的非协作面依赖通过精确类名 migration baseline 冻结，后续只允许收缩不允许扩散。
+
+需要明确的是：`community-app` 仍然是“靠包边界治理的单 deployable”，还不是靠 Maven 子模块强制执行的 modular monolith。当前阶段先稳定 use-case owner、projection owner 和 event contracts；下一阶段才考虑把 `api` / `contracts` / `impl` 拆成独立 artifact，并收紧 Spring 装配范围。
 
 ### 2.4 共享基础设施（同模块内包）
 - `com.nowcoder.community.common.*`：错误码、业务异常、trace、统一 Web 响应、通用事件 envelope 等横切能力
@@ -148,7 +150,8 @@ flowchart TD
 2. `community-gateway` 将请求转发到 `community-app`
 3. `content.controller.PostController` 通过 owner-domain 的 `content.api.action.PostPublishingActionApi` 进入写路径，当前由 `PostPublishingActionService` 负责参数清洗、幂等包装与命令编排
 4. `PostCommandService` 在事务内写主存储并发布帖子领域事件，读路径仍通过 `content.api.query.*` 提供
-5. 帖子领域事件继续驱动搜索、通知、积分等本地投影；跨域同步协作模型统一落在 `content.api.model` / `user.api.model` 等 owner-domain API 包下，reindex 等运维动作已收敛为单进程 single-flight 协调
+5. 帖子领域事件继续驱动搜索、通知、积分等本地投影；跨域同步协作模型统一落在 `content.api.model` / `user.api.model` 等 owner-domain API 包下，跨域异步协作模型统一落在 `content.contracts.event` / `social.contracts.event`
+6. 通知、积分、任务进度等投影的业务判定统一由 owner-domain projection service 负责（如 `NoticeProjectionService`、`PointsProjectionService`、`TaskProgressProjectionService`），`@TransactionalEventListener` 与 outbox adapter 只负责订阅、序列化和重试，避免本地监听与 outbox 双路径重复维护
 
 ### 4.3 典型后台运维路径：XXL-JOB 调度
 1. 运维人员访问 `http://localhost:12887/xxl-job-admin`

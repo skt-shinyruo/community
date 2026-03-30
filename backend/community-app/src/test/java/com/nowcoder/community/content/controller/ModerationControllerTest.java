@@ -1,7 +1,9 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.content.app.moderation.TakeModerationActionUseCase;
 import com.nowcoder.community.content.dto.ModerationActionResponse;
+import com.nowcoder.community.content.dto.ModerationActionRequest;
 import com.nowcoder.community.content.dto.ReportResponse;
 import com.nowcoder.community.content.service.ModerationService;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,11 +28,14 @@ class ModerationControllerTest {
     @Mock
     private ModerationService moderationService;
 
+    @Mock
+    private TakeModerationActionUseCase takeModerationActionUseCase;
+
     private ModerationController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new ModerationController(moderationService);
+        controller = new ModerationController(moderationService, takeModerationActionUseCase);
     }
 
     @Test
@@ -61,6 +66,23 @@ class ModerationControllerTest {
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).containsExactly(response);
         verify(moderationService).listModerationActionResponses(99, 0, 20);
+    }
+
+    @Test
+    void actionShouldDelegateToDedicatedUseCase() {
+        Authentication authentication = authentication(42);
+        ModerationActionRequest request = new ModerationActionRequest();
+        request.setReportId(12);
+        request.setAction("ban");
+        request.setReason("abuse");
+        request.setDurationSeconds(3600);
+        when(takeModerationActionUseCase.takeAction(42, 12, "ban", "abuse", 3600)).thenReturn(21);
+
+        Result<Integer> result = controller.action(authentication, request);
+
+        assertThat(result.getCode()).isEqualTo(0);
+        assertThat(result.getData()).isEqualTo(21);
+        verify(takeModerationActionUseCase).takeAction(42, 12, "ban", "abuse", 3600);
     }
 
     private Authentication authentication(int userId) {

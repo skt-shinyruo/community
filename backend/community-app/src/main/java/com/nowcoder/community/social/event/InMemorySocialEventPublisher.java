@@ -1,8 +1,8 @@
 package com.nowcoder.community.social.event;
 
-import com.nowcoder.community.social.event.payload.BlockPayload;
-import com.nowcoder.community.social.event.payload.FollowPayload;
-import com.nowcoder.community.social.event.payload.LikePayload;
+import com.nowcoder.community.social.contracts.event.BlockPayload;
+import com.nowcoder.community.social.contracts.event.FollowPayload;
+import com.nowcoder.community.social.contracts.event.LikePayload;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 

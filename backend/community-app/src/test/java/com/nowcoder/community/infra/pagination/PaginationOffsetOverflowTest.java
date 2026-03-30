@@ -29,12 +29,13 @@ import com.nowcoder.community.message.service.MessageItemAssembler;
 import com.nowcoder.community.message.service.NoticeService;
 import com.nowcoder.community.message.service.PrivateMessageService;
 import com.nowcoder.community.message.service.PrivateMessageGovernanceService;
-import com.nowcoder.community.message.service.MessageUserQueryService;
+import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.social.event.SocialEventPublisher;
 import com.nowcoder.community.social.follow.FollowRepository;
 import com.nowcoder.community.social.follow.FollowService;
 import com.nowcoder.community.social.follow.dto.FollowItem;
+import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -76,7 +77,7 @@ class PaginationOffsetOverflowTest {
                 mock(SensitiveFilter.class),
                 mock(PostScoreQueue.class),
                 mock(ContentEventPublisher.class),
-                mock(BlockService.class),
+                mock(SocialBlockQueryApi.class),
                 mock(UserModerationGuard.class),
                 new ContentTextCodec(new ContentRenderProperties())
         );
@@ -113,7 +114,7 @@ class PaginationOffsetOverflowTest {
 
         PrivateMessageService service = new PrivateMessageService(
                 messageMapper,
-                mock(MessageUserQueryService.class),
+                mock(UserLookupQueryApi.class),
                 mock(PrivateMessageGovernanceService.class),
                 mock(OwnerGuard.class),
                 new MessageItemAssembler()
@@ -178,10 +179,7 @@ class PaginationOffsetOverflowTest {
 
         ModerationService service = new ModerationService(
                 mock(ReportService.class),
-                actionMapper,
-                mock(com.nowcoder.community.content.mapper.DiscussPostMapper.class),
-                mock(CommentMapper.class),
-                mock(ContentEventPublisher.class)
+                actionMapper
         );
 
         service.listActions(null, Integer.MAX_VALUE, 100);

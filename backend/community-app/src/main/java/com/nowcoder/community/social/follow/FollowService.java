@@ -1,7 +1,8 @@
 package com.nowcoder.community.social.follow;
 
-import com.nowcoder.community.social.event.payload.FollowPayload;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.social.api.query.SocialFollowQueryApi;
+import com.nowcoder.community.social.contracts.event.FollowPayload;
 import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.social.event.SocialEventPublisher;
 import com.nowcoder.community.social.follow.dto.FollowItem;
@@ -25,7 +26,7 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 import static com.nowcoder.community.social.exception.SocialErrorCode.CANNOT_FOLLOW_SELF;
 
 @Service
-public class FollowService {
+public class FollowService implements SocialFollowQueryApi {
 
     private static final Logger log = LoggerFactory.getLogger(FollowService.class);
 

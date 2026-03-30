@@ -1,7 +1,7 @@
 package com.nowcoder.community.search.service;
 
 import com.nowcoder.community.content.api.model.PostScanView;
-import com.nowcoder.community.content.event.payload.PostPayload;
+import com.nowcoder.community.content.contracts.event.PostPayload;
 
 /**
  * Maps content scan projections onto search payloads.

@@ -1,9 +1,9 @@
 package com.nowcoder.community.growth.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.content.event.ContentEventTypes;
-import com.nowcoder.community.content.event.ContentLocalEvent;
-import com.nowcoder.community.content.event.payload.PostPayload;
+import com.nowcoder.community.content.contracts.event.ContentContractEvent;
+import com.nowcoder.community.content.contracts.event.ContentEventTypes;
+import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.growth.service.GrowthBusinessTimeService;
 import com.nowcoder.community.infra.outbox.JdbcOutboxEventStore;
 import org.junit.jupiter.api.Test;
@@ -32,7 +32,7 @@ class TaskProgressOutboxEnqueuerTest {
         payload.setUserId(7);
         payload.setCreateTime(Instant.parse("2026-03-21T16:30:00Z"));
 
-        enqueuer.onContentEvent(new ContentLocalEvent("post-evt-1", ContentEventTypes.POST_PUBLISHED, payload));
+        enqueuer.onContentEvent(new ContentContractEvent("post-evt-1", ContentEventTypes.POST_PUBLISHED, payload));
 
         verify(store).enqueue(
                 eq("post-evt-1:task-progress"),

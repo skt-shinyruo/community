@@ -1,14 +1,12 @@
 package com.nowcoder.community.user.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.content.api.query.PostReadQueryApi;
+import com.nowcoder.community.user.app.query.GetUserProfilePageQuery;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
-import com.nowcoder.community.user.api.query.UserProfileQueryApi;
 import com.nowcoder.community.user.dto.AvatarUploadTokenResponse;
 import com.nowcoder.community.user.dto.UpdateAvatarRequest;
 import com.nowcoder.community.user.service.AvatarService;
 import com.nowcoder.community.user.service.UserService;
-import com.nowcoder.community.user.service.UserSocialProfileService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,11 +35,9 @@ class UserControllerLoggingTest {
         avatarService = mock(AvatarService.class);
         controller = new UserController(
                 mock(UserLookupQueryApi.class),
-                mock(UserProfileQueryApi.class),
+                mock(GetUserProfilePageQuery.class),
                 userService,
-                avatarService,
-                mock(UserSocialProfileService.class),
-                mock(PostReadQueryApi.class)
+                avatarService
         );
     }
 

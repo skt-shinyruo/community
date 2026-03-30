@@ -1,7 +1,7 @@
 package com.nowcoder.community.user.service;
 
-import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.api.model.UserAuthenticationResultView;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.mapper.UserMapper;
@@ -35,11 +35,10 @@ class UserCredentialServiceTest {
     void authenticateShouldRejectBlankCredentials() {
         UserCredentialService service = new UserCredentialService(userMapper);
 
-        assertThatThrownBy(() -> service.authenticate("  ", "secret"))
-                .isInstanceOf(BusinessException.class)
-                .extracting(ex -> ((BusinessException) ex).getErrorCode())
-                .isEqualTo(AuthErrorCode.INVALID_CREDENTIALS);
+        UserAuthenticationResultView result = service.authenticate("  ", "secret");
 
+        assertThat(result.failure()).isEqualTo(UserAuthenticationResultView.Failure.INVALID_CREDENTIALS);
+        assertThat(result.user()).isNull();
         verifyNoInteractions(userMapper);
     }
 
@@ -48,10 +47,11 @@ class UserCredentialServiceTest {
         UserCredentialService service = new UserCredentialService(userMapper);
         when(userMapper.selectByName("alice")).thenReturn(disabledUser("alice"));
 
-        assertThatThrownBy(() -> service.authenticate("alice", "pw"))
-                .isInstanceOf(BusinessException.class)
-                .extracting(ex -> ((BusinessException) ex).getErrorCode())
-                .isEqualTo(AuthErrorCode.USER_DISABLED);
+        UserAuthenticationResultView result = service.authenticate("alice", "pw");
+
+        assertThat(result.failure()).isEqualTo(UserAuthenticationResultView.Failure.USER_DISABLED);
+        assertThat(result.user()).isNotNull();
+        assertThat(result.user().username()).isEqualTo("alice");
     }
 
     @Test
@@ -62,10 +62,12 @@ class UserCredentialServiceTest {
         user.setPassword(md5("secretabc"));
         when(userMapper.selectByName("alice")).thenReturn(user);
 
-        UserCredentialView authenticated = service.authenticate("alice", "secret");
+        UserAuthenticationResultView authenticationResult = service.authenticate("alice", "secret");
+        UserCredentialView authenticated = authenticationResult.user();
 
         ArgumentCaptor<String> passwordCaptor = ArgumentCaptor.forClass(String.class);
         verify(userMapper).updatePassword(eq(7), passwordCaptor.capture());
+        assertThat(authenticationResult.authenticated()).isTrue();
         assertThat(authenticated).extracting(
                 UserCredentialView::userId,
                 UserCredentialView::username,

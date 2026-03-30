@@ -1,7 +1,7 @@
 package com.nowcoder.community.auth.service;
 
 import com.nowcoder.community.auth.config.RefreshTokenCleanupProperties;
-import com.nowcoder.community.user.session.RefreshTokenSessionService;
+import com.nowcoder.community.user.api.action.UserRefreshTokenSessionActionApi;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -19,42 +19,41 @@ class RefreshTokenCleanupJobTest {
 
     @Test
     void cleanupShouldDoNothingWhenDisabled() {
-        RefreshTokenSessionService refreshTokenSessionService = mock(RefreshTokenSessionService.class);
+        UserRefreshTokenSessionActionApi refreshTokenSessionActionApi = mock(UserRefreshTokenSessionActionApi.class);
         RefreshTokenCleanupProperties properties = new RefreshTokenCleanupProperties();
         properties.setEnabled(false);
 
-        RefreshTokenCleanupJob job = new RefreshTokenCleanupJob(refreshTokenSessionService, properties);
+        RefreshTokenCleanupJob job = new RefreshTokenCleanupJob(refreshTokenSessionActionApi, properties);
         job.cleanup();
 
-        verifyNoInteractions(refreshTokenSessionService);
+        verifyNoInteractions(refreshTokenSessionActionApi);
     }
 
     @Test
     void cleanupShouldDelegateToSessionServiceWhenEnabled() {
-        RefreshTokenSessionService refreshTokenSessionService = mock(RefreshTokenSessionService.class);
+        UserRefreshTokenSessionActionApi refreshTokenSessionActionApi = mock(UserRefreshTokenSessionActionApi.class);
         RefreshTokenCleanupProperties properties = new RefreshTokenCleanupProperties();
         properties.setEnabled(true);
-        when(refreshTokenSessionService.deleteExpiredBefore(any(Instant.class))).thenReturn(2);
+        when(refreshTokenSessionActionApi.deleteExpiredBefore(any(Instant.class))).thenReturn(2);
 
-        RefreshTokenCleanupJob job = new RefreshTokenCleanupJob(refreshTokenSessionService, properties);
+        RefreshTokenCleanupJob job = new RefreshTokenCleanupJob(refreshTokenSessionActionApi, properties);
         job.cleanup();
 
-        verify(refreshTokenSessionService, times(1)).deleteExpiredBefore(any(Instant.class));
-        verifyNoMoreInteractions(refreshTokenSessionService);
+        verify(refreshTokenSessionActionApi, times(1)).deleteExpiredBefore(any(Instant.class));
+        verifyNoMoreInteractions(refreshTokenSessionActionApi);
     }
 
     @Test
     void cleanupShouldBeFailSafeWhenServiceThrowsRuntimeException() {
-        RefreshTokenSessionService refreshTokenSessionService = mock(RefreshTokenSessionService.class);
+        UserRefreshTokenSessionActionApi refreshTokenSessionActionApi = mock(UserRefreshTokenSessionActionApi.class);
         RefreshTokenCleanupProperties properties = new RefreshTokenCleanupProperties();
         properties.setEnabled(true);
-        when(refreshTokenSessionService.deleteExpiredBefore(any(Instant.class))).thenThrow(new RuntimeException("boom"));
+        when(refreshTokenSessionActionApi.deleteExpiredBefore(any(Instant.class))).thenThrow(new RuntimeException("boom"));
 
-        RefreshTokenCleanupJob job = new RefreshTokenCleanupJob(refreshTokenSessionService, properties);
+        RefreshTokenCleanupJob job = new RefreshTokenCleanupJob(refreshTokenSessionActionApi, properties);
 
         assertDoesNotThrow(job::cleanup);
-        verify(refreshTokenSessionService, times(1)).deleteExpiredBefore(any(Instant.class));
-        verifyNoMoreInteractions(refreshTokenSessionService);
+        verify(refreshTokenSessionActionApi, times(1)).deleteExpiredBefore(any(Instant.class));
+        verifyNoMoreInteractions(refreshTokenSessionActionApi);
     }
 }
-

@@ -1,31 +1,28 @@
 package com.nowcoder.community.user.controller;
 
-import com.nowcoder.community.auth.logging.SecurityEventLogger;
+import com.nowcoder.community.common.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.content.api.model.PostSummaryView;
-import com.nowcoder.community.content.api.model.RecentUserCommentView;
-import com.nowcoder.community.content.api.query.PostReadQueryApi;
-import com.nowcoder.community.content.dto.PostSummaryResponse;
-import com.nowcoder.community.content.dto.UserRecentCommentResponse;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
-import com.nowcoder.community.user.api.model.UserProfileView;
+import com.nowcoder.community.user.app.query.GetUserProfilePageQuery;
+import com.nowcoder.community.user.app.query.UserProfilePageView;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
-import com.nowcoder.community.user.api.query.UserProfileQueryApi;
 import com.nowcoder.community.user.dto.AvatarUploadTokenResponse;
 import com.nowcoder.community.user.dto.BatchUserSummaryRequest;
 import com.nowcoder.community.user.dto.UpdateAvatarRequest;
+import com.nowcoder.community.user.dto.UserProfilePostSummaryResponse;
 import com.nowcoder.community.user.dto.UserProfileResponse;
+import com.nowcoder.community.user.dto.UserRecentCommentItemResponse;
 import com.nowcoder.community.user.dto.UserResolveResponse;
 import com.nowcoder.community.user.dto.UserSummaryResponse;
 import com.nowcoder.community.user.service.AvatarService;
-import com.nowcoder.community.user.service.UserSocialProfileService;
 import com.nowcoder.community.user.service.UserService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -34,7 +31,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
@@ -53,29 +49,23 @@ public class UserController {
     private static final Logger log = LoggerFactory.getLogger(UserController.class);
 
     private final UserLookupQueryApi userLookupQueryApi;
-    private final UserProfileQueryApi userProfileQueryApi;
+    private final GetUserProfilePageQuery getUserProfilePageQuery;
     private final UserService userService;
     private final AvatarService avatarService;
-    private final UserSocialProfileService userSocialProfileService;
-    private final PostReadQueryApi postReadQueryApi;
 
     public UserController(UserLookupQueryApi userLookupQueryApi,
-                          UserProfileQueryApi userProfileQueryApi,
+                          GetUserProfilePageQuery getUserProfilePageQuery,
                           UserService userService,
-                          AvatarService avatarService,
-                          UserSocialProfileService userSocialProfileService,
-                          PostReadQueryApi postReadQueryApi) {
+                          AvatarService avatarService) {
         this.userLookupQueryApi = userLookupQueryApi;
-        this.userProfileQueryApi = userProfileQueryApi;
+        this.getUserProfilePageQuery = getUserProfilePageQuery;
         this.userService = userService;
         this.avatarService = avatarService;
-        this.userSocialProfileService = userSocialProfileService;
-        this.postReadQueryApi = postReadQueryApi;
     }
 
     @GetMapping("/{userId}")
     public Result<UserProfileResponse> getUser(Authentication authentication, @PathVariable int userId) {
-        UserProfileView user = userProfileQueryApi.getProfile(userId);
+        UserProfilePageView user = getUserProfilePageQuery.get(authentication, userId);
         UserProfileResponse resp = new UserProfileResponse();
         resp.setId(user.userId());
         resp.setUsername(user.username());
@@ -85,38 +75,29 @@ public class UserController {
         resp.setCreateTime(user.createTime());
         resp.setScore(user.score());
         resp.setLevel(user.level());
-
-        Integer maybeCurrentUserId = CurrentUser.tryUserId(authentication);
-        int currentUserId = maybeCurrentUserId == null ? 0 : maybeCurrentUserId;
-        int viewerId = (currentUserId > 0 && currentUserId != userId) ? currentUserId : 0;
-
-        // 对齐旧单体“用户主页”展示：获赞/关注/粉丝 + 是否已关注（可选，未登录时为 false）
-        UserSocialProfileService.UserProfileStats stats = userSocialProfileService.userProfileStats(userId, viewerId);
-        resp.setLikeCount(stats.getLikeCount());
-        resp.setFolloweeCount(stats.getFolloweeCount());
-        resp.setFollowerCount(stats.getFollowerCount());
-        resp.setSocialDegraded(stats.isDegraded());
-        resp.setHasFollowed(viewerId > 0 ? stats.isHasFollowed() : false);
+        resp.setLikeCount(user.likeCount());
+        resp.setFolloweeCount(user.followeeCount());
+        resp.setFollowerCount(user.followerCount());
+        resp.setHasFollowed(user.hasFollowed());
+        resp.setSocialDegraded(user.socialDegraded());
         return Result.ok(resp);
     }
 
     @GetMapping("/{userId}/recent-posts")
-    public Result<List<PostSummaryResponse>> recentPosts(@PathVariable int userId,
-                                                         @RequestParam(required = false) Integer page,
-                                                         @RequestParam(required = false) Integer size) {
-        userProfileQueryApi.getProfile(userId);
-        return Result.ok(postReadQueryApi.listPostsByUser(userId, page, size).stream()
-                .map(UserController::toPostSummaryResponse)
+    public Result<List<UserProfilePostSummaryResponse>> recentPosts(@PathVariable int userId,
+                                                                    @RequestParam(required = false) Integer page,
+                                                                    @RequestParam(required = false) Integer size) {
+        return Result.ok(getUserProfilePageQuery.listRecentPosts(userId, page, size).stream()
+                .map(UserController::toUserProfilePostSummaryResponse)
                 .toList());
     }
 
     @GetMapping("/{userId}/recent-comments")
-    public Result<List<UserRecentCommentResponse>> recentComments(@PathVariable int userId,
-                                                                  @RequestParam(required = false) Integer page,
-                                                                  @RequestParam(required = false) Integer size) {
-        userProfileQueryApi.getProfile(userId);
-        return Result.ok(postReadQueryApi.listRecentCommentsByUser(userId, page, size).stream()
-                .map(UserController::toRecentCommentResponse)
+    public Result<List<UserRecentCommentItemResponse>> recentComments(@PathVariable int userId,
+                                                                      @RequestParam(required = false) Integer page,
+                                                                      @RequestParam(required = false) Integer size) {
+        return Result.ok(getUserProfilePageQuery.listRecentComments(userId, page, size).stream()
+                .map(UserController::toUserRecentCommentItemResponse)
                 .toList());
     }
 
@@ -241,8 +222,8 @@ public class UserController {
         return Result.ok();
     }
 
-    private static PostSummaryResponse toPostSummaryResponse(PostSummaryView view) {
-        PostSummaryResponse response = new PostSummaryResponse();
+    private static UserProfilePostSummaryResponse toUserProfilePostSummaryResponse(UserProfilePageView.RecentPostSummaryView view) {
+        UserProfilePostSummaryResponse response = new UserProfilePostSummaryResponse();
         response.setId(view.id());
         response.setUserId(view.userId());
         response.setTitle(view.title());
@@ -260,8 +241,8 @@ public class UserController {
         return response;
     }
 
-    private static UserRecentCommentResponse toRecentCommentResponse(RecentUserCommentView view) {
-        UserRecentCommentResponse response = new UserRecentCommentResponse();
+    private static UserRecentCommentItemResponse toUserRecentCommentItemResponse(UserProfilePageView.RecentCommentItemView view) {
+        UserRecentCommentItemResponse response = new UserRecentCommentItemResponse();
         response.setId(view.id());
         response.setUserId(view.userId());
         response.setEntityType(view.entityType());

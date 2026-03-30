@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.service;
 
 // 评论领域服务：负责评论写入与基础校验、评论事件发布。
-import com.nowcoder.community.content.event.payload.CommentPayload;
+import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.pagination.Pagination;
@@ -13,7 +13,7 @@ import com.nowcoder.community.content.event.ContentEventPublisher;
 import com.nowcoder.community.content.score.PostScoreQueue;
 import com.nowcoder.community.content.text.ContentTextCodec;
 import com.nowcoder.community.content.util.SensitiveFilter;
-import com.nowcoder.community.social.block.BlockService;
+import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -43,7 +43,7 @@ public class CommentService {
     private final SensitiveFilter sensitiveFilter;
     private final PostScoreQueue postScoreQueue;
     private final ContentEventPublisher eventPublisher;
-    private final BlockService blockService;
+    private final SocialBlockQueryApi blockQueryApi;
     private final UserModerationGuard moderationGuard;
     private final ContentTextCodec textCodec;
 
@@ -53,7 +53,7 @@ public class CommentService {
             SensitiveFilter sensitiveFilter,
             PostScoreQueue postScoreQueue,
             ContentEventPublisher eventPublisher,
-            BlockService blockService,
+            SocialBlockQueryApi blockQueryApi,
             UserModerationGuard moderationGuard,
             ContentTextCodec textCodec
     ) {
@@ -62,7 +62,7 @@ public class CommentService {
         this.sensitiveFilter = sensitiveFilter;
         this.postScoreQueue = postScoreQueue;
         this.eventPublisher = eventPublisher;
-        this.blockService = blockService;
+        this.blockQueryApi = blockQueryApi;
         this.moderationGuard = moderationGuard;
         this.textCodec = textCodec;
     }
@@ -176,7 +176,7 @@ public class CommentService {
 
         // 反骚扰：双方任意一方拉黑另一方，都禁止互动（评论/回复）。
         if (targetUserId != null && targetUserId > 0) {
-            if (blockService != null && blockService.isEitherBlocked(actorUserId, targetUserId)) {
+            if (blockQueryApi != null && blockQueryApi.isEitherBlocked(actorUserId, targetUserId)) {
                 throw new BusinessException(FORBIDDEN, "双方存在拉黑关系，无法执行该操作");
             }
         }

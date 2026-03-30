@@ -2,13 +2,13 @@ package com.nowcoder.community.message.kafka;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.content.event.payload.CommentPayload;
-import com.nowcoder.community.content.event.payload.ModerationCommandPayload;
-import com.nowcoder.community.content.event.payload.ModerationPayload;
-import com.nowcoder.community.content.event.payload.PostPayload;
-import com.nowcoder.community.social.event.payload.BlockPayload;
-import com.nowcoder.community.social.event.payload.FollowPayload;
-import com.nowcoder.community.social.event.payload.LikePayload;
+import com.nowcoder.community.content.contracts.event.CommentPayload;
+import com.nowcoder.community.content.contracts.event.ModerationCommandPayload;
+import com.nowcoder.community.content.contracts.event.ModerationPayload;
+import com.nowcoder.community.content.contracts.event.PostPayload;
+import com.nowcoder.community.social.contracts.event.BlockPayload;
+import com.nowcoder.community.social.contracts.event.FollowPayload;
+import com.nowcoder.community.social.contracts.event.LikePayload;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;

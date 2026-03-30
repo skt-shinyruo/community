@@ -5,6 +5,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.message.entity.Message;
 import com.nowcoder.community.message.mapper.MessageMapper;
 import com.nowcoder.community.message.security.OwnerGuard;
+import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 
@@ -28,7 +29,7 @@ class PrivateMessageServiceBlockCheckTest {
 
         PrivateMessageService service = new PrivateMessageService(
                 messageMapper,
-                mock(MessageUserQueryService.class),
+                mock(UserLookupQueryApi.class),
                 governanceService,
                 ownerGuard,
                 new MessageItemAssembler()

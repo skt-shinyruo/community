@@ -1,7 +1,9 @@
 package com.nowcoder.community.auth.service;
 
 import com.nowcoder.community.infra.security.jwt.JwtProperties;
-import com.nowcoder.community.user.session.RefreshTokenSessionService;
+import com.nowcoder.community.user.api.action.UserRefreshTokenSessionActionApi;
+import com.nowcoder.community.user.api.model.RefreshTokenSessionView;
+import com.nowcoder.community.user.api.query.UserRefreshTokenSessionQueryApi;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -21,7 +23,10 @@ import static org.mockito.Mockito.when;
 class DbRefreshTokenStoreTest {
 
     @Mock
-    private RefreshTokenSessionService refreshTokenSessionService;
+    private UserRefreshTokenSessionActionApi refreshTokenSessionActionApi;
+
+    @Mock
+    private UserRefreshTokenSessionQueryApi refreshTokenSessionQueryApi;
 
     private DbRefreshTokenStore newStore(long graceSeconds) {
         JwtProperties props = new JwtProperties();
@@ -37,11 +42,11 @@ class DbRefreshTokenStoreTest {
         try {
             // Task 4 injects JwtProperties into DbRefreshTokenStore.
             Constructor<DbRefreshTokenStore> ctor = DbRefreshTokenStore.class.getConstructor(
-                    RefreshTokenSessionService.class, JwtProperties.class
+                    UserRefreshTokenSessionActionApi.class, UserRefreshTokenSessionQueryApi.class, JwtProperties.class
             );
-            return ctor.newInstance(refreshTokenSessionService, props);
+            return ctor.newInstance(refreshTokenSessionActionApi, refreshTokenSessionQueryApi, props);
         } catch (NoSuchMethodException ignored) {
-            return new DbRefreshTokenStore(refreshTokenSessionService);
+            return new DbRefreshTokenStore(refreshTokenSessionActionApi, refreshTokenSessionQueryApi);
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }
@@ -51,11 +56,11 @@ class DbRefreshTokenStoreTest {
     void consume_whenConsumeFailsAndTokenWasRevokedOutsideGrace_shouldRevokeFamily() {
         DbRefreshTokenStore store = newStore(10);
 
-        when(refreshTokenSessionService.consume(anyString())).thenReturn(null);
+        when(refreshTokenSessionActionApi.consume(anyString())).thenReturn(null);
 
         Instant now = Instant.now();
-        lenient().when(refreshTokenSessionService.find(anyString())).thenReturn(
-                new RefreshTokenSessionService.RefreshTokenRecord(
+        lenient().when(refreshTokenSessionQueryApi.find(anyString())).thenReturn(
+                new RefreshTokenSessionView(
                         "hash",
                         7,
                         "family-1",
@@ -67,18 +72,18 @@ class DbRefreshTokenStoreTest {
         RefreshTokenStore.StoredRefreshToken result = store.consume("rt1");
 
         assertThat(result).isNull();
-        verify(refreshTokenSessionService).revokeFamily("family-1");
+        verify(refreshTokenSessionActionApi).revokeFamily("family-1");
     }
 
     @Test
     void consume_whenConsumeFailsAndTokenWasRevokedWithinGrace_shouldNotRevokeFamily() {
         DbRefreshTokenStore store = newStore(10);
 
-        when(refreshTokenSessionService.consume(anyString())).thenReturn(null);
+        when(refreshTokenSessionActionApi.consume(anyString())).thenReturn(null);
 
         Instant now = Instant.now();
-        lenient().when(refreshTokenSessionService.find(anyString())).thenReturn(
-                new RefreshTokenSessionService.RefreshTokenRecord(
+        lenient().when(refreshTokenSessionQueryApi.find(anyString())).thenReturn(
+                new RefreshTokenSessionView(
                         "hash",
                         7,
                         "family-1",
@@ -90,18 +95,18 @@ class DbRefreshTokenStoreTest {
         RefreshTokenStore.StoredRefreshToken result = store.consume("rt1");
 
         assertThat(result).isNull();
-        verify(refreshTokenSessionService, never()).revokeFamily(anyString());
+        verify(refreshTokenSessionActionApi, never()).revokeFamily(anyString());
     }
 
     @Test
     void consume_shouldUseConfiguredGraceSeconds() {
         DbRefreshTokenStore store = newStore(1);
 
-        when(refreshTokenSessionService.consume(anyString())).thenReturn(null);
+        when(refreshTokenSessionActionApi.consume(anyString())).thenReturn(null);
 
         Instant now = Instant.now();
-        lenient().when(refreshTokenSessionService.find(anyString())).thenReturn(
-                new RefreshTokenSessionService.RefreshTokenRecord(
+        lenient().when(refreshTokenSessionQueryApi.find(anyString())).thenReturn(
+                new RefreshTokenSessionView(
                         "hash",
                         7,
                         "family-1",
@@ -113,18 +118,18 @@ class DbRefreshTokenStoreTest {
         RefreshTokenStore.StoredRefreshToken result = store.consume("rt1");
 
         assertThat(result).isNull();
-        verify(refreshTokenSessionService).revokeFamily("family-1");
+        verify(refreshTokenSessionActionApi).revokeFamily("family-1");
     }
 
     @Test
     void consume_whenTokenExpired_shouldNotRevokeFamilyEvenIfRevokedLongAgo() {
         DbRefreshTokenStore store = newStore(10);
 
-        when(refreshTokenSessionService.consume(anyString())).thenReturn(null);
+        when(refreshTokenSessionActionApi.consume(anyString())).thenReturn(null);
 
         Instant now = Instant.now();
-        lenient().when(refreshTokenSessionService.find(anyString())).thenReturn(
-                new RefreshTokenSessionService.RefreshTokenRecord(
+        lenient().when(refreshTokenSessionQueryApi.find(anyString())).thenReturn(
+                new RefreshTokenSessionView(
                         "hash",
                         7,
                         "family-1",
@@ -136,6 +141,6 @@ class DbRefreshTokenStoreTest {
         RefreshTokenStore.StoredRefreshToken result = store.consume("rt1");
 
         assertThat(result).isNull();
-        verify(refreshTokenSessionService, never()).revokeFamily(anyString());
+        verify(refreshTokenSessionActionApi, never()).revokeFamily(anyString());
     }
 }

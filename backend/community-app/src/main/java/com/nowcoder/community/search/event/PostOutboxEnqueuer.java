@@ -2,9 +2,9 @@ package com.nowcoder.community.search.event;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.content.event.ContentEventTypes;
-import com.nowcoder.community.content.event.payload.PostPayload;
-import com.nowcoder.community.content.event.ContentLocalEvent;
+import com.nowcoder.community.content.contracts.event.ContentContractEvent;
+import com.nowcoder.community.content.contracts.event.ContentEventTypes;
+import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.infra.outbox.JdbcOutboxEventStore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -29,7 +29,7 @@ public class PostOutboxEnqueuer {
     }
 
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT, fallbackExecution = false)
-    public void onContentEvent(ContentLocalEvent event) {
+    public void onContentEvent(ContentContractEvent event) {
         if (event == null) {
             return;
         }
@@ -58,4 +58,3 @@ public class PostOutboxEnqueuer {
         store.enqueue(event.eventId() + OUTBOX_EVENT_SUFFIX, PostOutboxHandler.TOPIC, String.valueOf(payload.getPostId()), payloadJson);
     }
 }
-

@@ -1,4 +1,4 @@
-package com.nowcoder.community.message.mapper;
+package com.nowcoder.community.notice.mapper;
 
 import com.nowcoder.community.message.entity.Message;
 import org.apache.ibatis.annotations.Mapper;
@@ -9,7 +9,7 @@ import java.util.List;
 
 @Mapper
 @Repository
-public interface MessageMapper {
+public interface NoticeMapper {
 
     int insertMessage(Message message);
 

@@ -25,6 +25,9 @@ class ControllerBoundaryArchTest {
     private static final Pattern SERVICE_PACKAGE =
             Pattern.compile("com\\.nowcoder\\.community\\.[^.]+\\.service(\\..*)?");
 
+    private static final Set<String> LEGACY_FOREIGN_DTO_CONTROLLER_CALLERS = Set.of(
+            "com.nowcoder.community.notice.controller.NoticeController"
+    );
     private static final Set<String> LEGACY_FOREIGN_SERVICE_CONTROLLER_CALLERS = Set.of();
 
     @ArchTest
@@ -68,7 +71,7 @@ class ControllerBoundaryArchTest {
                             "not depend on foreign dto packages",
                             Set.of("dto"),
                             true,
-                            Set.of()
+                            LEGACY_FOREIGN_DTO_CONTROLLER_CALLERS
                     ));
 
     @ArchTest

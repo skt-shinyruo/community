@@ -1,10 +1,10 @@
-package com.nowcoder.community.message.service;
+package com.nowcoder.community.notice.service;
 
-import com.nowcoder.community.message.mapper.MessageMapper;
+import com.nowcoder.community.infra.pagination.Pagination;
 import com.nowcoder.community.message.dto.LetterItemResponse;
 import com.nowcoder.community.message.dto.NoticeTopicSummaryResponse;
 import com.nowcoder.community.message.entity.Message;
-import com.nowcoder.community.infra.pagination.Pagination;
+import com.nowcoder.community.notice.mapper.NoticeMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
@@ -17,12 +17,12 @@ public class NoticeService {
     public static final int STATUS_UNREAD = 0;
     public static final int STATUS_READ = 1;
 
-    private final MessageMapper messageMapper;
-    private final MessageItemAssembler messageItemAssembler;
+    private final NoticeMapper noticeMapper;
+    private final NoticeItemAssembler noticeItemAssembler;
 
-    public NoticeService(MessageMapper messageMapper, MessageItemAssembler messageItemAssembler) {
-        this.messageMapper = messageMapper;
-        this.messageItemAssembler = messageItemAssembler;
+    public NoticeService(NoticeMapper noticeMapper, NoticeItemAssembler noticeItemAssembler) {
+        this.noticeMapper = noticeMapper;
+        this.noticeItemAssembler = noticeItemAssembler;
     }
 
     public void createNotice(int toUserId, String topic, String contentJson) {
@@ -33,14 +33,14 @@ public class NoticeService {
         msg.setContent(contentJson);
         msg.setStatus(STATUS_UNREAD);
         msg.setCreateTime(new Date());
-        messageMapper.insertMessage(msg);
+        noticeMapper.insertMessage(msg);
     }
 
     public List<Message> listNotices(int userId, String topic, int page, int size) {
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
         int offset = Pagination.safeOffset(p, s);
-        return messageMapper.selectNotices(userId, topic, offset, s);
+        return noticeMapper.selectNotices(userId, topic, offset, s);
     }
 
     public List<LetterItemResponse> listNoticeItems(int userId, String topic, int page, int size) {
@@ -48,18 +48,18 @@ public class NoticeService {
         if (list == null || list.isEmpty()) {
             return List.of();
         }
-        return list.stream().map(messageItemAssembler::toLetterItem).toList();
+        return list.stream().map(noticeItemAssembler::toLetterItem).toList();
     }
 
     public int unreadCount(int userId, String topic) {
-        return messageMapper.selectNoticeUnreadCount(userId, topic);
+        return noticeMapper.selectNoticeUnreadCount(userId, topic);
     }
 
     public void markRead(int userId, List<Integer> ids) {
         if (ids == null || ids.isEmpty()) {
             return;
         }
-        messageMapper.updateNoticesStatusForRecipient(ids, STATUS_READ, userId);
+        noticeMapper.updateNoticesStatusForRecipient(ids, STATUS_READ, userId);
     }
 
     public List<NoticeTopicSummaryResponse> topicSummary(int userId) {
@@ -67,10 +67,10 @@ public class NoticeService {
         return List.of("comment", "like", "follow", "moderation").stream().map(topic -> {
             NoticeTopicSummaryResponse r = new NoticeTopicSummaryResponse();
             r.setTopic(topic);
-            List<Message> latest = messageMapper.selectNotices(userId, topic, 0, 1);
-            r.setLatest(latest == null || latest.isEmpty() ? null : messageItemAssembler.toLetterItem(latest.get(0)));
-            r.setNoticeCount(messageMapper.selectNoticeCount(userId, topic));
-            r.setUnreadCount(messageMapper.selectNoticeUnreadCount(userId, topic));
+            List<Message> latest = noticeMapper.selectNotices(userId, topic, 0, 1);
+            r.setLatest(latest == null || latest.isEmpty() ? null : noticeItemAssembler.toLetterItem(latest.get(0)));
+            r.setNoticeCount(noticeMapper.selectNoticeCount(userId, topic));
+            r.setUnreadCount(noticeMapper.selectNoticeUnreadCount(userId, topic));
             return r;
         }).toList();
     }

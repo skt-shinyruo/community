@@ -1,4 +1,4 @@
-package com.nowcoder.community.message.service;
+package com.nowcoder.community.notice.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;

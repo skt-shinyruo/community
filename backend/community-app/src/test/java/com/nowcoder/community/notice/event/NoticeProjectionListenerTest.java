@@ -1,10 +1,10 @@
-package com.nowcoder.community.message.event;
+package com.nowcoder.community.notice.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
-import com.nowcoder.community.message.service.NoticeService;
+import com.nowcoder.community.notice.service.NoticeService;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;

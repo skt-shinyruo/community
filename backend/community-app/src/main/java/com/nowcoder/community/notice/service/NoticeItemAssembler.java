@@ -1,11 +1,11 @@
-package com.nowcoder.community.message.service;
+package com.nowcoder.community.notice.service;
 
 import com.nowcoder.community.message.dto.LetterItemResponse;
 import com.nowcoder.community.message.entity.Message;
 import org.springframework.stereotype.Service;
 
 @Service
-public class MessageItemAssembler {
+public class NoticeItemAssembler {
 
     public LetterItemResponse toLetterItem(Message message) {
         if (message == null) {

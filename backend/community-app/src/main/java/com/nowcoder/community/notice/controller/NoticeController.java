@@ -1,11 +1,11 @@
-package com.nowcoder.community.message.controller;
+package com.nowcoder.community.notice.controller;
 
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.message.dto.LetterItemResponse;
 import com.nowcoder.community.message.dto.MarkReadRequest;
 import com.nowcoder.community.message.dto.NoticeTopicSummaryResponse;
-import com.nowcoder.community.message.service.NoticeService;
+import com.nowcoder.community.notice.service.NoticeService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;

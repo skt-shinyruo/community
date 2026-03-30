@@ -18,9 +18,9 @@ import com.nowcoder.community.content.score.PostScoreQueue;
 import com.nowcoder.community.content.text.ContentTextCodec;
 import com.nowcoder.community.content.util.SensitiveFilter;
 import com.nowcoder.community.content.assembler.PostSummaryAssembler;
-import com.nowcoder.community.message.mapper.MessageMapper;
-import com.nowcoder.community.message.service.MessageItemAssembler;
-import com.nowcoder.community.message.service.NoticeService;
+import com.nowcoder.community.notice.mapper.NoticeMapper;
+import com.nowcoder.community.notice.service.NoticeItemAssembler;
+import com.nowcoder.community.notice.service.NoticeService;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.social.event.SocialEventPublisher;
@@ -99,14 +99,14 @@ class PaginationOffsetOverflowTest {
 
     @Test
     void noticeServiceShouldNotPassNegativeOffsetWhenPageIsHuge() {
-        MessageMapper messageMapper = mock(MessageMapper.class);
-        when(messageMapper.selectNotices(anyInt(), any(), anyInt(), anyInt())).thenReturn(List.of());
+        NoticeMapper noticeMapper = mock(NoticeMapper.class);
+        when(noticeMapper.selectNotices(anyInt(), any(), anyInt(), anyInt())).thenReturn(List.of());
 
-        NoticeService service = new NoticeService(messageMapper, new MessageItemAssembler());
+        NoticeService service = new NoticeService(noticeMapper, new NoticeItemAssembler());
         service.listNotices(1, "comment", Integer.MAX_VALUE, 50);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
-        verify(messageMapper).selectNotices(eq(1), eq("comment"), offsetCaptor.capture(), eq(50));
+        verify(noticeMapper).selectNotices(eq(1), eq("comment"), offsetCaptor.capture(), eq(50));
         assertThat(offsetCaptor.getValue()).isGreaterThanOrEqualTo(0);
     }
 

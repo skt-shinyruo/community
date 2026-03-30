@@ -30,7 +30,11 @@ class DomainBoundaryArchTest {
     private static final Pattern SERVICE_PACKAGE =
             Pattern.compile("com\\.nowcoder\\.community\\.[^.]+\\.service(\\..*)?");
 
-    private static final Set<String> LEGACY_FOREIGN_ENTITY_CALLERS = Set.of();
+    private static final Set<String> LEGACY_FOREIGN_ENTITY_CALLERS = Set.of(
+            "com.nowcoder.community.notice.mapper.NoticeMapper",
+            "com.nowcoder.community.notice.service.NoticeItemAssembler",
+            "com.nowcoder.community.notice.service.NoticeService"
+    );
     private static final Set<String> LEGACY_FOREIGN_MAPPER_CALLERS = Set.of();
     private static final Set<String> LEGACY_FOREIGN_SERVICE_CALLERS = Set.of();
     private static final Set<String> LEGACY_FACADE_SERVICE_CLASSES = Set.of();

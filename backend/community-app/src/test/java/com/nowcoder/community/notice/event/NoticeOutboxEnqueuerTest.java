@@ -1,4 +1,4 @@
-package com.nowcoder.community.message.event;
+package com.nowcoder.community.notice.event;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

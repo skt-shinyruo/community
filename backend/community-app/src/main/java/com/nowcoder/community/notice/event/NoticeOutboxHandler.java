@@ -1,10 +1,10 @@
-package com.nowcoder.community.message.event;
+package com.nowcoder.community.notice.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.infra.outbox.OutboxEvent;
 import com.nowcoder.community.infra.outbox.OutboxHandler;
-import com.nowcoder.community.message.service.NoticeProjectionService;
-import com.nowcoder.community.message.service.NoticeService;
+import com.nowcoder.community.notice.service.NoticeProjectionService;
+import com.nowcoder.community.notice.service.NoticeService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;

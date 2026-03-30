@@ -1,7 +1,7 @@
-package com.nowcoder.community.message.service;
+package com.nowcoder.community.notice.service;
 
-import com.nowcoder.community.message.mapper.MessageMapper;
 import com.nowcoder.community.message.entity.Message;
+import com.nowcoder.community.notice.mapper.NoticeMapper;
 import org.apache.ibatis.annotations.Mapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.tuple;
 class NoticeServiceTest {
 
     @Autowired
-    private MessageMapper messageMapper;
+    private NoticeMapper noticeMapper;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -34,7 +34,7 @@ class NoticeServiceTest {
     @BeforeEach
     void setUp() {
         jdbcTemplate.update("delete from message");
-        noticeService = new NoticeService(messageMapper, new MessageItemAssembler());
+        noticeService = new NoticeService(noticeMapper, new NoticeItemAssembler());
     }
 
     @Test
@@ -79,7 +79,7 @@ class NoticeServiceTest {
     @EnableAutoConfiguration
     @MapperScan(
             annotationClass = Mapper.class,
-            basePackages = "com.nowcoder.community.message.mapper"
+            basePackages = "com.nowcoder.community.notice.mapper"
     )
     static class MapperOnlyTestConfig {
     }

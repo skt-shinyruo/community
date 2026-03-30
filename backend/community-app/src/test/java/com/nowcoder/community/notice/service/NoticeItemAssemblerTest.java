@@ -1,4 +1,4 @@
-package com.nowcoder.community.message.service;
+package com.nowcoder.community.notice.service;
 
 import com.nowcoder.community.message.dto.LetterItemResponse;
 import com.nowcoder.community.message.entity.Message;
@@ -8,11 +8,11 @@ import java.util.Date;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class MessageItemAssemblerTest {
+class NoticeItemAssemblerTest {
 
     @Test
     void toLetterItemShouldProjectMessageFields() {
-        MessageItemAssembler assembler = new MessageItemAssembler();
+        NoticeItemAssembler assembler = new NoticeItemAssembler();
         Date createTime = new Date();
         Message message = new Message();
         message.setId(11);
@@ -37,7 +37,7 @@ class MessageItemAssemblerTest {
 
     @Test
     void toLetterItemShouldReturnNullForNullMessage() {
-        MessageItemAssembler assembler = new MessageItemAssembler();
+        NoticeItemAssembler assembler = new NoticeItemAssembler();
 
         assertThat(assembler.toLetterItem(null)).isNull();
     }

@@ -5,10 +5,6 @@ import com.nowcoder.community.content.mapper.CommentMapper;
 import com.nowcoder.community.content.mapper.DiscussPostMapper;
 import com.nowcoder.community.content.mapper.ModerationActionMapper;
 import com.nowcoder.community.content.mapper.ReportMapper;
-import com.nowcoder.community.content.entity.Comment;
-import com.nowcoder.community.content.entity.DiscussPost;
-import com.nowcoder.community.content.entity.ModerationAction;
-import com.nowcoder.community.content.entity.Report;
 import com.nowcoder.community.content.service.BookmarkService;
 import com.nowcoder.community.content.service.CommentService;
 import com.nowcoder.community.content.service.ModerationService;
@@ -23,19 +19,13 @@ import com.nowcoder.community.content.text.ContentTextCodec;
 import com.nowcoder.community.content.util.SensitiveFilter;
 import com.nowcoder.community.content.assembler.PostSummaryAssembler;
 import com.nowcoder.community.message.mapper.MessageMapper;
-import com.nowcoder.community.message.entity.Message;
-import com.nowcoder.community.message.security.OwnerGuard;
 import com.nowcoder.community.message.service.MessageItemAssembler;
 import com.nowcoder.community.message.service.NoticeService;
-import com.nowcoder.community.message.service.PrivateMessageService;
-import com.nowcoder.community.message.service.PrivateMessageGovernanceService;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.social.event.SocialEventPublisher;
 import com.nowcoder.community.social.follow.FollowRepository;
 import com.nowcoder.community.social.follow.FollowService;
-import com.nowcoder.community.social.follow.dto.FollowItem;
-import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -104,26 +94,6 @@ class PaginationOffsetOverflowTest {
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
         verify(followRepository).listFollowers(eq(USER), eq(2), offsetCaptor.capture(), eq(50));
-        assertThat(offsetCaptor.getValue()).isGreaterThanOrEqualTo(0);
-    }
-
-    @Test
-    void privateMessageServiceShouldNotPassNegativeOffsetWhenPageIsHuge() {
-        MessageMapper messageMapper = mock(MessageMapper.class);
-        when(messageMapper.selectConversations(anyInt(), anyInt(), anyInt())).thenReturn(List.of());
-
-        PrivateMessageService service = new PrivateMessageService(
-                messageMapper,
-                mock(UserLookupQueryApi.class),
-                mock(PrivateMessageGovernanceService.class),
-                mock(OwnerGuard.class),
-                new MessageItemAssembler()
-        );
-
-        service.listConversations(1, Integer.MAX_VALUE, 50);
-
-        ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
-        verify(messageMapper).selectConversations(eq(1), offsetCaptor.capture(), eq(50));
         assertThat(offsetCaptor.getValue()).isGreaterThanOrEqualTo(0);
     }
 

@@ -1,8 +1,8 @@
-package com.nowcoder.community.message.service;
+package com.nowcoder.community.im.governance;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import com.nowcoder.community.message.api.action.PrivateMessageGovernanceActionApi;
+import com.nowcoder.community.im.governance.action.PrivateMessageGovernanceActionApi;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
@@ -48,7 +48,7 @@ class PrivateMessageGovernanceServiceTest {
 
     @Test
     void moderationGuardsShouldOnlyExposeUserModerationQueryApiConstructors() {
-        assertThat(com.nowcoder.community.message.service.UserModerationGuard.class.getDeclaredConstructors())
+        assertThat(UserModerationGuard.class.getDeclaredConstructors())
                 .singleElement()
                 .satisfies(constructor -> assertThat(constructor.getParameterTypes()).containsExactly(
                         UserModerationQueryApi.class

@@ -1,4 +1,4 @@
-package com.nowcoder.community.message.api.action;
+package com.nowcoder.community.im.governance.action;
 
 public interface PrivateMessageGovernanceActionApi {
 

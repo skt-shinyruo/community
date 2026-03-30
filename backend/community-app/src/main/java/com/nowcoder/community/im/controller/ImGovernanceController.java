@@ -2,7 +2,7 @@ package com.nowcoder.community.im.controller;
 
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
-import com.nowcoder.community.message.api.action.PrivateMessageGovernanceActionApi;
+import com.nowcoder.community.im.governance.action.PrivateMessageGovernanceActionApi;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;

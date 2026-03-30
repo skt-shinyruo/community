@@ -1,4 +1,4 @@
-package com.nowcoder.community.message.service;
+package com.nowcoder.community.im.governance;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.api.model.UserModerationStateView;
@@ -15,7 +15,7 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
  *
  * <p>说明：移除本地投影后，写路径会同步依赖 user 模块的实时可用性。</p>
  */
-@Service("messageUserModerationGuard")
+@Service
 public class UserModerationGuard {
 
     private final UserModerationQueryApi userModerationQueryApi;

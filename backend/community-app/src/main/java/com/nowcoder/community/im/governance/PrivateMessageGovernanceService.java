@@ -1,8 +1,8 @@
-package com.nowcoder.community.message.service;
+package com.nowcoder.community.im.governance;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import com.nowcoder.community.message.api.action.PrivateMessageGovernanceActionApi;
+import com.nowcoder.community.im.governance.action.PrivateMessageGovernanceActionApi;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import org.springframework.stereotype.Service;

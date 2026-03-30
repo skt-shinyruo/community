@@ -1,7 +1,7 @@
 package com.nowcoder.community.im.controller;
 
 import com.nowcoder.community.app.CommunityAppApplication;
-import com.nowcoder.community.message.service.PrivateMessageGovernanceService;
+import com.nowcoder.community.im.governance.action.PrivateMessageGovernanceActionApi;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -26,7 +26,7 @@ class ImGovernanceControllerTest {
     private MockMvc mockMvc;
 
     @MockBean
-    private PrivateMessageGovernanceService governanceService;
+    private PrivateMessageGovernanceActionApi governanceActionApi;
 
     @Test
     void validateSendPrivateMessageShouldDelegateToPrivateMessageGovernanceAction() throws Exception {
@@ -42,6 +42,6 @@ class ImGovernanceControllerTest {
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.message").value("OK"));
 
-        verify(governanceService).validateCanSendPrivateMessage(7, 9);
+        verify(governanceActionApi).validateCanSendPrivateMessage(7, 9);
     }
 }

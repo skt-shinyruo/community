@@ -1,4 +1,4 @@
-package com.nowcoder.community.message.service;
+package com.nowcoder.community.im.governance;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;

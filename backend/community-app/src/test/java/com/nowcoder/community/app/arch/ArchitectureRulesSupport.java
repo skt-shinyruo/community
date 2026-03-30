@@ -6,6 +6,7 @@ import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
 
+import java.util.Map;
 import java.util.Set;
 
 final class ArchitectureRulesSupport {
@@ -16,9 +17,30 @@ final class ArchitectureRulesSupport {
             "content",
             "social",
             "message",
+            "notice",
             "search",
             "analytics",
             "growth"
+    );
+
+    static final Map<String, Set<String>> TEMPORARY_SHARED_MESSAGE_TYPES_BY_ORIGIN = Map.of(
+            "com.nowcoder.community.notice.controller.NoticeController", Set.of(
+                    "com.nowcoder.community.message.dto.LetterItemResponse",
+                    "com.nowcoder.community.message.dto.MarkReadRequest",
+                    "com.nowcoder.community.message.dto.NoticeTopicSummaryResponse"
+            ),
+            "com.nowcoder.community.notice.mapper.NoticeMapper", Set.of(
+                    "com.nowcoder.community.message.entity.Message"
+            ),
+            "com.nowcoder.community.notice.service.NoticeItemAssembler", Set.of(
+                    "com.nowcoder.community.message.dto.LetterItemResponse",
+                    "com.nowcoder.community.message.entity.Message"
+            ),
+            "com.nowcoder.community.notice.service.NoticeService", Set.of(
+                    "com.nowcoder.community.message.dto.LetterItemResponse",
+                    "com.nowcoder.community.message.dto.NoticeTopicSummaryResponse",
+                    "com.nowcoder.community.message.entity.Message"
+            )
     );
 
     static final Set<String> MIGRATION_BASELINE_FOREIGN_IMPLEMENTATION_CALLERS = Set.of();
@@ -88,6 +110,16 @@ final class ArchitectureRulesSupport {
         return whitelist.contains(javaClass.getFullName());
     }
 
+    static boolean isAllowedTargetDependency(
+            JavaClass origin,
+            JavaClass target,
+            Map<String, Set<String>> allowedTargetTypesByOrigin
+    ) {
+        return allowedTargetTypesByOrigin
+                .getOrDefault(origin.getFullName(), Set.of())
+                .contains(target.getFullName());
+    }
+
     static boolean sharesTopLevelOwner(JavaClass left, JavaClass right) {
         return topLevelName(left).equals(topLevelName(right));
     }
@@ -106,6 +138,15 @@ final class ArchitectureRulesSupport {
             Set<String> layers,
             Set<String> legacyOriginWhitelist
     ) {
+        return notDependOnForeignCoreLayers(description, layers, legacyOriginWhitelist, Map.of());
+    }
+
+    static ArchCondition<JavaClass> notDependOnForeignCoreLayers(
+            String description,
+            Set<String> layers,
+            Set<String> legacyOriginWhitelist,
+            Map<String, Set<String>> allowedTargetTypesByOrigin
+    ) {
         return new ArchCondition<>(description) {
             @Override
             public void check(JavaClass item, ConditionEvents events) {
@@ -120,6 +161,9 @@ final class ArchitectureRulesSupport {
                         continue;
                     }
                     if (!residesInLayer(target, layers)) {
+                        continue;
+                    }
+                    if (isAllowedTargetDependency(item, target, allowedTargetTypesByOrigin)) {
                         continue;
                     }
                     events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));
@@ -178,6 +222,16 @@ final class ArchitectureRulesSupport {
             boolean foreignCoreDomainOnly,
             Set<String> legacyOriginWhitelist
     ) {
+        return notDependOnLayers(description, layers, foreignCoreDomainOnly, legacyOriginWhitelist, Map.of());
+    }
+
+    static ArchCondition<JavaClass> notDependOnLayers(
+            String description,
+            Set<String> layers,
+            boolean foreignCoreDomainOnly,
+            Set<String> legacyOriginWhitelist,
+            Map<String, Set<String>> allowedTargetTypesByOrigin
+    ) {
         return new ArchCondition<>(description) {
             @Override
             public void check(JavaClass item, ConditionEvents events) {
@@ -199,6 +253,9 @@ final class ArchitectureRulesSupport {
                             continue;
                         }
                     }
+                    if (isAllowedTargetDependency(item, target, allowedTargetTypesByOrigin)) {
+                        continue;
+                    }
                     events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));
                 }
             }
@@ -209,6 +266,15 @@ final class ArchitectureRulesSupport {
             String description,
             Set<String> allowedPackagePrefixes,
             Set<String> legacyOriginWhitelist
+    ) {
+        return onlyDependOnForeignPackagePrefixes(description, allowedPackagePrefixes, legacyOriginWhitelist, Map.of());
+    }
+
+    static ArchCondition<JavaClass> onlyDependOnForeignPackagePrefixes(
+            String description,
+            Set<String> allowedPackagePrefixes,
+            Set<String> legacyOriginWhitelist,
+            Map<String, Set<String>> allowedTargetTypesByOrigin
     ) {
         return new ArchCondition<>(description) {
             @Override
@@ -224,6 +290,9 @@ final class ArchitectureRulesSupport {
                         continue;
                     }
                     if (residesInPackagePrefixes(target, allowedPackagePrefixes)) {
+                        continue;
+                    }
+                    if (isAllowedTargetDependency(item, target, allowedTargetTypesByOrigin)) {
                         continue;
                     }
                     events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));

@@ -9,10 +9,13 @@ import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
+import org.junit.jupiter.api.Test;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
@@ -30,11 +33,20 @@ class DomainBoundaryArchTest {
     private static final Pattern SERVICE_PACKAGE =
             Pattern.compile("com\\.nowcoder\\.community\\.[^.]+\\.service(\\..*)?");
 
-    private static final Set<String> LEGACY_FOREIGN_ENTITY_CALLERS = Set.of(
-            "com.nowcoder.community.notice.mapper.NoticeMapper",
-            "com.nowcoder.community.notice.service.NoticeItemAssembler",
-            "com.nowcoder.community.notice.service.NoticeService"
+    private static final Set<String> BUSINESS_OR_ADAPTER_DOMAINS = Set.of(
+            "auth",
+            "user",
+            "content",
+            "social",
+            "message",
+            "notice",
+            "search",
+            "analytics",
+            "growth",
+            "ops",
+            "im"
     );
+    private static final Set<String> LEGACY_FOREIGN_ENTITY_CALLERS = Set.of();
     private static final Set<String> LEGACY_FOREIGN_MAPPER_CALLERS = Set.of();
     private static final Set<String> LEGACY_FOREIGN_SERVICE_CALLERS = Set.of();
     private static final Set<String> LEGACY_FACADE_SERVICE_CLASSES = Set.of();
@@ -54,13 +66,55 @@ class DomainBoundaryArchTest {
             "contracts"
     );
 
+    @Test
+    void coreDomainModelShouldTreatNoticeAsFirstClassDomain() {
+        assertThat(ArchitectureRulesSupport.CORE_DOMAINS).contains("notice");
+    }
+
+    @Test
+    void commonDomainGuardShouldIncludeNoticeDomain() {
+        assertThat(BUSINESS_OR_ADAPTER_DOMAINS).contains("notice");
+    }
+
+    @Test
+    void entityBoundaryShouldOnlyPermitApprovedSharedMessageReuse() {
+        assertThat(LEGACY_FOREIGN_ENTITY_CALLERS).isEmpty();
+        assertThat(ArchitectureRulesSupport.TEMPORARY_SHARED_MESSAGE_TYPES_BY_ORIGIN)
+                .containsOnlyKeys(
+                        "com.nowcoder.community.notice.controller.NoticeController",
+                        "com.nowcoder.community.notice.mapper.NoticeMapper",
+                        "com.nowcoder.community.notice.service.NoticeItemAssembler",
+                        "com.nowcoder.community.notice.service.NoticeService"
+                )
+                .containsEntry(
+                        "com.nowcoder.community.notice.mapper.NoticeMapper",
+                        Set.of("com.nowcoder.community.message.entity.Message")
+                )
+                .containsEntry(
+                        "com.nowcoder.community.notice.service.NoticeItemAssembler",
+                        Set.of(
+                                "com.nowcoder.community.message.dto.LetterItemResponse",
+                                "com.nowcoder.community.message.entity.Message"
+                        )
+                )
+                .containsEntry(
+                        "com.nowcoder.community.notice.service.NoticeService",
+                        Set.of(
+                                "com.nowcoder.community.message.dto.LetterItemResponse",
+                                "com.nowcoder.community.message.dto.NoticeTopicSummaryResponse",
+                                "com.nowcoder.community.message.entity.Message"
+                        )
+                );
+    }
+
     @ArchTest
     static final ArchRule core_domains_must_not_depend_on_foreign_implementation_layers =
             classes()
                     .should(ArchitectureRulesSupport.notDependOnForeignCoreLayers(
                             "not depend on foreign controller/mapper/dao/entity/config/security packages",
                             FOREIGN_IMPLEMENTATION_LAYERS,
-                            ArchitectureRulesSupport.MIGRATION_BASELINE_FOREIGN_IMPLEMENTATION_CALLERS
+                            ArchitectureRulesSupport.MIGRATION_BASELINE_FOREIGN_IMPLEMENTATION_CALLERS,
+                            ArchitectureRulesSupport.TEMPORARY_SHARED_MESSAGE_TYPES_BY_ORIGIN
                     ));
 
     @ArchTest
@@ -78,7 +132,8 @@ class DomainBoundaryArchTest {
                     .should(ArchitectureRulesSupport.onlyDependOnForeignPackagePrefixes(
                             "only depend on foreign api.query/api.action/api.model/contracts packages",
                             ALLOWED_FOREIGN_COLLABORATION_PACKAGES,
-                            LEGACY_FOREIGN_NON_COLLABORATION_CALLERS
+                            LEGACY_FOREIGN_NON_COLLABORATION_CALLERS,
+                            ArchitectureRulesSupport.TEMPORARY_SHARED_MESSAGE_TYPES_BY_ORIGIN
                     ));
 
     @ArchTest
@@ -87,7 +142,7 @@ class DomainBoundaryArchTest {
                     .that().resideInAnyPackage("..common..")
                     .should(ArchitectureRulesSupport.notDependOnDomains(
                             "not depend on business or adapter domains",
-                            Set.of("auth", "user", "content", "social", "message", "search", "analytics", "growth", "ops", "im"),
+                            BUSINESS_OR_ADAPTER_DOMAINS,
                             Set.of()
                     ));
 
@@ -95,7 +150,12 @@ class DomainBoundaryArchTest {
     static final ArchRule non_owner_domains_must_not_depend_on_foreign_entities =
             classes()
                     .that().resideOutsideOfPackage("..controller..")
-                    .should(notDependOnForeignPackage("entities", ENTITY_PACKAGE, LEGACY_FOREIGN_ENTITY_CALLERS));
+                    .should(notDependOnForeignPackage(
+                            "entities",
+                            ENTITY_PACKAGE,
+                            LEGACY_FOREIGN_ENTITY_CALLERS,
+                            ArchitectureRulesSupport.TEMPORARY_SHARED_MESSAGE_TYPES_BY_ORIGIN
+                    ));
 
     @ArchTest
     static final ArchRule non_owner_domains_must_not_depend_on_foreign_mappers =
@@ -125,6 +185,15 @@ class DomainBoundaryArchTest {
             Pattern trackedPackage,
             Set<String> legacyCallers
     ) {
+        return notDependOnForeignPackage(packageLabel, trackedPackage, legacyCallers, Map.of());
+    }
+
+    private static ArchCondition<JavaClass> notDependOnForeignPackage(
+            String packageLabel,
+            Pattern trackedPackage,
+            Set<String> legacyCallers,
+            Map<String, Set<String>> allowedTargetTypesByOrigin
+    ) {
         return new ArchCondition<>("not depend on foreign " + packageLabel) {
             @Override
             public void check(JavaClass item, ConditionEvents events) {
@@ -138,7 +207,8 @@ class DomainBoundaryArchTest {
                 for (Dependency dependency : item.getDirectDependenciesFromSelf()) {
                     JavaClass target = dependency.getTargetClass();
                     if (trackedPackage.matcher(target.getPackageName()).matches()
-                            && !originDomain.equals(domainOf(target))) {
+                            && !originDomain.equals(domainOf(target))
+                            && !ArchitectureRulesSupport.isAllowedTargetDependency(item, target, allowedTargetTypesByOrigin)) {
                         events.add(SimpleConditionEvent.violated(item, dependency.getDescription()));
                     }
                 }

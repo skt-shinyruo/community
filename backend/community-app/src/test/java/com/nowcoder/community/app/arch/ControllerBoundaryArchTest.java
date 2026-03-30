@@ -9,10 +9,12 @@ import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
+import org.junit.jupiter.api.Test;
 
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 
 @AnalyzeClasses(
@@ -25,10 +27,28 @@ class ControllerBoundaryArchTest {
     private static final Pattern SERVICE_PACKAGE =
             Pattern.compile("com\\.nowcoder\\.community\\.[^.]+\\.service(\\..*)?");
 
-    private static final Set<String> LEGACY_FOREIGN_DTO_CONTROLLER_CALLERS = Set.of(
-            "com.nowcoder.community.notice.controller.NoticeController"
-    );
+    private static final Set<String> LEGACY_FOREIGN_DTO_CONTROLLER_CALLERS = Set.of();
     private static final Set<String> LEGACY_FOREIGN_SERVICE_CONTROLLER_CALLERS = Set.of();
+
+    @Test
+    void dtoBoundaryShouldOnlyPermitApprovedSharedMessageDtoTypes() {
+        assertThat(LEGACY_FOREIGN_DTO_CONTROLLER_CALLERS).isEmpty();
+        assertThat(ArchitectureRulesSupport.TEMPORARY_SHARED_MESSAGE_TYPES_BY_ORIGIN)
+                .containsOnlyKeys(
+                        "com.nowcoder.community.notice.controller.NoticeController",
+                        "com.nowcoder.community.notice.mapper.NoticeMapper",
+                        "com.nowcoder.community.notice.service.NoticeItemAssembler",
+                        "com.nowcoder.community.notice.service.NoticeService"
+                )
+                .containsEntry(
+                        "com.nowcoder.community.notice.controller.NoticeController",
+                        Set.of(
+                                "com.nowcoder.community.message.dto.LetterItemResponse",
+                                "com.nowcoder.community.message.dto.MarkReadRequest",
+                                "com.nowcoder.community.message.dto.NoticeTopicSummaryResponse"
+                        )
+                );
+    }
 
     @ArchTest
     static final ArchRule controllers_must_not_depend_on_other_controllers =
@@ -71,7 +91,8 @@ class ControllerBoundaryArchTest {
                             "not depend on foreign dto packages",
                             Set.of("dto"),
                             true,
-                            LEGACY_FOREIGN_DTO_CONTROLLER_CALLERS
+                            LEGACY_FOREIGN_DTO_CONTROLLER_CALLERS,
+                            ArchitectureRulesSupport.TEMPORARY_SHARED_MESSAGE_TYPES_BY_ORIGIN
                     ));
 
     @ArchTest

@@ -65,4 +65,16 @@ describe('http', () => {
     expect(globalThis.window.$toast).not.toHaveBeenCalled()
     mock.restore()
   })
+
+  it('should not attach Idempotency-Key to removed legacy private message endpoint', async () => {
+    const mock = new MockAdapter(http)
+    mock.onPost('/api/messages').reply((config) => {
+      return [200, { idem: config.headers?.['Idempotency-Key'] || '' }]
+    })
+
+    const resp = await http.post('/api/messages', { toId: 9, content: 'hello' })
+
+    expect(resp.data.idem).toBe('')
+    mock.restore()
+  })
 })

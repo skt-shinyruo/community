@@ -46,7 +46,6 @@ function shouldAttachIdempotencyKey(config) {
   if (method !== 'post') return false
 
   if (url === '/api/posts') return true
-  if (url === '/api/messages') return true
   if (/^\/api\/posts\/[^/]+\/comments$/.test(url)) return true
 
   return false

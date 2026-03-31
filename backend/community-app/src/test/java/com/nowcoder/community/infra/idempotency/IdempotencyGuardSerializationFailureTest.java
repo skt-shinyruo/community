@@ -1,4 +1,4 @@
-package com.nowcoder.community.infra.idempotency;
+package com.nowcoder.community.common.idempotency;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,4 +37,3 @@ class IdempotencyGuardSerializationFailureTest {
         verify(store, never()).delete(anyString(), anyInt(), anyString());
     }
 }
-

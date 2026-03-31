@@ -6,7 +6,7 @@ import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.growth.service.GrowthBusinessTimeService;
 import com.nowcoder.community.growth.service.TaskProgressProjectionService;
 import com.nowcoder.community.growth.service.TaskProgressService;
-import com.nowcoder.community.infra.outbox.JdbcOutboxEventStore;
+import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

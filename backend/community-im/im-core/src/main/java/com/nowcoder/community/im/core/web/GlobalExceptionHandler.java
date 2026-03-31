@@ -1,8 +1,8 @@
 package com.nowcoder.community.im.core.web;
 
-import com.nowcoder.community.im.core.exception.CommonErrorCode;
-import com.nowcoder.community.im.core.web.Result;
-import com.nowcoder.community.im.core.trace.TraceId;
+import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.common.trace.TraceId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;

@@ -7,7 +7,7 @@ import com.nowcoder.community.content.api.action.PostPublishingActionApi;
 import com.nowcoder.community.content.api.model.PostCreateResult;
 import com.nowcoder.community.content.text.ContentTextCodec;
 import com.nowcoder.community.content.util.SensitiveFilter;
-import com.nowcoder.community.infra.idempotency.IdempotencyGuard;
+import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import org.springframework.stereotype.Service;
 
 import java.util.List;

@@ -1,7 +1,7 @@
 package com.nowcoder.community.notice.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.infra.outbox.OutboxEvent;
+import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.notice.service.NoticeService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;

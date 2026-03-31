@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.infra.web.net.ClientIpResolver;
+import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.user.api.model.UserAuthenticationResultView;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.query.UserCredentialQueryApi;

@@ -2,7 +2,7 @@ package com.nowcoder.community.growth.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.growth.service.TaskProgressService;
-import com.nowcoder.community.infra.outbox.OutboxEvent;
+import com.nowcoder.community.common.outbox.OutboxEvent;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;

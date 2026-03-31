@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.event;
 
-import com.nowcoder.community.infra.tx.AfterCommitExecutor;
+import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ModerationCommandPayload;
 import com.nowcoder.community.content.contracts.event.ModerationPayload;

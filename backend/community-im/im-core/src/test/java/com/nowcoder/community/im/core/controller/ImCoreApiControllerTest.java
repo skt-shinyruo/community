@@ -257,9 +257,10 @@ class ImCoreApiControllerTest {
                 .getResponse()
                 .getContentAsString();
         JsonNode okJson = objectMapper.readTree(okRes);
-        assertThat(okJson.path("roomIds").isArray()).isTrue();
+        assertThat(okJson.path("code").asInt(-1)).isEqualTo(0);
+        assertThat(okJson.path("data").path("roomIds").isArray()).isTrue();
         boolean found = false;
-        for (JsonNode n : okJson.path("roomIds")) {
+        for (JsonNode n : okJson.path("data").path("roomIds")) {
             if (n != null && n.asLong() == roomId) {
                 found = true;
                 break;

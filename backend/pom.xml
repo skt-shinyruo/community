@@ -21,6 +21,7 @@
     </properties>
 
     <modules>
+        <module>community-common</module>
         <module>community-im</module>
         <module>community-gateway</module>
         <module>community-app</module>

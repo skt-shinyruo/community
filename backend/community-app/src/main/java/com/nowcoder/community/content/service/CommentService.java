@@ -5,7 +5,7 @@ import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.pagination.Pagination;
-import com.nowcoder.community.infra.tx.AfterCommitExecutor;
+import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import com.nowcoder.community.content.mapper.CommentMapper;
 import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.entity.DiscussPost;

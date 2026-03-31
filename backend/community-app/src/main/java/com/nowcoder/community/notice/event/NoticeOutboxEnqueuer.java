@@ -3,7 +3,7 @@ package com.nowcoder.community.notice.event;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
-import com.nowcoder.community.infra.outbox.JdbcOutboxEventStore;
+import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.notice.service.NoticeProjectionService;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import org.springframework.beans.factory.annotation.Autowired;

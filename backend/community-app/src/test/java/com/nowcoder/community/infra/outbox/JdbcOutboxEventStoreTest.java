@@ -1,4 +1,4 @@
-package com.nowcoder.community.infra.outbox;
+package com.nowcoder.community.common.outbox;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;

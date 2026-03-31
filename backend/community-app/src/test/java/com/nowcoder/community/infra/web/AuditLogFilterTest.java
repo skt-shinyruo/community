@@ -1,8 +1,8 @@
-package com.nowcoder.community.infra.web;
+package com.nowcoder.community.common.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.infra.trace.TraceContext;
+import com.nowcoder.community.common.trace.TraceContext;
 import jakarta.servlet.ServletException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;

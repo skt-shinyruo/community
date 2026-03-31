@@ -19,7 +19,7 @@ import com.nowcoder.community.content.dto.PostSummaryResponse;
 import com.nowcoder.community.content.dto.UpdateCommentRequest;
 import com.nowcoder.community.content.dto.UpdatePostRequest;
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.infra.idempotency.IdempotencyGuard;
+import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;

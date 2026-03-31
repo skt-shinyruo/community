@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.PostPayload;
-import com.nowcoder.community.infra.outbox.JdbcOutboxEventStore;
+import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 

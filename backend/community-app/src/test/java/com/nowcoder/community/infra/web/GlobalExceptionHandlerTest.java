@@ -1,12 +1,12 @@
-package com.nowcoder.community.infra.web;
+package com.nowcoder.community.common.web;
 
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.infra.trace.TraceContext;
-import com.nowcoder.community.infra.trace.TraceId;
+import com.nowcoder.community.common.trace.TraceContext;
+import com.nowcoder.community.common.trace.TraceId;
 import jakarta.validation.ConstraintViolationException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;

@@ -1,8 +1,8 @@
-package com.nowcoder.community.infra.web;
+package com.nowcoder.community.common.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.infra.trace.TraceId;
+import com.nowcoder.community.common.trace.TraceId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;

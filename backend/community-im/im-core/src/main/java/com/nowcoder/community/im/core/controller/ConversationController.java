@@ -5,7 +5,7 @@ import com.nowcoder.community.im.core.repository.ConversationRepository;
 import com.nowcoder.community.im.core.repository.PrivateMessageRepository;
 import com.nowcoder.community.im.core.security.CurrentUser;
 import com.nowcoder.community.im.core.support.ConversationIdSupport;
-import com.nowcoder.community.im.core.web.Result;
+import com.nowcoder.community.common.web.Result;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;

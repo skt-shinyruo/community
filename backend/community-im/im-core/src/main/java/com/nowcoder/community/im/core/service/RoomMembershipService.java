@@ -2,8 +2,8 @@ package com.nowcoder.community.im.core.service;
 
 import com.nowcoder.community.im.core.repository.RoomMemberRepository;
 import com.nowcoder.community.im.core.repository.RoomRepository;
-import com.nowcoder.community.im.core.support.AfterCommitExecutor;
 import com.nowcoder.community.im.core.support.IdGenerator;
+import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

@@ -2,8 +2,8 @@ package com.nowcoder.community.user.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.growth.api.action.GrowthGrantActionApi;
-import com.nowcoder.community.infra.outbox.OutboxEvent;
-import com.nowcoder.community.infra.outbox.OutboxHandler;
+import com.nowcoder.community.common.outbox.OutboxEvent;
+import com.nowcoder.community.common.outbox.OutboxHandler;
 import com.nowcoder.community.user.service.PointsProjectionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

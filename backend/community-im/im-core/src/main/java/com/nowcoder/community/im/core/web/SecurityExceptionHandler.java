@@ -1,11 +1,11 @@
 package com.nowcoder.community.im.core.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.im.core.exception.CommonErrorCode;
-import com.nowcoder.community.im.core.web.Result;
-import com.nowcoder.community.im.core.trace.TraceHeaders;
-import com.nowcoder.community.im.core.trace.TraceId;
-import com.nowcoder.community.im.core.trace.TraceIdCodec;
+import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.common.trace.TraceHeaders;
+import com.nowcoder.community.common.trace.TraceIdCodec;
+import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.common.trace.TraceId;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
@@ -59,4 +59,3 @@ public class SecurityExceptionHandler implements AuthenticationEntryPoint, Acces
         response.getWriter().write(objectMapper.writeValueAsString(body));
     }
 }
-

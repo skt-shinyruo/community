@@ -3,7 +3,7 @@ package com.nowcoder.community.growth.service;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.growth.dto.AdminAdjustBalanceRequest;
 import com.nowcoder.community.growth.mapper.AdminRewardAdjustmentMapper;
-import com.nowcoder.community.infra.web.net.ClientIpResolver;
+import com.nowcoder.community.common.web.net.ClientIpResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -1,6 +1,7 @@
 package com.nowcoder.community.im.core.web;
 
-import com.nowcoder.community.im.core.trace.TraceId;
+import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.common.trace.TraceId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;

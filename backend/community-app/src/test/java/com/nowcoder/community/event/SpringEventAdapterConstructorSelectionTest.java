@@ -5,7 +5,7 @@ import com.nowcoder.community.growth.event.TaskProgressOutboxEnqueuer;
 import com.nowcoder.community.growth.event.TaskProgressOutboxHandler;
 import com.nowcoder.community.growth.event.TaskProgressProjectionListener;
 import com.nowcoder.community.growth.service.TaskProgressProjectionService;
-import com.nowcoder.community.infra.outbox.JdbcOutboxEventStore;
+import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.notice.event.NoticeOutboxEnqueuer;
 import com.nowcoder.community.notice.event.NoticeOutboxHandler;
 import com.nowcoder.community.notice.event.NoticeProjectionListener;

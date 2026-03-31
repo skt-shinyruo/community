@@ -1,7 +1,7 @@
 package com.nowcoder.community.app.security;
 
 import com.nowcoder.community.infra.security.jwt.AuthoritiesConverterFactory;
-import com.nowcoder.community.infra.web.SecurityExceptionHandler;
+import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;

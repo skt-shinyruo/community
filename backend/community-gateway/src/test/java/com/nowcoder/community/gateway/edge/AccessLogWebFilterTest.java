@@ -2,6 +2,7 @@ package com.nowcoder.community.gateway.edge;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.trace.TraceHeaders;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,8 +46,8 @@ class AccessLogWebFilterTest {
         String legacyTraceId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         MDC.put("traceId", staleTraceId);
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/posts")
-                .header(TraceIdWebFilter.TRACE_ID_HEADER, legacyTraceId)
-                .header(TraceIdWebFilter.TRACEPARENT_HEADER, traceparent(resolvedTraceId))
+                .header(TraceHeaders.HEADER_TRACE_ID, legacyTraceId)
+                .header(TraceHeaders.HEADER_TRACEPARENT, traceparent(resolvedTraceId))
                 .build());
 
         TraceIdWebFilter traceIdWebFilter = new TraceIdWebFilter();

@@ -1,5 +1,7 @@
 package com.nowcoder.community.gateway.edge;
 
+import com.nowcoder.community.common.trace.TraceHeaders;
+import com.nowcoder.community.common.trace.TraceIdCodec;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.core.Ordered;
 import org.springframework.web.server.ServerWebExchange;
@@ -9,8 +11,6 @@ import reactor.core.publisher.Mono;
 
 public class TraceIdWebFilter implements WebFilter, Ordered {
 
-    static final String TRACE_ID_HEADER = "X-Trace-Id";
-    static final String TRACEPARENT_HEADER = "traceparent";
     static final int ORDER = Ordered.HIGHEST_PRECEDENCE;
 
     @Override
@@ -23,8 +23,8 @@ public class TraceIdWebFilter implements WebFilter, Ordered {
         if (exchange == null || chain == null) {
             return Mono.empty();
         }
-        String existingTraceId = exchange.getRequest().getHeaders().getFirst(TRACE_ID_HEADER);
-        String existingTraceparent = exchange.getRequest().getHeaders().getFirst(TRACEPARENT_HEADER);
+        String existingTraceId = exchange.getRequest().getHeaders().getFirst(TraceHeaders.HEADER_TRACE_ID);
+        String existingTraceparent = exchange.getRequest().getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT);
         String traceId = TraceIdCodec.resolveTraceId(existingTraceId, existingTraceparent);
         String traceparent = TraceIdCodec.extractTraceIdFromTraceparent(existingTraceparent) == null
                 ? TraceIdCodec.buildTraceparent(traceId)
@@ -32,12 +32,12 @@ public class TraceIdWebFilter implements WebFilter, Ordered {
         ServerHttpRequest mutatedRequest = exchange.getRequest()
                 .mutate()
                 .headers(headers -> {
-                    headers.set(TRACE_ID_HEADER, traceId);
-                    headers.set(TRACEPARENT_HEADER, traceparent);
+                    headers.set(TraceHeaders.HEADER_TRACE_ID, traceId);
+                    headers.set(TraceHeaders.HEADER_TRACEPARENT, traceparent);
                 })
                 .build();
         ServerWebExchange mutatedExchange = exchange.mutate().request(mutatedRequest).build();
-        mutatedExchange.getResponse().getHeaders().set(TRACE_ID_HEADER, traceId);
+        mutatedExchange.getResponse().getHeaders().set(TraceHeaders.HEADER_TRACE_ID, traceId);
         return chain.filter(mutatedExchange);
     }
 }

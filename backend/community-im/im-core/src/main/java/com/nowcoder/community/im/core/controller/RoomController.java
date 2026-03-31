@@ -4,7 +4,7 @@ import com.nowcoder.community.im.core.repository.RoomMessageRepository;
 import com.nowcoder.community.im.core.repository.RoomReadStateRepository;
 import com.nowcoder.community.im.core.security.CurrentUser;
 import com.nowcoder.community.im.core.service.RoomMembershipService;
-import com.nowcoder.community.im.core.web.Result;
+import com.nowcoder.community.common.web.Result;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;

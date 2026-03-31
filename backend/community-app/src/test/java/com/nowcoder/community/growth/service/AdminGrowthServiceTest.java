@@ -7,7 +7,7 @@ import com.nowcoder.community.growth.dto.AdminRewardAdjustmentResponse;
 import com.nowcoder.community.growth.dto.AdminGrowthUserResponse;
 import com.nowcoder.community.growth.dto.RewardLedgerEntryResponse;
 import com.nowcoder.community.growth.exception.GrowthErrorCode;
-import com.nowcoder.community.infra.web.net.ClientIpResolver;
+import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.user.api.action.UserPointsActionApi;
 import com.nowcoder.community.user.api.model.UserGrowthProfileView;
 import com.nowcoder.community.user.api.model.UserSummaryView;

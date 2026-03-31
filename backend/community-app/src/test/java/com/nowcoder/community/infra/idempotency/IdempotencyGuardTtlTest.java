@@ -1,4 +1,4 @@
-package com.nowcoder.community.infra.idempotency;
+package com.nowcoder.community.common.idempotency;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;

@@ -1,8 +1,8 @@
 package com.nowcoder.community.im.realtime.client;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.nowcoder.community.im.realtime.trace.TraceHeaders;
-import com.nowcoder.community.im.realtime.trace.TraceIdCodec;
+import com.nowcoder.community.common.trace.TraceHeaders;
+import com.nowcoder.community.common.trace.TraceIdCodec;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;

@@ -17,6 +17,17 @@
 
     <dependencies>
         <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>community-common-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>community-common-spring</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>

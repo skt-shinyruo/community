@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.app.post;
 
 import com.nowcoder.community.content.score.PostScoreQueue;
-import com.nowcoder.community.infra.tx.AfterCommitExecutor;
+import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;

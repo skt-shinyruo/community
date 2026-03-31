@@ -2,9 +2,10 @@ package com.nowcoder.community.im.core.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.im.core.exception.CommonErrorCode;
-import com.nowcoder.community.im.core.trace.TraceContext;
-import com.nowcoder.community.im.core.trace.TraceId;
+import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.common.trace.TraceContext;
+import com.nowcoder.community.common.trace.TraceId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

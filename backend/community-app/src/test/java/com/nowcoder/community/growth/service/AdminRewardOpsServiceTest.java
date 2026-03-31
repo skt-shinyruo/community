@@ -10,7 +10,7 @@ import com.nowcoder.community.growth.dto.AdminRewardOrderActionRequest;
 import com.nowcoder.community.growth.entity.RewardItem;
 import com.nowcoder.community.growth.entity.RewardOrder;
 import com.nowcoder.community.growth.exception.GrowthErrorCode;
-import com.nowcoder.community.infra.web.net.ClientIpResolver;
+import com.nowcoder.community.common.web.net.ClientIpResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

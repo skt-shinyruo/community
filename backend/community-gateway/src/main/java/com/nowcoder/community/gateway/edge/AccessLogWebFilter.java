@@ -1,5 +1,6 @@
 package com.nowcoder.community.gateway.edge;
 
+import com.nowcoder.community.common.trace.TraceHeaders;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -91,9 +92,9 @@ public class AccessLogWebFilter implements WebFilter, Ordered {
     }
 
     private String resolveTraceId(ServerWebExchange exchange) {
-        String traceId = exchange.getResponse().getHeaders().getFirst(TraceIdWebFilter.TRACE_ID_HEADER);
+        String traceId = exchange.getResponse().getHeaders().getFirst(TraceHeaders.HEADER_TRACE_ID);
         if (traceId == null || traceId.isBlank()) {
-            traceId = exchange.getRequest().getHeaders().getFirst(TraceIdWebFilter.TRACE_ID_HEADER);
+            traceId = exchange.getRequest().getHeaders().getFirst(TraceHeaders.HEADER_TRACE_ID);
         }
         if (traceId == null) {
             return "";

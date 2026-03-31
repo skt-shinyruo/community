@@ -2,7 +2,7 @@ package com.nowcoder.community.im.core.controller;
 
 import com.nowcoder.community.im.core.security.CurrentUser;
 import com.nowcoder.community.im.core.service.UnreadService;
-import com.nowcoder.community.im.core.web.Result;
+import com.nowcoder.community.common.web.Result;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;

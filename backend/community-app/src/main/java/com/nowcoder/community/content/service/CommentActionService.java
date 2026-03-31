@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.service;
 
 import com.nowcoder.community.content.api.action.CommentActionApi;
-import com.nowcoder.community.infra.idempotency.IdempotencyGuard;
+import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import org.springframework.stereotype.Service;
 
 @Service

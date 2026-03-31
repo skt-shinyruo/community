@@ -14,7 +14,7 @@
 
 > 目的：用一张表快速对齐“谁暴露 API / 谁 owns 数据 / 谁做鉴权（JWT 验签 + 授权矩阵）”。
 >
-> 说明：MySQL 已收敛为单一 schema（默认 `community`），但**数据所有权（SSOT）仍按模块划分**；
+> 说明：MySQL 当前并非单一 schema：主站业务默认使用 `community`，IM 私信数据使用独立 `im_core`；但**数据所有权（SSOT）仍按模块划分**；
 > 约束上当前应以“禁止跨模块 JOIN、跨模块同步协作默认通过 owner-domain `api.query` / `api.action` / `api.model` 回源拿数据”为目标边界，并继续收敛剩余迁移期调用点，避免演化为“大泥球”。
 
 | 能力/域 | 对外 API（入口） | 数据/状态 SSOT（owner） | 鉴权/授权 SSOT（执行位置） |
@@ -44,6 +44,7 @@ flowchart TD
     GW --> IMRT["Spring Boot WebFlux<br/>(im-realtime)<br/>internal WS worker"]
 
     APP --> MySQL[(MySQL<br/>schema: community)]
+    IMCORE --> IMMySQL[(MySQL<br/>schema: im_core)]
     APP --> Redis[(Redis)]
     APP --> ES[(Elasticsearch)]
 

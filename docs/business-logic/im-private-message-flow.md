@@ -20,12 +20,17 @@
 
 私信主链路涉及以下组件：
 
-- 前端或 IM 客户端：外部默认通过 `community-gateway` 暴露的 `ws://localhost:12880/ws/im` 与 `http://localhost:12880/api/im/**` 进入系统；`ws://localhost:18081/internal/ws/im` 和 `http://localhost:18082` 保留为回滚 / 排障时的直连路径
+- 前端或 IM 客户端：对外私信入口固定为 `ws://localhost:12880/ws/im` 与 `http://localhost:12880/api/im/**`；这两类 client-facing entrypoint 由 `community-gateway` 暴露
 - `im-realtime`：WebSocket 接入、鉴权、协议解析、治理校验、Kafka command 生产、在线推送
-- `community-app`：提供私信发送治理校验接口
+- `community-app`：仅提供发送治理校验接口，不提供消息读写 API
 - Kafka：承担 `command` 与 `event` 的跨服务 backplane
 - `im-core`：消息持久化、顺序号分配、幂等、历史查询、未读状态
 - MySQL（`im_core` schema）：保存私信会话、消息和 read state
+
+需要明确的角色拆分：
+- `community-app` 只负责治理判定（`POST /api/im-governance/private-messages/validate`）以及站内通知等主站语义，不再暴露 legacy message HTTP 读写入口
+- `community-im` 才是私信 owner：`im-realtime` 负责实时入口与在线推送，`im-core` 负责权威写路径和 `/api/im/**` HTTP 查询接口
+- `ws://localhost:18081/internal/ws/im` 是 worker 级回滚 / 排障入口，不属于外部客户端约定的私信入口
 
 核心 topic 常量定义在：
 
@@ -105,8 +110,9 @@ gateway 会把这个 WebSocket 路径转发到 `im-realtime` 的 WebSocket handl
 
 - 私信本身不依赖房间索引，但私信和群聊共用同一个 WebSocket 入口与连接模型
 - 首次鉴权成功时，`im-realtime` 还会调用 `im-core` 的 internal API 拉取用户所在房间，完成房间本地索引 bootstrap；这一步主要服务于群聊链路
-- 断线补拉、会话列表、已读和未读汇总等 HTTP 能力，对外同样推荐走 `community-gateway` 的 `http://localhost:12880/api/im/**`
-- `ws://localhost:18081/internal/ws/im` 与 `http://localhost:18082` 直连口继续保留，主要用于回滚和排障
+- 断线补拉、会话列表、已读和未读汇总等 HTTP 能力，对外统一走 `community-gateway` 的 `http://localhost:12880/api/im/**`
+- `community-app` 不提供消息读写 HTTP API；如果看到旧的 message HTTP 入口，应视为已下线
+- `ws://localhost:18081/internal/ws/im` 与 `http://localhost:18082` 直连口继续保留，主要用于运维回滚和排障，不属于默认客户端集成面
 
 关键代码：
 
@@ -141,7 +147,7 @@ gateway 会把这个 WebSocket 路径转发到 `im-realtime` 的 WebSocket handl
 
 ### 3.3 私信治理校验
 
-本仓库的私信发送还要经过 `community-app` 的治理校验接口。
+本仓库的发送链路还要经过 `community-app` 的治理校验接口；这是 `community-app` 在该链路中的唯一职责。
 
 调用方：
 
@@ -151,7 +157,7 @@ gateway 会把这个 WebSocket 路径转发到 `im-realtime` 的 WebSocket handl
 
 - `POST /api/im-governance/private-messages/validate`
 
-`im-realtime` 会把用户 JWT 转发给 `community-app`，由社区主站判断当前请求是否允许发送私信，例如：
+`im-realtime` 会把用户 JWT 转发给 `community-app`，由社区主站判断当前请求是否允许发送消息，例如：
 
 - 用户是否已登录且 token 有效
 - 是否触发禁言、拉黑、目标用户不存在等治理规则
@@ -162,6 +168,7 @@ gateway 会把这个 WebSocket 路径转发到 `im-realtime` 的 WebSocket handl
 
 - 治理规则收口在业务主站
 - WS 入口在投递 Kafka 之前前置校验
+- `community-app` 不承担消息读写，只返回 allow / deny 的治理结论
 - 不把治理责任下放给 `im-core` 的持久化层
 
 ---
@@ -291,12 +298,12 @@ command 中包含的关键字段有：
 
 当用户断线、重连、切设备或临时错过实时推送时，恢复路径依赖 `im-core` 的 HTTP 查询接口。
 
-对外客户端重连与补拉时，推荐继续走 `community-gateway`：
+对外客户端重连与补拉时，推荐继续走 `community-gateway` 的 client-facing entrypoint：
 
 - WebSocket：`ws://localhost:12880/ws/im`
 - HTTP：`http://localhost:12880/api/im/**`
 
-只有在回滚或排障时，才改用 `ws://localhost:18081/ws/im` 与 `http://localhost:18082` 直连 IM 服务。
+只有在回滚或排障时，才改用 `ws://localhost:18081/internal/ws/im` 与 `http://localhost:18082` 直连 IM 服务。
 
 恢复时序如下：
 

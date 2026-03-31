@@ -34,7 +34,8 @@
 ### 1.3 业务域模块（示例）
 - content：帖子/评论/回复（写主存储并发布事件）
 - social：点赞/关注/拉黑（写主存储并发布事件）
-- message：私信/通知（消费事件写通知）
+- notice：站内通知（消费内容/社交事件写通知）
+- community-im：私信实时入口、Kafka backplane、历史查询与未读状态
 - search：搜索投影（消费事件写 ES 索引；提供 reindex）
 - analytics：统计（Redis，按日/区间查询）
 
@@ -160,7 +161,7 @@
 - 若成功，说明本次请求是第一次执行；若失败，说明该 key 已存在，可能是并发请求，也可能是历史成功重试。
 
 4. 首次请求执行真实副作用
-- Guard 调用 `supplier.get()` 执行业务逻辑，例如发帖、发表评论、发送私信。
+- Guard 调用 `supplier.get()` 执行业务逻辑，例如发帖、发表评论。
 - 如果业务逻辑抛异常，Guard 会删除 `PROCESSING` 状态，允许后续重试，而不是让 key 永久卡死在处理中。
 
 5. 成功后写入 `SUCCESS`
@@ -197,7 +198,6 @@ Redis 方案特点：
 当前仓库已在以下业务链路接入 `IdempotencyGuard`：
 - 发帖：`POST /api/posts`
 - 发表评论：`POST /api/posts/{postId}/comments`
-- 发送私信：`POST /api/messages`
 
 这些链路的共同特点是：
 - 都属于 HTTP 写接口
@@ -212,7 +212,7 @@ Redis 方案特点：
 - 契约明确：客户端通过 `Idempotency-Key` 显式声明“这是同一次业务尝试”，服务端不需要猜测请求体是否重复。
 - 多实例可用：幂等状态放在共享存储里，应用扩容后依然成立。
 - 侵入性低：业务代码只需要把真实副作用包进 `executeRequired(...)`，不必每个接口各自实现去重。
-- 适用面广：对发帖、评论、私信这类“没有天然业务唯一单号”的接口尤其合适。
+- 适用面广：对发帖、评论这类“没有天然业务唯一单号”的 HTTP 写接口尤其合适。
 
 与常见替代方案相比：
 - 比“前端按钮防抖”更可靠，因为最终一致性边界仍在服务端。
@@ -242,6 +242,13 @@ Redis 方案特点：
 
 IM 链路：使用 Kafka 作为 backplane（topic 常量见 `backend/community-im/im-common/src/main/java/com/nowcoder/community/im/common/ImTopics.java`）。
 
+私信写路径的实际入口已收敛为：
+1. 客户端通过 WebSocket `sendPrivateText` 向 `community-gateway` 暴露的 `/ws/im` 发起请求
+2. `community-gateway` 将连接转发到 `im-realtime`
+3. `im-realtime` 先调用 `community-app` 的 `POST /api/im-governance/private-messages/validate` 做治理校验
+4. 治理通过后，`im-realtime` 把 command 写入 Kafka
+5. `im-core` 消费 Kafka command 并完成私信持久化；历史查询、会话列表与未读状态则通过 `/api/im/**` 暴露
+
 ### 3.2 事件契约：Owner-Domain Contracts（SSOT）
 当前 `community-app` 内部跨域事件 contract 由 owner-domain 显式暴露：
 - `content.contracts.event.ContentContractEvent` + `content.contracts.event.*`
@@ -261,7 +268,7 @@ IM 链路：使用 Kafka 作为 backplane（topic 常量见 `backend/community-i
 6. 对“尽力而为”的本地副作用（如热度队列）仍使用 after-commit 执行，并在监听方做兜底（不影响主链路）
 
 当前已经显式收口到 shared projection service 的链路包括：
-- message notice：`NoticeProjectionService`
+- notice projection：`NoticeProjectionService`
 - user points：`PointsProjectionService`
 - growth task progress：`TaskProgressProjectionService`
 
@@ -270,7 +277,7 @@ IM 链路：使用 Kafka 作为 backplane（topic 常量见 `backend/community-i
 - 在语义稳定后，再把 `api` / `contracts` / `impl` 进一步拆成独立 Maven artifact，避免继续依赖“包结构自律”
 
 ### 3.4 典型消费方（最终一致）
-- message：消费评论/社交事件，生成通知
+- notice：消费评论/社交事件，生成通知
 - search：消费帖子/评论等事件，更新 ES 索引
 
 说明：这里的“消费”指单体内的事务事件 + outbox handler，并非通过 Kafka 订阅 `community.event.*`。

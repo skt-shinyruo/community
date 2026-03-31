@@ -123,6 +123,16 @@ IM 说明：
 
 ---
 
+## 6.2 IM 私信入口与治理
+
+- 发送链路不再走 legacy message HTTP 写入口；外部发送入口是 `community-gateway` 暴露的 `/ws/im`。
+- 客户端在 WebSocket 里发送 `sendPrivateText` 后，请求会先进入 `im-realtime`。
+- `im-realtime` 会携带用户 JWT 调用 `community-app` 的 `POST /api/im-governance/private-messages/validate`，先完成拉黑、处罚、目标用户存在性等治理判定。
+- 只有治理校验通过后，`im-realtime` 才会把 Kafka private-message command 视为可接受并写入 backplane；因此 Kafka accepted 的前提是治理已经放行。
+- 私信历史查询、会话列表、已读与未读状态由 IM HTTP 接口 `/api/im/**` 提供，不由 `community-app` 暴露对应消息读写 API。
+
+---
+
 ## 6.3 写接口幂等（Idempotency-Key）
 
 为避免浏览器重复点击/网络重试导致的重复副作用，本项目对部分 **HTTP 写接口** 启用幂等保护：
@@ -138,10 +148,9 @@ IM 说明：
 当前仓库已对以下写接口接入 `IdempotencyGuard`：
 - 发帖：`POST /api/posts`
 - 发表评论：`POST /api/posts/{postId}/comments`
-- 发送私信：`POST /api/messages`
 
 说明：
-- 这里的 `operation` 由服务端内部定义，例如 `content:create_post`、`content:create_comment`、`message:send_message`。
+- 这里的 `operation` 由服务端内部定义，例如 `content:create_post`、`content:create_comment`。
 - 客户端只需要保证“同一次业务尝试及其重试”复用同一个 `Idempotency-Key`；服务端会把它与当前用户和内部 `operation` 组合成幂等域。
 
 ### 6.3.2 调用方约定

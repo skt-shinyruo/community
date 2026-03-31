@@ -24,7 +24,9 @@
 | 身份域（user） | `community-app`：`/api/users/**`、`/files/**` | `user` 模块（MySQL `user` 等） | `community-app` SecurityFilterChain（`/api/users/admin/**` 强制 ADMIN） |
 | 内容域（content） | `community-app`：`/api/posts/**`、`/api/categories/**`、`/api/tags/**`、`/api/reports/**`、`/api/moderation/**` | `content` 模块（MySQL + Redis 缓存） | `community-app` SecurityFilterChain（写接口需登录；审核/置顶/加精/删除需 ADMIN/MODERATOR） |
 | 社交域（social） | `community-app`：`/api/likes/**`、`/api/follows/**`、`/api/blocks/**` | `social` 模块（MySQL/Redis，见 `social.storage`） | `community-app` SecurityFilterChain（部分 GET 允许匿名） |
-| 消息域（message） | `community-app`：`/api/messages/**`、`/api/notices/**` | `message` 模块（MySQL） | `community-app` SecurityFilterChain |
+| 通知域（notice） | `community-app`：`/api/notices/**` | `community-app` notice owner；复用 `message` 表承载站内通知语义 | `community-app` SecurityFilterChain |
+| IM 私信域（private message） | `community-im`：`/api/im/**`、`/ws/im` | `community-im` / `im-core`（MySQL `im_core` schema） | `im-realtime`/`im-core` 各自 Security 配置；浏览器入口仍经 `community-gateway` |
+| IM 治理（private message governance） | `community-app`：`/api/im-governance/private-messages/validate` | `community-app` 治理规则（用户、拉黑、处罚等业务判定） | `community-app` SecurityFilterChain |
 | 搜索域（search） | `community-app`：`/api/search/**` | `search` 模块（Elasticsearch + 幂等表） | `community-app` SecurityFilterChain（读 permitAll；reindex 走 `/api/ops/**`） |
 | 分析域（analytics） | `community-app`：`/api/analytics/**` | `analytics` 模块（Redis） | `community-app` SecurityFilterChain（ADMIN/MODERATOR） |
 | 运维平面（ops） | `community-app`：`/api/ops/**` | -（触发跨模块动作，如 reindex） | `community-app` SecurityFilterChain（ADMIN-only） |
@@ -85,12 +87,14 @@ flowchart TD
 
 ### 2.3 领域包（以包为边界）
 
-领域能力现在都位于 `backend/community-app/` 内部的包树下：
+`community-app` 内的主站领域能力位于 `backend/community-app/` 包树下；IM owner 则保留在独立 `community-im` 模块（`im-realtime`、`im-core`、`im-common`），不再由 `community-app` 的 message 包承担：
 - `com.nowcoder.community.auth`：登录/刷新/登出、验证码、注册/激活、找回密码、登录风控
 - `com.nowcoder.community.user`：用户资料、角色管理、头像上传与文件服务
 - `com.nowcoder.community.content`：帖子/评论/回复、审核、举报、内容分数刷新
 - `com.nowcoder.community.social`：点赞、关注、拉黑
-- `com.nowcoder.community.message`：私信、通知
+- `com.nowcoder.community.notice`：站内通知对外 API、通知投影与已读语义
+- `com.nowcoder.community.message`：通知底层 DTO / entity / `message` 表模型（仅承载 notice 语义，不再 owner 私信 API）
+- `com.nowcoder.community.im`：IM 治理校验入口（`/api/im-governance/private-messages/validate`）
 - `com.nowcoder.community.search`：搜索投影（ES）
 - `com.nowcoder.community.analytics`：统计/分析
 - `com.nowcoder.community.ops`：运维平面（`/api/ops/**`）

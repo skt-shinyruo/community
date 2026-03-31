@@ -310,8 +310,8 @@ phase 1 的运行边界是：
 按当前需求取舍：仓库已移除跨域本地投影（`*_projection` 表、Redis 投影、投影消费者与 backfill 入口），统一改为 **同进程直接 service 实时回源 SSOT**。这里列出的 direct service 协作仍属于 migration baseline，不是最终目标边界；后续仍应优先收敛为 owner-domain `api.*`。
 
 典型场景（均为进程内调用，非网络调用）：
-- content/message 写路径反骚扰（拉黑校验）：直接调 `social` 的 `BlockService`（默认 fail-closed）
-- content/message 写路径处罚状态守卫：直接调 `user` 的 `UserModerationService#moderationStatus`（默认 fail-closed）
+- `community-app` 已不再拥有私信写路径；真实私信发送入口是 `community-gateway` 暴露的 `/ws/im`，由 `im-realtime` 接入并在投递 Kafka 前调用 `POST /api/im-governance/private-messages/validate`
+- `community-app` 内部的 IM 治理判定不再走 legacy `message` 写 service，而是通过 `user` / `social` owner-domain query 接口回源拿用户存在性、处罚状态与拉黑关系（默认 fail-closed）
 - social 写路径可信解析（entity resolve）：直接回源 `content` 的 `ContentEntityService`（默认 fail-closed）
 - user 读路径聚合展示（主页点赞/关注/粉丝）：直接调 `social` 的 `LikeService`/`FollowService` 同步组装结果，当前不提供配置驱动的 fail-open 降级开关，异常按调用链直接返回
 

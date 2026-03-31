@@ -33,6 +33,9 @@ build/
 ### VS Code ###
 .vscode/
 
+### Codex ###
+.codex
+
 ### Local dev secrets ###
 deploy/.env
 deploy/.local/

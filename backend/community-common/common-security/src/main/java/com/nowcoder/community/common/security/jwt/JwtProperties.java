@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class JwtProperties {
 
     private String hmacSecret;
-    private String issuer = "community-auth";
+    private String issuer;
 
     private long accessTokenTtlSeconds = 900;
     private long refreshTokenTtlSeconds = 604800;

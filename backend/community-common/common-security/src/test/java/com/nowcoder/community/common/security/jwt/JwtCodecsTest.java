@@ -65,10 +65,22 @@ class JwtCodecsTest {
     }
 
     @Test
-    void resolvedIssuer_shouldDefaultWhenBlank() {
+    void resolvedIssuer_shouldRejectBlankValue() {
         JwtProperties properties = properties("plan-test-jwt-secret-please-change-123456", "   ");
 
-        assertThat(JwtCodecs.resolvedIssuer(properties)).isEqualTo("community-auth");
+        assertThatThrownBy(() -> JwtCodecs.resolvedIssuer(properties))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("security.jwt.issuer");
+    }
+
+    @Test
+    void resolvedIssuer_shouldRejectMissingValue() {
+        JwtProperties properties = new JwtProperties();
+        properties.setHmacSecret("plan-test-jwt-secret-please-change-123456");
+
+        assertThatThrownBy(() -> JwtCodecs.resolvedIssuer(properties))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("security.jwt.issuer");
     }
 
     @Test
@@ -76,6 +88,19 @@ class JwtCodecsTest {
         JwtProperties properties = properties("plan-test-jwt-secret-please-change-123456", "  issuer-a  ");
 
         assertThat(JwtCodecs.resolvedIssuer(properties)).isEqualTo("issuer-a");
+    }
+
+    @Test
+    void hmacSha256OrThrow_shouldRejectKnownPlaceholderSecrets() {
+        JwtProperties firstPlaceholder = properties("dev-secret-please-change-at-least-32bytes", "community-auth");
+        JwtProperties secondPlaceholder = properties("dev-jwt-hmac-secret-please-change-me-123456", "community-auth");
+
+        assertThatThrownBy(() -> JwtSecretKeys.hmacSha256OrThrow(firstPlaceholder))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("security.jwt.hmac-secret");
+        assertThatThrownBy(() -> JwtSecretKeys.hmacSha256OrThrow(secondPlaceholder))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("security.jwt.hmac-secret");
     }
 
     private static JwtProperties properties(String hmacSecret, String issuer) {

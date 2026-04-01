@@ -27,7 +27,7 @@ public final class JwtCodecs {
     public static String resolvedIssuer(JwtProperties properties) {
         String issuer = properties == null ? null : properties.getIssuer();
         if (issuer == null || issuer.isBlank()) {
-            return "community-auth";
+            throw new IllegalArgumentException("security.jwt.issuer is required");
         }
         return issuer.trim();
     }

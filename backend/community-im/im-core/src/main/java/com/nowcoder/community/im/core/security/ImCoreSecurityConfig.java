@@ -7,9 +7,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
@@ -17,26 +14,11 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import javax.crypto.SecretKey;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 
 @Configuration
 public class ImCoreSecurityConfig {
-
-    private static final Set<String> PLACEHOLDER_JWT_SECRETS = Set.of(
-            "dev-secret-please-change-at-least-32bytes",
-            "dev-jwt-hmac-secret-please-change-me-123456"
-    );
-
-    @Bean
-    public JwtDecoder jwtDecoder(@Value("${security.jwt.hmac-secret:}") String secret) {
-        SecretKey key = JwtSecretSupport.hmacSha256KeyOrThrow(requireNonPlaceholderJwtSecret(secret));
-        return NimbusJwtDecoder.withSecretKey(key)
-                .macAlgorithm(MacAlgorithm.HS256)
-                .build();
-    }
 
     @Bean
     public SecurityFilterChain apiSecurityFilterChain(
@@ -82,15 +64,5 @@ public class ImCoreSecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
-    }
-
-    private static String requireNonPlaceholderJwtSecret(String secret) {
-        String value = secret == null ? "" : secret.trim();
-        if (PLACEHOLDER_JWT_SECRETS.contains(value)) {
-            throw new IllegalArgumentException(
-                    "security.jwt.hmac-secret must not use a known placeholder; set JWT_HMAC_SECRET to a unique value >= 32 bytes"
-            );
-        }
-        return value;
     }
 }

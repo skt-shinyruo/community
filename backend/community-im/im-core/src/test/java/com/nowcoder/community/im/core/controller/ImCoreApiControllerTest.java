@@ -55,6 +55,9 @@ class ImCoreApiControllerTest {
     @Value("${security.jwt.hmac-secret}")
     private String jwtSecret;
 
+    @Value("${security.jwt.issuer}")
+    private String jwtIssuer;
+
     @Test
     void api_should_require_authentication() throws Exception {
         mockMvc.perform(get("/api/im/unread/summary"))
@@ -274,12 +277,13 @@ class ImCoreApiControllerTest {
     }
 
     private String bearer(int userId) throws Exception {
-        String token = signHs256(jwtSecret, String.valueOf(userId), Instant.now().plusSeconds(120));
+        String token = signHs256(jwtSecret, jwtIssuer, String.valueOf(userId), Instant.now().plusSeconds(120));
         return "Bearer " + token;
     }
 
-    private static String signHs256(String secret, String sub, Instant exp) throws Exception {
+    private static String signHs256(String secret, String issuer, String sub, Instant exp) throws Exception {
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                .issuer(issuer)
                 .subject(sub)
                 .issueTime(new Date())
                 .expirationTime(Date.from(exp))

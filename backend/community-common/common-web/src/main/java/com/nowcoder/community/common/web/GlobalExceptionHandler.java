@@ -12,6 +12,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.server.ResponseStatusException;
@@ -33,6 +34,12 @@ public class GlobalExceptionHandler {
     private static final String MDC_CATEGORY = "community.category";
     private static final String MDC_ACTION = "community.action";
     private static final String MDC_OUTCOME = "community.outcome";
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Result<Void>> handleAccessDenied(AccessDeniedException e) {
+        return ResponseEntity.status(httpStatusOf(CommonErrorCode.FORBIDDEN.getHttpStatus()))
+                .body(Result.error(CommonErrorCode.FORBIDDEN));
+    }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Result<Void>> handleBusiness(BusinessException e) {

@@ -14,6 +14,7 @@ import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
+import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
@@ -25,6 +26,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
  * - contracts 不再隐式读取 ThreadLocal，因此在 HTTP 出口统一补全 traceId
  * - 对安全异常（SecurityExceptionHandler 直写响应）不生效，需由 SecurityExceptionHandler 自己回填
  */
+@ControllerAdvice
 public class ResultTraceIdAdvice implements ResponseBodyAdvice<Object> {
 
     @Override

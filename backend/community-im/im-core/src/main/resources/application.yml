@@ -30,6 +30,7 @@ community:
 security:
   jwt:
     hmac-secret: ${JWT_HMAC_SECRET:}
+    issuer: ${JWT_ISSUER:community-auth}
 
 im:
   kafka:

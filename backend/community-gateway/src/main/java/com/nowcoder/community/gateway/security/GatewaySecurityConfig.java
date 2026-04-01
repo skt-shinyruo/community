@@ -12,7 +12,9 @@ import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.core.userdetails.MapReactiveUserDetailsService;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.web.server.ServerAuthenticationEntryPoint;
 import org.springframework.security.web.server.SecurityWebFilterChain;
+import org.springframework.security.web.server.authorization.ServerAccessDeniedHandler;
 import org.springframework.security.web.server.util.matcher.ServerWebExchangeMatchers;
 import org.springframework.util.StringUtils;
 
@@ -24,7 +26,9 @@ public class GatewaySecurityConfig {
     @Order(1)
     SecurityWebFilterChain gatewayActuatorSecurityWebFilterChain(
             ServerHttpSecurity http,
-            @Value("${community.metrics.basic-auth.password:}") String metricsPassword
+            @Value("${community.metrics.basic-auth.password:}") String metricsPassword,
+            ServerAuthenticationEntryPoint authenticationEntryPoint,
+            ServerAccessDeniedHandler accessDeniedHandler
     ) {
         boolean prometheusAuthConfigured = StringUtils.hasText(metricsPassword);
         ServerHttpSecurity builder = http
@@ -32,6 +36,9 @@ public class GatewaySecurityConfig {
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                 .logout(ServerHttpSecurity.LogoutSpec::disable)
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
                 .authorizeExchange(exchanges -> {
                     exchanges.pathMatchers(HttpMethod.OPTIONS).permitAll();
                     exchanges.pathMatchers("/actuator/health", "/actuator/info").permitAll();

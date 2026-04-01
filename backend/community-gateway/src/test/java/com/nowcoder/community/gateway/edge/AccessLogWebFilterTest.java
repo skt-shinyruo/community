@@ -50,7 +50,8 @@ class AccessLogWebFilterTest {
                 .header(TraceHeaders.HEADER_TRACEPARENT, traceparent(resolvedTraceId))
                 .build());
 
-        TraceIdWebFilter traceIdWebFilter = new TraceIdWebFilter();
+        com.nowcoder.community.common.webflux.TraceIdWebFilter traceIdWebFilter =
+                new com.nowcoder.community.common.webflux.TraceIdWebFilter();
         AccessLogWebFilter accessLogWebFilter = new AccessLogWebFilter();
 
         traceIdWebFilter.filter(exchange, current -> accessLogWebFilter.filter(current, tracedExchange -> {
@@ -79,7 +80,8 @@ class AccessLogWebFilterTest {
 
     @Test
     void gatewayFiltersShouldDeclareExplicitOrdering() {
-        TraceIdWebFilter traceIdWebFilter = new TraceIdWebFilter();
+        com.nowcoder.community.common.webflux.TraceIdWebFilter traceIdWebFilter =
+                new com.nowcoder.community.common.webflux.TraceIdWebFilter();
         AccessLogWebFilter accessLogWebFilter = new AccessLogWebFilter();
 
         assertThat(traceIdWebFilter).isInstanceOf(Ordered.class);

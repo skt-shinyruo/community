@@ -1,4 +1,4 @@
-package com.nowcoder.community.gateway.edge;
+package com.nowcoder.community.common.webflux;
 
 import com.nowcoder.community.common.trace.TraceHeaders;
 import org.junit.jupiter.api.Test;

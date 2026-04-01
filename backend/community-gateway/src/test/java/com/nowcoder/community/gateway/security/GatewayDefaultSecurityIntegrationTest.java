@@ -5,6 +5,10 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.web.server.ServerAuthenticationEntryPoint;
+import org.springframework.security.web.server.authorization.ServerAccessDeniedHandler;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
@@ -36,6 +40,9 @@ class GatewayDefaultSecurityIntegrationTest {
 
     @Autowired
     private WebTestClient webTestClient;
+
+    @Autowired
+    private ApplicationContext applicationContext;
 
     @Autowired
     @org.springframework.boot.test.web.server.LocalServerPort
@@ -117,6 +124,18 @@ class GatewayDefaultSecurityIntegrationTest {
                 .uri("/actuator/health")
                 .exchange()
                 .expectStatus().isOk();
+    }
+
+    @Test
+    void shouldUseSharedReactiveInfrastructureBeans() {
+        assertThat(applicationContext.getBean("traceIdWebFilter"))
+                .isInstanceOf(com.nowcoder.community.common.webflux.TraceIdWebFilter.class);
+        assertThat(applicationContext.getBean(ServerAuthenticationEntryPoint.class))
+                .isInstanceOf(com.nowcoder.community.common.webflux.SecurityExceptionHandler.class);
+        assertThat(applicationContext.getBean(ServerAccessDeniedHandler.class))
+                .isInstanceOf(com.nowcoder.community.common.webflux.SecurityExceptionHandler.class);
+        assertThat(applicationContext.getBeansOfType(JwtDecoder.class)).hasSize(1);
+        assertThat(applicationContext.containsBean("gatewayJwtDecoderConfig")).isFalse();
     }
 
     private static synchronized String httpUpstreamBaseUrl() {

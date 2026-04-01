@@ -24,11 +24,6 @@ public class EdgeConfig {
     }
 
     @Bean
-    TraceIdWebFilter traceIdWebFilter() {
-        return new TraceIdWebFilter();
-    }
-
-    @Bean
     AccessLogWebFilter accessLogWebFilter() {
         return new AccessLogWebFilter();
     }

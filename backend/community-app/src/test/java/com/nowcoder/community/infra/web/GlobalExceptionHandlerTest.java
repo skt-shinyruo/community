@@ -44,7 +44,7 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void businessExceptionShouldKeepHttpStatusCodeAndTraceId() {
-        TraceId.set("t-err-1");
+        TraceId.set("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
         ResponseEntity<Result<Void>> resp = handler.handleBusiness(new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "bad"));
         advice.beforeBodyWrite(resp.getBody(), null, null, null, null, null);
 
@@ -52,7 +52,7 @@ class GlobalExceptionHandlerTest {
         assertThat(resp.getBody()).isNotNull();
         assertThat(resp.getBody().getCode()).isEqualTo(400);
         assertThat(resp.getBody().getMessage()).isEqualTo("bad");
-        assertThat(resp.getBody().getTraceId()).isEqualTo("t-err-1");
+        assertThat(resp.getBody().getTraceId()).isEqualTo("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     }
 
     @Test
@@ -88,19 +88,19 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void validationExceptionShouldBeInvalidArgumentWithTraceId() {
-        TraceId.set("t-err-2");
+        TraceId.set("cccccccccccccccccccccccccccccccc");
         ResponseEntity<Result<Void>> resp = handler.handleValidation(new ConstraintViolationException("x", Set.of()));
         advice.beforeBodyWrite(resp.getBody(), null, null, null, null, null);
 
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         assertThat(resp.getBody()).isNotNull();
         assertThat(resp.getBody().getCode()).isEqualTo(CommonErrorCode.INVALID_ARGUMENT.getCode());
-        assertThat(resp.getBody().getTraceId()).isEqualTo("t-err-2");
+        assertThat(resp.getBody().getTraceId()).isEqualTo("cccccccccccccccccccccccccccccccc");
     }
 
     @Test
     void unknownExceptionShouldBeInternalErrorWithTraceId() {
-        TraceId.set("t-err-3");
+        TraceId.set("dddddddddddddddddddddddddddddddd");
         RuntimeException ex = new RuntimeException("boom") {
             @Override
             public synchronized Throwable fillInStackTrace() {
@@ -113,14 +113,14 @@ class GlobalExceptionHandlerTest {
         assertThat(resp.getStatusCode().value()).isEqualTo(500);
         assertThat(resp.getBody()).isNotNull();
         assertThat(resp.getBody().getCode()).isEqualTo(CommonErrorCode.INTERNAL_ERROR.getCode());
-        assertThat(resp.getBody().getTraceId()).isEqualTo("t-err-3");
+        assertThat(resp.getBody().getTraceId()).isEqualTo("dddddddddddddddddddddddddddddddd");
     }
 
     @Test
     void dataAccessExceptionShouldBeServiceUnavailableAndLogged(CapturedOutput output) {
         initializeProductionLogging("community-app");
         TraceContext.set("mdc-err-5");
-        TraceId.set("thread-err-5");
+        TraceId.set("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
         DataAccessException ex = new DataAccessException("db down") {
             @Override
             public synchronized Throwable fillInStackTrace() {
@@ -133,7 +133,7 @@ class GlobalExceptionHandlerTest {
         assertThat(resp.getStatusCode().value()).isEqualTo(503);
         assertThat(resp.getBody()).isNotNull();
         assertThat(resp.getBody().getCode()).isEqualTo(CommonErrorCode.SERVICE_UNAVAILABLE.getCode());
-        assertThat(resp.getBody().getTraceId()).isEqualTo("thread-err-5");
+        assertThat(resp.getBody().getTraceId()).isEqualTo("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 
         JsonNode event = findJsonEvent(output, GlobalExceptionHandler.class.getName());
         assertThat(event.path("service.name").asText()).isEqualTo("community-app");
@@ -144,7 +144,7 @@ class GlobalExceptionHandlerTest {
         assertThat(event.path("community.outcome").asText()).isEqualTo("failure");
         assertThat(event.path("level").asText()).isEqualTo("ERROR");
         assertThat(event.path("message").asText())
-                .contains("[exception][data-access] traceId=thread-err-5")
+                .contains("[exception][data-access] traceId=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
                 .doesNotContain("community.category=")
                 .doesNotContain("community.action=")
                 .doesNotContain("community.outcome=");
@@ -182,7 +182,7 @@ class GlobalExceptionHandlerTest {
 
     @Test
     void missingRequestParamShouldBe400WithTraceId() {
-        TraceId.set("t-err-4");
+        TraceId.set("ffffffffffffffffffffffffffffffff");
         MissingServletRequestParameterException ex = new MissingServletRequestParameterException("ip", "String");
         ResponseEntity<Result<Void>> resp = handler.handleRequestParam(ex);
         advice.beforeBodyWrite(resp.getBody(), null, null, null, null, null);
@@ -190,7 +190,7 @@ class GlobalExceptionHandlerTest {
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
         assertThat(resp.getBody()).isNotNull();
         assertThat(resp.getBody().getCode()).isEqualTo(400);
-        assertThat(resp.getBody().getTraceId()).isEqualTo("t-err-4");
+        assertThat(resp.getBody().getTraceId()).isEqualTo("ffffffffffffffffffffffffffffffff");
     }
 
     private void initializeProductionLogging(String serviceName) {

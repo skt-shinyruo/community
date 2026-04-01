@@ -31,19 +31,19 @@ class ResultTest {
 
     @Test
     void adviceShouldFillTraceIdWhenMissing() {
-        TraceId.set("t2");
+        TraceId.set("1234567890abcdef1234567890abcdef");
         Result<String> r = Result.ok("x");
         assertThat(r.getTraceId()).isNull();
 
         ResultTraceIdAdvice advice = new ResultTraceIdAdvice();
         advice.beforeBodyWrite(r, null, null, null, null, null);
 
-        assertThat(r.getTraceId()).isEqualTo("t2");
+        assertThat(r.getTraceId()).isEqualTo("1234567890abcdef1234567890abcdef");
     }
 
     @Test
     void adviceShouldWrapPlainBodyIntoResultAndFillTraceId() throws Exception {
-        TraceId.set("t4");
+        TraceId.set("abcdefabcdefabcdefabcdefabcdefab");
         SamplePayload payload = new SamplePayload("hello");
 
         ResultTraceIdAdvice advice = new ResultTraceIdAdvice();
@@ -53,7 +53,7 @@ class ResultTest {
         Result<?> result = (Result<?>) body;
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).isSameAs(payload);
-        assertThat(result.getTraceId()).isEqualTo("t4");
+        assertThat(result.getTraceId()).isEqualTo("abcdefabcdefabcdefabcdefabcdefab");
     }
 
     @Test

@@ -19,5 +19,8 @@ public interface FollowRepository {
     List<FollowItem> listFollowees(int userId, int entityType, int offset, int limit);
 
     List<FollowItem> listFollowers(int entityType, int entityId, int offset, int limit);
-}
 
+    default boolean requiresExplicitCompensation() {
+        return false;
+    }
+}

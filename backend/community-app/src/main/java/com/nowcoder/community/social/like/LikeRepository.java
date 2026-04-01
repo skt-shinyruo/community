@@ -18,6 +18,10 @@ public interface LikeRepository {
 
     long getUserLikeCount(int userId);
 
+    default boolean requiresExplicitCompensation() {
+        return false;
+    }
+
     /**
      * 目标状态写入（set 语义）：将“实体点赞关系”与“被赞用户获赞计数”更新收敛为一个仓储操作。
      *

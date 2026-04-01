@@ -5,7 +5,10 @@ import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.social.block.InMemoryBlockRepository;
+import com.nowcoder.community.social.contracts.event.BlockPayload;
+import com.nowcoder.community.social.contracts.event.FollowPayload;
 import com.nowcoder.community.social.event.InMemorySocialEventPublisher;
+import com.nowcoder.community.social.event.SocialEventPublisher;
 import com.nowcoder.community.social.like.InMemoryLikeRepository;
 import com.nowcoder.community.social.like.LikeService;
 import com.nowcoder.community.social.like.dto.LikeRequest;
@@ -88,5 +91,51 @@ class LikeServiceTest {
         assertThat(r4.getLikeCount()).isEqualTo(0);
         assertThat(service.userLikeCount(2)).isEqualTo(0);
         assertThat(publisher.snapshot()).hasSize(2);
+    }
+
+    @Test
+    void likeShouldRollbackStateWhenPublisherFailsForCompensatingRepository() {
+        InMemoryLikeRepository repo = new InMemoryLikeRepository();
+        ContentEntityResolver resolver = Mockito.mock(ContentEntityResolver.class);
+        Mockito.when(resolver.resolve(1, 100)).thenReturn(new ContentEntityResolver.ResolvedEntity(2, 100));
+
+        BlockService blockService = new BlockService(new InMemoryBlockRepository(), new InMemorySocialEventPublisher());
+        LikeService service = new LikeService(repo, new FailingSocialEventPublisher(), resolver, blockService);
+
+        LikeRequest req = new LikeRequest();
+        req.setEntityType(1);
+        req.setEntityId(100);
+        req.setLiked(true);
+
+        assertThatThrownBy(() -> service.setLike(1, req))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("publish failed");
+
+        assertThat(repo.isLiked(1, 1, 100)).isFalse();
+        assertThat(repo.countEntityLikes(1, 100)).isEqualTo(0);
+        assertThat(service.userLikeCount(2)).isEqualTo(0);
+    }
+
+    private static class FailingSocialEventPublisher implements SocialEventPublisher {
+
+        @Override
+        public void publishLikeCreated(LikePayload payload) {
+            throw new IllegalStateException("publish failed");
+        }
+
+        @Override
+        public void publishLikeRemoved(LikePayload payload) {
+            throw new IllegalStateException("publish failed");
+        }
+
+        @Override
+        public void publishFollowCreated(FollowPayload payload) {
+            throw new IllegalStateException("publish failed");
+        }
+
+        @Override
+        public void publishBlockRelationChanged(BlockPayload payload) {
+            throw new IllegalStateException("publish failed");
+        }
     }
 }

@@ -52,8 +52,12 @@ public class InMemoryLikeRepository implements LikeRepository {
         return userLikeCounts.getOrDefault(userId, 0L);
     }
 
+    @Override
+    public boolean requiresExplicitCompensation() {
+        return true;
+    }
+
     private String entityKey(int entityType, int entityId) {
         return "like:entity:" + entityType + ":" + entityId;
     }
 }
-

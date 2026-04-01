@@ -72,6 +72,11 @@ public class InMemoryFollowRepository implements FollowRepository {
         return list(map, offset, limit);
     }
 
+    @Override
+    public boolean requiresExplicitCompensation() {
+        return true;
+    }
+
     private List<FollowItem> list(Map<Integer, Long> map, int offset, int limit) {
         if (map == null || map.isEmpty()) {
             return List.of();

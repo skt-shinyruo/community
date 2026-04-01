@@ -1,5 +1,7 @@
 package com.nowcoder.community.app.arch;
 
+import com.nowcoder.community.social.follow.FollowService;
+import com.nowcoder.community.social.like.LikeService;
 import com.tngtech.archunit.core.domain.Dependency;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ImportOption;
@@ -10,7 +12,12 @@ import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Value;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -74,6 +81,12 @@ class DomainBoundaryArchTest {
     @Test
     void commonDomainGuardShouldIncludeNoticeDomain() {
         assertThat(BUSINESS_OR_ADAPTER_DOMAINS).contains("notice");
+    }
+
+    @Test
+    void socialWriteServicesShouldNotReadStoragePropertyDirectly() {
+        assertThat(hasValueInjection(LikeService.class, "social.storage")).isFalse();
+        assertThat(hasValueInjection(FollowService.class, "social.storage")).isFalse();
     }
 
     @Test
@@ -242,5 +255,38 @@ class DomainBoundaryArchTest {
             return packageName.substring(domainStart);
         }
         return packageName.substring(domainStart, domainEnd);
+    }
+
+    private static boolean hasValueInjection(Class<?> type, String propertyFragment) {
+        for (Field field : type.getDeclaredFields()) {
+            if (containsValueProperty(field.getAnnotation(Value.class), propertyFragment)) {
+                return true;
+            }
+        }
+        for (Constructor<?> constructor : type.getDeclaredConstructors()) {
+            if (hasValueParameter(constructor.getParameters(), propertyFragment)) {
+                return true;
+            }
+        }
+        for (Method method : type.getDeclaredMethods()) {
+            if (containsValueProperty(method.getAnnotation(Value.class), propertyFragment)
+                    || hasValueParameter(method.getParameters(), propertyFragment)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasValueParameter(Parameter[] parameters, String propertyFragment) {
+        for (Parameter parameter : parameters) {
+            if (containsValueProperty(parameter.getAnnotation(Value.class), propertyFragment)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsValueProperty(Value value, String propertyFragment) {
+        return value != null && value.value() != null && value.value().contains(propertyFragment);
     }
 }

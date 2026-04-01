@@ -91,6 +91,11 @@ public class RedisLikeRepository implements LikeRepository {
     }
 
     @Override
+    public boolean requiresExplicitCompensation() {
+        return true;
+    }
+
+    @Override
     public boolean setLike(int actorUserId, int entityType, int entityId, int entityUserId, boolean liked) {
         // entityUserId 为空时不更新获赞计数（保持与默认实现一致）
         if (entityUserId <= 0) {

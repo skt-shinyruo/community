@@ -10,8 +10,6 @@ import com.nowcoder.community.social.like.dto.LikeResponse;
 import com.nowcoder.community.social.service.ContentEntityResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -36,7 +34,6 @@ public class LikeService implements SocialLikeQueryApi {
     private final SocialEventPublisher eventPublisher;
     private final ContentEntityResolver contentEntityResolver;
     private final BlockService blockService;
-    private final boolean redisStorage;
 
     public LikeService(
             LikeRepository likeRepository,
@@ -44,22 +41,10 @@ public class LikeService implements SocialLikeQueryApi {
             ContentEntityResolver contentEntityResolver,
             BlockService blockService
     ) {
-        this(likeRepository, eventPublisher, contentEntityResolver, blockService, "memory");
-    }
-
-    @Autowired
-    public LikeService(
-            LikeRepository likeRepository,
-            SocialEventPublisher eventPublisher,
-            ContentEntityResolver contentEntityResolver,
-            BlockService blockService,
-            @Value("${social.storage:db}") String storage
-    ) {
         this.likeRepository = likeRepository;
         this.eventPublisher = eventPublisher;
         this.contentEntityResolver = contentEntityResolver;
         this.blockService = blockService;
-        this.redisStorage = "redis".equalsIgnoreCase(storage);
     }
 
     @Transactional
@@ -78,6 +63,9 @@ public class LikeService implements SocialLikeQueryApi {
         // - toggle：不传 liked 时翻转当前状态
         // - set：liked=true/false 代表目标状态（幂等）
         boolean liked = (request.getLiked() == null) ? !existed : Boolean.TRUE.equals(request.getLiked());
+        if (liked == existed) {
+            return buildResponse(actorUserId, entityType, entityId);
+        }
 
         // 反骚扰：仅阻断“创建点赞”副作用（like existed=false -> liked=true）。
         // 允许取消点赞（清理自身状态），也允许幂等重复 set=true（不产生新副作用）。
@@ -91,86 +79,19 @@ public class LikeService implements SocialLikeQueryApi {
             }
         }
 
-        if (redisStorage) {
-            handleSetLikeForRedisStorage(actorUserId, entityType, entityId, existed, liked, resolvedForCreate);
-        } else {
-            handleSetLikeForNonRedisStorage(actorUserId, entityType, entityId, liked, resolvedForCreate);
-        }
-
-        LikeResponse resp = new LikeResponse();
-        resp.setLiked(likeRepository.isLiked(actorUserId, entityType, entityId));
-        resp.setLikeCount(likeRepository.countEntityLikes(entityType, entityId));
-        return resp;
-    }
-
-    private void handleSetLikeForNonRedisStorage(
-            int actorUserId,
-            int entityType,
-            int entityId,
-            boolean liked,
-            ResolvedEntity resolvedForCreate
-    ) {
-        if (liked) {
-            boolean added = likeRepository.addLike(actorUserId, entityType, entityId);
-            if (!added) {
-                return;
-            }
-            ResolvedEntity resolved = resolvedForCreate == null ? resolveEntityForPayload(entityType, entityId) : resolvedForCreate;
-            if (resolved.entityUserId > 0) {
-                likeRepository.incrementUserLikeCount(resolved.entityUserId, 1);
-            }
-            LikePayload payload = new LikePayload();
-            payload.setActorUserId(actorUserId);
-            payload.setEntityType(entityType);
-            payload.setEntityId(entityId);
-            payload.setEntityUserId(resolved.entityUserId <= 0 ? null : resolved.entityUserId);
-            payload.setPostId(resolved.postId <= 0 ? null : resolved.postId);
-            payload.setCreateTime(Instant.now());
-            eventPublisher.publishLikeCreated(payload);
-            return;
-        }
-
-        boolean removed = likeRepository.removeLike(actorUserId, entityType, entityId);
-        if (!removed) {
-            return;
-        }
-        ResolvedEntity resolved = resolveEntityForPayload(entityType, entityId);
-        if (resolved.entityUserId > 0) {
-            likeRepository.incrementUserLikeCount(resolved.entityUserId, -1);
-        }
-        LikePayload payload = new LikePayload();
-        payload.setActorUserId(actorUserId);
-        payload.setEntityType(entityType);
-        payload.setEntityId(entityId);
-        payload.setEntityUserId(resolved.entityUserId <= 0 ? null : resolved.entityUserId);
-        payload.setPostId(resolved.postId <= 0 ? null : resolved.postId);
-        payload.setCreateTime(Instant.now());
-        eventPublisher.publishLikeRemoved(payload);
-    }
-
-    private void handleSetLikeForRedisStorage(
-            int actorUserId,
-            int entityType,
-            int entityId,
-            boolean existed,
-            boolean liked,
-            ResolvedEntity resolvedForCreate
-    ) {
-        // 幂等快路径：避免在 Redis 模式下对 idempotent no-op 请求额外 resolve（尤其是压测场景）。
-        if (liked == existed) {
-            return;
-        }
-
         ResolvedEntity resolved = resolvedForCreate == null ? resolveEntityForPayload(entityType, entityId) : resolvedForCreate;
         int entityUserId = resolved.entityUserId;
 
         boolean changed = likeRepository.setLike(actorUserId, entityType, entityId, entityUserId, liked);
         if (!changed) {
-            return;
+            return buildResponse(actorUserId, entityType, entityId);
         }
 
         Runnable rollback = () -> likeRepository.setLike(actorUserId, entityType, entityId, entityUserId, !liked);
-        registerRollbackIfTxRolledBack(rollback);
+        boolean needsExplicitCompensation = likeRepository.requiresExplicitCompensation();
+        if (needsExplicitCompensation) {
+            registerRollbackIfTxRolledBack(rollback);
+        }
 
         LikePayload payload = new LikePayload();
         payload.setActorUserId(actorUserId);
@@ -186,14 +107,17 @@ public class LikeService implements SocialLikeQueryApi {
                 eventPublisher.publishLikeRemoved(payload);
             }
         } catch (RuntimeException ex) {
-            try {
-                rollback.run();
-            } catch (RuntimeException rollbackEx) {
-                log.warn("[like] rollback failed after publish error (entityType={}, entityId={}, actorUserId={}, liked={}): {}",
-                        entityType, entityId, actorUserId, liked, rollbackEx.toString());
+            if (needsExplicitCompensation) {
+                try {
+                    rollback.run();
+                } catch (RuntimeException rollbackEx) {
+                    log.warn("[like] rollback failed after publish error (entityType={}, entityId={}, actorUserId={}, liked={}): {}",
+                            entityType, entityId, actorUserId, liked, rollbackEx.toString());
+                }
             }
             throw ex;
         }
+        return buildResponse(actorUserId, entityType, entityId);
     }
 
     private void registerRollbackIfTxRolledBack(Runnable rollback) {
@@ -236,6 +160,13 @@ public class LikeService implements SocialLikeQueryApi {
     private static class ResolvedEntity {
         private int entityUserId;
         private int postId;
+    }
+
+    private LikeResponse buildResponse(int actorUserId, int entityType, int entityId) {
+        LikeResponse resp = new LikeResponse();
+        resp.setLiked(likeRepository.isLiked(actorUserId, entityType, entityId));
+        resp.setLikeCount(likeRepository.countEntityLikes(entityType, entityId));
+        return resp;
     }
 
     public boolean isLiked(int actorUserId, int entityType, int entityId) {

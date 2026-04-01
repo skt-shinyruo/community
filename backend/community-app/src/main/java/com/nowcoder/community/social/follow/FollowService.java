@@ -10,8 +10,6 @@ import com.nowcoder.community.social.follow.dto.FollowRequest;
 import com.nowcoder.community.infra.pagination.Pagination;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -33,23 +31,11 @@ public class FollowService implements SocialFollowQueryApi {
     private final FollowRepository followRepository;
     private final SocialEventPublisher eventPublisher;
     private final BlockService blockService;
-    private final boolean redisStorage;
 
     public FollowService(FollowRepository followRepository, SocialEventPublisher eventPublisher, BlockService blockService) {
-        this(followRepository, eventPublisher, blockService, "memory");
-    }
-
-    @Autowired
-    public FollowService(
-            FollowRepository followRepository,
-            SocialEventPublisher eventPublisher,
-            BlockService blockService,
-            @Value("${social.storage:db}") String storage
-    ) {
         this.followRepository = followRepository;
         this.eventPublisher = eventPublisher;
         this.blockService = blockService;
-        this.redisStorage = "redis".equalsIgnoreCase(storage);
     }
 
     @Transactional
@@ -85,13 +71,14 @@ public class FollowService implements SocialFollowQueryApi {
             payload.setEntityUserId(entityId);
             payload.setCreateTime(Instant.ofEpochMilli(now));
             Runnable rollback = () -> followRepository.unfollow(actorUserId, entityType, entityId);
-            if (redisStorage) {
+            boolean needsExplicitCompensation = followRepository.requiresExplicitCompensation();
+            if (needsExplicitCompensation) {
                 registerRollbackIfTxRolledBack(rollback);
             }
             try {
                 eventPublisher.publishFollowCreated(payload);
             } catch (RuntimeException ex) {
-                if (redisStorage) {
+                if (needsExplicitCompensation) {
                     try {
                         rollback.run();
                     } catch (RuntimeException rollbackEx) {

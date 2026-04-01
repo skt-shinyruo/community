@@ -139,6 +139,11 @@ public class RedisFollowRepository implements FollowRepository {
         return toItems(tuples);
     }
 
+    @Override
+    public boolean requiresExplicitCompensation() {
+        return true;
+    }
+
     private List<FollowItem> toItems(Set<ZSetOperations.TypedTuple<String>> tuples) {
         if (tuples == null || tuples.isEmpty()) {
             return List.of();

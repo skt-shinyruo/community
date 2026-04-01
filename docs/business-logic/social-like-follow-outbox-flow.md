@@ -210,11 +210,10 @@ sequenceDiagram
 - `RedisLikeRepository.setLike(...)` 用 Lua 脚本同时更新：
   - 实体点赞集合
   - 被赞用户获赞计数
-- 为了在 Redis 主写入与事务回滚之间尽量保持一致，`LikeService` 当前仍会：
-  - 注册事务回滚补偿
-  - 在事件发布失败时手工执行反向回滚
+- repository 会声明自己需要显式补偿；
+- `LikeService` 只依赖 repository 抽象，在 repository 声明“需要补偿”时才注册事务回滚补偿并在事件发布失败时执行反向回滚。
 
-这说明当前 Redis 路径的复杂度主要集中在 service 层，而不是 outbox 本身。
+这说明当前 Redis 路径的复杂度主要集中在 storage adapter 的写语义上，而不是 outbox 本身。
 
 ### 4.7 点赞事件 payload 语义
 
@@ -280,9 +279,7 @@ sequenceDiagram
   - `followee:<userId>:<entityType>`
   - `follower:<entityType>:<entityId>`
 - 如果脚本发现一侧存在、一侧缺失，还会尝试修复历史双写不一致
-- 与点赞类似，service 层当前仍负责：
-  - 事务回滚补偿注册
-  - 事件发布失败时的手工补偿
+- 与点赞类似，repository 会把“需要显式补偿”作为能力暴露出来，service 只按 repository 能力决定是否注册事务回滚补偿和事件失败补偿。
 
 ### 5.5 关注事件 payload 语义
 

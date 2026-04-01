@@ -104,6 +104,25 @@ flowchart TD
 
 需要明确的是：`community-app` 仍然是“靠包边界治理的单 deployable”，还不是靠 Maven 子模块强制执行的 modular monolith。当前阶段先稳定 use-case owner、projection owner 和 event contracts；下一阶段才考虑把 `api` / `contracts` / `impl` 拆成独立 artifact，并收紧 Spring 装配范围。
 
+### 2.3.1 域内数据访问策略
+
+`community-app` 对“跨域协作边界”和“域内持久化方式”采用两层规则：
+
+- 跨域协作一律通过 owner-domain `api.query` / `api.action` / `api.model` / `contracts`；
+- 域内持久化默认允许 owner-domain service 直接依赖本域 MyBatis mapper。
+
+Repository / port 不是默认必选层，只有在下面场景才引入：
+
+- 同一领域存在多套后端实现，需要按配置切换；
+- 写路径存在后端特有的原子性、补偿或一致性语义；
+- 测试需要可替换的内存实现，覆盖真实业务行为而不是只 mock mapper。
+
+当前代码按这个规则解释如下：
+
+- `content` / `user` / `growth` / `notice` 以单一 MyBatis SSOT 为主，`Service -> Mapper` 是合法默认路径；
+- `social` 写侧存在 `DB / Redis / InMemory` 三套实现，因此保留 `Service -> Repository -> Adapter`；
+- 一旦引入 repository，存储选择与补偿策略必须停留在 repository / adapter 抽象内，不再泄漏到 service 通过读取 `*.storage` 配置做分支判断。
+
 ### 2.4 共享基础设施（同模块内包）
 - `com.nowcoder.community.common.*`：错误码、业务异常、trace、统一 Web 响应、通用事件 envelope 等横切能力
 - `com.nowcoder.community.infra.*`：安全、trace、web、idempotency、scheduler、job（XXL executor handler）等横切能力

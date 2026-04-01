@@ -34,7 +34,10 @@
 4. 推荐从 `{job="community-filelogs"}` 开始，再用 `|=` 关键字过滤
 
 ### 1.3 推荐的“定位线索”
-- **traceId**：gateway-first 路径下由 `community-gateway` 负责生成/规范化 `X-Trace-Id`，并在需要时补齐 / 透传 `traceparent`；下游服务沿用该标识串联日志。
+- **traceId**：`X-Trace-Id` / `traceparent` 规范化规则现在由共享基础设施实现。
+  - Servlet 服务复用 `community-common-web`
+  - WebFlux 服务复用 `community-common-webflux`
+  - `community-gateway` 仍是默认浏览器入口，但 trace 规范化不再是 gateway 专属实现
 - **审计日志（community-app）**：对非 `GET/OPTIONS` 的 `/api/**` 记录审计日志（跳过 `/api/auth/login`），用于定位写路径与敏感操作。
 
 ---

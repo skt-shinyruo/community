@@ -11,8 +11,11 @@
 
 - **浏览器默认直连 community-gateway**：对外统一入口 `/api/**`（业务）、`/files/**`（静态文件）与 `/ws/im`。
 - **community-gateway 负责入口级边界护栏**：
-  - 入口级 traceId、HTTP/WS 路由与基础边缘策略
+  - HTTP/WS 路由与基础边缘策略
   - 对浏览器流量执行第一层跨域处理，但不作为主站业务 allowlist 的 SSOT
+- **共享安全基础设施负责 JWT 规则与统一错误语义**：
+  - `community-common-security` 是 `security.jwt.*` 的 SSOT，`community-app`、`community-gateway`、`im-core`、`im-realtime` 都复用同一套验签/subject 解析规则
+  - Servlet 服务通过 `community-common-web`，WebFlux 服务通过 `community-common-webflux` 统一回写 `X-Trace-Id` / `traceparent`，并输出一致的 `Result` 错误包体
 - **community-app 负责主站业务安全策略**：
   - CORS allowlist SSOT（跨端口直连的前提）
   - OriginGuard（仅覆盖 cookie 会话敏感入口：`/api/auth/login|refresh|logout`）
@@ -29,7 +32,8 @@
 ### 2.1 Access Token（JWT）
 - 由 auth 模块签发（HS256），在响应体返回 `accessToken`（`POST /api/auth/login`）
 - 前端保存到内存/状态（Pinia store），并在每次请求加上 `Authorization: Bearer <token>`
-- 资源服务器验签：`community-app` 与 `community-gateway` 都会使用共享 `JWT_HMAC_SECRET` 做 JWT 验签，但主站授权矩阵仍由 `community-app` 收敛
+- 资源服务器验签：`community-app`、`community-gateway`、`im-core`、`im-realtime` 都通过共享 `community-common-security` 读取 `security.jwt.*` 并完成 JWT 验签；JWT 签发仍由 `community-app` 的 auth 模块负责，主站授权矩阵仍由 `community-app` 收敛
+- 认证/鉴权失败语义：Servlet 与 WebFlux 服务都会统一输出 `Result` 错误包体，并回写 `X-Trace-Id` / `traceparent`
 
 ### 2.2 Refresh Token（HttpOnly Cookie）
 - refresh token 通过 **HttpOnly Cookie** 下发（浏览器 JS 无法读取）
@@ -203,7 +207,7 @@ TTL 配置（可按环境调整）：
 
 ## 7. 本地安全建议（即便是开发环境）
 - 修改 `.env` 中的 `JWT_HMAC_SECRET`（>= 32 字节），不要长期用默认值
-- `im-core` 会在启动时拒绝空值和已知占位密钥（例如仓库中的 dev placeholder）；本地联调也必须显式提供一个非占位、长度 >= 32 字节的共享密钥
+- 共享 `community-common-security` 会在启动时拒绝空值或已知占位密钥；本地联调也必须显式提供一个非占位、长度 >= 32 字节的共享密钥，并保持 `security.jwt.issuer` 一致
 - 不要把 `.env`（含真实密钥）提交到版本库
 - 默认不暴露内部依赖端口到宿主机；需要浏览器访问观测组件时，再启用 `observability` profile（例如在 `deploy/.env` 设置 `COMPOSE_PROFILES=observability`）
 

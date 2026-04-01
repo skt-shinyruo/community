@@ -21,6 +21,11 @@
             <artifactId>community-common-core</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>community-common-security</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

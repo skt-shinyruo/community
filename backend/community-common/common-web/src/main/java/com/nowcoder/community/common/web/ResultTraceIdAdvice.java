@@ -1,5 +1,6 @@
 package com.nowcoder.community.common.web;
 
+import com.nowcoder.community.common.security.response.SecurityResponseSupport;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceId;
@@ -107,12 +108,11 @@ public class ResultTraceIdAdvice implements ResponseBodyAdvice<Object> {
         if (result == null || (result.getTraceId() != null && !result.getTraceId().isBlank())) {
             return;
         }
-        String traceId = TraceId.get();
-        if (traceId == null || traceId.isBlank()) {
-            String headerTraceId = request == null ? null : request.getHeaders().getFirst(TraceHeaders.HEADER_TRACE_ID);
-            String traceparent = request == null ? null : request.getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT);
-            traceId = TraceIdCodec.resolveTraceId(headerTraceId, traceparent);
-        }
+        String traceId = SecurityResponseSupport.resolveTraceId(
+                TraceId.get(),
+                request == null ? null : request.getHeaders().getFirst(TraceHeaders.HEADER_TRACE_ID),
+                request == null ? null : request.getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT)
+        );
         traceId = traceId == null ? "" : traceId.trim();
         if (!traceId.isEmpty()) {
             result.setTraceId(traceId);

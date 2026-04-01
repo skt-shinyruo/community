@@ -21,6 +21,7 @@ public final class JwtCodecs {
     }
 
     public static JwtEncoder jwtEncoder(JwtProperties properties) {
+        resolvedIssuer(properties);
         return new NimbusJwtEncoder(new ImmutableSecret<>(JwtSecretKeys.hmacSha256OrThrow(properties)));
     }
 

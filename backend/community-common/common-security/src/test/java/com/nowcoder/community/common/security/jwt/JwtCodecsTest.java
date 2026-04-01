@@ -45,6 +45,25 @@ class JwtCodecsTest {
     }
 
     @Test
+    void jwtEncoder_shouldRejectBlankIssuer() {
+        JwtProperties properties = properties("plan-test-jwt-secret-please-change-123456", "   ");
+
+        assertThatThrownBy(() -> JwtCodecs.jwtEncoder(properties))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("security.jwt.issuer");
+    }
+
+    @Test
+    void jwtEncoder_shouldRejectMissingIssuer() {
+        JwtProperties properties = new JwtProperties();
+        properties.setHmacSecret("plan-test-jwt-secret-please-change-123456");
+
+        assertThatThrownBy(() -> JwtCodecs.jwtEncoder(properties))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("security.jwt.issuer");
+    }
+
+    @Test
     void jwtEncoderAndDecoder_shouldBeInteroperable() {
         JwtProperties properties = properties("plan-test-jwt-secret-please-change-123456", "community-auth");
         JwtEncoder encoder = JwtCodecs.jwtEncoder(properties);

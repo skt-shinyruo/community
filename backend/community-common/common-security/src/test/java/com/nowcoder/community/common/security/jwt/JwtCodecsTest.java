@@ -7,13 +7,20 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.jwt.JwtValidationException;
+import org.springframework.security.oauth2.jwt.JwsHeader;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JwtCodecsTest {
@@ -35,6 +42,40 @@ class JwtCodecsTest {
 
         assertThatThrownBy(() -> decoder.decode(token))
                 .isInstanceOf(JwtValidationException.class);
+    }
+
+    @Test
+    void jwtEncoderAndDecoder_shouldBeInteroperable() {
+        JwtProperties properties = properties("plan-test-jwt-secret-please-change-123456", "community-auth");
+        JwtEncoder encoder = JwtCodecs.jwtEncoder(properties);
+        JwtDecoder decoder = JwtCodecs.jwtDecoder(properties);
+
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+                .subject("123")
+                .issuer(JwtCodecs.resolvedIssuer(properties))
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(300))
+                .build();
+        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
+        String token = encoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+
+        Jwt decoded = decoder.decode(token);
+        assertThat(decoded.getSubject()).isEqualTo("123");
+        assertThat(decoded.getClaimAsString("iss")).isEqualTo("community-auth");
+    }
+
+    @Test
+    void resolvedIssuer_shouldDefaultWhenBlank() {
+        JwtProperties properties = properties("plan-test-jwt-secret-please-change-123456", "   ");
+
+        assertThat(JwtCodecs.resolvedIssuer(properties)).isEqualTo("community-auth");
+    }
+
+    @Test
+    void resolvedIssuer_shouldTrimValue() {
+        JwtProperties properties = properties("plan-test-jwt-secret-please-change-123456", "  issuer-a  ");
+
+        assertThat(JwtCodecs.resolvedIssuer(properties)).isEqualTo("issuer-a");
     }
 
     private static JwtProperties properties(String hmacSecret, String issuer) {

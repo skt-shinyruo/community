@@ -6,5 +6,5 @@ spring:
 
 security:
   jwt:
-    hmac-secret: dev-secret-please-change-at-least-32bytes
-
+    hmac-secret: im-realtime-test-jwt-hmac-secret-please-change-123456
+    issuer: community-auth

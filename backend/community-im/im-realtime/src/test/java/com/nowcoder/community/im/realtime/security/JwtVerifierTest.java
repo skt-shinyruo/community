@@ -1,16 +1,14 @@
 package com.nowcoder.community.im.realtime.security;
 
+import com.nowcoder.community.common.security.jwt.JwtCodecs;
+import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import org.junit.jupiter.api.Test;
-import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
-
-import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
@@ -21,12 +19,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class JwtVerifierTest {
 
     @Test
-    void verify_shouldExtractUserIdFromSub() throws Exception {
-        String secret = "dev-secret-please-change-at-least-32bytes";
-        String token = signHs256(secret, "123", Instant.now().plusSeconds(60));
+    void verify_shouldExtractUserIdFromSharedJwtSubjectParser() throws Exception {
+        JwtProperties properties = new JwtProperties();
+        properties.setHmacSecret("im-realtime-test-jwt-hmac-secret-please-change-123456");
+        properties.setIssuer("community-auth");
+        String token = signHs256(properties.getHmacSecret(), properties.getIssuer(), "123", Instant.now().plusSeconds(60));
 
-        SecretKey key = JwtSecretSupport.hmacSha256KeyOrThrow(secret);
-        JwtDecoder decoder = NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
+        JwtDecoder decoder = JwtCodecs.jwtDecoder(properties);
         JwtVerifier verifier = new JwtVerifier(decoder);
 
         JwtVerifier.VerifiedJwt verified = verifier.verify(token);
@@ -36,18 +35,28 @@ class JwtVerifierTest {
 
     @Test
     void verify_shouldFailForInvalidSignature() throws Exception {
-        String secret = "dev-secret-please-change-at-least-32bytes";
-        String token = signHs256(secret, "1", Instant.now().plusSeconds(60));
+        JwtProperties signingProperties = new JwtProperties();
+        signingProperties.setHmacSecret("im-realtime-test-jwt-hmac-secret-please-change-123456");
+        signingProperties.setIssuer("community-auth");
+        String token = signHs256(
+                signingProperties.getHmacSecret(),
+                signingProperties.getIssuer(),
+                "1",
+                Instant.now().plusSeconds(60)
+        );
 
-        SecretKey key = JwtSecretSupport.hmacSha256KeyOrThrow("another-secret-please-change-at-least-32bytes");
-        JwtDecoder decoder = NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
+        JwtProperties decoderProperties = new JwtProperties();
+        decoderProperties.setHmacSecret("im-realtime-alt-jwt-hmac-secret-please-change-123456");
+        decoderProperties.setIssuer("community-auth");
+        JwtDecoder decoder = JwtCodecs.jwtDecoder(decoderProperties);
         JwtVerifier verifier = new JwtVerifier(decoder);
 
         assertThatThrownBy(() -> verifier.verify(token)).isInstanceOf(Exception.class);
     }
 
-    private static String signHs256(String secret, String sub, Instant exp) throws Exception {
+    private static String signHs256(String secret, String issuer, String sub, Instant exp) throws Exception {
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                .issuer(issuer)
                 .subject(sub)
                 .issueTime(new Date())
                 .expirationTime(Date.from(exp))
@@ -58,4 +67,3 @@ class JwtVerifierTest {
         return jwt.serialize();
     }
 }
-

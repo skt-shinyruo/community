@@ -5,12 +5,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
-import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.web.server.ServerAuthenticationEntryPoint;
 import org.springframework.security.web.server.SecurityWebFilterChain;
-
-import javax.crypto.SecretKey;
+import org.springframework.security.web.server.authorization.ServerAccessDeniedHandler;
 import java.util.Locale;
 
 @Configuration
@@ -18,14 +15,10 @@ import java.util.Locale;
 public class ImRealtimeSecurityConfig {
 
     @Bean
-    public JwtDecoder jwtDecoder(@Value("${security.jwt.hmac-secret}") String secret) {
-        SecretKey key = JwtSecretSupport.hmacSha256KeyOrThrow(secret);
-        return NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
-    }
-
-    @Bean
     public SecurityWebFilterChain webFluxSecurityFilterChain(
             ServerHttpSecurity http,
+            ServerAuthenticationEntryPoint authenticationEntryPoint,
+            ServerAccessDeniedHandler accessDeniedHandler,
             @Value("${im.ws.path:/ws/im}") String wsPath,
             @Value("${im.edge.mode:direct-public-edge}") String edgeMode,
             @Value("${im.edge.direct-public.ws-path:/ws/im}") String directPublicWsPath,
@@ -44,6 +37,9 @@ public class ImRealtimeSecurityConfig {
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
                 .authorizeExchange(ex -> ex
                         .pathMatchers("/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
                         .pathMatchers(wsPathValue).permitAll()

@@ -141,6 +141,9 @@ class ImRealtimeWebSocketIntegrationTest {
     @Value("${security.jwt.hmac-secret}")
     private String jwtSecret;
 
+    @Value("${security.jwt.issuer}")
+    private String jwtIssuer;
+
     private Consumer<String, String> commandConsumer;
 
     @DynamicPropertySource
@@ -199,7 +202,7 @@ class ImRealtimeWebSocketIntegrationTest {
         try {
             assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
 
-            String token = signHs256(jwtSecret, String.valueOf(userId), Instant.now().plusSeconds(120));
+            String token = signHs256(jwtSecret, jwtIssuer, String.valueOf(userId), Instant.now().plusSeconds(120));
             outbound.tryEmitNext("{\"type\":\"auth\",\"accessToken\":\"" + token + "\"}");
 
             JsonNode authOk = awaitType(received, "auth_ok", Duration.ofSeconds(5));
@@ -345,7 +348,7 @@ class ImRealtimeWebSocketIntegrationTest {
         try {
             assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
 
-            String token = signHs256(jwtSecret, "100", Instant.now().plusSeconds(120));
+            String token = signHs256(jwtSecret, jwtIssuer, "100", Instant.now().plusSeconds(120));
             outbound.tryEmitNext("{\"type\":\"auth\",\"accessToken\":\"" + token + "\"}");
 
             JsonNode authOk = awaitType(received, "auth_ok", Duration.ofSeconds(5));
@@ -397,7 +400,7 @@ class ImRealtimeWebSocketIntegrationTest {
         try {
             assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
 
-            String token = signHs256(jwtSecret, "100", Instant.now().plusSeconds(120));
+            String token = signHs256(jwtSecret, jwtIssuer, "100", Instant.now().plusSeconds(120));
             outbound.tryEmitNext("{\"type\":\"auth\",\"accessToken\":\"" + token + "\"}");
             JsonNode authOk = awaitType(received, "auth_ok", Duration.ofSeconds(5));
             assertThat(authOk.path("userId").asInt()).isEqualTo(100);
@@ -448,7 +451,7 @@ class ImRealtimeWebSocketIntegrationTest {
         try {
             assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
 
-            String token = signHs256(jwtSecret, "100", Instant.now().plusSeconds(120));
+            String token = signHs256(jwtSecret, jwtIssuer, "100", Instant.now().plusSeconds(120));
             outbound.tryEmitNext("{\"type\":\"auth\",\"accessToken\":\"" + token + "\"}");
 
             JsonNode authOk = awaitType(received, "auth_ok", Duration.ofSeconds(5));
@@ -713,8 +716,9 @@ class ImRealtimeWebSocketIntegrationTest {
         throw new AssertionError("Timed out waiting for record on topic " + topic);
     }
 
-    private static String signHs256(String secret, String sub, Instant exp) throws Exception {
+    private static String signHs256(String secret, String issuer, String sub, Instant exp) throws Exception {
         JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                .issuer(issuer)
                 .subject(sub)
                 .issueTime(new Date())
                 .expirationTime(Date.from(exp))

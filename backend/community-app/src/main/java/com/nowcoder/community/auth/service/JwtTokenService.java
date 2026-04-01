@@ -1,6 +1,7 @@
 package com.nowcoder.community.auth.service;
 
-import com.nowcoder.community.infra.security.jwt.JwtProperties;
+import com.nowcoder.community.common.security.jwt.JwtCodecs;
+import com.nowcoder.community.common.security.jwt.JwtProperties;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
@@ -27,7 +28,7 @@ public class JwtTokenService {
         Instant exp = now.plusSeconds(jwtProperties.getAccessTokenTtlSeconds());
 
         JwtClaimsSet claims = JwtClaimsSet.builder()
-                .issuer(jwtProperties.getIssuer())
+                .issuer(JwtCodecs.resolvedIssuer(jwtProperties))
                 .issuedAt(now)
                 .expiresAt(exp)
                 .subject(String.valueOf(userId))

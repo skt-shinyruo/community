@@ -1,6 +1,6 @@
 package com.nowcoder.community.auth.service;
 
-import com.nowcoder.community.infra.security.jwt.JwtProperties;
+import com.nowcoder.community.common.security.jwt.JwtProperties;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
 

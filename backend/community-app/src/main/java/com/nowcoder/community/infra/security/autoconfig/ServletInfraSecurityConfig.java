@@ -1,7 +1,7 @@
 package com.nowcoder.community.infra.security.autoconfig;
 
-import com.nowcoder.community.infra.security.jwt.JwtProperties;
-import com.nowcoder.community.infra.security.jwt.JwtSecretKeys;
+import com.nowcoder.community.common.security.jwt.JwtCodecs;
+import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.infra.security.metrics.MetricsBasicAuthProperties;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -15,10 +15,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.oauth2.jwt.JwtValidators;
-import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -54,11 +51,7 @@ public class ServletInfraSecurityConfig {
     @Bean
     @ConditionalOnMissingBean
     public JwtDecoder jwtDecoder(JwtProperties jwtProperties) {
-        NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(JwtSecretKeys.hmacSha256OrThrow(jwtProperties))
-                .macAlgorithm(MacAlgorithm.HS256)
-                .build();
-        decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer(jwtProperties.getIssuer()));
-        return decoder;
+        return JwtCodecs.jwtDecoder(jwtProperties);
     }
 
     @Bean

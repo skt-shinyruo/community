@@ -22,6 +22,7 @@ mybatis:
 security:
   jwt:
     hmac-secret: test-jwt-secret-please-change-at-least-32bytes
+    issuer: community-auth
 
 community:
   metrics:

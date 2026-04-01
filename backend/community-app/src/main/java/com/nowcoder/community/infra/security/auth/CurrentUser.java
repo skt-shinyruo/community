@@ -1,9 +1,9 @@
 package com.nowcoder.community.infra.security.auth;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.security.jwt.JwtSubjects;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.util.StringUtils;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.common.exception.CommonErrorCode.UNAUTHORIZED;
@@ -39,18 +39,9 @@ public final class CurrentUser {
      * @throws BusinessException INVALID_ARGUMENT if subject missing/invalid
      */
     public static int requireUserId(Authentication authentication) {
-        Jwt jwt = requireJwt(authentication);
-        String sub = jwt.getSubject();
-        if (!StringUtils.hasText(sub)) {
-            throw new BusinessException(INVALID_ARGUMENT, "token subject 非法");
-        }
         try {
-            int userId = Integer.parseInt(sub);
-            if (userId <= 0) {
-                throw new BusinessException(INVALID_ARGUMENT, "token subject 非法");
-            }
-            return userId;
-        } catch (NumberFormatException e) {
+            return JwtSubjects.userIdOrThrow(requireJwt(authentication));
+        } catch (IllegalArgumentException e) {
             throw new BusinessException(INVALID_ARGUMENT, "token subject 非法");
         }
     }
@@ -68,16 +59,6 @@ public final class CurrentUser {
         if (!(principal instanceof Jwt jwt)) {
             return null;
         }
-        String sub = jwt.getSubject();
-        if (!StringUtils.hasText(sub)) {
-            return null;
-        }
-        try {
-            int userId = Integer.parseInt(sub);
-            return userId > 0 ? userId : null;
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
+        return JwtSubjects.tryUserId(jwt);
     }
 }
-

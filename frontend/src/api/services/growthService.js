@@ -4,7 +4,18 @@ import { unwrapResultBody } from '../result'
 export async function getGrowthSummary() {
   const resp = await http.get('/api/growth/summary')
   const { data, traceId } = unwrapResultBody(resp.data, '查询成长概览')
-  return { data: data || {}, traceId }
+  return {
+    data: {
+      score: Number(data?.score || 0),
+      level: Number(data?.level || 1),
+      userLevel: Number(data?.userLevel || data?.level || 1),
+      signInDaysInWindow: Number(data?.signInDaysInWindow || 0),
+      windowDays: Number(data?.windowDays || 100),
+      rewardBalance: Number(data?.rewardBalance || 0),
+      frozenBalance: Number(data?.frozenBalance || 0)
+    },
+    traceId
+  }
 }
 
 export async function getGrowthTasks({ date } = {}) {

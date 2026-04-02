@@ -47,13 +47,20 @@ describe('growthCenterState', () => {
 
   it('builds a compact header summary even when tasks are empty', () => {
     const state = buildGrowthCenterState({
-      summary: { score: 0, level: 1, rewardBalance: 0, frozenBalance: 0 },
+      summary: {
+        score: 0,
+        level: 1,
+        userLevel: 2,
+        signInDaysInWindow: 17,
+        windowDays: 100,
+        rewardBalance: 0,
+        frozenBalance: 0
+      },
       checkInStatus: { checkedInToday: false, currentStreak: 0, maxStreak: 2, totalCheckInDays: 3 },
       tasks: { bizDate: '2026-03-22', items: [] }
     })
 
-    expect(state.header.heroText).toContain('LV 1')
-    expect(state.header.heroText).toContain('0 积分')
+    expect(state.header.heroText).toBe('用户等级 LV 2 · 最近 100 天签到 17 天')
     expect(state.header.streakText).toContain('连续签到 0 天')
     expect(state.groups).toHaveLength(3)
     expect(state.groups.every((group) => Array.isArray(group.items))).toBe(true)

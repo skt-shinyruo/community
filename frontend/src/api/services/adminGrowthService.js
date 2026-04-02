@@ -32,3 +32,15 @@ export async function listAdminGrowthAdjustments(userId, { limit = 10 } = {}) {
   const { data, traceId } = unwrapResultBody(resp.data, '查询调账记录')
   return { data: Array.isArray(data) ? data : [], traceId }
 }
+
+export async function getUserLevelConfig() {
+  const resp = await http.get('/api/growth/admin/user-level/config')
+  const { data, traceId } = unwrapResultBody(resp.data, '查询用户等级配置')
+  return { data: data || {}, traceId }
+}
+
+export async function updateUserLevelConfig(payload) {
+  const resp = await http.put('/api/growth/admin/user-level/config', payload)
+  const { data, traceId } = unwrapResultBody(resp.data, '更新用户等级配置')
+  return { data: data || {}, traceId }
+}

@@ -15,6 +15,22 @@
         <UiButton :disabled="loading" @click="search">查询</UiButton>
       </div>
 
+      <UiCard flat class="growth-admin-config-card">
+        <div class="growth-admin-adjust-head">
+          <h2>用户等级规则</h2>
+          <p>控制最近签到窗口与 LV2/LV3 门槛。</p>
+        </div>
+        <div class="growth-admin-config-grid">
+          <UiInput v-model.trim="configForm.windowDays" placeholder="签到窗口天数" />
+          <UiInput v-model.trim="configForm.lv2SignInDays" placeholder="LV2 签到门槛" />
+          <UiInput v-model.trim="configForm.lv3SignInDays" placeholder="LV3 签到门槛" />
+          <UiCheckbox v-model="configForm.enabled" class="growth-admin-confirm" label="启用规则" />
+          <UiButton :disabled="configLoading || configSaving" @click="submitUserLevelConfig">
+            {{ configSaving ? '保存中…' : '保存规则' }}
+          </UiButton>
+        </div>
+      </UiCard>
+
       <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
 
       <div v-if="state.accounts.length > 0" class="growth-admin-account-grid">
@@ -80,12 +96,14 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
   adjustAdminGrowth,
+  getUserLevelConfig,
   listAdminGrowthAdjustments,
   listAdminGrowthLedgers,
-  searchAdminGrowthUser
+  searchAdminGrowthUser,
+  updateUserLevelConfig
 } from '../api/services/adminGrowthService'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -100,6 +118,8 @@ import { buildGrowthAdminState } from './growthAdminState'
 
 const loading = ref(false)
 const adjusting = ref(false)
+const configLoading = ref(false)
+const configSaving = ref(false)
 const error = ref('')
 const account = ref(null)
 const ledgers = ref([])
@@ -120,6 +140,12 @@ const adjustForm = ref({
   delta: '',
   reason: '',
   confirm: false
+})
+const configForm = ref({
+  windowDays: '',
+  lv2SignInDays: '',
+  lv3SignInDays: '',
+  enabled: true
 })
 
 const state = computed(() =>
@@ -179,6 +205,53 @@ async function submitAdjustment() {
     adjusting.value = false
   }
 }
+
+async function loadUserLevelConfig() {
+  configLoading.value = true
+  try {
+    const { data } = await getUserLevelConfig()
+    configForm.value = {
+      windowDays: String(data?.windowDays ?? ''),
+      lv2SignInDays: String(data?.lv2SignInDays ?? ''),
+      lv3SignInDays: String(data?.lv3SignInDays ?? ''),
+      enabled: data?.enabled !== false
+    }
+  } catch {
+    configForm.value = {
+      windowDays: '',
+      lv2SignInDays: '',
+      lv3SignInDays: '',
+      enabled: true
+    }
+  } finally {
+    configLoading.value = false
+  }
+}
+
+async function submitUserLevelConfig() {
+  configSaving.value = true
+  error.value = ''
+  try {
+    const { data } = await updateUserLevelConfig({
+      windowDays: Number(configForm.value.windowDays || 0),
+      lv2SignInDays: Number(configForm.value.lv2SignInDays || 0),
+      lv3SignInDays: Number(configForm.value.lv3SignInDays || 0),
+      enabled: configForm.value.enabled === true
+    })
+    configForm.value = {
+      windowDays: String(data?.windowDays ?? ''),
+      lv2SignInDays: String(data?.lv2SignInDays ?? ''),
+      lv3SignInDays: String(data?.lv3SignInDays ?? ''),
+      enabled: data?.enabled !== false
+    }
+  } catch (e) {
+    error.value = e?.message || '保存等级规则失败'
+  } finally {
+    configSaving.value = false
+  }
+}
+
+onMounted(loadUserLevelConfig)
 </script>
 
 <style scoped>
@@ -190,13 +263,15 @@ async function submitAdjustment() {
 
 .growth-admin-shell,
 .growth-admin-account-card,
-.growth-admin-adjust-card {
+.growth-admin-adjust-card,
+.growth-admin-config-card {
   display: grid;
   gap: 16px;
 }
 
 .growth-admin-search,
-.growth-admin-adjust-grid {
+.growth-admin-adjust-grid,
+.growth-admin-config-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
@@ -272,7 +347,8 @@ async function submitAdjustment() {
 
 @media (max-width: 900px) {
   .growth-admin-search,
-  .growth-admin-adjust-grid {
+  .growth-admin-adjust-grid,
+  .growth-admin-config-grid {
     grid-template-columns: 1fr;
   }
 }

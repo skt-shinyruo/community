@@ -7,16 +7,20 @@ vi.mock('../api/services/adminGrowthService', () => ({
   searchAdminGrowthUser: vi.fn(),
   listAdminGrowthLedgers: vi.fn(),
   listAdminGrowthAdjustments: vi.fn(),
-  adjustAdminGrowth: vi.fn()
+  adjustAdminGrowth: vi.fn(),
+  getUserLevelConfig: vi.fn(),
+  updateUserLevelConfig: vi.fn()
 }))
 
 import GrowthAdminView from './GrowthAdminView.vue'
 import UiCheckbox from '../components/ui/UiCheckbox.vue'
 import {
   adjustAdminGrowth,
+  getUserLevelConfig,
   listAdminGrowthAdjustments,
   listAdminGrowthLedgers,
-  searchAdminGrowthUser
+  searchAdminGrowthUser,
+  updateUserLevelConfig
 } from '../api/services/adminGrowthService'
 
 describe('GrowthAdminView', () => {
@@ -44,6 +48,22 @@ describe('GrowthAdminView', () => {
         frozenBalance: 0
       }
     })
+    getUserLevelConfig.mockResolvedValue({
+      data: {
+        windowDays: 100,
+        lv2SignInDays: 12,
+        lv3SignInDays: 88,
+        enabled: true
+      }
+    })
+    updateUserLevelConfig.mockResolvedValue({
+      data: {
+        windowDays: 120,
+        lv2SignInDays: 20,
+        lv3SignInDays: 90,
+        enabled: false
+      }
+    })
   })
 
   it('submits the confirmation checkbox state through the shared checkbox component', async () => {
@@ -63,7 +83,10 @@ describe('GrowthAdminView', () => {
     await wrapper.get('button').trigger('click')
     await flushPromises()
 
-    await wrapper.getComponent(UiCheckbox).vm.$emit('update:modelValue', true)
+    await wrapper
+      .findAllComponents(UiCheckbox)
+      .find((component) => component.props('label') === '已确认')
+      ?.vm.$emit('update:modelValue', true)
     await wrapper.get('input[placeholder="变更值，如 5 或 -3"]').setValue('5')
     await wrapper.get('input[placeholder="原因"]').setValue('manual adjust')
     await wrapper.findAll('button').find((button) => button.text().includes('执行调账'))?.trigger('click')
@@ -74,5 +97,41 @@ describe('GrowthAdminView', () => {
         confirm: true
       })
     )
+  })
+
+  it('loads user level config on mount and submits updated config payload', async () => {
+    const wrapper = mount(GrowthAdminView, {
+      global: {
+        stubs: {
+          UiBreadcrumb: true,
+          RouterLink: {
+            template: '<a><slot /></a>'
+          }
+        }
+      }
+    })
+    await flushPromises()
+
+    expect(getUserLevelConfig).toHaveBeenCalledTimes(1)
+    expect(wrapper.get('input[placeholder="签到窗口天数"]').element.value).toBe('100')
+    expect(wrapper.get('input[placeholder="LV2 签到门槛"]').element.value).toBe('12')
+    expect(wrapper.get('input[placeholder="LV3 签到门槛"]').element.value).toBe('88')
+
+    await wrapper.get('input[placeholder="签到窗口天数"]').setValue('120')
+    await wrapper.get('input[placeholder="LV2 签到门槛"]').setValue('20')
+    await wrapper.get('input[placeholder="LV3 签到门槛"]').setValue('90')
+    await wrapper
+      .findAllComponents(UiCheckbox)
+      .find((component) => component.props('label') === '启用规则')
+      ?.vm.$emit('update:modelValue', false)
+    await wrapper.findAll('button').find((button) => button.text().includes('保存规则'))?.trigger('click')
+    await flushPromises()
+
+    expect(updateUserLevelConfig).toHaveBeenCalledWith({
+      windowDays: 120,
+      lv2SignInDays: 20,
+      lv3SignInDays: 90,
+      enabled: false
+    })
   })
 })

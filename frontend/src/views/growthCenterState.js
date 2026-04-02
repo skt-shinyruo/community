@@ -97,6 +97,12 @@ export function buildGrowthCenterState({ summary, checkInStatus, tasks } = {}) {
   const header = {
     score: asNumber(safeSummary.score),
     level: Math.max(1, asNumber(safeSummary.level, 1)),
+    userLevel: Math.max(1, asNumber(safeSummary.userLevel, safeSummary.level || 1)),
+    signInDaysInWindow: Math.max(
+      0,
+      asNumber(safeSummary.signInDaysInWindow, safeStatus.totalCheckInDays || 0)
+    ),
+    windowDays: Math.max(1, asNumber(safeSummary.windowDays, 100)),
     rewardBalance: asNumber(safeSummary.rewardBalance),
     frozenBalance: asNumber(safeSummary.frozenBalance),
     checkedInToday: safeStatus.checkedInToday === true,
@@ -105,7 +111,7 @@ export function buildGrowthCenterState({ summary, checkInStatus, tasks } = {}) {
     totalCheckInDays: Math.max(0, asNumber(safeStatus.totalCheckInDays))
   }
 
-  header.heroText = `LV ${header.level} · ${header.score} 积分`
+  header.heroText = `用户等级 LV ${header.userLevel} · 最近 ${header.windowDays} 天签到 ${header.signInDaysInWindow} 天`
   header.streakText = `连续签到 ${header.currentStreak} 天 · 历史最高 ${header.maxStreak} 天`
   header.checkInText = header.checkedInToday ? '今天已签到' : '今天还没签到'
   header.balanceText = `可用奖励 ${header.rewardBalance} · 冻结 ${header.frozenBalance}`

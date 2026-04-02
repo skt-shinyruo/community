@@ -71,6 +71,8 @@
           <div class="profile-name-row">
             <h1 class="profile-name">{{ profile?.username || `成员 ${profile?.id}` }}</h1>
             <UiRoleBadge :user="profile" size="md" />
+            <span class="profile-chip" title="用户等级（基于签到）">用户等级 LV {{ Number(profile?.userLevel || 1) }}</span>
+            <span class="profile-chip" title="最近签到天数">最近签到 {{ Number(profile?.signInDaysInWindow || 0) }} 天</span>
             <span class="profile-chip" title="等级（基于积分）">LV {{ Number(profile?.level || 1) }}</span>
             <span class="profile-chip" title="积分">{{ Number(profile?.score || 0) }} 分</span>
           </div>
@@ -118,6 +120,11 @@
                 <div class="profile-summary-label">社区影响力</div>
                 <div class="profile-summary-value">{{ Number(profile?.score || 0) }} 分</div>
                 <div class="profile-summary-text">积分与等级共同决定你在排行榜和讨论中的可见度。</div>
+              </div>
+              <div class="profile-summary-card">
+                <div class="profile-summary-label">签到用户等级</div>
+                <div class="profile-summary-value">LV {{ Number(profile?.userLevel || 1) }}</div>
+                <div class="profile-summary-text">最近签到 {{ Number(profile?.signInDaysInWindow || 0) }} 天，独立于积分等级计算。</div>
               </div>
               <div class="profile-summary-card">
                 <div class="profile-summary-label">社交状态</div>

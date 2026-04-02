@@ -11,13 +11,13 @@
     </UiCard>
 
     <UiCard v-else class="profile-card">
-      <div class="profile-cover">
-        <div class="profile-cover-sheet">
-          <div class="profile-cover-kicker">Member Snapshot</div>
-          <div class="profile-cover-title">{{ profile?.username || `成员 ${profile?.id}` }}</div>
-          <div class="profile-cover-subtitle">关注关系、积分和公开信息会先汇总在这里，帮助你判断这个成员在社区里的存在感。</div>
+        <div class="profile-cover">
+          <div class="profile-cover-sheet">
+            <div class="profile-cover-kicker">Member Snapshot</div>
+            <div class="profile-cover-title">{{ profile?.username || `成员 ${profile?.id}` }}</div>
+            <div class="profile-cover-subtitle">关注关系、钱包资产和公开信息会先汇总在这里，帮助你判断这个成员在社区里的参与状态。</div>
+          </div>
         </div>
-      </div>
 
       <div class="profile-body">
         <div class="profile-avatar-wrapper">
@@ -71,12 +71,11 @@
           <div class="profile-name-row">
             <h1 class="profile-name">{{ profile?.username || `成员 ${profile?.id}` }}</h1>
             <UiRoleBadge :user="profile" size="md" />
-            <span class="profile-chip" title="等级（基于积分）">LV {{ Number(profile?.level || 1) }}</span>
-            <span class="profile-chip" title="积分">{{ Number(profile?.score || 0) }} 分</span>
+            <span class="profile-chip" title="钱包资产">{{ walletBalance }} 积分</span>
           </div>
           <div class="profile-meta muted">用户 ID：{{ userId }} · 加入 {{ joinedYear || '—' }}</div>
           <div class="profile-cta-row">
-            <RouterLink class="btn secondary" :to="{ name: 'leaderboard' }">查看排行榜</RouterLink>
+            <RouterLink class="btn secondary" :to="{ name: 'wallet' }">查看钱包</RouterLink>
             <RouterLink class="btn ghost" :to="{ name: 'followees', params: { userId } }">查看关注</RouterLink>
             <RouterLink class="btn ghost" :to="{ name: 'followers', params: { userId } }">查看粉丝</RouterLink>
           </div>
@@ -115,9 +114,9 @@
                 <div class="profile-summary-text">这是其他人进入你主页时看到的公开身份信息。</div>
               </div>
               <div class="profile-summary-card">
-                <div class="profile-summary-label">社区影响力</div>
-                <div class="profile-summary-value">{{ Number(profile?.score || 0) }} 分</div>
-                <div class="profile-summary-text">积分与等级共同决定你在排行榜和讨论中的可见度。</div>
+                <div class="profile-summary-label">钱包资产</div>
+                <div class="profile-summary-value">{{ walletBalance }} 积分</div>
+                <div class="profile-summary-text">论坛内统一资产，可用于消费、转账和提现。</div>
               </div>
               <div class="profile-summary-card">
                 <div class="profile-summary-label">社交状态</div>
@@ -248,6 +247,7 @@ const joinedYear = computed(() => {
   const y = d.getFullYear()
   return Number.isFinite(y) ? String(y) : ''
 })
+const walletBalance = computed(() => Number(profile.value?.walletBalance || 0))
 
 const isSelfProfile = computed(() => !!meUserId.value && meUserId.value === Number(userId.value))
 const followStatusText = computed(() =>
@@ -276,7 +276,11 @@ const communityNextSteps = computed(() =>
     authed: authed.value,
     isSelf: isSelfProfile.value,
     userId: userId.value
-  })
+  }).map((step) =>
+    step?.key === 'leaderboard'
+      ? { ...step, key: 'wallet', label: '查看钱包', to: { name: 'wallet' } }
+      : step
+  )
 )
 
 const profileTimeline = computed(() =>

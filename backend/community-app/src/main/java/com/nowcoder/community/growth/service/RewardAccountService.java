@@ -5,6 +5,7 @@ import com.nowcoder.community.growth.entity.RewardAccount;
 import com.nowcoder.community.growth.exception.GrowthErrorCode;
 import com.nowcoder.community.growth.mapper.RewardAccountMapper;
 import com.nowcoder.community.growth.mapper.RewardLedgerMapper;
+import com.nowcoder.community.wallet.service.WalletRewardService;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,10 +15,14 @@ public class RewardAccountService {
 
     private final RewardAccountMapper rewardAccountMapper;
     private final RewardLedgerMapper rewardLedgerMapper;
+    private final WalletRewardService walletRewardService;
 
-    public RewardAccountService(RewardAccountMapper rewardAccountMapper, RewardLedgerMapper rewardLedgerMapper) {
+    public RewardAccountService(RewardAccountMapper rewardAccountMapper,
+                                RewardLedgerMapper rewardLedgerMapper,
+                                WalletRewardService walletRewardService) {
         this.rewardAccountMapper = rewardAccountMapper;
         this.rewardLedgerMapper = rewardLedgerMapper;
+        this.walletRewardService = walletRewardService;
     }
 
     public int availableBalanceOf(int userId) {
@@ -33,6 +38,14 @@ public class RewardAccountService {
     @Transactional
     public void creditAvailable(int userId, String eventId, String eventType, int delta, String sourceModule, String remark) {
         applyAvailableDelta(userId, eventId, eventType, delta, sourceModule, remark);
+    }
+
+    @Transactional
+    public void issueToWallet(int userId, String eventId, String eventType, int amount, String sourceModule, String remark) {
+        if (amount <= 0) {
+            throw new BusinessException(GrowthErrorCode.INVALID_REQUEST, "wallet reward amount must be positive");
+        }
+        walletRewardService.issue(eventId, userId, amount, eventType);
     }
 
     @Transactional

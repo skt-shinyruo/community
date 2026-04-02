@@ -5,6 +5,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.mapper.WalletAccountMapper;
+import com.nowcoder.community.wallet.mapper.WalletTxnMapper;
 import com.nowcoder.community.wallet.model.WalletPosting;
 import com.nowcoder.community.wallet.model.WalletTxnResult;
 import com.nowcoder.community.wallet.model.WalletTxnType;
@@ -37,6 +38,15 @@ class WalletLedgerServiceTest {
     @Autowired
     private WalletLedgerService service;
 
+    @Autowired
+    private WalletAccountService accountService;
+
+    @Autowired
+    private WalletMigrationService migrationService;
+
+    @Autowired
+    private WalletTxnMapper txnMapper;
+
     @SpyBean
     private WalletAccountMapper walletAccountMapper;
 
@@ -46,6 +56,8 @@ class WalletLedgerServiceTest {
     @BeforeEach
     void setUp() {
         reset(walletAccountMapper);
+        jdbcTemplate.update("delete from reward_ledger");
+        jdbcTemplate.update("delete from reward_account");
         jdbcTemplate.update("delete from wallet_entry");
         jdbcTemplate.update("delete from wallet_txn");
         jdbcTemplate.update("delete from wallet_account");
@@ -68,6 +80,35 @@ class WalletLedgerServiceTest {
         assertThat(result.txnId()).isPositive();
         assertThat(service.balanceOfUser(101)).isEqualTo(500);
         assertThat(service.entriesOfTxn(result.txnId())).hasSize(2);
+    }
+
+    @Test
+    void postShouldBeIdempotentByRequestId() {
+        long userAccountId = service.ensureUserWallet(101);
+        long systemAccountId = service.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
+
+        WalletTxnResult first = service.post(
+                "reward:101:idempotent",
+                WalletTxnType.REWARD_ISSUE,
+                List.of(
+                        WalletPosting.debit(systemAccountId, 500),
+                        WalletPosting.credit(userAccountId, 500)
+                )
+        );
+        WalletTxnResult second = service.post(
+                "reward:101:idempotent",
+                WalletTxnType.REWARD_ISSUE,
+                List.of(
+                        WalletPosting.debit(systemAccountId, 500),
+                        WalletPosting.credit(userAccountId, 500)
+                )
+        );
+
+        assertThat(second.txnId()).isEqualTo(first.txnId());
+        assertThat(second.status()).isEqualTo("SUCCEEDED");
+        assertThat(service.balanceOfUser(101)).isEqualTo(500);
+        assertThat(txnCount()).isEqualTo(1);
+        assertThat(entryCount()).isEqualTo(2);
     }
 
     @Test
@@ -99,6 +140,33 @@ class WalletLedgerServiceTest {
 
         assertThat(txnCount()).isZero();
         assertThat(entryCount()).isZero();
+    }
+
+    @Test
+    void migrateOpeningBalanceShouldCreateOneOpeningTxnFromLegacyRewardAccount() {
+        jdbcTemplate.update(
+                "insert into reward_account(user_id, available_balance, frozen_balance, version) values (?,?,?,?)",
+                101,
+                880,
+                0,
+                0
+        );
+
+        migrationService.migrateUser(101);
+
+        assertThat(accountService.balanceOfUser(101)).isEqualTo(880);
+        assertThat(txnMapper.selectByRequestId("migration:opening:101").getTxnType()).isEqualTo("OPENING_BALANCE");
+    }
+
+    @Test
+    void postShouldRejectIfAnyPostingWouldDriveBalanceBelowZero() {
+        long userAccountId = service.ensureUserWallet(101);
+
+        assertThatThrownBy(() -> service.post(
+                "transfer:101:too-much",
+                WalletTxnType.TRANSFER,
+                List.of(WalletPosting.debit(userAccountId, 1))
+        )).isInstanceOf(BusinessException.class);
     }
 
     @Test

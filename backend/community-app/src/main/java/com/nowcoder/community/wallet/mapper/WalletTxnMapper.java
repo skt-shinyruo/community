@@ -12,4 +12,6 @@ public interface WalletTxnMapper {
     WalletTxn selectByRequestId(@Param("requestId") String requestId);
 
     int insert(WalletTxn txn);
+
+    int markSucceeded(@Param("txnId") long txnId);
 }

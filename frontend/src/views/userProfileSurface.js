@@ -28,7 +28,7 @@ export function buildCommunitySignals({
   const likeCount = toCount(profile?.likeCount)
   const followerCount = toCount(profile?.followerCount)
   const followeeCount = toCount(profile?.followeeCount)
-  const score = toCount(profile?.score)
+  const walletBalance = toCount(profile?.walletBalance)
 
   const statusValue = describeFollowStatusText({ followStatus, followStatusState, authed, isSelf })
 
@@ -40,10 +40,10 @@ export function buildCommunitySignals({
       text: `${username} 于 ${joined} 加入社区，当前主页优先展示公开身份与关系线索。`
     },
     {
-      key: 'impact',
-      label: '社区影响',
-      value: socialDegraded ? '统计暂不可用' : `${likeCount} 获赞`,
-      text: socialDegraded ? '社交统计暂时降级，稍后刷新后再看影响力变化。' : `当前积分 ${score} 分，获赞数反映这个成员公开内容被回应的强度。`
+      key: 'wallet',
+      label: '钱包资产',
+      value: `${walletBalance} 积分`,
+      text: `${username} 当前统一钱包余额为 ${walletBalance} 积分，可用于消费、转账和提现。`
     },
     {
       key: 'network',
@@ -59,7 +59,7 @@ export function buildCommunityNextSteps({ authed, isSelf, userId } = {}) {
     return [
       { key: 'settings', label: '编辑资料', to: { name: 'settings' }, variant: 'secondary' },
       { key: 'posts', label: '回到讨论区', to: { name: 'posts' }, variant: 'ghost' },
-      { key: 'leaderboard', label: '查看排行榜', to: { name: 'leaderboard' }, variant: 'ghost' }
+      { key: 'wallet', label: '查看钱包', to: { name: 'wallet' }, variant: 'ghost' }
     ]
   }
 

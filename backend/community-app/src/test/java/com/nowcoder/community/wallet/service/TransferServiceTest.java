@@ -114,7 +114,7 @@ class TransferServiceTest {
 
         assertThatThrownBy(() -> transferService.create("transfer:req-self", 101, 101, 300))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.INVALID_REQUEST))
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.INVALID_TRANSFER))
                 .hasMessageContaining("self");
     }
 

@@ -33,7 +33,7 @@ public class TransferService {
         validate(requestId, amount);
         requirePositiveUsers(fromUserId, toUserId);
         if (fromUserId == toUserId) {
-            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "cannot transfer to self");
+            throw new BusinessException(WalletErrorCode.INVALID_TRANSFER, "cannot transfer to self");
         }
 
         TransferOrder existing = transferOrderMapper.selectByRequestId(requestId);

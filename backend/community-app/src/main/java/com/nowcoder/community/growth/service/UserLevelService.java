@@ -7,6 +7,7 @@ import com.nowcoder.community.growth.entity.UserLevelRuleConfig;
 import com.nowcoder.community.growth.exception.GrowthErrorCode;
 import com.nowcoder.community.growth.mapper.GrowthCheckInMapper;
 import com.nowcoder.community.growth.mapper.UserLevelRuleConfigMapper;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -88,7 +89,11 @@ public class UserLevelService {
 
         int updated = userLevelRuleConfigMapper.updateCurrent(config);
         if (updated <= 0) {
-            userLevelRuleConfigMapper.insert(config);
+            try {
+                userLevelRuleConfigMapper.insert(config);
+            } catch (DuplicateKeyException ex) {
+                userLevelRuleConfigMapper.updateCurrent(config);
+            }
         }
         return toConfigResponse(config);
     }

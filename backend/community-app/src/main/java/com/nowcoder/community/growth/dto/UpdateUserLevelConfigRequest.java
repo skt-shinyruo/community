@@ -1,20 +1,13 @@
 package com.nowcoder.community.growth.dto;
 
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
-
 public class UpdateUserLevelConfigRequest {
 
-    @Positive
     private int windowDays;
 
-    @Positive
     private int lv2SignInDays;
 
-    @Positive
     private int lv3SignInDays;
 
-    @NotNull
     private Boolean enabled;
 
     public int getWindowDays() {

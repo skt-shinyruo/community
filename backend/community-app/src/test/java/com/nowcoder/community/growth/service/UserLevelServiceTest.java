@@ -1,6 +1,10 @@
 package com.nowcoder.community.growth.service;
 
 import com.nowcoder.community.app.CommunityAppApplication;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.growth.dto.UpdateUserLevelConfigRequest;
+import com.nowcoder.community.growth.dto.UserLevelConfigResponse;
+import com.nowcoder.community.growth.exception.GrowthErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +15,7 @@ import org.springframework.test.context.ActiveProfiles;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(classes = CommunityAppApplication.class)
 @ActiveProfiles("test")
@@ -107,6 +112,53 @@ class UserLevelServiceTest {
         assertThat(summary.userLevel()).isEqualTo(2);
     }
 
+    @Test
+    void getConfigShouldReturnDefaultWhenConfigRowDoesNotExist() {
+        UserLevelConfigResponse config = service.getConfig();
+
+        assertThat(config.getWindowDays()).isEqualTo(100);
+        assertThat(config.getLv2SignInDays()).isEqualTo(12);
+        assertThat(config.getLv3SignInDays()).isEqualTo(88);
+        assertThat(config.isEnabled()).isTrue();
+    }
+
+    @Test
+    void updateConfigShouldInsertSingletonRowOnFirstWrite() {
+        UserLevelConfigResponse response = service.updateConfig(2001, configRequest(120, 20, 90, false));
+
+        assertThat(response.getWindowDays()).isEqualTo(120);
+        assertThat(response.getLv2SignInDays()).isEqualTo(20);
+        assertThat(response.getLv3SignInDays()).isEqualTo(90);
+        assertThat(response.isEnabled()).isFalse();
+        assertThat(jdbcTemplate.queryForObject("select count(*) from user_level_rule_config", Integer.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("select id from user_level_rule_config", Long.class)).isEqualTo(1L);
+        assertThat(jdbcTemplate.queryForObject("select window_days from user_level_rule_config where id = 1", Integer.class)).isEqualTo(120);
+        assertThat(jdbcTemplate.queryForObject("select enabled from user_level_rule_config where id = 1", Boolean.class)).isFalse();
+        assertThat(jdbcTemplate.queryForObject("select updated_by from user_level_rule_config where id = 1", Integer.class)).isEqualTo(2001);
+    }
+
+    @Test
+    void updateConfigShouldUpdateExistingSingletonRowInsteadOfInsertingNewRow() {
+        service.updateConfig(2001, configRequest(120, 20, 90, true));
+
+        UserLevelConfigResponse response = service.updateConfig(2002, configRequest(60, 10, 50, false));
+
+        assertThat(response.getWindowDays()).isEqualTo(60);
+        assertThat(response.getLv2SignInDays()).isEqualTo(10);
+        assertThat(response.getLv3SignInDays()).isEqualTo(50);
+        assertThat(response.isEnabled()).isFalse();
+        assertThat(jdbcTemplate.queryForObject("select count(*) from user_level_rule_config", Integer.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("select id from user_level_rule_config", Long.class)).isEqualTo(1L);
+        assertThat(jdbcTemplate.queryForObject("select updated_by from user_level_rule_config where id = 1", Integer.class)).isEqualTo(2002);
+    }
+
+    @Test
+    void updateConfigShouldThrowInvalidRequestWhenThresholdsAreImpossible() {
+        assertThatThrownBy(() -> service.updateConfig(3001, configRequest(30, 20, 10, true)))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(GrowthErrorCode.INVALID_REQUEST));
+    }
+
     private void insertCheckIns(int userId, LocalDate endDateInclusive, int days) {
         for (int i = 0; i < days; i++) {
             LocalDate bizDate = endDateInclusive.minusDays(i);
@@ -142,5 +194,14 @@ class UserLevelServiceTest {
         assertThat(summary.lv3Threshold()).isEqualTo(88);
         assertThat(summary.signInDaysInWindow()).isEqualTo(12);
         assertThat(summary.userLevel()).isEqualTo(2);
+    }
+
+    private UpdateUserLevelConfigRequest configRequest(int windowDays, int lv2SignInDays, int lv3SignInDays, boolean enabled) {
+        UpdateUserLevelConfigRequest request = new UpdateUserLevelConfigRequest();
+        request.setWindowDays(windowDays);
+        request.setLv2SignInDays(lv2SignInDays);
+        request.setLv3SignInDays(lv3SignInDays);
+        request.setEnabled(enabled);
+        return request;
     }
 }

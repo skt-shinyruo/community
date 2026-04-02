@@ -1,23 +1,126 @@
-import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+// @vitest-environment jsdom
+
+import { flushPromises, mount } from '@vue/test-utils'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+vi.mock('../api/http', () => ({
+  default: {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    defaults: { baseURL: '' }
+  }
+}))
+
+vi.mock('../stores/auth', () => ({
+  useAuthStore: () => ({
+    accessToken: '',
+    userId: 0,
+    authed: false
+  })
+}))
+
+vi.mock('../stores/postMetaCache', () => ({
+  usePostMetaCacheStore: () => ({
+    ensureUserSummaries: vi.fn().mockResolvedValue({})
+  })
+}))
+
+const socialPrefsState = {
+  blockedSet: new Set(),
+  ensureBlocked: vi.fn().mockResolvedValue(undefined),
+  clear: vi.fn()
+}
+vi.mock('../stores/socialPrefs', () => ({
+  useSocialPrefsStore: () => socialPrefsState
+}))
+
+vi.mock('../stores/taxonomy', () => ({
+  useTaxonomyStore: () => ({
+    categoriesById: new Map(),
+    ensureCategories: vi.fn()
+  })
+}))
+
+vi.mock('../api/services/socialService', () => ({
+  followUser: vi.fn(),
+  unfollowUser: vi.fn(),
+  getFollowStatus: vi.fn()
+}))
+
+vi.mock('../api/services/blockService', () => ({
+  blockUser: vi.fn(),
+  unblockUser: vi.fn()
+}))
+
+vi.mock('../utils/time', () => ({
+  formatTime: vi.fn(() => ''),
+  formatTimeAgo: vi.fn(() => '')
+}))
 
 import UserProfileView from './UserProfileView.vue'
+import http from '../api/http'
+
+function okResult(data, traceId = 'trace-user') {
+  return {
+    data: {
+      code: 0,
+      message: '',
+      data,
+      traceId
+    }
+  }
+}
 
 describe('UserProfileView route contract', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    http.get.mockImplementation((url) => {
+      if (url === '/api/users/7') {
+        return Promise.resolve(
+          okResult({
+            id: 7,
+            username: 'alice',
+            level: 3,
+            score: 250,
+            socialDegraded: false
+          })
+        )
+      }
+      if (url === '/api/users/7/recent-posts') return Promise.resolve(okResult([]))
+      if (url === '/api/users/7/recent-comments') return Promise.resolve(okResult([]))
+      return Promise.resolve(okResult({}))
+    })
+  })
+
   it('declares userId as an explicit prop for route-prop pages', () => {
     expect(UserProfileView.props).toBeTruthy()
     expect(UserProfileView.props.userId).toBeTruthy()
   })
 
-  it('includes independent user level and recent sign-in UI bindings', () => {
-    const source = readFileSync(resolve(process.cwd(), 'src/views/UserProfileView.vue'), 'utf-8')
+  it('hides sign-in user-level ui and keeps legacy score/level when new fields are absent', async () => {
+    const wrapper = mount(UserProfileView, {
+      props: {
+        userId: '7'
+      },
+      global: {
+        stubs: {
+          RouterLink: {
+            template: '<a><slot /></a>'
+          },
+          UiBreadcrumb: true,
+          ReportModal: true
+        }
+      }
+    })
 
-    expect(source).toContain('v-if="profile?.userLevelEnabled !== false"')
-    expect(source).toContain('用户等级 LV {{ Number(profile?.userLevel) }}')
-    expect(source).toContain('最近签到 {{ Number(profile?.signInDaysInWindow) }} 天')
-    expect(source).toContain('签到用户等级')
-    expect(source).toContain('LV {{ Number(profile?.level || 1) }}')
-    expect(source).toContain('{{ Number(profile?.score || 0) }} 分')
+    await flushPromises()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('LV 3')
+    expect(wrapper.text()).toContain('250 分')
+    expect(wrapper.text()).not.toContain('用户等级 LV')
+    expect(wrapper.text()).not.toContain('签到用户等级')
+    expect(wrapper.text()).not.toContain('NaN')
   })
 })

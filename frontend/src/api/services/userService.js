@@ -6,6 +6,27 @@ import { unwrapResultBody } from '../result'
 const userCache = new Map()
 const userInflight = new Map()
 
+function optionalNumber(value) {
+  const next = Number(value)
+  return Number.isFinite(next) ? next : null
+}
+
+function normalizeUserLevelProfileFields(raw) {
+  const userLevel = optionalNumber(raw?.userLevel)
+  const signInDaysInWindow = optionalNumber(raw?.signInDaysInWindow)
+  const hasCompleteUserLevelData = userLevel !== null && signInDaysInWindow !== null
+
+  const explicitEnabled = raw?.userLevelEnabled === true ? true : (raw?.userLevelEnabled === false ? false : null)
+  const showUserLevel = explicitEnabled === false ? false : hasCompleteUserLevelData
+
+  return {
+    userLevel,
+    signInDaysInWindow,
+    userLevelEnabled: explicitEnabled === null ? showUserLevel : explicitEnabled,
+    showUserLevel
+  }
+}
+
 export async function getUserProfile(userId, { force = false } = {}) {
   const uid = Number(userId || 0)
   if (!force && userCache.has(uid)) {
@@ -19,7 +40,11 @@ export async function getUserProfile(userId, { force = false } = {}) {
   const p = (async () => {
     const resp = await http.get(`/api/users/${uid}`)
     const { data, traceId } = unwrapResultBody(resp.data, '获取用户信息')
-    const value = { ...data, _traceId: traceId }
+    const value = {
+      ...data,
+      ...normalizeUserLevelProfileFields(data),
+      _traceId: traceId
+    }
     userCache.set(uid, value)
     return value
   })()

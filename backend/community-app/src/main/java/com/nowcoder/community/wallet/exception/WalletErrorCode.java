@@ -9,7 +9,8 @@ public enum WalletErrorCode implements ErrorCode {
     TXN_NOT_BALANCED(17003, "钱包交易分录不平衡", 409),
     ACCOUNT_BALANCE_INSUFFICIENT(17004, "钱包余额不足", 409),
     ACCOUNT_UPDATE_CONFLICT(17005, "钱包账户更新冲突", 409),
-    PLATFORM_CASH_INSUFFICIENT(17006, "平台可提现现金不足", 409);
+    PLATFORM_CASH_INSUFFICIENT(17006, "平台可提现现金不足", 409),
+    REQUEST_REPLAY_CONFLICT(17007, "请求号与已有钱包请求不一致", 409);
 
     private final int code;
     private final String message;

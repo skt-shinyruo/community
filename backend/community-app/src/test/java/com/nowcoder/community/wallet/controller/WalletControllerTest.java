@@ -1,11 +1,13 @@
 package com.nowcoder.community.wallet.controller;
 
 import com.nowcoder.community.app.security.CommunitySecurityConfig;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.wallet.dto.CreateRechargeResponse;
 import com.nowcoder.community.wallet.dto.CreateWithdrawResponse;
 import com.nowcoder.community.wallet.dto.WalletSummaryResponse;
+import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.service.RechargeService;
 import com.nowcoder.community.wallet.service.WalletQueryService;
 import com.nowcoder.community.wallet.service.WithdrawService;
@@ -141,5 +143,41 @@ class WalletControllerTest {
                 .andExpect(jsonPath("$.data.userId").value(1))
                 .andExpect(jsonPath("$.data.amount").value(500))
                 .andExpect(jsonPath("$.data.status").value("SUCCEEDED"));
+    }
+
+    @Test
+    void rechargeEndpointShouldReturnConflictForReplayPayloadMismatch() throws Exception {
+        when(rechargeService.complete(eq("recharge:req-conflict"), eq(1), eq(1200L)))
+                .thenThrow(new BusinessException(WalletErrorCode.REQUEST_REPLAY_CONFLICT, "requestId already used by another recharge"));
+
+        mockMvc.perform(post("/api/wallet/recharges")
+                        .with(jwt().jwt(jwt -> jwt.subject("1").claim("username", "u1")))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "requestId": "recharge:req-conflict",
+                                  "amount": 1200
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(WalletErrorCode.REQUEST_REPLAY_CONFLICT.getCode()));
+    }
+
+    @Test
+    void withdrawEndpointShouldReturnConflictForReplayPayloadMismatch() throws Exception {
+        when(withdrawService.request(eq("withdraw:req-conflict"), eq(1), eq(500L)))
+                .thenThrow(new BusinessException(WalletErrorCode.REQUEST_REPLAY_CONFLICT, "requestId already used by another withdraw"));
+
+        mockMvc.perform(post("/api/wallet/withdrawals")
+                        .with(jwt().jwt(jwt -> jwt.subject("1").claim("username", "u1")))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "requestId": "withdraw:req-conflict",
+                                  "amount": 500
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(WalletErrorCode.REQUEST_REPLAY_CONFLICT.getCode()));
     }
 }

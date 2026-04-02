@@ -7,6 +7,7 @@ import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.mapper.WithdrawOrderMapper;
 import com.nowcoder.community.wallet.model.WalletPosting;
 import com.nowcoder.community.wallet.model.WalletTxnType;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,40 +31,49 @@ public class WithdrawService {
     @Transactional
     public CreateWithdrawResponse request(String requestId, int userId, long amount) {
         validate(requestId, amount);
-        if (accountService.balanceOfSystem("PLATFORM_CASH") < amount) {
+        WithdrawOrder existing = withdrawOrderMapper.selectByRequestId(requestId);
+        if (existing != null) {
+            ensureReplayMatches(existing, userId, amount);
+            if ("SUCCEEDED".equals(existing.getStatus())) {
+                return CreateWithdrawResponse.from(existing);
+            }
+        }
+
+        if (existing == null && accountService.balanceOfSystem("PLATFORM_CASH") < amount) {
             throw new BusinessException(WalletErrorCode.PLATFORM_CASH_INSUFFICIENT, "platform cash insufficient");
         }
 
-        WithdrawOrder existing = withdrawOrderMapper.selectByRequestId(requestId);
-        if (existing == null) {
-            WithdrawOrder order = new WithdrawOrder();
-            order.setRequestId(requestId);
-            order.setUserId(userId);
-            order.setAmount(amount);
-            order.setStatus("REQUESTED");
-            withdrawOrderMapper.insert(order);
+        WithdrawOrder order = existing == null ? createOrLoad(requestId, userId, amount) : existing;
+        ensureReplayMatches(order, userId, amount);
+        if ("SUCCEEDED".equals(order.getStatus())) {
+            return CreateWithdrawResponse.from(order);
         }
 
-        ledgerService.post(
-                requestId + ":request",
-                WalletTxnType.WITHDRAW,
-                List.of(
-                        WalletPosting.debit(accountService.ensureUserWallet(userId), amount),
-                        WalletPosting.credit(accountService.ensureSystemAccount("WITHDRAW_PENDING"), amount)
-                )
-        );
-        withdrawOrderMapper.updateStatus(requestId, "REQUESTED", "PROCESSING");
-        ledgerService.post(
-                requestId + ":settle",
-                WalletTxnType.WITHDRAW,
-                List.of(
-                        WalletPosting.debit(accountService.ensureSystemAccount("WITHDRAW_PENDING"), amount),
-                        WalletPosting.credit(accountService.ensureSystemAccount("PLATFORM_CASH"), amount)
-                )
-        );
-        withdrawOrderMapper.updateStatus(requestId, "PROCESSING", "SUCCEEDED");
-        WithdrawOrder order = withdrawOrderMapper.selectByRequestId(requestId);
-        return CreateWithdrawResponse.from(order);
+        if ("REQUESTED".equals(order.getStatus())) {
+            ledgerService.post(
+                    requestId + ":request",
+                    WalletTxnType.WITHDRAW,
+                    List.of(
+                            WalletPosting.debit(accountService.ensureUserWallet(userId), amount),
+                            WalletPosting.credit(accountService.ensureSystemAccount("WITHDRAW_PENDING"), amount)
+                    )
+            );
+            withdrawOrderMapper.updateStatus(requestId, "REQUESTED", "PROCESSING");
+            order = requireOrder(requestId);
+        }
+
+        if ("PROCESSING".equals(order.getStatus())) {
+            ledgerService.post(
+                    requestId + ":settle",
+                    WalletTxnType.WITHDRAW,
+                    List.of(
+                            WalletPosting.debit(accountService.ensureSystemAccount("WITHDRAW_PENDING"), amount),
+                            WalletPosting.credit(accountService.ensureSystemAccount("PLATFORM_CASH"), amount)
+                    )
+            );
+            withdrawOrderMapper.updateStatus(requestId, "PROCESSING", "SUCCEEDED");
+        }
+        return CreateWithdrawResponse.from(requireOrder(requestId));
     }
 
     private void validate(String requestId, long amount) {
@@ -72,6 +82,41 @@ public class WithdrawService {
         }
         if (amount <= 0) {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "withdraw amount must be positive");
+        }
+    }
+
+    private WithdrawOrder createOrLoad(String requestId, int userId, long amount) {
+        WithdrawOrder order = new WithdrawOrder();
+        order.setRequestId(requestId);
+        order.setUserId(userId);
+        order.setAmount(amount);
+        order.setStatus("REQUESTED");
+        try {
+            withdrawOrderMapper.insert(order);
+            return order;
+        } catch (DataIntegrityViolationException ex) {
+            WithdrawOrder duplicated = withdrawOrderMapper.selectByRequestId(requestId);
+            if (duplicated != null) {
+                return duplicated;
+            }
+            throw ex;
+        }
+    }
+
+    private WithdrawOrder requireOrder(String requestId) {
+        WithdrawOrder order = withdrawOrderMapper.selectByRequestId(requestId);
+        if (order == null) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "withdraw order not found: requestId=" + requestId);
+        }
+        return order;
+    }
+
+    private void ensureReplayMatches(WithdrawOrder order, int userId, long amount) {
+        if (order.getUserId() != userId || order.getAmount() != amount) {
+            throw new BusinessException(
+                    WalletErrorCode.REQUEST_REPLAY_CONFLICT,
+                    "requestId replay conflict: requestId=" + order.getRequestId()
+            );
         }
     }
 }

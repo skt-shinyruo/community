@@ -7,6 +7,7 @@ import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.mapper.RechargeOrderMapper;
 import com.nowcoder.community.wallet.model.WalletPosting;
 import com.nowcoder.community.wallet.model.WalletTxnType;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,13 +33,17 @@ public class RechargeService {
         validate(requestId, amount);
 
         RechargeOrder existing = rechargeOrderMapper.selectByRequestId(requestId);
-        if (existing == null) {
-            RechargeOrder order = new RechargeOrder();
-            order.setRequestId(requestId);
-            order.setUserId(userId);
-            order.setAmount(amount);
-            order.setStatus("CREATED");
-            rechargeOrderMapper.insert(order);
+        if (existing != null) {
+            ensureReplayMatches(existing, userId, amount);
+            if ("PAID".equals(existing.getStatus())) {
+                return CreateRechargeResponse.from(existing);
+            }
+        }
+
+        RechargeOrder order = existing == null ? createOrLoad(requestId, userId, amount) : existing;
+        ensureReplayMatches(order, userId, amount);
+        if ("PAID".equals(order.getStatus())) {
+            return CreateRechargeResponse.from(order);
         }
 
         ledgerService.post(
@@ -50,8 +55,7 @@ public class RechargeService {
                 )
         );
         rechargeOrderMapper.updateStatus(requestId, "CREATED", "PAID");
-        RechargeOrder order = rechargeOrderMapper.selectByRequestId(requestId);
-        return CreateRechargeResponse.from(order);
+        return CreateRechargeResponse.from(requireOrder(requestId));
     }
 
     private void validate(String requestId, long amount) {
@@ -60,6 +64,41 @@ public class RechargeService {
         }
         if (amount <= 0) {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "recharge amount must be positive");
+        }
+    }
+
+    private RechargeOrder createOrLoad(String requestId, int userId, long amount) {
+        RechargeOrder order = new RechargeOrder();
+        order.setRequestId(requestId);
+        order.setUserId(userId);
+        order.setAmount(amount);
+        order.setStatus("CREATED");
+        try {
+            rechargeOrderMapper.insert(order);
+            return order;
+        } catch (DataIntegrityViolationException ex) {
+            RechargeOrder duplicated = rechargeOrderMapper.selectByRequestId(requestId);
+            if (duplicated != null) {
+                return duplicated;
+            }
+            throw ex;
+        }
+    }
+
+    private RechargeOrder requireOrder(String requestId) {
+        RechargeOrder order = rechargeOrderMapper.selectByRequestId(requestId);
+        if (order == null) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "recharge order not found: requestId=" + requestId);
+        }
+        return order;
+    }
+
+    private void ensureReplayMatches(RechargeOrder order, int userId, long amount) {
+        if (order.getUserId() != userId || order.getAmount() != amount) {
+            throw new BusinessException(
+                    WalletErrorCode.REQUEST_REPLAY_CONFLICT,
+                    "requestId replay conflict: requestId=" + order.getRequestId()
+            );
         }
     }
 }

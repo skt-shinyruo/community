@@ -362,7 +362,7 @@ create table if not exists growth_check_in (
 );
 
 create table if not exists user_level_rule_config (
-  id bigint auto_increment primary key,
+  id bigint primary key,
   window_days int not null,
   lv2_sign_in_days int not null,
   lv3_sign_in_days int not null,

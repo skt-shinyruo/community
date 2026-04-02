@@ -55,8 +55,11 @@ public class UserLevelService {
     }
 
     public UserLevelRuleConfig activeConfigOrDefault() {
-        UserLevelRuleConfig config = userLevelRuleConfigMapper.selectLatest();
-        return config == null ? defaultConfig() : config;
+        UserLevelRuleConfig config = userLevelRuleConfigMapper.selectCurrent();
+        if (config == null || !isValidConfig(config)) {
+            return defaultConfig();
+        }
+        return config;
     }
 
     private UserLevelRuleConfig defaultConfig() {
@@ -66,6 +69,19 @@ public class UserLevelService {
         config.setLv3SignInDays(DEFAULT_LV3_SIGN_IN_DAYS);
         config.setEnabled(true);
         return config;
+    }
+
+    private boolean isValidConfig(UserLevelRuleConfig config) {
+        if (config.getWindowDays() <= 0) {
+            return false;
+        }
+        if (config.getLv2SignInDays() <= 0 || config.getLv3SignInDays() <= 0) {
+            return false;
+        }
+        if (config.getLv2SignInDays() >= config.getLv3SignInDays()) {
+            return false;
+        }
+        return config.getLv3SignInDays() <= config.getWindowDays();
     }
 
     public record UserLevelSummary(

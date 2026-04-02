@@ -60,9 +60,9 @@ class UserLevelServiceTest {
     void evaluateLevelShouldReturnLevel1WhenConfigDisabled() {
         LocalDate bizDate = LocalDate.of(2026, 4, 2);
         jdbcTemplate.update(
-                "insert into user_level_rule_config(window_days, lv2_sign_in_days, lv3_sign_in_days, enabled, updated_by, update_time) " +
-                        "values (?, ?, ?, ?, ?, current_timestamp)",
-                30, 10, 20, false, 1001
+                "insert into user_level_rule_config(id, window_days, lv2_sign_in_days, lv3_sign_in_days, enabled, updated_by, update_time) " +
+                        "values (?, ?, ?, ?, ?, ?, current_timestamp)",
+                1L, 30, 10, 20, false, 1001
         );
         insertCheckIns(9, bizDate, 30);
 
@@ -76,6 +76,37 @@ class UserLevelServiceTest {
         assertThat(summary.userLevel()).isEqualTo(1);
     }
 
+    @Test
+    void evaluateLevelShouldFallbackToDefaultWhenPersistedConfigIsInvalid() {
+        LocalDate bizDate = LocalDate.of(2026, 4, 2);
+        insertCheckIns(10, bizDate, 12);
+        assertFallbackToDefaultForInvalidConfig(0, 12, 88, true, 1002, 10, bizDate);
+        assertFallbackToDefaultForInvalidConfig(100, 0, 88, true, 1002, 10, bizDate);
+        assertFallbackToDefaultForInvalidConfig(100, 12, 0, true, 1002, 10, bizDate);
+        assertFallbackToDefaultForInvalidConfig(100, 88, 88, true, 1002, 10, bizDate);
+        assertFallbackToDefaultForInvalidConfig(50, 12, 88, true, 1002, 10, bizDate);
+    }
+
+    @Test
+    void evaluateLevelShouldReadOnlySingletonCurrentConfigRow() {
+        LocalDate bizDate = LocalDate.of(2026, 4, 2);
+        jdbcTemplate.update(
+                "insert into user_level_rule_config(id, window_days, lv2_sign_in_days, lv3_sign_in_days, enabled, updated_by, update_time) " +
+                        "values (?, ?, ?, ?, ?, ?, current_timestamp)",
+                2L, 30, 10, 20, false, 1003
+        );
+        insertCheckIns(11, bizDate, 12);
+
+        UserLevelService.UserLevelSummary summary = service.evaluateLevel(11, bizDate);
+
+        assertThat(summary.enabled()).isTrue();
+        assertThat(summary.windowDays()).isEqualTo(100);
+        assertThat(summary.lv2Threshold()).isEqualTo(12);
+        assertThat(summary.lv3Threshold()).isEqualTo(88);
+        assertThat(summary.signInDaysInWindow()).isEqualTo(12);
+        assertThat(summary.userLevel()).isEqualTo(2);
+    }
+
     private void insertCheckIns(int userId, LocalDate endDateInclusive, int days) {
         for (int i = 0; i < days; i++) {
             LocalDate bizDate = endDateInclusive.minusDays(i);
@@ -86,5 +117,30 @@ class UserLevelServiceTest {
                     1
             );
         }
+    }
+
+    private void assertFallbackToDefaultForInvalidConfig(
+            int windowDays,
+            int lv2SignInDays,
+            int lv3SignInDays,
+            boolean enabled,
+            int updatedBy,
+            int userId,
+            LocalDate bizDate
+    ) {
+        jdbcTemplate.update("delete from user_level_rule_config");
+        jdbcTemplate.update(
+                "insert into user_level_rule_config(id, window_days, lv2_sign_in_days, lv3_sign_in_days, enabled, updated_by, update_time) " +
+                        "values (?, ?, ?, ?, ?, ?, current_timestamp)",
+                1L, windowDays, lv2SignInDays, lv3SignInDays, enabled, updatedBy
+        );
+
+        UserLevelService.UserLevelSummary summary = service.evaluateLevel(userId, bizDate);
+        assertThat(summary.enabled()).isTrue();
+        assertThat(summary.windowDays()).isEqualTo(100);
+        assertThat(summary.lv2Threshold()).isEqualTo(12);
+        assertThat(summary.lv3Threshold()).isEqualTo(88);
+        assertThat(summary.signInDaysInWindow()).isEqualTo(12);
+        assertThat(summary.userLevel()).isEqualTo(2);
     }
 }

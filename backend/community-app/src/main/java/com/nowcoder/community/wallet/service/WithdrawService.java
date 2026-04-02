@@ -39,6 +39,8 @@ public class WithdrawService {
             }
         }
 
+        accountService.requireUserWalletActive(userId);
+
         if (order == null && accountService.balanceOfSystem("PLATFORM_CASH") < amount) {
             order = withdrawOrderMapper.selectByRequestId(requestId);
             if (order == null) {

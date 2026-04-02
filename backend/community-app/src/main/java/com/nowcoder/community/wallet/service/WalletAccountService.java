@@ -17,6 +17,7 @@ public class WalletAccountService {
     private static final String OWNER_TYPE_SYSTEM = "SYSTEM";
     private static final String ACCOUNT_TYPE_USER_WALLET = "USER_WALLET";
     private static final String STATUS_ACTIVE = "ACTIVE";
+    private static final String STATUS_FROZEN = "FROZEN";
     private static final String DIRECTION_DEBIT = "DEBIT";
     private static final String DIRECTION_CREDIT = "CREDIT";
     private static final Set<String> SYSTEM_ACCOUNT_TYPES = Set.of(
@@ -52,6 +53,24 @@ public class WalletAccountService {
         validateSystemAccountType(accountType);
         WalletAccount account = walletAccountMapper.selectByOwner(OWNER_TYPE_SYSTEM, 0L, accountType);
         return account == null ? 0L : account.getBalance();
+    }
+
+    public WalletAccount loadUserWallet(long userId) {
+        return ensureAccount(OWNER_TYPE_USER, userId, ACCOUNT_TYPE_USER_WALLET);
+    }
+
+    public void requireUserWalletActive(long userId) {
+        WalletAccount account = loadUserWallet(userId);
+        if (!STATUS_ACTIVE.equals(account.getStatus())) {
+            throw new BusinessException(WalletErrorCode.ACCOUNT_FROZEN, "wallet account is frozen: userId=" + userId);
+        }
+    }
+
+    public void setStatus(long accountId, String nextStatus) {
+        validateUserAccountStatus(nextStatus);
+        WalletAccount account = lock(accountId);
+        account.setStatus(nextStatus);
+        apply(account, 0L);
     }
 
     public WalletAccount lock(long accountId) {
@@ -141,6 +160,12 @@ public class WalletAccountService {
         }
         if (!SYSTEM_ACCOUNT_TYPES.contains(accountType)) {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "system accountType is not allowed: " + accountType);
+        }
+    }
+
+    private void validateUserAccountStatus(String status) {
+        if (!STATUS_ACTIVE.equals(status) && !STATUS_FROZEN.equals(status)) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "wallet account status is not allowed: " + status);
         }
     }
 }

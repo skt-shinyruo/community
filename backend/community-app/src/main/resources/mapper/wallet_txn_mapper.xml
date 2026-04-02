@@ -16,4 +16,11 @@
         values(#{requestId}, #{txnType}, #{bizType}, #{bizId}, #{status}, #{amount}, #{remark})
     </insert>
 
+    <update id="markSucceeded">
+        update wallet_txn
+        set status = 'SUCCEEDED',
+            update_time = current_timestamp
+        where txn_id = #{txnId}
+    </update>
+
 </mapper>

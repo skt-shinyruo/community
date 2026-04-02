@@ -12,7 +12,7 @@
         </UiButton>
       </div>
       <div class="growth-hero-grid">
-        <div class="growth-hero-card">
+        <div v-if="header.showUserLevelCard" class="growth-hero-card">
           <span class="growth-hero-label">用户等级</span>
           <strong>{{ header.userLevelLabel }}</strong>
           <p>{{ header.heroText }}</p>

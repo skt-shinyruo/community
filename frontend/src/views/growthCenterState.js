@@ -48,6 +48,11 @@ function asOptionalNumber(value) {
   return Number.isFinite(next) ? next : null
 }
 
+function asOptionalBoolean(value, fallback = true) {
+  if (value === true || value === false) return value
+  return fallback
+}
+
 function normalizeTaskUiState(status) {
   if (status === 'CLAIMED') return 'claimed'
   if (status === 'CLAIMABLE') return 'claimable'
@@ -102,6 +107,7 @@ export function buildGrowthCenterState({ summary, checkInStatus, tasks } = {}) {
   const header = {
     score: asNumber(safeSummary.score),
     level: Math.max(1, asNumber(safeSummary.level, 1)),
+    userLevelEnabled: asOptionalBoolean(safeSummary.userLevelEnabled, true),
     userLevel: asOptionalNumber(safeSummary.userLevel),
     signInDaysInWindow: asOptionalNumber(safeSummary.signInDaysInWindow),
     windowDays: asOptionalNumber(safeSummary.windowDays),
@@ -120,6 +126,7 @@ export function buildGrowthCenterState({ summary, checkInStatus, tasks } = {}) {
     header.userLevel >= 1 &&
     header.signInDaysInWindow >= 0 &&
     header.windowDays > 0
+  header.showUserLevelCard = header.userLevelEnabled !== false
   header.userLevelLabel = hasUserLevelSummary ? String(header.userLevel) : '—'
   header.heroText = hasUserLevelSummary
     ? `用户等级 LV ${header.userLevel} · 最近 ${header.windowDays} 天签到 ${header.signInDaysInWindow} 天`

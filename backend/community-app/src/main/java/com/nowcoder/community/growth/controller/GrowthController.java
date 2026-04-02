@@ -52,9 +52,16 @@ public class GrowthController {
         resp.setScore(profile.score());
         resp.setLevel(profile.level());
         UserLevelService.UserLevelSummary levelSummary = userLevelService.evaluateLevel(userId);
-        resp.setUserLevel(levelSummary.userLevel());
-        resp.setSignInDaysInWindow(levelSummary.signInDaysInWindow());
-        resp.setWindowDays(levelSummary.windowDays());
+        resp.setUserLevelEnabled(levelSummary.enabled());
+        if (levelSummary.enabled()) {
+            resp.setUserLevel(levelSummary.userLevel());
+            resp.setSignInDaysInWindow(levelSummary.signInDaysInWindow());
+            resp.setWindowDays(levelSummary.windowDays());
+        } else {
+            resp.setUserLevel(null);
+            resp.setSignInDaysInWindow(null);
+            resp.setWindowDays(null);
+        }
         resp.setRewardBalance(rewardAccountService.availableBalanceOf(userId));
         resp.setFrozenBalance(rewardAccountService.frozenBalanceOf(userId));
         return Result.ok(resp);

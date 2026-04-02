@@ -84,6 +84,7 @@ class UserControllerUnitTest {
         assertThat(result.getData().getCreateTime()).isEqualTo(createTime);
         assertThat(result.getData().getScore()).isEqualTo(250);
         assertThat(result.getData().getLevel()).isEqualTo(3);
+        assertThat(result.getData().isUserLevelEnabled()).isTrue();
         assertThat(result.getData()).extracting("userLevel", "signInDaysInWindow")
                 .containsExactly(2, 13);
         assertThat(result.getData().getLikeCount()).isEqualTo(12);
@@ -93,6 +94,28 @@ class UserControllerUnitTest {
         assertThat(result.getData().isSocialDegraded()).isFalse();
         verify(getUserProfilePageQuery).get(authentication, 7);
         verify(userLevelService).evaluateLevel(7);
+    }
+
+    @Test
+    void getUserShouldHideNewUserLevelFieldsWhenFeatureDisabled() {
+        Authentication authentication = authentication(42);
+        Date createTime = new Date();
+        when(getUserProfilePageQuery.get(authentication, 8))
+                .thenReturn(new UserProfilePageView(8, "bob", "h8", 1, 0, createTime, 99, 2, 3, 4, 5, false, false));
+        when(userLevelService.evaluateLevel(8))
+                .thenReturn(new UserLevelService.UserLevelSummary(1, 0, 100, 12, 88, false));
+
+        Result<UserProfileResponse> result = controller.getUser(authentication, 8);
+
+        assertThat(result.getCode()).isEqualTo(0);
+        assertThat(result.getData()).isNotNull();
+        assertThat(result.getData().isUserLevelEnabled()).isFalse();
+        assertThat(result.getData().getUserLevel()).isNull();
+        assertThat(result.getData().getSignInDaysInWindow()).isNull();
+        assertThat(result.getData().getLevel()).isEqualTo(2);
+        assertThat(result.getData().getScore()).isEqualTo(99);
+        verify(getUserProfilePageQuery).get(authentication, 8);
+        verify(userLevelService).evaluateLevel(8);
     }
 
     @Test

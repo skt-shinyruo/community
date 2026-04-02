@@ -80,8 +80,14 @@ public class UserController {
         resp.setScore(user.score());
         resp.setLevel(user.level());
         UserLevelService.UserLevelSummary levelSummary = userLevelService.evaluateLevel(userId);
-        resp.setUserLevel(levelSummary.userLevel());
-        resp.setSignInDaysInWindow(levelSummary.signInDaysInWindow());
+        resp.setUserLevelEnabled(levelSummary.enabled());
+        if (levelSummary.enabled()) {
+            resp.setUserLevel(levelSummary.userLevel());
+            resp.setSignInDaysInWindow(levelSummary.signInDaysInWindow());
+        } else {
+            resp.setUserLevel(null);
+            resp.setSignInDaysInWindow(null);
+        }
         resp.setLikeCount(user.likeCount());
         resp.setFolloweeCount(user.followeeCount());
         resp.setFollowerCount(user.followerCount());

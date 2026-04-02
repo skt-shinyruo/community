@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -112,6 +113,28 @@ class GrowthControllerTest {
                 .andExpect(jsonPath("$.data.userId").value(2))
                 .andExpect(jsonPath("$.data.rewardBalance").value(0))
                 .andExpect(jsonPath("$.data.frozenBalance").value(0));
+    }
+
+    @Test
+    void growthSummaryShouldExposeDisabledFlagAndNotForceUserLevelValuesWhenFeatureDisabled() throws Exception {
+        when(userProfileQueryApi.getGrowthProfile(3))
+                .thenReturn(new UserGrowthProfileView(3, "u3", 180, 2, "u3@example.com", 1, "h3"));
+        when(rewardAccountService.availableBalanceOf(3)).thenReturn(6);
+        when(rewardAccountService.frozenBalanceOf(3)).thenReturn(1);
+        when(userLevelService.evaluateLevel(3))
+                .thenReturn(new UserLevelService.UserLevelSummary(1, 0, 100, 12, 88, false));
+
+        mockMvc.perform(get("/api/growth/summary")
+                        .with(jwt().jwt(jwt -> jwt.subject("3").claim("username", "u3"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.userId").value(3))
+                .andExpect(jsonPath("$.data.userLevelEnabled").value(false))
+                .andExpect(jsonPath("$.data.userLevel").value(nullValue()))
+                .andExpect(jsonPath("$.data.signInDaysInWindow").value(nullValue()))
+                .andExpect(jsonPath("$.data.windowDays").value(nullValue()))
+                .andExpect(jsonPath("$.data.level").value(2))
+                .andExpect(jsonPath("$.data.score").value(180));
     }
 
     @Test

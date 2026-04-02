@@ -61,6 +61,7 @@ describe('growthCenterState', () => {
     })
 
     expect(state.header.heroText).toBe('用户等级 LV 2 · 最近 100 天签到 17 天')
+    expect(state.header.showUserLevelCard).toBe(true)
     expect(state.header.streakText).toContain('连续签到 0 天')
     expect(state.groups).toHaveLength(3)
     expect(state.groups.every((group) => Array.isArray(group.items))).toBe(true)
@@ -75,5 +76,27 @@ describe('growthCenterState', () => {
 
     expect(state.header.heroText).toBe('用户等级信息暂不可用')
     expect(state.header.userLevelLabel).toBe('—')
+    expect(state.header.showUserLevelCard).toBe(true)
+  })
+
+  it('hides user-level card when feature is explicitly disabled', () => {
+    const state = buildGrowthCenterState({
+      summary: {
+        score: 66,
+        level: 3,
+        userLevelEnabled: false,
+        userLevel: null,
+        signInDaysInWindow: null,
+        windowDays: null,
+        rewardBalance: 8,
+        frozenBalance: 1
+      },
+      checkInStatus: { checkedInToday: true, currentStreak: 7, maxStreak: 9, totalCheckInDays: 21 },
+      tasks: { bizDate: '2026-03-22', items: [] }
+    })
+
+    expect(state.header.showUserLevelCard).toBe(false)
+    expect(state.header.level).toBe(3)
+    expect(state.header.score).toBe(66)
   })
 })

@@ -12,8 +12,9 @@ public class UserProfileResponse {
     private Date createTime;
     private int score;
     private int level;
-    private int userLevel;
-    private int signInDaysInWindow;
+    private boolean userLevelEnabled;
+    private Integer userLevel;
+    private Integer signInDaysInWindow;
 
     // 对齐旧单体“用户主页”展示字段：获赞/关注/粉丝/关注状态
     private long likeCount;
@@ -90,19 +91,27 @@ public class UserProfileResponse {
         this.level = level;
     }
 
-    public int getUserLevel() {
+    public boolean isUserLevelEnabled() {
+        return userLevelEnabled;
+    }
+
+    public void setUserLevelEnabled(boolean userLevelEnabled) {
+        this.userLevelEnabled = userLevelEnabled;
+    }
+
+    public Integer getUserLevel() {
         return userLevel;
     }
 
-    public void setUserLevel(int userLevel) {
+    public void setUserLevel(Integer userLevel) {
         this.userLevel = userLevel;
     }
 
-    public int getSignInDaysInWindow() {
+    public Integer getSignInDaysInWindow() {
         return signInDaysInWindow;
     }
 
-    public void setSignInDaysInWindow(int signInDaysInWindow) {
+    public void setSignInDaysInWindow(Integer signInDaysInWindow) {
         this.signInDaysInWindow = signInDaysInWindow;
     }
 

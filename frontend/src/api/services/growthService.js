@@ -8,10 +8,15 @@ export async function getGrowthSummary() {
     const next = Number(value)
     return Number.isFinite(next) ? next : null
   }
+  const asOptionalBoolean = (value, fallback = true) => {
+    if (value === true || value === false) return value
+    return fallback
+  }
   return {
     data: {
       score: Number(data?.score || 0),
       level: Number(data?.level || 1),
+      userLevelEnabled: asOptionalBoolean(data?.userLevelEnabled, true),
       userLevel: optionalNumber(data?.userLevel),
       signInDaysInWindow: optionalNumber(data?.signInDaysInWindow),
       windowDays: optionalNumber(data?.windowDays),

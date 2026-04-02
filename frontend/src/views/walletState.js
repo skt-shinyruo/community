@@ -3,13 +3,16 @@ function asNumber(value, fallback = 0) {
   return Number.isFinite(next) ? next : fallback
 }
 
-function normalizeStatus(status) {
-  return String(status || 'ACTIVE').trim().toUpperCase() || 'ACTIVE'
+function normalizeStatus(status, fallback = 'UNKNOWN') {
+  const normalized = String(status || '').trim().toUpperCase()
+  return normalized || fallback
 }
 
 function statusText(status) {
   if (status === 'FROZEN') return '钱包已冻结，当前仅保留查询能力。'
   if (status === 'CLOSED') return '钱包已关闭，如需恢复请联系管理员。'
+  if (status === 'ACTIVE') return '钱包状态正常，可继续消费、转账与提现。'
+  if (status === 'UNKNOWN') return '钱包状态暂未返回，当前仅展示余额与近期动作，后续待同步。'
   return '钱包状态正常，可继续消费、转账与提现。'
 }
 
@@ -43,7 +46,7 @@ function txnMetaText(txn) {
 export function buildWalletState({ summary, txns } = {}) {
   const safeSummary = summary && typeof summary === 'object' ? summary : {}
   const safeTxns = Array.isArray(txns) ? txns : []
-  const status = normalizeStatus(safeSummary.status)
+  const status = normalizeStatus(safeSummary.status, 'UNKNOWN')
 
   return {
     hero: {
@@ -59,7 +62,7 @@ export function buildWalletState({ summary, txns } = {}) {
         amount,
         amountText: `${amountText(amount)} 积分`,
         meta: txnMetaText(txn),
-        status: normalizeStatus(txn?.status || 'SUCCEEDED')
+        status: normalizeStatus(txn?.status || 'SUCCEEDED', 'SUCCEEDED')
       }
     })
   }

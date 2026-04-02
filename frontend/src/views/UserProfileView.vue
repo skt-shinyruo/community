@@ -71,7 +71,7 @@
           <div class="profile-name-row">
             <h1 class="profile-name">{{ profile?.username || `成员 ${profile?.id}` }}</h1>
             <UiRoleBadge :user="profile" size="md" />
-            <span class="profile-chip" title="钱包资产">{{ walletBalance }} 积分</span>
+            <span class="profile-chip" title="钱包资产">{{ walletAsset.chipText }}</span>
           </div>
           <div class="profile-meta muted">用户 ID：{{ userId }} · 加入 {{ joinedYear || '—' }}</div>
           <div class="profile-cta-row">
@@ -115,8 +115,8 @@
               </div>
               <div class="profile-summary-card">
                 <div class="profile-summary-label">钱包资产</div>
-                <div class="profile-summary-value">{{ walletBalance }} 积分</div>
-                <div class="profile-summary-text">论坛内统一资产，可用于消费、转账和提现。</div>
+                <div class="profile-summary-value">{{ walletAsset.valueText }}</div>
+                <div class="profile-summary-text">{{ walletAsset.description }}</div>
               </div>
               <div class="profile-summary-card">
                 <div class="profile-summary-label">社交状态</div>
@@ -208,7 +208,7 @@ import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
 import UiRoleBadge from '../components/ui/UiRoleBadge.vue'
 import ReportModal from '../components/modals/ReportModal.vue'
-import { buildCommunityNextSteps, buildCommunitySignals, describeFollowStatusText } from './userProfileSurface'
+import { buildCommunityNextSteps, buildCommunitySignals, buildProfileWalletAsset, describeFollowStatusText } from './userProfileSurface'
 import { buildProfileTimeline, collectTimelineUserIds } from './userProfileTimeline'
 
 const emit = defineEmits(['trace'])
@@ -247,9 +247,14 @@ const joinedYear = computed(() => {
   const y = d.getFullYear()
   return Number.isFinite(y) ? String(y) : ''
 })
-const walletBalance = computed(() => Number(profile.value?.walletBalance || 0))
-
 const isSelfProfile = computed(() => !!meUserId.value && meUserId.value === Number(userId.value))
+const walletAsset = computed(() =>
+  buildProfileWalletAsset({
+    profile: profile.value,
+    authed: authed.value,
+    isSelf: isSelfProfile.value
+  })
+)
 const followStatusText = computed(() =>
   describeFollowStatusText({
     followStatus: followStatus.value,

@@ -1,323 +1,84 @@
 <template>
-  <div class="page reward-ops-page">
+  <div class="page legacy-ops-page">
     <UiBreadcrumb />
 
-    <UiCard class="reward-ops-shell">
+    <UiCard class="legacy-ops-shell">
       <UiPageHeader>
-        <template #title>奖励运营后台</template>
-        <template #subtitle>集中管理商品目录、人工履约订单和轻量指标，不让运营动作散落到数据库脚本里。</template>
-        <template #actions>
-          <UiButton variant="secondary" :disabled="loading" @click="reload">{{ loading ? '刷新中…' : '刷新' }}</UiButton>
-        </template>
+        <template #title>运营入口已迁移</template>
+        <template #subtitle>旧的奖励运营后台地址只保留兼容说明，后续运营动作会统一并入钱包后台与新的市场运营台。</template>
       </UiPageHeader>
 
-      <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
-
-      <div class="reward-ops-metrics">
-        <UiCard flat class="reward-ops-metric-card">
-          <span class="reward-ops-label">启用商品</span>
-          <strong>{{ metrics.activeItemCount || 0 }}</strong>
-        </UiCard>
-        <UiCard flat class="reward-ops-metric-card">
-          <span class="reward-ops-label">待处理订单</span>
-          <strong>{{ metrics.pendingOrderCount || 0 }}</strong>
-        </UiCard>
-        <UiCard flat class="reward-ops-metric-card">
-          <span class="reward-ops-label">已退款</span>
-          <strong>{{ metrics.refundedOrderCount || 0 }}</strong>
-        </UiCard>
+      <div class="legacy-ops-grid">
+        <section class="legacy-ops-card">
+          <h2>钱包后台</h2>
+          <p>冻结钱包、回滚交易等高风险资产动作已经收口到统一的钱包后台。</p>
+        </section>
+        <section class="legacy-ops-card">
+          <h2>历史运营页</h2>
+          <p>商品与履约运营不会继续挂在这条旧路由上，当前页面只负责承接已有链接。</p>
+        </section>
       </div>
 
-      <UiCard flat class="reward-ops-form-card">
-        <div class="reward-ops-form-head">
-          <h2>商品编辑</h2>
-          <p>用一张表单完成新增、编辑与停用。</p>
-        </div>
-        <div class="reward-ops-form-grid">
-          <UiInput v-model.trim="itemForm.itemId" placeholder="商品 ID（编辑时填写）" />
-          <UiInput v-model.trim="itemForm.itemName" placeholder="商品名称" />
-          <UiInput v-model.trim="itemForm.itemDesc" placeholder="商品说明" />
-          <UiInput v-model.trim="itemForm.costBalance" placeholder="积分成本" />
-          <UiInput v-model.trim="itemForm.stock" placeholder="库存" />
-          <UiInput v-model.trim="itemForm.perUserLimit" placeholder="每人限兑" />
-          <UiSelect
-            v-model="itemForm.fulfillmentMode"
-            class="reward-ops-form-select"
-            aria-label="履约方式"
-            :options="fulfillmentModeOptions"
-          />
-          <UiSelect
-            v-model="itemForm.status"
-            class="reward-ops-form-select"
-            aria-label="商品状态"
-            :options="itemStatusOptions"
-          />
-          <UiButton :disabled="savingItem" @click="saveItem">{{ savingItem ? '保存中…' : '保存商品' }}</UiButton>
-        </div>
-      </UiCard>
-
-      <div class="reward-ops-section">
-        <h3>商品列表</h3>
-        <div class="reward-ops-item-grid">
-          <UiCard v-for="item in state.items" :key="item.id" flat class="reward-ops-item-card">
-            <div class="reward-ops-item-head">
-              <strong>{{ item.itemName }}</strong>
-              <UiTag v-if="item.warningLabel">{{ item.warningLabel }}</UiTag>
-            </div>
-            <p>{{ item.itemDesc || '暂无说明' }}</p>
-            <div class="reward-ops-item-meta">
-              <span>{{ item.status }}</span>
-              <span>{{ item.costBalance }} 积分</span>
-              <span>库存 {{ item.stock }}</span>
-            </div>
-          </UiCard>
-        </div>
-      </div>
-
-      <div class="reward-ops-section">
-        <h3>订单队列</h3>
-        <div class="reward-ops-order-list">
-          <div v-for="order in state.orders" :key="order.id" class="reward-ops-order-row">
-            <div class="reward-ops-order-main">
-              <strong>{{ order.itemNameSnapshot }}</strong>
-              <span class="muted">{{ order.statusLabel }}</span>
-            </div>
-            <div class="reward-ops-order-actions">
-              <UiButton v-if="order.canFulfill" :disabled="processingOrderId === order.id" @click="processOrder(order.id, 'FULFILL')">发放</UiButton>
-              <UiButton v-if="order.canCancel" variant="secondary" :disabled="processingOrderId === order.id" @click="processOrder(order.id, 'CANCEL')">取消</UiButton>
-              <UiButton v-if="order.canRefund" variant="secondary" :disabled="processingOrderId === order.id" @click="processOrder(order.id, 'REFUND')">退款</UiButton>
-            </div>
-          </div>
-        </div>
+      <div class="legacy-ops-actions">
+        <RouterLink class="btn" :to="{ name: 'walletAdmin' }">前往钱包后台</RouterLink>
+        <RouterLink class="btn secondary" :to="{ name: 'rewardOrders' }">查看历史订单</RouterLink>
       </div>
     </UiCard>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import {
-  getAdminRewardMetrics,
-  listAdminRewardItems,
-  listAdminRewardOrders,
-  processAdminRewardOrder,
-  upsertAdminRewardItem
-} from '../api/services/adminRewardOpsService'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
-import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
-import UiEmpty from '../components/ui/UiEmpty.vue'
-import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
-import UiSelect from '../components/ui/UiSelect.vue'
-import UiTag from '../components/ui/UiTag.vue'
-import { buildGrowthAdminState } from './growthAdminState'
-
-const loading = ref(false)
-const savingItem = ref(false)
-const processingOrderId = ref(0)
-const error = ref('')
-const items = ref([])
-const orders = ref([])
-const metrics = ref({})
-const fulfillmentModeOptions = [
-  { label: '自动发放', value: 'AUTO' },
-  { label: '人工发放', value: 'MANUAL' }
-]
-const itemStatusOptions = [
-  { label: '启用', value: 'ACTIVE' },
-  { label: '停用', value: 'INACTIVE' }
-]
-
-const itemForm = ref({
-  itemId: '',
-  itemName: '',
-  itemDesc: '',
-  costBalance: '',
-  stock: '',
-  perUserLimit: '',
-  fulfillmentMode: 'AUTO',
-  status: 'ACTIVE'
-})
-
-const state = computed(() =>
-  buildGrowthAdminState({
-    accounts: [],
-    items: items.value,
-    orders: orders.value
-  })
-)
-
-async function reload() {
-  loading.value = true
-  error.value = ''
-  try {
-    const [itemResp, orderResp, metricsResp] = await Promise.all([
-      listAdminRewardItems(),
-      listAdminRewardOrders(),
-      getAdminRewardMetrics()
-    ])
-    items.value = itemResp.data
-    orders.value = orderResp.data
-    metrics.value = metricsResp.data
-  } catch (e) {
-    error.value = e?.message || '加载奖励运营后台失败'
-  } finally {
-    loading.value = false
-  }
-}
-
-async function saveItem() {
-  savingItem.value = true
-  error.value = ''
-  try {
-    await upsertAdminRewardItem({
-      itemId: itemForm.value.itemId ? Number(itemForm.value.itemId) : undefined,
-      itemName: itemForm.value.itemName,
-      itemDesc: itemForm.value.itemDesc,
-      costBalance: Number(itemForm.value.costBalance || 0),
-      stock: Number(itemForm.value.stock || 0),
-      perUserLimit: Number(itemForm.value.perUserLimit || 0),
-      fulfillmentMode: itemForm.value.fulfillmentMode,
-      status: itemForm.value.status
-    })
-    await reload()
-  } catch (e) {
-    error.value = e?.message || '保存商品失败'
-  } finally {
-    savingItem.value = false
-  }
-}
-
-async function processOrder(orderId, action) {
-  processingOrderId.value = Number(orderId || 0)
-  error.value = ''
-  try {
-    await processAdminRewardOrder({
-      orderId,
-      action,
-      note: 'ops action',
-      confirm: true
-    })
-    await reload()
-  } catch (e) {
-    error.value = e?.message || '处理订单失败'
-  } finally {
-    processingOrderId.value = 0
-  }
-}
-
-onMounted(reload)
 </script>
 
 <style scoped>
-.reward-ops-page {
-  max-width: 1120px;
+.legacy-ops-page {
+  max-width: 980px;
   margin: 0 auto;
   gap: var(--space-5);
 }
 
-.reward-ops-shell,
-.reward-ops-section,
-.reward-ops-item-grid,
-.reward-ops-order-list {
+.legacy-ops-shell,
+.legacy-ops-card {
   display: grid;
+  gap: 14px;
+}
+
+.legacy-ops-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
 
-.reward-ops-metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+.legacy-ops-card {
+  padding: 18px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 92%, var(--bg) 8%);
 }
 
-.reward-ops-metric-card,
-.reward-ops-form-card,
-.reward-ops-item-card {
-  display: grid;
-  gap: 10px;
-}
-
-.reward-ops-form-head h2,
-.reward-ops-section h3 {
+.legacy-ops-card h2 {
   margin: 0;
+  font-size: 1.05rem;
 }
 
-.reward-ops-form-head p,
-.reward-ops-item-card p {
+.legacy-ops-card p {
   margin: 0;
   color: var(--text-2);
+  line-height: 1.6;
 }
 
-.reward-ops-form-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  align-items: center;
-}
-
-.reward-ops-form-select {
-  width: 100%;
-  min-width: 0;
-}
-
-.reward-ops-form-select :deep(.ui-select-trigger) {
-  height: var(--control-height);
-}
-
-.reward-ops-label {
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-3);
-  font-weight: 700;
-}
-
-.reward-ops-metric-card strong {
-  font-size: 2rem;
-  line-height: 1;
-}
-
-.reward-ops-item-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.reward-ops-item-head,
-.reward-ops-item-meta,
-.reward-ops-order-row,
-.reward-ops-order-actions {
+.legacy-ops-actions {
   display: flex;
-  justify-content: space-between;
   gap: 12px;
-  align-items: center;
-}
-
-.reward-ops-item-meta {
-  color: var(--text-2);
   flex-wrap: wrap;
 }
 
-.reward-ops-order-row {
-  padding: 12px 14px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-}
-
-.reward-ops-order-main {
-  display: grid;
-  gap: 4px;
-}
-
-@media (max-width: 960px) {
-  .reward-ops-metrics,
-  .reward-ops-form-grid,
-  .reward-ops-item-grid {
+@media (max-width: 860px) {
+  .legacy-ops-grid {
     grid-template-columns: 1fr;
-  }
-
-  .reward-ops-order-row {
-    flex-direction: column;
-    align-items: stretch;
   }
 }
 </style>

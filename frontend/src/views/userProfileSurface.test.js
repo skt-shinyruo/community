@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { buildCommunitySignals, buildCommunityNextSteps, describeFollowStatusText } from './userProfileSurface'
+import {
+  buildCommunitySignals,
+  buildCommunityNextSteps,
+  buildProfileWalletAsset,
+  describeFollowStatusText
+} from './userProfileSurface'
 
 describe('userProfileSurface', () => {
-  it('builds a self-view summary with wallet-first next steps', () => {
+  it('builds a self-view summary with wallet-first compatibility copy', () => {
     const signals = buildCommunitySignals({
-      profile: { username: 'Mara', likeCount: 12, followerCount: 8, followeeCount: 5, walletBalance: 420 },
+      profile: { username: 'Mara', likeCount: 12, followerCount: 8, followeeCount: 5, score: 320 },
       joinedYear: '2024',
       socialDegraded: false,
       followStatus: null,
@@ -18,17 +23,18 @@ describe('userProfileSurface', () => {
     })
     expect(signals[1]).toMatchObject({
       label: '钱包资产',
-      value: '420 积分'
+      value: '320 积分'
     })
+    expect(signals[1].text).toContain('兼容切换中')
     expect(signals[2].value).toContain('8')
 
     const nextSteps = buildCommunityNextSteps({ authed: true, isSelf: true })
     expect(nextSteps.map((item) => item.label)).toEqual(['编辑资料', '回到讨论区', '查看钱包'])
   })
 
-  it('builds an other-user summary with wallet copy and degraded network fallback', () => {
+  it('avoids fake zero wallet copy when no compatible asset snapshot exists', () => {
     const signals = buildCommunitySignals({
-      profile: { username: 'Lin', likeCount: 0, followerCount: 0, followeeCount: 0, walletBalance: 88 },
+      profile: { username: 'Lin', likeCount: 0, followerCount: 0, followeeCount: 0, score: 0 },
       joinedYear: '2023',
       socialDegraded: true,
       followStatus: true,
@@ -42,12 +48,23 @@ describe('userProfileSurface', () => {
     })
     expect(signals[1]).toMatchObject({
       label: '钱包资产',
-      value: '88 积分'
+      value: '暂未公开'
     })
+    expect(signals[1].text).toContain('暂未在主页公开')
     expect(signals[2].text).toContain('稍后刷新')
 
     const nextSteps = buildCommunityNextSteps({ authed: true, isSelf: false })
     expect(nextSteps.map((item) => item.label)).toEqual(['去讨论区看看', '查看关注', '查看粉丝'])
+  })
+
+  it('builds a wallet asset compatibility mapping without depending on profile.walletBalance', () => {
+    expect(buildProfileWalletAsset({ profile: { score: 28 }, authed: true, isSelf: true })).toMatchObject({
+      valueText: '28 积分'
+    })
+
+    expect(buildProfileWalletAsset({ profile: { score: 0 }, authed: true, isSelf: true })).toMatchObject({
+      valueText: '以钱包页为准'
+    })
   })
 
   it('describes follow status for self, followed, available, and anonymous states', () => {

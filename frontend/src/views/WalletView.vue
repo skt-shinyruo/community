@@ -108,7 +108,7 @@ const loading = ref(false)
 const ready = ref(false)
 const error = ref('')
 const submittingKey = ref('')
-const summary = ref({ status: 'ACTIVE', balance: 0 })
+const summary = ref({ balance: 0 })
 const txns = ref([])
 
 const rechargeForm = ref({ amount: '' })
@@ -132,8 +132,7 @@ function buildRequestId(prefix) {
 function normalizeSummary(data) {
   const safe = data && typeof data === 'object' ? data : {}
   return {
-    ...safe,
-    status: safe.status || summary.value?.status || 'ACTIVE'
+    ...safe
   }
 }
 

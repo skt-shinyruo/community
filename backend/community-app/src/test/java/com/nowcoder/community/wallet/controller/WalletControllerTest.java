@@ -5,10 +5,12 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.wallet.dto.CreateRechargeResponse;
+import com.nowcoder.community.wallet.dto.CreateTransferResponse;
 import com.nowcoder.community.wallet.dto.CreateWithdrawResponse;
 import com.nowcoder.community.wallet.dto.WalletSummaryResponse;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.service.RechargeService;
+import com.nowcoder.community.wallet.service.TransferService;
 import com.nowcoder.community.wallet.service.WalletQueryService;
 import com.nowcoder.community.wallet.service.WithdrawService;
 import org.junit.jupiter.api.Test;
@@ -51,6 +53,9 @@ class WalletControllerTest {
     private WithdrawService withdrawService;
 
     @MockBean
+    private TransferService transferService;
+
+    @MockBean
     private JwtDecoder jwtDecoder;
 
     @SpringBootConfiguration
@@ -81,6 +86,18 @@ class WalletControllerTest {
                                 {
                                   "requestId": "withdraw:req-api-1",
                                   "amount": 500
+                                }
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(401));
+
+        mockMvc.perform(post("/api/wallet/transfers")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "requestId": "transfer:req-api-1",
+                                  "toUserId": 2,
+                                  "amount": 300
                                 }
                                 """))
                 .andExpect(status().isUnauthorized())
@@ -146,6 +163,31 @@ class WalletControllerTest {
     }
 
     @Test
+    void transferEndpointShouldReturnTransferResultForAuthenticatedUser() throws Exception {
+        when(transferService.create(eq("transfer:req-api-1"), eq(1), eq(2), eq(300L)))
+                .thenReturn(new CreateTransferResponse(30L, "transfer:req-api-1", 1L, 2L, 300L, "SUCCEEDED"));
+
+        mockMvc.perform(post("/api/wallet/transfers")
+                        .with(jwt().jwt(jwt -> jwt.subject("1").claim("username", "u1")))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "requestId": "transfer:req-api-1",
+                                  "toUserId": 2,
+                                  "amount": 300
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.orderId").value(30))
+                .andExpect(jsonPath("$.data.requestId").value("transfer:req-api-1"))
+                .andExpect(jsonPath("$.data.fromUserId").value(1))
+                .andExpect(jsonPath("$.data.toUserId").value(2))
+                .andExpect(jsonPath("$.data.amount").value(300))
+                .andExpect(jsonPath("$.data.status").value("SUCCEEDED"));
+    }
+
+    @Test
     void rechargeEndpointShouldReturnConflictForReplayPayloadMismatch() throws Exception {
         when(rechargeService.complete(eq("recharge:req-conflict"), eq(1), eq(1200L)))
                 .thenThrow(new BusinessException(WalletErrorCode.REQUEST_REPLAY_CONFLICT, "requestId already used by another recharge"));
@@ -175,6 +217,25 @@ class WalletControllerTest {
                                 {
                                   "requestId": "withdraw:req-conflict",
                                   "amount": 500
+                                }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(WalletErrorCode.REQUEST_REPLAY_CONFLICT.getCode()));
+    }
+
+    @Test
+    void transferEndpointShouldReturnConflictForReplayPayloadMismatch() throws Exception {
+        when(transferService.create(eq("transfer:req-conflict"), eq(1), eq(2), eq(300L)))
+                .thenThrow(new BusinessException(WalletErrorCode.REQUEST_REPLAY_CONFLICT, "requestId already used by another transfer"));
+
+        mockMvc.perform(post("/api/wallet/transfers")
+                        .with(jwt().jwt(jwt -> jwt.subject("1").claim("username", "u1")))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "requestId": "transfer:req-conflict",
+                                  "toUserId": 2,
+                                  "amount": 300
                                 }
                                 """))
                 .andExpect(status().isConflict())

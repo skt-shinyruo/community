@@ -10,6 +10,7 @@ import com.nowcoder.community.wallet.mapper.WalletEntryMapper;
 import com.nowcoder.community.wallet.mapper.WalletTxnMapper;
 import com.nowcoder.community.wallet.model.WalletPosting;
 import com.nowcoder.community.wallet.model.WalletTxnType;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -22,6 +23,8 @@ import java.util.UUID;
 public class AdminWalletOpsService {
 
     private static final String STATUS_FROZEN = "FROZEN";
+    private static final String ACTION_FREEZE_WALLET = "FREEZE_WALLET";
+    private static final String ACTION_REVERSE_TXN = "REVERSE_TXN";
     private static final Set<String> REVERSIBLE_TXN_TYPES = Set.of(
             WalletTxnType.TRANSFER.name(),
             WalletTxnType.ORDER_RELEASE.name(),
@@ -54,7 +57,7 @@ public class AdminWalletOpsService {
 
         var account = accountService.loadUserWallet(targetUserId);
         accountService.setStatus(account.getAccountId(), STATUS_FROZEN);
-        audit(actorUserId, account.getAccountId(), "FREEZE_WALLET", 0L, normalizedReason);
+        insertAudit("wallet-admin:freeze:" + UUID.randomUUID(), actorUserId, account.getAccountId(), ACTION_FREEZE_WALLET, 0L, normalizedReason);
     }
 
     @Transactional
@@ -78,11 +81,18 @@ public class AdminWalletOpsService {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "wallet txn has no entries: txnRef=" + txnRef);
         }
 
+        String reversalRequestId = reversalRequestId(txnRef);
+        if (walletTxnMapper.selectByRequestId(reversalRequestId) != null) {
+            insertReverseAuditIfAbsent(actorUserId, txn, normalizedReason);
+            return;
+        }
+
         List<WalletPosting> reversal = entries.stream()
                 .map(this::reverseOf)
                 .toList();
-        ledgerService.post("reversal:" + txnRef, WalletTxnType.REVERSAL, reversal);
-        audit(actorUserId, entries.get(0).getAccountId(), "REVERSE_TXN", txn.getAmount(), normalizedReason);
+        ensureReversalCanBeApplied(txnRef, reversal);
+        ledgerService.post(reversalRequestId, WalletTxnType.REVERSAL, reversal);
+        insertReverseAuditIfAbsent(actorUserId, txn, normalizedReason);
     }
 
     private WalletPosting reverseOf(WalletEntry entry) {
@@ -92,15 +102,51 @@ public class AdminWalletOpsService {
         return WalletPosting.debit(entry.getAccountId(), entry.getAmount());
     }
 
-    private void audit(int actorUserId, long targetAccountId, String actionType, long amount, String reason) {
+    private void ensureReversalCanBeApplied(String txnRef, List<WalletPosting> reversal) {
+        for (WalletPosting posting : reversal) {
+            var account = accountService.lock(posting.accountId());
+            long delta = accountService.deltaOf(account, posting);
+            if (delta < 0 && account.getBalance() + delta < 0) {
+                throw new BusinessException(
+                        WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT,
+                        "reversal rejected: txnRef=" + txnRef + ", accountId=" + account.getAccountId() + ", availableBalance=" + account.getBalance()
+                );
+            }
+        }
+    }
+
+    private void insertReverseAuditIfAbsent(int actorUserId, WalletTxn txn, String reason) {
+        String requestId = reverseAuditRequestId(txn.getRequestId());
+        if (walletAdminActionMapper.selectByRequestId(requestId) != null) {
+            return;
+        }
+        try {
+            insertAudit(requestId, actorUserId, txn.getTxnId(), ACTION_REVERSE_TXN, txn.getAmount(), reason);
+        } catch (DataIntegrityViolationException ex) {
+            if (walletAdminActionMapper.selectByRequestId(requestId) != null) {
+                return;
+            }
+            throw ex;
+        }
+    }
+
+    private void insertAudit(String requestId, int actorUserId, long targetAccountId, String actionType, long amount, String reason) {
         WalletAdminAction action = new WalletAdminAction();
-        action.setRequestId("wallet-admin:" + UUID.randomUUID());
+        action.setRequestId(requestId);
         action.setActorUserId(actorUserId);
         action.setTargetAccountId(targetAccountId);
         action.setActionType(actionType);
         action.setAmount(amount);
         action.setRemark(reason);
         walletAdminActionMapper.insert(action);
+    }
+
+    private String reverseAuditRequestId(String txnRef) {
+        return "wallet-admin:reverse:" + txnRef;
+    }
+
+    private String reversalRequestId(String txnRef) {
+        return "reversal:" + txnRef;
     }
 
     private void validateActor(int actorUserId) {

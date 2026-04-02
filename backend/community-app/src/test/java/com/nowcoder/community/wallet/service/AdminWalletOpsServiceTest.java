@@ -43,6 +43,9 @@ class AdminWalletOpsServiceTest {
     private WithdrawService withdrawService;
 
     @Autowired
+    private RechargeService rechargeService;
+
+    @Autowired
     private WalletTxnMapper walletTxnMapper;
 
     @MockBean
@@ -105,12 +108,69 @@ class AdminWalletOpsServiceTest {
         assertThat(original).isNotNull();
         assertThat(reversal).isNotNull();
         assertThat(reversal.getTxnType()).isEqualTo("REVERSAL");
+        assertThat(jdbcTemplate.queryForObject("select target_account_id from wallet_admin_action", Long.class))
+                .isEqualTo(original.getTxnId());
+        assertThat(jdbcTemplate.queryForObject("select request_id from wallet_admin_action", String.class))
+                .isEqualTo("wallet-admin:reverse:transfer:req-1");
         assertThat(ledgerService.entriesOfTxn(original.getTxnId()))
                 .extracting(entry -> entry.getDirection() + ":" + entry.getAmount())
                 .containsExactly("DEBIT:300", "CREDIT:300");
         assertThat(ledgerService.entriesOfTxn(reversal.getTxnId()))
                 .extracting(entry -> entry.getDirection() + ":" + entry.getAmount())
                 .containsExactly("CREDIT:300", "DEBIT:300");
+    }
+
+    @Test
+    void reverseShouldRejectWhenRecipientAlreadySpentFunds() {
+        seedUserBalance(101, 900);
+        transferService.create("transfer:req-spent-origin", 101, 202, 300);
+        transferService.create("transfer:req-spent-downstream", 202, 303, 300);
+
+        assertThatThrownBy(() -> adminWalletOpsService.reverseTxn(1, "transfer:req-spent-origin", "fraud report"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT))
+                .hasMessageContaining("reversal")
+                .hasMessageContaining("transfer:req-spent-origin");
+
+        assertThat(accountService.balanceOfUser(101)).isEqualTo(600);
+        assertThat(accountService.balanceOfUser(202)).isEqualTo(0);
+        assertThat(accountService.balanceOfUser(303)).isEqualTo(300);
+        assertThat(countRows("wallet_txn")).isEqualTo(2);
+        assertThat(countRows("wallet_entry")).isEqualTo(4);
+        assertThat(countRows("wallet_admin_action")).isZero();
+    }
+
+    @Test
+    void repeatReverseShouldKeepOneLogicalAdminAction() {
+        seedUserBalance(101, 900);
+        transferService.create("transfer:req-repeat", 101, 202, 300);
+
+        adminWalletOpsService.reverseTxn(1, "transfer:req-repeat", "fraud report");
+        adminWalletOpsService.reverseTxn(1, "transfer:req-repeat", "fraud report");
+
+        WalletTxn original = walletTxnMapper.selectByRequestId("transfer:req-repeat");
+        assertThat(countRows("wallet_txn")).isEqualTo(2);
+        assertThat(countRows("wallet_entry")).isEqualTo(4);
+        assertThat(countRows("wallet_admin_action")).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("select target_account_id from wallet_admin_action", Long.class))
+                .isEqualTo(original.getTxnId());
+        assertThat(jdbcTemplate.queryForObject("select request_id from wallet_admin_action", String.class))
+                .isEqualTo("wallet-admin:reverse:transfer:req-repeat");
+    }
+
+    @Test
+    void reverseShouldRejectUnsupportedTxnType() {
+        seedSystemBalance("PLATFORM_CASH", 900);
+        rechargeService.complete("recharge:req-unsupported", 101, 200);
+
+        assertThatThrownBy(() -> adminWalletOpsService.reverseTxn(1, "recharge:req-unsupported", "fraud report"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.INVALID_REQUEST))
+                .hasMessageContaining("not reversible");
+
+        assertThat(countRows("wallet_txn")).isEqualTo(1);
+        assertThat(countRows("wallet_entry")).isEqualTo(2);
+        assertThat(countRows("wallet_admin_action")).isZero();
     }
 
     private void seedUserBalance(int userId, long balance) {

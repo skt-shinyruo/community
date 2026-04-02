@@ -58,6 +58,17 @@ class AdminWalletControllerTest {
                                 }
                                 """))
                 .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/wallet/admin/reverse")
+                        .with(jwt().jwt(jwt -> jwt.subject("2")).authorities(() -> "ROLE_USER"))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "txnRef": "transfer:req-1",
+                                  "reason": "fraud report"
+                                }
+                                """))
+                .andExpect(status().isForbidden());
     }
 
     @Test

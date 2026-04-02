@@ -26,19 +26,32 @@ public class WalletMigrationService {
 
     @Transactional
     public void migrateUser(int userId) {
+        long userWalletId = walletAccountService.ensureUserWallet(userId);
         RewardAccount legacy = rewardAccountMapper.selectByUserId(userId);
-        if (legacy == null || legacy.getAvailableBalance() <= 0) {
-            walletAccountService.ensureUserWallet(userId);
+        if (legacy == null) {
             return;
         }
 
-        walletLedgerService.post(
-                "migration:opening:" + userId,
-                WalletTxnType.OPENING_BALANCE,
-                List.of(
-                        WalletPosting.debit(walletAccountService.ensureSystemAccount("MIGRATION_HOLD"), legacy.getAvailableBalance()),
-                        WalletPosting.credit(walletAccountService.ensureUserWallet(userId), legacy.getAvailableBalance())
-                )
-        );
+        if (legacy.getAvailableBalance() > 0) {
+            walletLedgerService.post(
+                    "migration:opening:" + userId,
+                    WalletTxnType.OPENING_BALANCE,
+                    List.of(
+                            WalletPosting.debit(walletAccountService.ensureSystemAccount("MIGRATION_HOLD"), legacy.getAvailableBalance()),
+                            WalletPosting.credit(userWalletId, legacy.getAvailableBalance())
+                    )
+            );
+        }
+
+        if (legacy.getFrozenBalance() > 0) {
+            walletLedgerService.post(
+                    "migration:frozen:" + userId,
+                    WalletTxnType.FREEZE,
+                    List.of(
+                            WalletPosting.debit(walletAccountService.ensureSystemAccount("MIGRATION_HOLD"), legacy.getFrozenBalance()),
+                            WalletPosting.credit(walletAccountService.ensureSystemAccount("RISK_FROZEN"), legacy.getFrozenBalance())
+                    )
+            );
+        }
     }
 }

@@ -155,6 +155,27 @@ class WithdrawServiceTest {
         verify(mapper).updateStatus("withdraw:req-race", "PROCESSING", "SUCCEEDED");
     }
 
+    @Test
+    void requestWithdrawShouldReturnExistingOrderWhenReplayBecomesVisibleDuringInsufficientCashCheck() {
+        WithdrawOrderMapper mapper = mock(WithdrawOrderMapper.class);
+        WalletAccountService mockedAccountService = mock(WalletAccountService.class);
+        WalletLedgerService mockedLedgerService = mock(WalletLedgerService.class);
+        WithdrawService service = new WithdrawService(mapper, mockedAccountService, mockedLedgerService);
+
+        WithdrawOrder succeededOrder = order(30L, "withdraw:req-race-cash", 101, 500, "SUCCEEDED");
+
+        when(mapper.selectByRequestId("withdraw:req-race-cash"))
+                .thenReturn(null, succeededOrder);
+        when(mockedAccountService.balanceOfSystem("PLATFORM_CASH")).thenReturn(0L);
+
+        CreateWithdrawResponse result = service.request("withdraw:req-race-cash", 101, 500);
+
+        assertThat(result.orderId()).isEqualTo(30L);
+        assertThat(result.status()).isEqualTo("SUCCEEDED");
+        org.mockito.Mockito.verifyNoInteractions(mockedLedgerService);
+        org.mockito.Mockito.verify(mapper, org.mockito.Mockito.never()).insert(any(WithdrawOrder.class));
+    }
+
     private void seedUserBalance(int userId, long balance) {
         long accountId = accountService.ensureUserWallet(userId);
         jdbcTemplate.update(

@@ -12,4 +12,15 @@ describe('walletState', () => {
     expect(state.hero.statusText).toMatch(/正常/)
     expect(state.feed[0].label).toMatch(/转账/)
   })
+
+  it('degrades honestly when wallet status is not returned yet', () => {
+    const state = buildWalletState({
+      summary: { balance: 900 },
+      txns: []
+    })
+
+    expect(state.hero.balance).toBe(900)
+    expect(state.hero.status).toBe('UNKNOWN')
+    expect(state.hero.statusText).toMatch(/待同步|暂未返回/)
+  })
 })

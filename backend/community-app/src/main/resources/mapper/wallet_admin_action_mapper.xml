@@ -10,6 +10,12 @@
         values(#{requestId}, #{actorUserId}, #{targetAccountId}, #{actionType}, #{amount}, #{remark})
     </insert>
 
+    <select id="selectByRequestId" resultType="com.nowcoder.community.wallet.entity.WalletAdminAction">
+        select action_id, request_id, actor_user_id, target_account_id, action_type, amount, remark, create_time
+        from wallet_admin_action
+        where request_id = #{requestId}
+    </select>
+
     <select id="selectRecentByTargetAccountId" resultType="com.nowcoder.community.wallet.entity.WalletAdminAction">
         select action_id, request_id, actor_user_id, target_account_id, action_type, amount, remark, create_time
         from wallet_admin_action

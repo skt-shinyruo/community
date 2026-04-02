@@ -13,6 +13,8 @@ public interface WalletAdminActionMapper {
 
     int insert(WalletAdminAction action);
 
+    WalletAdminAction selectByRequestId(@Param("requestId") String requestId);
+
     List<WalletAdminAction> selectRecentByTargetAccountId(@Param("targetAccountId") long targetAccountId,
                                                           @Param("limit") int limit);
 }

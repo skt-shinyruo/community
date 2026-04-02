@@ -2,6 +2,7 @@ package com.nowcoder.community.growth.service;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
+import com.nowcoder.community.wallet.service.WalletRewardService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,7 +33,7 @@ class CheckInServiceTest {
     private CheckInService service;
 
     @MockBean
-    private UnifiedGrantService unifiedGrantService;
+    private WalletRewardService walletRewardService;
 
     @MockBean
     private ClientIpResolver clientIpResolver;
@@ -40,10 +41,6 @@ class CheckInServiceTest {
     @BeforeEach
     void setUp() {
         jdbcTemplate.update("delete from growth_check_in");
-        when(unifiedGrantService.applyGrant(org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
-                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyInt(),
-                org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString()))
-                .thenReturn(true);
     }
 
     @Test
@@ -56,16 +53,11 @@ class CheckInServiceTest {
         assertThat(first.newlyCheckedIn()).isTrue();
         assertThat(second.newlyCheckedIn()).isFalse();
         assertThat(checkInRowCount(1)).isEqualTo(1);
-        verify(unifiedGrantService, times(1)).applyGrant(
+        verify(walletRewardService, times(1)).issue(
+                eq("check-in:1:2026-03-22"),
                 eq(1),
-                eq("check-in:1:2026-03-22"),
-                eq("DailyCheckIn"),
-                eq("check-in:1:2026-03-22"),
-                eq("DailyCheckIn"),
-                eq(5),
-                eq(2),
-                eq("growth"),
-                eq("daily-check-in")
+                eq(7L),
+                eq("DailyCheckIn")
         );
     }
 

@@ -5,6 +5,7 @@ import com.nowcoder.community.growth.entity.UserTaskProgress;
 import com.nowcoder.community.growth.mapper.TaskTemplateMapper;
 import com.nowcoder.community.growth.mapper.UserTaskEventLogMapper;
 import com.nowcoder.community.growth.mapper.UserTaskProgressMapper;
+import com.nowcoder.community.wallet.service.WalletRewardService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -38,7 +39,7 @@ class TaskProgressServiceUnitTest {
     private UserTaskEventLogMapper userTaskEventLogMapper;
 
     @Mock
-    private UnifiedGrantService unifiedGrantService;
+    private WalletRewardService walletRewardService;
 
     @Test
     void concurrentProgressInitShouldRecoverFromDuplicateRowAndContinueWithLockedState() {
@@ -50,7 +51,7 @@ class TaskProgressServiceUnitTest {
                 taskTemplateMapper,
                 userTaskProgressMapper,
                 userTaskEventLogMapper,
-                unifiedGrantService,
+                walletRewardService,
                 businessTimeService
         );
 
@@ -80,17 +81,7 @@ class TaskProgressServiceUnitTest {
 
         service.processEvent(1, "PostPublished", "post-evt-1", LocalDate.of(2026, 3, 22));
 
-        verify(unifiedGrantService).applyGrant(
-                1,
-                "task:1:DAILY_POST:2026-03-22",
-                "DAILY_POST",
-                "post-evt-1",
-                "PostPublished",
-                3,
-                1,
-                "growth",
-                "task-auto-grant"
-        );
+        verify(walletRewardService).issue("task:1:DAILY_POST:2026-03-22", 1, 4L, "DAILY_POST");
         verify(userTaskProgressMapper).updateProgress(anyLong(), anyInt(), anyString(), any(), any(), anyString(), anyString());
     }
 
@@ -104,7 +95,7 @@ class TaskProgressServiceUnitTest {
                 taskTemplateMapper,
                 userTaskProgressMapper,
                 userTaskEventLogMapper,
-                unifiedGrantService,
+                walletRewardService,
                 businessTimeService
         );
 
@@ -123,6 +114,6 @@ class TaskProgressServiceUnitTest {
 
         verify(userTaskProgressMapper, never()).selectByUserTaskAndPeriodForUpdate(anyInt(), anyString(), anyString());
         verify(userTaskProgressMapper, never()).updateProgress(anyLong(), anyInt(), anyString(), any(), any(), anyString(), anyString());
-        verify(unifiedGrantService, never()).applyGrant(anyInt(), anyString(), anyString(), anyString(), anyString(), anyInt(), anyInt(), anyString(), anyString());
+        verify(walletRewardService, never()).issue(anyString(), anyInt(), anyLong(), anyString());
     }
 }

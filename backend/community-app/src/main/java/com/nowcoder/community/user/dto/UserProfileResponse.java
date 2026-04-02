@@ -12,6 +12,8 @@ public class UserProfileResponse {
     private Date createTime;
     private int score;
     private int level;
+    private long walletBalance;
+    private String walletStatus;
 
     // 对齐旧单体“用户主页”展示字段：获赞/关注/粉丝/关注状态
     private long likeCount;
@@ -86,6 +88,22 @@ public class UserProfileResponse {
 
     public void setLevel(int level) {
         this.level = level;
+    }
+
+    public long getWalletBalance() {
+        return walletBalance;
+    }
+
+    public void setWalletBalance(long walletBalance) {
+        this.walletBalance = walletBalance;
+    }
+
+    public String getWalletStatus() {
+        return walletStatus;
+    }
+
+    public void setWalletStatus(String walletStatus) {
+        this.walletStatus = walletStatus;
     }
 
     public long getLikeCount() {

@@ -63,7 +63,7 @@ class UserControllerUnitTest {
         Authentication authentication = authentication(42);
         Date createTime = new Date();
         when(getUserProfilePageQuery.get(authentication, 7))
-                .thenReturn(new UserProfilePageView(7, "alice", "h7", 2, 0, createTime, 250, 3, 12, 5, 8, true, false));
+                .thenReturn(new UserProfilePageView(7, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE", 12, 5, 8, true, false));
 
         Result<UserProfileResponse> result = controller.getUser(authentication, 7);
 
@@ -77,6 +77,8 @@ class UserControllerUnitTest {
         assertThat(result.getData().getCreateTime()).isEqualTo(createTime);
         assertThat(result.getData().getScore()).isEqualTo(250);
         assertThat(result.getData().getLevel()).isEqualTo(3);
+        assertThat(result.getData().getWalletBalance()).isEqualTo(900L);
+        assertThat(result.getData().getWalletStatus()).isEqualTo("ACTIVE");
         assertThat(result.getData().getLikeCount()).isEqualTo(12);
         assertThat(result.getData().getFolloweeCount()).isEqualTo(5);
         assertThat(result.getData().getFollowerCount()).isEqualTo(8);

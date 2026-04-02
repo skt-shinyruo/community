@@ -13,6 +13,10 @@ public class WalletQueryService {
     }
 
     public WalletSummaryResponse summary(int userId) {
-        return new WalletSummaryResponse(userId, walletAccountService.balanceOfUser(userId));
+        return new WalletSummaryResponse(
+                userId,
+                walletAccountService.balanceOfUser(userId),
+                walletAccountService.statusOfUser(userId)
+        );
     }
 }

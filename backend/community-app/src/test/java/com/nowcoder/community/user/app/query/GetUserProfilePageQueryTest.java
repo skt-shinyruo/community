@@ -33,7 +33,7 @@ class GetUserProfilePageQueryTest {
         );
         Date createTime = new Date();
         when(userProfileQueryApi.getProfile(7))
-                .thenReturn(new UserProfileView(7, "alice", "h7", 2, 0, createTime, 250, 3));
+                .thenReturn(new UserProfileView(7, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
         UserSocialProfileService.UserProfileStats stats = new UserSocialProfileService.UserProfileStats();
         stats.setLikeCount(12);
         stats.setFolloweeCount(5);
@@ -51,6 +51,8 @@ class GetUserProfilePageQueryTest {
         assertThat(page.createTime()).isEqualTo(createTime);
         assertThat(page.score()).isEqualTo(250);
         assertThat(page.level()).isEqualTo(3);
+        assertThat(page.walletBalance()).isEqualTo(900L);
+        assertThat(page.walletStatus()).isEqualTo("ACTIVE");
         assertThat(page.likeCount()).isEqualTo(12);
         assertThat(page.followeeCount()).isEqualTo(5);
         assertThat(page.followerCount()).isEqualTo(8);
@@ -72,7 +74,7 @@ class GetUserProfilePageQueryTest {
         );
         Date createTime = new Date();
         when(userProfileQueryApi.getProfile(7))
-                .thenReturn(new UserProfileView(7, "alice", "h7", 2, 0, createTime, 250, 3));
+                .thenReturn(new UserProfileView(7, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
         UserSocialProfileService.UserProfileStats stats = new UserSocialProfileService.UserProfileStats();
         stats.setLikeCount(12);
         stats.setFolloweeCount(5);
@@ -102,7 +104,7 @@ class GetUserProfilePageQueryTest {
         Date lastReplyTime = new Date(createTime.getTime() + 1_000);
         Date lastActivityTime = new Date(createTime.getTime() + 2_000);
         when(userProfileQueryApi.getProfile(7))
-                .thenReturn(new UserProfileView(7, "alice", "h7", 2, 0, createTime, 250, 3));
+                .thenReturn(new UserProfileView(7, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
         when(postReadQueryApi.listPostsByUser(7, 1, 5)).thenReturn(List.of(new PostSummaryView(
                 11,
                 7,
@@ -154,7 +156,7 @@ class GetUserProfilePageQueryTest {
         );
         Date createTime = new Date();
         when(userProfileQueryApi.getProfile(7))
-                .thenReturn(new UserProfileView(7, "alice", "h7", 2, 0, createTime, 250, 3));
+                .thenReturn(new UserProfileView(7, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
         when(postReadQueryApi.listRecentCommentsByUser(7, 2, 10)).thenReturn(List.of(new RecentUserCommentView(
                 21,
                 7,

@@ -8,6 +8,7 @@ import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import com.nowcoder.community.user.api.query.UserProfileQueryApi;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.mapper.UserMapper;
+import com.nowcoder.community.wallet.api.query.WalletAccountQueryApi;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -21,9 +22,11 @@ import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND
 public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi {
 
     private final UserMapper userMapper;
+    private final WalletAccountQueryApi walletAccountQueryApi;
 
-    public UserQueryService(UserMapper userMapper) {
+    public UserQueryService(UserMapper userMapper, WalletAccountQueryApi walletAccountQueryApi) {
         this.userMapper = userMapper;
+        this.walletAccountQueryApi = walletAccountQueryApi;
     }
 
     public User getById(int userId) {
@@ -128,7 +131,9 @@ public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi
                 user.getStatus(),
                 user.getCreateTime(),
                 user.getScore(),
-                levelForScore(user.getScore())
+                levelForScore(user.getScore()),
+                walletAccountQueryApi.balanceOfUser(user.getId()),
+                walletAccountQueryApi.statusOfUser(user.getId())
         );
     }
 

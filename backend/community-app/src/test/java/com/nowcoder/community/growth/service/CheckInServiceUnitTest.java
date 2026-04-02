@@ -3,6 +3,7 @@ package com.nowcoder.community.growth.service;
 import com.nowcoder.community.growth.entity.GrowthCheckIn;
 import com.nowcoder.community.growth.event.GrowthEventPublisher;
 import com.nowcoder.community.growth.mapper.GrowthCheckInMapper;
+import com.nowcoder.community.wallet.service.WalletRewardService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -25,14 +26,14 @@ class CheckInServiceUnitTest {
     private GrowthCheckInMapper growthCheckInMapper;
 
     @Mock
-    private UnifiedGrantService unifiedGrantService;
+    private WalletRewardService walletRewardService;
 
     @Mock
     private GrowthEventPublisher growthEventPublisher;
 
     @Test
     void duplicateInsertRaceShouldReturnAlreadyCheckedInWithoutDuplicatingGrant() {
-        CheckInService service = new CheckInService(growthCheckInMapper, unifiedGrantService, growthEventPublisher);
+        CheckInService service = new CheckInService(growthCheckInMapper, walletRewardService, growthEventPublisher);
         LocalDate bizDate = LocalDate.of(2026, 3, 22);
 
         GrowthCheckIn current = new GrowthCheckIn();
@@ -53,17 +54,7 @@ class CheckInServiceUnitTest {
         assertThat(result.newlyCheckedIn()).isFalse();
         assertThat(result.checkedInToday()).isTrue();
         assertThat(result.currentStreak()).isEqualTo(3);
-        verify(unifiedGrantService, never()).applyGrant(
-                anyInt(),
-                anyString(),
-                anyString(),
-                anyString(),
-                anyString(),
-                anyInt(),
-                anyInt(),
-                anyString(),
-                anyString()
-        );
+        verify(walletRewardService, never()).issue(anyString(), anyInt(), org.mockito.ArgumentMatchers.anyLong(), anyString());
         verify(growthEventPublisher, never()).publishCheckInCompleted(anyString(), org.mockito.ArgumentMatchers.any());
     }
 }

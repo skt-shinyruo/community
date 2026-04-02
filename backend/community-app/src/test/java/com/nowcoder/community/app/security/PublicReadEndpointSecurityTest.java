@@ -59,7 +59,7 @@ class PublicReadEndpointSecurityTest {
 
     @Test
     void unauthenticatedRecentActivityEndpointsShouldBeAllowed() throws Exception {
-        when(userQueryService.getProfile(42)).thenReturn(new UserProfileView(42, "u42", "h42", 0, 0, new Date(), 0, 1));
+        when(userQueryService.getProfile(42)).thenReturn(new UserProfileView(42, "u42", "h42", 0, 0, new Date(), 0, 1, 0L, "UNKNOWN"));
         when(postReadQueryApi.listPostsByUser(anyInt(), any(), any())).thenReturn(List.<PostSummaryView>of());
         when(postReadQueryApi.listRecentCommentsByUser(anyInt(), any(), any())).thenReturn(List.<RecentUserCommentView>of());
 

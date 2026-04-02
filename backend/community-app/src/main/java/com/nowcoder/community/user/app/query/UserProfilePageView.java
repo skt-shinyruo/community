@@ -12,6 +12,8 @@ public record UserProfilePageView(
         Date createTime,
         int score,
         int level,
+        long walletBalance,
+        String walletStatus,
         long likeCount,
         long followeeCount,
         long followerCount,

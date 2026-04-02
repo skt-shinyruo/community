@@ -1,9 +1,9 @@
 package com.nowcoder.community.user.event;
 
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
-import com.nowcoder.community.growth.api.action.GrowthGrantActionApi;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.user.service.PointsProjectionService;
+import com.nowcoder.community.wallet.api.action.WalletRewardActionApi;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,8 +25,8 @@ public class PointsProjectionListener {
         this.pointsProjectionService = pointsProjectionService;
     }
 
-    PointsProjectionListener(GrowthGrantActionApi growthGrantActionApi) {
-        this(new PointsProjectionService(growthGrantActionApi));
+    PointsProjectionListener(WalletRewardActionApi walletRewardActionApi) {
+        this(new PointsProjectionService(walletRewardActionApi));
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = false)

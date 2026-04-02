@@ -10,6 +10,8 @@ public record UserProfileView(
         int status,
         Date createTime,
         int score,
-        int level
+        int level,
+        long walletBalance,
+        String walletStatus
 ) {
 }

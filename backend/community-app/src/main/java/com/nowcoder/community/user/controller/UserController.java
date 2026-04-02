@@ -75,6 +75,8 @@ public class UserController {
         resp.setCreateTime(user.createTime());
         resp.setScore(user.score());
         resp.setLevel(user.level());
+        resp.setWalletBalance(user.walletBalance());
+        resp.setWalletStatus(user.walletStatus());
         resp.setLikeCount(user.likeCount());
         resp.setFolloweeCount(user.followeeCount());
         resp.setFollowerCount(user.followerCount());

@@ -5,6 +5,9 @@ public class GrowthSummaryResponse {
     private int userId;
     private int score;
     private int level;
+    private int userLevel;
+    private int signInDaysInWindow;
+    private int windowDays;
     private int rewardBalance;
     private int frozenBalance;
 
@@ -46,5 +49,29 @@ public class GrowthSummaryResponse {
 
     public void setFrozenBalance(int frozenBalance) {
         this.frozenBalance = frozenBalance;
+    }
+
+    public int getUserLevel() {
+        return userLevel;
+    }
+
+    public void setUserLevel(int userLevel) {
+        this.userLevel = userLevel;
+    }
+
+    public int getSignInDaysInWindow() {
+        return signInDaysInWindow;
+    }
+
+    public void setSignInDaysInWindow(int signInDaysInWindow) {
+        this.signInDaysInWindow = signInDaysInWindow;
+    }
+
+    public int getWindowDays() {
+        return windowDays;
+    }
+
+    public void setWindowDays(int windowDays) {
+        this.windowDays = windowDays;
     }
 }

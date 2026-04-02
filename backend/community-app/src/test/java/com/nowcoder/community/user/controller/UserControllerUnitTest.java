@@ -1,6 +1,7 @@
 package com.nowcoder.community.user.controller;
 
 import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.growth.service.UserLevelService;
 import com.nowcoder.community.user.app.query.GetUserProfilePageQuery;
 import com.nowcoder.community.user.app.query.UserProfilePageView;
 import com.nowcoder.community.user.api.model.UserProfileView;
@@ -46,6 +47,9 @@ class UserControllerUnitTest {
     @Mock
     private AvatarService avatarService;
 
+    @Mock
+    private UserLevelService userLevelService;
+
     private UserController controller;
 
     @BeforeEach
@@ -54,7 +58,8 @@ class UserControllerUnitTest {
                 userLookupQueryApi,
                 getUserProfilePageQuery,
                 userService,
-                avatarService
+                avatarService,
+                userLevelService
         );
     }
 
@@ -64,6 +69,8 @@ class UserControllerUnitTest {
         Date createTime = new Date();
         when(getUserProfilePageQuery.get(authentication, 7))
                 .thenReturn(new UserProfilePageView(7, "alice", "h7", 2, 0, createTime, 250, 3, 12, 5, 8, true, false));
+        when(userLevelService.evaluateLevel(7))
+                .thenReturn(new UserLevelService.UserLevelSummary(2, 13, 100, 12, 88, true));
 
         Result<UserProfileResponse> result = controller.getUser(authentication, 7);
 
@@ -77,12 +84,15 @@ class UserControllerUnitTest {
         assertThat(result.getData().getCreateTime()).isEqualTo(createTime);
         assertThat(result.getData().getScore()).isEqualTo(250);
         assertThat(result.getData().getLevel()).isEqualTo(3);
+        assertThat(result.getData()).extracting("userLevel", "signInDaysInWindow")
+                .containsExactly(2, 13);
         assertThat(result.getData().getLikeCount()).isEqualTo(12);
         assertThat(result.getData().getFolloweeCount()).isEqualTo(5);
         assertThat(result.getData().getFollowerCount()).isEqualTo(8);
         assertThat(result.getData().getHasFollowed()).isTrue();
         assertThat(result.getData().isSocialDegraded()).isFalse();
         verify(getUserProfilePageQuery).get(authentication, 7);
+        verify(userLevelService).evaluateLevel(7);
     }
 
     @Test

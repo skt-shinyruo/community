@@ -1,9 +1,14 @@
 package com.nowcoder.community.growth.service;
 
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.growth.dto.UpdateUserLevelConfigRequest;
+import com.nowcoder.community.growth.dto.UserLevelConfigResponse;
 import com.nowcoder.community.growth.entity.UserLevelRuleConfig;
+import com.nowcoder.community.growth.exception.GrowthErrorCode;
 import com.nowcoder.community.growth.mapper.GrowthCheckInMapper;
 import com.nowcoder.community.growth.mapper.UserLevelRuleConfigMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 
@@ -13,13 +18,24 @@ public class UserLevelService {
     public static final int DEFAULT_WINDOW_DAYS = 100;
     public static final int DEFAULT_LV2_SIGN_IN_DAYS = 12;
     public static final int DEFAULT_LV3_SIGN_IN_DAYS = 88;
+    private static final long SINGLETON_CONFIG_ID = 1L;
 
     private final GrowthCheckInMapper growthCheckInMapper;
     private final UserLevelRuleConfigMapper userLevelRuleConfigMapper;
+    private final GrowthBusinessTimeService growthBusinessTimeService;
 
-    public UserLevelService(GrowthCheckInMapper growthCheckInMapper, UserLevelRuleConfigMapper userLevelRuleConfigMapper) {
+    public UserLevelService(
+            GrowthCheckInMapper growthCheckInMapper,
+            UserLevelRuleConfigMapper userLevelRuleConfigMapper,
+            GrowthBusinessTimeService growthBusinessTimeService
+    ) {
         this.growthCheckInMapper = growthCheckInMapper;
         this.userLevelRuleConfigMapper = userLevelRuleConfigMapper;
+        this.growthBusinessTimeService = growthBusinessTimeService;
+    }
+
+    public UserLevelSummary evaluateLevel(int userId) {
+        return evaluateLevel(userId, growthBusinessTimeService.today());
     }
 
     public UserLevelSummary evaluateLevel(int userId, LocalDate bizDate) {
@@ -54,6 +70,29 @@ public class UserLevelService {
         );
     }
 
+    public UserLevelConfigResponse getConfig() {
+        return toConfigResponse(activeConfigOrDefault());
+    }
+
+    @Transactional
+    public UserLevelConfigResponse updateConfig(int actorUserId, UpdateUserLevelConfigRequest request) {
+        validateUpdateRequest(request);
+
+        UserLevelRuleConfig config = new UserLevelRuleConfig();
+        config.setId(SINGLETON_CONFIG_ID);
+        config.setWindowDays(request.getWindowDays());
+        config.setLv2SignInDays(request.getLv2SignInDays());
+        config.setLv3SignInDays(request.getLv3SignInDays());
+        config.setEnabled(Boolean.TRUE.equals(request.getEnabled()));
+        config.setUpdatedBy(actorUserId);
+
+        int updated = userLevelRuleConfigMapper.updateCurrent(config);
+        if (updated <= 0) {
+            userLevelRuleConfigMapper.insert(config);
+        }
+        return toConfigResponse(config);
+    }
+
     public UserLevelRuleConfig activeConfigOrDefault() {
         UserLevelRuleConfig config = userLevelRuleConfigMapper.selectCurrent();
         if (config == null || !isValidConfig(config)) {
@@ -82,6 +121,32 @@ public class UserLevelService {
             return false;
         }
         return config.getLv3SignInDays() <= config.getWindowDays();
+    }
+
+    private void validateUpdateRequest(UpdateUserLevelConfigRequest request) {
+        if (request == null) {
+            throw new BusinessException(GrowthErrorCode.INVALID_REQUEST, "config request required");
+        }
+        if (request.getEnabled() == null) {
+            throw new BusinessException(GrowthErrorCode.INVALID_REQUEST, "enabled required");
+        }
+
+        UserLevelRuleConfig config = new UserLevelRuleConfig();
+        config.setWindowDays(request.getWindowDays());
+        config.setLv2SignInDays(request.getLv2SignInDays());
+        config.setLv3SignInDays(request.getLv3SignInDays());
+        if (!isValidConfig(config)) {
+            throw new BusinessException(GrowthErrorCode.INVALID_REQUEST, "invalid user level thresholds");
+        }
+    }
+
+    private UserLevelConfigResponse toConfigResponse(UserLevelRuleConfig config) {
+        UserLevelConfigResponse response = new UserLevelConfigResponse();
+        response.setWindowDays(config.getWindowDays());
+        response.setLv2SignInDays(config.getLv2SignInDays());
+        response.setLv3SignInDays(config.getLv3SignInDays());
+        response.setEnabled(config.isEnabled());
+        return response;
     }
 
     public record UserLevelSummary(

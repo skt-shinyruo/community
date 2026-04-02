@@ -5,6 +5,8 @@ import com.nowcoder.community.growth.dto.AdminAdjustBalanceRequest;
 import com.nowcoder.community.growth.dto.AdminRewardAdjustmentResponse;
 import com.nowcoder.community.growth.dto.AdminGrowthUserResponse;
 import com.nowcoder.community.growth.dto.RewardLedgerEntryResponse;
+import com.nowcoder.community.growth.dto.UpdateUserLevelConfigRequest;
+import com.nowcoder.community.growth.dto.UserLevelConfigResponse;
 import com.nowcoder.community.growth.entity.AdminRewardAdjustment;
 import com.nowcoder.community.growth.entity.RewardLedgerEntry;
 import com.nowcoder.community.growth.exception.GrowthErrorCode;
@@ -33,6 +35,7 @@ public class AdminGrowthService {
     private final RewardAccountService rewardAccountService;
     private final RewardLedgerMapper rewardLedgerMapper;
     private final AdminRewardAdjustmentMapper adminRewardAdjustmentMapper;
+    private final UserLevelService userLevelService;
 
     public AdminGrowthService(
             UserLookupQueryApi userLookupQueryApi,
@@ -40,7 +43,8 @@ public class AdminGrowthService {
             UserPointsActionApi userPointsActionApi,
             RewardAccountService rewardAccountService,
             RewardLedgerMapper rewardLedgerMapper,
-            AdminRewardAdjustmentMapper adminRewardAdjustmentMapper
+            AdminRewardAdjustmentMapper adminRewardAdjustmentMapper,
+            UserLevelService userLevelService
     ) {
         this.userLookupQueryApi = userLookupQueryApi;
         this.userProfileQueryApi = userProfileQueryApi;
@@ -48,6 +52,7 @@ public class AdminGrowthService {
         this.rewardAccountService = rewardAccountService;
         this.rewardLedgerMapper = rewardLedgerMapper;
         this.adminRewardAdjustmentMapper = adminRewardAdjustmentMapper;
+        this.userLevelService = userLevelService;
     }
 
     public AdminGrowthUserResponse search(Integer userId, String username, String email) {
@@ -63,12 +68,24 @@ public class AdminGrowthService {
         response.setEmail(profile.email());
         response.setScore(profile.score());
         response.setLevel(profile.level());
+        UserLevelService.UserLevelSummary userLevelSummary = userLevelService.evaluateLevel(profile.userId());
+        response.setUserLevel(userLevelSummary.userLevel());
+        response.setSignInDaysInWindow(userLevelSummary.signInDaysInWindow());
+        response.setWindowDays(userLevelSummary.windowDays());
         response.setRewardBalance(rewardAccountService.availableBalanceOf(profile.userId()));
         response.setFrozenBalance(rewardAccountService.frozenBalanceOf(profile.userId()));
         response.setRecentRewardLedgers(toRewardLedgerResponses(
                 rewardLedgerMapper.selectRecentByUserId(profile.userId(), DEFAULT_LEDGER_LIMIT)
         ));
         return response;
+    }
+
+    public UserLevelConfigResponse getUserLevelConfig() {
+        return userLevelService.getConfig();
+    }
+
+    public UserLevelConfigResponse updateUserLevelConfig(int actorUserId, UpdateUserLevelConfigRequest request) {
+        return userLevelService.updateConfig(actorUserId, request);
     }
 
     public List<RewardLedgerEntryResponse> recentRewardLedgerResponses(int userId, int limit) {

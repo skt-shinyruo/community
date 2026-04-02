@@ -5,12 +5,16 @@ import com.nowcoder.community.growth.dto.AdminAdjustBalanceRequest;
 import com.nowcoder.community.growth.dto.AdminRewardAdjustmentResponse;
 import com.nowcoder.community.growth.dto.AdminGrowthUserResponse;
 import com.nowcoder.community.growth.dto.RewardLedgerEntryResponse;
+import com.nowcoder.community.growth.dto.UpdateUserLevelConfigRequest;
+import com.nowcoder.community.growth.dto.UserLevelConfigResponse;
 import com.nowcoder.community.growth.service.AdminGrowthService;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
+import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -51,5 +55,19 @@ public class AdminGrowthController {
     @GetMapping("/users/{userId}/adjustments")
     public Result<List<AdminRewardAdjustmentResponse>> adjustments(@PathVariable int userId, @RequestParam(defaultValue = "10") int limit) {
         return Result.ok(adminGrowthService.recentAdjustmentResponses(userId, limit));
+    }
+
+    @GetMapping("/user-level/config")
+    public Result<UserLevelConfigResponse> userLevelConfig() {
+        return Result.ok(adminGrowthService.getUserLevelConfig());
+    }
+
+    @PutMapping("/user-level/config")
+    public Result<UserLevelConfigResponse> updateUserLevelConfig(
+            Authentication authentication,
+            @Valid @RequestBody UpdateUserLevelConfigRequest request
+    ) {
+        int actorUserId = CurrentUser.requireUserId(authentication);
+        return Result.ok(adminGrowthService.updateUserLevelConfig(actorUserId, request));
     }
 }

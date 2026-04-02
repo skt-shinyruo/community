@@ -6,6 +6,7 @@ import com.nowcoder.community.growth.dto.TaskItemResponse;
 import com.nowcoder.community.growth.service.GrowthBusinessTimeService;
 import com.nowcoder.community.growth.service.RewardAccountService;
 import com.nowcoder.community.growth.service.TaskCenterService;
+import com.nowcoder.community.growth.service.UserLevelService;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.user.api.model.UserGrowthProfileView;
@@ -54,6 +55,9 @@ class GrowthControllerTest {
     private GrowthBusinessTimeService growthBusinessTimeService;
 
     @MockBean
+    private UserLevelService userLevelService;
+
+    @MockBean
     private JwtDecoder jwtDecoder;
 
     @SpringBootConfiguration
@@ -75,6 +79,8 @@ class GrowthControllerTest {
                 .thenReturn(new UserGrowthProfileView(1, "u1", 320, 4, "u1@example.com", 1, "h1"));
         when(rewardAccountService.availableBalanceOf(1)).thenReturn(55);
         when(rewardAccountService.frozenBalanceOf(1)).thenReturn(7);
+        when(userLevelService.evaluateLevel(1))
+                .thenReturn(new UserLevelService.UserLevelSummary(2, 13, 100, 12, 88, true));
 
         mockMvc.perform(get("/api/growth/summary")
                         .with(jwt().jwt(jwt -> jwt.subject("1").claim("username", "u1"))))
@@ -83,6 +89,9 @@ class GrowthControllerTest {
                 .andExpect(jsonPath("$.data.userId").value(1))
                 .andExpect(jsonPath("$.data.score").value(320))
                 .andExpect(jsonPath("$.data.level").value(4))
+                .andExpect(jsonPath("$.data.userLevel").value(2))
+                .andExpect(jsonPath("$.data.signInDaysInWindow").value(13))
+                .andExpect(jsonPath("$.data.windowDays").value(100))
                 .andExpect(jsonPath("$.data.rewardBalance").value(55))
                 .andExpect(jsonPath("$.data.frozenBalance").value(7));
     }
@@ -93,6 +102,8 @@ class GrowthControllerTest {
                 .thenReturn(new UserGrowthProfileView(2, "u2", 0, 1, "u2@example.com", 1, "h2"));
         when(rewardAccountService.availableBalanceOf(2)).thenReturn(0);
         when(rewardAccountService.frozenBalanceOf(2)).thenReturn(0);
+        when(userLevelService.evaluateLevel(2))
+                .thenReturn(new UserLevelService.UserLevelSummary(1, 0, 100, 12, 88, true));
 
         mockMvc.perform(get("/api/growth/summary")
                         .with(jwt().jwt(jwt -> jwt.subject("2").claim("username", "u2"))))

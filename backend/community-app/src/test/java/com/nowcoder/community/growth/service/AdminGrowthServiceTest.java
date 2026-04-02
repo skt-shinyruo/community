@@ -56,6 +56,7 @@ class AdminGrowthServiceTest {
     private UserLookupQueryApi userLookupQueryApi;
     private UserProfileQueryApi userProfileQueryApi;
     private UserPointsActionApi userPointsActionApi;
+    private UserLevelService userLevelService;
     private AdminGrowthService service;
 
     @BeforeEach
@@ -69,13 +70,17 @@ class AdminGrowthServiceTest {
         userLookupQueryApi = mock(UserLookupQueryApi.class);
         userProfileQueryApi = mock(UserProfileQueryApi.class);
         userPointsActionApi = mock(UserPointsActionApi.class);
+        userLevelService = mock(UserLevelService.class);
+        when(userLevelService.evaluateLevel(1))
+                .thenReturn(new UserLevelService.UserLevelSummary(2, 13, 100, 12, 88, true));
         service = new AdminGrowthService(
                 userLookupQueryApi,
                 userProfileQueryApi,
                 userPointsActionApi,
                 rewardAccountService,
                 rewardLedgerMapper,
-                adminRewardAdjustmentMapper
+                adminRewardAdjustmentMapper,
+                userLevelService
         );
     }
 
@@ -101,6 +106,9 @@ class AdminGrowthServiceTest {
         assertThat(response.getUserId()).isEqualTo(1);
         assertThat(response.getScore()).isEqualTo(320);
         assertThat(response.getLevel()).isEqualTo(4);
+        assertThat(response.getUserLevel()).isEqualTo(2);
+        assertThat(response.getSignInDaysInWindow()).isEqualTo(13);
+        assertThat(response.getWindowDays()).isEqualTo(100);
         assertThat(response.getRewardBalance()).isEqualTo(15);
         assertThat(response.getFrozenBalance()).isEqualTo(4);
         assertThat(response.getRecentRewardLedgers()).hasSize(2);

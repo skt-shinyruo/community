@@ -6,6 +6,7 @@ import com.nowcoder.community.growth.dto.TaskCenterResponse;
 import com.nowcoder.community.growth.service.GrowthBusinessTimeService;
 import com.nowcoder.community.growth.service.RewardAccountService;
 import com.nowcoder.community.growth.service.TaskCenterService;
+import com.nowcoder.community.growth.service.UserLevelService;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.user.api.model.UserGrowthProfileView;
 import com.nowcoder.community.user.api.query.UserProfileQueryApi;
@@ -25,17 +26,20 @@ public class GrowthController {
     private final RewardAccountService rewardAccountService;
     private final TaskCenterService taskCenterService;
     private final GrowthBusinessTimeService growthBusinessTimeService;
+    private final UserLevelService userLevelService;
 
     public GrowthController(
             UserProfileQueryApi userProfileQueryApi,
             RewardAccountService rewardAccountService,
             TaskCenterService taskCenterService,
-            GrowthBusinessTimeService growthBusinessTimeService
+            GrowthBusinessTimeService growthBusinessTimeService,
+            UserLevelService userLevelService
     ) {
         this.userProfileQueryApi = userProfileQueryApi;
         this.rewardAccountService = rewardAccountService;
         this.taskCenterService = taskCenterService;
         this.growthBusinessTimeService = growthBusinessTimeService;
+        this.userLevelService = userLevelService;
     }
 
     @GetMapping("/summary")
@@ -47,6 +51,10 @@ public class GrowthController {
         resp.setUserId(userId);
         resp.setScore(profile.score());
         resp.setLevel(profile.level());
+        UserLevelService.UserLevelSummary levelSummary = userLevelService.evaluateLevel(userId);
+        resp.setUserLevel(levelSummary.userLevel());
+        resp.setSignInDaysInWindow(levelSummary.signInDaysInWindow());
+        resp.setWindowDays(levelSummary.windowDays());
         resp.setRewardBalance(rewardAccountService.availableBalanceOf(userId));
         resp.setFrozenBalance(rewardAccountService.frozenBalanceOf(userId));
         return Result.ok(resp);

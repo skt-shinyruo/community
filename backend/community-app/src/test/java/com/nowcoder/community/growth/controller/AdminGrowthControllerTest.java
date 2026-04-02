@@ -5,6 +5,8 @@ import com.nowcoder.community.growth.dto.AdminAdjustBalanceRequest;
 import com.nowcoder.community.growth.dto.AdminRewardAdjustmentResponse;
 import com.nowcoder.community.growth.dto.AdminGrowthUserResponse;
 import com.nowcoder.community.growth.dto.RewardLedgerEntryResponse;
+import com.nowcoder.community.growth.dto.UpdateUserLevelConfigRequest;
+import com.nowcoder.community.growth.dto.UserLevelConfigResponse;
 import com.nowcoder.community.growth.service.AdminGrowthService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +25,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -52,6 +55,9 @@ class AdminGrowthControllerTest {
         response.setUsername("u1");
         response.setScore(320);
         response.setLevel(4);
+        response.setUserLevel(2);
+        response.setSignInDaysInWindow(13);
+        response.setWindowDays(100);
         response.setRewardBalance(15);
         response.setFrozenBalance(4);
         response.setRecentRewardLedgers(List.of());
@@ -66,6 +72,9 @@ class AdminGrowthControllerTest {
                 .andExpect(jsonPath("$.data.userId").value(1))
                 .andExpect(jsonPath("$.data.score").value(320))
                 .andExpect(jsonPath("$.data.level").value(4))
+                .andExpect(jsonPath("$.data.userLevel").value(2))
+                .andExpect(jsonPath("$.data.signInDaysInWindow").value(13))
+                .andExpect(jsonPath("$.data.windowDays").value(100))
                 .andExpect(jsonPath("$.data.rewardBalance").value(15));
     }
 
@@ -143,5 +152,59 @@ class AdminGrowthControllerTest {
                 .andExpect(jsonPath("$.data[0].beforeValue").value(10))
                 .andExpect(jsonPath("$.data[0].afterValue").value(15))
                 .andExpect(jsonPath("$.data[0].confirmToken").value("confirmed"));
+    }
+
+    @Test
+    void getUserLevelConfigShouldReturnConfigForAdmin() throws Exception {
+        UserLevelConfigResponse response = new UserLevelConfigResponse();
+        response.setWindowDays(100);
+        response.setLv2SignInDays(12);
+        response.setLv3SignInDays(88);
+        response.setEnabled(true);
+        when(adminGrowthService.getUserLevelConfig()).thenReturn(response);
+
+        mockMvc.perform(get("/api/growth/admin/user-level/config")
+                        .with(jwt().jwt(jwt -> jwt.subject("99")).authorities(() -> "ROLE_ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.windowDays").value(100))
+                .andExpect(jsonPath("$.data.lv2SignInDays").value(12))
+                .andExpect(jsonPath("$.data.lv3SignInDays").value(88))
+                .andExpect(jsonPath("$.data.enabled").value(true));
+    }
+
+    @Test
+    void nonAdminGetUserLevelConfigShouldBeRejected() throws Exception {
+        mockMvc.perform(get("/api/growth/admin/user-level/config")
+                        .with(jwt().jwt(jwt -> jwt.subject("2")).authorities(() -> "ROLE_USER")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateUserLevelConfigShouldPersistForAdmin() throws Exception {
+        UserLevelConfigResponse response = new UserLevelConfigResponse();
+        response.setWindowDays(120);
+        response.setLv2SignInDays(20);
+        response.setLv3SignInDays(90);
+        response.setEnabled(true);
+        when(adminGrowthService.updateUserLevelConfig(eq(99), any(UpdateUserLevelConfigRequest.class))).thenReturn(response);
+
+        mockMvc.perform(put("/api/growth/admin/user-level/config")
+                        .with(jwt().jwt(jwt -> jwt.subject("99")).authorities(() -> "ROLE_ADMIN"))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "windowDays": 120,
+                                  "lv2SignInDays": 20,
+                                  "lv3SignInDays": 90,
+                                  "enabled": true
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.windowDays").value(120))
+                .andExpect(jsonPath("$.data.lv2SignInDays").value(20))
+                .andExpect(jsonPath("$.data.lv3SignInDays").value(90))
+                .andExpect(jsonPath("$.data.enabled").value(true));
     }
 }

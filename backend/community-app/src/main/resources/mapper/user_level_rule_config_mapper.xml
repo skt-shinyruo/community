@@ -12,4 +12,35 @@
         limit 1
     </select>
 
+    <update id="updateCurrent">
+        update user_level_rule_config
+        set window_days = #{windowDays},
+            lv2_sign_in_days = #{lv2SignInDays},
+            lv3_sign_in_days = #{lv3SignInDays},
+            enabled = #{enabled},
+            updated_by = #{updatedBy},
+            update_time = current_timestamp
+        where id = 1
+    </update>
+
+    <insert id="insert">
+        insert into user_level_rule_config(
+            id,
+            window_days,
+            lv2_sign_in_days,
+            lv3_sign_in_days,
+            enabled,
+            updated_by,
+            update_time
+        ) values (
+            1,
+            #{windowDays},
+            #{lv2SignInDays},
+            #{lv3SignInDays},
+            #{enabled},
+            #{updatedBy},
+            current_timestamp
+        )
+    </insert>
+
 </mapper>

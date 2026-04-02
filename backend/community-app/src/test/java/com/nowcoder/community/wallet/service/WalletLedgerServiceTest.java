@@ -159,6 +159,44 @@ class WalletLedgerServiceTest {
     }
 
     @Test
+    void migrateUserShouldCarryFrozenOnlyLegacyBalanceIntoMigrationHold() {
+        jdbcTemplate.update(
+                "insert into reward_account(user_id, available_balance, frozen_balance, version) values (?,?,?,?)",
+                101,
+                0,
+                66,
+                0
+        );
+
+        migrationService.migrateUser(101);
+
+        assertThat(accountService.balanceOfUser(101)).isZero();
+        assertThat(systemBalance("MIGRATION_HOLD")).isEqualTo(66);
+        assertThat(systemBalance("RISK_FROZEN")).isEqualTo(66);
+        assertThat(txnMapper.selectByRequestId("migration:frozen:101").getTxnType()).isEqualTo("FREEZE");
+        assertThat(txnMapper.selectByRequestId("migration:opening:101")).isNull();
+    }
+
+    @Test
+    void migrateUserShouldCarryBothAvailableAndFrozenLegacyBalances() {
+        jdbcTemplate.update(
+                "insert into reward_account(user_id, available_balance, frozen_balance, version) values (?,?,?,?)",
+                101,
+                880,
+                66,
+                0
+        );
+
+        migrationService.migrateUser(101);
+
+        assertThat(accountService.balanceOfUser(101)).isEqualTo(880);
+        assertThat(systemBalance("MIGRATION_HOLD")).isEqualTo(946);
+        assertThat(systemBalance("RISK_FROZEN")).isEqualTo(66);
+        assertThat(txnMapper.selectByRequestId("migration:opening:101").getTxnType()).isEqualTo("OPENING_BALANCE");
+        assertThat(txnMapper.selectByRequestId("migration:frozen:101").getTxnType()).isEqualTo("FREEZE");
+    }
+
+    @Test
     void postShouldRejectIfAnyPostingWouldDriveBalanceBelowZero() {
         long senderAccountId = service.ensureUserWallet(101);
         long receiverAccountId = service.ensureUserWallet(202);
@@ -223,5 +261,15 @@ class WalletLedgerServiceTest {
                 Integer.class
         );
         return count == null ? 0 : count;
+    }
+
+    private long systemBalance(String accountType) {
+        List<Long> balances = jdbcTemplate.query(
+                "select balance from wallet_account where owner_type = 'SYSTEM' and owner_id = 0 and account_type = ?",
+                (rs, rowNum) -> rs.getLong("balance"),
+                accountType
+        );
+        Long balance = balances.isEmpty() ? null : balances.get(0);
+        return balance == null ? 0L : balance;
     }
 }

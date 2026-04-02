@@ -10,6 +10,7 @@ import UserProfileView from '../views/UserProfileView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import PasswordResetView from '../views/PasswordResetView.vue'
 import SearchView from '../views/SearchView.vue'
+import WalletView from '../views/WalletView.vue'
 import ConversationsView from '../views/ConversationsView.vue'
 import ConversationDetailView from '../views/ConversationDetailView.vue'
 import NoticesView from '../views/NoticesView.vue'
@@ -24,6 +25,7 @@ import GrowthCenterView from '../views/GrowthCenterView.vue'
 import RewardShopView from '../views/RewardShopView.vue'
 import RewardOrderHistoryView from '../views/RewardOrderHistoryView.vue'
 import GrowthAdminView from '../views/GrowthAdminView.vue'
+import WalletAdminView from '../views/WalletAdminView.vue'
 import RewardOpsView from '../views/RewardOpsView.vue'
 import ModerationView from '../views/ModerationView.vue'
 import OpsConsoleView from '../views/OpsConsoleView.vue'
@@ -78,34 +80,46 @@ const router = createRouter({
       meta: { title: '搜索', subtitle: '从关键词、分类和标签里定位正在发生的讨论。', navGroup: 'explore' }
     },
     {
+      path: '/wallet',
+      name: 'wallet',
+      component: WalletView,
+      meta: { title: '积分钱包', subtitle: '查看余额、充值、提现与转账记录。', navGroup: 'me', requiresAuth: true }
+    },
+    {
       path: '/growth',
       name: 'growthCenter',
       component: GrowthCenterView,
-      meta: { title: '成长中心', subtitle: '在一个入口里查看签到、任务进度和奖励余额。', navGroup: 'me', requiresAuth: true }
+      meta: { title: '旧资产入口', subtitle: '这个地址仅保留兼容说明，统一资产入口已迁入钱包。', navGroup: 'system', requiresAuth: true }
     },
     {
       path: '/rewards/shop',
       name: 'rewardShop',
       component: RewardShopView,
-      meta: { title: '奖励商城', subtitle: '用奖励积分兑换自动或人工发放的权益。', navGroup: 'me', requiresAuth: true }
+      meta: { title: '资产市场预览', subtitle: '旧地址仅保留过渡说明，后续消费场景将并入统一市场。', navGroup: 'system', requiresAuth: true }
     },
     {
       path: '/rewards/orders',
       name: 'rewardOrders',
       component: RewardOrderHistoryView,
-      meta: { title: '兑换记录', subtitle: '查看每一笔兑换的当前状态与快照。', navGroup: 'me', requiresAuth: true }
+      meta: { title: '历史订单', subtitle: '旧地址仅保留过渡说明，后续订单会统一收口。', navGroup: 'system', requiresAuth: true }
+    },
+    {
+      path: '/admin/wallet',
+      name: 'walletAdmin',
+      component: WalletAdminView,
+      meta: { title: '钱包后台', subtitle: '冻结钱包、回滚交易与查看审计。', navGroup: 'admin', requiresAuth: true, roles: ['ROLE_ADMIN'] }
     },
     {
       path: '/admin/growth',
       name: 'growthAdmin',
       component: GrowthAdminView,
-      meta: { title: '成长账户后台', subtitle: '查询成长账户并执行带审计的手工调账。', navGroup: 'admin', requiresAuth: true, roles: ['ROLE_ADMIN'] }
+      meta: { title: '旧后台入口', subtitle: '旧资产后台已迁入钱包后台，这里只保留兼容说明。', navGroup: 'system', requiresAuth: true, roles: ['ROLE_ADMIN'] }
     },
     {
       path: '/admin/rewards',
       name: 'rewardOps',
       component: RewardOpsView,
-      meta: { title: '奖励运营后台', subtitle: '管理商品、履约订单和奖励运营指标。', navGroup: 'admin', requiresAuth: true, roles: ['ROLE_ADMIN'] }
+      meta: { title: '旧运营入口', subtitle: '旧地址仅保留兼容说明，后续会并入统一市场运营台。', navGroup: 'system', requiresAuth: true, roles: ['ROLE_ADMIN'] }
     },
     {
       path: '/preview/editorial',
@@ -178,7 +192,7 @@ const router = createRouter({
       path: '/leaderboard',
       name: 'leaderboard',
       component: LeaderboardView,
-      meta: { title: '排行榜', subtitle: '看看哪些成员正在持续产出有影响力的讨论。', navGroup: 'explore' }
+      meta: { title: '成员概览', subtitle: '旧排行榜入口已下线，公开成员关系仍保留在个人主页。', navGroup: 'system' }
     },
     {
       path: '/analytics',

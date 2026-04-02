@@ -276,11 +276,7 @@ const communityNextSteps = computed(() =>
     authed: authed.value,
     isSelf: isSelfProfile.value,
     userId: userId.value
-  }).map((step) =>
-    step?.key === 'leaderboard'
-      ? { ...step, key: 'wallet', label: '查看钱包', to: { name: 'wallet' } }
-      : step
-  )
+  })
 )
 
 const profileTimeline = computed(() =>

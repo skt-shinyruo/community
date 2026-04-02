@@ -43,6 +43,11 @@ function asNumber(value, fallback = 0) {
   return Number.isFinite(next) ? next : fallback
 }
 
+function asOptionalNumber(value) {
+  const next = Number(value)
+  return Number.isFinite(next) ? next : null
+}
+
 function normalizeTaskUiState(status) {
   if (status === 'CLAIMED') return 'claimed'
   if (status === 'CLAIMABLE') return 'claimable'
@@ -97,12 +102,9 @@ export function buildGrowthCenterState({ summary, checkInStatus, tasks } = {}) {
   const header = {
     score: asNumber(safeSummary.score),
     level: Math.max(1, asNumber(safeSummary.level, 1)),
-    userLevel: Math.max(1, asNumber(safeSummary.userLevel, safeSummary.level || 1)),
-    signInDaysInWindow: Math.max(
-      0,
-      asNumber(safeSummary.signInDaysInWindow, safeStatus.totalCheckInDays || 0)
-    ),
-    windowDays: Math.max(1, asNumber(safeSummary.windowDays, 100)),
+    userLevel: asOptionalNumber(safeSummary.userLevel),
+    signInDaysInWindow: asOptionalNumber(safeSummary.signInDaysInWindow),
+    windowDays: asOptionalNumber(safeSummary.windowDays),
     rewardBalance: asNumber(safeSummary.rewardBalance),
     frozenBalance: asNumber(safeSummary.frozenBalance),
     checkedInToday: safeStatus.checkedInToday === true,
@@ -111,7 +113,17 @@ export function buildGrowthCenterState({ summary, checkInStatus, tasks } = {}) {
     totalCheckInDays: Math.max(0, asNumber(safeStatus.totalCheckInDays))
   }
 
-  header.heroText = `用户等级 LV ${header.userLevel} · 最近 ${header.windowDays} 天签到 ${header.signInDaysInWindow} 天`
+  const hasUserLevelSummary =
+    header.userLevel !== null &&
+    header.signInDaysInWindow !== null &&
+    header.windowDays !== null &&
+    header.userLevel >= 1 &&
+    header.signInDaysInWindow >= 0 &&
+    header.windowDays > 0
+  header.userLevelLabel = hasUserLevelSummary ? String(header.userLevel) : '—'
+  header.heroText = hasUserLevelSummary
+    ? `用户等级 LV ${header.userLevel} · 最近 ${header.windowDays} 天签到 ${header.signInDaysInWindow} 天`
+    : '用户等级信息暂不可用'
   header.streakText = `连续签到 ${header.currentStreak} 天 · 历史最高 ${header.maxStreak} 天`
   header.checkInText = header.checkedInToday ? '今天已签到' : '今天还没签到'
   header.balanceText = `可用奖励 ${header.rewardBalance} · 冻结 ${header.frozenBalance}`

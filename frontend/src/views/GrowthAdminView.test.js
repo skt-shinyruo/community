@@ -134,4 +134,30 @@ describe('GrowthAdminView', () => {
       enabled: false
     })
   })
+
+  it('shows config load error and keeps defaults when initial config load fails', async () => {
+    getUserLevelConfig.mockRejectedValueOnce(new Error('配置加载失败'))
+    const wrapper = mount(GrowthAdminView, {
+      global: {
+        stubs: {
+          UiBreadcrumb: true,
+          RouterLink: {
+            template: '<a><slot /></a>'
+          }
+        }
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('配置加载失败')
+    expect(wrapper.get('input[placeholder="签到窗口天数"]').element.value).toBe('100')
+    expect(wrapper.get('input[placeholder="LV2 签到门槛"]').element.value).toBe('12')
+    expect(wrapper.get('input[placeholder="LV3 签到门槛"]').element.value).toBe('88')
+    expect(
+      wrapper
+        .findAll('button')
+        .find((button) => button.text().includes('保存规则'))
+        ?.attributes('disabled')
+    ).toBeDefined()
+  })
 })

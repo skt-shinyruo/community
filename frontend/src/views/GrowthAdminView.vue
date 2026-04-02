@@ -21,11 +21,11 @@
           <p>控制最近签到窗口与 LV2/LV3 门槛。</p>
         </div>
         <div class="growth-admin-config-grid">
-          <UiInput v-model.trim="configForm.windowDays" placeholder="签到窗口天数" />
-          <UiInput v-model.trim="configForm.lv2SignInDays" placeholder="LV2 签到门槛" />
-          <UiInput v-model.trim="configForm.lv3SignInDays" placeholder="LV3 签到门槛" />
-          <UiCheckbox v-model="configForm.enabled" class="growth-admin-confirm" label="启用规则" />
-          <UiButton :disabled="configLoading || configSaving" @click="submitUserLevelConfig">
+          <UiInput v-model.trim="configForm.windowDays" :disabled="configLoading || configLoadFailed" placeholder="签到窗口天数" />
+          <UiInput v-model.trim="configForm.lv2SignInDays" :disabled="configLoading || configLoadFailed" placeholder="LV2 签到门槛" />
+          <UiInput v-model.trim="configForm.lv3SignInDays" :disabled="configLoading || configLoadFailed" placeholder="LV3 签到门槛" />
+          <UiCheckbox v-model="configForm.enabled" :disabled="configLoading || configLoadFailed" class="growth-admin-confirm" label="启用规则" />
+          <UiButton :disabled="configLoading || configSaving || configLoadFailed" @click="submitUserLevelConfig">
             {{ configSaving ? '保存中…' : '保存规则' }}
           </UiButton>
         </div>
@@ -120,6 +120,7 @@ const loading = ref(false)
 const adjusting = ref(false)
 const configLoading = ref(false)
 const configSaving = ref(false)
+const configLoadFailed = ref(false)
 const error = ref('')
 const account = ref(null)
 const ledgers = ref([])
@@ -142,9 +143,9 @@ const adjustForm = ref({
   confirm: false
 })
 const configForm = ref({
-  windowDays: '',
-  lv2SignInDays: '',
-  lv3SignInDays: '',
+  windowDays: '100',
+  lv2SignInDays: '12',
+  lv3SignInDays: '88',
   enabled: true
 })
 
@@ -208,6 +209,7 @@ async function submitAdjustment() {
 
 async function loadUserLevelConfig() {
   configLoading.value = true
+  configLoadFailed.value = false
   try {
     const { data } = await getUserLevelConfig()
     configForm.value = {
@@ -216,13 +218,9 @@ async function loadUserLevelConfig() {
       lv3SignInDays: String(data?.lv3SignInDays ?? ''),
       enabled: data?.enabled !== false
     }
-  } catch {
-    configForm.value = {
-      windowDays: '',
-      lv2SignInDays: '',
-      lv3SignInDays: '',
-      enabled: true
-    }
+  } catch (e) {
+    configLoadFailed.value = true
+    error.value = e?.message || '加载等级规则失败'
   } finally {
     configLoading.value = false
   }

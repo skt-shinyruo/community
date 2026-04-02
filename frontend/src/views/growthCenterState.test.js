@@ -65,4 +65,15 @@ describe('growthCenterState', () => {
     expect(state.groups).toHaveLength(3)
     expect(state.groups.every((group) => Array.isArray(group.items))).toBe(true)
   })
+
+  it('shows neutral user-level copy when new summary fields are missing', () => {
+    const state = buildGrowthCenterState({
+      summary: { score: 80, level: 5, rewardBalance: 2, frozenBalance: 0 },
+      checkInStatus: { checkedInToday: true, currentStreak: 4, maxStreak: 7, totalCheckInDays: 66 },
+      tasks: { bizDate: '2026-03-22', items: [] }
+    })
+
+    expect(state.header.heroText).toBe('用户等级信息暂不可用')
+    expect(state.header.userLevelLabel).toBe('—')
+  })
 })

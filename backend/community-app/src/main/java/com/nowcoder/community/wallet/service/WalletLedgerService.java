@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class WalletLedgerService {
@@ -27,6 +28,14 @@ public class WalletLedgerService {
     private static final String TXN_STATUS_SUCCEEDED = "SUCCEEDED";
     private static final String DIRECTION_DEBIT = "DEBIT";
     private static final String DIRECTION_CREDIT = "CREDIT";
+    private static final Set<String> SYSTEM_ACCOUNT_TYPES = Set.of(
+            "PLATFORM_CASH",
+            "PLATFORM_REWARD_EXPENSE",
+            "WITHDRAW_PENDING",
+            "ORDER_ESCROW",
+            "RISK_FROZEN",
+            "MIGRATION_HOLD"
+    );
 
     private final WalletAccountMapper walletAccountMapper;
     private final WalletTxnMapper walletTxnMapper;
@@ -104,8 +113,10 @@ public class WalletLedgerService {
                     currentAccount.getStatus()
             );
             if (updated != 1) {
-                WalletErrorCode errorCode = delta < 0 ? WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT : WalletErrorCode.ACCOUNT_UPDATE_CONFLICT;
-                throw new BusinessException(errorCode, "wallet account update failed: accountId=" + currentAccount.getAccountId());
+                throw new BusinessException(
+                        classifyUpdateFailure(currentAccount, delta),
+                        "wallet account update failed: accountId=" + currentAccount.getAccountId()
+                );
             }
             WalletAccount accountAfter = walletAccountMapper.selectByAccountId(currentAccount.getAccountId());
 
@@ -146,6 +157,20 @@ public class WalletLedgerService {
         }
     }
 
+    private WalletErrorCode classifyUpdateFailure(WalletAccount beforeAccount, long delta) {
+        WalletAccount latestAccount = walletAccountMapper.selectByAccountId(beforeAccount.getAccountId());
+        if (latestAccount == null) {
+            return WalletErrorCode.ACCOUNT_NOT_FOUND;
+        }
+        if (latestAccount.getVersion() != beforeAccount.getVersion()) {
+            return WalletErrorCode.ACCOUNT_UPDATE_CONFLICT;
+        }
+        if (delta < 0 && latestAccount.getBalance() + delta < 0) {
+            return WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT;
+        }
+        return WalletErrorCode.ACCOUNT_UPDATE_CONFLICT;
+    }
+
     private long balanceDeltaOf(String accountType, String direction, long amount) {
         String normalDirection = normalDirectionOf(accountType);
         return normalDirection.equals(direction) ? amount : -amount;
@@ -163,6 +188,8 @@ public class WalletLedgerService {
         if (accountType == null || accountType.isBlank()) {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "system accountType must not be blank");
         }
-        normalDirectionOf(accountType);
+        if (!SYSTEM_ACCOUNT_TYPES.contains(accountType)) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "system accountType is not allowed: " + accountType);
+        }
     }
 }

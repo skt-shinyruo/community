@@ -1,12 +1,14 @@
 package com.nowcoder.community.growth.controller;
 
 import com.nowcoder.community.app.CommunityAppApplication;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.growth.dto.AdminAdjustBalanceRequest;
 import com.nowcoder.community.growth.dto.AdminRewardAdjustmentResponse;
 import com.nowcoder.community.growth.dto.AdminGrowthUserResponse;
 import com.nowcoder.community.growth.dto.RewardLedgerEntryResponse;
 import com.nowcoder.community.growth.dto.UpdateUserLevelConfigRequest;
 import com.nowcoder.community.growth.dto.UserLevelConfigResponse;
+import com.nowcoder.community.growth.exception.GrowthErrorCode;
 import com.nowcoder.community.growth.service.AdminGrowthService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -206,5 +208,25 @@ class AdminGrowthControllerTest {
                 .andExpect(jsonPath("$.data.lv2SignInDays").value(20))
                 .andExpect(jsonPath("$.data.lv3SignInDays").value(90))
                 .andExpect(jsonPath("$.data.enabled").value(true));
+    }
+
+    @Test
+    void updateUserLevelConfigShouldUseGrowthInvalidRequestForInvalidPayload() throws Exception {
+        when(adminGrowthService.updateUserLevelConfig(eq(99), any(UpdateUserLevelConfigRequest.class)))
+                .thenThrow(new BusinessException(GrowthErrorCode.INVALID_REQUEST, "invalid user level thresholds"));
+
+        mockMvc.perform(put("/api/growth/admin/user-level/config")
+                        .with(jwt().jwt(jwt -> jwt.subject("99")).authorities(() -> "ROLE_ADMIN"))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "windowDays": 0,
+                                  "lv2SignInDays": 20,
+                                  "lv3SignInDays": 90,
+                                  "enabled": true
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(16001));
     }
 }

@@ -9,7 +9,6 @@ import com.nowcoder.community.growth.dto.UpdateUserLevelConfigRequest;
 import com.nowcoder.community.growth.dto.UserLevelConfigResponse;
 import com.nowcoder.community.growth.service.AdminGrowthService;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
-import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -65,7 +64,7 @@ public class AdminGrowthController {
     @PutMapping("/user-level/config")
     public Result<UserLevelConfigResponse> updateUserLevelConfig(
             Authentication authentication,
-            @Valid @RequestBody UpdateUserLevelConfigRequest request
+            @RequestBody UpdateUserLevelConfigRequest request
     ) {
         int actorUserId = CurrentUser.requireUserId(authentication);
         return Result.ok(adminGrowthService.updateUserLevelConfig(actorUserId, request));

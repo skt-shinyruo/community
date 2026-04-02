@@ -160,13 +160,23 @@ class WalletLedgerServiceTest {
 
     @Test
     void postShouldRejectIfAnyPostingWouldDriveBalanceBelowZero() {
-        long userAccountId = service.ensureUserWallet(101);
+        long senderAccountId = service.ensureUserWallet(101);
+        long receiverAccountId = service.ensureUserWallet(202);
 
         assertThatThrownBy(() -> service.post(
                 "transfer:101:too-much",
                 WalletTxnType.TRANSFER,
-                List.of(WalletPosting.debit(userAccountId, 1))
-        )).isInstanceOf(BusinessException.class);
+                List.of(
+                        WalletPosting.debit(senderAccountId, 1),
+                        WalletPosting.credit(receiverAccountId, 1)
+                )
+        ))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT))
+                .hasMessageContaining("accountId=" + senderAccountId);
+
+        assertThat(txnCount()).isZero();
+        assertThat(entryCount()).isZero();
     }
 
     @Test

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.wallet.mapper.WalletAdminActionMapper">
+
+    <insert id="insert" parameterType="com.nowcoder.community.wallet.entity.WalletAdminAction" useGeneratedKeys="true" keyProperty="actionId" keyColumn="action_id">
+        insert into wallet_admin_action(request_id, actor_user_id, target_account_id, action_type, amount, remark)
+        values(#{requestId}, #{actorUserId}, #{targetAccountId}, #{actionType}, #{amount}, #{remark})
+    </insert>
+
+    <select id="selectRecentByTargetAccountId" resultType="com.nowcoder.community.wallet.entity.WalletAdminAction">
+        select action_id, request_id, actor_user_id, target_account_id, action_type, amount, remark, create_time
+        from wallet_admin_action
+        where target_account_id = #{targetAccountId}
+        order by action_id desc
+        limit #{limit}
+    </select>
+
+</mapper>

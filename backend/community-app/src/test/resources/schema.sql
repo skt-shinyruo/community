@@ -48,6 +48,107 @@ create table if not exists reward_ledger (
   constraint uk_reward_ledger_event_id unique (event_id)
 );
 
+create table if not exists wallet_account (
+  account_id bigint auto_increment primary key,
+  owner_type varchar(32) not null,
+  owner_id bigint not null,
+  account_type varchar(32) not null,
+  balance bigint not null default 0,
+  status varchar(16) not null,
+  version bigint not null default 0,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  constraint uk_wallet_account_owner unique (owner_type, owner_id, account_type)
+);
+
+create table if not exists wallet_txn (
+  txn_id bigint auto_increment primary key,
+  request_id varchar(96) not null,
+  txn_type varchar(32) not null,
+  biz_type varchar(32) not null,
+  biz_id varchar(96) not null,
+  status varchar(16) not null,
+  amount bigint not null,
+  remark varchar(255) default null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  constraint uk_wallet_txn_request unique (request_id)
+);
+
+create table if not exists wallet_entry (
+  entry_id bigint auto_increment primary key,
+  txn_id bigint not null,
+  account_id bigint not null,
+  direction varchar(8) not null,
+  amount bigint not null,
+  balance_after bigint not null,
+  create_time timestamp null default current_timestamp
+);
+
+create index if not exists idx_wallet_entry_txn on wallet_entry(txn_id);
+create index if not exists idx_wallet_entry_account_time on wallet_entry(account_id, create_time);
+
+create table if not exists recharge_order (
+  order_id bigint auto_increment primary key,
+  request_id varchar(96) not null,
+  user_id bigint not null,
+  amount bigint not null,
+  status varchar(16) not null,
+  channel varchar(32) default null,
+  channel_order_id varchar(96) default null,
+  remark varchar(255) default null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  constraint uk_recharge_order_request unique (request_id)
+);
+
+create index if not exists idx_recharge_order_user_time on recharge_order(user_id, create_time);
+
+create table if not exists withdraw_order (
+  order_id bigint auto_increment primary key,
+  request_id varchar(96) not null,
+  user_id bigint not null,
+  amount bigint not null,
+  status varchar(16) not null,
+  payee_account varchar(128) default null,
+  failure_reason varchar(255) default null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  constraint uk_withdraw_order_request unique (request_id)
+);
+
+create index if not exists idx_withdraw_order_user_time on withdraw_order(user_id, create_time);
+
+create table if not exists transfer_order (
+  order_id bigint auto_increment primary key,
+  request_id varchar(96) not null,
+  from_user_id bigint not null,
+  to_user_id bigint not null,
+  amount bigint not null,
+  status varchar(16) not null,
+  remark varchar(255) default null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  constraint uk_transfer_order_request unique (request_id)
+);
+
+create index if not exists idx_transfer_order_from_user_time on transfer_order(from_user_id, create_time);
+create index if not exists idx_transfer_order_to_user_time on transfer_order(to_user_id, create_time);
+
+create table if not exists wallet_admin_action (
+  action_id bigint auto_increment primary key,
+  request_id varchar(96) not null,
+  actor_user_id bigint not null,
+  target_account_id bigint not null,
+  action_type varchar(32) not null,
+  amount bigint not null,
+  remark varchar(255) default null,
+  create_time timestamp null default current_timestamp,
+  constraint uk_wallet_admin_action_request unique (request_id)
+);
+
+create index if not exists idx_wallet_admin_action_target_time on wallet_admin_action(target_account_id, create_time);
+
 create table if not exists reward_grant_record (
   id bigint auto_increment primary key,
   grant_id varchar(64) not null,

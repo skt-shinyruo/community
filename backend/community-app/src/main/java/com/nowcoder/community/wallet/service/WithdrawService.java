@@ -31,19 +31,22 @@ public class WithdrawService {
     @Transactional
     public CreateWithdrawResponse request(String requestId, int userId, long amount) {
         validate(requestId, amount);
-        WithdrawOrder existing = withdrawOrderMapper.selectByRequestId(requestId);
-        if (existing != null) {
-            ensureReplayMatches(existing, userId, amount);
-            if ("SUCCEEDED".equals(existing.getStatus())) {
-                return CreateWithdrawResponse.from(existing);
+        WithdrawOrder order = withdrawOrderMapper.selectByRequestId(requestId);
+        if (order != null) {
+            ensureReplayMatches(order, userId, amount);
+            if ("SUCCEEDED".equals(order.getStatus())) {
+                return CreateWithdrawResponse.from(order);
             }
         }
 
-        if (existing == null && accountService.balanceOfSystem("PLATFORM_CASH") < amount) {
-            throw new BusinessException(WalletErrorCode.PLATFORM_CASH_INSUFFICIENT, "platform cash insufficient");
+        if (order == null && accountService.balanceOfSystem("PLATFORM_CASH") < amount) {
+            order = withdrawOrderMapper.selectByRequestId(requestId);
+            if (order == null) {
+                throw new BusinessException(WalletErrorCode.PLATFORM_CASH_INSUFFICIENT, "platform cash insufficient");
+            }
         }
 
-        WithdrawOrder order = existing == null ? createOrLoad(requestId, userId, amount) : existing;
+        order = order == null ? createOrLoad(requestId, userId, amount) : order;
         ensureReplayMatches(order, userId, amount);
         if ("SUCCEEDED".equals(order.getStatus())) {
             return CreateWithdrawResponse.from(order);

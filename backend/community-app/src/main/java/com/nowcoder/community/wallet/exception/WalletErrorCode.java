@@ -11,7 +11,8 @@ public enum WalletErrorCode implements ErrorCode {
     ACCOUNT_UPDATE_CONFLICT(17005, "钱包账户更新冲突", 409),
     PLATFORM_CASH_INSUFFICIENT(17006, "平台可提现现金不足", 409),
     REQUEST_REPLAY_CONFLICT(17007, "请求号与已有钱包请求不一致", 409),
-    INVALID_TRANSFER(17008, "转账请求不合法", 400);
+    INVALID_TRANSFER(17008, "转账请求不合法", 400),
+    ACCOUNT_FROZEN(17009, "钱包账户已冻结", 409);
 
     private final int code;
     private final String message;

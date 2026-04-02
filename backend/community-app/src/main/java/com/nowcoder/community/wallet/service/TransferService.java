@@ -42,6 +42,8 @@ public class TransferService {
             return CreateTransferResponse.from(existing);
         }
 
+        accountService.requireUserWalletActive(fromUserId);
+
         ledgerService.post(
                 requestId,
                 WalletTxnType.TRANSFER,

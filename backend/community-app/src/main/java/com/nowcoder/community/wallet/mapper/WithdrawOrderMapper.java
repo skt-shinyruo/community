@@ -12,4 +12,8 @@ public interface WithdrawOrderMapper {
     WithdrawOrder selectByRequestId(@Param("requestId") String requestId);
 
     int insert(WithdrawOrder order);
+
+    int updateStatus(@Param("requestId") String requestId,
+                     @Param("fromStatus") String fromStatus,
+                     @Param("toStatus") String toStatus);
 }

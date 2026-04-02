@@ -1,10 +1,10 @@
 package com.nowcoder.community.user.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.growth.api.action.GrowthGrantActionApi;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxHandler;
 import com.nowcoder.community.user.service.PointsProjectionService;
+import com.nowcoder.community.wallet.api.action.WalletRewardActionApi;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -28,8 +28,8 @@ public class PointsOutboxHandler implements OutboxHandler {
         this.pointsProjectionService = pointsProjectionService;
     }
 
-    PointsOutboxHandler(ObjectMapper objectMapper, GrowthGrantActionApi growthGrantActionApi) {
-        this(objectMapper, new PointsProjectionService(growthGrantActionApi));
+    PointsOutboxHandler(ObjectMapper objectMapper, WalletRewardActionApi walletRewardActionApi) {
+        this(objectMapper, new PointsProjectionService(walletRewardActionApi));
     }
 
     @Override

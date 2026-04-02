@@ -46,6 +46,8 @@ public class GetUserProfilePageQuery {
                 user.createTime(),
                 user.score(),
                 user.level(),
+                user.walletBalance(),
+                user.walletStatus(),
                 stats.getLikeCount(),
                 stats.getFolloweeCount(),
                 stats.getFollowerCount(),

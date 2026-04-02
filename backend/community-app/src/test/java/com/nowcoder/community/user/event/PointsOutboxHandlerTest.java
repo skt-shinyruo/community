@@ -1,8 +1,8 @@
 package com.nowcoder.community.user.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.growth.api.action.GrowthGrantActionApi;
 import com.nowcoder.community.common.outbox.OutboxEvent;
+import com.nowcoder.community.wallet.service.WalletRewardService;
 import org.junit.jupiter.api.Test;
 
 import static org.mockito.Mockito.mock;
@@ -13,9 +13,9 @@ class PointsOutboxHandlerTest {
     @Test
     void handlerShouldCallPointsProjectionActionWithSourceEventId() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
-        GrowthGrantActionApi growthGrantActionApi = mock(GrowthGrantActionApi.class);
+        WalletRewardService walletRewardService = mock(WalletRewardService.class);
 
-        PointsOutboxHandler handler = new PointsOutboxHandler(objectMapper, growthGrantActionApi);
+        PointsOutboxHandler handler = new PointsOutboxHandler(objectMapper, walletRewardService);
 
         String payloadJson = objectMapper.writeValueAsString(java.util.Map.of(
                 "userId", 7,
@@ -38,11 +38,11 @@ class PointsOutboxHandlerTest {
 
         handler.handle(event);
 
-        verify(growthGrantActionApi).applyPointsProjection(
+        verify(walletRewardService).applyDelta(
+                "wallet-reward:src-1",
                 7,
-                "src-1",
-                "PostPublished",
-                10
+                10,
+                "PostPublished"
         );
     }
 }

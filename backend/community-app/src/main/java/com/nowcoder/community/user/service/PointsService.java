@@ -28,9 +28,9 @@ public class PointsService implements UserPointsActionApi {
     }
 
     /**
-     * 积分入账（幂等）。
+     * 旧成长值入账（幂等）。
      *
-     * <p>幂等策略：以 user_score_log(event_id) 唯一约束为准（insert-first）。</p>
+     * <p>钱包切换后，该服务仅保留给显式旧成长值管理路径使用；实时奖励写路径不再调用这里。</p>
      *
      * @return true 表示首次入账成功；false 表示已处理过（重复事件）
      */

@@ -4,19 +4,19 @@ import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.PostPayload;
-import com.nowcoder.community.growth.api.action.GrowthGrantActionApi;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
+import com.nowcoder.community.wallet.api.action.WalletRewardActionApi;
 import org.springframework.stereotype.Service;
 
 @Service
 public class PointsProjectionService {
 
-    private final GrowthGrantActionApi growthGrantActionApi;
+    private final WalletRewardActionApi walletRewardActionApi;
 
-    public PointsProjectionService(GrowthGrantActionApi growthGrantActionApi) {
-        this.growthGrantActionApi = growthGrantActionApi;
+    public PointsProjectionService(WalletRewardActionApi walletRewardActionApi) {
+        this.walletRewardActionApi = walletRewardActionApi;
     }
 
     public PointsProjectionCommand commandForContentEvent(ContentContractEvent event) {
@@ -53,11 +53,11 @@ public class PointsProjectionService {
         if (command == null || command.userId() <= 0 || command.delta() == 0) {
             return;
         }
-        growthGrantActionApi.applyPointsProjection(
+        walletRewardActionApi.applyDelta(
+                "wallet-reward:" + command.sourceEventId().trim(),
                 command.userId(),
-                command.sourceEventId().trim(),
-                command.sourceEventType().trim(),
-                command.delta()
+                command.delta(),
+                command.sourceEventType().trim()
         );
     }
 

@@ -3,10 +3,10 @@ package com.nowcoder.community.user.event;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.PostPayload;
-import com.nowcoder.community.growth.api.action.GrowthGrantActionApi;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
+import com.nowcoder.community.wallet.service.WalletRewardService;
 import org.junit.jupiter.api.Test;
 
 import static org.mockito.Mockito.mock;
@@ -16,26 +16,26 @@ class PointsProjectionListenerTest {
 
     @Test
     void postPublishedShouldAwardAuthorPoints() {
-        GrowthGrantActionApi growthGrantActionApi = mock(GrowthGrantActionApi.class);
-        PointsProjectionListener listener = new PointsProjectionListener(growthGrantActionApi);
+        WalletRewardService walletRewardService = mock(WalletRewardService.class);
+        PointsProjectionListener listener = new PointsProjectionListener(walletRewardService);
 
         PostPayload payload = new PostPayload();
         payload.setUserId(7);
 
         listener.onContentEvent(new ContentContractEvent("post-evt-1", ContentEventTypes.POST_PUBLISHED, payload));
 
-        verify(growthGrantActionApi).applyPointsProjection(
+        verify(walletRewardService).applyDelta(
+                "wallet-reward:post-evt-1",
                 7,
-                "post-evt-1",
-                ContentEventTypes.POST_PUBLISHED,
-                10
+                10,
+                ContentEventTypes.POST_PUBLISHED
         );
     }
 
     @Test
     void likeRemovedShouldSubtractPointsFromEntityOwner() {
-        GrowthGrantActionApi growthGrantActionApi = mock(GrowthGrantActionApi.class);
-        PointsProjectionListener listener = new PointsProjectionListener(growthGrantActionApi);
+        WalletRewardService walletRewardService = mock(WalletRewardService.class);
+        PointsProjectionListener listener = new PointsProjectionListener(walletRewardService);
 
         LikePayload payload = new LikePayload();
         payload.setActorUserId(2);
@@ -43,11 +43,11 @@ class PointsProjectionListenerTest {
 
         listener.onSocialEvent(new SocialContractEvent("like-evt-2", SocialEventTypes.LIKE_REMOVED, payload));
 
-        verify(growthGrantActionApi).applyPointsProjection(
+        verify(walletRewardService).applyDelta(
+                "wallet-reward:like-evt-2",
                 9,
-                "like-evt-2",
-                SocialEventTypes.LIKE_REMOVED,
-                -1
+                -1,
+                SocialEventTypes.LIKE_REMOVED
         );
     }
 }

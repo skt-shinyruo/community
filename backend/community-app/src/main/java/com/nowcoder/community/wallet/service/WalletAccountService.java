@@ -1,6 +1,7 @@
 package com.nowcoder.community.wallet.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.wallet.api.query.WalletAccountQueryApi;
 import com.nowcoder.community.wallet.entity.WalletAccount;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.mapper.WalletAccountMapper;
@@ -11,13 +12,14 @@ import org.springframework.stereotype.Service;
 import java.util.Set;
 
 @Service
-public class WalletAccountService {
+public class WalletAccountService implements WalletAccountQueryApi {
 
     private static final String OWNER_TYPE_USER = "USER";
     private static final String OWNER_TYPE_SYSTEM = "SYSTEM";
     private static final String ACCOUNT_TYPE_USER_WALLET = "USER_WALLET";
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_FROZEN = "FROZEN";
+    private static final String STATUS_UNKNOWN = "UNKNOWN";
     private static final String DIRECTION_DEBIT = "DEBIT";
     private static final String DIRECTION_CREDIT = "CREDIT";
     private static final Set<String> SYSTEM_ACCOUNT_TYPES = Set.of(
@@ -44,9 +46,16 @@ public class WalletAccountService {
         return ensureAccount(OWNER_TYPE_SYSTEM, 0L, accountType).getAccountId();
     }
 
+    @Override
     public long balanceOfUser(long userId) {
         WalletAccount account = walletAccountMapper.selectByOwner(OWNER_TYPE_USER, userId, ACCOUNT_TYPE_USER_WALLET);
         return account == null ? 0L : account.getBalance();
+    }
+
+    @Override
+    public String statusOfUser(long userId) {
+        WalletAccount account = walletAccountMapper.selectByOwner(OWNER_TYPE_USER, userId, ACCOUNT_TYPE_USER_WALLET);
+        return account == null ? STATUS_UNKNOWN : account.getStatus();
     }
 
     public long balanceOfSystem(String accountType) {

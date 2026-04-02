@@ -4,6 +4,7 @@ import com.nowcoder.community.growth.entity.GrowthCheckIn;
 import com.nowcoder.community.growth.event.GrowthEventPublisher;
 import com.nowcoder.community.growth.event.payload.CheckInPayload;
 import com.nowcoder.community.growth.mapper.GrowthCheckInMapper;
+import com.nowcoder.community.wallet.api.action.WalletRewardActionApi;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -16,24 +17,21 @@ import java.util.List;
 @Service
 public class CheckInService {
 
-    private static final int DAILY_GROWTH_DELTA = 5;
-    private static final int DAILY_REWARD_DELTA = 2;
+    private static final long DAILY_WALLET_REWARD = 7L;
     private static final String GRANT_TYPE = "DailyCheckIn";
-    private static final String SOURCE_MODULE = "growth";
-    private static final String REMARK = "daily-check-in";
 
     private final GrowthCheckInMapper growthCheckInMapper;
-    private final UnifiedGrantService unifiedGrantService;
+    private final WalletRewardActionApi walletRewardActionApi;
     private final GrowthEventPublisher growthEventPublisher;
 
-    public CheckInService(GrowthCheckInMapper growthCheckInMapper, UnifiedGrantService unifiedGrantService) {
-        this(growthCheckInMapper, unifiedGrantService, null);
+    public CheckInService(GrowthCheckInMapper growthCheckInMapper, WalletRewardActionApi walletRewardActionApi) {
+        this(growthCheckInMapper, walletRewardActionApi, null);
     }
 
     @Autowired
-    public CheckInService(GrowthCheckInMapper growthCheckInMapper, UnifiedGrantService unifiedGrantService, GrowthEventPublisher growthEventPublisher) {
+    public CheckInService(GrowthCheckInMapper growthCheckInMapper, WalletRewardActionApi walletRewardActionApi, GrowthEventPublisher growthEventPublisher) {
         this.growthCheckInMapper = growthCheckInMapper;
-        this.unifiedGrantService = unifiedGrantService;
+        this.walletRewardActionApi = walletRewardActionApi;
         this.growthEventPublisher = growthEventPublisher;
     }
 
@@ -60,17 +58,7 @@ public class CheckInService {
             }
             throw e;
         }
-        unifiedGrantService.applyGrant(
-                userId,
-                grantId(userId, bizDate),
-                GRANT_TYPE,
-                grantId(userId, bizDate),
-                GRANT_TYPE,
-                DAILY_GROWTH_DELTA,
-                DAILY_REWARD_DELTA,
-                SOURCE_MODULE,
-                REMARK
-        );
+        walletRewardActionApi.issue(grantId(userId, bizDate), userId, DAILY_WALLET_REWARD, GRANT_TYPE);
         if (growthEventPublisher != null) {
             CheckInPayload payload = new CheckInPayload();
             payload.setUserId(userId);

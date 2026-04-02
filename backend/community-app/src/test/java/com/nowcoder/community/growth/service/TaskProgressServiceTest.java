@@ -38,6 +38,9 @@ class TaskProgressServiceTest {
         jdbcTemplate.update("delete from reward_grant_record");
         jdbcTemplate.update("delete from reward_account");
         jdbcTemplate.update("delete from user_score_log");
+        jdbcTemplate.update("delete from wallet_entry");
+        jdbcTemplate.update("delete from wallet_txn");
+        jdbcTemplate.update("delete from wallet_account");
         jdbcTemplate.update("update user set score = 0");
     }
 
@@ -48,7 +51,7 @@ class TaskProgressServiceTest {
 
         assertThat(countProgressRows("DAILY_CHECK_IN")).isEqualTo(1);
         assertThat(progressValue("DAILY_CHECK_IN")).isEqualTo(1);
-        assertThat(grantCountFor("task:1:DAILY_CHECK_IN:2026-03-22")).isEqualTo(1);
+        assertThat(walletTxnCountFor("task:1:DAILY_CHECK_IN:2026-03-22")).isEqualTo(1);
     }
 
     @Test
@@ -58,7 +61,7 @@ class TaskProgressServiceTest {
 
         assertThat(progressPeriodKey("WEEKLY_COMMENTER")).isEqualTo("2026-W12");
         assertThat(progressValue("WEEKLY_COMMENTER")).isEqualTo(2);
-        assertThat(grantCountFor("task:1:WEEKLY_COMMENTER:2026-W12")).isEqualTo(1);
+        assertThat(walletTxnCountFor("task:1:WEEKLY_COMMENTER:2026-W12")).isEqualTo(1);
     }
 
     @Test
@@ -70,7 +73,7 @@ class TaskProgressServiceTest {
 
         assertThat(progressPeriodKey("LIFETIME_RECEIVE_LIKE")).isEqualTo("LIFETIME");
         assertThat(progressValue("LIFETIME_RECEIVE_LIKE")).isEqualTo(3);
-        assertThat(grantCountFor("task:1:LIFETIME_RECEIVE_LIKE:LIFETIME")).isEqualTo(1);
+        assertThat(walletTxnCountFor("task:1:LIFETIME_RECEIVE_LIKE:LIFETIME")).isEqualTo(1);
     }
 
     @Test
@@ -80,7 +83,7 @@ class TaskProgressServiceTest {
 
         assertThat(countProgressRows("DAILY_POST")).isEqualTo(1);
         assertThat(progressValue("DAILY_POST")).isEqualTo(1);
-        assertThat(grantCountFor("task:1:DAILY_POST:2026-03-22")).isEqualTo(1);
+        assertThat(walletTxnCountFor("task:1:DAILY_POST:2026-03-22")).isEqualTo(1);
     }
 
     @Test
@@ -90,7 +93,7 @@ class TaskProgressServiceTest {
         service.processEvent(1, "CommentCreated", "comment-evt-1", LocalDate.of(2026, 3, 18));
 
         assertThat(progressValue("WEEKLY_COMMENTER")).isEqualTo(2);
-        assertThat(grantCountFor("task:1:WEEKLY_COMMENTER:2026-W12")).isEqualTo(1);
+        assertThat(walletTxnCountFor("task:1:WEEKLY_COMMENTER:2026-W12")).isEqualTo(1);
     }
 
     @Test
@@ -99,9 +102,10 @@ class TaskProgressServiceTest {
         service.processEvent(1, "CommentCreated", "comment-evt-2", LocalDate.of(2026, 3, 17));
         service.processEvent(1, "CommentCreated", "comment-evt-3", LocalDate.of(2026, 3, 18));
 
-        assertThat(grantCountFor("task:1:WEEKLY_COMMENTER:2026-W12")).isEqualTo(1);
-        assertThat(countRows("reward_ledger")).isEqualTo(1);
-        assertThat(countRows("user_score_log")).isEqualTo(1);
+        assertThat(walletTxnCountFor("task:1:WEEKLY_COMMENTER:2026-W12")).isEqualTo(1);
+        assertThat(countRows("reward_ledger")).isZero();
+        assertThat(countRows("user_score_log")).isZero();
+        assertThat(countRows("wallet_entry")).isEqualTo(2);
     }
 
     private int countProgressRows(String taskCode) {
@@ -130,11 +134,11 @@ class TaskProgressServiceTest {
         );
     }
 
-    private int grantCountFor(String grantId) {
+    private int walletTxnCountFor(String requestId) {
         Integer count = jdbcTemplate.queryForObject(
-                "select count(*) from reward_grant_record where grant_id = ?",
+                "select count(*) from wallet_txn where request_id = ?",
                 Integer.class,
-                grantId
+                requestId
         );
         return count == null ? 0 : count;
     }

@@ -106,14 +106,15 @@ class WalletControllerTest {
 
     @Test
     void walletSummaryShouldReturnCurrentBalanceForAuthenticatedUser() throws Exception {
-        when(walletQueryService.summary(1)).thenReturn(new WalletSummaryResponse(1, 2300));
+        when(walletQueryService.summary(1)).thenReturn(new WalletSummaryResponse(1, 2300, "ACTIVE"));
 
         mockMvc.perform(get("/api/wallet/summary")
                         .with(jwt().jwt(jwt -> jwt.subject("1").claim("username", "u1"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.userId").value(1))
-                .andExpect(jsonPath("$.data.balance").value(2300));
+                .andExpect(jsonPath("$.data.balance").value(2300))
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"));
     }
 
     @Test

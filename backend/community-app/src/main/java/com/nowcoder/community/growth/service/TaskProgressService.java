@@ -5,6 +5,7 @@ import com.nowcoder.community.growth.entity.UserTaskProgress;
 import com.nowcoder.community.growth.mapper.TaskTemplateMapper;
 import com.nowcoder.community.growth.mapper.UserTaskEventLogMapper;
 import com.nowcoder.community.growth.mapper.UserTaskProgressMapper;
+import com.nowcoder.community.wallet.api.action.WalletRewardActionApi;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,20 +23,20 @@ public class TaskProgressService {
     private final TaskTemplateMapper taskTemplateMapper;
     private final UserTaskProgressMapper userTaskProgressMapper;
     private final UserTaskEventLogMapper userTaskEventLogMapper;
-    private final UnifiedGrantService unifiedGrantService;
+    private final WalletRewardActionApi walletRewardActionApi;
     private final GrowthBusinessTimeService growthBusinessTimeService;
 
     public TaskProgressService(
             TaskTemplateMapper taskTemplateMapper,
             UserTaskProgressMapper userTaskProgressMapper,
             UserTaskEventLogMapper userTaskEventLogMapper,
-            UnifiedGrantService unifiedGrantService,
+            WalletRewardActionApi walletRewardActionApi,
             GrowthBusinessTimeService growthBusinessTimeService
     ) {
         this.taskTemplateMapper = taskTemplateMapper;
         this.userTaskProgressMapper = userTaskProgressMapper;
         this.userTaskEventLogMapper = userTaskEventLogMapper;
-        this.unifiedGrantService = unifiedGrantService;
+        this.walletRewardActionApi = walletRewardActionApi;
         this.growthBusinessTimeService = growthBusinessTimeService;
     }
 
@@ -84,17 +85,10 @@ public class TaskProgressService {
                 nextStatus = STATUS_CLAIMABLE;
             } else if (rewardGrantId == null) {
                 rewardGrantId = "task:" + userId + ":" + template.getTaskCode() + ":" + periodKey;
-                unifiedGrantService.applyGrant(
-                        userId,
-                        rewardGrantId,
-                        template.getTaskCode(),
-                        sourceEventId,
-                        template.getTriggerEventType(),
-                        template.getRewardGrowthDelta(),
-                        template.getRewardBalanceDelta(),
-                        "growth",
-                        "task-auto-grant"
-                );
+                long rewardAmount = (long) template.getRewardGrowthDelta() + template.getRewardBalanceDelta();
+                if (rewardAmount > 0) {
+                    walletRewardActionApi.issue(rewardGrantId, userId, rewardAmount, template.getTaskCode());
+                }
                 nextStatus = STATUS_CLAIMED;
                 claimedAt = now;
             } else {

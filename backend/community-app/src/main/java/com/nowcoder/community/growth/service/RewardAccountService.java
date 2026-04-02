@@ -1,28 +1,39 @@
 package com.nowcoder.community.growth.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.growth.api.model.LegacyRewardAccountView;
+import com.nowcoder.community.growth.api.query.LegacyRewardAccountQueryApi;
 import com.nowcoder.community.growth.entity.RewardAccount;
 import com.nowcoder.community.growth.exception.GrowthErrorCode;
 import com.nowcoder.community.growth.mapper.RewardAccountMapper;
 import com.nowcoder.community.growth.mapper.RewardLedgerMapper;
-import com.nowcoder.community.wallet.service.WalletRewardService;
+import com.nowcoder.community.wallet.api.action.WalletRewardActionApi;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class RewardAccountService {
+public class RewardAccountService implements LegacyRewardAccountQueryApi {
 
     private final RewardAccountMapper rewardAccountMapper;
     private final RewardLedgerMapper rewardLedgerMapper;
-    private final WalletRewardService walletRewardService;
+    private final WalletRewardActionApi walletRewardActionApi;
 
     public RewardAccountService(RewardAccountMapper rewardAccountMapper,
                                 RewardLedgerMapper rewardLedgerMapper,
-                                WalletRewardService walletRewardService) {
+                                WalletRewardActionApi walletRewardActionApi) {
         this.rewardAccountMapper = rewardAccountMapper;
         this.rewardLedgerMapper = rewardLedgerMapper;
-        this.walletRewardService = walletRewardService;
+        this.walletRewardActionApi = walletRewardActionApi;
+    }
+
+    @Override
+    public LegacyRewardAccountView getLegacyRewardAccount(int userId) {
+        RewardAccount account = rewardAccountMapper.selectByUserId(userId);
+        if (account == null) {
+            return null;
+        }
+        return new LegacyRewardAccountView(userId, account.getAvailableBalance(), account.getFrozenBalance());
     }
 
     public int availableBalanceOf(int userId) {
@@ -45,7 +56,7 @@ public class RewardAccountService {
         if (amount <= 0) {
             throw new BusinessException(GrowthErrorCode.INVALID_REQUEST, "wallet reward amount must be positive");
         }
-        walletRewardService.issue(eventId, userId, amount, eventType);
+        walletRewardActionApi.issue(eventId, userId, amount, eventType);
     }
 
     @Transactional

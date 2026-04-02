@@ -64,6 +64,13 @@
         where user_id = #{userId}
     </select>
 
+    <select id="countByUserIdBetweenDates" resultType="int">
+        select count(*)
+        from growth_check_in
+        where user_id = #{userId}
+          and biz_date between #{startDate} and #{endDate}
+    </select>
+
     <select id="selectBizDatesBetween" resultType="java.time.LocalDate">
         select biz_date
         from growth_check_in

@@ -71,6 +71,16 @@ create table if not exists growth_check_in (
   constraint uk_growth_check_in_user_date unique (user_id, biz_date)
 );
 
+create table if not exists user_level_rule_config (
+  id bigint auto_increment primary key,
+  window_days int not null,
+  lv2_sign_in_days int not null,
+  lv3_sign_in_days int not null,
+  enabled boolean not null default true,
+  updated_by int,
+  update_time timestamp default current_timestamp
+);
+
 create table if not exists task_template (
   task_code varchar(64) primary key,
   task_type varchar(32) not null,

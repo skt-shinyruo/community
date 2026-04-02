@@ -28,5 +28,11 @@ public interface GrowthCheckInMapper {
 
     Integer maxStreakByUserId(int userId);
 
+    int countByUserIdBetweenDates(
+            @Param("userId") int userId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
+
     List<LocalDate> selectBizDatesBetween(@Param("userId") int userId, @Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
 }

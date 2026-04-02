@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.growth.mapper.UserLevelRuleConfigMapper">
+
+    <select id="selectLatest" resultType="com.nowcoder.community.growth.entity.UserLevelRuleConfig">
+        select id, window_days, lv2_sign_in_days, lv3_sign_in_days, enabled, updated_by, update_time
+        from user_level_rule_config
+        order by id desc
+        limit 1
+    </select>
+
+</mapper>

@@ -48,6 +48,12 @@ public class WalletAccountService {
         return account == null ? 0L : account.getBalance();
     }
 
+    public long balanceOfSystem(String accountType) {
+        validateSystemAccountType(accountType);
+        WalletAccount account = walletAccountMapper.selectByOwner(OWNER_TYPE_SYSTEM, 0L, accountType);
+        return account == null ? 0L : account.getBalance();
+    }
+
     public WalletAccount lock(long accountId) {
         WalletAccount account = walletAccountMapper.selectByAccountId(accountId);
         if (account == null) {

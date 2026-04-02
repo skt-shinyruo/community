@@ -16,4 +16,12 @@
         values(#{requestId}, #{userId}, #{amount}, #{status}, #{channel}, #{channelOrderId}, #{remark})
     </insert>
 
+    <update id="updateStatus">
+        update recharge_order
+        set status = #{toStatus},
+            update_time = current_timestamp
+        where request_id = #{requestId}
+          and status = #{fromStatus}
+    </update>
+
 </mapper>

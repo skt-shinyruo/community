@@ -12,4 +12,8 @@ public interface RechargeOrderMapper {
     RechargeOrder selectByRequestId(@Param("requestId") String requestId);
 
     int insert(RechargeOrder order);
+
+    int updateStatus(@Param("requestId") String requestId,
+                     @Param("fromStatus") String fromStatus,
+                     @Param("toStatus") String toStatus);
 }

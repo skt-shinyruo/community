@@ -31,4 +31,25 @@
         order by dispute_id desc
     </select>
 
+    <select id="selectOpenDisputes" resultType="com.nowcoder.community.market.entity.VirtualDispute">
+        select dispute_id, order_id, buyer_user_id, seller_user_id, status, reason, buyer_note, seller_note,
+               resolution_type, resolved_by, resolved_at, create_time, update_time
+        from virtual_dispute
+        where status in ('OPEN', 'SELLER_REJECTED')
+        order by dispute_id desc
+    </select>
+
+    <update id="update" parameterType="com.nowcoder.community.market.entity.VirtualDispute">
+        update virtual_dispute
+        set status = #{status},
+            reason = #{reason},
+            buyer_note = #{buyerNote},
+            seller_note = #{sellerNote},
+            resolution_type = #{resolutionType},
+            resolved_by = #{resolvedBy},
+            resolved_at = #{resolvedAt},
+            update_time = current_timestamp
+        where dispute_id = #{disputeId}
+    </update>
+
 </mapper>

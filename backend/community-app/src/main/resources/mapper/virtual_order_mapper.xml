@@ -85,4 +85,30 @@
         where order_id = #{orderId}
     </update>
 
+    <update id="markDisputed">
+        update virtual_order
+        set status = 'DISPUTED',
+            update_time = current_timestamp
+        where order_id = #{orderId}
+    </update>
+
+    <update id="markRefunded">
+        update virtual_order
+        set status = 'REFUNDED',
+            refund_txn_id = #{refundTxnId},
+            update_time = current_timestamp
+        where order_id = #{orderId}
+    </update>
+
+    <select id="selectDueForAutoRelease" resultType="com.nowcoder.community.market.entity.VirtualOrder">
+        select order_id, request_id, listing_id, seller_user_id, buyer_user_id, quantity, unit_price_snapshot,
+               total_amount, delivery_mode_snapshot, listing_title_snapshot, status, escrow_txn_id,
+               release_txn_id, refund_txn_id, auto_confirm_at, create_time, update_time
+        from virtual_order
+        where status = 'DELIVERED'
+          and auto_confirm_at is not null
+          and auto_confirm_at &lt;= #{asOf}
+        order by order_id asc
+    </select>
+
 </mapper>

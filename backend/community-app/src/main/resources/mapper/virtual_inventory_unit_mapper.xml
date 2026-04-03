@@ -63,4 +63,20 @@
           and status = 'AVAILABLE'
     </update>
 
+    <update id="reserveForOrder">
+        update virtual_inventory_unit
+        set status = 'RESERVED',
+            reserved_order_id = #{reservedOrderId}
+        where inventory_unit_id = #{inventoryUnitId}
+          and status = 'AVAILABLE'
+    </update>
+
+    <update id="markDeliveredByOrder">
+        update virtual_inventory_unit
+        set status = #{status},
+            delivered_at = #{deliveredAt}
+        where reserved_order_id = #{reservedOrderId}
+          and status = 'RESERVED'
+    </update>
+
 </mapper>

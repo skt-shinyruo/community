@@ -24,4 +24,10 @@ public interface VirtualInventoryUnitMapper {
     VirtualInventoryUnit selectById(@Param("inventoryUnitId") long inventoryUnitId);
 
     int invalidateAvailable(@Param("inventoryUnitId") long inventoryUnitId, @Param("sellerUserId") int sellerUserId);
+
+    int reserveForOrder(@Param("inventoryUnitId") long inventoryUnitId, @Param("reservedOrderId") long reservedOrderId);
+
+    int markDeliveredByOrder(@Param("reservedOrderId") long reservedOrderId,
+                             @Param("status") String status,
+                             @Param("deliveredAt") java.util.Date deliveredAt);
 }

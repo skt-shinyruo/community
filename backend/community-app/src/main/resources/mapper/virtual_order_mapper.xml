@@ -61,4 +61,12 @@
         )
     </insert>
 
+    <update id="markDelivered">
+        update virtual_order
+        set status = 'DELIVERED',
+            auto_confirm_at = #{autoConfirmAt},
+            update_time = current_timestamp
+        where order_id = #{orderId}
+    </update>
+
 </mapper>

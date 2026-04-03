@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.market.mapper.VirtualDeliveryMapper">
+
+    <insert id="insert" parameterType="com.nowcoder.community.market.entity.VirtualDelivery" useGeneratedKeys="true" keyProperty="deliveryId" keyColumn="delivery_id">
+        insert into virtual_delivery(order_id, seller_user_id, delivery_type, delivery_content, status, delivered_at)
+        values(#{orderId}, #{sellerUserId}, #{deliveryType}, #{deliveryContent}, #{status}, #{deliveredAt})
+    </insert>
+
+    <select id="selectByOrderId" resultType="com.nowcoder.community.market.entity.VirtualDelivery">
+        select delivery_id, order_id, seller_user_id, delivery_type, delivery_content, status, delivered_at, create_time
+        from virtual_delivery
+        where order_id = #{orderId}
+        order by delivery_id asc
+    </select>
+
+</mapper>

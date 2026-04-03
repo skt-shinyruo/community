@@ -30,4 +30,6 @@ public interface VirtualInventoryUnitMapper {
     int markDeliveredByOrder(@Param("reservedOrderId") long reservedOrderId,
                              @Param("status") String status,
                              @Param("deliveredAt") java.util.Date deliveredAt);
+
+    int releaseReservedByOrder(@Param("reservedOrderId") long reservedOrderId);
 }

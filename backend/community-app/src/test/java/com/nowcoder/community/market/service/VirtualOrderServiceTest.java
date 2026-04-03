@@ -6,6 +6,13 @@ import com.nowcoder.community.market.dto.AddVirtualInventoryBatchRequest;
 import com.nowcoder.community.market.dto.CreateVirtualListingRequest;
 import com.nowcoder.community.market.dto.VirtualListingResponse;
 import com.nowcoder.community.market.dto.VirtualOrderResponse;
+import com.nowcoder.community.market.entity.VirtualInventoryUnit;
+import com.nowcoder.community.market.entity.VirtualOrder;
+import com.nowcoder.community.market.mapper.VirtualInventoryUnitMapper;
+import com.nowcoder.community.market.mapper.VirtualListingMapper;
+import com.nowcoder.community.market.mapper.VirtualOrderMapper;
+import com.nowcoder.community.wallet.api.action.WalletMarketActionApi;
+import com.nowcoder.community.wallet.api.model.WalletMarketTxnView;
 import com.nowcoder.community.wallet.service.WalletAccountService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +44,18 @@ class VirtualOrderServiceTest {
 
     @Autowired
     private WalletAccountService walletAccountService;
+
+    @Autowired
+    private WalletMarketActionApi walletMarketActionApi;
+
+    @Autowired
+    private VirtualListingMapper virtualListingMapper;
+
+    @Autowired
+    private VirtualInventoryUnitMapper virtualInventoryUnitMapper;
+
+    @Autowired
+    private VirtualOrderMapper virtualOrderMapper;
 
     @MockBean
     private ClientIpResolver clientIpResolver;
@@ -74,6 +93,38 @@ class VirtualOrderServiceTest {
         assertThat(walletAccountService.balanceOfSystem("ORDER_ESCROW")).isEqualTo(3_998L);
     }
 
+    @Test
+    void manualOrderShouldRequireSellerDeliveryBeforeBuyerConfirm() {
+        seedUserBalance(9, 10_000L);
+        long listingId = seedManualListing(7, 1_200L);
+
+        VirtualOrderResponse order = virtualOrderService.createOrder("manual:req-1", 9, listingId, 2);
+
+        assertThat(order.status()).isEqualTo("ESCROWED");
+
+        virtualOrderService.deliverOrder(order.orderId(), 7, "邀请码-A\n邀请码-B");
+        VirtualOrderResponse confirmed = virtualOrderService.confirmOrder(order.orderId(), 9);
+
+        assertThat(confirmed.status()).isEqualTo("COMPLETED");
+        assertThat(walletTxnCount("virtual-order:" + order.orderId() + ":release")).isEqualTo(1);
+        assertThat(walletAccountService.balanceOfUser(7)).isEqualTo(2_400L);
+        assertThat(walletAccountService.balanceOfSystem("ORDER_ESCROW")).isZero();
+    }
+
+    @Test
+    void cancelEscrowedOrderShouldRefundBuyerAndUnlockInventory() {
+        seedUserBalance(9, 10_000L);
+        long listingId = seedPreloadedListing(7, List.of("CODE-001"));
+        VirtualOrderResponse order = seedEscrowedPreloadedOrder("cancel:req-1", 9, listingId, 1);
+
+        VirtualOrderResponse cancelled = virtualOrderService.cancelOrder(order.orderId(), 9);
+
+        assertThat(cancelled.status()).isEqualTo("CANCELLED");
+        assertThat(walletTxnCount("virtual-order:" + order.orderId() + ":refund")).isEqualTo(1);
+        assertThat(walletAccountService.balanceOfUser(9)).isEqualTo(10_000L);
+        assertThat(availableInventoryCount(listingId)).isEqualTo(1);
+    }
+
     private long seedPreloadedListing(int sellerUserId, List<String> payloads) {
         CreateVirtualListingRequest request = new CreateVirtualListingRequest();
         request.setTitle("Steam 兑换码");
@@ -91,6 +142,52 @@ class VirtualOrderServiceTest {
 
         VirtualListingResponse listing = virtualListingService.createListing(sellerUserId, request, inventory);
         return listing.listingId();
+    }
+
+    private long seedManualListing(int sellerUserId, long unitPrice) {
+        CreateVirtualListingRequest request = new CreateVirtualListingRequest();
+        request.setTitle("邀请码");
+        request.setDescription("手工交付");
+        request.setUnitPrice(unitPrice);
+        request.setDeliveryMode("MANUAL");
+        request.setStockMode("FINITE");
+        request.setStockTotal(2);
+        request.setMinPurchaseQuantity(1);
+        request.setMaxPurchaseQuantity(2);
+
+        VirtualListingResponse listing = virtualListingService.createListing(sellerUserId, request, null);
+        return listing.listingId();
+    }
+
+    private VirtualOrderResponse seedEscrowedPreloadedOrder(String requestId, int buyerUserId, long listingId, int quantity) {
+        var listing = virtualListingMapper.selectById(listingId);
+        long totalAmount = listing.getUnitPrice() * quantity;
+        WalletMarketTxnView escrowTxn = walletMarketActionApi.escrowOrder(
+                "virtual-order:" + requestId + ":seed:escrow",
+                buyerUserId,
+                totalAmount,
+                "virtual-order:" + requestId
+        );
+
+        VirtualOrder order = new VirtualOrder();
+        order.setRequestId("seed:" + requestId);
+        order.setListingId(listingId);
+        order.setSellerUserId(listing.getSellerUserId());
+        order.setBuyerUserId(buyerUserId);
+        order.setQuantity(quantity);
+        order.setUnitPriceSnapshot(listing.getUnitPrice());
+        order.setTotalAmount(totalAmount);
+        order.setDeliveryModeSnapshot(listing.getDeliveryMode());
+        order.setListingTitleSnapshot(listing.getTitle());
+        order.setStatus("ESCROWED");
+        order.setEscrowTxnId(escrowTxn.txnId());
+        virtualOrderMapper.insert(order);
+
+        for (VirtualInventoryUnit unit : virtualInventoryUnitMapper.selectAvailableForUpdate(listingId, quantity)) {
+            virtualInventoryUnitMapper.reserveForOrder(unit.getInventoryUnitId(), order.getOrderId());
+        }
+        virtualListingMapper.adjustStock(listingId, listing.getSellerUserId(), 0, -quantity, "SOLD_OUT");
+        return VirtualOrderResponse.from(virtualOrderMapper.selectById(order.getOrderId()));
     }
 
     private void seedUserBalance(int userId, long balance) {
@@ -117,5 +214,14 @@ class VirtualOrderServiceTest {
                 String.class,
                 orderId
         );
+    }
+
+    private int availableInventoryCount(long listingId) {
+        Integer count = jdbcTemplate.queryForObject(
+                "select count(*) from virtual_inventory_unit where listing_id = ? and status = 'AVAILABLE'",
+                Integer.class,
+                listingId
+        );
+        return count == null ? 0 : count;
     }
 }

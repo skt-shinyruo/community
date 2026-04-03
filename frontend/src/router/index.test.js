@@ -74,7 +74,10 @@ describe('router/index', () => {
     expect(routesByName.get('posts')?.meta?.navGroup).toBe('explore')
     expect(routesByName.get('postDetail')?.meta?.navGroup).toBe('explore')
     expect(routesByName.get('search')?.meta?.navGroup).toBe('explore')
+    expect(routesByName.get('virtualMarket')?.meta?.navGroup).toBe('explore')
     expect(routesByName.get('wallet')?.meta?.navGroup).toBe('me')
+    expect(routesByName.get('virtualMarketPublish')?.meta?.navGroup).toBe('me')
+    expect(routesByName.get('virtualMarketBuyingOrders')?.meta?.navGroup).toBe('me')
     expect(routesByName.get('messages')?.meta?.navGroup).toBe('me')
     expect(routesByName.get('messageDetail')?.meta?.navGroup).toBe('me')
     expect(routesByName.get('notices')?.meta?.navGroup).toBe('me')
@@ -86,11 +89,27 @@ describe('router/index', () => {
     expect(routesByName.get('followers')?.meta?.navGroup).toBe('me')
 
     expect(routesByName.get('walletAdmin')?.meta?.navGroup).toBe('admin')
+    expect(routesByName.get('adminVirtualDisputes')?.meta?.navGroup).toBe('admin')
     expect(['explore', 'me', 'admin']).not.toContain(routesByName.get('growthCenter')?.meta?.navGroup)
     expect(['explore', 'me', 'admin']).not.toContain(routesByName.get('rewardShop')?.meta?.navGroup)
     expect(['explore', 'me', 'admin']).not.toContain(routesByName.get('rewardOrders')?.meta?.navGroup)
     expect(['explore', 'me', 'admin']).not.toContain(routesByName.get('growthAdmin')?.meta?.navGroup)
     expect(['explore', 'me', 'admin']).not.toContain(routesByName.get('rewardOps')?.meta?.navGroup)
     expect(['explore', 'me', 'admin']).not.toContain(routesByName.get('leaderboard')?.meta?.navGroup)
+  })
+
+  it('should expose virtual market routes', async () => {
+    vi.doMock('./authGuard', () => ({
+      authGuard: () => true
+    }))
+
+    stubRouterGlobals()
+
+    const { default: router } = await import('./index')
+    const routeNames = router.getRoutes().map((route) => route.name)
+
+    expect(routeNames).toContain('virtualMarket')
+    expect(routeNames).toContain('virtualMarketPublish')
+    expect(routeNames).toContain('adminVirtualDisputes')
   })
 })

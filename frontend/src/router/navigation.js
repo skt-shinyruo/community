@@ -155,6 +155,13 @@ const NAV_DEFS = Object.freeze([
         icon: 'search',
         to: () => ({ name: 'search' }),
         activeNames: ['search']
+      },
+      {
+        key: 'virtualMarket',
+        label: '虚拟市场',
+        icon: 'sparkle',
+        to: () => ({ name: 'virtualMarket' }),
+        activeNames: ['virtualMarket', 'virtualMarketDetail']
       }
     ]
   },
@@ -169,6 +176,22 @@ const NAV_DEFS = Object.freeze([
         requiresAuth: true,
         to: () => ({ name: 'wallet' }),
         activeNames: ['wallet']
+      },
+      {
+        key: 'virtualMarketBuying',
+        label: '我的购买',
+        icon: 'bookmark',
+        requiresAuth: true,
+        to: () => ({ name: 'virtualMarketBuyingOrders' }),
+        activeNames: ['virtualMarketBuyingOrders', 'virtualMarketOrderDetail']
+      },
+      {
+        key: 'virtualMarketSelling',
+        label: '我的出售',
+        icon: 'analytics',
+        requiresAuth: true,
+        to: () => ({ name: 'virtualMarketSellingOrders' }),
+        activeNames: ['virtualMarketSellingOrders', 'virtualMarketPublish', 'virtualMarketMyListings', 'virtualMarketInventory']
       },
       {
         key: 'bookmarks',
@@ -243,6 +266,15 @@ const NAV_DEFS = Object.freeze([
         roles: ['ROLE_ADMIN'],
         to: () => ({ name: 'walletAdmin' }),
         activeNames: ['walletAdmin']
+      },
+      {
+        key: 'adminVirtualDisputes',
+        label: '争议裁定',
+        icon: 'shield',
+        requiresAuth: true,
+        roles: ['ROLE_ADMIN'],
+        to: () => ({ name: 'adminVirtualDisputes' }),
+        activeNames: ['adminVirtualDisputes']
       }
     ]
   },

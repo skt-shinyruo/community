@@ -69,4 +69,20 @@
         where order_id = #{orderId}
     </update>
 
+    <update id="markCompleted">
+        update virtual_order
+        set status = 'COMPLETED',
+            release_txn_id = #{releaseTxnId},
+            update_time = current_timestamp
+        where order_id = #{orderId}
+    </update>
+
+    <update id="markCancelled">
+        update virtual_order
+        set status = 'CANCELLED',
+            refund_txn_id = #{refundTxnId},
+            update_time = current_timestamp
+        where order_id = #{orderId}
+    </update>
+
 </mapper>

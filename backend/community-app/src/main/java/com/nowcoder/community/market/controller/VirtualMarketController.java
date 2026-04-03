@@ -5,6 +5,7 @@ import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.market.dto.AddVirtualInventoryBatchRequest;
 import com.nowcoder.community.market.dto.CreateVirtualListingRequest;
 import com.nowcoder.community.market.dto.CreateVirtualOrderRequest;
+import com.nowcoder.community.market.dto.DeliverVirtualOrderRequest;
 import com.nowcoder.community.market.dto.UpdateVirtualListingRequest;
 import com.nowcoder.community.market.dto.VirtualInventoryUnitResponse;
 import com.nowcoder.community.market.dto.VirtualListingDetailResponse;
@@ -120,5 +121,25 @@ public class VirtualMarketController {
                 request.getListingId(),
                 request.getQuantity()
         ));
+    }
+
+    @PostMapping("/orders/{orderId}/deliver")
+    public Result<VirtualOrderResponse> deliverOrder(Authentication authentication,
+                                                     @PathVariable long orderId,
+                                                     @RequestBody @Valid DeliverVirtualOrderRequest request) {
+        int sellerUserId = CurrentUser.requireUserId(authentication);
+        return Result.ok(virtualOrderService.deliverOrder(orderId, sellerUserId, request.getDeliveryContent()));
+    }
+
+    @PostMapping("/orders/{orderId}/confirm")
+    public Result<VirtualOrderResponse> confirmOrder(Authentication authentication, @PathVariable long orderId) {
+        int buyerUserId = CurrentUser.requireUserId(authentication);
+        return Result.ok(virtualOrderService.confirmOrder(orderId, buyerUserId));
+    }
+
+    @PostMapping("/orders/{orderId}/cancel")
+    public Result<VirtualOrderResponse> cancelOrder(Authentication authentication, @PathVariable long orderId) {
+        int buyerUserId = CurrentUser.requireUserId(authentication);
+        return Result.ok(virtualOrderService.cancelOrder(orderId, buyerUserId));
     }
 }

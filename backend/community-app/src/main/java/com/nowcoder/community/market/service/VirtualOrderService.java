@@ -28,13 +28,17 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 public class VirtualOrderService {
 
     private static final String STATUS_ACTIVE = "ACTIVE";
+    private static final String STATUS_CANCELLED = "CANCELLED";
+    private static final String STATUS_COMPLETED = "COMPLETED";
     private static final String STATUS_ESCROWED = "ESCROWED";
     private static final String STATUS_DELIVERED = "DELIVERED";
     private static final String STATUS_SOLD_OUT = "SOLD_OUT";
     private static final String STOCK_MODE_FINITE = "FINITE";
+    private static final String DELIVERY_MODE_MANUAL = "MANUAL";
     private static final String DELIVERY_MODE_PRELOADED = "PRELOADED";
     private static final String INVENTORY_STATUS_DELIVERED = "DELIVERED";
     private static final String DELIVERY_TYPE_PRELOADED_BATCH = "PRELOADED_BATCH";
+    private static final String DELIVERY_TYPE_MANUAL_TEXT = "MANUAL_TEXT";
     private static final String DELIVERY_STATUS_DELIVERED = "DELIVERED";
 
     private final VirtualListingMapper virtualListingMapper;
@@ -108,6 +112,75 @@ public class VirtualOrderService {
         return VirtualOrderResponse.from(reloadOrder(order.getOrderId()));
     }
 
+    @Transactional
+    public VirtualOrderResponse deliverOrder(long orderId, int sellerUserId, String deliveryContent) {
+        if (!StringUtils.hasText(deliveryContent)) {
+            throw new BusinessException(INVALID_ARGUMENT, "deliveryContent must not be blank");
+        }
+        VirtualOrder order = requireOrderForUpdate(orderId);
+        if (order.getSellerUserId() != sellerUserId) {
+            throw new BusinessException(INVALID_ARGUMENT, "seller does not own order: orderId=" + orderId);
+        }
+        if (!STATUS_ESCROWED.equals(order.getStatus())) {
+            throw new BusinessException(INVALID_ARGUMENT, "order is not escrowed: orderId=" + orderId);
+        }
+        if (!DELIVERY_MODE_MANUAL.equals(order.getDeliveryModeSnapshot())) {
+            throw new BusinessException(INVALID_ARGUMENT, "order is not MANUAL delivery: orderId=" + orderId);
+        }
+
+        insertDelivery(orderId, sellerUserId, DELIVERY_TYPE_MANUAL_TEXT, deliveryContent.trim());
+        virtualOrderMapper.markDelivered(orderId, Date.from(Instant.now().plus(24, ChronoUnit.HOURS)));
+        return VirtualOrderResponse.from(reloadOrder(orderId));
+    }
+
+    @Transactional
+    public VirtualOrderResponse confirmOrder(long orderId, int buyerUserId) {
+        VirtualOrder order = requireOrderForUpdate(orderId);
+        if (order.getBuyerUserId() != buyerUserId) {
+            throw new BusinessException(INVALID_ARGUMENT, "buyer does not own order: orderId=" + orderId);
+        }
+        if (!STATUS_DELIVERED.equals(order.getStatus())) {
+            throw new BusinessException(INVALID_ARGUMENT, "order is not delivered: orderId=" + orderId);
+        }
+
+        WalletMarketTxnView releaseTxn = walletMarketActionApi.releaseOrder(
+                "virtual-order:" + orderId + ":release",
+                order.getSellerUserId(),
+                order.getTotalAmount(),
+                "virtual-order:" + orderId
+        );
+        virtualOrderMapper.markCompleted(orderId, releaseTxn.txnId());
+        return VirtualOrderResponse.from(reloadOrder(orderId));
+    }
+
+    @Transactional
+    public VirtualOrderResponse cancelOrder(long orderId, int buyerUserId) {
+        VirtualOrder order = requireOrderForUpdate(orderId);
+        if (order.getBuyerUserId() != buyerUserId) {
+            throw new BusinessException(INVALID_ARGUMENT, "buyer does not own order: orderId=" + orderId);
+        }
+        if (!STATUS_ESCROWED.equals(order.getStatus())) {
+            throw new BusinessException(INVALID_ARGUMENT, "order is not escrowed: orderId=" + orderId);
+        }
+
+        WalletMarketTxnView refundTxn = walletMarketActionApi.refundOrder(
+                "virtual-order:" + orderId + ":refund",
+                order.getBuyerUserId(),
+                order.getTotalAmount(),
+                "virtual-order:" + orderId
+        );
+
+        VirtualListing listing = virtualListingMapper.selectByIdForUpdate(order.getListingId());
+        if (listing != null && STOCK_MODE_FINITE.equals(listing.getStockMode())) {
+            virtualListingMapper.adjustStock(listing.getListingId(), listing.getSellerUserId(), 0, order.getQuantity(), STATUS_ACTIVE);
+        }
+        if (DELIVERY_MODE_PRELOADED.equals(order.getDeliveryModeSnapshot())) {
+            virtualInventoryUnitMapper.releaseReservedByOrder(orderId);
+        }
+        virtualOrderMapper.markCancelled(orderId, refundTxn.txnId());
+        return VirtualOrderResponse.from(reloadOrder(orderId));
+    }
+
     private void validateCreateOrderRequest(String requestId, int buyerUserId, long listingId, int quantity) {
         if (!StringUtils.hasText(requestId)) {
             throw new BusinessException(INVALID_ARGUMENT, "virtual order requestId must not be blank");
@@ -176,14 +249,7 @@ public class VirtualOrderService {
     }
 
     private void insertDeliveredPayload(long orderId, int sellerUserId, String deliveryContent) {
-        VirtualDelivery delivery = new VirtualDelivery();
-        delivery.setOrderId(orderId);
-        delivery.setSellerUserId(sellerUserId);
-        delivery.setDeliveryType(DELIVERY_TYPE_PRELOADED_BATCH);
-        delivery.setDeliveryContent(deliveryContent);
-        delivery.setStatus(DELIVERY_STATUS_DELIVERED);
-        delivery.setDeliveredAt(new Date());
-        virtualDeliveryMapper.insert(delivery);
+        insertDelivery(orderId, sellerUserId, DELIVERY_TYPE_PRELOADED_BATCH, deliveryContent);
     }
 
     private VirtualOrder reloadOrder(long orderId) {
@@ -192,5 +258,24 @@ public class VirtualOrderService {
             throw new BusinessException(NOT_FOUND, "virtual order not found after write: orderId=" + orderId);
         }
         return order;
+    }
+
+    private VirtualOrder requireOrderForUpdate(long orderId) {
+        VirtualOrder order = virtualOrderMapper.selectByIdForUpdate(orderId);
+        if (order == null) {
+            throw new BusinessException(NOT_FOUND, "virtual order not found: orderId=" + orderId);
+        }
+        return order;
+    }
+
+    private void insertDelivery(long orderId, int sellerUserId, String deliveryType, String deliveryContent) {
+        VirtualDelivery delivery = new VirtualDelivery();
+        delivery.setOrderId(orderId);
+        delivery.setSellerUserId(sellerUserId);
+        delivery.setDeliveryType(deliveryType);
+        delivery.setDeliveryContent(deliveryContent);
+        delivery.setStatus(DELIVERY_STATUS_DELIVERED);
+        delivery.setDeliveredAt(new Date());
+        virtualDeliveryMapper.insert(delivery);
     }
 }

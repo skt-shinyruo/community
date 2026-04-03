@@ -5,6 +5,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Date;
 import java.util.List;
 
 @Repository
@@ -28,4 +29,10 @@ public interface VirtualOrderMapper {
     int markCompleted(@Param("orderId") long orderId, @Param("releaseTxnId") long releaseTxnId);
 
     int markCancelled(@Param("orderId") long orderId, @Param("refundTxnId") long refundTxnId);
+
+    int markDisputed(@Param("orderId") long orderId);
+
+    int markRefunded(@Param("orderId") long orderId, @Param("refundTxnId") long refundTxnId);
+
+    List<VirtualOrder> selectDueForAutoRelease(@Param("asOf") Date asOf);
 }

@@ -3,14 +3,18 @@ package com.nowcoder.community.market.controller;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.market.dto.AddVirtualInventoryBatchRequest;
+import com.nowcoder.community.market.dto.CreateVirtualDisputeRequest;
 import com.nowcoder.community.market.dto.CreateVirtualListingRequest;
 import com.nowcoder.community.market.dto.CreateVirtualOrderRequest;
 import com.nowcoder.community.market.dto.DeliverVirtualOrderRequest;
+import com.nowcoder.community.market.dto.SellerDisputeDecisionRequest;
 import com.nowcoder.community.market.dto.UpdateVirtualListingRequest;
+import com.nowcoder.community.market.dto.VirtualDisputeResponse;
 import com.nowcoder.community.market.dto.VirtualInventoryUnitResponse;
 import com.nowcoder.community.market.dto.VirtualListingDetailResponse;
 import com.nowcoder.community.market.dto.VirtualListingResponse;
 import com.nowcoder.community.market.dto.VirtualOrderResponse;
+import com.nowcoder.community.market.service.VirtualDisputeService;
 import com.nowcoder.community.market.service.VirtualInventoryService;
 import com.nowcoder.community.market.service.VirtualListingService;
 import com.nowcoder.community.market.service.VirtualMarketQueryService;
@@ -35,15 +39,18 @@ public class VirtualMarketController {
     private final VirtualInventoryService virtualInventoryService;
     private final VirtualMarketQueryService virtualMarketQueryService;
     private final VirtualOrderService virtualOrderService;
+    private final VirtualDisputeService virtualDisputeService;
 
     public VirtualMarketController(VirtualListingService virtualListingService,
                                    VirtualInventoryService virtualInventoryService,
                                    VirtualMarketQueryService virtualMarketQueryService,
-                                   VirtualOrderService virtualOrderService) {
+                                   VirtualOrderService virtualOrderService,
+                                   VirtualDisputeService virtualDisputeService) {
         this.virtualListingService = virtualListingService;
         this.virtualInventoryService = virtualInventoryService;
         this.virtualMarketQueryService = virtualMarketQueryService;
         this.virtualOrderService = virtualOrderService;
+        this.virtualDisputeService = virtualDisputeService;
     }
 
     @GetMapping("/listings")
@@ -141,5 +148,29 @@ public class VirtualMarketController {
     public Result<VirtualOrderResponse> cancelOrder(Authentication authentication, @PathVariable long orderId) {
         int buyerUserId = CurrentUser.requireUserId(authentication);
         return Result.ok(virtualOrderService.cancelOrder(orderId, buyerUserId));
+    }
+
+    @PostMapping("/orders/{orderId}/disputes")
+    public Result<VirtualDisputeResponse> openDispute(Authentication authentication,
+                                                      @PathVariable long orderId,
+                                                      @RequestBody @Valid CreateVirtualDisputeRequest request) {
+        int buyerUserId = CurrentUser.requireUserId(authentication);
+        return Result.ok(virtualDisputeService.openDispute(orderId, buyerUserId, request.getReason(), request.getBuyerNote()));
+    }
+
+    @PostMapping("/disputes/{disputeId}/seller-accept")
+    public Result<VirtualDisputeResponse> sellerAccept(Authentication authentication,
+                                                       @PathVariable long disputeId,
+                                                       @RequestBody @Valid SellerDisputeDecisionRequest request) {
+        int sellerUserId = CurrentUser.requireUserId(authentication);
+        return Result.ok(virtualDisputeService.sellerAcceptRefund(disputeId, sellerUserId, request.getNote()));
+    }
+
+    @PostMapping("/disputes/{disputeId}/seller-reject")
+    public Result<VirtualDisputeResponse> sellerReject(Authentication authentication,
+                                                       @PathVariable long disputeId,
+                                                       @RequestBody @Valid SellerDisputeDecisionRequest request) {
+        int sellerUserId = CurrentUser.requireUserId(authentication);
+        return Result.ok(virtualDisputeService.sellerRejectRefund(disputeId, sellerUserId, request.getNote()));
     }
 }

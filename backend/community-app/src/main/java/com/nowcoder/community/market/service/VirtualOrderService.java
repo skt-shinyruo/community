@@ -1,6 +1,8 @@
 package com.nowcoder.community.market.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.market.api.action.VirtualOrderAutoReleaseActionApi;
+import com.nowcoder.community.market.api.model.VirtualOrderAutoReleaseResult;
 import com.nowcoder.community.market.dto.VirtualOrderResponse;
 import com.nowcoder.community.market.entity.VirtualDelivery;
 import com.nowcoder.community.market.entity.VirtualInventoryUnit;
@@ -25,13 +27,15 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 
 @Service
-public class VirtualOrderService {
+public class VirtualOrderService implements VirtualOrderAutoReleaseActionApi {
 
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_CANCELLED = "CANCELLED";
     private static final String STATUS_COMPLETED = "COMPLETED";
     private static final String STATUS_ESCROWED = "ESCROWED";
     private static final String STATUS_DELIVERED = "DELIVERED";
+    private static final String STATUS_DISPUTED = "DISPUTED";
+    private static final String STATUS_REFUNDED = "REFUNDED";
     private static final String STATUS_SOLD_OUT = "SOLD_OUT";
     private static final String STOCK_MODE_FINITE = "FINITE";
     private static final String DELIVERY_MODE_MANUAL = "MANUAL";
@@ -143,13 +147,7 @@ public class VirtualOrderService {
             throw new BusinessException(INVALID_ARGUMENT, "order is not delivered: orderId=" + orderId);
         }
 
-        WalletMarketTxnView releaseTxn = walletMarketActionApi.releaseOrder(
-                "virtual-order:" + orderId + ":release",
-                order.getSellerUserId(),
-                order.getTotalAmount(),
-                "virtual-order:" + orderId
-        );
-        virtualOrderMapper.markCompleted(orderId, releaseTxn.txnId());
+        releaseOrder(order);
         return VirtualOrderResponse.from(reloadOrder(orderId));
     }
 
@@ -179,6 +177,26 @@ public class VirtualOrderService {
         }
         virtualOrderMapper.markCancelled(orderId, refundTxn.txnId());
         return VirtualOrderResponse.from(reloadOrder(orderId));
+    }
+
+    @Transactional
+    @Override
+    public VirtualOrderAutoReleaseResult autoReleaseDueOrders() {
+        int completed = 0;
+        int skipped = 0;
+        Date now = new Date();
+        for (VirtualOrder dueOrder : virtualOrderMapper.selectDueForAutoRelease(now)) {
+            VirtualOrder locked = requireOrderForUpdate(dueOrder.getOrderId());
+            if (!STATUS_DELIVERED.equals(locked.getStatus())
+                    || locked.getAutoConfirmAt() == null
+                    || locked.getAutoConfirmAt().after(now)) {
+                skipped++;
+                continue;
+            }
+            releaseOrder(locked);
+            completed++;
+        }
+        return new VirtualOrderAutoReleaseResult(completed, skipped);
     }
 
     private void validateCreateOrderRequest(String requestId, int buyerUserId, long listingId, int quantity) {
@@ -277,5 +295,15 @@ public class VirtualOrderService {
         delivery.setStatus(DELIVERY_STATUS_DELIVERED);
         delivery.setDeliveredAt(new Date());
         virtualDeliveryMapper.insert(delivery);
+    }
+
+    private void releaseOrder(VirtualOrder order) {
+        WalletMarketTxnView releaseTxn = walletMarketActionApi.releaseOrder(
+                "virtual-order:" + order.getOrderId() + ":release",
+                order.getSellerUserId(),
+                order.getTotalAmount(),
+                "virtual-order:" + order.getOrderId()
+        );
+        virtualOrderMapper.markCompleted(order.getOrderId(), releaseTxn.txnId());
     }
 }

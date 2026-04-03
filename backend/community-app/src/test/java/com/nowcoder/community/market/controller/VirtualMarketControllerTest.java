@@ -11,6 +11,7 @@ import com.nowcoder.community.market.security.MarketSecurityRules;
 import com.nowcoder.community.market.service.VirtualInventoryService;
 import com.nowcoder.community.market.service.VirtualListingService;
 import com.nowcoder.community.market.service.VirtualMarketQueryService;
+import com.nowcoder.community.market.service.VirtualDisputeService;
 import com.nowcoder.community.market.service.VirtualOrderService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,6 +59,9 @@ class VirtualMarketControllerTest {
 
     @MockBean
     private VirtualOrderService virtualOrderService;
+
+    @MockBean
+    private VirtualDisputeService virtualDisputeService;
 
     @MockBean
     private JwtDecoder jwtDecoder;

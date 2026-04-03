@@ -16,4 +16,8 @@ public interface VirtualDisputeMapper {
     VirtualDispute selectById(@Param("disputeId") long disputeId);
 
     List<VirtualDispute> selectByOrderId(@Param("orderId") long orderId);
+
+    List<VirtualDispute> selectOpenDisputes();
+
+    int update(VirtualDispute dispute);
 }

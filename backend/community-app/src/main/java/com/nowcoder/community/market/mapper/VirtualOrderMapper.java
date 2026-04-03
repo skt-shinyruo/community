@@ -22,4 +22,6 @@ public interface VirtualOrderMapper {
     List<VirtualOrder> selectByBuyerUserId(@Param("buyerUserId") int buyerUserId);
 
     List<VirtualOrder> selectBySellerUserId(@Param("sellerUserId") int sellerUserId);
+
+    int markDelivered(@Param("orderId") long orderId, @Param("autoConfirmAt") java.util.Date autoConfirmAt);
 }

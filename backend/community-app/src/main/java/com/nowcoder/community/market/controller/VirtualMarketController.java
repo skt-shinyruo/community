@@ -4,13 +4,16 @@ import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.market.dto.AddVirtualInventoryBatchRequest;
 import com.nowcoder.community.market.dto.CreateVirtualListingRequest;
+import com.nowcoder.community.market.dto.CreateVirtualOrderRequest;
 import com.nowcoder.community.market.dto.UpdateVirtualListingRequest;
 import com.nowcoder.community.market.dto.VirtualInventoryUnitResponse;
 import com.nowcoder.community.market.dto.VirtualListingDetailResponse;
 import com.nowcoder.community.market.dto.VirtualListingResponse;
+import com.nowcoder.community.market.dto.VirtualOrderResponse;
 import com.nowcoder.community.market.service.VirtualInventoryService;
 import com.nowcoder.community.market.service.VirtualListingService;
 import com.nowcoder.community.market.service.VirtualMarketQueryService;
+import com.nowcoder.community.market.service.VirtualOrderService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,13 +33,16 @@ public class VirtualMarketController {
     private final VirtualListingService virtualListingService;
     private final VirtualInventoryService virtualInventoryService;
     private final VirtualMarketQueryService virtualMarketQueryService;
+    private final VirtualOrderService virtualOrderService;
 
     public VirtualMarketController(VirtualListingService virtualListingService,
                                    VirtualInventoryService virtualInventoryService,
-                                   VirtualMarketQueryService virtualMarketQueryService) {
+                                   VirtualMarketQueryService virtualMarketQueryService,
+                                   VirtualOrderService virtualOrderService) {
         this.virtualListingService = virtualListingService;
         this.virtualInventoryService = virtualInventoryService;
         this.virtualMarketQueryService = virtualMarketQueryService;
+        this.virtualOrderService = virtualOrderService;
     }
 
     @GetMapping("/listings")
@@ -102,5 +108,17 @@ public class VirtualMarketController {
         int sellerUserId = CurrentUser.requireUserId(authentication);
         virtualInventoryService.invalidateInventory(inventoryUnitId, sellerUserId);
         return Result.ok();
+    }
+
+    @PostMapping("/orders")
+    public Result<VirtualOrderResponse> createOrder(Authentication authentication,
+                                                    @RequestBody @Valid CreateVirtualOrderRequest request) {
+        int buyerUserId = CurrentUser.requireUserId(authentication);
+        return Result.ok(virtualOrderService.createOrder(
+                request.getRequestId(),
+                buyerUserId,
+                request.getListingId(),
+                request.getQuantity()
+        ));
     }
 }

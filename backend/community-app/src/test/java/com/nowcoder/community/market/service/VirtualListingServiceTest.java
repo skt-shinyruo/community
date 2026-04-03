@@ -30,6 +30,9 @@ class VirtualListingServiceTest {
     @Autowired
     private VirtualListingService virtualListingService;
 
+    @Autowired
+    private VirtualMarketQueryService virtualMarketQueryService;
+
     @MockBean
     private ClientIpResolver clientIpResolver;
 
@@ -63,5 +66,28 @@ class VirtualListingServiceTest {
         assertThat(response.status()).isEqualTo("ACTIVE");
         assertThat(response.stockAvailable()).isEqualTo(2);
         assertThat(response.stockTotal()).isEqualTo(2);
+    }
+
+    @Test
+    void sellerListingQueryShouldOnlyReturnOwnedListings() {
+        CreateVirtualListingRequest request = new CreateVirtualListingRequest();
+        request.setTitle("Steam 兑换码");
+        request.setDescription("库存页继续维护卡密");
+        request.setUnitPrice(1999L);
+        request.setDeliveryMode("MANUAL");
+        request.setStockMode("FINITE");
+        request.setStockTotal(1);
+        request.setMinPurchaseQuantity(1);
+        request.setMaxPurchaseQuantity(1);
+
+        virtualListingService.createListing(7, request, null);
+        virtualListingService.createListing(8, request, null);
+
+        assertThat(virtualMarketQueryService.listSellerListings(7))
+                .extracting(VirtualListingResponse::sellerUserId)
+                .containsExactly(7);
+        assertThat(virtualMarketQueryService.listSellerListings(7))
+                .extracting(VirtualListingResponse::title)
+                .containsExactly("Steam 兑换码");
     }
 }

@@ -13,6 +13,7 @@ import com.nowcoder.community.market.dto.VirtualDisputeResponse;
 import com.nowcoder.community.market.dto.VirtualInventoryUnitResponse;
 import com.nowcoder.community.market.dto.VirtualListingDetailResponse;
 import com.nowcoder.community.market.dto.VirtualListingResponse;
+import com.nowcoder.community.market.dto.VirtualOrderDetailResponse;
 import com.nowcoder.community.market.dto.VirtualOrderResponse;
 import com.nowcoder.community.market.service.VirtualDisputeService;
 import com.nowcoder.community.market.service.VirtualInventoryService;
@@ -61,6 +62,12 @@ public class VirtualMarketController {
     @GetMapping("/listings/{listingId}")
     public Result<VirtualListingDetailResponse> getListingDetail(@PathVariable long listingId) {
         return Result.ok(virtualMarketQueryService.getListingDetail(listingId));
+    }
+
+    @GetMapping("/my-listings")
+    public Result<List<VirtualListingResponse>> listSellerListings(Authentication authentication) {
+        int sellerUserId = CurrentUser.requireUserId(authentication);
+        return Result.ok(virtualMarketQueryService.listSellerListings(sellerUserId));
     }
 
     @PostMapping("/listings")
@@ -128,6 +135,24 @@ public class VirtualMarketController {
                 request.getListingId(),
                 request.getQuantity()
         ));
+    }
+
+    @GetMapping("/orders/buying")
+    public Result<List<VirtualOrderResponse>> listBuyingOrders(Authentication authentication) {
+        int buyerUserId = CurrentUser.requireUserId(authentication);
+        return Result.ok(virtualMarketQueryService.listBuyingOrders(buyerUserId));
+    }
+
+    @GetMapping("/orders/selling")
+    public Result<List<VirtualOrderResponse>> listSellingOrders(Authentication authentication) {
+        int sellerUserId = CurrentUser.requireUserId(authentication);
+        return Result.ok(virtualMarketQueryService.listSellingOrders(sellerUserId));
+    }
+
+    @GetMapping("/orders/{orderId}")
+    public Result<VirtualOrderDetailResponse> getOrderDetail(Authentication authentication, @PathVariable long orderId) {
+        int actorUserId = CurrentUser.requireUserId(authentication);
+        return Result.ok(virtualMarketQueryService.getOrderDetail(orderId, actorUserId));
     }
 
     @PostMapping("/orders/{orderId}/deliver")

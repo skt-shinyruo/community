@@ -18,4 +18,18 @@ public interface VirtualListingMapper {
     VirtualListing selectByIdForUpdate(@Param("listingId") long listingId);
 
     List<VirtualListing> selectBySellerUserId(@Param("sellerUserId") int sellerUserId);
+
+    List<VirtualListing> selectPublicListings();
+
+    int updateEditable(VirtualListing listing);
+
+    int updateStatus(@Param("listingId") long listingId,
+                     @Param("sellerUserId") int sellerUserId,
+                     @Param("status") String status);
+
+    int adjustStock(@Param("listingId") long listingId,
+                    @Param("sellerUserId") int sellerUserId,
+                    @Param("deltaTotal") int deltaTotal,
+                    @Param("deltaAvailable") int deltaAvailable,
+                    @Param("nextStatus") String nextStatus);
 }

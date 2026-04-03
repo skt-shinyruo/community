@@ -6,32 +6,71 @@
       <div>
         <span class="market-kicker">我的购买</span>
         <h1>托管、交付、确认、申诉一屏看清</h1>
-        <p>列表接口后续会补齐，当前先用状态层把关键状态文案固定下来。</p>
+        <p>这里只展示当前账号的买单，优先把请求号、状态和金额看清。</p>
       </div>
     </section>
 
-    <div class="market-order-list">
-      <article v-for="item in state.orders" :key="item.orderId" class="market-order-row">
+    <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
+    <div v-else-if="loading" class="muted">正在加载购买订单…</div>
+
+    <section v-else class="market-list-shell">
+      <header class="market-section-head">
         <div>
-          <strong>订单 #{{ item.orderId }}</strong>
-          <p>{{ item.statusLabel }} · {{ item.autoConfirmText }}</p>
+          <span class="market-kicker">买单列表</span>
+          <h2>按订单查看托管和交付进度</h2>
         </div>
-        <strong>{{ item.totalAmountText }}</strong>
-      </article>
-    </div>
+        <span class="market-summary">{{ state.orders.length }} 笔订单</span>
+      </header>
+
+      <UiEmpty v-if="state.orders.length === 0">
+        暂无购买订单
+        <template #description>完成下单后，这里会显示请求号、状态和自动确认信息。</template>
+      </UiEmpty>
+
+      <div v-else class="market-order-list">
+        <RouterLink
+          v-for="item in state.orders"
+          :key="item.orderId"
+          class="market-order-row"
+          :to="{ name: 'virtualMarketOrderDetail', params: { orderId: item.orderId } }"
+        >
+          <div>
+            <strong>{{ item.listingTitleSnapshot || `订单 #${item.orderId}` }}</strong>
+            <p>请求号 {{ item.requestId || '-' }}</p>
+            <p>{{ item.statusLabel }} · {{ item.autoConfirmText }}</p>
+          </div>
+          <strong>{{ item.totalAmountText }}</strong>
+        </RouterLink>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
+import UiEmpty from '../components/ui/UiEmpty.vue'
+import { listBuyingVirtualOrders } from '../api/services/virtualMarketService'
 import { buildVirtualMarketState } from './virtualMarketState'
 
-const sampleOrders = [
-  { orderId: 101, status: 'ESCROWED', totalAmount: 1999 },
-  { orderId: 102, status: 'DELIVERED', totalAmount: 3998, autoConfirmAt: '2026-04-04T12:00:00Z' },
-  { orderId: 103, status: 'DISPUTED', totalAmount: 2400 }
-]
+const loading = ref(false)
+const error = ref('')
+const orders = ref([])
 
-const state = computed(() => buildVirtualMarketState({ orders: sampleOrders }))
+const state = computed(() => buildVirtualMarketState({ orders: orders.value }))
+
+async function reload() {
+  loading.value = true
+  error.value = ''
+  try {
+    const { data } = await listBuyingVirtualOrders()
+    orders.value = Array.isArray(data) ? data : []
+  } catch (e) {
+    error.value = e?.message || '加载购买订单失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(reload)
 </script>

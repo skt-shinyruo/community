@@ -25,6 +25,48 @@ export async function createVirtualOrder(payload) {
   return { data: data || {}, traceId }
 }
 
+export async function listMyVirtualListings() {
+  const resp = await http.get('/api/market/virtual/my-listings')
+  const { data, traceId } = unwrapResultBody(resp.data, '查询我的出售商品')
+  return { data: Array.isArray(data) ? data : [], traceId }
+}
+
+export async function listVirtualInventory(listingId) {
+  const resp = await http.get(`/api/market/virtual/listings/${encodeURIComponent(listingId)}/inventory`)
+  const { data, traceId } = unwrapResultBody(resp.data, '查询库存列表')
+  return { data: Array.isArray(data) ? data : [], traceId }
+}
+
+export async function addVirtualInventory(listingId, payload) {
+  const resp = await http.post(`/api/market/virtual/listings/${encodeURIComponent(listingId)}/inventory`, payload)
+  const { data, traceId } = unwrapResultBody(resp.data, '追加库存')
+  return { data: data || {}, traceId }
+}
+
+export async function invalidateVirtualInventory(inventoryUnitId) {
+  const resp = await http.post(`/api/market/virtual/inventory/${encodeURIComponent(inventoryUnitId)}/invalidate`)
+  const { data, traceId } = unwrapResultBody(resp.data, '失效库存')
+  return { data: data || {}, traceId }
+}
+
+export async function listBuyingVirtualOrders() {
+  const resp = await http.get('/api/market/virtual/orders/buying')
+  const { data, traceId } = unwrapResultBody(resp.data, '查询我的购买订单')
+  return { data: Array.isArray(data) ? data : [], traceId }
+}
+
+export async function listSellingVirtualOrders() {
+  const resp = await http.get('/api/market/virtual/orders/selling')
+  const { data, traceId } = unwrapResultBody(resp.data, '查询我的出售订单')
+  return { data: Array.isArray(data) ? data : [], traceId }
+}
+
+export async function getVirtualOrderDetail(orderId) {
+  const resp = await http.get(`/api/market/virtual/orders/${encodeURIComponent(orderId)}`)
+  const { data, traceId } = unwrapResultBody(resp.data, '查询虚拟商品订单详情')
+  return { data: data || {}, traceId }
+}
+
 export async function openVirtualDispute(orderId, payload) {
   const resp = await http.post(`/api/market/virtual/orders/${encodeURIComponent(orderId)}/disputes`, payload)
   const { data, traceId } = unwrapResultBody(resp.data, '发起申诉')

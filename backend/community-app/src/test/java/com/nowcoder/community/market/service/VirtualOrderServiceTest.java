@@ -1,6 +1,8 @@
 package com.nowcoder.community.market.service;
 
 import com.nowcoder.community.app.CommunityAppApplication;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.dto.AddVirtualInventoryBatchRequest;
 import com.nowcoder.community.market.dto.CreateVirtualListingRequest;
@@ -25,6 +27,7 @@ import org.springframework.test.context.ActiveProfiles;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest(
         classes = CommunityAppApplication.class,
@@ -41,6 +44,9 @@ class VirtualOrderServiceTest {
 
     @Autowired
     private VirtualListingService virtualListingService;
+
+    @Autowired
+    private VirtualMarketQueryService virtualMarketQueryService;
 
     @Autowired
     private WalletAccountService walletAccountService;
@@ -123,6 +129,36 @@ class VirtualOrderServiceTest {
         assertThat(walletTxnCount("virtual-order:" + order.orderId() + ":refund")).isEqualTo(1);
         assertThat(walletAccountService.balanceOfUser(9)).isEqualTo(10_000L);
         assertThat(availableInventoryCount(listingId)).isEqualTo(1);
+    }
+
+    @Test
+    void buyerAndSellerOrderQueriesShouldReturnSnapshotsAndDeliveryRecords() {
+        seedUserBalance(9, 10_000L);
+        long listingId = seedPreloadedListing(7, List.of("CODE-001"));
+
+        VirtualOrderResponse order = virtualOrderService.createOrder("query:req-1", 9, listingId, 1);
+
+        assertThat(virtualMarketQueryService.listBuyingOrders(9))
+                .extracting(VirtualOrderResponse::orderId)
+                .contains(order.orderId());
+        assertThat(virtualMarketQueryService.listSellingOrders(7))
+                .extracting(VirtualOrderResponse::orderId)
+                .contains(order.orderId());
+        assertThat(virtualMarketQueryService.getOrderDetail(order.orderId(), 9).deliveryContents())
+                .containsExactly("CODE-001");
+        assertThat(virtualMarketQueryService.getOrderDetail(order.orderId(), 7).deliveryContents())
+                .containsExactly("CODE-001");
+    }
+
+    @Test
+    void orderDetailShouldRejectActorsOutsideTrade() {
+        seedUserBalance(9, 10_000L);
+        long listingId = seedPreloadedListing(7, List.of("CODE-001"));
+        VirtualOrderResponse order = virtualOrderService.createOrder("query:req-2", 9, listingId, 1);
+
+        assertThatThrownBy(() -> virtualMarketQueryService.getOrderDetail(order.orderId(), 5))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode()).isEqualTo(CommonErrorCode.FORBIDDEN));
     }
 
     private long seedPreloadedListing(int sellerUserId, List<String> payloads) {

@@ -40,4 +40,27 @@
         order by inventory_unit_id asc
     </select>
 
+    <select id="selectByListingId" resultType="com.nowcoder.community.market.entity.VirtualInventoryUnit">
+        select inventory_unit_id, listing_id, seller_user_id, payload_type, payload_content, status,
+               reserved_order_id, delivered_at, create_time
+        from virtual_inventory_unit
+        where listing_id = #{listingId}
+        order by inventory_unit_id asc
+    </select>
+
+    <select id="selectById" resultType="com.nowcoder.community.market.entity.VirtualInventoryUnit">
+        select inventory_unit_id, listing_id, seller_user_id, payload_type, payload_content, status,
+               reserved_order_id, delivered_at, create_time
+        from virtual_inventory_unit
+        where inventory_unit_id = #{inventoryUnitId}
+    </select>
+
+    <update id="invalidateAvailable">
+        update virtual_inventory_unit
+        set status = 'INVALID'
+        where inventory_unit_id = #{inventoryUnitId}
+          and seller_user_id = #{sellerUserId}
+          and status = 'AVAILABLE'
+    </update>
+
 </mapper>

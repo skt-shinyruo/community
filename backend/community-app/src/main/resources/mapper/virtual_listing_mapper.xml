@@ -31,6 +31,15 @@
         order by listing_id desc
     </select>
 
+    <select id="selectPublicListings" resultType="com.nowcoder.community.market.entity.VirtualListing">
+        select listing_id, seller_user_id, title, description, unit_price, delivery_mode, stock_mode,
+               stock_total, stock_available, min_purchase_quantity, max_purchase_quantity, status,
+               create_time, update_time
+        from virtual_listing
+        where status in ('ACTIVE', 'SOLD_OUT')
+        order by listing_id desc
+    </select>
+
     <insert id="insert" parameterType="com.nowcoder.community.market.entity.VirtualListing" useGeneratedKeys="true" keyProperty="listingId" keyColumn="listing_id">
         insert into virtual_listing(
             seller_user_id, title, description, unit_price, delivery_mode, stock_mode,
@@ -41,5 +50,34 @@
             #{stockTotal}, #{stockAvailable}, #{minPurchaseQuantity}, #{maxPurchaseQuantity}, #{status}
         )
     </insert>
+
+    <update id="updateEditable">
+        update virtual_listing
+        set title = #{title},
+            description = #{description},
+            unit_price = #{unitPrice},
+            min_purchase_quantity = #{minPurchaseQuantity},
+            max_purchase_quantity = #{maxPurchaseQuantity},
+            update_time = current_timestamp
+        where listing_id = #{listingId}
+    </update>
+
+    <update id="updateStatus">
+        update virtual_listing
+        set status = #{status},
+            update_time = current_timestamp
+        where listing_id = #{listingId}
+          and seller_user_id = #{sellerUserId}
+    </update>
+
+    <update id="adjustStock">
+        update virtual_listing
+        set stock_total = stock_total + #{deltaTotal},
+            stock_available = stock_available + #{deltaAvailable},
+            status = #{nextStatus},
+            update_time = current_timestamp
+        where listing_id = #{listingId}
+          and seller_user_id = #{sellerUserId}
+    </update>
 
 </mapper>

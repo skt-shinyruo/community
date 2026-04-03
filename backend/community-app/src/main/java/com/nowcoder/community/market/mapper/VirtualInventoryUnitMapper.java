@@ -18,4 +18,10 @@ public interface VirtualInventoryUnitMapper {
     List<VirtualInventoryUnit> selectAvailableForUpdate(@Param("listingId") long listingId, @Param("limit") int limit);
 
     List<VirtualInventoryUnit> selectByReservedOrderId(@Param("reservedOrderId") long reservedOrderId);
+
+    List<VirtualInventoryUnit> selectByListingId(@Param("listingId") long listingId);
+
+    VirtualInventoryUnit selectById(@Param("inventoryUnitId") long inventoryUnitId);
+
+    int invalidateAvailable(@Param("inventoryUnitId") long inventoryUnitId, @Param("sellerUserId") int sellerUserId);
 }

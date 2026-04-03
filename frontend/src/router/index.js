@@ -10,6 +10,14 @@ import UserProfileView from '../views/UserProfileView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import PasswordResetView from '../views/PasswordResetView.vue'
 import SearchView from '../views/SearchView.vue'
+import VirtualMarketListView from '../views/VirtualMarketListView.vue'
+import VirtualMarketDetailView from '../views/VirtualMarketDetailView.vue'
+import VirtualMarketPublishView from '../views/VirtualMarketPublishView.vue'
+import VirtualMarketMyListingsView from '../views/VirtualMarketMyListingsView.vue'
+import VirtualMarketInventoryView from '../views/VirtualMarketInventoryView.vue'
+import VirtualMarketBuyingOrdersView from '../views/VirtualMarketBuyingOrdersView.vue'
+import VirtualMarketSellingOrdersView from '../views/VirtualMarketSellingOrdersView.vue'
+import VirtualMarketOrderDetailView from '../views/VirtualMarketOrderDetailView.vue'
 import WalletView from '../views/WalletView.vue'
 import ConversationsView from '../views/ConversationsView.vue'
 import ConversationDetailView from '../views/ConversationDetailView.vue'
@@ -26,6 +34,7 @@ import RewardShopView from '../views/RewardShopView.vue'
 import RewardOrderHistoryView from '../views/RewardOrderHistoryView.vue'
 import GrowthAdminView from '../views/GrowthAdminView.vue'
 import WalletAdminView from '../views/WalletAdminView.vue'
+import AdminVirtualDisputesView from '../views/AdminVirtualDisputesView.vue'
 import RewardOpsView from '../views/RewardOpsView.vue'
 import ModerationView from '../views/ModerationView.vue'
 import OpsConsoleView from '../views/OpsConsoleView.vue'
@@ -80,10 +89,61 @@ const router = createRouter({
       meta: { title: '搜索', subtitle: '从关键词、分类和标签里定位正在发生的讨论。', navGroup: 'explore' }
     },
     {
+      path: '/market/virtual',
+      name: 'virtualMarket',
+      component: VirtualMarketListView,
+      meta: { title: '虚拟市场', subtitle: '浏览用户出售的虚拟商品。', navGroup: 'explore' }
+    },
+    {
+      path: '/market/virtual/listings/:listingId',
+      name: 'virtualMarketDetail',
+      component: VirtualMarketDetailView,
+      props: true,
+      meta: { title: '商品详情', subtitle: '确认交付方式、库存与价格，再决定是否托管下单。', navGroup: 'explore' }
+    },
+    {
       path: '/wallet',
       name: 'wallet',
       component: WalletView,
       meta: { title: '积分钱包', subtitle: '查看余额、充值、提现与转账记录。', navGroup: 'me', requiresAuth: true }
+    },
+    {
+      path: '/market/virtual/publish',
+      name: 'virtualMarketPublish',
+      component: VirtualMarketPublishView,
+      meta: { title: '发布商品', subtitle: '创建新的虚拟商品并决定是自动交付还是手工交付。', navGroup: 'me', requiresAuth: true }
+    },
+    {
+      path: '/market/virtual/my-listings',
+      name: 'virtualMarketMyListings',
+      component: VirtualMarketMyListingsView,
+      meta: { title: '我的出售', subtitle: '把发布、库存和卖单处理收成一个卖家工作面。', navGroup: 'me', requiresAuth: true }
+    },
+    {
+      path: '/market/virtual/my-listings/:listingId/inventory',
+      name: 'virtualMarketInventory',
+      component: VirtualMarketInventoryView,
+      props: true,
+      meta: { title: '库存管理', subtitle: '维护预存库存商品的卡密或兑换码。', navGroup: 'me', requiresAuth: true }
+    },
+    {
+      path: '/market/virtual/orders/buying',
+      name: 'virtualMarketBuyingOrders',
+      component: VirtualMarketBuyingOrdersView,
+      meta: { title: '我的购买', subtitle: '查看托管、交付、确认与申诉状态。', navGroup: 'me', requiresAuth: true }
+    },
+    {
+      path: '/market/virtual/orders/selling',
+      name: 'virtualMarketSellingOrders',
+      component: VirtualMarketSellingOrdersView,
+      meta: { title: '我的出售订单', subtitle: '集中处理交付、确认和争议。', navGroup: 'me', requiresAuth: true }
+    },
+    {
+      path: '/market/virtual/orders/:orderId',
+      name: 'virtualMarketOrderDetail',
+      component: VirtualMarketOrderDetailView,
+      props: true,
+      meta: { title: '订单详情', subtitle: '查看当前订单的托管、交付和争议状态。', navGroup: 'me', requiresAuth: true }
     },
     {
       path: '/growth',
@@ -108,6 +168,12 @@ const router = createRouter({
       name: 'walletAdmin',
       component: WalletAdminView,
       meta: { title: '钱包后台', subtitle: '冻结钱包、回滚交易与查看审计。', navGroup: 'admin', requiresAuth: true, roles: ['ROLE_ADMIN'] }
+    },
+    {
+      path: '/admin/market/virtual/disputes',
+      name: 'adminVirtualDisputes',
+      component: AdminVirtualDisputesView,
+      meta: { title: '争议裁定', subtitle: '管理员只处理最终裁定，不处理普通卖家动作。', navGroup: 'admin', requiresAuth: true, roles: ['ROLE_ADMIN'] }
     },
     {
       path: '/admin/growth',

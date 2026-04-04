@@ -4,7 +4,6 @@ import jakarta.validation.constraints.NotBlank;
 
 public class AdminResolveMarketDisputeRequest {
 
-    @NotBlank
     private String resolutionType;
 
     @NotBlank

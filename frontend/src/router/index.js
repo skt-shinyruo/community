@@ -29,14 +29,8 @@ import SettingsView from '../views/SettingsView.vue'
 import FolloweesView from '../views/FolloweesView.vue'
 import FollowersView from '../views/FollowersView.vue'
 import BookmarksView from '../views/BookmarksView.vue'
-import LeaderboardView from '../views/LeaderboardView.vue'
-import GrowthCenterView from '../views/GrowthCenterView.vue'
-import RewardShopView from '../views/RewardShopView.vue'
-import RewardOrderHistoryView from '../views/RewardOrderHistoryView.vue'
-import GrowthAdminView from '../views/GrowthAdminView.vue'
 import WalletAdminView from '../views/WalletAdminView.vue'
 import AdminMarketDisputesView from '../views/AdminMarketDisputesView.vue'
-import RewardOpsView from '../views/RewardOpsView.vue'
 import ModerationView from '../views/ModerationView.vue'
 import OpsConsoleView from '../views/OpsConsoleView.vue'
 import UserManagementView from '../views/UserManagementView.vue'
@@ -153,24 +147,6 @@ const router = createRouter({
       meta: { title: '收货地址', subtitle: '管理实物商品订单使用的收货地址。', navGroup: 'me', requiresAuth: true }
     },
     {
-      path: '/growth',
-      name: 'growthCenter',
-      component: GrowthCenterView,
-      meta: { title: '旧资产入口', subtitle: '这个地址仅保留兼容说明，统一资产入口已迁入钱包。', navGroup: 'system', requiresAuth: true }
-    },
-    {
-      path: '/rewards/shop',
-      name: 'rewardShop',
-      component: RewardShopView,
-      meta: { title: '资产市场预览', subtitle: '旧地址仅保留过渡说明，后续消费场景将并入统一市场。', navGroup: 'system', requiresAuth: true }
-    },
-    {
-      path: '/rewards/orders',
-      name: 'rewardOrders',
-      component: RewardOrderHistoryView,
-      meta: { title: '历史订单', subtitle: '旧地址仅保留过渡说明，后续订单会统一收口。', navGroup: 'system', requiresAuth: true }
-    },
-    {
       path: '/admin/wallet',
       name: 'walletAdmin',
       component: WalletAdminView,
@@ -181,18 +157,6 @@ const router = createRouter({
       name: 'adminMarketDisputes',
       component: AdminMarketDisputesView,
       meta: { title: '争议裁定', subtitle: '管理员只处理最终裁定，不处理普通卖家动作。', navGroup: 'admin', requiresAuth: true, roles: ['ROLE_ADMIN'] }
-    },
-    {
-      path: '/admin/growth',
-      name: 'growthAdmin',
-      component: GrowthAdminView,
-      meta: { title: '旧后台入口', subtitle: '旧资产后台已迁入钱包后台，这里只保留兼容说明。', navGroup: 'system', requiresAuth: true, roles: ['ROLE_ADMIN'] }
-    },
-    {
-      path: '/admin/rewards',
-      name: 'rewardOps',
-      component: RewardOpsView,
-      meta: { title: '旧运营入口', subtitle: '旧地址仅保留兼容说明，后续会并入统一市场运营台。', navGroup: 'system', requiresAuth: true, roles: ['ROLE_ADMIN'] }
     },
     {
       path: '/preview/editorial',
@@ -260,12 +224,6 @@ const router = createRouter({
       name: 'bookmarks',
       component: BookmarksView,
       meta: { title: '收藏', subtitle: '把值得反复回看的帖子留在自己的阅读清单里。', navGroup: 'me', requiresAuth: true }
-    },
-    {
-      path: '/leaderboard',
-      name: 'leaderboard',
-      component: LeaderboardView,
-      meta: { title: '成员概览', subtitle: '旧排行榜入口已下线，公开成员关系仍保留在个人主页。', navGroup: 'system' }
     },
     {
       path: '/analytics',

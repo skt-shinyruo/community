@@ -4,13 +4,13 @@ function toCount(value) {
 }
 
 export function buildProfileWalletAsset({ profile, authed, isSelf } = {}) {
-  const compatibleScore = toCount(profile?.score)
+  const walletBalance = toCount(profile?.walletBalance)
 
-  if (compatibleScore > 0) {
+  if (authed && isSelf && walletBalance > 0) {
     return {
-      valueText: `${compatibleScore} 积分`,
-      chipText: `${compatibleScore} 积分`,
-      description: `主页资产展示仍在兼容切换中，当前先用历史积分快照 ${compatibleScore} 作为钱包资产参考。`
+      valueText: `${walletBalance} 积分`,
+      chipText: `${walletBalance} 积分`,
+      description: '主页资产展示已切到钱包余额，当前展示的是你的真实钱包快照。'
     }
   }
 

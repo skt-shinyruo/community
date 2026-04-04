@@ -1,7 +1,6 @@
 package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.user.api.model.UserGrowthProfileView;
 import com.nowcoder.community.user.api.model.UserProfileView;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.entity.User;
@@ -100,29 +99,6 @@ class UserQueryServiceTest {
         assertThat(service.listSummariesByIds(List.of(0, 1, 2, 2)))
                 .extracting(UserSummaryView::id)
                 .containsExactly(1, 2);
-    }
-
-    @Test
-    void getGrowthProfileShouldProjectScoreLevelAndUserFields() {
-        UserQueryService service = new UserQueryService(userMapper, walletAccountService);
-        User user = user(5, "alice");
-        user.setScore(250);
-        user.setEmail("alice@example.com");
-        user.setStatus(1);
-        user.setHeaderUrl("h5");
-        when(userMapper.selectById(5)).thenReturn(user);
-
-        UserGrowthProfileView profile = service.getGrowthProfile(5);
-
-        assertThat(profile).extracting(
-                UserGrowthProfileView::userId,
-                UserGrowthProfileView::username,
-                UserGrowthProfileView::score,
-                UserGrowthProfileView::level,
-                UserGrowthProfileView::email,
-                UserGrowthProfileView::status,
-                UserGrowthProfileView::headerUrl
-        ).containsExactly(5, "alice", 250, 3, "alice@example.com", 1, "h5");
     }
 
     @Test

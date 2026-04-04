@@ -99,6 +99,53 @@ class MarketOrderServiceTest {
                 .containsExactly("CODE-001");
     }
 
+    @Test
+    void deliverVirtualOrderShouldPersistManualDeliveryContent() {
+        seedBuyerBalance(9, 20_000L);
+        long orderId = seedEscrowedVirtualOrder(7, 9);
+
+        MarketOrderResponse delivered = marketOrderService.deliverVirtualOrder(orderId, 7, "CODE-001");
+
+        assertThat(delivered.status()).isEqualTo("DELIVERED");
+        assertThat(delivered.autoConfirmAt()).isNotNull();
+        assertThat(marketQueryService.getOrderDetail(orderId, 9).deliveryContents()).containsExactly("CODE-001");
+    }
+
+    @Test
+    void confirmDeliveredVirtualOrderShouldReleaseEscrowToSeller() {
+        seedBuyerBalance(9, 20_000L);
+        long orderId = seedEscrowedVirtualOrder(7, 9);
+        marketOrderService.deliverVirtualOrder(orderId, 7, "CODE-001");
+
+        MarketOrderResponse confirmed = marketOrderService.confirmOrder(orderId, 9);
+
+        assertThat(confirmed.status()).isEqualTo("COMPLETED");
+        assertThat(balanceOfUser(7)).isEqualTo(1_200L);
+    }
+
+    @Test
+    void shipPhysicalOrderShouldPersistShipmentAndSetSevenDayAutoConfirm() {
+        seedBuyerBalance(9, 20_000L);
+        long orderId = seedEscrowedPhysicalOrder(7, 9);
+
+        MarketOrderResponse shipped = marketOrderService.shipPhysicalOrder(orderId, 7, "顺丰", "SF1234567890", "工作日派送");
+
+        assertThat(shipped.status()).isEqualTo("SHIPPED");
+        assertThat(shipped.autoConfirmAt()).isNotNull();
+        assertThat(marketQueryService.getOrderDetail(orderId, 9).shipment().trackingNo()).isEqualTo("SF1234567890");
+    }
+
+    @Test
+    void cancelPhysicalOrderBeforeShipmentShouldRefundBuyer() {
+        seedBuyerBalance(9, 20_000L);
+        long orderId = seedEscrowedPhysicalOrder(7, 9);
+
+        MarketOrderResponse cancelled = marketOrderService.cancelOrder(orderId, 9);
+
+        assertThat(cancelled.status()).isEqualTo("CANCELLED");
+        assertThat(balanceOfUser(9)).isEqualTo(20_000L);
+    }
+
     private long seedDeliveredVirtualOrder(int sellerUserId, int buyerUserId) {
         CreateMarketListingRequest request = new CreateMarketListingRequest();
         request.setGoodsType("VIRTUAL");
@@ -117,6 +164,22 @@ class MarketOrderServiceTest {
 
         long listingId = marketListingService.createListing(sellerUserId, request, inventory).listingId();
         return marketOrderService.createOrder("virtual:req-1", buyerUserId, listingId, 1, null).orderId();
+    }
+
+    private long seedEscrowedVirtualOrder(int sellerUserId, int buyerUserId) {
+        CreateMarketListingRequest request = new CreateMarketListingRequest();
+        request.setGoodsType("VIRTUAL");
+        request.setTitle("邀请码");
+        request.setDescription("手工交付");
+        request.setUnitPrice(1_200L);
+        request.setDeliveryMode("MANUAL");
+        request.setStockMode("FINITE");
+        request.setStockTotal(2);
+        request.setMinPurchaseQuantity(1);
+        request.setMaxPurchaseQuantity(2);
+
+        long listingId = marketListingService.createListing(sellerUserId, request, null).listingId();
+        return marketOrderService.createOrder("virtual:manual:req-1", buyerUserId, listingId, 1, null).orderId();
     }
 
     private long seedEscrowedPhysicalOrder(int sellerUserId, int buyerUserId) {
@@ -157,5 +220,9 @@ class MarketOrderServiceTest {
                 balance,
                 accountId
         );
+    }
+
+    private long balanceOfUser(int userId) {
+        return walletAccountService.balanceOfUser(userId);
     }
 }

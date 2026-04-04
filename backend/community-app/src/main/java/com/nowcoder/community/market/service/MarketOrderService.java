@@ -2,14 +2,17 @@ package com.nowcoder.community.market.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.market.dto.MarketOrderResponse;
+import com.nowcoder.community.market.entity.MarketDelivery;
 import com.nowcoder.community.market.entity.MarketAddress;
 import com.nowcoder.community.market.entity.MarketInventoryUnit;
 import com.nowcoder.community.market.entity.MarketListing;
 import com.nowcoder.community.market.entity.MarketOrder;
 import com.nowcoder.community.market.mapper.MarketAddressMapper;
+import com.nowcoder.community.market.mapper.MarketDeliveryMapper;
 import com.nowcoder.community.market.mapper.MarketInventoryUnitMapper;
 import com.nowcoder.community.market.mapper.MarketListingMapper;
 import com.nowcoder.community.market.mapper.MarketOrderMapper;
+import com.nowcoder.community.market.mapper.MarketShipmentMapper;
 import com.nowcoder.community.wallet.api.action.WalletMarketActionApi;
 import com.nowcoder.community.wallet.api.model.WalletMarketTxnView;
 import org.springframework.stereotype.Service;
@@ -29,29 +32,41 @@ public class MarketOrderService {
 
     private static final String GOODS_TYPE_PHYSICAL = "PHYSICAL";
     private static final String GOODS_TYPE_VIRTUAL = "VIRTUAL";
+    private static final String STATUS_CANCELLED = "CANCELLED";
+    private static final String STATUS_COMPLETED = "COMPLETED";
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_ESCROWED = "ESCROWED";
     private static final String STATUS_DELIVERED = "DELIVERED";
+    private static final String STATUS_SHIPPED = "SHIPPED";
     private static final String STATUS_SOLD_OUT = "SOLD_OUT";
     private static final String STOCK_MODE_FINITE = "FINITE";
+    private static final String DELIVERY_MODE_MANUAL = "MANUAL";
     private static final String DELIVERY_MODE_PRELOADED = "PRELOADED";
     private static final String INVENTORY_STATUS_DELIVERED = "DELIVERED";
+    private static final String DELIVERY_TYPE_MANUAL_TEXT = "MANUAL_TEXT";
+    private static final String DELIVERY_STATUS_DELIVERED = "DELIVERED";
 
     private final MarketListingMapper marketListingMapper;
     private final MarketInventoryUnitMapper marketInventoryUnitMapper;
     private final MarketOrderMapper marketOrderMapper;
     private final MarketAddressMapper marketAddressMapper;
+    private final MarketDeliveryMapper marketDeliveryMapper;
+    private final MarketShipmentMapper marketShipmentMapper;
     private final WalletMarketActionApi walletMarketActionApi;
 
     public MarketOrderService(MarketListingMapper marketListingMapper,
                               MarketInventoryUnitMapper marketInventoryUnitMapper,
                               MarketOrderMapper marketOrderMapper,
                               MarketAddressMapper marketAddressMapper,
+                              MarketDeliveryMapper marketDeliveryMapper,
+                              MarketShipmentMapper marketShipmentMapper,
                               WalletMarketActionApi walletMarketActionApi) {
         this.marketListingMapper = marketListingMapper;
         this.marketInventoryUnitMapper = marketInventoryUnitMapper;
         this.marketOrderMapper = marketOrderMapper;
         this.marketAddressMapper = marketAddressMapper;
+        this.marketDeliveryMapper = marketDeliveryMapper;
+        this.marketShipmentMapper = marketShipmentMapper;
         this.walletMarketActionApi = walletMarketActionApi;
     }
 
@@ -104,6 +119,102 @@ public class MarketOrderService {
         return MarketOrderResponse.from(reloadOrder(order.getOrderId()));
     }
 
+    @Transactional
+    public MarketOrderResponse deliverVirtualOrder(long orderId, int sellerUserId, String deliveryContent) {
+        if (!StringUtils.hasText(deliveryContent)) {
+            throw new BusinessException(INVALID_ARGUMENT, "deliveryContent must not be blank");
+        }
+        MarketOrder order = requireOrderForUpdate(orderId);
+        requireSeller(order, sellerUserId);
+        requireGoodsType(order, GOODS_TYPE_VIRTUAL);
+        requireStatus(order, STATUS_ESCROWED);
+        if (!DELIVERY_MODE_MANUAL.equals(order.getDeliveryModeSnapshot())) {
+            throw new BusinessException(INVALID_ARGUMENT, "order is not MANUAL delivery: orderId=" + orderId);
+        }
+
+        MarketDelivery delivery = new MarketDelivery();
+        delivery.setOrderId(orderId);
+        delivery.setSellerUserId(sellerUserId);
+        delivery.setDeliveryType(DELIVERY_TYPE_MANUAL_TEXT);
+        delivery.setDeliveryContent(deliveryContent.trim());
+        delivery.setStatus(DELIVERY_STATUS_DELIVERED);
+        delivery.setDeliveredAt(new Date());
+        marketDeliveryMapper.insert(delivery);
+
+        marketOrderMapper.markDelivered(orderId, Date.from(Instant.now().plus(24, ChronoUnit.HOURS)));
+        return MarketOrderResponse.from(reloadOrder(orderId));
+    }
+
+    @Transactional
+    public MarketOrderResponse confirmOrder(long orderId, int buyerUserId) {
+        MarketOrder order = requireOrderForUpdate(orderId);
+        requireBuyer(order, buyerUserId);
+        if (!STATUS_DELIVERED.equals(order.getStatus()) && !STATUS_SHIPPED.equals(order.getStatus())) {
+            throw new BusinessException(INVALID_ARGUMENT, "order is not confirmable: orderId=" + orderId);
+        }
+
+        WalletMarketTxnView releaseTxn = walletMarketActionApi.releaseOrder(
+                "market-order:" + orderId + ":release",
+                order.getSellerUserId(),
+                order.getTotalAmount(),
+                "market-order:" + orderId
+        );
+        marketOrderMapper.markCompleted(orderId, releaseTxn.txnId());
+        return MarketOrderResponse.from(reloadOrder(orderId));
+    }
+
+    @Transactional
+    public MarketOrderResponse shipPhysicalOrder(long orderId,
+                                                 int sellerUserId,
+                                                 String carrierName,
+                                                 String trackingNo,
+                                                 String remark) {
+        if (!StringUtils.hasText(carrierName) || !StringUtils.hasText(trackingNo)) {
+            throw new BusinessException(INVALID_ARGUMENT, "carrierName and trackingNo must not be blank");
+        }
+        MarketOrder order = requireOrderForUpdate(orderId);
+        requireSeller(order, sellerUserId);
+        requireGoodsType(order, GOODS_TYPE_PHYSICAL);
+        requireStatus(order, STATUS_ESCROWED);
+
+        var shipment = new com.nowcoder.community.market.entity.MarketShipment();
+        shipment.setOrderId(orderId);
+        shipment.setSellerUserId(sellerUserId);
+        shipment.setCarrierName(carrierName.trim());
+        shipment.setTrackingNo(trackingNo.trim());
+        shipment.setShippingRemark(StringUtils.hasText(remark) ? remark.trim() : null);
+        shipment.setShippedAt(new Date());
+        marketShipmentMapper.insert(shipment);
+
+        marketOrderMapper.markShipped(orderId, Date.from(Instant.now().plus(7, ChronoUnit.DAYS)));
+        return MarketOrderResponse.from(reloadOrder(orderId));
+    }
+
+    @Transactional
+    public MarketOrderResponse cancelOrder(long orderId, int buyerUserId) {
+        MarketOrder order = requireOrderForUpdate(orderId);
+        requireBuyer(order, buyerUserId);
+        requireStatus(order, STATUS_ESCROWED);
+
+        WalletMarketTxnView refundTxn = walletMarketActionApi.refundOrder(
+                order.getRequestId() + ":refund",
+                buyerUserId,
+                order.getTotalAmount(),
+                "market-order:" + orderId
+        );
+
+        MarketListing listing = marketListingMapper.selectByIdForUpdate(order.getListingId());
+        if (listing != null && isFiniteStock(listing)) {
+            String nextStatus = STATUS_SOLD_OUT.equals(listing.getStatus()) ? STATUS_ACTIVE : listing.getStatus();
+            marketListingMapper.adjustStock(listing.getListingId(), listing.getSellerUserId(), 0, order.getQuantity(), nextStatus);
+        }
+        if (GOODS_TYPE_VIRTUAL.equals(order.getGoodsType()) && DELIVERY_MODE_PRELOADED.equals(order.getDeliveryModeSnapshot())) {
+            marketInventoryUnitMapper.releaseReservedByOrder(orderId);
+        }
+        marketOrderMapper.markCancelled(orderId, refundTxn.txnId());
+        return MarketOrderResponse.from(reloadOrder(orderId));
+    }
+
     private void validateCreateOrderRequest(String requestId, int buyerUserId, long listingId, int quantity) {
         if (!StringUtils.hasText(requestId)) {
             throw new BusinessException(INVALID_ARGUMENT, "market order requestId must not be blank");
@@ -143,6 +254,10 @@ public class MarketOrderService {
         }
     }
 
+    private boolean isFiniteStock(MarketListing listing) {
+        return GOODS_TYPE_PHYSICAL.equals(listing.getGoodsType()) || STOCK_MODE_FINITE.equals(listing.getStockMode());
+    }
+
     private List<MarketInventoryUnit> reserveInventoryIfNeeded(MarketListing listing, int quantity) {
         if (!GOODS_TYPE_VIRTUAL.equals(listing.getGoodsType()) || !DELIVERY_MODE_PRELOADED.equals(listing.getDeliveryMode())) {
             return List.of();
@@ -155,7 +270,7 @@ public class MarketOrderService {
     }
 
     private void adjustFiniteStockAfterOrder(MarketListing listing, int quantity) {
-        boolean finiteStock = GOODS_TYPE_PHYSICAL.equals(listing.getGoodsType()) || STOCK_MODE_FINITE.equals(listing.getStockMode());
+        boolean finiteStock = isFiniteStock(listing);
         if (!finiteStock) {
             return;
         }
@@ -203,5 +318,37 @@ public class MarketOrderService {
             throw new BusinessException(NOT_FOUND, "market order not found after write: orderId=" + orderId);
         }
         return order;
+    }
+
+    private MarketOrder requireOrderForUpdate(long orderId) {
+        MarketOrder order = marketOrderMapper.selectByIdForUpdate(orderId);
+        if (order == null) {
+            throw new BusinessException(NOT_FOUND, "market order not found: orderId=" + orderId);
+        }
+        return order;
+    }
+
+    private void requireSeller(MarketOrder order, int sellerUserId) {
+        if (order.getSellerUserId() != sellerUserId) {
+            throw new BusinessException(INVALID_ARGUMENT, "seller does not own order: orderId=" + order.getOrderId());
+        }
+    }
+
+    private void requireBuyer(MarketOrder order, int buyerUserId) {
+        if (order.getBuyerUserId() != buyerUserId) {
+            throw new BusinessException(INVALID_ARGUMENT, "buyer does not own order: orderId=" + order.getOrderId());
+        }
+    }
+
+    private void requireGoodsType(MarketOrder order, String goodsType) {
+        if (!goodsType.equals(order.getGoodsType())) {
+            throw new BusinessException(INVALID_ARGUMENT, "order goodsType mismatch: orderId=" + order.getOrderId());
+        }
+    }
+
+    private void requireStatus(MarketOrder order, String status) {
+        if (!status.equals(order.getStatus())) {
+            throw new BusinessException(INVALID_ARGUMENT, "order status mismatch: orderId=" + order.getOrderId());
+        }
     }
 }

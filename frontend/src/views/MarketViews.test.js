@@ -1,0 +1,221 @@
+// @vitest-environment jsdom
+
+import { flushPromises, mount } from '@vue/test-utils'
+import { reactive } from 'vue'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const routeState = reactive({
+  params: { listingId: '21' },
+  name: 'marketDetail',
+  path: '/market/listings/21',
+  fullPath: '/market/listings/21'
+})
+
+vi.mock('vue-router', async () => {
+  const actual = await vi.importActual('vue-router')
+  return {
+    ...actual,
+    useRoute: () => routeState
+  }
+})
+
+vi.mock('../api/services/marketService', () => ({
+  listMarketListings: vi.fn().mockResolvedValue({ data: [], traceId: 'trace-market-list' }),
+  getMarketListingDetail: vi.fn().mockResolvedValue({ data: {}, traceId: 'trace-market-detail' }),
+  createMarketOrder: vi.fn().mockResolvedValue({ data: {}, traceId: 'trace-create-order' }),
+  createMarketListing: vi.fn().mockResolvedValue({ data: {}, traceId: 'trace-create-listing' }),
+  listMarketAddresses: vi.fn().mockResolvedValue({ data: [], traceId: 'trace-addresses' }),
+  listAdminMarketDisputes: vi.fn().mockResolvedValue({ data: [], traceId: 'trace-disputes' }),
+  adminResolveMarketDispute: vi.fn().mockResolvedValue({ data: {}, traceId: 'trace-resolve' })
+}))
+
+import MarketListView from './MarketListView.vue'
+import MarketDetailView from './MarketDetailView.vue'
+import MarketPublishView from './MarketPublishView.vue'
+import AdminMarketDisputesView from './AdminMarketDisputesView.vue'
+import {
+  adminResolveMarketDispute,
+  createMarketListing,
+  createMarketOrder,
+  getMarketListingDetail,
+  listAdminMarketDisputes,
+  listMarketAddresses,
+  listMarketListings
+} from '../api/services/marketService'
+
+function mountOptions() {
+  return {
+    global: {
+      stubs: {
+        RouterLink: {
+          props: ['to'],
+          template: '<a :data-to="JSON.stringify(to)"><slot /></a>'
+        },
+        UiBreadcrumb: {
+          template: '<div><slot /></div>'
+        },
+        UiCard: {
+          template: '<section><slot /></section>'
+        },
+        UiPageHeader: {
+          template: '<header><slot name="title" /><slot name="subtitle" /><slot /></header>'
+        },
+        UiEmpty: {
+          props: ['type'],
+          template: '<div><slot /><slot name="description" /></div>'
+        },
+        UiButton: {
+          props: ['disabled', 'variant'],
+          emits: ['click'],
+          template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
+        },
+        UiInput: {
+          props: ['modelValue'],
+          emits: ['update:modelValue'],
+          template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />'
+        }
+      }
+    }
+  }
+}
+
+describe('Unified market views', () => {
+  beforeEach(() => {
+    routeState.params = { listingId: '21' }
+    routeState.name = 'marketDetail'
+    routeState.path = '/market/listings/21'
+    routeState.fullPath = '/market/listings/21'
+    vi.clearAllMocks()
+    listMarketListings.mockResolvedValue({ data: [], traceId: 'trace-market-list' })
+    getMarketListingDetail.mockResolvedValue({ data: {}, traceId: 'trace-market-detail' })
+    createMarketOrder.mockResolvedValue({ data: {}, traceId: 'trace-create-order' })
+    createMarketListing.mockResolvedValue({ data: {}, traceId: 'trace-create-listing' })
+    listMarketAddresses.mockResolvedValue({ data: [], traceId: 'trace-addresses' })
+    listAdminMarketDisputes.mockResolvedValue({ data: [], traceId: 'trace-disputes' })
+    adminResolveMarketDispute.mockResolvedValue({ data: {}, traceId: 'trace-resolve' })
+  })
+
+  it('loads unified listings and renders both goods type labels', async () => {
+    listMarketListings.mockResolvedValue({
+      data: [
+        {
+          listingId: 11,
+          goodsType: 'VIRTUAL',
+          title: 'Steam Key',
+          description: '自动交付',
+          unitPrice: 1999,
+          deliveryMode: 'PRELOADED',
+          stockAvailable: 2,
+          status: 'ACTIVE'
+        },
+        {
+          listingId: 21,
+          goodsType: 'PHYSICAL',
+          title: '二手键盘',
+          description: '顺手出',
+          unitPrice: 12900,
+          stockAvailable: 1,
+          status: 'ACTIVE'
+        }
+      ],
+      traceId: 'trace-market-list'
+    })
+
+    const wrapper = mount(MarketListView, mountOptions())
+    await flushPromises()
+
+    expect(listMarketListings).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('虚拟商品')
+    expect(wrapper.text()).toContain('实物商品')
+    expect(wrapper.findAll('.market-row')).toHaveLength(2)
+  })
+
+  it('loads a physical listing detail and requires an address for order creation', async () => {
+    getMarketListingDetail.mockResolvedValue({
+      data: {
+        listingId: 21,
+        goodsType: 'PHYSICAL',
+        title: '二手键盘',
+        description: '顺手出',
+        unitPrice: 12900,
+        stockAvailable: 1,
+        status: 'ACTIVE'
+      },
+      traceId: 'trace-market-detail'
+    })
+    listMarketAddresses.mockResolvedValue({
+      data: [
+        {
+          addressId: 41,
+          receiverName: '张三',
+          city: '上海市',
+          detailAddress: '世纪大道 100 号',
+          isDefault: true
+        }
+      ],
+      traceId: 'trace-addresses'
+    })
+
+    const wrapper = mount(MarketDetailView, mountOptions())
+    await flushPromises()
+
+    expect(getMarketListingDetail).toHaveBeenCalledWith('21')
+    expect(listMarketAddresses).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('实物商品')
+
+    await wrapper.find('select').setValue('41')
+    await wrapper.find('button').trigger('click')
+    await flushPromises()
+
+    expect(createMarketOrder).toHaveBeenCalledTimes(1)
+    expect(createMarketOrder.mock.calls[0][0]).toMatchObject({
+      listingId: 21,
+      quantity: 1,
+      addressId: 41
+    })
+  })
+
+  it('publishes a physical listing with goodsType-aware payload', async () => {
+    const wrapper = mount(MarketPublishView, mountOptions())
+
+    await wrapper.find('select').setValue('PHYSICAL')
+    await wrapper.findAll('input')[0].setValue('二手键盘')
+    await wrapper.find('textarea').setValue('顺手出')
+    await wrapper.findAll('input')[1].setValue('12900')
+    await wrapper.findAll('input')[2].setValue('1')
+    await wrapper.find('button').trigger('click')
+    await flushPromises()
+
+    expect(createMarketListing).toHaveBeenCalledWith(expect.objectContaining({
+      goodsType: 'PHYSICAL',
+      title: '二手键盘',
+      unitPrice: 12900,
+      stockTotal: 1
+    }))
+  })
+
+  it('loads disputes and delegates admin resolution through the unified service', async () => {
+    listAdminMarketDisputes.mockResolvedValue({
+      data: [
+        {
+          disputeId: 1,
+          goodsType: 'PHYSICAL',
+          reason: '货不对板',
+          status: 'SELLER_REJECTED'
+        }
+      ],
+      traceId: 'trace-disputes'
+    })
+
+    const wrapper = mount(AdminMarketDisputesView, mountOptions())
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('货不对板')
+    expect(wrapper.text()).toContain('实物商品')
+
+    await wrapper.find('button').trigger('click')
+    await flushPromises()
+
+    expect(adminResolveMarketDispute).toHaveBeenCalledWith(1, 'refund', { note: 'refund' })
+  })
+})

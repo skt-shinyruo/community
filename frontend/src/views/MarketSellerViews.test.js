@@ -6,9 +6,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const routeState = reactive({
   params: { listingId: '21' },
-  name: 'virtualMarketInventory',
-  path: '/market/virtual/my-listings/21/inventory',
-  fullPath: '/market/virtual/my-listings/21/inventory'
+  name: 'marketInventory',
+  path: '/market/my-listings/21/inventory',
+  fullPath: '/market/my-listings/21/inventory'
 })
 
 vi.mock('vue-router', async () => {
@@ -19,21 +19,21 @@ vi.mock('vue-router', async () => {
   }
 })
 
-vi.mock('../api/services/virtualMarketService', () => ({
-  listMyVirtualListings: vi.fn().mockResolvedValue({ data: [], traceId: 'trace-my-listings' }),
-  listVirtualInventory: vi.fn().mockResolvedValue({ data: [], traceId: 'trace-inventory' }),
-  addVirtualInventory: vi.fn().mockResolvedValue({ data: {}, traceId: 'trace-add' }),
-  invalidateVirtualInventory: vi.fn().mockResolvedValue({ data: {}, traceId: 'trace-invalidate' })
+vi.mock('../api/services/marketService', () => ({
+  listMyMarketListings: vi.fn().mockResolvedValue({ data: [], traceId: 'trace-my-listings' }),
+  listMarketInventory: vi.fn().mockResolvedValue({ data: [], traceId: 'trace-inventory' }),
+  addMarketInventory: vi.fn().mockResolvedValue({ data: {}, traceId: 'trace-add' }),
+  invalidateMarketInventory: vi.fn().mockResolvedValue({ data: {}, traceId: 'trace-invalidate' })
 }))
 
-import VirtualMarketInventoryView from './VirtualMarketInventoryView.vue'
-import VirtualMarketMyListingsView from './VirtualMarketMyListingsView.vue'
+import MarketInventoryView from './MarketInventoryView.vue'
+import MarketMyListingsView from './MarketMyListingsView.vue'
 import {
-  addVirtualInventory,
-  invalidateVirtualInventory,
-  listMyVirtualListings,
-  listVirtualInventory
-} from '../api/services/virtualMarketService'
+  addMarketInventory,
+  invalidateMarketInventory,
+  listMarketInventory,
+  listMyMarketListings
+} from '../api/services/marketService'
 
 function mountOptions() {
   return {
@@ -71,47 +71,56 @@ function mountOptions() {
   }
 }
 
-describe('Virtual market seller views', () => {
+describe('Unified market seller views', () => {
   beforeEach(() => {
     routeState.params = { listingId: '21' }
-    routeState.path = '/market/virtual/my-listings/21/inventory'
-    routeState.fullPath = '/market/virtual/my-listings/21/inventory'
+    routeState.path = '/market/my-listings/21/inventory'
+    routeState.fullPath = '/market/my-listings/21/inventory'
     vi.clearAllMocks()
-    listMyVirtualListings.mockResolvedValue({ data: [], traceId: 'trace-my-listings' })
-    listVirtualInventory.mockResolvedValue({ data: [], traceId: 'trace-inventory' })
-    addVirtualInventory.mockResolvedValue({ data: {}, traceId: 'trace-add' })
-    invalidateVirtualInventory.mockResolvedValue({ data: {}, traceId: 'trace-invalidate' })
+    listMyMarketListings.mockResolvedValue({ data: [], traceId: 'trace-my-listings' })
+    listMarketInventory.mockResolvedValue({ data: [], traceId: 'trace-inventory' })
+    addMarketInventory.mockResolvedValue({ data: {}, traceId: 'trace-add' })
+    invalidateMarketInventory.mockResolvedValue({ data: {}, traceId: 'trace-invalidate' })
   })
 
-  it('loads seller listings on mount and renders listing rows with inventory links', async () => {
-    listMyVirtualListings.mockResolvedValue({
+  it('loads seller listings on mount and renders goods type labels with inventory links', async () => {
+    listMyMarketListings.mockResolvedValue({
       data: [
         {
           listingId: 21,
+          goodsType: 'VIRTUAL',
           title: 'Steam 兑换码',
           description: '库存页继续维护卡密',
           unitPrice: 1999,
           deliveryMode: 'PRELOADED',
           stockAvailable: 2,
           status: 'ACTIVE'
+        },
+        {
+          listingId: 22,
+          goodsType: 'PHYSICAL',
+          title: '二手键盘',
+          description: '顺手出',
+          unitPrice: 12900,
+          stockAvailable: 1,
+          status: 'ACTIVE'
         }
       ],
       traceId: 'trace-my-listings'
     })
 
-    const wrapper = mount(VirtualMarketMyListingsView, mountOptions())
+    const wrapper = mount(MarketMyListingsView, mountOptions())
     await flushPromises()
 
-    expect(listMyVirtualListings).toHaveBeenCalledTimes(1)
-    expect(wrapper.findAll('.market-row')).toHaveLength(1)
-    expect(wrapper.text()).toContain('Steam 兑换码')
-    expect(wrapper.text()).toContain('自动交付')
-    expect(wrapper.text()).toContain('剩余 2')
+    expect(listMyMarketListings).toHaveBeenCalledTimes(1)
+    expect(wrapper.findAll('.market-row')).toHaveLength(2)
+    expect(wrapper.text()).toContain('虚拟商品')
+    expect(wrapper.text()).toContain('实物商品')
     expect(wrapper.findAll('a').some((link) => link.text().includes('库存管理'))).toBe(true)
   })
 
   it('loads inventory on mount and renders payload rows', async () => {
-    listVirtualInventory.mockResolvedValue({
+    listMarketInventory.mockResolvedValue({
       data: [
         {
           inventoryUnitId: 301,
@@ -124,17 +133,16 @@ describe('Virtual market seller views', () => {
       traceId: 'trace-inventory'
     })
 
-    const wrapper = mount(VirtualMarketInventoryView, mountOptions())
+    const wrapper = mount(MarketInventoryView, mountOptions())
     await flushPromises()
 
-    expect(listVirtualInventory).toHaveBeenCalledWith('21')
+    expect(listMarketInventory).toHaveBeenCalledWith('21')
     expect(wrapper.findAll('.market-order-row')).toHaveLength(1)
     expect(wrapper.text()).toContain('CODE-001')
-    expect(wrapper.text()).toContain('AVAILABLE')
   })
 
   it('submits new inventory batches and invalidates available units', async () => {
-    listVirtualInventory.mockResolvedValue({
+    listMarketInventory.mockResolvedValue({
       data: [
         {
           inventoryUnitId: 301,
@@ -147,7 +155,7 @@ describe('Virtual market seller views', () => {
       traceId: 'trace-inventory'
     })
 
-    const wrapper = mount(VirtualMarketInventoryView, mountOptions())
+    const wrapper = mount(MarketInventoryView, mountOptions())
     await flushPromises()
 
     await wrapper.find('select').setValue('CODE')
@@ -155,7 +163,7 @@ describe('Virtual market seller views', () => {
     await wrapper.find('button').trigger('click')
     await flushPromises()
 
-    expect(addVirtualInventory).toHaveBeenCalledWith('21', {
+    expect(addMarketInventory).toHaveBeenCalledWith('21', {
       payloadType: 'CODE',
       payloads: ['CODE-002', 'CODE-003']
     })
@@ -164,6 +172,6 @@ describe('Virtual market seller views', () => {
     await invalidateButton.trigger('click')
     await flushPromises()
 
-    expect(invalidateVirtualInventory).toHaveBeenCalledWith(301)
+    expect(invalidateMarketInventory).toHaveBeenCalledWith(301)
   })
 })

@@ -157,11 +157,11 @@ const NAV_DEFS = Object.freeze([
         activeNames: ['search']
       },
       {
-        key: 'virtualMarket',
-        label: '虚拟市场',
+        key: 'market',
+        label: '市场',
         icon: 'sparkle',
-        to: () => ({ name: 'virtualMarket' }),
-        activeNames: ['virtualMarket', 'virtualMarketDetail']
+        to: () => ({ name: 'market' }),
+        activeNames: ['market', 'marketDetail']
       }
     ]
   },
@@ -178,20 +178,28 @@ const NAV_DEFS = Object.freeze([
         activeNames: ['wallet']
       },
       {
-        key: 'virtualMarketBuying',
+        key: 'marketBuying',
         label: '我的购买',
         icon: 'bookmark',
         requiresAuth: true,
-        to: () => ({ name: 'virtualMarketBuyingOrders' }),
-        activeNames: ['virtualMarketBuyingOrders', 'virtualMarketOrderDetail']
+        to: () => ({ name: 'marketBuyingOrders' }),
+        activeNames: ['marketBuyingOrders', 'marketOrderDetail']
       },
       {
-        key: 'virtualMarketSelling',
+        key: 'marketSelling',
         label: '我的出售',
         icon: 'analytics',
         requiresAuth: true,
-        to: () => ({ name: 'virtualMarketSellingOrders' }),
-        activeNames: ['virtualMarketSellingOrders', 'virtualMarketPublish', 'virtualMarketMyListings', 'virtualMarketInventory']
+        to: () => ({ name: 'marketSellingOrders' }),
+        activeNames: ['marketSellingOrders', 'marketPublish', 'marketMyListings', 'marketInventory']
+      },
+      {
+        key: 'marketAddresses',
+        label: '收货地址',
+        icon: 'bookmark',
+        requiresAuth: true,
+        to: () => ({ name: 'marketAddresses' }),
+        activeNames: ['marketAddresses']
       },
       {
         key: 'bookmarks',
@@ -268,13 +276,13 @@ const NAV_DEFS = Object.freeze([
         activeNames: ['walletAdmin']
       },
       {
-        key: 'adminVirtualDisputes',
+        key: 'adminMarketDisputes',
         label: '争议裁定',
         icon: 'shield',
         requiresAuth: true,
         roles: ['ROLE_ADMIN'],
-        to: () => ({ name: 'adminVirtualDisputes' }),
-        activeNames: ['adminVirtualDisputes']
+        to: () => ({ name: 'adminMarketDisputes' }),
+        activeNames: ['adminMarketDisputes']
       }
     ]
   },

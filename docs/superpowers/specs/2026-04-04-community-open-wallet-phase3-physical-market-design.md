@@ -126,6 +126,7 @@ Both tables use `goods_type` as the product discriminator. This keeps the produc
 The main tables should not become catch-all dumping grounds for every type-specific field. Type-specific side data should be modeled separately where it represents a distinct concept:
 
 - virtual inventory belongs in inventory records
+- virtual delivery facts belong in delivery records
 - user addresses belong in an address book
 - shipment events belong in shipment records
 
@@ -222,7 +223,24 @@ Key fields:
 
 The address snapshot fields are only populated for physical goods orders.
 
-### 6.4 `market_address`
+### 6.4 `market_delivery`
+
+Represents one virtual-goods delivery record for an order.
+
+Key fields:
+
+- `delivery_id`
+- `order_id`
+- `seller_user_id`
+- `delivery_type` (`PRELOADED_BATCH`, `MANUAL_TEXT`)
+- `delivery_content`
+- `status`
+- `delivered_at`
+- `create_time`
+
+`PRELOADED` listings may derive buyer-visible payloads from delivered inventory units, but `MANUAL` listings still need a durable delivery fact table. Phase 3 therefore keeps delivery as an explicit side table in the unified model.
+
+### 6.5 `market_address`
 
 Represents one buyer-owned delivery address.
 
@@ -244,7 +262,7 @@ Key fields:
 
 This is mutable user profile data. It is never used as the historical source of truth for placed orders.
 
-### 6.5 `market_shipment`
+### 6.6 `market_shipment`
 
 Represents the physical shipment record for one physical order.
 
@@ -262,7 +280,7 @@ Key fields:
 
 Phase 3 V1 allows one shipment record per physical order.
 
-### 6.6 `market_dispute`
+### 6.7 `market_dispute`
 
 Represents a buyer dispute for either goods type.
 

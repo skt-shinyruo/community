@@ -1,6 +1,8 @@
 package com.nowcoder.community.market.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.market.api.action.MarketOrderAutoConfirmActionApi;
+import com.nowcoder.community.market.api.model.MarketOrderAutoConfirmResult;
 import com.nowcoder.community.market.dto.MarketOrderResponse;
 import com.nowcoder.community.market.entity.MarketDelivery;
 import com.nowcoder.community.market.entity.MarketAddress;
@@ -23,12 +25,13 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 
 @Service
-public class MarketOrderService {
+public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
 
     private static final String GOODS_TYPE_PHYSICAL = "PHYSICAL";
     private static final String GOODS_TYPE_VIRTUAL = "VIRTUAL";
@@ -213,6 +216,26 @@ public class MarketOrderService {
         }
         marketOrderMapper.markCancelled(orderId, refundTxn.txnId());
         return MarketOrderResponse.from(reloadOrder(orderId));
+    }
+
+    @Transactional
+    @Override
+    public MarketOrderAutoConfirmResult autoConfirmDueOrders() {
+        int completed = 0;
+        int skipped = 0;
+        Date now = new Date();
+        for (MarketOrder dueOrder : marketOrderMapper.selectDueForAutoConfirm(now)) {
+            MarketOrder locked = requireOrderForUpdate(dueOrder.getOrderId());
+            if (!Set.of(STATUS_DELIVERED, STATUS_SHIPPED).contains(locked.getStatus())
+                    || locked.getAutoConfirmAt() == null
+                    || locked.getAutoConfirmAt().after(now)) {
+                skipped++;
+                continue;
+            }
+            confirmOrder(locked.getOrderId(), locked.getBuyerUserId());
+            completed++;
+        }
+        return new MarketOrderAutoConfirmResult(completed, skipped);
     }
 
     private void validateCreateOrderRequest(String requestId, int buyerUserId, long listingId, int quantity) {

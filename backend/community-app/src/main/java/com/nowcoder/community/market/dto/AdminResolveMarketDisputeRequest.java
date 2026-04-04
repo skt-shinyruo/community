@@ -2,17 +2,20 @@ package com.nowcoder.community.market.dto;
 
 import jakarta.validation.constraints.NotBlank;
 
-public class SellerDisputeDecisionRequest {
+public class AdminResolveMarketDisputeRequest {
+
+    @NotBlank
+    private String resolutionType;
 
     @NotBlank
     private String note;
 
-    public String getSellerNote() {
-        return note;
+    public String getResolutionType() {
+        return resolutionType;
     }
 
-    public void setSellerNote(String sellerNote) {
-        this.note = sellerNote;
+    public void setResolutionType(String resolutionType) {
+        this.resolutionType = resolutionType;
     }
 
     public String getNote() {

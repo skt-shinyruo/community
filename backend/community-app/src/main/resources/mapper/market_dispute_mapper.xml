@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.market.mapper.MarketDisputeMapper">
+
+    <select id="selectById" resultType="com.nowcoder.community.market.entity.MarketDispute">
+        select dispute_id, order_id, goods_type, buyer_user_id, seller_user_id, status, reason, buyer_note, seller_note,
+               resolution_type, resolved_by, resolved_at, create_time, update_time
+        from market_dispute
+        where dispute_id = #{disputeId}
+    </select>
+
+    <select id="selectByOrderId" resultType="com.nowcoder.community.market.entity.MarketDispute">
+        select dispute_id, order_id, goods_type, buyer_user_id, seller_user_id, status, reason, buyer_note, seller_note,
+               resolution_type, resolved_by, resolved_at, create_time, update_time
+        from market_dispute
+        where order_id = #{orderId}
+        order by dispute_id desc
+    </select>
+
+    <select id="selectOpenDisputes" resultType="com.nowcoder.community.market.entity.MarketDispute">
+        select dispute_id, order_id, goods_type, buyer_user_id, seller_user_id, status, reason, buyer_note, seller_note,
+               resolution_type, resolved_by, resolved_at, create_time, update_time
+        from market_dispute
+        where status in ('OPEN', 'SELLER_REJECTED')
+        order by dispute_id desc
+    </select>
+
+    <insert id="insert" parameterType="com.nowcoder.community.market.entity.MarketDispute" useGeneratedKeys="true" keyProperty="disputeId" keyColumn="dispute_id">
+        insert into market_dispute(
+            order_id, goods_type, buyer_user_id, seller_user_id, status, reason, buyer_note, seller_note,
+            resolution_type, resolved_by, resolved_at
+        )
+        values(
+            #{orderId}, #{goodsType}, #{buyerUserId}, #{sellerUserId}, #{status}, #{reason}, #{buyerNote}, #{sellerNote},
+            #{resolutionType}, #{resolvedBy}, #{resolvedAt}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.nowcoder.community.market.entity.MarketDispute">
+        update market_dispute
+        set status = #{status},
+            reason = #{reason},
+            buyer_note = #{buyerNote},
+            seller_note = #{sellerNote},
+            resolution_type = #{resolutionType},
+            resolved_by = #{resolvedBy},
+            resolved_at = #{resolvedAt},
+            update_time = current_timestamp
+        where dispute_id = #{disputeId}
+    </update>
+
+</mapper>

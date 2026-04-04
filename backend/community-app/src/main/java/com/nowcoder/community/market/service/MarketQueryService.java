@@ -5,9 +5,11 @@ import com.nowcoder.community.market.dto.MarketListingDetailResponse;
 import com.nowcoder.community.market.dto.MarketListingResponse;
 import com.nowcoder.community.market.dto.MarketOrderDetailResponse;
 import com.nowcoder.community.market.dto.MarketOrderResponse;
+import com.nowcoder.community.market.entity.MarketDelivery;
 import com.nowcoder.community.market.entity.MarketInventoryUnit;
 import com.nowcoder.community.market.entity.MarketListing;
 import com.nowcoder.community.market.entity.MarketOrder;
+import com.nowcoder.community.market.mapper.MarketDeliveryMapper;
 import com.nowcoder.community.market.mapper.MarketInventoryUnitMapper;
 import com.nowcoder.community.market.mapper.MarketListingMapper;
 import com.nowcoder.community.market.mapper.MarketOrderMapper;
@@ -25,15 +27,18 @@ public class MarketQueryService {
     private final MarketListingMapper marketListingMapper;
     private final MarketOrderMapper marketOrderMapper;
     private final MarketInventoryUnitMapper marketInventoryUnitMapper;
+    private final MarketDeliveryMapper marketDeliveryMapper;
     private final MarketShipmentMapper marketShipmentMapper;
 
     public MarketQueryService(MarketListingMapper marketListingMapper,
                               MarketOrderMapper marketOrderMapper,
                               MarketInventoryUnitMapper marketInventoryUnitMapper,
+                              MarketDeliveryMapper marketDeliveryMapper,
                               MarketShipmentMapper marketShipmentMapper) {
         this.marketListingMapper = marketListingMapper;
         this.marketOrderMapper = marketOrderMapper;
         this.marketInventoryUnitMapper = marketInventoryUnitMapper;
+        this.marketDeliveryMapper = marketDeliveryMapper;
         this.marketShipmentMapper = marketShipmentMapper;
     }
 
@@ -77,12 +82,24 @@ public class MarketQueryService {
         if (order.getBuyerUserId() != actorUserId && order.getSellerUserId() != actorUserId) {
             throw new BusinessException(FORBIDDEN, "market order does not belong to actor: orderId=" + orderId);
         }
-        List<String> deliveryContents = "VIRTUAL".equals(order.getGoodsType())
-                ? marketInventoryUnitMapper.selectByReservedOrderId(orderId).stream()
+        List<String> deliveryContents = loadDeliveryContents(orderId, order.getGoodsType());
+        return MarketOrderDetailResponse.from(order, deliveryContents, marketShipmentMapper.selectByOrderId(orderId));
+    }
+
+    private List<String> loadDeliveryContents(long orderId, String goodsType) {
+        if (!"VIRTUAL".equals(goodsType)) {
+            return List.of();
+        }
+        List<String> manualDeliveries = marketDeliveryMapper.selectByOrderId(orderId).stream()
+                .filter(delivery -> "DELIVERED".equals(delivery.getStatus()))
+                .map(MarketDelivery::getDeliveryContent)
+                .toList();
+        if (!manualDeliveries.isEmpty()) {
+            return manualDeliveries;
+        }
+        return marketInventoryUnitMapper.selectByReservedOrderId(orderId).stream()
                 .filter(unit -> "DELIVERED".equals(unit.getStatus()))
                 .map(MarketInventoryUnit::getPayloadContent)
-                .toList()
-                : List.of();
-        return MarketOrderDetailResponse.from(order, deliveryContents, marketShipmentMapper.selectByOrderId(orderId));
+                .toList();
     }
 }

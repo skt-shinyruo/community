@@ -271,6 +271,19 @@ create table if not exists market_inventory_unit (
 
 create index if not exists idx_market_inventory_listing_status on market_inventory_unit(listing_id, status, inventory_unit_id);
 
+create table if not exists market_delivery (
+  delivery_id bigint auto_increment primary key,
+  order_id bigint not null,
+  seller_user_id int not null,
+  delivery_type varchar(32) not null,
+  delivery_content varchar(8000) not null,
+  status varchar(16) not null,
+  delivered_at timestamp null default null,
+  create_time timestamp null default current_timestamp
+);
+
+create index if not exists idx_market_delivery_order on market_delivery(order_id, delivery_id);
+
 create table if not exists market_order (
   order_id bigint auto_increment primary key,
   request_id varchar(96) not null,

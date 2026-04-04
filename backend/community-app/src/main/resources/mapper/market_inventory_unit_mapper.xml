@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.market.mapper.MarketInventoryUnitMapper">
+
+    <insert id="insert" parameterType="com.nowcoder.community.market.entity.MarketInventoryUnit" useGeneratedKeys="true" keyProperty="inventoryUnitId" keyColumn="inventory_unit_id">
+        insert into market_inventory_unit(
+            listing_id, seller_user_id, payload_type, payload_content, status, reserved_order_id, delivered_at
+        )
+        values(
+            #{listingId}, #{sellerUserId}, #{payloadType}, #{payloadContent}, #{status}, #{reservedOrderId}, #{deliveredAt}
+        )
+    </insert>
+
+    <select id="countAvailableByListingId" resultType="int">
+        select count(*)
+        from market_inventory_unit
+        where listing_id = #{listingId}
+          and status = 'AVAILABLE'
+    </select>
+
+    <select id="selectAvailableForUpdate" resultType="com.nowcoder.community.market.entity.MarketInventoryUnit">
+        select inventory_unit_id, listing_id, seller_user_id, payload_type, payload_content, status,
+               reserved_order_id, delivered_at, create_time
+        from market_inventory_unit
+        where listing_id = #{listingId}
+          and status = 'AVAILABLE'
+        order by inventory_unit_id asc
+        limit #{limit}
+        for update
+    </select>
+
+    <select id="selectByReservedOrderId" resultType="com.nowcoder.community.market.entity.MarketInventoryUnit">
+        select inventory_unit_id, listing_id, seller_user_id, payload_type, payload_content, status,
+               reserved_order_id, delivered_at, create_time
+        from market_inventory_unit
+        where reserved_order_id = #{reservedOrderId}
+        order by inventory_unit_id asc
+    </select>
+
+    <select id="selectByListingId" resultType="com.nowcoder.community.market.entity.MarketInventoryUnit">
+        select inventory_unit_id, listing_id, seller_user_id, payload_type, payload_content, status,
+               reserved_order_id, delivered_at, create_time
+        from market_inventory_unit
+        where listing_id = #{listingId}
+        order by inventory_unit_id asc
+    </select>
+
+    <select id="selectById" resultType="com.nowcoder.community.market.entity.MarketInventoryUnit">
+        select inventory_unit_id, listing_id, seller_user_id, payload_type, payload_content, status,
+               reserved_order_id, delivered_at, create_time
+        from market_inventory_unit
+        where inventory_unit_id = #{inventoryUnitId}
+    </select>
+
+    <update id="invalidateAvailable">
+        update market_inventory_unit
+        set status = 'INVALID'
+        where inventory_unit_id = #{inventoryUnitId}
+          and seller_user_id = #{sellerUserId}
+          and status = 'AVAILABLE'
+    </update>
+
+    <update id="reserveForOrder">
+        update market_inventory_unit
+        set status = 'RESERVED',
+            reserved_order_id = #{reservedOrderId}
+        where inventory_unit_id = #{inventoryUnitId}
+          and status = 'AVAILABLE'
+    </update>
+
+    <update id="markDeliveredByOrder">
+        update market_inventory_unit
+        set status = #{status},
+            delivered_at = #{deliveredAt}
+        where reserved_order_id = #{reservedOrderId}
+          and status = 'RESERVED'
+    </update>
+
+    <update id="releaseReservedByOrder">
+        update market_inventory_unit
+        set status = 'AVAILABLE',
+            reserved_order_id = null
+        where reserved_order_id = #{reservedOrderId}
+          and status = 'RESERVED'
+    </update>
+
+</mapper>

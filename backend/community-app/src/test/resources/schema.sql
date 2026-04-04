@@ -237,6 +237,124 @@ create table if not exists virtual_dispute (
 
 create index if not exists idx_virtual_dispute_order_status on virtual_dispute(order_id, status);
 
+create table if not exists market_listing (
+  listing_id bigint auto_increment primary key,
+  seller_user_id int not null,
+  goods_type varchar(16) not null,
+  title varchar(128) not null,
+  description varchar(1000) not null,
+  unit_price bigint not null,
+  delivery_mode varchar(16) default null,
+  stock_mode varchar(16) default null,
+  stock_total int not null,
+  stock_available int not null,
+  min_purchase_quantity int not null,
+  max_purchase_quantity int not null,
+  status varchar(16) not null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp
+);
+
+create index if not exists idx_market_listing_seller_time on market_listing(seller_user_id, create_time);
+
+create table if not exists market_inventory_unit (
+  inventory_unit_id bigint auto_increment primary key,
+  listing_id bigint not null,
+  seller_user_id int not null,
+  payload_type varchar(16) not null,
+  payload_content varchar(4000) not null,
+  status varchar(16) not null,
+  reserved_order_id bigint default null,
+  delivered_at timestamp null default null,
+  create_time timestamp null default current_timestamp
+);
+
+create index if not exists idx_market_inventory_listing_status on market_inventory_unit(listing_id, status, inventory_unit_id);
+
+create table if not exists market_order (
+  order_id bigint auto_increment primary key,
+  request_id varchar(96) not null,
+  listing_id bigint not null,
+  goods_type varchar(16) not null,
+  seller_user_id int not null,
+  buyer_user_id int not null,
+  quantity int not null,
+  unit_price_snapshot bigint not null,
+  total_amount bigint not null,
+  delivery_mode_snapshot varchar(16) default null,
+  listing_title_snapshot varchar(128) not null,
+  status varchar(16) not null,
+  escrow_txn_id bigint default null,
+  release_txn_id bigint default null,
+  refund_txn_id bigint default null,
+  auto_confirm_at timestamp null default null,
+  receiver_name_snapshot varchar(64) default null,
+  receiver_phone_snapshot varchar(32) default null,
+  province_snapshot varchar(64) default null,
+  city_snapshot varchar(64) default null,
+  district_snapshot varchar(64) default null,
+  detail_address_snapshot varchar(255) default null,
+  postal_code_snapshot varchar(16) default null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  constraint uk_market_order_request unique (request_id)
+);
+
+create index if not exists idx_market_order_buyer_time on market_order(buyer_user_id, create_time);
+create index if not exists idx_market_order_seller_time on market_order(seller_user_id, create_time);
+create index if not exists idx_market_order_listing_status on market_order(listing_id, status);
+create index if not exists idx_market_order_auto_confirm on market_order(status, auto_confirm_at);
+
+create table if not exists market_dispute (
+  dispute_id bigint auto_increment primary key,
+  order_id bigint not null,
+  goods_type varchar(16) not null,
+  buyer_user_id int not null,
+  seller_user_id int not null,
+  status varchar(32) not null,
+  reason varchar(255) not null,
+  buyer_note varchar(1000) default null,
+  seller_note varchar(1000) default null,
+  resolution_type varchar(16) default null,
+  resolved_by int default null,
+  resolved_at timestamp null default null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp
+);
+
+create index if not exists idx_market_dispute_order_status on market_dispute(order_id, status);
+
+create table if not exists market_address (
+  address_id bigint auto_increment primary key,
+  user_id int not null,
+  receiver_name varchar(64) not null,
+  receiver_phone varchar(32) not null,
+  province varchar(64) not null,
+  city varchar(64) not null,
+  district varchar(64) not null,
+  detail_address varchar(255) not null,
+  postal_code varchar(16) default null,
+  is_default boolean not null default false,
+  status varchar(16) not null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp
+);
+
+create index if not exists idx_market_address_user_status on market_address(user_id, status, is_default, address_id);
+
+create table if not exists market_shipment (
+  shipment_id bigint auto_increment primary key,
+  order_id bigint not null,
+  seller_user_id int not null,
+  carrier_name varchar(64) not null,
+  tracking_no varchar(128) not null,
+  shipping_remark varchar(1000) default null,
+  shipped_at timestamp null default current_timestamp,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  constraint uk_market_shipment_order unique (order_id)
+);
+
 create table if not exists reward_grant_record (
   id bigint auto_increment primary key,
   grant_id varchar(64) not null,

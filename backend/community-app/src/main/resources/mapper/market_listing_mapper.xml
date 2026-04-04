@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.market.mapper.MarketListingMapper">
+
+    <select id="selectById" resultType="com.nowcoder.community.market.entity.MarketListing">
+        select listing_id, seller_user_id, goods_type, title, description, unit_price, delivery_mode, stock_mode,
+               stock_total, stock_available, min_purchase_quantity, max_purchase_quantity, status,
+               create_time, update_time
+        from market_listing
+        where listing_id = #{listingId}
+    </select>
+
+    <select id="selectByIdForUpdate" resultType="com.nowcoder.community.market.entity.MarketListing">
+        select listing_id, seller_user_id, goods_type, title, description, unit_price, delivery_mode, stock_mode,
+               stock_total, stock_available, min_purchase_quantity, max_purchase_quantity, status,
+               create_time, update_time
+        from market_listing
+        where listing_id = #{listingId}
+        for update
+    </select>
+
+    <select id="selectBySellerUserId" resultType="com.nowcoder.community.market.entity.MarketListing">
+        select listing_id, seller_user_id, goods_type, title, description, unit_price, delivery_mode, stock_mode,
+               stock_total, stock_available, min_purchase_quantity, max_purchase_quantity, status,
+               create_time, update_time
+        from market_listing
+        where seller_user_id = #{sellerUserId}
+        order by listing_id desc
+    </select>
+
+    <select id="selectPublicListings" resultType="com.nowcoder.community.market.entity.MarketListing">
+        select listing_id, seller_user_id, goods_type, title, description, unit_price, delivery_mode, stock_mode,
+               stock_total, stock_available, min_purchase_quantity, max_purchase_quantity, status,
+               create_time, update_time
+        from market_listing
+        where status in ('ACTIVE', 'SOLD_OUT')
+        order by listing_id desc
+    </select>
+
+    <insert id="insert" parameterType="com.nowcoder.community.market.entity.MarketListing" useGeneratedKeys="true" keyProperty="listingId" keyColumn="listing_id">
+        insert into market_listing(
+            seller_user_id, goods_type, title, description, unit_price, delivery_mode, stock_mode,
+            stock_total, stock_available, min_purchase_quantity, max_purchase_quantity, status
+        )
+        values(
+            #{sellerUserId}, #{goodsType}, #{title}, #{description}, #{unitPrice}, #{deliveryMode}, #{stockMode},
+            #{stockTotal}, #{stockAvailable}, #{minPurchaseQuantity}, #{maxPurchaseQuantity}, #{status}
+        )
+    </insert>
+
+    <update id="updateEditable" parameterType="com.nowcoder.community.market.entity.MarketListing">
+        update market_listing
+        set title = #{title},
+            description = #{description},
+            unit_price = #{unitPrice},
+            delivery_mode = #{deliveryMode},
+            stock_mode = #{stockMode},
+            min_purchase_quantity = #{minPurchaseQuantity},
+            max_purchase_quantity = #{maxPurchaseQuantity},
+            update_time = current_timestamp
+        where listing_id = #{listingId}
+          and seller_user_id = #{sellerUserId}
+    </update>
+
+    <update id="updateStatus">
+        update market_listing
+        set status = #{status},
+            update_time = current_timestamp
+        where listing_id = #{listingId}
+          and seller_user_id = #{sellerUserId}
+    </update>
+
+    <update id="adjustStock">
+        update market_listing
+        set stock_total = stock_total + #{deltaTotal},
+            stock_available = stock_available + #{deltaAvailable},
+            status = #{nextStatus},
+            update_time = current_timestamp
+        where listing_id = #{listingId}
+          and seller_user_id = #{sellerUserId}
+    </update>
+
+</mapper>

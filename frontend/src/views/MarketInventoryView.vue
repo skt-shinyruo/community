@@ -1,5 +1,5 @@
 <template>
-  <div class="page virtual-market-page">
+  <div class="page market-page">
     <UiBreadcrumb />
 
     <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
@@ -73,10 +73,10 @@ import UiCard from '../components/ui/UiCard.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import {
-  addVirtualInventory,
-  invalidateVirtualInventory,
-  listVirtualInventory
-} from '../api/services/virtualMarketService'
+  addMarketInventory,
+  invalidateMarketInventory,
+  listMarketInventory
+} from '../api/services/marketService'
 
 const route = useRoute()
 const loading = ref(false)
@@ -93,7 +93,7 @@ async function reload() {
   loading.value = true
   error.value = ''
   try {
-    const { data } = await listVirtualInventory(route.params.listingId)
+    const { data } = await listMarketInventory(route.params.listingId)
     inventory.value = Array.isArray(data) ? data : []
   } catch (e) {
     error.value = e?.message || '加载库存失败'
@@ -115,7 +115,7 @@ async function submitInventory() {
   submitting.value = true
   message.value = ''
   try {
-    await addVirtualInventory(route.params.listingId, {
+    await addMarketInventory(route.params.listingId, {
       payloadType: payloadType.value,
       payloads
     })
@@ -133,7 +133,7 @@ async function invalidateItem(inventoryUnitId) {
   submitting.value = true
   message.value = ''
   try {
-    await invalidateVirtualInventory(inventoryUnitId)
+    await invalidateMarketInventory(inventoryUnitId)
     message.value = '库存已失效。'
     await reload()
   } catch (e) {

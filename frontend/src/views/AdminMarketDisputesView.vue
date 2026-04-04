@@ -1,5 +1,5 @@
 <template>
-  <div class="page virtual-market-page">
+  <div class="page market-page">
     <UiBreadcrumb />
 
     <section class="market-hero market-hero--compact">
@@ -17,7 +17,7 @@
       <article v-for="item in state.disputes" :key="item.disputeId" class="market-admin-row">
         <div>
           <strong>争议 #{{ item.disputeId }}</strong>
-          <p>{{ item.reason }} · {{ item.statusLabel }}</p>
+          <p>{{ item.goodsTypeLabel }} · {{ item.reason }} · {{ item.statusLabel }}</p>
         </div>
         <div class="market-inline-actions">
           <UiButton variant="secondary" :disabled="submittingId === item.disputeId" @click="resolve(item.disputeId, 'refund')">
@@ -37,21 +37,21 @@ import { computed, onMounted, ref } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
-import { adminResolveVirtualDispute, listAdminVirtualDisputes } from '../api/services/virtualMarketService'
-import { buildVirtualMarketState } from './virtualMarketState'
+import { adminResolveMarketDispute, listAdminMarketDisputes } from '../api/services/marketService'
+import { buildMarketState } from './marketState'
 
 const loading = ref(false)
 const error = ref('')
 const submittingId = ref(0)
 const disputes = ref([])
 
-const state = computed(() => buildVirtualMarketState({ disputes: disputes.value }))
+const state = computed(() => buildMarketState({ disputes: disputes.value }))
 
 async function reload() {
   loading.value = true
   error.value = ''
   try {
-    const { data } = await listAdminVirtualDisputes()
+    const { data } = await listAdminMarketDisputes()
     disputes.value = Array.isArray(data) ? data : []
   } catch (e) {
     error.value = e?.message || '加载争议失败'
@@ -63,7 +63,7 @@ async function reload() {
 async function resolve(disputeId, action) {
   submittingId.value = disputeId
   try {
-    await adminResolveVirtualDispute(disputeId, action, { note: action === 'refund' ? 'refund' : 'release' })
+    await adminResolveMarketDispute(disputeId, action, { note: action === 'refund' ? 'refund' : 'release' })
     await reload()
   } catch (e) {
     error.value = e?.message || '处理争议失败'

@@ -73,7 +73,7 @@ describe('router/navigation', () => {
     expect(anonGroupKeys).toEqual(['explore', 'auth'])
 
     const explore = anon.find((g) => g.key === 'explore')
-    expect(explore?.items.map((it) => it.key)).toEqual(['posts', 'search', 'virtualMarket'])
+    expect(explore?.items.map((it) => it.key)).toEqual(['posts', 'search', 'market'])
 
     const authItem = anon.flatMap((g) => g.items).find((it) => it.key === 'login')
     expect(authItem?.activeNames || []).not.toContain('activation')
@@ -85,8 +85,9 @@ describe('router/navigation', () => {
     const me = authed.find((g) => g.key === 'me')
     expect(me?.items.map((it) => it.key)).toEqual([
       'wallet',
-      'virtualMarketBuying',
-      'virtualMarketSelling',
+      'marketBuying',
+      'marketSelling',
+      'marketAddresses',
       'bookmarks',
       'notices',
       'messages',
@@ -157,12 +158,12 @@ describe('router/navigation', () => {
     expect(pendingHydrationMe?.to).not.toEqual({ name: 'login' })
   })
 
-  it('should expose virtual market admin and market entry navigation', () => {
+  it('should expose unified market admin and market entry navigation', () => {
     const authed = getSidebarNavigation({ authed: true, userId: 8, roles: ['ROLE_ADMIN'] })
     const explore = authed.find((g) => g.key === 'explore')
     const admin = authed.find((g) => g.key === 'admin')
 
-    expect(explore?.items.some((item) => item.key === 'virtualMarket')).toBe(true)
-    expect(admin?.items.some((item) => item.key === 'adminVirtualDisputes')).toBe(true)
+    expect(explore?.items.some((item) => item.key === 'market')).toBe(true)
+    expect(admin?.items.some((item) => item.key === 'adminMarketDisputes')).toBe(true)
   })
 })

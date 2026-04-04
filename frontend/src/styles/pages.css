@@ -397,7 +397,8 @@ html[data-density='compact'] .topic-list {
   --topic-col-activity: 156px;
 }
 
-.virtual-market-page {
+.virtual-market-page,
+.market-page {
   display: flex;
   flex-direction: column;
   gap: 20px;

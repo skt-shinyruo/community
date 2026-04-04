@@ -1,7 +1,6 @@
 package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.user.api.model.UserGrowthProfileView;
 import com.nowcoder.community.user.api.model.UserProfileView;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
@@ -20,6 +19,8 @@ import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND
 
 @Service
 public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi {
+
+    private static final int LEVEL_SCORE_STEP = 100;
 
     private final UserMapper userMapper;
     private final WalletAccountQueryApi walletAccountQueryApi;
@@ -107,11 +108,6 @@ public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi
         return toProfileView(getById(userId));
     }
 
-    @Override
-    public UserGrowthProfileView getGrowthProfile(int userId) {
-        return toGrowthProfile(getById(userId));
-    }
-
     private UserSummaryView toSummaryView(User user) {
         if (user == null || user.getId() <= 0) {
             return null;
@@ -137,24 +133,9 @@ public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi
         );
     }
 
-    private UserGrowthProfileView toGrowthProfile(User user) {
-        if (user == null || user.getId() <= 0) {
-            return null;
-        }
-        return new UserGrowthProfileView(
-                user.getId(),
-                user.getUsername(),
-                user.getScore(),
-                levelForScore(user.getScore()),
-                user.getEmail(),
-                user.getStatus(),
-                user.getHeaderUrl()
-        );
-    }
-
     private int levelForScore(int score) {
         int normalizedScore = Math.max(0, score);
-        return (normalizedScore / PointsService.LEVEL_SCORE_STEP) + 1;
+        return (normalizedScore / LEVEL_SCORE_STEP) + 1;
     }
 
     private String safeTrim(String value) {

@@ -77,8 +77,8 @@ describe('authGuard', () => {
     ensureSessionReady.mockResolvedValue({ state: 'error' })
 
     const to = {
-      name: 'growthAdmin',
-      fullPath: '/admin/growth',
+      name: 'walletAdmin',
+      fullPath: '/admin/wallet',
       meta: { requiresAuth: true, roles: ['ROLE_ADMIN'] }
     }
     const result = await authGuard(to)

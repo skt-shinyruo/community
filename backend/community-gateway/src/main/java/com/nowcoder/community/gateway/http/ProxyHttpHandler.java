@@ -1,6 +1,7 @@
 package com.nowcoder.community.gateway.http;
 
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
@@ -12,6 +13,7 @@ import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
+import java.util.List;
 
 @Component
 public class ProxyHttpHandler {
@@ -22,19 +24,31 @@ public class ProxyHttpHandler {
         this.webClient = webClientBuilder.build();
     }
 
-    public Mono<ServerResponse> proxy(ServerRequest request, UpstreamRouteProperties.Route route) {
-        if (request == null || route == null || route.getUri() == null) {
+    public Mono<ServerResponse> proxy(ServerRequest request, UpstreamPool pool) {
+        if (request == null || pool == null || pool.upstreams().isEmpty()) {
             return ServerResponse.notFound().build();
         }
-        URI upstreamUri = buildTargetUri(request.exchange().getRequest(), route.getUri());
         return request.bodyToMono(byte[].class)
                 .defaultIfEmpty(new byte[0])
-                .flatMap(body -> webClient
-                        .method(request.method())
-                        .uri(upstreamUri)
-                        .headers(headers -> copyRequestHeaders(request.headers().asHttpHeaders(), headers))
-                        .body(BodyInserters.fromValue(body))
-                        .exchangeToMono(response -> toServerResponse(response.statusCode(), response.headers().asHttpHeaders(), response.bodyToMono(byte[].class).defaultIfEmpty(new byte[0]))));
+                .flatMap(body -> proxySequentially(request, pool.nextCandidates(), body, 0));
+    }
+
+    private Mono<ServerResponse> proxySequentially(ServerRequest request, List<URI> candidates, byte[] body, int index) {
+        if (request == null || candidates == null || index >= candidates.size()) {
+            return ServerResponse.status(HttpStatus.BAD_GATEWAY).build();
+        }
+        URI upstreamUri = buildTargetUri(request.exchange().getRequest(), candidates.get(index));
+        return webClient
+                .method(request.method())
+                .uri(upstreamUri)
+                .headers(headers -> copyRequestHeaders(request.headers().asHttpHeaders(), headers))
+                .body(BodyInserters.fromValue(body))
+                .exchangeToMono(response -> toServerResponse(
+                        response.statusCode(),
+                        response.headers().asHttpHeaders(),
+                        response.bodyToMono(byte[].class).defaultIfEmpty(new byte[0])
+                ))
+                .onErrorResume(ex -> proxySequentially(request, candidates, body, index + 1));
     }
 
     private static URI buildTargetUri(ServerHttpRequest request, URI baseUri) {

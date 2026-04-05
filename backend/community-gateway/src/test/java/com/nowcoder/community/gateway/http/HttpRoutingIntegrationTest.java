@@ -48,7 +48,8 @@ class HttpRoutingIntegrationTest {
     static void registerProperties(DynamicPropertyRegistry registry) {
         registry.add("gateway.http.routes[0].id", () -> "bootstrap-api");
         registry.add("gateway.http.routes[0].path-prefix", () -> "/api");
-        registry.add("gateway.http.routes[0].uri", HttpRoutingIntegrationTest::bootstrapBaseUrl);
+        registry.add("gateway.http.routes[0].uri", HttpRoutingIntegrationTest::unreachableBootstrapBaseUrl);
+        registry.add("gateway.http.routes[0].uris[0]", HttpRoutingIntegrationTest::bootstrapBaseUrl);
         registry.add("gateway.http.routes[1].id", () -> "im-core");
         registry.add("gateway.http.routes[1].path-prefix", () -> "/api/im");
         registry.add("gateway.http.routes[1].uri", HttpRoutingIntegrationTest::imBaseUrl);
@@ -95,6 +96,22 @@ class HttpRoutingIntegrationTest {
         assertThat(capture.authorization()).isEqualTo("Bearer test-token");
         assertThat(capture.traceId()).isEqualTo("abcdefabcdefabcdefabcdefabcdefab");
         assertThat(capture.traceparent()).startsWith("00-abcdefabcdefabcdefabcdefabcdefab-");
+    }
+
+    @Test
+    void shouldFailOverToNextConfiguredBootstrapUpstreamWhenFirstIsUnavailable() throws Exception {
+        BOOTSTRAP_CAPTURES.clear();
+
+        webTestClient.get()
+                .uri("/api/posts")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.upstream").isEqualTo("bootstrap");
+
+        RequestCapture capture = BOOTSTRAP_CAPTURES.poll(5, TimeUnit.SECONDS);
+        assertThat(capture).isNotNull();
+        assertThat(capture.path()).isEqualTo("/api/posts");
     }
 
     @Test
@@ -198,6 +215,10 @@ class HttpRoutingIntegrationTest {
             bootstrapServer = startServer("bootstrap", BOOTSTRAP_CAPTURES);
         }
         return "http://127.0.0.1:" + bootstrapServer.port();
+    }
+
+    private static String unreachableBootstrapBaseUrl() {
+        return "http://127.0.0.1:1";
     }
 
     private static synchronized String imBaseUrl() {

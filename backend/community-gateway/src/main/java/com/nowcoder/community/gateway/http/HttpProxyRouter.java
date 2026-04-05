@@ -27,11 +27,17 @@ public class HttpProxyRouter {
 
         Builder builder = RouterFunctions.route();
         for (UpstreamRouteProperties.Route route : routes) {
-            if (route == null || route.getUri() == null || !isPublicPrefix(route.getPathPrefix())) {
+            if (route == null || !isPublicPrefix(route.getPathPrefix())) {
+                continue;
+            }
+            UpstreamPool pool;
+            try {
+                pool = UpstreamPool.from(route);
+            } catch (IllegalArgumentException ignored) {
                 continue;
             }
             RequestPredicate predicate = pathPrefixPredicate(route.getPathPrefix());
-            builder.route(predicate, request -> proxyHttpHandler.proxy(request, route));
+            builder.route(predicate, request -> proxyHttpHandler.proxy(request, pool));
         }
         return builder.build();
     }

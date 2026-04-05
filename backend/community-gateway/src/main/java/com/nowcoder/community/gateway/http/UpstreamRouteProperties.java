@@ -20,6 +20,7 @@ public class UpstreamRouteProperties {
         private String id;
         private String pathPrefix;
         private URI uri;
+        private final List<URI> uris = new ArrayList<>();
 
         public String getId() {
             return id;
@@ -43,6 +44,10 @@ public class UpstreamRouteProperties {
 
         public void setUri(URI uri) {
             this.uri = uri;
+        }
+
+        public List<URI> getUris() {
+            return uris;
         }
     }
 }

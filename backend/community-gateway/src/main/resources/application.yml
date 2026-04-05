@@ -33,13 +33,16 @@ gateway:
     routes:
       - id: bootstrap-api
         path-prefix: /api
-        uri: ${COMMUNITY_APP_BASE_URL:http://localhost:12882}
+        uris:
+          - ${COMMUNITY_APP_BASE_URL:http://localhost:12882}
       - id: im-core
         path-prefix: /api/im
-        uri: ${IM_CORE_BASE_URL:http://localhost:18082}
+        uris:
+          - ${IM_CORE_BASE_URL:http://localhost:18082}
       - id: bootstrap-files
         path-prefix: /files
-        uri: ${COMMUNITY_APP_BASE_URL:http://localhost:12882}
+        uris:
+          - ${COMMUNITY_APP_BASE_URL:http://localhost:12882}
     rate-limit:
       enabled: true
       fail-open-on-error: true

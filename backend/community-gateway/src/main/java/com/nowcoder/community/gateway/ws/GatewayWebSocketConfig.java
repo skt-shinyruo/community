@@ -7,6 +7,7 @@ import com.nowcoder.community.gateway.shard.WorkerRegistryProperties;
 import com.nowcoder.community.gateway.security.GatewayCorsConfig;
 import com.nowcoder.community.gateway.security.GatewayCorsProperties;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Primary;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -42,6 +43,7 @@ public class GatewayWebSocketConfig {
     }
 
     @Bean
+    @Primary
     ReactorNettyWebSocketClient gatewayWebSocketClient() {
         return new ReactorNettyWebSocketClient();
     }

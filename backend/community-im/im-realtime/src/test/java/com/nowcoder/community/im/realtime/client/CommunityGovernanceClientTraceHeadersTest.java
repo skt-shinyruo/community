@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -40,7 +41,9 @@ class CommunityGovernanceClientTraceHeadersTest {
         server.start();
 
         CommunityGovernanceClient client = new CommunityGovernanceClient(
-                "http://127.0.0.1:" + server.getAddress().getPort(),
+                WebClient.builder()
+                        .baseUrl("http://127.0.0.1:" + server.getAddress().getPort())
+                        .build(),
                 1500L
         );
 
@@ -61,7 +64,7 @@ class CommunityGovernanceClientTraceHeadersTest {
     }
 
     @Test
-    void validateSendPrivateMessageShouldRetryNextBaseUrlAndPreserveTraceHeaders() throws Exception {
+    void validateSendPrivateMessageShouldForwardAuthorizationAndTraceHeaders() throws Exception {
         LinkedBlockingQueue<Map<String, String>> requests = new LinkedBlockingQueue<>();
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/api/im-governance/private-messages/validate", exchange -> {
@@ -71,10 +74,9 @@ class CommunityGovernanceClientTraceHeadersTest {
         server.start();
 
         CommunityGovernanceClient client = new CommunityGovernanceClient(
-                List.of(
-                        "http://127.0.0.1:1",
-                        "http://127.0.0.1:" + server.getAddress().getPort()
-                ),
+                WebClient.builder()
+                        .baseUrl("http://127.0.0.1:" + server.getAddress().getPort())
+                        .build(),
                 1500L
         );
 

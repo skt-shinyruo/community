@@ -1,6 +1,16 @@
 spring:
   application:
     name: im-realtime
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR:${NACOS_SERVER_ADDR:localhost:8848}}
+        service: ${IM_REALTIME_WORKER_SERVICE_ID:im-realtime-worker}
+        metadata:
+          role: ws-worker
+          wsPath: ${IM_INTERNAL_WORKER_WS_PATH:/internal/ws/im}
+          wsPort: ${SERVER_PORT:18081}
+          workerId: ${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}
   kafka:
     # Comma-separated broker list, for example kafka-1:9092,kafka-2:9092,kafka-3:9092.
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
@@ -18,7 +28,7 @@ spring:
         spring.json.add.type.headers: true
 
 server:
-  port: 18081
+  port: ${SERVER_PORT:18081}
 
 community:
   logging:
@@ -36,14 +46,10 @@ im:
       ws-path: ${IM_DIRECT_PUBLIC_WS_PATH:/ws/im}
     internal-worker:
       ws-path: ${IM_INTERNAL_WORKER_WS_PATH:/internal/ws/im}
-  core:
-    base-url: ${IM_CORE_BASE_URL:http://localhost:18082}
-    # Ordered fallback pool for IM Core replicas.
-    base-urls: ${IM_CORE_BASE_URLS:}
+  clients:
+    community-service-id: ${IM_COMMUNITY_SERVICE_ID:community-app}
+    im-core-service-id: ${IM_CORE_SERVICE_ID:im-core}
   community:
-    base-url: ${COMMUNITY_BASE_URL:http://localhost:12882}
-    # Ordered fallback pool for community-app replicas.
-    base-urls: ${COMMUNITY_BASE_URLS:}
     timeout-ms: ${IM_COMMUNITY_TIMEOUT_MS:1500}
   kafka:
     event:

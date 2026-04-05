@@ -1,13 +1,13 @@
 package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.user.api.model.UserGrowthProfileView;
 import com.nowcoder.community.user.api.model.UserProfileView;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import com.nowcoder.community.user.api.query.UserProfileQueryApi;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.mapper.UserMapper;
+import com.nowcoder.community.wallet.api.query.WalletAccountQueryApi;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -20,10 +20,14 @@ import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND
 @Service
 public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi {
 
-    private final UserMapper userMapper;
+    private static final int LEVEL_SCORE_STEP = 100;
 
-    public UserQueryService(UserMapper userMapper) {
+    private final UserMapper userMapper;
+    private final WalletAccountQueryApi walletAccountQueryApi;
+
+    public UserQueryService(UserMapper userMapper, WalletAccountQueryApi walletAccountQueryApi) {
         this.userMapper = userMapper;
+        this.walletAccountQueryApi = walletAccountQueryApi;
     }
 
     public User getById(int userId) {
@@ -104,11 +108,6 @@ public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi
         return toProfileView(getById(userId));
     }
 
-    @Override
-    public UserGrowthProfileView getGrowthProfile(int userId) {
-        return toGrowthProfile(getById(userId));
-    }
-
     private UserSummaryView toSummaryView(User user) {
         if (user == null || user.getId() <= 0) {
             return null;
@@ -128,28 +127,15 @@ public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi
                 user.getStatus(),
                 user.getCreateTime(),
                 user.getScore(),
-                levelForScore(user.getScore())
-        );
-    }
-
-    private UserGrowthProfileView toGrowthProfile(User user) {
-        if (user == null || user.getId() <= 0) {
-            return null;
-        }
-        return new UserGrowthProfileView(
-                user.getId(),
-                user.getUsername(),
-                user.getScore(),
                 levelForScore(user.getScore()),
-                user.getEmail(),
-                user.getStatus(),
-                user.getHeaderUrl()
+                walletAccountQueryApi.balanceOfUser(user.getId()),
+                walletAccountQueryApi.statusOfUser(user.getId())
         );
     }
 
     private int levelForScore(int score) {
         int normalizedScore = Math.max(0, score);
-        return (normalizedScore / PointsService.LEVEL_SCORE_STEP) + 1;
+        return (normalizedScore / LEVEL_SCORE_STEP) + 1;
     }
 
     private String safeTrim(String value) {

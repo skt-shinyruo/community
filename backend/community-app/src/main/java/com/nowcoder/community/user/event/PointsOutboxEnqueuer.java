@@ -3,10 +3,10 @@ package com.nowcoder.community.user.event;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
-import com.nowcoder.community.growth.api.action.GrowthGrantActionApi;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.user.service.PointsProjectionService;
+import com.nowcoder.community.wallet.api.action.WalletRewardActionApi;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -36,7 +36,7 @@ public class PointsOutboxEnqueuer {
     }
 
     PointsOutboxEnqueuer(ObjectMapper objectMapper, JdbcOutboxEventStore store) {
-        this(objectMapper, store, new PointsProjectionService((GrowthGrantActionApi) null));
+        this(objectMapper, store, new PointsProjectionService((WalletRewardActionApi) null));
     }
 
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT, fallbackExecution = false)

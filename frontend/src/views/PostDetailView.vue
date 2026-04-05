@@ -77,7 +77,6 @@
                   </UiUserCard>
 
                   <UiRoleBadge :user="postAuthor" size="md" />
-                  <UiBadge>LV {{ Math.floor((postAuthor?.score || 0) / 100) + 1 }}</UiBadge>
 
                   <span>发布于 {{ formatTime(post.createTime) }}</span>
                   <span v-if="Number(post.editCount || 0) > 0" :title="post.updateTime ? formatTime(post.updateTime) : ''">· 已编辑</span>

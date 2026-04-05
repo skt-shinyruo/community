@@ -3,6 +3,32 @@ function toCount(value) {
   return Number.isFinite(count) && count > 0 ? count : 0
 }
 
+export function buildProfileWalletAsset({ profile, authed, isSelf } = {}) {
+  const walletBalance = toCount(profile?.walletBalance)
+
+  if (authed && isSelf && walletBalance > 0) {
+    return {
+      valueText: `${walletBalance} 积分`,
+      chipText: `${walletBalance} 积分`,
+      description: '主页资产展示已切到钱包余额，当前展示的是你的真实钱包快照。'
+    }
+  }
+
+  if (authed && isSelf) {
+    return {
+      valueText: '以钱包页为准',
+      chipText: '钱包页为准',
+      description: '当前主页还未接入真实钱包余额，请以钱包页里的最新余额为准。'
+    }
+  }
+
+  return {
+    valueText: '暂未公开',
+    chipText: '暂未公开',
+    description: '该成员的钱包资产暂未在主页公开展示，请以后续资产页或钱包页为准。'
+  }
+}
+
 export function describeFollowStatusText({ followStatus, followStatusState = 'idle', authed, isSelf } = {}) {
   if (isSelf) return '这是你的主页'
   if (followStatus === true) return '你已关注'
@@ -25,10 +51,9 @@ export function buildCommunitySignals({
 } = {}) {
   const username = profile?.username || '该成员'
   const joined = joinedYear || '—'
-  const likeCount = toCount(profile?.likeCount)
   const followerCount = toCount(profile?.followerCount)
   const followeeCount = toCount(profile?.followeeCount)
-  const score = toCount(profile?.score)
+  const walletAsset = buildProfileWalletAsset({ profile, authed, isSelf })
 
   const statusValue = describeFollowStatusText({ followStatus, followStatusState, authed, isSelf })
 
@@ -40,10 +65,10 @@ export function buildCommunitySignals({
       text: `${username} 于 ${joined} 加入社区，当前主页优先展示公开身份与关系线索。`
     },
     {
-      key: 'impact',
-      label: '社区影响',
-      value: socialDegraded ? '统计暂不可用' : `${likeCount} 获赞`,
-      text: socialDegraded ? '社交统计暂时降级，稍后刷新后再看影响力变化。' : `当前积分 ${score} 分，获赞数反映这个成员公开内容被回应的强度。`
+      key: 'wallet',
+      label: '钱包资产',
+      value: walletAsset.valueText,
+      text: compatibleWalletText(walletAsset.description, username)
     },
     {
       key: 'network',
@@ -59,7 +84,7 @@ export function buildCommunityNextSteps({ authed, isSelf, userId } = {}) {
     return [
       { key: 'settings', label: '编辑资料', to: { name: 'settings' }, variant: 'secondary' },
       { key: 'posts', label: '回到讨论区', to: { name: 'posts' }, variant: 'ghost' },
-      { key: 'leaderboard', label: '查看排行榜', to: { name: 'leaderboard' }, variant: 'ghost' }
+      { key: 'wallet', label: '查看钱包', to: { name: 'wallet' }, variant: 'ghost' }
     ]
   }
 
@@ -68,4 +93,8 @@ export function buildCommunityNextSteps({ authed, isSelf, userId } = {}) {
     { key: 'followees', label: '查看关注', to: { name: 'followees', params: { userId: String(userId || '') } }, variant: 'ghost' },
     { key: 'followers', label: '查看粉丝', to: { name: 'followers', params: { userId: String(userId || '') } }, variant: 'ghost' }
   ]
+}
+
+function compatibleWalletText(text, username) {
+  return text.replace(/^主页资产展示/, `${username} 的主页资产展示`)
 }

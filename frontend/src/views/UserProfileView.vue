@@ -11,13 +11,13 @@
     </UiCard>
 
     <UiCard v-else class="profile-card">
-      <div class="profile-cover">
-        <div class="profile-cover-sheet">
-          <div class="profile-cover-kicker">Member Snapshot</div>
-          <div class="profile-cover-title">{{ profile?.username || `成员 ${profile?.id}` }}</div>
-          <div class="profile-cover-subtitle">关注关系、积分和公开信息会先汇总在这里，帮助你判断这个成员在社区里的存在感。</div>
+        <div class="profile-cover">
+          <div class="profile-cover-sheet">
+            <div class="profile-cover-kicker">Member Snapshot</div>
+            <div class="profile-cover-title">{{ profile?.username || `成员 ${profile?.id}` }}</div>
+            <div class="profile-cover-subtitle">关注关系、钱包资产和公开信息会先汇总在这里，帮助你判断这个成员在社区里的参与状态。</div>
+          </div>
         </div>
-      </div>
 
       <div class="profile-body">
         <div class="profile-avatar-wrapper">
@@ -73,12 +73,11 @@
             <UiRoleBadge :user="profile" size="md" />
             <span v-if="showUserLevel" class="profile-chip" title="用户等级（基于签到）">用户等级 LV {{ Number(profile?.userLevel ?? 0) }}</span>
             <span v-if="showUserLevel" class="profile-chip" title="最近签到天数">最近签到 {{ Number(profile?.signInDaysInWindow ?? 0) }} 天</span>
-            <span class="profile-chip" title="等级（基于积分）">LV {{ Number(profile?.level || 1) }}</span>
-            <span class="profile-chip" title="积分">{{ Number(profile?.score || 0) }} 分</span>
+            <span class="profile-chip" title="钱包资产">{{ walletAsset.chipText }}</span>
           </div>
           <div class="profile-meta muted">用户 ID：{{ userId }} · 加入 {{ joinedYear || '—' }}</div>
           <div class="profile-cta-row">
-            <RouterLink class="btn secondary" :to="{ name: 'leaderboard' }">查看排行榜</RouterLink>
+            <RouterLink class="btn secondary" :to="{ name: 'wallet' }">查看钱包</RouterLink>
             <RouterLink class="btn ghost" :to="{ name: 'followees', params: { userId } }">查看关注</RouterLink>
             <RouterLink class="btn ghost" :to="{ name: 'followers', params: { userId } }">查看粉丝</RouterLink>
           </div>
@@ -117,9 +116,9 @@
                 <div class="profile-summary-text">这是其他人进入你主页时看到的公开身份信息。</div>
               </div>
               <div class="profile-summary-card">
-                <div class="profile-summary-label">社区影响力</div>
-                <div class="profile-summary-value">{{ Number(profile?.score || 0) }} 分</div>
-                <div class="profile-summary-text">积分与等级共同决定你在排行榜和讨论中的可见度。</div>
+                <div class="profile-summary-label">钱包资产</div>
+                <div class="profile-summary-value">{{ walletAsset.valueText }}</div>
+                <div class="profile-summary-text">{{ walletAsset.description }}</div>
               </div>
               <div v-if="showUserLevel" class="profile-summary-card">
                 <div class="profile-summary-label">签到用户等级</div>
@@ -216,7 +215,7 @@ import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
 import UiRoleBadge from '../components/ui/UiRoleBadge.vue'
 import ReportModal from '../components/modals/ReportModal.vue'
-import { buildCommunityNextSteps, buildCommunitySignals, describeFollowStatusText } from './userProfileSurface'
+import { buildCommunityNextSteps, buildCommunitySignals, buildProfileWalletAsset, describeFollowStatusText } from './userProfileSurface'
 import { buildProfileTimeline, collectTimelineUserIds } from './userProfileTimeline'
 
 const emit = defineEmits(['trace'])
@@ -255,9 +254,15 @@ const joinedYear = computed(() => {
   const y = d.getFullYear()
   return Number.isFinite(y) ? String(y) : ''
 })
-
 const isSelfProfile = computed(() => !!meUserId.value && meUserId.value === Number(userId.value))
 const showUserLevel = computed(() => profile.value?.showUserLevel === true)
+const walletAsset = computed(() =>
+  buildProfileWalletAsset({
+    profile: profile.value,
+    authed: authed.value,
+    isSelf: isSelfProfile.value
+  })
+)
 const followStatusText = computed(() =>
   describeFollowStatusText({
     followStatus: followStatus.value,

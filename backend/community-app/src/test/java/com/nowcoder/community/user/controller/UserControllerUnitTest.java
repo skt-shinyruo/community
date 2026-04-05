@@ -1,10 +1,8 @@
 package com.nowcoder.community.user.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.growth.service.UserLevelService;
 import com.nowcoder.community.user.app.query.GetUserProfilePageQuery;
 import com.nowcoder.community.user.app.query.UserProfilePageView;
-import com.nowcoder.community.user.api.model.UserProfileView;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import com.nowcoder.community.user.dto.BatchUserSummaryRequest;
@@ -47,9 +45,6 @@ class UserControllerUnitTest {
     @Mock
     private AvatarService avatarService;
 
-    @Mock
-    private UserLevelService userLevelService;
-
     private UserController controller;
 
     @BeforeEach
@@ -58,8 +53,7 @@ class UserControllerUnitTest {
                 userLookupQueryApi,
                 getUserProfilePageQuery,
                 userService,
-                avatarService,
-                userLevelService
+                avatarService
         );
     }
 
@@ -68,9 +62,7 @@ class UserControllerUnitTest {
         Authentication authentication = authentication(42);
         Date createTime = new Date();
         when(getUserProfilePageQuery.get(authentication, 7))
-                .thenReturn(new UserProfilePageView(7, "alice", "h7", 2, 0, createTime, 250, 3, 12, 5, 8, true, false));
-        when(userLevelService.evaluateLevel(7))
-                .thenReturn(new UserLevelService.UserLevelSummary(2, 13, 100, 12, 88, true));
+                .thenReturn(new UserProfilePageView(7, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE", true, 2, 13, 12, 5, 8, true, false));
 
         Result<UserProfileResponse> result = controller.getUser(authentication, 7);
 
@@ -87,13 +79,14 @@ class UserControllerUnitTest {
         assertThat(result.getData().isUserLevelEnabled()).isTrue();
         assertThat(result.getData()).extracting("userLevel", "signInDaysInWindow")
                 .containsExactly(2, 13);
+        assertThat(result.getData().getWalletBalance()).isEqualTo(900L);
+        assertThat(result.getData().getWalletStatus()).isEqualTo("ACTIVE");
         assertThat(result.getData().getLikeCount()).isEqualTo(12);
         assertThat(result.getData().getFolloweeCount()).isEqualTo(5);
         assertThat(result.getData().getFollowerCount()).isEqualTo(8);
         assertThat(result.getData().getHasFollowed()).isTrue();
         assertThat(result.getData().isSocialDegraded()).isFalse();
         verify(getUserProfilePageQuery).get(authentication, 7);
-        verify(userLevelService).evaluateLevel(7);
     }
 
     @Test
@@ -101,9 +94,7 @@ class UserControllerUnitTest {
         Authentication authentication = authentication(42);
         Date createTime = new Date();
         when(getUserProfilePageQuery.get(authentication, 8))
-                .thenReturn(new UserProfilePageView(8, "bob", "h8", 1, 0, createTime, 99, 2, 3, 4, 5, false, false));
-        when(userLevelService.evaluateLevel(8))
-                .thenReturn(new UserLevelService.UserLevelSummary(1, 0, 100, 12, 88, false));
+                .thenReturn(new UserProfilePageView(8, "bob", "h8", 1, 0, createTime, 99, 2, 0L, "ACTIVE", false, null, null, 3, 4, 5, false, false));
 
         Result<UserProfileResponse> result = controller.getUser(authentication, 8);
 
@@ -114,8 +105,9 @@ class UserControllerUnitTest {
         assertThat(result.getData().getSignInDaysInWindow()).isNull();
         assertThat(result.getData().getLevel()).isEqualTo(2);
         assertThat(result.getData().getScore()).isEqualTo(99);
+        assertThat(result.getData().getWalletBalance()).isZero();
+        assertThat(result.getData().getWalletStatus()).isEqualTo("ACTIVE");
         verify(getUserProfilePageQuery).get(authentication, 8);
-        verify(userLevelService).evaluateLevel(8);
     }
 
     @Test

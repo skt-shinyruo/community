@@ -1,11 +1,11 @@
 package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.user.api.model.UserGrowthProfileView;
 import com.nowcoder.community.user.api.model.UserProfileView;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.mapper.UserMapper;
+import com.nowcoder.community.wallet.service.WalletAccountService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -26,9 +26,12 @@ class UserQueryServiceTest {
     @Mock
     private UserMapper userMapper;
 
+    @Mock
+    private WalletAccountService walletAccountService;
+
     @Test
     void getSummaryByIdShouldRejectNonPositiveUserId() {
-        UserQueryService service = new UserQueryService(userMapper);
+        UserQueryService service = new UserQueryService(userMapper, walletAccountService);
 
         assertThatThrownBy(() -> service.getSummaryById(0))
                 .isInstanceOf(BusinessException.class)
@@ -41,7 +44,7 @@ class UserQueryServiceTest {
 
     @Test
     void getSummaryByIdShouldReturnNullWhenUserMissing() {
-        UserQueryService service = new UserQueryService(userMapper);
+        UserQueryService service = new UserQueryService(userMapper, walletAccountService);
         when(userMapper.selectById(7)).thenReturn(null);
 
         assertThat(service.getSummaryById(7)).isNull();
@@ -49,7 +52,7 @@ class UserQueryServiceTest {
 
     @Test
     void getSummaryByUsernameShouldReturnNullWhenUserMissing() {
-        UserQueryService service = new UserQueryService(userMapper);
+        UserQueryService service = new UserQueryService(userMapper, walletAccountService);
         when(userMapper.selectByName("ghost")).thenReturn(null);
 
         assertThat(service.getSummaryByUsername("ghost")).isNull();
@@ -57,7 +60,7 @@ class UserQueryServiceTest {
 
     @Test
     void getByUsernameShouldRejectBlankUsername() {
-        UserQueryService service = new UserQueryService(userMapper);
+        UserQueryService service = new UserQueryService(userMapper, walletAccountService);
 
         assertThatThrownBy(() -> service.getByUsername("  "))
                 .isInstanceOf(BusinessException.class)
@@ -70,7 +73,7 @@ class UserQueryServiceTest {
 
     @Test
     void findSummaryByEmailOrNullShouldTrimAndDelegateToMapper() {
-        UserQueryService service = new UserQueryService(userMapper);
+        UserQueryService service = new UserQueryService(userMapper, walletAccountService);
         User user = user(9, "alice");
         user.setHeaderUrl("h1");
         user.setType(2);
@@ -89,7 +92,7 @@ class UserQueryServiceTest {
 
     @Test
     void listSummariesByIdsShouldIgnoreInvalidIdsAndProjectViews() {
-        UserQueryService service = new UserQueryService(userMapper);
+        UserQueryService service = new UserQueryService(userMapper, walletAccountService);
         when(userMapper.selectUserSummariesByIds(List.of(1, 2)))
                 .thenReturn(List.of(user(1, "alice"), user(2, "bob")));
 
@@ -99,31 +102,8 @@ class UserQueryServiceTest {
     }
 
     @Test
-    void getGrowthProfileShouldProjectScoreLevelAndUserFields() {
-        UserQueryService service = new UserQueryService(userMapper);
-        User user = user(5, "alice");
-        user.setScore(250);
-        user.setEmail("alice@example.com");
-        user.setStatus(1);
-        user.setHeaderUrl("h5");
-        when(userMapper.selectById(5)).thenReturn(user);
-
-        UserGrowthProfileView profile = service.getGrowthProfile(5);
-
-        assertThat(profile).extracting(
-                UserGrowthProfileView::userId,
-                UserGrowthProfileView::username,
-                UserGrowthProfileView::score,
-                UserGrowthProfileView::level,
-                UserGrowthProfileView::email,
-                UserGrowthProfileView::status,
-                UserGrowthProfileView::headerUrl
-        ).containsExactly(5, "alice", 250, 3, "alice@example.com", 1, "h5");
-    }
-
-    @Test
     void getProfileShouldProjectFullProfileView() {
-        UserQueryService service = new UserQueryService(userMapper);
+        UserQueryService service = new UserQueryService(userMapper, walletAccountService);
         User user = user(6, "bob");
         Date createTime = new Date();
         user.setHeaderUrl("h6");
@@ -132,6 +112,8 @@ class UserQueryServiceTest {
         user.setScore(120);
         user.setCreateTime(createTime);
         when(userMapper.selectById(6)).thenReturn(user);
+        when(walletAccountService.balanceOfUser(6)).thenReturn(360L);
+        when(walletAccountService.statusOfUser(6)).thenReturn("ACTIVE");
 
         UserProfileView profile = service.getProfile(6);
 
@@ -143,8 +125,10 @@ class UserQueryServiceTest {
                 UserProfileView::status,
                 UserProfileView::createTime,
                 UserProfileView::score,
-                UserProfileView::level
-        ).containsExactly(6, "bob", "h6", 2, 1, createTime, 120, 2);
+                UserProfileView::level,
+                UserProfileView::walletBalance,
+                UserProfileView::walletStatus
+        ).containsExactly(6, "bob", "h6", 2, 1, createTime, 120, 2, 360L, "ACTIVE");
     }
 
     private User user(int id, String username) {

@@ -98,7 +98,7 @@ describe('UserProfileView route contract', () => {
     expect(UserProfileView.props.userId).toBeTruthy()
   })
 
-  it('hides sign-in user-level ui and keeps legacy score/level when new fields are absent', async () => {
+  it('hides sign-in user-level ui and falls back to wallet-oriented public profile copy when new fields are absent', async () => {
     const wrapper = mount(UserProfileView, {
       props: {
         userId: '7'
@@ -117,10 +117,12 @@ describe('UserProfileView route contract', () => {
     await flushPromises()
     await flushPromises()
 
-    expect(wrapper.text()).toContain('LV 3')
-    expect(wrapper.text()).toContain('250 分')
+    expect(wrapper.text()).toContain('钱包资产')
+    expect(wrapper.text()).toContain('暂未公开')
     expect(wrapper.text()).not.toContain('用户等级 LV')
     expect(wrapper.text()).not.toContain('签到用户等级')
+    expect(wrapper.text()).not.toContain('250 分')
+    expect(wrapper.text()).not.toContain('LV 3')
     expect(wrapper.text()).not.toContain('NaN')
   })
 })

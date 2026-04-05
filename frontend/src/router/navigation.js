@@ -157,11 +157,11 @@ const NAV_DEFS = Object.freeze([
         activeNames: ['search']
       },
       {
-        key: 'leaderboard',
-        label: '排行榜',
-        icon: 'trophy',
-        to: () => ({ name: 'leaderboard' }),
-        activeNames: ['leaderboard']
+        key: 'market',
+        label: '市场',
+        icon: 'sparkle',
+        to: () => ({ name: 'market' }),
+        activeNames: ['market', 'marketDetail']
       }
     ]
   },
@@ -170,20 +170,36 @@ const NAV_DEFS = Object.freeze([
     title: '我的',
     items: [
       {
-        key: 'growth',
-        label: '成长中心',
+        key: 'wallet',
+        label: '积分钱包',
         icon: 'sparkle',
         requiresAuth: true,
-        to: () => ({ name: 'growthCenter' }),
-        activeNames: ['growthCenter']
+        to: () => ({ name: 'wallet' }),
+        activeNames: ['wallet']
       },
       {
-        key: 'rewardShop',
-        label: '奖励商城',
-        icon: 'gift',
+        key: 'marketBuying',
+        label: '我的购买',
+        icon: 'bookmark',
         requiresAuth: true,
-        to: () => ({ name: 'rewardShop' }),
-        activeNames: ['rewardShop', 'rewardOrders']
+        to: () => ({ name: 'marketBuyingOrders' }),
+        activeNames: ['marketBuyingOrders', 'marketOrderDetail']
+      },
+      {
+        key: 'marketSelling',
+        label: '我的出售',
+        icon: 'analytics',
+        requiresAuth: true,
+        to: () => ({ name: 'marketSellingOrders' }),
+        activeNames: ['marketSellingOrders', 'marketPublish', 'marketMyListings', 'marketInventory']
+      },
+      {
+        key: 'marketAddresses',
+        label: '收货地址',
+        icon: 'bookmark',
+        requiresAuth: true,
+        to: () => ({ name: 'marketAddresses' }),
+        activeNames: ['marketAddresses']
       },
       {
         key: 'bookmarks',
@@ -251,22 +267,22 @@ const NAV_DEFS = Object.freeze([
         activeNames: ['analytics']
       },
       {
-        key: 'growthAdmin',
-        label: '成长账户',
+        key: 'walletAdmin',
+        label: '钱包后台',
         icon: 'analytics',
         requiresAuth: true,
         roles: ['ROLE_ADMIN'],
-        to: () => ({ name: 'growthAdmin' }),
-        activeNames: ['growthAdmin']
+        to: () => ({ name: 'walletAdmin' }),
+        activeNames: ['walletAdmin']
       },
       {
-        key: 'rewardOps',
-        label: '奖励运营',
-        icon: 'gift',
+        key: 'adminMarketDisputes',
+        label: '争议裁定',
+        icon: 'shield',
         requiresAuth: true,
         roles: ['ROLE_ADMIN'],
-        to: () => ({ name: 'rewardOps' }),
-        activeNames: ['rewardOps']
+        to: () => ({ name: 'adminMarketDisputes' }),
+        activeNames: ['adminMarketDisputes']
       }
     ]
   },
@@ -347,21 +363,21 @@ export function getMobileNavigation(ctx = {}) {
     to: { name: 'search' },
     activeNames: ['search']
   }
+  const wallet = findNavItem(groups, 'wallet') || {
+    key: 'wallet',
+    label: '积分钱包',
+    icon: 'sparkle',
+    to: { name: 'wallet' },
+    activeNames: ['wallet']
+  }
   const profile = findNavItem(groups, 'profile')
   const login = findNavItem(groups, 'login')
   const firstMeItem = Array.isArray(meGroup?.items) ? meGroup.items[0] || null : null
-  const leaderboard = findNavItem(groups, 'leaderboard') || {
-    key: 'leaderboard',
-    label: '排行榜',
-    icon: 'trophy',
-    to: { name: 'leaderboard' },
-    activeNames: ['leaderboard']
-  }
   const meActiveNames = collectActiveNames([
-    ...((meGroupDef && meGroupDef.items) || []),
+    ...(((meGroupDef && meGroupDef.items) || []).filter((item) => item?.key !== 'wallet')),
     ...((authGroupDef && authGroupDef.items) || [])
   ])
-  const moreActiveNames = collectActiveNames([leaderboard])
+  const moreActiveNames = collectActiveNames([wallet])
 
   const me = {
     key: 'me',
@@ -372,10 +388,9 @@ export function getMobileNavigation(ctx = {}) {
   }
   const more = {
     key: 'more',
-    label: '更多',
-    // MobileNav currently renders only a small fixed icon set; reuse a supported icon until it gets a dedicated "more" glyph.
-    icon: 'messages',
-    to: leaderboard.to || { name: 'leaderboard' },
+    label: '钱包',
+    icon: 'more',
+    to: wallet.to || { name: 'wallet' },
     activeNames: moreActiveNames
   }
 

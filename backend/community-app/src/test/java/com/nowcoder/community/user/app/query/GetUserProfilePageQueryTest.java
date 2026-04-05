@@ -3,6 +3,8 @@ package com.nowcoder.community.user.app.query;
 import com.nowcoder.community.content.api.model.PostSummaryView;
 import com.nowcoder.community.content.api.model.RecentUserCommentView;
 import com.nowcoder.community.content.api.query.PostReadQueryApi;
+import com.nowcoder.community.growth.api.model.UserLevelSummaryView;
+import com.nowcoder.community.growth.api.query.UserLevelQueryApi;
 import com.nowcoder.community.user.api.model.UserProfileView;
 import com.nowcoder.community.user.api.query.UserProfileQueryApi;
 import com.nowcoder.community.user.service.UserSocialProfileService;
@@ -26,14 +28,18 @@ class GetUserProfilePageQueryTest {
         UserProfileQueryApi userProfileQueryApi = mock(UserProfileQueryApi.class);
         UserSocialProfileService userSocialProfileService = mock(UserSocialProfileService.class);
         PostReadQueryApi postReadQueryApi = mock(PostReadQueryApi.class);
+        UserLevelQueryApi userLevelQueryApi = mock(UserLevelQueryApi.class);
         GetUserProfilePageQuery query = new GetUserProfilePageQuery(
                 userProfileQueryApi,
                 userSocialProfileService,
-                postReadQueryApi
+                postReadQueryApi,
+                userLevelQueryApi
         );
         Date createTime = new Date();
         when(userProfileQueryApi.getProfile(7))
-                .thenReturn(new UserProfileView(7, "alice", "h7", 2, 0, createTime, 250, 3));
+                .thenReturn(new UserProfileView(7, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
+        when(userLevelQueryApi.evaluateLevel(7))
+                .thenReturn(new UserLevelSummaryView(2, 13, 100, 12, 88, true));
         UserSocialProfileService.UserProfileStats stats = new UserSocialProfileService.UserProfileStats();
         stats.setLikeCount(12);
         stats.setFolloweeCount(5);
@@ -51,6 +57,11 @@ class GetUserProfilePageQueryTest {
         assertThat(page.createTime()).isEqualTo(createTime);
         assertThat(page.score()).isEqualTo(250);
         assertThat(page.level()).isEqualTo(3);
+        assertThat(page.walletBalance()).isEqualTo(900L);
+        assertThat(page.walletStatus()).isEqualTo("ACTIVE");
+        assertThat(page.userLevelEnabled()).isTrue();
+        assertThat(page.userLevel()).isEqualTo(2);
+        assertThat(page.signInDaysInWindow()).isEqualTo(13);
         assertThat(page.likeCount()).isEqualTo(12);
         assertThat(page.followeeCount()).isEqualTo(5);
         assertThat(page.followerCount()).isEqualTo(8);
@@ -65,14 +76,18 @@ class GetUserProfilePageQueryTest {
         UserProfileQueryApi userProfileQueryApi = mock(UserProfileQueryApi.class);
         UserSocialProfileService userSocialProfileService = mock(UserSocialProfileService.class);
         PostReadQueryApi postReadQueryApi = mock(PostReadQueryApi.class);
+        UserLevelQueryApi userLevelQueryApi = mock(UserLevelQueryApi.class);
         GetUserProfilePageQuery query = new GetUserProfilePageQuery(
                 userProfileQueryApi,
                 userSocialProfileService,
-                postReadQueryApi
+                postReadQueryApi,
+                userLevelQueryApi
         );
         Date createTime = new Date();
         when(userProfileQueryApi.getProfile(7))
-                .thenReturn(new UserProfileView(7, "alice", "h7", 2, 0, createTime, 250, 3));
+                .thenReturn(new UserProfileView(7, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
+        when(userLevelQueryApi.evaluateLevel(7))
+                .thenReturn(new UserLevelSummaryView(2, 13, 100, 12, 88, true));
         UserSocialProfileService.UserProfileStats stats = new UserSocialProfileService.UserProfileStats();
         stats.setLikeCount(12);
         stats.setFolloweeCount(5);
@@ -93,16 +108,18 @@ class GetUserProfilePageQueryTest {
         UserProfileQueryApi userProfileQueryApi = mock(UserProfileQueryApi.class);
         UserSocialProfileService userSocialProfileService = mock(UserSocialProfileService.class);
         PostReadQueryApi postReadQueryApi = mock(PostReadQueryApi.class);
+        UserLevelQueryApi userLevelQueryApi = mock(UserLevelQueryApi.class);
         GetUserProfilePageQuery query = new GetUserProfilePageQuery(
                 userProfileQueryApi,
                 userSocialProfileService,
-                postReadQueryApi
+                postReadQueryApi,
+                userLevelQueryApi
         );
         Date createTime = new Date();
         Date lastReplyTime = new Date(createTime.getTime() + 1_000);
         Date lastActivityTime = new Date(createTime.getTime() + 2_000);
         when(userProfileQueryApi.getProfile(7))
-                .thenReturn(new UserProfileView(7, "alice", "h7", 2, 0, createTime, 250, 3));
+                .thenReturn(new UserProfileView(7, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
         when(postReadQueryApi.listPostsByUser(7, 1, 5)).thenReturn(List.of(new PostSummaryView(
                 11,
                 7,
@@ -147,14 +164,16 @@ class GetUserProfilePageQueryTest {
         UserProfileQueryApi userProfileQueryApi = mock(UserProfileQueryApi.class);
         UserSocialProfileService userSocialProfileService = mock(UserSocialProfileService.class);
         PostReadQueryApi postReadQueryApi = mock(PostReadQueryApi.class);
+        UserLevelQueryApi userLevelQueryApi = mock(UserLevelQueryApi.class);
         GetUserProfilePageQuery query = new GetUserProfilePageQuery(
                 userProfileQueryApi,
                 userSocialProfileService,
-                postReadQueryApi
+                postReadQueryApi,
+                userLevelQueryApi
         );
         Date createTime = new Date();
         when(userProfileQueryApi.getProfile(7))
-                .thenReturn(new UserProfileView(7, "alice", "h7", 2, 0, createTime, 250, 3));
+                .thenReturn(new UserProfileView(7, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
         when(postReadQueryApi.listRecentCommentsByUser(7, 2, 10)).thenReturn(List.of(new RecentUserCommentView(
                 21,
                 7,

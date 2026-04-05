@@ -73,7 +73,7 @@ describe('router/navigation', () => {
     expect(anonGroupKeys).toEqual(['explore', 'auth'])
 
     const explore = anon.find((g) => g.key === 'explore')
-    expect(explore?.items.map((it) => it.key)).toEqual(['posts', 'search', 'leaderboard'])
+    expect(explore?.items.map((it) => it.key)).toEqual(['posts', 'search', 'market'])
 
     const authItem = anon.flatMap((g) => g.items).find((it) => it.key === 'login')
     expect(authItem?.activeNames || []).not.toContain('activation')
@@ -84,8 +84,10 @@ describe('router/navigation', () => {
 
     const me = authed.find((g) => g.key === 'me')
     expect(me?.items.map((it) => it.key)).toEqual([
-      'growth',
-      'rewardShop',
+      'wallet',
+      'marketBuying',
+      'marketSelling',
+      'marketAddresses',
       'bookmarks',
       'notices',
       'messages',
@@ -102,7 +104,7 @@ describe('router/navigation', () => {
     const allItems = nav.flatMap((g) => g.items)
 
     const posts = allItems.find((it) => it.key === 'posts')
-    const rewardShop = allItems.find((it) => it.key === 'rewardShop')
+    const wallet = allItems.find((it) => it.key === 'wallet')
     const notices = allItems.find((it) => it.key === 'notices')
     const messages = allItems.find((it) => it.key === 'messages')
     const profile = allItems.find((it) => it.key === 'profile')
@@ -111,29 +113,28 @@ describe('router/navigation', () => {
     expect(isNavItemActive({ name: 'posts', query: { type: 'top' } }, posts)).toBe(true)
     expect(isNavItemActive({ name: 'posts', query: { subscribed: '1' } }, posts)).toBe(true)
     expect(isNavItemActive({ name: 'postDetail', query: { type: 'top' } }, posts)).toBe(true)
-    expect(isNavItemActive({ name: 'rewardOrders' }, rewardShop)).toBe(true)
+    expect(isNavItemActive({ name: 'wallet' }, wallet)).toBe(true)
     expect(isNavItemActive({ name: 'noticeDetail' }, notices)).toBe(true)
     expect(isNavItemActive({ name: 'messageDetail' }, messages)).toBe(true)
     expect(isNavItemActive({ name: 'followees' }, profile)).toBe(true)
     expect(isNavItemActive({ name: 'followers' }, profile)).toBe(true)
   })
 
-  it('getMobileNavigation should expose the fixed posts-search-me-more contract', () => {
+  it('getMobileNavigation should keep wallet visible while removing growth and leaderboard shortcuts', () => {
     const anon = getMobileNavigation({ authed: false })
     expect(anon.map((it) => it.key)).toEqual(['posts', 'search', 'me', 'more'])
 
     const anonMe = anon.find((it) => it.key === 'me')
     const anonMore = anon.find((it) => it.key === 'more')
     expect(anonMe?.to).toEqual({ name: 'login' })
-    expect(anonMore?.to).toEqual({ name: 'leaderboard' })
-    expect(anonMore?.icon).toBe('messages')
+    expect(anonMore?.to).toEqual({ name: 'wallet' })
     expect(isNavItemActive({ name: 'login' }, anonMe)).toBe(true)
     expect(isNavItemActive({ name: 'register' }, anonMe)).toBe(true)
-    expect(isNavItemActive({ name: 'rewardOrders' }, anonMe)).toBe(true)
+    expect(isNavItemActive({ name: 'wallet' }, anonMore)).toBe(true)
     expect(isNavItemActive({ name: 'messageDetail' }, anonMe)).toBe(true)
     expect(isNavItemActive({ name: 'followers' }, anonMe)).toBe(true)
     expect(isNavItemActive({ name: 'leaderboard' }, anonMe)).toBe(false)
-    expect(isNavItemActive({ name: 'leaderboard' }, anonMore)).toBe(true)
+    expect(isNavItemActive({ name: 'leaderboard' }, anonMore)).toBe(false)
 
     const authed = getMobileNavigation({ authed: true, userId: 8 })
     expect(authed.map((it) => it.key)).toEqual(['posts', 'search', 'me', 'more'])
@@ -142,9 +143,8 @@ describe('router/navigation', () => {
     const authedMe = authed.find((it) => it.key === 'me')
     const authedMore = authed.find((it) => it.key === 'more')
     expect(authedMe?.to).toEqual({ name: 'userProfile', params: { userId: '8' } })
-    expect(authedMore?.to).toEqual({ name: 'leaderboard' })
-    expect(authedMore?.icon).toBe('messages')
-    expect(isNavItemActive({ name: 'rewardOrders' }, authedMe)).toBe(true)
+    expect(authedMore?.to).toEqual({ name: 'wallet' })
+    expect(isNavItemActive({ name: 'wallet' }, authedMore)).toBe(true)
     expect(isNavItemActive({ name: 'messageDetail' }, authedMe)).toBe(true)
     expect(isNavItemActive({ name: 'followers' }, authedMe)).toBe(true)
     expect(isNavItemActive({ name: 'leaderboard' }, authedMe)).toBe(false)
@@ -154,7 +154,16 @@ describe('router/navigation', () => {
     expect(authedWithoutUserId.map((it) => it.key)).toEqual(['posts', 'search', 'me', 'more'])
 
     const pendingHydrationMe = authedWithoutUserId.find((it) => it.key === 'me')
-    expect(pendingHydrationMe?.to).toEqual({ name: 'growthCenter' })
+    expect(pendingHydrationMe?.to).toEqual({ name: 'wallet' })
     expect(pendingHydrationMe?.to).not.toEqual({ name: 'login' })
+  })
+
+  it('should expose unified market admin and market entry navigation', () => {
+    const authed = getSidebarNavigation({ authed: true, userId: 8, roles: ['ROLE_ADMIN'] })
+    const explore = authed.find((g) => g.key === 'explore')
+    const admin = authed.find((g) => g.key === 'admin')
+
+    expect(explore?.items.some((item) => item.key === 'market')).toBe(true)
+    expect(admin?.items.some((item) => item.key === 'adminMarketDisputes')).toBe(true)
   })
 })

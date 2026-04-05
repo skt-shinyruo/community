@@ -2,7 +2,7 @@ package com.nowcoder.community.growth.service;
 
 import com.nowcoder.community.growth.api.action.GrowthGrantActionApi;
 import com.nowcoder.community.growth.mapper.RewardGrantRecordMapper;
-import com.nowcoder.community.user.api.action.UserPointsActionApi;
+import com.nowcoder.community.wallet.api.action.WalletRewardActionApi;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,18 +15,15 @@ public class UnifiedGrantService implements GrowthGrantActionApi {
     private static final String POINTS_SOURCE_MODULE = "points";
     private static final String POINTS_PROJECTION_REMARK = "points-projection";
 
-    private final UserPointsActionApi userPointsActionApi;
-    private final RewardAccountService rewardAccountService;
     private final RewardGrantRecordMapper rewardGrantRecordMapper;
+    private final WalletRewardActionApi walletRewardActionApi;
 
     public UnifiedGrantService(
-            UserPointsActionApi userPointsActionApi,
-            RewardAccountService rewardAccountService,
-            RewardGrantRecordMapper rewardGrantRecordMapper
+            RewardGrantRecordMapper rewardGrantRecordMapper,
+            WalletRewardActionApi walletRewardActionApi
     ) {
-        this.userPointsActionApi = userPointsActionApi;
-        this.rewardAccountService = rewardAccountService;
         this.rewardGrantRecordMapper = rewardGrantRecordMapper;
+        this.walletRewardActionApi = walletRewardActionApi;
     }
 
     @Transactional
@@ -72,11 +69,9 @@ public class UnifiedGrantService implements GrowthGrantActionApi {
             return false;
         }
 
-        if (growthDelta != 0) {
-            userPointsActionApi.applyPoints(userId, grantId, grantType, growthDelta);
-        }
-        if (rewardDelta != 0) {
-            rewardAccountService.applyAvailableDelta(userId, grantId, grantType, rewardDelta, sourceModule, remark);
+        long walletDelta = (long) growthDelta + rewardDelta;
+        if (walletDelta != 0) {
+            walletRewardActionApi.applyDelta(grantId, userId, walletDelta, grantType);
         }
 
         return true;

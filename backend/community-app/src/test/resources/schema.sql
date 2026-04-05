@@ -48,6 +48,238 @@ create table if not exists reward_ledger (
   constraint uk_reward_ledger_event_id unique (event_id)
 );
 
+create table if not exists wallet_account (
+  account_id bigint auto_increment primary key,
+  owner_type varchar(32) not null,
+  owner_id bigint not null,
+  account_type varchar(32) not null,
+  balance bigint not null default 0,
+  status varchar(16) not null,
+  version bigint not null default 0,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  constraint uk_wallet_account_owner unique (owner_type, owner_id, account_type)
+);
+
+create table if not exists wallet_txn (
+  txn_id bigint auto_increment primary key,
+  request_id varchar(96) not null,
+  txn_type varchar(32) not null,
+  biz_type varchar(32) not null,
+  biz_id varchar(96) not null,
+  status varchar(16) not null,
+  amount bigint not null,
+  remark varchar(255) default null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  constraint uk_wallet_txn_request unique (request_id)
+);
+
+create table if not exists wallet_entry (
+  entry_id bigint auto_increment primary key,
+  txn_id bigint not null,
+  account_id bigint not null,
+  direction varchar(8) not null,
+  amount bigint not null,
+  balance_after bigint not null,
+  create_time timestamp null default current_timestamp
+);
+
+create index if not exists idx_wallet_entry_txn on wallet_entry(txn_id);
+create index if not exists idx_wallet_entry_account_time on wallet_entry(account_id, create_time);
+
+create table if not exists recharge_order (
+  order_id bigint auto_increment primary key,
+  request_id varchar(96) not null,
+  user_id bigint not null,
+  amount bigint not null,
+  status varchar(16) not null,
+  channel varchar(32) default null,
+  channel_order_id varchar(96) default null,
+  remark varchar(255) default null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  constraint uk_recharge_order_request unique (request_id)
+);
+
+create index if not exists idx_recharge_order_user_time on recharge_order(user_id, create_time);
+
+create table if not exists withdraw_order (
+  order_id bigint auto_increment primary key,
+  request_id varchar(96) not null,
+  user_id bigint not null,
+  amount bigint not null,
+  status varchar(16) not null,
+  payee_account varchar(128) default null,
+  failure_reason varchar(255) default null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  constraint uk_withdraw_order_request unique (request_id)
+);
+
+create index if not exists idx_withdraw_order_user_time on withdraw_order(user_id, create_time);
+
+create table if not exists transfer_order (
+  order_id bigint auto_increment primary key,
+  request_id varchar(96) not null,
+  from_user_id bigint not null,
+  to_user_id bigint not null,
+  amount bigint not null,
+  status varchar(16) not null,
+  remark varchar(255) default null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  constraint uk_transfer_order_request unique (request_id)
+);
+
+create index if not exists idx_transfer_order_from_user_time on transfer_order(from_user_id, create_time);
+create index if not exists idx_transfer_order_to_user_time on transfer_order(to_user_id, create_time);
+
+create table if not exists wallet_admin_action (
+  action_id bigint auto_increment primary key,
+  request_id varchar(96) not null,
+  actor_user_id bigint not null,
+  target_account_id bigint not null,
+  action_type varchar(32) not null,
+  amount bigint not null,
+  remark varchar(255) default null,
+  create_time timestamp null default current_timestamp,
+  constraint uk_wallet_admin_action_request unique (request_id)
+);
+
+create index if not exists idx_wallet_admin_action_target_time on wallet_admin_action(target_account_id, create_time);
+
+create table if not exists market_listing (
+  listing_id bigint auto_increment primary key,
+  seller_user_id int not null,
+  goods_type varchar(16) not null,
+  title varchar(128) not null,
+  description varchar(1000) not null,
+  unit_price bigint not null,
+  delivery_mode varchar(16) default null,
+  stock_mode varchar(16) default null,
+  stock_total int not null,
+  stock_available int not null,
+  min_purchase_quantity int not null,
+  max_purchase_quantity int not null,
+  status varchar(16) not null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp
+);
+
+create index if not exists idx_market_listing_seller_time on market_listing(seller_user_id, create_time);
+
+create table if not exists market_inventory_unit (
+  inventory_unit_id bigint auto_increment primary key,
+  listing_id bigint not null,
+  seller_user_id int not null,
+  payload_type varchar(16) not null,
+  payload_content varchar(4000) not null,
+  status varchar(16) not null,
+  reserved_order_id bigint default null,
+  delivered_at timestamp null default null,
+  create_time timestamp null default current_timestamp
+);
+
+create index if not exists idx_market_inventory_listing_status on market_inventory_unit(listing_id, status, inventory_unit_id);
+
+create table if not exists market_delivery (
+  delivery_id bigint auto_increment primary key,
+  order_id bigint not null,
+  seller_user_id int not null,
+  delivery_type varchar(32) not null,
+  delivery_content varchar(8000) not null,
+  status varchar(16) not null,
+  delivered_at timestamp null default null,
+  create_time timestamp null default current_timestamp
+);
+
+create index if not exists idx_market_delivery_order on market_delivery(order_id, delivery_id);
+
+create table if not exists market_order (
+  order_id bigint auto_increment primary key,
+  request_id varchar(96) not null,
+  listing_id bigint not null,
+  goods_type varchar(16) not null,
+  seller_user_id int not null,
+  buyer_user_id int not null,
+  quantity int not null,
+  unit_price_snapshot bigint not null,
+  total_amount bigint not null,
+  delivery_mode_snapshot varchar(16) default null,
+  listing_title_snapshot varchar(128) not null,
+  status varchar(16) not null,
+  escrow_txn_id bigint default null,
+  release_txn_id bigint default null,
+  refund_txn_id bigint default null,
+  auto_confirm_at timestamp null default null,
+  receiver_name_snapshot varchar(64) default null,
+  receiver_phone_snapshot varchar(32) default null,
+  province_snapshot varchar(64) default null,
+  city_snapshot varchar(64) default null,
+  district_snapshot varchar(64) default null,
+  detail_address_snapshot varchar(255) default null,
+  postal_code_snapshot varchar(16) default null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  constraint uk_market_order_request unique (request_id)
+);
+
+create index if not exists idx_market_order_buyer_time on market_order(buyer_user_id, create_time);
+create index if not exists idx_market_order_seller_time on market_order(seller_user_id, create_time);
+create index if not exists idx_market_order_listing_status on market_order(listing_id, status);
+create index if not exists idx_market_order_auto_confirm on market_order(status, auto_confirm_at);
+
+create table if not exists market_dispute (
+  dispute_id bigint auto_increment primary key,
+  order_id bigint not null,
+  goods_type varchar(16) not null,
+  buyer_user_id int not null,
+  seller_user_id int not null,
+  status varchar(32) not null,
+  reason varchar(255) not null,
+  buyer_note varchar(1000) default null,
+  seller_note varchar(1000) default null,
+  resolution_type varchar(16) default null,
+  resolved_by int default null,
+  resolved_at timestamp null default null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp
+);
+
+create index if not exists idx_market_dispute_order_status on market_dispute(order_id, status);
+
+create table if not exists market_address (
+  address_id bigint auto_increment primary key,
+  user_id int not null,
+  receiver_name varchar(64) not null,
+  receiver_phone varchar(32) not null,
+  province varchar(64) not null,
+  city varchar(64) not null,
+  district varchar(64) not null,
+  detail_address varchar(255) not null,
+  postal_code varchar(16) default null,
+  is_default boolean not null default false,
+  status varchar(16) not null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp
+);
+
+create index if not exists idx_market_address_user_status on market_address(user_id, status, is_default, address_id);
+
+create table if not exists market_shipment (
+  shipment_id bigint auto_increment primary key,
+  order_id bigint not null,
+  seller_user_id int not null,
+  carrier_name varchar(64) not null,
+  tracking_no varchar(128) not null,
+  shipping_remark varchar(1000) default null,
+  shipped_at timestamp null default current_timestamp,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  constraint uk_market_shipment_order unique (order_id)
+);
+
 create table if not exists reward_grant_record (
   id bigint auto_increment primary key,
   grant_id varchar(64) not null,
@@ -62,15 +294,6 @@ create table if not exists reward_grant_record (
   constraint uk_reward_grant_id unique (grant_id)
 );
 
-create table if not exists growth_check_in (
-  id bigint auto_increment primary key,
-  user_id int not null,
-  biz_date date not null,
-  streak_count int not null,
-  create_time timestamp default current_timestamp,
-  constraint uk_growth_check_in_user_date unique (user_id, biz_date)
-);
-
 create table if not exists user_level_rule_config (
   id bigint primary key,
   window_days int not null,
@@ -80,7 +303,6 @@ create table if not exists user_level_rule_config (
   updated_by int,
   update_time timestamp default current_timestamp
 );
-
 create table if not exists task_template (
   task_code varchar(64) primary key,
   task_type varchar(32) not null,
@@ -120,58 +342,6 @@ create table if not exists user_task_event_log (
   source_event_id varchar(64) not null,
   create_time timestamp default current_timestamp,
   constraint uk_user_task_event unique (user_id, task_code, period_key, source_event_id)
-);
-
-create table if not exists admin_reward_adjustment (
-  id bigint auto_increment primary key,
-  actor_user_id int not null,
-  target_user_id int not null,
-  asset_type varchar(32) not null,
-  delta int not null,
-  before_value int not null,
-  after_value int not null,
-  reason varchar(255) not null,
-  confirm_token varchar(64),
-  create_time timestamp default current_timestamp
-);
-
-create table if not exists admin_reward_order_action (
-  id bigint auto_increment primary key,
-  order_id bigint not null,
-  actor_user_id int not null,
-  action varchar(16) not null,
-  from_status varchar(16) not null,
-  to_status varchar(16) not null,
-  note varchar(255) not null,
-  create_time timestamp default current_timestamp
-);
-
-create table if not exists reward_item (
-  id bigint auto_increment primary key,
-  item_name varchar(128) not null,
-  item_desc varchar(255),
-  cost_balance int not null,
-  stock int not null,
-  per_user_limit int not null default 0,
-  fulfillment_mode varchar(16) not null,
-  status varchar(16) not null,
-  create_time timestamp default current_timestamp,
-  update_time timestamp default current_timestamp
-);
-
-create table if not exists reward_order (
-  id bigint auto_increment primary key,
-  redeem_request_id varchar(64) not null,
-  user_id int not null,
-  item_id bigint not null,
-  status varchar(16) not null,
-  cost_balance_snapshot int not null,
-  fulfillment_mode_snapshot varchar(16) not null,
-  item_name_snapshot varchar(128) not null,
-  item_desc_snapshot varchar(255),
-  create_time timestamp default current_timestamp,
-  update_time timestamp default current_timestamp,
-  constraint uk_reward_order_user_request unique (user_id, redeem_request_id)
 );
 
 create table if not exists user_consumed_event (
@@ -322,10 +492,7 @@ create index if not exists idx_outbox_status_created on outbox_event(status, cre
 delete from user_score_log;
 delete from reward_ledger;
 delete from reward_grant_record;
-delete from admin_reward_adjustment;
-delete from admin_reward_order_action;
 delete from reward_account;
-delete from growth_check_in;
 delete from user_task_progress;
 delete from user_consumed_event;
 delete from auth_refresh_token;

@@ -1,7 +1,6 @@
 package com.nowcoder.community.user.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.growth.service.UserLevelService;
 import com.nowcoder.community.user.app.query.GetUserProfilePageQuery;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import com.nowcoder.community.user.dto.AvatarUploadTokenResponse;
@@ -38,8 +37,7 @@ class UserControllerLoggingTest {
                 mock(UserLookupQueryApi.class),
                 mock(GetUserProfilePageQuery.class),
                 userService,
-                avatarService,
-                mock(UserLevelService.class)
+                avatarService
         );
     }
 

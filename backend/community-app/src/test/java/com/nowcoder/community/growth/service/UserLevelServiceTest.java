@@ -30,7 +30,7 @@ class UserLevelServiceTest {
     @BeforeEach
     void setUp() {
         jdbcTemplate.update("delete from user_level_rule_config");
-        jdbcTemplate.update("delete from growth_check_in");
+        jdbcTemplate.update("delete from user_task_progress");
     }
 
     @Test
@@ -38,7 +38,7 @@ class UserLevelServiceTest {
         LocalDate bizDate = LocalDate.of(2026, 4, 2);
         insertCheckIns(7, bizDate, 12);
 
-        UserLevelService.UserLevelSummary summary = service.evaluateLevel(7, bizDate);
+        UserLevelService.UserLevelSummary summary = service.evaluateLevelSummary(7, bizDate);
 
         assertThat(summary.enabled()).isTrue();
         assertThat(summary.windowDays()).isEqualTo(100);
@@ -54,7 +54,7 @@ class UserLevelServiceTest {
         insertCheckIns(8, bizDate.minusDays(120), 20);
         insertCheckIns(8, bizDate, 88);
 
-        UserLevelService.UserLevelSummary summary = service.evaluateLevel(8, bizDate);
+        UserLevelService.UserLevelSummary summary = service.evaluateLevelSummary(8, bizDate);
 
         assertThat(summary.enabled()).isTrue();
         assertThat(summary.signInDaysInWindow()).isEqualTo(88);
@@ -71,7 +71,7 @@ class UserLevelServiceTest {
         );
         insertCheckIns(9, bizDate, 30);
 
-        UserLevelService.UserLevelSummary summary = service.evaluateLevel(9, bizDate);
+        UserLevelService.UserLevelSummary summary = service.evaluateLevelSummary(9, bizDate);
 
         assertThat(summary.enabled()).isFalse();
         assertThat(summary.windowDays()).isEqualTo(30);
@@ -102,7 +102,7 @@ class UserLevelServiceTest {
         );
         insertCheckIns(11, bizDate, 12);
 
-        UserLevelService.UserLevelSummary summary = service.evaluateLevel(11, bizDate);
+        UserLevelService.UserLevelSummary summary = service.evaluateLevelSummary(11, bizDate);
 
         assertThat(summary.enabled()).isTrue();
         assertThat(summary.windowDays()).isEqualTo(100);
@@ -163,10 +163,16 @@ class UserLevelServiceTest {
         for (int i = 0; i < days; i++) {
             LocalDate bizDate = endDateInclusive.minusDays(i);
             jdbcTemplate.update(
-                    "insert into growth_check_in(user_id, biz_date, streak_count, create_time) values (?, ?, ?, current_timestamp)",
+                    "insert into user_task_progress(user_id, task_code, period_key, current_value, target_value, status, reward_grant_id, last_source_event_id, update_time) " +
+                            "values (?, ?, ?, ?, ?, ?, ?, ?, current_timestamp)",
                     userId,
-                    bizDate,
-                    1
+                    "DAILY_CHECK_IN",
+                    bizDate.toString(),
+                    1,
+                    1,
+                    "CLAIMED",
+                    null,
+                    "check-in:" + userId + ":" + bizDate
             );
         }
     }
@@ -187,7 +193,7 @@ class UserLevelServiceTest {
                 1L, windowDays, lv2SignInDays, lv3SignInDays, enabled, updatedBy
         );
 
-        UserLevelService.UserLevelSummary summary = service.evaluateLevel(userId, bizDate);
+        UserLevelService.UserLevelSummary summary = service.evaluateLevelSummary(userId, bizDate);
         assertThat(summary.enabled()).isTrue();
         assertThat(summary.windowDays()).isEqualTo(100);
         assertThat(summary.lv2Threshold()).isEqualTo(12);

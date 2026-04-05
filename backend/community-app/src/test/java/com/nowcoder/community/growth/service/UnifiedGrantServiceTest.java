@@ -2,8 +2,8 @@ package com.nowcoder.community.growth.service;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.growth.exception.GrowthErrorCode;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
+import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +37,9 @@ class UnifiedGrantServiceTest {
         jdbcTemplate.update("delete from reward_grant_record");
         jdbcTemplate.update("delete from reward_account");
         jdbcTemplate.update("delete from user_score_log");
+        jdbcTemplate.update("delete from wallet_entry");
+        jdbcTemplate.update("delete from wallet_txn");
+        jdbcTemplate.update("delete from wallet_account");
         jdbcTemplate.update("update user set score = 0");
     }
 
@@ -47,11 +50,14 @@ class UnifiedGrantServiceTest {
 
         assertThat(first).isTrue();
         assertThat(second).isFalse();
-        assertThat(currentScore(1)).isEqualTo(10);
+        assertThat(currentScore(1)).isZero();
         assertThat(currentRewardBalance(1)).isZero();
+        assertThat(currentWalletBalance(1)).isEqualTo(10);
         assertThat(countRows("reward_grant_record")).isEqualTo(1);
-        assertThat(countRows("user_score_log")).isEqualTo(1);
+        assertThat(countRows("user_score_log")).isZero();
         assertThat(countRows("reward_ledger")).isZero();
+        assertThat(countRows("wallet_txn")).isEqualTo(1);
+        assertThat(countRows("wallet_entry")).isEqualTo(2);
         assertThat(storedGrantId("post-evt-1")).isEqualTo("post-evt-1:points");
     }
 
@@ -62,58 +68,72 @@ class UnifiedGrantServiceTest {
 
         assertThat(first).isTrue();
         assertThat(second).isFalse();
-        assertThat(currentScore(1)).isEqualTo(10);
-        assertThat(currentRewardBalance(1)).isEqualTo(5);
+        assertThat(currentScore(1)).isZero();
+        assertThat(currentRewardBalance(1)).isZero();
+        assertThat(currentWalletBalance(1)).isEqualTo(15);
         assertThat(countRows("reward_grant_record")).isEqualTo(1);
-        assertThat(countRows("user_score_log")).isEqualTo(1);
-        assertThat(countRows("reward_ledger")).isEqualTo(1);
+        assertThat(countRows("user_score_log")).isZero();
+        assertThat(countRows("reward_ledger")).isZero();
+        assertThat(countRows("wallet_txn")).isEqualTo(1);
+        assertThat(countRows("wallet_entry")).isEqualTo(2);
     }
 
     @Test
-    void growthOnlyGrantShouldUpdateScoreAndScoreLog() {
+    void growthOnlyGrantShouldCreditWalletWithoutLegacyScoreSideEffects() {
         boolean applied = service.applyGrant(1, "grant-growth", "PostPublished", "post-evt-1", "PostPublished", 10, 0, "growth", "post reward");
 
         assertThat(applied).isTrue();
-        assertThat(currentScore(1)).isEqualTo(10);
+        assertThat(currentScore(1)).isZero();
         assertThat(currentRewardBalance(1)).isZero();
-        assertThat(countRows("user_score_log")).isEqualTo(1);
+        assertThat(currentWalletBalance(1)).isEqualTo(10);
+        assertThat(countRows("user_score_log")).isZero();
         assertThat(countRows("reward_ledger")).isZero();
+        assertThat(countRows("wallet_txn")).isEqualTo(1);
+        assertThat(countRows("wallet_entry")).isEqualTo(2);
     }
 
     @Test
-    void rewardOnlyGrantShouldUpdateRewardBalanceAndLedger() {
+    void rewardOnlyGrantShouldCreditWalletWithoutLegacyRewardLedger() {
         boolean applied = service.applyGrant(1, "grant-reward", "CheckInReward", "checkin-evt-1", "CheckInCompleted", 0, 12, "growth", "check-in reward");
 
         assertThat(applied).isTrue();
         assertThat(currentScore(1)).isZero();
-        assertThat(currentRewardBalance(1)).isEqualTo(12);
+        assertThat(currentRewardBalance(1)).isZero();
+        assertThat(currentWalletBalance(1)).isEqualTo(12);
         assertThat(countRows("user_score_log")).isZero();
-        assertThat(countRows("reward_ledger")).isEqualTo(1);
+        assertThat(countRows("reward_ledger")).isZero();
+        assertThat(countRows("wallet_txn")).isEqualTo(1);
+        assertThat(countRows("wallet_entry")).isEqualTo(2);
     }
 
     @Test
-    void dualGrantShouldUpdateBothAccountsAtomically() {
+    void dualGrantShouldCoalesceIntoSingleWalletPosting() {
         boolean applied = service.applyGrant(1, "grant-dual", "DailyTask", "task-evt-1", "TaskCompleted", 10, 8, "growth", "daily task reward");
 
         assertThat(applied).isTrue();
-        assertThat(currentScore(1)).isEqualTo(10);
-        assertThat(currentRewardBalance(1)).isEqualTo(8);
+        assertThat(currentScore(1)).isZero();
+        assertThat(currentRewardBalance(1)).isZero();
+        assertThat(currentWalletBalance(1)).isEqualTo(18);
         assertThat(countRows("reward_grant_record")).isEqualTo(1);
-        assertThat(countRows("user_score_log")).isEqualTo(1);
-        assertThat(countRows("reward_ledger")).isEqualTo(1);
+        assertThat(countRows("user_score_log")).isZero();
+        assertThat(countRows("reward_ledger")).isZero();
+        assertThat(countRows("wallet_txn")).isEqualTo(1);
+        assertThat(countRows("wallet_entry")).isEqualTo(2);
     }
 
     @Test
-    void negativeRewardGrantShouldRejectBeforeLedgerWriteWhenBalanceIsInsufficient() {
+    void negativeRewardGrantShouldRejectBeforeWalletPostingWhenBalanceIsInsufficient() {
         assertThatThrownBy(() -> service.applyGrant(1, "grant-debit", "RedeemReward", "redeem-evt-1", "RewardRedeemed", 0, -5, "shop", "redeem"))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(GrowthErrorCode.REWARD_BALANCE_INSUFFICIENT))
-                .hasMessageContaining("reward balance insufficient");
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT));
 
         assertThat(currentScore(1)).isZero();
         assertThat(currentRewardBalance(1)).isZero();
+        assertThat(currentWalletBalance(1)).isZero();
         assertThat(countRows("reward_grant_record")).isZero();
         assertThat(countRows("reward_ledger")).isZero();
+        assertThat(countRows("wallet_txn")).isZero();
+        assertThat(countRows("wallet_entry")).isZero();
     }
 
     private int currentScore(int userId) {
@@ -130,6 +150,17 @@ class UnifiedGrantServiceTest {
             return 0;
         }
         return ((Number) rows.get(0).get("AVAILABLE_BALANCE")).intValue();
+    }
+
+    private long currentWalletBalance(int userId) {
+        var rows = jdbcTemplate.queryForList(
+                "select balance from wallet_account where owner_type = 'USER' and owner_id = ? and account_type = 'USER_WALLET'",
+                userId
+        );
+        if (rows.isEmpty()) {
+            return 0L;
+        }
+        return ((Number) rows.get(0).get("BALANCE")).longValue();
     }
 
     private int countRows(String tableName) {

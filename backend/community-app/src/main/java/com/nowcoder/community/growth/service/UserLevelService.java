@@ -1,11 +1,13 @@
 package com.nowcoder.community.growth.service;
 
+import com.nowcoder.community.growth.api.model.UserLevelSummaryView;
+import com.nowcoder.community.growth.api.query.UserLevelQueryApi;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.growth.dto.UpdateUserLevelConfigRequest;
 import com.nowcoder.community.growth.dto.UserLevelConfigResponse;
 import com.nowcoder.community.growth.entity.UserLevelRuleConfig;
 import com.nowcoder.community.growth.exception.GrowthErrorCode;
-import com.nowcoder.community.growth.mapper.GrowthCheckInMapper;
+import com.nowcoder.community.growth.mapper.UserTaskProgressMapper;
 import com.nowcoder.community.growth.mapper.UserLevelRuleConfigMapper;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -14,32 +16,38 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 
 @Service
-public class UserLevelService {
+public class UserLevelService implements UserLevelQueryApi {
 
+    private static final String DAILY_CHECK_IN_TASK_CODE = "DAILY_CHECK_IN";
     public static final int DEFAULT_WINDOW_DAYS = 100;
     public static final int DEFAULT_LV2_SIGN_IN_DAYS = 12;
     public static final int DEFAULT_LV3_SIGN_IN_DAYS = 88;
     private static final long SINGLETON_CONFIG_ID = 1L;
 
-    private final GrowthCheckInMapper growthCheckInMapper;
+    private final UserTaskProgressMapper userTaskProgressMapper;
     private final UserLevelRuleConfigMapper userLevelRuleConfigMapper;
     private final GrowthBusinessTimeService growthBusinessTimeService;
 
     public UserLevelService(
-            GrowthCheckInMapper growthCheckInMapper,
+            UserTaskProgressMapper userTaskProgressMapper,
             UserLevelRuleConfigMapper userLevelRuleConfigMapper,
             GrowthBusinessTimeService growthBusinessTimeService
     ) {
-        this.growthCheckInMapper = growthCheckInMapper;
+        this.userTaskProgressMapper = userTaskProgressMapper;
         this.userLevelRuleConfigMapper = userLevelRuleConfigMapper;
         this.growthBusinessTimeService = growthBusinessTimeService;
     }
 
-    public UserLevelSummary evaluateLevel(int userId) {
-        return evaluateLevel(userId, growthBusinessTimeService.today());
+    @Override
+    public UserLevelSummaryView evaluateLevel(int userId) {
+        return toView(evaluateLevelSummary(userId, growthBusinessTimeService.today()));
     }
 
-    public UserLevelSummary evaluateLevel(int userId, LocalDate bizDate) {
+    public UserLevelSummaryView evaluateLevel(int userId, LocalDate bizDate) {
+        return toView(evaluateLevelSummary(userId, bizDate));
+    }
+
+    public UserLevelSummary evaluateLevelSummary(int userId, LocalDate bizDate) {
         UserLevelRuleConfig config = activeConfigOrDefault();
         if (!config.isEnabled()) {
             return new UserLevelSummary(
@@ -53,7 +61,12 @@ public class UserLevelService {
         }
 
         LocalDate startDate = bizDate.minusDays(config.getWindowDays() - 1L);
-        int signInDaysInWindow = growthCheckInMapper.countByUserIdBetweenDates(userId, startDate, bizDate);
+        int signInDaysInWindow = userTaskProgressMapper.countByUserTaskAndPeriodKeyRange(
+                userId,
+                DAILY_CHECK_IN_TASK_CODE,
+                startDate.toString(),
+                bizDate.toString()
+        );
         int userLevel = 1;
         if (signInDaysInWindow >= config.getLv3SignInDays()) {
             userLevel = 3;
@@ -152,6 +165,17 @@ public class UserLevelService {
         response.setLv3SignInDays(config.getLv3SignInDays());
         response.setEnabled(config.isEnabled());
         return response;
+    }
+
+    private UserLevelSummaryView toView(UserLevelSummary summary) {
+        return new UserLevelSummaryView(
+                summary.userLevel(),
+                summary.signInDaysInWindow(),
+                summary.windowDays(),
+                summary.lv2Threshold(),
+                summary.lv3Threshold(),
+                summary.enabled()
+        );
     }
 
     public record UserLevelSummary(

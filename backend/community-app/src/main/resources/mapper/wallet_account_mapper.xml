@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.wallet.mapper.WalletAccountMapper">
+
+    <select id="selectByAccountId" resultType="com.nowcoder.community.wallet.entity.WalletAccount">
+        select account_id, owner_type, owner_id, account_type, balance, status, version, create_time, update_time
+        from wallet_account
+        where account_id = #{accountId}
+    </select>
+
+    <select id="selectByOwner" resultType="com.nowcoder.community.wallet.entity.WalletAccount">
+        select account_id, owner_type, owner_id, account_type, balance, status, version, create_time, update_time
+        from wallet_account
+        where owner_type = #{ownerType}
+          and owner_id = #{ownerId}
+          and account_type = #{accountType}
+    </select>
+
+    <insert id="insert" parameterType="com.nowcoder.community.wallet.entity.WalletAccount" useGeneratedKeys="true" keyProperty="accountId" keyColumn="account_id">
+        insert into wallet_account(owner_type, owner_id, account_type, balance, status, version)
+        values(#{ownerType}, #{ownerId}, #{accountType}, #{balance}, #{status}, #{version})
+    </insert>
+
+    <update id="updateBalanceWithVersion">
+        update wallet_account
+        set balance = balance + #{delta},
+            version = version + 1,
+            status = #{nextStatus},
+            update_time = current_timestamp
+        where account_id = #{accountId}
+          and version = #{expectedVersion}
+          and balance + #{delta} >= 0
+    </update>
+
+</mapper>

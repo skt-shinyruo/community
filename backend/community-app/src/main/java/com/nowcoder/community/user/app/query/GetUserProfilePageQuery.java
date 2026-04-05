@@ -3,6 +3,8 @@ package com.nowcoder.community.user.app.query;
 import com.nowcoder.community.content.api.model.PostSummaryView;
 import com.nowcoder.community.content.api.model.RecentUserCommentView;
 import com.nowcoder.community.content.api.query.PostReadQueryApi;
+import com.nowcoder.community.growth.api.model.UserLevelSummaryView;
+import com.nowcoder.community.growth.api.query.UserLevelQueryApi;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.user.api.model.UserProfileView;
 import com.nowcoder.community.user.api.query.UserProfileQueryApi;
@@ -18,15 +20,18 @@ public class GetUserProfilePageQuery {
     private final UserProfileQueryApi userProfileQueryApi;
     private final UserSocialProfileService userSocialProfileService;
     private final PostReadQueryApi postReadQueryApi;
+    private final UserLevelQueryApi userLevelQueryApi;
 
     public GetUserProfilePageQuery(
             UserProfileQueryApi userProfileQueryApi,
             UserSocialProfileService userSocialProfileService,
-            PostReadQueryApi postReadQueryApi
+            PostReadQueryApi postReadQueryApi,
+            UserLevelQueryApi userLevelQueryApi
     ) {
         this.userProfileQueryApi = userProfileQueryApi;
         this.userSocialProfileService = userSocialProfileService;
         this.postReadQueryApi = postReadQueryApi;
+        this.userLevelQueryApi = userLevelQueryApi;
     }
 
     public UserProfilePageView get(Authentication authentication, int userId) {
@@ -37,6 +42,8 @@ public class GetUserProfilePageQuery {
         int viewerId = (currentUserId > 0 && currentUserId != userId) ? currentUserId : 0;
 
         UserSocialProfileService.UserProfileStats stats = userSocialProfileService.userProfileStats(userId, viewerId);
+        UserLevelSummaryView levelSummary = userLevelQueryApi.evaluateLevel(userId);
+        boolean userLevelEnabled = levelSummary != null && levelSummary.enabled();
         return new UserProfilePageView(
                 user.userId(),
                 user.username(),
@@ -46,6 +53,11 @@ public class GetUserProfilePageQuery {
                 user.createTime(),
                 user.score(),
                 user.level(),
+                user.walletBalance(),
+                user.walletStatus(),
+                userLevelEnabled,
+                userLevelEnabled ? levelSummary.userLevel() : null,
+                userLevelEnabled ? levelSummary.signInDaysInWindow() : null,
                 stats.getLikeCount(),
                 stats.getFolloweeCount(),
                 stats.getFollowerCount(),

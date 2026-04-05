@@ -3,7 +3,6 @@ package com.nowcoder.community.user.controller;
 import com.nowcoder.community.common.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.growth.service.UserLevelService;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.user.app.query.GetUserProfilePageQuery;
 import com.nowcoder.community.user.app.query.UserProfilePageView;
@@ -53,18 +52,15 @@ public class UserController {
     private final GetUserProfilePageQuery getUserProfilePageQuery;
     private final UserService userService;
     private final AvatarService avatarService;
-    private final UserLevelService userLevelService;
 
     public UserController(UserLookupQueryApi userLookupQueryApi,
                           GetUserProfilePageQuery getUserProfilePageQuery,
                           UserService userService,
-                          AvatarService avatarService,
-                          UserLevelService userLevelService) {
+                          AvatarService avatarService) {
         this.userLookupQueryApi = userLookupQueryApi;
         this.getUserProfilePageQuery = getUserProfilePageQuery;
         this.userService = userService;
         this.avatarService = avatarService;
-        this.userLevelService = userLevelService;
     }
 
     @GetMapping("/{userId}")
@@ -79,15 +75,11 @@ public class UserController {
         resp.setCreateTime(user.createTime());
         resp.setScore(user.score());
         resp.setLevel(user.level());
-        UserLevelService.UserLevelSummary levelSummary = userLevelService.evaluateLevel(userId);
-        resp.setUserLevelEnabled(levelSummary.enabled());
-        if (levelSummary.enabled()) {
-            resp.setUserLevel(levelSummary.userLevel());
-            resp.setSignInDaysInWindow(levelSummary.signInDaysInWindow());
-        } else {
-            resp.setUserLevel(null);
-            resp.setSignInDaysInWindow(null);
-        }
+        resp.setUserLevelEnabled(user.userLevelEnabled());
+        resp.setUserLevel(user.userLevel());
+        resp.setSignInDaysInWindow(user.signInDaysInWindow());
+        resp.setWalletBalance(user.walletBalance());
+        resp.setWalletStatus(user.walletStatus());
         resp.setLikeCount(user.likeCount());
         resp.setFolloweeCount(user.followeeCount());
         resp.setFollowerCount(user.followerCount());

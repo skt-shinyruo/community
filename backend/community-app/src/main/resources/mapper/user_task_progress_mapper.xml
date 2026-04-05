@@ -24,6 +24,14 @@
         for update
     </select>
 
+    <select id="countByUserTaskAndPeriodKeyRange" resultType="int">
+        select count(*)
+        from user_task_progress
+        where user_id = #{userId}
+          and task_code = #{taskCode}
+          and period_key between #{startPeriodKey} and #{endPeriodKey}
+    </select>
+
     <insert id="insert">
         insert into user_task_progress(user_id, task_code, period_key, current_value, target_value, status, last_source_event_id, update_time)
         values(#{userId}, #{taskCode}, #{periodKey}, 0, #{targetValue}, #{status}, #{lastSourceEventId}, current_timestamp)

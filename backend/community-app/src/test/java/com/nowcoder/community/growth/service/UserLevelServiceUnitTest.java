@@ -2,7 +2,7 @@ package com.nowcoder.community.growth.service;
 
 import com.nowcoder.community.growth.dto.UpdateUserLevelConfigRequest;
 import com.nowcoder.community.growth.dto.UserLevelConfigResponse;
-import com.nowcoder.community.growth.mapper.GrowthCheckInMapper;
+import com.nowcoder.community.growth.mapper.UserTaskProgressMapper;
 import com.nowcoder.community.growth.mapper.UserLevelRuleConfigMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,11 +22,11 @@ class UserLevelServiceUnitTest {
 
     @Test
     void updateConfigShouldRetryUpdateWhenInsertHitsDuplicateKeyOnFirstWriteRace() {
-        GrowthCheckInMapper growthCheckInMapper = mock(GrowthCheckInMapper.class);
+        UserTaskProgressMapper userTaskProgressMapper = mock(UserTaskProgressMapper.class);
         UserLevelRuleConfigMapper userLevelRuleConfigMapper = mock(UserLevelRuleConfigMapper.class);
         GrowthBusinessTimeService growthBusinessTimeService = mock(GrowthBusinessTimeService.class);
         UserLevelService service = new UserLevelService(
-                growthCheckInMapper,
+                userTaskProgressMapper,
                 userLevelRuleConfigMapper,
                 growthBusinessTimeService
         );

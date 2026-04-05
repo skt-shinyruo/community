@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.market.mapper.MarketOrderMapper">
+
+    <sql id="BaseColumns">
+        order_id, request_id, listing_id, goods_type, seller_user_id, buyer_user_id, quantity, unit_price_snapshot,
+        total_amount, delivery_mode_snapshot, listing_title_snapshot, status, escrow_txn_id,
+        release_txn_id, refund_txn_id, auto_confirm_at, receiver_name_snapshot, receiver_phone_snapshot,
+        province_snapshot, city_snapshot, district_snapshot, detail_address_snapshot, postal_code_snapshot,
+        create_time, update_time
+    </sql>
+
+    <select id="selectById" resultType="com.nowcoder.community.market.entity.MarketOrder">
+        select <include refid="BaseColumns"/>
+        from market_order
+        where order_id = #{orderId}
+    </select>
+
+    <select id="selectByIdForUpdate" resultType="com.nowcoder.community.market.entity.MarketOrder">
+        select <include refid="BaseColumns"/>
+        from market_order
+        where order_id = #{orderId}
+        for update
+    </select>
+
+    <select id="selectByRequestId" resultType="com.nowcoder.community.market.entity.MarketOrder">
+        select <include refid="BaseColumns"/>
+        from market_order
+        where request_id = #{requestId}
+    </select>
+
+    <select id="selectByBuyerUserId" resultType="com.nowcoder.community.market.entity.MarketOrder">
+        select <include refid="BaseColumns"/>
+        from market_order
+        where buyer_user_id = #{buyerUserId}
+        order by order_id desc
+    </select>
+
+    <select id="selectBySellerUserId" resultType="com.nowcoder.community.market.entity.MarketOrder">
+        select <include refid="BaseColumns"/>
+        from market_order
+        where seller_user_id = #{sellerUserId}
+        order by order_id desc
+    </select>
+
+    <insert id="insert" parameterType="com.nowcoder.community.market.entity.MarketOrder" useGeneratedKeys="true" keyProperty="orderId" keyColumn="order_id">
+        insert into market_order(
+            request_id, listing_id, goods_type, seller_user_id, buyer_user_id, quantity, unit_price_snapshot, total_amount,
+            delivery_mode_snapshot, listing_title_snapshot, status, escrow_txn_id, release_txn_id, refund_txn_id,
+            auto_confirm_at, receiver_name_snapshot, receiver_phone_snapshot, province_snapshot, city_snapshot,
+            district_snapshot, detail_address_snapshot, postal_code_snapshot
+        )
+        values(
+            #{requestId}, #{listingId}, #{goodsType}, #{sellerUserId}, #{buyerUserId}, #{quantity}, #{unitPriceSnapshot}, #{totalAmount},
+            #{deliveryModeSnapshot}, #{listingTitleSnapshot}, #{status}, #{escrowTxnId}, #{releaseTxnId}, #{refundTxnId},
+            #{autoConfirmAt}, #{receiverNameSnapshot}, #{receiverPhoneSnapshot}, #{provinceSnapshot}, #{citySnapshot},
+            #{districtSnapshot}, #{detailAddressSnapshot}, #{postalCodeSnapshot}
+        )
+    </insert>
+
+    <update id="markDelivered">
+        update market_order
+        set status = 'DELIVERED',
+            auto_confirm_at = #{autoConfirmAt},
+            update_time = current_timestamp
+        where order_id = #{orderId}
+    </update>
+
+    <update id="markShipped">
+        update market_order
+        set status = 'SHIPPED',
+            auto_confirm_at = #{autoConfirmAt},
+            update_time = current_timestamp
+        where order_id = #{orderId}
+    </update>
+
+    <update id="markCompleted">
+        update market_order
+        set status = 'COMPLETED',
+            release_txn_id = #{releaseTxnId},
+            update_time = current_timestamp
+        where order_id = #{orderId}
+    </update>
+
+    <update id="markCancelled">
+        update market_order
+        set status = 'CANCELLED',
+            refund_txn_id = #{refundTxnId},
+            update_time = current_timestamp
+        where order_id = #{orderId}
+    </update>
+
+    <update id="markDisputed">
+        update market_order
+        set status = 'DISPUTED',
+            update_time = current_timestamp
+        where order_id = #{orderId}
+    </update>
+
+    <update id="markRefunded">
+        update market_order
+        set status = 'REFUNDED',
+            refund_txn_id = #{refundTxnId},
+            update_time = current_timestamp
+        where order_id = #{orderId}
+    </update>
+
+    <update id="updateStatus">
+        update market_order
+        set status = #{status},
+            update_time = current_timestamp
+        where order_id = #{orderId}
+    </update>
+
+    <select id="selectDueForAutoConfirm" resultType="com.nowcoder.community.market.entity.MarketOrder">
+        select <include refid="BaseColumns"/>
+        from market_order
+        where status in ('DELIVERED', 'SHIPPED')
+          and auto_confirm_at is not null
+          and auto_confirm_at &lt;= #{asOf}
+        order by order_id asc
+    </select>
+
+</mapper>

@@ -3,7 +3,10 @@ package com.nowcoder.community.im.realtime.client;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceIdCodec;
+import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClient.RequestHeadersSpec;
@@ -16,12 +19,32 @@ import java.util.List;
 @Component
 public class ImCoreClient {
 
-    private final WebClient webClient;
+    private final BaseUrlPool baseUrlPool;
 
-    public ImCoreClient(@Value("${im.core.base-url}") String baseUrl) {
-        this.webClient = WebClient.builder()
-                .baseUrl(String.valueOf(baseUrl))
-                .build();
+    public ImCoreClient(Environment environment, @Value("${im.core.base-url}") String baseUrl) {
+        this(
+                BaseUrlPool.from(
+                        "im.core",
+                        baseUrl,
+                        environment == null
+                                ? List.of()
+                                : Binder.get(environment)
+                                        .bind("im.core.base-urls", Bindable.listOf(String.class))
+                                        .orElse(List.of())
+                )
+        );
+    }
+
+    public ImCoreClient(String baseUrl) {
+        this(BaseUrlPool.from("im.core", baseUrl, List.of()));
+    }
+
+    public ImCoreClient(List<String> baseUrls) {
+        this(BaseUrlPool.from("im.core", baseUrls));
+    }
+
+    private ImCoreClient(BaseUrlPool baseUrlPool) {
+        this.baseUrlPool = baseUrlPool;
     }
 
     public Flux<Long> listAllRoomIdsForUser(int userId, String bearerAccessToken, String traceId) {
@@ -38,6 +61,25 @@ public class ImCoreClient {
     }
 
     private Mono<RoomIdPage> fetchRoomIdPage(int userId, long cursorExclusive, int limit, String bearerAccessToken, String traceId) {
+        return fetchRoomIdPage(userId, cursorExclusive, limit, bearerAccessToken, traceId, baseUrlPool.nextCandidates(), 0);
+    }
+
+    private Mono<RoomIdPage> fetchRoomIdPage(
+            int userId,
+            long cursorExclusive,
+            int limit,
+            String bearerAccessToken,
+            String traceId,
+            List<String> candidates,
+            int index
+    ) {
+        if (candidates == null || index >= candidates.size()) {
+            return Mono.error(new IllegalStateException("im.core base URL pool exhausted"));
+        }
+
+        WebClient webClient = WebClient.builder()
+                .baseUrl(candidates.get(index))
+                .build();
         RequestHeadersSpec<?> request = webClient.get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/internal/im/realtime/users/{userId}/rooms")
@@ -51,7 +93,8 @@ public class ImCoreClient {
         return request
                 .retrieve()
                 .bodyToMono(RoomIdPage.class)
-                .timeout(Duration.ofSeconds(3));
+                .timeout(Duration.ofSeconds(3))
+                .onErrorResume(ex -> fetchRoomIdPage(userId, cursorExclusive, limit, bearerAccessToken, traceId, candidates, index + 1));
     }
 
     private static void applyTraceHeaders(RequestHeadersSpec<?> request, String traceId) {

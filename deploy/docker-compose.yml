@@ -439,9 +439,13 @@ services:
       - IM_CORE_BASE_URL=http://im-core:18082
       - IM_REALTIME_BASE_URL=http://im-realtime:18081
       - GATEWAY_WS_PROXY_AUTH_REQUIRED=true
-      - IM_REALTIME_WS_BASE_URL=ws://im-realtime:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
-      - GATEWAY_WS_SHARD_WORKERS_0_ID=im-realtime-local
-      - GATEWAY_WS_SHARD_WORKERS_0_URI=ws://im-realtime:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - IM_REALTIME_WS_BASE_URL=ws://im-realtime-1:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - GATEWAY_WS_SHARD_WORKERS_0_ID=im-realtime-1
+      - GATEWAY_WS_SHARD_WORKERS_0_URI=ws://im-realtime-1:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - GATEWAY_WS_SHARD_WORKERS_1_ID=im-realtime-2
+      - GATEWAY_WS_SHARD_WORKERS_1_URI=ws://im-realtime-2:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - GATEWAY_WS_SHARD_WORKERS_2_ID=im-realtime-3
+      - GATEWAY_WS_SHARD_WORKERS_2_URI=ws://im-realtime-3:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
     depends_on:
       community-app-1:
         condition: service_started
@@ -481,9 +485,13 @@ services:
       - IM_CORE_BASE_URL=http://im-core:18082
       - IM_REALTIME_BASE_URL=http://im-realtime:18081
       - GATEWAY_WS_PROXY_AUTH_REQUIRED=true
-      - IM_REALTIME_WS_BASE_URL=ws://im-realtime:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
-      - GATEWAY_WS_SHARD_WORKERS_0_ID=im-realtime-local
-      - GATEWAY_WS_SHARD_WORKERS_0_URI=ws://im-realtime:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - IM_REALTIME_WS_BASE_URL=ws://im-realtime-1:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - GATEWAY_WS_SHARD_WORKERS_0_ID=im-realtime-1
+      - GATEWAY_WS_SHARD_WORKERS_0_URI=ws://im-realtime-1:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - GATEWAY_WS_SHARD_WORKERS_1_ID=im-realtime-2
+      - GATEWAY_WS_SHARD_WORKERS_1_URI=ws://im-realtime-2:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - GATEWAY_WS_SHARD_WORKERS_2_ID=im-realtime-3
+      - GATEWAY_WS_SHARD_WORKERS_2_URI=ws://im-realtime-3:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
     depends_on:
       community-app-1:
         condition: service_started
@@ -519,9 +527,13 @@ services:
       - IM_CORE_BASE_URL=http://im-core:18082
       - IM_REALTIME_BASE_URL=http://im-realtime:18081
       - GATEWAY_WS_PROXY_AUTH_REQUIRED=true
-      - IM_REALTIME_WS_BASE_URL=ws://im-realtime:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
-      - GATEWAY_WS_SHARD_WORKERS_0_ID=im-realtime-local
-      - GATEWAY_WS_SHARD_WORKERS_0_URI=ws://im-realtime:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - IM_REALTIME_WS_BASE_URL=ws://im-realtime-1:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - GATEWAY_WS_SHARD_WORKERS_0_ID=im-realtime-1
+      - GATEWAY_WS_SHARD_WORKERS_0_URI=ws://im-realtime-1:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - GATEWAY_WS_SHARD_WORKERS_1_ID=im-realtime-2
+      - GATEWAY_WS_SHARD_WORKERS_1_URI=ws://im-realtime-2:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - GATEWAY_WS_SHARD_WORKERS_2_ID=im-realtime-3
+      - GATEWAY_WS_SHARD_WORKERS_2_URI=ws://im-realtime-3:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
     depends_on:
       community-app-1:
         condition: service_started
@@ -652,10 +664,13 @@ services:
       - COMMUNITY_LOGGING_FILE_NAME=im-realtime-1.json.log
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - IM_REALTIME_CONSUMER_GROUP=im-realtime-1
       - IM_EDGE_MODE=internal-worker
       - IM_WS_PATH=${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
       - IM_CORE_BASE_URL=http://im-core:18082
+      - IM_CORE_BASE_URLS=http://im-core-1:18082,http://im-core-2:18082,http://im-core-3:18082
       - COMMUNITY_BASE_URL=http://community-app:8080
+      - COMMUNITY_BASE_URLS=http://community-app-1:8080,http://community-app-2:8080,http://community-app-3:8080
       - IM_ROOM_FLUSH_INTERVAL_MS=${IM_ROOM_FLUSH_INTERVAL_MS:-50}
       - IM_WS_OUTBOUND_BUFFER_SIZE=${IM_WS_OUTBOUND_BUFFER_SIZE:-256}
       - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
@@ -691,10 +706,13 @@ services:
       - COMMUNITY_LOGGING_FILE_NAME=im-realtime-2.json.log
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - IM_REALTIME_CONSUMER_GROUP=im-realtime-2
       - IM_EDGE_MODE=internal-worker
       - IM_WS_PATH=${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
       - IM_CORE_BASE_URL=http://im-core:18082
+      - IM_CORE_BASE_URLS=http://im-core-1:18082,http://im-core-2:18082,http://im-core-3:18082
       - COMMUNITY_BASE_URL=http://community-app:8080
+      - COMMUNITY_BASE_URLS=http://community-app-1:8080,http://community-app-2:8080,http://community-app-3:8080
       - IM_ROOM_FLUSH_INTERVAL_MS=${IM_ROOM_FLUSH_INTERVAL_MS:-50}
       - IM_WS_OUTBOUND_BUFFER_SIZE=${IM_WS_OUTBOUND_BUFFER_SIZE:-256}
       - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
@@ -726,10 +744,13 @@ services:
       - COMMUNITY_LOGGING_FILE_NAME=im-realtime-3.json.log
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - IM_REALTIME_CONSUMER_GROUP=im-realtime-3
       - IM_EDGE_MODE=internal-worker
       - IM_WS_PATH=${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
       - IM_CORE_BASE_URL=http://im-core:18082
+      - IM_CORE_BASE_URLS=http://im-core-1:18082,http://im-core-2:18082,http://im-core-3:18082
       - COMMUNITY_BASE_URL=http://community-app:8080
+      - COMMUNITY_BASE_URLS=http://community-app-1:8080,http://community-app-2:8080,http://community-app-3:8080
       - IM_ROOM_FLUSH_INTERVAL_MS=${IM_ROOM_FLUSH_INTERVAL_MS:-50}
       - IM_WS_OUTBOUND_BUFFER_SIZE=${IM_WS_OUTBOUND_BUFFER_SIZE:-256}
       - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}

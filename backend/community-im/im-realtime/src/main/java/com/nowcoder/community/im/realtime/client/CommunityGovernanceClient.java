@@ -3,7 +3,10 @@ package com.nowcoder.community.im.realtime.client;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceIdCodec;
+import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -24,16 +27,38 @@ import java.util.List;
 @Component
 public class CommunityGovernanceClient {
 
-    private final WebClient webClient;
+    private final BaseUrlPool baseUrlPool;
     private final Duration timeout;
 
     public CommunityGovernanceClient(
+            Environment environment,
             @Value("${im.community.base-url}") String baseUrl,
             @Value("${im.community.timeout-ms:1500}") long timeoutMs
     ) {
-        this.webClient = WebClient.builder()
-                .baseUrl(String.valueOf(baseUrl))
-                .build();
+        this(
+                BaseUrlPool.from(
+                        "im.community",
+                        baseUrl,
+                        environment == null
+                                ? List.of()
+                                : Binder.get(environment)
+                                        .bind("im.community.base-urls", Bindable.listOf(String.class))
+                                        .orElse(List.of())
+                ),
+                timeoutMs
+        );
+    }
+
+    public CommunityGovernanceClient(String baseUrl, long timeoutMs) {
+        this(BaseUrlPool.from("im.community", baseUrl, List.of()), timeoutMs);
+    }
+
+    public CommunityGovernanceClient(List<String> baseUrls, long timeoutMs) {
+        this(BaseUrlPool.from("im.community", baseUrls), timeoutMs);
+    }
+
+    private CommunityGovernanceClient(BaseUrlPool baseUrlPool, long timeoutMs) {
+        this.baseUrlPool = baseUrlPool;
         long ms = Math.max(100L, timeoutMs);
         this.timeout = Duration.ofMillis(ms);
     }
@@ -43,6 +68,23 @@ public class CommunityGovernanceClient {
         if (!StringUtils.hasText(token)) {
             return Mono.just(Decision.deny(401, "未登录或登录已失效", ""));
         }
+        return validateAgainstCandidates(token, toUserId, traceId, baseUrlPool.nextCandidates(), 0);
+    }
+
+    private Mono<Decision> validateAgainstCandidates(
+            String token,
+            int toUserId,
+            String traceId,
+            List<String> candidates,
+            int index
+    ) {
+        if (candidates == null || index >= candidates.size()) {
+            return Mono.just(Decision.deny(503, "治理校验服务不可用，请稍后重试", ""));
+        }
+
+        WebClient webClient = WebClient.builder()
+                .baseUrl(candidates.get(index))
+                .build();
         RequestHeadersSpec<?> request = webClient.post()
                 .uri("/api/im-governance/private-messages/validate")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -51,10 +93,9 @@ public class CommunityGovernanceClient {
 
         applyTraceHeaders(request, traceId);
 
-        return request
-                .exchangeToMono(this::decodeDecision)
+        return request.exchangeToMono(this::decodeDecision)
                 .timeout(timeout)
-                .onErrorResume(ex -> Mono.just(Decision.deny(503, "治理校验服务不可用，请稍后重试", "")));
+                .onErrorResume(ex -> validateAgainstCandidates(token, toUserId, traceId, candidates, index + 1));
     }
 
     private static void applyTraceHeaders(RequestHeadersSpec<?> request, String traceId) {

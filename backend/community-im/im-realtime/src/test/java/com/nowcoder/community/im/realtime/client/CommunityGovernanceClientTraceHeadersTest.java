@@ -60,6 +60,41 @@ class CommunityGovernanceClientTraceHeadersTest {
                 .endsWith("-01");
     }
 
+    @Test
+    void validateSendPrivateMessageShouldRetryNextBaseUrlAndPreserveTraceHeaders() throws Exception {
+        LinkedBlockingQueue<Map<String, String>> requests = new LinkedBlockingQueue<>();
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/im-governance/private-messages/validate", exchange -> {
+            requests.offer(captureHeaders(exchange));
+            writeJson(exchange, 200, "{\"code\":0,\"message\":\"OK\"}");
+        });
+        server.start();
+
+        CommunityGovernanceClient client = new CommunityGovernanceClient(
+                List.of(
+                        "http://127.0.0.1:1",
+                        "http://127.0.0.1:" + server.getAddress().getPort()
+                ),
+                1500L
+        );
+
+        String traceId = "ffffffffffffffffffffffffffffffff";
+        CommunityGovernanceClient.Decision decision = client
+                .validateSendPrivateMessage("bearer-token", 201, traceId)
+                .block();
+
+        assertThat(decision).isNotNull();
+        assertThat(decision.allowed()).isTrue();
+
+        Map<String, String> requestHeaders = requests.poll(5, TimeUnit.SECONDS);
+        assertThat(requestHeaders).isNotNull();
+        assertThat(requestHeaders).containsEntry("Authorization", "Bearer bearer-token");
+        assertThat(requestHeaders).containsEntry("X-Trace-Id", traceId);
+        assertThat(requestHeaders.get("traceparent"))
+                .startsWith("00-" + traceId + "-")
+                .endsWith("-01");
+    }
+
     private static Map<String, String> captureHeaders(HttpExchange exchange) {
         Map<String, String> headers = new HashMap<>();
         headers.put("Authorization", firstHeader(exchange, "Authorization"));

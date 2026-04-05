@@ -5,6 +5,7 @@ import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceIdCodec;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
@@ -21,6 +22,7 @@ public class ImCoreClient {
 
     private final BaseUrlPool baseUrlPool;
 
+    @Autowired
     public ImCoreClient(Environment environment, @Value("${im.core.base-url}") String baseUrl) {
         this(
                 BaseUrlPool.from(

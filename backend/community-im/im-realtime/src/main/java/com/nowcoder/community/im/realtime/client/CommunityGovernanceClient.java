@@ -6,6 +6,7 @@ import com.nowcoder.community.common.trace.TraceIdCodec;
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -30,6 +31,7 @@ public class CommunityGovernanceClient {
     private final BaseUrlPool baseUrlPool;
     private final Duration timeout;
 
+    @Autowired
     public CommunityGovernanceClient(
             Environment environment,
             @Value("${im.community.base-url}") String baseUrl,

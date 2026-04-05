@@ -1,18 +1,21 @@
 # deploy/
 
-本目录存放 docker compose 与构建/初始化/观测配置，用于本地/演练环境一键启动全栈（推荐：gateway-first；直连排障口通过 `debug` profile 按需开启）。其中也包含 dev-only 的 `mock-data-studio` 控制面骨架服务，端口仅绑定到宿主机 `127.0.0.1`。
+本目录存放 docker compose 与构建/初始化/观测配置，用于本地/演练环境一键启动全栈。当前默认拓扑已经升级为“本地 HA 演练栈”：浏览器统一走 `NGINX` 入口，后面挂 `community-gateway` / `community-app` / `im-core` / `im-realtime` 多副本，以及 MySQL / Redis / Zookeeper / Kafka / Elasticsearch 的原生多节点形态。直连排障口仍通过 `debug` profile 按需开启；`mock-data-studio` 仍是 dev-only 控制面，端口仅绑定到宿主机 `127.0.0.1`。
 
 > 约定：本文档中的命令默认从**仓库根目录**执行。
 
 默认 compose project name 固定为 `community`（避免在 Docker Desktop 里显示为 `deploy` 造成歧义）；如需覆盖可使用 `docker compose -p <name>`。
 
 ## 文件/目录说明
-- `docker-compose.yml`：业务必需全栈（frontend + `community-gateway` + `community-app` + IM + MySQL/Redis/Kafka/ES + MailHog + `xxl-job-admin` + `mock-data-studio`），默认仅暴露统一入口（`12880/12881`）、MailHog UI（`8025`）、XXL-JOB Admin UI（`12887`，仅本机）以及 `mock-data-studio`（默认主机端口 `12888`，仅本机）；`debug` profile 才会额外映射 `12882/18081/18082` 到宿主机，内部依赖端口仍不映射（fail-closed）。
+- `docker-compose.yml`：本地 HA 演练栈。默认包含 `frontend`、`NGINX`、`community-gateway x3`、`community-app x3`、`im-core x3`、`im-realtime x3`、`MySQL 1 主 2 从`、`Redis Cluster 6 节点`、`Zookeeper x3`、`Kafka x3`、`Elasticsearch x3`、`xxl-job-admin x2`、MailHog 与 `mock-data-studio`。对外仅暴露统一业务入口（`12880`）、前端（`12881`）、MailHog UI（`8025`）、XXL-JOB Admin UI（`12887`，仅本机）以及 `mock-data-studio`（默认主机端口 `12888`，仅本机）；`debug` profile 才会额外映射 `12882/18081/18082` 到宿主机，内部依赖端口仍不映射（fail-closed）。
 - `Dockerfile.frontend`：构建并运行前端（Vite build + preview，对外 `12881`）。
 - `Dockerfile.backend-service`：统一构建 Spring Boot 模块镜像（build arg：`MODULE`，取 Maven `artifactId`，例如 `community-app`）。
 - `.env.example`：环境变量示例（复制为 `.env` 使用）。
 - `.env`：本地环境变量（不要提交包含敏感信息的版本）。
 - `mysql-init/`：MySQL 初始化脚本（建表 + 种子数据）。
+- `mysql/conf/`：MySQL 主从节点的额外配置（binlog / GTID / relay log / 只读约束）。
+- `scripts/`：Redis Cluster、MySQL replication、Kafka topics 的 bootstrap 脚本。
+- `nginx/`：本地唯一外部入口配置；`8080` 承接业务流量，`8081` 承接 `xxl-job-admin` 控制面。
 - `observability/`：Prometheus/Alertmanager/Loki/Promtail/Grafana provisioning 配置。
 - `observability-elastic/`：EDOT Collector 配置（OTLP + shared-volume filelog -> Elastic）以及 `kibana/` 下的仓库内 saved objects。
 - `backups/`：备份产物目录（如存在，建议忽略不提交）。
@@ -23,10 +26,18 @@
 2. 启动：`docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build`
 3. 访问：
    - 前端：`http://localhost:12881`
-   - 统一入口（API / files / IM）：`http://localhost:12880`
+   - 统一入口（API / files / IM，由 `NGINX` 代理到 gateway 副本池）：`http://localhost:12880`
    - MailHog UI（dev mailbox）：`http://localhost:8025`（仅本机）
-   - XXL-JOB Admin UI：`http://localhost:12887/xxl-job-admin`（仅本机）
+   - XXL-JOB Admin UI（由 `NGINX` 代理到 `xxl-job-admin` 双副本）：`http://localhost:12887/xxl-job-admin`（仅本机）
    - Mock Data Studio health：`http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12888}/health`（仅本机）
+
+## 本地 HA 拓扑速览
+- 入口：`NGINX` 暴露 `12880`（业务）和 `12887`（XXL-JOB Admin）
+- 业务服务：`community-gateway x3`、`community-app x3`、`im-core x3`、`im-realtime x3`
+- 中间件：`mysql-primary + mysql-replica-1/2`、`redis-1..6`、`zookeeper-1..3`、`kafka-1..3`、`elasticsearch-1..3`
+- 控制面：`xxl-job-admin-1/2` 共用 `xxl_job` schema，由 `NGINX` 暴露单一入口
+- 非目标：`frontend`、MailHog、`mock-data-studio`、各类 bootstrap sidecar、observability 组件仍不纳入 HA 范围
+- 资源提示：这是重型本地演练拓扑，建议预留至少 `16GB` 内存和多核 CPU；首次 `--build` 与 cluster 收敛会明显慢于旧单节点 compose
 
 > 可选：开启观测/日志（旧 profile，Grafana/Loki/Prometheus/Alertmanager）
 > - 在 `deploy/.env` 中添加：`COMPOSE_PROFILES=observability`
@@ -54,15 +65,15 @@
 > - 若同时开启两套观测且希望 Elastic 那一侧的容器 stdout 也切到 JSON：`docker compose -f deploy/docker-compose.yml -f deploy/observability-elastic/docker-compose.override.yml --env-file deploy/.env --profile observability --profile observability-elastic up -d --build`
 
 ## 端口（默认映射到宿主机）
-- Community Gateway（统一入口）：`http://localhost:12880`
+- `NGINX` 统一业务入口：`http://localhost:12880`
 - 前端（Vite preview）：`http://localhost:12881`
 - MailHog UI：`http://localhost:8025`（仅绑定到 `127.0.0.1`）
-- XXL-JOB Admin UI：`http://localhost:12887/xxl-job-admin`（仅绑定到 `127.0.0.1`）
+- `NGINX` XXL-JOB Admin 入口：`http://localhost:12887/xxl-job-admin`（仅绑定到 `127.0.0.1`）
 - Mock Data Studio：`http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12888}/health`（仅绑定到 `127.0.0.1`）
 - `debug` profile（仅绑定到 `127.0.0.1`，用于回滚/诊断）：
-  - community-app：`http://localhost:12882`
-  - IM Realtime internal worker：`ws://localhost:18081/internal/ws/im`
-  - IM Core：`http://localhost:18082`
+  - community-app（当前固定指向 `community-app-1`）：`http://localhost:12882`
+  - IM Realtime internal worker（当前固定指向 `im-realtime-1`）：`ws://localhost:18081/internal/ws/im`
+  - IM Core（当前固定指向 `im-core-1`）：`http://localhost:18082`
 - 观测/日志（需启用 `observability` profile，均仅绑定到 `127.0.0.1`）：
   - Grafana：`http://localhost:12883`
   - Loki：`http://localhost:12884`
@@ -145,8 +156,8 @@
 - 即便手动 job 勾选 AI 增强，若 AI 未配置、超时或 provider 异常，也只会回退规则文案，不会让整批写入失败。
 
 ## XXL-JOB（本地分布式任务控制面）
-- compose 会额外启动 `xuxueli/xxl-job-admin:3.3.2`，元数据落在独立 schema `xxl_job`。
-- `community-app` 作为 phase 1 唯一 executor，通过 `XXL_JOB_EXECUTOR_APPNAME=community-app` 注册。
+- compose 会额外启动 `xuxueli/xxl-job-admin:3.3.2` 双副本，元数据落在独立 schema `xxl_job`，并由 `NGINX` 统一暴露到 `http://localhost:12887/xxl-job-admin`。
+- `community-app` 仍沿用 `XXL_JOB_EXECUTOR_APPNAME=community-app`；多副本 executor 通过各自的 `XXL_JOB_EXECUTOR_ADDRESS` 注册到同一个 admin 入口。
 - 本地默认会 seed 两个任务：
   - `pendingRegistrationUserCleanup`
   - `searchReindex`

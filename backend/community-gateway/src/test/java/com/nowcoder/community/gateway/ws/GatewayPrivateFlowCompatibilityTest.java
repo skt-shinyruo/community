@@ -12,7 +12,6 @@ import com.nowcoder.community.gateway.shard.ConsistentHashShardRouter;
 import com.nowcoder.community.gateway.shard.ShardRouter;
 import com.nowcoder.community.gateway.shard.WorkerDescriptor;
 import com.nowcoder.community.gateway.shard.WorkerRegistry;
-import com.nowcoder.community.gateway.shard.WorkerRegistryProperties;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -69,10 +68,16 @@ class GatewayPrivateFlowCompatibilityTest {
         registry.add("gateway.ws.proxy.path", () -> "/ws/im");
         registry.add("gateway.ws.proxy.auth-required", () -> true);
         registry.add("gateway.ws.proxy.default-worker-uri", GatewayPrivateFlowCompatibilityTest::workerAUri);
-        registry.add("gateway.ws.shard.workers[0].id", () -> "worker-a");
-        registry.add("gateway.ws.shard.workers[0].uri", GatewayPrivateFlowCompatibilityTest::workerAUri);
-        registry.add("gateway.ws.shard.workers[1].id", () -> "worker-b");
-        registry.add("gateway.ws.shard.workers[1].uri", GatewayPrivateFlowCompatibilityTest::workerBUri);
+        registry.add("gateway.ws.discovery.service-id", () -> "im-realtime-worker");
+        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].uri", GatewayPrivateFlowCompatibilityTest::workerAHttpUri);
+        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].metadata.workerId", () -> "worker-a");
+        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].metadata.wsPath", () -> "/internal/ws/im");
+        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].metadata.wsPort", () -> String.valueOf(workerAPort()));
+        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[1].uri", GatewayPrivateFlowCompatibilityTest::workerBHttpUri);
+        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[1].metadata.workerId", () -> "worker-b");
+        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[1].metadata.wsPath", () -> "/internal/ws/im");
+        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[1].metadata.wsPort", () -> String.valueOf(workerBPort()));
+        registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
         registry.add("security.jwt.hmac-secret", () -> JWT_SECRET);
         registry.add("security.jwt.issuer", () -> JWT_ISSUER);
     }
@@ -150,11 +155,39 @@ class GatewayPrivateFlowCompatibilityTest {
         return "ws://127.0.0.1:" + workerA.port() + "/internal/ws/im";
     }
 
+    private static synchronized String workerAHttpUri() {
+        if (workerA == null) {
+            workerA = startWorker("worker-a");
+        }
+        return "http://127.0.0.1:" + workerA.port();
+    }
+
+    private static synchronized int workerAPort() {
+        if (workerA == null) {
+            workerA = startWorker("worker-a");
+        }
+        return workerA.port();
+    }
+
     private static synchronized String workerBUri() {
         if (workerB == null) {
             workerB = startWorker("worker-b");
         }
         return "ws://127.0.0.1:" + workerB.port() + "/internal/ws/im";
+    }
+
+    private static synchronized String workerBHttpUri() {
+        if (workerB == null) {
+            workerB = startWorker("worker-b");
+        }
+        return "http://127.0.0.1:" + workerB.port();
+    }
+
+    private static synchronized int workerBPort() {
+        if (workerB == null) {
+            workerB = startWorker("worker-b");
+        }
+        return workerB.port();
     }
 
     private static DisposableServer startWorker(String workerId) {
@@ -190,10 +223,10 @@ class GatewayPrivateFlowCompatibilityTest {
     }
 
     private static String userIdFor(String workerId) {
-        WorkerRegistryProperties properties = new WorkerRegistryProperties();
-        properties.getWorkers().add(worker("worker-a", workerAUri()));
-        properties.getWorkers().add(worker("worker-b", workerBUri()));
-        ShardRouter router = new ConsistentHashShardRouter(new WorkerRegistry(properties));
+        ShardRouter router = new ConsistentHashShardRouter(new WorkerRegistry(List.of(
+                worker("worker-a", workerAUri()),
+                worker("worker-b", workerBUri())
+        )));
         for (int candidate = 1; candidate <= 10_000; candidate++) {
             String userId = String.valueOf(candidate);
             if (router.route(userId).map(WorkerDescriptor::getId).filter(workerId::equals).isPresent()) {
@@ -203,11 +236,8 @@ class GatewayPrivateFlowCompatibilityTest {
         throw new IllegalStateException("No userId routed to " + workerId);
     }
 
-    private static WorkerRegistryProperties.Worker worker(String id, String uri) {
-        WorkerRegistryProperties.Worker worker = new WorkerRegistryProperties.Worker();
-        worker.setId(id);
-        worker.setUri(URI.create(uri));
-        return worker;
+    private static WorkerDescriptor worker(String id, String uri) {
+        return new WorkerDescriptor(id, URI.create(uri));
     }
 
     private static String signHs256(String secret, String issuer, String subject, Instant expiresAt) throws Exception {

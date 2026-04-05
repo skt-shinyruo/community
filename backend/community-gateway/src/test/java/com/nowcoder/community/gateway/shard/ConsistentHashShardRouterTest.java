@@ -12,7 +12,7 @@ class ConsistentHashShardRouterTest {
 
     @Test
     void shouldReturnEmptyWhenNoHealthyWorkersRemain() {
-        WorkerRegistry registry = new WorkerRegistry(new WorkerRegistryProperties());
+        WorkerRegistry registry = new WorkerRegistry(java.util.List.of());
         ShardRouter router = new ConsistentHashShardRouter(registry);
 
         assertThat(router.route("user-1")).isEmpty();
@@ -79,18 +79,15 @@ class ConsistentHashShardRouterTest {
     }
 
     private static WorkerRegistry registryWithThreeWorkers() {
-        WorkerRegistryProperties properties = new WorkerRegistryProperties();
-        properties.getWorkers().add(worker("worker-a", "ws://127.0.0.1:18081/ws/im"));
-        properties.getWorkers().add(worker("worker-b", "ws://127.0.0.1:18082/ws/im"));
-        properties.getWorkers().add(worker("worker-c", "ws://127.0.0.1:18083/ws/im"));
-        return new WorkerRegistry(properties);
+        return new WorkerRegistry(java.util.List.of(
+                worker("worker-a", "ws://127.0.0.1:18081/ws/im"),
+                worker("worker-b", "ws://127.0.0.1:18082/ws/im"),
+                worker("worker-c", "ws://127.0.0.1:18083/ws/im")
+        ));
     }
 
-    private static WorkerRegistryProperties.Worker worker(String id, String uri) {
-        WorkerRegistryProperties.Worker worker = new WorkerRegistryProperties.Worker();
-        worker.setId(id);
-        worker.setUri(java.net.URI.create(uri));
-        return worker;
+    private static WorkerDescriptor worker(String id, String uri) {
+        return new WorkerDescriptor(id, java.net.URI.create(uri));
     }
 
     private static String routeToWorkerId(ShardRouter router, String userId) {

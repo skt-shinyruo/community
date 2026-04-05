@@ -5,15 +5,17 @@ spring:
   application:
     name: community-app
   datasource:
-    url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
+    # Local HA keeps MySQL single-primary for writes; switch DB_PRIMARY_HOST after manual promotion.
+    url: ${DB_URL:jdbc:mysql://${DB_PRIMARY_HOST:127.0.0.1}:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
     username: ${DB_USERNAME:${MYSQL_USER:community}}
     password: ${DB_PASSWORD:${MYSQL_PASSWORD:communitypass}}
     driver-class-name: com.mysql.cj.jdbc.Driver
   data:
     redis:
-      host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}
-      port: ${SPRING_DATA_REDIS_PORT:6379}
+      cluster:
+        nodes: ${SPRING_DATA_REDIS_CLUSTER_NODES:127.0.0.1:6379}
   elasticsearch:
+    # Comma-separated node list, for example http://elasticsearch-1:9200,http://elasticsearch-2:9200
     uris: ${ELASTICSEARCH_URIS:http://127.0.0.1:9200}
 
 mybatis:
@@ -109,7 +111,8 @@ xxl:
   job:
     enabled: false
     admin:
-      addresses: ${XXL_JOB_ADMIN_ADDRESSES:}
+      # Prefer the stable ingress URL; keep XXL_JOB_ADMIN_ADDRESSES as a compatibility fallback.
+      addresses: ${XXL_JOB_ADMIN_INGRESS_URL:${XXL_JOB_ADMIN_ADDRESSES:}}
       accessToken: ${XXL_JOB_ACCESS_TOKEN:}
     executor:
       appname: ${XXL_JOB_EXECUTOR_APPNAME:}

@@ -2,6 +2,7 @@ spring:
   application:
     name: im-realtime
   kafka:
+    # Comma-separated broker list, for example kafka-1:9092,kafka-2:9092,kafka-3:9092.
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
     consumer:
       group-id: ${IM_REALTIME_CONSUMER_GROUP:im-realtime-${HOSTNAME:local}}
@@ -37,9 +38,11 @@ im:
       ws-path: ${IM_INTERNAL_WORKER_WS_PATH:/internal/ws/im}
   core:
     base-url: ${IM_CORE_BASE_URL:http://localhost:18082}
+    # Ordered fallback pool for IM Core replicas.
     base-urls: ${IM_CORE_BASE_URLS:}
   community:
     base-url: ${COMMUNITY_BASE_URL:http://localhost:12882}
+    # Ordered fallback pool for community-app replicas.
     base-urls: ${COMMUNITY_BASE_URLS:}
     timeout-ms: ${IM_COMMUNITY_TIMEOUT_MS:1500}
   kafka:

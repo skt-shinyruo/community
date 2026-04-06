@@ -1,6 +1,10 @@
 spring:
   application:
     name: im-core
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR:${NACOS_SERVER_ADDR:localhost:8848}}
   datasource:
     # Local HA keeps MySQL single-primary for writes; switch IM_CORE_DB_PRIMARY_HOST after manual promotion.
     url: ${IM_CORE_DB_URL:jdbc:mysql://${IM_CORE_DB_PRIMARY_HOST:localhost}:3306/im_core?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}

@@ -20,6 +20,11 @@ public class LoginRateLimitProperties {
      */
     private int captchaRequiredFailuresPerUser = 2;
 
+    /**
+     * 限流依赖（Redis）最大等待时间；超时后按 fail-open 降级，避免登录主链路被单个 Redis 节点拖住。
+     */
+    private int dependencyTimeoutMs = 100;
+
     public boolean isEnabled() {
         return enabled;
     }
@@ -66,5 +71,13 @@ public class LoginRateLimitProperties {
 
     public void setCaptchaRequiredFailuresPerUser(int captchaRequiredFailuresPerUser) {
         this.captchaRequiredFailuresPerUser = captchaRequiredFailuresPerUser;
+    }
+
+    public int getDependencyTimeoutMs() {
+        return dependencyTimeoutMs;
+    }
+
+    public void setDependencyTimeoutMs(int dependencyTimeoutMs) {
+        this.dependencyTimeoutMs = dependencyTimeoutMs > 0 ? dependencyTimeoutMs : 100;
     }
 }

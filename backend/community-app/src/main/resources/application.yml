@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: community-app
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR:${NACOS_SERVER_ADDR:localhost:8848}}
   datasource:
     # Local HA keeps MySQL single-primary for writes; switch DB_PRIMARY_HOST after manual promotion.
     url: ${DB_URL:jdbc:mysql://${DB_PRIMARY_HOST:127.0.0.1}:3306/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
@@ -101,6 +105,7 @@ auth:
     max-failures-per-user: 5
     captcha-required-failures-per-ip: 5
     captcha-required-failures-per-user: 2
+    dependency-timeout-ms: ${AUTH_LOGIN_RATE_LIMIT_DEPENDENCY_TIMEOUT_MS:100}
 
 http:
   idempotency:

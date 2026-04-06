@@ -1,12 +1,15 @@
 package com.nowcoder.community.gateway.ws;
 
 import com.nowcoder.community.gateway.shard.ConsistentHashShardRouter;
+import com.nowcoder.community.gateway.shard.DiscoveredWorkerDescriptorFactory;
 import com.nowcoder.community.gateway.shard.ShardRouter;
 import com.nowcoder.community.gateway.shard.WorkerRegistry;
-import com.nowcoder.community.gateway.shard.WorkerRegistryProperties;
+import com.nowcoder.community.gateway.shard.WorkerDiscoveryProperties;
 import com.nowcoder.community.gateway.security.GatewayCorsConfig;
 import com.nowcoder.community.gateway.security.GatewayCorsProperties;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cloud.client.discovery.DiscoveryClient;
+import org.springframework.context.annotation.Primary;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,7 +22,7 @@ import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClien
 import java.util.Map;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties({WsProxyProperties.class, WorkerRegistryProperties.class})
+@EnableConfigurationProperties({WsProxyProperties.class, WorkerDiscoveryProperties.class})
 public class GatewayWebSocketConfig {
 
     @Bean
@@ -42,13 +45,23 @@ public class GatewayWebSocketConfig {
     }
 
     @Bean
+    @Primary
     ReactorNettyWebSocketClient gatewayWebSocketClient() {
         return new ReactorNettyWebSocketClient();
     }
 
     @Bean
-    WorkerRegistry workerRegistry(WorkerRegistryProperties properties) {
-        return new WorkerRegistry(properties);
+    DiscoveredWorkerDescriptorFactory discoveredWorkerDescriptorFactory(WorkerDiscoveryProperties properties) {
+        return new DiscoveredWorkerDescriptorFactory(properties);
+    }
+
+    @Bean
+    WorkerRegistry workerRegistry(
+            DiscoveryClient discoveryClient,
+            WorkerDiscoveryProperties properties,
+            DiscoveredWorkerDescriptorFactory factory
+    ) {
+        return new WorkerRegistry(discoveryClient, properties, factory);
     }
 
     @Bean

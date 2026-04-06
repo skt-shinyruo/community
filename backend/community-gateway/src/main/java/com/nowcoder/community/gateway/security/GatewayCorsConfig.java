@@ -7,6 +7,9 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsWebFilter;
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
+import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.WebFilter;
+import org.springframework.web.server.WebFilterChain;
 
 import java.util.List;
 
@@ -15,12 +18,14 @@ import java.util.List;
 public class GatewayCorsConfig {
 
     @Bean
-    CorsWebFilter gatewayCorsWebFilter(GatewayCorsProperties properties) {
+    WebFilter gatewayCorsWebFilter(GatewayCorsProperties properties) {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", buildCorsConfiguration(properties));
         source.registerCorsConfiguration("/files/**", buildCorsConfiguration(properties));
-        source.registerCorsConfiguration("/ws/**", buildCorsConfiguration(properties));
-        return new CorsWebFilter(source);
+        CorsWebFilter delegate = new CorsWebFilter(source);
+        return (exchange, chain) -> isWebSocketUpgrade(exchange)
+                ? chain.filter(exchange)
+                : delegate.filter(exchange, chain);
     }
 
     public static CorsConfiguration buildCorsConfiguration(GatewayCorsProperties properties) {
@@ -34,5 +39,13 @@ public class GatewayCorsConfig {
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
         return config;
+    }
+
+    private static boolean isWebSocketUpgrade(ServerWebExchange exchange) {
+        if (exchange == null || exchange.getRequest() == null) {
+            return false;
+        }
+        String upgrade = exchange.getRequest().getHeaders().getUpgrade();
+        return upgrade != null && "websocket".equalsIgnoreCase(upgrade.trim());
     }
 }

@@ -2,12 +2,11 @@ package com.nowcoder.community.gateway.http;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 
 @ConfigurationProperties(prefix = "gateway.http")
-public class UpstreamRouteProperties {
+public class GatewayHttpRouteProperties {
 
     private final List<Route> routes = new ArrayList<>();
 
@@ -19,7 +18,7 @@ public class UpstreamRouteProperties {
 
         private String id;
         private String pathPrefix;
-        private URI uri;
+        private String serviceId;
 
         public String getId() {
             return id;
@@ -37,12 +36,12 @@ public class UpstreamRouteProperties {
             this.pathPrefix = pathPrefix;
         }
 
-        public URI getUri() {
-            return uri;
+        public String getServiceId() {
+            return serviceId;
         }
 
-        public void setUri(URI uri) {
-            this.uri = uri;
+        public void setServiceId(String serviceId) {
+            this.serviceId = serviceId;
         }
     }
 }

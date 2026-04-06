@@ -98,7 +98,9 @@ import static org.mockito.Mockito.when;
         "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
         "spring.kafka.listener.auto-startup=true",
         "spring.kafka.consumer.auto-offset-reset=earliest",
-        "im.ws.room-flush-interval-ms=10"
+        "spring.cloud.nacos.discovery.enabled=false",
+        "im.ws.room-flush-interval-ms=10",
+        "im.ws.kafka-send-timeout-ms=100"
 })
 class ImRealtimeWebSocketIntegrationTest {
 
@@ -473,6 +475,39 @@ class ImRealtimeWebSocketIntegrationTest {
             assertThat(disconnectEvent.getMDCPropertyMap()).containsEntry("traceId", expectedTraceId);
         } finally {
             stopWsLogCapture(logs);
+        }
+    }
+
+    @Test
+    void websocket_shouldReturnSendErrorWhenKafkaSendDoesNotCompleteWithinTimeout() throws Exception {
+        when(governanceClient.validateSendPrivateMessage(anyString(), anyInt(), anyString()))
+                .thenReturn(Mono.just(CommunityGovernanceClient.Decision.allow("")));
+        doReturn(new CompletableFuture<>())
+                .when(commandProducer).sendPrivateText(any(SendPrivateTextCommandV1.class));
+
+        LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
+        Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
+        Sinks.Empty<Void> done = Sinks.empty();
+        CountDownLatch connected = new CountDownLatch(1);
+
+        Disposable ws = openWebSocket(received, outbound, done, connected);
+        try {
+            assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
+
+            String token = signHs256(jwtSecret, jwtIssuer, "100", Instant.now().plusSeconds(120));
+            outbound.tryEmitNext("{\"type\":\"auth\",\"accessToken\":\"" + token + "\"}");
+            JsonNode authOk = awaitType(received, "auth_ok", Duration.ofSeconds(5));
+            assertThat(authOk.path("userId").asInt()).isEqualTo(100);
+
+            outbound.tryEmitNext("{\"type\":\"sendPrivateText\",\"clientMsgId\":\"c-timeout\",\"toUserId\":200,\"content\":\"slow-broker\"}");
+
+            JsonNode sendError = awaitType(received, "sendError", Duration.ofSeconds(2));
+            assertThat(sendError.path("cmd").asText("")).isEqualTo("sendPrivateText");
+            assertThat(sendError.path("clientMsgId").asText("")).isEqualTo("c-timeout");
+            assertThat(sendError.path("message").asText("")).contains("timeout");
+        } finally {
+            done.tryEmitEmpty();
+            outbound.tryEmitComplete();
         }
     }
 

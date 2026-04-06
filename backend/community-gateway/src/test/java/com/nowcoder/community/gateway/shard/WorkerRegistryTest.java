@@ -3,6 +3,7 @@ package com.nowcoder.community.gateway.shard;
 import org.junit.jupiter.api.Test;
 
 import java.net.URI;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -11,7 +12,7 @@ class WorkerRegistryTest {
 
     @Test
     void shouldExposeConfiguredWorkersAsHealthyByDefault() {
-        WorkerRegistry registry = new WorkerRegistry(properties(
+        WorkerRegistry registry = new WorkerRegistry(List.of(
                 worker("worker-a", "ws://127.0.0.1:18081/ws/im"),
                 worker("worker-b", "ws://127.0.0.1:18082/ws/im")
         ));
@@ -29,7 +30,7 @@ class WorkerRegistryTest {
 
     @Test
     void shouldExcludeWorkersMarkedUnhealthyUntilRestored() {
-        WorkerRegistry registry = new WorkerRegistry(properties(
+        WorkerRegistry registry = new WorkerRegistry(List.of(
                 worker("worker-a", "ws://127.0.0.1:18081/ws/im"),
                 worker("worker-b", "ws://127.0.0.1:18082/ws/im"),
                 worker("worker-c", "ws://127.0.0.1:18083/ws/im")
@@ -50,28 +51,15 @@ class WorkerRegistryTest {
 
     @Test
     void shouldRejectDuplicateWorkerIds() {
-        WorkerRegistryProperties properties = properties(
+        assertThatThrownBy(() -> new WorkerRegistry(List.of(
                 worker("worker-a", "ws://127.0.0.1:18081/ws/im"),
                 worker("worker-a", "ws://127.0.0.1:18082/ws/im")
-        );
-
-        assertThatThrownBy(() -> new WorkerRegistry(properties))
+        )))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Duplicate worker id");
     }
 
-    private static WorkerRegistryProperties properties(WorkerRegistryProperties.Worker... workers) {
-        WorkerRegistryProperties properties = new WorkerRegistryProperties();
-        for (WorkerRegistryProperties.Worker worker : workers) {
-            properties.getWorkers().add(worker);
-        }
-        return properties;
-    }
-
-    private static WorkerRegistryProperties.Worker worker(String id, String uri) {
-        WorkerRegistryProperties.Worker worker = new WorkerRegistryProperties.Worker();
-        worker.setId(id);
-        worker.setUri(URI.create(uri));
-        return worker;
+    private static WorkerDescriptor worker(String id, String uri) {
+        return new WorkerDescriptor(id, URI.create(uri));
     }
 }

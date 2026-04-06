@@ -1,55 +1,86 @@
 package com.nowcoder.community.gateway.shard;
 
+import org.springframework.cloud.client.discovery.DiscoveryClient;
+import org.springframework.util.StringUtils;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 
 public class WorkerRegistry {
 
-    private final LinkedHashMap<String, WorkerDescriptor> byId = new LinkedHashMap<>();
+    private final Supplier<List<WorkerDescriptor>> workerSupplier;
     private final Set<String> unhealthyWorkerIds = new LinkedHashSet<>();
 
-    public WorkerRegistry(WorkerRegistryProperties properties) {
-        for (WorkerRegistryProperties.Worker worker : properties.getWorkers()) {
-            if (worker == null || worker.getId() == null || worker.getId().isBlank() || worker.getUri() == null) {
-                continue;
-            }
-            WorkerDescriptor previous = byId.putIfAbsent(worker.getId(), new WorkerDescriptor(worker.getId(), worker.getUri()));
-            if (previous != null) {
-                throw new IllegalArgumentException("Duplicate worker id: " + worker.getId());
+    public WorkerRegistry(
+            DiscoveryClient discoveryClient,
+            WorkerDiscoveryProperties properties,
+            DiscoveredWorkerDescriptorFactory factory
+    ) {
+        this(() -> discoveryClient.getInstances(properties.getServiceId()).stream()
+                .map(factory::from)
+                .flatMap(Optional::stream)
+                .toList());
+    }
+
+    public WorkerRegistry(List<WorkerDescriptor> workers) {
+        this(() -> List.copyOf(workers));
+    }
+
+    private WorkerRegistry(Supplier<List<WorkerDescriptor>> workerSupplier) {
+        this.workerSupplier = workerSupplier;
+    }
+
+    public synchronized List<WorkerDescriptor> allWorkers() {
+        return currentWorkers();
+    }
+
+    public synchronized List<WorkerDescriptor> healthyWorkers() {
+        List<WorkerDescriptor> workers = currentWorkers();
+        ArrayList<WorkerDescriptor> healthy = new ArrayList<>();
+        for (WorkerDescriptor worker : workers) {
+            if (!unhealthyWorkerIds.contains(worker.getId())) {
+                healthy.add(worker);
             }
         }
+        return List.copyOf(healthy);
     }
 
-    public List<WorkerDescriptor> allWorkers() {
-        return List.copyOf(byId.values());
-    }
-
-    public List<WorkerDescriptor> healthyWorkers() {
-        ArrayList<WorkerDescriptor> list = new ArrayList<>();
-        for (Map.Entry<String, WorkerDescriptor> entry : byId.entrySet()) {
-            if (!unhealthyWorkerIds.contains(entry.getKey())) {
-                list.add(entry.getValue());
-            }
+    public synchronized Optional<WorkerDescriptor> find(String workerId) {
+        if (!StringUtils.hasText(workerId)) {
+            return Optional.empty();
         }
-        return List.copyOf(list);
+        return currentWorkers().stream()
+                .filter(worker -> workerId.equals(worker.getId()))
+                .findFirst();
     }
 
-    public Optional<WorkerDescriptor> find(String workerId) {
-        return Optional.ofNullable(byId.get(workerId));
-    }
-
-    public void markUnhealthy(String workerId) {
-        if (workerId != null && byId.containsKey(workerId)) {
+    public synchronized void markUnhealthy(String workerId) {
+        if (StringUtils.hasText(workerId)) {
             unhealthyWorkerIds.add(workerId);
         }
     }
 
-    public void markHealthy(String workerId) {
+    public synchronized void markHealthy(String workerId) {
         unhealthyWorkerIds.remove(workerId);
+    }
+
+    private List<WorkerDescriptor> currentWorkers() {
+        LinkedHashMap<String, WorkerDescriptor> byId = new LinkedHashMap<>();
+        for (WorkerDescriptor worker : workerSupplier.get()) {
+            if (worker == null || !StringUtils.hasText(worker.getId()) || worker.getUri() == null) {
+                continue;
+            }
+            WorkerDescriptor previous = byId.putIfAbsent(worker.getId(), worker);
+            if (previous != null) {
+                throw new IllegalArgumentException("Duplicate worker id: " + worker.getId());
+            }
+        }
+        unhealthyWorkerIds.retainAll(byId.keySet());
+        return List.copyOf(byId.values());
     }
 }

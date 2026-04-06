@@ -30,6 +30,8 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.UUID;
 
@@ -54,6 +56,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
     private final CommandProducer commandProducer;
     private final int maxChars;
     private final int maxOutboundBacklog;
+    private final int kafkaSendTimeoutMs;
 
     public ImWebSocketHandler(
             ObjectMapper objectMapper,
@@ -64,7 +67,8 @@ public class ImWebSocketHandler implements WebSocketHandler {
             CommunityGovernanceClient governanceClient,
             CommandProducer commandProducer,
             @Value("${im.ws.max-inbound-chars:10000}") int maxChars,
-            @Value("${im.ws.outbound-buffer-size:256}") int maxOutboundBacklog
+            @Value("${im.ws.outbound-buffer-size:256}") int maxOutboundBacklog,
+            @Value("${im.ws.kafka-send-timeout-ms:5000}") int kafkaSendTimeoutMs
     ) {
         this.objectMapper = objectMapper;
         this.jwtVerifier = jwtVerifier;
@@ -75,6 +79,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
         this.commandProducer = commandProducer;
         this.maxChars = Math.min(Math.max(1, maxChars), 100_000);
         this.maxOutboundBacklog = Math.min(Math.max(1, maxOutboundBacklog), 10_000);
+        this.kafkaSendTimeoutMs = Math.min(Math.max(100, kafkaSendTimeoutMs), 60_000);
     }
 
     @Override
@@ -357,16 +362,18 @@ public class ImWebSocketHandler implements WebSocketHandler {
             return;
         }
         try {
-            future.whenComplete((ok, ex) -> {
+            future.orTimeout(kafkaSendTimeoutMs, TimeUnit.MILLISECONDS).whenComplete((ok, ex) -> {
                 try {
                     if (ex != null) {
+                        String reasonCode = ex instanceof TimeoutException ? "kafka_send_timeout" : "kafka_send_failed";
+                        String errorMessage = ex instanceof TimeoutException ? "kafka send timeout" : "kafka send failed";
                         warnEvent(
                                 CATEGORY_INTEGRATION,
                                 "ws_command_enqueue",
                                 "failure",
                                 conn.traceId(),
                                 null,
-                                "community.reason_code", "kafka_send_failed",
+                                "community.reason_code", reasonCode,
                                 "community.connection_id", conn.connectionId(),
                                 "user.id", conn.userId(),
                                 "community.command", cmdType,
@@ -375,7 +382,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
                                 "community.error_class", errorClass(ex),
                                 "community.error_message", errorMessage(ex)
                         );
-                        conn.trySendText(WsProtocol.sendError(cmdType, clientMsgId, requestId, "kafka send failed"));
+                        conn.trySendText(WsProtocol.sendError(cmdType, clientMsgId, requestId, errorMessage));
                         return;
                     }
                     conn.trySendText(WsProtocol.sendAck(cmdType, clientMsgId, requestId));

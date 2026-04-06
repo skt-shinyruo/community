@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: community-gateway
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR:${NACOS_SERVER_ADDR:localhost:8848}}
 
 community:
   logging:
@@ -33,13 +37,13 @@ gateway:
     routes:
       - id: bootstrap-api
         path-prefix: /api
-        uri: ${COMMUNITY_APP_BASE_URL:http://localhost:12882}
+        service-id: community-app
       - id: im-core
         path-prefix: /api/im
-        uri: ${IM_CORE_BASE_URL:http://localhost:18082}
+        service-id: im-core
       - id: bootstrap-files
         path-prefix: /files
-        uri: ${COMMUNITY_APP_BASE_URL:http://localhost:12882}
+        service-id: community-app
     rate-limit:
       enabled: true
       fail-open-on-error: true

@@ -3,6 +3,8 @@ package com.nowcoder.community.im.realtime.client;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceIdCodec;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -27,13 +29,12 @@ public class CommunityGovernanceClient {
     private final WebClient webClient;
     private final Duration timeout;
 
+    @Autowired
     public CommunityGovernanceClient(
-            @Value("${im.community.base-url}") String baseUrl,
+            @Qualifier("communityGovernanceWebClient") WebClient webClient,
             @Value("${im.community.timeout-ms:1500}") long timeoutMs
     ) {
-        this.webClient = WebClient.builder()
-                .baseUrl(String.valueOf(baseUrl))
-                .build();
+        this.webClient = webClient;
         long ms = Math.max(100L, timeoutMs);
         this.timeout = Duration.ofMillis(ms);
     }
@@ -51,8 +52,7 @@ public class CommunityGovernanceClient {
 
         applyTraceHeaders(request, traceId);
 
-        return request
-                .exchangeToMono(this::decodeDecision)
+        return request.exchangeToMono(this::decodeDecision)
                 .timeout(timeout)
                 .onErrorResume(ex -> Mono.just(Decision.deny(503, "治理校验服务不可用，请稍后重试", "")));
     }

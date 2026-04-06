@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -40,7 +41,9 @@ class CommunityGovernanceClientTraceHeadersTest {
         server.start();
 
         CommunityGovernanceClient client = new CommunityGovernanceClient(
-                "http://127.0.0.1:" + server.getAddress().getPort(),
+                WebClient.builder()
+                        .baseUrl("http://127.0.0.1:" + server.getAddress().getPort())
+                        .build(),
                 1500L
         );
 
@@ -54,6 +57,40 @@ class CommunityGovernanceClientTraceHeadersTest {
 
         Map<String, String> requestHeaders = requests.poll(5, TimeUnit.SECONDS);
         assertThat(requestHeaders).isNotNull();
+        assertThat(requestHeaders).containsEntry("X-Trace-Id", traceId);
+        assertThat(requestHeaders.get("traceparent"))
+                .startsWith("00-" + traceId + "-")
+                .endsWith("-01");
+    }
+
+    @Test
+    void validateSendPrivateMessageShouldForwardAuthorizationAndTraceHeaders() throws Exception {
+        LinkedBlockingQueue<Map<String, String>> requests = new LinkedBlockingQueue<>();
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/im-governance/private-messages/validate", exchange -> {
+            requests.offer(captureHeaders(exchange));
+            writeJson(exchange, 200, "{\"code\":0,\"message\":\"OK\"}");
+        });
+        server.start();
+
+        CommunityGovernanceClient client = new CommunityGovernanceClient(
+                WebClient.builder()
+                        .baseUrl("http://127.0.0.1:" + server.getAddress().getPort())
+                        .build(),
+                1500L
+        );
+
+        String traceId = "ffffffffffffffffffffffffffffffff";
+        CommunityGovernanceClient.Decision decision = client
+                .validateSendPrivateMessage("bearer-token", 201, traceId)
+                .block();
+
+        assertThat(decision).isNotNull();
+        assertThat(decision.allowed()).isTrue();
+
+        Map<String, String> requestHeaders = requests.poll(5, TimeUnit.SECONDS);
+        assertThat(requestHeaders).isNotNull();
+        assertThat(requestHeaders).containsEntry("Authorization", "Bearer bearer-token");
         assertThat(requestHeaders).containsEntry("X-Trace-Id", traceId);
         assertThat(requestHeaders.get("traceparent"))
                 .startsWith("00-" + traceId + "-")

@@ -1,5 +1,6 @@
 package com.nowcoder.community.gateway.ws;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.reactive.socket.WebSocketSession;
@@ -17,7 +18,7 @@ public class InternalWorkerBridgeFactory {
 
     private final ReactorNettyWebSocketClient client;
 
-    public InternalWorkerBridgeFactory(ReactorNettyWebSocketClient client) {
+    public InternalWorkerBridgeFactory(@Qualifier("gatewayWebSocketClient") ReactorNettyWebSocketClient client) {
         this.client = client;
     }
 

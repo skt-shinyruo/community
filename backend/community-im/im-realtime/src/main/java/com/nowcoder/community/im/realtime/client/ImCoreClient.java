@@ -3,7 +3,8 @@ package com.nowcoder.community.im.realtime.client;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceIdCodec;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClient.RequestHeadersSpec;
@@ -18,10 +19,9 @@ public class ImCoreClient {
 
     private final WebClient webClient;
 
-    public ImCoreClient(@Value("${im.core.base-url}") String baseUrl) {
-        this.webClient = WebClient.builder()
-                .baseUrl(String.valueOf(baseUrl))
-                .build();
+    @Autowired
+    public ImCoreClient(@Qualifier("imCoreWebClient") WebClient webClient) {
+        this.webClient = webClient;
     }
 
     public Flux<Long> listAllRoomIdsForUser(int userId, String bearerAccessToken, String traceId) {

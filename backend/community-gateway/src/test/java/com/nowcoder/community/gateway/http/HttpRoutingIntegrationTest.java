@@ -48,13 +48,16 @@ class HttpRoutingIntegrationTest {
     static void registerProperties(DynamicPropertyRegistry registry) {
         registry.add("gateway.http.routes[0].id", () -> "bootstrap-api");
         registry.add("gateway.http.routes[0].path-prefix", () -> "/api");
-        registry.add("gateway.http.routes[0].uri", HttpRoutingIntegrationTest::bootstrapBaseUrl);
+        registry.add("gateway.http.routes[0].service-id", () -> "community-app");
         registry.add("gateway.http.routes[1].id", () -> "im-core");
         registry.add("gateway.http.routes[1].path-prefix", () -> "/api/im");
-        registry.add("gateway.http.routes[1].uri", HttpRoutingIntegrationTest::imBaseUrl);
+        registry.add("gateway.http.routes[1].service-id", () -> "im-core");
         registry.add("gateway.http.routes[2].id", () -> "bootstrap-files");
         registry.add("gateway.http.routes[2].path-prefix", () -> "/files");
-        registry.add("gateway.http.routes[2].uri", HttpRoutingIntegrationTest::bootstrapBaseUrl);
+        registry.add("gateway.http.routes[2].service-id", () -> "community-app");
+        registry.add("spring.cloud.discovery.client.simple.instances.community-app[0].uri", HttpRoutingIntegrationTest::bootstrapBaseUrl);
+        registry.add("spring.cloud.discovery.client.simple.instances.im-core[0].uri", HttpRoutingIntegrationTest::imBaseUrl);
+        registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
         registry.add("gateway.cors.allowed-origins[0]", () -> "http://localhost:12881");
         registry.add("gateway.cors.allowed-origins[1]", () -> "http://127.0.0.1:12881");
     }
@@ -95,6 +98,23 @@ class HttpRoutingIntegrationTest {
         assertThat(capture.authorization()).isEqualTo("Bearer test-token");
         assertThat(capture.traceId()).isEqualTo("abcdefabcdefabcdefabcdefabcdefab");
         assertThat(capture.traceparent()).startsWith("00-abcdefabcdefabcdefabcdefabcdefab-");
+    }
+
+    @Test
+    void shouldProxyFilesRequestsToBootstrapServiceAndPreservePathAndQuery() throws Exception {
+        BOOTSTRAP_CAPTURES.clear();
+
+        webTestClient.get()
+                .uri("/files/avatars/9.png?variant=thumb")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.upstream").isEqualTo("bootstrap");
+
+        RequestCapture capture = BOOTSTRAP_CAPTURES.poll(5, TimeUnit.SECONDS);
+        assertThat(capture).isNotNull();
+        assertThat(capture.path()).isEqualTo("/files/avatars/9.png");
+        assertThat(capture.query()).isEqualTo("variant=thumb");
     }
 
     @Test

@@ -54,7 +54,6 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env ps
 - `im-realtime-1..3`
 - `mysql-primary` / `mysql-replica-1/2`
 - `redis-1..6`
-- `zookeeper-1..3`
 - `kafka-1..3`
 - `elasticsearch-1..3`
 - `nginx`
@@ -227,7 +226,7 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env logs --tail=1
 - `curl :12880` 返回 `502`：先看 `docker compose ps --all community-gateway-1 community-gateway-2 community-gateway-3`
 - `gateway` 没起来：看 `docker compose logs --tail=200 community-gateway-1`
 - `im-realtime` 没起来：看 `docker compose logs --tail=200 im-realtime-1`
-- `Kafka` 卡在 `health: starting`：先看 `zookeeper-1..3` 是否全部运行，再看 `docker compose logs kafka-1`
+- `Kafka` 卡在 `health: starting`：先看 `docker compose logs kafka-1` 是否卡在 controller quorum / metadata log 初始化；如果是从旧 ZooKeeper 栈切过来，先执行 `docker compose down -v` 清掉旧的 `kafka_*` 数据卷再重启
 - `mysql-replication-bootstrap` 失败：先确认三个 MySQL 节点都 `healthy`，再看 sidecar 日志里的 `Last_IO_Error` / `Last_SQL_Error`
 
 ## 8. 清理

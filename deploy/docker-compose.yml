@@ -189,7 +189,9 @@ services:
 
   xxl-job-admin-1:
     image: xuxueli/xxl-job-admin:3.3.2
+    mem_limit: ${XXL_JOB_ADMIN_MEM_LIMIT:-384m}
     environment:
+      - "JAVA_TOOL_OPTIONS=${XXL_JOB_ADMIN_JAVA_TOOL_OPTIONS:--XX:+UseG1GC -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=60.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}"
       - PARAMS=--spring.datasource.url=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/xxl_job?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true --spring.datasource.username=${XXL_JOB_MYSQL_USER:-xxl_job} --spring.datasource.password=${XXL_JOB_MYSQL_PASSWORD:-xxljobpass} --xxl.job.accessToken=${XXL_JOB_ACCESS_TOKEN:?XXL_JOB_ACCESS_TOKEN is required}
     depends_on:
       mysql-primary:
@@ -201,7 +203,9 @@ services:
 
   xxl-job-admin-2:
     image: xuxueli/xxl-job-admin:3.3.2
+    mem_limit: ${XXL_JOB_ADMIN_MEM_LIMIT:-384m}
     environment:
+      - "JAVA_TOOL_OPTIONS=${XXL_JOB_ADMIN_JAVA_TOOL_OPTIONS:--XX:+UseG1GC -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=60.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}"
       - PARAMS=--spring.datasource.url=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/xxl_job?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true --spring.datasource.username=${XXL_JOB_MYSQL_USER:-xxl_job} --spring.datasource.password=${XXL_JOB_MYSQL_PASSWORD:-xxljobpass} --xxl.job.accessToken=${XXL_JOB_ACCESS_TOKEN:?XXL_JOB_ACCESS_TOKEN is required}
     depends_on:
       mysql-primary:
@@ -209,10 +213,16 @@ services:
 
   nacos:
     image: nacos/nacos-server:v2.3.2-slim
+    mem_limit: ${NACOS_MEM_LIMIT:-768m}
     environment:
       - MODE=standalone
       - NACOS_AUTH_ENABLE=false
       - PREFER_HOST_MODE=hostname
+      - JVM_XMS=${NACOS_JVM_XMS:-512m}
+      - JVM_XMX=${NACOS_JVM_XMX:-512m}
+      - JVM_XMN=${NACOS_JVM_XMN:-256m}
+      - JVM_MS=${NACOS_JVM_MS:-128m}
+      - JVM_MMS=${NACOS_JVM_MMS:-256m}
     ports:
       - "127.0.0.1:${NACOS_HOST_PORT:-18848}:8848"
 
@@ -223,68 +233,27 @@ services:
     ports:
       - "127.0.0.1:8025:8025"
 
-  zookeeper-1:
-    image: confluentinc/cp-zookeeper:7.6.1
-    environment:
-      - ZOOKEEPER_SERVER_ID=1
-      - ZOOKEEPER_CLIENT_PORT=2181
-      - ZOOKEEPER_TICK_TIME=2000
-      - ZOOKEEPER_INIT_LIMIT=5
-      - ZOOKEEPER_SYNC_LIMIT=2
-      - ZOOKEEPER_SERVERS=zookeeper-1:2888:3888;zookeeper-2:2888:3888;zookeeper-3:2888:3888
-    volumes:
-      - zookeeper_1_data:/var/lib/zookeeper/data
-      - zookeeper_1_log:/var/lib/zookeeper/log
-
-  zookeeper-2:
-    image: confluentinc/cp-zookeeper:7.6.1
-    environment:
-      - ZOOKEEPER_SERVER_ID=2
-      - ZOOKEEPER_CLIENT_PORT=2181
-      - ZOOKEEPER_TICK_TIME=2000
-      - ZOOKEEPER_INIT_LIMIT=5
-      - ZOOKEEPER_SYNC_LIMIT=2
-      - ZOOKEEPER_SERVERS=zookeeper-1:2888:3888;zookeeper-2:2888:3888;zookeeper-3:2888:3888
-    volumes:
-      - zookeeper_2_data:/var/lib/zookeeper/data
-      - zookeeper_2_log:/var/lib/zookeeper/log
-
-  zookeeper-3:
-    image: confluentinc/cp-zookeeper:7.6.1
-    environment:
-      - ZOOKEEPER_SERVER_ID=3
-      - ZOOKEEPER_CLIENT_PORT=2181
-      - ZOOKEEPER_TICK_TIME=2000
-      - ZOOKEEPER_INIT_LIMIT=5
-      - ZOOKEEPER_SYNC_LIMIT=2
-      - ZOOKEEPER_SERVERS=zookeeper-1:2888:3888;zookeeper-2:2888:3888;zookeeper-3:2888:3888
-    volumes:
-      - zookeeper_3_data:/var/lib/zookeeper/data
-      - zookeeper_3_log:/var/lib/zookeeper/log
-
   kafka-1:
     image: confluentinc/cp-kafka:7.6.1
+    mem_limit: ${KAFKA_MEM_LIMIT:-1g}
     restart: on-failure
-    depends_on:
-      zookeeper-1:
-        condition: service_started
-      zookeeper-2:
-        condition: service_started
-      zookeeper-3:
-        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
       interval: 5s
       timeout: 5s
       retries: 30
-      start_period: 20s
+      start_period: 40s
     environment:
-      - KAFKA_BROKER_ID=1
-      - KAFKA_ZOOKEEPER_CONNECT=zookeeper-1:2181,zookeeper-2:2181,zookeeper-3:2181
-      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092
+      - KAFKA_NODE_ID=1
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
       - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-1:9092
-      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
       - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_LOG_DIRS=/var/lib/kafka/data
+      - CLUSTER_ID=${KAFKA_KRAFT_CLUSTER_ID:-lPHxXLw5RVixWxVWRmsjHA}
       - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3
       - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2
       - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=3
@@ -292,32 +261,31 @@ services:
       - KAFKA_DEFAULT_REPLICATION_FACTOR=3
       - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
       - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
+      - "KAFKA_HEAP_OPTS=${KAFKA_HEAP_OPTS:--Xms512M -Xmx512M}"
     volumes:
       - kafka_1_data:/var/lib/kafka/data
 
   kafka-2:
     image: confluentinc/cp-kafka:7.6.1
+    mem_limit: ${KAFKA_MEM_LIMIT:-1g}
     restart: on-failure
-    depends_on:
-      zookeeper-1:
-        condition: service_started
-      zookeeper-2:
-        condition: service_started
-      zookeeper-3:
-        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
       interval: 5s
       timeout: 5s
       retries: 30
-      start_period: 20s
+      start_period: 40s
     environment:
-      - KAFKA_BROKER_ID=2
-      - KAFKA_ZOOKEEPER_CONNECT=zookeeper-1:2181,zookeeper-2:2181,zookeeper-3:2181
-      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092
+      - KAFKA_NODE_ID=2
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
       - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-2:9092
-      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
       - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_LOG_DIRS=/var/lib/kafka/data
+      - CLUSTER_ID=${KAFKA_KRAFT_CLUSTER_ID:-lPHxXLw5RVixWxVWRmsjHA}
       - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3
       - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2
       - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=3
@@ -325,32 +293,31 @@ services:
       - KAFKA_DEFAULT_REPLICATION_FACTOR=3
       - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
       - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
+      - "KAFKA_HEAP_OPTS=${KAFKA_HEAP_OPTS:--Xms512M -Xmx512M}"
     volumes:
       - kafka_2_data:/var/lib/kafka/data
 
   kafka-3:
     image: confluentinc/cp-kafka:7.6.1
+    mem_limit: ${KAFKA_MEM_LIMIT:-1g}
     restart: on-failure
-    depends_on:
-      zookeeper-1:
-        condition: service_started
-      zookeeper-2:
-        condition: service_started
-      zookeeper-3:
-        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
       interval: 5s
       timeout: 5s
       retries: 30
-      start_period: 20s
+      start_period: 40s
     environment:
-      - KAFKA_BROKER_ID=3
-      - KAFKA_ZOOKEEPER_CONNECT=zookeeper-1:2181,zookeeper-2:2181,zookeeper-3:2181
-      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092
+      - KAFKA_NODE_ID=3
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
       - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-3:9092
-      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
       - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_LOG_DIRS=/var/lib/kafka/data
+      - CLUSTER_ID=${KAFKA_KRAFT_CLUSTER_ID:-lPHxXLw5RVixWxVWRmsjHA}
       - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3
       - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2
       - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=3
@@ -358,6 +325,7 @@ services:
       - KAFKA_DEFAULT_REPLICATION_FACTOR=3
       - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
       - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
+      - "KAFKA_HEAP_OPTS=${KAFKA_HEAP_OPTS:--Xms512M -Xmx512M}"
     volumes:
       - kafka_3_data:/var/lib/kafka/data
 
@@ -379,6 +347,7 @@ services:
 
   elasticsearch-1:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.12.2
+    mem_limit: ${ELASTICSEARCH_MEM_LIMIT:-1g}
     environment:
       - node.name=elasticsearch-1
       - cluster.name=community-es
@@ -386,7 +355,7 @@ services:
       - cluster.initial_master_nodes=elasticsearch-1,elasticsearch-2,elasticsearch-3
       - xpack.security.enabled=false
       - bootstrap.memory_lock=true
-      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - "ES_JAVA_OPTS=${ELASTICSEARCH_JAVA_OPTS:--Xms512m -Xmx512m}"
     ulimits:
       memlock:
         soft: -1
@@ -400,6 +369,7 @@ services:
 
   elasticsearch-2:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.12.2
+    mem_limit: ${ELASTICSEARCH_MEM_LIMIT:-1g}
     environment:
       - node.name=elasticsearch-2
       - cluster.name=community-es
@@ -407,7 +377,7 @@ services:
       - cluster.initial_master_nodes=elasticsearch-1,elasticsearch-2,elasticsearch-3
       - xpack.security.enabled=false
       - bootstrap.memory_lock=true
-      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - "ES_JAVA_OPTS=${ELASTICSEARCH_JAVA_OPTS:--Xms512m -Xmx512m}"
     ulimits:
       memlock:
         soft: -1
@@ -417,6 +387,7 @@ services:
 
   elasticsearch-3:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.12.2
+    mem_limit: ${ELASTICSEARCH_MEM_LIMIT:-1g}
     environment:
       - node.name=elasticsearch-3
       - cluster.name=community-es
@@ -424,7 +395,7 @@ services:
       - cluster.initial_master_nodes=elasticsearch-1,elasticsearch-2,elasticsearch-3
       - xpack.security.enabled=false
       - bootstrap.memory_lock=true
-      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - "ES_JAVA_OPTS=${ELASTICSEARCH_JAVA_OPTS:--Xms512m -Xmx512m}"
     ulimits:
       memlock:
         soft: -1
@@ -466,6 +437,7 @@ services:
       args:
         MODULE: community-app
         OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+    mem_limit: ${COMMUNITY_APP_MEM_LIMIT:-768m}
     environment:
       - SERVER_PORT=8080
       - OTEL_ENABLED=${OTEL_ENABLED:-false}
@@ -474,6 +446,7 @@ services:
       - OTEL_SERVICE_NAME=community-app
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
       - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - "JAVA_OPTS=${COMMUNITY_APP_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=60.0 -XX:MaxMetaspaceSize=256m -XX:+ExitOnOutOfMemoryError}"
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
       - COMMUNITY_LOGGING_DIR=/var/log/community
       - COMMUNITY_LOGGING_FILE_NAME=community-app-1.json.log
@@ -546,6 +519,7 @@ services:
       args:
         MODULE: community-app
         OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+    mem_limit: ${COMMUNITY_APP_MEM_LIMIT:-768m}
     environment:
       - SERVER_PORT=8080
       - OTEL_ENABLED=${OTEL_ENABLED:-false}
@@ -554,6 +528,7 @@ services:
       - OTEL_SERVICE_NAME=community-app
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
       - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - "JAVA_OPTS=${COMMUNITY_APP_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=60.0 -XX:MaxMetaspaceSize=256m -XX:+ExitOnOutOfMemoryError}"
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
       - COMMUNITY_LOGGING_DIR=/var/log/community
       - COMMUNITY_LOGGING_FILE_NAME=community-app-2.json.log
@@ -622,6 +597,7 @@ services:
       args:
         MODULE: community-app
         OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+    mem_limit: ${COMMUNITY_APP_MEM_LIMIT:-768m}
     environment:
       - SERVER_PORT=8080
       - OTEL_ENABLED=${OTEL_ENABLED:-false}
@@ -630,6 +606,7 @@ services:
       - OTEL_SERVICE_NAME=community-app
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
       - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - "JAVA_OPTS=${COMMUNITY_APP_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=60.0 -XX:MaxMetaspaceSize=256m -XX:+ExitOnOutOfMemoryError}"
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
       - COMMUNITY_LOGGING_DIR=/var/log/community
       - COMMUNITY_LOGGING_FILE_NAME=community-app-3.json.log
@@ -731,6 +708,7 @@ services:
       args:
         MODULE: community-gateway
         OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+    mem_limit: ${COMMUNITY_GATEWAY_MEM_LIMIT:-512m}
     environment:
       - SERVER_PORT=8080
       - OTEL_ENABLED=${OTEL_ENABLED:-false}
@@ -739,6 +717,7 @@ services:
       - OTEL_SERVICE_NAME=community-gateway
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
       - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - "JAVA_OPTS=${COMMUNITY_GATEWAY_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=55.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}"
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
       - COMMUNITY_LOGGING_DIR=/var/log/community
       - COMMUNITY_LOGGING_FILE_NAME=community-gateway-1.json.log
@@ -772,6 +751,7 @@ services:
       args:
         MODULE: community-gateway
         OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+    mem_limit: ${COMMUNITY_GATEWAY_MEM_LIMIT:-512m}
     environment:
       - SERVER_PORT=8080
       - OTEL_ENABLED=${OTEL_ENABLED:-false}
@@ -780,6 +760,7 @@ services:
       - OTEL_SERVICE_NAME=community-gateway
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
       - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - "JAVA_OPTS=${COMMUNITY_GATEWAY_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=55.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}"
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
       - COMMUNITY_LOGGING_DIR=/var/log/community
       - COMMUNITY_LOGGING_FILE_NAME=community-gateway-2.json.log
@@ -809,6 +790,7 @@ services:
       args:
         MODULE: community-gateway
         OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+    mem_limit: ${COMMUNITY_GATEWAY_MEM_LIMIT:-512m}
     environment:
       - SERVER_PORT=8080
       - OTEL_ENABLED=${OTEL_ENABLED:-false}
@@ -817,6 +799,7 @@ services:
       - OTEL_SERVICE_NAME=community-gateway
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
       - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - "JAVA_OPTS=${COMMUNITY_GATEWAY_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=55.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}"
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
       - COMMUNITY_LOGGING_DIR=/var/log/community
       - COMMUNITY_LOGGING_FILE_NAME=community-gateway-3.json.log
@@ -846,6 +829,7 @@ services:
       args:
         MODULE: im-core
         OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+    mem_limit: ${IM_CORE_MEM_LIMIT:-640m}
     environment:
       - SERVER_PORT=18082
       - OTEL_ENABLED=${OTEL_ENABLED:-false}
@@ -854,6 +838,7 @@ services:
       - OTEL_SERVICE_NAME=im-core
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
       - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - "JAVA_OPTS=${IM_CORE_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=60.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}"
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
       - COMMUNITY_LOGGING_DIR=/var/log/community
       - COMMUNITY_LOGGING_FILE_NAME=im-core-1.json.log
@@ -887,6 +872,7 @@ services:
       args:
         MODULE: im-core
         OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+    mem_limit: ${IM_CORE_MEM_LIMIT:-640m}
     environment:
       - SERVER_PORT=18082
       - OTEL_ENABLED=${OTEL_ENABLED:-false}
@@ -895,6 +881,7 @@ services:
       - OTEL_SERVICE_NAME=im-core
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
       - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - "JAVA_OPTS=${IM_CORE_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=60.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}"
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
       - COMMUNITY_LOGGING_DIR=/var/log/community
       - COMMUNITY_LOGGING_FILE_NAME=im-core-2.json.log
@@ -924,6 +911,7 @@ services:
       args:
         MODULE: im-core
         OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+    mem_limit: ${IM_CORE_MEM_LIMIT:-640m}
     environment:
       - SERVER_PORT=18082
       - OTEL_ENABLED=${OTEL_ENABLED:-false}
@@ -932,6 +920,7 @@ services:
       - OTEL_SERVICE_NAME=im-core
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
       - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - "JAVA_OPTS=${IM_CORE_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=60.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}"
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
       - COMMUNITY_LOGGING_DIR=/var/log/community
       - COMMUNITY_LOGGING_FILE_NAME=im-core-3.json.log
@@ -961,6 +950,7 @@ services:
       args:
         MODULE: im-realtime
         OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+    mem_limit: ${IM_REALTIME_MEM_LIMIT:-640m}
     environment:
       - SERVER_PORT=18081
       - OTEL_ENABLED=${OTEL_ENABLED:-false}
@@ -969,6 +959,7 @@ services:
       - OTEL_SERVICE_NAME=im-realtime
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
       - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - "JAVA_OPTS=${IM_REALTIME_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=55.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}"
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
       - COMMUNITY_LOGGING_DIR=/var/log/community
       - COMMUNITY_LOGGING_FILE_NAME=im-realtime-1.json.log
@@ -1007,6 +998,7 @@ services:
       args:
         MODULE: im-realtime
         OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+    mem_limit: ${IM_REALTIME_MEM_LIMIT:-640m}
     environment:
       - SERVER_PORT=18081
       - OTEL_ENABLED=${OTEL_ENABLED:-false}
@@ -1015,6 +1007,7 @@ services:
       - OTEL_SERVICE_NAME=im-realtime
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
       - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - "JAVA_OPTS=${IM_REALTIME_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=55.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}"
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
       - COMMUNITY_LOGGING_DIR=/var/log/community
       - COMMUNITY_LOGGING_FILE_NAME=im-realtime-2.json.log
@@ -1049,6 +1042,7 @@ services:
       args:
         MODULE: im-realtime
         OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+    mem_limit: ${IM_REALTIME_MEM_LIMIT:-640m}
     environment:
       - SERVER_PORT=18081
       - OTEL_ENABLED=${OTEL_ENABLED:-false}
@@ -1057,6 +1051,7 @@ services:
       - OTEL_SERVICE_NAME=im-realtime
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
       - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - "JAVA_OPTS=${IM_REALTIME_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=55.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}"
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
       - COMMUNITY_LOGGING_DIR=/var/log/community
       - COMMUNITY_LOGGING_FILE_NAME=im-realtime-3.json.log
@@ -1298,12 +1293,6 @@ volumes:
   redis_5_data: {}
   redis_6_data: {}
   user_files: {}
-  zookeeper_1_data: {}
-  zookeeper_1_log: {}
-  zookeeper_2_data: {}
-  zookeeper_2_log: {}
-  zookeeper_3_data: {}
-  zookeeper_3_log: {}
   kafka_1_data: {}
   kafka_2_data: {}
   kafka_3_data: {}

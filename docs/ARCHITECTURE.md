@@ -141,7 +141,7 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 ## 3. 运行拓扑与端口规划（本地 docker compose）
 
 ### 3.1 Compose 文件分工（以 `deploy/README.md` 为准）
-- `deploy/docker-compose.yml`：本地 HA 演练栈（frontend + `NGINX` + `community-gateway x3` + `community-app x3` + IM + MySQL 主从 + Redis Cluster + Zookeeper/Kafka/Elasticsearch 多节点 + `xxl-job-admin x2`），默认暴露 `12880/12881/12887`；`debug` profile 才会额外暴露 `12882/18081/18082` 到 `127.0.0.1`，依赖端口仍不暴露（fail-closed）。
+- `deploy/docker-compose.yml`：本地 HA 演练栈（frontend + `NGINX` + `community-gateway x3` + `community-app x3` + IM + MySQL 主从 + Redis Cluster + Kafka KRaft / Elasticsearch 多节点 + `xxl-job-admin x2`），默认暴露 `12880/12881/12887`；`debug` profile 才会额外暴露 `12882/18081/18082` 到 `127.0.0.1`，依赖端口仍不暴露（fail-closed）。
 - `observability` profile：可选观测/日志栈（Prometheus/Grafana/Loki/Promtail/Alertmanager），默认仅绑定到 `127.0.0.1` 暴露端口（`12883+`）。
 - `observability-elastic` profile：可选 Elastic 观测栈（Elasticsearch localhost 入口 / Kibana / EDOT collector）；base compose 下 backend services 默认会把结构化 JSON 日志写入共享 `observability_logs` volume，因此只启用这个 profile 也能得到 fielded logs。
 
@@ -164,7 +164,7 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 - `Nacos`：单节点服务注册中心，本机检查入口 `http://localhost:18848/nacos`
 - MySQL：`mysql-primary` + `mysql-replica-1/2`；当前只承诺人工切主，不承诺自动写切换
 - Redis：`redis-1..6`，由 `redis-cluster-bootstrap` 组装成 `3 主 + 3 从`
-- Kafka：`zookeeper-1..3` + `kafka-1..3` + `kafka-init`
+- Kafka：`kafka-1..3`（KRaft combined mode）+ `kafka-init`
 - Elasticsearch：`elasticsearch-1..3` + `es-init`
 - XXL：`xxl-job-admin-1/2` 共用 `xxl_job` schema，经 `NGINX` 暴露单一入口
 

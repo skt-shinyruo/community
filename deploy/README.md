@@ -1,13 +1,13 @@
 # deploy/
 
-本目录存放 docker compose 与构建/初始化/观测配置，用于本地/演练环境一键启动全栈。当前默认拓扑已经升级为“本地 HA 演练栈”：浏览器统一走 `NGINX` 入口，后面挂 `community-gateway` / `community-app` / `im-core` / `im-realtime` 多副本，以及 MySQL / Redis / Zookeeper / Kafka / Elasticsearch 的原生多节点形态。业务服务之间的静态 URL pool 已经移除，改由单节点 `Nacos` 注册中心提供服务发现；直连排障口仍通过 `debug` profile 按需开启；`mock-data-studio` 仍是 dev-only 控制面，端口仅绑定到宿主机 `127.0.0.1`。
+本目录存放 docker compose 与构建/初始化/观测配置，用于本地/演练环境一键启动全栈。当前默认拓扑已经升级为“本地 HA 演练栈”：浏览器统一走 `NGINX` 入口，后面挂 `community-gateway` / `community-app` / `im-core` / `im-realtime` 多副本，以及 MySQL / Redis / Kafka KRaft / Elasticsearch 的原生多节点形态。业务服务之间的静态 URL pool 已经移除，改由单节点 `Nacos` 注册中心提供服务发现；直连排障口仍通过 `debug` profile 按需开启；`mock-data-studio` 仍是 dev-only 控制面，端口仅绑定到宿主机 `127.0.0.1`。
 
 > 约定：本文档中的命令默认从**仓库根目录**执行。
 
 默认 compose project name 固定为 `community`（避免在 Docker Desktop 里显示为 `deploy` 造成歧义）；如需覆盖可使用 `docker compose -p <name>`。
 
 ## 文件/目录说明
-- `docker-compose.yml`：本地 HA 演练栈。默认包含 `frontend`、`NGINX`、`community-gateway x3`、`community-app x3`、`im-core x3`、`im-realtime x3`、单节点 `Nacos`、`MySQL 1 主 2 从`、`Redis Cluster 6 节点`、`Zookeeper x3`、`Kafka x3`、`Elasticsearch x3`、`xxl-job-admin x2`、MailHog 与 `mock-data-studio`。对外仅暴露统一业务入口（`12880`）、前端（`12881`）、Nacos 检查入口（`18848`，仅本机）、MailHog UI（`8025`）、XXL-JOB Admin UI（`12887`，仅本机）以及 `mock-data-studio`（默认主机端口 `12888`，仅本机）；`debug` profile 才会额外映射 `12882/18081/18082` 到宿主机，内部依赖端口仍不映射（fail-closed）。
+- `docker-compose.yml`：本地 HA 演练栈。默认包含 `frontend`、`NGINX`、`community-gateway x3`、`community-app x3`、`im-core x3`、`im-realtime x3`、单节点 `Nacos`、`MySQL 1 主 2 从`、`Redis Cluster 6 节点`、`Kafka KRaft x3`、`Elasticsearch x3`、`xxl-job-admin x2`、MailHog 与 `mock-data-studio`。对外仅暴露统一业务入口（`12880`）、前端（`12881`）、Nacos 检查入口（`18848`，仅本机）、MailHog UI（`8025`）、XXL-JOB Admin UI（`12887`，仅本机）以及 `mock-data-studio`（默认主机端口 `12888`，仅本机）；`debug` profile 才会额外映射 `12882/18081/18082` 到宿主机，内部依赖端口仍不映射（fail-closed）。
 - `Dockerfile.frontend`：构建并运行前端（Vite build + preview，对外 `12881`）。
 - `Dockerfile.backend-service`：统一构建 Spring Boot 模块镜像（build arg：`MODULE`，取 Maven `artifactId`，例如 `community-app`）。
 - `.env.example`：环境变量示例（复制为 `.env` 使用）。
@@ -23,6 +23,7 @@
 ## 一键启动（推荐）
 1. 准备环境变量：`cp deploy/.env.example deploy/.env`
    - 建议至少修改 `JWT_HMAC_SECRET`（>= 32 bytes）；示例默认值现在可直接启动本地 compose，但不要长期使用
+   - 如果你之前跑过 ZooKeeper 版 Kafka，请先执行 `docker compose -f deploy/docker-compose.yml --env-file deploy/.env down -v` 清掉旧的 `zookeeper_*` / `kafka_*` 数据卷，再启动 KRaft
 2. 启动：`docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build`
 3. 访问：
    - 前端：`http://localhost:12881`
@@ -37,7 +38,7 @@
 - 业务服务：`community-gateway x3`、`community-app x3`、`im-core x3`、`im-realtime x3`
 - 服务发现：单节点 `Nacos`，本机检查入口 `http://localhost:18848/nacos`
 - 路由模型：`community-gateway` HTTP 平面使用 Spring Cloud Gateway `lb://serviceId`；`/ws/im` worker 列表来自 Nacos metadata
-- 中间件：`mysql-primary + mysql-replica-1/2`、`redis-1..6`、`zookeeper-1..3`、`kafka-1..3`、`elasticsearch-1..3`
+- 中间件：`mysql-primary + mysql-replica-1/2`、`redis-1..6`、`kafka-1..3 (KRaft combined mode)`、`elasticsearch-1..3`
 - 控制面：`xxl-job-admin-1/2` 共用 `xxl_job` schema，由 `NGINX` 暴露单一入口
 - 非目标：`frontend`、MailHog、`mock-data-studio`、各类 bootstrap sidecar、observability 组件仍不纳入 HA 范围
 - 资源提示：这是重型本地演练拓扑，建议预留至少 `16GB` 内存和多核 CPU；首次 `--build` 与 cluster 收敛会明显慢于旧单节点 compose

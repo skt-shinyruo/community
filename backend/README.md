@@ -5,16 +5,16 @@
 
 > 约定：仓库级入口（部署/文档）从仓库根目录执行；后端构建/测试从 `backend/` 执行。
 
-## 全栈启动（docker compose，推荐：gateway-first）
+## 全栈启动（Makefile / layered compose，推荐：gateway-first）
 
-> 从仓库根目录执行（见 `../deploy/README.md` 获取可选能力：观测/日志 profile 等）：
+> 从仓库根目录执行（见 `../deploy/README.md` 获取可选 overlay 与显式 layered compose 命令）：
 
 1. 准备环境变量：`cp deploy/.env.example deploy/.env`
-2. 启动全栈：`docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build`
+2. 启动全栈：`make up`
 3. 访问：
    - 前端：`http://localhost:12881`
    - 统一入口：`http://localhost:12880/api/...`
-   - 调试直连端口（需 `COMPOSE_PROFILES=debug`）：`12882 / 18081 / 18082`
+   - 调试直连端口（需 `make up-debug`）：`12882 / 18081 / 18082`
 
 ## 本地开发 / 测试
 - 单测：`mvn test`

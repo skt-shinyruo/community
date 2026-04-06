@@ -1,6 +1,6 @@
 # Kibana Assets for `observability-elastic`
 
-本目录存放仓库内维护的 Kibana Phase 1 资产，供 `observability-elastic` 路径启动后手工导入。
+本目录存放仓库内维护的 Kibana Phase 1 资产，供 `make up-elastic` / `make up-elastic-json` 启动后手工导入。
 
 当前资产面向 Kibana `8.12.x`，目标是给本地排障和演练环境提供一组稳定的起点，而不是替代 Prometheus 告警体系。
 
@@ -19,10 +19,10 @@
 - base compose / 直接本地运行
   - compose 下 backend 默认是 `SPRING_PROFILES_ACTIVE=dev,volume-log-export`
   - stdout 仍是 text logs，但共享 volume 里会额外写结构化 JSON 日志
-  - 只要 `observability-elastic` profile 已启动，这些 JSON 文件就属于这里这套 Kibana fielded-log ingestion path
-- `observability-elastic` compose 路径
-  - 最小启动路径是：`COMPOSE_PROFILES=observability-elastic docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build`
-  - 如果额外加载 `deploy/observability-elastic/docker-compose.override.yml`，backend services 会以 `SPRING_PROFILES_ACTIVE=dev,json-logs,volume-log-export` 运行，容器 stdout 也会切到 JSON
+  - 只要 Elastic overlay 已启动，这些 JSON 文件就属于这里这套 Kibana fielded-log ingestion path
+- Elastic 观测路径
+  - 最小启动路径是：`make up-elastic`
+  - 如果额外叠加 `deploy/compose.json-logs.override.yml`（也就是执行 `make up-elastic-json`），backend services 会以 `SPRING_PROFILES_ACTIVE=dev,json-logs,volume-log-export` 运行，容器 stdout 也会切到 JSON
   - logs 链路固定为：`backend structured JSON file appender -> shared observability_logs volume -> EDOT collector filelog -> Elastic`
   - collector 会解析 JSON log payload，并把 `service.name`、`service.version`、`trace.id`、`span.id`（存在时）、`community.category`、`community.action`、`community.outcome` 等字段提升到 `logs-*`
 - traces / metrics
@@ -32,8 +32,26 @@
 ## 导入步骤
 
 1. 先启动 `observability-elastic` compose 路径：
-   - 最小路径：`COMPOSE_PROFILES=observability-elastic docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build`
-   - 如需让容器 stdout 也切到 JSON：`docker compose -f deploy/docker-compose.yml -f deploy/observability-elastic/docker-compose.override.yml --env-file deploy/.env --profile observability-elastic up -d --build`
+   - 最小路径：`make up-elastic`
+   - 如需让容器 stdout 也切到 JSON：`make up-elastic-json`
+   - 显式 layered compose 等价命令：
+
+     ```bash
+     docker compose --env-file deploy/.env \
+       -f deploy/compose.yml \
+       -f deploy/compose.infra.yml \
+       -f deploy/compose.runtime.yml \
+       -f deploy/compose.observability-elastic.yml \
+       up -d --build
+
+     docker compose --env-file deploy/.env \
+       -f deploy/compose.yml \
+       -f deploy/compose.infra.yml \
+       -f deploy/compose.runtime.yml \
+       -f deploy/compose.observability-elastic.yml \
+       -f deploy/compose.json-logs.override.yml \
+       up -d --build
+     ```
 2. 如果你现在就想把应用 traces / metrics 发到 collector，再额外把 `OTEL_ENABLED=true` 写入 `deploy/.env`
 3. 打开 Kibana：`http://localhost:12889`
 4. 进入 `Stack Management -> Saved Objects`
@@ -41,7 +59,7 @@
 6. 导入 `deploy/observability-elastic/kibana/saved-objects.ndjson`
 7. 勾选 overwrite（如果你要用仓库版本覆盖本地旧对象）
 
-如果你只是在 base compose 上设置 `COMPOSE_PROFILES=observability-elastic`，Kibana 和 collector 就已经可以启动，而且仍然能从共享 volume 里拿到 fielded logs；额外加载 override 的区别只是让 backend stdout 也切到 JSON。
+如果你只是在基础三层后追加 Elastic overlay，Kibana 和 collector 就已经可以启动，而且仍然能从共享 volume 里拿到 fielded logs；额外叠加 `deploy/compose.json-logs.override.yml` 的区别只是让 backend stdout 也切到 JSON。
 
 也可以用 API 导入：
 
@@ -85,6 +103,6 @@ curl -sS -X POST "http://localhost:12889/api/saved_objects/_import?overwrite=tru
 ## 使用边界
 
 - Phase 1 没有把 Prometheus 告警迁到 Kibana；这里提供的是搜索/视图和 runbook 起点，不是仓库内置 alert rules。
-- logs 侧 saved searches 以 compose 路径下共享 volume 里的 fielded JSON logs 为前提；override 只影响容器 stdout 是否也切到 JSON。直接本地运行则继续以 stdout / 本地控制台日志为主。
+- logs 侧 saved searches 以 compose 路径下共享 volume 里的 fielded JSON logs 为前提；`deploy/compose.json-logs.override.yml` 只影响容器 stdout 是否也切到 JSON。直接本地运行则继续以 stdout / 本地控制台日志为主。
 - `Trace By Service` 只在 `OTEL_ENABLED=true` 且 traces 实际流入后有意义；如果 traces 没有流入，仍可在 `logs-*` 里通过 `trace.id` 等字段做日志侧排障。
 - 如果你的本地 space 已有自定义 data view 命名，导入后可以在 Kibana 中复制并调整查询，而不需要修改仓库文件。

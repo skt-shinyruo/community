@@ -11,32 +11,21 @@
 
 ```bash
 cp deploy/.env.example deploy/.env
-docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+make up
 ```
 
-（可选）开启观测/日志（Grafana/Loki/Prometheus/Alertmanager）：
-
-```bash
-# 在 deploy/.env 中添加：COMPOSE_PROFILES=observability
-docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
-```
-
-（可选）开启 Elastic Observability（Kibana / EDOT collector / fielded logs）：
-
-```bash
-# 只开 observability-elastic profile：base compose 已经会把结构化 JSON 日志写入共享 volume
-COMPOSE_PROFILES=observability-elastic docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
-
-# 如需让容器 stdout 也切到 JSON，再额外加载 override
-docker compose -f deploy/docker-compose.yml -f deploy/observability-elastic/docker-compose.override.yml --env-file deploy/.env --profile observability-elastic up -d --build
-```
+可选启动命令：
+- `make up-obs`：叠加 Grafana / Loki / Prometheus / Alertmanager
+- `make up-elastic`：叠加 Kibana / EDOT collector / fielded logs
+- `make up-elastic-json`：在 Elastic 路径上再把 backend stdout 切到 JSON
+- `make up-debug`：临时开放 localhost-only 直连排障端口
 
 访问：
 - 前端：`http://localhost:12881`
 - 统一入口：`http://localhost:12880/api/...`
-- 调试直连端口（需 `COMPOSE_PROFILES=debug`）：`12882 / 18081 / 18082`
-- Kibana（需 `COMPOSE_PROFILES=observability-elastic`）：`http://localhost:12889`
-- Elasticsearch localhost 入口（需 `COMPOSE_PROFILES=observability-elastic`）：`http://localhost:12888`
+- 调试直连端口（需 `make up-debug`）：`12882 / 18081 / 18082`
+- Kibana（需 `make up-elastic` 或 `make up-elastic-json`）：`http://localhost:12889`
+- Elasticsearch localhost 入口（需 `make up-elastic` 或 `make up-elastic-json`）：`http://localhost:12888`
 
 ## 文档入口
 - 后端工程：`backend/README.md`

@@ -16,12 +16,12 @@
 - MailHog UI（dev mailbox）：`http://localhost:8025`（默认启用；仅绑定到 `127.0.0.1`）
 - NGINX XXL-JOB Admin 入口：`http://localhost:12887/xxl-job-admin`（仅绑定到 `127.0.0.1`）
 - Nacos 注册检查入口：`http://localhost:18848/nacos`（仅绑定到 `127.0.0.1`）
-- `debug` profile（仅绑定到 `127.0.0.1`，回滚/排障）：
+- `debug` overlay（仅绑定到 `127.0.0.1`，回滚/排障）：
   - community-app（固定回指 `community-app-1`）：`http://localhost:12882`
   - im-realtime internal worker（固定回指 `im-realtime-1`）：`ws://localhost:18081/internal/ws/im`
   - im-core（固定回指 `im-core-1`）：`http://localhost:18082`
 
-> 观测/日志端口通过 profile 按需映射到宿主机（见下文）。
+> 观测/日志端口通过 overlay 按需映射到宿主机（见下文）。
 
 - Grafana：`http://localhost:12883`（默认 `admin/admin`）
 - Loki：`http://localhost:12884`
@@ -32,31 +32,36 @@
 
 ---
 
-## 2. Compose 分层设计（为什么要用 profiles）
+## 2. Compose 分层设计（基础 compose + overlay 文件）
 
-本项目采用“基础 compose + 可选 profile”的方式，目的是：
+本项目采用“基础 compose + 可选 overlay 文件”的方式，目的是：
 - 默认只暴露必要端口，减少端口冲突与误暴露风险；
-- 通过 compose profile 按需开启观测/日志能力，保持默认启动足够简单；
+- 通过按需叠加 overlay 开启观测/日志与排障能力，保持默认启动足够简单；
 - 保持命令简单、可复制粘贴。
 
 ### 2.1 文件分工
-- `deploy/docker-compose.yml`（业务必需全栈）
+- `deploy/compose.yml`
+  - 基础元数据与跨层公共定义，是所有 operator 命令的第一层
+- `deploy/compose.infra.yml`
+  - 注册发现：单节点 `Nacos`
+  - 依赖：MySQL（`1 主 + 2 从`）/ Redis Cluster（`6` 节点）/ Kafka KRaft（`3` 节点）/ Elasticsearch（`3` 节点）
+  - 控制面：`xxl-job-admin x2`
+  - 辅助：MailHog（dev mailbox，UI `http://localhost:8025`，仅本机）与 `mock-data-studio`
+- `deploy/compose.runtime.yml`
   - 入口：`NGINX`
   - 业务：`community-gateway x3`、`community-app x3`、`frontend`、IM（`im-core x3` / `im-realtime x3`）
-  - 注册发现：单节点 `Nacos`
-  - 依赖：MySQL（`1 主 + 2 从`）/ Redis Cluster（`6` 节点）/ Zookeeper（`3` 节点）/ Kafka（`3` broker）/ Elasticsearch（`3` 节点）
-  - 控制面：`xxl-job-admin x2`
-  - 辅助：MailHog（dev mailbox，UI `http://localhost:8025`，仅本机）
-  - **默认仅暴露 `NGINX` 业务入口 `12880`、前端 `12881`、本机 Nacos 检查入口 `18848` 与 `NGINX` admin 入口 `12887`；直连 `12882/18081/18082` 仅在 `debug` profile 下按需映射到 `127.0.0.1`；依赖端口仍不映射到宿主机（fail-closed）**
-- `debug` profile（可选）
-  - 直连排障：`community-app` / `im-core` / `im-realtime` 的 localhost-only 端口映射
-- `observability` profile（可选）
+  - **默认仅暴露 `NGINX` 业务入口 `12880`、前端 `12881`、本机 Nacos 检查入口 `18848` 与 `NGINX` admin 入口 `12887`；依赖端口仍不映射到宿主机（fail-closed）**
+- `deploy/compose.debug.yml`（可选）
+  - 直连排障：`community-app` / `im-core` / `im-realtime` 的 localhost-only 端口映射（`12882/18081/18082`）
+- `deploy/compose.observability.yml`（可选）
   - 观测：Prometheus / Alertmanager / Loki / Promtail / Grafana
-  - 绑定到 `127.0.0.1` 暴露观测端口（`12883+`），用于浏览器访问 Grafana/Loki/Prometheus/Alertmanager
-- `observability-elastic` profile（可选）
+  - 绑定到 `127.0.0.1` 暴露观测端口（`12883+`），用于浏览器访问 Grafana / Loki / Prometheus / Alertmanager
+- `deploy/compose.observability-elastic.yml`（可选）
   - 观测：Elasticsearch localhost 入口 / Kibana / EDOT collector
-  - base compose 下 backend services 默认会把结构化 JSON 日志写入共享 `observability_logs` volume，因此只启用这个 profile 也能得到 fielded logs
-  - 如果额外加载 `deploy/observability-elastic/docker-compose.override.yml`，容器 stdout 也会切到 JSON，便于 `docker compose logs` 排障
+  - 基础三层下 backend services 默认会把结构化 JSON 日志写入共享 `observability_logs` volume，因此只追加这个 overlay 也能得到 fielded logs
+- `deploy/compose.json-logs.override.yml`（可选）
+  - 在 Elastic 观测路径上把 backend services 切到 `SPRING_PROFILES_ACTIVE=dev,json-logs,volume-log-export`
+  - 作用是让容器 stdout 也切到 JSON，便于 `docker compose logs` 排障
 
 ---
 
@@ -70,7 +75,17 @@
 
 ### 3.2 启动（gateway-first，本地默认）
 ```bash
-docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+make up
+```
+
+等价底层命令：
+
+```bash
+docker compose --env-file deploy/.env \
+  -f deploy/compose.yml \
+  -f deploy/compose.infra.yml \
+  -f deploy/compose.runtime.yml \
+  up -d --build
 ```
 
 访问：
@@ -89,7 +104,7 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 - `NGINX :12887` -> `xxl-job-admin-1..2`
 
 保留的直连入口：
-- 需启用 `debug` profile 后才会暴露到宿主机：
+- 需追加 `deploy/compose.debug.yml` 后才会暴露到宿主机：
   - `12882`（`community-app-1`）
   - `18082`（`im-core-1`）
   - `18081/internal/ws/im`（`im-realtime-1` internal worker）
@@ -107,26 +122,32 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 - `xxl-job-admin`：2 副本，共享 `xxl_job` schema，经 `NGINX :12887` 暴露
 ### 3.4 启动 + 额外开放观测端口
 ```bash
-# 方式 1（推荐）：在 deploy/.env 中添加：COMPOSE_PROFILES=observability，然后执行下方命令
-docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+# 旧观测链路
+make up-obs
 
-# 方式 2（临时一次性）：不改文件，直接在命令前加环境变量
-# COMPOSE_PROFILES=observability docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+# 直连排障端口
+make up-debug
 
-# 方式 3（排障临时开启直连端口）
-# COMPOSE_PROFILES=debug docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
+# Elastic Observability（fielded logs + Kibana）
+make up-elastic
 
-# 方式 4（同时开启观测 + 调试直连）
-# COMPOSE_PROFILES=observability,debug docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
-
-# 方式 5（开启 Elastic Observability；base compose 已能产出 fielded logs）
-# COMPOSE_PROFILES=observability-elastic docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
-
-# 方式 6（开启 Elastic Observability，并让容器 stdout 也切到 JSON）
-# docker compose -f deploy/docker-compose.yml -f deploy/observability-elastic/docker-compose.override.yml --env-file deploy/.env --profile observability-elastic up -d --build
+# Elastic Observability + JSON stdout
+make up-elastic-json
 ```
 
-> 注意：profile 只影响“本次 up 会包含哪些 services”；如果你曾经启用过 `observability` 或 `debug`，之后去掉 profile 不会自动停止已启动的对应容器，需要手动 stop/remove 或执行 `docker compose ... down`。
+需要同时叠加多个 overlay 时，直接显式追加对应的 `-f` 文件。例如“旧观测链路 + debug”：
+
+```bash
+docker compose --env-file deploy/.env \
+  -f deploy/compose.yml \
+  -f deploy/compose.infra.yml \
+  -f deploy/compose.runtime.yml \
+  -f deploy/compose.observability.yml \
+  -f deploy/compose.debug.yml \
+  up -d --build
+```
+
+如果要同时开启两套观测链路，则在基础三层后同时追加 `-f deploy/compose.observability.yml` 与 `-f deploy/compose.observability-elastic.yml`；如需让 Elastic 那一侧 stdout 也切到 JSON，再继续追加 `-f deploy/compose.json-logs.override.yml`。
 
 ---
 
@@ -158,7 +179,7 @@ IM 专用客户端默认策略：
 本地开发（HMR）场景下：
 - 默认浏览器流量已经直接走 `community-gateway:12880`，不再依赖 Vite proxy 才能访问后端；
 - 如需自定义目标，可显式配置 `VITE_API_BASE_URL` / `VITE_IM_CORE_BASE_URL` / `VITE_IM_WS_URL`；
-- 直连 `12882/18081/18082` 仅建议用于回滚、排障和链路对照，且默认不暴露；需要时通过 `debug` profile 临时开启。
+- 直连 `12882/18081/18082` 仅建议用于回滚、排障和链路对照，且默认不暴露；需要时通过 `debug` overlay 临时开启。
 
 ---
 
@@ -166,10 +187,16 @@ IM 专用客户端默认策略：
 
 停止：
 ```bash
-docker compose -f deploy/docker-compose.yml --env-file deploy/.env down
+make down
 ```
 
 完全重置（删除数据卷）：
 ```bash
-docker compose -f deploy/docker-compose.yml --env-file deploy/.env down -v
+docker compose --env-file deploy/.env \
+  -f deploy/compose.yml \
+  -f deploy/compose.infra.yml \
+  -f deploy/compose.runtime.yml \
+  down -v
 ```
+
+> 如果你启动时叠加了 `debug` / `observability` / `observability-elastic` / `json-logs` overlay，停止或重置时也请追加相同的 `make down-*` 目标或相同的 `-f deploy/compose.*.yml` 组合，避免把 overlay 服务留成 orphan。

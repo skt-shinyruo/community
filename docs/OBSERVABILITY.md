@@ -1,26 +1,27 @@
 # 可观测性（日志 / 指标 / 告警）
 
-本项目当前处于观测迁移阶段，本地 compose 同时保留两套 profile：
-- **`observability`（旧 profile）**：
+本项目当前处于观测迁移阶段，本地 compose 在同一套基础三层上同时保留两套 observability overlay：
+- **`deploy/compose.observability.yml`（旧观测链路）**：
   - 日志：Promtail -> Loki -> Grafana Explore
   - 指标：Prometheus -> Grafana
   - 告警：Prometheus rules -> Alertmanager
-- **`observability-elastic`（新 profile）**：
+- **`deploy/compose.observability-elastic.yml`（新观测链路）**：
   - 日志：backend structured JSON file appender -> shared `observability_logs` volume -> EDOT collector filelog -> Elastic
   - traces / metrics：OTLP -> EDOT collector gateway -> Elastic
   - UI：Kibana（可导入仓库内 saved views）
 
-> 注意：仓库里的 runtime OTLP wiring 和 Java agent 支持已经接通，但本地 compose 默认仍是 `OTEL_ENABLED=false`。因此只启动 `observability-elastic` profile 时，logs 链路会工作；应用 traces / metrics 只有在你显式把 `OTEL_ENABLED=true` 打开后才会流入。
+> 注意：仓库里的 runtime OTLP wiring 和 Java agent 支持已经接通，但本地 compose 默认仍是 `OTEL_ENABLED=false`。因此只启动 Elastic overlay 时，logs 链路会工作；应用 traces / metrics 只有在你显式把 `OTEL_ENABLED=true` 打开后才会流入。
 
-> 迁移策略：旧 `observability` profile 继续保留，方便 Loki/Grafana 与 Elastic/Kibana 并存对照；Phase 1 的服务健康告警仍然以 Prometheus 为权威来源。
+> 迁移策略：旧 observability overlay 继续保留，方便 Loki/Grafana 与 Elastic/Kibana 并存对照；Phase 1 的服务健康告警仍然以 Prometheus 为权威来源。
 
-> 观测组件默认不随业务栈启动；如需使用，请按需启用 compose profile：
-> - `observability`：旧的 Grafana/Loki/Prometheus/Alertmanager profile（端口 `12883+`，默认仅绑定到 `127.0.0.1`）
-> - `observability-elastic`：新的 Elasticsearch localhost 入口 + Kibana + EDOT collector profile（Elasticsearch 默认 `127.0.0.1:12888`，Kibana 默认 `127.0.0.1:12889`）
+> 观测组件默认不随业务栈启动；如需使用，请按需叠加 overlay 或直接使用 Makefile 目标：
+> - `make up-obs`：旧的 Grafana / Loki / Prometheus / Alertmanager 链路（端口 `12883+`，默认仅绑定到 `127.0.0.1`）
+> - `make up-elastic`：新的 Elasticsearch localhost 入口 + Kibana + EDOT collector
+> - `make up-elastic-json`：在 Elastic 路径上再把 backend stdout 切到 JSON
 
 ---
 
-## 1. 旧 profile：Promtail -> Loki -> Grafana
+## 1. 旧观测链路：Promtail -> Loki -> Grafana
 
 ### 1.1 日志采集来源
 - Promtail 读取 backend services 写入共享 `observability_logs` volume 的 JSON 日志文件：
@@ -28,7 +29,7 @@
   - 路径：`/var/log/community/*.json.log`（named volume 挂载，不依赖宿主机目录）
 
 ### 1.2 如何检索日志（Grafana）
-1. 启用 `observability` profile（推荐：在 `deploy/.env` 中添加 `COMPOSE_PROFILES=observability`，再启动 compose）
+1. 启动旧观测链路：`make up-obs`
 2. 打开 `http://localhost:12883`（默认 `admin/admin`）
 3. 进入 Explore -> 选择数据源 `Loki`
 4. 推荐从 `{job="community-filelogs"}` 开始，再用 `|=` 关键字过滤
@@ -42,34 +43,62 @@
 
 ---
 
-## 2. 新 profile：Elastic + EDOT collector
+## 2. 新观测链路：Elastic + EDOT collector
 
 ### 2.1 启动方式
-1. 启动 base compose + `observability-elastic` profile：
-   - `COMPOSE_PROFILES=observability-elastic docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build`
-2. 如果你希望容器 stdout 也切到 JSON，再额外加载 override：
-   - `docker compose -f deploy/docker-compose.yml -f deploy/observability-elastic/docker-compose.override.yml --env-file deploy/.env --profile observability-elastic up -d --build`
-3. 打开 Kibana：`http://localhost:12889`
-4. 如果你现在就想把应用 traces / metrics 发到 collector，在 `deploy/.env` 中额外设置 `OTEL_ENABLED=true`；默认保持 `false` 只是不自动开启，并不是后续任务才有的能力
-5. 如果你还想同时保留旧 `observability` profile，对应命令改为同时带上两个 profile：
-   - 最小路径：`COMPOSE_PROFILES=observability,observability-elastic docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build`
-   - 如果你希望 Elastic 那一侧的容器 stdout 也切到 JSON：`docker compose -f deploy/docker-compose.yml -f deploy/observability-elastic/docker-compose.override.yml --env-file deploy/.env --profile observability --profile observability-elastic up -d --build`
+1. 启动 Elastic 观测链路：
+   - `make up-elastic`
+2. 如果你希望容器 stdout 也切到 JSON：
+   - `make up-elastic-json`
+3. 显式 layered compose 等价命令：
 
-> 重要：base compose 现在默认会给 backend services 追加 `volume-log-export`，把结构化 JSON 日志写入共享 named volume；`deploy/observability-elastic/docker-compose.override.yml` 只是把容器 stdout 也切到 JSON，方便 `docker compose logs` 与容器侧排障。
+   ```bash
+   docker compose --env-file deploy/.env \
+     -f deploy/compose.yml \
+     -f deploy/compose.infra.yml \
+     -f deploy/compose.runtime.yml \
+     -f deploy/compose.observability-elastic.yml \
+     up -d --build
+
+   docker compose --env-file deploy/.env \
+     -f deploy/compose.yml \
+     -f deploy/compose.infra.yml \
+     -f deploy/compose.runtime.yml \
+     -f deploy/compose.observability-elastic.yml \
+     -f deploy/compose.json-logs.override.yml \
+     up -d --build
+   ```
+4. 打开 Kibana：`http://localhost:12889`
+5. 如果你现在就想把应用 traces / metrics 发到 collector，在 `deploy/.env` 中额外设置 `OTEL_ENABLED=true`；默认保持 `false` 只是不自动开启，并不是后续任务才有的能力
+6. 如果你还想同时保留旧观测链路，请显式同时叠加两个 overlay：
+
+   ```bash
+   docker compose --env-file deploy/.env \
+     -f deploy/compose.yml \
+     -f deploy/compose.infra.yml \
+     -f deploy/compose.runtime.yml \
+     -f deploy/compose.observability.yml \
+     -f deploy/compose.observability-elastic.yml \
+     up -d --build
+   ```
+
+   如需让 Elastic 那一侧的容器 stdout 也切到 JSON，再继续追加 `-f deploy/compose.json-logs.override.yml`。
+
+> 重要：基础三层现在默认会给 backend services 追加 `volume-log-export`，把结构化 JSON 日志写入共享 named volume；`deploy/compose.json-logs.override.yml` 只是把容器 stdout 也切到 JSON，方便 `docker compose logs` 与容器侧排障。
 
 ### 2.2 Phase 1 固定链路
 - logs：`backend structured JSON file appender -> shared observability_logs volume -> EDOT collector filelog -> Elastic`
 - traces / metrics：`OTLP -> observability-gateway-edot-collector -> Elastic`
 - collector 配置文件：`deploy/observability-elastic/edot-collector.yml`
-- compose 基础栈里的 `elasticsearch` 同时承担业务搜索与本地 observability backend；新 profile 会额外打开 localhost 访问入口，并新增 Kibana 和 EDOT collector
+- compose 基础栈里的 `elasticsearch` 同时承担业务搜索与本地 observability backend；Elastic overlay 会额外打开 localhost 访问入口，并新增 Kibana 和 EDOT collector
 - compose 基础栈里的 backend services 默认运行 `SPRING_PROFILES_ACTIVE=dev,volume-log-export`，会继续输出可读 text logs 到 stdout，同时把结构化 JSON 日志写入共享 volume
-- `deploy/observability-elastic/docker-compose.override.yml` 会在新路径里把它们切到 `SPRING_PROFILES_ACTIVE=dev,json-logs,volume-log-export`，让容器 stdout 也改为 JSON
+- `deploy/compose.json-logs.override.yml` 会在新路径里把它们切到 `SPRING_PROFILES_ACTIVE=dev,json-logs,volume-log-export`，让容器 stdout 也改为 JSON
 - collector 只读取 backend services 共享的 JSON 文件，不再依赖 Docker daemon 私有目录，也不会再混入依赖容器的日志流
 - collector 会解析 JSON log payload，并把 `service.name`、`service.version`、`trace.id`、`span.id`（存在时）、`community.category`、`community.action`、`community.outcome` 等字段提升为 `logs-*` 里的可检索字段
-- 如果你只走 base compose / `observability-elastic` profile 而没有加载 override，`logs-*` 仍然是 fielded logs；区别只是容器 stdout 继续保持 text logs。直接本地运行则继续以服务 stdout / 本地控制台日志为主
+- 如果你只走基础三层 + Elastic overlay，而没有再追加 JSON stdout override，`logs-*` 仍然是 fielded logs；区别只是容器 stdout 继续保持 text logs。直接本地运行则继续以服务 stdout / 本地控制台日志为主
 
 ### 2.3 并存与迁移预期
-- `observability` 不会被这个 profile 替换；迁移期间 Loki/Grafana 与 Elastic/Kibana 可以同时运行。
+- 旧观测链路不会被新链路立刻替换；迁移期间 Loki/Grafana 与 Elastic/Kibana 可以同时运行。
 - Prometheus 仍然是 Phase 1 服务健康和基础告警的权威来源；Elastic 侧先承担统一接入、检索和关联分析。
 - `OTEL_EXPORTER_OTLP_ENDPOINT`、`OTEL_ENABLED`、`OTEL_JAVA_AGENT_VERSION`、`SERVICE_VERSION` 已在 `deploy/.env.example` 预置；`OTEL_ENABLED` 默认保持关闭，但现在已经可以按需显式打开，把应用 traces / metrics 发送到 collector。
 
@@ -104,17 +133,17 @@
 - base compose / 直接本地运行
   - 默认 compose 路径是 `SPRING_PROFILES_ACTIVE=dev,volume-log-export`
   - backend stdout 仍是 text logs，但共享 volume 里会同时写结构化 JSON 日志
-  - 因此只要 `observability-elastic` profile 已启动，`logs-*` 就已经是 fielded logs；如果该 profile 没启动，再回到服务 stdout / 本地控制台日志排障
-- `logs-*`（base compose 或 `observability-elastic` + override）
+  - 因此只要 Elastic overlay 已启动，`logs-*` 就已经是 fielded logs；如果该 overlay 没启动，再回到服务 stdout / 本地控制台日志排障
+- `logs-*`（基础三层 + Elastic overlay，或再叠加 JSON stdout override）
   - base compose：`dev,volume-log-export`
-  - override 路径：`dev,json-logs,volume-log-export`
+  - JSON stdout override 路径：`dev,json-logs,volume-log-export`
   - collector 会解析 JSON log payload，并把 `service.name`、`service.version`、`trace.id`、可选 `span.id`、`community.category`、`community.action`、`community.outcome` 提升到 `logs-*`
   - 其他业务键当前仍主要留在 message / body；推荐把已结构化字段用于 KQL，把 `community.job_id=<id>` 这类业务键继续当作 raw token 搜索
 - `traces-*`
   - 在 `OTEL_ENABLED=true` 且应用 spans 流入后，可直接按顶层字段查询
   - 例如：`service.name`、`trace.id`
 
-当前 `observability-elastic` compose 路径下，logs 侧推荐直接使用这些字段查询：
+当前 Elastic 观测路径下，logs 侧推荐直接使用这些字段查询：
 
 - `trace.id : "<32-hex-trace-id>"`
 - `service.name : "community-gateway" and community.category : access`
@@ -135,10 +164,10 @@
 - `"community.error_class=<class>"`
 
 也就是说：
-- `trace.id` 仍然是标准观测主键；在 `observability-elastic` compose 路径下，它可以直接作为 `logs-*` 与 `traces-*` 的字段查询入口
+- `trace.id` 仍然是标准观测主键；在 Elastic 观测路径下，它可以直接作为 `logs-*` 与 `traces-*` 的字段查询入口
 - `community.category / community.action / community.outcome` 是当前日志 taxonomy 的稳定语义主键；gateway access、community-app audit、community-app exception、im-core exception 都已经按这个模型发日志
 - `community.job_id`、`community.event_id`、`community.topic`、`community.source_topic`、`community.dlq_topic`、`community.retry_count`、`community.error_class` 这类业务键当前主要仍留在 message / body 中，应按原始 token 搜索
-- 如果你没有启动 `observability-elastic` profile，而是保持 base compose / 直接本地运行，请不要把这些字段型查询外推到纯控制台 text logs 路径
+- 如果你没有启动 Elastic overlay，而是保持 base compose / 直接本地运行，请不要把这些字段型查询外推到纯控制台 text logs 路径
 
 ---
 
@@ -201,10 +230,10 @@ Alertmanager 配置位于：
 2. 在该视图里直接收窄为：`trace.id : "<32-hex-trace-id>"`
 3. 如需先限定入口服务，再追加：`service.name : "community-gateway"`、`service.name : "community-app"` 等
 4. 观察同一条 `trace.id` 是否跨越 `community-gateway -> community-app -> im-core / im-realtime`
-5. 如果 traces 还没有流入，但你已经启动了 `observability-elastic` profile，就改用 `Community Observability Logs (Structured, Phase 1)`，并搜索：`trace.id : "<32-hex-trace-id>"`
+5. 如果 traces 还没有流入，但你已经启动了 Elastic overlay，就改用 `Community Observability Logs (Structured, Phase 1)`，并搜索：`trace.id : "<32-hex-trace-id>"`
 6. 如需进一步限定服务或类型，可继续加字段过滤：`service.name : "community-gateway"`、`community.category : access`、`community.action : gateway_http_access` 等
 7. 如果日志消息里还出现 `community.event_id=` 或 `community.job_id=` 这类 token，再继续切到对应 runbook 深挖异步链路
-8. 如果你没有启动 `observability-elastic` profile，而是保持 base compose / 直接本地运行，请回到服务 stdout / 本地控制台 text logs 排障
+8. 如果你没有启动 Elastic overlay，而是保持 base compose / 直接本地运行，请回到服务 stdout / 本地控制台 text logs 排障
 
 ### 4.5 `community.job_id` / `community.event_id` 排障 Runbook
 1. 不要从 `Community Observability: Async Retry Dead Events` 起手查 `community.job_id`，因为它会主动过滤掉很多非 retry/dead 记录
@@ -220,7 +249,7 @@ Alertmanager 配置位于：
    - `community.error_class=...`
 6. 如果你已经确认是 retry / dead 失败面，再切到 `Community Observability: Async Retry Dead Events`，或在当前查询上叠加 `community.category : async and community.outcome : (retry or dead)`
 7. 如果同一条日志里已有 `trace.id`，再切到 trace runbook，用这个 trace 继续向前后文扩展
-8. 如果你没有启动 `observability-elastic` profile，而是保持 base compose / 直接本地运行，请回到服务 stdout / 本地控制台 text logs 排障
+8. 如果你没有启动 Elastic overlay，而是保持 base compose / 直接本地运行，请回到服务 stdout / 本地控制台 text logs 排障
 
 ### 4.6 DLQ 回放 Runbook（演练/受控窗口）
 > ⚠️ 回放会触发消费者再次执行副作用（通知/索引更新等）。强烈建议只在演练环境或受控窗口执行，并使用“限量/限速/dry-run”。
@@ -253,5 +282,5 @@ Alertmanager 配置位于：
 - 避免误把依赖暴露给宿主机/局域网，降低安全与误操作风险
 
 当你确实需要浏览器访问观测组件时，再开启：
-- `observability` profile（映射到 `12883+`）
-- `observability-elastic` profile（Elasticsearch 默认 `12888`；Kibana 默认 `12889`）
+- `make up-obs` 或追加 `deploy/compose.observability.yml`（映射到 `12883+`）
+- `make up-elastic` / `make up-elastic-json` 或追加 `deploy/compose.observability-elastic.yml`（Elasticsearch 默认 `12888`；Kibana 默认 `12889`）

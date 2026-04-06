@@ -1,0 +1,11 @@
+[mysqld]
+server-id=1
+log_bin=mysql-bin
+binlog_format=ROW
+binlog_row_image=FULL
+gtid_mode=ON
+enforce_gtid_consistency=ON
+log_replica_updates=ON
+skip-name-resolve
+read_only=OFF
+super_read_only=OFF

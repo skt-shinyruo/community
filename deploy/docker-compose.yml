@@ -1,14 +1,17 @@
 name: community
 
 services:
-  mysql:
+  mysql-primary:
     image: mysql:8.0
-    container_name: community-mysql
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_ROOT_HOST=%
       - MYSQL_DATABASE=${MYSQL_DATABASE:-community}
       - MYSQL_USER=${MYSQL_USER:-community}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD:-communitypass}
+      - IM_MYSQL_DATABASE=${IM_MYSQL_DATABASE:-im_core}
+      - IM_MYSQL_USER=${IM_MYSQL_USER:-im_core}
+      - IM_MYSQL_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
       - MOCK_DATA_STUDIO_DB_USER=${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}
       - MOCK_DATA_STUDIO_DB_PASSWORD=${MOCK_DATA_STUDIO_DB_PASSWORD:-mockdatastudiopass}
       - XXL_JOB_MYSQL_USER=${XXL_JOB_MYSQL_USER:-xxl_job}
@@ -25,35 +28,183 @@ services:
       - --collation-server=utf8mb4_unicode_ci
       - --default-time-zone=+00:00
     volumes:
-      - mysql_data:/var/lib/mysql
+      - mysql_primary_data:/var/lib/mysql
       - ./mysql-init:/docker-entrypoint-initdb.d:ro
+      - ./mysql/conf/primary.cnf:/etc/mysql/conf.d/primary.cnf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks:
+      default:
+        aliases:
+          - mysql
+
+  mysql-replica-1:
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_ROOT_HOST=%
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+00:00
+      - --server-id=2
+    volumes:
+      - mysql_replica_1_data:/var/lib/mysql
+      - ./mysql/conf/replica.cnf:/etc/mysql/conf.d/replica.cnf:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p${MYSQL_ROOT_PASSWORD} --silent"]
       interval: 5s
       timeout: 3s
       retries: 30
 
-  redis:
-    image: redis:7-alpine
-    container_name: community-redis
-    command: ["redis-server", "--appendonly", "yes"]
+  mysql-replica-2:
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_ROOT_HOST=%
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+00:00
+      - --server-id=3
     volumes:
-      - redis_data:/data
+      - mysql_replica_2_data:/var/lib/mysql
+      - ./mysql/conf/replica.cnf:/etc/mysql/conf.d/replica.cnf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  mysql-replication-bootstrap:
+    image: mysql:8.0
+    entrypoint: ["/bin/bash", "/bootstrap-mysql-replication.sh"]
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_PRIMARY_HOST=${DB_PRIMARY_HOST:-mysql-primary}
+      - MYSQL_REPLICA_HOSTS=mysql-replica-1,mysql-replica-2
+      - MYSQL_REPLICATION_USER=${MYSQL_REPLICATION_USER:-replicator}
+      - MYSQL_REPLICATION_PASSWORD=${MYSQL_REPLICATION_PASSWORD:-replicatorpass}
+    volumes:
+      - ./scripts/bootstrap-mysql-replication.sh:/bootstrap-mysql-replication.sh:ro
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+      mysql-replica-1:
+        condition: service_healthy
+      mysql-replica-2:
+        condition: service_healthy
+    restart: "no"
+
+  redis-1:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--cluster-enabled", "yes", "--cluster-config-file", "nodes.conf", "--cluster-node-timeout", "5000", "--protected-mode", "no", "--bind", "0.0.0.0"]
+    volumes:
+      - redis_1_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 30
 
-  xxl-job-admin:
-    image: xuxueli/xxl-job-admin:3.3.2
-    container_name: community-xxl-job-admin
+  redis-2:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--cluster-enabled", "yes", "--cluster-config-file", "nodes.conf", "--cluster-node-timeout", "5000", "--protected-mode", "no", "--bind", "0.0.0.0"]
+    volumes:
+      - redis_2_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis-3:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--cluster-enabled", "yes", "--cluster-config-file", "nodes.conf", "--cluster-node-timeout", "5000", "--protected-mode", "no", "--bind", "0.0.0.0"]
+    volumes:
+      - redis_3_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis-4:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--cluster-enabled", "yes", "--cluster-config-file", "nodes.conf", "--cluster-node-timeout", "5000", "--protected-mode", "no", "--bind", "0.0.0.0"]
+    volumes:
+      - redis_4_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis-5:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--cluster-enabled", "yes", "--cluster-config-file", "nodes.conf", "--cluster-node-timeout", "5000", "--protected-mode", "no", "--bind", "0.0.0.0"]
+    volumes:
+      - redis_5_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis-6:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--cluster-enabled", "yes", "--cluster-config-file", "nodes.conf", "--cluster-node-timeout", "5000", "--protected-mode", "no", "--bind", "0.0.0.0"]
+    volumes:
+      - redis_6_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis-cluster-bootstrap:
+    image: redis:7-alpine
+    entrypoint: ["/bin/sh", "/bootstrap-redis-cluster.sh"]
     environment:
-      - PARAMS=--spring.datasource.url=jdbc:mysql://mysql:3306/xxl_job?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true --spring.datasource.username=${XXL_JOB_MYSQL_USER:-xxl_job} --spring.datasource.password=${XXL_JOB_MYSQL_PASSWORD:-xxljobpass} --xxl.job.accessToken=${XXL_JOB_ACCESS_TOKEN:?XXL_JOB_ACCESS_TOKEN is required}
-    ports:
-      - "127.0.0.1:${XXL_JOB_ADMIN_PORT:-12887}:8080"
+      - REDIS_CLUSTER_NODES=${SPRING_DATA_REDIS_CLUSTER_NODES:-redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379,redis-6:6379}
+    volumes:
+      - ./scripts/bootstrap-redis-cluster.sh:/bootstrap-redis-cluster.sh:ro
     depends_on:
-      mysql:
+      redis-1:
+        condition: service_healthy
+      redis-2:
+        condition: service_healthy
+      redis-3:
+        condition: service_healthy
+      redis-4:
+        condition: service_healthy
+      redis-5:
+        condition: service_healthy
+      redis-6:
+        condition: service_healthy
+    restart: "no"
+
+  xxl-job-admin-1:
+    image: xuxueli/xxl-job-admin:3.3.2
+    environment:
+      - PARAMS=--spring.datasource.url=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/xxl_job?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true --spring.datasource.username=${XXL_JOB_MYSQL_USER:-xxl_job} --spring.datasource.password=${XXL_JOB_MYSQL_PASSWORD:-xxljobpass} --xxl.job.accessToken=${XXL_JOB_ACCESS_TOKEN:?XXL_JOB_ACCESS_TOKEN is required}
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+    networks:
+      default:
+        aliases:
+          - xxl-job-admin
+
+  xxl-job-admin-2:
+    image: xuxueli/xxl-job-admin:3.3.2
+    environment:
+      - PARAMS=--spring.datasource.url=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/xxl_job?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true --spring.datasource.username=${XXL_JOB_MYSQL_USER:-xxl_job} --spring.datasource.password=${XXL_JOB_MYSQL_PASSWORD:-xxljobpass} --xxl.job.accessToken=${XXL_JOB_ACCESS_TOKEN:?XXL_JOB_ACCESS_TOKEN is required}
+    depends_on:
+      mysql-primary:
         condition: service_healthy
 
   # Dev mailbox：用于本地接收 SMTP 邮件（注册验证码/找回密码），UI 仅绑定到宿主机 127.0.0.1
@@ -63,23 +214,55 @@ services:
     ports:
       - "127.0.0.1:8025:8025"
 
-  zookeeper:
+  zookeeper-1:
     image: confluentinc/cp-zookeeper:7.6.1
-    container_name: community-zookeeper
     environment:
+      - ZOOKEEPER_SERVER_ID=1
       - ZOOKEEPER_CLIENT_PORT=2181
       - ZOOKEEPER_TICK_TIME=2000
+      - ZOOKEEPER_INIT_LIMIT=5
+      - ZOOKEEPER_SYNC_LIMIT=2
+      - ZOOKEEPER_SERVERS=zookeeper-1:2888:3888;zookeeper-2:2888:3888;zookeeper-3:2888:3888
     volumes:
-      # 持久化 ZK 状态，避免 kafka_data 保留但 ZK 重建导致 clusterId 不一致
-      - zookeeper_data:/var/lib/zookeeper/data
-      - zookeeper_log:/var/lib/zookeeper/log
+      - zookeeper_1_data:/var/lib/zookeeper/data
+      - zookeeper_1_log:/var/lib/zookeeper/log
 
-  kafka:
+  zookeeper-2:
+    image: confluentinc/cp-zookeeper:7.6.1
+    environment:
+      - ZOOKEEPER_SERVER_ID=2
+      - ZOOKEEPER_CLIENT_PORT=2181
+      - ZOOKEEPER_TICK_TIME=2000
+      - ZOOKEEPER_INIT_LIMIT=5
+      - ZOOKEEPER_SYNC_LIMIT=2
+      - ZOOKEEPER_SERVERS=zookeeper-1:2888:3888;zookeeper-2:2888:3888;zookeeper-3:2888:3888
+    volumes:
+      - zookeeper_2_data:/var/lib/zookeeper/data
+      - zookeeper_2_log:/var/lib/zookeeper/log
+
+  zookeeper-3:
+    image: confluentinc/cp-zookeeper:7.6.1
+    environment:
+      - ZOOKEEPER_SERVER_ID=3
+      - ZOOKEEPER_CLIENT_PORT=2181
+      - ZOOKEEPER_TICK_TIME=2000
+      - ZOOKEEPER_INIT_LIMIT=5
+      - ZOOKEEPER_SYNC_LIMIT=2
+      - ZOOKEEPER_SERVERS=zookeeper-1:2888:3888;zookeeper-2:2888:3888;zookeeper-3:2888:3888
+    volumes:
+      - zookeeper_3_data:/var/lib/zookeeper/data
+      - zookeeper_3_log:/var/lib/zookeeper/log
+
+  kafka-1:
     image: confluentinc/cp-kafka:7.6.1
-    container_name: community-kafka
     restart: on-failure
     depends_on:
-      - zookeeper
+      zookeeper-1:
+        condition: service_started
+      zookeeper-2:
+        condition: service_started
+      zookeeper-3:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
       interval: 5s
@@ -88,73 +271,176 @@ services:
       start_period: 20s
     environment:
       - KAFKA_BROKER_ID=1
-      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
-      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
-      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
-      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper-1:2181,zookeeper-2:2181,zookeeper-3:2181
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-1:9092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT
       - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
-      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
-      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1
-      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=3
+      - KAFKA_MIN_INSYNC_REPLICAS=2
+      - KAFKA_DEFAULT_REPLICATION_FACTOR=3
       - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
-      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
     volumes:
-      - kafka_data:/var/lib/kafka/data
+      - kafka_1_data:/var/lib/kafka/data
+
+  kafka-2:
+    image: confluentinc/cp-kafka:7.6.1
+    restart: on-failure
+    depends_on:
+      zookeeper-1:
+        condition: service_started
+      zookeeper-2:
+        condition: service_started
+      zookeeper-3:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    environment:
+      - KAFKA_BROKER_ID=2
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper-1:2181,zookeeper-2:2181,zookeeper-3:2181
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-2:9092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=3
+      - KAFKA_MIN_INSYNC_REPLICAS=2
+      - KAFKA_DEFAULT_REPLICATION_FACTOR=3
+      - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
+    volumes:
+      - kafka_2_data:/var/lib/kafka/data
+
+  kafka-3:
+    image: confluentinc/cp-kafka:7.6.1
+    restart: on-failure
+    depends_on:
+      zookeeper-1:
+        condition: service_started
+      zookeeper-2:
+        condition: service_started
+      zookeeper-3:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    environment:
+      - KAFKA_BROKER_ID=3
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper-1:2181,zookeeper-2:2181,zookeeper-3:2181
+      - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-3:9092
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3
+      - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2
+      - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=3
+      - KAFKA_MIN_INSYNC_REPLICAS=2
+      - KAFKA_DEFAULT_REPLICATION_FACTOR=3
+      - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
+    volumes:
+      - kafka_3_data:/var/lib/kafka/data
 
   kafka-init:
     image: confluentinc/cp-kafka:7.6.1
-    container_name: community-kafka-init
     depends_on:
-      kafka:
-        condition: service_started
-    entrypoint: ["/bin/bash", "-lc"]
-    # NOTE: 必须确保整个脚本作为“单一参数”传给 bash -lc；
-    # 否则会退化为只执行 `set`，导致 topic 未创建。
-    command:
-      - |
-        set -euo pipefail
-        echo "[kafka-init] waiting for broker..."
-        for i in {1..60}; do
-          kafka-topics --bootstrap-server kafka:9092 --list >/dev/null 2>&1 && break || true
-          sleep 2
-        done
-        echo "[kafka-init] creating topics (if not exists)..."
-        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic im.command.private_text.v1 --replication-factor 1 --partitions 12
-        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic im.command.room_text.v1 --replication-factor 1 --partitions 12
-        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic im.event.private_persisted.v1 --replication-factor 1 --partitions 12
-        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic im.event.room_persisted.v1 --replication-factor 1 --partitions 12
-        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic im.event.room_member_changed.v1 --replication-factor 1 --partitions 3
-        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic im.command.private_text.v1.dlq --replication-factor 1 --partitions 12
-        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic im.command.room_text.v1.dlq --replication-factor 1 --partitions 12
-        echo "[kafka-init] done."
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+      kafka-3:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "/bootstrap-kafka-topics.sh"]
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
+    volumes:
+      - ./scripts/bootstrap-kafka-topics.sh:/bootstrap-kafka-topics.sh:ro
     restart: "no"
 
-  # Shared base Elasticsearch node for app search and the optional Elastic observability profile.
-  elasticsearch:
+  elasticsearch-1:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.12.2
-    container_name: community-elasticsearch
     environment:
-      - discovery.type=single-node
+      - node.name=elasticsearch-1
+      - cluster.name=community-es
+      - discovery.seed_hosts=elasticsearch-1,elasticsearch-2,elasticsearch-3
+      - cluster.initial_master_nodes=elasticsearch-1,elasticsearch-2,elasticsearch-3
       - xpack.security.enabled=false
+      - bootstrap.memory_lock=true
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
     volumes:
-      - es_data:/usr/share/elasticsearch/data
+      - es_1_data:/usr/share/elasticsearch/data
+    networks:
+      default:
+        aliases:
+          - elasticsearch
+
+  elasticsearch-2:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.2
+    environment:
+      - node.name=elasticsearch-2
+      - cluster.name=community-es
+      - discovery.seed_hosts=elasticsearch-1,elasticsearch-2,elasticsearch-3
+      - cluster.initial_master_nodes=elasticsearch-1,elasticsearch-2,elasticsearch-3
+      - xpack.security.enabled=false
+      - bootstrap.memory_lock=true
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - es_2_data:/usr/share/elasticsearch/data
+
+  elasticsearch-3:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.2
+    environment:
+      - node.name=elasticsearch-3
+      - cluster.name=community-es
+      - discovery.seed_hosts=elasticsearch-1,elasticsearch-2,elasticsearch-3
+      - cluster.initial_master_nodes=elasticsearch-1,elasticsearch-2,elasticsearch-3
+      - xpack.security.enabled=false
+      - bootstrap.memory_lock=true
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - es_3_data:/usr/share/elasticsearch/data
 
   es-init:
     image: curlimages/curl:8.6.0
-    container_name: community-es-init
     depends_on:
-      elasticsearch:
+      elasticsearch-1:
+        condition: service_started
+      elasticsearch-2:
+        condition: service_started
+      elasticsearch-3:
         condition: service_started
     command: >
       sh -c '
       set -e;
-      echo "[es-init] waiting for elasticsearch...";
-      until curl -fsS http://elasticsearch:9200 >/dev/null 2>&1; do sleep 2; done;
+      echo "[es-init] waiting for elasticsearch cluster...";
+      until curl -fsS "http://elasticsearch:9200/_cluster/health?wait_for_status=yellow&timeout=120s" >/dev/null 2>&1; do sleep 2; done;
       code=$$(curl -s -o /dev/null -w "%{http_code}" http://elasticsearch:9200/community_posts);
       if [ "$$code" = "404" ]; then
         echo "[es-init] creating index community_posts...";
-        curl -fsS -X PUT http://elasticsearch:9200/community_posts -H "Content-Type: application/json" -d "{\"settings\":{\"number_of_shards\":1,\"number_of_replicas\":0}}";
+        curl -fsS -X PUT http://elasticsearch:9200/community_posts -H "Content-Type: application/json" -d "{\"settings\":{\"number_of_shards\":1,\"number_of_replicas\":1}}";
       else
         echo "[es-init] index community_posts already exists (code=$$code)";
       fi;
@@ -162,7 +448,7 @@ services:
       '
     restart: "no"
 
-  community-app:
+  community-app-1:
     build:
       # 后端工程在 backend/ 下；镜像构建以 backend 作为 build context
       context: ../backend
@@ -171,7 +457,6 @@ services:
       args:
         MODULE: community-app
         OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
-    container_name: community-app
     environment:
       - SERVER_PORT=8080
       - OTEL_ENABLED=${OTEL_ENABLED:-false}
@@ -182,16 +467,16 @@ services:
       - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
       - COMMUNITY_LOGGING_DIR=/var/log/community
-      - COMMUNITY_LOGGING_FILE_NAME=community-app.json.log
+      - COMMUNITY_LOGGING_FILE_NAME=community-app-1.json.log
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
       - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:?METRICS_BASIC_AUTH_PASSWORD is required}
-      - DB_URL=jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-community}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+      - DB_PRIMARY_HOST=${DB_PRIMARY_HOST:-mysql-primary}
+      - DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${MYSQL_DATABASE:-community}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
       - DB_USERNAME=${MYSQL_USER:-community}
       - DB_PASSWORD=${MYSQL_PASSWORD:-communitypass}
-      - SPRING_DATA_REDIS_HOST=redis
-      - SPRING_DATA_REDIS_PORT=6379
-      - ELASTICSEARCH_URIS=http://elasticsearch:9200
+      - SPRING_DATA_REDIS_CLUSTER_NODES=${SPRING_DATA_REDIS_CLUSTER_NODES:-redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379,redis-6:6379}
+      - ELASTICSEARCH_URIS=${ELASTICSEARCH_URIS:-http://elasticsearch-1:9200,http://elasticsearch-2:9200,http://elasticsearch-3:9200}
       - USER_AVATAR_STORAGE=${USER_AVATAR_STORAGE:-local}
       - USER_FILES_BASE_DIR=${USER_FILES_BASE_DIR:-/data/files}
       - USER_PUBLIC_BASE_URL=${USER_PUBLIC_BASE_URL:-http://localhost:12881}
@@ -202,9 +487,10 @@ services:
       - AUTH_REGISTRATION_EXPOSE_CODE=${AUTH_REGISTRATION_EXPOSE_CODE:-false}
       - AUTH_EXPOSE_RESET_LINK=${AUTH_EXPOSE_RESET_LINK:-false}
       - XXL_JOB_ENABLED=${XXL_JOB_ENABLED:-true}
-      - XXL_JOB_ADMIN_ADDRESSES=${XXL_JOB_ADMIN_ADDRESSES:-http://xxl-job-admin:8080/xxl-job-admin}
+      - XXL_JOB_ADMIN_INGRESS_URL=${XXL_JOB_ADMIN_INGRESS_URL:-http://nginx:8081/xxl-job-admin}
+      - XXL_JOB_ADMIN_ADDRESSES=${XXL_JOB_ADMIN_INGRESS_URL:-http://nginx:8081/xxl-job-admin}
       - XXL_JOB_EXECUTOR_APPNAME=${XXL_JOB_EXECUTOR_APPNAME:-community-app}
-      - XXL_JOB_EXECUTOR_ADDRESS=${XXL_JOB_EXECUTOR_ADDRESS:-http://community-app:9999/}
+      - XXL_JOB_EXECUTOR_ADDRESS=${XXL_JOB_EXECUTOR_ADDRESS:-http://community-app-1:9999/}
       - XXL_JOB_ACCESS_TOKEN=${XXL_JOB_ACCESS_TOKEN:?XXL_JOB_ACCESS_TOKEN is required}
       - SPRING_MAIL_HOST=${SPRING_MAIL_HOST:-mailhog}
       - SPRING_MAIL_PORT=${SPRING_MAIL_PORT:-1025}
@@ -224,12 +510,154 @@ services:
     depends_on:
       mailhog:
         condition: service_started
-      mysql:
+      mysql-primary:
         condition: service_healthy
-      xxl-job-admin:
+      xxl-job-admin-1:
         condition: service_started
-      redis:
+      redis-cluster-bootstrap:
+        condition: service_completed_successfully
+      es-init:
+        condition: service_completed_successfully
+    networks:
+      default:
+        aliases:
+          - community-app
+
+  community-app-2:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/Dockerfile.backend-service
+      args:
+        MODULE: community-app
+        OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+    environment:
+      - SERVER_PORT=8080
+      - OTEL_ENABLED=${OTEL_ENABLED:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+      - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+      - OTEL_SERVICE_NAME=community-app
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+      - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+      - COMMUNITY_LOGGING_DIR=/var/log/community
+      - COMMUNITY_LOGGING_FILE_NAME=community-app-2.json.log
+      - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:?METRICS_BASIC_AUTH_PASSWORD is required}
+      - DB_PRIMARY_HOST=${DB_PRIMARY_HOST:-mysql-primary}
+      - DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${MYSQL_DATABASE:-community}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+      - DB_USERNAME=${MYSQL_USER:-community}
+      - DB_PASSWORD=${MYSQL_PASSWORD:-communitypass}
+      - SPRING_DATA_REDIS_CLUSTER_NODES=${SPRING_DATA_REDIS_CLUSTER_NODES:-redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379,redis-6:6379}
+      - ELASTICSEARCH_URIS=${ELASTICSEARCH_URIS:-http://elasticsearch-1:9200,http://elasticsearch-2:9200,http://elasticsearch-3:9200}
+      - USER_AVATAR_STORAGE=${USER_AVATAR_STORAGE:-local}
+      - USER_FILES_BASE_DIR=${USER_FILES_BASE_DIR:-/data/files}
+      - USER_PUBLIC_BASE_URL=${USER_PUBLIC_BASE_URL:-http://localhost:12881}
+      - AUTH_MAIL_ENABLED=${AUTH_MAIL_ENABLED:-true}
+      - AUTH_REGISTRATION_PENDING_USER_TTL_SECONDS=${AUTH_REGISTRATION_PENDING_USER_TTL_SECONDS:-1800}
+      - AUTH_REGISTRATION_PENDING_USER_CLEANUP_INTERVAL_MS=${AUTH_REGISTRATION_PENDING_USER_CLEANUP_INTERVAL_MS:-300000}
+      - AUTH_REGISTRATION_PENDING_USER_LOCAL_SCHEDULER_ENABLED=false
+      - AUTH_REGISTRATION_EXPOSE_CODE=${AUTH_REGISTRATION_EXPOSE_CODE:-false}
+      - AUTH_EXPOSE_RESET_LINK=${AUTH_EXPOSE_RESET_LINK:-false}
+      - XXL_JOB_ENABLED=${XXL_JOB_ENABLED:-true}
+      - XXL_JOB_ADMIN_INGRESS_URL=${XXL_JOB_ADMIN_INGRESS_URL:-http://nginx:8081/xxl-job-admin}
+      - XXL_JOB_ADMIN_ADDRESSES=${XXL_JOB_ADMIN_INGRESS_URL:-http://nginx:8081/xxl-job-admin}
+      - XXL_JOB_EXECUTOR_APPNAME=${XXL_JOB_EXECUTOR_APPNAME:-community-app}
+      - XXL_JOB_EXECUTOR_ADDRESS=${XXL_JOB_EXECUTOR_ADDRESS:-http://community-app-2:9999/}
+      - XXL_JOB_ACCESS_TOKEN=${XXL_JOB_ACCESS_TOKEN:?XXL_JOB_ACCESS_TOKEN is required}
+      - SPRING_MAIL_HOST=${SPRING_MAIL_HOST:-mailhog}
+      - SPRING_MAIL_PORT=${SPRING_MAIL_PORT:-1025}
+      - SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:-false}
+      - SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:-false}
+      - AUTH_REFRESH_COOKIE_SECURE=${AUTH_REFRESH_COOKIE_SECURE:-false}
+      - AUTH_REFRESH_COOKIE_SAME_SITE=${AUTH_REFRESH_COOKIE_SAME_SITE:-Lax}
+      - R2_ENDPOINT=${R2_ENDPOINT:-}
+      - R2_ACCESS_KEY=${R2_ACCESS_KEY:-}
+      - R2_SECRET_KEY=${R2_SECRET_KEY:-}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME:-}
+      - R2_REGION=${R2_REGION:-auto}
+      - R2_PATH_STYLE=${R2_PATH_STYLE:-true}
+    volumes:
+      - user_files:/data/files
+      - observability_logs:/var/log/community
+    depends_on:
+      mailhog:
+        condition: service_started
+      mysql-primary:
         condition: service_healthy
+      xxl-job-admin-1:
+        condition: service_started
+      redis-cluster-bootstrap:
+        condition: service_completed_successfully
+      es-init:
+        condition: service_completed_successfully
+
+  community-app-3:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/Dockerfile.backend-service
+      args:
+        MODULE: community-app
+        OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+    environment:
+      - SERVER_PORT=8080
+      - OTEL_ENABLED=${OTEL_ENABLED:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+      - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+      - OTEL_SERVICE_NAME=community-app
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+      - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+      - COMMUNITY_LOGGING_DIR=/var/log/community
+      - COMMUNITY_LOGGING_FILE_NAME=community-app-3.json.log
+      - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:?METRICS_BASIC_AUTH_PASSWORD is required}
+      - DB_PRIMARY_HOST=${DB_PRIMARY_HOST:-mysql-primary}
+      - DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${MYSQL_DATABASE:-community}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+      - DB_USERNAME=${MYSQL_USER:-community}
+      - DB_PASSWORD=${MYSQL_PASSWORD:-communitypass}
+      - SPRING_DATA_REDIS_CLUSTER_NODES=${SPRING_DATA_REDIS_CLUSTER_NODES:-redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379,redis-6:6379}
+      - ELASTICSEARCH_URIS=${ELASTICSEARCH_URIS:-http://elasticsearch-1:9200,http://elasticsearch-2:9200,http://elasticsearch-3:9200}
+      - USER_AVATAR_STORAGE=${USER_AVATAR_STORAGE:-local}
+      - USER_FILES_BASE_DIR=${USER_FILES_BASE_DIR:-/data/files}
+      - USER_PUBLIC_BASE_URL=${USER_PUBLIC_BASE_URL:-http://localhost:12881}
+      - AUTH_MAIL_ENABLED=${AUTH_MAIL_ENABLED:-true}
+      - AUTH_REGISTRATION_PENDING_USER_TTL_SECONDS=${AUTH_REGISTRATION_PENDING_USER_TTL_SECONDS:-1800}
+      - AUTH_REGISTRATION_PENDING_USER_CLEANUP_INTERVAL_MS=${AUTH_REGISTRATION_PENDING_USER_CLEANUP_INTERVAL_MS:-300000}
+      - AUTH_REGISTRATION_PENDING_USER_LOCAL_SCHEDULER_ENABLED=false
+      - AUTH_REGISTRATION_EXPOSE_CODE=${AUTH_REGISTRATION_EXPOSE_CODE:-false}
+      - AUTH_EXPOSE_RESET_LINK=${AUTH_EXPOSE_RESET_LINK:-false}
+      - XXL_JOB_ENABLED=${XXL_JOB_ENABLED:-true}
+      - XXL_JOB_ADMIN_INGRESS_URL=${XXL_JOB_ADMIN_INGRESS_URL:-http://nginx:8081/xxl-job-admin}
+      - XXL_JOB_ADMIN_ADDRESSES=${XXL_JOB_ADMIN_INGRESS_URL:-http://nginx:8081/xxl-job-admin}
+      - XXL_JOB_EXECUTOR_APPNAME=${XXL_JOB_EXECUTOR_APPNAME:-community-app}
+      - XXL_JOB_EXECUTOR_ADDRESS=${XXL_JOB_EXECUTOR_ADDRESS:-http://community-app-3:9999/}
+      - XXL_JOB_ACCESS_TOKEN=${XXL_JOB_ACCESS_TOKEN:?XXL_JOB_ACCESS_TOKEN is required}
+      - SPRING_MAIL_HOST=${SPRING_MAIL_HOST:-mailhog}
+      - SPRING_MAIL_PORT=${SPRING_MAIL_PORT:-1025}
+      - SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:-false}
+      - SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:-false}
+      - AUTH_REFRESH_COOKIE_SECURE=${AUTH_REFRESH_COOKIE_SECURE:-false}
+      - AUTH_REFRESH_COOKIE_SAME_SITE=${AUTH_REFRESH_COOKIE_SAME_SITE:-Lax}
+      - R2_ENDPOINT=${R2_ENDPOINT:-}
+      - R2_ACCESS_KEY=${R2_ACCESS_KEY:-}
+      - R2_SECRET_KEY=${R2_SECRET_KEY:-}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME:-}
+      - R2_REGION=${R2_REGION:-auto}
+      - R2_PATH_STYLE=${R2_PATH_STYLE:-true}
+    volumes:
+      - user_files:/data/files
+      - observability_logs:/var/log/community
+    depends_on:
+      mailhog:
+        condition: service_started
+      mysql-primary:
+        condition: service_healthy
+      xxl-job-admin-1:
+        condition: service_started
+      redis-cluster-bootstrap:
+        condition: service_completed_successfully
       es-init:
         condition: service_completed_successfully
 
@@ -240,23 +668,39 @@ services:
       dockerfile: deploy/Dockerfile.frontend
     container_name: community-frontend
     environment:
-      - VITE_PREVIEW_PROXY_TARGET=http://community-gateway:8080
+      - VITE_PREVIEW_PROXY_TARGET=http://nginx:8080
     ports:
       - "12881:12881"
     depends_on:
-      - community-app
-      - community-gateway
+      nginx:
+        condition: service_started
 
-  community-gateway:
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      community-gateway-1:
+        condition: service_started
+      community-gateway-2:
+        condition: service_started
+      community-gateway-3:
+        condition: service_started
+      xxl-job-admin-1:
+        condition: service_started
+      xxl-job-admin-2:
+        condition: service_started
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "${NGINX_API_PORT:-12880}:8080"
+      - "127.0.0.1:${NGINX_XXL_JOB_PORT:-12887}:8081"
+
+  community-gateway-1:
     build:
       context: ../backend
       dockerfile: ../deploy/Dockerfile.backend-service
       args:
         MODULE: community-gateway
         OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
-    container_name: community-gateway
-    ports:
-      - "12880:8080"
     environment:
       - SERVER_PORT=8080
       - OTEL_ENABLED=${OTEL_ENABLED:-false}
@@ -267,35 +711,162 @@ services:
       - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
       - COMMUNITY_LOGGING_DIR=/var/log/community
-      - COMMUNITY_LOGGING_FILE_NAME=community-gateway.json.log
+      - COMMUNITY_LOGGING_FILE_NAME=community-gateway-1.json.log
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
       - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
       - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-}
-      - COMMUNITY_APP_BASE_URL=http://community-app:8080
-      - IM_CORE_BASE_URL=http://im-core:18082
-      - IM_REALTIME_BASE_URL=http://im-realtime:18081
+      - GATEWAY_HTTP_ROUTES_0_ID=bootstrap-api
+      - GATEWAY_HTTP_ROUTES_0_PATH_PREFIX=/api
+      - GATEWAY_HTTP_ROUTES_0_URIS_0=http://community-app-1:8080
+      - GATEWAY_HTTP_ROUTES_0_URIS_1=http://community-app-2:8080
+      - GATEWAY_HTTP_ROUTES_0_URIS_2=http://community-app-3:8080
+      - GATEWAY_HTTP_ROUTES_1_ID=im-core
+      - GATEWAY_HTTP_ROUTES_1_PATH_PREFIX=/api/im
+      - GATEWAY_HTTP_ROUTES_1_URIS_0=http://im-core-1:18082
+      - GATEWAY_HTTP_ROUTES_1_URIS_1=http://im-core-2:18082
+      - GATEWAY_HTTP_ROUTES_1_URIS_2=http://im-core-3:18082
+      - GATEWAY_HTTP_ROUTES_2_ID=bootstrap-files
+      - GATEWAY_HTTP_ROUTES_2_PATH_PREFIX=/files
+      - GATEWAY_HTTP_ROUTES_2_URIS_0=http://community-app-1:8080
+      - GATEWAY_HTTP_ROUTES_2_URIS_1=http://community-app-2:8080
+      - GATEWAY_HTTP_ROUTES_2_URIS_2=http://community-app-3:8080
       - GATEWAY_WS_PROXY_AUTH_REQUIRED=true
-      - IM_REALTIME_WS_BASE_URL=ws://im-realtime:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
-      - GATEWAY_WS_SHARD_WORKERS_0_ID=im-realtime-local
-      - GATEWAY_WS_SHARD_WORKERS_0_URI=ws://im-realtime:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - IM_REALTIME_WS_BASE_URL=ws://im-realtime-1:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - GATEWAY_WS_SHARD_WORKERS_0_ID=im-realtime-1
+      - GATEWAY_WS_SHARD_WORKERS_0_URI=ws://im-realtime-1:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - GATEWAY_WS_SHARD_WORKERS_1_ID=im-realtime-2
+      - GATEWAY_WS_SHARD_WORKERS_1_URI=ws://im-realtime-2:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - GATEWAY_WS_SHARD_WORKERS_2_ID=im-realtime-3
+      - GATEWAY_WS_SHARD_WORKERS_2_URI=ws://im-realtime-3:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
     depends_on:
-      community-app:
+      community-app-1:
         condition: service_started
-      im-core:
+      im-core-1:
         condition: service_started
-      im-realtime:
+      im-realtime-1:
+        condition: service_started
+    volumes:
+      - observability_logs:/var/log/community
+    networks:
+      default:
+        aliases:
+          - community-gateway
+
+  community-gateway-2:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/Dockerfile.backend-service
+      args:
+        MODULE: community-gateway
+        OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+    environment:
+      - SERVER_PORT=8080
+      - OTEL_ENABLED=${OTEL_ENABLED:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+      - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+      - OTEL_SERVICE_NAME=community-gateway
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+      - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+      - COMMUNITY_LOGGING_DIR=/var/log/community
+      - COMMUNITY_LOGGING_FILE_NAME=community-gateway-2.json.log
+      - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-}
+      - GATEWAY_HTTP_ROUTES_0_ID=bootstrap-api
+      - GATEWAY_HTTP_ROUTES_0_PATH_PREFIX=/api
+      - GATEWAY_HTTP_ROUTES_0_URIS_0=http://community-app-1:8080
+      - GATEWAY_HTTP_ROUTES_0_URIS_1=http://community-app-2:8080
+      - GATEWAY_HTTP_ROUTES_0_URIS_2=http://community-app-3:8080
+      - GATEWAY_HTTP_ROUTES_1_ID=im-core
+      - GATEWAY_HTTP_ROUTES_1_PATH_PREFIX=/api/im
+      - GATEWAY_HTTP_ROUTES_1_URIS_0=http://im-core-1:18082
+      - GATEWAY_HTTP_ROUTES_1_URIS_1=http://im-core-2:18082
+      - GATEWAY_HTTP_ROUTES_1_URIS_2=http://im-core-3:18082
+      - GATEWAY_HTTP_ROUTES_2_ID=bootstrap-files
+      - GATEWAY_HTTP_ROUTES_2_PATH_PREFIX=/files
+      - GATEWAY_HTTP_ROUTES_2_URIS_0=http://community-app-1:8080
+      - GATEWAY_HTTP_ROUTES_2_URIS_1=http://community-app-2:8080
+      - GATEWAY_HTTP_ROUTES_2_URIS_2=http://community-app-3:8080
+      - GATEWAY_WS_PROXY_AUTH_REQUIRED=true
+      - IM_REALTIME_WS_BASE_URL=ws://im-realtime-1:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - GATEWAY_WS_SHARD_WORKERS_0_ID=im-realtime-1
+      - GATEWAY_WS_SHARD_WORKERS_0_URI=ws://im-realtime-1:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - GATEWAY_WS_SHARD_WORKERS_1_ID=im-realtime-2
+      - GATEWAY_WS_SHARD_WORKERS_1_URI=ws://im-realtime-2:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - GATEWAY_WS_SHARD_WORKERS_2_ID=im-realtime-3
+      - GATEWAY_WS_SHARD_WORKERS_2_URI=ws://im-realtime-3:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+    depends_on:
+      community-app-1:
+        condition: service_started
+      im-core-1:
+        condition: service_started
+      im-realtime-1:
         condition: service_started
     volumes:
       - observability_logs:/var/log/community
 
-  im-core:
+  community-gateway-3:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/Dockerfile.backend-service
+      args:
+        MODULE: community-gateway
+        OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+    environment:
+      - SERVER_PORT=8080
+      - OTEL_ENABLED=${OTEL_ENABLED:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+      - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+      - OTEL_SERVICE_NAME=community-gateway
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+      - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+      - COMMUNITY_LOGGING_DIR=/var/log/community
+      - COMMUNITY_LOGGING_FILE_NAME=community-gateway-3.json.log
+      - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+      - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+      - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-}
+      - GATEWAY_HTTP_ROUTES_0_ID=bootstrap-api
+      - GATEWAY_HTTP_ROUTES_0_PATH_PREFIX=/api
+      - GATEWAY_HTTP_ROUTES_0_URIS_0=http://community-app-1:8080
+      - GATEWAY_HTTP_ROUTES_0_URIS_1=http://community-app-2:8080
+      - GATEWAY_HTTP_ROUTES_0_URIS_2=http://community-app-3:8080
+      - GATEWAY_HTTP_ROUTES_1_ID=im-core
+      - GATEWAY_HTTP_ROUTES_1_PATH_PREFIX=/api/im
+      - GATEWAY_HTTP_ROUTES_1_URIS_0=http://im-core-1:18082
+      - GATEWAY_HTTP_ROUTES_1_URIS_1=http://im-core-2:18082
+      - GATEWAY_HTTP_ROUTES_1_URIS_2=http://im-core-3:18082
+      - GATEWAY_HTTP_ROUTES_2_ID=bootstrap-files
+      - GATEWAY_HTTP_ROUTES_2_PATH_PREFIX=/files
+      - GATEWAY_HTTP_ROUTES_2_URIS_0=http://community-app-1:8080
+      - GATEWAY_HTTP_ROUTES_2_URIS_1=http://community-app-2:8080
+      - GATEWAY_HTTP_ROUTES_2_URIS_2=http://community-app-3:8080
+      - GATEWAY_WS_PROXY_AUTH_REQUIRED=true
+      - IM_REALTIME_WS_BASE_URL=ws://im-realtime-1:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - GATEWAY_WS_SHARD_WORKERS_0_ID=im-realtime-1
+      - GATEWAY_WS_SHARD_WORKERS_0_URI=ws://im-realtime-1:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - GATEWAY_WS_SHARD_WORKERS_1_ID=im-realtime-2
+      - GATEWAY_WS_SHARD_WORKERS_1_URI=ws://im-realtime-2:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - GATEWAY_WS_SHARD_WORKERS_2_ID=im-realtime-3
+      - GATEWAY_WS_SHARD_WORKERS_2_URI=ws://im-realtime-3:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+    depends_on:
+      community-app-1:
+        condition: service_started
+      im-core-1:
+        condition: service_started
+      im-realtime-1:
+        condition: service_started
+    volumes:
+      - observability_logs:/var/log/community
+
+  im-core-1:
     build:
       context: ../backend
       dockerfile: ../deploy/Dockerfile.backend-service
       args:
         MODULE: im-core
         OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
-    container_name: im-core
     environment:
       - SERVER_PORT=18082
       - OTEL_ENABLED=${OTEL_ENABLED:-false}
@@ -306,29 +877,99 @@ services:
       - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
       - COMMUNITY_LOGGING_DIR=/var/log/community
-      - COMMUNITY_LOGGING_FILE_NAME=im-core.json.log
+      - COMMUNITY_LOGGING_FILE_NAME=im-core-1.json.log
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - IM_CORE_DB_URL=jdbc:mysql://mysql:3306/${IM_MYSQL_DATABASE:-im_core}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
+      - IM_CORE_DB_PRIMARY_HOST=${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}
+      - IM_CORE_DB_URL=jdbc:mysql://${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}:3306/${IM_MYSQL_DATABASE:-im_core}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
       - IM_CORE_DB_USER=${IM_MYSQL_USER:-im_core}
       - IM_CORE_DB_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
       - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
     depends_on:
-      mysql:
+      mysql-primary:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    volumes:
+      - observability_logs:/var/log/community
+    networks:
+      default:
+        aliases:
+          - im-core
+
+  im-core-2:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/Dockerfile.backend-service
+      args:
+        MODULE: im-core
+        OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+    environment:
+      - SERVER_PORT=18082
+      - OTEL_ENABLED=${OTEL_ENABLED:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+      - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+      - OTEL_SERVICE_NAME=im-core
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+      - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+      - COMMUNITY_LOGGING_DIR=/var/log/community
+      - COMMUNITY_LOGGING_FILE_NAME=im-core-2.json.log
+      - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
+      - IM_CORE_DB_PRIMARY_HOST=${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}
+      - IM_CORE_DB_URL=jdbc:mysql://${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}:3306/${IM_MYSQL_DATABASE:-im_core}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+      - IM_CORE_DB_USER=${IM_MYSQL_USER:-im_core}
+      - IM_CORE_DB_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
+      - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
+    depends_on:
+      mysql-primary:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
     volumes:
       - observability_logs:/var/log/community
 
-  im-realtime:
+  im-core-3:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/Dockerfile.backend-service
+      args:
+        MODULE: im-core
+        OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+    environment:
+      - SERVER_PORT=18082
+      - OTEL_ENABLED=${OTEL_ENABLED:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+      - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+      - OTEL_SERVICE_NAME=im-core
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+      - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+      - COMMUNITY_LOGGING_DIR=/var/log/community
+      - COMMUNITY_LOGGING_FILE_NAME=im-core-3.json.log
+      - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
+      - IM_CORE_DB_PRIMARY_HOST=${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}
+      - IM_CORE_DB_URL=jdbc:mysql://${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}:3306/${IM_MYSQL_DATABASE:-im_core}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+      - IM_CORE_DB_USER=${IM_MYSQL_USER:-im_core}
+      - IM_CORE_DB_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
+      - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    volumes:
+      - observability_logs:/var/log/community
+
+  im-realtime-1:
     build:
       context: ../backend
       dockerfile: ../deploy/Dockerfile.backend-service
       args:
         MODULE: im-realtime
         OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
-    container_name: im-realtime
     environment:
       - SERVER_PORT=18081
       - OTEL_ENABLED=${OTEL_ENABLED:-false}
@@ -339,20 +980,103 @@ services:
       - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
       - COMMUNITY_LOGGING_DIR=/var/log/community
-      - COMMUNITY_LOGGING_FILE_NAME=im-realtime.json.log
+      - COMMUNITY_LOGGING_FILE_NAME=im-realtime-1.json.log
       - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
+      - IM_REALTIME_CONSUMER_GROUP=im-realtime-1
       - IM_EDGE_MODE=internal-worker
       - IM_WS_PATH=${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
-      - IM_CORE_BASE_URL=http://im-core:18082
-      - COMMUNITY_BASE_URL=http://community-app:8080
+      - IM_CORE_BASE_URL=http://im-core-1:18082
+      - IM_CORE_BASE_URLS=${IM_CORE_UPSTREAMS:-http://im-core-1:18082,http://im-core-2:18082,http://im-core-3:18082}
+      - COMMUNITY_BASE_URL=http://community-app-1:8080
+      - COMMUNITY_BASE_URLS=${COMMUNITY_APP_UPSTREAMS:-http://community-app-1:8080,http://community-app-2:8080,http://community-app-3:8080}
       - IM_ROOM_FLUSH_INTERVAL_MS=${IM_ROOM_FLUSH_INTERVAL_MS:-50}
       - IM_WS_OUTBOUND_BUFFER_SIZE=${IM_WS_OUTBOUND_BUFFER_SIZE:-256}
       - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
     depends_on:
       kafka-init:
         condition: service_completed_successfully
-      im-core:
+      im-core-1:
+        condition: service_started
+    volumes:
+      - observability_logs:/var/log/community
+    networks:
+      default:
+        aliases:
+          - im-realtime
+
+  im-realtime-2:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/Dockerfile.backend-service
+      args:
+        MODULE: im-realtime
+        OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+    environment:
+      - SERVER_PORT=18081
+      - OTEL_ENABLED=${OTEL_ENABLED:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+      - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+      - OTEL_SERVICE_NAME=im-realtime
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+      - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+      - COMMUNITY_LOGGING_DIR=/var/log/community
+      - COMMUNITY_LOGGING_FILE_NAME=im-realtime-2.json.log
+      - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
+      - IM_REALTIME_CONSUMER_GROUP=im-realtime-2
+      - IM_EDGE_MODE=internal-worker
+      - IM_WS_PATH=${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - IM_CORE_BASE_URL=http://im-core-1:18082
+      - IM_CORE_BASE_URLS=${IM_CORE_UPSTREAMS:-http://im-core-1:18082,http://im-core-2:18082,http://im-core-3:18082}
+      - COMMUNITY_BASE_URL=http://community-app-1:8080
+      - COMMUNITY_BASE_URLS=${COMMUNITY_APP_UPSTREAMS:-http://community-app-1:8080,http://community-app-2:8080,http://community-app-3:8080}
+      - IM_ROOM_FLUSH_INTERVAL_MS=${IM_ROOM_FLUSH_INTERVAL_MS:-50}
+      - IM_WS_OUTBOUND_BUFFER_SIZE=${IM_WS_OUTBOUND_BUFFER_SIZE:-256}
+      - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      im-core-1:
+        condition: service_started
+    volumes:
+      - observability_logs:/var/log/community
+
+  im-realtime-3:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/Dockerfile.backend-service
+      args:
+        MODULE: im-realtime
+        OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+    environment:
+      - SERVER_PORT=18081
+      - OTEL_ENABLED=${OTEL_ENABLED:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+      - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+      - OTEL_SERVICE_NAME=im-realtime
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+      - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+      - COMMUNITY_LOGGING_DIR=/var/log/community
+      - COMMUNITY_LOGGING_FILE_NAME=im-realtime-3.json.log
+      - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
+      - IM_REALTIME_CONSUMER_GROUP=im-realtime-3
+      - IM_EDGE_MODE=internal-worker
+      - IM_WS_PATH=${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+      - IM_CORE_BASE_URL=http://im-core-1:18082
+      - IM_CORE_BASE_URLS=${IM_CORE_UPSTREAMS:-http://im-core-1:18082,http://im-core-2:18082,http://im-core-3:18082}
+      - COMMUNITY_BASE_URL=http://community-app-1:8080
+      - COMMUNITY_BASE_URLS=${COMMUNITY_APP_UPSTREAMS:-http://community-app-1:8080,http://community-app-2:8080,http://community-app-3:8080}
+      - IM_ROOM_FLUSH_INTERVAL_MS=${IM_ROOM_FLUSH_INTERVAL_MS:-50}
+      - IM_WS_OUTBOUND_BUFFER_SIZE=${IM_WS_OUTBOUND_BUFFER_SIZE:-256}
+      - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+      im-core-1:
         condition: service_started
     volumes:
       - observability_logs:/var/log/community
@@ -368,7 +1092,7 @@ services:
       - MOCK_DATA_STUDIO_ENABLED=${MOCK_DATA_STUDIO_ENABLED:-true}
       - MOCK_DATA_STUDIO_PORT=${MOCK_DATA_STUDIO_PORT:-12888}
       - MOCK_DATA_STUDIO_BIND_HOST=0.0.0.0
-      - MOCK_DATA_STUDIO_DB_URL=mysql://mysql:3306/${MYSQL_DATABASE:-community}
+      - MOCK_DATA_STUDIO_DB_URL=mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${MYSQL_DATABASE:-community}
       - MOCK_DATA_STUDIO_DB_USER=${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}
       - MOCK_DATA_STUDIO_DB_PASSWORD=${MOCK_DATA_STUDIO_DB_PASSWORD:-mockdatastudiopass}
       - MOCK_DATA_STUDIO_COMMUNITY_APP_BASE_URL=http://community-app:8080
@@ -380,13 +1104,13 @@ services:
       - MOCK_DATA_DEFAULT_POSTS=${MOCK_DATA_DEFAULT_POSTS:-800}
       - MOCK_DATA_DEFAULT_COMMENTS=${MOCK_DATA_DEFAULT_COMMENTS:-2500}
     depends_on:
-      mysql:
+      mysql-primary:
         condition: service_healthy
       mock-data-studio-db-bootstrap:
         condition: service_completed_successfully
-      community-app:
+      community-app-1:
         condition: service_started
-      im-core:
+      im-core-1:
         condition: service_started
 
   mock-data-studio-db-bootstrap:
@@ -405,7 +1129,7 @@ services:
         IM_MYSQL_DATABASE_ESCAPED="$$(sql_escape "$${IM_MYSQL_DATABASE:-im_core}")"
         STUDIO_USER_ESCAPED="$$(sql_escape "$${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}")"
         STUDIO_PASSWORD_ESCAPED="$$(sql_escape "$${MOCK_DATA_STUDIO_DB_PASSWORD:-mockdatastudiopass}")"
-        mysql --default-character-set=utf8mb4 -hmysql -uroot -p"$${MYSQL_ROOT_PASSWORD}" <<SQL
+        mysql --default-character-set=utf8mb4 -h"$${DB_PRIMARY_HOST:-mysql-primary}" -uroot -p"$${MYSQL_ROOT_PASSWORD}" <<SQL
         create user if not exists '$${STUDIO_USER_ESCAPED}'@'%' identified by '$${STUDIO_PASSWORD_ESCAPED}';
         grant select, insert, update, delete, create on \`$${MYSQL_DATABASE_ESCAPED}\`.* to '$${STUDIO_USER_ESCAPED}'@'%';
         grant select, insert, update, delete on \`$${IM_MYSQL_DATABASE_ESCAPED}\`.* to '$${STUDIO_USER_ESCAPED}'@'%';
@@ -413,12 +1137,13 @@ services:
         SQL
     environment:
       - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - DB_PRIMARY_HOST=${DB_PRIMARY_HOST:-mysql-primary}
       - MYSQL_DATABASE=${MYSQL_DATABASE:-community}
       - IM_MYSQL_DATABASE=${IM_MYSQL_DATABASE:-im_core}
       - MOCK_DATA_STUDIO_DB_USER=${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}
       - MOCK_DATA_STUDIO_DB_PASSWORD=${MOCK_DATA_STUDIO_DB_PASSWORD:-mockdatastudiopass}
     depends_on:
-      mysql:
+      mysql-primary:
         condition: service_healthy
 
   # Debug-only localhost port exposure. These sidecars proxy traffic back into the
@@ -427,9 +1152,9 @@ services:
     profiles: ["debug"]
     image: caddy:2.8-alpine
     container_name: community-app-debug-port
-    command: ["caddy", "reverse-proxy", "--from", ":8080", "--to", "community-app:8080"]
+    command: ["caddy", "reverse-proxy", "--from", ":8080", "--to", "community-app-1:8080"]
     depends_on:
-      community-app:
+      community-app-1:
         condition: service_started
     ports:
       - "127.0.0.1:12882:8080"
@@ -438,9 +1163,9 @@ services:
     profiles: ["debug"]
     image: caddy:2.8-alpine
     container_name: im-core-debug-port
-    command: ["caddy", "reverse-proxy", "--from", ":18082", "--to", "im-core:18082"]
+    command: ["caddy", "reverse-proxy", "--from", ":18082", "--to", "im-core-1:18082"]
     depends_on:
-      im-core:
+      im-core-1:
         condition: service_started
     ports:
       - "127.0.0.1:18082:18082"
@@ -449,9 +1174,9 @@ services:
     profiles: ["debug"]
     image: caddy:2.8-alpine
     container_name: im-realtime-debug-port
-    command: ["caddy", "reverse-proxy", "--from", ":18081", "--to", "im-realtime:18081"]
+    command: ["caddy", "reverse-proxy", "--from", ":18081", "--to", "im-realtime-1:18081"]
     depends_on:
-      im-realtime:
+      im-realtime-1:
         condition: service_started
     ports:
       - "127.0.0.1:18081:18081"
@@ -467,7 +1192,7 @@ services:
       - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus_data:/prometheus
     depends_on:
-      - community-app
+      - community-app-1
 
   alertmanager:
     profiles: ["observability"]
@@ -525,7 +1250,7 @@ services:
     container_name: community-elasticsearch-observability-port
     command: ["caddy", "reverse-proxy", "--from", ":9200", "--to", "elasticsearch:9200"]
     depends_on:
-      elasticsearch:
+      elasticsearch-1:
         condition: service_started
     ports:
       - "127.0.0.1:${ELASTICSEARCH_PORT:-12888}:9200"
@@ -539,7 +1264,7 @@ services:
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
     depends_on:
-      elasticsearch:
+      elasticsearch-1:
         condition: service_started
 
   observability-gateway-edot-collector:
@@ -552,18 +1277,33 @@ services:
       - ./observability-elastic/edot-collector.yml:/etc/otelcol/config.yaml:ro
       - observability_logs:/var/log/community:ro
     depends_on:
-      elasticsearch:
+      elasticsearch-1:
         condition: service_started
     restart: unless-stopped
 
 volumes:
-  mysql_data: {}
-  redis_data: {}
+  mysql_primary_data: {}
+  mysql_replica_1_data: {}
+  mysql_replica_2_data: {}
+  redis_1_data: {}
+  redis_2_data: {}
+  redis_3_data: {}
+  redis_4_data: {}
+  redis_5_data: {}
+  redis_6_data: {}
   user_files: {}
-  zookeeper_data: {}
-  zookeeper_log: {}
-  kafka_data: {}
-  es_data: {}
+  zookeeper_1_data: {}
+  zookeeper_1_log: {}
+  zookeeper_2_data: {}
+  zookeeper_2_log: {}
+  zookeeper_3_data: {}
+  zookeeper_3_log: {}
+  kafka_1_data: {}
+  kafka_2_data: {}
+  kafka_3_data: {}
+  es_1_data: {}
+  es_2_data: {}
+  es_3_data: {}
   prometheus_data: {}
   grafana_data: {}
   loki_data: {}

@@ -44,7 +44,7 @@ npm install
 
 ## 模式一：connect-only（只测长连 + 鉴权）
 
-以下示例统一显式传 `community-gateway` 地址，避免落到工具当前的直连默认值。
+以下示例统一显式传 `community-gateway` 地址，便于 operator 一眼看出当前走的是 gateway-first 入口；即使省略这些参数，工具默认值也已经是同一组地址。
 
 ```bash
 node src/index.mjs connect-only \

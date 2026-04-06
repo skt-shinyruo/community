@@ -9,7 +9,7 @@
 ## 文件/目录说明
 - `compose.yml`：基础元数据与跨层公共定义，作为所有 operator 命令的第一层。
 - `compose.infra.yml`：本地 HA 基础设施层，包含 `Nacos`、`MySQL 1 主 2 从`、`Redis Cluster 6 节点`、`Kafka KRaft x3`、`Elasticsearch x3`、MailHog、`mock-data-studio`、`xxl-job-admin x2` 等依赖与控制面。
-- `compose.runtime.yml`：业务运行时层，包含 `frontend`、`NGINX`、`community-gateway x3`、`community-app x3`、`im-core x3`、`im-realtime x3`；默认对外暴露统一业务入口（`12880`）、前端（`12881`）、Nacos 检查入口（`18848`，仅本机）、MailHog UI（`8025`）、XXL-JOB Admin UI（`12887`，仅本机）以及 `mock-data-studio`（默认主机端口 `12888`，仅本机），内部依赖端口仍不映射（fail-closed）。
+- `compose.runtime.yml`：业务运行时层，包含 `frontend`、`NGINX`、`community-gateway x3`、`community-app x3`、`im-core x3`、`im-realtime x3`；默认对外暴露统一业务入口（`12880`）、前端（`12881`）、Nacos 检查入口（`18848`，仅本机）、MailHog UI（`8025`）、XXL-JOB Admin UI（`12887`，仅本机）以及 `mock-data-studio`（默认主机端口 `12890`，仅本机），内部依赖端口仍不映射（fail-closed）。
 - `compose.debug.yml`：临时追加 localhost-only 直连排障端口（`12882/18081/18082`）。
 - `compose.observability.yml`：追加 Grafana / Loki / Prometheus / Alertmanager。
 - `compose.observability-elastic.yml`：追加 Kibana / EDOT collector / Elasticsearch localhost 入口。
@@ -46,7 +46,7 @@
    - Nacos 注册检查：`http://localhost:18848/nacos`
    - MailHog UI（dev mailbox）：`http://localhost:8025`（仅本机）
    - XXL-JOB Admin UI（由 `NGINX` 代理到 `xxl-job-admin` 双副本）：`http://localhost:12887/xxl-job-admin`（仅本机）
-   - Mock Data Studio health：`http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12888}/health`（仅本机）
+   - Mock Data Studio health：`http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12890}/health`（仅本机）
 
 ## 本地 HA 拓扑速览
 - 入口：`NGINX` 暴露 `12880`（业务）和 `12887`（XXL-JOB Admin）
@@ -69,6 +69,7 @@
 > - base compose 默认会让 backend services 以 `SPRING_PROFILES_ACTIVE=dev,volume-log-export` 运行：stdout 继续是 text logs，但会同时把结构化 JSON 日志写入共享 `observability_logs` volume
 > - `compose.json-logs.override.yml` 的作用是把容器 stdout 再切到 `SPRING_PROFILES_ACTIVE=dev,json-logs,volume-log-export`，方便 `docker compose logs` 与容器侧排障
 > - Kibana 默认 `127.0.0.1:12889`，Elasticsearch localhost 入口默认 `127.0.0.1:12888`
+> - `deploy/.env.example` 默认把 `MOCK_DATA_STUDIO_HOST_PORT` 设为 `12890`，因此直接 `cp deploy/.env.example deploy/.env` 后，Elastic localhost 入口与 Kibana 不需要再改端口
 > - Phase 1 的日志链路固定为：backend structured JSON file appender -> shared `observability_logs` volume -> EDOT collector filelog -> Elastic
 > - collector 会解析 JSON log payload，并把 `service.name`、`service.version`、`trace.id`、`span.id`（存在时）、`community.category`、`community.action`、`community.outcome` 等字段提升到 `logs-*`
 > - runtime OTLP wiring 与 Java agent 支持已经在仓库中接好；`OTEL_ENABLED` 在 `deploy/.env.example` 中默认是 `false`，如果你现在就想让应用 traces / metrics 流入 Elastic，可以直接显式打开
@@ -111,7 +112,7 @@
 - Nacos 注册检查：`http://localhost:18848/nacos`（仅绑定到 `127.0.0.1`）
 - MailHog UI：`http://localhost:8025`（仅绑定到 `127.0.0.1`）
 - `NGINX` XXL-JOB Admin 入口：`http://localhost:12887/xxl-job-admin`（仅绑定到 `127.0.0.1`）
-- Mock Data Studio：`http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12888}/health`（仅绑定到 `127.0.0.1`）
+- Mock Data Studio：`http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12890}/health`（仅绑定到 `127.0.0.1`）
 - `debug` overlay（仅绑定到 `127.0.0.1`，用于回滚/诊断）：
   - community-app（当前固定指向 `community-app-1`）：`http://localhost:12882`
   - IM Realtime internal worker（当前固定指向 `im-realtime-1`）：`ws://localhost:18081/internal/ws/im`
@@ -133,7 +134,7 @@
 - 启动 + Elastic Observability + JSON stdout：`make up-elastic-json`
 - 查看状态：`make ps`、`make ps-debug`、`make ps-obs`、`make ps-elastic`、`make ps-elastic-json`
 - 查看日志：`make logs`、`make logs-debug`、`make logs-obs`、`make logs-elastic`、`make logs-elastic-json`
-- 检查渲染后的 compose：`make config`、`make config-obs`、`make config-elastic`、`make config-elastic-json`
+- 检查渲染后的 compose：`make config`、`make config-debug`、`make config-obs`、`make config-elastic`、`make config-elastic-json`
 - 停止：`make down`、`make down-debug`、`make down-obs`、`make down-elastic`、`make down-elastic-json`
 - 完全重置（删数据卷）：对你实际启动的层组合执行同一条 layered `docker compose ... down -v`（⚠️ 谨慎使用）
 
@@ -159,7 +160,7 @@
 ## Mock Data Studio（dev-only shell）
 - `MOCK_DATA_STUDIO_ENABLED=true` 时服务保持启动；设为 `false` 时 studio 进程直接退出。
 - `MOCK_DATA_STUDIO_PORT` 始终表示 studio 进程自身的监听端口。
-- `MOCK_DATA_STUDIO_HOST_PORT` 表示 compose 暴露到宿主机 `127.0.0.1` 的端口；只想改宿主机访问端口时，优先改这个值。
+- `MOCK_DATA_STUDIO_HOST_PORT` 表示 compose 暴露到宿主机 `127.0.0.1` 的端口；默认值是 `12890`，只想改宿主机访问端口时，优先改这个值。
 - compose 内会将 `MOCK_DATA_STUDIO_BIND_HOST` 覆盖为 `0.0.0.0`，便于容器接收流量；脱离 compose 直接运行时，默认 bind host 是 `127.0.0.1`，保持 fail-closed。
 - compose 会为 studio 使用单独的 MySQL 账号：`MOCK_DATA_STUDIO_DB_USER` / `MOCK_DATA_STUDIO_DB_PASSWORD`。
   - 权限范围：

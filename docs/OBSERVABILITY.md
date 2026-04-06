@@ -85,6 +85,8 @@
    如需让 Elastic 那一侧的容器 stdout 也切到 JSON，再继续追加 `-f deploy/compose.json-logs.override.yml`。
 
 > 重要：基础三层现在默认会给 backend services 追加 `volume-log-export`，把结构化 JSON 日志写入共享 named volume；`deploy/compose.json-logs.override.yml` 只是把容器 stdout 也切到 JSON，方便 `docker compose logs` 与容器侧排障。
+>
+> 默认 `deploy/.env.example` 已把 `MOCK_DATA_STUDIO_HOST_PORT` 设为 `12890`，因此直接 `cp deploy/.env.example deploy/.env` 后，Elastic localhost `12888` / Kibana `12889` 可以直接使用，不会和 Mock Data Studio 冲突。
 
 ### 2.2 Phase 1 固定链路
 - logs：`backend structured JSON file appender -> shared observability_logs volume -> EDOT collector filelog -> Elastic`

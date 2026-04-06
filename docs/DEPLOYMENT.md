@@ -15,6 +15,7 @@
 ### 1.2 可选对外端口（本地辅助）
 - MailHog UI（dev mailbox）：`http://localhost:8025`（默认启用；仅绑定到 `127.0.0.1`）
 - NGINX XXL-JOB Admin 入口：`http://localhost:12887/xxl-job-admin`（仅绑定到 `127.0.0.1`）
+- Mock Data Studio health：`http://localhost:12890/health`（默认由 `MOCK_DATA_STUDIO_HOST_PORT` 驱动；仅绑定到 `127.0.0.1`）
 - Nacos 注册检查入口：`http://localhost:18848/nacos`（仅绑定到 `127.0.0.1`）
 - `debug` overlay（仅绑定到 `127.0.0.1`，回滚/排障）：
   - community-app（固定回指 `community-app-1`）：`http://localhost:12882`
@@ -27,8 +28,8 @@
 - Loki：`http://localhost:12884`
 - Prometheus：`http://localhost:12885`
 - Alertmanager：`http://localhost:12886`
-- Elasticsearch localhost 入口（`observability-elastic`）：`http://localhost:12888`
-- Kibana（`observability-elastic`）：`http://localhost:12889`
+- Elasticsearch localhost 入口（Elastic overlay）：`http://localhost:12888`
+- Kibana（Elastic overlay）：`http://localhost:12889`
 
 ---
 
@@ -168,7 +169,7 @@ docker compose --env-file deploy/.env \
 
 前端 HTTP 客户端（Axios）有三种方式确定 API 基址：
 1. 显式配置 `VITE_API_BASE_URL`（优先级最高）
-2. 本地 gateway-first 模式：当页面 origin 为 `localhost/127.0.0.1:5173|12881|12888` 时，默认推导为 `http://<host>:12880`
+2. 本地 gateway-first 模式：当页面 origin 为 `localhost/127.0.0.1:5173|12881|12890` 时，默认推导为 `http://<host>:12880`
 3. 其他情况：使用相对路径（`/api/...`），交给同域 edge / ingress
 
 IM 专用客户端默认策略：

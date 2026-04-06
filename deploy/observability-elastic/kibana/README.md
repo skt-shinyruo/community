@@ -61,6 +61,8 @@
 
 如果你只是在基础三层后追加 Elastic overlay，Kibana 和 collector 就已经可以启动，而且仍然能从共享 volume 里拿到 fielded logs；额外叠加 `deploy/compose.json-logs.override.yml` 的区别只是让 backend stdout 也切到 JSON。
 
+默认 `deploy/.env.example` 已把 `MOCK_DATA_STUDIO_HOST_PORT` 设为 `12890`，因此直接 `cp deploy/.env.example deploy/.env` 后，Elasticsearch localhost `12888` / Kibana `12889` 不需要再额外避让端口。
+
 也可以用 API 导入：
 
 ```bash

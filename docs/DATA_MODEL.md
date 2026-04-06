@@ -68,7 +68,7 @@ Redis 主要用于：
 ## 3. Kafka（事件总线）
 
 ### 3.1 Topic（v1）
-本地由 `deploy/docker-compose.yml` 的 `kafka-init` 创建：
+本地由默认 layered compose 栈（`deploy/compose.yml` + `deploy/compose.infra.yml` + `deploy/compose.runtime.yml`）中的 `kafka-init` 创建：
 - IM（必需）：
   - `im.command.private_text.v1`
   - `im.command.room_text.v1`
@@ -101,4 +101,4 @@ Redis 主要用于：
 - `community_posts`
 
 ### 4.2 初始化
-`deploy/docker-compose.yml` 的 `es-init` 会在 ES 启动后自动创建该索引（如不存在）。
+默认 layered compose 栈中的 `es-init` 会在 ES 启动后自动创建该索引（如不存在）。

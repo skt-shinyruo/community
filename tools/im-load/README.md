@@ -1,6 +1,6 @@
 # im-load
 
-自研 IM 压测/长连稳定性工具（链路覆盖 `community-gateway` -> `im-realtime` / `im-core`，也支持在回滚 / 排障时直连 IM 服务；直连口需通过 `debug` profile 临时开启）。
+自研 IM 压测/长连稳定性工具（链路覆盖 `community-gateway` -> `im-realtime` / `im-core`，也支持在回滚 / 排障时直连 IM 服务；直连口需通过 `make up-debug` 临时开启）。
 
 覆盖目标（最小可用版）：
 - 大量 WebSocket 长连接在线（连接/鉴权/保活）
@@ -14,18 +14,18 @@
 
 ## 前置
 
-1) 启动服务（推荐 docker compose；默认暴露 `community-gateway`，直连 IM 端口需额外启用 `debug` profile）：
+1) 启动服务（推荐直接使用仓库 Makefile；默认暴露 `community-gateway`，直连 IM 端口需额外执行 `make up-debug`）：
 
 ```bash
 cp deploy/.env.example deploy/.env
-docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+make up
 ```
 
 推荐入口：
 
 - 外部 WebSocket：`ws://localhost:12880/ws/im`
 - 外部 HTTP：`http://localhost:12880/api/im/**`
-- 直连回滚 / 排障（需 `COMPOSE_PROFILES=debug`）：`ws://localhost:18081/internal/ws/im`、`http://localhost:18082`
+- 直连回滚 / 排障（需先执行 `make up-debug`）：`ws://localhost:18081/internal/ws/im`、`http://localhost:18082`
 
 2) 确保压测端拿到相同的 JWT secret（与服务端一致）：
 
@@ -102,8 +102,8 @@ node src/index.mjs connect-only --wsUrl ws://localhost:12880/ws/im --connections
 ## 常用参数
 
 - `--jwtSecret`：不传则读取环境变量 `JWT_HMAC_SECRET`
-- `--wsUrl`：WebSocket 地址。外部客户端推荐 `ws://localhost:12880/ws/im`；当前内置默认值也已切到该地址。若要直连 worker 调试，请先开启 `COMPOSE_PROFILES=debug`，再显式传 `ws://localhost:18081/internal/ws/im`
-- `--coreBaseUrl`：HTTP 基地址。外部客户端推荐 `http://localhost:12880`（访问 `/api/im/**`）；当前内置默认值也已切到该地址。若要直连 `im-core` 调试，请先开启 `COMPOSE_PROFILES=debug`，再显式传 `http://localhost:18082`
+- `--wsUrl`：WebSocket 地址。外部客户端推荐 `ws://localhost:12880/ws/im`；当前内置默认值也已切到该地址。若要直连 worker 调试，请先执行 `make up-debug`，再显式传 `ws://localhost:18081/internal/ws/im`
+- `--coreBaseUrl`：HTTP 基地址。外部客户端推荐 `http://localhost:12880`（访问 `/api/im/**`）；当前内置默认值也已切到该地址。若要直连 `im-core` 调试，请先执行 `make up-debug`，再显式传 `http://localhost:18082`
 - `--durationSec`：持续时间（默认 600 秒）
 - `--connections`：连接数
 - `--startUserId`：起始 userId（用于切分压测负载）

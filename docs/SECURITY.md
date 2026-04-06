@@ -209,7 +209,7 @@ TTL 配置（可按环境调整）：
 - 修改 `.env` 中的 `JWT_HMAC_SECRET`（>= 32 字节），不要长期用默认值
 - 共享 `community-common-security` 会在启动时拒绝空值或已知占位密钥；本地联调也必须显式提供一个非占位、长度 >= 32 字节的共享密钥，并保持 `security.jwt.issuer` 一致
 - 不要把 `.env`（含真实密钥）提交到版本库
-- 默认不暴露内部依赖端口到宿主机；需要浏览器访问观测组件时，再启用 `observability` profile（例如在 `deploy/.env` 设置 `COMPOSE_PROFILES=observability`）
+- 默认不暴露内部依赖端口到宿主机；需要浏览器访问 Grafana / Loki / Prometheus / Alertmanager 时，再执行 `make up-obs`
 
 ---
 

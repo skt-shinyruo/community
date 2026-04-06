@@ -4,7 +4,7 @@
 > 默认对外业务入口为本地 `NGINX` ingress（compose 映射为 `12880`），再转发到 `community-gateway` 副本池；`xxl-job-admin` 控制面则经 `NGINX :12887` 暴露。
 > 业务服务之间的注册发现由单节点 `Nacos` 承担：`community-gateway` 的 HTTP 路由走 Spring Cloud Gateway `lb://serviceId`，`/ws/im` worker 列表也由 Nacos metadata 提供。
 > `community-app` 继续作为主业务单体 owner，IM 作为独立服务保留：`im-realtime`（worker）与 `im-core`（HTTP）。
-> 直连 `12882/18081/18082` 仅保留为回滚与诊断路径，且默认不暴露到宿主机；需要时通过 `debug` profile 绑定到 `127.0.0.1`。
+> 直连 `12882/18081/18082` 仅保留为回滚与诊断路径，且默认不暴露到宿主机；需要时通过 `deploy/compose.debug.yml` 或 `make up-debug` 绑定到 `127.0.0.1`。
 > 对外 API 前缀稳定：`/api/**`；静态文件前缀稳定：`/files/**`。  
 >
 > 约定：本文档中的命令与路径默认以**仓库根目录**作为工作目录（除非特别说明）。
@@ -141,9 +141,11 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 ## 3. 运行拓扑与端口规划（本地 docker compose）
 
 ### 3.1 Compose 文件分工（以 `deploy/README.md` 为准）
-- `deploy/docker-compose.yml`：本地 HA 演练栈（frontend + `NGINX` + `community-gateway x3` + `community-app x3` + IM + MySQL 主从 + Redis Cluster + Kafka KRaft / Elasticsearch 多节点 + `xxl-job-admin x2`），默认暴露 `12880/12881/12887`；`debug` profile 才会额外暴露 `12882/18081/18082` 到 `127.0.0.1`，依赖端口仍不暴露（fail-closed）。
-- `observability` profile：可选观测/日志栈（Prometheus/Grafana/Loki/Promtail/Alertmanager），默认仅绑定到 `127.0.0.1` 暴露端口（`12883+`）。
-- `observability-elastic` profile：可选 Elastic 观测栈（Elasticsearch localhost 入口 / Kibana / EDOT collector）；base compose 下 backend services 默认会把结构化 JSON 日志写入共享 `observability_logs` volume，因此只启用这个 profile 也能得到 fielded logs。
+- `deploy/compose.yml` + `deploy/compose.infra.yml` + `deploy/compose.runtime.yml`：组成默认本地 HA 演练栈（frontend + `NGINX` + `community-gateway x3` + `community-app x3` + IM + MySQL 主从 + Redis Cluster + Kafka KRaft / Elasticsearch 多节点 + `xxl-job-admin x2`），默认暴露 `12880/12881/12887`，依赖端口仍不暴露（fail-closed）。
+- `deploy/compose.debug.yml`：可选 debug overlay，额外把 `12882/18081/18082` 绑定到 `127.0.0.1`，用于回滚/诊断。
+- `deploy/compose.observability.yml`：可选 observability overlay，提供 Prometheus/Grafana/Loki/Promtail/Alertmanager，默认仅绑定到 `127.0.0.1` 暴露端口（`12883+`）。
+- `deploy/compose.observability-elastic.yml`：可选 Elastic observability overlay，提供 Elasticsearch localhost 入口 / Kibana / EDOT collector；默认三层下 backend services 会把结构化 JSON 日志写入共享 `observability_logs` volume，因此只叠加这个 overlay 也能得到 fielded logs。
+- `deploy/compose.json-logs.override.yml`：可选 JSON stdout overlay，仅在 Elastic observability 路径上继续叠加，把 backend 容器 stdout 也切到 JSON。
 
 ### 3.2 对外暴露端口（默认推荐）
 - NGINX 统一业务入口：`http://localhost:12880`
@@ -151,7 +153,7 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 - MailHog UI（dev mailbox）：`http://localhost:8025`（仅本机）
 - NGINX XXL-JOB Admin 入口：`http://localhost:12887/xxl-job-admin`（仅本机）
 
-### 3.2.1 Debug Profile（localhost-only）
+### 3.2.1 Debug Overlay（localhost-only）
 - backend（`community-app-1`，回滚/诊断）：`http://localhost:12882`
 - IM Realtime（`im-realtime-1` internal worker，回滚/诊断）：`ws://localhost:18081/internal/ws/im`
 - IM Core（`im-core-1`，回滚/诊断）：`http://localhost:18082`
@@ -232,15 +234,17 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 ## 6. 本地启动（推荐方式）
 
 1. 准备环境变量：`cp deploy/.env.example deploy/.env`
-2. 启动（gateway-first）：
-   - `docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build`
-3. （可选）开启观测/日志端口：
-   - 在 `deploy/.env` 中添加 `COMPOSE_PROFILES=observability`，然后执行：`docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d`
+2. 启动（gateway-first）：`make up`
+3. （可选）开启直连排障端口：`make up-debug`
+4. （可选）开启观测/日志端口：
+   - 旧观测链路（Grafana / Loki / Prometheus / Alertmanager）：`make up-obs`
+   - Elastic observability：`make up-elastic`
+   - Elastic observability + JSON stdout：`make up-elastic-json`
 
 默认访问方式：
 - 页面入口：`http://localhost:12881`
 - 统一 edge：`http://localhost:12880`
-- 直连端口 `12882/18081/18082` 仅作为回滚与诊断路径保留，默认不暴露；需要时通过 `debug` profile 开启
+- 直连端口 `12882/18081/18082` 仅作为回滚与诊断路径保留，默认不暴露；需要时通过 `make up-debug` 开启
 
 更完整的启动与运维说明见：`deploy/README.md`。
 
@@ -248,5 +252,5 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 
 ## 7. 与代码一致性的检查清单（建议）
 - 对外入口与安全装配：以 `backend/community-app/src/main/java/.../CommunitySecurityConfig.java` 和各领域 `api/security/*SecurityRules.java` 为准
-- 端口：以 `deploy/docker-compose.yml`（业务 + observability profile）为准
-- 观测：以 `deploy/observability/*` 与 `deploy/docker-compose.yml`（observability profile 的 service 定义）为准
+- 端口：以 `deploy/compose.yml` + `deploy/compose.infra.yml` + `deploy/compose.runtime.yml` 及按需叠加的 `deploy/compose.*.yml` overlay 为准
+- 观测：以 `deploy/observability/*`、`deploy/compose.observability.yml`、`deploy/compose.observability-elastic.yml`、`deploy/compose.json-logs.override.yml` 为准

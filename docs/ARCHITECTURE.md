@@ -2,6 +2,7 @@
 
 > 本项目当前形态：**Maven 多模块后端**，其中 `community-app` 是包级单体（Package-Scoped Monolith），`community-gateway` 负责统一入口，IM 保留独立运行模块。  
 > 默认对外业务入口为本地 `NGINX` ingress（compose 映射为 `12880`），再转发到 `community-gateway` 副本池；`xxl-job-admin` 控制面则经 `NGINX :12887` 暴露。  
+> 业务服务之间的注册发现由单节点 `Nacos` 承担：`community-gateway` 的 HTTP 路由走 Spring Cloud Gateway `lb://serviceId`，`/ws/im` worker 列表也由 Nacos metadata 提供。
 > `community-app` 继续作为主业务单体 owner，IM 作为独立服务保留：`im-realtime`（worker）与 `im-core`（HTTP）。
 > 直连 `12882/18081/18082` 仅保留为回滚与诊断路径，且默认不暴露到宿主机；需要时通过 `debug` profile 绑定到 `127.0.0.1`。
 > 对外 API 前缀稳定：`/api/**`；静态文件前缀稳定：`/files/**`。  
@@ -39,11 +40,15 @@
 flowchart TD
     Browser[Browser] --> FE["Vue3 SPA<br/>(frontend)"]
     FE --> NGINX["NGINX<br/>:12880 / :12887"]
-    NGINX --> GW["community-gateway x3<br/>/api/** + /files/** + /ws/im"]
+    NGINX --> GW["community-gateway x3<br/>Spring Cloud Gateway"]
     NGINX --> XXL["xxl-job-admin x2"]
     GW --> APP["community-app x3<br/>main business owner"]
     GW --> IMCORE["im-core x3<br/>/api/im/** owner"]
-    GW --> IMRT["im-realtime x3<br/>internal WS worker"]
+    GW --> IMRT["im-realtime-worker x3<br/>internal WS worker"]
+    GW --> NACOS["Nacos<br/>service registry"]
+    APP --> NACOS
+    IMCORE --> NACOS
+    IMRT --> NACOS
 
     APP --> MySQL[(MySQL<br/>community / xxl_job<br/>primary + replicas)]
     IMCORE --> IMMySQL[(MySQL<br/>schema: im_core<br/>same primary cluster)]
@@ -59,6 +64,7 @@ flowchart TD
 补充说明：
 - **主业务 owner**：`community-app` 承载主站业务域与统一安全装配。
 - **独立入口层**：浏览器 / 客户端先到本地 `NGINX`，再进入 `community-gateway` 副本池；`community-gateway` 负责 HTTP / WS 路由与边缘策略。
+- **服务发现**：`community-gateway`、`community-app`、`im-core`、`im-realtime-worker` 都向单节点 `Nacos` 注册；HTTP 平面使用 Spring Cloud Gateway `lb://serviceId`，WS 平面使用 discovery metadata 生成 worker URI。
 - **独立 IM 聚合**：顶层模块 `community-im` 负责组织 `im-common`、`im-core`、`im-realtime` 三个 IM 子模块。
 - **包级边界**：领域仍按 `com.nowcoder.community.auth`、`content`、`social`、`search` 等顶层包组织；域内默认按 Spring Boot 分层思路组织（controller/service/dto/entity/mapper），安全/事件/错误码也按职责落在各自域包内。
 
@@ -152,9 +158,10 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 
 ### 3.2.2 本地 HA 关键形态
 - `community-gateway`：3 副本，由 `NGINX` 统一接入
-- `community-app`：3 副本，通过 gateway 的 HTTP upstream 池访问
-- `im-core`：3 副本，通过 gateway HTTP upstream 和 `im-realtime` internal client pool 访问
-- `im-realtime`：3 副本，通过 gateway worker shard registry 访问
+- `community-app`：3 副本，通过 `community-gateway` 的 `lb://community-app` 路由访问
+- `im-core`：3 副本，通过 `community-gateway` 的 `lb://im-core` 路由和 `im-realtime` 的 service-id client 访问
+- `im-realtime`：3 副本，以 `im-realtime-worker` 服务名注册到 Nacos，并由 gateway worker registry 发现
+- `Nacos`：单节点服务注册中心，本机检查入口 `http://localhost:18848/nacos`
 - MySQL：`mysql-primary` + `mysql-replica-1/2`；当前只承诺人工切主，不承诺自动写切换
 - Redis：`redis-1..6`，由 `redis-cluster-bootstrap` 组装成 `3 主 + 3 从`
 - Kafka：`zookeeper-1..3` + `kafka-1..3` + `kafka-init`
@@ -178,7 +185,7 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 ### 4.1 典型读路径：帖子列表
 1. 浏览器请求 `http://localhost:12881`
 2. 前端通过 Axios 请求 `http://localhost:12880/api/posts?order=latest&page=0&size=10`
-3. `community-gateway` 负责 CORS、traceId、路由判定，并将 `/api/**` 转发到 `community-app`
+3. `community-gateway` 负责 CORS、traceId、路由判定，并通过 Spring Cloud Gateway `lb://community-app` 转发到 `community-app`
 4. `community-app` SecurityFilterChain 按路径规则鉴权（匿名读放行，写接口需登录/角色）
 5. `content` 模块查询 MySQL/Redis 组装结果并返回
 

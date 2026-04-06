@@ -1,6 +1,6 @@
 # 本地部署与启动（docker compose）
 
-> 本文档覆盖“frontend (`12881`) -> NGINX (`12880`) -> gateway pool” 的本地 HA 演练方案，并解释前端容器如何工作、端口如何暴露、以及为什么默认不暴露 Redis/MySQL/ES/Kafka 等内部依赖端口。
+> 本文档覆盖“frontend (`12881`) -> `NGINX` (`12880`) -> `community-gateway`（Spring Cloud Gateway）副本池”的本地 HA 演练方案，并解释前端容器如何工作、端口如何暴露、`Nacos` 如何承担服务注册发现、以及为什么默认不暴露 Redis/MySQL/ES/Kafka 等内部依赖端口。
 
 > 约定：本文档中的命令默认从**仓库根目录**执行。
 
@@ -15,6 +15,7 @@
 ### 1.2 可选对外端口（本地辅助）
 - MailHog UI（dev mailbox）：`http://localhost:8025`（默认启用；仅绑定到 `127.0.0.1`）
 - NGINX XXL-JOB Admin 入口：`http://localhost:12887/xxl-job-admin`（仅绑定到 `127.0.0.1`）
+- Nacos 注册检查入口：`http://localhost:18848/nacos`（仅绑定到 `127.0.0.1`）
 - `debug` profile（仅绑定到 `127.0.0.1`，回滚/排障）：
   - community-app（固定回指 `community-app-1`）：`http://localhost:12882`
   - im-realtime internal worker（固定回指 `im-realtime-1`）：`ws://localhost:18081/internal/ws/im`
@@ -42,10 +43,11 @@
 - `deploy/docker-compose.yml`（业务必需全栈）
   - 入口：`NGINX`
   - 业务：`community-gateway x3`、`community-app x3`、`frontend`、IM（`im-core x3` / `im-realtime x3`）
+  - 注册发现：单节点 `Nacos`
   - 依赖：MySQL（`1 主 + 2 从`）/ Redis Cluster（`6` 节点）/ Zookeeper（`3` 节点）/ Kafka（`3` broker）/ Elasticsearch（`3` 节点）
   - 控制面：`xxl-job-admin x2`
   - 辅助：MailHog（dev mailbox，UI `http://localhost:8025`，仅本机）
-  - **默认仅暴露 `NGINX` 业务入口 `12880`、前端 `12881` 与 `NGINX` admin 入口 `12887`；直连 `12882/18081/18082` 仅在 `debug` profile 下按需映射到 `127.0.0.1`；依赖端口仍不映射到宿主机（fail-closed）**
+  - **默认仅暴露 `NGINX` 业务入口 `12880`、前端 `12881`、本机 Nacos 检查入口 `18848` 与 `NGINX` admin 入口 `12887`；直连 `12882/18081/18082` 仅在 `debug` profile 下按需映射到 `127.0.0.1`；依赖端口仍不映射到宿主机（fail-closed）**
 - `debug` profile（可选）
   - 直连排障：`community-app` / `im-core` / `im-realtime` 的 localhost-only 端口映射
 - `observability` profile（可选）
@@ -74,6 +76,7 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 访问：
 - `http://localhost:12881`
 - `http://localhost:12880/actuator/health`
+- `http://localhost:18848/nacos`
 - `http://localhost:12887/xxl-job-admin`
 
 默认流量路径：
@@ -81,6 +84,8 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 - 前端默认 HTTP / IM HTTP -> `NGINX http://localhost:12880`
 - 前端默认 IM WebSocket -> `NGINX ws://localhost:12880/ws/im`
 - `NGINX` -> `community-gateway-1..3`
+- `community-gateway` -> `lb://community-app` / `lb://im-core`（经 Nacos Discovery）
+- `community-gateway` `/ws/im` -> Nacos 发现的 `im-realtime-worker`
 - `NGINX :12887` -> `xxl-job-admin-1..2`
 
 保留的直连入口：
@@ -91,9 +96,10 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 
 ### 3.3 本地 HA 拓扑速查
 - `community-gateway`：3 副本，由 `NGINX` 统一接入
-- `community-app`：3 副本，经 gateway 的 HTTP upstream 池访问
-- `im-core`：3 副本，经 gateway HTTP upstream 池和 `im-realtime` internal client pool 访问
-- `im-realtime`：3 副本，经 gateway worker shard registry 访问
+- `community-app`：3 副本，经 `community-gateway` 的 `lb://community-app` 路由访问
+- `im-core`：3 副本，经 `community-gateway` 的 `lb://im-core` 路由和 `im-realtime` service-id client 访问
+- `im-realtime`：3 副本，以 `im-realtime-worker` 注册到 Nacos，并由 gateway worker registry 发现
+- `Nacos`：单节点服务注册中心，仅承担业务服务发现，不承担 MySQL/Redis/Kafka/ES 集群管理
 - MySQL：`mysql-primary` + `mysql-replica-1/2`；当前仍是“单主写入 + 人工切主”
 - Redis：`redis-1..6`，由 `redis-cluster-bootstrap` 组装 `3 主 + 3 从`
 - Kafka：`kafka-1..3` + `kafka-init`

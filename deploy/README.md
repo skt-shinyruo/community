@@ -1,13 +1,13 @@
 # deploy/
 
-本目录存放 docker compose 与构建/初始化/观测配置，用于本地/演练环境一键启动全栈。当前默认拓扑已经升级为“本地 HA 演练栈”：浏览器统一走 `NGINX` 入口，后面挂 `community-gateway` / `community-app` / `im-core` / `im-realtime` 多副本，以及 MySQL / Redis / Zookeeper / Kafka / Elasticsearch 的原生多节点形态。直连排障口仍通过 `debug` profile 按需开启；`mock-data-studio` 仍是 dev-only 控制面，端口仅绑定到宿主机 `127.0.0.1`。
+本目录存放 docker compose 与构建/初始化/观测配置，用于本地/演练环境一键启动全栈。当前默认拓扑已经升级为“本地 HA 演练栈”：浏览器统一走 `NGINX` 入口，后面挂 `community-gateway` / `community-app` / `im-core` / `im-realtime` 多副本，以及 MySQL / Redis / Zookeeper / Kafka / Elasticsearch 的原生多节点形态。业务服务之间的静态 URL pool 已经移除，改由单节点 `Nacos` 注册中心提供服务发现；直连排障口仍通过 `debug` profile 按需开启；`mock-data-studio` 仍是 dev-only 控制面，端口仅绑定到宿主机 `127.0.0.1`。
 
 > 约定：本文档中的命令默认从**仓库根目录**执行。
 
 默认 compose project name 固定为 `community`（避免在 Docker Desktop 里显示为 `deploy` 造成歧义）；如需覆盖可使用 `docker compose -p <name>`。
 
 ## 文件/目录说明
-- `docker-compose.yml`：本地 HA 演练栈。默认包含 `frontend`、`NGINX`、`community-gateway x3`、`community-app x3`、`im-core x3`、`im-realtime x3`、`MySQL 1 主 2 从`、`Redis Cluster 6 节点`、`Zookeeper x3`、`Kafka x3`、`Elasticsearch x3`、`xxl-job-admin x2`、MailHog 与 `mock-data-studio`。对外仅暴露统一业务入口（`12880`）、前端（`12881`）、MailHog UI（`8025`）、XXL-JOB Admin UI（`12887`，仅本机）以及 `mock-data-studio`（默认主机端口 `12888`，仅本机）；`debug` profile 才会额外映射 `12882/18081/18082` 到宿主机，内部依赖端口仍不映射（fail-closed）。
+- `docker-compose.yml`：本地 HA 演练栈。默认包含 `frontend`、`NGINX`、`community-gateway x3`、`community-app x3`、`im-core x3`、`im-realtime x3`、单节点 `Nacos`、`MySQL 1 主 2 从`、`Redis Cluster 6 节点`、`Zookeeper x3`、`Kafka x3`、`Elasticsearch x3`、`xxl-job-admin x2`、MailHog 与 `mock-data-studio`。对外仅暴露统一业务入口（`12880`）、前端（`12881`）、Nacos 检查入口（`18848`，仅本机）、MailHog UI（`8025`）、XXL-JOB Admin UI（`12887`，仅本机）以及 `mock-data-studio`（默认主机端口 `12888`，仅本机）；`debug` profile 才会额外映射 `12882/18081/18082` 到宿主机，内部依赖端口仍不映射（fail-closed）。
 - `Dockerfile.frontend`：构建并运行前端（Vite build + preview，对外 `12881`）。
 - `Dockerfile.backend-service`：统一构建 Spring Boot 模块镜像（build arg：`MODULE`，取 Maven `artifactId`，例如 `community-app`）。
 - `.env.example`：环境变量示例（复制为 `.env` 使用）。
@@ -26,7 +26,8 @@
 2. 启动：`docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build`
 3. 访问：
    - 前端：`http://localhost:12881`
-   - 统一入口（API / files / IM，由 `NGINX` 代理到 gateway 副本池）：`http://localhost:12880`
+   - 统一入口（API / files / IM，由 `NGINX` 代理到 `community-gateway (Spring Cloud Gateway)` 副本池）：`http://localhost:12880`
+   - Nacos 注册检查：`http://localhost:18848/nacos`
    - MailHog UI（dev mailbox）：`http://localhost:8025`（仅本机）
    - XXL-JOB Admin UI（由 `NGINX` 代理到 `xxl-job-admin` 双副本）：`http://localhost:12887/xxl-job-admin`（仅本机）
    - Mock Data Studio health：`http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12888}/health`（仅本机）
@@ -34,6 +35,8 @@
 ## 本地 HA 拓扑速览
 - 入口：`NGINX` 暴露 `12880`（业务）和 `12887`（XXL-JOB Admin）
 - 业务服务：`community-gateway x3`、`community-app x3`、`im-core x3`、`im-realtime x3`
+- 服务发现：单节点 `Nacos`，本机检查入口 `http://localhost:18848/nacos`
+- 路由模型：`community-gateway` HTTP 平面使用 Spring Cloud Gateway `lb://serviceId`；`/ws/im` worker 列表来自 Nacos metadata
 - 中间件：`mysql-primary + mysql-replica-1/2`、`redis-1..6`、`zookeeper-1..3`、`kafka-1..3`、`elasticsearch-1..3`
 - 控制面：`xxl-job-admin-1/2` 共用 `xxl_job` schema，由 `NGINX` 暴露单一入口
 - 非目标：`frontend`、MailHog、`mock-data-studio`、各类 bootstrap sidecar、observability 组件仍不纳入 HA 范围
@@ -67,6 +70,7 @@
 ## 端口（默认映射到宿主机）
 - `NGINX` 统一业务入口：`http://localhost:12880`
 - 前端（Vite preview）：`http://localhost:12881`
+- Nacos 注册检查：`http://localhost:18848/nacos`（仅绑定到 `127.0.0.1`）
 - MailHog UI：`http://localhost:8025`（仅绑定到 `127.0.0.1`）
 - `NGINX` XXL-JOB Admin 入口：`http://localhost:12887/xxl-job-admin`（仅绑定到 `127.0.0.1`）
 - Mock Data Studio：`http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12888}/health`（仅绑定到 `127.0.0.1`）

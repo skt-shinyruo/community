@@ -35,6 +35,7 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 
 - 前端：`http://localhost:12881`
 - 业务入口：`http://localhost:12880`
+- Nacos 注册检查：`http://localhost:18848/nacos`
 - XXL-JOB Admin：`http://localhost:12887/xxl-job-admin`
 
 ## 4. 健康检查
@@ -70,6 +71,19 @@ curl -fsS -I http://localhost:12887/xxl-job-admin/
 - 第一个返回 `{"status":"UP"}`
 - 第二个通常返回 `302`，跳转到 `/xxl-job-admin/auth/login`
 
+### 4.3 Nacos 注册检查
+
+```bash
+curl -fsS "http://localhost:18848/nacos/v1/ns/instance/list?serviceName=community-app"
+curl -fsS "http://localhost:18848/nacos/v1/ns/instance/list?serviceName=im-core"
+curl -fsS "http://localhost:18848/nacos/v1/ns/instance/list?serviceName=im-realtime-worker"
+```
+
+期望：
+
+- 每个响应都包含非空 `hosts`
+- `community-app`、`im-core`、`im-realtime-worker` 都已完成注册
+
 ## 5. 故障演练
 
 ### 5.1 Gateway 单实例故障
@@ -102,6 +116,7 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d communi
 
 ```bash
 docker compose -f deploy/docker-compose.yml --env-file deploy/.env stop im-realtime-1
+curl -fsS "http://localhost:18848/nacos/v1/ns/instance/list?serviceName=im-realtime-worker"
 docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d im-realtime-1
 ```
 
@@ -109,6 +124,7 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d im-real
 
 - 停掉 worker 上承载的现存 WebSocket 连接会断开
 - 浏览器重连后会被 gateway 重新分配到剩余 worker
+- Nacos 中 `im-realtime-worker` 的实例列表会先缩容，恢复后再回补
 - 新消息扇出仍可继续通过 Kafka 事件和剩余 worker 完成
 
 ### 5.4 Redis 单节点故障

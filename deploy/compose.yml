@@ -1,0 +1,23 @@
+name: community
+
+volumes:
+  mysql_primary_data: {}
+  mysql_replica_1_data: {}
+  mysql_replica_2_data: {}
+  redis_1_data: {}
+  redis_2_data: {}
+  redis_3_data: {}
+  redis_4_data: {}
+  redis_5_data: {}
+  redis_6_data: {}
+  user_files: {}
+  kafka_1_data: {}
+  kafka_2_data: {}
+  kafka_3_data: {}
+  es_1_data: {}
+  es_2_data: {}
+  es_3_data: {}
+  prometheus_data: {}
+  grafana_data: {}
+  loki_data: {}
+  observability_logs: {}

@@ -1,0 +1,37 @@
+services:
+  community-app-1:
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev},json-logs,volume-log-export
+  community-app-2:
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev},json-logs,volume-log-export
+  community-app-3:
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev},json-logs,volume-log-export
+  community-gateway-1:
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev},json-logs,volume-log-export
+  community-gateway-2:
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev},json-logs,volume-log-export
+  community-gateway-3:
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev},json-logs,volume-log-export
+  im-core-1:
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev},json-logs,volume-log-export
+  im-core-2:
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev},json-logs,volume-log-export
+  im-core-3:
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev},json-logs,volume-log-export
+  im-realtime-1:
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev},json-logs,volume-log-export
+  im-realtime-2:
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev},json-logs,volume-log-export
+  im-realtime-3:
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev},json-logs,volume-log-export

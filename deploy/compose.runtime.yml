@@ -1,0 +1,612 @@
+x-community-app-base: &community-app-base
+  build:
+    context: ../backend
+    dockerfile: ../deploy/Dockerfile.backend-service
+    args:
+      MODULE: community-app
+      OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+  mem_limit: ${COMMUNITY_APP_MEM_LIMIT:-768m}
+  volumes:
+  - user_files:/data/files
+  - observability_logs:/var/log/community
+
+x-community-gateway-base: &community-gateway-base
+  build:
+    context: ../backend
+    dockerfile: ../deploy/Dockerfile.backend-service
+    args:
+      MODULE: community-gateway
+      OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+  mem_limit: ${COMMUNITY_GATEWAY_MEM_LIMIT:-512m}
+  volumes:
+  - observability_logs:/var/log/community
+
+x-im-core-base: &im-core-base
+  build:
+    context: ../backend
+    dockerfile: ../deploy/Dockerfile.backend-service
+    args:
+      MODULE: im-core
+      OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+  mem_limit: ${IM_CORE_MEM_LIMIT:-640m}
+  volumes:
+  - observability_logs:/var/log/community
+
+x-im-realtime-base: &im-realtime-base
+  build:
+    context: ../backend
+    dockerfile: ../deploy/Dockerfile.backend-service
+    args:
+      MODULE: im-realtime
+      OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+  mem_limit: ${IM_REALTIME_MEM_LIMIT:-640m}
+  volumes:
+  - observability_logs:/var/log/community
+
+services:
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.frontend
+    container_name: community-frontend
+    environment:
+    - VITE_PREVIEW_PROXY_TARGET=http://nginx:8080
+    ports:
+    - 12881:12881
+    depends_on:
+      nginx:
+        condition: service_started
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      community-gateway-1:
+        condition: service_started
+      community-gateway-2:
+        condition: service_started
+      community-gateway-3:
+        condition: service_started
+      xxl-job-admin-1:
+        condition: service_started
+      xxl-job-admin-2:
+        condition: service_started
+    volumes:
+    - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+    - ${NGINX_API_PORT:-12880}:8080
+    - 127.0.0.1:${NGINX_XXL_JOB_PORT:-12887}:8081
+  community-app-1:
+    <<: *community-app-base
+    environment:
+    - SERVER_PORT=8080
+    - OTEL_ENABLED=${OTEL_ENABLED:-false}
+    - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+    - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+    - OTEL_SERVICE_NAME=community-app
+    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+    - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+    - JAVA_OPTS=${COMMUNITY_APP_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=60.0 -XX:MaxMetaspaceSize=256m -XX:+ExitOnOutOfMemoryError}
+    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+    - COMMUNITY_LOGGING_DIR=/var/log/community
+    - COMMUNITY_LOGGING_FILE_NAME=community-app-1.json.log
+    - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+    - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+    - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:?METRICS_BASIC_AUTH_PASSWORD is required}
+    - DB_PRIMARY_HOST=${DB_PRIMARY_HOST:-mysql-primary}
+    - DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${MYSQL_DATABASE:-community}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - DB_USERNAME=${MYSQL_USER:-community}
+    - DB_PASSWORD=${MYSQL_PASSWORD:-communitypass}
+    - SPRING_DATA_REDIS_CLUSTER_NODES=${SPRING_DATA_REDIS_CLUSTER_NODES:-redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379,redis-6:6379}
+    - ELASTICSEARCH_URIS=${ELASTICSEARCH_URIS:-http://elasticsearch-1:9200,http://elasticsearch-2:9200,http://elasticsearch-3:9200}
+    - USER_AVATAR_STORAGE=${USER_AVATAR_STORAGE:-local}
+    - USER_FILES_BASE_DIR=${USER_FILES_BASE_DIR:-/data/files}
+    - USER_PUBLIC_BASE_URL=${USER_PUBLIC_BASE_URL:-http://localhost:12881}
+    - AUTH_MAIL_ENABLED=${AUTH_MAIL_ENABLED:-true}
+    - AUTH_PASSWORD_RESET_BASE_URL=${AUTH_PASSWORD_RESET_BASE_URL:-http://localhost:12881}
+    - AUTH_REGISTRATION_PENDING_USER_TTL_SECONDS=${AUTH_REGISTRATION_PENDING_USER_TTL_SECONDS:-1800}
+    - AUTH_REGISTRATION_PENDING_USER_CLEANUP_INTERVAL_MS=${AUTH_REGISTRATION_PENDING_USER_CLEANUP_INTERVAL_MS:-300000}
+    - AUTH_REGISTRATION_PENDING_USER_LOCAL_SCHEDULER_ENABLED=false
+    - AUTH_REGISTRATION_EXPOSE_CODE=${AUTH_REGISTRATION_EXPOSE_CODE:-false}
+    - AUTH_EXPOSE_RESET_LINK=${AUTH_EXPOSE_RESET_LINK:-false}
+    - XXL_JOB_ENABLED=${XXL_JOB_ENABLED:-true}
+    - XXL_JOB_ADMIN_INGRESS_URL=${XXL_JOB_ADMIN_INGRESS_URL:-http://nginx:8081/xxl-job-admin}
+    - XXL_JOB_ADMIN_ADDRESSES=${XXL_JOB_ADMIN_INGRESS_URL:-http://nginx:8081/xxl-job-admin}
+    - XXL_JOB_EXECUTOR_APPNAME=${XXL_JOB_EXECUTOR_APPNAME:-community-app}
+    - XXL_JOB_EXECUTOR_ADDRESS=${XXL_JOB_EXECUTOR_ADDRESS:-http://community-app-1:9999/}
+    - XXL_JOB_ACCESS_TOKEN=${XXL_JOB_ACCESS_TOKEN:?XXL_JOB_ACCESS_TOKEN is required}
+    - SPRING_MAIL_HOST=${SPRING_MAIL_HOST:-mailhog}
+    - SPRING_MAIL_PORT=${SPRING_MAIL_PORT:-1025}
+    - SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:-false}
+    - SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:-false}
+    - AUTH_REFRESH_COOKIE_SECURE=${AUTH_REFRESH_COOKIE_SECURE:-false}
+    - AUTH_REFRESH_COOKIE_SAME_SITE=${AUTH_REFRESH_COOKIE_SAME_SITE:-Lax}
+    - R2_ENDPOINT=${R2_ENDPOINT:-}
+    - R2_ACCESS_KEY=${R2_ACCESS_KEY:-}
+    - R2_SECRET_KEY=${R2_SECRET_KEY:-}
+    - R2_BUCKET_NAME=${R2_BUCKET_NAME:-}
+    - R2_REGION=${R2_REGION:-auto}
+    - R2_PATH_STYLE=${R2_PATH_STYLE:-true}
+    depends_on:
+      mailhog:
+        condition: service_started
+      nacos:
+        condition: service_started
+      mock-data-studio-db-bootstrap:
+        condition: service_completed_successfully
+      mysql-primary:
+        condition: service_healthy
+      xxl-job-admin-1:
+        condition: service_started
+      redis-cluster-bootstrap:
+        condition: service_completed_successfully
+      es-init:
+        condition: service_completed_successfully
+    networks:
+      default:
+        aliases:
+        - community-app
+  community-app-2:
+    <<: *community-app-base
+    environment:
+    - SERVER_PORT=8080
+    - OTEL_ENABLED=${OTEL_ENABLED:-false}
+    - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+    - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+    - OTEL_SERVICE_NAME=community-app
+    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+    - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+    - JAVA_OPTS=${COMMUNITY_APP_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=60.0 -XX:MaxMetaspaceSize=256m -XX:+ExitOnOutOfMemoryError}
+    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+    - COMMUNITY_LOGGING_DIR=/var/log/community
+    - COMMUNITY_LOGGING_FILE_NAME=community-app-2.json.log
+    - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+    - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+    - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:?METRICS_BASIC_AUTH_PASSWORD is required}
+    - DB_PRIMARY_HOST=${DB_PRIMARY_HOST:-mysql-primary}
+    - DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${MYSQL_DATABASE:-community}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - DB_USERNAME=${MYSQL_USER:-community}
+    - DB_PASSWORD=${MYSQL_PASSWORD:-communitypass}
+    - SPRING_DATA_REDIS_CLUSTER_NODES=${SPRING_DATA_REDIS_CLUSTER_NODES:-redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379,redis-6:6379}
+    - ELASTICSEARCH_URIS=${ELASTICSEARCH_URIS:-http://elasticsearch-1:9200,http://elasticsearch-2:9200,http://elasticsearch-3:9200}
+    - USER_AVATAR_STORAGE=${USER_AVATAR_STORAGE:-local}
+    - USER_FILES_BASE_DIR=${USER_FILES_BASE_DIR:-/data/files}
+    - USER_PUBLIC_BASE_URL=${USER_PUBLIC_BASE_URL:-http://localhost:12881}
+    - AUTH_MAIL_ENABLED=${AUTH_MAIL_ENABLED:-true}
+    - AUTH_PASSWORD_RESET_BASE_URL=${AUTH_PASSWORD_RESET_BASE_URL:-http://localhost:12881}
+    - AUTH_REGISTRATION_PENDING_USER_TTL_SECONDS=${AUTH_REGISTRATION_PENDING_USER_TTL_SECONDS:-1800}
+    - AUTH_REGISTRATION_PENDING_USER_CLEANUP_INTERVAL_MS=${AUTH_REGISTRATION_PENDING_USER_CLEANUP_INTERVAL_MS:-300000}
+    - AUTH_REGISTRATION_PENDING_USER_LOCAL_SCHEDULER_ENABLED=false
+    - AUTH_REGISTRATION_EXPOSE_CODE=${AUTH_REGISTRATION_EXPOSE_CODE:-false}
+    - AUTH_EXPOSE_RESET_LINK=${AUTH_EXPOSE_RESET_LINK:-false}
+    - XXL_JOB_ENABLED=${XXL_JOB_ENABLED:-true}
+    - XXL_JOB_ADMIN_INGRESS_URL=${XXL_JOB_ADMIN_INGRESS_URL:-http://nginx:8081/xxl-job-admin}
+    - XXL_JOB_ADMIN_ADDRESSES=${XXL_JOB_ADMIN_INGRESS_URL:-http://nginx:8081/xxl-job-admin}
+    - XXL_JOB_EXECUTOR_APPNAME=${XXL_JOB_EXECUTOR_APPNAME:-community-app}
+    - XXL_JOB_EXECUTOR_ADDRESS=${XXL_JOB_EXECUTOR_ADDRESS:-http://community-app-2:9999/}
+    - XXL_JOB_ACCESS_TOKEN=${XXL_JOB_ACCESS_TOKEN:?XXL_JOB_ACCESS_TOKEN is required}
+    - SPRING_MAIL_HOST=${SPRING_MAIL_HOST:-mailhog}
+    - SPRING_MAIL_PORT=${SPRING_MAIL_PORT:-1025}
+    - SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:-false}
+    - SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:-false}
+    - AUTH_REFRESH_COOKIE_SECURE=${AUTH_REFRESH_COOKIE_SECURE:-false}
+    - AUTH_REFRESH_COOKIE_SAME_SITE=${AUTH_REFRESH_COOKIE_SAME_SITE:-Lax}
+    - R2_ENDPOINT=${R2_ENDPOINT:-}
+    - R2_ACCESS_KEY=${R2_ACCESS_KEY:-}
+    - R2_SECRET_KEY=${R2_SECRET_KEY:-}
+    - R2_BUCKET_NAME=${R2_BUCKET_NAME:-}
+    - R2_REGION=${R2_REGION:-auto}
+    - R2_PATH_STYLE=${R2_PATH_STYLE:-true}
+    depends_on:
+      mailhog:
+        condition: service_started
+      nacos:
+        condition: service_started
+      mock-data-studio-db-bootstrap:
+        condition: service_completed_successfully
+      mysql-primary:
+        condition: service_healthy
+      xxl-job-admin-1:
+        condition: service_started
+      redis-cluster-bootstrap:
+        condition: service_completed_successfully
+      es-init:
+        condition: service_completed_successfully
+  community-app-3:
+    <<: *community-app-base
+    environment:
+    - SERVER_PORT=8080
+    - OTEL_ENABLED=${OTEL_ENABLED:-false}
+    - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+    - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+    - OTEL_SERVICE_NAME=community-app
+    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+    - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+    - JAVA_OPTS=${COMMUNITY_APP_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=60.0 -XX:MaxMetaspaceSize=256m -XX:+ExitOnOutOfMemoryError}
+    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+    - COMMUNITY_LOGGING_DIR=/var/log/community
+    - COMMUNITY_LOGGING_FILE_NAME=community-app-3.json.log
+    - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+    - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+    - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:?METRICS_BASIC_AUTH_PASSWORD is required}
+    - DB_PRIMARY_HOST=${DB_PRIMARY_HOST:-mysql-primary}
+    - DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${MYSQL_DATABASE:-community}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - DB_USERNAME=${MYSQL_USER:-community}
+    - DB_PASSWORD=${MYSQL_PASSWORD:-communitypass}
+    - SPRING_DATA_REDIS_CLUSTER_NODES=${SPRING_DATA_REDIS_CLUSTER_NODES:-redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379,redis-6:6379}
+    - ELASTICSEARCH_URIS=${ELASTICSEARCH_URIS:-http://elasticsearch-1:9200,http://elasticsearch-2:9200,http://elasticsearch-3:9200}
+    - USER_AVATAR_STORAGE=${USER_AVATAR_STORAGE:-local}
+    - USER_FILES_BASE_DIR=${USER_FILES_BASE_DIR:-/data/files}
+    - USER_PUBLIC_BASE_URL=${USER_PUBLIC_BASE_URL:-http://localhost:12881}
+    - AUTH_MAIL_ENABLED=${AUTH_MAIL_ENABLED:-true}
+    - AUTH_PASSWORD_RESET_BASE_URL=${AUTH_PASSWORD_RESET_BASE_URL:-http://localhost:12881}
+    - AUTH_REGISTRATION_PENDING_USER_TTL_SECONDS=${AUTH_REGISTRATION_PENDING_USER_TTL_SECONDS:-1800}
+    - AUTH_REGISTRATION_PENDING_USER_CLEANUP_INTERVAL_MS=${AUTH_REGISTRATION_PENDING_USER_CLEANUP_INTERVAL_MS:-300000}
+    - AUTH_REGISTRATION_PENDING_USER_LOCAL_SCHEDULER_ENABLED=false
+    - AUTH_REGISTRATION_EXPOSE_CODE=${AUTH_REGISTRATION_EXPOSE_CODE:-false}
+    - AUTH_EXPOSE_RESET_LINK=${AUTH_EXPOSE_RESET_LINK:-false}
+    - XXL_JOB_ENABLED=${XXL_JOB_ENABLED:-true}
+    - XXL_JOB_ADMIN_INGRESS_URL=${XXL_JOB_ADMIN_INGRESS_URL:-http://nginx:8081/xxl-job-admin}
+    - XXL_JOB_ADMIN_ADDRESSES=${XXL_JOB_ADMIN_INGRESS_URL:-http://nginx:8081/xxl-job-admin}
+    - XXL_JOB_EXECUTOR_APPNAME=${XXL_JOB_EXECUTOR_APPNAME:-community-app}
+    - XXL_JOB_EXECUTOR_ADDRESS=${XXL_JOB_EXECUTOR_ADDRESS:-http://community-app-3:9999/}
+    - XXL_JOB_ACCESS_TOKEN=${XXL_JOB_ACCESS_TOKEN:?XXL_JOB_ACCESS_TOKEN is required}
+    - SPRING_MAIL_HOST=${SPRING_MAIL_HOST:-mailhog}
+    - SPRING_MAIL_PORT=${SPRING_MAIL_PORT:-1025}
+    - SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:-false}
+    - SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:-false}
+    - AUTH_REFRESH_COOKIE_SECURE=${AUTH_REFRESH_COOKIE_SECURE:-false}
+    - AUTH_REFRESH_COOKIE_SAME_SITE=${AUTH_REFRESH_COOKIE_SAME_SITE:-Lax}
+    - R2_ENDPOINT=${R2_ENDPOINT:-}
+    - R2_ACCESS_KEY=${R2_ACCESS_KEY:-}
+    - R2_SECRET_KEY=${R2_SECRET_KEY:-}
+    - R2_BUCKET_NAME=${R2_BUCKET_NAME:-}
+    - R2_REGION=${R2_REGION:-auto}
+    - R2_PATH_STYLE=${R2_PATH_STYLE:-true}
+    depends_on:
+      mailhog:
+        condition: service_started
+      nacos:
+        condition: service_started
+      mock-data-studio-db-bootstrap:
+        condition: service_completed_successfully
+      mysql-primary:
+        condition: service_healthy
+      xxl-job-admin-1:
+        condition: service_started
+      redis-cluster-bootstrap:
+        condition: service_completed_successfully
+      es-init:
+        condition: service_completed_successfully
+  community-gateway-1:
+    <<: *community-gateway-base
+    environment:
+    - SERVER_PORT=8080
+    - OTEL_ENABLED=${OTEL_ENABLED:-false}
+    - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+    - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+    - OTEL_SERVICE_NAME=community-gateway
+    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+    - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+    - JAVA_OPTS=${COMMUNITY_GATEWAY_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=55.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}
+    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+    - COMMUNITY_LOGGING_DIR=/var/log/community
+    - COMMUNITY_LOGGING_FILE_NAME=community-gateway-1.json.log
+    - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+    - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+    - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-}
+    - GATEWAY_WS_PROXY_AUTH_REQUIRED=true
+    - IM_REALTIME_WS_BASE_URL=ws://im-realtime-1:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+    depends_on:
+      nacos:
+        condition: service_started
+      community-app-1:
+        condition: service_started
+      im-core-1:
+        condition: service_started
+      im-realtime-1:
+        condition: service_started
+    networks:
+      default:
+        aliases:
+        - community-gateway
+  community-gateway-2:
+    <<: *community-gateway-base
+    environment:
+    - SERVER_PORT=8080
+    - OTEL_ENABLED=${OTEL_ENABLED:-false}
+    - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+    - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+    - OTEL_SERVICE_NAME=community-gateway
+    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+    - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+    - JAVA_OPTS=${COMMUNITY_GATEWAY_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=55.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}
+    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+    - COMMUNITY_LOGGING_DIR=/var/log/community
+    - COMMUNITY_LOGGING_FILE_NAME=community-gateway-2.json.log
+    - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+    - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+    - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-}
+    - GATEWAY_WS_PROXY_AUTH_REQUIRED=true
+    - IM_REALTIME_WS_BASE_URL=ws://im-realtime-1:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+    depends_on:
+      nacos:
+        condition: service_started
+      community-app-1:
+        condition: service_started
+      im-core-1:
+        condition: service_started
+      im-realtime-1:
+        condition: service_started
+  community-gateway-3:
+    <<: *community-gateway-base
+    environment:
+    - SERVER_PORT=8080
+    - OTEL_ENABLED=${OTEL_ENABLED:-false}
+    - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+    - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+    - OTEL_SERVICE_NAME=community-gateway
+    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+    - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+    - JAVA_OPTS=${COMMUNITY_GATEWAY_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=55.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}
+    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+    - COMMUNITY_LOGGING_DIR=/var/log/community
+    - COMMUNITY_LOGGING_FILE_NAME=community-gateway-3.json.log
+    - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+    - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+    - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-}
+    - GATEWAY_WS_PROXY_AUTH_REQUIRED=true
+    - IM_REALTIME_WS_BASE_URL=ws://im-realtime-1:18081${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+    depends_on:
+      nacos:
+        condition: service_started
+      community-app-1:
+        condition: service_started
+      im-core-1:
+        condition: service_started
+      im-realtime-1:
+        condition: service_started
+  im-core-1:
+    <<: *im-core-base
+    environment:
+    - SERVER_PORT=18082
+    - OTEL_ENABLED=${OTEL_ENABLED:-false}
+    - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+    - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+    - OTEL_SERVICE_NAME=im-core
+    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+    - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+    - JAVA_OPTS=${IM_CORE_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=60.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}
+    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+    - COMMUNITY_LOGGING_DIR=/var/log/community
+    - COMMUNITY_LOGGING_FILE_NAME=im-core-1.json.log
+    - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+    - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
+    - IM_CORE_DB_PRIMARY_HOST=${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}
+    - IM_CORE_DB_URL=jdbc:mysql://${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}:3306/${IM_MYSQL_DATABASE:-im_core}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - IM_CORE_DB_USER=${IM_MYSQL_USER:-im_core}
+    - IM_CORE_DB_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
+    - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
+    depends_on:
+      nacos:
+        condition: service_started
+      mysql-primary:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    networks:
+      default:
+        aliases:
+        - im-core
+  im-core-2:
+    <<: *im-core-base
+    environment:
+    - SERVER_PORT=18082
+    - OTEL_ENABLED=${OTEL_ENABLED:-false}
+    - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+    - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+    - OTEL_SERVICE_NAME=im-core
+    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+    - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+    - JAVA_OPTS=${IM_CORE_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=60.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}
+    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+    - COMMUNITY_LOGGING_DIR=/var/log/community
+    - COMMUNITY_LOGGING_FILE_NAME=im-core-2.json.log
+    - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+    - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
+    - IM_CORE_DB_PRIMARY_HOST=${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}
+    - IM_CORE_DB_URL=jdbc:mysql://${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}:3306/${IM_MYSQL_DATABASE:-im_core}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - IM_CORE_DB_USER=${IM_MYSQL_USER:-im_core}
+    - IM_CORE_DB_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
+    - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
+    depends_on:
+      nacos:
+        condition: service_started
+      mysql-primary:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+  im-core-3:
+    <<: *im-core-base
+    environment:
+    - SERVER_PORT=18082
+    - OTEL_ENABLED=${OTEL_ENABLED:-false}
+    - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+    - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+    - OTEL_SERVICE_NAME=im-core
+    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+    - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+    - JAVA_OPTS=${IM_CORE_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=60.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}
+    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+    - COMMUNITY_LOGGING_DIR=/var/log/community
+    - COMMUNITY_LOGGING_FILE_NAME=im-core-3.json.log
+    - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+    - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
+    - IM_CORE_DB_PRIMARY_HOST=${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}
+    - IM_CORE_DB_URL=jdbc:mysql://${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}:3306/${IM_MYSQL_DATABASE:-im_core}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - IM_CORE_DB_USER=${IM_MYSQL_USER:-im_core}
+    - IM_CORE_DB_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
+    - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
+    depends_on:
+      nacos:
+        condition: service_started
+      mysql-primary:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+  im-realtime-1:
+    <<: *im-realtime-base
+    environment:
+    - SERVER_PORT=18081
+    - OTEL_ENABLED=${OTEL_ENABLED:-false}
+    - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+    - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+    - OTEL_SERVICE_NAME=im-realtime
+    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+    - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+    - JAVA_OPTS=${IM_REALTIME_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=55.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}
+    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+    - COMMUNITY_LOGGING_DIR=/var/log/community
+    - COMMUNITY_LOGGING_FILE_NAME=im-realtime-1.json.log
+    - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+    - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
+    - IM_REALTIME_CONSUMER_GROUP=im-realtime-1
+    - IM_EDGE_MODE=internal-worker
+    - IM_WS_PATH=${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+    - IM_CORE_SERVICE_ID=${IM_CORE_SERVICE_ID:-im-core}
+    - IM_COMMUNITY_SERVICE_ID=${IM_COMMUNITY_SERVICE_ID:-community-app}
+    - IM_REALTIME_WORKER_SERVICE_ID=${IM_REALTIME_WORKER_SERVICE_ID:-im-realtime-worker}
+    - IM_REALTIME_WORKER_ID=${IM_REALTIME_WORKER_ID_PREFIX:-im-realtime}-1
+    - IM_ROOM_FLUSH_INTERVAL_MS=${IM_ROOM_FLUSH_INTERVAL_MS:-50}
+    - IM_WS_OUTBOUND_BUFFER_SIZE=${IM_WS_OUTBOUND_BUFFER_SIZE:-256}
+    - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
+    depends_on:
+      nacos:
+        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
+      im-core-1:
+        condition: service_started
+    networks:
+      default:
+        aliases:
+        - im-realtime
+  im-realtime-2:
+    <<: *im-realtime-base
+    environment:
+    - SERVER_PORT=18081
+    - OTEL_ENABLED=${OTEL_ENABLED:-false}
+    - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+    - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+    - OTEL_SERVICE_NAME=im-realtime
+    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+    - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+    - JAVA_OPTS=${IM_REALTIME_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=55.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}
+    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+    - COMMUNITY_LOGGING_DIR=/var/log/community
+    - COMMUNITY_LOGGING_FILE_NAME=im-realtime-2.json.log
+    - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+    - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
+    - IM_REALTIME_CONSUMER_GROUP=im-realtime-2
+    - IM_EDGE_MODE=internal-worker
+    - IM_WS_PATH=${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+    - IM_CORE_SERVICE_ID=${IM_CORE_SERVICE_ID:-im-core}
+    - IM_COMMUNITY_SERVICE_ID=${IM_COMMUNITY_SERVICE_ID:-community-app}
+    - IM_REALTIME_WORKER_SERVICE_ID=${IM_REALTIME_WORKER_SERVICE_ID:-im-realtime-worker}
+    - IM_REALTIME_WORKER_ID=${IM_REALTIME_WORKER_ID_PREFIX:-im-realtime}-2
+    - IM_ROOM_FLUSH_INTERVAL_MS=${IM_ROOM_FLUSH_INTERVAL_MS:-50}
+    - IM_WS_OUTBOUND_BUFFER_SIZE=${IM_WS_OUTBOUND_BUFFER_SIZE:-256}
+    - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
+    depends_on:
+      nacos:
+        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
+      im-core-1:
+        condition: service_started
+  im-realtime-3:
+    <<: *im-realtime-base
+    environment:
+    - SERVER_PORT=18081
+    - OTEL_ENABLED=${OTEL_ENABLED:-false}
+    - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+    - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+    - OTEL_SERVICE_NAME=im-realtime
+    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+    - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+    - JAVA_OPTS=${IM_REALTIME_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=55.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}
+    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+    - COMMUNITY_LOGGING_DIR=/var/log/community
+    - COMMUNITY_LOGGING_FILE_NAME=im-realtime-3.json.log
+    - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+    - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos:8848}
+    - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
+    - IM_REALTIME_CONSUMER_GROUP=im-realtime-3
+    - IM_EDGE_MODE=internal-worker
+    - IM_WS_PATH=${IM_INTERNAL_WORKER_WS_PATH:-/internal/ws/im}
+    - IM_CORE_SERVICE_ID=${IM_CORE_SERVICE_ID:-im-core}
+    - IM_COMMUNITY_SERVICE_ID=${IM_COMMUNITY_SERVICE_ID:-community-app}
+    - IM_REALTIME_WORKER_SERVICE_ID=${IM_REALTIME_WORKER_SERVICE_ID:-im-realtime-worker}
+    - IM_REALTIME_WORKER_ID=${IM_REALTIME_WORKER_ID_PREFIX:-im-realtime}-3
+    - IM_ROOM_FLUSH_INTERVAL_MS=${IM_ROOM_FLUSH_INTERVAL_MS:-50}
+    - IM_WS_OUTBOUND_BUFFER_SIZE=${IM_WS_OUTBOUND_BUFFER_SIZE:-256}
+    - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
+    depends_on:
+      nacos:
+        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
+      im-core-1:
+        condition: service_started
+  mock-data-studio:
+    build:
+      context: ..
+      dockerfile: tools/mock-data-studio/Dockerfile
+    container_name: community-mock-data-studio
+    ports:
+    - 127.0.0.1:${MOCK_DATA_STUDIO_HOST_PORT:-12888}:${MOCK_DATA_STUDIO_PORT:-12888}
+    environment:
+    - MOCK_DATA_STUDIO_ENABLED=${MOCK_DATA_STUDIO_ENABLED:-true}
+    - MOCK_DATA_STUDIO_PORT=${MOCK_DATA_STUDIO_PORT:-12888}
+    - MOCK_DATA_STUDIO_BIND_HOST=0.0.0.0
+    - MOCK_DATA_STUDIO_DB_URL=mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${MYSQL_DATABASE:-community}
+    - MOCK_DATA_STUDIO_DB_USER=${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}
+    - MOCK_DATA_STUDIO_DB_PASSWORD=${MOCK_DATA_STUDIO_DB_PASSWORD:-mockdatastudiopass}
+    - MOCK_DATA_STUDIO_COMMUNITY_APP_BASE_URL=http://community-app:8080
+    - MOCK_DATA_STUDIO_IM_CORE_BASE_URL=http://im-core:18082
+    - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+    - MOCK_DATA_AUTO_FILL_ENABLED=${MOCK_DATA_AUTO_FILL_ENABLED:-false}
+    - MOCK_DATA_AUTO_FILL_SCENE=${MOCK_DATA_AUTO_FILL_SCENE:-tech-community-hot-start}
+    - MOCK_DATA_DEFAULT_USERS=${MOCK_DATA_DEFAULT_USERS:-100}
+    - MOCK_DATA_DEFAULT_POSTS=${MOCK_DATA_DEFAULT_POSTS:-800}
+    - MOCK_DATA_DEFAULT_COMMENTS=${MOCK_DATA_DEFAULT_COMMENTS:-2500}
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+      mock-data-studio-db-bootstrap:
+        condition: service_completed_successfully
+      community-app-1:
+        condition: service_started
+      im-core-1:
+        condition: service_started

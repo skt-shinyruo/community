@@ -1,0 +1,55 @@
+services:
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    container_name: community-prometheus
+    ports:
+    - 127.0.0.1:${PROMETHEUS_PORT:-12885}:9090
+    volumes:
+    - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+    - prometheus_data:/prometheus
+    depends_on:
+    - community-app-1
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: community-alertmanager
+    ports:
+    - 127.0.0.1:${ALERTMANAGER_PORT:-12886}:9093
+    volumes:
+    - ./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+    - --config.file=/etc/alertmanager/alertmanager.yml
+  loki:
+    image: grafana/loki:2.9.4
+    container_name: community-loki
+    ports:
+    - 127.0.0.1:${LOKI_PORT:-12884}:3100
+    volumes:
+    - ./observability/loki-config.yml:/etc/loki/config.yml:ro
+    - loki_data:/loki
+    command:
+    - -config.file=/etc/loki/config.yml
+  promtail:
+    image: grafana/promtail:2.9.4
+    container_name: community-promtail
+    volumes:
+    - ./observability/promtail-config.yml:/etc/promtail/config.yml:ro
+    - observability_logs:/var/log/community:ro
+    command:
+    - -config.file=/etc/promtail/config.yml
+    depends_on:
+    - loki
+  grafana:
+    image: grafana/grafana:10.4.5
+    container_name: community-grafana
+    ports:
+    - 127.0.0.1:${GRAFANA_PORT:-12883}:3000
+    environment:
+    - GF_SECURITY_ADMIN_USER=admin
+    - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+    - grafana_data:/var/lib/grafana
+    - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+    - prometheus
+    - loki

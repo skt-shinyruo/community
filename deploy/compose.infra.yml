@@ -1,0 +1,526 @@
+services:
+  mysql-primary:
+    image: mysql:8.0
+    environment:
+    - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    - MYSQL_ROOT_HOST=%
+    - MYSQL_DATABASE=${MYSQL_DATABASE:-community}
+    - MYSQL_USER=${MYSQL_USER:-community}
+    - MYSQL_PASSWORD=${MYSQL_PASSWORD:-communitypass}
+    - IM_MYSQL_DATABASE=${IM_MYSQL_DATABASE:-im_core}
+    - IM_MYSQL_USER=${IM_MYSQL_USER:-im_core}
+    - IM_MYSQL_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
+    - MOCK_DATA_STUDIO_DB_USER=${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}
+    - MOCK_DATA_STUDIO_DB_PASSWORD=${MOCK_DATA_STUDIO_DB_PASSWORD:-mockdatastudiopass}
+    - XXL_JOB_MYSQL_USER=${XXL_JOB_MYSQL_USER:-xxl_job}
+    - XXL_JOB_MYSQL_PASSWORD=${XXL_JOB_MYSQL_PASSWORD:-xxljobpass}
+    - XXL_JOB_ADMIN_USERNAME=${XXL_JOB_ADMIN_USERNAME:-admin}
+    - XXL_JOB_ADMIN_PASSWORD=${XXL_JOB_ADMIN_PASSWORD:-dev-local-xxl-admin}
+    - XXL_JOB_EXECUTOR_APPNAME=${XXL_JOB_EXECUTOR_APPNAME:-community-app}
+    - XXL_JOB_EXECUTOR_TITLE=${XXL_JOB_EXECUTOR_TITLE:-CommunityApp}
+    - XXL_JOB_AUTHOR=${XXL_JOB_AUTHOR:-community}
+    - XXL_JOB_ALARM_EMAIL=${XXL_JOB_ALARM_EMAIL:-}
+    - XXL_JOB_PENDING_REGISTRATION_CLEANUP_CRON=${XXL_JOB_PENDING_REGISTRATION_CLEANUP_CRON:-0 0/5 * * * ?}
+    command:
+    - --character-set-server=utf8mb4
+    - --collation-server=utf8mb4_unicode_ci
+    - --default-time-zone=+00:00
+    volumes:
+    - mysql_primary_data:/var/lib/mysql
+    - ./mysql-init:/docker-entrypoint-initdb.d:ro
+    - ./mysql/conf/primary.cnf:/etc/mysql/conf.d/primary.cnf:ro
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - mysqladmin ping -h 127.0.0.1 -uroot -p${MYSQL_ROOT_PASSWORD} --silent
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks:
+      default:
+        aliases:
+        - mysql
+  mysql-replica-1:
+    image: mysql:8.0
+    environment:
+    - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    - MYSQL_ROOT_HOST=%
+    command:
+    - --character-set-server=utf8mb4
+    - --collation-server=utf8mb4_unicode_ci
+    - --default-time-zone=+00:00
+    - --server-id=2
+    volumes:
+    - mysql_replica_1_data:/var/lib/mysql
+    - ./mysql/conf/replica.cnf:/etc/mysql/conf.d/replica.cnf:ro
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - mysqladmin ping -h 127.0.0.1 -uroot -p${MYSQL_ROOT_PASSWORD} --silent
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  mysql-replica-2:
+    image: mysql:8.0
+    environment:
+    - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    - MYSQL_ROOT_HOST=%
+    command:
+    - --character-set-server=utf8mb4
+    - --collation-server=utf8mb4_unicode_ci
+    - --default-time-zone=+00:00
+    - --server-id=3
+    volumes:
+    - mysql_replica_2_data:/var/lib/mysql
+    - ./mysql/conf/replica.cnf:/etc/mysql/conf.d/replica.cnf:ro
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - mysqladmin ping -h 127.0.0.1 -uroot -p${MYSQL_ROOT_PASSWORD} --silent
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  mysql-replication-bootstrap:
+    image: mysql:8.0
+    entrypoint:
+    - /bin/bash
+    - /bootstrap-mysql-replication.sh
+    environment:
+    - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    - MYSQL_PRIMARY_HOST=${DB_PRIMARY_HOST:-mysql-primary}
+    - MYSQL_REPLICA_HOSTS=mysql-replica-1,mysql-replica-2
+    - MYSQL_REPLICATION_USER=${MYSQL_REPLICATION_USER:-replicator}
+    - MYSQL_REPLICATION_PASSWORD=${MYSQL_REPLICATION_PASSWORD:-replicatorpass}
+    volumes:
+    - ./scripts/bootstrap-mysql-replication.sh:/bootstrap-mysql-replication.sh:ro
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+      mysql-replica-1:
+        condition: service_healthy
+      mysql-replica-2:
+        condition: service_healthy
+    restart: 'no'
+  redis-1:
+    image: redis:7-alpine
+    command:
+    - redis-server
+    - --appendonly
+    - 'yes'
+    - --cluster-enabled
+    - 'yes'
+    - --cluster-config-file
+    - nodes.conf
+    - --cluster-node-timeout
+    - '5000'
+    - --protected-mode
+    - 'no'
+    - --bind
+    - 0.0.0.0
+    volumes:
+    - redis_1_data:/data
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - ping
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  redis-2:
+    image: redis:7-alpine
+    command:
+    - redis-server
+    - --appendonly
+    - 'yes'
+    - --cluster-enabled
+    - 'yes'
+    - --cluster-config-file
+    - nodes.conf
+    - --cluster-node-timeout
+    - '5000'
+    - --protected-mode
+    - 'no'
+    - --bind
+    - 0.0.0.0
+    volumes:
+    - redis_2_data:/data
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - ping
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  redis-3:
+    image: redis:7-alpine
+    command:
+    - redis-server
+    - --appendonly
+    - 'yes'
+    - --cluster-enabled
+    - 'yes'
+    - --cluster-config-file
+    - nodes.conf
+    - --cluster-node-timeout
+    - '5000'
+    - --protected-mode
+    - 'no'
+    - --bind
+    - 0.0.0.0
+    volumes:
+    - redis_3_data:/data
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - ping
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  redis-4:
+    image: redis:7-alpine
+    command:
+    - redis-server
+    - --appendonly
+    - 'yes'
+    - --cluster-enabled
+    - 'yes'
+    - --cluster-config-file
+    - nodes.conf
+    - --cluster-node-timeout
+    - '5000'
+    - --protected-mode
+    - 'no'
+    - --bind
+    - 0.0.0.0
+    volumes:
+    - redis_4_data:/data
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - ping
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  redis-5:
+    image: redis:7-alpine
+    command:
+    - redis-server
+    - --appendonly
+    - 'yes'
+    - --cluster-enabled
+    - 'yes'
+    - --cluster-config-file
+    - nodes.conf
+    - --cluster-node-timeout
+    - '5000'
+    - --protected-mode
+    - 'no'
+    - --bind
+    - 0.0.0.0
+    volumes:
+    - redis_5_data:/data
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - ping
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  redis-6:
+    image: redis:7-alpine
+    command:
+    - redis-server
+    - --appendonly
+    - 'yes'
+    - --cluster-enabled
+    - 'yes'
+    - --cluster-config-file
+    - nodes.conf
+    - --cluster-node-timeout
+    - '5000'
+    - --protected-mode
+    - 'no'
+    - --bind
+    - 0.0.0.0
+    volumes:
+    - redis_6_data:/data
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - ping
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  redis-cluster-bootstrap:
+    image: redis:7-alpine
+    entrypoint:
+    - /bin/sh
+    - /bootstrap-redis-cluster.sh
+    environment:
+    - REDIS_CLUSTER_NODES=${SPRING_DATA_REDIS_CLUSTER_NODES:-redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379,redis-6:6379}
+    volumes:
+    - ./scripts/bootstrap-redis-cluster.sh:/bootstrap-redis-cluster.sh:ro
+    depends_on:
+      redis-1:
+        condition: service_healthy
+      redis-2:
+        condition: service_healthy
+      redis-3:
+        condition: service_healthy
+      redis-4:
+        condition: service_healthy
+      redis-5:
+        condition: service_healthy
+      redis-6:
+        condition: service_healthy
+    restart: 'no'
+  xxl-job-admin-1:
+    image: xuxueli/xxl-job-admin:3.3.2
+    mem_limit: ${XXL_JOB_ADMIN_MEM_LIMIT:-384m}
+    environment:
+    - JAVA_TOOL_OPTIONS=${XXL_JOB_ADMIN_JAVA_TOOL_OPTIONS:--XX:+UseG1GC -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=60.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}
+    - PARAMS=--spring.datasource.url=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/xxl_job?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true --spring.datasource.username=${XXL_JOB_MYSQL_USER:-xxl_job} --spring.datasource.password=${XXL_JOB_MYSQL_PASSWORD:-xxljobpass} --xxl.job.accessToken=${XXL_JOB_ACCESS_TOKEN:?XXL_JOB_ACCESS_TOKEN is required}
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+    networks:
+      default:
+        aliases:
+        - xxl-job-admin
+  xxl-job-admin-2:
+    image: xuxueli/xxl-job-admin:3.3.2
+    mem_limit: ${XXL_JOB_ADMIN_MEM_LIMIT:-384m}
+    environment:
+    - JAVA_TOOL_OPTIONS=${XXL_JOB_ADMIN_JAVA_TOOL_OPTIONS:--XX:+UseG1GC -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=60.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}
+    - PARAMS=--spring.datasource.url=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/xxl_job?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true --spring.datasource.username=${XXL_JOB_MYSQL_USER:-xxl_job} --spring.datasource.password=${XXL_JOB_MYSQL_PASSWORD:-xxljobpass} --xxl.job.accessToken=${XXL_JOB_ACCESS_TOKEN:?XXL_JOB_ACCESS_TOKEN is required}
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+  nacos:
+    image: nacos/nacos-server:v2.3.2-slim
+    mem_limit: ${NACOS_MEM_LIMIT:-768m}
+    environment:
+    - MODE=standalone
+    - NACOS_AUTH_ENABLE=false
+    - PREFER_HOST_MODE=hostname
+    - JVM_XMS=${NACOS_JVM_XMS:-512m}
+    - JVM_XMX=${NACOS_JVM_XMX:-512m}
+    - JVM_XMN=${NACOS_JVM_XMN:-256m}
+    - JVM_MS=${NACOS_JVM_MS:-128m}
+    - JVM_MMS=${NACOS_JVM_MMS:-256m}
+    ports:
+    - 127.0.0.1:${NACOS_HOST_PORT:-18848}:8848
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: community-mailhog
+    ports:
+    - 127.0.0.1:8025:8025
+  kafka-1:
+    image: confluentinc/cp-kafka:7.6.1
+    mem_limit: ${KAFKA_MEM_LIMIT:-1g}
+    restart: on-failure
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    environment:
+    - KAFKA_NODE_ID=1
+    - KAFKA_PROCESS_ROLES=broker,controller
+    - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
+    - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+    - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+    - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-1:9092
+    - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+    - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+    - KAFKA_LOG_DIRS=/var/lib/kafka/data
+    - CLUSTER_ID=${KAFKA_KRAFT_CLUSTER_ID:-lPHxXLw5RVixWxVWRmsjHA}
+    - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3
+    - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2
+    - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=3
+    - KAFKA_MIN_INSYNC_REPLICAS=2
+    - KAFKA_DEFAULT_REPLICATION_FACTOR=3
+    - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
+    - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
+    - KAFKA_HEAP_OPTS=${KAFKA_HEAP_OPTS:--Xms512M -Xmx512M}
+    volumes:
+    - kafka_1_data:/var/lib/kafka/data
+  kafka-2:
+    image: confluentinc/cp-kafka:7.6.1
+    mem_limit: ${KAFKA_MEM_LIMIT:-1g}
+    restart: on-failure
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    environment:
+    - KAFKA_NODE_ID=2
+    - KAFKA_PROCESS_ROLES=broker,controller
+    - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
+    - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+    - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+    - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-2:9092
+    - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+    - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+    - KAFKA_LOG_DIRS=/var/lib/kafka/data
+    - CLUSTER_ID=${KAFKA_KRAFT_CLUSTER_ID:-lPHxXLw5RVixWxVWRmsjHA}
+    - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3
+    - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2
+    - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=3
+    - KAFKA_MIN_INSYNC_REPLICAS=2
+    - KAFKA_DEFAULT_REPLICATION_FACTOR=3
+    - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
+    - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
+    - KAFKA_HEAP_OPTS=${KAFKA_HEAP_OPTS:--Xms512M -Xmx512M}
+    volumes:
+    - kafka_2_data:/var/lib/kafka/data
+  kafka-3:
+    image: confluentinc/cp-kafka:7.6.1
+    mem_limit: ${KAFKA_MEM_LIMIT:-1g}
+    restart: on-failure
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    environment:
+    - KAFKA_NODE_ID=3
+    - KAFKA_PROCESS_ROLES=broker,controller
+    - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
+    - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+    - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+    - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-3:9092
+    - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+    - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+    - KAFKA_LOG_DIRS=/var/lib/kafka/data
+    - CLUSTER_ID=${KAFKA_KRAFT_CLUSTER_ID:-lPHxXLw5RVixWxVWRmsjHA}
+    - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3
+    - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2
+    - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=3
+    - KAFKA_MIN_INSYNC_REPLICAS=2
+    - KAFKA_DEFAULT_REPLICATION_FACTOR=3
+    - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
+    - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
+    - KAFKA_HEAP_OPTS=${KAFKA_HEAP_OPTS:--Xms512M -Xmx512M}
+    volumes:
+    - kafka_3_data:/var/lib/kafka/data
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.1
+    depends_on:
+      kafka-1:
+        condition: service_healthy
+      kafka-2:
+        condition: service_healthy
+      kafka-3:
+        condition: service_healthy
+    entrypoint:
+    - /bin/bash
+    - /bootstrap-kafka-topics.sh
+    environment:
+    - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
+    volumes:
+    - ./scripts/bootstrap-kafka-topics.sh:/bootstrap-kafka-topics.sh:ro
+    restart: 'no'
+  elasticsearch-1:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.2
+    mem_limit: ${ELASTICSEARCH_MEM_LIMIT:-1g}
+    environment:
+    - node.name=elasticsearch-1
+    - cluster.name=community-es
+    - discovery.seed_hosts=elasticsearch-1,elasticsearch-2,elasticsearch-3
+    - cluster.initial_master_nodes=elasticsearch-1,elasticsearch-2,elasticsearch-3
+    - xpack.security.enabled=false
+    - bootstrap.memory_lock=true
+    - ES_JAVA_OPTS=${ELASTICSEARCH_JAVA_OPTS:--Xms512m -Xmx512m}
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+    - es_1_data:/usr/share/elasticsearch/data
+    networks:
+      default:
+        aliases:
+        - elasticsearch
+  elasticsearch-2:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.2
+    mem_limit: ${ELASTICSEARCH_MEM_LIMIT:-1g}
+    environment:
+    - node.name=elasticsearch-2
+    - cluster.name=community-es
+    - discovery.seed_hosts=elasticsearch-1,elasticsearch-2,elasticsearch-3
+    - cluster.initial_master_nodes=elasticsearch-1,elasticsearch-2,elasticsearch-3
+    - xpack.security.enabled=false
+    - bootstrap.memory_lock=true
+    - ES_JAVA_OPTS=${ELASTICSEARCH_JAVA_OPTS:--Xms512m -Xmx512m}
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+    - es_2_data:/usr/share/elasticsearch/data
+  elasticsearch-3:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.2
+    mem_limit: ${ELASTICSEARCH_MEM_LIMIT:-1g}
+    environment:
+    - node.name=elasticsearch-3
+    - cluster.name=community-es
+    - discovery.seed_hosts=elasticsearch-1,elasticsearch-2,elasticsearch-3
+    - cluster.initial_master_nodes=elasticsearch-1,elasticsearch-2,elasticsearch-3
+    - xpack.security.enabled=false
+    - bootstrap.memory_lock=true
+    - ES_JAVA_OPTS=${ELASTICSEARCH_JAVA_OPTS:--Xms512m -Xmx512m}
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+    - es_3_data:/usr/share/elasticsearch/data
+  es-init:
+    image: curlimages/curl:8.6.0
+    depends_on:
+      elasticsearch-1:
+        condition: service_started
+      elasticsearch-2:
+        condition: service_started
+      elasticsearch-3:
+        condition: service_started
+    command: "sh -c ' set -e; echo \"[es-init] waiting for elasticsearch cluster...\"; until curl -fsS \"http://elasticsearch:9200/_cluster/health?wait_for_status=yellow&timeout=120s\" >/dev/null 2>&1; do sleep 2; done; code=$$(curl -s -o /dev/null -w \"%{http_code}\" http://elasticsearch:9200/community_posts); if [ \"$$code\" = \"404\" ]; then\n  echo \"[es-init] creating index community_posts...\";\n  curl -fsS -X PUT http://elasticsearch:9200/community_posts -H \"Content-Type: application/json\" -d \"{\\\"settings\\\":{\\\"number_of_shards\\\":1,\\\"number_of_replicas\\\":1}}\";\nelse\n  echo \"[es-init] index community_posts already exists (code=$$code)\";\nfi; echo \"[es-init] done.\" '\n"
+    restart: 'no'
+  mock-data-studio-db-bootstrap:
+    image: mysql:8.0
+    container_name: community-mock-data-studio-db-bootstrap
+    entrypoint:
+    - /bin/bash
+    - -lc
+    command:
+    - "set -euo pipefail\nsql_escape() {\n  local value=\"$${1//\\\\/\\\\\\\\}\"\n  value=\"$${value//\\'/\\'\\'}\"\n  printf \"%s\" \"$${value}\"\n}\nMYSQL_DATABASE_ESCAPED=\"$$(sql_escape \"$${MYSQL_DATABASE:-community}\")\"\nIM_MYSQL_DATABASE_ESCAPED=\"$$(sql_escape \"$${IM_MYSQL_DATABASE:-im_core}\")\"\nSTUDIO_USER_ESCAPED=\"$$(sql_escape \"$${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}\")\"\nSTUDIO_PASSWORD_ESCAPED=\"$$(sql_escape \"$${MOCK_DATA_STUDIO_DB_PASSWORD:-mockdatastudiopass}\")\"\nmysql --default-character-set=utf8mb4 -h\"$${DB_PRIMARY_HOST:-mysql-primary}\" -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" < /bootstrap/010_schema.sql\nmysql --default-character-set=utf8mb4 -h\"$${DB_PRIMARY_HOST:-mysql-primary}\" -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" <<SQL\ncreate user if not exists '$${STUDIO_USER_ESCAPED}'@'%' identified by '$${STUDIO_PASSWORD_ESCAPED}';\ngrant select, insert, update, delete, create, alter on \\`$${MYSQL_DATABASE_ESCAPED}\\`.* to '$${STUDIO_USER_ESCAPED}'@'%';\ngrant\
+      \ select, insert, update, delete on \\`$${IM_MYSQL_DATABASE_ESCAPED}\\`.* to '$${STUDIO_USER_ESCAPED}'@'%';\nflush privileges;\nSQL\n"
+    environment:
+    - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    - DB_PRIMARY_HOST=${DB_PRIMARY_HOST:-mysql-primary}
+    - MYSQL_DATABASE=${MYSQL_DATABASE:-community}
+    - IM_MYSQL_DATABASE=${IM_MYSQL_DATABASE:-im_core}
+    - MOCK_DATA_STUDIO_DB_USER=${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}
+    - MOCK_DATA_STUDIO_DB_PASSWORD=${MOCK_DATA_STUDIO_DB_PASSWORD:-mockdatastudiopass}
+    volumes:
+    - ./mysql-init:/bootstrap:ro
+    depends_on:
+      mysql-primary:
+        condition: service_healthy

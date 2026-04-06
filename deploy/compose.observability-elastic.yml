@@ -1,0 +1,39 @@
+services:
+  elasticsearch-observability-port:
+    image: caddy:2.8-alpine
+    container_name: community-elasticsearch-observability-port
+    command:
+    - caddy
+    - reverse-proxy
+    - --from
+    - :9200
+    - --to
+    - elasticsearch:9200
+    depends_on:
+      elasticsearch-1:
+        condition: service_started
+    ports:
+    - 127.0.0.1:${ELASTICSEARCH_PORT:-12888}:9200
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.12.2
+    container_name: community-kibana
+    ports:
+    - 127.0.0.1:${KIBANA_PORT:-12889}:5601
+    environment:
+    - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      elasticsearch-1:
+        condition: service_started
+  observability-gateway-edot-collector:
+    image: docker.elastic.co/elastic-agent/elastic-otel-collector:9.3.2
+    container_name: community-observability-gateway-edot-collector
+    user: 0:0
+    command:
+    - --config=/etc/otelcol/config.yaml
+    volumes:
+    - ./observability-elastic/edot-collector.yml:/etc/otelcol/config.yaml:ro
+    - observability_logs:/var/log/community:ro
+    depends_on:
+      elasticsearch-1:
+        condition: service_started
+    restart: unless-stopped

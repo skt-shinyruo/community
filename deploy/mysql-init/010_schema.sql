@@ -1055,8 +1055,29 @@ create table if not exists message (
   create_time timestamp null default current_timestamp
 );
 
-create index idx_message_conversation on message(conversation_id);
-create index idx_message_to_status on message(to_id, status);
+set @idx_message_conversation := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'message'
+    and index_name = 'idx_message_conversation'
+);
+set @sql := if(@idx_message_conversation = 0, 'create index idx_message_conversation on message(conversation_id)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
+set @idx_message_to_status := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'message'
+    and index_name = 'idx_message_to_status'
+);
+set @sql := if(@idx_message_to_status = 0, 'create index idx_message_to_status on message(to_id, status)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
 
 
 -- --------------------------------------------------------------------
@@ -1082,7 +1103,17 @@ create table if not exists im_room_member (
   primary key (room_id, user_id)
 );
 
-create index idx_im_room_member_user on im_room_member(user_id, room_id);
+set @idx_im_room_member_user := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'im_room_member'
+    and index_name = 'idx_im_room_member_user'
+);
+set @sql := if(@idx_im_room_member_user = 0, 'create index idx_im_room_member_user on im_room_member(user_id, room_id)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
 
 create table if not exists im_room_message (
   room_id bigint not null,
@@ -1097,7 +1128,17 @@ create table if not exists im_room_message (
   unique key uk_im_room_message_id (message_id)
 );
 
-create index idx_im_room_message_created_at on im_room_message(room_id, created_at, seq);
+set @idx_im_room_message_created_at := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'im_room_message'
+    and index_name = 'idx_im_room_message_created_at'
+);
+set @sql := if(@idx_im_room_message_created_at = 0, 'create index idx_im_room_message_created_at on im_room_message(room_id, created_at, seq)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
 
 create table if not exists im_room_read_state (
   room_id bigint not null,
@@ -1107,7 +1148,17 @@ create table if not exists im_room_read_state (
   primary key (room_id, user_id)
 );
 
-create index idx_im_room_read_state_user on im_room_read_state(user_id, room_id);
+set @idx_im_room_read_state_user := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'im_room_read_state'
+    and index_name = 'idx_im_room_read_state_user'
+);
+set @sql := if(@idx_im_room_read_state_user = 0, 'create index idx_im_room_read_state_user on im_room_read_state(user_id, room_id)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
 
 create table if not exists im_conversation (
   conversation_id varchar(64) primary key,
@@ -1118,7 +1169,17 @@ create table if not exists im_conversation (
   updated_at timestamp null default current_timestamp on update current_timestamp
 );
 
-create index idx_im_conversation_users on im_conversation(user_a, user_b, conversation_id);
+set @idx_im_conversation_users := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'im_conversation'
+    and index_name = 'idx_im_conversation_users'
+);
+set @sql := if(@idx_im_conversation_users = 0, 'create index idx_im_conversation_users on im_conversation(user_a, user_b, conversation_id)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
 
 create table if not exists im_private_message (
   conversation_id varchar(64) not null,
@@ -1134,7 +1195,17 @@ create table if not exists im_private_message (
   unique key uk_im_private_message_id (message_id)
 );
 
-create index idx_im_private_message_to on im_private_message(to_user_id, conversation_id, seq);
+set @idx_im_private_message_to := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'im_private_message'
+    and index_name = 'idx_im_private_message_to'
+);
+set @sql := if(@idx_im_private_message_to = 0, 'create index idx_im_private_message_to on im_private_message(to_user_id, conversation_id, seq)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
 
 create table if not exists im_conversation_read_state (
   conversation_id varchar(64) not null,
@@ -1144,7 +1215,17 @@ create table if not exists im_conversation_read_state (
   primary key (conversation_id, user_id)
 );
 
-create index idx_im_conversation_read_state_user on im_conversation_read_state(user_id, conversation_id);
+set @idx_im_conversation_read_state_user := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'im_conversation_read_state'
+    and index_name = 'idx_im_conversation_read_state_user'
+);
+set @sql := if(@idx_im_conversation_read_state_user = 0, 'create index idx_im_conversation_read_state_user on im_conversation_read_state(user_id, conversation_id)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
 
 
 

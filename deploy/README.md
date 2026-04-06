@@ -111,6 +111,7 @@
 ## Onboarding：注册验证码/找回密码闭环（自托管友好）
 - dev 默认启用 MailHog + SMTP，不回传注册验证码/`resetLink`（更贴近生产安全态）
 - MailHog UI：`http://localhost:8025`（查看注册验证码/重置邮件）
+- 本地 compose 默认将 `AUTH_PASSWORD_RESET_BASE_URL` 指向 `http://localhost:12881`，用于生成找回密码邮件中的前端重置链接
 - 如需 dev-only 快捷模式（无 SMTP 也能跑通闭环），可在 `deploy/.env` 覆盖：
   - `AUTH_MAIL_ENABLED=false`
   - `AUTH_REGISTRATION_EXPOSE_CODE=true`
@@ -129,7 +130,7 @@
     - `im_core` schema：`select/insert/update/delete`
   - 原因：既要支持 startup `CREATE TABLE IF NOT EXISTS` bootstrap，也要支持 Phase 2 直接写 IM 样例表
   - fresh volume：由 `deploy/mysql-init/001_create_databases.sh` 初始化
-  - existing volume：由 `mock-data-studio-db-bootstrap` sidecar 在每次 compose 启动时补齐账号和授权
+  - existing volume：由 `mock-data-studio-db-bootstrap` sidecar 在每次 compose 启动时补齐 schema、账号和授权
 - 当前阶段若需要连通 `community-app` / `im-core` / MySQL，**compose 是主支持路径**；直接在宿主机运行仅适合做本地壳层开发，除非你已经自行提供可达的 MySQL，并显式覆盖：
   - `MOCK_DATA_STUDIO_DB_URL`
   - `MOCK_DATA_STUDIO_DB_USER`

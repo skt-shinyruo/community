@@ -77,9 +77,13 @@ function shouldUseAi({ config, runOptions }) {
 
 export function createAiContentEnhancer({
   config,
-  aiClient = null
+  aiClient = null,
+  dbAiConfig = null
 } = {}) {
-  const maxItemsPerJob = parsePositiveInteger(config?.ai?.maxItemsPerJob, 20)
+  const maxItemsPerJob = parsePositiveInteger(dbAiConfig?.maxItemsPerJob ?? config?.ai?.maxItemsPerJob, 20)
+  const aiReady = dbAiConfig
+    ? dbAiConfig.enabled && Boolean(dbAiConfig.apiKey || dbAiConfig.provider === 'ollama')
+    : config?.ai?.ready
 
   return {
     async enhanceTextsForRun({ kind = 'generic', inputs = [], runOptions = null } = {}) {
@@ -92,7 +96,7 @@ export function createAiContentEnhancer({
         }
       }
 
-      const decision = shouldUseAi({ config, runOptions })
+      const decision = shouldUseAiEnhanced({ config, runOptions, dbAiConfig, aiReady })
       if (!decision.useAi) {
         return fallbackResult(normalizedInputs, decision.reason)
       }
@@ -127,12 +131,53 @@ export function createAiContentEnhancer({
           applied: true,
           usedCount: Number(result?.usedCount ?? 0),
           skippedCount: Number(result?.skippedCount ?? 0),
-          provider: result?.provider ?? config?.ai?.provider ?? 'openai',
-          model: result?.model ?? config?.ai?.model ?? null
+          provider: result?.provider ?? dbAiConfig?.provider ?? config?.ai?.provider ?? 'openai',
+          model: result?.model ?? dbAiConfig?.model ?? config?.ai?.model ?? null
         }
       } catch (error) {
         return fallbackResult(normalizedInputs, 'ai_provider_error', error?.message ?? String(error))
       }
     }
+  }
+}
+
+function shouldUseAiEnhanced({ config, runOptions, dbAiConfig, aiReady }) {
+  const normalized = normalizeRunOptions(runOptions)
+
+  const envEnabled = config?.ai?.enabled
+  const dbEnabled = dbAiConfig ? dbAiConfig.enabled : envEnabled
+  const effectiveEnabled = dbAiConfig !== undefined ? dbEnabled : envEnabled
+
+  if (!effectiveEnabled) {
+    return {
+      useAi: false,
+      reason: 'ai_disabled'
+    }
+  }
+
+  if (normalized.mode !== 'manual-generate') {
+    return {
+      useAi: false,
+      reason: 'mode_not_manual'
+    }
+  }
+
+  if (!normalized.aiEnhancement) {
+    return {
+      useAi: false,
+      reason: 'ai_toggle_off'
+    }
+  }
+
+  if (!aiReady) {
+    return {
+      useAi: false,
+      reason: 'ai_not_ready'
+    }
+  }
+
+  return {
+    useAi: true,
+    reason: null
   }
 }

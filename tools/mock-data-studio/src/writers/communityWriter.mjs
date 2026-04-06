@@ -5,6 +5,7 @@ import { generateDomainPhaseDataset } from '../generator/domainGenerator.mjs'
 const ENTITY_TYPE_POST = 1
 const ENTITY_TYPE_COMMENT = 2
 const ENTITY_TYPE_USER = 3
+const ACTIVE_USER_STATUS = 1
 
 function normalizeCount(value) {
   return Math.max(0, Number.parseInt(value, 10) || 0)
@@ -319,7 +320,7 @@ export function createCommunityWriter({
             user.salt,
             user.email,
             0,
-            0,
+            ACTIVE_USER_STATUS,
             user.headerUrl,
             timestamp.mysql,
             user.score

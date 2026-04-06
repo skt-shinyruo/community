@@ -1,6 +1,14 @@
 import { Router } from 'express'
 
-function buildGenerateFormMetadata({ config } = {}) {
+function buildGenerateFormMetadata({ config, aiInfo } = {}) {
+  const ai = aiInfo ?? {
+    enabled: Boolean(config?.ai?.enabled),
+    ready: Boolean(config?.ai?.ready),
+    provider: config?.ai?.provider ?? 'openai',
+    model: config?.ai?.model ?? null,
+    maxItemsPerJob: config?.ai?.maxItemsPerJob ?? null
+  }
+
   return {
     modes: [
       {
@@ -74,28 +82,49 @@ function buildGenerateFormMetadata({ config } = {}) {
         }
       }
     ],
-    ai: {
+    ai
+  }
+}
+
+export function buildHealthRouter({ config, aiConfigRepository } = {}) {
+  const router = Router()
+  const serviceName = config?.serviceName || 'mock-data-studio'
+
+  router.get('/', async (_req, res) => {
+    let aiInfo = {
       enabled: Boolean(config?.ai?.enabled),
       ready: Boolean(config?.ai?.ready),
       provider: config?.ai?.provider ?? 'openai',
       model: config?.ai?.model ?? null,
       maxItemsPerJob: config?.ai?.maxItemsPerJob ?? null
     }
-  }
-}
 
-export function buildHealthRouter({ config } = {}) {
-  const router = Router()
-  const serviceName = config?.serviceName || 'mock-data-studio'
+    if (aiConfigRepository) {
+      try {
+        const dbConfig = await aiConfigRepository.getActive()
+        if (dbConfig) {
+          aiInfo = {
+            enabled: dbConfig.enabled,
+            ready: true,
+            provider: dbConfig.provider,
+            model: dbConfig.model,
+            baseUrl: dbConfig.baseUrl,
+            maxItemsPerJob: dbConfig.maxItemsPerJob
+          }
+        }
+      } catch {
+      }
+    }
 
-  router.get('/', (_req, res) => {
+    const formMetadata = buildGenerateFormMetadata({ config, aiInfo })
+
     res.json({
       ok: true,
       service: serviceName,
       ui: {
         title: 'Mock Data Studio',
         apiBasePath: '/api',
-        generateForm: buildGenerateFormMetadata({ config })
+        generateForm: formMetadata
       }
     })
   })

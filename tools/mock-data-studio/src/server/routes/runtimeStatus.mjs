@@ -111,6 +111,7 @@ export function createRuntimeStatusService({
   config,
   db,
   fetchImpl = globalThis.fetch,
+  aiConfigRepository = null,
   probeUrl = (url) => defaultProbeUrl(url, { fetchImpl })
 } = {}) {
   return {
@@ -180,24 +181,48 @@ export function createRuntimeStatusService({
         upstreamReady(imCoreUrl)
       ])
 
-      const readiness = {
-        db: dbStatus,
-        communityApp: communityAppStatus,
-        imCore: imCoreStatus,
-        ai: {
-          provider: config?.ai?.provider || 'openai',
-          model: config?.ai?.model || null,
-          enabled: Boolean(config?.ai?.enabled),
-          missingConfig: Array.isArray(config?.ai?.missingConfig) ? config.ai.missingConfig : [],
-          required: false,
-          ready: Boolean(config?.ai?.ready)
+      let aiStatus = {
+        provider: config?.ai?.provider || 'openai',
+        model: config?.ai?.model || null,
+        enabled: Boolean(config?.ai?.enabled),
+        missingConfig: Array.isArray(config?.ai?.missingConfig) ? config.ai.missingConfig : [],
+        required: false,
+        ready: Boolean(config?.ai?.ready)
+      }
+
+      if (aiConfigRepository) {
+        try {
+          const dbAiConfig = await aiConfigRepository.getActive()
+          if (dbAiConfig) {
+            const detailParts = [dbAiConfig.provider, dbAiConfig.model]
+            if (dbAiConfig.baseUrl) {
+              detailParts.push(dbAiConfig.baseUrl)
+            }
+            detailParts.push(dbAiConfig.enabled ? 'enabled' : 'disabled')
+
+            aiStatus = {
+              provider: dbAiConfig.provider,
+              model: dbAiConfig.model,
+              baseUrl: dbAiConfig.baseUrl,
+              enabled: dbAiConfig.enabled,
+              required: false,
+              ready: true,
+              detail: detailParts.join(' · ')
+            }
+          }
+        } catch {
         }
       }
 
       return {
-        ok: [readiness.db, readiness.communityApp, readiness.imCore].every((entry) => entry.ready),
+        ok: [dbStatus, communityAppStatus, imCoreStatus].every((entry) => entry.ready),
         service: serviceName,
-        readiness
+        readiness: {
+          db: dbStatus,
+          communityApp: communityAppStatus,
+          imCore: imCoreStatus,
+          ai: aiStatus
+        }
       }
     }
   }

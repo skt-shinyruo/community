@@ -1,3 +1,4 @@
+import { createAiConfigRepository } from '../batches/aiConfigRepository.mjs'
 import { createBatchRepository } from '../batches/batchRepository.mjs'
 import { createEntityRefRepository } from '../batches/entityRefRepository.mjs'
 import { createTargetRepository } from '../batches/targetRepository.mjs'
@@ -38,16 +39,19 @@ function formatErrorMessage(error) {
   return String(error)
 }
 
-function createRuntime({ config, db }) {
+async function createRuntime({ config, db }) {
   const batchRepository = createBatchRepository(db)
   const entityRefRepository = createEntityRefRepository(db)
   const jobRepository = createJobRepository(db)
   const targetRepository = createTargetRepository(db)
+  const aiConfigRepository = createAiConfigRepository(db)
+  const dbAiConfig = await aiConfigRepository.getActive()
   const communityApi = createCommunityApi({ config })
-  const aiClient = createOpenAiClient({ config })
+  const aiClient = createOpenAiClient({ config, dbConfig: dbAiConfig })
   const aiContentEnhancer = createAiContentEnhancer({
     config,
-    aiClient
+    aiClient,
+    dbAiConfig
   })
   const communityWriter = createCommunityWriter({
     db,
@@ -89,12 +93,14 @@ function createRuntime({ config, db }) {
       db,
       batchRepository,
       jobRepository,
-      jobRunner
+      jobRunner,
+      aiConfigRepository
     }),
     autoFillService,
     batchRepository,
     jobRepository,
-    jobRunner
+    jobRunner,
+    aiConfigRepository
   }
 }
 
@@ -178,7 +184,7 @@ async function main() {
 
     db = await createDb(config)
     await bootstrapDemoSchema(db)
-    const runtime = createRuntime({ db, config })
+    const runtime = await createRuntime({ db, config })
     startServer({ config, runtime })
     await triggerStartupAutoFill({ config, jobRunner: runtime.jobRunner, autoFillService: runtime.autoFillService })
   } catch (error) {

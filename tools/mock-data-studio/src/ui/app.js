@@ -5,7 +5,9 @@ const state = {
   selectedBatchId: null,
   selectedDetail: null,
   activeJobId: null,
-  pollTimer: null
+  pollTimer: null,
+  aiConfigs: [],
+  editingAiConfig: null
 }
 
 const elements = {
@@ -30,6 +32,25 @@ const elements = {
     comments: document.getElementById('count-comments'),
     socialFollows: document.getElementById('count-socialFollows'),
     socialLikes: document.getElementById('count-socialLikes')
+  },
+  aiConfig: {
+    listEl: document.getElementById('ai-config-list'),
+    editorPanel: document.getElementById('ai-editor-panel'),
+    editorTitle: document.getElementById('ai-editor-title'),
+    newBtn: document.getElementById('ai-new-btn'),
+    closeBtn: document.getElementById('ai-editor-close'),
+    editId: document.getElementById('ai-edit-id'),
+    name: document.getElementById('ai-name'),
+    provider: document.getElementById('ai-provider'),
+    model: document.getElementById('ai-model'),
+    baseUrl: document.getElementById('ai-base-url'),
+    apiKey: document.getElementById('ai-api-key'),
+    timeoutMs: document.getElementById('ai-timeout-ms'),
+    maxItems: document.getElementById('ai-max-items'),
+    testBtn: document.getElementById('ai-test-btn'),
+    saveBtn: document.getElementById('ai-save-btn'),
+    form: document.getElementById('ai-config-form'),
+    result: document.getElementById('ai-test-result')
   }
 }
 
@@ -174,7 +195,6 @@ function syncDraftFromPreset(preset) {
 
   elements.scenePreset.value = preset.id
   elements.requestedBy.value = preset.jobRequest?.requestedBy ?? 'local-dev'
-  elements.aiEnhancement.checked = Boolean(preset.aiEnhancement)
   setCounts(preset.counts)
   renderPreview()
 }
@@ -213,11 +233,7 @@ function setMode(mode) {
   }
 
   renderModes()
-  const aiAvailable = Boolean(getGenerateFormMetadata()?.ai?.enabled)
-  elements.aiEnhancement.disabled = !aiAvailable || mode !== 'manual-generate'
-  if (elements.aiEnhancement.disabled) {
-    elements.aiEnhancement.checked = false
-  }
+  updateAiEnhancementToggle()
   renderPreview()
 }
 
@@ -440,9 +456,7 @@ async function loadHealth() {
   if (defaultDraft) {
     elements.modeSwitch.dataset.mode = defaultDraft.mode
     elements.requestedBy.value = defaultDraft.requestedBy
-    elements.aiEnhancement.checked = Boolean(defaultDraft.aiEnhancement)
-    const aiAvailable = Boolean(state.health.ui?.generateForm?.ai?.enabled)
-    elements.aiEnhancement.disabled = !aiAvailable || defaultDraft.mode !== 'manual-generate'
+    elements.aiEnhancement.checked = true
     setCounts(defaultDraft.counts)
     renderModes()
     syncDraftFromPreset(findPresetById(defaultDraft.scenePresetId))
@@ -450,6 +464,273 @@ async function loadHealth() {
     renderModes()
     renderPreview()
   }
+}
+
+async function loadAiConfigs() {
+  try {
+    const response = await fetchJson('/api/ai-config')
+    state.aiConfigs = response.data
+    renderAiConfigList()
+  } catch {
+    state.aiConfigs = []
+    renderAiConfigList()
+  }
+}
+
+function renderAiConfigList() {
+  const configs = state.aiConfigs
+  if (!configs || configs.length === 0) {
+    elements.aiConfig.listEl.innerHTML = '<div class="empty-state">暂无 AI 配置，点击「新建配置」添加。</div>'
+    return
+  }
+
+  elements.aiConfig.listEl.innerHTML = configs
+    .map((cfg) => {
+      const metaParts = [cfg.provider, cfg.model]
+      if (cfg.baseUrl) metaParts.push(cfg.baseUrl)
+      return `
+        <div class="ai-config-card ${cfg.isActive ? 'ai-config-active' : ''}" data-id="${cfg.id}">
+          <div class="ai-config-card-info">
+            <div class="ai-config-card-name">
+              ${escapeHtml(cfg.name)}
+              ${cfg.isActive ? '<span class="ai-badge ai-badge-active">使用中</span>' : ''}
+              ${!cfg.enabled ? '<span class="ai-badge ai-badge-disabled">已禁用</span>' : ''}
+            </div>
+            <div class="ai-config-card-meta">${escapeHtml(metaParts.join(' · '))}</div>
+          </div>
+          <div class="ai-config-card-actions">
+            <button class="ai-card-btn" data-action="test" data-id="${cfg.id}">测试</button>
+            ${!cfg.isActive ? `<button class="ai-card-btn ai-card-btn-activate" data-action="activate" data-id="${cfg.id}">启用</button>` : ''}
+            <button class="ai-card-btn" data-action="edit" data-id="${cfg.id}">编辑</button>
+            <button class="ai-card-btn ai-card-btn-delete" data-action="delete" data-id="${cfg.id}">删除</button>
+          </div>
+        </div>
+      `
+    })
+    .join('')
+}
+
+function showAiEditor(config = null) {
+  state.editingAiConfig = config
+  elements.aiConfig.editorPanel.style.display = 'block'
+  elements.aiConfig.editorTitle.textContent = config ? `编辑: ${config.name}` : '新建配置'
+  elements.aiConfig.editId.value = config ? config.id : ''
+  elements.aiConfig.name.value = config ? config.name : ''
+  elements.aiConfig.provider.value = config ? config.provider : 'openai'
+  elements.aiConfig.model.value = config ? config.model : ''
+  elements.aiConfig.baseUrl.value = config ? (config.baseUrl || '') : ''
+  elements.aiConfig.apiKey.value = ''
+  elements.aiConfig.timeoutMs.value = config ? config.timeoutMs : 8000
+  elements.aiConfig.maxItems.value = config ? config.maxItemsPerJob : 20
+  elements.aiConfig.result.className = 'ai-test-result'
+  elements.aiConfig.result.textContent = ''
+
+  if (elements.aiConfig.provider.value === 'ollama') {
+    elements.aiConfig.baseUrl.placeholder = 'http://host.docker.internal:11434/v1'
+    elements.aiConfig.model.placeholder = 'llama3, qwen2, ...'
+  } else {
+    elements.aiConfig.baseUrl.placeholder = 'https://api.openai.com/v1'
+    elements.aiConfig.model.placeholder = ''
+  }
+}
+
+function hideAiEditor() {
+  elements.aiConfig.editorPanel.style.display = 'none'
+  state.editingAiConfig = null
+}
+
+function getAiConfigFormPayload() {
+  return {
+    name: elements.aiConfig.name.value.trim(),
+    provider: elements.aiConfig.provider.value,
+    model: elements.aiConfig.model.value.trim(),
+    baseUrl: elements.aiConfig.baseUrl.value.trim() || null,
+    apiKey: elements.aiConfig.apiKey.value.trim() || null,
+    timeoutMs: Number(elements.aiConfig.timeoutMs.value) || 8000,
+    maxItemsPerJob: Number(elements.aiConfig.maxItems.value) || 20,
+    enabled: true
+  }
+}
+
+async function testAiConfigFromCard(cfg) {
+  const payload = {
+    provider: cfg.provider,
+    model: cfg.model,
+    baseUrl: cfg.baseUrl || null,
+    apiKey: cfg.apiKey || null,
+    timeoutMs: cfg.timeoutMs || 8000
+  }
+  const btn = document.querySelector(`[data-action="test"][data-id="${cfg.id}"]`)
+  if (btn) {
+    btn.disabled = true
+    btn.textContent = '测试中…'
+  }
+  try {
+    const response = await fetch('/api/ai-config/test', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    const data = await response.json()
+    if (data.ok) {
+      alert(`✓ ${data.message}`)
+    } else {
+      alert(`✗ ${data.message}`)
+    }
+  } catch (error) {
+    alert(`✗ 请求失败: ${error.message}`)
+  } finally {
+    if (btn) {
+      btn.disabled = false
+      btn.textContent = '测试'
+    }
+  }
+}
+
+async function testAiConfig() {
+  const payload = getAiConfigFormPayload()
+  if (!payload.provider || !payload.model) {
+    elements.aiConfig.result.className = 'ai-test-result error'
+    elements.aiConfig.result.textContent = '✗ Provider 和 Model 必填'
+    return
+  }
+  elements.aiConfig.testBtn.disabled = true
+  elements.aiConfig.testBtn.textContent = '测试中...'
+  elements.aiConfig.result.className = 'ai-test-result'
+  elements.aiConfig.result.textContent = ''
+
+  try {
+    const response = await fetch('/api/ai-config/test', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    const data = await response.json()
+
+    if (data.ok) {
+      elements.aiConfig.result.className = 'ai-test-result success'
+      elements.aiConfig.result.textContent = `✓ ${data.message}`
+    } else {
+      elements.aiConfig.result.className = 'ai-test-result error'
+      elements.aiConfig.result.textContent = `✗ ${data.message}`
+    }
+  } catch (error) {
+    elements.aiConfig.result.className = 'ai-test-result error'
+    elements.aiConfig.result.textContent = `✗ 请求失败: ${error.message}`
+  } finally {
+    elements.aiConfig.testBtn.disabled = false
+    elements.aiConfig.testBtn.textContent = '测试连接'
+  }
+}
+
+async function saveAiConfig() {
+  const payload = getAiConfigFormPayload()
+  if (!payload.name || !payload.provider || !payload.model) {
+    elements.aiConfig.result.className = 'ai-test-result error'
+    elements.aiConfig.result.textContent = '✗ 名称、Provider 和 Model 必填'
+    return
+  }
+  elements.aiConfig.saveBtn.disabled = true
+  elements.aiConfig.saveBtn.textContent = '保存中...'
+
+  try {
+    const editId = elements.aiConfig.editId.value
+    let response
+    if (editId) {
+      response = await fetch(`/api/ai-config/${editId}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+    } else {
+      response = await fetch('/api/ai-config', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+    }
+    const data = await response.json()
+
+    if (data.ok) {
+      elements.aiConfig.result.className = 'ai-test-result success'
+      elements.aiConfig.result.textContent = '✓ 已保存'
+      await loadAiConfigs()
+      await loadRuntimeStatus()
+      await loadHealth()
+      renderPresetOptions()
+      updateAiEnhancementToggle()
+      setTimeout(hideAiEditor, 600)
+    } else {
+      elements.aiConfig.result.className = 'ai-test-result error'
+      elements.aiConfig.result.textContent = `✗ ${data.message}`
+    }
+  } catch (error) {
+    elements.aiConfig.result.className = 'ai-test-result error'
+    elements.aiConfig.result.textContent = `✗ 保存失败: ${error.message}`
+  } finally {
+    elements.aiConfig.saveBtn.disabled = false
+    elements.aiConfig.saveBtn.textContent = '保存'
+  }
+}
+
+async function activateAiConfig(id) {
+  try {
+    await fetch(`/api/ai-config/${id}/activate`, { method: 'POST' })
+    await loadAiConfigs()
+    await loadRuntimeStatus()
+    await loadHealth()
+    renderPresetOptions()
+    updateAiEnhancementToggle()
+  } catch (error) {
+    setJobStatus(`启用失败: ${error.message}`)
+  }
+}
+
+async function deleteAiConfig(id) {
+  if (!confirm('确定删除此配置？')) return
+  try {
+    await fetch(`/api/ai-config/${id}`, { method: 'DELETE' })
+    await loadAiConfigs()
+  } catch (error) {
+    setJobStatus(`删除失败: ${error.message}`)
+  }
+}
+
+function updateAiEnhancementToggle() {
+  const aiInfo = state.health?.ui?.generateForm?.ai
+  const statusEl = document.getElementById('ai-status-msg')
+  const wrapper = document.getElementById('ai-enhancement-wrapper')
+
+  if (!aiInfo || !aiInfo.enabled) {
+    elements.aiEnhancement.checked = false
+    elements.aiEnhancement.disabled = true
+    statusEl.className = 'ai-status-msg ai-status-error'
+    statusEl.textContent = '未配置 AI，请前往「AI 配置」Tab 添加配置。'
+    return
+  }
+
+  elements.aiEnhancement.disabled = false
+  elements.aiEnhancement.checked = true
+  statusEl.className = 'ai-status-msg ai-status-ok'
+  statusEl.textContent = `AI 已就绪：${aiInfo.provider} · ${aiInfo.model}`
+
+  if (getCurrentMode() !== 'manual-generate') {
+    elements.aiEnhancement.checked = false
+    elements.aiEnhancement.disabled = true
+    statusEl.className = 'ai-status-msg'
+    statusEl.style.display = 'none'
+  } else {
+    statusEl.style.display = 'block'
+  }
+}
+
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach((btn) => {
+    btn.classList.toggle('tab-btn-active', btn.dataset.tab === tabId)
+  })
+  document.querySelectorAll('.tab-pane').forEach((pane) => {
+    pane.classList.toggle('tab-pane-active', pane.id === `tab-${tabId}`)
+  })
 }
 
 async function pollJob(jobId) {
@@ -544,6 +825,58 @@ function bindEvents() {
     setMode(button.dataset.mode)
   })
 
+  elements.aiConfig.newBtn.addEventListener('click', () => {
+    showAiEditor(null)
+  })
+
+  elements.aiConfig.closeBtn.addEventListener('click', () => {
+    hideAiEditor()
+  })
+
+  elements.aiConfig.listEl.addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-action]')
+    if (!btn) return
+    const id = Number(btn.dataset.id)
+    const action = btn.dataset.action
+    if (action === 'test') {
+      const cfg = state.aiConfigs.find((c) => c.id === id)
+      if (cfg) testAiConfigFromCard(cfg)
+    } else if (action === 'edit') {
+      const cfg = state.aiConfigs.find((c) => c.id === id)
+      if (cfg) showAiEditor(cfg)
+    } else if (action === 'activate') {
+      activateAiConfig(id)
+    } else if (action === 'delete') {
+      deleteAiConfig(id)
+    }
+  })
+
+  elements.aiConfig.testBtn.addEventListener('click', () => {
+    testAiConfig().catch((error) => {
+      elements.aiConfig.result.className = 'ai-test-result error'
+      elements.aiConfig.result.textContent = `✗ ${error.message}`
+    })
+  })
+
+  elements.aiConfig.form.addEventListener('submit', (event) => {
+    event.preventDefault()
+    saveAiConfig().catch((error) => {
+      elements.aiConfig.result.className = 'ai-test-result error'
+      elements.aiConfig.result.textContent = `✗ ${error.message}`
+    })
+  })
+
+  elements.aiConfig.provider.addEventListener('change', () => {
+    const provider = elements.aiConfig.provider.value
+    if (provider === 'ollama') {
+      elements.aiConfig.baseUrl.placeholder = 'http://host.docker.internal:11434/v1'
+      elements.aiConfig.model.placeholder = 'llama3, qwen2, ...'
+    } else {
+      elements.aiConfig.baseUrl.placeholder = 'https://api.openai.com/v1'
+      elements.aiConfig.model.placeholder = ''
+    }
+  })
+
   elements.scenePreset.addEventListener('change', () => {
     const preset = findPresetById(elements.scenePreset.value)
 
@@ -575,6 +908,12 @@ function bindEvents() {
       setJobStatus(`详情加载失败：${error.message}`)
     })
   })
+
+  document.getElementById('tab-bar').addEventListener('click', (event) => {
+    const btn = event.target.closest('.tab-btn')
+    if (!btn) return
+    switchTab(btn.dataset.tab)
+  })
 }
 
 async function init() {
@@ -582,7 +921,8 @@ async function init() {
 
   try {
     await loadHealth()
-    await Promise.all([loadRuntimeStatus(), loadHistory({ preserveSelection: false })])
+    await Promise.all([loadRuntimeStatus(), loadHistory({ preserveSelection: false }), loadAiConfigs()])
+    updateAiEnhancementToggle()
     setJobStatus('Studio 已就绪。')
   } catch (error) {
     setJobStatus(`初始化失败：${error.message}`)

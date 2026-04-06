@@ -8,6 +8,7 @@ import { createTargetRepository } from '../batches/targetRepository.mjs'
 import { createJobRepository } from '../jobs/jobRepository.mjs'
 import { createJobRunner } from '../jobs/jobRunner.mjs'
 import { createDeleteBatchService } from '../writers/deleteBatchService.mjs'
+import { buildAiConfigRouter } from './routes/aiConfig.mjs'
 import { buildBatchesRouter } from './routes/batches.mjs'
 import { buildHealthRouter } from './routes/health.mjs'
 import { buildJobsRouter } from './routes/jobs.mjs'
@@ -26,6 +27,7 @@ export function buildApp({
   jobRepository,
   targetRepository,
   entityRefRepository,
+  aiConfigRepository,
   deleteBatchService,
   jobRunner,
   runtimeStatusService
@@ -65,14 +67,18 @@ export function buildApp({
         })
       : null)
   const resolvedRuntimeStatusService =
-    runtimeStatusService ?? createRuntimeStatusService({ config, db, fetchImpl })
+    runtimeStatusService ?? createRuntimeStatusService({ config, db, fetchImpl, aiConfigRepository })
 
   app.disable('x-powered-by')
   app.use(express.json())
   app.use(express.static(uiDirectoryPath, { index: 'index.html' }))
 
-  app.use('/health', buildHealthRouter({ config }))
+  app.use('/health', buildHealthRouter({ config, aiConfigRepository }))
   app.use('/api/runtime-status', buildRuntimeStatusRouter({ runtimeStatusService: resolvedRuntimeStatusService }))
+
+  if (aiConfigRepository) {
+    app.use('/api/ai-config', buildAiConfigRouter({ aiConfigRepository }))
+  }
 
   if (resolvedJobRunner && resolvedJobRepository) {
     app.use(

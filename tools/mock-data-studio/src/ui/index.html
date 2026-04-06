@@ -11,7 +11,7 @@
       <header class="page-header">
         <div>
           <p class="eyebrow">mock-data-studio</p>
-          <h1>生成、状态、历史、详情</h1>
+          <h1>Mock Data Studio</h1>
           <p class="page-summary">本地开发用最小操作台：查看运行态、发起任务、轮询 job、浏览 batch 历史与详情。</p>
         </div>
         <div class="header-actions">
@@ -19,130 +19,210 @@
         </div>
       </header>
 
-      <main class="page-grid">
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="panel-kicker">Runtime</p>
-              <h2>运行态状态</h2>
+      <nav class="tab-bar" id="tab-bar">
+        <button type="button" class="tab-btn tab-btn-active" data-tab="runtime">运行状态</button>
+        <button type="button" class="tab-btn" data-tab="generate">生成控制</button>
+        <button type="button" class="tab-btn" data-tab="history">批次历史</button>
+        <button type="button" class="tab-btn" data-tab="ai-config">AI 配置</button>
+      </nav>
+
+      <main class="tab-content">
+        <div class="tab-pane tab-pane-active" id="tab-runtime">
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="panel-kicker">Runtime</p>
+                <h2>运行态状态</h2>
+              </div>
+              <button id="refresh-runtime" type="button">刷新状态</button>
             </div>
-            <button id="refresh-runtime" type="button">刷新状态</button>
-          </div>
-          <div id="runtime-summary" class="runtime-summary"></div>
-          <div id="runtime-status-grid" class="runtime-status-grid"></div>
-        </section>
+            <div id="runtime-summary" class="runtime-summary"></div>
+            <div id="runtime-status-grid" class="runtime-status-grid"></div>
+          </section>
+        </div>
 
-        <section class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="panel-kicker">Generate</p>
-              <h2>生成控制</h2>
-            </div>
-          </div>
-
-          <form id="generate-form" class="generate-form">
-            <div class="field-group">
-              <span class="field-label">模式切换</span>
-              <div id="mode-switch" class="mode-switch"></div>
-            </div>
-
-            <div class="field-grid">
-              <label class="field">
-                <span>场景预设</span>
-                <select id="scene-preset"></select>
-              </label>
-
-              <label class="field">
-                <span>Requested By</span>
-                <input id="requested-by" type="text" value="local-dev">
-              </label>
-            </div>
-
-            <div class="field-group">
-              <span class="field-label">预览计数</span>
-              <div class="count-grid">
-                <label class="field">
-                  <span>用户</span>
-                  <input id="count-users" type="number" min="0" step="1">
-                </label>
-                <label class="field">
-                  <span>帖子</span>
-                  <input id="count-posts" type="number" min="0" step="1">
-                </label>
-                <label class="field">
-                  <span>评论</span>
-                  <input id="count-comments" type="number" min="0" step="1">
-                </label>
-                <label class="field">
-                  <span>关注</span>
-                  <input id="count-socialFollows" type="number" min="0" step="1">
-                </label>
-                <label class="field">
-                  <span>点赞</span>
-                  <input id="count-socialLikes" type="number" min="0" step="1">
-                </label>
+        <div class="tab-pane" id="tab-generate">
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="panel-kicker">Generate</p>
+                <h2>生成控制</h2>
               </div>
             </div>
 
-            <label class="toggle-field">
-              <input id="ai-enhancement" type="checkbox">
-              <span>AI 增强预览</span>
-            </label>
+            <form id="generate-form" class="generate-form">
+              <div class="field-group">
+                <span class="field-label">模式切换</span>
+                <div id="mode-switch" class="mode-switch"></div>
+              </div>
 
-            <div class="generate-actions">
-              <button id="submit-generate" type="submit">提交生成</button>
-              <div id="job-status" class="job-status">尚未提交 job。</div>
-            </div>
-          </form>
+              <div class="field-grid">
+                <label class="field">
+                  <span>场景预设</span>
+                  <select id="scene-preset"></select>
+                </label>
 
-          <div class="preview-block">
-            <div>
-              <p class="panel-kicker">Preview</p>
-              <h3>请求预览</h3>
-            </div>
-            <pre id="generate-preview">加载中…</pre>
-          </div>
-        </section>
+                <label class="field">
+                  <span>Requested By</span>
+                  <input id="requested-by" type="text" value="local-dev">
+                </label>
+              </div>
 
-        <section class="panel panel-history">
-          <div class="panel-header">
-            <div>
-              <p class="panel-kicker">History</p>
-              <h2>批次历史</h2>
-            </div>
-            <button id="refresh-history" type="button">刷新历史</button>
-          </div>
-          <div id="history-summary" class="history-summary"></div>
-          <div class="table-wrap">
-            <table id="batch-history-table" class="history-table">
-              <thead>
-                <tr>
-                  <th>批次</th>
-                  <th>类型</th>
-                  <th>状态</th>
-                  <th>目标 / 实际</th>
-                  <th>最近 Job</th>
-                  <th>创建时间</th>
-                </tr>
-              </thead>
-              <tbody id="batch-history-body">
-                <tr>
-                  <td colspan="6">加载中…</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
+              <div class="field-group">
+                <span class="field-label">预览计数</span>
+                <div class="count-grid">
+                  <label class="field">
+                    <span>用户</span>
+                    <input id="count-users" type="number" min="0" step="1">
+                  </label>
+                  <label class="field">
+                    <span>帖子</span>
+                    <input id="count-posts" type="number" min="0" step="1">
+                  </label>
+                  <label class="field">
+                    <span>评论</span>
+                    <input id="count-comments" type="number" min="0" step="1">
+                  </label>
+                  <label class="field">
+                    <span>关注</span>
+                    <input id="count-socialFollows" type="number" min="0" step="1">
+                  </label>
+                  <label class="field">
+                    <span>点赞</span>
+                    <input id="count-socialLikes" type="number" min="0" step="1">
+                  </label>
+                </div>
+              </div>
 
-        <aside class="panel panel-detail">
-          <div class="panel-header">
-            <div>
-              <p class="panel-kicker">Detail</p>
-              <h2>批次详情</h2>
+              <div id="ai-enhancement-wrapper" class="ai-enhancement-wrapper">
+                <label class="toggle-field">
+                  <input id="ai-enhancement" type="checkbox" checked>
+                  <span>使用 AI 生成内容</span>
+                </label>
+                <div id="ai-status-msg" class="ai-status-msg" style="display:none;"></div>
+              </div>
+
+              <div class="generate-actions">
+                <button id="submit-generate" type="submit">提交生成</button>
+                <div id="job-status" class="job-status">尚未提交 job。</div>
+              </div>
+            </form>
+
+            <div class="preview-block">
+              <div>
+                <p class="panel-kicker">Preview</p>
+                <h3>请求预览</h3>
+              </div>
+              <pre id="generate-preview">加载中…</pre>
             </div>
-          </div>
-          <div id="batch-detail">请选择一个批次查看详情。</div>
-        </aside>
+          </section>
+        </div>
+
+        <div class="tab-pane" id="tab-history">
+          <section class="panel panel-history">
+            <div class="panel-header">
+              <div>
+                <p class="panel-kicker">History</p>
+                <h2>批次历史</h2>
+              </div>
+              <button id="refresh-history" type="button">刷新历史</button>
+            </div>
+            <div id="history-summary" class="history-summary"></div>
+            <div class="table-wrap">
+              <table id="batch-history-table" class="history-table">
+                <thead>
+                  <tr>
+                    <th>批次</th>
+                    <th>类型</th>
+                    <th>状态</th>
+                    <th>目标 / 实际</th>
+                    <th>最近 Job</th>
+                    <th>创建时间</th>
+                  </tr>
+                </thead>
+                <tbody id="batch-history-body">
+                  <tr>
+                    <td colspan="6">加载中…</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel panel-detail">
+            <div class="panel-header">
+              <div>
+                <p class="panel-kicker">Detail</p>
+                <h2>批次详情</h2>
+              </div>
+            </div>
+            <div id="batch-detail">请选择一个批次查看详情。</div>
+          </section>
+        </div>
+
+        <div class="tab-pane" id="tab-ai-config">
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <p class="panel-kicker">AI Config</p>
+                <h2>AI 配置管理</h2>
+              </div>
+              <button id="ai-new-btn" type="button">+ 新建配置</button>
+            </div>
+
+            <div id="ai-config-list" class="ai-config-list"></div>
+
+            <div id="ai-editor-panel" class="ai-editor-panel" style="display:none;">
+              <div class="ai-editor-header">
+                <h3 id="ai-editor-title">新建配置</h3>
+                <button id="ai-editor-close" type="button" class="ai-close-btn">&times;</button>
+              </div>
+              <form id="ai-config-form" class="ai-config-form">
+                <input type="hidden" id="ai-edit-id" value="">
+                <label class="field">
+                  <span>配置名称</span>
+                  <input id="ai-name" type="text" placeholder="例如：本地 Ollama">
+                </label>
+                <div class="field-grid">
+                  <label class="field">
+                    <span>Provider</span>
+                    <select id="ai-provider">
+                      <option value="openai">OpenAI</option>
+                      <option value="ollama">Ollama</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Model</span>
+                    <input id="ai-model" type="text" placeholder="gpt-4.1-mini">
+                  </label>
+                </div>
+                <label class="field">
+                  <span>Base URL <span class="muted">(Ollama: http://host.docker.internal:11434/v1，留空使用 OpenAI 默认)</span></span>
+                  <input id="ai-base-url" type="text" placeholder="https://api.openai.com/v1">
+                </label>
+                <label class="field">
+                  <span>API Key</span>
+                  <input id="ai-api-key" type="password" placeholder="sk-... 或 Ollama 留空">
+                </label>
+                <div class="field-grid">
+                  <label class="field">
+                    <span>超时 (ms)</span>
+                    <input id="ai-timeout-ms" type="number" min="1000" step="1000" value="8000">
+                  </label>
+                  <label class="field">
+                    <span>每 Job 最大条数</span>
+                    <input id="ai-max-items" type="number" min="1" step="1" value="20">
+                  </label>
+                </div>
+                <div class="ai-config-actions">
+                  <button id="ai-test-btn" type="button">测试连接</button>
+                  <button id="ai-save-btn" type="submit">保存</button>
+                </div>
+                <div id="ai-test-result" class="ai-test-result"></div>
+              </form>
+            </div>
+          </section>
+        </div>
       </main>
     </div>
 

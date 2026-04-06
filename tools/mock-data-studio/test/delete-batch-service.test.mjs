@@ -1040,6 +1040,29 @@ test('community writer records refs for each inserted row set and keeps visible 
   }
 })
 
+test('community writer inserts generated users as active accounts', async () => {
+  const db = new FakeCommunityDb()
+  const entityRefRepository = createEntityRefRepositoryDouble()
+  const writer = createCommunityWriter({
+    db,
+    entityRefRepository,
+    now: (() => {
+      let tick = 0
+      const start = Date.parse('2026-03-25T08:30:00.000Z')
+      return () => new Date(start + tick++ * 1000).toISOString()
+    })()
+  })
+
+  await writer.writePhase({
+    batchId: 42,
+    plan: createPlan()
+  })
+
+  const insertedUsers = db.state.users.slice(-2)
+  assert.equal(insertedUsers.length, 2)
+  assert.ok(insertedUsers.every((user) => user.status === 1))
+})
+
 test('community writer top-up avoids user identity and social graph collisions on incremental runs', async () => {
   const plan = createPlan({
     deficits: {

@@ -77,17 +77,31 @@ function buildPrompt({ kind, inputs }) {
 
 export function createOpenAiClient({
   config,
+  dbConfig = null,
   OpenAIImpl = OpenAI
 } = {}) {
-  const provider = config?.ai?.provider ?? 'openai'
-  const model = config?.ai?.model ?? 'gpt-4.1-mini'
-  const timeoutMs = parsePositiveInteger(config?.ai?.timeoutMs, 8000)
-  const maxItemsPerJob = parsePositiveInteger(config?.ai?.maxItemsPerJob, 20)
-  const apiKey = config?.ai?.apiKey ?? null
+  const provider = dbConfig?.provider ?? config?.ai?.provider ?? 'openai'
+  const model = dbConfig?.model ?? config?.ai?.model ?? 'gpt-4.1-mini'
+  const timeoutMs = parsePositiveInteger(dbConfig?.timeoutMs ?? config?.ai?.timeoutMs, 8000)
+  const maxItemsPerJob = parsePositiveInteger(dbConfig?.maxItemsPerJob ?? config?.ai?.maxItemsPerJob, 20)
+  const baseUrl = dbConfig?.baseUrl ?? null
+  const apiKey = dbConfig?.apiKey ?? config?.ai?.apiKey ?? null
+  const enabled = Boolean(dbConfig?.enabled ?? config?.ai?.enabled)
+
+  const openaiClient = (apiKey || provider === 'ollama') ? (() => {
+    const opts = {
+      apiKey: apiKey || 'ollama',
+      timeout: timeoutMs
+    }
+    if (baseUrl) {
+      opts.baseURL = baseUrl
+    }
+    return new OpenAIImpl(opts)
+  })() : null
 
   return {
     isConfigured() {
-      return Boolean(apiKey)
+      return enabled && Boolean(openaiClient)
     },
 
     async enhanceTexts({ kind = 'generic', inputs = [], maxItems = maxItemsPerJob } = {}) {
@@ -104,8 +118,8 @@ export function createOpenAiClient({
         }
       }
 
-      if (!apiKey) {
-        const error = new Error('OpenAI API key is not configured')
+      if (!enabled || !openaiClient) {
+        const error = new Error('AI is not configured or not enabled')
         error.code = 'AI_NOT_CONFIGURED'
         throw error
       }
@@ -122,18 +136,15 @@ export function createOpenAiClient({
 
       const selected = normalizedInputs.slice(0, budget)
       const skipped = normalizedInputs.slice(selected.length)
-      const client = new OpenAIImpl({
-        apiKey,
-        timeout: timeoutMs
-      })
       const prompt = buildPrompt({ kind, inputs: selected })
 
-      const response = await client.responses.create({
+      const response = await openaiClient.chat.completions.create({
         model,
-        input: prompt
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 4096
       })
 
-      const responseText = extractResponseText(response)
+      const responseText = response.choices?.[0]?.message?.content ?? ''
       const enhancedSelected = parseOutputsFromText(responseText, selected.length)
 
       if (!enhancedSelected) {

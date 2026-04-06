@@ -60,8 +60,9 @@ npm --prefix tools/mock-data-studio start
 默认 bind host 为 `127.0.0.1`，默认进程监听端口为 `12888`。
 
 `docker compose` 路径下：
-- `MOCK_DATA_STUDIO_PORT` 表示容器内 studio 进程的监听端口
-- `MOCK_DATA_STUDIO_HOST_PORT` 表示宿主机 `127.0.0.1` 上暴露的端口
+- `MOCK_DATA_STUDIO_PORT` 表示容器内 studio 进程的监听端口（默认仍为 `12888`）
+- `MOCK_DATA_STUDIO_HOST_PORT` 表示宿主机 `127.0.0.1` 上暴露的端口（默认 `12890`）
+- 当前推荐 operator path 是 `http://127.0.0.1:12890`；只有脱离 compose 直接运行时，默认访问端口才是 `12888`
 
 ## 集成说明
 
@@ -80,21 +81,23 @@ MOCK_DATA_STUDIO_IM_CORE_BASE_URL='http://127.0.0.1:18082' \
 npm --prefix tools/mock-data-studio start
 ```
 
-上面的 `community-app` / `im-core` 直连地址依赖 `debug` profile；MySQL 需要你自行提供宿主机可达的实例或额外端口映射。
+上面的 `community-app` / `im-core` 直连地址依赖 debug overlay（例如 `make up-debug`）；MySQL 需要你自行提供宿主机可达的实例或额外端口映射。
 
-当前 API 示例：
+当前 API 示例（compose operator path，默认宿主机 `12890 ->` 容器进程 `12888`）：
 
 ```bash
-curl http://127.0.0.1:12888/
-curl http://127.0.0.1:12888/health
-curl http://127.0.0.1:12888/api/runtime-status
-curl -X POST http://127.0.0.1:12888/api/jobs -H 'content-type: application/json' \
+curl http://127.0.0.1:12890/
+curl http://127.0.0.1:12890/health
+curl http://127.0.0.1:12890/api/runtime-status
+curl -X POST http://127.0.0.1:12890/api/jobs -H 'content-type: application/json' \
   -d '{"requestedBy":"local-dev","batchType":"demo-seed","jobType":"demo-seed"}'
-curl http://127.0.0.1:12888/api/jobs/1
-curl http://127.0.0.1:12888/api/batches
-curl http://127.0.0.1:12888/api/batches/1
-curl -X DELETE http://127.0.0.1:12888/api/batches/1
+curl http://127.0.0.1:12890/api/jobs/1
+curl http://127.0.0.1:12890/api/batches
+curl http://127.0.0.1:12890/api/batches/1
+curl -X DELETE http://127.0.0.1:12890/api/batches/1
 ```
+
+如果你是直接宿主机运行 `npm --prefix tools/mock-data-studio start`，且没有显式覆盖 `MOCK_DATA_STUDIO_PORT`，则仍使用 `http://127.0.0.1:12888`。
 
 ## 最小 UI 说明
 
@@ -112,7 +115,7 @@ curl -X DELETE http://127.0.0.1:12888/api/batches/1
 ## 关键环境变量
 
 - `MOCK_DATA_STUDIO_PORT`：服务监听端口，默认 `12888`
-- `MOCK_DATA_STUDIO_HOST_PORT`：仅 compose 使用的宿主机映射端口，默认 `12888`
+- `MOCK_DATA_STUDIO_HOST_PORT`：仅 compose 使用的宿主机映射端口，默认 `12890`
 - `MOCK_DATA_STUDIO_BIND_HOST`：服务绑定地址，默认 `127.0.0.1`；compose 内会覆盖为 `0.0.0.0`
 - `MOCK_DATA_STUDIO_DB_URL`：必填，studio 访问 MySQL 的连接串
 - `MOCK_DATA_STUDIO_DB_USER`：必填，studio 使用的专用数据库账号；compose 默认值为 `mock_data_studio`，对 `community` schema 具有 `select/insert/update/delete/create`，对 `im_core` schema 具有 `select/insert/update/delete`

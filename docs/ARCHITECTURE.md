@@ -77,7 +77,7 @@ flowchart TD
 - 运行形态（本地 compose）：容器内执行 `vite build` 后用 `vite preview` 对外提供静态站点（端口 `12881`）。
 - API 调用策略：
   - 优先使用 `VITE_API_BASE_URL`（如配置）。
-  - 否则在 `localhost/127.0.0.1:5173|12881|12888` 场景默认推导 API / IM HTTP 基址为 `http://<host>:12880`、IM WebSocket 为 `ws(s)://<host>:12880/ws/im`（详见 `frontend/src/api/http.js`、`frontend/src/api/imCoreHttp.js`、`frontend/src/im/imRealtimeClient.js`）。
+  - 否则在 `localhost/127.0.0.1:5173|12881|12890|12888` 场景默认推导 API / IM HTTP 基址为 `http://<host>:12880`、IM WebSocket 为 `ws(s)://<host>:12880/ws/im`；其中 `12890` 是当前文档化的 Mock Data Studio compose 宿主机默认端口，`12888` 保留为 legacy/custom 兼容（详见 `frontend/src/api/http.js`、`frontend/src/api/imCoreHttp.js`、`frontend/src/im/imRealtimeClient.js`）。
   - 非本地部署默认回落为 same-origin，相对路径仍由 edge / ingress 处理。
 
 ### 2.2 主业务单体入口（`backend/community-app/`）

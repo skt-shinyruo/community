@@ -7,7 +7,7 @@
 
 ## 1) 默认演示账号（本地种子数据）
 
-本地 compose（dev profile）会初始化种子数据，包含以下演示账号：
+本地默认 compose 分层会初始化种子数据，包含以下演示账号：
 - 普通用户：`aaa/aaa`
 - 管理员：`admin/aaa`
 
@@ -21,13 +21,13 @@
 
 ## 2) 验证码固定值（仅 dev）
 
-为便于冒烟/联调，`dev` profile 下允许固定验证码：
+为便于冒烟/联调，开发环境允许固定验证码：
 - 配置：`backend/community-app/src/main/resources/application.yml` 或测试配置 `backend/community-app/src/test/resources/application.yml`
 - 固定值：`auth.captcha.fixed-code=0000`
 - 冒烟脚本：暂无（如需可在后续补充）
 
 生产约束（SSOT）：
-- prod profile 下 **禁止** `auth.captcha.fixed-code`，且启动期校验会 fail-closed 阻断误配（见 `backend/community-app/src/main/java/com/nowcoder/community/auth/config/AuthStartupValidator.java`）。
+- 生产环境（`SPRING_PROFILES_ACTIVE=prod`）下 **禁止** `auth.captcha.fixed-code`，且启动期校验会 fail-closed 阻断误配（见 `backend/community-app/src/main/java/com/nowcoder/community/auth/config/AuthStartupValidator.java`）。
 
 当前仓库说明：
 - 验证码固定值配置键为 `auth.captcha.fixed-code`（见 `backend/community-app/src/main/java/com/nowcoder/community/auth/config/CaptchaProperties.java`）。
@@ -46,7 +46,7 @@
 - `AUTH_EXPOSE_RESET_LINK=true`
 
 生产约束（SSOT）：
-- prod profile 下禁止回传注册验证码/`resetLink`，并要求启用 SMTP（见 `docs/SECURITY.md` 与 `deploy/README.md`）。
+- 生产环境（`SPRING_PROFILES_ACTIVE=prod`）下禁止回传注册验证码/`resetLink`，并要求启用 SMTP（见 `docs/SECURITY.md` 与 `deploy/README.md`）。
 
 ---
 
@@ -64,14 +64,14 @@
 - 环境变量解析与启动日志
 
 访问方式：
-- `http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12888}/`
-- `http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12888}/health`（仅绑定到宿主机 `127.0.0.1`）
-- `http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12888}/api/runtime-status`
-- `http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12888}/api/jobs`
+- `http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12890}/`
+- `http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12890}/health`（仅绑定到宿主机 `127.0.0.1`）
+- `http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12890}/api/runtime-status`
+- `http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12890}/api/jobs`
 
 当前默认开关：
 - `MOCK_DATA_STUDIO_ENABLED=true`
-- `MOCK_DATA_STUDIO_HOST_PORT=12888`
+- `MOCK_DATA_STUDIO_HOST_PORT=12890`
 - `MOCK_DATA_STUDIO_PORT=12888`
 - `MOCK_DATA_AUTO_FILL_ENABLED=false`
 - `MOCK_DATA_AUTO_FILL_SCENE=tech-community-hot-start`
@@ -80,7 +80,7 @@
 - `MOCK_DATA_DEFAULT_COMMENTS=2500`
 
 说明：
-- `MOCK_DATA_STUDIO_PORT` 表示 studio 进程监听端口；`MOCK_DATA_STUDIO_HOST_PORT` 表示 compose 暴露到宿主机的 localhost-only 端口。
+- `MOCK_DATA_STUDIO_PORT` 表示 studio 进程监听端口；`MOCK_DATA_STUDIO_HOST_PORT` 表示 compose 暴露到宿主机的 localhost-only 端口。当前 operator path 默认是宿主机 `12890 ->` 进程 `12888`。
 - `MOCK_DATA_AUTO_FILL_ENABLED=true` 会在服务启动后自动提交一次缺口填充 job；若 job 失败，会通过现有 batch/job 元数据记录为 failed，而不是只写启动日志。
 - auto-fill scene 目前支持 `tech-community-hot-start`、`moderation-pressure`、`im-busy`、`reward-ops-busy`。
 - `tech-community-hot-start` 当前会同时补充：

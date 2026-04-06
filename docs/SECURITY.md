@@ -51,7 +51,7 @@
 ## 3. CORS / Origin（前端直连的前提）
 
 本地 gateway-first 模式下：
-- 前端 origin 默认为 `http://localhost:12881`（也可能因本地端口调整变为 `http://localhost:12888` 等）
+- 前端 origin 默认为 `http://localhost:12881`；Mock Data Studio compose operator path 默认为 `http://localhost:12890`，并继续兼容 legacy/custom `http://localhost:12888`
 - `community-gateway` 负责默认浏览器入口的第一层跨域处理；主站业务 allowlist 与敏感入口同源约束仍以 `community-app` 为准
 - Origin/CORS allowlist 以 **community-app 为 SSOT**：
   - **CORS**：由 `backend/community-app/.../CommunityCorsConfig` 统一配置（覆盖 `/api/**` 与 `/files/**`）

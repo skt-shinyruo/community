@@ -6,8 +6,8 @@
 
 ## 推荐阅读顺序
 1. `docs/ARCHITECTURE.md`：总体架构、模块边界、端口、关键链路（读/写/事件）、可观测性入口
-2. `docs/DEPLOYMENT.md`：本地启动（docker compose profiles）、端口暴露策略、gateway-first 的工作方式
-3. `docs/OBSERVABILITY.md`：迁移期日志/指标/告警说明，覆盖旧 `observability` 与新 `observability-elastic` profile、Prometheus 告警权威边界，以及 `observability-elastic` compose 路径下基于 `trace.id`、`service.name`、`community.category` / `community.action` / `community.outcome` 的 fielded Kibana 排障 runbook，并为 `community.job_id` / `community.event_id` / topic-family 键保留 raw token / body 搜索说明
+2. `docs/DEPLOYMENT.md`：本地启动（layered docker compose / overlays）、端口暴露策略、gateway-first 的工作方式
+3. `docs/OBSERVABILITY.md`：迁移期日志/指标/告警说明，覆盖 Loki/Prometheus 观测 overlay 与 Elastic observability overlay、Prometheus 告警权威边界，以及 `observability-elastic` compose 路径下基于 `trace.id`、`service.name`、`community.category` / `community.action` / `community.outcome` 的 fielded Kibana 排障 runbook，并为 `community.job_id` / `community.event_id` / topic-family 键保留 raw token / body 搜索说明
 4. `docs/SYSTEM_DESIGN.md`：系统设计（同步 API + 异步事件、最终一致、幂等、DLQ）
 5. `docs/SECURITY.md`：鉴权模型（JWT + refresh cookie）、CORS、限流、审计日志、内部 token
 6. `docs/DATA_MODEL.md`：MySQL/Redis/Kafka/ES 的最小数据模型与约定（以 `deploy/` 与代码常量为准）

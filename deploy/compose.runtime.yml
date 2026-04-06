@@ -585,7 +585,7 @@ services:
       dockerfile: tools/mock-data-studio/Dockerfile
     container_name: community-mock-data-studio
     ports:
-    - 127.0.0.1:${MOCK_DATA_STUDIO_HOST_PORT:-12888}:${MOCK_DATA_STUDIO_PORT:-12888}
+    - 127.0.0.1:${MOCK_DATA_STUDIO_HOST_PORT:-12890}:${MOCK_DATA_STUDIO_PORT:-12888}
     environment:
     - MOCK_DATA_STUDIO_ENABLED=${MOCK_DATA_STUDIO_ENABLED:-true}
     - MOCK_DATA_STUDIO_PORT=${MOCK_DATA_STUDIO_PORT:-12888}

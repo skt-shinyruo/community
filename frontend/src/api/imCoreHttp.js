@@ -13,8 +13,11 @@ function resolveImCoreBaseUrl() {
     if (!loc) return ''
     if (loc.port === '8080') return ''
     const isLocalHost = loc.hostname === 'localhost' || loc.hostname === '127.0.0.1'
-    const isKnownFrontendPort = loc.port === '5173' || loc.port === '12881' || loc.port === '12888'
-    if (isLocalHost && isKnownFrontendPort) {
+    // 本地 gateway-first 模式：浏览器页面可能来自 Vite dev、frontend preview，
+    // 或 compose 暴露的 Mock Data Studio（默认 12890，兼容 legacy/custom 12888），但 IM HTTP 统一走 12880。
+    const isKnownGatewayFirstOriginPort =
+      loc.port === '5173' || loc.port === '12881' || loc.port === '12890' || loc.port === '12888'
+    if (isLocalHost && isKnownGatewayFirstOriginPort) {
       return `${loc.protocol}//${loc.hostname}:12880`
     }
   } catch {}

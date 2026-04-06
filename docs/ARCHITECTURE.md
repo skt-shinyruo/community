@@ -1,7 +1,7 @@
 # 架构文档（与代码保持一致）
 
 > 本项目当前形态：**Maven 多模块后端**，其中 `community-app` 是包级单体（Package-Scoped Monolith），`community-gateway` 负责统一入口，IM 保留独立运行模块。  
-> 默认对外业务入口为 `community-gateway`（Spring Boot WebFlux，容器内默认 `8080`；本地 compose 映射为 `12880`）。  
+> 默认对外业务入口为本地 `NGINX` ingress（compose 映射为 `12880`），再转发到 `community-gateway` 副本池；`xxl-job-admin` 控制面则经 `NGINX :12887` 暴露。  
 > `community-app` 继续作为主业务单体 owner，IM 作为独立服务保留：`im-realtime`（worker）与 `im-core`（HTTP）。
 > 直连 `12882/18081/18082` 仅保留为回滚与诊断路径，且默认不暴露到宿主机；需要时通过 `debug` profile 绑定到 `127.0.0.1`。
 > 对外 API 前缀稳定：`/api/**`；静态文件前缀稳定：`/files/**`。  
@@ -38,15 +38,17 @@
 ```mermaid
 flowchart TD
     Browser[Browser] --> FE["Vue3 SPA<br/>(frontend)"]
-    FE --> GW["Spring Boot WebFlux<br/>(community-gateway)<br/>/api/** + /files/** + /ws/im"]
-    GW --> APP["Spring Boot 3<br/>(community-app)<br/>main business owner"]
-    GW --> IMCORE["Spring Boot<br/>(im-core)<br/>/api/im/** owner"]
-    GW --> IMRT["Spring Boot WebFlux<br/>(im-realtime)<br/>internal WS worker"]
+    FE --> NGINX["NGINX<br/>:12880 / :12887"]
+    NGINX --> GW["community-gateway x3<br/>/api/** + /files/** + /ws/im"]
+    NGINX --> XXL["xxl-job-admin x2"]
+    GW --> APP["community-app x3<br/>main business owner"]
+    GW --> IMCORE["im-core x3<br/>/api/im/** owner"]
+    GW --> IMRT["im-realtime x3<br/>internal WS worker"]
 
-    APP --> MySQL[(MySQL<br/>schema: community)]
-    IMCORE --> IMMySQL[(MySQL<br/>schema: im_core)]
-    APP --> Redis[(Redis)]
-    APP --> ES[(Elasticsearch)]
+    APP --> MySQL[(MySQL<br/>community / xxl_job<br/>primary + replicas)]
+    IMCORE --> IMMySQL[(MySQL<br/>schema: im_core<br/>same primary cluster)]
+    APP --> Redis[(Redis Cluster)]
+    APP --> ES[(Elasticsearch x3)]
 
     Prom[Prometheus] -. scrape .-> APP
     Logs[Promtail] --> Loki[(Loki)]
@@ -56,7 +58,7 @@ flowchart TD
 
 补充说明：
 - **主业务 owner**：`community-app` 承载主站业务域与统一安全装配。
-- **独立入口层**：`community-gateway` 负责默认浏览器 / 客户端入口，以及 HTTP / WS 路由与边缘策略。
+- **独立入口层**：浏览器 / 客户端先到本地 `NGINX`，再进入 `community-gateway` 副本池；`community-gateway` 负责 HTTP / WS 路由与边缘策略。
 - **独立 IM 聚合**：顶层模块 `community-im` 负责组织 `im-common`、`im-core`、`im-realtime` 三个 IM 子模块。
 - **包级边界**：领域仍按 `com.nowcoder.community.auth`、`content`、`social`、`search` 等顶层包组织；域内默认按 Spring Boot 分层思路组织（controller/service/dto/entity/mapper），安全/事件/错误码也按职责落在各自域包内。
 
@@ -133,20 +135,31 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 ## 3. 运行拓扑与端口规划（本地 docker compose）
 
 ### 3.1 Compose 文件分工（以 `deploy/README.md` 为准）
-- `deploy/docker-compose.yml`：业务必需全栈（frontend + `community-gateway` + `community-app` + IM + MySQL/Redis/Kafka/ES + MailHog + `xxl-job-admin`），默认暴露统一入口（`12880/12881`）、MailHog UI（`8025`，仅本机）与 XXL-JOB Admin UI（`12887`，仅本机）；`debug` profile 才会额外暴露 `12882/18081/18082` 到 `127.0.0.1`，依赖端口仍不暴露（fail-closed）。
+- `deploy/docker-compose.yml`：本地 HA 演练栈（frontend + `NGINX` + `community-gateway x3` + `community-app x3` + IM + MySQL 主从 + Redis Cluster + Zookeeper/Kafka/Elasticsearch 多节点 + `xxl-job-admin x2`），默认暴露 `12880/12881/12887`；`debug` profile 才会额外暴露 `12882/18081/18082` 到 `127.0.0.1`，依赖端口仍不暴露（fail-closed）。
 - `observability` profile：可选观测/日志栈（Prometheus/Grafana/Loki/Promtail/Alertmanager），默认仅绑定到 `127.0.0.1` 暴露端口（`12883+`）。
 - `observability-elastic` profile：可选 Elastic 观测栈（Elasticsearch localhost 入口 / Kibana / EDOT collector）；base compose 下 backend services 默认会把结构化 JSON 日志写入共享 `observability_logs` volume，因此只启用这个 profile 也能得到 fielded logs。
 
 ### 3.2 对外暴露端口（默认推荐）
-- Community Gateway（统一入口）：`http://localhost:12880`
+- NGINX 统一业务入口：`http://localhost:12880`
 - frontend：`http://localhost:12881`
 - MailHog UI（dev mailbox）：`http://localhost:8025`（仅本机）
-- XXL-JOB Admin UI：`http://localhost:12887/xxl-job-admin`（仅本机）
+- NGINX XXL-JOB Admin 入口：`http://localhost:12887/xxl-job-admin`（仅本机）
 
 ### 3.2.1 Debug Profile（localhost-only）
-- backend（community-app，回滚/诊断）：`http://localhost:12882`
-- IM Realtime（internal worker，回滚/诊断）：`ws://localhost:18081/internal/ws/im`
-- IM Core（回滚/诊断）：`http://localhost:18082`
+- backend（`community-app-1`，回滚/诊断）：`http://localhost:12882`
+- IM Realtime（`im-realtime-1` internal worker，回滚/诊断）：`ws://localhost:18081/internal/ws/im`
+- IM Core（`im-core-1`，回滚/诊断）：`http://localhost:18082`
+
+### 3.2.2 本地 HA 关键形态
+- `community-gateway`：3 副本，由 `NGINX` 统一接入
+- `community-app`：3 副本，通过 gateway 的 HTTP upstream 池访问
+- `im-core`：3 副本，通过 gateway HTTP upstream 和 `im-realtime` internal client pool 访问
+- `im-realtime`：3 副本，通过 gateway worker shard registry 访问
+- MySQL：`mysql-primary` + `mysql-replica-1/2`；当前只承诺人工切主，不承诺自动写切换
+- Redis：`redis-1..6`，由 `redis-cluster-bootstrap` 组装成 `3 主 + 3 从`
+- Kafka：`zookeeper-1..3` + `kafka-1..3` + `kafka-init`
+- Elasticsearch：`elasticsearch-1..3` + `es-init`
+- XXL：`xxl-job-admin-1/2` 共用 `xxl_job` schema，经 `NGINX` 暴露单一入口
 
 ### 3.3 观测/日志端口（可选开启）
 - Grafana：`http://localhost:12883`（默认账号密码 `admin/admin`）

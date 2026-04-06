@@ -2,10 +2,12 @@ spring:
   application:
     name: im-core
   datasource:
-    url: ${IM_CORE_DB_URL:jdbc:mysql://localhost:3306/im_core?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    # Local HA keeps MySQL single-primary for writes; switch IM_CORE_DB_PRIMARY_HOST after manual promotion.
+    url: ${IM_CORE_DB_URL:jdbc:mysql://${IM_CORE_DB_PRIMARY_HOST:localhost}:3306/im_core?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
     username: ${IM_CORE_DB_USER:im_core}
     password: ${IM_CORE_DB_PASSWORD:imcorepass}
   kafka:
+    # Comma-separated broker list, for example kafka-1:9092,kafka-2:9092,kafka-3:9092.
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
     consumer:
       group-id: ${IM_CORE_CONSUMER_GROUP:im-core}

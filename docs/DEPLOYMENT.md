@@ -1,6 +1,6 @@
 # 本地部署与启动（docker compose）
 
-> 本文档覆盖“gateway-first（12881 -> 12880）”的本地开发/联调方案，并解释前端容器如何工作、端口如何暴露、以及为什么默认不暴露 Redis/MySQL/ES/Kafka 等内部依赖端口。
+> 本文档覆盖“frontend (`12881`) -> NGINX (`12880`) -> gateway pool” 的本地 HA 演练方案，并解释前端容器如何工作、端口如何暴露、以及为什么默认不暴露 Redis/MySQL/ES/Kafka 等内部依赖端口。
 
 > 约定：本文档中的命令默认从**仓库根目录**执行。
 
@@ -9,15 +9,16 @@
 ## 1. 端口规划（本地）
 
 ### 1.1 必要对外端口（默认）
-- Community Gateway（统一入口）：`http://localhost:12880`
+- NGINX 统一业务入口：`http://localhost:12880`
 - 前端（Vue3 SPA）：`http://localhost:12881`
 
 ### 1.2 可选对外端口（本地辅助）
 - MailHog UI（dev mailbox）：`http://localhost:8025`（默认启用；仅绑定到 `127.0.0.1`）
+- NGINX XXL-JOB Admin 入口：`http://localhost:12887/xxl-job-admin`（仅绑定到 `127.0.0.1`）
 - `debug` profile（仅绑定到 `127.0.0.1`，回滚/排障）：
-  - community-app：`http://localhost:12882`
-  - im-realtime internal worker：`ws://localhost:18081/internal/ws/im`
-  - im-core：`http://localhost:18082`
+  - community-app（固定回指 `community-app-1`）：`http://localhost:12882`
+  - im-realtime internal worker（固定回指 `im-realtime-1`）：`ws://localhost:18081/internal/ws/im`
+  - im-core（固定回指 `im-core-1`）：`http://localhost:18082`
 
 > 观测/日志端口通过 profile 按需映射到宿主机（见下文）。
 
@@ -39,10 +40,12 @@
 
 ### 2.1 文件分工
 - `deploy/docker-compose.yml`（业务必需全栈）
-  - 依赖：MySQL / Redis / Kafka / Elasticsearch
-  - 业务：`community-gateway` + `community-app` + `frontend` + IM（`im-core` / `im-realtime`）
+  - 入口：`NGINX`
+  - 业务：`community-gateway x3`、`community-app x3`、`frontend`、IM（`im-core x3` / `im-realtime x3`）
+  - 依赖：MySQL（`1 主 + 2 从`）/ Redis Cluster（`6` 节点）/ Zookeeper（`3` 节点）/ Kafka（`3` broker）/ Elasticsearch（`3` 节点）
+  - 控制面：`xxl-job-admin x2`
   - 辅助：MailHog（dev mailbox，UI `http://localhost:8025`，仅本机）
-  - **默认仅暴露统一入口 `12880` 与前端 `12881`；直连 `12882/18081/18082` 仅在 `debug` profile 下按需映射到 `127.0.0.1`；依赖端口仍不映射到宿主机（fail-closed）**
+  - **默认仅暴露 `NGINX` 业务入口 `12880`、前端 `12881` 与 `NGINX` admin 入口 `12887`；直连 `12882/18081/18082` 仅在 `debug` profile 下按需映射到 `127.0.0.1`；依赖端口仍不映射到宿主机（fail-closed）**
 - `debug` profile（可选）
   - 直连排障：`community-app` / `im-core` / `im-realtime` 的 localhost-only 端口映射
 - `observability` profile（可选）
@@ -71,19 +74,32 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 访问：
 - `http://localhost:12881`
 - `http://localhost:12880/actuator/health`
+- `http://localhost:12887/xxl-job-admin`
 
 默认流量路径：
 - 浏览器 -> `frontend` (`12881`)
-- 前端默认 HTTP / IM HTTP -> `http://localhost:12880`
-- 前端默认 IM WebSocket -> `ws://localhost:12880/ws/im`
+- 前端默认 HTTP / IM HTTP -> `NGINX http://localhost:12880`
+- 前端默认 IM WebSocket -> `NGINX ws://localhost:12880/ws/im`
+- `NGINX` -> `community-gateway-1..3`
+- `NGINX :12887` -> `xxl-job-admin-1..2`
 
 保留的直连入口：
 - 需启用 `debug` profile 后才会暴露到宿主机：
-  - `12882`（`community-app`）
-  - `18082`（`im-core`）
-  - `18081/internal/ws/im`（`im-realtime` internal worker）
+  - `12882`（`community-app-1`）
+  - `18082`（`im-core-1`）
+  - `18081/internal/ws/im`（`im-realtime-1` internal worker）
 
-### 3.3 启动 + 额外开放观测端口
+### 3.3 本地 HA 拓扑速查
+- `community-gateway`：3 副本，由 `NGINX` 统一接入
+- `community-app`：3 副本，经 gateway 的 HTTP upstream 池访问
+- `im-core`：3 副本，经 gateway HTTP upstream 池和 `im-realtime` internal client pool 访问
+- `im-realtime`：3 副本，经 gateway worker shard registry 访问
+- MySQL：`mysql-primary` + `mysql-replica-1/2`；当前仍是“单主写入 + 人工切主”
+- Redis：`redis-1..6`，由 `redis-cluster-bootstrap` 组装 `3 主 + 3 从`
+- Kafka：`kafka-1..3` + `kafka-init`
+- Elasticsearch：`elasticsearch-1..3` + `es-init`
+- `xxl-job-admin`：2 副本，共享 `xxl_job` schema，经 `NGINX :12887` 暴露
+### 3.4 启动 + 额外开放观测端口
 ```bash
 # 方式 1（推荐）：在 deploy/.env 中添加：COMPOSE_PROFILES=observability，然后执行下方命令
 docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
@@ -108,7 +124,7 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 
 ---
 
-## 4. 前端容器是怎么工作的（没有 Nginx）
+## 4. 前端容器与 NGINX 入口
 
 前端容器由 `deploy/Dockerfile.frontend` 构建，采用两段式：
 1. build 阶段：`npm ci` + `npm run build`
@@ -116,7 +132,8 @@ docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 
 关键点：
 - 前端对外监听默认 `12881`（容器 `vite preview`）；本地 `vite dev` 也默认 `12881`，但可通过 env 覆盖（若变更端口，需要同步调整 origin allowlist：CORS + OriginGuard）。
-- 不需要 Nginx：本地开发与联调，Vite preview 足够承担“静态站点服务”角色。
+- 前端本身仍由 Vite preview 提供静态内容；`NGINX` 不负责前端静态资源，只负责业务入口和 `xxl-job-admin` 入口。
+- 本地 HA 形态下，浏览器不再直接感知 `community-gateway` 副本地址，只感知 `NGINX` 单入口。
 
 ---
 

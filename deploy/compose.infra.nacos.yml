@@ -1,0 +1,15 @@
+services:
+  nacos:
+    image: nacos/nacos-server:v2.3.2-slim
+    mem_limit: ${NACOS_MEM_LIMIT:-768m}
+    environment:
+    - MODE=standalone
+    - NACOS_AUTH_ENABLE=false
+    - PREFER_HOST_MODE=hostname
+    - JVM_XMS=${NACOS_JVM_XMS:-512m}
+    - JVM_XMX=${NACOS_JVM_XMX:-512m}
+    - JVM_XMN=${NACOS_JVM_XMN:-256m}
+    - JVM_MS=${NACOS_JVM_MS:-128m}
+    - JVM_MMS=${NACOS_JVM_MMS:-256m}
+    ports:
+    - 127.0.0.1:${NACOS_HOST_PORT:-18848}:8848

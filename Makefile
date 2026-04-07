@@ -1,6 +1,16 @@
+COMPOSE_INFRA = \
+	-f deploy/compose.infra.mysql.yml \
+	-f deploy/compose.infra.redis.yml \
+	-f deploy/compose.infra.kafka.yml \
+	-f deploy/compose.infra.elasticsearch.yml \
+	-f deploy/compose.infra.nacos.yml \
+	-f deploy/compose.infra.xxl-job.yml \
+	-f deploy/compose.infra.mailhog.yml \
+	-f deploy/compose.infra.mock-data-studio-bootstrap.yml
+
 COMPOSE_BASE = docker compose --env-file deploy/.env \
 	-f deploy/compose.yml \
-	-f deploy/compose.infra.yml \
+	$(COMPOSE_INFRA) \
 	-f deploy/compose.runtime.yml
 COMPOSE_DEBUG = $(COMPOSE_BASE) -f deploy/compose.debug.yml
 COMPOSE_OBS = $(COMPOSE_BASE) -f deploy/compose.observability.yml

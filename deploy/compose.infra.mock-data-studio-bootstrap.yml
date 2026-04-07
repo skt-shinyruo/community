@@ -1,0 +1,22 @@
+services:
+  mock-data-studio-db-bootstrap:
+    image: mysql:8.0
+    container_name: community-mock-data-studio-db-bootstrap
+    entrypoint:
+    - /bin/bash
+    - -lc
+    command:
+    - "set -euo pipefail\nsql_escape() {\n  local value=\"$${1//\\\\/\\\\\\\\}\"\n  value=\"$${value//\\'/\\'\\'}\"\n  printf \"%s\" \"$${value}\"\n}\nMYSQL_DATABASE_ESCAPED=\"$$(sql_escape \"$${MYSQL_DATABASE:-community}\")\"\nIM_MYSQL_DATABASE_ESCAPED=\"$$(sql_escape \"$${IM_MYSQL_DATABASE:-im_core}\")\"\nSTUDIO_USER_ESCAPED=\"$$(sql_escape \"$${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}\")\"\nSTUDIO_PASSWORD_ESCAPED=\"$$(sql_escape \"$${MOCK_DATA_STUDIO_DB_PASSWORD:-mockdatastudiopass}\")\"\nmysql --default-character-set=utf8mb4 -h\"$${DB_PRIMARY_HOST:-mysql-primary}\" -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" < /bootstrap/010_schema.sql\nmysql --default-character-set=utf8mb4 -h\"$${DB_PRIMARY_HOST:-mysql-primary}\" -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" <<SQL\ncreate user if not exists '$${STUDIO_USER_ESCAPED}'@'%' identified by '$${STUDIO_PASSWORD_ESCAPED}';\ngrant select, insert, update, delete, create, alter on \\`$${MYSQL_DATABASE_ESCAPED}\\`.* to '$${STUDIO_USER_ESCAPED}'@'%';\ngrant\
+      \ select, insert, update, delete on \\`$${IM_MYSQL_DATABASE_ESCAPED}\\`.* to '$${STUDIO_USER_ESCAPED}'@'%';\nflush privileges;\nSQL\n"
+    environment:
+    - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    - DB_PRIMARY_HOST=${DB_PRIMARY_HOST:-mysql-primary}
+    - MYSQL_DATABASE=${MYSQL_DATABASE:-community}
+    - IM_MYSQL_DATABASE=${IM_MYSQL_DATABASE:-im_core}
+    - MOCK_DATA_STUDIO_DB_USER=${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}
+    - MOCK_DATA_STUDIO_DB_PASSWORD=${MOCK_DATA_STUDIO_DB_PASSWORD:-mockdatastudiopass}
+    volumes:
+    - ./mysql-init:/bootstrap:ro
+    depends_on:
+      mysql-primary:
+        condition: service_healthy

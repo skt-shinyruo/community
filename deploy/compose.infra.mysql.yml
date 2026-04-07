@@ -1,0 +1,103 @@
+services:
+  mysql-primary:
+    image: mysql:8.0
+    environment:
+    - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    - MYSQL_ROOT_HOST=%
+    - MYSQL_DATABASE=${MYSQL_DATABASE:-community}
+    - MYSQL_USER=${MYSQL_USER:-community}
+    - MYSQL_PASSWORD=${MYSQL_PASSWORD:-communitypass}
+    - IM_MYSQL_DATABASE=${IM_MYSQL_DATABASE:-im_core}
+    - IM_MYSQL_USER=${IM_MYSQL_USER:-im_core}
+    - IM_MYSQL_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
+    - MOCK_DATA_STUDIO_DB_USER=${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}
+    - MOCK_DATA_STUDIO_DB_PASSWORD=${MOCK_DATA_STUDIO_DB_PASSWORD:-mockdatastudiopass}
+    - XXL_JOB_MYSQL_USER=${XXL_JOB_MYSQL_USER:-xxl_job}
+    - XXL_JOB_MYSQL_PASSWORD=${XXL_JOB_MYSQL_PASSWORD:-xxljobpass}
+    - XXL_JOB_ADMIN_USERNAME=${XXL_JOB_ADMIN_USERNAME:-admin}
+    - XXL_JOB_ADMIN_PASSWORD=${XXL_JOB_ADMIN_PASSWORD:-dev-local-xxl-admin}
+    - XXL_JOB_EXECUTOR_APPNAME=${XXL_JOB_EXECUTOR_APPNAME:-community-app}
+    - XXL_JOB_EXECUTOR_TITLE=${XXL_JOB_EXECUTOR_TITLE:-CommunityApp}
+    - XXL_JOB_AUTHOR=${XXL_JOB_AUTHOR:-community}
+    - XXL_JOB_ALARM_EMAIL=${XXL_JOB_ALARM_EMAIL:-}
+    - XXL_JOB_PENDING_REGISTRATION_CLEANUP_CRON=${XXL_JOB_PENDING_REGISTRATION_CLEANUP_CRON:-0 0/5 * * * ?}
+    command:
+    - --character-set-server=utf8mb4
+    - --collation-server=utf8mb4_unicode_ci
+    - --default-time-zone=+00:00
+    volumes:
+    - mysql_primary_data:/var/lib/mysql
+    - ./mysql-init:/docker-entrypoint-initdb.d:ro
+    - ./mysql/conf/primary.cnf:/etc/mysql/conf.d/primary.cnf:ro
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - mysqladmin ping -h 127.0.0.1 -uroot -p${MYSQL_ROOT_PASSWORD} --silent
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks:
+      default:
+        aliases:
+        - mysql
+  mysql-replica-1:
+    image: mysql:8.0
+    environment:
+    - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    - MYSQL_ROOT_HOST=%
+    command:
+    - --character-set-server=utf8mb4
+    - --collation-server=utf8mb4_unicode_ci
+    - --default-time-zone=+00:00
+    - --server-id=2
+    volumes:
+    - mysql_replica_1_data:/var/lib/mysql
+    - ./mysql/conf/replica.cnf:/etc/mysql/conf.d/replica.cnf:ro
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - mysqladmin ping -h 127.0.0.1 -uroot -p${MYSQL_ROOT_PASSWORD} --silent
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  mysql-replica-2:
+    image: mysql:8.0
+    environment:
+    - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    - MYSQL_ROOT_HOST=%
+    command:
+    - --character-set-server=utf8mb4
+    - --collation-server=utf8mb4_unicode_ci
+    - --default-time-zone=+00:00
+    - --server-id=3
+    volumes:
+    - mysql_replica_2_data:/var/lib/mysql
+    - ./mysql/conf/replica.cnf:/etc/mysql/conf.d/replica.cnf:ro
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - mysqladmin ping -h 127.0.0.1 -uroot -p${MYSQL_ROOT_PASSWORD} --silent
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  mysql-replication-bootstrap:
+    image: mysql:8.0
+    entrypoint:
+    - /bin/bash
+    - /bootstrap-mysql-replication.sh
+    environment:
+    - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    - MYSQL_PRIMARY_HOST=${DB_PRIMARY_HOST:-mysql-primary}
+    - MYSQL_REPLICA_HOSTS=mysql-replica-1,mysql-replica-2
+    - MYSQL_REPLICATION_USER=${MYSQL_REPLICATION_USER:-replicator}
+    - MYSQL_REPLICATION_PASSWORD=${MYSQL_REPLICATION_PASSWORD:-replicatorpass}
+    volumes:
+    - ./scripts/bootstrap-mysql-replication.sh:/bootstrap-mysql-replication.sh:ro
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+      mysql-replica-1:
+        condition: service_healthy
+      mysql-replica-2:
+        condition: service_healthy
+    restart: 'no'

@@ -30,7 +30,14 @@
 cp deploy/.env.example deploy/.env
 docker compose \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   --env-file deploy/.env \
   up -d --build
@@ -50,7 +57,14 @@ docker compose \
 ```bash
 docker compose \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   --env-file deploy/.env \
   ps
@@ -100,14 +114,28 @@ curl -fsS "http://localhost:18848/nacos/v1/ns/instance/list?serviceName=im-realt
 ```bash
 docker compose \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   --env-file deploy/.env \
   stop community-gateway-1
 curl -fsS http://localhost:12880/actuator/health
 docker compose \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   --env-file deploy/.env \
   up -d community-gateway-1
@@ -123,14 +151,28 @@ docker compose \
 ```bash
 docker compose \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   --env-file deploy/.env \
   stop community-app-1
 curl -fsS "http://localhost:12880/api/posts?order=latest&page=0&size=1"
 docker compose \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   --env-file deploy/.env \
   up -d community-app-1
@@ -146,14 +188,28 @@ docker compose \
 ```bash
 docker compose \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   --env-file deploy/.env \
   stop im-realtime-1
 curl -fsS "http://localhost:18848/nacos/v1/ns/instance/list?serviceName=im-realtime-worker"
 docker compose \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   --env-file deploy/.env \
   up -d im-realtime-1
@@ -171,13 +227,27 @@ docker compose \
 ```bash
 docker compose \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   --env-file deploy/.env \
   stop redis-1
 docker compose \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   --env-file deploy/.env \
   up -d redis-1
@@ -193,13 +263,27 @@ docker compose \
 ```bash
 docker compose \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   --env-file deploy/.env \
   stop kafka-1
 docker compose \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   --env-file deploy/.env \
   up -d kafka-1
@@ -215,13 +299,27 @@ docker compose \
 ```bash
 docker compose \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   --env-file deploy/.env \
   stop elasticsearch-1
 docker compose \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   --env-file deploy/.env \
   up -d elasticsearch-1
@@ -237,14 +335,28 @@ docker compose \
 ```bash
 docker compose \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   --env-file deploy/.env \
   stop xxl-job-admin-1
 curl -fsS -I http://localhost:12887/xxl-job-admin/
 docker compose \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   --env-file deploy/.env \
   up -d xxl-job-admin-1
@@ -283,7 +395,14 @@ IM_CORE_DB_PRIMARY_HOST=mysql-replica-1
 ```bash
 docker compose \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   --env-file deploy/.env \
   up -d --force-recreate \
@@ -300,7 +419,14 @@ docker compose \
 ```bash
 docker compose \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   --env-file deploy/.env \
   logs --tail=120 mysql-replication-bootstrap
@@ -313,10 +439,10 @@ docker compose \
 
 ## 7. 常见排障
 
-- `curl :12880` 返回 `502`：先看 `docker compose -f deploy/compose.yml -f deploy/compose.infra.yml -f deploy/compose.runtime.yml --env-file deploy/.env ps --all community-gateway-1 community-gateway-2 community-gateway-3`
-- `gateway` 没起来：看 `docker compose -f deploy/compose.yml -f deploy/compose.infra.yml -f deploy/compose.runtime.yml --env-file deploy/.env logs --tail=200 community-gateway-1`
-- `im-realtime` 没起来：看 `docker compose -f deploy/compose.yml -f deploy/compose.infra.yml -f deploy/compose.runtime.yml --env-file deploy/.env logs --tail=200 im-realtime-1`
-- `Kafka` 卡在 `health: starting`：先看 `docker compose -f deploy/compose.yml -f deploy/compose.infra.yml -f deploy/compose.runtime.yml --env-file deploy/.env logs kafka-1` 是否卡在 controller quorum / metadata log 初始化；如果是从旧 ZooKeeper 栈切过来，先执行 `docker compose -f deploy/compose.yml -f deploy/compose.infra.yml -f deploy/compose.runtime.yml --env-file deploy/.env down -v` 清掉旧的 `kafka_*` 数据卷再重启
+- `curl :12880` 返回 `502`：先看 `docker compose -f deploy/compose.yml -f deploy/compose.infra.mysql.yml -f deploy/compose.infra.redis.yml -f deploy/compose.infra.kafka.yml -f deploy/compose.infra.elasticsearch.yml -f deploy/compose.infra.nacos.yml -f deploy/compose.infra.xxl-job.yml -f deploy/compose.infra.mailhog.yml -f deploy/compose.infra.mock-data-studio-bootstrap.yml -f deploy/compose.runtime.yml --env-file deploy/.env ps --all community-gateway-1 community-gateway-2 community-gateway-3`
+- `gateway` 没起来：看 `docker compose -f deploy/compose.yml -f deploy/compose.infra.mysql.yml -f deploy/compose.infra.redis.yml -f deploy/compose.infra.kafka.yml -f deploy/compose.infra.elasticsearch.yml -f deploy/compose.infra.nacos.yml -f deploy/compose.infra.xxl-job.yml -f deploy/compose.infra.mailhog.yml -f deploy/compose.infra.mock-data-studio-bootstrap.yml -f deploy/compose.runtime.yml --env-file deploy/.env logs --tail=200 community-gateway-1`
+- `im-realtime` 没起来：看 `docker compose -f deploy/compose.yml -f deploy/compose.infra.mysql.yml -f deploy/compose.infra.redis.yml -f deploy/compose.infra.kafka.yml -f deploy/compose.infra.elasticsearch.yml -f deploy/compose.infra.nacos.yml -f deploy/compose.infra.xxl-job.yml -f deploy/compose.infra.mailhog.yml -f deploy/compose.infra.mock-data-studio-bootstrap.yml -f deploy/compose.runtime.yml --env-file deploy/.env logs --tail=200 im-realtime-1`
+- `Kafka` 卡在 `health: starting`：先看 `docker compose -f deploy/compose.yml -f deploy/compose.infra.mysql.yml -f deploy/compose.infra.redis.yml -f deploy/compose.infra.kafka.yml -f deploy/compose.infra.elasticsearch.yml -f deploy/compose.infra.nacos.yml -f deploy/compose.infra.xxl-job.yml -f deploy/compose.infra.mailhog.yml -f deploy/compose.infra.mock-data-studio-bootstrap.yml -f deploy/compose.runtime.yml --env-file deploy/.env logs kafka-1` 是否卡在 controller quorum / metadata log 初始化；如果是从旧 ZooKeeper 栈切过来，先执行 `docker compose -f deploy/compose.yml -f deploy/compose.infra.mysql.yml -f deploy/compose.infra.redis.yml -f deploy/compose.infra.kafka.yml -f deploy/compose.infra.elasticsearch.yml -f deploy/compose.infra.nacos.yml -f deploy/compose.infra.xxl-job.yml -f deploy/compose.infra.mailhog.yml -f deploy/compose.infra.mock-data-studio-bootstrap.yml -f deploy/compose.runtime.yml --env-file deploy/.env down -v` 清掉旧的 `kafka_*` 数据卷再重启
 - `mysql-replication-bootstrap` 失败：先确认三个 MySQL 节点都 `healthy`，再看 sidecar 日志里的 `Last_IO_Error` / `Last_SQL_Error`
 
 ## 8. 清理
@@ -326,7 +452,14 @@ docker compose \
 ```bash
 docker compose \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   --env-file deploy/.env \
   down
@@ -337,7 +470,14 @@ docker compose \
 ```bash
 docker compose \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   --env-file deploy/.env \
   down -v

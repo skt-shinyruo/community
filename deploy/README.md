@@ -8,7 +8,14 @@
 
 ## 文件/目录说明
 - `compose.yml`：基础元数据与跨层公共定义，作为所有 operator 命令的第一层。
-- `compose.infra.yml`：本地 HA 基础设施层，包含 `Nacos`、`MySQL 1 主 2 从`、`Redis Cluster 6 节点`、`Kafka KRaft x3`、`Elasticsearch x3`、MailHog、`mock-data-studio`、`xxl-job-admin x2` 等依赖与控制面。
+- `compose.infra.mysql.yml`：MySQL 主从与 replication bootstrap。
+- `compose.infra.redis.yml`：Redis Cluster 6 节点与 cluster bootstrap。
+- `compose.infra.kafka.yml`：Kafka KRaft 3 节点与 topic bootstrap。
+- `compose.infra.elasticsearch.yml`：Elasticsearch 3 节点与 index bootstrap。
+- `compose.infra.nacos.yml`：单节点 `Nacos` 注册中心。
+- `compose.infra.xxl-job.yml`：`xxl-job-admin x2` 控制面。
+- `compose.infra.mailhog.yml`：dev mailbox（MailHog）。
+- `compose.infra.mock-data-studio-bootstrap.yml`：`mock-data-studio-db-bootstrap` 数据准备 sidecar。
 - `compose.runtime.yml`：业务运行时层，包含 `frontend`、`NGINX`、`community-gateway x3`、`community-app x3`、`im-core x3`、`im-realtime x3`；默认对外暴露统一业务入口（`12880`）、前端（`12881`）、Nacos 检查入口（`18848`，仅本机）、MailHog UI（`8025`）、XXL-JOB Admin UI（`12887`，仅本机）以及 `mock-data-studio`（默认主机端口 `12890`，仅本机），内部依赖端口仍不映射（fail-closed）。
 - `compose.debug.yml`：临时追加 localhost-only 直连排障端口（`12882/18081/18082`）。
 - `compose.observability.yml`：追加 Grafana / Loki / Prometheus / Alertmanager。
@@ -36,7 +43,14 @@
      ```bash
      docker compose --env-file deploy/.env \
        -f deploy/compose.yml \
-       -f deploy/compose.infra.yml \
+       -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
        -f deploy/compose.runtime.yml \
        up -d --build
      ```
@@ -85,7 +99,14 @@
 >   ```bash
 >   docker compose --env-file deploy/.env \
 >     -f deploy/compose.yml \
->     -f deploy/compose.infra.yml \
+>     -f deploy/compose.infra.mysql.yml \
+>     -f deploy/compose.infra.redis.yml \
+>     -f deploy/compose.infra.kafka.yml \
+>     -f deploy/compose.infra.elasticsearch.yml \
+>     -f deploy/compose.infra.nacos.yml \
+>     -f deploy/compose.infra.xxl-job.yml \
+>     -f deploy/compose.infra.mailhog.yml \
+>     -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
 >     -f deploy/compose.runtime.yml \
 >     -f deploy/compose.observability.yml \
 >     -f deploy/compose.debug.yml \
@@ -97,7 +118,14 @@
 >   ```bash
 >   docker compose --env-file deploy/.env \
 >     -f deploy/compose.yml \
->     -f deploy/compose.infra.yml \
+>     -f deploy/compose.infra.mysql.yml \
+>     -f deploy/compose.infra.redis.yml \
+>     -f deploy/compose.infra.kafka.yml \
+>     -f deploy/compose.infra.elasticsearch.yml \
+>     -f deploy/compose.infra.nacos.yml \
+>     -f deploy/compose.infra.xxl-job.yml \
+>     -f deploy/compose.infra.mailhog.yml \
+>     -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
 >     -f deploy/compose.runtime.yml \
 >     -f deploy/compose.observability.yml \
 >     -f deploy/compose.observability-elastic.yml \

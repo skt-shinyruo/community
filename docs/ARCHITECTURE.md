@@ -141,7 +141,7 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 ## 3. 运行拓扑与端口规划（本地 docker compose）
 
 ### 3.1 Compose 文件分工（以 `deploy/README.md` 为准）
-- `deploy/compose.yml` + `deploy/compose.infra.yml` + `deploy/compose.runtime.yml`：组成默认本地 HA 演练栈（frontend + `NGINX` + `community-gateway x3` + `community-app x3` + IM + MySQL 主从 + Redis Cluster + Kafka KRaft / Elasticsearch 多节点 + `xxl-job-admin x2`），默认暴露统一业务入口 `12880`、前端 `12881`、Nacos 检查入口 `18848`、MailHog UI `8025`、XXL-JOB Admin `12887`、`mock-data-studio` 主机端口 `12890`（仅本机），依赖端口仍不暴露（fail-closed）。
+- `deploy/compose.yml` + 8 个 `deploy/compose.infra.*.yml` 文件 + `deploy/compose.runtime.yml`：组成默认本地 HA 演练栈（frontend + `NGINX` + `community-gateway x3` + `community-app x3` + IM + MySQL 主从 + Redis Cluster + Kafka KRaft / Elasticsearch 多节点 + `xxl-job-admin x2`），默认暴露统一业务入口 `12880`、前端 `12881`、Nacos 检查入口 `18848`、MailHog UI `8025`、XXL-JOB Admin `12887`、`mock-data-studio` 主机端口 `12890`（仅本机），依赖端口仍不暴露（fail-closed）。
 - `deploy/compose.debug.yml`：可选 debug overlay，额外把 `12882/18081/18082` 绑定到 `127.0.0.1`，用于回滚/诊断。
 - `deploy/compose.observability.yml`：可选 observability overlay，提供 Prometheus/Grafana/Loki/Promtail/Alertmanager，默认仅绑定到 `127.0.0.1` 暴露端口（`12883+`）。
 - `deploy/compose.observability-elastic.yml`：可选 Elastic observability overlay，提供 Elasticsearch localhost 入口 / Kibana / EDOT collector；默认三层下 backend services 会把结构化 JSON 日志写入共享 `observability_logs` volume，因此只叠加这个 overlay 也能得到 fielded logs。
@@ -252,5 +252,5 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 
 ## 7. 与代码一致性的检查清单（建议）
 - 对外入口与安全装配：以 `backend/community-app/src/main/java/.../CommunitySecurityConfig.java` 和各领域 `api/security/*SecurityRules.java` 为准
-- 端口：以 `deploy/compose.yml` + `deploy/compose.infra.yml` + `deploy/compose.runtime.yml` 及按需叠加的 `deploy/compose.*.yml` overlay 为准
+- 端口：以 `deploy/compose.yml` + 8 个 `deploy/compose.infra.*.yml` 文件 + `deploy/compose.runtime.yml` 及按需叠加的 `deploy/compose.*.yml` overlay 为准
 - 观测：以 `deploy/observability/*`、`deploy/compose.observability.yml`、`deploy/compose.observability-elastic.yml`、`deploy/compose.json-logs.override.yml` 为准

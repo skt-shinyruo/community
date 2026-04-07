@@ -43,11 +43,22 @@
 ### 2.1 文件分工
 - `deploy/compose.yml`
   - 基础元数据与跨层公共定义，是所有 operator 命令的第一层
-- `deploy/compose.infra.yml`
+- `deploy/compose.infra.mysql.yml`
+  - MySQL（`1 主 + 2 从`）与 replication bootstrap
+- `deploy/compose.infra.redis.yml`
+  - Redis Cluster（`6` 节点）与 cluster bootstrap
+- `deploy/compose.infra.kafka.yml`
+  - Kafka KRaft（`3` 节点）与 topic bootstrap
+- `deploy/compose.infra.elasticsearch.yml`
+  - Elasticsearch（`3` 节点）与 index bootstrap
+- `deploy/compose.infra.nacos.yml`
   - 注册发现：单节点 `Nacos`
-  - 依赖：MySQL（`1 主 + 2 从`）/ Redis Cluster（`6` 节点）/ Kafka KRaft（`3` 节点）/ Elasticsearch（`3` 节点）
+- `deploy/compose.infra.xxl-job.yml`
   - 控制面：`xxl-job-admin x2`
-  - 辅助：MailHog（dev mailbox，UI `http://localhost:8025`，仅本机）与 `mock-data-studio`
+- `deploy/compose.infra.mailhog.yml`
+  - 辅助：MailHog（dev mailbox，UI `http://localhost:8025`，仅本机）
+- `deploy/compose.infra.mock-data-studio-bootstrap.yml`
+  - 辅助：`mock-data-studio-db-bootstrap`
 - `deploy/compose.runtime.yml`
   - 入口：`NGINX`
   - 业务：`community-gateway x3`、`community-app x3`、`frontend`、IM（`im-core x3` / `im-realtime x3`）
@@ -84,7 +95,14 @@ make up
 ```bash
 docker compose --env-file deploy/.env \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   up -d --build
 ```
@@ -141,7 +159,14 @@ make up-elastic-json
 ```bash
 docker compose --env-file deploy/.env \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   -f deploy/compose.observability.yml \
   -f deploy/compose.debug.yml \
@@ -195,7 +220,14 @@ make down
 ```bash
 docker compose --env-file deploy/.env \
   -f deploy/compose.yml \
-  -f deploy/compose.infra.yml \
+  -f deploy/compose.infra.mysql.yml \
+  -f deploy/compose.infra.redis.yml \
+  -f deploy/compose.infra.kafka.yml \
+  -f deploy/compose.infra.elasticsearch.yml \
+  -f deploy/compose.infra.nacos.yml \
+  -f deploy/compose.infra.xxl-job.yml \
+  -f deploy/compose.infra.mailhog.yml \
+  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
   -f deploy/compose.runtime.yml \
   down -v
 ```

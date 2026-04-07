@@ -15,6 +15,10 @@ IM_MYSQL_DATABASE="${IM_MYSQL_DATABASE:-im_core}"
 IM_MYSQL_USER="${IM_MYSQL_USER:-im_core}"
 IM_MYSQL_PASSWORD="${IM_MYSQL_PASSWORD:-imcorepass}"
 
+NACOS_MYSQL_DATABASE="${NACOS_MYSQL_DATABASE:-nacos}"
+NACOS_MYSQL_USER="${NACOS_MYSQL_USER:-nacos}"
+NACOS_MYSQL_PASSWORD="${NACOS_MYSQL_PASSWORD:-nacospass}"
+
 XXL_JOB_MYSQL_USER="${XXL_JOB_MYSQL_USER:-xxl_job}"
 XXL_JOB_MYSQL_PASSWORD="${XXL_JOB_MYSQL_PASSWORD:-xxljobpass}"
 
@@ -37,6 +41,9 @@ MOCK_DATA_STUDIO_DB_USER_ESCAPED="$(sql_escape "${MOCK_DATA_STUDIO_DB_USER}")"
 MOCK_DATA_STUDIO_DB_PASSWORD_ESCAPED="$(sql_escape "${MOCK_DATA_STUDIO_DB_PASSWORD}")"
 IM_MYSQL_USER_ESCAPED="$(sql_escape "${IM_MYSQL_USER}")"
 IM_MYSQL_PASSWORD_ESCAPED="$(sql_escape "${IM_MYSQL_PASSWORD}")"
+NACOS_MYSQL_DATABASE_ESCAPED="$(sql_escape "${NACOS_MYSQL_DATABASE}")"
+NACOS_MYSQL_USER_ESCAPED="$(sql_escape "${NACOS_MYSQL_USER}")"
+NACOS_MYSQL_PASSWORD_ESCAPED="$(sql_escape "${NACOS_MYSQL_PASSWORD}")"
 XXL_JOB_MYSQL_USER_ESCAPED="$(sql_escape "${XXL_JOB_MYSQL_USER}")"
 XXL_JOB_MYSQL_PASSWORD_ESCAPED="$(sql_escape "${XXL_JOB_MYSQL_PASSWORD}")"
 
@@ -59,6 +66,13 @@ grant select, insert, update, delete on \`${IM_MYSQL_DATABASE}\`.* to '${MOCK_DA
 
 create user if not exists '${IM_MYSQL_USER_ESCAPED}'@'%' identified by '${IM_MYSQL_PASSWORD_ESCAPED}';
 grant select, insert, update, delete on \`${IM_MYSQL_DATABASE}\`.* to '${IM_MYSQL_USER_ESCAPED}'@'%';
+
+create database if not exists \`${NACOS_MYSQL_DATABASE_ESCAPED}\`
+  default character set utf8mb4
+  default collate utf8mb4_unicode_ci;
+
+create user if not exists '${NACOS_MYSQL_USER_ESCAPED}'@'%' identified by '${NACOS_MYSQL_PASSWORD_ESCAPED}';
+grant select, insert, update, delete on \`${NACOS_MYSQL_DATABASE_ESCAPED}\`.* to '${NACOS_MYSQL_USER_ESCAPED}'@'%';
 
 create database if not exists \`xxl_job\`
   default character set utf8mb4

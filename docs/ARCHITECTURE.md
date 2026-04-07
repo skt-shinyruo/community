@@ -2,7 +2,7 @@
 
 > 本项目当前形态：**Maven 多模块后端**，其中 `community-app` 是包级单体（Package-Scoped Monolith），`community-gateway` 负责统一入口，IM 保留独立运行模块。  
 > 默认对外业务入口为本地 `NGINX` ingress（compose 映射为 `12880`），再转发到 `community-gateway` 副本池；`xxl-job-admin` 控制面则经 `NGINX :12887` 暴露。
-> 业务服务之间的注册发现由单节点 `Nacos` 承担：`community-gateway` 的 HTTP 路由走 Spring Cloud Gateway `lb://serviceId`，`/ws/im` worker 列表也由 Nacos metadata 提供。
+> 业务服务之间的注册发现由三节点 `Nacos` 集群承担：`community-gateway` 的 HTTP 路由走 Spring Cloud Gateway `lb://serviceId`，`/ws/im` worker 列表也由 Nacos metadata 提供。
 > `community-app` 继续作为主业务单体 owner，IM 作为独立服务保留：`im-realtime`（worker）与 `im-core`（HTTP）。
 > 直连 `12882/18081/18082` 仅保留为回滚与诊断路径，且默认不暴露到宿主机；需要时通过 `deploy/compose.debug.yml` 或 `make up-debug` 绑定到 `127.0.0.1`。
 > 对外 API 前缀稳定：`/api/**`；静态文件前缀稳定：`/files/**`。  
@@ -64,7 +64,7 @@ flowchart TD
 补充说明：
 - **主业务 owner**：`community-app` 承载主站业务域与统一安全装配。
 - **独立入口层**：浏览器 / 客户端先到本地 `NGINX`，再进入 `community-gateway` 副本池；`community-gateway` 负责 HTTP / WS 路由与边缘策略。
-- **服务发现**：`community-gateway`、`community-app`、`im-core`、`im-realtime-worker` 都向单节点 `Nacos` 注册；HTTP 平面使用 Spring Cloud Gateway `lb://serviceId`，WS 平面使用 discovery metadata 生成 worker URI。
+- **服务发现**：`community-gateway`、`community-app`、`im-core`、`im-realtime-worker` 都向三节点 `Nacos` 集群注册；HTTP 平面使用 Spring Cloud Gateway `lb://serviceId`，WS 平面使用 discovery metadata 生成 worker URI。
 - **独立 IM 聚合**：顶层模块 `community-im` 负责组织 `im-common`、`im-core`、`im-realtime` 三个 IM 子模块。
 - **包级边界**：领域仍按 `com.nowcoder.community.auth`、`content`、`social`、`search` 等顶层包组织；域内默认按 Spring Boot 分层思路组织（controller/service/dto/entity/mapper），安全/事件/错误码也按职责落在各自域包内。
 

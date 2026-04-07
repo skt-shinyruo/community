@@ -52,7 +52,7 @@
 - `deploy/compose.infra.elasticsearch.yml`
   - Elasticsearch（`3` 节点）与 index bootstrap
 - `deploy/compose.infra.nacos.yml`
-  - 注册发现：单节点 `Nacos`
+  - 注册发现：`Nacos x3` 集群与 `nacos-db-bootstrap`
 - `deploy/compose.infra.xxl-job.yml`
   - 控制面：`xxl-job-admin x2`
 - `deploy/compose.infra.mailhog.yml`
@@ -133,7 +133,7 @@ docker compose --env-file deploy/.env \
 - `community-app`：3 副本，经 `community-gateway` 的 `lb://community-app` 路由访问
 - `im-core`：3 副本，经 `community-gateway` 的 `lb://im-core` 路由和 `im-realtime` service-id client 访问
 - `im-realtime`：3 副本，以 `im-realtime-worker` 注册到 Nacos，并由 gateway worker registry 发现
-- `Nacos`：单节点服务注册中心，仅承担业务服务发现，不承担 MySQL/Redis/Kafka/ES 集群管理
+- `Nacos`：3 节点服务注册集群，业务容器默认连接 `nacos-1:8848,nacos-2:8848,nacos-3:8848`；`localhost:18848` 仅作为 operator 检查入口
 - MySQL：`mysql-primary` + `mysql-replica-1/2`；当前仍是“单主写入 + 人工切主”
 - Redis：`redis-1..6`，由 `redis-cluster-bootstrap` 组装 `3 主 + 3 从`
 - Kafka：`kafka-1..3` + `kafka-init`

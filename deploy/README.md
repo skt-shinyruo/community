@@ -1,6 +1,6 @@
 # deploy/
 
-本目录存放 docker compose 与构建/初始化/观测配置，用于本地/演练环境一键启动全栈。当前默认拓扑已经升级为“本地 HA 演练栈”：浏览器统一走 `NGINX` 入口，后面挂 `community-gateway` / `community-app` / `im-core` / `im-realtime` 多副本，以及 MySQL / Redis / Kafka KRaft / Elasticsearch 的原生多节点形态。业务服务之间的静态 URL pool 已经移除，改由单节点 `Nacos` 注册中心提供服务发现；直连排障口通过可选 overlay 按需开启；`mock-data-studio` 仍是 dev-only 控制面，端口仅绑定到宿主机 `127.0.0.1`。
+本目录存放 docker compose 与构建/初始化/观测配置，用于本地/演练环境一键启动全栈。当前默认拓扑已经升级为“本地 HA 演练栈”：浏览器统一走 `NGINX` 入口，后面挂 `community-gateway` / `community-app` / `im-core` / `im-realtime` 多副本，以及 MySQL / Redis / Kafka KRaft / Elasticsearch 的原生多节点形态。业务服务之间的静态 URL pool 已经移除，改由 `Nacos x3` 集群提供服务发现；直连排障口通过可选 overlay 按需开启；`mock-data-studio` 仍是 dev-only 控制面，端口仅绑定到宿主机 `127.0.0.1`。
 
 > 约定：本文档中的命令默认从**仓库根目录**执行。
 
@@ -12,7 +12,7 @@
 - `compose.infra.redis.yml`：Redis Cluster 6 节点与 cluster bootstrap。
 - `compose.infra.kafka.yml`：Kafka KRaft 3 节点与 topic bootstrap。
 - `compose.infra.elasticsearch.yml`：Elasticsearch 3 节点与 index bootstrap。
-- `compose.infra.nacos.yml`：单节点 `Nacos` 注册中心。
+- `compose.infra.nacos.yml`：`Nacos x3` 集群与 `nacos-db-bootstrap`。
 - `compose.infra.xxl-job.yml`：`xxl-job-admin x2` 控制面。
 - `compose.infra.mailhog.yml`：dev mailbox（MailHog）。
 - `compose.infra.mock-data-studio-bootstrap.yml`：`mock-data-studio-db-bootstrap` 数据准备 sidecar。
@@ -65,7 +65,7 @@
 ## 本地 HA 拓扑速览
 - 入口：`NGINX` 暴露 `12880`（业务）和 `12887`（XXL-JOB Admin）
 - 业务服务：`community-gateway x3`、`community-app x3`、`im-core x3`、`im-realtime x3`
-- 服务发现：单节点 `Nacos`，本机检查入口 `http://localhost:18848/nacos`
+- 服务发现：`Nacos x3` 集群，业务默认连接 `nacos-1:8848,nacos-2:8848,nacos-3:8848`；本机检查入口仍为 `http://localhost:18848/nacos`
 - 路由模型：`community-gateway` HTTP 平面使用 Spring Cloud Gateway `lb://serviceId`；`/ws/im` worker 列表来自 Nacos metadata
 - 中间件：`mysql-primary + mysql-replica-1/2`、`redis-1..6`、`kafka-1..3 (KRaft combined mode)`、`elasticsearch-1..3`
 - 控制面：`xxl-job-admin-1/2` 共用 `xxl_job` schema，由 `NGINX` 暴露单一入口

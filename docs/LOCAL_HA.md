@@ -96,6 +96,8 @@ curl -fsS -I http://localhost:12887/xxl-job-admin/
 
 ### 4.3 Nacos 注册检查
 
+`localhost:18848` 仅映射到 `nacos-1` 作为 operator 检查入口；业务容器默认连接 `nacos-1:8848,nacos-2:8848,nacos-3:8848`。
+
 ```bash
 curl -fsS "http://localhost:18848/nacos/v1/ns/instance/list?serviceName=community-app"
 curl -fsS "http://localhost:18848/nacos/v1/ns/instance/list?serviceName=im-core"

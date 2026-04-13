@@ -4,7 +4,6 @@
 > 默认对外业务入口为本地 `NGINX` ingress（compose 映射为 `12880`），再转发到 `community-gateway` 副本池；`xxl-job-admin` 控制面则经 `NGINX :12887` 暴露。
 > 业务服务之间的注册发现由三节点 `Nacos` 集群承担：`community-gateway` 的 HTTP 路由走 Spring Cloud Gateway `lb://serviceId`，`/ws/im` worker 列表也由 Nacos metadata 提供。
 > `community-app` 继续作为主业务单体 owner，IM 作为独立服务保留：`im-realtime`（worker）与 `im-core`（HTTP）。
-> 直连 `12882/18081/18082` 仅保留为回滚与诊断路径，且默认不暴露到宿主机；需要时通过 `deploy/compose.debug.yml` 或 `make up-debug` 绑定到 `127.0.0.1`。
 > 对外 API 前缀稳定：`/api/**`；静态文件前缀稳定：`/files/**`。  
 >
 > 约定：本文档中的命令与路径默认以**仓库根目录**作为工作目录（除非特别说明）。
@@ -55,10 +54,13 @@ flowchart TD
     APP --> Redis[(Redis Cluster)]
     APP --> ES[(Elasticsearch x3)]
 
-    Prom[Prometheus] -. scrape .-> APP
-    Logs[Promtail] --> Loki[(Loki)]
-    Grafana[Grafana] --> Loki
-    Grafana --> Prom
+    APP --> FileLogs[(shared observability_logs)]
+    IMCORE --> FileLogs
+    IMRT --> FileLogs
+    GW --> FileLogs
+    FileLogs --> Collector[EDOT Collector]
+    Collector --> ES
+    Kibana[Kibana] --> ES
 ```
 
 补充说明：
@@ -141,11 +143,8 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 ## 3. 运行拓扑与端口规划（本地 docker compose）
 
 ### 3.1 Compose 文件分工（以 `deploy/README.md` 为准）
-- `deploy/compose.yml` + 8 个 `deploy/compose.infra.*.yml` 文件 + `deploy/compose.runtime.yml`：组成默认本地 HA 演练栈（frontend + `NGINX` + `community-gateway x3` + `community-app x3` + IM + MySQL 主从 + Redis Cluster + Kafka KRaft / Elasticsearch 多节点 + `xxl-job-admin x2`），默认暴露统一业务入口 `12880`、前端 `12881`、Nacos 检查入口 `18848`、MailHog UI `8025`、XXL-JOB Admin `12887`、`mock-data-studio` 主机端口 `12890`（仅本机），依赖端口仍不暴露（fail-closed）。
-- `deploy/compose.debug.yml`：可选 debug overlay，额外把 `12882/18081/18082` 绑定到 `127.0.0.1`，用于回滚/诊断。
-- `deploy/compose.observability.yml`：可选 observability overlay，提供 Prometheus/Grafana/Loki/Promtail/Alertmanager，默认仅绑定到 `127.0.0.1` 暴露端口（`12883+`）。
-- `deploy/compose.observability-elastic.yml`：可选 Elastic observability overlay，提供 Elasticsearch localhost 入口 / Kibana / EDOT collector；默认三层下 backend services 会把结构化 JSON 日志写入共享 `observability_logs` volume，因此只叠加这个 overlay 也能得到 fielded logs。
-- `deploy/compose.json-logs.override.yml`：可选 JSON stdout overlay，仅在 Elastic observability 路径上继续叠加，把 backend 容器 stdout 也切到 JSON。
+- `deploy/compose.yml` + 8 个 `deploy/compose.infra.*.yml` 文件 + 6 个 `deploy/compose.runtime.*.yml` 文件：组成默认本地 HA 演练栈（frontend + `NGINX` + `community-gateway x3` + `community-app x3` + IM + MySQL 主从 + Redis Cluster + Kafka KRaft / Elasticsearch 多节点 + `xxl-job-admin x2`），默认暴露统一业务入口 `12880`、前端 `12881`、Nacos 检查入口 `18848`、MailHog UI `8025`、XXL-JOB Admin `12887`、`mock-data-studio` 主机端口 `12890`（仅本机），依赖端口仍不暴露（fail-closed）。
+- `deploy/compose.observability.yml`：可选 observability overlay，提供 Elasticsearch localhost 入口 / Kibana / EDOT collector；默认三层下 backend services 会把结构化 JSON 日志写入共享 `observability_logs` volume，因此只叠加这个 overlay 也能得到 fielded logs。
 
 ### 3.2 对外暴露端口（默认推荐）
 - NGINX 统一业务入口：`http://localhost:12880`
@@ -153,12 +152,7 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 - MailHog UI（dev mailbox）：`http://localhost:8025`（仅本机）
 - NGINX XXL-JOB Admin 入口：`http://localhost:12887/xxl-job-admin`（仅本机）
 
-### 3.2.1 Debug Overlay（localhost-only）
-- backend（`community-app-1`，回滚/诊断）：`http://localhost:12882`
-- IM Realtime（`im-realtime-1` internal worker，回滚/诊断）：`ws://localhost:18081/internal/ws/im`
-- IM Core（`im-core-1`，回滚/诊断）：`http://localhost:18082`
-
-### 3.2.2 本地 HA 关键形态
+### 3.2.1 本地 HA 关键形态
 - `community-gateway`：3 副本，由 `NGINX` 统一接入
 - `community-app`：3 副本，通过 `community-gateway` 的 `lb://community-app` 路由访问
 - `im-core`：3 副本，通过 `community-gateway` 的 `lb://im-core` 路由和 `im-realtime` 的 service-id client 访问
@@ -171,12 +165,8 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 - XXL：`xxl-job-admin-1/2` 共用 `xxl_job` schema，经 `NGINX` 暴露单一入口
 
 ### 3.3 观测/日志端口（可选开启）
-- Grafana：`http://localhost:12883`（默认账号密码 `admin/admin`）
-- Loki：`http://localhost:12884`
-- Elasticsearch localhost 入口（`observability-elastic`）：`http://localhost:12888`
-- Kibana（`observability-elastic`）：`http://localhost:12889`
-- Prometheus：`http://localhost:12885`
-- Alertmanager：`http://localhost:12886`
+- Elasticsearch localhost 入口（observability）：`http://localhost:12888`
+- Kibana（observability）：`http://localhost:12889`
 
 > 说明：Redis/MySQL/ES 等内部依赖默认不暴露宿主机端口，避免误暴露与端口冲突。
 
@@ -214,43 +204,36 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 ## 5. 可观测性与日志检索
 
 ### 5.1 日志
-- 采集：Promtail 读取 backend services 写入共享 `observability_logs` volume 的 JSON 日志文件（见 `deploy/observability/promtail-config.yml`）
-- 存储：Loki
-- 检索：Grafana → Explore → 选择 Loki
+- 采集：backend services 把结构化 JSON 日志写入共享 `observability_logs` volume
+- 处理：EDOT collector 通过 `deploy/observability/edot-collector.yml` 从共享 volume 读取 filelog
+- 存储 / 检索：Elasticsearch + Kibana
 
 建议的检索线索：
 - traceId：`community-app` 注入并透传 `X-Trace-Id`（便于串联一次请求内的日志）
 - 审计日志：`backend/community-app/src/main/java/com/nowcoder/community/infra/web/AuditLogFilter.java` 会对非 GET 的 `/api/**` 打印审计日志（前缀类似 `"[audit][app=community-app]"`）
 
-### 5.2 指标与告警
-- Prometheus 抓取 `community-app` 的 `/actuator/prometheus`（见 `deploy/observability/prometheus.yml`）
-  - `/actuator/health|info` 默认 permitAll
-  - `/actuator/prometheus` 需要 basic-auth（ROLE_PROMETHEUS），密码缺失会 fail-closed
-- Alertmanager 接收告警（规则见 `deploy/observability/alerts.yml`）
-- Grafana 预置数据源：Prometheus + Loki（见 `deploy/observability/grafana/provisioning/datasources/datasources.yml`）
+### 5.2 traces / metrics
+- traces / metrics 通过 OTel -> EDOT collector -> Elastic
+- 默认 `OTEL_ENABLED=false`，因此本地最小路径先保证 logs 可用；如需 traces / metrics，再显式打开 `OTEL_ENABLED=true`
+- `/actuator/health|info` 仍保持本地排障友好；`/actuator/prometheus` 继续受应用自身安全配置约束，但当前本地 compose 不再额外挂载 Prometheus / Grafana stack
 
 ---
 
 ## 6. 本地启动（推荐方式）
 
 1. 准备环境变量：`cp deploy/.env.example deploy/.env`
-2. 启动（gateway-first）：`make up`
-3. （可选）开启直连排障端口：`make up-debug`
-4. （可选）开启观测/日志端口：
-   - 旧观测链路（Grafana / Loki / Prometheus / Alertmanager）：`make up-obs`
-   - Elastic observability：`make up-elastic`
-   - Elastic observability + JSON stdout：`make up-elastic-json`
+2. 启动（gateway-first）：`./deploy/deployment.sh up`
+3. （可选）开启观测/日志端口：
+   - observability：`./deploy/deployment.sh up --observability`
 
 默认访问方式：
 - 页面入口：`http://localhost:12881`
 - 统一 edge：`http://localhost:12880`
-- 直连端口 `12882/18081/18082` 仅作为回滚与诊断路径保留，默认不暴露；需要时通过 `make up-debug` 开启
-
 更完整的启动与运维说明见：`deploy/README.md`。
 
 ---
 
 ## 7. 与代码一致性的检查清单（建议）
 - 对外入口与安全装配：以 `backend/community-app/src/main/java/.../CommunitySecurityConfig.java` 和各领域 `api/security/*SecurityRules.java` 为准
-- 端口：以 `deploy/compose.yml` + 8 个 `deploy/compose.infra.*.yml` 文件 + `deploy/compose.runtime.yml` 及按需叠加的 `deploy/compose.*.yml` overlay 为准
-- 观测：以 `deploy/observability/*`、`deploy/compose.observability.yml`、`deploy/compose.observability-elastic.yml`、`deploy/compose.json-logs.override.yml` 为准
+- 端口：以 `deploy/compose.yml` + 8 个 `deploy/compose.infra.*.yml` 文件 + 6 个 `deploy/compose.runtime.*.yml` 文件及按需叠加的 `deploy/compose.*.yml` overlay 为准
+- 观测：以 `deploy/observability/*`、`deploy/compose.observability.yml` 为准

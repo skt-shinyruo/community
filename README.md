@@ -11,21 +11,17 @@
 
 ```bash
 cp deploy/.env.example deploy/.env
-make up
+./deploy/deployment.sh up
 ```
 
 可选启动命令：
-- `make up-obs`：叠加 Grafana / Loki / Prometheus / Alertmanager
-- `make up-elastic`：叠加 Kibana / EDOT collector / fielded logs
-- `make up-elastic-json`：在 Elastic 路径上再把 backend stdout 切到 JSON
-- `make up-debug`：临时开放 localhost-only 直连排障端口
+- `./deploy/deployment.sh up --observability`：叠加 Kibana / EDOT collector / fielded logs
 
 访问：
 - 前端：`http://localhost:12881`
 - 统一入口：`http://localhost:12880/api/...`
-- 调试直连端口（需 `make up-debug`）：`12882 / 18081 / 18082`
-- Kibana（需 `make up-elastic` 或 `make up-elastic-json`）：`http://localhost:12889`
-- Elasticsearch localhost 入口（需 `make up-elastic` 或 `make up-elastic-json`）：`http://localhost:12888`
+- Kibana（需 `./deploy/deployment.sh up --observability`）：`http://localhost:12889`
+- Elasticsearch localhost 入口（需 `./deploy/deployment.sh up --observability`）：`http://localhost:12888`
 
 ## 文档入口
 - 后端工程：`backend/README.md`

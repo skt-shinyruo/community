@@ -30,8 +30,6 @@
 需要明确的角色拆分：
 - `community-app` 只负责治理判定（`POST /api/im-governance/private-messages/validate`）以及站内通知等主站语义，不再暴露 legacy message HTTP 读写入口
 - `community-im` 才是私信 owner：`im-realtime` 负责实时入口与在线推送，`im-core` 负责权威写路径和 `/api/im/**` HTTP 查询接口
-- `ws://localhost:18081/internal/ws/im` 是 worker 级回滚 / 排障入口，不属于外部客户端约定的私信入口
-
 核心 topic 常量定义在：
 
 - `backend/community-im/im-common/src/main/java/com/nowcoder/community/im/contracts/ImTopics.java`
@@ -112,8 +110,6 @@ gateway 会把这个 WebSocket 路径转发到 `im-realtime` 的 WebSocket handl
 - 首次鉴权成功时，`im-realtime` 还会调用 `im-core` 的 internal API 拉取用户所在房间，完成房间本地索引 bootstrap；这一步主要服务于群聊链路
 - 断线补拉、会话列表、已读和未读汇总等 HTTP 能力，对外统一走 `community-gateway` 的 `http://localhost:12880/api/im/**`
 - `community-app` 不提供消息读写 HTTP API；如果看到旧的 message HTTP 入口，应视为已下线
-- `ws://localhost:18081/internal/ws/im` 与 `http://localhost:18082` 直连口继续保留，主要用于运维回滚和排障，不属于默认客户端集成面
-
 关键代码：
 
 - `handle(...)`
@@ -302,8 +298,6 @@ command 中包含的关键字段有：
 
 - WebSocket：`ws://localhost:12880/ws/im`
 - HTTP：`http://localhost:12880/api/im/**`
-
-只有在回滚或排障时，才改用 `ws://localhost:18081/internal/ws/im` 与 `http://localhost:18082` 直连 IM 服务。
 
 恢复时序如下：
 

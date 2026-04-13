@@ -17,19 +17,11 @@
 - NGINX XXL-JOB Admin 入口：`http://localhost:12887/xxl-job-admin`（仅绑定到 `127.0.0.1`）
 - Mock Data Studio health：`http://localhost:12890/health`（默认由 `MOCK_DATA_STUDIO_HOST_PORT` 驱动；仅绑定到 `127.0.0.1`）
 - Nacos 注册检查入口：`http://localhost:18848/nacos`（仅绑定到 `127.0.0.1`）
-- `debug` overlay（仅绑定到 `127.0.0.1`，回滚/排障）：
-  - community-app（固定回指 `community-app-1`）：`http://localhost:12882`
-  - im-realtime internal worker（固定回指 `im-realtime-1`）：`ws://localhost:18081/internal/ws/im`
-  - im-core（固定回指 `im-core-1`）：`http://localhost:18082`
 
 > 观测/日志端口通过 overlay 按需映射到宿主机（见下文）。
 
-- Grafana：`http://localhost:12883`（默认 `admin/admin`）
-- Loki：`http://localhost:12884`
-- Prometheus：`http://localhost:12885`
-- Alertmanager：`http://localhost:12886`
-- Elasticsearch localhost 入口（Elastic overlay）：`http://localhost:12888`
-- Kibana（Elastic overlay）：`http://localhost:12889`
+- Elasticsearch localhost 入口（observability overlay）：`http://localhost:12888`
+- Kibana（observability overlay）：`http://localhost:12889`
 
 ---
 
@@ -59,21 +51,22 @@
   - 辅助：MailHog（dev mailbox，UI `http://localhost:8025`，仅本机）
 - `deploy/compose.infra.mock-data-studio-bootstrap.yml`
   - 辅助：`mock-data-studio-db-bootstrap`
-- `deploy/compose.runtime.yml`
-  - 入口：`NGINX`
-  - 业务：`community-gateway x3`、`community-app x3`、`frontend`、IM（`im-core x3` / `im-realtime x3`）
+- `deploy/compose.runtime.frontend-nginx.yml`
+  - 入口：`frontend` + `NGINX`
   - **默认仅暴露 `NGINX` 业务入口 `12880`、前端 `12881`、本机 Nacos 检查入口 `18848` 与 `NGINX` admin 入口 `12887`；依赖端口仍不映射到宿主机（fail-closed）**
-- `deploy/compose.debug.yml`（可选）
-  - 直连排障：`community-app` / `im-core` / `im-realtime` 的 localhost-only 端口映射（`12882/18081/18082`）
+- `deploy/compose.runtime.community-app.yml`
+  - 业务：`community-app x3`
+- `deploy/compose.runtime.community-gateway.yml`
+  - 业务：`community-gateway x3`
+- `deploy/compose.runtime.im-core.yml`
+  - 业务：`im-core x3`
+- `deploy/compose.runtime.im-realtime.yml`
+  - 业务：`im-realtime x3`
+- `deploy/compose.runtime.mock-data-studio.yml`
+  - 辅助：`mock-data-studio`
 - `deploy/compose.observability.yml`（可选）
-  - 观测：Prometheus / Alertmanager / Loki / Promtail / Grafana
-  - 绑定到 `127.0.0.1` 暴露观测端口（`12883+`），用于浏览器访问 Grafana / Loki / Prometheus / Alertmanager
-- `deploy/compose.observability-elastic.yml`（可选）
   - 观测：Elasticsearch localhost 入口 / Kibana / EDOT collector
   - 基础三层下 backend services 默认会把结构化 JSON 日志写入共享 `observability_logs` volume，因此只追加这个 overlay 也能得到 fielded logs
-- `deploy/compose.json-logs.override.yml`（可选）
-  - 在 Elastic 观测路径上把 backend services 切到 `SPRING_PROFILES_ACTIVE=dev,json-logs,volume-log-export`
-  - 作用是让容器 stdout 也切到 JSON，便于 `docker compose logs` 排障
 
 ---
 
@@ -87,7 +80,7 @@
 
 ### 3.2 启动（gateway-first，本地默认）
 ```bash
-make up
+./deploy/deployment.sh up
 ```
 
 等价底层命令：
@@ -103,7 +96,12 @@ docker compose --env-file deploy/.env \
   -f deploy/compose.infra.xxl-job.yml \
   -f deploy/compose.infra.mailhog.yml \
   -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
-  -f deploy/compose.runtime.yml \
+  -f deploy/compose.runtime.community-app.yml \
+  -f deploy/compose.runtime.im-core.yml \
+  -f deploy/compose.runtime.im-realtime.yml \
+  -f deploy/compose.runtime.community-gateway.yml \
+  -f deploy/compose.runtime.frontend-nginx.yml \
+  -f deploy/compose.runtime.mock-data-studio.yml \
   up -d --build
 ```
 
@@ -123,10 +121,7 @@ docker compose --env-file deploy/.env \
 - `NGINX :12887` -> `xxl-job-admin-1..2`
 
 保留的直连入口：
-- 需追加 `deploy/compose.debug.yml` 后才会暴露到宿主机：
-  - `12882`（`community-app-1`）
-  - `18082`（`im-core-1`）
-  - `18081/internal/ws/im`（`im-realtime-1` internal worker）
+- 当前不再提供宿主机直连后端实例入口；排障统一通过 `docker compose logs`、`docker compose exec` 或默认 ingress / gateway 路径完成。
 
 ### 3.3 本地 HA 拓扑速查
 - `community-gateway`：3 副本，由 `NGINX` 统一接入
@@ -141,39 +136,12 @@ docker compose --env-file deploy/.env \
 - `xxl-job-admin`：2 副本，共享 `xxl_job` schema，经 `NGINX :12887` 暴露
 ### 3.4 启动 + 额外开放观测端口
 ```bash
-# 旧观测链路
-make up-obs
+# observability（fielded logs + Kibana）
+./deploy/deployment.sh up --observability
 
-# 直连排障端口
-make up-debug
-
-# Elastic Observability（fielded logs + Kibana）
-make up-elastic
-
-# Elastic Observability + JSON stdout
-make up-elastic-json
 ```
 
-需要同时叠加多个 overlay 时，直接显式追加对应的 `-f` 文件。例如“旧观测链路 + debug”：
-
-```bash
-docker compose --env-file deploy/.env \
-  -f deploy/compose.yml \
-  -f deploy/compose.infra.mysql.yml \
-  -f deploy/compose.infra.redis.yml \
-  -f deploy/compose.infra.kafka.yml \
-  -f deploy/compose.infra.elasticsearch.yml \
-  -f deploy/compose.infra.nacos.yml \
-  -f deploy/compose.infra.xxl-job.yml \
-  -f deploy/compose.infra.mailhog.yml \
-  -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
-  -f deploy/compose.runtime.yml \
-  -f deploy/compose.observability.yml \
-  -f deploy/compose.debug.yml \
-  up -d --build
-```
-
-如果要同时开启两套观测链路，则在基础三层后同时追加 `-f deploy/compose.observability.yml` 与 `-f deploy/compose.observability-elastic.yml`；如需让 Elastic 那一侧 stdout 也切到 JSON，再继续追加 `-f deploy/compose.json-logs.override.yml`。
+需要同时叠加多个 overlay 时，直接显式追加对应的 `-f` 文件；当前本地观测只保留 observability 路径。
 
 ---
 
@@ -205,7 +173,7 @@ IM 专用客户端默认策略：
 本地开发（HMR）场景下：
 - 默认浏览器流量已经直接走 `community-gateway:12880`，不再依赖 Vite proxy 才能访问后端；
 - 如需自定义目标，可显式配置 `VITE_API_BASE_URL` / `VITE_IM_CORE_BASE_URL` / `VITE_IM_WS_URL`；
-- 直连 `12882/18081/18082` 仅建议用于回滚、排障和链路对照，且默认不暴露；需要时通过 `debug` overlay 临时开启。
+- 当前不再提供宿主机直连后端实例入口；如需排障，请优先通过默认 ingress / gateway 路径配合容器日志与容器内检查完成。
 
 ---
 
@@ -213,7 +181,7 @@ IM 专用客户端默认策略：
 
 停止：
 ```bash
-make down
+./deploy/deployment.sh down
 ```
 
 完全重置（删除数据卷）：
@@ -228,8 +196,13 @@ docker compose --env-file deploy/.env \
   -f deploy/compose.infra.xxl-job.yml \
   -f deploy/compose.infra.mailhog.yml \
   -f deploy/compose.infra.mock-data-studio-bootstrap.yml \
-  -f deploy/compose.runtime.yml \
+  -f deploy/compose.runtime.community-app.yml \
+  -f deploy/compose.runtime.im-core.yml \
+  -f deploy/compose.runtime.im-realtime.yml \
+  -f deploy/compose.runtime.community-gateway.yml \
+  -f deploy/compose.runtime.frontend-nginx.yml \
+  -f deploy/compose.runtime.mock-data-studio.yml \
   down -v
 ```
 
-> 如果你启动时叠加了 `debug` / `observability` / `observability-elastic` / `json-logs` overlay，停止或重置时也请追加相同的 `make down-*` 目标或相同的 `-f deploy/compose.*.yml` 组合，避免把 overlay 服务留成 orphan。
+> 如果你启动时叠加了 `observability` overlay，停止或重置时也请追加相同的 `./deploy/deployment.sh down ...` 参数组合或相同的 `-f deploy/compose.*.yml` 组合，避免把 overlay 服务留成 orphan。

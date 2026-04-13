@@ -7,8 +7,6 @@
 - WebSocket：`ws://localhost:12880/ws/im`
 - HTTP：`http://localhost:12880/api/im/**`
 
-`ws://localhost:18081/internal/ws/im` 与 `http://localhost:18082` 仍保留为回滚 / 排障时的直连路径，但默认不暴露；需要时通过 `make up-debug` 开启。
-
 ## 工具
 
 自研压测工具：`tools/im-load/`
@@ -40,14 +38,10 @@
 
 ```bash
 cp deploy/.env.example deploy/.env
-make up
+./deploy/deployment.sh up
 ```
 
 端口：
 - `community-gateway`：`http://localhost:12880`
   - 外部 WebSocket 入口：`ws://localhost:12880/ws/im`
   - 外部 HTTP 入口：`http://localhost:12880/api/im/**`
-- 若需要直连排障口，请额外开启：
-  - `make up-debug`
-  - `im-realtime` 直连：`ws://localhost:18081/internal/ws/im`
-  - `im-core` 直连：`http://localhost:18082`

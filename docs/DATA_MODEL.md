@@ -68,7 +68,7 @@ Redis 主要用于：
 ## 3. Kafka（事件总线）
 
 ### 3.1 Topic（v1）
-本地由默认 layered compose 栈（`deploy/compose.yml` + 8 个 `deploy/compose.infra.*.yml` 文件 + `deploy/compose.runtime.yml`）中的 `kafka-init` 创建：
+本地由默认 layered compose 栈（`deploy/compose.yml` + 8 个 `deploy/compose.infra.*.yml` 文件 + 6 个 `deploy/compose.runtime.*.yml` 文件）中的 `kafka-init` 创建：
 - IM（必需）：
   - `im.command.private_text.v1`
   - `im.command.room_text.v1`

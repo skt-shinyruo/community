@@ -21,7 +21,7 @@
 
 群聊主链路涉及以下组件：
 
-- 前端或 IM 客户端：外部默认通过 `community-gateway` 暴露的 `ws://localhost:12880/ws/im` 与 `http://localhost:12880/api/im/**` 进入系统；`ws://localhost:18081/internal/ws/im` 和 `http://localhost:18082` 保留为回滚 / 排障时的直连路径
+- 前端或 IM 客户端：外部默认通过 `community-gateway` 暴露的 `ws://localhost:12880/ws/im` 与 `http://localhost:12880/api/im/**` 进入系统
 - `im-realtime`：WebSocket 接入、鉴权、协议解析、Kafka command 生产、房间在线索引、群聊更新推送
 - Kafka：承担 `command` 与 `event` 的跨服务 backplane
 - `im-core`：群消息持久化、顺序号分配、幂等、群成员校验、历史查询、未读状态
@@ -112,7 +112,7 @@ sequenceDiagram
 
 这样做的目的，是让实时层知道“本机当前哪些连接属于哪些房间”，后面群聊更新才能只扇出给房间内在线用户。
 
-对外客户端配套的房间历史、已读等 HTTP 请求，也推荐统一走 `community-gateway` 的 `http://localhost:12880/api/im/**`；`http://localhost:18082` 直连口保留为回滚 / 排障路径。
+对外客户端配套的房间历史、已读等 HTTP 请求，也推荐统一走 `community-gateway` 的 `http://localhost:12880/api/im/**`。
 
 ---
 
@@ -276,7 +276,7 @@ sequenceDiagram
 
 ### 3.7 客户端根据 `roomUpdatedBatch` 回拉群消息
 
-由于 `roomUpdatedBatch` 只携带房间更新状态，不携带正文，客户端在收到更新后需要主动调用 `im-core` HTTP API 拉取增量消息。对外默认入口是 `community-gateway` 的 `http://localhost:12880/api/im/**`，只有回滚 / 排障时才直连 `http://localhost:18082`：
+由于 `roomUpdatedBatch` 只携带房间更新状态，不携带正文，客户端在收到更新后需要主动调用 `im-core` HTTP API 拉取增量消息。对外默认入口是 `community-gateway` 的 `http://localhost:12880/api/im/**`：
 
 - `GET /api/im/rooms/{roomId}/messages?afterSeq=...`
 
@@ -342,7 +342,7 @@ sequenceDiagram
 
 ### 5.1 连接级恢复
 
-用户重连并重新完成 WebSocket `auth` 后，`im-realtime` 会再次从 `im-core` 拉取该用户当前所属房间列表，重建本地房间索引。对外客户端推荐继续通过 `community-gateway` 的 `ws://localhost:12880/ws/im` 重连；`ws://localhost:18081/ws/im` 直连口保留为回滚 / 排障路径。
+用户重连并重新完成 WebSocket `auth` 后，`im-realtime` 会再次从 `im-core` 拉取该用户当前所属房间列表，重建本地房间索引。对外客户端推荐继续通过 `community-gateway` 的 `ws://localhost:12880/ws/im` 重连。
 
 这一步解决的是：
 

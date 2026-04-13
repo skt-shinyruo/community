@@ -1,0 +1,32 @@
+services:
+  mock-data-studio:
+    build:
+      context: ..
+      dockerfile: tools/mock-data-studio/Dockerfile
+    container_name: community-mock-data-studio
+    ports:
+    - 127.0.0.1:${MOCK_DATA_STUDIO_HOST_PORT:-12890}:${MOCK_DATA_STUDIO_PORT:-12888}
+    environment:
+    - MOCK_DATA_STUDIO_ENABLED=${MOCK_DATA_STUDIO_ENABLED:-true}
+    - MOCK_DATA_STUDIO_PORT=${MOCK_DATA_STUDIO_PORT:-12888}
+    - MOCK_DATA_STUDIO_BIND_HOST=0.0.0.0
+    - MOCK_DATA_STUDIO_DB_URL=mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${MYSQL_DATABASE:-community}
+    - MOCK_DATA_STUDIO_DB_USER=${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}
+    - MOCK_DATA_STUDIO_DB_PASSWORD=${MOCK_DATA_STUDIO_DB_PASSWORD:-mockdatastudiopass}
+    - MOCK_DATA_STUDIO_COMMUNITY_APP_BASE_URL=http://community-app:8080
+    - MOCK_DATA_STUDIO_IM_CORE_BASE_URL=http://im-core:18082
+    - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+    - MOCK_DATA_AUTO_FILL_ENABLED=${MOCK_DATA_AUTO_FILL_ENABLED:-false}
+    - MOCK_DATA_AUTO_FILL_SCENE=${MOCK_DATA_AUTO_FILL_SCENE:-tech-community-hot-start}
+    - MOCK_DATA_DEFAULT_USERS=${MOCK_DATA_DEFAULT_USERS:-100}
+    - MOCK_DATA_DEFAULT_POSTS=${MOCK_DATA_DEFAULT_POSTS:-800}
+    - MOCK_DATA_DEFAULT_COMMENTS=${MOCK_DATA_DEFAULT_COMMENTS:-2500}
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+      mock-data-studio-db-bootstrap:
+        condition: service_completed_successfully
+      community-app-1:
+        condition: service_started
+      im-core-1:
+        condition: service_started

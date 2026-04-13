@@ -76,12 +76,15 @@ npm --prefix tools/mock-data-studio start
 MOCK_DATA_STUDIO_DB_URL='mysql://127.0.0.1:3306/community' \
 MOCK_DATA_STUDIO_DB_USER='mock_data_studio' \
 MOCK_DATA_STUDIO_DB_PASSWORD='mockdatastudiopass' \
-MOCK_DATA_STUDIO_COMMUNITY_APP_BASE_URL='http://127.0.0.1:12882' \
-MOCK_DATA_STUDIO_IM_CORE_BASE_URL='http://127.0.0.1:18082' \
+MOCK_DATA_STUDIO_COMMUNITY_APP_BASE_URL='http://<reachable-community-app>' \
+MOCK_DATA_STUDIO_IM_CORE_BASE_URL='http://<reachable-im-core>' \
 npm --prefix tools/mock-data-studio start
 ```
 
-上面的 `community-app` / `im-core` 直连地址依赖 debug overlay（例如 `make up-debug`）；MySQL 需要你自行提供宿主机可达的实例或额外端口映射。
+注意：
+- 仓库默认不再暴露 `community-app` / `im-core` 的 localhost debug 端口；脱离 compose 直接运行时，请自行提供宿主机可达的 upstream 地址
+- `MOCK_DATA_STUDIO_COMMUNITY_APP_BASE_URL` 与 `MOCK_DATA_STUDIO_IM_CORE_BASE_URL` 需要指向各自服务本身，因为运行态检查会直接探测它们的 `/actuator/health`
+- MySQL 同样需要你自行提供宿主机可达的实例或额外端口映射
 
 当前 API 示例（compose operator path，默认宿主机 `12890 ->` 容器进程 `12888`）：
 

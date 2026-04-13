@@ -7,7 +7,7 @@
 ## 推荐阅读顺序
 1. `docs/ARCHITECTURE.md`：总体架构、模块边界、端口、关键链路（读/写/事件）、可观测性入口
 2. `docs/DEPLOYMENT.md`：本地启动（layered docker compose / overlays）、端口暴露策略、gateway-first 的工作方式
-3. `docs/OBSERVABILITY.md`：迁移期日志/指标/告警说明，覆盖 Loki/Prometheus 观测 overlay 与 Elastic observability overlay、Prometheus 告警权威边界，以及 `observability-elastic` compose 路径下基于 `trace.id`、`service.name`、`community.category` / `community.action` / `community.outcome` 的 fielded Kibana 排障 runbook，并为 `community.job_id` / `community.event_id` / topic-family 键保留 raw token / body 搜索说明
+3. `docs/OBSERVABILITY.md`：本地 observability 说明，覆盖 `observability` compose 路径下的 logs / traces / metrics 接入、Kibana 资产导入，以及基于 `trace.id`、`service.name`、`community.category` / `community.action` / `community.outcome` 的 fielded Kibana 排障 runbook
 4. `docs/SYSTEM_DESIGN.md`：系统设计（同步 API + 异步事件、最终一致、幂等、DLQ）
 5. `docs/SECURITY.md`：鉴权模型（JWT + refresh cookie）、CORS、限流、审计日志、内部 token
 6. `docs/DATA_MODEL.md`：MySQL/Redis/Kafka/ES 的最小数据模型与约定（以 `deploy/` 与代码常量为准）
@@ -15,5 +15,5 @@
 8. `docs/business-logic/`：按业务能力拆开的实现逻辑文档，关注“具体功能在当前代码里如何落地”
 
 ## 文档范围说明
-- 本仓库默认本地运行模式：**前端经由 community-gateway 进入后端**（frontend `12881` / gateway `12880`），同时保留 `community-app` / IM 直连口用于回滚与排障。
+- 本仓库默认本地运行模式：**前端经由 community-gateway 进入后端**（frontend `12881` / gateway `12880`）。
 - `helloagents/` 下的内容属于项目内置的知识库与历史方案包；本 `docs/` 目录侧重给普通开发者快速理解与上手。

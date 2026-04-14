@@ -7,6 +7,7 @@ NACOS_MYSQL_PORT="${NACOS_MYSQL_PORT:-3306}"
 NACOS_MYSQL_DATABASE="${NACOS_MYSQL_DATABASE:-nacos}"
 NACOS_MYSQL_USER="${NACOS_MYSQL_USER:-nacos}"
 NACOS_MYSQL_PASSWORD="${NACOS_MYSQL_PASSWORD:-nacospass}"
+BOOTSTRAP_DIR="${BOOTSTRAP_DIR:-/bootstrap}"
 
 if [[ -z "${MYSQL_ROOT_PASSWORD}" ]]; then
   echo "[nacos-db-bootstrap] missing env: MYSQL_ROOT_PASSWORD" >&2
@@ -52,7 +53,7 @@ SQL
 
 if [[ "${table_exists}" == "0" ]]; then
   echo "[nacos-db-bootstrap] importing Nacos schema..."
-  mysql "${mysql_base_args[@]}" "${NACOS_MYSQL_DATABASE}" < /bootstrap/030_nacos_schema.sql
+  mysql "${mysql_base_args[@]}" "${NACOS_MYSQL_DATABASE}" < "${BOOTSTRAP_DIR}/010_schema.sql"
 else
   echo "[nacos-db-bootstrap] schema already initialized; skipping import."
 fi

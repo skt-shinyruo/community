@@ -13,7 +13,7 @@
 - `compose.infra.kafka.yml`：Kafka KRaft 3 节点与 topic bootstrap。
 - `compose.infra.elasticsearch.yml`：Elasticsearch 3 节点与 index bootstrap。
 - `compose.infra.nacos.yml`：`Nacos x3` 集群与 `nacos-db-bootstrap`。
-- `compose.infra.xxl-job.yml`：`xxl-job-admin x2` 控制面。
+- `compose.infra.xxl-job.yml`：`xxl-job-db-bootstrap` + `xxl-job-admin x2` 控制面。
 - `compose.infra.mailhog.yml`：dev mailbox（MailHog）。
 - `compose.infra.mock-data-studio-bootstrap.yml`：`mock-data-studio-db-bootstrap` 数据准备 sidecar。
 - `compose.runtime.frontend-nginx.yml`：`frontend` + `NGINX` 入口层，对外暴露 `12880` / `12881` / `12887`。
@@ -28,7 +28,7 @@
 - `Dockerfile.backend-service`：统一构建 Spring Boot 模块镜像（build arg：`MODULE`，取 Maven `artifactId`，例如 `community-app`）。
 - `.env.example`：环境变量示例（复制为 `.env` 使用）。
 - `.env`：本地环境变量（不要提交包含敏感信息的版本）。
-- `mysql-init/`：MySQL 初始化脚本（建表 + 种子数据）。
+- `mysql/`：MySQL bootstrap assets，按 `primary-init` / `community` / `nacos` / `xxl-job` 分目录管理。
 - `mysql/conf/`：MySQL 主从节点的额外配置（binlog / GTID / relay log / 只读约束）。
 - `scripts/`：Redis Cluster、MySQL replication、Kafka topics 的 bootstrap 脚本。
 - `nginx/`：本地唯一外部入口配置；`8080` 承接业务流量，`8081` 承接 `xxl-job-admin` 控制面。
@@ -160,7 +160,7 @@
     - `community` schema：`select/insert/update/delete/create`
     - `im_core` schema：`select/insert/update/delete`
   - 原因：既要支持 startup `CREATE TABLE IF NOT EXISTS` bootstrap，也要支持 Phase 2 直接写 IM 样例表
-  - fresh volume：由 `deploy/mysql-init/001_create_databases.sh` 初始化
+  - fresh volume：由 `deploy/mysql/primary-init/001_create_databases.sh` + `deploy/mysql/community/*.sql` 初始化
   - existing volume：由 `mock-data-studio-db-bootstrap` sidecar 在每次 compose 启动时补齐 schema、账号和授权
 - 当前阶段若需要连通 `community-app` / `im-core` / MySQL，**compose 是主支持路径**；直接在宿主机运行仅适合做本地壳层开发，除非你已经自行提供可达的 MySQL，并显式覆盖：
   - `MOCK_DATA_STUDIO_DB_URL`

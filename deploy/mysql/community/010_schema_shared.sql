@@ -1,0 +1,72 @@
+-- Source: 005_schema_shared.sql
+-- --------------------------------------------------------------------
+-- Shared schema (community): outbox + HTTP idempotency.
+--
+-- Notes:
+-- - Modular monolith uses a single schema `community`.
+-- - These tables are cross-cutting and shared by multiple modules.
+
+use community;
+
+set names utf8mb4;
+
+-- Outbox (reliable event delivery) - shared SSOT.
+create table if not exists outbox_event (
+  id bigint auto_increment primary key,
+  event_id varchar(64) not null,
+  topic varchar(255) not null,
+  event_key varchar(255) not null,
+  payload mediumtext not null,
+  status varchar(32) not null,
+  retry_count int not null default 0,
+  next_retry_at timestamp null default null,
+  last_error varchar(255),
+  created_at timestamp not null default current_timestamp,
+  updated_at timestamp not null default current_timestamp on update current_timestamp,
+  unique key uk_outbox_event_id (event_id),
+  index idx_outbox_status_next (status, next_retry_at, id)
+);
+
+-- Outbox lease recover / cleanup indexes（idempotent）
+set @idx_outbox_status_updated := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'outbox_event'
+    and index_name = 'idx_outbox_status_updated'
+);
+set @sql := if(@idx_outbox_status_updated = 0, 'create index idx_outbox_status_updated on outbox_event(status, updated_at, id)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
+set @idx_outbox_status_created := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'outbox_event'
+    and index_name = 'idx_outbox_status_created'
+);
+set @sql := if(@idx_outbox_status_created = 0, 'create index idx_outbox_status_created on outbox_event(status, created_at, id)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
+-- HTTP write idempotency（SSOT=DB）：same (operation, user_id, idem_key) executes side effects once.
+create table if not exists http_idempotency (
+  id bigint auto_increment primary key,
+  operation varchar(64) not null,
+  user_id int not null,
+  idem_key varchar(128) not null,
+  status varchar(16) not null,
+  response_json mediumtext null,
+  processing_expires_at timestamp null,
+  success_expires_at timestamp null,
+  created_at timestamp null default current_timestamp,
+  updated_at timestamp null default current_timestamp on update current_timestamp,
+  unique key uk_http_idem (operation, user_id, idem_key),
+  key idx_http_idem_processing_expires (processing_expires_at, id),
+  key idx_http_idem_success_expires (success_expires_at, id)
+);
+
+-- --------------------------------------------------------------------

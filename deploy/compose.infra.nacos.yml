@@ -10,7 +10,7 @@ services:
     image: mysql:8.0
     entrypoint:
     - /bin/bash
-    - /bootstrap-nacos-db.sh
+    - /bootstrap/001_bootstrap.sh
     environment:
     - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
     - NACOS_MYSQL_HOST=${NACOS_MYSQL_HOST:-mysql-primary}
@@ -18,9 +18,9 @@ services:
     - NACOS_MYSQL_DATABASE=${NACOS_MYSQL_DATABASE:-nacos}
     - NACOS_MYSQL_USER=${NACOS_MYSQL_USER:-nacos}
     - NACOS_MYSQL_PASSWORD=${NACOS_MYSQL_PASSWORD:-nacospass}
+    - BOOTSTRAP_DIR=/bootstrap
     volumes:
-    - ./mysql-init/030_nacos_schema.sql:/bootstrap/030_nacos_schema.sql:ro
-    - ./scripts/bootstrap-nacos-db.sh:/bootstrap-nacos-db.sh:ro
+    - ./mysql/nacos:/bootstrap:ro
     depends_on:
       mysql-primary:
         condition: service_healthy

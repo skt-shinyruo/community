@@ -12,7 +12,7 @@
 - 管理员：`admin/aaa`
 
 数据来源：
-- `deploy/mysql-init/010_schema.sql`（包含本地 dev/demo 种子用户插入）
+- `deploy/mysql/community/090_seed_identity.sql`（包含本地 dev/demo 种子用户插入）
 
 建议：
 - 本地也尽量修改默认口令（至少不要在任何共享环境/公网环境复用）。

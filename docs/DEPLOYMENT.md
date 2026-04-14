@@ -36,7 +36,7 @@
 - `deploy/compose.yml`
   - 基础元数据与跨层公共定义，是所有 operator 命令的第一层
 - `deploy/compose.infra.mysql.yml`
-  - MySQL（`1 主 + 2 从`）与 replication bootstrap
+  - MySQL（`1 主 + 2 从`）与 `deploy/mysql/primary-init` + `deploy/mysql/community` bootstrap assets
 - `deploy/compose.infra.redis.yml`
   - Redis Cluster（`6` 节点）与 cluster bootstrap
 - `deploy/compose.infra.kafka.yml`
@@ -44,9 +44,9 @@
 - `deploy/compose.infra.elasticsearch.yml`
   - Elasticsearch（`3` 节点）与 index bootstrap
 - `deploy/compose.infra.nacos.yml`
-  - 注册发现：`Nacos x3` 集群与 `nacos-db-bootstrap`
+  - 注册发现：`Nacos x3` 集群与 `deploy/mysql/nacos` bootstrap assets
 - `deploy/compose.infra.xxl-job.yml`
-  - 控制面：`xxl-job-admin x2`
+  - 控制面：`xxl-job-db-bootstrap` + `xxl-job-admin x2`
 - `deploy/compose.infra.mailhog.yml`
   - 辅助：MailHog（dev mailbox，UI `http://localhost:8025`，仅本机）
 - `deploy/compose.infra.mock-data-studio-bootstrap.yml`

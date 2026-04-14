@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
@@ -12,16 +13,24 @@ import {
 } from '../src/db/bootstrap.mjs'
 import { createTargetRepository } from '../src/batches/targetRepository.mjs'
 
-const schemaPath = fileURLToPath(new URL('../../../deploy/mysql-init/010_schema.sql', import.meta.url))
+const communityDir = fileURLToPath(new URL('../../../deploy/mysql/community/', import.meta.url))
+const demoMetadataSchemaPath = path.join(communityDir, '011_schema_demo_metadata.sql')
+const communityBootstrapPath = path.join(communityDir, '001_bootstrap.sh')
 
 function normalizeSql(sql) {
   return sql.replace(/;+\s*$/u, '').trim().replace(/\s+/gu, ' ').toLowerCase()
 }
 
 function extractDemoCreateTableStatements(schemaSql) {
-  return [...schemaSql.matchAll(/create table if not exists demo_[^(]+\([\s\S]*?\);/giu)].map(
-    (match) => match[0]
-  )
+  return [
+    ...schemaSql.matchAll(/create table if not exists (?:demo_[^(]+|ai_config)\s*\([\s\S]*?\);/giu)
+  ].map((match) => match[0])
+}
+
+function extractBootstrapOrder(scriptText) {
+  const match = scriptText.match(/SCHEMA_FILES=\(([\s\S]*?)\)\n/u)
+  assert.ok(match, 'SCHEMA_FILES array missing from community bootstrap script')
+  return [...match[1].matchAll(/\s+([0-9]{3}_[A-Za-z0-9_.-]+)\n/gu)].map((entry) => entry[1])
 }
 
 function stringifyKey(batchId, entityType, key) {
@@ -45,6 +54,20 @@ class FakeMetadataDb {
     }
     this.failOnTargetKey = null
     this.failOnEntityKey = null
+    this.aiConfigColumns = new Set([
+      'id',
+      'name',
+      'provider',
+      'base_url',
+      'api_key',
+      'model',
+      'enabled',
+      'is_active',
+      'timeout_ms',
+      'max_items_per_job',
+      'created_at',
+      'updated_at'
+    ])
   }
 
   async execute(sql, params = []) {
@@ -100,6 +123,30 @@ function executeOnState(state, sql, params) {
   if (normalized.startsWith('create table if not exists')) {
     state.ddlStatements.push(sql)
     return { affectedRows: 0 }
+  }
+
+  if (normalized.startsWith('alter table ai_config add column ')) {
+    const columnMatch = normalized.match(/alter table ai_config add column ([a-z_]+)/u)
+    if (columnMatch) {
+      state.aiConfigColumns.add(columnMatch[1])
+    }
+    return { affectedRows: 0 }
+  }
+
+  if (normalized === 'alter table ai_config drop index uk_ai_config_singleton') {
+    return { affectedRows: 0 }
+  }
+
+  if (normalized.startsWith('insert ignore into ai_config ')) {
+    return { affectedRows: 1 }
+  }
+
+  if (normalized.startsWith("update ai_config set name = 'default' where name = ''")) {
+    return { affectedRows: 1 }
+  }
+
+  if (normalized.startsWith("update ai_config set is_active = 1 where id = 1 and is_active = 0")) {
+    return { affectedRows: 1 }
   }
 
   if (normalized.startsWith('insert into demo_batch ')) {
@@ -280,6 +327,10 @@ function executeOnState(state, sql, params) {
 function queryOnState(state, sql, params) {
   const normalized = normalizeSql(sql)
 
+  if (normalized === 'show columns from ai_config') {
+    return [...state.aiConfigColumns].map((Field) => ({ Field }))
+  }
+
   if (
     normalized.startsWith(
       'select id, batch_key, batch_type, requested_by, status, summary_json, error_message, created_at, started_at, finished_at from demo_batch where id = ?'
@@ -357,19 +408,21 @@ function hydrateTimestamp(value) {
   return new Date(String(value).replace(' ', 'T').replace(/$/u, 'Z'))
 }
 
-test('bootstrapDemoSchema DDL matches the deploy schema for all metadata tables', async () => {
+test('bootstrapDemoSchema DDL matches the deploy community metadata schema and replay order', async () => {
   const db = new FakeMetadataDb()
 
   await bootstrapDemoSchema(db)
 
-  const schemaSql = readFileSync(schemaPath, 'utf8')
+  const schemaSql = readFileSync(demoMetadataSchemaPath, 'utf8')
   const schemaStatements = extractDemoCreateTableStatements(schemaSql)
+  const bootstrapOrder = extractBootstrapOrder(readFileSync(communityBootstrapPath, 'utf8'))
 
   assert.equal(schemaStatements.length, demoMetadataTableStatements.length)
   assert.deepEqual(
     db.ddlStatements.map(normalizeSql),
     schemaStatements.map(normalizeSql)
   )
+  assert.deepEqual(bootstrapOrder.slice(0, 2), ['010_schema_shared.sql', '011_schema_demo_metadata.sql'])
 })
 
 test('batch and job repositories return stable ISO timestamps and enforce valid state transitions', async () => {

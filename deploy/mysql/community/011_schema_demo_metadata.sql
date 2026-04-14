@@ -60,5 +60,20 @@ create table if not exists demo_entity_ref (
   key idx_demo_entity_ref_batch (batch_id, id)
 );
 
+create table if not exists ai_config (
+  id bigint auto_increment primary key,
+  name varchar(64) not null,
+  provider varchar(32) not null default 'openai',
+  base_url varchar(255) null,
+  api_key varchar(512) null,
+  model varchar(128) not null default 'gpt-4.1-mini',
+  enabled tinyint(1) not null default 0,
+  is_active tinyint(1) not null default 0,
+  timeout_ms int not null default 8000,
+  max_items_per_job int not null default 20,
+  created_at timestamp not null default current_timestamp,
+  updated_at timestamp not null default current_timestamp on update current_timestamp
+);
+
 
 -- --------------------------------------------------------------------

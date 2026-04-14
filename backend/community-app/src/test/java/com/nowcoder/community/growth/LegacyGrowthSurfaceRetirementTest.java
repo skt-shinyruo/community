@@ -1,5 +1,6 @@
 package com.nowcoder.community.growth;
 
+import com.nowcoder.community.support.DeployCommunitySchema;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -56,8 +57,8 @@ class LegacyGrowthSurfaceRetirementTest {
 
     @Test
     void schemaShouldNotDefineLegacyGrowthSurfaceTables() throws IOException {
-        assertSchemaDoesNotContainRetiredTables(MODULE_ROOT.resolve("src/test/resources/schema.sql"));
-        assertSchemaDoesNotContainRetiredTables(REPO_ROOT.resolve("deploy/mysql-init/010_schema.sql"));
+        assertSchemaDoesNotContainRetiredTables(Files.readString(MODULE_ROOT.resolve("src/test/resources/schema.sql")));
+        assertSchemaDoesNotContainRetiredTables(DeployCommunitySchema.read(REPO_ROOT));
     }
 
     private void assertClassIsRetired(String className) {
@@ -65,8 +66,7 @@ class LegacyGrowthSurfaceRetirementTest {
                 .isInstanceOf(ClassNotFoundException.class);
     }
 
-    private void assertSchemaDoesNotContainRetiredTables(Path schemaPath) throws IOException {
-        String schema = Files.readString(schemaPath);
+    private void assertSchemaDoesNotContainRetiredTables(String schema) {
         assertThat(schema).doesNotContain("reward_item");
         assertThat(schema).doesNotContain("reward_order");
         assertThat(schema).doesNotContain("admin_reward_adjustment");

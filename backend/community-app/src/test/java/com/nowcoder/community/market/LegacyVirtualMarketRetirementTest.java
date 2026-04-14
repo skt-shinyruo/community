@@ -1,5 +1,6 @@
 package com.nowcoder.community.market;
 
+import com.nowcoder.community.support.DeployCommunitySchema;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -37,8 +38,8 @@ class LegacyVirtualMarketRetirementTest {
 
     @Test
     void schemaShouldNotDefineLegacyVirtualTables() throws IOException {
-        assertSchemaDoesNotContainVirtualTables(MODULE_ROOT.resolve("src/test/resources/schema.sql"));
-        assertSchemaDoesNotContainVirtualTables(REPO_ROOT.resolve("deploy/mysql-init/010_schema.sql"));
+        assertSchemaDoesNotContainVirtualTables(Files.readString(MODULE_ROOT.resolve("src/test/resources/schema.sql")));
+        assertSchemaDoesNotContainVirtualTables(DeployCommunitySchema.read(REPO_ROOT));
     }
 
     private void assertClassIsRetired(String className) {
@@ -46,8 +47,7 @@ class LegacyVirtualMarketRetirementTest {
                 .isInstanceOf(ClassNotFoundException.class);
     }
 
-    private void assertSchemaDoesNotContainVirtualTables(Path schemaPath) throws IOException {
-        String schema = Files.readString(schemaPath);
+    private void assertSchemaDoesNotContainVirtualTables(String schema) {
         assertThat(schema).doesNotContain("virtual_listing");
         assertThat(schema).doesNotContain("virtual_inventory_unit");
         assertThat(schema).doesNotContain("virtual_order");

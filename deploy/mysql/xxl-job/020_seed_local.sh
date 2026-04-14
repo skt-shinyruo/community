@@ -2,9 +2,11 @@
 set -euo pipefail
 
 # Seed secure local XXL-JOB admin/group/job metadata.
-# This script runs inside the MySQL container init directory on first boot.
 
+MYSQL_HOST="${MYSQL_HOST:-mysql-primary}"
+MYSQL_PORT="${MYSQL_PORT:-3306}"
 MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-}"
+XXL_JOB_MYSQL_DATABASE="${XXL_JOB_MYSQL_DATABASE:-xxl_job}"
 
 XXL_JOB_ADMIN_USERNAME="${XXL_JOB_ADMIN_USERNAME:-admin}"
 XXL_JOB_ADMIN_PASSWORD="${XXL_JOB_ADMIN_PASSWORD:-dev-local-xxl-admin}"
@@ -45,8 +47,8 @@ XXL_JOB_PENDING_REGISTRATION_CLEANUP_CRON_ESCAPED="$(sql_escape "${XXL_JOB_PENDI
 
 echo "[xxl-job-seed] seeding xxl_job metadata..."
 
-mysql --default-character-set=utf8mb4 -uroot -p"${MYSQL_ROOT_PASSWORD}" <<SQL
-use \`xxl_job\`;
+mysql --default-character-set=utf8mb4 -h"${MYSQL_HOST}" -P"${MYSQL_PORT}" -uroot -p"${MYSQL_ROOT_PASSWORD}" <<SQL
+use \`${XXL_JOB_MYSQL_DATABASE}\`;
 set names utf8mb4;
 
 insert ignore into xxl_job_lock(lock_name) values ('schedule_lock');

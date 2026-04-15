@@ -213,6 +213,23 @@ class HttpRoutingIntegrationTest {
         assertThat(IM_CAPTURES).isEmpty();
     }
 
+    @Test
+    void shouldKeepSingleCorsHeaderWhenUpstreamAlsoReturnsCorsHeaders() {
+        BOOTSTRAP_CAPTURES.clear();
+
+        var result = webTestClient.get()
+                .uri("/api/categories?upstreamCors=true")
+                .header("Origin", "http://localhost:12881")
+                .exchange()
+                .expectStatus().isOk()
+                .returnResult(String.class);
+
+        assertThat(result.getResponseHeaders().get("Access-Control-Allow-Origin"))
+                .containsExactly("http://localhost:12881");
+        assertThat(result.getResponseHeaders().get("Access-Control-Allow-Credentials"))
+                .containsExactly("true");
+    }
+
     private static synchronized String bootstrapBaseUrl() {
         if (bootstrapServer == null) {
             bootstrapServer = startServer("bootstrap", BOOTSTRAP_CAPTURES);
@@ -236,15 +253,21 @@ class HttpRoutingIntegrationTest {
                         .asString()
                         .defaultIfEmpty("")
                         .flatMap(body -> {
+                            URI uri = URI.create(request.uri());
+                            String query = uri.getRawQuery();
                             captures.add(new RequestCapture(
                                     request.method().name(),
-                                    URI.create(request.uri()).getPath(),
-                                    URI.create(request.uri()).getRawQuery(),
+                                    uri.getPath(),
+                                    query,
                                     body,
                                     request.requestHeaders().get("Authorization"),
                                     request.requestHeaders().get("X-Trace-Id"),
                                     request.requestHeaders().get(TRACEPARENT_HEADER)
                             ));
+                            if (query != null && query.contains("upstreamCors=true")) {
+                                response.header("Access-Control-Allow-Origin", "http://localhost:12881");
+                                response.header("Access-Control-Allow-Credentials", "true");
+                            }
                             return response.header("Content-Type", "application/json")
                                     .sendString(Mono.just("{\"upstream\":\"" + upstreamName + "\"}"))
                                     .then();

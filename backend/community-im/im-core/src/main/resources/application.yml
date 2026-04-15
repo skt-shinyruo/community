@@ -47,7 +47,7 @@ im:
   room-member-change:
     publisher: ${IM_ROOM_MEMBER_CHANGE_PUBLISHER:kafka}
   cors:
-    allowed-origins: ${IM_CORS_ALLOWED_ORIGINS:http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
+    allowed-origins: ${IM_CORS_ALLOWED_ORIGINS:}
 
 management:
   endpoints:

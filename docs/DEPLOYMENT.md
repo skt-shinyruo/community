@@ -152,7 +152,7 @@ docker compose --env-file deploy/.env \
 2. runtime 阶段：使用 `vite preview` 启动静态站点服务
 
 关键点：
-- 前端对外监听默认 `12881`（容器 `vite preview`）；本地 `vite dev` 也默认 `12881`，但可通过 env 覆盖（若变更端口，需要同步调整 origin allowlist：CORS + OriginGuard）。
+- 前端对外监听默认 `12881`（容器 `vite preview`）；宿主机端口由 `FRONTEND_HOST_PORT` 控制，本地 `vite dev` 也默认 `12881`（若变更端口，需要同步调整 `FRONTEND_PUBLIC_ORIGIN` 与 `BROWSER_ALLOWED_ORIGINS`）。
 - 前端本身仍由 Vite preview 提供静态内容；`NGINX` 不负责前端静态资源，只负责业务入口和 `xxl-job-admin` 入口。
 - 本地 HA 形态下，浏览器不再直接感知 `community-gateway` 副本地址，只感知 `NGINX` 单入口。
 
@@ -160,14 +160,14 @@ docker compose --env-file deploy/.env \
 
 ## 5. 前端如何通过 Gateway 访问后端（API Base URL 策略）
 
-前端 HTTP 客户端（Axios）有三种方式确定 API 基址：
-1. 显式配置 `VITE_API_BASE_URL`（优先级最高）
-2. 本地 gateway-first 模式：当页面 origin 为 `localhost/127.0.0.1:5173|12881|12890` 时，默认推导为 `http://<host>:12880`
-3. 其他情况：使用相对路径（`/api/...`），交给同域 edge / ingress
+前端 HTTP / WS 客户端现在按以下顺序决定入口：
+1. 运行时配置 `app-config.js`（容器启动时根据 `GATEWAY_PUBLIC_BASE_URL` / `IM_WS_PUBLIC_URL` 生成）
+2. 显式配置 `VITE_API_BASE_URL` / `VITE_IM_CORE_BASE_URL` / `VITE_IM_WS_URL`
+3. same-origin 回退（`/api/**`、`/files/**`、`/ws/im`），由 Vite dev/preview 代理或同域 edge / ingress 处理
 
 IM 专用客户端默认策略：
-- IM HTTP：`http://<host>:12880`
-- IM WebSocket：`ws(s)://<host>:12880/ws/im`
+- 容器运行时默认来自 `app-config.js`
+- 本地 dev/preview 默认通过 same-origin + proxy 访问
 - 如需强制直连调试，可分别覆盖 `VITE_IM_CORE_BASE_URL` 与 `VITE_IM_WS_URL`
 
 本地开发（HMR）场景下：

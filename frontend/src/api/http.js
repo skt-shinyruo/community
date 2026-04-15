@@ -1,34 +1,7 @@
 import axios from 'axios'
 import { useAuthStore } from '../stores/auth'
 import { createIdempotencyKeyCache } from './idempotencyKeyCache'
-
-function resolveApiBaseUrl() {
-  const configured = import.meta.env?.VITE_API_BASE_URL
-  if (typeof configured === 'string' && configured.trim()) {
-    return configured.trim()
-  }
-
-  try {
-    const loc = globalThis?.location
-    if (!loc) return ''
-
-    // Edge/同源模式：前端与 /api 在同一 origin（例如 http://localhost:8080）
-    // 这种情况下走相对路径即可，由反代（edge）或同域网关处理。
-    if (loc.port === '8080') return ''
-
-    // 本地 gateway-first 模式：浏览器页面可能来自 Vite dev、frontend preview，
-    // 或 compose 暴露的 Mock Data Studio（默认 12890，兼容 legacy/custom 12888），但 API 统一走 12880。
-    // 仅在 localhost/127.0.0.1 下做默认推导，避免影响非本地部署场景。
-    const isLocalHost = loc.hostname === 'localhost' || loc.hostname === '127.0.0.1'
-    const isKnownGatewayFirstOriginPort =
-      loc.port === '5173' || loc.port === '12881' || loc.port === '12890' || loc.port === '12888'
-    if (isLocalHost && isKnownGatewayFirstOriginPort) {
-      return `${loc.protocol}//${loc.hostname}:12880`
-    }
-  } catch { }
-
-  return ''
-}
+import { resolveApiBaseUrl } from '../config/endpointResolution'
 
 const http = axios.create({
   baseURL: resolveApiBaseUrl(),

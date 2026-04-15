@@ -55,7 +55,7 @@ public class ImCoreSecurityConfig {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .toList();
-        config.setAllowedOrigins(origins.isEmpty() ? List.of("http://localhost:12881") : origins);
+        config.setAllowedOrigins(origins);
 
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key"));

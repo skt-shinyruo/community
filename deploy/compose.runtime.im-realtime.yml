@@ -37,7 +37,7 @@ services:
     - IM_REALTIME_WORKER_ID=${IM_REALTIME_WORKER_ID_PREFIX:-im-realtime}-1
     - IM_ROOM_FLUSH_INTERVAL_MS=${IM_ROOM_FLUSH_INTERVAL_MS:-50}
     - IM_WS_OUTBOUND_BUFFER_SIZE=${IM_WS_OUTBOUND_BUFFER_SIZE:-256}
-    - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
+    - IM_CORS_ALLOWED_ORIGINS=${BROWSER_ALLOWED_ORIGINS:?BROWSER_ALLOWED_ORIGINS is required}
     depends_on:
       nacos-db-bootstrap:
         condition: service_completed_successfully
@@ -78,7 +78,7 @@ services:
     - IM_REALTIME_WORKER_ID=${IM_REALTIME_WORKER_ID_PREFIX:-im-realtime}-2
     - IM_ROOM_FLUSH_INTERVAL_MS=${IM_ROOM_FLUSH_INTERVAL_MS:-50}
     - IM_WS_OUTBOUND_BUFFER_SIZE=${IM_WS_OUTBOUND_BUFFER_SIZE:-256}
-    - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
+    - IM_CORS_ALLOWED_ORIGINS=${BROWSER_ALLOWED_ORIGINS:?BROWSER_ALLOWED_ORIGINS is required}
     depends_on:
       nacos-db-bootstrap:
         condition: service_completed_successfully
@@ -115,7 +115,7 @@ services:
     - IM_REALTIME_WORKER_ID=${IM_REALTIME_WORKER_ID_PREFIX:-im-realtime}-3
     - IM_ROOM_FLUSH_INTERVAL_MS=${IM_ROOM_FLUSH_INTERVAL_MS:-50}
     - IM_WS_OUTBOUND_BUFFER_SIZE=${IM_WS_OUTBOUND_BUFFER_SIZE:-256}
-    - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
+    - IM_CORS_ALLOWED_ORIGINS=${BROWSER_ALLOWED_ORIGINS:?BROWSER_ALLOWED_ORIGINS is required}
     depends_on:
       nacos-db-bootstrap:
         condition: service_completed_successfully

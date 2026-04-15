@@ -7,6 +7,24 @@ function parsePort(value, fallback) {
   return fallback
 }
 
+function buildProxy(target) {
+  return {
+    '/api': {
+      target,
+      changeOrigin: true
+    },
+    '/files': {
+      target,
+      changeOrigin: true
+    },
+    '/ws/im': {
+      target,
+      changeOrigin: true,
+      ws: true
+    }
+  }
+}
+
 export default defineConfig(({ mode }) => {
   // Vite config runs in Node; use loadEnv so `.env*` changes take effect without exporting vars.
   const env = { ...loadEnv(mode, process.cwd(), ''), ...process.env }
@@ -17,20 +35,6 @@ export default defineConfig(({ mode }) => {
   const devProxyTarget = env.VITE_DEV_PROXY_TARGET || 'http://localhost:12880'
   const previewProxyTarget = env.VITE_PREVIEW_PROXY_TARGET || devProxyTarget
 
-  const devProxy = {
-    '/api': {
-      target: devProxyTarget,
-      changeOrigin: true
-    }
-  }
-
-  const previewProxy = {
-    '/api': {
-      target: previewProxyTarget,
-      changeOrigin: true
-    }
-  }
-
   return {
     plugins: [vue()],
     test: {
@@ -40,12 +44,12 @@ export default defineConfig(({ mode }) => {
     server: {
       port: devPort,
       strictPort: true,
-      proxy: devProxy
+      proxy: buildProxy(devProxyTarget)
     },
     preview: {
       port: previewPort,
       strictPort: true,
-      proxy: previewProxy
+      proxy: buildProxy(previewProxyTarget)
     }
   }
 })

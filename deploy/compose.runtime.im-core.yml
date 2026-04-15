@@ -33,7 +33,7 @@ services:
     - IM_CORE_DB_URL=jdbc:mysql://${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}:3306/${IM_MYSQL_DATABASE:-im_core}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
     - IM_CORE_DB_USER=${IM_MYSQL_USER:-im_core}
     - IM_CORE_DB_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
-    - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
+    - IM_CORS_ALLOWED_ORIGINS=${BROWSER_ALLOWED_ORIGINS:?BROWSER_ALLOWED_ORIGINS is required}
     depends_on:
       nacos-db-bootstrap:
         condition: service_completed_successfully
@@ -69,7 +69,7 @@ services:
     - IM_CORE_DB_URL=jdbc:mysql://${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}:3306/${IM_MYSQL_DATABASE:-im_core}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
     - IM_CORE_DB_USER=${IM_MYSQL_USER:-im_core}
     - IM_CORE_DB_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
-    - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
+    - IM_CORS_ALLOWED_ORIGINS=${BROWSER_ALLOWED_ORIGINS:?BROWSER_ALLOWED_ORIGINS is required}
     depends_on:
       nacos-db-bootstrap:
         condition: service_completed_successfully
@@ -101,7 +101,7 @@ services:
     - IM_CORE_DB_URL=jdbc:mysql://${IM_CORE_DB_PRIMARY_HOST:-mysql-primary}:3306/${IM_MYSQL_DATABASE:-im_core}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
     - IM_CORE_DB_USER=${IM_MYSQL_USER:-im_core}
     - IM_CORE_DB_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
-    - IM_CORS_ALLOWED_ORIGINS=${IM_CORS_ALLOWED_ORIGINS:-http://localhost:12881,http://127.0.0.1:12881,http://localhost:5173}
+    - IM_CORS_ALLOWED_ORIGINS=${BROWSER_ALLOWED_ORIGINS:?BROWSER_ALLOWED_ORIGINS is required}
     depends_on:
       nacos-db-bootstrap:
         condition: service_completed_successfully

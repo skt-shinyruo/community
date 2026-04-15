@@ -15,6 +15,16 @@ import java.util.List;
 @EnableConfigurationProperties(GatewayHttpRouteProperties.class)
 public class GatewayRouteLocatorConfig {
 
+    private static final String RETAIN_FIRST = "RETAIN_FIRST";
+    private static final List<String> CORS_RESPONSE_HEADERS = List.of(
+            "Access-Control-Allow-Origin",
+            "Access-Control-Allow-Credentials",
+            "Access-Control-Allow-Headers",
+            "Access-Control-Allow-Methods",
+            "Access-Control-Expose-Headers",
+            "Access-Control-Max-Age"
+    );
+
     @Bean
     RouteLocator gatewayHttpRoutes(RouteLocatorBuilder builder, GatewayHttpRouteProperties properties) {
         List<GatewayHttpRouteProperties.Route> routes = new ArrayList<>(properties.getRoutes());
@@ -28,6 +38,13 @@ public class GatewayRouteLocatorConfig {
             String pathPrefix = normalizePrefix(route.getPathPrefix());
             spec.route(route.getId(), predicateSpec -> predicateSpec
                     .path(pathPrefix, pathPrefix + "/**")
+                    .filters(filterSpec -> {
+                        // Gateway owns browser-facing CORS, so collapse any duplicate downstream headers.
+                        for (String header : CORS_RESPONSE_HEADERS) {
+                            filterSpec.dedupeResponseHeader(header, RETAIN_FIRST);
+                        }
+                        return filterSpec;
+                    })
                     .uri("lb://" + route.getServiceId().trim()));
         }
         return spec.build();

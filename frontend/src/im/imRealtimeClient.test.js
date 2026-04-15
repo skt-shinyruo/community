@@ -33,9 +33,42 @@ describe('imRealtimeClient URL resolution', () => {
     const { imRealtimeClient } = await import('./imRealtimeClient')
     imRealtimeClient.disconnect()
     vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
+    try {
+      delete globalThis.__COMMUNITY_RUNTIME_CONFIG__
+    } catch {}
   })
 
-  it('should prefer community-gateway websocket URL for local origins', async () => {
+  it('should prefer runtime websocket URL when configured', async () => {
+    vi.stubGlobal('location', {
+      protocol: 'http:',
+      hostname: 'localhost',
+      host: 'localhost:12881',
+      port: '12881',
+      href: 'http://localhost:12881/'
+    })
+    globalThis.__COMMUNITY_RUNTIME_CONFIG__ = {
+      imWsUrl: 'wss://edge.example.com/ws/im'
+    }
+
+    const { imRealtimeClient } = await import('./imRealtimeClient')
+    imRealtimeClient.connect('token-1')
+
+    expect(FakeWebSocket.instances).toHaveLength(1)
+    expect(FakeWebSocket.instances[0].url).toBe('wss://edge.example.com/ws/im')
+  })
+
+  it('should prefer VITE websocket URL when runtime config is absent', async () => {
+    vi.stubEnv('VITE_IM_WS_URL', 'wss://im.example.com/ws/im')
+
+    const { imRealtimeClient } = await import('./imRealtimeClient')
+    imRealtimeClient.connect('token-1')
+
+    expect(FakeWebSocket.instances).toHaveLength(1)
+    expect(FakeWebSocket.instances[0].url).toBe('wss://im.example.com/ws/im')
+  })
+
+  it('should fall back to same-origin websocket URL for local origins', async () => {
     vi.stubGlobal('location', {
       protocol: 'http:',
       hostname: 'localhost',
@@ -48,22 +81,6 @@ describe('imRealtimeClient URL resolution', () => {
     imRealtimeClient.connect('token-1')
 
     expect(FakeWebSocket.instances).toHaveLength(1)
-    expect(FakeWebSocket.instances[0].url).toBe('ws://localhost:12880/ws/im')
-  })
-
-  it('should keep same-origin websocket URL outside localhost', async () => {
-    vi.stubGlobal('location', {
-      protocol: 'https:',
-      hostname: 'community.example.com',
-      host: 'community.example.com',
-      port: '',
-      href: 'https://community.example.com/'
-    })
-
-    const { imRealtimeClient } = await import('./imRealtimeClient')
-    imRealtimeClient.connect('token-1')
-
-    expect(FakeWebSocket.instances).toHaveLength(1)
-    expect(FakeWebSocket.instances[0].url).toBe('wss://community.example.com/ws/im')
+    expect(FakeWebSocket.instances[0].url).toBe('ws://localhost:12881/ws/im')
   })
 })

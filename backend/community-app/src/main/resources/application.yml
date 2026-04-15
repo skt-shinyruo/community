@@ -48,7 +48,7 @@ security:
   jwt:
     # Dev default (>= 32 bytes). Production should override via env/secret store.
     hmac-secret: ${JWT_HMAC_SECRET:dev-jwt-hmac-secret-please-change-me-123456}
-    issuer: community-auth
+    issuer: ${JWT_ISSUER:community-auth}
     access-token-ttl-seconds: 900
     refresh-token-ttl-seconds: 604800
     refresh-cookie-name: refresh_token
@@ -59,13 +59,7 @@ security:
 gateway:
   origin-guard:
     enabled: true
-    allowed-origins:
-      - http://localhost:5173
-      - http://127.0.0.1:5173
-      - http://localhost:12881
-      - http://127.0.0.1:12881
-      - http://localhost:12888
-      - http://127.0.0.1:12888
+    allowed-origins: ${AUTH_ORIGIN_GUARD_ALLOWED_ORIGINS:}
     # 生产建议 fail-closed：allowlist 漏配时拒绝敏感 cookie 会话入口（login/refresh/logout）。
     fail-open-when-allowlist-empty: false
 
@@ -151,7 +145,7 @@ user:
   avatar:
     storage: ${USER_AVATAR_STORAGE:local}
     files-base-dir: ${USER_FILES_BASE_DIR:/tmp/community-files}
-    public-base-url: ${USER_PUBLIC_BASE_URL:http://localhost:12881}
+    public-base-url: ${USER_PUBLIC_BASE_URL:}
 
 message:
   idempotency:

@@ -1,33 +1,10 @@
 import axios from 'axios'
 import { useAuthStore } from '../stores/auth'
 import http from './http'
-
-function resolveImCoreBaseUrl() {
-  const configured = import.meta.env?.VITE_IM_CORE_BASE_URL
-  if (typeof configured === 'string' && configured.trim()) {
-    return configured.trim()
-  }
-
-  try {
-    const loc = globalThis?.location
-    if (!loc) return ''
-    if (loc.port === '8080') return ''
-    const isLocalHost = loc.hostname === 'localhost' || loc.hostname === '127.0.0.1'
-    // 本地 gateway-first 模式：浏览器页面可能来自 Vite dev、frontend preview，
-    // 或 compose 暴露的 Mock Data Studio（默认 12890，兼容 legacy/custom 12888），但 IM HTTP 统一走 12880。
-    const isKnownGatewayFirstOriginPort =
-      loc.port === '5173' || loc.port === '12881' || loc.port === '12890' || loc.port === '12888'
-    if (isLocalHost && isKnownGatewayFirstOriginPort) {
-      return `${loc.protocol}//${loc.hostname}:12880`
-    }
-  } catch {}
-
-  // Default: same origin (if an edge proxy/ingress routes /api/im/** to im-core)
-  return ''
-}
+import { resolveImHttpBaseUrl } from '../config/endpointResolution'
 
 const imCoreHttp = axios.create({
-  baseURL: resolveImCoreBaseUrl(),
+  baseURL: resolveImHttpBaseUrl(),
   withCredentials: false,
   timeout: 15000
 })

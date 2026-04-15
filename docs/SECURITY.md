@@ -12,12 +12,11 @@
 - **浏览器默认直连 community-gateway**：对外统一入口 `/api/**`（业务）、`/files/**`（静态文件）与 `/ws/im`。
 - **community-gateway 负责入口级边界护栏**：
   - HTTP/WS 路由与基础边缘策略
-  - 对浏览器流量执行第一层跨域处理，但不作为主站业务 allowlist 的 SSOT
+  - 对浏览器流量统一执行 CORS 处理，并维护浏览器入口的 origin allowlist
 - **共享安全基础设施负责 JWT 规则与统一错误语义**：
   - `community-common-security` 是 `security.jwt.*` 的 SSOT，`community-app`、`community-gateway`、`im-core`、`im-realtime` 都复用同一套验签/subject 解析规则
   - Servlet 服务通过 `community-common-web`，WebFlux 服务通过 `community-common-webflux` 统一回写 `X-Trace-Id` / `traceparent`，并输出一致的 `Result` 错误包体
 - **community-app 负责主站业务安全策略**：
-  - CORS allowlist SSOT（跨端口直连的前提）
   - OriginGuard（仅覆盖 cookie 会话敏感入口：`/api/auth/login|refresh|logout`）
   - traceId 注入与统一异常映射
   - 写请求审计日志（`backend/community-app/src/main/java/com/nowcoder/community/infra/web/AuditLogFilter.java`）
@@ -51,16 +50,19 @@
 ## 3. CORS / Origin（前端直连的前提）
 
 本地 gateway-first 模式下：
-- 前端 origin 默认为 `http://localhost:12881`；Mock Data Studio compose operator path 默认为 `http://localhost:12890`，并继续兼容 legacy/custom `http://localhost:12888`
-- `community-gateway` 负责默认浏览器入口的第一层跨域处理；主站业务 allowlist 与敏感入口同源约束仍以 `community-app` 为准
-- Origin/CORS allowlist 以 **community-app 为 SSOT**：
-  - **CORS**：由 `backend/community-app/.../CommunityCorsConfig` 统一配置（覆盖 `/api/**` 与 `/files/**`）
-  - **OriginGuard**：由 `community-app` 内的 `AuthOriginGuardFilter` 覆盖敏感入口（`POST /api/auth/login|refresh|logout`）
-    - 配置键名仍沿用 `gateway.origin-guard.*`（历史兼容），但执行位置在单体内
+- 浏览器入口相关值统一来自部署配置：`FRONTEND_PUBLIC_ORIGIN`、`GATEWAY_PUBLIC_BASE_URL`、`IM_WS_PUBLIC_URL`、`BROWSER_ALLOWED_ORIGINS`
+- `community-gateway` 是浏览器流量的 **CORS 唯一出口**：
+  - `gateway.cors.allowed-origins` 通过 `GATEWAY_CORS_ALLOWED_ORIGINS` 注入，统一覆盖 `/api/**` 与 `/files/**`
+  - gateway 会去重下游重复返回的 `Access-Control-Allow-*` 头，避免浏览器因重复 CORS 头判定失败
+- `community-app` 不再对 `/api/**` 与 `/files/**` 输出浏览器 CORS 头：
+  - 浏览器默认应经 `community-gateway` 访问主站 API / files
+  - 若直接跨 origin 访问 `community-app`，默认不会获得跨域放行
+- **OriginGuard** 仍由 `community-app` 内的 `AuthOriginGuardFilter` 覆盖敏感入口（`POST /api/auth/login|refresh|logout`）
+  - allowlist 通过 `AUTH_ORIGIN_GUARD_ALLOWED_ORIGINS` 注入；配置键名仍沿用 `gateway.origin-guard.*`（历史兼容），但执行位置在单体内
 
 注意：
-- 若用 `127.0.0.1` 访问前端，会导致 origin 变化，需要同步调整 allowlist（或统一用 `localhost`）。
-- 若前端端口变化，需要同步更新 allowlist（community-app CORS / auth OriginGuard）。
+- 若用 `127.0.0.1` 访问前端，会导致 origin 变化，需要同步调整 `BROWSER_ALLOWED_ORIGINS`。
+- 若前端端口变化，需要同步更新 `FRONTEND_PUBLIC_ORIGIN`、`IM_WS_PUBLIC_URL` 与 `BROWSER_ALLOWED_ORIGINS`。
 
 ---
 

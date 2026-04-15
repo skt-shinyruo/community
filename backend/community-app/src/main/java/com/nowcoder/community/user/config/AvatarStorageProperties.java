@@ -23,7 +23,7 @@ public class AvatarStorageProperties {
     /**
      * local provider：对外访问 base URL（用于生成 headerUrl）。通常指向前端入口/反代入口（例如 http://localhost:12881）。
      */
-    private String publicBaseUrl = "http://localhost:12881";
+    private String publicBaseUrl = "";
 
     public String getStorage() {
         return storage;

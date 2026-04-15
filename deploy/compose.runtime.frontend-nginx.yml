@@ -6,8 +6,10 @@ services:
     container_name: community-frontend
     environment:
     - VITE_PREVIEW_PROXY_TARGET=http://nginx:8080
+    - GATEWAY_PUBLIC_BASE_URL=${GATEWAY_PUBLIC_BASE_URL:?GATEWAY_PUBLIC_BASE_URL is required}
+    - IM_WS_PUBLIC_URL=${IM_WS_PUBLIC_URL:?IM_WS_PUBLIC_URL is required}
     ports:
-    - 12881:12881
+    - ${FRONTEND_HOST_PORT:-12881}:12881
     depends_on:
       nginx:
         condition: service_started

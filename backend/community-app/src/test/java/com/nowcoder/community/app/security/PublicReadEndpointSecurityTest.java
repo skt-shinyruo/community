@@ -14,6 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
@@ -23,6 +24,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -30,6 +32,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@TestPropertySource(properties = {
+        "gateway.origin-guard.allowed-origins[0]=http://localhost:12881"
+})
 class PublicReadEndpointSecurityTest {
 
     @Autowired
@@ -68,5 +73,16 @@ class PublicReadEndpointSecurityTest {
 
         mockMvc.perform(get("/api/users/42/recent-comments"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void directCommunityAppReadEndpointShouldNotEmitCorsHeaders() throws Exception {
+        when(userQueryService.getProfile(42)).thenReturn(new UserProfileView(42, "u42", "h42", 0, 0, new Date(), 0, 1, 0L, "UNKNOWN"));
+        when(postReadQueryApi.listPostsByUser(anyInt(), any(), any())).thenReturn(List.<PostSummaryView>of());
+
+        mockMvc.perform(get("/api/users/42/recent-posts").header("Origin", "http://localhost:12881"))
+                .andExpect(status().isOk())
+                .andExpect(header().doesNotExist("Access-Control-Allow-Origin"))
+                .andExpect(header().doesNotExist("Access-Control-Allow-Credentials"));
     }
 }

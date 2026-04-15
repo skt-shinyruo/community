@@ -1,0 +1,1 @@
+globalThis.__COMMUNITY_RUNTIME_CONFIG__ = globalThis.__COMMUNITY_RUNTIME_CONFIG__ || {}

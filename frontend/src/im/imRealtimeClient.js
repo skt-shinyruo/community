@@ -1,27 +1,6 @@
 // IM realtime client: WebSocket connection + simple event emitter.
 // Protocol: first message must be { type: "auth", accessToken }.
-
-function resolveWsUrl() {
-  const configured = import.meta.env?.VITE_IM_WS_URL
-  if (typeof configured === 'string' && configured.trim()) {
-    return configured.trim()
-  }
-
-  try {
-    const loc = globalThis?.location
-    if (!loc) return ''
-    const isLocalHost = loc.hostname === 'localhost' || loc.hostname === '127.0.0.1'
-    if (isLocalHost) {
-      const scheme = loc.protocol === 'https:' ? 'wss' : 'ws'
-      return `${scheme}://${loc.hostname}:12880/ws/im`
-    }
-    // Default: same origin (if an edge proxy/ingress routes /ws/im to im-realtime)
-    const scheme = loc.protocol === 'https:' ? 'wss' : 'ws'
-    return `${scheme}://${loc.host}/ws/im`
-  } catch {
-    return ''
-  }
-}
+import { resolveImWsUrl } from '../config/endpointResolution'
 
 function safeJsonParse(s) {
   try {
@@ -87,7 +66,7 @@ class ImRealtimeClient {
     this.accessToken = token
     if (!token) return
 
-    const url = resolveWsUrl()
+    const url = resolveImWsUrl()
     if (!url) return
 
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {

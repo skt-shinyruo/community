@@ -1,0 +1,47 @@
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+    - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    - MYSQL_ROOT_HOST=%
+    - MYSQL_DATABASE=${MYSQL_DATABASE:-community}
+    - MYSQL_USER=${MYSQL_USER:-community}
+    - MYSQL_PASSWORD=${MYSQL_PASSWORD:-communitypass}
+    - IM_MYSQL_DATABASE=${IM_MYSQL_DATABASE:-im_core}
+    - IM_MYSQL_USER=${IM_MYSQL_USER:-im_core}
+    - IM_MYSQL_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
+    - MOCK_DATA_STUDIO_DB_USER=${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}
+    - MOCK_DATA_STUDIO_DB_PASSWORD=${MOCK_DATA_STUDIO_DB_PASSWORD:-mockdatastudiopass}
+    command:
+    - --character-set-server=utf8mb4
+    - --collation-server=utf8mb4_unicode_ci
+    - --default-time-zone=+00:00
+    volumes:
+    - mysql_primary_data:/var/lib/mysql
+    - ./mysql/primary-init/001_create_databases.sh:/docker-entrypoint-initdb.d/001_create_databases.sh:ro
+    - ./mysql/community/010_schema_shared.sql:/docker-entrypoint-initdb.d/010_schema_shared.sql:ro
+    - ./mysql/community/011_schema_demo_metadata.sql:/docker-entrypoint-initdb.d/011_schema_demo_metadata.sql:ro
+    - ./mysql/community/020_schema_identity.sql:/docker-entrypoint-initdb.d/020_schema_identity.sql:ro
+    - ./mysql/community/030_schema_growth_reward.sql:/docker-entrypoint-initdb.d/030_schema_growth_reward.sql:ro
+    - ./mysql/community/031_schema_growth_wallet.sql:/docker-entrypoint-initdb.d/031_schema_growth_wallet.sql:ro
+    - ./mysql/community/032_schema_growth_market.sql:/docker-entrypoint-initdb.d/032_schema_growth_market.sql:ro
+    - ./mysql/community/033_schema_growth_task.sql:/docker-entrypoint-initdb.d/033_schema_growth_task.sql:ro
+    - ./mysql/community/040_schema_content_core.sql:/docker-entrypoint-initdb.d/040_schema_content_core.sql:ro
+    - ./mysql/community/041_schema_content_compat.sql:/docker-entrypoint-initdb.d/041_schema_content_compat.sql:ro
+    - ./mysql/community/050_schema_social.sql:/docker-entrypoint-initdb.d/050_schema_social.sql:ro
+    - ./mysql/community/060_schema_message.sql:/docker-entrypoint-initdb.d/060_schema_message.sql:ro
+    - ./mysql/community/070_schema_im_core.sql:/docker-entrypoint-initdb.d/070_schema_im_core.sql:ro
+    - ./mysql/community/080_schema_search.sql:/docker-entrypoint-initdb.d/080_schema_search.sql:ro
+    - ./mysql/community/090_seed_identity.sql:/docker-entrypoint-initdb.d/090_seed_identity.sql:ro
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - mysqladmin ping -h 127.0.0.1 -uroot -p${MYSQL_ROOT_PASSWORD} --silent
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks:
+      default:
+        aliases:
+        - mysql
+        - mysql-primary

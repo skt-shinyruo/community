@@ -1,0 +1,92 @@
+x-nacos-common: &nacos-common
+  image: nacos/nacos-server:v2.3.2-slim
+  mem_limit: ${NACOS_MEM_LIMIT:-768m}
+  depends_on:
+    nacos-db-bootstrap:
+      condition: service_completed_successfully
+
+services:
+  nacos-db-bootstrap:
+    image: mysql:8.0
+    entrypoint:
+    - /bin/bash
+    - /bootstrap/001_bootstrap.sh
+    environment:
+    - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    - NACOS_MYSQL_HOST=${NACOS_MYSQL_HOST:-mysql-primary}
+    - NACOS_MYSQL_PORT=${NACOS_MYSQL_PORT:-3306}
+    - NACOS_MYSQL_DATABASE=${NACOS_MYSQL_DATABASE:-nacos}
+    - NACOS_MYSQL_USER=${NACOS_MYSQL_USER:-nacos}
+    - NACOS_MYSQL_PASSWORD=${NACOS_MYSQL_PASSWORD:-nacospass}
+    - BOOTSTRAP_DIR=/bootstrap
+    volumes:
+    - ./mysql/nacos:/bootstrap:ro
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+    restart: "no"
+  nacos-1:
+    <<: *nacos-common
+    hostname: nacos-1
+    environment:
+    - MODE=cluster
+    - NACOS_AUTH_ENABLE=false
+    - PREFER_HOST_MODE=hostname
+    - NACOS_SERVERS=nacos-1:8848 nacos-2:8848 nacos-3:8848
+    - SPRING_DATASOURCE_PLATFORM=mysql
+    - MYSQL_SERVICE_HOST=${NACOS_MYSQL_HOST:-mysql-primary}
+    - MYSQL_SERVICE_PORT=${NACOS_MYSQL_PORT:-3306}
+    - MYSQL_SERVICE_DB_NAME=${NACOS_MYSQL_DATABASE:-nacos}
+    - MYSQL_SERVICE_USER=${NACOS_MYSQL_USER:-nacos}
+    - MYSQL_SERVICE_PASSWORD=${NACOS_MYSQL_PASSWORD:-nacospass}
+    - MYSQL_SERVICE_DB_PARAM=${NACOS_MYSQL_DB_PARAM:-characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useSSL=false&allowPublicKeyRetrieval=true}
+    - MYSQL_DATABASE_NUM=1
+    - JVM_XMS=${NACOS_JVM_XMS:-512m}
+    - JVM_XMX=${NACOS_JVM_XMX:-512m}
+    - JVM_XMN=${NACOS_JVM_XMN:-256m}
+    - JVM_MS=${NACOS_JVM_MS:-128m}
+    - JVM_MMS=${NACOS_JVM_MMS:-256m}
+    ports:
+    - 127.0.0.1:${NACOS_HOST_PORT:-18848}:8848
+  nacos-2:
+    <<: *nacos-common
+    hostname: nacos-2
+    environment:
+    - MODE=cluster
+    - NACOS_AUTH_ENABLE=false
+    - PREFER_HOST_MODE=hostname
+    - NACOS_SERVERS=nacos-1:8848 nacos-2:8848 nacos-3:8848
+    - SPRING_DATASOURCE_PLATFORM=mysql
+    - MYSQL_SERVICE_HOST=${NACOS_MYSQL_HOST:-mysql-primary}
+    - MYSQL_SERVICE_PORT=${NACOS_MYSQL_PORT:-3306}
+    - MYSQL_SERVICE_DB_NAME=${NACOS_MYSQL_DATABASE:-nacos}
+    - MYSQL_SERVICE_USER=${NACOS_MYSQL_USER:-nacos}
+    - MYSQL_SERVICE_PASSWORD=${NACOS_MYSQL_PASSWORD:-nacospass}
+    - MYSQL_SERVICE_DB_PARAM=${NACOS_MYSQL_DB_PARAM:-characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useSSL=false&allowPublicKeyRetrieval=true}
+    - MYSQL_DATABASE_NUM=1
+    - JVM_XMS=${NACOS_JVM_XMS:-512m}
+    - JVM_XMX=${NACOS_JVM_XMX:-512m}
+    - JVM_XMN=${NACOS_JVM_XMN:-256m}
+    - JVM_MS=${NACOS_JVM_MS:-128m}
+    - JVM_MMS=${NACOS_JVM_MMS:-256m}
+  nacos-3:
+    <<: *nacos-common
+    hostname: nacos-3
+    environment:
+    - MODE=cluster
+    - NACOS_AUTH_ENABLE=false
+    - PREFER_HOST_MODE=hostname
+    - NACOS_SERVERS=nacos-1:8848 nacos-2:8848 nacos-3:8848
+    - SPRING_DATASOURCE_PLATFORM=mysql
+    - MYSQL_SERVICE_HOST=${NACOS_MYSQL_HOST:-mysql-primary}
+    - MYSQL_SERVICE_PORT=${NACOS_MYSQL_PORT:-3306}
+    - MYSQL_SERVICE_DB_NAME=${NACOS_MYSQL_DATABASE:-nacos}
+    - MYSQL_SERVICE_USER=${NACOS_MYSQL_USER:-nacos}
+    - MYSQL_SERVICE_PASSWORD=${NACOS_MYSQL_PASSWORD:-nacospass}
+    - MYSQL_SERVICE_DB_PARAM=${NACOS_MYSQL_DB_PARAM:-characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useSSL=false&allowPublicKeyRetrieval=true}
+    - MYSQL_DATABASE_NUM=1
+    - JVM_XMS=${NACOS_JVM_XMS:-512m}
+    - JVM_XMX=${NACOS_JVM_XMX:-512m}
+    - JVM_XMN=${NACOS_JVM_XMN:-256m}
+    - JVM_MS=${NACOS_JVM_MS:-128m}
+    - JVM_MMS=${NACOS_JVM_MMS:-256m}

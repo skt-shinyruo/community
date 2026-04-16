@@ -1,0 +1,21 @@
+services:
+  redis:
+    image: redis:7-alpine
+    command:
+    - redis-server
+    - --appendonly
+    - 'yes'
+    - --protected-mode
+    - 'no'
+    - --bind
+    - 0.0.0.0
+    volumes:
+    - redis_1_data:/data
+    healthcheck:
+      test:
+      - CMD
+      - redis-cli
+      - ping
+      interval: 5s
+      timeout: 3s
+      retries: 30

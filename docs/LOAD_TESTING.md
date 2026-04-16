@@ -37,8 +37,15 @@
 ## 本地启动（推荐通过 community-gateway 暴露 IM 入口）
 
 ```bash
-cp deploy/.env.example deploy/.env
-./deploy/deployment.sh up
+cp deploy/.env.dev.example deploy/.env.dev
+./deploy/deployment.sh up --topology dev
+```
+
+如果你要压多副本路径，改用：
+
+```bash
+cp deploy/.env.ha.example deploy/.env.ha
+./deploy/deployment.sh up --topology ha
 ```
 
 端口：

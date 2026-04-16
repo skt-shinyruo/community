@@ -1,5 +1,5 @@
 -- Vendored from https://raw.githubusercontent.com/alibaba/nacos/2.3.2/distribution/conf/mysql-schema.sql
--- Matches nacos/nacos-server:v2.3.2-slim used by deploy/compose.infra.nacos.yml.
+-- Matches nacos/nacos-server:v2.3.2-slim used by deploy/compose.infra.nacos.dev.yml and deploy/compose.infra.nacos.ha.yml.
 
 /*
  * Copyright 1999-2018 Alibaba Group Holding Ltd.

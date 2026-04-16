@@ -9,12 +9,18 @@
 
 > 从仓库根目录执行（见 `../deploy/README.md` 获取可选 overlay 与显式 layered compose 命令）：
 
-1. 准备环境变量：`cp deploy/.env.example deploy/.env`
-2. 启动全栈：`./deploy/deployment.sh up`
-3. 访问：
+1. 单机开发（推荐）：
+   - `cp deploy/.env.dev.example deploy/.env.dev`
+   - `./deploy/deployment.sh up --topology dev`
+2. 只起基础设施，IDE 本地起服务：
+   - `./deploy/deployment.sh up --topology dev --scope infra`
+3. 本地 HA 演练：
+   - `cp deploy/.env.ha.example deploy/.env.ha`
+   - `./deploy/deployment.sh up --topology ha`
+4. 访问：
    - 前端：`http://localhost:12881`
    - 统一入口：`http://localhost:12880/api/...`
-   - 可观测性（可选）：`./deploy/deployment.sh up --observability`
+   - 可观测性（可选）：`./deploy/deployment.sh up --topology dev --observability`
 
 ## 本地开发 / 测试
 - 单测：`mvn test`

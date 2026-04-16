@@ -221,10 +221,14 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 
 ## 6. 本地启动（推荐方式）
 
-1. 准备环境变量：`cp deploy/.env.example deploy/.env`
-2. 启动（gateway-first）：`./deploy/deployment.sh up`
+1. 单机开发（推荐）：
+   - `cp deploy/.env.dev.example deploy/.env.dev`
+   - `./deploy/deployment.sh up --topology dev`
+2. 本地 HA 演练（可选）：
+   - `cp deploy/.env.ha.example deploy/.env.ha`
+   - `./deploy/deployment.sh up --topology ha`
 3. （可选）开启观测/日志端口：
-   - observability：`./deploy/deployment.sh up --observability`
+   - observability：`./deploy/deployment.sh up --topology dev --observability`
 
 默认访问方式：
 - 页面入口：`http://localhost:12881`
@@ -235,5 +239,5 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 
 ## 7. 与代码一致性的检查清单（建议）
 - 对外入口与安全装配：以 `backend/community-app/src/main/java/.../CommunitySecurityConfig.java` 和各领域 `api/security/*SecurityRules.java` 为准
-- 端口：以 `deploy/compose.yml` + 8 个 `deploy/compose.infra.*.yml` 文件 + 6 个 `deploy/compose.runtime.*.yml` 文件及按需叠加的 `deploy/compose.*.yml` overlay 为准
+- 端口：以 `deploy/compose.yml` + `deploy/compose.infra.*.(dev|ha).yml` + `deploy/compose.runtime.*.(dev|ha).yml` 以及按需叠加的 `deploy/compose.*.yml` overlay 为准
 - 观测：以 `deploy/observability/*`、`deploy/compose.observability.yml` 为准

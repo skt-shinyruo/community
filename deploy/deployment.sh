@@ -14,22 +14,22 @@ Commands:
   config    Render the merged compose config
 
 Options:
-  --topology <dev|ha>  Choose topology (default: ha)
-  --scope <full|infra> Choose compose scope (default: full)
+  --topology <single|cluster>  Choose topology (default: cluster)
+  --scope <full|infra>         Choose compose scope (default: full)
   --observability     Add deploy/compose.observability.yml
-  --env-file <path>   Override env file path (default: deploy/.env.dev or deploy/.env.ha, fallback deploy/.env for ha)
-  -p, --project-name  Override compose project name (default: community-dev or community-ha)
+  --env-file <path>   Override env file path (default: deploy/.env.single or deploy/.env.cluster)
+  -p, --project-name  Override compose project name (default: community-single or community-cluster)
   -h, --help          Show this help
 
 Examples:
   ./deploy/deployment.sh up
-  ./deploy/deployment.sh up --topology dev
-  ./deploy/deployment.sh up --topology dev --scope infra
+  ./deploy/deployment.sh up --topology single
+  ./deploy/deployment.sh up --topology single --scope infra
   ./deploy/deployment.sh up --observability
-  ./deploy/deployment.sh up --topology ha -p community-ha-smoke
+  ./deploy/deployment.sh up --topology cluster -p community-cluster-smoke
   ./deploy/deployment.sh logs --observability community-app-1
   ./deploy/deployment.sh down --observability
-  ./deploy/deployment.sh config --topology dev
+  ./deploy/deployment.sh config --topology single
 EOF
 }
 
@@ -52,15 +52,11 @@ resolve_path() {
 resolve_default_env_file() {
   local topology="$1"
   case "${topology}" in
-    dev)
-      printf '%s/deploy/.env.dev\n' "${REPO_ROOT}"
+    single)
+      printf '%s/deploy/.env.single\n' "${REPO_ROOT}"
       ;;
-    ha)
-      if [ -f "${REPO_ROOT}/deploy/.env.ha" ]; then
-        printf '%s/deploy/.env.ha\n' "${REPO_ROOT}"
-      else
-        printf '%s/deploy/.env\n' "${REPO_ROOT}"
-      fi
+    cluster)
+      printf '%s/deploy/.env.cluster\n' "${REPO_ROOT}"
       ;;
     *)
       echo "[deployment.sh] unsupported topology: ${topology}" >&2
@@ -71,8 +67,8 @@ resolve_default_env_file() {
 
 resolve_default_project_name() {
   case "${TOPOLOGY}" in
-    dev) printf 'community-dev\n' ;;
-    ha) printf 'community-ha\n' ;;
+    single) printf 'community-single\n' ;;
+    cluster) printf 'community-cluster\n' ;;
     *)
       echo "[deployment.sh] unsupported topology: ${TOPOLOGY}" >&2
       exit 1
@@ -82,41 +78,41 @@ resolve_default_project_name() {
 
 append_topology_files() {
   case "${TOPOLOGY}" in
-    dev)
+    single)
       COMPOSE_FILES+=(
-        deploy/compose.infra.mysql.dev.yml
-        deploy/compose.infra.redis.dev.yml
-        deploy/compose.infra.kafka.dev.yml
-        deploy/compose.infra.elasticsearch.dev.yml
-        deploy/compose.infra.nacos.dev.yml
-        deploy/compose.infra.xxl-job.dev.yml
+        deploy/compose.infra.mysql.single.yml
+        deploy/compose.infra.redis.single.yml
+        deploy/compose.infra.kafka.single.yml
+        deploy/compose.infra.elasticsearch.single.yml
+        deploy/compose.infra.nacos.single.yml
+        deploy/compose.infra.xxl-job.single.yml
         deploy/compose.infra.mailhog.yml
-        deploy/compose.infra.mock-data-studio-bootstrap.dev.yml
+        deploy/compose.infra.mock-data-studio-bootstrap.single.yml
       )
       if [ "${SCOPE}" = "full" ]; then
         COMPOSE_FILES+=(
-          deploy/compose.runtime.services.dev.yml
-          deploy/compose.runtime.frontend-nginx.dev.yml
-          deploy/compose.runtime.mock-data-studio.dev.yml
+          deploy/compose.runtime.services.single.yml
+          deploy/compose.runtime.frontend-nginx.single.yml
+          deploy/compose.runtime.mock-data-studio.single.yml
         )
       fi
       ;;
-    ha)
+    cluster)
       COMPOSE_FILES+=(
-        deploy/compose.infra.mysql.ha.yml
-        deploy/compose.infra.redis.ha.yml
-        deploy/compose.infra.kafka.ha.yml
-        deploy/compose.infra.elasticsearch.ha.yml
-        deploy/compose.infra.nacos.ha.yml
-        deploy/compose.infra.xxl-job.ha.yml
+        deploy/compose.infra.mysql.cluster.yml
+        deploy/compose.infra.redis.cluster.yml
+        deploy/compose.infra.kafka.cluster.yml
+        deploy/compose.infra.elasticsearch.cluster.yml
+        deploy/compose.infra.nacos.cluster.yml
+        deploy/compose.infra.xxl-job.cluster.yml
         deploy/compose.infra.mailhog.yml
-        deploy/compose.infra.mock-data-studio-bootstrap.ha.yml
+        deploy/compose.infra.mock-data-studio-bootstrap.cluster.yml
       )
       if [ "${SCOPE}" = "full" ]; then
         COMPOSE_FILES+=(
-          deploy/compose.runtime.services.ha.yml
-          deploy/compose.runtime.frontend-nginx.ha.yml
-          deploy/compose.runtime.mock-data-studio.ha.yml
+          deploy/compose.runtime.services.cluster.yml
+          deploy/compose.runtime.frontend-nginx.cluster.yml
+          deploy/compose.runtime.mock-data-studio.cluster.yml
         )
       fi
       ;;
@@ -140,7 +136,7 @@ COMMAND="$1"
 shift
 
 ELASTIC=0
-TOPOLOGY="ha"
+TOPOLOGY="cluster"
 SCOPE="full"
 ENV_FILE=""
 PROJECT_NAME=""
@@ -239,7 +235,7 @@ case "${COMMAND}" in
 esac
 
 case "${TOPOLOGY}" in
-  dev|ha)
+  single|cluster)
     ;;
   *)
     echo "[deployment.sh] unsupported topology: ${TOPOLOGY}" >&2

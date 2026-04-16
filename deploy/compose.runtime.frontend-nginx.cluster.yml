@@ -26,7 +26,7 @@ services:
       xxl-job-admin-2:
         condition: service_started
     volumes:
-    - ./nginx/nginx.ha.conf:/etc/nginx/nginx.conf:ro
+    - ./nginx/nginx.cluster.conf:/etc/nginx/nginx.conf:ro
     ports:
     - ${NGINX_API_PORT:-12880}:8080
     - 127.0.0.1:${NGINX_XXL_JOB_PORT:-12887}:8081

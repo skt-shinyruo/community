@@ -143,7 +143,8 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 ## 3. 运行拓扑与端口规划（本地 docker compose）
 
 ### 3.1 Compose 文件分工（以 `deploy/README.md` 为准）
-- `deploy/compose.yml` + 8 个 `deploy/compose.infra.*.yml` 文件 + 6 个 `deploy/compose.runtime.*.yml` 文件：组成默认本地 HA 演练栈（frontend + `NGINX` + `community-gateway x3` + `community-app x3` + IM + MySQL 主从 + Redis Cluster + Kafka KRaft / Elasticsearch 多节点 + `xxl-job-admin x2`），默认暴露统一业务入口 `12880`、前端 `12881`、Nacos 检查入口 `18848`、MailHog UI `8025`、XXL-JOB Admin `12887`、`mock-data-studio` 主机端口 `12890`（仅本机），依赖端口仍不暴露（fail-closed）。
+- `deploy/compose.yml` + `deploy/compose.infra.*.single.yml` + `deploy/compose.infra.*.cluster.yml` + `deploy/compose.runtime.*.single.yml` + `deploy/compose.runtime.*.cluster.yml`：组成两套本地拓扑。
+  `single` 提供单机开发路径，`cluster` 提供多副本 / 集群演练路径；两者都默认暴露统一业务入口 `12880`、前端 `12881`、Nacos 检查入口 `18848`、MailHog UI `8025`、XXL-JOB Admin `12887`、`mock-data-studio` 主机端口 `12890`（仅本机），依赖端口仍不暴露（fail-closed）。
 - `deploy/compose.observability.yml`：可选 observability overlay，提供 Elasticsearch localhost 入口 / Kibana / EDOT collector；默认三层下 backend services 会把结构化 JSON 日志写入共享 `observability_logs` volume，因此只叠加这个 overlay 也能得到 fielded logs。
 
 ### 3.2 对外暴露端口（默认推荐）
@@ -152,12 +153,12 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 - MailHog UI（dev mailbox）：`http://localhost:8025`（仅本机）
 - NGINX XXL-JOB Admin 入口：`http://localhost:12887/xxl-job-admin`（仅本机）
 
-### 3.2.1 本地 HA 关键形态
+### 3.2.1 本地集群关键形态
 - `community-gateway`：3 副本，由 `NGINX` 统一接入
 - `community-app`：3 副本，通过 `community-gateway` 的 `lb://community-app` 路由访问
 - `im-core`：3 副本，通过 `community-gateway` 的 `lb://im-core` 路由和 `im-realtime` 的 service-id client 访问
 - `im-realtime`：3 副本，以 `im-realtime-worker` 服务名注册到 Nacos，并由 gateway worker registry 发现
-- `Nacos`：单节点服务注册中心，本机检查入口 `http://localhost:18848/nacos`
+- `Nacos`：3 节点服务注册中心，本机检查入口 `http://localhost:18848/nacos`
 - MySQL：`mysql-primary` + `mysql-replica-1/2`；当前只承诺人工切主，不承诺自动写切换
 - Redis：`redis-1..6`，由 `redis-cluster-bootstrap` 组装成 `3 主 + 3 从`
 - Kafka：`kafka-1..3`（KRaft combined mode）+ `kafka-init`
@@ -222,13 +223,13 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 ## 6. 本地启动（推荐方式）
 
 1. 单机开发（推荐）：
-   - `cp deploy/.env.dev.example deploy/.env.dev`
-   - `./deploy/deployment.sh up --topology dev`
-2. 本地 HA 演练（可选）：
-   - `cp deploy/.env.ha.example deploy/.env.ha`
-   - `./deploy/deployment.sh up --topology ha`
+   - `cp deploy/.env.single.example deploy/.env.single`
+   - `./deploy/deployment.sh up --topology single`
+2. 本地集群演练（可选）：
+   - `cp deploy/.env.cluster.example deploy/.env.cluster`
+   - `./deploy/deployment.sh up --topology cluster`
 3. （可选）开启观测/日志端口：
-   - observability：`./deploy/deployment.sh up --topology dev --observability`
+   - observability：`./deploy/deployment.sh up --topology single --observability`
 
 默认访问方式：
 - 页面入口：`http://localhost:12881`
@@ -239,5 +240,5 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 
 ## 7. 与代码一致性的检查清单（建议）
 - 对外入口与安全装配：以 `backend/community-app/src/main/java/.../CommunitySecurityConfig.java` 和各领域 `api/security/*SecurityRules.java` 为准
-- 端口：以 `deploy/compose.yml` + `deploy/compose.infra.*.(dev|ha).yml` + `deploy/compose.runtime.*.(dev|ha).yml` 以及按需叠加的 `deploy/compose.*.yml` overlay 为准
+- 端口：以 `deploy/compose.yml` + `deploy/compose.infra.*.(single|cluster).yml` + `deploy/compose.runtime.*.(single|cluster).yml` 以及按需叠加的 `deploy/compose.*.yml` overlay 为准
 - 观测：以 `deploy/observability/*`、`deploy/compose.observability.yml` 为准

@@ -7,15 +7,15 @@ This directory stores the repository-managed Kibana saved objects for the local 
 Choose one topology, then add `--observability`:
 
 ```bash
-cp deploy/.env.dev.example deploy/.env.dev
-./deploy/deployment.sh up --topology dev --observability
+cp deploy/.env.single.example deploy/.env.single
+./deploy/deployment.sh up --topology single --observability
 ```
 
 or
 
 ```bash
-cp deploy/.env.ha.example deploy/.env.ha
-./deploy/deployment.sh up --topology ha --observability
+cp deploy/.env.cluster.example deploy/.env.cluster
+./deploy/deployment.sh up --topology cluster --observability
 ```
 
 Default UI endpoints:

@@ -99,9 +99,8 @@
   - 禁止使用 `0.0.0.0/0` 或 `::/0`（全量信任会带来 XFF 伪造风险）。
 
 本地/示例配置见：
-- `deploy/.env.dev.example`
-- `deploy/.env.ha.example`
-- `deploy/.env.example`（旧 HA 兼容别名）
+- `deploy/.env.single.example`
+- `deploy/.env.cluster.example`
 
 ---
 

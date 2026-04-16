@@ -1,56 +1,47 @@
 # 本地部署与启动
 
-本文档说明当前仓库的本地 `docker compose` 启动方式。部署入口已经从“单一 HA 默认栈”扩展为两套拓扑：
+本文档说明当前仓库的本地 `docker compose` 启动方式。当前本地部署入口统一为两套拓扑：
 
-- `dev`：单机开发拓扑
-- `ha`：本地 HA 演练拓扑
+- `single`：单机开发拓扑
+- `cluster`：本地多副本 / 集群演练拓扑
 
 ## 1. 入口命令
 
 统一使用：
 
 ```bash
-./deploy/deployment.sh <command> [--topology dev|ha] [--scope full|infra] [--observability]
+./deploy/deployment.sh <command> [--topology single|cluster] [--scope full|infra] [--observability]
 ```
 
 常用命令：
 
-- `./deploy/deployment.sh up --topology dev`
-- `./deploy/deployment.sh up --topology dev --scope infra`
-- `./deploy/deployment.sh up --topology ha`
-- `./deploy/deployment.sh ps --topology ha`
-- `./deploy/deployment.sh logs --topology ha community-gateway-1`
-- `./deploy/deployment.sh config --topology dev`
+- `./deploy/deployment.sh up --topology single`
+- `./deploy/deployment.sh up --topology single --scope infra`
+- `./deploy/deployment.sh up --topology cluster`
+- `./deploy/deployment.sh ps --topology cluster`
+- `./deploy/deployment.sh logs --topology cluster community-gateway-1`
+- `./deploy/deployment.sh config --topology single`
 
 默认值：
 
-- `--topology ha`
+- `--topology cluster`
 - `--scope full`
-- project name：`community-dev` 或 `community-ha`
+- project name：`community-single` 或 `community-cluster`
 
 ## 2. 环境文件
 
 推荐复制：
 
 ```bash
-cp deploy/.env.dev.example deploy/.env.dev
-cp deploy/.env.ha.example deploy/.env.ha
+cp deploy/.env.single.example deploy/.env.single
+cp deploy/.env.cluster.example deploy/.env.cluster
 ```
-
-兼容旧路径：
-
-```bash
-cp deploy/.env.example deploy/.env
-./deploy/deployment.sh up
-```
-
-这条旧路径等价于 HA 默认启动。
 
 ## 3. 拓扑说明
 
-### 3.1 `dev`
+### 3.1 `single`
 
-`dev` 适合本地测试开发：
+`single` 适合本地测试开发：
 
 - `mysql`
 - `redis`
@@ -63,9 +54,9 @@ cp deploy/.env.example deploy/.env
 - `im-core`
 - `im-realtime`
 
-### 3.2 `ha`
+### 3.2 `cluster`
 
-`ha` 适合本地演练多副本行为：
+`cluster` 适合本地演练多副本行为：
 
 - `mysql-primary` + `mysql-replica-1/2`
 - `redis-1..6`
@@ -83,31 +74,31 @@ cp deploy/.env.example deploy/.env
 ### 4.1 单机全栈
 
 ```bash
-cp deploy/.env.dev.example deploy/.env.dev
-./deploy/deployment.sh up --topology dev
+cp deploy/.env.single.example deploy/.env.single
+./deploy/deployment.sh up --topology single
 ```
 
 ### 4.2 单机基础设施
 
 ```bash
-cp deploy/.env.dev.example deploy/.env.dev
-./deploy/deployment.sh up --topology dev --scope infra
+cp deploy/.env.single.example deploy/.env.single
+./deploy/deployment.sh up --topology single --scope infra
 ```
 
 适用于你在 IDE 里单独启动 `community-app` / `im-core` 等服务。
 
-### 4.3 HA 全栈
+### 4.3 集群全栈
 
 ```bash
-cp deploy/.env.ha.example deploy/.env.ha
-./deploy/deployment.sh up --topology ha
+cp deploy/.env.cluster.example deploy/.env.cluster
+./deploy/deployment.sh up --topology cluster
 ```
 
 ### 4.4 追加 observability
 
 ```bash
-./deploy/deployment.sh up --topology dev --observability
-./deploy/deployment.sh up --topology ha --observability
+./deploy/deployment.sh up --topology single --observability
+./deploy/deployment.sh up --topology cluster --observability
 ```
 
 ## 5. 默认端口
@@ -125,18 +116,18 @@ cp deploy/.env.ha.example deploy/.env.ha
 
 - `deploy/compose.yml`
   共享顶层元数据与 volume
-- `deploy/compose.infra.*.dev.yml`
+- `deploy/compose.infra.*.single.yml`
   单机基础设施
-- `deploy/compose.infra.*.ha.yml`
-  HA 基础设施
-- `deploy/compose.runtime.services.dev.yml`
-- `deploy/compose.runtime.services.ha.yml`
+- `deploy/compose.infra.*.cluster.yml`
+  集群基础设施
+- `deploy/compose.runtime.services.single.yml`
+- `deploy/compose.runtime.services.cluster.yml`
   业务 runtime
-- `deploy/compose.runtime.frontend-nginx.dev.yml`
-- `deploy/compose.runtime.frontend-nginx.ha.yml`
+- `deploy/compose.runtime.frontend-nginx.single.yml`
+- `deploy/compose.runtime.frontend-nginx.cluster.yml`
   前端与入口
-- `deploy/compose.runtime.mock-data-studio.dev.yml`
-- `deploy/compose.runtime.mock-data-studio.ha.yml`
+- `deploy/compose.runtime.mock-data-studio.single.yml`
+- `deploy/compose.runtime.mock-data-studio.cluster.yml`
   Studio wiring
 - `deploy/compose.observability.yml`
   可选观测层
@@ -146,15 +137,15 @@ cp deploy/.env.ha.example deploy/.env.ha
 停止：
 
 ```bash
-./deploy/deployment.sh down --topology dev
-./deploy/deployment.sh down --topology ha
+./deploy/deployment.sh down --topology single
+./deploy/deployment.sh down --topology cluster
 ```
 
 删除数据卷：
 
 ```bash
-./deploy/deployment.sh down --topology dev -v
-./deploy/deployment.sh down --topology ha -v
+./deploy/deployment.sh down --topology single -v
+./deploy/deployment.sh down --topology cluster -v
 ```
 
 如果启动时用了 `--observability`，停止时也带上同一组参数。

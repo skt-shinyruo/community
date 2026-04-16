@@ -10,15 +10,15 @@
 推荐先用单机开发拓扑：
 
 ```bash
-cp deploy/.env.dev.example deploy/.env.dev
-./deploy/deployment.sh up --topology dev
+cp deploy/.env.single.example deploy/.env.single
+./deploy/deployment.sh up --topology single
 ```
 
 常用变体：
 
-- 单机基础设施：`./deploy/deployment.sh up --topology dev --scope infra`
-- HA 全栈：`./deploy/deployment.sh up --topology ha`
-- 追加观测层：`./deploy/deployment.sh up --topology dev --observability`
+- 单机基础设施：`./deploy/deployment.sh up --topology single --scope infra`
+- 集群全栈：`./deploy/deployment.sh up --topology cluster`
+- 追加观测层：`./deploy/deployment.sh up --topology single --observability`
 
 默认访问地址：
 

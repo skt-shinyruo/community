@@ -43,7 +43,7 @@
 
 本项目通过 profile 明确区分“开发便捷”与“生产安全默认态”：
 
-- dev/local：默认使用 `backend/community-app/src/main/resources/application.yml` + 环境变量；compose 路径通常使用 `deploy/.env.dev`（单机开发）或 `deploy/.env.ha`（本地 HA），`deploy/.env` 仅保留为旧 HA 兼容别名。
+- dev/local：默认使用 `backend/community-app/src/main/resources/application.yml` + 环境变量；compose 路径通常使用 `deploy/.env.single`（单机开发）或 `deploy/.env.cluster`（本地集群演练）。
 - prod：必须显式启用 `prod` profile，此时：
   - 启动期校验会启用 fail-closed：关键密钥缺失会直接阻断启动（见 `backend/community-app/src/main/java/com/nowcoder/community/infra/startup/StartupValidation.java` 与各模块的 `StartupValidator`）
   - 建议通过 secret store / KMS 注入 `JWT_HMAC_SECRET`、metrics basic-auth 等敏感配置，避免默认值上线

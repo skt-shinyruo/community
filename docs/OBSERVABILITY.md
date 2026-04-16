@@ -4,10 +4,10 @@
 
 - `deploy/compose.observability.yml`
 
-它可以叠加在 `dev` 或 `ha` 拓扑之上：
+它可以叠加在 `single` 或 `cluster` 拓扑之上：
 
-- `./deploy/deployment.sh up --topology dev --observability`
-- `./deploy/deployment.sh up --topology ha --observability`
+- `./deploy/deployment.sh up --topology single --observability`
+- `./deploy/deployment.sh up --topology cluster --observability`
 
 ## 1. 默认端口
 
@@ -35,15 +35,15 @@
 ### 3.1 单机开发 + 观测
 
 ```bash
-cp deploy/.env.dev.example deploy/.env.dev
-./deploy/deployment.sh up --topology dev --observability
+cp deploy/.env.single.example deploy/.env.single
+./deploy/deployment.sh up --topology single --observability
 ```
 
-### 3.2 HA 演练 + 观测
+### 3.2 集群演练 + 观测
 
 ```bash
-cp deploy/.env.ha.example deploy/.env.ha
-./deploy/deployment.sh up --topology ha --observability
+cp deploy/.env.cluster.example deploy/.env.cluster
+./deploy/deployment.sh up --topology cluster --observability
 ```
 
 ## 4. Kibana 资产

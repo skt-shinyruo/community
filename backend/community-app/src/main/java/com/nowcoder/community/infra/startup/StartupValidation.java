@@ -65,7 +65,7 @@ public class StartupValidation {
             }
             sb.append("fixGuide=").append('\n');
             sb.append(" - 检查 Nacos 配置是否已发布（prod profile 下应为 required/fail-fast）").append('\n');
-            sb.append(" - 检查 deploy/.env.dev / deploy/.env.ha / deploy/.env（兼容路径）与部署平台 Secret/ConfigMap 是否已注入对应环境变量").append('\n');
+            sb.append(" - 检查 deploy/.env.single / deploy/.env.cluster 与部署平台 Secret/ConfigMap 是否已注入对应环境变量").append('\n');
             throw new IllegalStateException(sb.toString());
         }
     }

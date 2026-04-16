@@ -7,15 +7,15 @@
 推荐先起单机开发拓扑：
 
 ```bash
-cp deploy/.env.dev.example deploy/.env.dev
-./deploy/deployment.sh up --topology dev
+cp deploy/.env.single.example deploy/.env.single
+./deploy/deployment.sh up --topology single
 ```
 
-如果你要压 HA 栈，把上面的命令换成：
+如果你要压集群栈，把上面的命令换成：
 
 ```bash
-cp deploy/.env.ha.example deploy/.env.ha
-./deploy/deployment.sh up --topology ha
+cp deploy/.env.cluster.example deploy/.env.cluster
+./deploy/deployment.sh up --topology cluster
 ```
 
 JWT secret 仍需与服务端一致：

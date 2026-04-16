@@ -1,0 +1,26 @@
+services:
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.frontend
+    environment:
+    - VITE_PREVIEW_PROXY_TARGET=http://nginx:8080
+    - GATEWAY_PUBLIC_BASE_URL=${GATEWAY_PUBLIC_BASE_URL:?GATEWAY_PUBLIC_BASE_URL is required}
+    - IM_WS_PUBLIC_URL=${IM_WS_PUBLIC_URL:?IM_WS_PUBLIC_URL is required}
+    ports:
+    - ${FRONTEND_HOST_PORT:-12881}:12881
+    depends_on:
+      nginx:
+        condition: service_started
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      community-gateway:
+        condition: service_started
+      xxl-job-admin:
+        condition: service_started
+    volumes:
+    - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+    ports:
+    - ${NGINX_API_PORT:-12880}:8080
+    - 127.0.0.1:${NGINX_XXL_JOB_PORT:-12887}:8081

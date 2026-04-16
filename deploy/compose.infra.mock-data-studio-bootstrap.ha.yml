@@ -1,7 +1,6 @@
 services:
   mock-data-studio-db-bootstrap:
     image: mysql:8.0
-    container_name: community-mock-data-studio-db-bootstrap
     entrypoint:
     - /bin/bash
     - -lc

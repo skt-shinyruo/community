@@ -159,6 +159,8 @@ message:
 
 search:
   storage: es
+  reindex:
+    lock-ttl: 30m
   idempotency:
     cleanup-enabled: true
     retention-days: 7

@@ -22,7 +22,8 @@ class SearchReindexExecutionServiceTest {
     void executeShouldRunReindexAndReleaseJobWhenAcquired(CapturedOutput output) {
         PostSearchService postSearchService = mock(PostSearchService.class);
         ReindexJobService reindexJobService = mock(ReindexJobService.class);
-        when(reindexJobService.tryStart()).thenReturn(new ReindexJobService.ReindexJob("job-1", true));
+        ReindexJobService.ReindexJob job = new ReindexJobService.ReindexJob("job-1", true, null);
+        when(reindexJobService.tryStart()).thenReturn(job);
         when(postSearchService.clearAndReindexFromContentService()).thenReturn(42);
 
         SearchReindexActionApi service =
@@ -36,7 +37,7 @@ class SearchReindexExecutionServiceTest {
         assertThat(result.reason()).isNull();
         verify(reindexJobService).tryStart();
         verify(postSearchService).clearAndReindexFromContentService();
-        verify(reindexJobService).finish("job-1");
+        verify(reindexJobService).finish(job);
         verifyNoMoreInteractions(postSearchService, reindexJobService);
         assertThat(output.getAll())
                 .contains("community.category=async")
@@ -52,7 +53,7 @@ class SearchReindexExecutionServiceTest {
     void executeShouldReturnSkippedResultWhenJobAlreadyRunning(CapturedOutput output) {
         PostSearchService postSearchService = mock(PostSearchService.class);
         ReindexJobService reindexJobService = mock(ReindexJobService.class);
-        when(reindexJobService.tryStart()).thenReturn(new ReindexJobService.ReindexJob("job-1", false));
+        when(reindexJobService.tryStart()).thenReturn(new ReindexJobService.ReindexJob("job-1", false, null));
 
         SearchReindexActionApi service =
                 new SearchReindexExecutionService(postSearchService, reindexJobService);
@@ -79,7 +80,8 @@ class SearchReindexExecutionServiceTest {
         PostSearchService postSearchService = mock(PostSearchService.class);
         ReindexJobService reindexJobService = mock(ReindexJobService.class);
         RuntimeException boom = new RuntimeException("boom");
-        when(reindexJobService.tryStart()).thenReturn(new ReindexJobService.ReindexJob("job-1", true));
+        ReindexJobService.ReindexJob job = new ReindexJobService.ReindexJob("job-1", true, null);
+        when(reindexJobService.tryStart()).thenReturn(job);
         when(postSearchService.clearAndReindexFromContentService()).thenThrow(boom);
 
         SearchReindexActionApi service =
@@ -90,7 +92,7 @@ class SearchReindexExecutionServiceTest {
 
         verify(reindexJobService).tryStart();
         verify(postSearchService).clearAndReindexFromContentService();
-        verify(reindexJobService).finish("job-1");
+        verify(reindexJobService).finish(job);
         verifyNoMoreInteractions(postSearchService, reindexJobService);
         assertThat(output.getAll())
                 .contains("community.category=async")

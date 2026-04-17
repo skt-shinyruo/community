@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -19,22 +20,24 @@ import static org.mockito.Mockito.when;
 class SearchAdminServiceTest {
 
     @Test
-    void reindexShouldInvokeConflictAndThrowWhenExecutionWasSkipped() {
+    void reindexShouldInvokeConflictWithoutJobIdWhenExecutionWasSkipped() {
         SearchReindexActionApi searchReindexActionApi = mock(SearchReindexActionApi.class);
-        ReindexJobService reindexJobService = spy(new ReindexJobService());
+        ReindexJobService reindexJobService = mock(ReindexJobService.class);
         when(searchReindexActionApi.reindex())
-                .thenReturn(new SearchReindexResult("job-1", 0, true, "reindex 任务正在执行 (jobId=job-1)"));
+                .thenReturn(new SearchReindexResult(null, 0, true, "reindex 任务正在执行"));
+        doThrow(new BusinessException(SearchErrorCode.REINDEX_RUNNING, "reindex 任务正在执行"))
+                .when(reindexJobService).conflict(null);
 
         SearchAdminService service = new SearchAdminService(searchReindexActionApi, reindexJobService);
 
         assertThatThrownBy(service::reindex)
                 .isInstanceOf(BusinessException.class)
-                .hasMessage("reindex 任务正在执行 (jobId=job-1)")
+                .hasMessage("reindex 任务正在执行")
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(SearchErrorCode.REINDEX_RUNNING);
 
         verify(searchReindexActionApi).reindex();
-        verify(reindexJobService).conflict("job-1");
+        verify(reindexJobService).conflict(null);
         verifyNoMoreInteractions(searchReindexActionApi, reindexJobService);
     }
 

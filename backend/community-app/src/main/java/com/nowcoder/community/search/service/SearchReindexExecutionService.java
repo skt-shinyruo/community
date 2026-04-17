@@ -64,7 +64,7 @@ public class SearchReindexExecutionService implements SearchReindexActionApi {
             );
             throw e;
         } finally {
-            reindexJobService.finish(job.jobId());
+            reindexJobService.finish(job);
         }
     }
 

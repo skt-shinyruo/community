@@ -90,34 +90,9 @@ class DomainBoundaryArchTest {
     }
 
     @Test
-    void entityBoundaryShouldOnlyPermitApprovedSharedMessageReuse() {
+    void entityBoundaryShouldNotRequireSharedMessageReuseExceptions() {
         assertThat(LEGACY_FOREIGN_ENTITY_CALLERS).isEmpty();
-        assertThat(ArchitectureRulesSupport.TEMPORARY_SHARED_MESSAGE_TYPES_BY_ORIGIN)
-                .containsOnlyKeys(
-                        "com.nowcoder.community.notice.controller.NoticeController",
-                        "com.nowcoder.community.notice.mapper.NoticeMapper",
-                        "com.nowcoder.community.notice.service.NoticeItemAssembler",
-                        "com.nowcoder.community.notice.service.NoticeService"
-                )
-                .containsEntry(
-                        "com.nowcoder.community.notice.mapper.NoticeMapper",
-                        Set.of("com.nowcoder.community.message.entity.Message")
-                )
-                .containsEntry(
-                        "com.nowcoder.community.notice.service.NoticeItemAssembler",
-                        Set.of(
-                                "com.nowcoder.community.message.dto.LetterItemResponse",
-                                "com.nowcoder.community.message.entity.Message"
-                        )
-                )
-                .containsEntry(
-                        "com.nowcoder.community.notice.service.NoticeService",
-                        Set.of(
-                                "com.nowcoder.community.message.dto.LetterItemResponse",
-                                "com.nowcoder.community.message.dto.NoticeTopicSummaryResponse",
-                                "com.nowcoder.community.message.entity.Message"
-                        )
-                );
+        assertThat(ArchitectureRulesSupport.TEMPORARY_SHARED_MESSAGE_TYPES_BY_ORIGIN).isEmpty();
     }
 
     @ArchTest

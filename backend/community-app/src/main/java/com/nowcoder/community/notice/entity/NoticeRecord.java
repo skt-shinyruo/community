@@ -1,23 +1,16 @@
-package com.nowcoder.community.message.entity;
+package com.nowcoder.community.notice.entity;
 
 import java.util.Date;
 
-public class Message {
+public class NoticeRecord {
 
-    /**
-     * System notices use sender id 0 because application user ids are strictly positive.
-     */
     public static final int SYSTEM_NOTICE_SENDER_ID = 0;
-
-    /**
-     * Historical notice rows used sender id 1 before the explicit sentinel was introduced.
-     */
     public static final int LEGACY_NOTICE_SENDER_ID = 1;
 
     private int id;
-    private int fromId;
-    private int toId;
-    private String conversationId;
+    private int senderUserId;
+    private int recipientUserId;
+    private String topic;
     private String content;
     private int status;
     private Date createTime;
@@ -30,28 +23,28 @@ public class Message {
         this.id = id;
     }
 
-    public int getFromId() {
-        return fromId;
+    public int getSenderUserId() {
+        return senderUserId;
     }
 
-    public void setFromId(int fromId) {
-        this.fromId = fromId;
+    public void setSenderUserId(int senderUserId) {
+        this.senderUserId = senderUserId;
     }
 
-    public int getToId() {
-        return toId;
+    public int getRecipientUserId() {
+        return recipientUserId;
     }
 
-    public void setToId(int toId) {
-        this.toId = toId;
+    public void setRecipientUserId(int recipientUserId) {
+        this.recipientUserId = recipientUserId;
     }
 
-    public String getConversationId() {
-        return conversationId;
+    public String getTopic() {
+        return topic;
     }
 
-    public void setConversationId(String conversationId) {
-        this.conversationId = conversationId;
+    public void setTopic(String topic) {
+        this.topic = topic;
     }
 
     public String getContent() {

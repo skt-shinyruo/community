@@ -1,6 +1,7 @@
 package com.nowcoder.community.notice.service;
 
-import com.nowcoder.community.message.entity.Message;
+import com.nowcoder.community.notice.dto.NoticeItemResponse;
+import com.nowcoder.community.notice.entity.NoticeRecord;
 import com.nowcoder.community.notice.mapper.NoticeMapper;
 import org.apache.ibatis.annotations.Mapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,7 +35,7 @@ class NoticeServiceTest {
     @BeforeEach
     void setUp() {
         jdbcTemplate.update("delete from message");
-        noticeService = new NoticeService(noticeMapper, new NoticeItemAssembler());
+        noticeService = new NoticeService(noticeMapper);
     }
 
     @Test
@@ -52,20 +53,34 @@ class NoticeServiceTest {
     }
 
     @Test
-    void listNoticesShouldTreatLegacyFromIdOneTopicRowsAsNoticesDuringSentinelRollout() {
+    void listNoticesShouldReturnNoticeOwnedRecords() {
         insertMessage(0, 2, "comment", "{\"eventId\":\"evt-sentinel\"}", NoticeService.STATUS_UNREAD);
         insertMessage(1, 2, "comment", "{\"eventId\":\"evt-legacy\"}", NoticeService.STATUS_UNREAD);
         insertMessage(1, 2, "1_2", "hello from real user one", NoticeService.STATUS_UNREAD);
 
-        List<Message> notices = noticeService.listNotices(2, "comment", 0, 10);
+        List<NoticeRecord> notices = noticeService.listNotices(2, "comment", 0, 10);
 
         assertThat(notices)
-                .extracting(Message::getFromId, Message::getToId, Message::getConversationId)
+                .extracting(NoticeRecord::getSenderUserId, NoticeRecord::getRecipientUserId, NoticeRecord::getTopic)
                 .containsExactlyInAnyOrder(
                         tuple(0, 2, "comment"),
                         tuple(1, 2, "comment")
                 );
         assertThat(noticeService.unreadCount(2, "comment")).isEqualTo(2);
+    }
+
+    @Test
+    void listNoticeItemsShouldReturnNoticeOwnedDtos() {
+        insertMessage(0, 9, "comment", "{\"eventId\":\"evt-1\"}", NoticeService.STATUS_UNREAD);
+
+        List<NoticeItemResponse> items = noticeService.listNoticeItems(9, "comment", 0, 10);
+
+        assertThat(items).singleElement().satisfies(item -> {
+            assertThat(item.getSenderUserId()).isEqualTo(0);
+            assertThat(item.getRecipientUserId()).isEqualTo(9);
+            assertThat(item.getTopic()).isEqualTo("comment");
+            assertThat(item.getStatus()).isEqualTo(NoticeService.STATUS_UNREAD);
+        });
     }
 
     private void insertMessage(int fromId, int toId, String conversationId, String content, int status) {

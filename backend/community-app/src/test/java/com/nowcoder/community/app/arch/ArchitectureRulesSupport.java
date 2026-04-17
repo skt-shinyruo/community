@@ -23,25 +23,7 @@ final class ArchitectureRulesSupport {
             "growth"
     );
 
-    static final Map<String, Set<String>> TEMPORARY_SHARED_MESSAGE_TYPES_BY_ORIGIN = Map.of(
-            "com.nowcoder.community.notice.controller.NoticeController", Set.of(
-                    "com.nowcoder.community.message.dto.LetterItemResponse",
-                    "com.nowcoder.community.message.dto.MarkReadRequest",
-                    "com.nowcoder.community.message.dto.NoticeTopicSummaryResponse"
-            ),
-            "com.nowcoder.community.notice.mapper.NoticeMapper", Set.of(
-                    "com.nowcoder.community.message.entity.Message"
-            ),
-            "com.nowcoder.community.notice.service.NoticeItemAssembler", Set.of(
-                    "com.nowcoder.community.message.dto.LetterItemResponse",
-                    "com.nowcoder.community.message.entity.Message"
-            ),
-            "com.nowcoder.community.notice.service.NoticeService", Set.of(
-                    "com.nowcoder.community.message.dto.LetterItemResponse",
-                    "com.nowcoder.community.message.dto.NoticeTopicSummaryResponse",
-                    "com.nowcoder.community.message.entity.Message"
-            )
-    );
+    static final Map<String, Set<String>> TEMPORARY_SHARED_MESSAGE_TYPES_BY_ORIGIN = Map.of();
 
     static final Set<String> MIGRATION_BASELINE_FOREIGN_IMPLEMENTATION_CALLERS = Set.of();
     static final Set<String> MIGRATION_BASELINE_CONTROLLER_MAPPER_CALLERS = Set.of();

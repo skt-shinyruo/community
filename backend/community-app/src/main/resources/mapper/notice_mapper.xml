@@ -4,14 +4,6 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.nowcoder.community.notice.mapper.NoticeMapper">
 
-    <sql id="selectFields">
-        id, from_id, to_id, conversation_id, content, status, create_time
-    </sql>
-
-    <sql id="insertFields">
-        from_id, to_id, conversation_id, content, status, create_time
-    </sql>
-
     <!--
       Rollout note: legacy notice rows with from_id = 1 are still treated as notices
       only for the known notice topics below. Real user 1 conversations keep numeric
@@ -27,13 +19,19 @@
         )
     </sql>
 
-    <insert id="insertMessage" parameterType="com.nowcoder.community.message.entity.Message" keyProperty="id">
-        insert into message(<include refid="insertFields"></include>)
-        values(#{fromId},#{toId},#{conversationId},#{content},#{status},#{createTime})
+    <insert id="insertNotice" parameterType="com.nowcoder.community.notice.entity.NoticeRecord" keyProperty="id">
+        insert into message(from_id, to_id, conversation_id, content, status, create_time)
+        values(#{senderUserId}, #{recipientUserId}, #{topic}, #{content}, #{status}, #{createTime})
     </insert>
 
-    <select id="selectNotices" resultType="com.nowcoder.community.message.entity.Message">
-        select <include refid="selectFields"></include>
+    <select id="selectNotices" resultType="com.nowcoder.community.notice.entity.NoticeRecord">
+        select id,
+               from_id as senderUserId,
+               to_id as recipientUserId,
+               conversation_id as topic,
+               content,
+               status,
+               create_time as createTime
         from message
         where status != 2
           and <include refid="noticePredicate"/>

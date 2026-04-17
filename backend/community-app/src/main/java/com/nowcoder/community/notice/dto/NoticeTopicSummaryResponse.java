@@ -1,9 +1,9 @@
-package com.nowcoder.community.message.dto;
+package com.nowcoder.community.notice.dto;
 
 public class NoticeTopicSummaryResponse {
 
     private String topic;
-    private LetterItemResponse latest;
+    private NoticeItemResponse latest;
     private int noticeCount;
     private int unreadCount;
 
@@ -15,11 +15,11 @@ public class NoticeTopicSummaryResponse {
         this.topic = topic;
     }
 
-    public LetterItemResponse getLatest() {
+    public NoticeItemResponse getLatest() {
         return latest;
     }
 
-    public void setLatest(LetterItemResponse latest) {
+    public void setLatest(NoticeItemResponse latest) {
         this.latest = latest;
     }
 

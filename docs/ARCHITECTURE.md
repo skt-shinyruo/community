@@ -103,14 +103,13 @@ flowchart TD
 - `com.nowcoder.community.user`：用户资料、角色管理、头像上传与文件服务
 - `com.nowcoder.community.content`：帖子/评论/回复、审核、举报、内容分数刷新
 - `com.nowcoder.community.social`：点赞、关注、拉黑
-- `com.nowcoder.community.notice`：站内通知对外 API、通知投影与已读语义
-- `com.nowcoder.community.message`：通知底层 DTO / entity / `message` 表模型（仅承载 notice 语义，不再 owner 私信 API）
+- `com.nowcoder.community.notice`：站内通知对外 API、通知投影与已读语义；`notice` owns its DTO / entity / mapper / service types，并临时复用 `message` 表作为存储
 - `com.nowcoder.community.im`：IM 治理校验入口（`/api/im-governance/private-messages/validate`）
 - `com.nowcoder.community.search`：搜索投影（ES）
 - `com.nowcoder.community.analytics`：统计/分析
 - `com.nowcoder.community.ops`：运维平面（`/api/ops/**`）
 
-跨域同步协作统一通过 owner-domain 暴露的 `api.query`、`api.action`、`api.model` 完成；跨域异步协作统一通过 owner-domain 暴露的 `contracts.event` 完成。`service`、`entity`、`mapper` 以及 producer 域的 `event` 实现包均视为域内实现细节，不再作为默认跨域入口。当前分支上的 `DomainBoundaryArchTest` 与 `ControllerBoundaryArchTest` 已默认绿色；其中同步边界采用 allowlist 规则，遗留的非协作面依赖通过精确类名 migration baseline 冻结，后续只允许收缩不允许扩散。
+跨域同步协作统一通过 owner-domain 暴露的 `api.query`、`api.action`、`api.model` 完成；跨域异步协作统一通过 owner-domain 暴露的 `contracts.event` 完成。`service`、`entity`、`mapper` 以及 producer 域的 `event` 实现包均视为域内实现细节，不再作为默认跨域入口。当前分支上的 `DomainBoundaryArchTest` 与 `ControllerBoundaryArchTest` 已默认绿色；notice/message 临时共享类型白名单已删除，其中同步边界采用 allowlist 规则，遗留的非协作面依赖通过精确类名 migration baseline 冻结，后续只允许收缩不允许扩散。
 
 需要明确的是：`community-app` 仍然是“靠包边界治理的单 deployable”，还不是靠 Maven 子模块强制执行的 modular monolith。当前阶段先稳定 use-case owner、projection owner 和 event contracts；下一阶段才考虑把 `api` / `contracts` / `impl` 拆成独立 artifact，并收紧 Spring 装配范围。
 

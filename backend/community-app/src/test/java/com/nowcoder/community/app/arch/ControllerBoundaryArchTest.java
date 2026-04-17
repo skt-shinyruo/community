@@ -31,23 +31,9 @@ class ControllerBoundaryArchTest {
     private static final Set<String> LEGACY_FOREIGN_SERVICE_CONTROLLER_CALLERS = Set.of();
 
     @Test
-    void dtoBoundaryShouldOnlyPermitApprovedSharedMessageDtoTypes() {
+    void dtoBoundaryShouldNotRequireSharedMessageDtoExceptions() {
         assertThat(LEGACY_FOREIGN_DTO_CONTROLLER_CALLERS).isEmpty();
-        assertThat(ArchitectureRulesSupport.TEMPORARY_SHARED_MESSAGE_TYPES_BY_ORIGIN)
-                .containsOnlyKeys(
-                        "com.nowcoder.community.notice.controller.NoticeController",
-                        "com.nowcoder.community.notice.mapper.NoticeMapper",
-                        "com.nowcoder.community.notice.service.NoticeItemAssembler",
-                        "com.nowcoder.community.notice.service.NoticeService"
-                )
-                .containsEntry(
-                        "com.nowcoder.community.notice.controller.NoticeController",
-                        Set.of(
-                                "com.nowcoder.community.message.dto.LetterItemResponse",
-                                "com.nowcoder.community.message.dto.MarkReadRequest",
-                                "com.nowcoder.community.message.dto.NoticeTopicSummaryResponse"
-                        )
-                );
+        assertThat(ArchitectureRulesSupport.TEMPORARY_SHARED_MESSAGE_TYPES_BY_ORIGIN).isEmpty();
     }
 
     @ArchTest

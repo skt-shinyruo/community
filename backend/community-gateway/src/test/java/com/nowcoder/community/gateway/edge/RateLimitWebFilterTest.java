@@ -15,6 +15,8 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class RateLimitWebFilterTest {
 
@@ -26,7 +28,8 @@ class RateLimitWebFilterTest {
         policy.setWindow(Duration.ofMinutes(1));
         properties.getPolicies().put("/limited", policy);
 
-        InMemoryRateLimiter limiter = new InMemoryRateLimiter();
+        RateLimiter limiter = mock(RateLimiter.class);
+        when(limiter.allow("principal:alice:/limited", policy)).thenReturn(true, false);
         RateLimitWebFilter filter = new RateLimitWebFilter(properties, limiter);
 
         AtomicInteger chainInvocations = new AtomicInteger();
@@ -56,7 +59,8 @@ class RateLimitWebFilterTest {
         policy.setWindow(Duration.ofSeconds(30));
         properties.getPolicies().put("/ip-limited", policy);
 
-        InMemoryRateLimiter limiter = new InMemoryRateLimiter();
+        RateLimiter limiter = mock(RateLimiter.class);
+        when(limiter.allow("ip:10.10.10.10:/ip-limited", policy)).thenReturn(true, false);
         RateLimitWebFilter filter = new RateLimitWebFilter(properties, limiter);
 
         AtomicInteger chainInvocations = new AtomicInteger();
@@ -85,7 +89,7 @@ class RateLimitWebFilterTest {
         policy.setEnabled(false);
         properties.getPolicies().put("/disabled", policy);
 
-        InMemoryRateLimiter limiter = new InMemoryRateLimiter();
+        RateLimiter limiter = mock(RateLimiter.class);
         RateLimitWebFilter filter = new RateLimitWebFilter(properties, limiter);
 
         AtomicInteger chainInvocations = new AtomicInteger();
@@ -109,7 +113,8 @@ class RateLimitWebFilterTest {
         policy.setWindow(Duration.ofSeconds(30));
         properties.getPolicies().put("/blank-principal", policy);
 
-        InMemoryRateLimiter limiter = new InMemoryRateLimiter();
+        RateLimiter limiter = mock(RateLimiter.class);
+        when(limiter.allow("ip:10.10.10.11:/blank-principal", policy)).thenReturn(true, false);
         RateLimitWebFilter filter = new RateLimitWebFilter(properties, limiter);
 
         AtomicInteger chainInvocations = new AtomicInteger();

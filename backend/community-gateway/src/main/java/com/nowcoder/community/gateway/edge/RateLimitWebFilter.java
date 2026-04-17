@@ -10,9 +10,9 @@ import reactor.core.publisher.Mono;
 public class RateLimitWebFilter implements WebFilter {
 
     private final RateLimitProperties properties;
-    private final InMemoryRateLimiter limiter;
+    private final RateLimiter limiter;
 
-    public RateLimitWebFilter(RateLimitProperties properties, InMemoryRateLimiter limiter) {
+    public RateLimitWebFilter(RateLimitProperties properties, RateLimiter limiter) {
         this.properties = properties;
         this.limiter = limiter;
     }
@@ -30,8 +30,8 @@ public class RateLimitWebFilter implements WebFilter {
         return exchange.getPrincipal()
                 .map(principal -> principal == null ? "" : principal.getName())
                 .filter(StringUtils::hasText)
-                .map(name -> "principal:" + name)
-                .switchIfEmpty(Mono.just(remoteAddressKey(exchange)))
+                .map(name -> "principal:" + name + ":" + path)
+                .switchIfEmpty(Mono.just(remoteAddressKey(exchange, path)))
                 .flatMap(key -> applyPolicy(exchange, chain, key, policy));
     }
 
@@ -56,13 +56,13 @@ public class RateLimitWebFilter implements WebFilter {
         }
     }
 
-    private static String remoteAddressKey(ServerWebExchange exchange) {
+    private static String remoteAddressKey(ServerWebExchange exchange, String path) {
         if (exchange == null || exchange.getRequest() == null || exchange.getRequest().getRemoteAddress() == null) {
-            return "ip:unknown";
+            return "ip:unknown:" + path;
         }
         String host = exchange.getRequest().getRemoteAddress().getAddress() == null
                 ? exchange.getRequest().getRemoteAddress().getHostString()
                 : exchange.getRequest().getRemoteAddress().getAddress().getHostAddress();
-        return "ip:" + (StringUtils.hasText(host) ? host : "unknown");
+        return "ip:" + (StringUtils.hasText(host) ? host : "unknown") + ":" + path;
     }
 }

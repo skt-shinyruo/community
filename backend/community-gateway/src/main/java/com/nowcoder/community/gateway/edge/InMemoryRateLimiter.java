@@ -4,10 +4,11 @@ import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class InMemoryRateLimiter {
+public class InMemoryRateLimiter implements RateLimiter {
 
     private final ConcurrentHashMap<String, Counter> counters = new ConcurrentHashMap<>();
 
+    @Override
     public boolean allow(String key, RateLimitProperties.Policy policy) {
         if (policy == null) {
             return true;

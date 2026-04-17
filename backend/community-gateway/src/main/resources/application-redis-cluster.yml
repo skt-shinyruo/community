@@ -1,0 +1,8 @@
+spring:
+  config:
+    activate:
+      on-profile: redis-cluster
+  data:
+    redis:
+      cluster:
+        nodes: ${SPRING_DATA_REDIS_CLUSTER_NODES:127.0.0.1:6379}

@@ -1,7 +1,7 @@
 package com.nowcoder.community.notice.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.message.dto.LetterItemResponse;
+import com.nowcoder.community.notice.dto.NoticeItemResponse;
 import com.nowcoder.community.notice.service.NoticeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,12 +32,13 @@ class NoticeControllerUnitTest {
     }
 
     @Test
-    void listShouldDelegateToDtoReturningServiceMethod() {
-        LetterItemResponse item = new LetterItemResponse();
+    void listShouldDelegateToNoticeOwnedDtoReturningServiceMethod() {
+        NoticeItemResponse item = new NoticeItemResponse();
         item.setId(15);
+        item.setTopic("comment");
         when(noticeService.listNoticeItems(7, "comment", 0, 10)).thenReturn(List.of(item));
 
-        Result<List<LetterItemResponse>> result = controller.list(authentication(7), "comment", null, null);
+        Result<List<NoticeItemResponse>> result = controller.list(authentication(7), "comment", null, null);
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).containsExactly(item);

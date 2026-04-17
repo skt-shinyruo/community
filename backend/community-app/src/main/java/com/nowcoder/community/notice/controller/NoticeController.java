@@ -2,9 +2,9 @@ package com.nowcoder.community.notice.controller;
 
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
-import com.nowcoder.community.message.dto.LetterItemResponse;
-import com.nowcoder.community.message.dto.MarkReadRequest;
-import com.nowcoder.community.message.dto.NoticeTopicSummaryResponse;
+import com.nowcoder.community.notice.dto.MarkNoticeReadRequest;
+import com.nowcoder.community.notice.dto.NoticeItemResponse;
+import com.nowcoder.community.notice.dto.NoticeTopicSummaryResponse;
 import com.nowcoder.community.notice.service.NoticeService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
@@ -28,7 +28,7 @@ public class NoticeController {
     }
 
     @GetMapping
-    public Result<List<LetterItemResponse>> list(
+    public Result<List<NoticeItemResponse>> list(
             Authentication authentication,
             @RequestParam String topic,
             @RequestParam(required = false) Integer page,
@@ -53,7 +53,7 @@ public class NoticeController {
     }
 
     @PutMapping("/read")
-    public Result<Void> markRead(Authentication authentication, @Valid @RequestBody MarkReadRequest request) {
+    public Result<Void> markRead(Authentication authentication, @Valid @RequestBody MarkNoticeReadRequest request) {
         int userId = CurrentUser.requireUserId(authentication);
         noticeService.markRead(userId, request.getIds());
         return Result.ok();

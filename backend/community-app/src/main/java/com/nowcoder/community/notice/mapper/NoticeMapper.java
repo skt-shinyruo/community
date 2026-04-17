@@ -1,6 +1,6 @@
 package com.nowcoder.community.notice.mapper;
 
-import com.nowcoder.community.message.entity.Message;
+import com.nowcoder.community.notice.entity.NoticeRecord;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
@@ -11,9 +11,9 @@ import java.util.List;
 @Repository
 public interface NoticeMapper {
 
-    int insertMessage(Message message);
+    int insertNotice(NoticeRecord notice);
 
-    List<Message> selectNotices(@Param("userId") int userId, @Param("topic") String topic, @Param("offset") int offset, @Param("limit") int limit);
+    List<NoticeRecord> selectNotices(@Param("userId") int userId, @Param("topic") String topic, @Param("offset") int offset, @Param("limit") int limit);
 
     int selectNoticeCount(@Param("userId") int userId, @Param("topic") String topic);
 

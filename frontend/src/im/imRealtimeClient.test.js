@@ -68,7 +68,7 @@ describe('imRealtimeClient URL resolution', () => {
     expect(FakeWebSocket.instances[0].url).toBe('wss://im.example.com/ws/im')
   })
 
-  it('should fall back to same-origin websocket URL for local origins', async () => {
+  it('should infer the local gateway websocket URL from localhost preview ports', async () => {
     vi.stubGlobal('location', {
       protocol: 'http:',
       hostname: 'localhost',
@@ -81,6 +81,6 @@ describe('imRealtimeClient URL resolution', () => {
     imRealtimeClient.connect('token-1')
 
     expect(FakeWebSocket.instances).toHaveLength(1)
-    expect(FakeWebSocket.instances[0].url).toBe('ws://localhost:12881/ws/im')
+    expect(FakeWebSocket.instances[0].url).toBe('ws://localhost:12880/ws/im')
   })
 })

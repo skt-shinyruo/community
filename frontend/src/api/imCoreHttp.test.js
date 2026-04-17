@@ -38,17 +38,17 @@ describe('imCoreHttp base URL resolution', () => {
     expect(imCoreHttp.defaults.baseURL).toBe('https://im.example.com')
   })
 
-  it('should fall back to same-origin behavior when no runtime config is provided', async () => {
+  it('should infer the local gateway IM HTTP base URL from localhost preview ports', async () => {
     vi.stubGlobal('location', {
       protocol: 'http:',
-      hostname: 'localhost',
-      host: 'localhost:12881',
-      port: '12881',
-      href: 'http://localhost:12881/'
+      hostname: '127.0.0.1',
+      host: '127.0.0.1:5173',
+      port: '5173',
+      href: 'http://127.0.0.1:5173/'
     })
 
     const { default: imCoreHttp } = await import('./imCoreHttp')
 
-    expect(imCoreHttp.defaults.baseURL).toBe('')
+    expect(imCoreHttp.defaults.baseURL).toBe('http://127.0.0.1:12880')
   })
 })

@@ -38,7 +38,7 @@ describe('http base URL resolution', () => {
     expect(http.defaults.baseURL).toBe('https://api.example.com')
   })
 
-  it('should fall back to same-origin behavior when no runtime config is provided', async () => {
+  it('should infer the local gateway API base URL from localhost preview ports', async () => {
     vi.stubGlobal('location', {
       protocol: 'http:',
       hostname: 'localhost',
@@ -49,6 +49,6 @@ describe('http base URL resolution', () => {
 
     const { default: http } = await import('./http')
 
-    expect(http.defaults.baseURL).toBe('')
+    expect(http.defaults.baseURL).toBe('http://localhost:12880')
   })
 })

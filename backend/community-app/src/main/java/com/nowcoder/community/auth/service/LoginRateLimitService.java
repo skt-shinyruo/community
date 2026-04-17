@@ -5,25 +5,20 @@ import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
-import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Locale;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 @Service
 public class LoginRateLimitService {
 
+    private static final Logger log = LoggerFactory.getLogger(LoginRateLimitService.class);
     private static final String KEY_PREFIX = "auth:login:fail:";
     private static final String KEY_PREFIX_IP = KEY_PREFIX + "ip:";
     private static final String KEY_PREFIX_USER = KEY_PREFIX + "user:";
@@ -32,19 +27,6 @@ public class LoginRateLimitService {
     private final LoginRateLimitProperties properties;
     private final StringRedisTemplate redisTemplate;
     private final ObjectProvider<MeterRegistry> meterRegistryProvider;
-    private final ThreadPoolExecutor dependencyGuardExecutor = new ThreadPoolExecutor(
-            0,
-            4,
-            60L,
-            TimeUnit.SECONDS,
-            new SynchronousQueue<>(),
-            runnable -> {
-                Thread thread = new Thread(runnable, "login-rate-limit-guard");
-                thread.setDaemon(true);
-                return thread;
-            },
-            new ThreadPoolExecutor.AbortPolicy()
-    );
 
     public LoginRateLimitService(
             LoginRateLimitProperties properties,
@@ -62,29 +44,27 @@ public class LoginRateLimitService {
         }
 
         try {
-            runWithinDependencyBudget(() -> {
-                int ipLimit = Math.max(1, properties.getMaxFailuresPerIp());
-                int userLimit = Math.max(1, properties.getMaxFailuresPerUser());
+            int ipLimit = Math.max(1, properties.getMaxFailuresPerIp());
+            int userLimit = Math.max(1, properties.getMaxFailuresPerUser());
 
-                if (StringUtils.hasText(ip) && getCount(KEY_PREFIX_IP + ip.trim()) >= ipLimit) {
+            if (StringUtils.hasText(ip) && getCount(KEY_PREFIX_IP + ip.trim()) >= ipLimit) {
+                record("blocked", ipSource);
+                throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "登录尝试过于频繁，请稍后再试");
+            }
+            if (StringUtils.hasText(username)) {
+                String normalized = normalizeUsername(username);
+                if (getCount(KEY_PREFIX_USER + normalized) >= userLimit) {
                     record("blocked", ipSource);
-                    throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "登录尝试过于频繁，请稍后再试");
+                    throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "账号登录尝试过于频繁，请稍后再试");
                 }
-                if (StringUtils.hasText(username)) {
-                    String normalized = normalizeUsername(username);
-                    if (getCount(KEY_PREFIX_USER + normalized) >= userLimit) {
-                        record("blocked", ipSource);
-                        throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "账号登录尝试过于频繁，请稍后再试");
-                    }
-                }
-                record("allowed", ipSource);
-                return null;
-            });
+            }
+            record("allowed", ipSource);
         } catch (BusinessException e) {
             throw e;
         } catch (RuntimeException e) {
-            // 降级语义：限流依赖不可用时不阻断登录主链路（可用性优先），通过指标观测与告警兜底。
-            record("degraded", ipSource);
+            record("dependency_error", ipSource);
+            log.warn("[auth][login-rate-limit] assertNotBlocked failed: {}", e.toString());
+            throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "登录风控暂时不可用，请稍后重试");
         }
     }
 
@@ -94,32 +74,31 @@ public class LoginRateLimitService {
         }
 
         try {
-            runWithinDependencyBudget(() -> {
-                int ipLimit = Math.max(1, properties.getMaxFailuresPerIp());
-                int userLimit = Math.max(1, properties.getMaxFailuresPerUser());
+            int ipLimit = Math.max(1, properties.getMaxFailuresPerIp());
+            int userLimit = Math.max(1, properties.getMaxFailuresPerUser());
 
-                if (StringUtils.hasText(ip)) {
-                    int ipCount = increment(KEY_PREFIX_IP + ip.trim());
-                    if (ipCount >= ipLimit) {
-                        record("blocked", ipSource);
-                        throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "登录尝试过于频繁，请稍后再试");
-                    }
+            if (StringUtils.hasText(ip)) {
+                int ipCount = increment(KEY_PREFIX_IP + ip.trim());
+                if (ipCount >= ipLimit) {
+                    record("blocked", ipSource);
+                    throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "登录尝试过于频繁，请稍后再试");
                 }
-                if (StringUtils.hasText(username)) {
-                    String normalized = normalizeUsername(username);
-                    int userCount = increment(KEY_PREFIX_USER + normalized);
-                    if (userCount >= userLimit) {
-                        record("blocked", ipSource);
-                        throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "账号登录尝试过于频繁，请稍后再试");
-                    }
+            }
+            if (StringUtils.hasText(username)) {
+                String normalized = normalizeUsername(username);
+                int userCount = increment(KEY_PREFIX_USER + normalized);
+                if (userCount >= userLimit) {
+                    record("blocked", ipSource);
+                    throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "账号登录尝试过于频繁，请稍后再试");
                 }
-                record("allowed", ipSource);
-                return null;
-            });
+            }
+            record("allowed", ipSource);
         } catch (BusinessException e) {
             throw e;
         } catch (RuntimeException e) {
-            record("degraded", ipSource);
+            record("dependency_error", ipSource);
+            log.warn("[auth][login-rate-limit] recordFailure failed: {}", e.toString());
+            throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "登录风控暂时不可用，请稍后重试");
         }
     }
 
@@ -128,16 +107,15 @@ public class LoginRateLimitService {
             return;
         }
         try {
-            runWithinDependencyBudget(() -> {
-                if (StringUtils.hasText(ip)) {
-                    redisTemplate.delete(KEY_PREFIX_IP + ip.trim());
-                }
-                if (StringUtils.hasText(username)) {
-                    redisTemplate.delete(KEY_PREFIX_USER + normalizeUsername(username));
-                }
-                return null;
-            });
-        } catch (RuntimeException ignored) {
+            if (StringUtils.hasText(ip)) {
+                redisTemplate.delete(KEY_PREFIX_IP + ip.trim());
+            }
+            if (StringUtils.hasText(username)) {
+                redisTemplate.delete(KEY_PREFIX_USER + normalizeUsername(username));
+            }
+        } catch (RuntimeException e) {
+            record("dependency_error", null);
+            log.warn("[auth][login-rate-limit] reset failed: {}", e.toString());
         }
     }
 
@@ -147,34 +125,28 @@ public class LoginRateLimitService {
         }
 
         try {
-            return runWithinDependencyBudget(() -> {
-                int ipThreshold = properties.getCaptchaRequiredFailuresPerIp();
-                int userThreshold = properties.getCaptchaRequiredFailuresPerUser();
+            int ipThreshold = properties.getCaptchaRequiredFailuresPerIp();
+            int userThreshold = properties.getCaptchaRequiredFailuresPerUser();
 
-                if (StringUtils.hasText(ip)) {
-                    int count = getCount(KEY_PREFIX_IP + ip.trim());
-                    if (ipThreshold <= 0 || count >= ipThreshold) {
-                        return true;
-                    }
+            if (StringUtils.hasText(ip)) {
+                int count = getCount(KEY_PREFIX_IP + ip.trim());
+                if (ipThreshold <= 0 || count >= ipThreshold) {
+                    return true;
                 }
-                if (StringUtils.hasText(username)) {
-                    String normalized = normalizeUsername(username);
-                    int count = getCount(KEY_PREFIX_USER + normalized);
-                    if (userThreshold <= 0 || count >= userThreshold) {
-                        return true;
-                    }
+            }
+            if (StringUtils.hasText(username)) {
+                String normalized = normalizeUsername(username);
+                int count = getCount(KEY_PREFIX_USER + normalized);
+                if (userThreshold <= 0 || count >= userThreshold) {
+                    return true;
                 }
-                return false;
-            });
-        } catch (RuntimeException e) {
-            // 降级语义：依赖不可用时不强制验证码（避免把 Redis 抖动放大为“无法登录”）
+            }
             return false;
+        } catch (RuntimeException e) {
+            record("dependency_error", null);
+            log.warn("[auth][login-rate-limit] isCaptchaRequired failed: {}", e.toString());
+            return true;
         }
-    }
-
-    @PreDestroy
-    void shutdownDependencyGuardExecutor() {
-        dependencyGuardExecutor.shutdownNow();
     }
 
     private void record(String outcome, String ipSource) {
@@ -219,34 +191,5 @@ public class LoginRateLimitService {
 
     private String normalizeUsername(String username) {
         return username.trim().toLowerCase(Locale.ROOT);
-    }
-
-    private <T> T runWithinDependencyBudget(Callable<T> action) {
-        int timeoutMs = Math.max(1, properties.getDependencyTimeoutMs());
-        Future<T> future;
-        try {
-            future = dependencyGuardExecutor.submit(action);
-        } catch (RejectedExecutionException e) {
-            throw new RuntimeException("login rate limit dependency executor saturated", e);
-        }
-        try {
-            return future.get(timeoutMs, TimeUnit.MILLISECONDS);
-        } catch (TimeoutException e) {
-            future.cancel(true);
-            throw new RuntimeException("login rate limit dependency timed out", e);
-        } catch (InterruptedException e) {
-            future.cancel(true);
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("login rate limit dependency interrupted", e);
-        } catch (ExecutionException e) {
-            Throwable cause = e.getCause();
-            if (cause instanceof RuntimeException runtimeException) {
-                throw runtimeException;
-            }
-            if (cause instanceof Error error) {
-                throw error;
-            }
-            throw new RuntimeException(cause);
-        }
     }
 }

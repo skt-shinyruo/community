@@ -1,6 +1,8 @@
 package com.nowcoder.community.auth.service;
 
 import com.nowcoder.community.auth.config.LoginRateLimitProperties;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -8,9 +10,8 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
-import java.time.Duration;
-
-import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -33,24 +34,19 @@ class LoginRateLimitServiceTest {
     }
 
     @Test
-    void assertNotBlocked_shouldFailOpenQuicklyWhenRedisReadHangs() {
-        when(valueOperations.get(anyString())).thenAnswer(invocation -> {
-            Thread.sleep(250);
-            return null;
-        });
+    void assertNotBlockedShouldFailClosedWhenRedisReadThrows() {
+        when(valueOperations.get(anyString())).thenThrow(new RuntimeException("redis down"));
 
-        assertTimeoutPreemptively(Duration.ofMillis(200),
-                () -> service.assertNotBlocked("alice", "127.0.0.1", "remote"));
+        assertThatThrownBy(() -> service.assertNotBlocked("alice", "127.0.0.1", "remote"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(CommonErrorCode.SERVICE_UNAVAILABLE);
     }
 
     @Test
-    void reset_shouldReturnQuicklyWhenRedisDeleteHangs() {
-        when(redisTemplate.delete(anyString())).thenAnswer(invocation -> {
-            Thread.sleep(250);
-            return Boolean.TRUE;
-        });
+    void isCaptchaRequiredShouldReturnTrueWhenRedisReadThrows() {
+        when(valueOperations.get(anyString())).thenThrow(new RuntimeException("redis down"));
 
-        assertTimeoutPreemptively(Duration.ofMillis(200),
-                () -> service.reset("alice", "127.0.0.1"));
+        assertThat(service.isCaptchaRequired("alice", "127.0.0.1")).isTrue();
     }
 }

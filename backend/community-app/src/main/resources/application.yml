@@ -99,7 +99,6 @@ auth:
     max-failures-per-user: 5
     captcha-required-failures-per-ip: 5
     captcha-required-failures-per-user: 2
-    dependency-timeout-ms: ${AUTH_LOGIN_RATE_LIMIT_DEPENDENCY_TIMEOUT_MS:100}
 
 http:
   idempotency:

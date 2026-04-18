@@ -4,6 +4,7 @@ import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -28,7 +29,11 @@ public class WorkerRegistry {
     }
 
     public WorkerRegistry(List<WorkerDescriptor> workers) {
-        this(() -> List.copyOf(workers));
+        List<WorkerDescriptor> snapshot = workers == null
+                ? List.of()
+                : Collections.unmodifiableList(new ArrayList<>(workers));
+        assertNoDuplicateWorkerIds(snapshot);
+        this.workerSupplier = () -> snapshot;
     }
 
     private WorkerRegistry(Supplier<List<WorkerDescriptor>> workerSupplier) {
@@ -67,6 +72,18 @@ public class WorkerRegistry {
 
     public synchronized void markHealthy(String workerId) {
         unhealthyWorkerIds.remove(workerId);
+    }
+
+    private static void assertNoDuplicateWorkerIds(List<WorkerDescriptor> workers) {
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        for (WorkerDescriptor worker : workers) {
+            if (worker == null || !StringUtils.hasText(worker.getId()) || worker.getUri() == null) {
+                continue;
+            }
+            if (!ids.add(worker.getId())) {
+                throw new IllegalArgumentException("Duplicate worker id: " + worker.getId());
+            }
+        }
     }
 
     private List<WorkerDescriptor> currentWorkers() {

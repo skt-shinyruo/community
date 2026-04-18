@@ -59,6 +59,7 @@ class WsAuthStateMachineIntegrationTest {
         registry.add("gateway.ws.proxy.path", () -> "/ws/im");
         registry.add("gateway.ws.proxy.auth-required", () -> true);
         registry.add("gateway.ws.proxy.default-worker-uri", WsAuthStateMachineIntegrationTest::workerUri);
+        registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
         registry.add("security.jwt.hmac-secret", () -> JWT_SECRET);
         registry.add("security.jwt.issuer", () -> JWT_ISSUER);
     }

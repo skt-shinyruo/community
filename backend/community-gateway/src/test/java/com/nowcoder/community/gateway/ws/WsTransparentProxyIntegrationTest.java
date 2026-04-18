@@ -48,6 +48,7 @@ class WsTransparentProxyIntegrationTest {
         registry.add("gateway.ws.proxy.path", () -> "/ws/im");
         registry.add("gateway.ws.proxy.auth-required", () -> false);
         registry.add("gateway.ws.proxy.default-worker-uri", WsTransparentProxyIntegrationTest::workerUri);
+        registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
         registry.add("security.jwt.hmac-secret", () -> "gateway-test-jwt-secret-please-change-123456");
     }
 

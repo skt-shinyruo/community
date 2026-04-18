@@ -2,6 +2,7 @@ package com.nowcoder.community.search.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.scheduler.SingleFlightTaskGuard;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import com.nowcoder.community.search.exception.SearchErrorCode;
@@ -22,6 +23,7 @@ public class ReindexJobService {
     private final SingleFlightTaskGuard singleFlightTaskGuard;
     private final Duration lockTtl;
 
+    @Autowired
     public ReindexJobService(
             ObjectProvider<SingleFlightTaskGuard> singleFlightTaskGuardProvider,
             @Value("${search.reindex.lock-ttl:30m}") Duration lockTtl

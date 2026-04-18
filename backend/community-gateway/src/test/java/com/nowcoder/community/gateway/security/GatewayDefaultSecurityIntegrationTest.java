@@ -52,7 +52,10 @@ class GatewayDefaultSecurityIntegrationTest {
     static void registerProperties(DynamicPropertyRegistry registry) {
         registry.add("gateway.http.routes[0].id", () -> "bootstrap-api");
         registry.add("gateway.http.routes[0].path-prefix", () -> "/api");
-        registry.add("gateway.http.routes[0].uri", GatewayDefaultSecurityIntegrationTest::httpUpstreamBaseUrl);
+        registry.add("gateway.http.routes[0].service-id", () -> "community-app");
+        registry.add("spring.cloud.discovery.client.simple.instances.community-app[0].uri",
+                GatewayDefaultSecurityIntegrationTest::httpUpstreamBaseUrl);
+        registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
         registry.add("gateway.ws.proxy.path", () -> "/ws/im");
         registry.add("gateway.ws.proxy.auth-required", () -> false);
         registry.add("gateway.ws.proxy.default-worker-uri", GatewayDefaultSecurityIntegrationTest::workerUri);

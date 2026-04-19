@@ -112,7 +112,8 @@ public class IdempotencyGuard {
                 store.saveSuccess(op, userId, key, json, successTtl);
             } catch (RuntimeException e) {
                 record(operation, "store_error");
-                // 注意：supplier 已成功执行（副作用已产生）。此时再返回 503 会诱导客户端重试并放大重复副作用风险。
+                safeExtendProcessing(op, userId, key, successTtl);
+                throw pendingConfirmation();
             }
             record(operation, "succeeded");
             return result;
@@ -185,6 +186,13 @@ public class IdempotencyGuard {
         }
     }
 
+    private void safeExtendProcessing(String operation, int userId, String key, Duration ttl) {
+        try {
+            store.extendProcessing(operation, userId, key, ttl);
+        } catch (RuntimeException ignored) {
+        }
+    }
+
     private Duration safeDuration(Duration v, Duration fallback) {
         if (v == null) {
             return fallback;
@@ -193,6 +201,10 @@ public class IdempotencyGuard {
             return fallback;
         }
         return v;
+    }
+
+    private BusinessException pendingConfirmation() {
+        return new BusinessException(new SimpleErrorCode(409, "请求结果确认中，请稍后重试", 409));
     }
 
     private void record(String operation, String outcome) {

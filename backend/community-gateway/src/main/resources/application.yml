@@ -44,7 +44,7 @@ gateway:
         service-id: community-app
     rate-limit:
       enabled: true
-      fail-open-on-error: true
+      fail-open-on-error: false
       policies: {}
     traffic-policy:
       default-policy-id: baseline

@@ -3,6 +3,7 @@ package com.nowcoder.community.auth.service;
 import com.nowcoder.community.auth.config.CaptchaProperties;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
@@ -36,7 +37,11 @@ public class CaptchaService {
 
         int ttlSeconds = Math.max(1, properties.getTtlSeconds());
         Duration ttl = Duration.ofSeconds(ttlSeconds);
-        captchaStore.save(captchaId, code, ttl);
+        try {
+            captchaStore.save(captchaId, code, ttl);
+        } catch (RuntimeException e) {
+            throw captchaUnavailable(e);
+        }
 
         BufferedImage image = render(code);
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -53,23 +58,23 @@ public class CaptchaService {
         if (isBlank(captchaId) || isBlank(code)) {
             return false;
         }
-        String expected = captchaStore.get(captchaId);
-        if (isBlank(expected)) {
-            return false;
-        }
-        boolean ok = expected.equalsIgnoreCase(code.trim());
-        if (ok) {
-            // 一次性验证码：校验成功后立即失效，降低重放风险
-            captchaStore.delete(captchaId);
-            return true;
-        }
-
         int ttlSeconds = Math.max(1, properties.getTtlSeconds());
         int maxFailures = Math.max(1, properties.getMaxFailures());
-        int failures = captchaStore.incrementFailures(captchaId, Duration.ofSeconds(ttlSeconds));
-        if (failures >= maxFailures) {
-            // 失败次数达到阈值：作废该验证码，要求重新获取
-            captchaStore.delete(captchaId);
+        try {
+            CaptchaStore.VerifyResult verifyResult = captchaStore.verifyAndConsume(captchaId, code.trim());
+            if (verifyResult == CaptchaStore.VerifyResult.MATCHED) {
+                return true;
+            }
+            if (verifyResult == CaptchaStore.VerifyResult.NOT_FOUND) {
+                return false;
+            }
+            int failures = captchaStore.incrementFailures(captchaId, Duration.ofSeconds(ttlSeconds));
+            if (failures >= maxFailures) {
+                // 失败次数达到阈值：作废该验证码，要求重新获取
+                captchaStore.delete(captchaId);
+            }
+        } catch (RuntimeException e) {
+            throw captchaUnavailable(e);
         }
         return false;
     }
@@ -118,6 +123,10 @@ public class CaptchaService {
 
     private boolean isBlank(String s) {
         return s == null || s.trim().isEmpty();
+    }
+
+    private BusinessException captchaUnavailable(RuntimeException cause) {
+        return new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "验证码服务暂时不可用，请稍后重试", cause);
     }
 
     public record IssuedCaptcha(String captchaId, String imageBase64, int ttlSeconds) {

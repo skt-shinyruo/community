@@ -113,11 +113,19 @@ class JwtCodecsTest {
     void hmacSha256OrThrow_shouldRejectKnownPlaceholderSecrets() {
         JwtProperties firstPlaceholder = properties("dev-secret-please-change-at-least-32bytes", "community-auth");
         JwtProperties secondPlaceholder = properties("dev-jwt-hmac-secret-please-change-me-123456", "community-auth");
+        JwtProperties gatewayPlaceholder = properties("gateway-dev-jwt-hmac-secret-please-change-123456", "community-auth");
+        JwtProperties imRealtimePlaceholder = properties("im-realtime-dev-jwt-hmac-secret-please-change-123456", "community-auth");
 
         assertThatThrownBy(() -> JwtSecretKeys.hmacSha256OrThrow(firstPlaceholder))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("security.jwt.hmac-secret");
         assertThatThrownBy(() -> JwtSecretKeys.hmacSha256OrThrow(secondPlaceholder))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("security.jwt.hmac-secret");
+        assertThatThrownBy(() -> JwtSecretKeys.hmacSha256OrThrow(gatewayPlaceholder))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("security.jwt.hmac-secret");
+        assertThatThrownBy(() -> JwtSecretKeys.hmacSha256OrThrow(imRealtimePlaceholder))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("security.jwt.hmac-secret");
     }

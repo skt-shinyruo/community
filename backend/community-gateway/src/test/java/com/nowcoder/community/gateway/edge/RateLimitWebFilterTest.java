@@ -16,6 +16,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class RateLimitWebFilterTest {
@@ -133,6 +135,53 @@ class RateLimitWebFilterTest {
         ServerWebExchange second = buildExchange("/blank-principal", blankPrincipal, remote);
         filter.filter(second, chain).block();
         assertThat(second.getResponse().getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(chainInvocations).hasValue(1);
+    }
+
+    @Test
+    void shouldBlockWhenLimiterErrorsByDefault() {
+        RateLimitProperties properties = new RateLimitProperties();
+        RateLimitProperties.Policy policy = new RateLimitProperties.Policy();
+        properties.getPolicies().put("/limited", policy);
+
+        RateLimiter limiter = mock(RateLimiter.class);
+        when(limiter.allow("ip:127.0.0.1:/limited", policy)).thenThrow(new RuntimeException("redis down"));
+        RateLimitWebFilter filter = new RateLimitWebFilter(properties, limiter);
+
+        AtomicInteger chainInvocations = new AtomicInteger();
+        WebFilterChain chain = exchange -> {
+            chainInvocations.incrementAndGet();
+            return Mono.empty();
+        };
+
+        ServerWebExchange exchange = buildExchange("/limited", null, new InetSocketAddress("127.0.0.1", 8080));
+        filter.filter(exchange, chain).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+        assertThat(chainInvocations).hasValue(0);
+    }
+
+    @Test
+    void shouldAllowWhenLimiterErrorsAndFailOpenEnabled() {
+        RateLimitProperties properties = new RateLimitProperties();
+        properties.setFailOpenOnError(true);
+        RateLimitProperties.Policy policy = new RateLimitProperties.Policy();
+        properties.getPolicies().put("/limited", policy);
+
+        RateLimiter limiter = mock(RateLimiter.class);
+        when(limiter.allow("ip:127.0.0.1:/limited", policy)).thenThrow(new RuntimeException("redis down"));
+        RateLimitWebFilter filter = new RateLimitWebFilter(properties, limiter);
+
+        AtomicInteger chainInvocations = new AtomicInteger();
+        WebFilterChain chain = exchange -> {
+            chainInvocations.incrementAndGet();
+            return Mono.empty();
+        };
+
+        ServerWebExchange exchange = buildExchange("/limited", null, new InetSocketAddress("127.0.0.1", 8080));
+        filter.filter(exchange, chain).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isNull();
         assertThat(chainInvocations).hasValue(1);
     }
 

@@ -10,7 +10,7 @@ import java.util.Map;
 public class RateLimitProperties {
 
     private boolean enabled = true;
-    private boolean failOpenOnError = true;
+    private boolean failOpenOnError = false;
     private final Map<String, Policy> policies = new LinkedHashMap<>();
 
     public boolean isEnabled() {

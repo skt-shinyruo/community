@@ -20,6 +20,8 @@ public interface IdempotencyStore {
 
     void saveSuccess(String operation, int userId, String key, String successJson, Duration ttl);
 
+    void extendProcessing(String operation, int userId, String key, Duration ttl);
+
     void delete(String operation, int userId, String key);
 
     enum Status {

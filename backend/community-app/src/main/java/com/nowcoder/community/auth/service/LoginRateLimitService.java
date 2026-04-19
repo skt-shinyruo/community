@@ -7,13 +7,15 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.TimeUnit;
 
 @Service
 public class LoginRateLimitService {
@@ -23,6 +25,16 @@ public class LoginRateLimitService {
     private static final String KEY_PREFIX_IP = KEY_PREFIX + "ip:";
     private static final String KEY_PREFIX_USER = KEY_PREFIX + "user:";
     private static final String METRIC = "auth_login_rate_limit_total";
+    private static final RedisScript<Long> INCREMENT_WITH_TTL_SCRIPT = script(
+            """
+                    local count = redis.call('incr', KEYS[1])
+                    if count == 1 then
+                        redis.call('expire', KEYS[1], ARGV[1])
+                    end
+                    return count
+                    """,
+            Long.class
+    );
 
     private final LoginRateLimitProperties properties;
     private final StringRedisTemplate redisTemplate;
@@ -176,12 +188,9 @@ public class LoginRateLimitService {
 
     private int increment(String key) {
         int windowSeconds = Math.max(1, properties.getWindowSeconds());
-        Long count = redisTemplate.opsForValue().increment(key);
+        Long count = redisTemplate.execute(INCREMENT_WITH_TTL_SCRIPT, List.of(key), Integer.toString(windowSeconds));
         if (count == null) {
-            return 0;
-        }
-        if (count == 1) {
-            redisTemplate.expire(key, windowSeconds, TimeUnit.SECONDS);
+            throw new IllegalStateException("redis login rate-limit increment returned null");
         }
         if (count > Integer.MAX_VALUE) {
             return Integer.MAX_VALUE;
@@ -191,5 +200,12 @@ public class LoginRateLimitService {
 
     private String normalizeUsername(String username) {
         return username.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static <T> RedisScript<T> script(String scriptText, Class<T> resultType) {
+        DefaultRedisScript<T> script = new DefaultRedisScript<>();
+        script.setScriptText(scriptText);
+        script.setResultType(resultType);
+        return script;
     }
 }

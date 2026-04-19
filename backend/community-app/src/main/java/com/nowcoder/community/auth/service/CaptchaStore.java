@@ -4,7 +4,15 @@ import java.time.Duration;
 
 public interface CaptchaStore {
 
+    enum VerifyResult {
+        MATCHED,
+        MISMATCH,
+        NOT_FOUND
+    }
+
     void save(String owner, String code, Duration ttl);
+
+    VerifyResult verifyAndConsume(String owner, String code);
 
     String get(String owner);
 

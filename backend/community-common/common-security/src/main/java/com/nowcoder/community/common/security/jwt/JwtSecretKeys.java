@@ -9,7 +9,9 @@ public final class JwtSecretKeys {
 
     private static final Set<String> PLACEHOLDER_JWT_SECRETS = Set.of(
             "dev-secret-please-change-at-least-32bytes",
-            "dev-jwt-hmac-secret-please-change-me-123456"
+            "dev-jwt-hmac-secret-please-change-me-123456",
+            "gateway-dev-jwt-hmac-secret-please-change-123456",
+            "im-realtime-dev-jwt-hmac-secret-please-change-123456"
     );
 
     private JwtSecretKeys() {

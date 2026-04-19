@@ -7,6 +7,7 @@ import org.springframework.util.StringUtils;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Component
 @ConditionalOnProperty(name = "auth.captcha.store", havingValue = "memory")
@@ -37,6 +38,32 @@ public class InMemoryCaptchaStore implements CaptchaStore {
             return null;
         }
         return entry.code;
+    }
+
+    @Override
+    public VerifyResult verifyAndConsume(String owner, String code) {
+        if (!StringUtils.hasText(owner) || !StringUtils.hasText(code)) {
+            return VerifyResult.NOT_FOUND;
+        }
+        AtomicReference<VerifyResult> result = new AtomicReference<>(VerifyResult.NOT_FOUND);
+        String trimmedCode = code.trim();
+        store.compute(owner, (k, v) -> {
+            long now = System.currentTimeMillis();
+            if (v == null || now > v.expiresAtMs) {
+                result.set(VerifyResult.NOT_FOUND);
+                return null;
+            }
+            if (v.code.equalsIgnoreCase(trimmedCode)) {
+                result.set(VerifyResult.MATCHED);
+                return null;
+            }
+            result.set(VerifyResult.MISMATCH);
+            return v;
+        });
+        if (result.get() == VerifyResult.MATCHED) {
+            failures.remove(owner);
+        }
+        return result.get();
     }
 
     @Override

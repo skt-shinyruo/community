@@ -78,16 +78,36 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
 
     @Override
     public StoredRefreshToken find(String refreshToken) {
-        String json = redisTemplate.opsForValue().get(KEY_PREFIX_TOKEN + refreshToken);
+        if (!StringUtils.hasText(refreshToken)) {
+            return null;
+        }
+        String token = refreshToken.trim();
+        if (token.isEmpty()) {
+            return null;
+        }
+        String json = redisTemplate.opsForValue().get(KEY_PREFIX_TOKEN + token);
         return readRecord(json);
     }
 
     @Override
     public StoredRefreshToken consume(String refreshToken) {
-        String json = redisTemplate.opsForValue().getAndDelete(KEY_PREFIX_TOKEN + refreshToken);
+        if (!StringUtils.hasText(refreshToken)) {
+            return null;
+        }
+        String token = refreshToken.trim();
+        if (token.isEmpty()) {
+            return null;
+        }
+        String json = redisTemplate.opsForValue().getAndDelete(KEY_PREFIX_TOKEN + token);
         StoredRefreshToken found = readRecord(json);
         if (found != null) {
-            redisTemplate.opsForSet().remove(KEY_PREFIX_FAMILY + found.familyId(), refreshToken);
+            String member = StringUtils.hasText(found.refreshToken()) ? found.refreshToken().trim() : token;
+            if (!member.isEmpty()) {
+                try {
+                    redisTemplate.opsForSet().remove(KEY_PREFIX_FAMILY + found.familyId(), member);
+                } catch (RuntimeException ignored) {
+                }
+            }
         }
         return found;
     }
@@ -105,10 +125,23 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
 
     @Override
     public void revoke(String refreshToken) {
-        StoredRefreshToken found = find(refreshToken);
-        redisTemplate.delete(KEY_PREFIX_TOKEN + refreshToken);
+        if (!StringUtils.hasText(refreshToken)) {
+            return;
+        }
+        String token = refreshToken.trim();
+        if (token.isEmpty()) {
+            return;
+        }
+        StoredRefreshToken found = find(token);
+        redisTemplate.delete(KEY_PREFIX_TOKEN + token);
         if (found != null) {
-            redisTemplate.opsForSet().remove(KEY_PREFIX_FAMILY + found.familyId(), refreshToken);
+            String member = StringUtils.hasText(found.refreshToken()) ? found.refreshToken().trim() : token;
+            if (!member.isEmpty()) {
+                try {
+                    redisTemplate.opsForSet().remove(KEY_PREFIX_FAMILY + found.familyId(), member);
+                } catch (RuntimeException ignored) {
+                }
+            }
         }
     }
 
@@ -142,7 +175,10 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
         Set<String> members = redisTemplate.opsForSet().members(familyKey);
         if (members != null) {
             for (String token : members) {
-                redisTemplate.delete(KEY_PREFIX_TOKEN + token);
+                if (!StringUtils.hasText(token)) {
+                    continue;
+                }
+                redisTemplate.delete(KEY_PREFIX_TOKEN + token.trim());
             }
         }
         redisTemplate.delete(familyKey);

@@ -90,4 +90,53 @@ class RedisRefreshTokenStoreTest {
         verify(redisTemplate).delete(eq("auth:refresh:t2"));
         verify(redisTemplate).delete(eq("auth:refresh:family:f1"));
     }
+
+    @Test
+    void consumeShouldTrimTokenForKeyAndFamilyRemoval() throws Exception {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOps = mock(ValueOperations.class);
+        @SuppressWarnings("unchecked")
+        SetOperations<String, String> setOps = mock(SetOperations.class);
+
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(redisTemplate.opsForSet()).thenReturn(setOps);
+
+        String json = objectMapper().writeValueAsString(
+                new RefreshTokenStore.StoredRefreshToken("t1", 7, "f1", Instant.now().plusSeconds(60))
+        );
+        when(valueOps.getAndDelete(eq("auth:refresh:t1"))).thenReturn(json);
+
+        RedisRefreshTokenStore store = new RedisRefreshTokenStore(redisTemplate, objectMapper());
+        RefreshTokenStore.StoredRefreshToken found = store.consume("  t1  ");
+
+        assertThat(found).isNotNull();
+        assertThat(found.refreshToken()).isEqualTo("t1");
+        assertThat(found.familyId()).isEqualTo("f1");
+        verify(valueOps).getAndDelete(eq("auth:refresh:t1"));
+        verify(setOps).remove(eq("auth:refresh:family:f1"), eq("t1"));
+    }
+
+    @Test
+    void revokeShouldTrimTokenForKeyAndFamilyRemoval() throws Exception {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOps = mock(ValueOperations.class);
+        @SuppressWarnings("unchecked")
+        SetOperations<String, String> setOps = mock(SetOperations.class);
+
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(redisTemplate.opsForSet()).thenReturn(setOps);
+
+        String json = objectMapper().writeValueAsString(
+                new RefreshTokenStore.StoredRefreshToken("t1", 7, "f1", Instant.now().plusSeconds(60))
+        );
+        when(valueOps.get(eq("auth:refresh:t1"))).thenReturn(json);
+
+        RedisRefreshTokenStore store = new RedisRefreshTokenStore(redisTemplate, objectMapper());
+        store.revoke("  t1  ");
+
+        verify(redisTemplate).delete(eq("auth:refresh:t1"));
+        verify(setOps).remove(eq("auth:refresh:family:f1"), eq("t1"));
+    }
 }

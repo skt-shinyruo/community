@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -109,6 +110,37 @@ class RefreshTokenServiceTest {
         AuthService.RefreshResult result = authService.refresh(request);
 
         assertThat(result.accessToken()).isEqualTo("access-token");
+    }
+
+    @Test
+    void rotateShouldReturnNullWhenStoreThrows() {
+        RefreshTokenService refreshTokenService = new RefreshTokenService(jwtProperties(), new RefreshTokenStore() {
+            @Override
+            public void store(String refreshToken, int userId, String familyId, Instant expiresAt) {
+                throw new IllegalStateException("store rejected");
+            }
+
+            @Override
+            public StoredRefreshToken find(String refreshToken) {
+                return null;
+            }
+
+            @Override
+            public StoredRefreshToken consume(String refreshToken) {
+                return new StoredRefreshToken(refreshToken, 7, "family-1", Instant.now().plusSeconds(300));
+            }
+
+            @Override
+            public void revoke(String refreshToken) {
+            }
+
+            @Override
+            public void revokeFamily(String familyId) {
+            }
+        });
+
+        assertThatCode(() -> assertThat(refreshTokenService.rotate("presented-token")).isNull())
+                .doesNotThrowAnyException();
     }
 
     private static AuthService authService(RefreshTokenService refreshTokenService) {

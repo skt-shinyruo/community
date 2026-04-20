@@ -31,7 +31,11 @@ public class RefreshTokenService {
         if (consumed.expiresAt().isBefore(Instant.now())) {
             return null;
         }
-        return issue(consumed.userId(), consumed.familyId());
+        try {
+            return issue(consumed.userId(), consumed.familyId());
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     public RefreshTokenStore.StoredRefreshToken find(String refreshToken) {

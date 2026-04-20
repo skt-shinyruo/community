@@ -5,17 +5,20 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.data.redis.core.HyperLogLogOperations;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -30,9 +33,8 @@ class RedisAnalyticsRepositoryTest {
         HyperLogLogOperations<String, String> hyperOps = (HyperLogLogOperations<String, String>) mock(HyperLogLogOperations.class);
 
         when(redisTemplate.opsForHyperLogLog()).thenReturn(hyperOps);
-        when(hyperOps.union(anyString(), any(String[].class))).thenReturn(1L);
         when(hyperOps.size(anyString())).thenReturn(42L);
-        when(redisTemplate.expire(anyString(), any(Duration.class))).thenReturn(true);
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), anyString())).thenReturn(1L);
         when(redisTemplate.delete(anyString())).thenReturn(true);
 
         RedisAnalyticsRepository repo = new RedisAnalyticsRepository(redisTemplate);
@@ -49,20 +51,32 @@ class RedisAnalyticsRepositoryTest {
         String key = deleteKey.getValue();
         assertThat(key).startsWith("uv:tmp:2026-01-01:2026-01-02:");
         assertThat(key).isNotEqualTo("uv:2026-01-01:2026-01-02");
-        verify(redisTemplate, times(1)).expire(eq(key), any(Duration.class));
+
+        ArgumentCaptor<RedisScript<Long>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
+        ArgumentCaptor<List<String>> keysCaptor = ArgumentCaptor.forClass(List.class);
+        verify(redisTemplate, times(1)).execute(
+                scriptCaptor.capture(),
+                keysCaptor.capture(),
+                eq(Long.toString(Duration.ofSeconds(60).toMillis()))
+        );
+        assertThat(scriptCaptor.getValue()).isInstanceOf(DefaultRedisScript.class);
+        DefaultRedisScript<?> script = (DefaultRedisScript<?>) scriptCaptor.getValue();
+        assertThat(script.getScriptAsString()).contains("pfmerge");
+        assertThat(script.getScriptAsString()).contains("pexpire");
+        assertThat(keysCaptor.getValue()).containsExactly(
+                key,
+                "uv:2026-01-01",
+                "uv:2026-01-02"
+        );
+        verify(redisTemplate, never()).expire(eq(key), any(Duration.class));
     }
 
     @Test
     void calculateDau_shouldUseTemporaryUnionKey_andCleanup_andBeUniquePerCall() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        when(redisTemplate.expire(anyString(), any(Duration.class))).thenReturn(true);
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), anyString())).thenReturn(1L);
         when(redisTemplate.delete(anyString())).thenReturn(true);
-
-        AtomicInteger executeCalls = new AtomicInteger();
-        when(redisTemplate.execute(any(RedisCallback.class))).thenAnswer(invocation -> {
-            int n = executeCalls.incrementAndGet();
-            return (n % 2 == 1) ? null : 5L;
-        });
+        when(redisTemplate.execute(any(RedisCallback.class))).thenReturn(5L);
 
         RedisAnalyticsRepository repo = new RedisAnalyticsRepository(redisTemplate);
 
@@ -87,11 +101,10 @@ class RedisAnalyticsRepositoryTest {
     @Test
     void calculateDau_shouldCleanupEvenWhenBitCountFails() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        when(redisTemplate.expire(anyString(), any(Duration.class))).thenReturn(true);
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), anyString())).thenReturn(1L);
         when(redisTemplate.delete(anyString())).thenReturn(true);
 
         when(redisTemplate.execute(any(RedisCallback.class)))
-                .thenReturn(null)
                 .thenThrow(new RuntimeException("boom"));
 
         RedisAnalyticsRepository repo = new RedisAnalyticsRepository(redisTemplate);
@@ -104,4 +117,3 @@ class RedisAnalyticsRepositoryTest {
         verify(redisTemplate, times(1)).delete(anyString());
     }
 }
-

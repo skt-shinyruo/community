@@ -45,24 +45,26 @@ public class SearchReindexExecutionService implements SearchReindexActionApi {
                 "success",
                 "community.job_id", job.jobId()
         );
-        try {
-            int count = postSearchService.clearAndReindexFromContentService();
-            infoEvent(
-                    "search_reindex",
-                    "success",
-                    "community.job_id", job.jobId(),
-                    "community.indexed_count", count
-            );
-            return new SearchReindexResult(job.jobId(), count, false, null);
-        } catch (RuntimeException e) {
-            warnEvent(
-                    "search_reindex",
-                    "failure",
-                    e,
-                    "community.reason_code", "reindex_failed",
-                    "community.job_id", job.jobId()
-            );
-            throw e;
+        try (ReindexJobService.RenewalHandle ignored = reindexJobService.startRenewal(job)) {
+            try {
+                int count = postSearchService.clearAndReindexFromContentService();
+                infoEvent(
+                        "search_reindex",
+                        "success",
+                        "community.job_id", job.jobId(),
+                        "community.indexed_count", count
+                );
+                return new SearchReindexResult(job.jobId(), count, false, null);
+            } catch (RuntimeException e) {
+                warnEvent(
+                        "search_reindex",
+                        "failure",
+                        e,
+                        "community.reason_code", "reindex_failed",
+                        "community.job_id", job.jobId()
+                );
+                throw e;
+            }
         } finally {
             reindexJobService.finish(job);
         }

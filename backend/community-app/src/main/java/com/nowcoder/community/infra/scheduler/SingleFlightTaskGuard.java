@@ -24,12 +24,20 @@ public class SingleFlightTaskGuard {
     private static final Logger log = LoggerFactory.getLogger(SingleFlightTaskGuard.class);
 
     private static final DefaultRedisScript<Long> UNLOCK_SCRIPT = new DefaultRedisScript<>();
+    private static final DefaultRedisScript<Long> REFRESH_SCRIPT = new DefaultRedisScript<>();
 
     static {
         UNLOCK_SCRIPT.setResultType(Long.class);
         UNLOCK_SCRIPT.setScriptText(
                 "if redis.call('get', KEYS[1]) == ARGV[1] then " +
                         "return redis.call('del', KEYS[1]) " +
+                        "else return 0 end"
+        );
+
+        REFRESH_SCRIPT.setResultType(Long.class);
+        REFRESH_SCRIPT.setScriptText(
+                "if redis.call('get', KEYS[1]) == ARGV[1] then " +
+                        "return redis.call('pexpire', KEYS[1], ARGV[2]) " +
                         "else return 0 end"
         );
     }
@@ -73,6 +81,30 @@ public class SingleFlightTaskGuard {
             redisTemplate.execute(UNLOCK_SCRIPT, Collections.singletonList(lock.key()), lock.token());
         } catch (RuntimeException e) {
             log.warn("[single-flight] release failed: key={}, err={}", lock.key(), e.toString());
+        }
+    }
+
+    public boolean refresh(Lock lock, Duration ttl) {
+        if (lock == null || !StringUtils.hasText(lock.key()) || !StringUtils.hasText(lock.token())) {
+            return false;
+        }
+        if (ttl == null || ttl.isNegative() || ttl.isZero()) {
+            return false;
+        }
+        if (redisTemplate == null) {
+            return false;
+        }
+        try {
+            Long refreshed = redisTemplate.execute(
+                    REFRESH_SCRIPT,
+                    Collections.singletonList(lock.key()),
+                    lock.token(),
+                    Long.toString(ttl.toMillis())
+            );
+            return refreshed != null && refreshed > 0;
+        } catch (RuntimeException e) {
+            log.warn("[single-flight] refresh failed: key={}, err={}", lock.key(), e.toString());
+            return false;
         }
     }
 

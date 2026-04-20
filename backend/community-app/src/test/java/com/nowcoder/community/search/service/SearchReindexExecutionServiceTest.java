@@ -22,8 +22,10 @@ class SearchReindexExecutionServiceTest {
     void executeShouldRunReindexAndReleaseJobWhenAcquired(CapturedOutput output) {
         PostSearchService postSearchService = mock(PostSearchService.class);
         ReindexJobService reindexJobService = mock(ReindexJobService.class);
+        ReindexJobService.RenewalHandle renewalHandle = mock(ReindexJobService.RenewalHandle.class);
         ReindexJobService.ReindexJob job = new ReindexJobService.ReindexJob("job-1", true, null);
         when(reindexJobService.tryStart()).thenReturn(job);
+        when(reindexJobService.startRenewal(job)).thenReturn(renewalHandle);
         when(postSearchService.clearAndReindexFromContentService()).thenReturn(42);
 
         SearchReindexActionApi service =
@@ -36,7 +38,9 @@ class SearchReindexExecutionServiceTest {
         assertThat(result.skipped()).isFalse();
         assertThat(result.reason()).isNull();
         verify(reindexJobService).tryStart();
+        verify(reindexJobService).startRenewal(job);
         verify(postSearchService).clearAndReindexFromContentService();
+        verify(renewalHandle).close();
         verify(reindexJobService).finish(job);
         verifyNoMoreInteractions(postSearchService, reindexJobService);
         assertThat(output.getAll())
@@ -79,9 +83,11 @@ class SearchReindexExecutionServiceTest {
     void executeShouldReleaseJobWhenReindexFails(CapturedOutput output) {
         PostSearchService postSearchService = mock(PostSearchService.class);
         ReindexJobService reindexJobService = mock(ReindexJobService.class);
+        ReindexJobService.RenewalHandle renewalHandle = mock(ReindexJobService.RenewalHandle.class);
         RuntimeException boom = new RuntimeException("boom");
         ReindexJobService.ReindexJob job = new ReindexJobService.ReindexJob("job-1", true, null);
         when(reindexJobService.tryStart()).thenReturn(job);
+        when(reindexJobService.startRenewal(job)).thenReturn(renewalHandle);
         when(postSearchService.clearAndReindexFromContentService()).thenThrow(boom);
 
         SearchReindexActionApi service =
@@ -91,7 +97,9 @@ class SearchReindexExecutionServiceTest {
                 .isSameAs(boom);
 
         verify(reindexJobService).tryStart();
+        verify(reindexJobService).startRenewal(job);
         verify(postSearchService).clearAndReindexFromContentService();
+        verify(renewalHandle).close();
         verify(reindexJobService).finish(job);
         verifyNoMoreInteractions(postSearchService, reindexJobService);
         assertThat(output.getAll())

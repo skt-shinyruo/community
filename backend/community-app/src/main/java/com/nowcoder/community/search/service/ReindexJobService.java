@@ -11,6 +11,11 @@ import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Redis-backed reindex single-flight + jobId.
@@ -47,7 +52,47 @@ public class ReindexJobService {
     }
 
     public RenewalHandle startRenewal(ReindexJob job) {
-        return () -> { };
+        if (job == null || job.lock() == null || singleFlightTaskGuard == null) {
+            return () -> { };
+        }
+
+        SingleFlightTaskGuard.Lock lock = job.lock();
+
+        // Immediate best-effort refresh so long-running jobs don't lose the lock right after start.
+        singleFlightTaskGuard.refresh(lock, lockTtl);
+
+        Duration interval = renewalInterval(lockTtl);
+        long intervalMs = Math.max(1_000L, interval.toMillis());
+
+        ScheduledExecutorService scheduler;
+        try {
+            scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "search-reindex-lock-renewer");
+                t.setDaemon(true);
+                return t;
+            });
+        } catch (RuntimeException e) {
+            return () -> { };
+        }
+
+        AtomicBoolean stopped = new AtomicBoolean(false);
+        ScheduledFuture<?> scheduled = scheduler.scheduleAtFixedRate(() -> {
+            if (stopped.get()) {
+                return;
+            }
+            singleFlightTaskGuard.refresh(lock, lockTtl);
+        }, intervalMs, intervalMs, TimeUnit.MILLISECONDS);
+
+        return () -> {
+            stopped.set(true);
+            if (scheduled != null) {
+                scheduled.cancel(false);
+            }
+            try {
+                scheduler.shutdownNow();
+            } catch (RuntimeException ignored) {
+            }
+        };
     }
 
     public void finish(ReindexJob job) {
@@ -60,6 +105,17 @@ public class ReindexJobService {
     public void conflict(String jobId) {
         String suffix = StringUtils.hasText(jobId) ? (" (jobId=" + jobId.trim() + ")") : "";
         throw new BusinessException(SearchErrorCode.REINDEX_RUNNING, "reindex 任务正在执行" + suffix);
+    }
+
+    private Duration renewalInterval(Duration ttl) {
+        if (ttl == null || ttl.isNegative() || ttl.isZero()) {
+            return Duration.ofSeconds(60);
+        }
+        Duration interval = ttl.dividedBy(3);
+        if (interval.isNegative() || interval.isZero()) {
+            return Duration.ofSeconds(1);
+        }
+        return interval;
     }
 
     private String newJobId() {

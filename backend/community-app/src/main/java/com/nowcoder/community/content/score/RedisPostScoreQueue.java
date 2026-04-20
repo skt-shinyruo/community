@@ -2,10 +2,12 @@ package com.nowcoder.community.content.score;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -13,10 +15,21 @@ import java.util.concurrent.ThreadLocalRandom;
 @ConditionalOnProperty(name = "content.storage", havingValue = "redis", matchIfMissing = true)
 public class RedisPostScoreQueue implements PostScoreQueue {
 
+    private static final DefaultRedisScript<Long> RETRY_ATTEMPT_SCRIPT = new DefaultRedisScript<>();
+
     private static final String LEGACY_SET_KEY = "post:score";
     private static final String QUEUE_ZSET_KEY = "post:score:z";
     private static final String RETRY_HASH_KEY = "post:score:retry";
     private static final Duration RETRY_HASH_TTL = Duration.ofDays(3);
+
+    static {
+        RETRY_ATTEMPT_SCRIPT.setResultType(Long.class);
+        RETRY_ATTEMPT_SCRIPT.setScriptText(
+                "local v = redis.call('hincrby', KEYS[1], ARGV[1], 1) " +
+                        "if v == 1 then redis.call('pexpire', KEYS[1], ARGV[2]) end " +
+                        "return v"
+        );
+    }
 
     private final StringRedisTemplate redisTemplate;
 
@@ -54,18 +67,17 @@ public class RedisPostScoreQueue implements PostScoreQueue {
             return;
         }
         String member = String.valueOf(pid);
-        Long attemptLong = redisTemplate.opsForHash().increment(RETRY_HASH_KEY, member, 1L);
+        Long attemptLong = redisTemplate.execute(
+                RETRY_ATTEMPT_SCRIPT,
+                List.of(RETRY_HASH_KEY),
+                member,
+                Long.toString(RETRY_HASH_TTL.toMillis())
+        );
         long attempt = attemptLong == null ? 1L : Math.max(1L, attemptLong);
 
         long delayMs = computeBackoffMs(attempt);
         long dueAt = System.currentTimeMillis() + delayMs;
         redisTemplate.opsForZSet().add(QUEUE_ZSET_KEY, member, (double) dueAt);
-
-        // avoid unbounded memory growth for retry bookkeeping
-        try {
-            redisTemplate.expire(RETRY_HASH_KEY, RETRY_HASH_TTL);
-        } catch (RuntimeException ignored) {
-        }
     }
 
     @Override

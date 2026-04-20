@@ -43,7 +43,8 @@ community:
 
 security:
   jwt:
-    hmac-secret: ${JWT_HMAC_SECRET:im-realtime-dev-jwt-hmac-secret-please-change-123456}
+    # Required (>= 32 bytes). Set JWT_HMAC_SECRET via env/secret store.
+    hmac-secret: ${JWT_HMAC_SECRET:}
     issuer: ${JWT_ISSUER:community-auth}
 
 im:

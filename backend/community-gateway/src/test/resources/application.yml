@@ -1,0 +1,4 @@
+security:
+  jwt:
+    hmac-secret: gateway-test-jwt-secret-please-change-123456
+    issuer: community-auth

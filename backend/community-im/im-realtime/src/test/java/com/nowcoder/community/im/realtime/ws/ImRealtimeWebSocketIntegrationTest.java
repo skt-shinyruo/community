@@ -151,7 +151,8 @@ class ImRealtimeWebSocketIntegrationTest {
     @DynamicPropertySource
     static void registerDynamicProperties(DynamicPropertyRegistry registry) {
         ensureImCoreServer();
-        registry.add("im.core.base-url", () -> "http://127.0.0.1:" + imCoreServer.getAddress().getPort());
+        registry.add("spring.cloud.discovery.client.simple.instances.im-core[0].uri",
+                () -> "http://127.0.0.1:" + imCoreServer.getAddress().getPort());
     }
 
     @AfterEach

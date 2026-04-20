@@ -1,4 +1,8 @@
 spring:
+  cloud:
+    nacos:
+      discovery:
+        enabled: false
   kafka:
     bootstrap-servers: localhost:0
     listener:

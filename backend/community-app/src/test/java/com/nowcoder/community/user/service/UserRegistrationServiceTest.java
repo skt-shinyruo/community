@@ -35,8 +35,8 @@ class UserRegistrationServiceTest {
     @Test
     void registerShouldCreatePendingUserWithEncodedPassword() {
         UserRegistrationService service = new UserRegistrationService(userMapper);
-        when(userMapper.selectByName("alice")).thenReturn(null, null);
-        when(userMapper.selectByEmail("alice@example.com")).thenReturn(null, null);
+        when(userMapper.selectByName("alice")).thenReturn((User) null).thenReturn((User) null);
+        when(userMapper.selectByEmail("alice@example.com")).thenReturn((User) null).thenReturn((User) null);
         when(userMapper.insertUser(any())).thenAnswer(invocation -> {
             User user = invocation.getArgument(0);
             user.setId(7);
@@ -86,8 +86,8 @@ class UserRegistrationServiceTest {
     @Test
     void registerShouldTranslateDuplicateKeyRaceForUsername() {
         UserRegistrationService service = new UserRegistrationService(userMapper);
-        when(userMapper.selectByName("alice")).thenReturn(null, null);
-        when(userMapper.selectByEmail("alice@example.com")).thenReturn(null);
+        when(userMapper.selectByName("alice")).thenReturn((User) null).thenReturn((User) null);
+        when(userMapper.selectByEmail("alice@example.com")).thenReturn((User) null);
         when(userMapper.insertUser(any())).thenThrow(new DuplicateKeyException("uk_user_username"));
 
         assertThatThrownBy(() -> service.register("alice", "pw", "alice@example.com", Duration.ofMinutes(30)))
@@ -99,8 +99,8 @@ class UserRegistrationServiceTest {
     @Test
     void registerShouldTranslateDuplicateKeyRaceForEmail() {
         UserRegistrationService service = new UserRegistrationService(userMapper);
-        when(userMapper.selectByName("alice")).thenReturn(null, null);
-        when(userMapper.selectByEmail("alice@example.com")).thenReturn(null, null);
+        when(userMapper.selectByName("alice")).thenReturn((User) null).thenReturn((User) null);
+        when(userMapper.selectByEmail("alice@example.com")).thenReturn((User) null).thenReturn((User) null);
         when(userMapper.insertUser(any())).thenThrow(new DuplicateKeyException("uk_user_email"));
 
         assertThatThrownBy(() -> service.register("alice", "pw", "alice@example.com", Duration.ofMinutes(30)))
@@ -113,8 +113,8 @@ class UserRegistrationServiceTest {
     void registerShouldRecycleExpiredPendingUserBeforeInsert() {
         UserRegistrationService service = new UserRegistrationService(userMapper);
         User expired = expiredPendingUser(5, "alice", "alice@example.com");
-        when(userMapper.selectByName("alice")).thenReturn(expired, null);
-        when(userMapper.selectByEmail("alice@example.com")).thenReturn(expired, null);
+        when(userMapper.selectByName("alice")).thenReturn(expired).thenReturn((User) null);
+        when(userMapper.selectByEmail("alice@example.com")).thenReturn(expired).thenReturn((User) null);
         when(userMapper.deletePendingUserIfExpired(anyInt(), anyInt(), any(Date.class))).thenReturn(1, 0);
         when(userMapper.insertUser(any())).thenAnswer(invocation -> {
             User user = invocation.getArgument(0);

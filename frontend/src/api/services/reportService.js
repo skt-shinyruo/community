@@ -2,11 +2,12 @@
 
 import http from '../http'
 import { unwrapResultBody } from '../result'
+import { requireOpaqueId } from '../../utils/opaqueId'
 
 export async function createReport({ targetType, targetId, reason, detail } = {}) {
   const payload = {
     targetType: String(targetType || '').trim(),
-    targetId: Number(targetId || 0),
+    targetId: requireOpaqueId(targetId, 'targetId'),
     reason: String(reason || '').trim()
   }
   if (detail != null && String(detail).trim()) payload.detail = String(detail).trim()
@@ -15,4 +16,3 @@ export async function createReport({ targetType, targetId, reason, detail } = {}
   const { data, traceId } = unwrapResultBody(resp.data, '提交举报')
   return { data, traceId }
 }
-

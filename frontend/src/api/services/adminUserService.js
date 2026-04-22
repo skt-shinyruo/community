@@ -2,11 +2,12 @@
 
 import http from '../http'
 import { unwrapResultBody } from '../result'
+import { normalizeOpaqueId, requireOpaqueId } from '../../utils/opaqueId'
 
 export async function adminSearchUser({ userId, username, email } = {}) {
   const params = {}
-  const uid = Number(userId || 0)
-  if (uid > 0) params.userId = uid
+  const uid = normalizeOpaqueId(userId)
+  if (uid) params.userId = uid
   if (typeof username === 'string' && username.trim()) params.username = username.trim()
   if (typeof email === 'string' && email.trim()) params.email = email.trim()
 
@@ -17,7 +18,7 @@ export async function adminSearchUser({ userId, username, email } = {}) {
 
 export async function adminUpdateUserRole({ targetUserId, type, reason, confirm } = {}) {
   const payload = {
-    targetUserId: Number(targetUserId || 0),
+    targetUserId: requireOpaqueId(targetUserId, 'targetUserId'),
     type: Number(type || 0),
     reason: String(reason || ''),
     confirm: !!confirm
@@ -26,4 +27,3 @@ export async function adminUpdateUserRole({ targetUserId, type, reason, confirm 
   const { traceId } = unwrapResultBody(resp.data, '修改用户角色')
   return { traceId }
 }
-

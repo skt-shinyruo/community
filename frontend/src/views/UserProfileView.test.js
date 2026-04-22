@@ -73,13 +73,15 @@ function okResult(data, traceId = 'trace-user') {
 }
 
 describe('UserProfileView route contract', () => {
+  const userId = '11111111-1111-7111-8111-111111111111'
+
   beforeEach(() => {
     vi.clearAllMocks()
     http.get.mockImplementation((url) => {
-      if (url === '/api/users/7') {
+      if (url === `/api/users/${userId}`) {
         return Promise.resolve(
           okResult({
-            id: 7,
+            id: userId,
             username: 'alice',
             level: 3,
             score: 250,
@@ -87,8 +89,8 @@ describe('UserProfileView route contract', () => {
           })
         )
       }
-      if (url === '/api/users/7/recent-posts') return Promise.resolve(okResult([]))
-      if (url === '/api/users/7/recent-comments') return Promise.resolve(okResult([]))
+      if (url === `/api/users/${userId}/recent-posts`) return Promise.resolve(okResult([]))
+      if (url === `/api/users/${userId}/recent-comments`) return Promise.resolve(okResult([]))
       return Promise.resolve(okResult({}))
     })
   })
@@ -101,7 +103,7 @@ describe('UserProfileView route contract', () => {
   it('hides sign-in user-level ui and falls back to wallet-oriented public profile copy when new fields are absent', async () => {
     const wrapper = mount(UserProfileView, {
       props: {
-        userId: '7'
+        userId
       },
       global: {
         stubs: {
@@ -117,6 +119,11 @@ describe('UserProfileView route contract', () => {
     await flushPromises()
     await flushPromises()
 
+    expect(http.get.mock.calls.map(([url]) => url)).toEqual([
+      `/api/users/${userId}`,
+      `/api/users/${userId}/recent-posts`,
+      `/api/users/${userId}/recent-comments`
+    ])
     expect(wrapper.text()).toContain('钱包资产')
     expect(wrapper.text()).toContain('暂未公开')
     expect(wrapper.text()).not.toContain('用户等级 LV')

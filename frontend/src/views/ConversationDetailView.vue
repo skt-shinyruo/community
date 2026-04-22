@@ -71,17 +71,19 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { listImConversationMessages, markImConversationRead } from '../api/services/imCoreChatService'
 import { imRealtimeClient } from '../im/imRealtimeClient'
+import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
 import ConversationComposer from '../components/scene/ConversationComposer.vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiDivider from '../components/ui/UiDivider.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
+import { mapConversationMessage, parseConversationTargetId } from './conversationDetailState'
 
 const emit = defineEmits(['trace'])
 const props = defineProps({ conversationId: String })
 const auth = useAuthStore()
-const meId = computed(() => Number(auth.userId || 0))
+const meId = computed(() => normalizeOpaqueId(auth.userId))
 
 const loading = ref(false)
 const items = ref([])
@@ -91,7 +93,7 @@ const sending = ref(false)
 const chatArea = ref(null)
 const pendingClientMsgIds = new Set()
 
-const conversationId = computed(() => props.conversationId || '')
+const conversationId = computed(() => String(props.conversationId || '').trim())
 const targetId = computed(() => parseTargetId())
 
 const sortedItems = computed(() => {
@@ -104,11 +106,7 @@ function formatTimeShort(ts) {
 }
 
 function parseTargetId() {
-  const cid = conversationId.value
-  const parts = cid.split('_').map((x) => parseInt(x, 10)).filter((x) => Number.isFinite(x))
-  if (parts.length !== 2) return 0
-  const [a, b] = parts
-  return a === meId.value ? b : a
+  return parseConversationTargetId(conversationId.value, meId.value)
 }
 
 async function load() {
@@ -117,14 +115,7 @@ async function load() {
   try {
     const resp = await listImConversationMessages(conversationId.value, { afterSeq: 0, limit: 50 })
     const rows = Array.isArray(resp?.items) ? resp.items : []
-    items.value = rows.map((m) => ({
-      id: Number(m?.messageId || m?.seq || 0),
-      seq: Number(m?.seq || 0),
-      fromId: Number(m?.fromUserId || 0),
-      toId: Number(m?.toUserId || 0),
-      content: String(m?.content || ''),
-      createTime: Number(m?.createdAtEpochMs || 0)
-    }))
+    items.value = rows.map((m) => mapConversationMessage(m))
 
     const maxSeq = items.value.reduce((acc, m) => Math.max(acc, Number(m?.seq || 0)), 0)
     if (maxSeq > 0) {
@@ -177,24 +168,19 @@ onMounted(() => {
   offPrivate = imRealtimeClient.on('privateMessage', async (msg) => {
     if (!msg || msg.conversationId !== conversationId.value) return
     const seq = Number(msg?.seq || 0)
-    const messageId = Number(msg?.messageId || seq || 0)
-    const fromId = Number(msg?.fromUserId || 0)
-    const toId = Number(msg?.toUserId || 0)
-    const createTime = Number(msg?.createdAtEpochMs || Date.now())
-    const contentText = String(msg?.content || '')
+    const message = mapConversationMessage({
+      ...msg,
+      createdAtEpochMs: msg?.createdAtEpochMs || Date.now()
+    })
 
     items.value.push({
-      id: messageId,
-      seq,
-      fromId,
-      toId,
-      content: contentText,
-      createTime
+      ...message,
+      seq
     })
     scrollToBottom()
 
     // When this conversation is open, best-effort mark read to the latest seq.
-    if (seq > 0 && toId === meId.value) {
+    if (seq > 0 && sameOpaqueId(message.toId, meId.value)) {
       try { await markImConversationRead(conversationId.value, seq) } catch {}
     }
   })

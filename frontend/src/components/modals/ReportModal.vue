@@ -9,7 +9,7 @@
         </div>
 
         <div class="muted" style="font-size: 12px">
-          目标：{{ targetTypeLabel }} #{{ Number(targetId || 0) }}
+          目标：{{ targetTypeLabel }} #{{ normalizeOpaqueId(targetId) || '-' }}
         </div>
 
         <div class="stack" style="gap: 8px">
@@ -54,6 +54,7 @@ import UiIconButton from '../ui/UiIconButton.vue'
 import UiSelect from '../ui/UiSelect.vue'
 import UiTextarea from '../ui/UiTextarea.vue'
 import { createReport } from '../../api/services/reportService'
+import { normalizeOpaqueId } from '../../utils/opaqueId'
 
 const props = defineProps({
   targetType: { type: String, required: true }, // post | comment | user
@@ -90,7 +91,7 @@ async function submit() {
   try {
     await createReport({
       targetType: props.targetType,
-      targetId: Number(props.targetId || 0),
+      targetId: normalizeOpaqueId(props.targetId),
       reason: reason.value,
       detail: detail.value
     })

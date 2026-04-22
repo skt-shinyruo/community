@@ -2,6 +2,7 @@
 
 import http from '../http'
 import { unwrapResultBody } from '../result'
+import { normalizeOpaqueId, normalizeOpaqueIds, requireOpaqueId } from '../../utils/opaqueId'
 
 const userCache = new Map()
 const userInflight = new Map()
@@ -28,7 +29,7 @@ function normalizeUserLevelProfileFields(raw) {
 }
 
 export async function getUserProfile(userId, { force = false } = {}) {
-  const uid = Number(userId || 0)
+  const uid = requireOpaqueId(userId, 'userId')
   if (!force && userCache.has(uid)) {
     return userCache.get(uid)
   }
@@ -58,14 +59,14 @@ export async function getUserProfile(userId, { force = false } = {}) {
 }
 
 export async function listUserRecentPosts(userId, { page = 0, size = 3 } = {}) {
-  const uid = Number(userId || 0)
+  const uid = requireOpaqueId(userId, 'userId')
   const resp = await http.get(`/api/users/${uid}/recent-posts`, { params: { page, size } })
   const { data, traceId } = unwrapResultBody(resp.data, '获取用户最近帖子')
   return { data: Array.isArray(data) ? data : [], traceId }
 }
 
 export async function listUserRecentComments(userId, { page = 0, size = 3 } = {}) {
-  const uid = Number(userId || 0)
+  const uid = requireOpaqueId(userId, 'userId')
   const resp = await http.get(`/api/users/${uid}/recent-comments`, { params: { page, size } })
   const { data, traceId } = unwrapResultBody(resp.data, '获取用户最近评论')
   return { data: Array.isArray(data) ? data : [], traceId }
@@ -78,17 +79,7 @@ export async function resolveUserByUsername(username) {
 }
 
 export async function batchUserSummary(userIds) {
-  const raw = Array.isArray(userIds) ? userIds : []
-  const dedup = []
-  const seen = new Set()
-  for (const id of raw) {
-    const uid = Number(id || 0)
-    if (!uid || uid <= 0) continue
-    if (seen.has(uid)) continue
-    seen.add(uid)
-    dedup.push(uid)
-    if (dedup.length >= 200) break
-  }
+  const dedup = normalizeOpaqueIds(userIds)
 
   if (dedup.length === 0) {
     return { data: [], traceId: '' }
@@ -96,5 +87,12 @@ export async function batchUserSummary(userIds) {
 
   const resp = await http.post('/api/users/batch-summary', { userIds: dedup })
   const { data, traceId } = unwrapResultBody(resp.data, '批量用户摘要')
-  return { data: Array.isArray(data) ? data : [], traceId }
+  const list = Array.isArray(data) ? data : []
+  return {
+    data: list.map((item) => ({
+      ...item,
+      id: normalizeOpaqueId(item?.id)
+    })),
+    traceId
+  }
 }

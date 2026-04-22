@@ -28,7 +28,7 @@
               <UiBadge v-if="p.type === 1" variant="accent" class="bookmark-status-badge">置顶</UiBadge>
               <UiBadge v-if="p.status === 1" variant="success" class="bookmark-status-badge">精华</UiBadge>
               <RouterLink
-                v-if="Number(p.categoryId || 0) > 0"
+                v-if="p.categoryId"
                 class="taxonomy-link"
                 :to="{ name: 'posts', query: { categoryId: String(p.categoryId) } }"
               >
@@ -90,6 +90,7 @@ import { useTaxonomyStore } from '../stores/taxonomy'
 import { useSocialPrefsStore } from '../stores/socialPrefs'
 import { useAuthStore } from '../stores/auth'
 import { formatTime, formatTimeAgo } from '../utils/time'
+import { normalizeOpaqueId } from '../utils/opaqueId'
 
 const router = useRouter()
 const taxonomy = useTaxonomyStore()
@@ -106,7 +107,7 @@ const size = 10
 const hasNext = ref(true)
 
 function categoryLabel(id) {
-  const cid = Number(id || 0)
+  const cid = normalizeOpaqueId(id)
   if (!cid) return ''
   const c = taxonomy.categoriesById.get(cid)
   return c?.name || `分类#${cid}`
@@ -129,7 +130,7 @@ async function load(append = false) {
 
     const resp = await listBookmarks({ page: page.value, size })
     const raw = Array.isArray(resp?.data) ? resp.data : []
-    const filtered = prefs.blockedSet.size > 0 ? raw.filter((p) => !prefs.blockedSet.has(Number(p?.userId || 0))) : raw
+    const filtered = prefs.blockedSet.size > 0 ? raw.filter((p) => !prefs.blockedSet.has(normalizeOpaqueId(p?.userId))) : raw
 
     hasNext.value = raw.length >= size
     items.value = append ? [...items.value, ...filtered] : filtered

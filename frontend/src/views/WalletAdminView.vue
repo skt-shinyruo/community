@@ -14,7 +14,7 @@
         <section class="wallet-admin-card">
           <h2>冻结钱包</h2>
           <p>对风险用户做人工止损，避免继续转账、提现或消费。</p>
-          <UiInput v-model.number="freezeForm.userId" type="number" placeholder="目标用户 ID" />
+          <UiInput v-model.trim="freezeForm.userId" placeholder="目标用户 ID" />
           <UiInput v-model.trim="freezeForm.reason" placeholder="冻结原因" />
           <UiButton :disabled="submittingKey !== ''" @click="submitFreeze">
             {{ submittingKey === 'freeze' ? '提交中…' : '执行冻结' }}
@@ -63,6 +63,7 @@ import UiCard from '../components/ui/UiCard.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
+import { normalizeOpaqueId } from '../utils/opaqueId'
 
 const error = ref('')
 const submittingKey = ref('')
@@ -90,9 +91,9 @@ function pushAction(label, text) {
 }
 
 async function submitFreeze() {
-  const userId = Number(freezeForm.value.userId || 0)
+  const userId = normalizeOpaqueId(freezeForm.value.userId)
   const reason = String(freezeForm.value.reason || '').trim()
-  if (!Number.isFinite(userId) || userId <= 0) {
+  if (!userId) {
     error.value = '请输入有效的目标用户 ID'
     return
   }

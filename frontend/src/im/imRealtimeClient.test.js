@@ -83,4 +83,37 @@ describe('imRealtimeClient URL resolution', () => {
     expect(FakeWebSocket.instances).toHaveLength(1)
     expect(FakeWebSocket.instances[0].url).toBe('ws://localhost:12880/ws/im')
   })
+
+  it('should preserve UUID user ids during auth and private-message sends', async () => {
+    const { imRealtimeClient } = await import('./imRealtimeClient')
+    const sent = []
+    FakeWebSocket.prototype.send = (payload) => {
+      sent.push(JSON.parse(payload))
+    }
+
+    imRealtimeClient.connect('token-1')
+
+    const ws = FakeWebSocket.instances[0]
+    ws.readyState = FakeWebSocket.OPEN
+    ws.onopen?.()
+    ws.onmessage?.({
+      data: JSON.stringify({
+        type: 'auth_ok',
+        userId: '11111111-1111-7111-8111-111111111111'
+      })
+    })
+
+    imRealtimeClient.sendPrivateText({
+      toUserId: '22222222-2222-7222-8222-222222222222',
+      content: 'hello'
+    })
+
+    expect(imRealtimeClient.state.userId).toBe('11111111-1111-7111-8111-111111111111')
+    expect(sent[0]).toMatchObject({ type: 'auth', accessToken: 'token-1' })
+    expect(sent[1]).toMatchObject({
+      type: 'sendPrivateText',
+      toUserId: '22222222-2222-7222-8222-222222222222',
+      content: 'hello'
+    })
+  })
 })

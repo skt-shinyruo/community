@@ -10,12 +10,13 @@ import {
 
 describe('postsFeedState', () => {
   it('treats only the plain latest homepage as the default latest feed view', () => {
+    const categoryId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
     expect(
       isDefaultLatestFeedView({
         order: POSTS_ORDER.LATEST,
         filter: POSTS_FILTER.ALL,
         subscribed: false,
-        categoryId: 0,
+        categoryId: '',
         tag: '',
         page: 0
       })
@@ -26,7 +27,7 @@ describe('postsFeedState', () => {
         order: POSTS_ORDER.LATEST,
         filter: POSTS_FILTER.ALL,
         subscribed: true,
-        categoryId: 0,
+        categoryId: '',
         tag: '',
         page: 0
       })
@@ -37,7 +38,7 @@ describe('postsFeedState', () => {
         order: POSTS_ORDER.LATEST,
         filter: POSTS_FILTER.ALL,
         subscribed: false,
-        categoryId: 9,
+        categoryId,
         tag: '',
         page: 0
       })
@@ -48,7 +49,7 @@ describe('postsFeedState', () => {
         order: POSTS_ORDER.LATEST,
         filter: POSTS_FILTER.ALL,
         subscribed: false,
-        categoryId: 0,
+        categoryId: '',
         tag: 'java',
         page: 0
       })
@@ -59,7 +60,7 @@ describe('postsFeedState', () => {
         order: POSTS_ORDER.HOT,
         filter: POSTS_FILTER.ALL,
         subscribed: false,
-        categoryId: 0,
+        categoryId: '',
         tag: '',
         page: 0
       })

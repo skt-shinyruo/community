@@ -26,7 +26,7 @@
 
         <div class="profile-actions">
           <UiButton variant="secondary" :disabled="loading" @click="reload">刷新</UiButton>
-          <template v-if="authed && meUserId && meUserId !== Number(userId)">
+          <template v-if="authed && meUserId && !isSelfProfile">
             <UiButton
               v-if="followStatus === false && followStatusState === 'ready'"
               @click="doFollow(true)"
@@ -58,7 +58,7 @@
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
             </RouterLink>
           </template>
-          <template v-if="authed && meUserId === Number(userId)">
+          <template v-if="authed && isSelfProfile">
             <RouterLink class="btn secondary" to="/settings">编辑资料</RouterLink>
           </template>
         </div>
@@ -191,7 +191,7 @@
     <ReportModal
       v-if="reportOpen"
       target-type="user"
-      :target-id="Number(userId || 0)"
+      :target-id="userId"
       @close="reportOpen = false"
       @submitted="reportOpen = false"
     />
@@ -215,6 +215,7 @@ import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
 import UiRoleBadge from '../components/ui/UiRoleBadge.vue'
 import ReportModal from '../components/modals/ReportModal.vue'
+import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
 import { buildCommunityNextSteps, buildCommunitySignals, buildProfileWalletAsset, describeFollowStatusText } from './userProfileSurface'
 import { buildProfileTimeline, collectTimelineUserIds } from './userProfileTimeline'
 
@@ -228,7 +229,7 @@ const authed = computed(() => !!auth.accessToken)
 const taxonomy = useTaxonomyStore()
 const postMetaCache = usePostMetaCacheStore()
 
-const userId = computed(() => String(props.userId || ''))
+const userId = computed(() => normalizeOpaqueId(props.userId))
 
 const profile = ref(null)
 const recentPosts = ref([])
@@ -238,14 +239,14 @@ const loading = ref(false)
 const error = ref('')
 const socialDegraded = computed(() => !!profile.value?.socialDegraded)
 
-const meUserId = computed(() => Number(auth.userId || 0))
+const meUserId = computed(() => normalizeOpaqueId(auth.userId))
 const actionLoading = ref(false)
 const followStatus = ref(null)
 const followStatusState = ref('idle')
 const reportOpen = ref(false)
 
 const prefs = useSocialPrefsStore()
-const isBlocked = computed(() => prefs.blockedSet.has(Number(userId.value || 0)))
+const isBlocked = computed(() => prefs.blockedSet.has(userId.value))
 
 const joinedYear = computed(() => {
   const ts = profile.value?.createTime
@@ -254,7 +255,7 @@ const joinedYear = computed(() => {
   const y = d.getFullYear()
   return Number.isFinite(y) ? String(y) : ''
 })
-const isSelfProfile = computed(() => !!meUserId.value && meUserId.value === Number(userId.value))
+const isSelfProfile = computed(() => sameOpaqueId(meUserId.value, userId.value))
 const showUserLevel = computed(() => profile.value?.showUserLevel === true)
 const walletAsset = computed(() =>
   buildProfileWalletAsset({
@@ -302,7 +303,7 @@ const profileTimeline = computed(() =>
 )
 
 function categoryLabel(id) {
-  const cid = Number(id || 0)
+  const cid = normalizeOpaqueId(id)
   if (!cid) return ''
   const category = taxonomy.categoriesById.get(cid)
   return category?.name || `分类#${cid}`
@@ -360,14 +361,14 @@ async function loadTimelineUsers() {
 }
 
 async function loadFollowStatus() {
-  if (!authed.value || !meUserId.value || meUserId.value === Number(userId.value)) {
+  if (!authed.value || !meUserId.value || isSelfProfile.value) {
     followStatus.value = null
     followStatusState.value = 'idle'
     return
   }
   followStatusState.value = 'loading'
   try {
-    const resp = await getFollowStatus(3, Number(userId.value), { force: true })
+    const resp = await getFollowStatus(3, userId.value, { force: true })
     emit('trace', resp?.traceId || '')
     followStatus.value = resp?.data ?? null
     followStatusState.value = typeof resp?.data === 'boolean' ? 'ready' : 'error'
@@ -381,10 +382,10 @@ async function doFollow(follow) {
   actionLoading.value = true
   try {
     if (follow) {
-      const resp = await followUser(3, Number(userId.value), Number(userId.value))
+      const resp = await followUser(3, userId.value, userId.value)
       emit('trace', resp?.traceId || '')
     } else {
-      const resp = await unfollowUser(3, Number(userId.value))
+      const resp = await unfollowUser(3, userId.value)
       emit('trace', resp?.traceId || '')
     }
     await loadFollowStatus()
@@ -420,8 +421,8 @@ watch(
 )
 
 async function toggleBlock() {
-  const targetId = Number(userId.value || 0)
-  if (!targetId || !authed.value || !meUserId.value || meUserId.value === targetId) return
+  const targetId = userId.value
+  if (!targetId || !authed.value || !meUserId.value || isSelfProfile.value) return
 
   actionLoading.value = true
   try {

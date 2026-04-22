@@ -45,6 +45,8 @@ import UiAutosuggestInput from '../components/ui/UiAutosuggestInput.vue'
 import { searchPosts } from '../api/services/searchService'
 
 describe('SearchView', () => {
+  const categoryId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+
   function mountView() {
     const pinia = createPinia()
     setActivePinia(pinia)
@@ -53,7 +55,7 @@ describe('SearchView', () => {
     auth.clear()
 
     const taxonomy = useTaxonomyStore()
-    taxonomy.categories = [{ id: 1, name: '公告' }]
+    taxonomy.categories = [{ id: categoryId, name: '公告' }]
     taxonomy.hotTags = [{ id: 1, name: 'Java' }, { id: 2, name: 'Spring' }]
     taxonomy.ensureCategories = vi.fn()
     taxonomy.ensureHotTags = vi.fn()
@@ -95,7 +97,7 @@ describe('SearchView', () => {
     })
     expect(searchPosts).toHaveBeenLastCalledWith({
       keyword: '',
-      categoryId: 0,
+      categoryId: '',
       tag: 'Java',
       page: 0,
       size: 10
@@ -107,5 +109,33 @@ describe('SearchView', () => {
     const wrapper = mountView()
 
     expect(wrapper.findComponent(UiAutosuggestInput).exists()).toBe(true)
+  })
+
+  it('renders category filters and sends UUID category ids to search', async () => {
+    routerState.route.query = { categoryId }
+    searchPosts.mockResolvedValue({
+      data: [
+        {
+          postId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
+          userId: '11111111-1111-7111-8111-111111111111',
+          title: 'Post A',
+          categoryId
+        }
+      ],
+      traceId: 'trace-search-category'
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await flushPromises()
+
+    expect(searchPosts).toHaveBeenLastCalledWith({
+      keyword: '',
+      categoryId,
+      tag: '',
+      page: 0,
+      size: 10
+    })
+    expect(wrapper.text()).toContain('公告')
   })
 })

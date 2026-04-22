@@ -107,7 +107,7 @@
           <div class="search-result-head">
             <div class="search-result-taxonomy">
               <UiButton
-                v-if="Number(it.categoryId || 0) > 0"
+                v-if="it.categoryId"
                 class="search-taxonomy-btn"
                 variant="ghost"
                 :aria-label="`筛选分类 ${categoryLabel(it.categoryId)}`"
@@ -203,6 +203,7 @@
 	import { suggestTags as apiSuggestTags } from '../api/services/taxonomyService'
 	import { usePostMetaCacheStore } from '../stores/postMetaCache'
 	import { formatTimeAgo } from '../utils/time'
+	import { normalizeOpaqueId } from '../utils/opaqueId'
 	import UiAvatar from '../components/ui/UiAvatar.vue'
 	import { emOnlyHtml } from '../utils/highlight'
 	import { useTaxonomyStore } from '../stores/taxonomy'
@@ -244,12 +245,12 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 	  }))
 	])
 
-	function categoryLabel(id) {
-	  const cid = Number(id || 0)
-	  if (!cid) return ''
-	  const c = taxonomy.categoriesById.get(cid)
-	  return c?.name || `分类#${cid}`
-	}
+		function categoryLabel(id) {
+		  const cid = normalizeOpaqueId(id)
+		  if (!cid) return ''
+		  const c = taxonomy.categoriesById.get(cid)
+		  return c?.name || `分类#${cid}`
+		}
 
 	function titleHtml(it) {
 	  return emOnlyHtml(it?.highlightedTitle || it?.title || '')
@@ -259,10 +260,9 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 	  return c ? emOnlyHtml(c) : ''
 	}
 
-	function normalizeCategoryId(value) {
-	  const n = Number(value || 0)
-	  return Number.isFinite(n) && n > 0 ? n : 0
-	}
+		function normalizeCategoryId(value) {
+		  return normalizeOpaqueId(value)
+		}
 
 	function normalizeTag(value) {
 	  let s = String(value || '').trim()
@@ -415,7 +415,7 @@ async function onConfirmReindex() {
 	  const cid = normalizeCategoryId(route.query?.categoryId)
 	  const t = normalizeTag(route.query?.tag)
 	
-	  const hasAny = !!q || cid > 0 || !!t
+		  const hasAny = !!q || !!cid || !!t
 	  if (!hasAny) {
 	    keyword.value = ''
 	    categoryId.value = ''
@@ -431,7 +431,7 @@ async function onConfirmReindex() {
 	    keyword.value = q
 	    changed = true
 	  }
-	  const cidStr = cid > 0 ? String(cid) : ''
+		  const cidStr = cid ? String(cid) : ''
 	  if (cidStr !== String(categoryId.value || '')) {
 	    categoryId.value = cidStr
 	    changed = true

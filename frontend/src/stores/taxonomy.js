@@ -2,6 +2,7 @@
 
 import { defineStore } from 'pinia'
 import { listCategories, listHotTags } from '../api/services/taxonomyService'
+import { normalizeOpaqueId } from '../utils/opaqueId'
 
 export const useTaxonomyStore = defineStore('taxonomy', {
   state: () => ({
@@ -14,8 +15,8 @@ export const useTaxonomyStore = defineStore('taxonomy', {
     categoriesById: (s) => {
       const map = new Map()
       ;(Array.isArray(s.categories) ? s.categories : []).forEach((c) => {
-        const id = Number(c?.id || 0)
-        if (id > 0) map.set(id, c)
+        const id = normalizeOpaqueId(c?.id)
+        if (id) map.set(id, c)
       })
       return map
     }
@@ -44,4 +45,3 @@ export const useTaxonomyStore = defineStore('taxonomy', {
     }
   }
 })
-

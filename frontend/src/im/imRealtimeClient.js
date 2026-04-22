@@ -1,6 +1,7 @@
 // IM realtime client: WebSocket connection + simple event emitter.
 // Protocol: first message must be { type: "auth", accessToken }.
 import { resolveImWsUrl } from '../config/endpointResolution'
+import { normalizeOpaqueId } from '../utils/opaqueId'
 
 function safeJsonParse(s) {
   try {
@@ -51,7 +52,7 @@ class ImRealtimeClient {
   constructor() {
     this.ws = null
     this.accessToken = ''
-    this.state = { connected: false, authed: false, userId: 0 }
+    this.state = { connected: false, authed: false, userId: '' }
     this.emitter = new Emitter()
     this.reconnectTimer = null
     this.reconnectAttempts = 0
@@ -84,12 +85,13 @@ class ImRealtimeClient {
       if (this.ws) this.ws.close()
     } catch {}
     this.ws = null
-    this.state = { connected: false, authed: false, userId: 0 }
+    this.state = { connected: false, authed: false, userId: '' }
   }
 
   sendPrivateText({ toUserId, content, clientMsgId } = {}) {
-    const toId = Number(toUserId || 0)
+    const toId = normalizeOpaqueId(toUserId)
     const c = String(content || '')
+    if (!toId) return ''
     const cmid = String(clientMsgId || '').trim() || randomId()
     this._send({
       type: 'sendPrivateText',
@@ -124,7 +126,7 @@ class ImRealtimeClient {
     this.ws.onopen = () => {
       this.state.connected = true
       this.state.authed = false
-      this.state.userId = 0
+      this.state.userId = ''
       this.reconnectAttempts = 0
       this._send({ type: 'auth', accessToken: this.accessToken })
     }
@@ -135,7 +137,7 @@ class ImRealtimeClient {
       if (!type) return
       if (type === 'auth_ok') {
         this.state.authed = true
-        this.state.userId = Number(msg?.userId || 0)
+        this.state.userId = normalizeOpaqueId(msg?.userId)
       }
       if (type === 'auth_error') {
         this.state.authed = false
@@ -146,7 +148,7 @@ class ImRealtimeClient {
     this.ws.onclose = () => {
       this.state.connected = false
       this.state.authed = false
-      this.state.userId = 0
+      this.state.userId = ''
       this.ws = null
       if (this.accessToken) this._scheduleReconnect()
     }

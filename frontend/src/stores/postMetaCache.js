@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { batchUserSummary } from '../api/services/userService'
 import { getLikeCounts, getLikeStatuses } from '../api/services/socialService'
+import { normalizeOpaqueId, normalizeOpaqueIds } from '../utils/opaqueId'
 
 // TTL 约定：
 // - 用户摘要：变化相对不频繁，可缓存更久
@@ -13,18 +14,7 @@ function nowMs() {
 }
 
 function normalizeIds(ids, { max = 200 } = {}) {
-  const raw = Array.isArray(ids) ? ids : []
-  const out = []
-  const seen = new Set()
-  for (const id of raw) {
-    const v = Number(id || 0)
-    if (!v || v <= 0) continue
-    if (seen.has(v)) continue
-    seen.add(v)
-    out.push(v)
-    if (out.length >= max) break
-  }
-  return out
+  return normalizeOpaqueIds(ids, { max })
 }
 
 function isFresh(entry) {
@@ -32,7 +22,7 @@ function isFresh(entry) {
 }
 
 function likeKey(entityType, entityId) {
-  return `${Number(entityType || 0)}:${Number(entityId || 0)}`
+  return `${Number(entityType || 0)}:${normalizeOpaqueId(entityId)}`
 }
 
 export const usePostMetaCacheStore = defineStore('postMetaCache', {
@@ -52,7 +42,8 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
     },
 
     getUser(id) {
-      const uid = Number(id || 0)
+      const uid = normalizeOpaqueId(id)
+      if (!uid) return null
       const entry = this.users[uid]
       if (isFresh(entry)) return entry.value
       return null
@@ -92,7 +83,7 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
         const t = nowMs()
         if (Array.isArray(data)) {
           for (const u of data) {
-            const id = Number(u?.id || 0)
+            const id = normalizeOpaqueId(u?.id)
             if (!id) continue
             this.users[id] = { value: u, expiresAt: t + USER_TTL_MS }
           }

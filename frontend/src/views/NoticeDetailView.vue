@@ -121,6 +121,7 @@ import { computed, onMounted, ref } from 'vue'
 import { listNotices, markRead } from '../api/services/noticeService'
 import { safeJsonParse } from '../utils/safeJson'
 import { formatTime } from '../utils/time'
+import { normalizeOpaqueId } from '../utils/opaqueId'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -169,12 +170,12 @@ function noticePostId(msg) {
   const raw = safeJsonParse(msg?.content, null)
   const type = raw?.type || ''
   const payload = raw?.payload || {}
-  const pid = payload?.postId
-  if (pid) return Number(pid)
+  const pid = normalizeOpaqueId(payload?.postId)
+  if (pid) return pid
   if (type === 'MODERATION_ACTION_APPLIED' && Number(payload?.targetType || 0) === 1) {
-    return Number(payload?.targetId || 0)
+    return normalizeOpaqueId(payload?.targetId)
   }
-  return 0
+  return ''
 }
 
 async function load() {

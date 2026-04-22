@@ -1,3 +1,5 @@
+import { hasOpaqueId, normalizeOpaqueId } from '../utils/opaqueId'
+
 const SEARCH_ACTIVITY_PREVIEW_LIMIT = 72
 
 function trimActivityCopy(value, limit = SEARCH_ACTIVITY_PREVIEW_LIMIT) {
@@ -15,19 +17,19 @@ export function collectSearchHydrationIds(items) {
   const seenPosts = new Set()
 
   for (const item of list) {
-    const userId = Number(item?.userId || 0)
-    const lastReplyUserId = Number(item?.lastReplyUserId || 0)
-    const postId = Number(item?.postId || 0)
+    const userId = normalizeOpaqueId(item?.userId)
+    const lastReplyUserId = normalizeOpaqueId(item?.lastReplyUserId)
+    const postId = normalizeOpaqueId(item?.postId)
 
-    if (userId > 0 && !seenUsers.has(userId)) {
+    if (userId && !seenUsers.has(userId)) {
       seenUsers.add(userId)
       userIds.push(userId)
     }
-    if (lastReplyUserId > 0 && !seenUsers.has(lastReplyUserId)) {
+    if (lastReplyUserId && !seenUsers.has(lastReplyUserId)) {
       seenUsers.add(lastReplyUserId)
       userIds.push(lastReplyUserId)
     }
-    if (postId > 0 && !seenPosts.has(postId)) {
+    if (postId && !seenPosts.has(postId)) {
       seenPosts.add(postId)
       postIds.push(postId)
     }
@@ -39,13 +41,13 @@ export function collectSearchHydrationIds(items) {
 export function applySearchHydration(items, { users = {}, likeCounts = {} } = {}) {
   const list = Array.isArray(items) ? items : []
   return list.map((item) => {
-    const userId = Number(item?.userId || 0)
-    const lastReplyUserId = Number(item?.lastReplyUserId || 0)
-    const postId = Number(item?.postId || 0)
+    const userId = normalizeOpaqueId(item?.userId)
+    const lastReplyUserId = normalizeOpaqueId(item?.lastReplyUserId)
+    const postId = normalizeOpaqueId(item?.postId)
     return {
       ...item,
-      author: userId > 0 ? (users?.[userId] || null) : null,
-      lastReplyUser: lastReplyUserId > 0 ? (users?.[lastReplyUserId] || null) : null,
+      author: userId ? (users?.[userId] || null) : null,
+      lastReplyUser: lastReplyUserId ? (users?.[lastReplyUserId] || null) : null,
       likeCount: typeof likeCounts?.[postId] === 'number' ? likeCounts[postId] : 0
     }
   })
@@ -56,18 +58,18 @@ export function applySearchSummaries(items, summaries) {
   const rows = Array.isArray(summaries) ? summaries : []
   const byId = new Map()
   for (const row of rows) {
-    const id = Number(row?.id || 0)
-    if (id > 0) byId.set(id, row)
+    const id = normalizeOpaqueId(row?.id)
+    if (id) byId.set(id, row)
   }
 
   return list.map((item) => {
-    const summary = byId.get(Number(item?.postId || 0))
+    const summary = byId.get(normalizeOpaqueId(item?.postId))
     if (!summary) return { ...item }
     return {
       ...item,
       commentCount: Number(summary.commentCount || 0),
       lastActivityTime: summary.lastActivityTime || null,
-      lastReplyUserId: Number(summary.lastReplyUserId || 0) || 0,
+      lastReplyUserId: hasOpaqueId(summary.lastReplyUserId) ? normalizeOpaqueId(summary.lastReplyUserId) : '',
       lastReplyPreview: summary.lastReplyPreview || ''
     }
   })

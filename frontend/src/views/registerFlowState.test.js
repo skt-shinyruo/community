@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildRegisterFlowState, clearRegisterFlowState, persistRegisterFlowState, resolveRegisterFlowError, restoreRegisterFlowState } from './registerFlowState'
 
 describe('registerFlowState', () => {
+  const userId = '11111111-1111-7111-8111-111111111111'
+
   beforeEach(() => {
     const storage = {
       values: new Map(),
@@ -23,7 +25,7 @@ describe('registerFlowState', () => {
 
     expect(state).toMatchObject({
       step: 'form',
-      userId: 0,
+      userId: '',
       emailCodeIssued: false,
       maskedEmail: '',
       debugEmailCode: '',
@@ -33,7 +35,7 @@ describe('registerFlowState', () => {
 
   it('switches to the verify step when registration issues an email code', () => {
     const state = buildRegisterFlowState({
-      userId: 7,
+      userId,
       emailCodeIssued: true,
       maskedEmail: 'a***e@example.com',
       debugEmailCode: '123456'
@@ -41,7 +43,7 @@ describe('registerFlowState', () => {
 
     expect(state).toMatchObject({
       step: 'verify',
-      userId: 7,
+      userId,
       emailCodeIssued: true,
       maskedEmail: 'a***e@example.com',
       debugEmailCode: '123456'
@@ -51,7 +53,7 @@ describe('registerFlowState', () => {
 
   it('persists and restores the pending verification state', () => {
     const persisted = persistRegisterFlowState({
-      userId: 7,
+      userId,
       emailCodeIssued: true,
       maskedEmail: 'a***e@example.com',
       debugEmailCode: '123456'
@@ -60,7 +62,7 @@ describe('registerFlowState', () => {
     expect(persisted.step).toBe('verify')
     expect(restoreRegisterFlowState()).toMatchObject({
       step: 'verify',
-      userId: 7,
+      userId,
       maskedEmail: 'a***e@example.com',
       debugEmailCode: '123456'
     })
@@ -68,7 +70,7 @@ describe('registerFlowState', () => {
 
   it('clears persisted verification state when returning to the form step', () => {
     persistRegisterFlowState({
-      userId: 7,
+      userId,
       emailCodeIssued: true,
       maskedEmail: 'a***e@example.com'
     })
@@ -77,7 +79,7 @@ describe('registerFlowState', () => {
 
     expect(restoreRegisterFlowState()).toMatchObject({
       step: 'form',
-      userId: 0,
+      userId: '',
       emailCodeIssued: false
     })
   })

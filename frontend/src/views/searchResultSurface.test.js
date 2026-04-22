@@ -9,39 +9,75 @@ import {
 describe('searchResultSurface', () => {
   it('collects unique user and post ids for hydration', () => {
     const ids = collectSearchHydrationIds([
-      { postId: 10, userId: 7, lastReplyUserId: 9 },
-      { postId: 11, userId: 7, lastReplyUserId: 9 },
-      { postId: 12, userId: 8, lastReplyUserId: 10 },
-      { postId: 0, userId: 0 }
+      {
+        postId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
+        userId: '11111111-1111-7111-8111-111111111111',
+        lastReplyUserId: '99999999-9999-7999-8999-999999999999'
+      },
+      {
+        postId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
+        userId: '11111111-1111-7111-8111-111111111111',
+        lastReplyUserId: '99999999-9999-7999-8999-999999999999'
+      },
+      {
+        postId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
+        userId: '22222222-2222-7222-8222-222222222222',
+        lastReplyUserId: '33333333-3333-7333-8333-333333333333'
+      },
+      { postId: '', userId: '' }
     ])
 
     expect(ids).toEqual({
-      postIds: [10, 11, 12],
-      userIds: [7, 9, 8, 10]
+      postIds: [
+        'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
+        'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
+        'cccccccc-cccc-7ccc-8ccc-cccccccccccc'
+      ],
+      userIds: [
+        '11111111-1111-7111-8111-111111111111',
+        '99999999-9999-7999-8999-999999999999',
+        '22222222-2222-7222-8222-222222222222',
+        '33333333-3333-7333-8333-333333333333'
+      ]
     })
   })
 
   it('applies author, recent-replier, and like-count hydration onto search items', () => {
     const items = applySearchHydration(
       [
-        { postId: 10, userId: 7, lastReplyUserId: 9, title: 'A' },
-        { postId: 11, userId: 8, title: 'B' }
+        {
+          postId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
+          userId: '11111111-1111-7111-8111-111111111111',
+          lastReplyUserId: '99999999-9999-7999-8999-999999999999',
+          title: 'A'
+        },
+        {
+          postId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
+          userId: '22222222-2222-7222-8222-222222222222',
+          title: 'B'
+        }
       ],
       {
         users: {
-          7: { id: 7, username: 'Mara' },
-          9: { id: 9, username: 'Lin' }
+          '11111111-1111-7111-8111-111111111111': {
+            id: '11111111-1111-7111-8111-111111111111',
+            username: 'Mara'
+          },
+          '99999999-9999-7999-8999-999999999999': {
+            id: '99999999-9999-7999-8999-999999999999',
+            username: 'Lin'
+          }
         },
         likeCounts: {
-          10: 15,
-          11: 3
+          'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa': 15,
+          'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb': 3
         }
       }
     )
 
     expect(items[0]).toMatchObject({
-      author: { id: 7, username: 'Mara' },
-      lastReplyUser: { id: 9, username: 'Lin' },
+      author: { id: '11111111-1111-7111-8111-111111111111', username: 'Mara' },
+      lastReplyUser: { id: '99999999-9999-7999-8999-999999999999', username: 'Lin' },
       likeCount: 15
     })
     expect(items[1]).toMatchObject({
@@ -54,22 +90,30 @@ describe('searchResultSurface', () => {
   it('merges post summary meta into search items by post id', () => {
     const items = applySearchSummaries(
       [
-        { postId: 10, title: 'A' },
-        { postId: 11, title: 'B' }
+        { postId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa', title: 'A' },
+        { postId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb', title: 'B' }
       ],
       [
-        { id: 11, commentCount: 2, lastActivityTime: '2026-03-22T09:00:00Z' },
-        { id: 10, commentCount: 7, lastActivityTime: '2026-03-22T10:00:00Z' }
+        {
+          id: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
+          commentCount: 2,
+          lastActivityTime: '2026-03-22T09:00:00Z'
+        },
+        {
+          id: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
+          commentCount: 7,
+          lastActivityTime: '2026-03-22T10:00:00Z'
+        }
       ]
     )
 
     expect(items[0]).toMatchObject({
-      postId: 10,
+      postId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
       commentCount: 7,
       lastActivityTime: '2026-03-22T10:00:00Z'
     })
     expect(items[1]).toMatchObject({
-      postId: 11,
+      postId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
       commentCount: 2,
       lastActivityTime: '2026-03-22T09:00:00Z'
     })

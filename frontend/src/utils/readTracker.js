@@ -1,3 +1,5 @@
+import { normalizeOpaqueId } from './opaqueId'
+
 // 本地“已读/未读”追踪（轻量版）。
 // 目标：实现类似 Discourse 的 topic 未读提示，但不依赖后端“已读时间线”。
 
@@ -39,8 +41,7 @@ function saveState(state) {
 }
 
 function normalizePostId(postId) {
-  const id = Number(postId || 0)
-  return Number.isFinite(id) ? id : 0
+  return normalizeOpaqueId(postId)
 }
 
 function pruneItems(items) {

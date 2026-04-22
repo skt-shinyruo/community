@@ -1,3 +1,5 @@
+import { normalizeOpaqueId } from '../utils/opaqueId'
+
 const STORAGE_KEY = 'community.register.pending'
 
 function safeString(value) {
@@ -12,12 +14,12 @@ function getStorage() {
 }
 
 export function buildRegisterFlowState(registerData = null) {
-  const userId = Number(registerData?.userId || 0)
+  const userId = normalizeOpaqueId(registerData?.userId)
   const registrationToken = safeString(registerData?.registrationToken)
   const emailCodeIssued = registerData?.emailCodeIssued === true
   const maskedEmail = safeString(registerData?.maskedEmail)
   const debugEmailCode = safeString(registerData?.debugEmailCode)
-  const step = emailCodeIssued && (registrationToken || userId > 0) ? 'verify' : 'form'
+  const step = emailCodeIssued && (registrationToken || userId) ? 'verify' : 'form'
 
   return {
     step,

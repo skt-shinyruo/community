@@ -184,7 +184,7 @@
             <div class="discussion-card-head">
               <div class="discussion-card-taxonomy">
                 <span v-if="isUnread(p)" class="discussion-unread-pill" title="未读" aria-label="未读">未读</span>
-                <span v-if="Number(p.categoryId || 0) > 0" class="discussion-category-chip">
+                <span v-if="p.categoryId" class="discussion-category-chip">
                   {{ categoryLabel(p.categoryId) }}
                 </span>
                 <span v-for="t in (Array.isArray(p.tags) ? p.tags : [])" :key="t" class="discussion-tag-chip">
@@ -300,6 +300,7 @@ import {
 } from './postsFeedState'
 import { formatTime, formatTimeAgo } from '../utils/time'
 import { getPostReadAt, getPostsListBaselineAt, markPostRead, touchPostsListSeen } from '../utils/readTracker'
+import { normalizeOpaqueId } from '../utils/opaqueId'
 import { useTaxonomyStore } from '../stores/taxonomy'
 import { usePostMetaCacheStore } from '../stores/postMetaCache'
 import {
@@ -346,7 +347,7 @@ const composerCategoryOptions = computed(() => [
 ])
 
 function categoryLabel(id) {
-  const cid = Number(id || 0)
+  const cid = normalizeOpaqueId(id)
   if (!cid) return ''
   const c = taxonomy.categoriesById.get(cid)
   return c?.name || `分类#${cid}`
@@ -357,7 +358,7 @@ const showClear = computed(
     order.value !== POSTS_ORDER.LATEST ||
     filter.value !== POSTS_FILTER.ALL ||
     subscribed.value === true ||
-    categoryId.value > 0 ||
+    !!categoryId.value ||
     !!tag.value
 )
 
@@ -427,7 +428,7 @@ function setSubscribed(v) {
 }
 
 function clearQuery() {
-  replaceQuery({ order: POSTS_ORDER.LATEST, filter: POSTS_FILTER.ALL, subscribed: false, categoryId: 0, tag: '' })
+  replaceQuery({ order: POSTS_ORDER.LATEST, filter: POSTS_FILTER.ALL, subscribed: false, categoryId: '', tag: '' })
 }
 
 const page = ref(0)
@@ -470,9 +471,9 @@ function activityTime(p) {
 }
 
 function activityUserId(p) {
-  const v = Number(p?.lastReplyUserId || 0)
-  if (v > 0) return v
-  return Number(p?.userId || 0)
+  const v = normalizeOpaqueId(p?.lastReplyUserId)
+  if (v) return v
+  return normalizeOpaqueId(p?.userId)
 }
 
 function activityUser(p) {
@@ -571,7 +572,7 @@ watch(newTagDraft, (v) => {
 watch(isPublishFocused, (v) => {
   if (!v) return
   // 在分类页发帖时，默认带上当前分类
-  if (!newCategoryId.value && Number(categoryId.value || 0) > 0) {
+  if (!newCategoryId.value && categoryId.value) {
     newCategoryId.value = String(categoryId.value)
   }
 })
@@ -667,19 +668,19 @@ function collectBatchIds(list) {
   const seenPosts = new Set()
 
   for (const p of Array.isArray(list) ? list : []) {
-    const uid = Number(p?.userId || 0)
-    const lr = Number(p?.lastReplyUserId || 0)
-    const pid = Number(p?.id || 0)
+    const uid = normalizeOpaqueId(p?.userId)
+    const lr = normalizeOpaqueId(p?.lastReplyUserId)
+    const pid = normalizeOpaqueId(p?.id)
 
-    if (uid > 0 && !seenUsers.has(uid)) {
+    if (uid && !seenUsers.has(uid)) {
       seenUsers.add(uid)
       userIds.push(uid)
     }
-    if (lr > 0 && !seenUsers.has(lr)) {
+    if (lr && !seenUsers.has(lr)) {
       seenUsers.add(lr)
       userIds.push(lr)
     }
-    if (pid > 0 && !seenPosts.has(pid)) {
+    if (pid && !seenPosts.has(pid)) {
       seenPosts.add(pid)
       postIds.push(pid)
     }
@@ -720,12 +721,12 @@ async function hydrateBatch(list, token) {
 
   for (const p of list) {
     if (!p) continue
-    const uid = Number(p?.userId || 0)
-    const lr = Number(p?.lastReplyUserId || 0)
-    const pid = Number(p?.id || 0)
+    const uid = normalizeOpaqueId(p?.userId)
+    const lr = normalizeOpaqueId(p?.lastReplyUserId)
+    const pid = normalizeOpaqueId(p?.id)
 
     p.author = users?.[uid] || null
-    p.lastReplyAuthor = lr > 0 ? (users?.[lr] || null) : null
+    p.lastReplyAuthor = lr ? (users?.[lr] || null) : null
 
     const likeCount = counts?.[pid]
     p.likeCount = typeof likeCount === 'number' ? likeCount : 0
@@ -796,7 +797,7 @@ async function load(append = false) {
       likeCount: Number(p?.likeCount || 0)
     }))
 
-    const afterBlocked = blockedSet.value.size > 0 ? base.filter((p) => !blockedSet.value.has(Number(p?.userId || 0))) : base
+    const afterBlocked = blockedSet.value.size > 0 ? base.filter((p) => !blockedSet.value.has(normalizeOpaqueId(p?.userId))) : base
     blockedHiddenCount.value = Math.max(0, base.length - afterBlocked.length)
     const newItems = applyFilter(afterBlocked)
     
@@ -841,19 +842,19 @@ async function togglePostLike(p) {
   try {
      const resp = await setLike({
       entityType: 1,
-      entityId: Number(p.id),
-      entityUserId: Number(p.userId || 0),
-      postId: Number(p.id),
+      entityId: p.id,
+      entityUserId: p.userId,
+      postId: p.id,
       liked: null
     })
      emit('trace', resp?.traceId || '')
      if (typeof resp?.data?.likeCount === 'number') {
        p.likeCount = resp.data.likeCount
-       postMetaCache.setLikeCount(1, Number(p.id), p.likeCount)
+       postMetaCache.setLikeCount(1, p.id, p.likeCount)
      }
      if (typeof resp?.data?.liked === 'boolean') {
        p.liked = resp.data.liked
-       postMetaCache.setLikeStatus(1, Number(p.id), p.liked)
+       postMetaCache.setLikeStatus(1, p.id, p.liked)
      }
   } catch (e) {
     showToast({ type: 'error', text: e?.message || '点赞失败' })
@@ -873,17 +874,17 @@ async function createPost() {
   }
   creating.value = true
   try {
-    const cid = Number(newCategoryId.value || 0)
+    const cid = normalizeOpaqueId(newCategoryId.value)
     const resp = await apiCreatePost({
       title: newTitle.value,
       content: newContent.value,
-      categoryId: cid > 0 ? cid : undefined,
+      categoryId: cid || undefined,
       tags: newTags.value
     })
     emit('trace', resp?.traceId || '')
 
-    const createdPostId = Number(resp?.data?.postId || 0)
-    const hasPostId = Number.isFinite(createdPostId) && createdPostId > 0
+    const createdPostId = normalizeOpaqueId(resp?.data?.postId)
+    const hasPostId = !!createdPostId
     showToast({
       type: 'success',
       title: '发布成功',

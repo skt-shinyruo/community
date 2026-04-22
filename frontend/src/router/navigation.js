@@ -1,3 +1,5 @@
+import { hasOpaqueId, normalizeOpaqueId } from '../utils/opaqueId'
+
 // 导航配置 SSOT：定义侧边栏/移动端的分组、权限与路由映射，并提供 posts 筛选/排序的纯函数工具。
 
 export const POSTS_ORDER = Object.freeze({
@@ -13,8 +15,7 @@ export const POSTS_FILTER = Object.freeze({
 })
 
 export function normalizePostsCategoryId(value) {
-  const n = Number(value || 0)
-  return Number.isFinite(n) && n > 0 ? n : 0
+  return normalizeOpaqueId(value)
 }
 
 export function normalizePostsTag(value) {
@@ -61,7 +62,7 @@ export function buildPostsQuery({ order, filter, categoryId, tag, subscribed } =
   // 默认值不写入 URL，减少噪音；由 normalizePostsQuery 兜底。
   if (normalizedOrder !== POSTS_ORDER.LATEST) next.order = normalizedOrder
   if (normalizedFilter) next.type = normalizedFilter
-  if (normalizedCategoryId > 0) next.categoryId = String(normalizedCategoryId)
+  if (normalizedCategoryId) next.categoryId = String(normalizedCategoryId)
   if (normalizedTag) next.tag = normalizedTag
   if (normalizedSubscribed) next.subscribed = '1'
   return next
@@ -80,7 +81,7 @@ function hasAnyRole(userRoles, requiredRoles) {
 export function canAccessNavItem(item, ctx = {}) {
   const authed = !!ctx.authed
   const roles = normalizeRoles(ctx.roles)
-  const userId = Number(ctx.userId || 0)
+  const userId = hasOpaqueId(ctx.userId)
 
   if (!item) return false
   if (item.hidden === true) return false
@@ -305,7 +306,7 @@ const NAV_DEFS = Object.freeze([
 export function getSidebarNavigation(ctx = {}) {
   const safeCtx = {
     authed: !!ctx.authed,
-    userId: Number(ctx.userId || 0),
+    userId: ctx.userId || '',
     roles: normalizeRoles(ctx.roles)
   }
 

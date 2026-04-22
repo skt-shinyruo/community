@@ -4,6 +4,7 @@ import { defineStore } from 'pinia'
 import { useAuthStore } from './auth'
 import { listBlockedUsers } from '../api/services/blockService'
 import { listSubscribedCategories } from '../api/services/subscriptionService'
+import { normalizeOpaqueId } from '../utils/opaqueId'
 
 export const useSocialPrefsStore = defineStore('socialPrefs', {
   state: () => ({
@@ -13,9 +14,10 @@ export const useSocialPrefsStore = defineStore('socialPrefs', {
     subscribedLoaded: false
   }),
   getters: {
-    blockedSet: (s) => new Set((Array.isArray(s.blockedUserIds) ? s.blockedUserIds : []).map((x) => Number(x || 0)).filter((x) => x > 0)),
+    blockedSet: (s) =>
+      new Set((Array.isArray(s.blockedUserIds) ? s.blockedUserIds : []).map((x) => normalizeOpaqueId(x)).filter(Boolean)),
     subscribedCategorySet: (s) =>
-      new Set((Array.isArray(s.subscribedCategoryIds) ? s.subscribedCategoryIds : []).map((x) => Number(x || 0)).filter((x) => x > 0))
+      new Set((Array.isArray(s.subscribedCategoryIds) ? s.subscribedCategoryIds : []).map((x) => normalizeOpaqueId(x)).filter(Boolean))
   },
   actions: {
     clear() {
@@ -54,4 +56,3 @@ export const useSocialPrefsStore = defineStore('socialPrefs', {
     }
   }
 })
-

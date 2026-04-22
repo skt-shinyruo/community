@@ -1,10 +1,11 @@
 import { POSTS_FILTER, POSTS_ORDER } from '../router/navigation'
+import { hasOpaqueId } from '../utils/opaqueId'
 
 export function isDefaultLatestFeedView({
   order = POSTS_ORDER.LATEST,
   filter = POSTS_FILTER.ALL,
   subscribed = false,
-  categoryId = 0,
+  categoryId = '',
   tag = '',
   page = 0
 } = {}) {
@@ -12,7 +13,7 @@ export function isDefaultLatestFeedView({
     order === POSTS_ORDER.LATEST &&
     filter === POSTS_FILTER.ALL &&
     subscribed !== true &&
-    Number(categoryId || 0) <= 0 &&
+    !hasOpaqueId(categoryId) &&
     !String(tag || '').trim() &&
     Number(page || 0) === 0
   )

@@ -47,7 +47,7 @@
                   <UiBadge v-if="post.status === 2" variant="danger">已删除</UiBadge>
 
                   <RouterLink
-                    v-if="Number(post.categoryId || 0) > 0"
+                    v-if="post.categoryId"
                     class="taxonomy-link"
                     :to="{ name: 'posts', query: { categoryId: String(post.categoryId) } }"
                     :title="`查看分类 ${categoryLabel(post.categoryId)}`"
@@ -113,7 +113,7 @@
               </UiButton>
             </div>
 
-            <div v-if="authed && post.userId === meUserId" class="post-article-action-group">
+            <div v-if="authed && sameOpaqueId(post.userId, meUserId)" class="post-article-action-group">
               <UiButton
                 variant="secondary"
                 :disabled="actionLoading || !canEditPost"
@@ -127,7 +127,7 @@
               </UiButton>
             </div>
 
-            <div v-if="authed && post.userId !== meUserId" class="post-article-action-group">
+            <div v-if="authed && !sameOpaqueId(post.userId, meUserId)" class="post-article-action-group">
               <UiButton v-if="followStatus === false" @click="follow(true)" :disabled="actionLoading">关注作者</UiButton>
               <UiButton v-else-if="followStatus === true" variant="secondary" @click="follow(false)" :disabled="actionLoading">
                 取关作者
@@ -196,7 +196,7 @@
                           </router-link>
                         </UiUserCard>
 
-                        <UiBadge v-if="c.userId === post.userId" variant="secondary" class="comment-op-badge">OP</UiBadge>
+                        <UiBadge v-if="sameOpaqueId(c.userId, post.userId)" variant="secondary" class="comment-op-badge">OP</UiBadge>
                         <UiRoleBadge :user="c.user" />
                       </div>
                       <span class="muted comment-author-meta">
@@ -280,7 +280,7 @@
 
                         <span class="reply-author-name">{{ r.user?.username || `成员 ${r.userId}` }}</span>
 
-                        <UiBadge v-if="r.userId === post.userId" variant="secondary" class="comment-op-badge">OP</UiBadge>
+                        <UiBadge v-if="sameOpaqueId(r.userId, post.userId)" variant="secondary" class="comment-op-badge">OP</UiBadge>
                         <UiRoleBadge :user="r.user" />
 
                         <span class="muted reply-target">回复 {{ r.targetUser?.username || '楼主' }}</span>
@@ -367,7 +367,7 @@
     <ReportModal
       v-if="reportOpen"
       target-type="post"
-      :target-id="Number(post?.id || 0)"
+      :target-id="post?.id || ''"
       @close="reportOpen = false"
       @submitted="reportOpen = false"
     />
@@ -410,6 +410,7 @@ import EditContentModal from '../components/modals/EditContentModal.vue'
 import { formatTime } from '../utils/time'
 import { markPostRead } from '../utils/readTracker'
 import { scrollToAnchor } from '../utils/scrollToAnchor'
+import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
 import { getUserProfile } from '../api/services/userService'
 import { setLike, followUser, unfollowUser, getFollowStatus } from '../api/services/socialService'
 import { bookmarkPost, unbookmarkPost } from '../api/services/bookmarkService'
@@ -438,13 +439,13 @@ const taxonomy = useTaxonomyStore()
 const postMetaCache = usePostMetaCacheStore()
 
 function categoryLabel(id) {
-  const cid = Number(id || 0)
+  const cid = normalizeOpaqueId(id)
   if (!cid) return ''
   const c = taxonomy.categoriesById.get(cid)
   return c?.name || `分类#${cid}`
 }
 
-const postId = computed(() => String(route.params.postId || ''))
+const postId = computed(() => normalizeOpaqueId(route.params.postId))
 
 const post = ref(null)
 const postAuthor = ref(null)
@@ -454,18 +455,18 @@ const error = ref('')
 const actionLoading = ref(false)
 const reportOpen = ref(false)
 
-const meUserId = computed(() => Number(auth.userId || 0))
+const meUserId = computed(() => normalizeOpaqueId(auth.userId))
 const followStatus = ref(null) // Boolean|null
 
 const isBlockedAuthor = computed(() => {
-  const uid = Number(post.value?.userId || 0)
+  const uid = normalizeOpaqueId(post.value?.userId)
   if (!uid) return false
   return prefs.blockedSet.has(uid)
 })
 
 const canEditPost = computed(() => {
   if (!authed.value || !post.value) return false
-  if (Number(post.value.userId || 0) !== meUserId.value) return false
+  if (!sameOpaqueId(post.value.userId, meUserId.value)) return false
   if (Number(post.value.status || 0) === 2) return false
   const t = new Date(post.value.createTime).getTime()
   if (!Number.isFinite(t) || t <= 0) return false
@@ -502,7 +503,7 @@ function commentDraftKey() {
 }
 
 function replyDraftKey(commentId) {
-  return `community.draft.posts.${String(postId.value || '')}.reply.${Number(commentId || 0)}`
+  return `community.draft.posts.${String(postId.value || '')}.reply.${normalizeOpaqueId(commentId)}`
 }
 
 function setNewComment(v) {
@@ -517,11 +518,11 @@ function setReplyDraft(c, v) {
 }
 
 function commentAnchorId(id) {
-  return `c-${Number(id || 0)}`
+  return `c-${normalizeOpaqueId(id)}`
 }
 
 function replyAnchorId(id) {
-  return `r-${Number(id || 0)}`
+  return `r-${normalizeOpaqueId(id)}`
 }
 
 function buildQuotePreview(text) {
@@ -535,7 +536,7 @@ function buildQuoteMarkdown(quote) {
   if (!raw) return ''
 
   const username = String(quote?.username || '').trim()
-  const userId = Number(quote?.userId || 0)
+  const userId = normalizeOpaqueId(quote?.userId)
   const who = username ? `@${username}` : userId ? `成员 ${userId}` : '用户'
 
   const lines = raw
@@ -665,7 +666,7 @@ async function loadPost() {
 
 function applyPostLikeOverlay() {
   if (!post.value) return
-  const pid = Number(postId.value || 0)
+  const pid = normalizeOpaqueId(postId.value)
   if (!pid) return
 
   // 计数是全局读模型：短 TTL 覆盖用于减轻“写后刷新读旧投影”的感知不一致。
@@ -686,7 +687,7 @@ function applyPostLikeOverlay() {
 }
 
 async function loadFollowStatus() {
-  if (!authed.value || !post.value || !post.value.userId || post.value.userId === meUserId.value) {
+  if (!authed.value || !post.value || !post.value.userId || sameOpaqueId(post.value.userId, meUserId.value)) {
     followStatus.value = null
     return
   }
@@ -705,19 +706,19 @@ async function togglePostLike() {
   try {
     const resp = await setLike({
       entityType: 1,
-      entityId: Number(postId.value),
+      entityId: postId.value,
       entityUserId: post.value.userId,
-      postId: Number(postId.value),
+      postId: postId.value,
       liked: null
     })
     emit('trace', resp?.traceId || '')
     if (typeof resp?.data?.likeCount === 'number') {
       post.value.likeCount = resp.data.likeCount
-      postMetaCache.setLikeCount(1, Number(postId.value), post.value.likeCount)
+      postMetaCache.setLikeCount(1, postId.value, post.value.likeCount)
     }
     if (typeof resp?.data?.liked === 'boolean') {
       post.value.liked = resp.data.liked
-      postMetaCache.setLikeStatus(1, Number(postId.value), post.value.liked)
+      postMetaCache.setLikeStatus(1, postId.value, post.value.liked)
     }
   } catch (e) {
     error.value = e?.message || '点赞操作失败'
@@ -727,7 +728,7 @@ async function togglePostLike() {
 }
 
 async function follow(doFollow) {
-  if (!authed.value || !post.value || !post.value.userId || post.value.userId === meUserId.value) return
+  if (!authed.value || !post.value || !post.value.userId || sameOpaqueId(post.value.userId, meUserId.value)) return
   actionLoading.value = true
   try {
     if (doFollow) {
@@ -747,7 +748,7 @@ async function follow(doFollow) {
 }
 
 function isBlockedUser(userId) {
-  return prefs.blockedSet.has(Number(userId || 0))
+  return prefs.blockedSet.has(normalizeOpaqueId(userId))
 }
 
 async function toggleBookmark() {
@@ -777,8 +778,8 @@ function openReportPost() {
 
 async function toggleBlockAuthor() {
   if (!authed.value || !post.value) return
-  const uid = Number(post.value.userId || 0)
-  if (!uid || uid === meUserId.value) return
+  const uid = normalizeOpaqueId(post.value.userId)
+  if (!uid || sameOpaqueId(uid, meUserId.value)) return
   actionLoading.value = true
   try {
     if (isBlockedAuthor.value) {
@@ -798,8 +799,8 @@ async function toggleBlockAuthor() {
 
 function canEditComment(c) {
   if (!authed.value) return false
-  const uid = Number(c?.userId || 0)
-  if (!uid || uid !== meUserId.value) return false
+  const uid = normalizeOpaqueId(c?.userId)
+  if (!uid || !sameOpaqueId(uid, meUserId.value)) return false
   if (Number(c?.status || 0) !== 0) return false
   const t = new Date(c?.createTime).getTime()
   if (!Number.isFinite(t) || t <= 0) return false
@@ -810,14 +811,14 @@ const editOpen = ref(false)
 const editMode = ref('post') // post | comment
 const editInitialTitle = ref('')
 const editInitialContent = ref('')
-const editCommentId = ref(0)
+const editCommentId = ref('')
 
 function closeEdit() {
   editOpen.value = false
   editMode.value = 'post'
   editInitialTitle.value = ''
   editInitialContent.value = ''
-  editCommentId.value = 0
+  editCommentId.value = ''
 }
 
 function openEditPost() {
@@ -825,13 +826,13 @@ function openEditPost() {
   editMode.value = 'post'
   editInitialTitle.value = String(post.value.title || '')
   editInitialContent.value = String(post.value.content || '')
-  editCommentId.value = 0
+  editCommentId.value = ''
   editOpen.value = true
 }
 
 function openEditComment(c) {
   if (!c || !canEditComment(c)) return
-  const cid = Number(c?.id || 0)
+  const cid = normalizeOpaqueId(c?.id)
   if (!cid) return
   editMode.value = 'comment'
   editInitialTitle.value = ''
@@ -864,7 +865,7 @@ async function submitEdit(payload) {
       closeEdit()
       await loadPost()
     } else {
-      const cid = Number(editCommentId.value || 0)
+      const cid = editCommentId.value
       const r = await apiUpdateComment(post.value.id, cid, { content: String(payload?.content || '').trim() })
       emit('trace', r?.traceId || '')
       if (typeof window !== 'undefined' && window.$toast) window.$toast({ type: 'success', text: '已保存' })
@@ -879,8 +880,8 @@ async function submitEdit(payload) {
 }
 
 function hydrateComment(raw, { users = {}, counts = {}, statuses = {} } = {}) {
-  const commentId = Number(raw?.id || 0)
-  const userId = Number(raw?.userId || 0)
+  const commentId = normalizeOpaqueId(raw?.id)
+  const userId = normalizeOpaqueId(raw?.userId)
   const likeCount = counts?.[commentId]
   const liked = statuses?.[commentId]
 
@@ -895,7 +896,7 @@ function hydrateComment(raw, { users = {}, counts = {}, statuses = {} } = {}) {
     _replyDraft: '',
     _replyError: '',
     _replySubmitting: false,
-    _replyTargetId: 0,
+    _replyTargetId: '',
     _replyTargetUser: null,
     _replyQuote: null,
 
@@ -909,9 +910,9 @@ function hydrateComment(raw, { users = {}, counts = {}, statuses = {} } = {}) {
 }
 
 function hydrateReply(raw, { users = {}, counts = {}, statuses = {} } = {}) {
-  const replyId = Number(raw?.id || 0)
-  const userId = Number(raw?.userId || 0)
-  const targetUserId = Number(raw?.targetId || 0)
+  const replyId = normalizeOpaqueId(raw?.id)
+  const userId = normalizeOpaqueId(raw?.userId)
+  const targetUserId = normalizeOpaqueId(raw?.targetId)
   const likeCount = counts?.[replyId]
   const liked = statuses?.[replyId]
 
@@ -919,7 +920,7 @@ function hydrateReply(raw, { users = {}, counts = {}, statuses = {} } = {}) {
     ...raw,
     user: users?.[userId] || null,
     targetUserId,
-    targetUser: targetUserId > 0 ? (users?.[targetUserId] || null) : null,
+    targetUser: targetUserId ? (users?.[targetUserId] || null) : null,
     likeCount: typeof likeCount === 'number' ? likeCount : 0,
     liked: !!liked,
     _likeLoading: false
@@ -936,8 +937,8 @@ async function maybeScrollFromRoute() {
   }
 
   // 2) query 模式（便于“回复定位”：?commentId=1&replyId=2）
-  const commentId = Number(route.query?.commentId || 0)
-  const replyId = Number(route.query?.replyId || 0)
+  const commentId = normalizeOpaqueId(route.query?.commentId)
+  const replyId = normalizeOpaqueId(route.query?.replyId)
   if (!commentId) return
 
   await nextTick()
@@ -945,7 +946,7 @@ async function maybeScrollFromRoute() {
 
   if (!replyId) return
 
-  const c = comments.value.find((x) => Number(x?.id || 0) === commentId)
+  const c = comments.value.find((x) => sameOpaqueId(x?.id, commentId))
   if (!c) return
 
   if (!c._repliesExpanded) c._repliesExpanded = true
@@ -970,13 +971,13 @@ async function loadComments() {
     const seenUsers = new Set()
     const seenComments = new Set()
     for (const c of raw) {
-      const uid = Number(c?.userId || 0)
-      const cid = Number(c?.id || 0)
-      if (uid > 0 && !seenUsers.has(uid)) {
+      const uid = normalizeOpaqueId(c?.userId)
+      const cid = normalizeOpaqueId(c?.id)
+      if (uid && !seenUsers.has(uid)) {
         seenUsers.add(uid)
         userIds.push(uid)
       }
-      if (cid > 0 && !seenComments.has(cid)) {
+      if (cid && !seenComments.has(cid)) {
         seenComments.add(cid)
         commentIds.push(cid)
       }
@@ -1030,18 +1031,18 @@ async function loadReplies(c) {
     const seenUsers = new Set()
     const seenReplies = new Set()
     for (const r of raw) {
-      const uid = Number(r?.userId || 0)
-      const tid = Number(r?.targetId || 0)
-      const rid = Number(r?.id || 0)
-      if (uid > 0 && !seenUsers.has(uid)) {
+      const uid = normalizeOpaqueId(r?.userId)
+      const tid = normalizeOpaqueId(r?.targetId)
+      const rid = normalizeOpaqueId(r?.id)
+      if (uid && !seenUsers.has(uid)) {
         seenUsers.add(uid)
         userIds.push(uid)
       }
-      if (tid > 0 && !seenUsers.has(tid)) {
+      if (tid && !seenUsers.has(tid)) {
         seenUsers.add(tid)
         userIds.push(tid)
       }
-      if (rid > 0 && !seenReplies.has(rid)) {
+      if (rid && !seenReplies.has(rid)) {
         seenReplies.add(rid)
         replyIds.push(rid)
       }
@@ -1114,23 +1115,23 @@ function startReply(c, reply) {
 
   // 引用内容：回复回复时引用 reply；回复评论时引用 comment。
   if (reply && reply.userId) {
-    c._replyTargetId = Number(reply.userId)
+    c._replyTargetId = normalizeOpaqueId(reply.userId)
     c._replyTargetUser = reply.user || null
     c._replyQuote = {
       sourceType: 'reply',
-      sourceId: Number(reply.id || 0),
-      userId: Number(reply.userId || 0),
+      sourceId: normalizeOpaqueId(reply.id),
+      userId: normalizeOpaqueId(reply.userId),
       username: String(reply.user?.username || ''),
       raw: String(reply.content || ''),
       preview: buildQuotePreview(reply.content)
     }
   } else {
-    c._replyTargetId = Number(c.userId || 0)
+    c._replyTargetId = normalizeOpaqueId(c.userId)
     c._replyTargetUser = c.user || null
     c._replyQuote = {
       sourceType: 'comment',
-      sourceId: Number(c.id || 0),
-      userId: Number(c.userId || 0),
+      sourceId: normalizeOpaqueId(c.id),
+      userId: normalizeOpaqueId(c.userId),
       username: String(c.user?.username || ''),
       raw: String(c.content || ''),
       preview: buildQuotePreview(c.content)
@@ -1143,7 +1144,7 @@ function cancelReply(c) {
   c._replying = false
   c._replyError = ''
   c._replySubmitting = false
-  c._replyTargetId = 0
+  c._replyTargetId = ''
   c._replyTargetUser = null
   c._replyQuote = null
 }
@@ -1189,19 +1190,19 @@ async function toggleCommentLike(c) {
   try {
     const resp = await setLike({
       entityType: 2,
-      entityId: Number(c.id),
-      entityUserId: Number(c.userId || 0),
-      postId: Number(postId.value),
+      entityId: c.id,
+      entityUserId: c.userId,
+      postId: postId.value,
       liked: null
     })
     emit('trace', resp?.traceId || '')
     if (typeof resp?.data?.likeCount === 'number') {
       c.likeCount = resp.data.likeCount
-      postMetaCache.setLikeCount(2, Number(c.id), c.likeCount)
+      postMetaCache.setLikeCount(2, c.id, c.likeCount)
     }
     if (typeof resp?.data?.liked === 'boolean') {
       c.liked = resp.data.liked
-      postMetaCache.setLikeStatus(2, Number(c.id), c.liked)
+      postMetaCache.setLikeStatus(2, c.id, c.liked)
     }
   } catch (e) {
     commentsError.value = e?.message || '点赞失败'
@@ -1216,19 +1217,19 @@ async function toggleReplyLike(c, r) {
   try {
     const resp = await setLike({
       entityType: 2,
-      entityId: Number(r.id),
-      entityUserId: Number(r.userId || 0),
-      postId: Number(postId.value),
+      entityId: r.id,
+      entityUserId: r.userId,
+      postId: postId.value,
       liked: null
     })
     emit('trace', resp?.traceId || '')
     if (typeof resp?.data?.likeCount === 'number') {
       r.likeCount = resp.data.likeCount
-      postMetaCache.setLikeCount(2, Number(r.id), r.likeCount)
+      postMetaCache.setLikeCount(2, r.id, r.likeCount)
     }
     if (typeof resp?.data?.liked === 'boolean') {
       r.liked = resp.data.liked
-      postMetaCache.setLikeStatus(2, Number(r.id), r.liked)
+      postMetaCache.setLikeStatus(2, r.id, r.liked)
     }
   } catch (e) {
     c._repliesError = e?.message || '点赞失败'

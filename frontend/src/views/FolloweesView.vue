@@ -59,6 +59,7 @@ import { useAuthStore } from '../stores/auth'
 import { listFollowees, getFollowStatus, followUser, unfollowUser } from '../api/services/socialService'
 import { getUserProfile } from '../api/services/userService'
 import { formatTime } from '../utils/time'
+import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
 import UiCard from '../components/ui/UiCard.vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
@@ -72,8 +73,8 @@ const props = defineProps({ userId: String })
 
 const auth = useAuthStore()
 const authed = computed(() => auth.authed)
-const meId = computed(() => Number(auth.userId || 0))
-const userId = computed(() => String(props.userId || '0'))
+const meId = computed(() => normalizeOpaqueId(auth.userId))
+const userId = computed(() => normalizeOpaqueId(props.userId))
 
 const page = ref(0)
 const size = ref(10)
@@ -86,19 +87,19 @@ const hasNext = computed(() => items.value.length === Number(size.value || 10))
 async function hydrate(list) {
   const out = []
   for (const it of list) {
-    const targetId = Number(it?.targetId || 0)
+    const targetId = normalizeOpaqueId(it?.targetId)
     let user = null
     try {
       user = await getUserProfile(targetId)
     } catch {}
 
     let hasFollowed = false
-    if (authed.value && targetId && targetId !== meId.value) {
+    if (authed.value && targetId && !sameOpaqueId(targetId, meId.value)) {
       try {
         const r = await getFollowStatus(3, targetId)
         hasFollowed = !!r?.data
       } catch {}
-    } else if (authed.value && meId.value && meId.value === Number(userId.value)) {
+    } else if (authed.value && meId.value && sameOpaqueId(meId.value, userId.value)) {
       // 查看“我自己的关注列表”，默认我已关注这些人
       hasFollowed = true
     }

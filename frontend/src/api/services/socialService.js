@@ -2,6 +2,7 @@
 
 import http from '../http'
 import { unwrapResultBody } from '../result'
+import { normalizeOpaqueIds } from '../../utils/opaqueId'
 
 const likeCountCache = new Map()
 const likeStatusCache = new Map()
@@ -147,18 +148,7 @@ export async function countFollowers(userId, { entityType = 3 } = {}) {
 }
 
 function normalizeEntityIds(entityIds, { max = 200 } = {}) {
-  const raw = Array.isArray(entityIds) ? entityIds : []
-  const dedup = []
-  const seen = new Set()
-  for (const id of raw) {
-    const v = Number(id || 0)
-    if (!v || v <= 0) continue
-    if (seen.has(v)) continue
-    seen.add(v)
-    dedup.push(v)
-    if (dedup.length >= max) break
-  }
-  return dedup
+  return normalizeOpaqueIds(entityIds, { max })
 }
 
 export async function getLikeCounts(entityType, entityIds) {

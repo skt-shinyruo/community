@@ -76,6 +76,7 @@ import UiAvatar from './UiAvatar.vue'
 import UiButton from './UiButton.vue'
 import UiRoleBadge from './UiRoleBadge.vue'
 import ReportModal from '../modals/ReportModal.vue'
+import { hasOpaqueId, normalizeOpaqueId, sameOpaqueId } from '../../utils/opaqueId'
 
 const props = defineProps({
   user: { type: Object, default: null },
@@ -87,7 +88,7 @@ const prefs = useSocialPrefsStore()
 
 const resolvedUserId = computed(() => {
   const u = props.user || null
-  return Number(u?.id || u?.userId || 0) || 0
+  return normalizeOpaqueId(u?.id || u?.userId)
 })
 
 const profile = ref(null)
@@ -95,8 +96,8 @@ const profileLoading = ref(false)
 
 const cardUser = computed(() => profile.value || props.user || null)
 
-const meUserId = computed(() => Number(auth.userId || 0))
-const canInteract = computed(() => !!auth.authed && resolvedUserId.value > 0 && resolvedUserId.value !== meUserId.value)
+const meUserId = computed(() => normalizeOpaqueId(auth.userId))
+const canInteract = computed(() => !!auth.authed && hasOpaqueId(resolvedUserId.value) && !sameOpaqueId(resolvedUserId.value, meUserId.value))
 const isBlocked = computed(() => prefs.blockedSet.has(resolvedUserId.value))
 
 const show = ref(false)

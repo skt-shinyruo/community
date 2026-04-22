@@ -50,6 +50,8 @@ class PrivateMessageServiceTest {
 
         assertThat(e2.messageId()).isEqualTo(e1.messageId());
         assertThat(e2.seq()).isEqualTo(e1.seq());
+        assertThat(e1.requestId()).isEqualTo("req-1");
+        assertThat(e1.clientMsgId()).isEqualTo("c1");
 
         List<PrivateMessageRepository.PrivateMessageRow> rows =
                 privateMessageRepository.listAfterSeq(conversationId, 0, 100);
@@ -74,6 +76,8 @@ class PrivateMessageServiceTest {
 
         var e = privateMessageService.persist(cmd);
         assertThat(readStateRepository.getLastReadSeq(conversationId, fromUserId)).isEqualTo(e.seq());
+        assertThat(e.requestId()).isEqualTo("req-2");
+        assertThat(e.clientMsgId()).isEqualTo("c2");
     }
 
     private static UUID uuid(long suffix) {

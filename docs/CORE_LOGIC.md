@@ -334,8 +334,8 @@ IM 子系统最容易读乱，因为它同时有 HTTP、WebSocket、Kafka、MySQ
 
 最关键的语义区别是：
 
-- WebSocket `sendAck` 只表示 command 已被 realtime 成功写入 Kafka
-- 它不表示消息已经被 `im-core` 落库
+- WebSocket `sendAccepted` 只表示 command 已被 realtime 成功写入 Kafka
+- 后续的 `sendCommitted` / `sendRejected` 才表示异步权威结果
 - 最终权威历史仍以 `im-core` 查询结果为准
 
 ### 5.2 群聊链路
@@ -385,7 +385,7 @@ IM 子系统最容易读乱，因为它同时有 HTTP、WebSocket、Kafka、MySQ
 
 ### 6.2 command 接单成功
 
-例如 IM 的 `sendAck`，表示：
+例如 IM 的 `sendAccepted`，表示：
 
 - `im-realtime` 已经成功把 command 写入 Kafka
 
@@ -394,6 +394,8 @@ IM 子系统最容易读乱，因为它同时有 HTTP、WebSocket、Kafka、MySQ
 - `im-core` 已经消费
 - 消息已经落库
 - 接收方已经收到推送
+
+而 `sendCommitted` / `sendRejected` 才代表异步最终态。
 
 ### 6.3 投影完成
 

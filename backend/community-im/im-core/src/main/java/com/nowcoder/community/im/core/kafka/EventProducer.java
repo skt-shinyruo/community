@@ -2,8 +2,10 @@ package com.nowcoder.community.im.core.kafka;
 
 import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.event.PrivateMessagePersistedEventV1;
+import com.nowcoder.community.im.common.event.PrivateMessageRejectedEventV1;
 import com.nowcoder.community.im.common.event.RoomMemberChangedEventV1;
 import com.nowcoder.community.im.common.event.RoomMessagePersistedEventV1;
+import com.nowcoder.community.im.common.event.RoomMessageRejectedEventV1;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
@@ -23,11 +25,25 @@ public class EventProducer {
         kafkaTemplate.send(ImTopics.EVENT_PRIVATE_PERSISTED_V1, event.conversationId(), event);
     }
 
+    public void publishPrivateRejected(PrivateMessageRejectedEventV1 event) {
+        if (event == null) {
+            return;
+        }
+        kafkaTemplate.send(ImTopics.EVENT_PRIVATE_REJECTED_V1, event.conversationId(), event);
+    }
+
     public void publishRoomPersisted(RoomMessagePersistedEventV1 event) {
         if (event == null) {
             return;
         }
         kafkaTemplate.send(ImTopics.EVENT_ROOM_PERSISTED_V1, String.valueOf(event.roomId()), event);
+    }
+
+    public void publishRoomRejected(RoomMessageRejectedEventV1 event) {
+        if (event == null) {
+            return;
+        }
+        kafkaTemplate.send(ImTopics.EVENT_ROOM_REJECTED_V1, String.valueOf(event.roomId()), event);
     }
 
     public void publishRoomMemberChanged(RoomMemberChangedEventV1 event) {
@@ -37,4 +53,3 @@ public class EventProducer {
         kafkaTemplate.send(ImTopics.EVENT_ROOM_MEMBER_CHANGED_V1, String.valueOf(event.roomId()), event);
     }
 }
-

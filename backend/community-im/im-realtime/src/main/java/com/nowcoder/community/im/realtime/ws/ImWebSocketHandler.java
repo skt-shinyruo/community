@@ -295,7 +295,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
                     } catch (RuntimeException e) {
                         f = CompletableFuture.failedFuture(e);
                     }
-                    sendWithAck(conn, "sendPrivateText", cmd.clientMsgId(), cmd.requestId(), f);
+                    sendWithAccepted(conn, "sendPrivateText", cmd.clientMsgId(), cmd.requestId(), f);
                     return Mono.empty();
                 });
     }
@@ -330,11 +330,11 @@ public class ImWebSocketHandler implements WebSocketHandler {
         } catch (RuntimeException e) {
             f = CompletableFuture.failedFuture(e);
         }
-        sendWithAck(conn, "sendRoomText", cmd.clientMsgId(), cmd.requestId(), f);
+        sendWithAccepted(conn, "sendRoomText", cmd.clientMsgId(), cmd.requestId(), f);
         return Mono.empty();
     }
 
-    private void sendWithAck(
+    private void sendWithAccepted(
             WsConnection conn,
             String cmdType,
             String clientMsgId,
@@ -385,7 +385,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
                         conn.trySendText(WsProtocol.sendError(cmdType, clientMsgId, requestId, errorMessage));
                         return;
                     }
-                    conn.trySendText(WsProtocol.sendAck(cmdType, clientMsgId, requestId));
+                    conn.trySendText(WsProtocol.sendAccepted(cmdType, clientMsgId, requestId));
                 } catch (RuntimeException ignore) {
                 }
             });

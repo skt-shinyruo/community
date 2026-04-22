@@ -65,7 +65,7 @@ sequenceDiagram
         RT->>RT: 生成 conversationId + requestId
         RT->>K: produce im.command.private_text.v1
         K-->>RT: Kafka accepted
-        RT-->>S: sendAck(requestId, clientMsgId)
+        RT-->>S: sendAccepted(requestId, clientMsgId)
 
         K-->>CORE: consume private command
         CORE->>CORE: 校验 conversationId / clientMsgId
@@ -193,13 +193,13 @@ command 中包含的关键字段有：
 
 如果 Kafka 接受成功，`im-realtime` 就向发送方回一个：
 
-- `sendAck`
+- `sendAccepted`
 
 这里需要特别注意：
 
-- `sendAck` 的语义是“消息已通过入口校验并成功进入处理队列”
-- `sendAck` 不代表消息已经落库
-- 最终是否持久化成功，要看后续 `im-core` 消费与落库结果
+- `sendAccepted` 的语义是“消息已通过入口校验并成功进入处理队列”
+- `sendAccepted` 不代表消息已经落库
+- 后续会再收到 `sendCommitted` 或 `sendRejected`
 
 ---
 
@@ -253,6 +253,14 @@ command 中包含的关键字段有：
 - `im-core` 只负责权威状态和事件事实
 - `im-realtime` 负责如何把事实分发到在线连接
 - 存储与实时推送解耦，便于独立扩容
+
+如果异步持久化失败，`im-core` 还会发布：
+
+- `PrivateMessageRejectedEventV1`
+
+发送 topic：
+
+- `im.event.private_rejected.v1`
 
 ---
 
@@ -339,9 +347,9 @@ sequenceDiagram
 
 ## 5. 关键实现约束
 
-### 5.1 `sendAck` 不等于“已落库”
+### 5.1 `sendAccepted` 不等于“已落库”
 
-当前链路中，`sendAck` 发生在：
+当前链路中，`sendAccepted` 发生在：
 
 - `im-realtime` 成功将 command 写入 Kafka 之后
 
@@ -358,6 +366,13 @@ sequenceDiagram
 而不是：
 
 - “最终发送成功”
+
+真正的异步最终态由：
+
+- `sendCommitted`
+- `sendRejected`
+
+表达。
 
 ---
 

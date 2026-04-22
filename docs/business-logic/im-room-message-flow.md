@@ -60,7 +60,7 @@ sequenceDiagram
     RT->>RT: 参数校验
     RT->>K: produce im.command.room_text.v1
     K-->>RT: Kafka accepted
-    RT-->>S: sendAck(requestId, clientMsgId)
+    RT-->>S: sendAccepted(requestId, clientMsgId)
 
     K-->>CORE: consume room command
     CORE->>CORE: 校验房间存在 + 发送者是成员
@@ -169,9 +169,9 @@ sequenceDiagram
 
 如果 Kafka 接受成功，发送方会收到：
 
-- `sendAck`
+- `sendAccepted`
 
-这里的 `sendAck` 语义与私信一致：
+这里的 `sendAccepted` 语义与私信一致：
 
 - 表示“请求已经通过实时层入口校验并进入处理队列”
 - 不表示“消息已经持久化成功”
@@ -235,6 +235,14 @@ sequenceDiagram
 而不是：
 
 - 服务端把完整群消息正文直接推给所有在线成员
+
+如果异步持久化失败，`im-core` 还会发布：
+
+- `RoomMessageRejectedEventV1`
+
+发送 topic：
+
+- `im.event.room_rejected.v1`
 
 ---
 
@@ -382,9 +390,9 @@ sequenceDiagram
 
 ## 6. 关键实现约束
 
-### 6.1 `sendAck` 不等于“已落库”
+### 6.1 `sendAccepted` 不等于“已落库”
 
-和私信一样，群聊里的 `sendAck` 发生在：
+和私信一样，群聊里的 `sendAccepted` 发生在：
 
 - `im-realtime` 成功将 room command 写入 Kafka 之后
 
@@ -397,6 +405,13 @@ sequenceDiagram
 因此，从产品语义上更适合把它理解为：
 
 - “请求已进入后端处理队列”
+
+真正的异步最终态由：
+
+- `sendCommitted`
+- `sendRejected`
+
+表达。
 
 ---
 

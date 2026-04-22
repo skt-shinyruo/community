@@ -170,7 +170,8 @@ function scrollToBottom() {
 onMounted(load)
 
 let offPrivate = null
-let offSendAck = null
+let offSendCommitted = null
+let offSendRejected = null
 let offSendError = null
 onMounted(() => {
   offPrivate = imRealtimeClient.on('privateMessage', async (msg) => {
@@ -201,15 +202,33 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   try { offPrivate?.() } catch {}
-  try { offSendAck?.() } catch {}
+  try { offSendCommitted?.() } catch {}
+  try { offSendRejected?.() } catch {}
   try { offSendError?.() } catch {}
 })
 
 onMounted(() => {
-  offSendAck = imRealtimeClient.on('sendAck', (msg) => {
+  offSendCommitted = imRealtimeClient.on('sendCommitted', (msg) => {
     if (String(msg?.cmd || '') !== 'sendPrivateText') return
     const cmid = String(msg?.clientMsgId || '')
     if (cmid) pendingClientMsgIds.delete(cmid)
+  })
+
+  offSendRejected = imRealtimeClient.on('sendRejected', (msg) => {
+    if (String(msg?.cmd || '') !== 'sendPrivateText') return
+    const cmid = String(msg?.clientMsgId || '')
+    if (cmid && !pendingClientMsgIds.has(cmid)) return
+    if (cmid) pendingClientMsgIds.delete(cmid)
+
+    const message = String(msg?.message || '发送失败')
+    error.value = message
+    try {
+      if (typeof window !== 'undefined' && window.$toast) {
+        const traceId = String(msg?.traceId || '')
+        const traceSuffix = traceId ? ` (traceId=${traceId})` : ''
+        window.$toast({ type: 'error', title: '发送失败', text: `${message}${traceSuffix}` })
+      }
+    } catch {}
   })
 
   offSendError = imRealtimeClient.on('sendError', (msg) => {

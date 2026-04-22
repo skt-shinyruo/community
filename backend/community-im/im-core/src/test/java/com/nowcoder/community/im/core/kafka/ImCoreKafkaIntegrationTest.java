@@ -41,7 +41,9 @@ import static org.assertj.core.api.Assertions.assertThat;
                 ImTopics.COMMAND_PRIVATE_TEXT_V1,
                 ImTopics.COMMAND_ROOM_TEXT_V1,
                 ImTopics.EVENT_PRIVATE_PERSISTED_V1,
-                ImTopics.EVENT_ROOM_PERSISTED_V1
+                ImTopics.EVENT_ROOM_PERSISTED_V1,
+                ImTopics.EVENT_PRIVATE_REJECTED_V1,
+                ImTopics.EVENT_ROOM_REJECTED_V1
         }
 )
 @TestPropertySource(properties = {
@@ -104,6 +106,8 @@ class ImCoreKafkaIntegrationTest {
         assertThat(eventJson.path("roomId").asText("")).isEqualTo(roomId.toString());
         assertThat(eventJson.path("seq").asLong()).isEqualTo(1L);
         assertThat(eventJson.path("fromUserId").asText("")).isEqualTo(sender.toString());
+        assertThat(eventJson.path("requestId").asText("")).isEqualTo("req-1");
+        assertThat(eventJson.path("clientMsgId").asText("")).isEqualTo("c1");
         assertThat(eventJson.hasNonNull("content")).isFalse();
 
         List<RoomMessageRepository.RoomMessageRow> rows = roomMessageRepository.listAfterSeq(roomId, 0, 10);
@@ -135,6 +139,8 @@ class ImCoreKafkaIntegrationTest {
         assertThat(eventJson.path("fromUserId").asText("")).isEqualTo(fromUserId.toString());
         assertThat(eventJson.path("toUserId").asText("")).isEqualTo(toUserId.toString());
         assertThat(eventJson.path("content").asText("")).isEqualTo("hello");
+        assertThat(eventJson.path("requestId").asText("")).isEqualTo("req-1");
+        assertThat(eventJson.path("clientMsgId").asText("")).isEqualTo("c1");
 
         List<PrivateMessageRepository.PrivateMessageRow> rows = privateMessageRepository.listAfterSeq(conversationId, 0, 10);
         assertThat(rows).hasSize(1);

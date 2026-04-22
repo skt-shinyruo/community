@@ -81,6 +81,8 @@ Redis 主要用于：
   - `im.command.room_text.v1`
   - `im.event.private_persisted.v1`
   - `im.event.room_persisted.v1`
+  - `im.event.private_rejected.v1`
+  - `im.event.room_rejected.v1`
   - `im.event.room_member_changed.v1`
   - 对应 DLQ：`im.command.private_text.v1.dlq`、`im.command.room_text.v1.dlq`
 

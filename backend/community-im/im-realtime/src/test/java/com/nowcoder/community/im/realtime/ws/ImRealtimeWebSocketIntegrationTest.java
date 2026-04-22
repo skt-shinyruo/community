@@ -14,8 +14,10 @@ import com.nimbusds.jwt.SignedJWT;
 import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommandV1;
 import com.nowcoder.community.im.common.event.PrivateMessagePersistedEventV1;
+import com.nowcoder.community.im.common.event.PrivateMessageRejectedEventV1;
 import com.nowcoder.community.im.common.event.RoomMemberChangedEventV1;
 import com.nowcoder.community.im.common.event.RoomMessagePersistedEventV1;
+import com.nowcoder.community.im.common.event.RoomMessageRejectedEventV1;
 import com.nowcoder.community.im.realtime.client.CommunityGovernanceClient;
 import com.nowcoder.community.im.realtime.kafka.CommandProducer;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
@@ -91,6 +93,8 @@ import static org.mockito.Mockito.when;
                 ImTopics.COMMAND_ROOM_TEXT_V1,
                 ImTopics.EVENT_PRIVATE_PERSISTED_V1,
                 ImTopics.EVENT_ROOM_PERSISTED_V1,
+                ImTopics.EVENT_PRIVATE_REJECTED_V1,
+                ImTopics.EVENT_ROOM_REJECTED_V1,
                 ImTopics.EVENT_ROOM_MEMBER_CHANGED_V1
         }
 )
@@ -168,7 +172,7 @@ class ImRealtimeWebSocketIntegrationTest {
     }
 
     @Test
-    void websocket_shouldAuth_sendCommands_andReceivePrivateAndRoomPush() throws Exception {
+    void websocket_shouldAuth_sendCommands_andReceiveAcceptedCommittedAndPushFrames() throws Exception {
         when(governanceClient.validateSendPrivateMessage(anyString(), any(), anyString()))
                 .thenReturn(Mono.just(CommunityGovernanceClient.Decision.allow("")));
 
@@ -216,15 +220,17 @@ class ImRealtimeWebSocketIntegrationTest {
                     Set.of(
                             ImTopics.EVENT_PRIVATE_PERSISTED_V1,
                             ImTopics.EVENT_ROOM_PERSISTED_V1,
+                            ImTopics.EVENT_PRIVATE_REJECTED_V1,
+                            ImTopics.EVENT_ROOM_REJECTED_V1,
                             ImTopics.EVENT_ROOM_MEMBER_CHANGED_V1
                     ),
                     Duration.ofSeconds(8)
             );
 
             outbound.tryEmitNext("{\"type\":\"sendPrivateText\",\"clientMsgId\":\"c1\",\"toUserId\":\"" + toUserId + "\",\"content\":\"hi\"}");
-            JsonNode privateAck = awaitType(received, "sendAck", Duration.ofSeconds(5));
-            assertThat(privateAck.path("cmd").asText("")).isEqualTo("sendPrivateText");
-            assertThat(privateAck.path("clientMsgId").asText("")).isEqualTo("c1");
+            JsonNode privateAccepted = awaitType(received, "sendAccepted", Duration.ofSeconds(5));
+            assertThat(privateAccepted.path("cmd").asText("")).isEqualTo("sendPrivateText");
+            assertThat(privateAccepted.path("clientMsgId").asText("")).isEqualTo("c1");
             ConsumerRecord<String, String> privateCmdRecord = pollForSingleRecord(commandConsumer, ImTopics.COMMAND_PRIVATE_TEXT_V1, Duration.ofSeconds(10));
             JsonNode privateCmd = objectMapper.readTree(privateCmdRecord.value());
             assertThat(privateCmd.path("fromUserId").asText("")).isEqualTo(userId.toString());
@@ -234,9 +240,9 @@ class ImRealtimeWebSocketIntegrationTest {
             assertThat(privateCmd.path("clientMsgId").asText("")).isEqualTo("c1");
 
             outbound.tryEmitNext("{\"type\":\"sendRoomText\",\"clientMsgId\":\"c2\",\"roomId\":\"" + roomId + "\",\"content\":\"hello\"}");
-            JsonNode roomAck = awaitType(received, "sendAck", Duration.ofSeconds(5));
-            assertThat(roomAck.path("cmd").asText("")).isEqualTo("sendRoomText");
-            assertThat(roomAck.path("clientMsgId").asText("")).isEqualTo("c2");
+            JsonNode roomAccepted = awaitType(received, "sendAccepted", Duration.ofSeconds(5));
+            assertThat(roomAccepted.path("cmd").asText("")).isEqualTo("sendRoomText");
+            assertThat(roomAccepted.path("clientMsgId").asText("")).isEqualTo("c2");
             ConsumerRecord<String, String> roomCmdRecord = pollForSingleRecord(commandConsumer, ImTopics.COMMAND_ROOM_TEXT_V1, Duration.ofSeconds(10));
             JsonNode roomCmd = objectMapper.readTree(roomCmdRecord.value());
             assertThat(roomCmd.path("fromUserId").asText("")).isEqualTo(userId.toString());
@@ -255,8 +261,14 @@ class ImRealtimeWebSocketIntegrationTest {
             kafkaTemplate.send(
                     ImTopics.EVENT_ROOM_PERSISTED_V1,
                     String.valueOf(roomId),
-                    new RoomMessagePersistedEventV1("evt-room", roomId, 7L, uuid(9001), userId, System.currentTimeMillis())
+                    new RoomMessagePersistedEventV1("evt-room", roomId, 7L, uuid(9001), userId, "req-room-1", "c2", System.currentTimeMillis())
             ).get(5, TimeUnit.SECONDS);
+
+            JsonNode roomCommitted = awaitType(received, "sendCommitted", Duration.ofSeconds(5));
+            assertThat(roomCommitted.path("cmd").asText("")).isEqualTo("sendRoomText");
+            assertThat(roomCommitted.path("clientMsgId").asText("")).isEqualTo("c2");
+            assertThat(roomCommitted.path("roomId").asText("")).isEqualTo(roomId.toString());
+            assertThat(roomCommitted.path("seq").asLong()).isEqualTo(7L);
 
             JsonNode roomUpdated = awaitType(received, "roomUpdatedBatch", Duration.ofSeconds(5));
             assertThat(roomUpdated.hasNonNull("content")).isFalse();
@@ -281,15 +293,73 @@ class ImRealtimeWebSocketIntegrationTest {
                             userId,
                             toUserId,
                             "server-hi",
+                            "req-private-1",
+                            "c1",
                             System.currentTimeMillis()
                     )
             );
+
+            JsonNode privateCommitted = awaitType(received, "sendCommitted", Duration.ofSeconds(5));
+            assertThat(privateCommitted.path("cmd").asText("")).isEqualTo("sendPrivateText");
+            assertThat(privateCommitted.path("clientMsgId").asText("")).isEqualTo("c1");
+            assertThat(privateCommitted.path("conversationId").asText("")).isEqualTo(conversationId);
+            assertThat(privateCommitted.path("seq").asLong()).isEqualTo(3L);
 
             JsonNode privateMsg = awaitType(received, "privateMessage", Duration.ofSeconds(5));
             assertThat(privateMsg.path("conversationId").asText("")).isEqualTo(conversationId);
             assertThat(privateMsg.path("fromUserId").asText("")).isEqualTo(userId.toString());
             assertThat(privateMsg.path("toUserId").asText("")).isEqualTo(toUserId.toString());
             assertThat(privateMsg.path("content").asText("")).isEqualTo("server-hi");
+        } finally {
+            done.tryEmitEmpty();
+            outbound.tryEmitComplete();
+        }
+    }
+
+    @Test
+    void websocket_shouldReceiveSendRejectedWhenImCoreRejectsAcceptedRoomCommand() throws Exception {
+        UUID userId = uuid(100);
+        UUID roomId = uuid(10);
+
+        LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
+        Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
+        Sinks.Empty<Void> done = Sinks.empty();
+        CountDownLatch connected = new CountDownLatch(1);
+
+        Disposable ws = openWebSocket(received, outbound, done, connected);
+        try {
+            assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
+
+            String token = signHs256(jwtSecret, jwtIssuer, userId.toString(), Instant.now().plusSeconds(120));
+            outbound.tryEmitNext("{\"type\":\"auth\",\"accessToken\":\"" + token + "\"}");
+            JsonNode authOk = awaitType(received, "auth_ok", Duration.ofSeconds(5));
+            assertThat(authOk.path("userId").asText("")).isEqualTo(userId.toString());
+
+            awaitRealtimeEventAssignments(Set.of(ImTopics.EVENT_ROOM_REJECTED_V1), Duration.ofSeconds(8));
+
+            kafkaTemplate.send(
+                    ImTopics.EVENT_ROOM_REJECTED_V1,
+                    String.valueOf(roomId),
+                    new RoomMessageRejectedEventV1(
+                            "evt-room-rejected",
+                            "req-room-rejected",
+                            "c-room-rejected",
+                            userId,
+                            roomId,
+                            403,
+                            "not_room_member",
+                            "not a room member",
+                            System.currentTimeMillis()
+                    )
+            ).get(5, TimeUnit.SECONDS);
+
+            JsonNode rejected = awaitType(received, "sendRejected", Duration.ofSeconds(5));
+            assertThat(rejected.path("cmd").asText("")).isEqualTo("sendRoomText");
+            assertThat(rejected.path("clientMsgId").asText("")).isEqualTo("c-room-rejected");
+            assertThat(rejected.path("requestId").asText("")).isEqualTo("req-room-rejected");
+            assertThat(rejected.path("code").asInt()).isEqualTo(403);
+            assertThat(rejected.path("reasonCode").asText("")).isEqualTo("not_room_member");
+            assertThat(rejected.path("message").asText("")).isEqualTo("not a room member");
         } finally {
             done.tryEmitEmpty();
             outbound.tryEmitComplete();

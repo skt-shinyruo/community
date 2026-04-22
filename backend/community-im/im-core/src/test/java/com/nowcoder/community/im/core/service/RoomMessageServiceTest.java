@@ -46,6 +46,8 @@ class RoomMessageServiceTest {
 
         assertThat(e2.messageId()).isEqualTo(e1.messageId());
         assertThat(e2.seq()).isEqualTo(e1.seq());
+        assertThat(e1.requestId()).isEqualTo("req-1");
+        assertThat(e1.clientMsgId()).isEqualTo("c1");
 
         List<RoomMessageRepository.RoomMessageRow> rows =
                 roomMessageRepository.listAfterSeq(roomId, 0, 100);

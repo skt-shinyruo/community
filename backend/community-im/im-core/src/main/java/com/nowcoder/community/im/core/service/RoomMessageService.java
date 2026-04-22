@@ -78,6 +78,8 @@ public class RoomMessageService {
                     m.seq(),
                     m.messageId(),
                     m.fromUserId(),
+                    cmd.requestId(),
+                    cmd.clientMsgId(),
                     m.createdAt().toEpochMilli()
             );
         }
@@ -105,6 +107,8 @@ public class RoomMessageService {
                 seq,
                 messageId,
                 fromUserId,
+                cmd.requestId(),
+                cmd.clientMsgId(),
                 now.toEpochMilli()
         );
     }

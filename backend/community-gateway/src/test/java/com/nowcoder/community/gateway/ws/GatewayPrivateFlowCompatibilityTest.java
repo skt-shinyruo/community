@@ -95,7 +95,7 @@ class GatewayPrivateFlowCompatibilityTest {
     }
 
     @Test
-    void shouldPreservePrivateMessageHandshakeAndAckThroughChosenWorker() throws Exception {
+    void shouldPreservePrivateMessageHandshakeAndAcceptedFrameThroughChosenWorker() throws Exception {
         String userId = userIdFor("worker-b");
         String token = signHs256(JWT_SECRET, JWT_ISSUER, userId, Instant.now().plusSeconds(120));
 
@@ -105,14 +105,14 @@ class GatewayPrivateFlowCompatibilityTest {
         ), 2);
 
         JsonNode authOk = OBJECT_MAPPER.readTree(received.get(0));
-        JsonNode sendAck = OBJECT_MAPPER.readTree(received.get(1));
+        JsonNode sendAccepted = OBJECT_MAPPER.readTree(received.get(1));
 
         assertThat(authOk.path("type").asText("")).isEqualTo("auth_ok");
         assertThat(authOk.path("workerId").asText("")).isEqualTo("worker-b");
-        assertThat(sendAck.path("type").asText("")).isEqualTo("sendAck");
-        assertThat(sendAck.path("cmd").asText("")).isEqualTo("sendPrivateText");
-        assertThat(sendAck.path("clientMsgId").asText("")).isEqualTo("p-1");
-        assertThat(sendAck.path("requestId").asText("")).startsWith("worker-b-");
+        assertThat(sendAccepted.path("type").asText("")).isEqualTo("sendAccepted");
+        assertThat(sendAccepted.path("cmd").asText("")).isEqualTo("sendPrivateText");
+        assertThat(sendAccepted.path("clientMsgId").asText("")).isEqualTo("p-1");
+        assertThat(sendAccepted.path("requestId").asText("")).startsWith("worker-b-");
     }
 
     private List<String> runSession(List<String> outboundFrames, int expectedMessages) throws Exception {
@@ -205,7 +205,7 @@ class GatewayPrivateFlowCompatibilityTest {
                                         return;
                                     }
                                     if ("sendPrivateText".equals(type)) {
-                                        sink.next("{\"type\":\"sendAck\",\"cmd\":\"sendPrivateText\",\"clientMsgId\":\""
+                                        sink.next("{\"type\":\"sendAccepted\",\"cmd\":\"sendPrivateText\",\"clientMsgId\":\""
                                                 + node.path("clientMsgId").asText("")
                                                 + "\",\"requestId\":\"" + workerId + "-private-1\"}");
                                     }

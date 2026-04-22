@@ -79,6 +79,8 @@ public class PrivateMessageService {
                     m.fromUserId(),
                     m.toUserId(),
                     m.content(),
+                    cmd.requestId(),
+                    cmd.clientMsgId(),
                     m.createdAt().toEpochMilli()
             );
         }
@@ -109,6 +111,8 @@ public class PrivateMessageService {
                 fromUserId,
                 toUserId,
                 content,
+                cmd.requestId(),
+                cmd.clientMsgId(),
                 now.toEpochMilli()
         );
     }

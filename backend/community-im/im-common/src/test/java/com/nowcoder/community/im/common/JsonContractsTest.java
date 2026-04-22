@@ -4,8 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommandV1;
 import com.nowcoder.community.im.common.command.SendRoomTextCommandV1;
 import com.nowcoder.community.im.common.event.PrivateMessagePersistedEventV1;
+import com.nowcoder.community.im.common.event.PrivateMessageRejectedEventV1;
 import com.nowcoder.community.im.common.event.RoomMemberChangedEventV1;
 import com.nowcoder.community.im.common.event.RoomMessagePersistedEventV1;
+import com.nowcoder.community.im.common.event.RoomMessageRejectedEventV1;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
@@ -64,6 +66,8 @@ class JsonContractsTest {
                 fromUserId,
                 toUserId,
                 "hello",
+                "req-1",
+                "cmsg-1",
                 1700000001000L
         );
 
@@ -81,6 +85,8 @@ class JsonContractsTest {
                 7L,
                 uuid(20001),
                 fromUserId,
+                "req-2",
+                "cmsg-2",
                 1700000002000L
         );
 
@@ -101,6 +107,47 @@ class JsonContractsTest {
 
         String json = objectMapper.writeValueAsString(event);
         RoomMemberChangedEventV1 back = objectMapper.readValue(json, RoomMemberChangedEventV1.class);
+        assertEquals(event, back);
+    }
+
+    @Test
+    void event_roundtrip_privateRejected() throws Exception {
+        UUID fromUserId = uuid(12);
+        UUID toUserId = uuid(99);
+        PrivateMessageRejectedEventV1 event = new PrivateMessageRejectedEventV1(
+                "evt-4",
+                "req-4",
+                "cmsg-4",
+                fromUserId,
+                toUserId,
+                conversationId(fromUserId, toUserId),
+                403,
+                "send_denied",
+                "send denied",
+                1700000004000L
+        );
+
+        String json = objectMapper.writeValueAsString(event);
+        PrivateMessageRejectedEventV1 back = objectMapper.readValue(json, PrivateMessageRejectedEventV1.class);
+        assertEquals(event, back);
+    }
+
+    @Test
+    void event_roundtrip_roomRejected() throws Exception {
+        RoomMessageRejectedEventV1 event = new RoomMessageRejectedEventV1(
+                "evt-5",
+                "req-5",
+                "cmsg-5",
+                uuid(12),
+                uuid(1001),
+                403,
+                "not_room_member",
+                "not a room member",
+                1700000005000L
+        );
+
+        String json = objectMapper.writeValueAsString(event);
+        RoomMessageRejectedEventV1 back = objectMapper.readValue(json, RoomMessageRejectedEventV1.class);
         assertEquals(event, back);
     }
 

@@ -8,7 +8,9 @@ import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommandV1;
 import com.nowcoder.community.im.common.command.SendRoomTextCommandV1;
 import com.nowcoder.community.im.common.event.PrivateMessagePersistedEventV1;
+import com.nowcoder.community.im.common.event.PrivateMessageRejectedEventV1;
 import com.nowcoder.community.im.common.event.RoomMessagePersistedEventV1;
+import com.nowcoder.community.im.common.event.RoomMessageRejectedEventV1;
 import com.nowcoder.community.im.core.service.PrivateMessageService;
 import com.nowcoder.community.im.core.service.RoomMessageService;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -30,6 +32,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -71,6 +74,8 @@ class CommandConsumersLoggingTest {
                 fromUserId,
                 toUserId,
                 "hello-private",
+                "req-1",
+                "c1",
                 System.currentTimeMillis()
         );
         when(privateMessageService.persist(cmd)).thenReturn(event);
@@ -92,6 +97,7 @@ class CommandConsumersLoggingTest {
                     .contains("community.message_seq=7")
                     .contains("community.message_id=" + uuid(7001))
                     .contains("community.client_msg_id=c1")
+                    .contains("community.request_id=req-1")
                     .doesNotContain("hello-private");
         } finally {
             stopCommandConsumersLogCapture(capture);
@@ -115,6 +121,8 @@ class CommandConsumersLoggingTest {
                 3L,
                 uuid(8080),
                 fromUserId,
+                "req-2",
+                "c2",
                 System.currentTimeMillis()
         );
         when(roomMessageService.persist(cmd)).thenReturn(event);
@@ -136,6 +144,50 @@ class CommandConsumersLoggingTest {
                     .contains("community.message_seq=3")
                     .contains("community.message_id=" + uuid(8080))
                     .contains("community.client_msg_id=c2")
+                    .contains("community.request_id=req-2")
+                    .doesNotContain("hello-room");
+        } finally {
+            stopCommandConsumersLogCapture(capture);
+        }
+    }
+
+    @Test
+    void roomCommandShouldPublishRejectedEventAndWarnWithoutMessageContent() {
+        UUID fromUserId = uuid(88);
+        UUID roomId = uuid(9001);
+        SendRoomTextCommandV1 cmd = new SendRoomTextCommandV1(
+                "req-2",
+                "c2",
+                fromUserId,
+                roomId,
+                "hello-room",
+                System.currentTimeMillis()
+        );
+        when(roomMessageService.persist(cmd)).thenThrow(new SecurityException("not a room member"));
+        CommandConsumersLogCapture capture = startCommandConsumersLogCapture();
+
+        try {
+            try {
+                consumers.onRoomText(cmd);
+            } catch (SecurityException expected) {
+            }
+
+            verify(eventProducer, never()).publishRoomPersisted(any(RoomMessagePersistedEventV1.class));
+            verify(eventProducer).publishRoomRejected(any(RoomMessageRejectedEventV1.class));
+            ILoggingEvent rejectedEvent = findSingleEvent(capture.appender(), "community.action=im_room_command_reject");
+            assertThat(rejectedEvent.getLevel()).isEqualTo(Level.WARN);
+            assertThat(rejectedEvent.getFormattedMessage())
+                    .contains("community.category=async")
+                    .contains("community.action=im_room_command_reject")
+                    .contains("community.outcome=failure")
+                    .contains("user.id=" + fromUserId)
+                    .contains("community.target_type=room")
+                    .contains("community.target_id=" + roomId)
+                    .contains("community.client_msg_id=c2")
+                    .contains("community.request_id=req-2")
+                    .contains("community.reason_code=command_denied")
+                    .contains("community.error_class=java.lang.SecurityException")
+                    .contains("community.error_message=not%20a%20room%20member")
                     .doesNotContain("hello-room");
         } finally {
             stopCommandConsumersLogCapture(capture);

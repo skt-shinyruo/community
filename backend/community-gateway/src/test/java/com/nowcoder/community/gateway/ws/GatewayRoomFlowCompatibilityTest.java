@@ -96,7 +96,7 @@ class GatewayRoomFlowCompatibilityTest {
     }
 
     @Test
-    void shouldPreserveRoomAckAndStateOnlyUpdateThroughChosenWorker() throws Exception {
+    void shouldPreserveRoomAcceptedAndStateOnlyUpdateThroughChosenWorker() throws Exception {
         String userId = userIdFor("worker-b");
         String token = signHs256(JWT_SECRET, JWT_ISSUER, userId, Instant.now().plusSeconds(120));
 
@@ -106,15 +106,15 @@ class GatewayRoomFlowCompatibilityTest {
         ), 3);
 
         JsonNode authOk = OBJECT_MAPPER.readTree(received.get(0));
-        JsonNode sendAck = OBJECT_MAPPER.readTree(received.get(1));
+        JsonNode sendAccepted = OBJECT_MAPPER.readTree(received.get(1));
         JsonNode roomUpdatedBatch = OBJECT_MAPPER.readTree(received.get(2));
 
         assertThat(authOk.path("type").asText("")).isEqualTo("auth_ok");
         assertThat(authOk.path("workerId").asText("")).isEqualTo("worker-b");
-        assertThat(sendAck.path("type").asText("")).isEqualTo("sendAck");
-        assertThat(sendAck.path("cmd").asText("")).isEqualTo("sendRoomText");
-        assertThat(sendAck.path("clientMsgId").asText("")).isEqualTo("r-1");
-        assertThat(sendAck.path("requestId").asText("")).startsWith("worker-b-");
+        assertThat(sendAccepted.path("type").asText("")).isEqualTo("sendAccepted");
+        assertThat(sendAccepted.path("cmd").asText("")).isEqualTo("sendRoomText");
+        assertThat(sendAccepted.path("clientMsgId").asText("")).isEqualTo("r-1");
+        assertThat(sendAccepted.path("requestId").asText("")).startsWith("worker-b-");
         assertThat(roomUpdatedBatch.path("type").asText("")).isEqualTo("roomUpdatedBatch");
         assertThat(roomUpdatedBatch.hasNonNull("content")).isFalse();
         assertThat(roomUpdatedBatch.path("items").isArray()).isTrue();
@@ -217,7 +217,7 @@ class GatewayRoomFlowCompatibilityTest {
         }
         if ("sendRoomText".equals(type)) {
             return Flux.just(
-                    "{\"type\":\"sendAck\",\"cmd\":\"sendRoomText\",\"clientMsgId\":\""
+                    "{\"type\":\"sendAccepted\",\"cmd\":\"sendRoomText\",\"clientMsgId\":\""
                             + node.path("clientMsgId").asText("")
                             + "\",\"requestId\":\"" + workerId + "-room-1\"}",
                     "{\"type\":\"roomUpdatedBatch\",\"items\":[{\"roomId\":"

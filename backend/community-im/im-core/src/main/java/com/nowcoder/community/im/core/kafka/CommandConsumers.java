@@ -3,6 +3,8 @@ package com.nowcoder.community.im.core.kafka;
 import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommandV1;
 import com.nowcoder.community.im.common.command.SendRoomTextCommandV1;
+import com.nowcoder.community.im.common.event.PrivateMessageRejectedEventV1;
+import com.nowcoder.community.im.common.event.RoomMessageRejectedEventV1;
 import com.nowcoder.community.im.core.service.PrivateMessageService;
 import com.nowcoder.community.im.core.service.RoomMessageService;
 import org.slf4j.Logger;
@@ -45,18 +47,37 @@ public class CommandConsumers {
         if (cmd == null) {
             return;
         }
-        var event = privateMessageService.persist(cmd);
-        eventProducer.publishPrivatePersisted(event);
-        debugEvent(
-                "im_private_command_persist",
-                "success",
-                "user.id", event.fromUserId(),
-                "community.target_type", "conversation",
-                "community.target_id", event.conversationId(),
-                "community.message_seq", event.seq(),
-                "community.message_id", event.messageId(),
-                "community.client_msg_id", cmd.clientMsgId()
-        );
+        try {
+            var event = privateMessageService.persist(cmd);
+            eventProducer.publishPrivatePersisted(event);
+            debugEvent(
+                    "im_private_command_persist",
+                    "success",
+                    "user.id", event.fromUserId(),
+                    "community.target_type", "conversation",
+                    "community.target_id", event.conversationId(),
+                    "community.message_seq", event.seq(),
+                    "community.message_id", event.messageId(),
+                    "community.client_msg_id", cmd.clientMsgId(),
+                    "community.request_id", cmd.requestId()
+            );
+        } catch (RuntimeException e) {
+            eventProducer.publishPrivateRejected(toPrivateRejectedEvent(cmd, e));
+            warnEvent(
+                    "im_private_command_reject",
+                    "failure",
+                    null,
+                    "user.id", cmd.fromUserId(),
+                    "community.target_type", "conversation",
+                    "community.target_id", cmd.conversationId(),
+                    "community.client_msg_id", cmd.clientMsgId(),
+                    "community.request_id", cmd.requestId(),
+                    "community.reason_code", rejectionReasonCode(e),
+                    "community.error_class", errorClass(e),
+                    "community.error_message", rejectionMessage(e)
+            );
+            throw e;
+        }
     }
 
     @KafkaListener(
@@ -68,22 +89,110 @@ public class CommandConsumers {
         if (cmd == null) {
             return;
         }
-        var event = roomMessageService.persist(cmd);
-        eventProducer.publishRoomPersisted(event);
-        debugEvent(
-                "im_room_command_persist",
-                "success",
-                "user.id", event.fromUserId(),
-                "community.target_type", "room",
-                "community.target_id", event.roomId(),
-                "community.message_seq", event.seq(),
-                "community.message_id", event.messageId(),
-                "community.client_msg_id", cmd.clientMsgId()
-        );
+        try {
+            var event = roomMessageService.persist(cmd);
+            eventProducer.publishRoomPersisted(event);
+            debugEvent(
+                    "im_room_command_persist",
+                    "success",
+                    "user.id", event.fromUserId(),
+                    "community.target_type", "room",
+                    "community.target_id", event.roomId(),
+                    "community.message_seq", event.seq(),
+                    "community.message_id", event.messageId(),
+                    "community.client_msg_id", cmd.clientMsgId(),
+                    "community.request_id", cmd.requestId()
+            );
+        } catch (RuntimeException e) {
+            eventProducer.publishRoomRejected(toRoomRejectedEvent(cmd, e));
+            warnEvent(
+                    "im_room_command_reject",
+                    "failure",
+                    null,
+                    "user.id", cmd.fromUserId(),
+                    "community.target_type", "room",
+                    "community.target_id", cmd.roomId(),
+                    "community.client_msg_id", cmd.clientMsgId(),
+                    "community.request_id", cmd.requestId(),
+                    "community.reason_code", rejectionReasonCode(e),
+                    "community.error_class", errorClass(e),
+                    "community.error_message", rejectionMessage(e)
+            );
+            throw e;
+        }
     }
 
     private void debugEvent(String action, String outcome, Object... keyValues) {
         logEvent(action, outcome, false, null, keyValues);
+    }
+
+    private void warnEvent(String action, String outcome, Throwable throwable, Object... keyValues) {
+        logEvent(action, outcome, true, throwable, keyValues);
+    }
+
+    private PrivateMessageRejectedEventV1 toPrivateRejectedEvent(SendPrivateTextCommandV1 cmd, RuntimeException e) {
+        return new PrivateMessageRejectedEventV1(
+                "evt_reject_" + String.valueOf(cmd.requestId()),
+                cmd.requestId(),
+                cmd.clientMsgId(),
+                cmd.fromUserId(),
+                cmd.toUserId(),
+                cmd.conversationId(),
+                rejectionCode(e),
+                rejectionReasonCode(e),
+                rejectionMessage(e),
+                System.currentTimeMillis()
+        );
+    }
+
+    private RoomMessageRejectedEventV1 toRoomRejectedEvent(SendRoomTextCommandV1 cmd, RuntimeException e) {
+        return new RoomMessageRejectedEventV1(
+                "evt_reject_" + String.valueOf(cmd.requestId()),
+                cmd.requestId(),
+                cmd.clientMsgId(),
+                cmd.fromUserId(),
+                cmd.roomId(),
+                rejectionCode(e),
+                rejectionReasonCode(e),
+                rejectionMessage(e),
+                System.currentTimeMillis()
+        );
+    }
+
+    private int rejectionCode(RuntimeException e) {
+        if (e instanceof IllegalArgumentException) {
+            return 400;
+        }
+        if (e instanceof SecurityException) {
+            return 403;
+        }
+        return 503;
+    }
+
+    private String rejectionReasonCode(RuntimeException e) {
+        if (e instanceof IllegalArgumentException) {
+            return "invalid_command";
+        }
+        if (e instanceof SecurityException) {
+            return "command_denied";
+        }
+        return "command_processing_failed";
+    }
+
+    private String errorClass(Throwable throwable) {
+        return throwable == null ? null : throwable.getClass().getName();
+    }
+
+    private String rejectionMessage(Throwable throwable) {
+        if (throwable == null) {
+            return "message processing failed";
+        }
+        String message = throwable.getMessage();
+        if ((throwable instanceof IllegalArgumentException || throwable instanceof SecurityException)
+                && message != null && !message.isBlank()) {
+            return message;
+        }
+        return "message processing failed";
     }
 
     private void logEvent(String action, String outcome, boolean warn, Throwable throwable, Object... keyValues) {

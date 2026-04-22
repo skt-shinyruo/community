@@ -25,9 +25,16 @@
   - `RegistrationService`：注册与验证码签发
   - `RegistrationVerificationService`：验证码重发、验证、激活并自动登录
   - `AuthService`：密码登录、refresh、logout、统一签发登录态
+  - `AuthOriginGuardFilter`：浏览器直连认证入口时的 OriginGuard
   - `UserRegistrationService`：用户创建、待激活用户读取、激活、过期待激活用户清理
   - `UserCredentialService`：密码校验、密码升级、角色映射
-  - `UserQueryService`：refresh 会话恢复所需的用户资料读取
+  - `JwtTokenService` / `RefreshTokenService`：access token 签发与 refresh token 轮换
+  - `DbRefreshTokenStore`：refresh token 的 DB 持久化适配层
+  - `RegistrationSessionStore`：`registrationToken -> userId` 的服务端映射
+  - `LoginRateLimitService`：登录失败计数、拦截与验证码触发
+  - `RefreshTokenCleanupJob`：过期 refresh token 清理
+  - `PendingRegistrationUserCleanupJob`：过期待激活用户清理
+  - `AuthStartupValidator`：prod 下认证相关 fail-closed 校验
 - Redis：
   - 图形验证码
   - 登录失败计数与验证码兜底
@@ -54,17 +61,56 @@
 - `POST /api/auth/register/code/verify`
 - `GET /api/auth/captcha`
 - `POST /api/auth/captcha/verify`
+- `POST /api/auth/password/reset/request`
+- `POST /api/auth/password/reset/confirm`
 
 匿名放行接口包括：
 
 - `login`
 - `refresh`
+- `logout`
 - `register`
 - `register/code/resend`
 - `register/code/verify`
 - `captcha`
+- `captcha/verify`
+- `password/reset/request`
+- `password/reset/confirm`
 
-`/api/auth/me` 与 `/api/auth/logout` 需要已有登录态。
+`/api/auth/me` 需要已有登录态；`/api/auth/logout` 当前为匿名放行的 cookie best-effort 撤销入口。
+
+### 2.1 认证入口的安全边界
+
+这里要分清两层保护：
+
+- `AuthSecurityRules` 决定哪些 `/api/auth/**` 接口允许匿名进入
+- `AuthOriginGuardFilter` 决定浏览器能否跨 origin 调这些敏感 cookie 入口
+
+`AuthOriginGuardFilter` 当前只覆盖：
+
+- `POST /api/auth/login`
+- `POST /api/auth/refresh`
+- `POST /api/auth/logout`
+
+它的规则是：
+
+- 没有 `Origin` 头：直接放行，兼容非浏览器客户端
+- 同源请求：放行
+- 命中 allowlist：放行
+- allowlist 为空且 `fail-open-when-allowlist-empty=false`：直接 `403`
+- 其余跨源请求：直接 `403`
+
+当前主配置里：
+
+- `gateway.origin-guard.enabled = true`
+- `gateway.origin-guard.allowed-origins = ${AUTH_ORIGIN_GUARD_ALLOWED_ORIGINS:}`
+- `fail-open-when-allowlist-empty = false`
+
+因此当前默认行为是：
+
+- 浏览器如果绕过 gateway 直连 `community-app`
+- 且没有正确配置允许 origin
+- 登录 / refresh / logout 会被 fail-closed 拒绝
 
 ---
 
@@ -145,6 +191,26 @@ sequenceDiagram
 - 后端返回“注册已过期，请重新注册”
 
 此外，`PendingRegistrationUserCleanupJob` 还会周期性清理过期未激活用户。
+
+### 3.5 `registrationToken` 的真实语义
+
+`registrationToken` 不是把 `userId` 直接暴露给匿名接口，而是一个服务端保存的 opaque token。
+
+当前默认实现是：
+
+- `RegistrationSessionStore = RedisRegistrationSessionStore`
+- token key 前缀：`auth:regsession:`
+
+它负责把：
+
+- `registrationToken -> userId`
+
+映射保存在 Redis 中，TTL 与 pending user TTL 一致。
+
+这样做的目的很明确：
+
+- 重发验证码和验证验证码这两个匿名接口，不需要暴露可枚举的用户标识
+- 用户只拿一个短期 opaque token 就能继续完成注册流程
 
 ---
 
@@ -323,6 +389,13 @@ sequenceDiagram
 - 支持 rotate
 - 支持按 family 撤销整组 refresh token
 
+另外，auth 模块当前并不直接写自己的 refresh token 表，而是通过 user 域 owner API 托管会话状态。
+
+这意味着：
+
+- auth 负责签发和轮换 refresh token
+- user 域负责 refresh token 会话主事实
+
 ### 6.4 refresh
 
 `POST /api/auth/refresh` 的处理顺序：
@@ -335,6 +408,21 @@ sequenceDiagram
 6. 在同一 family 下签发新的 refresh token
 7. 重新签发新的 access token
 
+### 6.4.1 family 与 token reuse 语义
+
+refresh token 的 rotate 不是简单“旧 token 作废，新 token 生效”，当前 DB store 还有一层 reuse 检测：
+
+- `consume(refreshToken)` 失败后，会再查一次 token 记录
+- 如果发现该 token 已经被撤销、但还没过期
+- 且距离撤销时间超过 `security.jwt.refresh-reuse-grace-seconds`
+- 就会撤销整个 family
+
+当前 `JwtProperties` 的默认值是：
+
+- `refreshReuseGraceSeconds = 10`
+
+这意味着系统允许一个很短的 grace window，用来兼容并发 refresh 或网络重试；超过窗口后仍出现旧 token reuse，会被当成可疑行为，直接整组 family 失效。
+
 ### 6.5 logout
 
 `POST /api/auth/logout` 的行为：
@@ -343,6 +431,23 @@ sequenceDiagram
 2. 撤销当前 token
 3. 撤销该 token 所属 family
 4. 回写一个 `maxAge=0` 的空 refresh cookie
+
+### 6.6 清理任务与会话回收
+
+当前认证链路还有两条后台清理任务：
+
+- `RefreshTokenCleanupJob`：默认每小时清理一次已过期 refresh token 会话
+- `PendingRegistrationUserCleanupJob`：默认每 5 分钟清理一次过期待激活用户
+
+这两条任务都属于：
+
+- best-effort
+- 可重复执行
+- 失败只记 warning，不阻断主业务
+
+它们的职责不是改变主业务语义，而是：
+
+- 控制认证与注册链路的历史脏数据膨胀
 
 ---
 
@@ -416,7 +521,7 @@ sequenceDiagram
 
 页面刷新后的会话恢复逻辑：
 
-1. 如果内存中没有 `accessToken`
+1. 如果前端检测到 session hint 且内存中没有 `accessToken`
 2. 先尝试 `POST /api/auth/refresh`
 3. 成功后拿到新的 `accessToken`
 4. 再调用 `GET /api/auth/me` 恢复当前用户信息
@@ -434,11 +539,17 @@ Axios 对普通业务接口的 `401` 也会自动触发一次 refresh：
 
 - `security.jwt.access-token-ttl-seconds`
 - `security.jwt.refresh-token-ttl-seconds`
+- `security.jwt.refresh-reuse-grace-seconds`
 - `security.jwt.refresh-cookie-name`
 - `security.jwt.refresh-cookie-path`
 - `security.jwt.refresh-cookie-same-site`
 - `security.jwt.refresh-cookie-secure`
+- `gateway.origin-guard.enabled`
+- `gateway.origin-guard.allowed-origins`
+- `gateway.origin-guard.fail-open-when-allowlist-empty`
 - `auth.refresh.store`
+- `auth.refresh.cleanup.enabled`
+- `auth.refresh.cleanup.interval-ms`
 - `auth.captcha.store`
 - `auth.captcha.ttl-seconds`
 - `auth.captcha.max-failures`
@@ -452,9 +563,35 @@ Axios 对普通业务接口的 `401` 也会自动触发一次 refresh：
 - `auth.registration.mail.enabled`
 - `auth.registration.mail.from`
 - `auth.registration.mail.subject`
+- `auth.password-reset.reset-base-url`
+- `auth.password-reset.ttl-seconds`
+- `auth.password-reset.expose-reset-link`
 - `auth.login-rate-limit.*`
 
 本地或测试环境若未启用 SMTP：
 
 - `AUTH_MAIL_ENABLED=false`
 - 注册验证码会通过日志输出，而不是真实发信
+
+---
+
+## 11. prod 下的 fail-closed 约束
+
+认证链路当前还有一层专门的启动期校验：
+
+- `AuthStartupValidator`
+
+在 `prod` 下它会强制要求：
+
+- `security.jwt.refresh-cookie-secure = true`
+- `security.jwt.refresh-cookie-same-site` 合法
+- `auth.password-reset.reset-base-url` 非空
+- `auth.password-reset.expose-reset-link = false`
+- `auth.registration.mail.enabled = true`
+- `spring.mail.host` 非空
+- `auth.captcha.fixed-code` 不能出现在 prod
+
+也就是说，认证模块在生产环境的取舍是：
+
+- 宁可拒绝启动
+- 也不接受弱 cookie 配置、假邮件链路或固定验证码这种高风险运行状态

@@ -22,13 +22,15 @@
 | 统一入口（edge） | `community-gateway`：`/api/**`、`/files/**`、`/ws/im` | - | `community-gateway`：统一 CORS、traceId、HTTP/WS 路由、基础限流与灰度骨架 |
 | 认证与会话（auth） | `community-gateway -> community-app`：`/api/auth/**` | refresh token：`user` 模块（MySQL `auth_refresh_token`）；验证码/重置码：`auth` 模块（Redis） | `community-app` SecurityFilterChain（JWT resource server）；cookie 会话入口额外 OriginGuard |
 | 身份域（user） | `community-app`：`/api/users/**`、`/files/**` | `user` 模块（MySQL `user` 等） | `community-app` SecurityFilterChain（`/api/users/admin/**` 强制 ADMIN） |
-| 内容域（content） | `community-app`：`/api/posts/**`、`/api/categories/**`、`/api/tags/**`、`/api/reports/**`、`/api/moderation/**` | `content` 模块（MySQL + Redis 缓存） | `community-app` SecurityFilterChain（写接口需登录；审核/置顶/加精/删除需 ADMIN/MODERATOR） |
+| 内容域（content） | `community-app`：`/api/posts/**`、`/api/bookmarks`、`/api/categories/**`、`/api/categories/{categoryId}/subscribe`、`/api/subscriptions/categories`、`/api/tags/**`、`/api/reports/**`、`/api/moderation/**` | `content` 模块（MySQL + Redis 缓存） | `community-app` SecurityFilterChain（写接口需登录；审核/置顶/加精/删除需 ADMIN/MODERATOR） |
 | 社交域（social） | `community-app`：`/api/likes/**`、`/api/follows/**`、`/api/blocks/**` | `social` 模块（MySQL/Redis，见 `social.storage`） | `community-app` SecurityFilterChain（部分 GET 允许匿名） |
-| 通知域（notice） | `community-app`：`/api/notices/**` | `community-app` notice owner；复用 `message` 表承载站内通知语义 | `community-app` SecurityFilterChain |
+| 通知域（notice） | `community-app`：`/api/notices/**` | `community-app` notice owner；复用 `community.message` 表承载站内通知语义（不再承载 IM 私信 SSOT） | `community-app` SecurityFilterChain |
 | IM 私信域（private message） | `community-im`：`/api/im/**`、`/ws/im` | `community-im` / `im-core`（MySQL `im_core` schema） | `im-realtime`/`im-core` 各自 Security 配置；浏览器入口仍经 `community-gateway` |
 | IM 治理（private message governance） | `community-app`：`/api/im-governance/private-messages/validate` | `community-app` 治理规则（用户、拉黑、处罚等业务判定） | `community-app` SecurityFilterChain |
-| 搜索域（search） | `community-app`：`/api/search/**` | `search` 模块（Elasticsearch + 幂等表） | `community-app` SecurityFilterChain（读 permitAll；reindex 走 `/api/ops/**`） |
+| 搜索域（search） | `community-app`：`/api/search/**` | `search` 模块（Elasticsearch alias/index；本地 compose 首次引导 legacy `community_posts`，运行时读写 alias `community_posts_alias`） | `community-app` SecurityFilterChain（读 permitAll；reindex 走 `/api/ops/**`） |
 | 分析域（analytics） | `community-app`：`/api/analytics/**` | `analytics` 模块（Redis） | `community-app` SecurityFilterChain（ADMIN/MODERATOR） |
+| 交易域（market） | `community-app`：`/api/market/**`、`/api/admin/market/**` | `market` 模块（MySQL） | `community-app` SecurityFilterChain（公开 listing GET permitAll，其余 `/api/market/**` 需登录，`/api/admin/market/**` 需 ADMIN） |
+| 钱包域（wallet） | `community-app`：`/api/wallet/**`、`/api/wallet/admin/**` | `wallet` 模块（MySQL） | `community-app` SecurityFilterChain（`/api/wallet/**` 需登录，`/api/wallet/admin/**` 需 ADMIN） |
 | 运维平面（ops） | `community-app`：`/api/ops/**` | -（触发跨模块动作，如 reindex） | `community-app` SecurityFilterChain（ADMIN-only） |
 
 ---
@@ -68,7 +70,7 @@ flowchart TD
 - **独立入口层**：浏览器 / 客户端先到本地 `NGINX`，再进入 `community-gateway` 副本池；`community-gateway` 负责 HTTP / WS 路由与边缘策略。
 - **服务发现**：`community-gateway`、`community-app`、`im-core`、`im-realtime-worker` 都向三节点 `Nacos` 集群注册；HTTP 平面使用 Spring Cloud Gateway `lb://serviceId`，WS 平面使用 discovery metadata 生成 worker URI。
 - **独立 IM 聚合**：顶层模块 `community-im` 负责组织 `im-common`、`im-core`、`im-realtime` 三个 IM 子模块。
-- **包级边界**：领域仍按 `com.nowcoder.community.auth`、`content`、`social`、`search` 等顶层包组织；域内默认按 Spring Boot 分层思路组织（controller/service/dto/entity/mapper），安全/事件/错误码也按职责落在各自域包内。
+- **包级边界**：领域仍按 `com.nowcoder.community.auth`、`content`、`social`、`notice`、`search`、`analytics`、`growth`、`market`、`wallet` 等顶层包组织；域内默认按 Spring Boot 分层思路组织（controller/service/dto/entity/mapper 或 repo），安全/事件/错误码也按职责落在各自域包内。
 
 ---
 
@@ -91,7 +93,7 @@ flowchart TD
 - 统一基础设施（一个进程/一份配置）：
   - 单一 `spring.datasource`（MySQL schema `community`）
   - Redis / Elasticsearch（按需启用）
-- 统一对外安全边界：`backend/community-app/.../CommunitySecurityConfig`
+- 统一对外安全边界：`backend/community-app/src/main/java/com/nowcoder/community/app/security/CommunitySecurityConfig.java`
   - 对外路径稳定：`/api/**`、`/files/**`
   - `/api/ops/**` ADMIN-only（对高成本入口集中收敛）
   - 在 gateway-first 形态下，`community-app` 不再直接面向浏览器默认流量，而是作为 `community-gateway` 的 HTTP upstream。
@@ -107,6 +109,9 @@ flowchart TD
 - `com.nowcoder.community.im`：IM 治理校验入口（`/api/im-governance/private-messages/validate`）
 - `com.nowcoder.community.search`：搜索投影（ES）
 - `com.nowcoder.community.analytics`：统计/分析
+- `com.nowcoder.community.growth`：积分、任务进度、奖励等投影/记账能力；当前以内部投影与服务为主
+- `com.nowcoder.community.market`：交易市场、地址簿、订单、争议处理
+- `com.nowcoder.community.wallet`：钱包账户汇总、充值/提现/转账与管理员冻结/冲正
 - `com.nowcoder.community.ops`：运维平面（`/api/ops/**`）
 
 跨域同步协作统一通过 owner-domain 暴露的 `api.query`、`api.action`、`api.model` 完成；跨域异步协作统一通过 owner-domain 暴露的 `contracts.event` 完成。`service`、`entity`、`mapper` 以及 producer 域的 `event` 实现包均视为域内实现细节，不再作为默认跨域入口。当前分支上的 `DomainBoundaryArchTest` 与 `ControllerBoundaryArchTest` 已默认绿色；notice/message 临时共享类型白名单已删除，其中同步边界采用 allowlist 规则，遗留的非协作面依赖通过精确类名 migration baseline 冻结，后续只允许收缩不允许扩散。
@@ -132,9 +137,9 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 - `social` 写侧存在 `DB / Redis / InMemory` 三套实现，因此保留 `Service -> Repository -> Adapter`；
 - 一旦引入 repository，存储选择与补偿策略必须停留在 repository / adapter 抽象内，不再泄漏到 service 通过读取 `*.storage` 配置做分支判断。
 
-### 2.4 共享基础设施（同模块内包）
-- `com.nowcoder.community.common.*`：错误码、业务异常、trace、统一 Web 响应、通用事件 envelope 等横切能力
-- `com.nowcoder.community.infra.*`：安全、trace、web、idempotency、scheduler、job（XXL executor handler）等横切能力
+### 2.4 共享基础设施
+- `backend/community-common/common-core`、`common-web`、`common-webflux`、`common-security`、`common-idempotency`、`common-outbox`：共享错误协议、trace、Web 基础设施、JWT、安全、HTTP 幂等、DB outbox 等横切能力
+- `com.nowcoder.community.infra.*`：`community-app` 内部的安全、scheduler、job、startup validation、persistence 等应用级基础设施
 - `com.nowcoder.community.app.*`：启动入口与装配代码
 
 ---
@@ -210,7 +215,7 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 
 建议的检索线索：
 - traceId：`community-app` 注入并透传 `X-Trace-Id`（便于串联一次请求内的日志）
-- 审计日志：`backend/community-app/src/main/java/com/nowcoder/community/infra/web/AuditLogFilter.java` 会对非 GET 的 `/api/**` 打印审计日志（前缀类似 `"[audit][app=community-app]"`）
+- 审计日志：`backend/community-common/common-web/src/main/java/com/nowcoder/community/common/web/AuditLogFilter.java` 会对非 GET 的 `/api/**` 打印审计日志（前缀类似 `"[audit][app=community-app]"`）
 
 ### 5.2 traces / metrics
 - traces / metrics 通过 OTel -> EDOT collector -> Elastic
@@ -238,6 +243,6 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 ---
 
 ## 7. 与代码一致性的检查清单（建议）
-- 对外入口与安全装配：以 `backend/community-app/src/main/java/.../CommunitySecurityConfig.java` 和各领域 `api/security/*SecurityRules.java` 为准
+- 对外入口与安全装配：以 `backend/community-app/src/main/java/com/nowcoder/community/app/security/CommunitySecurityConfig.java` 和各领域 `*SecurityRules.java` 为准
 - 端口：以 `deploy/compose.yml` + `deploy/compose.infra.*.(single|cluster).yml` + `deploy/compose.runtime.*.(single|cluster).yml` 以及按需叠加的 `deploy/compose.*.yml` overlay 为准
 - 观测：以 `deploy/observability/*`、`deploy/compose.observability.yml` 为准

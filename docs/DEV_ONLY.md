@@ -21,9 +21,9 @@
 
 ## 2) 验证码固定值（仅 dev）
 
-为便于冒烟/联调，开发环境允许固定验证码：
-- 配置：`backend/community-app/src/main/resources/application.yml` 或测试配置 `backend/community-app/src/test/resources/application.yml`
-- 固定值：`auth.captcha.fixed-code=0000`
+为便于冒烟/联调，开发环境支持固定验证码：
+- 配置项：`auth.captcha.fixed-code`
+- 当前仓库默认并**未**在主配置或测试配置中启用固定值；只有显式设置后才会生效
 - 冒烟脚本：暂无（如需可在后续补充）
 
 生产约束（SSOT）：

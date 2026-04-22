@@ -29,7 +29,7 @@
 
 核心 topic 常量定义在：
 
-- `backend/community-im/im-common/src/main/java/com/nowcoder/community/im/contracts/ImTopics.java`
+- `backend/community-im/im-common/src/main/java/com/nowcoder/community/im/common/ImTopics.java`
 
 当前群聊主链路使用的 topic：
 

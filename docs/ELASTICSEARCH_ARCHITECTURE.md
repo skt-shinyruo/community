@@ -12,7 +12,7 @@
 @ConditionalOnProperty(name = "search.storage", havingValue = "es")
 ```
 
-同时提供内存版实现(`InMemoryPostSearchRepository`)用于开发环境调试与单元测试，无需启动ES实例。
+同时提供内存版实现（`InMemoryPostSearchRepository`）用于开发环境调试与单元测试，无需启动ES实例；对应配置值是 `search.storage=memory`，不是 `in_memory`。
 
 ---
 
@@ -26,6 +26,8 @@
 
 ✅ **蓝绿部署是零停机索引重建方案**：
 > 同时维护两个版本的索引："蓝"是当前正在服务的索引，"绿"是正在后台重建的新索引。重建完成后只需要原子切换别名，流量就会无感知的切到新索引。全程对外服务不中断，失败可以随时回滚。
+
+补充：当前本地 compose 的 `es-init` 首次仍会创建 legacy 索引 `community_posts`；运行时 `PostIndexManager` 会优先把 alias `community_posts_alias` 初始化到这个 legacy index，后续 reindex 再切换到版本化索引。
 
 ```mermaid
 flowchart TD
@@ -53,25 +55,35 @@ flowchart TD
 | 角色 | 名称 | 说明 |
 |------|------|------|
 | 访问别名 | `community_posts_alias` | 业务代码唯一入口，所有读写都指向此别名 |
-| 真实索引 | `community_posts_vN` | 版本化命名，v1, v2, v3... 每次重建递增版本号 |
+| 真实索引 | `community_posts_vYYYYMMDDHHmmss[_n]` | UTC 秒级时间戳版本名；同一秒多次创建会追加 `_1`、`_2` 后缀 |
 | 版本前缀 | `community_posts_v` | 索引命名约定 |
 
 ### 2.3 别名原子切换实现
 ```java
-public void switchAlias(String newIndexName) {
-    AliasActions actions = new AliasActions()
-        .add(
-            AliasAction.Add.builder()
-                .alias(INDEX_ALIAS)
-                .indices(newIndexName)
-                .build()
-        );
-    
-    // ✅ 这是原子操作，ES保证要么全部成功要么全部失败
-    operations.indexOps(IndexCoordinates.of("*")).alias(actions);
-    
-    // 切换成功后再删除旧索引
-    deleteOldIndices();
+public void switchAliasTo(String newIndex) {
+    Set<String> current = resolveAliasIndices();
+    AliasActions actions = new AliasActions();
+
+    actions.add(new AliasAction.Add(
+        AliasActionParameters.builder()
+            .withIndices(newIndex)
+            .withAliases(EsPostDocument.INDEX_ALIAS)
+            .withIsWriteIndex(true)
+            .build()
+    ));
+
+    for (String oldIndex : current) {
+        if (!newIndex.equals(oldIndex)) {
+            actions.add(new AliasAction.Remove(
+                AliasActionParameters.builder()
+                    .withIndices(oldIndex)
+                    .withAliases(EsPostDocument.INDEX_ALIAS)
+                    .build()
+            ));
+        }
+    }
+
+    operations.indexOps(IndexCoordinates.of(newIndex)).alias(actions);
 }
 ```
 
@@ -79,13 +91,13 @@ public void switchAlias(String newIndexName) {
 
 > ✅ **实现细节**：实际代码中并未使用 v1/v2/v3 数字版本，而是使用精确到秒的 UTC 时间戳命名，保证每次重建索引名称唯一且可追溯。同一秒内多次重建会自动追加 `_1`/`_2` 后缀避免冲突。
 
-### 2.2 文档结构 (`EsPostDocument`)
+### 2.4 文档结构 (`EsPostDocument`)
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| postId | Integer | 业务主键，同时作为ES文档ID |
-| userId | Integer | 发布用户ID |
-| categoryId | Integer | 分类ID |
+| postId | String | UUID 文本，同时作为ES文档ID |
+| userId | String | 发布用户 UUID 文本 |
+| categoryId | String | 分类 UUID 文本 |
 | tags | List<String> | Keyword类型，精确匹配 |
 | title | String | 分词检索 |
 | content | String | 分词检索 |
@@ -126,10 +138,10 @@ public class PostOutboxHandler implements OutboxHandler {
     @Override
     public void handle(OutboxEvent event) {
         PostOutboxPayload payload = deserialize(event.payload());
-        int postId = payload.getPostId();
+        UUID postId = payload.getPostId();
         
         // 关键：直接从数据库读取最新状态，而不是使用事件中的数据
-        PostProjectionView projection = postScanQueryApi.getPostProjectionAllowDeleted(postId);
+        PostScanView.PostProjectionView projection = postScanQueryApi.getPostProjectionAllowDeleted(postId);
         
         if (projection == null || projection.status() == 2) {
             postSearchRepository.delete(postId); // 已删除则从ES移除
@@ -170,7 +182,7 @@ public void upsert(PostPayload post) {
 
 ```
 1. 触发重建请求
-2. 获取Redis分布式锁，保证单实例运行
+2. 通过 Redis-backed `SingleFlightTaskGuard` 获取 single-flight 执行权，保证集群内单实例运行
 3. 生成新版本索引名称 community_posts_vYYYYMMDDHHmmss `PostIndexManager.java:57`
 4. 创建新索引并应用最新Mapping
 5. 启动后台心跳线程自动续期锁 `ReindexJobService.java:78`
@@ -184,7 +196,7 @@ public void upsert(PostPayload post) {
 ### 4.2 关键特点
 - ✅ 对外服务零中断：切换别名是原子操作，毫秒级完成
 - ✅ 重建过程中旧索引继续正常服务
-- ✅ **Redis分布式锁**：通过Redis保证同一时间只允许一个重建任务运行 `ReindexJobService.java:47`
+- ✅ **Redis-backed single-flight guard**：通过 `SingleFlightTaskGuard` 保证同一时间只允许一个重建任务运行 `ReindexJobService.java:44`
 - ✅ **自动心跳续期**：重建任务启动后台线程自动续期锁，防止长任务超时导致锁丢失 `ReindexJobService.java:62`
 - ✅ 失败安全：重建失败不会影响现有服务
 - ✅ 支持手动触发与定时调度
@@ -205,7 +217,7 @@ public void upsert(PostPayload post) {
 | 功能 | 实现说明 |
 |------|----------|
 | 全文检索 | 对标题、内容字段进行分词模糊匹配 |
-| 分类过滤 | categoryId 精确匹配 |
+| 分类过滤 | `categoryId`（UUID）精确匹配 |
 | 标签过滤 | 自动处理#前缀，精确匹配标签 |
 | 排序策略 | 优先按热度分(score)降序，其次按创建时间降序 |
 | 分页安全 | 限制单页最大50条，防止深度分页攻击 `ElasticsearchPostSearchRepository.java:77` |
@@ -214,8 +226,9 @@ public void upsert(PostPayload post) {
 #### 查询实现代码
 ```java
 @Override
-public List<SearchPostItem> search(String keyword, Integer categoryId, String tag, int page, int size) {
+public List<SearchPostItem> search(String keyword, UUID categoryId, String tag, int page, int size) {
     int s = Math.min(50, Math.max(1, size)); // 强制限制最大50条
+    String safeTag = normalizeTag(tag);
     
     Criteria criteria;
     if (StringUtils.hasText(keyword)) {
@@ -225,10 +238,11 @@ public List<SearchPostItem> search(String keyword, Integer categoryId, String ta
     }
     
     // 叠加分类、标签过滤条件
-    if (categoryId != null) criteria = criteria.and("categoryId").is(categoryId);
-    if (tag != null) criteria = criteria.and("tags").is(tag);
+    if (categoryId != null) criteria = criteria.and("categoryId").is(categoryId.toString());
+    if (StringUtils.hasText(safeTag)) criteria = criteria.and("tags").is(safeTag);
     
     // 排序：score DESC, createTime DESC
+    Query query = new CriteriaQuery(criteria);
     query.addSort(Sort.by(Sort.Order.desc("score"), Sort.Order.desc("createTime")));
     
     return operations.search(query, EsPostDocument.class);
@@ -262,10 +276,10 @@ public List<SearchPostItem> search(String keyword, Integer categoryId, String ta
 本项目ES集成体现了以下工业级设计原则：
 
 ### ✅ 故障隔离
-ES集群完全故障不会导致主站不可用，业务读写不受影响
+ES 故障不会阻断主站主写链路；搜索查询与搜索投影会受影响，但发帖、评论、社交等主业务仍可继续工作
 
 ### ✅ 无阻塞架构
-所有ES操作100%异步化，不阻塞数据库事务，不影响用户请求响应时间
+写入 ES 的链路通过 outbox/异步投影完成，不阻塞主数据库事务；搜索查询本身仍是同步访问 ES
 
 ### ✅ 平滑升级
 索引结构变更、Mapping更新不需要停机，通过版本化索引+别名切换实现灰度发布
@@ -283,11 +297,14 @@ ES集群完全故障不会导致主站不可用，业务读写不受影响
 ### 完整配置项
 ```yaml
 search:
-  storage: es                          # 启用ES实现，可选: es/in_memory（可选：es
-  index.prefix: community_posts_v       # 索引名称前缀
-  index.keep-history: 2                 # 保留历史索引数量，默认2
-  reindex.lock-ttl: 30m              # 重建任务锁超时时间
-  scan.page-size: 1000                # 全量重建分页大小
+  storage: es
+  reindex:
+    lock-ttl: 30m
+  index:
+    prefix: community_posts_v
+    keep-history: 2
+  post-scan:
+    page-size: 500
 ```
 
 ### 集群模式

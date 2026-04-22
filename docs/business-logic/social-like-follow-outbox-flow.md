@@ -29,7 +29,7 @@
 这意味着：
 
 - 社交主写路径默认以 MySQL 为 SSOT
-- 点赞 / 关注成功后先发布本地 `SocialLocalEvent`
+- 点赞 / 关注成功后先发布本地 `SocialContractEvent`
 - 通知、积分、成长任务进度这类“必须最终达成”的副作用默认通过 DB outbox 投递
 - 帖子热度刷新这类“尽力而为”的本地副作用仍使用 `AFTER_COMMIT`
 
@@ -47,10 +47,11 @@
   - `LikeService`：点赞业务规则、实体解析、状态变更、社交事件发布
   - `FollowService`：关注业务规则、状态变更、社交事件发布
   - `ContentEntityResolver`：点赞帖子 / 评论时回源 `content` 模块，解析 `entityUserId` 与 `postId`
-  - `LocalSocialEventPublisher`：把 `LikePayload` / `FollowPayload` 封装成 `SocialLocalEvent`
+  - `LocalSocialEventPublisher`：把 `LikePayload` / `FollowPayload` 封装成 `SocialContractEvent`
 - 社交存储：
   - `DbLikeRepository` / `DbFollowRepository`
   - `RedisLikeRepository` / `RedisFollowRepository`
+  - `InMemoryLikeRepository` / `InMemoryFollowRepository`
 - 下游副作用消费者：
   - `NoticeOutboxEnqueuer` / `NoticeOutboxHandler`
   - `PointsOutboxEnqueuer` / `PointsOutboxHandler`
@@ -111,7 +112,7 @@ sequenceDiagram
     participant RES as ContentEntityResolver
     participant REPO as LikeRepository
     participant PUB as LocalSocialEventPublisher
-    participant EVT as SocialLocalEvent
+    participant EVT as SocialContractEvent
     participant N as NoticeOutboxEnqueuer
     participant P as PointsOutboxEnqueuer
     participant T as TaskProgressOutboxEnqueuer
@@ -127,7 +128,7 @@ sequenceDiagram
     end
     SVC->>REPO: addLike/removeLike/setLike(...)
     SVC->>PUB: publishLikeCreated / publishLikeRemoved
-    PUB->>EVT: SocialLocalEvent(eventId, type, payload)
+    PUB->>EVT: SocialContractEvent(eventId, type, payload)
     EVT->>N: BEFORE_COMMIT 写通知 outbox
     EVT->>P: BEFORE_COMMIT 写积分 outbox
     EVT->>T: BEFORE_COMMIT 写任务进度 outbox
@@ -167,7 +168,7 @@ sequenceDiagram
    - 如果对象是帖子或评论，先回源内容模块解析目标归属用户
    - 若双方存在拉黑关系，则拒绝本次创建点赞
 6. 根据当前配置选择持久化路径：
-   - 非 Redis 路径：走 `handleSetLikeForNonRedisStorage(...)`
+   - 非 Redis 路径（DB / InMemory）：走 `handleSetLikeForNonRedisStorage(...)`
    - Redis 路径：走 `handleSetLikeForRedisStorage(...)`
 7. 若状态确实发生变化，则构造 `LikePayload` 并发布：
    - `LikeCreated`
@@ -357,7 +358,7 @@ sequenceDiagram
 
 如果 `events.outbox.enabled = false`，社交事件的典型处理方式是：
 
-- `LikeService` / `FollowService` 发布 `SocialLocalEvent`
+- `LikeService` / `FollowService` 发布 `SocialContractEvent`
 - `NoticeProjectionListener`、`PointsProjectionListener`、`TaskProgressProjectionListener`
   使用 `@TransactionalEventListener(phase = AFTER_COMMIT)` 直接处理副作用
 
@@ -372,7 +373,7 @@ sequenceDiagram
 
 如果 `events.outbox.enabled = true`，当前主配置会启用以下模式：
 
-1. `LikeService` / `FollowService` 仍先发布 `SocialLocalEvent`
+1. `LikeService` / `FollowService` 仍先发布 `SocialContractEvent`
 2. `BEFORE_COMMIT` enqueuer 在同一个 DB 事务里写 `outbox_event`
 3. 主事务提交成功后，`OutboxWorkerScheduler` 周期性轮询 `outbox_event`
 4. 对应 `OutboxHandler` 异步处理副作用
@@ -400,7 +401,7 @@ sequenceDiagram
 
 在当前项目里，“使用 outbox”并不是让 `LikeService` / `FollowService` 直接操作 `JdbcOutboxEventStore`，而是遵循下面这条链路：
 
-1. 业务 service 先发布一个稳定的 `SocialLocalEvent`
+1. 业务 service 先发布一个稳定的 `SocialContractEvent`
 2. 可靠副作用的生产方监听这个事件，并在 `BEFORE_COMMIT` 阶段写入 `outbox_event`
 3. worker 再按 topic 调用对应 handler
 
@@ -490,7 +491,7 @@ sequenceDiagram
 
 推荐做法：
 
-1. 先复用现有 `SocialLocalEvent`
+1. 先复用现有 `SocialContractEvent`
 2. 新增 `BEFORE_COMMIT` enqueuer
 3. 写入独立 topic 的 outbox 记录
 4. 新增 `OutboxHandler` 处理该 topic
@@ -554,26 +555,26 @@ service 更适合只负责：
 
 ### 10.4 社交事件与 payload
 
-- `backend/community-app/src/main/java/com/nowcoder/community/social/event/SocialEventTypes.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/social/event/SocialLocalEvent.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/social/contracts/event/SocialEventTypes.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/social/contracts/event/SocialContractEvent.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/social/event/LocalSocialEventPublisher.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/social/event/payload/LikePayload.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/social/event/payload/FollowPayload.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/social/contracts/event/LikePayload.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/social/contracts/event/FollowPayload.java`
 
 ### 10.5 Outbox 生产与消费
 
-- `backend/community-app/src/main/java/com/nowcoder/community/message/event/NoticeOutboxEnqueuer.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/message/event/NoticeOutboxHandler.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/notice/event/NoticeOutboxEnqueuer.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/notice/event/NoticeOutboxHandler.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/user/event/PointsOutboxEnqueuer.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/user/event/PointsOutboxHandler.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/event/TaskProgressOutboxEnqueuer.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/event/TaskProgressOutboxHandler.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/infra/outbox/JdbcOutboxEventStore.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/infra/outbox/OutboxWorkerScheduler.java`
+- `backend/community-common/common-outbox/src/main/java/com/nowcoder/community/common/outbox/JdbcOutboxEventStore.java`
+- `backend/community-common/common-outbox/src/main/java/com/nowcoder/community/common/outbox/OutboxWorkerScheduler.java`
 
 ### 10.6 非 outbox 的本地副作用与关闭 outbox 时的监听器
 
 - `backend/community-app/src/main/java/com/nowcoder/community/content/event/SocialInteractionProjectionListener.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/message/event/NoticeProjectionListener.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/notice/event/NoticeProjectionListener.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/user/event/PointsProjectionListener.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/event/TaskProgressProjectionListener.java`

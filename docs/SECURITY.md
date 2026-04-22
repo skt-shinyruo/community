@@ -19,8 +19,8 @@
 - **community-app 负责主站业务安全策略**：
   - OriginGuard（仅覆盖 cookie 会话敏感入口：`/api/auth/login|refresh|logout`）
   - traceId 注入与统一异常映射
-  - 写请求审计日志（`backend/community-app/src/main/java/com/nowcoder/community/infra/web/AuditLogFilter.java`）
-- **授权矩阵 SSOT 在 community-app**：路径级鉴权统一在 `backend/community-app/.../CommunitySecurityConfig` 中收敛（JWT resource server）。
+  - 写请求审计日志（`backend/community-common/common-web/src/main/java/com/nowcoder/community/common/web/AuditLogFilter.java`）
+- **授权矩阵 SSOT 在 community-app**：路径级鉴权统一在 `backend/community-app/src/main/java/com/nowcoder/community/app/security/CommunitySecurityConfig.java` 中收敛（JWT resource server）。
 - **auth 模块负责签发与会话闭环**：登录/刷新/登出、验证码、注册/激活、找回密码、登录风控等；对外路径仍为 `/api/auth/**`，但运行在同一进程。
 - **user 模块托管 refresh token 状态**：`auth.refresh.store=db` 时，refresh token 状态落在 MySQL 表 `auth_refresh_token`（单一 schema：`community`）。
 
@@ -76,9 +76,9 @@
 
 ### 4.2 全局 API 限流（当前取舍）
 在 A-1 默认路径下：
-- **应用内不实现“网关级全局限流”**（当前运行路径未启用 `gateway.rate-limit.*` 能力）
-- 建议在生产由 **反代/Ingress/WAF** 统一做全局限流与请求体大小限制
-- 若后续确实需要“应用内按路径限流”，建议以 Servlet Filter/Interceptor 形式实现，并在 `community-app` 侧明确 fail-open/fail-closed 策略与可观测指标
+- `community-gateway` 已接入应用内路径级限流过滤器，配置键为 `gateway.http.rate-limit.*`
+- 当前默认配置是 `enabled=true`、`fail-open-on-error=false`、`policies={}`，因此**限流能力已接线，但默认没有任何生效中的路径规则**
+- 生产如果需要真正的全局或入口级限流，仍建议优先由反代/Ingress/WAF 承担；gateway 内置能力更适合补充少量显式路径策略
 
 ### 4.1 可信代理与真实客户端 IP（X-Forwarded-For）
 
@@ -106,7 +106,7 @@
 
 ## 5. 审计日志（写路径）
 
-`community-app` 对写请求会记录审计日志（`backend/community-app/src/main/java/com/nowcoder/community/infra/web/AuditLogFilter.java`）：
+`community-app` 对写请求会记录审计日志（`backend/community-common/common-web/src/main/java/com/nowcoder/community/common/web/AuditLogFilter.java`）：
 - 范围：`/api/**` 且 method 非 `GET/OPTIONS`
 - 例外：跳过 `/api/auth/login`（避免记录敏感登录参数，也尽量不污染审计流量）
 
@@ -190,7 +190,7 @@ TTL 配置（可按环境调整）：
 ### 6.3.4 当前仓库实现说明
 
 自动装配入口：
-- `backend/community-app/src/main/java/com/nowcoder/community/infra/idempotency/autoconfig/IdempotencyGuardAutoConfiguration.java`
+- `backend/community-common/common-idempotency/src/main/java/com/nowcoder/community/common/idempotency/autoconfig/IdempotencyGuardAutoConfiguration.java`
 
 当前仓库默认配置：
 - `backend/community-app/src/main/resources/application.yml`

@@ -114,7 +114,7 @@
 - 契约通过回归测试固化，避免后续重构/联表扩展时不小心把字段带出
 
 示例（仓库内单体模块）：
-- `backend/community-app/src/test/java/com/nowcoder/community/growth/controller/RewardShopControllerTest.java`
+- `backend/community-app/src/test/java/com/nowcoder/community/notice/controller/NoticeControllerUnitTest.java`
 
 ### 2.6 HTTP 写接口幂等（Idempotency-Key）
 
@@ -132,8 +132,8 @@
 ### 2.6.1 核心组件与状态模型
 
 幂等能力的核心组件位于：
-- `backend/community-app/src/main/java/com/nowcoder/community/infra/idempotency/IdempotencyGuard.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/infra/idempotency/IdempotencyStore.java`
+- `backend/community-common/common-idempotency/src/main/java/com/nowcoder/community/common/idempotency/IdempotencyGuard.java`
+- `backend/community-common/common-idempotency/src/main/java/com/nowcoder/community/common/idempotency/IdempotencyStore.java`
 
 `IdempotencyGuard` 不是业务逻辑本身，而是一个“包裹写操作的统一执行器”：
 - 业务方把真正会产生副作用的逻辑放进 `executeRequired(..., supplier)` 中。
@@ -240,7 +240,7 @@ Redis 方案特点：
 ### 3.1 Topic 约定（SSOT）
 当前单体业务链路：投影/通知通过本地 DB outbox 实现（不依赖 Kafka）。
 
-IM 链路：使用 Kafka 作为 backplane（topic 常量见 `backend/community-im/im-common/src/main/java/com/nowcoder/community/im/contracts/ImTopics.java`）。
+IM 链路：使用 Kafka 作为 backplane（topic 常量见 `backend/community-im/im-common/src/main/java/com/nowcoder/community/im/common/ImTopics.java`）。
 
 私信写路径的实际入口已收敛为：
 1. 客户端通过 WebSocket `sendPrivateText` 向 `community-gateway` 暴露的 `/ws/im` 发起请求

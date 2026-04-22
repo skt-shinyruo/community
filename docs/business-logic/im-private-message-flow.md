@@ -32,7 +32,7 @@
 - `community-im` 才是私信 owner：`im-realtime` 负责实时入口与在线推送，`im-core` 负责权威写路径和 `/api/im/**` HTTP 查询接口
 核心 topic 常量定义在：
 
-- `backend/community-im/im-common/src/main/java/com/nowcoder/community/im/contracts/ImTopics.java`
+- `backend/community-im/im-common/src/main/java/com/nowcoder/community/im/common/ImTopics.java`
 
 当前私信主链路使用的 topic：
 

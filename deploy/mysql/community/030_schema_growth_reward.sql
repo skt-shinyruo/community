@@ -5,8 +5,8 @@
 use community;
 
 create table if not exists user_score_log (
-  id bigint auto_increment primary key,
-  user_id int not null,
+  id binary(16) primary key,
+  user_id binary(16) not null,
   event_id varchar(64) not null,
   event_type varchar(64) not null,
   delta int not null,
@@ -16,7 +16,7 @@ create table if not exists user_score_log (
 );
 
 create table if not exists reward_account (
-  user_id int not null primary key,
+  user_id binary(16) not null primary key,
   available_balance int not null default 0,
   frozen_balance int not null default 0,
   version int not null default 0,
@@ -24,8 +24,8 @@ create table if not exists reward_account (
 );
 
 create table if not exists reward_ledger (
-  id bigint auto_increment primary key,
-  user_id int not null,
+  id binary(16) primary key,
+  user_id binary(16) not null,
   event_id varchar(64) not null,
   event_type varchar(64) not null,
   delta int not null,
@@ -40,9 +40,9 @@ create table if not exists reward_ledger (
 );
 
 create table if not exists reward_grant_record (
-  id bigint auto_increment primary key,
+  id binary(16) primary key,
   grant_id varchar(64) not null,
-  user_id int not null,
+  user_id binary(16) not null,
   grant_type varchar(64) not null,
   source_event_id varchar(64) not null,
   source_event_type varchar(64) not null,

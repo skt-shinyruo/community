@@ -17,6 +17,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.constants.EntityTypes.USER;
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
@@ -39,13 +40,13 @@ public class FollowService implements SocialFollowQueryApi {
     }
 
     @Transactional
-    public void follow(int actorUserId, FollowRequest request) {
-        if (actorUserId <= 0) {
+    public void follow(UUID actorUserId, FollowRequest request) {
+        if (actorUserId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId 非法");
         }
         int entityType = request.getEntityType();
-        int entityId = request.getEntityId();
-        if (entityType <= 0 || entityId <= 0) {
+        UUID entityId = request.getEntityId();
+        if (entityType <= 0 || entityId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType/entityId 非法");
         }
         if (entityType != USER) {
@@ -111,8 +112,8 @@ public class FollowService implements SocialFollowQueryApi {
     }
 
     @Transactional
-    public void unfollow(int actorUserId, int entityType, int entityId) {
-        if (actorUserId <= 0 || entityType <= 0 || entityId <= 0) {
+    public void unfollow(UUID actorUserId, int entityType, UUID entityId) {
+        if (actorUserId == null || entityType <= 0 || entityId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "参数错误");
         }
         if (entityType != USER) {
@@ -121,8 +122,9 @@ public class FollowService implements SocialFollowQueryApi {
         followRepository.unfollow(actorUserId, entityType, entityId);
     }
 
-    public boolean hasFollowed(int actorUserId, int entityType, int entityId) {
-        if (actorUserId <= 0 || entityType <= 0 || entityId <= 0) {
+    @Override
+    public boolean hasFollowed(UUID actorUserId, int entityType, UUID entityId) {
+        if (actorUserId == null || entityType <= 0 || entityId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "参数错误");
         }
         if (entityType != USER) {
@@ -131,8 +133,9 @@ public class FollowService implements SocialFollowQueryApi {
         return followRepository.hasFollowed(actorUserId, entityType, entityId);
     }
 
-    public long followeeCount(int userId, int entityType) {
-        if (userId <= 0 || entityType <= 0) {
+    @Override
+    public long followeeCount(UUID userId, int entityType) {
+        if (userId == null || entityType <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "参数错误");
         }
         if (entityType != USER) {
@@ -141,8 +144,9 @@ public class FollowService implements SocialFollowQueryApi {
         return followRepository.countFollowees(userId, entityType);
     }
 
-    public long followerCount(int entityType, int entityId) {
-        if (entityType <= 0 || entityId <= 0) {
+    @Override
+    public long followerCount(int entityType, UUID entityId) {
+        if (entityType <= 0 || entityId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "参数错误");
         }
         if (entityType != USER) {
@@ -151,7 +155,7 @@ public class FollowService implements SocialFollowQueryApi {
         return followRepository.countFollowers(entityType, entityId);
     }
 
-    public List<FollowItem> listFollowees(int userId, int entityType, int page, int size) {
+    public List<FollowItem> listFollowees(UUID userId, int entityType, int page, int size) {
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
         if (entityType != USER) {
@@ -160,7 +164,7 @@ public class FollowService implements SocialFollowQueryApi {
         return followRepository.listFollowees(userId, entityType, Pagination.safeOffset(p, s), s);
     }
 
-    public List<FollowItem> listFollowers(int entityType, int entityId, int page, int size) {
+    public List<FollowItem> listFollowers(int entityType, UUID entityId, int page, int size) {
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
         if (entityType != USER) {

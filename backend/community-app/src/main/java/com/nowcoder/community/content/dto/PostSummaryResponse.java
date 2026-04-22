@@ -2,11 +2,12 @@ package com.nowcoder.community.content.dto;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 public class PostSummaryResponse {
 
-    private int id;
-    private int userId;
+    private UUID id;
+    private UUID userId;
     private String title;
     private int type;
     private int status;
@@ -15,28 +16,28 @@ public class PostSummaryResponse {
     private double score;
 
     // taxonomy：分类与标签（可选字段）
-    private Integer categoryId;
+    private UUID categoryId;
     private List<String> tags;
 
     // Discourse-like: 列表所需的“最后回复/活动”信息（可选字段）
-    private Integer lastReplyUserId;
+    private UUID lastReplyUserId;
     private Date lastReplyTime;
     private Date lastActivityTime;
     private String lastReplyPreview;
 
-    public int getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
-    public int getUserId() {
+    public UUID getUserId() {
         return userId;
     }
 
-    public void setUserId(int userId) {
+    public void setUserId(UUID userId) {
         this.userId = userId;
     }
 
@@ -88,11 +89,11 @@ public class PostSummaryResponse {
         this.score = score;
     }
 
-    public Integer getCategoryId() {
+    public UUID getCategoryId() {
         return categoryId;
     }
 
-    public void setCategoryId(Integer categoryId) {
+    public void setCategoryId(UUID categoryId) {
         this.categoryId = categoryId;
     }
 
@@ -104,11 +105,11 @@ public class PostSummaryResponse {
         this.tags = tags;
     }
 
-    public Integer getLastReplyUserId() {
+    public UUID getLastReplyUserId() {
         return lastReplyUserId;
     }
 
-    public void setLastReplyUserId(Integer lastReplyUserId) {
+    public void setLastReplyUserId(UUID lastReplyUserId) {
         this.lastReplyUserId = lastReplyUserId;
     }
 

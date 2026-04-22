@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
+import java.util.UUID;
 
 @Component
 @ConditionalOnProperty(name = "auth.password-reset.store", havingValue = "redis", matchIfMissing = true)
@@ -20,15 +21,15 @@ public class RedisPasswordResetTokenStore implements PasswordResetTokenStore {
     }
 
     @Override
-    public void store(String token, int userId, Duration ttl) {
-        if (!StringUtils.hasText(token) || userId <= 0 || ttl == null || ttl.isNegative() || ttl.isZero()) {
+    public void store(String token, UUID userId, Duration ttl) {
+        if (!StringUtils.hasText(token) || userId == null || ttl == null || ttl.isNegative() || ttl.isZero()) {
             return;
         }
-        redisTemplate.opsForValue().set(KEY_PREFIX + token, Integer.toString(userId), ttl);
+        redisTemplate.opsForValue().set(KEY_PREFIX + token, userId.toString(), ttl);
     }
 
     @Override
-    public Integer consume(String token) {
+    public UUID consume(String token) {
         if (!StringUtils.hasText(token)) {
             return null;
         }
@@ -37,9 +38,8 @@ public class RedisPasswordResetTokenStore implements PasswordResetTokenStore {
             return null;
         }
         try {
-            int userId = Integer.parseInt(value);
-            return userId > 0 ? userId : null;
-        } catch (NumberFormatException e) {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException e) {
             return null;
         }
     }

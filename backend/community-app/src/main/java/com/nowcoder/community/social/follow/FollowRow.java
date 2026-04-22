@@ -1,20 +1,21 @@
 package com.nowcoder.community.social.follow;
 
 import java.util.Date;
+import java.util.UUID;
 
 /**
  * DB 查询结果承载：用于将 social_follow 的行映射为可转换的对象。
  */
 public class FollowRow {
 
-    private int targetId;
+    private UUID targetId;
     private Date followTime;
 
-    public int getTargetId() {
+    public UUID getTargetId() {
         return targetId;
     }
 
-    public void setTargetId(int targetId) {
+    public void setTargetId(UUID targetId) {
         this.targetId = targetId;
     }
 
@@ -26,4 +27,3 @@ public class FollowRow {
         this.followTime = followTime;
     }
 }
-

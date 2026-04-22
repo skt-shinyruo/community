@@ -2,19 +2,20 @@ package com.nowcoder.community.content.api.model;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 public record PostSummaryView(
-        int id,
-        int userId,
+        UUID id,
+        UUID userId,
         String title,
         int type,
         int status,
         Date createTime,
         int commentCount,
         double score,
-        Integer categoryId,
+        UUID categoryId,
         List<String> tags,
-        Integer lastReplyUserId,
+        UUID lastReplyUserId,
         Date lastReplyTime,
         Date lastActivityTime,
         String lastReplyPreview

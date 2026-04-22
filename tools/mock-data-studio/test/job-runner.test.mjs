@@ -16,6 +16,10 @@ const expectedPhaseNames = [
   'finalize'
 ]
 
+function metadataId(sequence) {
+  return `01965429-b34a-7000-8000-${String(sequence).padStart(12, '0')}`
+}
+
 function createClock() {
   let index = 0
   const baseTime = Date.parse('2026-03-24T10:00:00.000Z')
@@ -79,7 +83,7 @@ function createBatchRepository(store) {
       }
 
       const batch = {
-        id: store.nextBatchId++,
+        id: metadataId(store.nextBatchId++),
         batchKey,
         batchType,
         requestedBy,
@@ -98,7 +102,7 @@ function createBatchRepository(store) {
       return [...store.batches.values()]
         .sort((left, right) => {
           const createdAtComparison = String(right.createdAt).localeCompare(String(left.createdAt))
-          return createdAtComparison !== 0 ? createdAtComparison : right.id - left.id
+          return createdAtComparison !== 0 ? createdAtComparison : String(right.id).localeCompare(String(left.id))
         })
         .map((batch) => structuredClone(batch))
     },
@@ -189,7 +193,7 @@ function createJobRepository(store) {
   return {
     async create({ batchId, jobKey, jobType, createdAt }) {
       const job = {
-        id: store.nextJobId++,
+        id: metadataId(100000 + store.nextJobId++),
         batchId,
         jobKey,
         jobType,
@@ -268,7 +272,7 @@ function createJobRepository(store) {
         .filter((job) => job.batchId === batchId)
         .sort((left, right) => {
           const createdAtComparison = String(right.createdAt).localeCompare(String(left.createdAt))
-          return createdAtComparison !== 0 ? createdAtComparison : right.id - left.id
+          return createdAtComparison !== 0 ? createdAtComparison : String(right.id).localeCompare(String(left.id))
         })
         .map((job) => structuredClone(job))
     },
@@ -575,7 +579,7 @@ test('missing job lookup returns 404 without string matching heuristics', async 
     }
   })
 
-  const response = await request(app).get('/api/jobs/999')
+  const response = await request(app).get(`/api/jobs/${metadataId(999)}`)
 
   assert.equal(response.status, 404)
   assert.deepEqual(response.body, {
@@ -698,7 +702,7 @@ test('manual auto-fill run keeps UI batch detail coherent with the current run b
       plannerBatchIds.push(batchId)
       targetsByBatchId.set(batchId, [
         {
-          id: batchId * 10 + 1,
+          id: metadataId(900001),
           batchId,
           entityType: 'users',
           targetKey: 'users',

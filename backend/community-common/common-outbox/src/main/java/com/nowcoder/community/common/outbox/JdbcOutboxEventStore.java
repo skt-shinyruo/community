@@ -1,5 +1,7 @@
 package com.nowcoder.community.common.outbox;
 
+import com.nowcoder.community.common.id.BinaryUuidCodec;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -10,6 +12,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * JDBC-based outbox store (SSOT=DB table {@code outbox_event}).
@@ -17,12 +20,21 @@ import java.util.List;
 public class JdbcOutboxEventStore {
 
     private final JdbcTemplate jdbcTemplate;
+    private final UuidV7Generator idGenerator;
 
     public JdbcOutboxEventStore(JdbcTemplate jdbcTemplate) {
+        this(jdbcTemplate, new UuidV7Generator());
+    }
+
+    public JdbcOutboxEventStore(JdbcTemplate jdbcTemplate, UuidV7Generator idGenerator) {
         if (jdbcTemplate == null) {
             throw new IllegalArgumentException("jdbcTemplate is required");
         }
+        if (idGenerator == null) {
+            throw new IllegalArgumentException("idGenerator is required");
+        }
         this.jdbcTemplate = jdbcTemplate;
+        this.idGenerator = idGenerator;
     }
 
     public boolean enqueue(String eventId, String topic, String eventKey, String payload) {
@@ -30,11 +42,13 @@ public class JdbcOutboxEventStore {
         String t = normalize(topic, "topic");
         String k = normalize(eventKey, "eventKey");
         String p = payload == null ? "" : payload;
+        UUID id = idGenerator.next();
 
         try {
             jdbcTemplate.update(
-                    "insert into outbox_event(event_id, topic, event_key, payload, status, retry_count, next_retry_at, last_error) " +
-                            "values (?, ?, ?, ?, ?, 0, null, null)",
+                    "insert into outbox_event(id, event_id, topic, event_key, payload, status, retry_count, next_retry_at, last_error) " +
+                            "values (?, ?, ?, ?, ?, ?, 0, null, null)",
+                    BinaryUuidCodec.toBytes(id),
                     eid,
                     t,
                     k,
@@ -63,8 +77,8 @@ public class JdbcOutboxEventStore {
         );
     }
 
-    public boolean tryClaimProcessing(long id, Instant leaseUntil, Instant now) {
-        if (id <= 0) {
+    public boolean tryClaimProcessing(UUID id, Instant leaseUntil, Instant now) {
+        if (id == null) {
             return false;
         }
         Timestamp leaseTs = Timestamp.from(leaseUntil == null ? Instant.now().plusSeconds(30) : leaseUntil);
@@ -74,14 +88,14 @@ public class JdbcOutboxEventStore {
                 OutboxEventStatus.PROCESSING,
                 leaseTs,
                 nowTs,
-                id,
+                BinaryUuidCodec.toBytes(id),
                 OutboxEventStatus.PENDING
         );
         return updated > 0;
     }
 
-    public void markSucceeded(long id, Instant now) {
-        if (id <= 0) {
+    public void markSucceeded(UUID id, Instant now) {
+        if (id == null) {
             return;
         }
         Timestamp nowTs = Timestamp.from(now == null ? Instant.now() : now);
@@ -89,12 +103,12 @@ public class JdbcOutboxEventStore {
                 "update outbox_event set status = ?, next_retry_at = null, last_error = null, updated_at = ? where id = ?",
                 OutboxEventStatus.SUCCEEDED,
                 nowTs,
-                id
+                BinaryUuidCodec.toBytes(id)
         );
     }
 
-    public void markDead(long id, Instant now, String lastError) {
-        if (id <= 0) {
+    public void markDead(UUID id, Instant now, String lastError) {
+        if (id == null) {
             return;
         }
         Timestamp nowTs = Timestamp.from(now == null ? Instant.now() : now);
@@ -103,12 +117,12 @@ public class JdbcOutboxEventStore {
                 OutboxEventStatus.DEAD,
                 truncateError(lastError),
                 nowTs,
-                id
+                BinaryUuidCodec.toBytes(id)
         );
     }
 
-    public void markFailedAndScheduleRetry(long id, Instant now, Instant nextRetryAt, String lastError) {
-        if (id <= 0) {
+    public void markFailedAndScheduleRetry(UUID id, Instant now, Instant nextRetryAt, String lastError) {
+        if (id == null) {
             return;
         }
         Timestamp nowTs = Timestamp.from(now == null ? Instant.now() : now);
@@ -119,7 +133,7 @@ public class JdbcOutboxEventStore {
                 nextTs,
                 truncateError(lastError),
                 nowTs,
-                id
+                BinaryUuidCodec.toBytes(id)
         );
     }
 
@@ -163,7 +177,7 @@ public class JdbcOutboxEventStore {
             public OutboxEvent mapRow(ResultSet rs, int rowNum) throws SQLException {
                 Timestamp nextRetryAt = rs.getTimestamp("next_retry_at");
                 return new OutboxEvent(
-                        rs.getLong("id"),
+                        BinaryUuidCodec.fromBytes(rs.getBytes("id")),
                         rs.getString("event_id"),
                         rs.getString("topic"),
                         rs.getString("event_key"),

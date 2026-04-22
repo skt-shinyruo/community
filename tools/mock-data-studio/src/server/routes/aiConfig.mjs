@@ -1,5 +1,6 @@
 import { Router } from 'express'
 
+import { normalizeUuid } from '../../db/uuidv7.mjs'
 import { asyncHandler } from './asyncHandler.mjs'
 
 function maskApiKey(key) {
@@ -13,6 +14,14 @@ function sanitizeConfig(cfg) {
     ...cfg,
     apiKeyMasked: maskApiKey(cfg.apiKey),
     apiKey: undefined
+  }
+}
+
+function parseConfigId(value) {
+  try {
+    return normalizeUuid(value)
+  } catch {
+    return null
   }
 }
 
@@ -75,8 +84,16 @@ export function buildAiConfigRouter({ aiConfigRepository } = {}) {
   }))
 
   router.put('/:id', asyncHandler(async (req, res) => {
-    const id = Number(req.params.id)
+    const id = parseConfigId(req.params.id)
     const { name, provider, baseUrl, apiKey, model, enabled, timeoutMs, maxItemsPerJob } = req.body
+
+    if (!id) {
+      return res.status(400).json({
+        ok: false,
+        error: 'validation_error',
+        message: 'invalid configuration id'
+      })
+    }
 
     if (!provider || !model) {
       return res.status(400).json({
@@ -113,7 +130,14 @@ export function buildAiConfigRouter({ aiConfigRepository } = {}) {
   }))
 
   router.post('/:id/activate', asyncHandler(async (req, res) => {
-    const id = Number(req.params.id)
+    const id = parseConfigId(req.params.id)
+    if (!id) {
+      return res.status(400).json({
+        ok: false,
+        error: 'validation_error',
+        message: 'invalid configuration id'
+      })
+    }
     const existing = await aiConfigRepository.getById(id)
     if (!existing) {
       return res.status(404).json({
@@ -131,7 +155,14 @@ export function buildAiConfigRouter({ aiConfigRepository } = {}) {
   }))
 
   router.delete('/:id', asyncHandler(async (req, res) => {
-    const id = Number(req.params.id)
+    const id = parseConfigId(req.params.id)
+    if (!id) {
+      return res.status(400).json({
+        ok: false,
+        error: 'validation_error',
+        message: 'invalid configuration id'
+      })
+    }
     await aiConfigRepository.delete(id)
     res.json({ ok: true })
   }))

@@ -12,7 +12,9 @@ import org.springframework.data.redis.core.script.RedisScript;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -35,15 +37,16 @@ class RedisPostScoreQueueTest {
     void reenqueueShouldUseAtomicRetryHashIncrementAndExpireScript() {
         when(redisTemplate.opsForZSet()).thenReturn(zsetOps);
         when(redisTemplate.execute(any(RedisScript.class), any(), anyString(), anyString())).thenReturn(1L);
+        UUID postId = uuid(123);
 
         RedisPostScoreQueue queue = new RedisPostScoreQueue(redisTemplate);
-        queue.reenqueue(123);
+        queue.reenqueue(postId);
 
         ArgumentCaptor<RedisScript<Long>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
         verify(redisTemplate).execute(
                 scriptCaptor.capture(),
                 eq(List.of("post:score:retry")),
-                eq("123"),
+                eq(postId.toString()),
                 eq(Long.toString(Duration.ofDays(3).toMillis()))
         );
         assertThat(scriptCaptor.getValue()).isInstanceOf(DefaultRedisScript.class);

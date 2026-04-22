@@ -18,6 +18,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 @Repository
 @ConditionalOnProperty(name = "search.storage", havingValue = "es")
@@ -52,27 +53,27 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
     }
 
     @Override
-    public void delete(int postId) {
-        if (postId <= 0) {
+    public void delete(UUID postId) {
+        if (postId == null) {
             return;
         }
-        operations.delete(String.valueOf(postId), EsPostDocument.class);
+        operations.delete(postId.toString(), EsPostDocument.class);
     }
 
     @Override
-    public void deleteFromIndex(int postId, String indexName) {
-        if (postId <= 0) {
+    public void deleteFromIndex(UUID postId, String indexName) {
+        if (postId == null) {
             return;
         }
         if (!StringUtils.hasText(indexName)) {
-            operations.delete(String.valueOf(postId), EsPostDocument.class);
+            operations.delete(postId.toString(), EsPostDocument.class);
             return;
         }
-        operations.delete(String.valueOf(postId), IndexCoordinates.of(indexName));
+        operations.delete(postId.toString(), IndexCoordinates.of(indexName));
     }
 
     @Override
-    public List<SearchPostItem> search(String keyword, Integer categoryId, String tag, int page, int size) {
+    public List<SearchPostItem> search(String keyword, UUID categoryId, String tag, int page, int size) {
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
 
@@ -86,8 +87,8 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
             criteria = new Criteria("postId").exists();
         }
 
-        if (categoryId != null && categoryId > 0) {
-            criteria = criteria.and(new Criteria("categoryId").is(categoryId));
+        if (categoryId != null) {
+            criteria = criteria.and(new Criteria("categoryId").is(categoryId.toString()));
         }
         String safeTag = StringUtils.hasText(tag) ? tag.trim() : "";
         if (safeTag.startsWith("#")) {
@@ -133,9 +134,9 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
         EsPostDocument doc = hit.getContent();
         SearchPostItem item = new SearchPostItem();
         if (doc != null) {
-            item.setPostId(doc.getPostId() == null ? 0 : doc.getPostId());
-            item.setUserId(doc.getUserId() == null ? 0 : doc.getUserId());
-            item.setCategoryId(doc.getCategoryId());
+            item.setPostId(parseUuid(doc.getPostId()));
+            item.setUserId(parseUuid(doc.getUserId()));
+            item.setCategoryId(parseUuid(doc.getCategoryId()));
             item.setTags(doc.getTags() == null ? List.of() : doc.getTags());
             item.setTitle(doc.getTitle());
             item.setCreateTime(doc.getCreateTime() == null ? null : Instant.ofEpochMilli(doc.getCreateTime()));
@@ -149,13 +150,13 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
     }
 
     private EsPostDocument toDocument(PostPayload post) {
-        if (post == null || post.getPostId() <= 0) {
+        if (post == null || post.getPostId() == null) {
             return null;
         }
         EsPostDocument doc = new EsPostDocument();
-        doc.setPostId(post.getPostId());
-        doc.setUserId(post.getUserId());
-        doc.setCategoryId(post.getCategoryId());
+        doc.setPostId(post.getPostId().toString());
+        doc.setUserId(post.getUserId() == null ? null : post.getUserId().toString());
+        doc.setCategoryId(post.getCategoryId() == null ? null : post.getCategoryId().toString());
         doc.setTags(post.getTags() == null ? List.of() : post.getTags());
         doc.setTitle(post.getTitle());
         doc.setContent(post.getContent());
@@ -164,5 +165,16 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
         doc.setCreateTime(post.getCreateTime() == null ? null : post.getCreateTime().toEpochMilli());
         doc.setScore(post.getScore());
         return doc;
+    }
+
+    private UUID parseUuid(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 }

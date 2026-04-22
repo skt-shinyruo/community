@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class AuthService {
@@ -175,7 +176,7 @@ public class AuthService {
         return userCredentialQueryApi.authenticate(username, password);
     }
 
-    private UserCredentialView getCredential(int userId) {
+    private UserCredentialView getCredential(UUID userId) {
         return userCredentialQueryApi.getByUserId(userId);
     }
 

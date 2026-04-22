@@ -1,5 +1,6 @@
 import { Router } from 'express'
 
+import { normalizeUuid } from '../../db/uuidv7.mjs'
 import { asyncHandler } from './asyncHandler.mjs'
 
 function formatErrorMessage(error) {
@@ -11,13 +12,11 @@ function formatErrorMessage(error) {
 }
 
 function parseJobId(value) {
-  const normalized = String(value ?? '').trim()
-
-  if (!/^\d+$/u.test(normalized)) {
+  try {
+    return normalizeUuid(value)
+  } catch {
     return null
   }
-
-  return Number.parseInt(normalized, 10)
 }
 
 function normalizeJobRequest(body = {}) {

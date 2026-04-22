@@ -18,7 +18,9 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -53,8 +55,9 @@ class AdminMarketControllerTest {
 
     @Test
     void nonAdminRequestsShouldBeRejected() throws Exception {
-        mockMvc.perform(post("/api/admin/market/disputes/1/resolve-refund")
-                        .with(jwt().jwt(jwt -> jwt.subject("2")).authorities(() -> "ROLE_USER"))
+        UUID userId = uuid(2);
+        mockMvc.perform(post("/api/admin/market/disputes/00000000-0000-7000-8000-000000000001/resolve-refund")
+                        .with(jwt().jwt(jwt -> jwt.subject(userId.toString())).authorities(() -> "ROLE_USER"))
                         .contentType("application/json")
                         .content("{\"note\":\"refund\"}"))
                 .andExpect(status().isForbidden());
@@ -62,61 +65,66 @@ class AdminMarketControllerTest {
 
     @Test
     void adminResolutionApisShouldDelegateToService() throws Exception {
+        UUID disputeId = UUID.fromString("00000000-0000-7000-8000-000000000001");
+        UUID orderId = UUID.fromString("00000000-0000-7000-8000-000000000011");
+        UUID buyerUserId = uuid(9);
+        UUID sellerUserId = uuid(7);
+        UUID adminUserId = uuid(99);
         MarketDisputeResponse dispute = new MarketDisputeResponse(
-                1L,
-                11L,
+                disputeId,
+                orderId,
                 "PHYSICAL",
-                9,
-                7,
+                buyerUserId,
+                sellerUserId,
                 "ADMIN_RESOLVED",
                 "货不对板",
                 "和描述不一致",
                 "管理员处理",
                 "REFUND",
-                99,
+                adminUserId,
                 new Date(),
                 new Date(),
                 new Date()
         );
         when(marketDisputeService.listOpenDisputes()).thenReturn(List.of(dispute));
-        when(marketDisputeService.adminResolveRefund(1L, 99, "refund")).thenReturn(dispute);
-        when(marketDisputeService.adminResolveRelease(1L, 99, "release")).thenReturn(new MarketDisputeResponse(
-                1L,
-                11L,
+        when(marketDisputeService.adminResolveRefund(disputeId, adminUserId, "refund")).thenReturn(dispute);
+        when(marketDisputeService.adminResolveRelease(disputeId, adminUserId, "release")).thenReturn(new MarketDisputeResponse(
+                disputeId,
+                orderId,
                 "PHYSICAL",
-                9,
-                7,
+                buyerUserId,
+                sellerUserId,
                 "ADMIN_RESOLVED",
                 "货不对板",
                 "和描述不一致",
                 "管理员处理",
                 "RELEASE",
-                99,
+                adminUserId,
                 new Date(),
                 new Date(),
                 new Date()
         ));
 
         mockMvc.perform(get("/api/admin/market/disputes")
-                        .with(jwt().jwt(jwt -> jwt.subject("99")).authorities(() -> "ROLE_ADMIN")))
+                        .with(jwt().jwt(jwt -> jwt.subject(adminUserId.toString())).authorities(() -> "ROLE_ADMIN")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].disputeId").value(1));
+                .andExpect(jsonPath("$.data[0].disputeId").value(disputeId.toString()));
 
-        mockMvc.perform(post("/api/admin/market/disputes/1/resolve-refund")
-                        .with(jwt().jwt(jwt -> jwt.subject("99")).authorities(() -> "ROLE_ADMIN"))
+        mockMvc.perform(post("/api/admin/market/disputes/" + disputeId + "/resolve-refund")
+                        .with(jwt().jwt(jwt -> jwt.subject(adminUserId.toString())).authorities(() -> "ROLE_ADMIN"))
                         .contentType("application/json")
                         .content("{\"note\":\"refund\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.resolutionType").value("REFUND"));
 
-        mockMvc.perform(post("/api/admin/market/disputes/1/resolve-release")
-                        .with(jwt().jwt(jwt -> jwt.subject("99")).authorities(() -> "ROLE_ADMIN"))
+        mockMvc.perform(post("/api/admin/market/disputes/" + disputeId + "/resolve-release")
+                        .with(jwt().jwt(jwt -> jwt.subject(adminUserId.toString())).authorities(() -> "ROLE_ADMIN"))
                         .contentType("application/json")
                         .content("{\"note\":\"release\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.resolutionType").value("RELEASE"));
 
-        verify(marketDisputeService).adminResolveRefund(1L, 99, "refund");
-        verify(marketDisputeService).adminResolveRelease(1L, 99, "release");
+        verify(marketDisputeService).adminResolveRefund(disputeId, adminUserId, "refund");
+        verify(marketDisputeService).adminResolveRelease(disputeId, adminUserId, "release");
     }
 }

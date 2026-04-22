@@ -10,7 +10,7 @@
                stock_total, stock_available, min_purchase_quantity, max_purchase_quantity, status,
                create_time, update_time
         from market_listing
-        where listing_id = #{listingId}
+        where listing_id = #{listingId, jdbcType=BINARY}
     </select>
 
     <select id="selectByIdForUpdate" resultType="com.nowcoder.community.market.entity.MarketListing">
@@ -18,7 +18,7 @@
                stock_total, stock_available, min_purchase_quantity, max_purchase_quantity, status,
                create_time, update_time
         from market_listing
-        where listing_id = #{listingId}
+        where listing_id = #{listingId, jdbcType=BINARY}
         for update
     </select>
 
@@ -27,8 +27,8 @@
                stock_total, stock_available, min_purchase_quantity, max_purchase_quantity, status,
                create_time, update_time
         from market_listing
-        where seller_user_id = #{sellerUserId}
-        order by listing_id desc
+        where seller_user_id = #{sellerUserId, jdbcType=BINARY}
+        order by create_time desc, listing_id desc
     </select>
 
     <select id="selectPublicListings" resultType="com.nowcoder.community.market.entity.MarketListing">
@@ -37,16 +37,16 @@
                create_time, update_time
         from market_listing
         where status in ('ACTIVE', 'SOLD_OUT')
-        order by listing_id desc
+        order by create_time desc, listing_id desc
     </select>
 
-    <insert id="insert" parameterType="com.nowcoder.community.market.entity.MarketListing" useGeneratedKeys="true" keyProperty="listingId" keyColumn="listing_id">
+    <insert id="insert" parameterType="com.nowcoder.community.market.entity.MarketListing">
         insert into market_listing(
-            seller_user_id, goods_type, title, description, unit_price, delivery_mode, stock_mode,
+            listing_id, seller_user_id, goods_type, title, description, unit_price, delivery_mode, stock_mode,
             stock_total, stock_available, min_purchase_quantity, max_purchase_quantity, status
         )
         values(
-            #{sellerUserId}, #{goodsType}, #{title}, #{description}, #{unitPrice}, #{deliveryMode}, #{stockMode},
+            #{listingId, jdbcType=BINARY}, #{sellerUserId, jdbcType=BINARY}, #{goodsType}, #{title}, #{description}, #{unitPrice}, #{deliveryMode}, #{stockMode},
             #{stockTotal}, #{stockAvailable}, #{minPurchaseQuantity}, #{maxPurchaseQuantity}, #{status}
         )
     </insert>
@@ -61,16 +61,16 @@
             min_purchase_quantity = #{minPurchaseQuantity},
             max_purchase_quantity = #{maxPurchaseQuantity},
             update_time = current_timestamp
-        where listing_id = #{listingId}
-          and seller_user_id = #{sellerUserId}
+        where listing_id = #{listingId, jdbcType=BINARY}
+          and seller_user_id = #{sellerUserId, jdbcType=BINARY}
     </update>
 
     <update id="updateStatus">
         update market_listing
         set status = #{status},
             update_time = current_timestamp
-        where listing_id = #{listingId}
-          and seller_user_id = #{sellerUserId}
+        where listing_id = #{listingId, jdbcType=BINARY}
+          and seller_user_id = #{sellerUserId, jdbcType=BINARY}
     </update>
 
     <update id="adjustStock">
@@ -79,8 +79,8 @@
             stock_available = stock_available + #{deltaAvailable},
             status = #{nextStatus},
             update_time = current_timestamp
-        where listing_id = #{listingId}
-          and seller_user_id = #{sellerUserId}
+        where listing_id = #{listingId, jdbcType=BINARY}
+          and seller_user_id = #{sellerUserId, jdbcType=BINARY}
     </update>
 
 </mapper>

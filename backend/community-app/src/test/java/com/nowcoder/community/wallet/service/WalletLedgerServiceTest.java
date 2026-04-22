@@ -1,6 +1,7 @@
 package com.nowcoder.community.wallet.service;
 
 import com.nowcoder.community.app.CommunityAppApplication;
+import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
@@ -19,7 +20,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
+import java.util.UUID;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doReturn;
@@ -65,8 +68,9 @@ class WalletLedgerServiceTest {
 
     @Test
     void appendTxnShouldPersistBalancedEntriesAndUpdateBalances() {
-        long userAccountId = service.ensureUserWallet(101);
-        long systemAccountId = service.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
+        UUID userId = uuid(101);
+        UUID userAccountId = service.ensureUserWallet(userId);
+        UUID systemAccountId = service.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
 
         WalletTxnResult result = service.post(
                 "reward:101:2026-04-02",
@@ -77,15 +81,17 @@ class WalletLedgerServiceTest {
                 )
         );
 
-        assertThat(result.txnId()).isPositive();
-        assertThat(service.balanceOfUser(101)).isEqualTo(500);
+        assertThat(result.txnId()).isNotNull();
+        assertThat(result.txnId().version()).isEqualTo(7);
+        assertThat(service.balanceOfUser(userId)).isEqualTo(500);
         assertThat(service.entriesOfTxn(result.txnId())).hasSize(2);
     }
 
     @Test
     void postShouldBeIdempotentByRequestId() {
-        long userAccountId = service.ensureUserWallet(101);
-        long systemAccountId = service.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
+        UUID userId = uuid(101);
+        UUID userAccountId = service.ensureUserWallet(userId);
+        UUID systemAccountId = service.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
 
         WalletTxnResult first = service.post(
                 "reward:101:idempotent",
@@ -106,7 +112,7 @@ class WalletLedgerServiceTest {
 
         assertThat(second.txnId()).isEqualTo(first.txnId());
         assertThat(second.status()).isEqualTo("SUCCEEDED");
-        assertThat(service.balanceOfUser(101)).isEqualTo(500);
+        assertThat(service.balanceOfUser(userId)).isEqualTo(500);
         assertThat(txnCount()).isEqualTo(1);
         assertThat(entryCount()).isEqualTo(2);
     }
@@ -123,8 +129,9 @@ class WalletLedgerServiceTest {
 
     @Test
     void postShouldReportInsufficientBalanceWhenDebitWouldOverdraft() {
-        long userAccountId = service.ensureUserWallet(101);
-        long pendingAccountId = service.ensureSystemAccount("WITHDRAW_PENDING");
+        UUID userId = uuid(101);
+        UUID userAccountId = service.ensureUserWallet(userId);
+        UUID pendingAccountId = service.ensureSystemAccount("WITHDRAW_PENDING");
 
         assertThatThrownBy(() -> service.post(
                 "withdraw:101:overdraft",
@@ -144,62 +151,67 @@ class WalletLedgerServiceTest {
 
     @Test
     void migrateOpeningBalanceShouldCreateOneOpeningTxnFromLegacyRewardAccount() {
+        UUID userId = uuid(101);
         jdbcTemplate.update(
                 "insert into reward_account(user_id, available_balance, frozen_balance, version) values (?,?,?,?)",
-                101,
+                BinaryUuidCodec.toBytes(userId),
                 880,
                 0,
                 0
         );
 
-        migrationService.migrateUser(101);
+        migrationService.migrateUser(userId);
 
-        assertThat(accountService.balanceOfUser(101)).isEqualTo(880);
-        assertThat(txnMapper.selectByRequestId("migration:opening:101").getTxnType()).isEqualTo("OPENING_BALANCE");
+        assertThat(accountService.balanceOfUser(userId)).isEqualTo(880);
+        assertThat(txnMapper.selectByRequestId("migration:opening:" + userId).getTxnType()).isEqualTo("OPENING_BALANCE");
     }
 
     @Test
     void migrateUserShouldCarryFrozenOnlyLegacyBalanceIntoMigrationHold() {
+        UUID userId = uuid(101);
         jdbcTemplate.update(
                 "insert into reward_account(user_id, available_balance, frozen_balance, version) values (?,?,?,?)",
-                101,
+                BinaryUuidCodec.toBytes(userId),
                 0,
                 66,
                 0
         );
 
-        migrationService.migrateUser(101);
+        migrationService.migrateUser(userId);
 
-        assertThat(accountService.balanceOfUser(101)).isZero();
+        assertThat(accountService.balanceOfUser(userId)).isZero();
         assertThat(systemBalance("MIGRATION_HOLD")).isEqualTo(66);
         assertThat(systemBalance("RISK_FROZEN")).isEqualTo(66);
-        assertThat(txnMapper.selectByRequestId("migration:frozen:101").getTxnType()).isEqualTo("FREEZE");
-        assertThat(txnMapper.selectByRequestId("migration:opening:101")).isNull();
+        assertThat(txnMapper.selectByRequestId("migration:frozen:" + userId).getTxnType()).isEqualTo("FREEZE");
+        assertThat(txnMapper.selectByRequestId("migration:opening:" + userId)).isNull();
     }
 
     @Test
     void migrateUserShouldCarryBothAvailableAndFrozenLegacyBalances() {
+        UUID userId = uuid(101);
         jdbcTemplate.update(
                 "insert into reward_account(user_id, available_balance, frozen_balance, version) values (?,?,?,?)",
-                101,
+                BinaryUuidCodec.toBytes(userId),
                 880,
                 66,
                 0
         );
 
-        migrationService.migrateUser(101);
+        migrationService.migrateUser(userId);
 
-        assertThat(accountService.balanceOfUser(101)).isEqualTo(880);
+        assertThat(accountService.balanceOfUser(userId)).isEqualTo(880);
         assertThat(systemBalance("MIGRATION_HOLD")).isEqualTo(946);
         assertThat(systemBalance("RISK_FROZEN")).isEqualTo(66);
-        assertThat(txnMapper.selectByRequestId("migration:opening:101").getTxnType()).isEqualTo("OPENING_BALANCE");
-        assertThat(txnMapper.selectByRequestId("migration:frozen:101").getTxnType()).isEqualTo("FREEZE");
+        assertThat(txnMapper.selectByRequestId("migration:opening:" + userId).getTxnType()).isEqualTo("OPENING_BALANCE");
+        assertThat(txnMapper.selectByRequestId("migration:frozen:" + userId).getTxnType()).isEqualTo("FREEZE");
     }
 
     @Test
     void postShouldRejectIfAnyPostingWouldDriveBalanceBelowZero() {
-        long senderAccountId = service.ensureUserWallet(101);
-        long receiverAccountId = service.ensureUserWallet(202);
+        UUID senderUserId = uuid(101);
+        UUID receiverUserId = uuid(202);
+        UUID senderAccountId = service.ensureUserWallet(senderUserId);
+        UUID receiverAccountId = service.ensureUserWallet(receiverUserId);
 
         assertThatThrownBy(() -> service.post(
                 "transfer:101:too-much",
@@ -219,8 +231,9 @@ class WalletLedgerServiceTest {
 
     @Test
     void postShouldReportConflictWhenDebitUpdateLosesOptimisticLock() {
-        long userAccountId = service.ensureUserWallet(101);
-        long pendingAccountId = service.ensureSystemAccount("WITHDRAW_PENDING");
+        UUID userId = uuid(101);
+        UUID userAccountId = service.ensureUserWallet(userId);
+        UUID pendingAccountId = service.ensureSystemAccount("WITHDRAW_PENDING");
         jdbcTemplate.update(
                 "update wallet_account set balance = ?, version = ? where account_id = ?",
                 500L,
@@ -265,8 +278,9 @@ class WalletLedgerServiceTest {
 
     private long systemBalance(String accountType) {
         List<Long> balances = jdbcTemplate.query(
-                "select balance from wallet_account where owner_type = 'SYSTEM' and owner_id = 0 and account_type = ?",
+                "select balance from wallet_account where owner_type = 'SYSTEM' and owner_id = ? and account_type = ?",
                 (rs, rowNum) -> rs.getLong("balance"),
+                BinaryUuidCodec.toBytes(new UUID(0L, 0L)),
                 accountType
         );
         Long balance = balances.isEmpty() ? null : balances.get(0);

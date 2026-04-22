@@ -1,5 +1,7 @@
 package com.nowcoder.community.social.contracts.event;
 
+import java.util.UUID;
+
 /**
  * 拉黑关系变更事件载荷：
  * - social 模块产生（block/unblock）
@@ -7,23 +9,23 @@ package com.nowcoder.community.social.contracts.event;
  */
 public class BlockPayload {
 
-    private Integer blockerUserId;
-    private Integer blockedUserId;
+    private UUID blockerUserId;
+    private UUID blockedUserId;
     private Boolean blocked;
 
-    public Integer getBlockerUserId() {
+    public UUID getBlockerUserId() {
         return blockerUserId;
     }
 
-    public void setBlockerUserId(Integer blockerUserId) {
+    public void setBlockerUserId(UUID blockerUserId) {
         this.blockerUserId = blockerUserId;
     }
 
-    public Integer getBlockedUserId() {
+    public UUID getBlockedUserId() {
         return blockedUserId;
     }
 
-    public void setBlockedUserId(Integer blockedUserId) {
+    public void setBlockedUserId(UUID blockedUserId) {
         this.blockedUserId = blockedUserId;
     }
 

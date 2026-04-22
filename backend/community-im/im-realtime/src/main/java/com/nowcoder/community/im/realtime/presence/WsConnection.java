@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -23,12 +24,12 @@ public class WsConnection {
     private final AtomicInteger outboundBacklog;
     private final int maxOutboundBacklog;
 
-    private volatile Integer userId;
+    private volatile UUID userId;
     private volatile String accessToken = "";
     private volatile String traceId = "";
 
-    private final Set<Long> joinedRooms = ConcurrentHashMap.newKeySet();
-    private final ConcurrentHashMap<Long, Long> pendingRoomSeq = new ConcurrentHashMap<>();
+    private final Set<UUID> joinedRooms = ConcurrentHashMap.newKeySet();
+    private final ConcurrentHashMap<UUID, Long> pendingRoomSeq = new ConcurrentHashMap<>();
     private final AtomicBoolean enqueuedForRoomFlush = new AtomicBoolean(false);
 
     private final AtomicReference<Disposable> roomBootstrapSubscription = new AtomicReference<>();
@@ -49,7 +50,7 @@ public class WsConnection {
         return session;
     }
 
-    public Integer userId() {
+    public UUID userId() {
         return userId;
     }
 
@@ -65,28 +66,28 @@ public class WsConnection {
         this.traceId = traceId == null ? "" : traceId;
     }
 
-    public void bindUser(int userId) {
+    public void bindUser(UUID userId) {
         this.userId = userId;
     }
 
-    public void bindAuth(int userId, String accessToken) {
+    public void bindAuth(UUID userId, String accessToken) {
         this.userId = userId;
         this.accessToken = accessToken == null ? "" : accessToken;
     }
 
-    public Set<Long> joinedRoomsView() {
+    public Set<UUID> joinedRoomsView() {
         return Collections.unmodifiableSet(joinedRooms);
     }
 
-    public void joinRoom(long roomId) {
-        if (roomId <= 0) {
+    public void joinRoom(UUID roomId) {
+        if (roomId == null) {
             return;
         }
         joinedRooms.add(roomId);
     }
 
-    public void leaveRoom(long roomId) {
-        if (roomId <= 0) {
+    public void leaveRoom(UUID roomId) {
+        if (roomId == null) {
             return;
         }
         joinedRooms.remove(roomId);
@@ -101,19 +102,19 @@ public class WsConnection {
         enqueuedForRoomFlush.set(false);
     }
 
-    public void markRoomSeq(long roomId, long seq) {
-        if (roomId <= 0 || seq <= 0) {
+    public void markRoomSeq(UUID roomId, long seq) {
+        if (roomId == null || seq <= 0) {
             return;
         }
         pendingRoomSeq.merge(roomId, seq, Math::max);
     }
 
-    public Map<Long, Long> drainPendingRoomSeq() {
+    public Map<UUID, Long> drainPendingRoomSeq() {
         if (pendingRoomSeq.isEmpty()) {
             return Map.of();
         }
-        HashMap<Long, Long> drained = new HashMap<>();
-        for (Long roomId : pendingRoomSeq.keySet()) {
+        HashMap<UUID, Long> drained = new HashMap<>();
+        for (UUID roomId : pendingRoomSeq.keySet()) {
             Long v = pendingRoomSeq.remove(roomId);
             if (v != null) {
                 drained.put(roomId, v);

@@ -29,8 +29,10 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.util.List;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.constants.EntityTypes.USER;
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -44,21 +46,22 @@ class PaginationOffsetOverflowTest {
     @Test
     void postServiceShouldNotPassNegativeOffsetWhenPageIsHuge() {
         DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
-        when(discussPostMapper.selectDiscussPosts(anyInt(), any(), any(), any(), anyInt(), anyInt(), anyInt()))
+        when(discussPostMapper.selectDiscussPosts(any(), any(), any(), any(), anyInt(), anyInt(), anyInt()))
                 .thenReturn(List.of());
 
         PostService service = new PostService(discussPostMapper);
         service.listPosts(Integer.MAX_VALUE, 50, PostService.ORDER_LATEST, null, null);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
-        verify(discussPostMapper).selectDiscussPosts(eq(0), any(), any(), any(), offsetCaptor.capture(), anyInt(), anyInt());
+        verify(discussPostMapper).selectDiscussPosts(eq((UUID) null), any(), any(), any(), offsetCaptor.capture(), anyInt(), anyInt());
         assertThat(offsetCaptor.getValue()).isGreaterThanOrEqualTo(0);
     }
 
     @Test
     void commentServiceShouldNotPassNegativeOffsetWhenPageIsHuge() {
         CommentMapper commentMapper = mock(CommentMapper.class);
-        when(commentMapper.selectCommentsByEntity(anyInt(), anyInt(), anyInt(), anyInt())).thenReturn(List.of());
+        when(commentMapper.selectCommentsByEntity(anyInt(), any(), anyInt(), anyInt())).thenReturn(List.of());
+        UUID postId = uuid(1);
 
         CommentService service = new CommentService(
                 commentMapper,
@@ -71,17 +74,18 @@ class PaginationOffsetOverflowTest {
                 new ContentTextCodec(new ContentRenderProperties())
         );
 
-        service.listByPost(1, Integer.MAX_VALUE, 50);
+        service.listByPost(postId, Integer.MAX_VALUE, 50);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
-        verify(commentMapper).selectCommentsByEntity(eq(CommentService.ENTITY_TYPE_POST), eq(1), offsetCaptor.capture(), eq(50));
+        verify(commentMapper).selectCommentsByEntity(eq(CommentService.ENTITY_TYPE_POST), eq(postId), offsetCaptor.capture(), eq(50));
         assertThat(offsetCaptor.getValue()).isGreaterThanOrEqualTo(0);
     }
 
     @Test
     void followServiceShouldNotPassNegativeOffsetWhenPageIsHuge() {
         FollowRepository followRepository = mock(FollowRepository.class);
-        when(followRepository.listFollowers(anyInt(), anyInt(), anyInt(), anyInt())).thenReturn(List.of());
+        when(followRepository.listFollowers(anyInt(), any(), anyInt(), anyInt())).thenReturn(List.of());
+        UUID userId = uuid(2);
 
         FollowService service = new FollowService(
                 followRepository,
@@ -89,30 +93,32 @@ class PaginationOffsetOverflowTest {
                 mock(BlockService.class)
         );
 
-        service.listFollowers(USER, 2, Integer.MAX_VALUE, 50);
+        service.listFollowers(USER, userId, Integer.MAX_VALUE, 50);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
-        verify(followRepository).listFollowers(eq(USER), eq(2), offsetCaptor.capture(), eq(50));
+        verify(followRepository).listFollowers(eq(USER), eq(userId), offsetCaptor.capture(), eq(50));
         assertThat(offsetCaptor.getValue()).isGreaterThanOrEqualTo(0);
     }
 
     @Test
     void noticeServiceShouldNotPassNegativeOffsetWhenPageIsHuge() {
         NoticeMapper noticeMapper = mock(NoticeMapper.class);
-        when(noticeMapper.selectNotices(anyInt(), any(), anyInt(), anyInt())).thenReturn(List.of());
+        when(noticeMapper.selectNotices(any(), any(), anyInt(), anyInt())).thenReturn(List.of());
+        UUID userId = uuid(1);
 
         NoticeService service = new NoticeService(noticeMapper);
-        service.listNotices(1, "comment", Integer.MAX_VALUE, 50);
+        service.listNotices(userId, "comment", Integer.MAX_VALUE, 50);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
-        verify(noticeMapper).selectNotices(eq(1), eq("comment"), offsetCaptor.capture(), eq(50));
+        verify(noticeMapper).selectNotices(eq(userId), eq("comment"), offsetCaptor.capture(), eq(50));
         assertThat(offsetCaptor.getValue()).isGreaterThanOrEqualTo(0);
     }
 
     @Test
     void bookmarkServiceShouldNotPassNegativeOffsetWhenPageIsHuge() {
         BookmarkMapper bookmarkMapper = mock(BookmarkMapper.class);
-        when(bookmarkMapper.selectBookmarkedPosts(anyInt(), anyInt(), anyInt())).thenReturn(List.of());
+        when(bookmarkMapper.selectBookmarkedPosts(any(), anyInt(), anyInt())).thenReturn(List.of());
+        UUID userId = uuid(1);
 
         BookmarkService service = new BookmarkService(
                 bookmarkMapper,
@@ -121,10 +127,10 @@ class PaginationOffsetOverflowTest {
                 mock(TagService.class),
                 new PostSummaryAssembler(mock(ContentTextCodec.class))
         );
-        service.listBookmarkedPosts(1, Integer.MAX_VALUE, 50);
+        service.listBookmarkedPosts(userId, Integer.MAX_VALUE, 50);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
-        verify(bookmarkMapper).selectBookmarkedPosts(eq(1), offsetCaptor.capture(), eq(50));
+        verify(bookmarkMapper).selectBookmarkedPosts(eq(userId), offsetCaptor.capture(), eq(50));
         assertThat(offsetCaptor.getValue()).isGreaterThanOrEqualTo(0);
     }
 

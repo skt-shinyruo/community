@@ -1,15 +1,15 @@
 // 审核处置请求：版主/管理员对举报执行处置动作（reject/hide/delete/warn/mute/ban）。
 package com.nowcoder.community.content.dto;
 
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+
+import java.util.UUID;
 
 public class ModerationActionRequest {
 
     @NotNull
-    @Min(1)
-    private Integer reportId;
+    private UUID reportId;
 
     @NotBlank
     private String action;
@@ -20,11 +20,11 @@ public class ModerationActionRequest {
     // mute/ban 使用，单位：秒；未提供时使用服务端默认值。
     private Integer durationSeconds;
 
-    public Integer getReportId() {
+    public UUID getReportId() {
         return reportId;
     }
 
-    public void setReportId(Integer reportId) {
+    public void setReportId(UUID reportId) {
         this.reportId = reportId;
     }
 
@@ -52,4 +52,3 @@ public class ModerationActionRequest {
         this.durationSeconds = durationSeconds;
     }
 }
-

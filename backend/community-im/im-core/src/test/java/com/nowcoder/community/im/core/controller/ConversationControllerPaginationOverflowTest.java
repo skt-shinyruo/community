@@ -11,6 +11,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -40,7 +41,7 @@ class ConversationControllerPaginationOverflowTest {
 
         Jwt jwt = Jwt.withTokenValue("t")
                 .header("alg", "none")
-                .subject("1")
+                .subject(UUID.fromString("00000000-0000-7000-8000-000000000001").toString())
                 .issuedAt(Instant.now())
                 .expiresAt(Instant.now().plusSeconds(60))
                 .build();

@@ -37,6 +37,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/market")
@@ -69,95 +70,95 @@ public class MarketController {
     }
 
     @GetMapping("/listings/{listingId}")
-    public Result<MarketListingDetailResponse> getListingDetail(@PathVariable long listingId) {
+    public Result<MarketListingDetailResponse> getListingDetail(@PathVariable UUID listingId) {
         return Result.ok(marketQueryService.getListingDetail(listingId));
     }
 
     @GetMapping("/my-listings")
     public Result<List<MarketListingResponse>> listSellerListings(Authentication authentication) {
-        int sellerUserId = CurrentUser.requireUserId(authentication);
+        UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketQueryService.listSellerListings(sellerUserId));
     }
 
     @PostMapping("/listings")
     public Result<MarketListingResponse> createListing(Authentication authentication,
                                                        @RequestBody @Valid CreateMarketListingRequest request) {
-        int sellerUserId = CurrentUser.requireUserId(authentication);
+        UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketListingService.createListing(sellerUserId, request, request.getInventory()));
     }
 
     @PutMapping("/listings/{listingId}")
     public Result<MarketListingResponse> updateListing(Authentication authentication,
-                                                       @PathVariable long listingId,
+                                                       @PathVariable UUID listingId,
                                                        @RequestBody @Valid UpdateMarketListingRequest request) {
-        int sellerUserId = CurrentUser.requireUserId(authentication);
+        UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketListingService.updateListing(sellerUserId, listingId, request));
     }
 
     @PostMapping("/listings/{listingId}/pause")
-    public Result<MarketListingResponse> pauseListing(Authentication authentication, @PathVariable long listingId) {
-        int sellerUserId = CurrentUser.requireUserId(authentication);
+    public Result<MarketListingResponse> pauseListing(Authentication authentication, @PathVariable UUID listingId) {
+        UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketListingService.pauseListing(sellerUserId, listingId));
     }
 
     @PostMapping("/listings/{listingId}/resume")
-    public Result<MarketListingResponse> resumeListing(Authentication authentication, @PathVariable long listingId) {
-        int sellerUserId = CurrentUser.requireUserId(authentication);
+    public Result<MarketListingResponse> resumeListing(Authentication authentication, @PathVariable UUID listingId) {
+        UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketListingService.resumeListing(sellerUserId, listingId));
     }
 
     @PostMapping("/listings/{listingId}/close")
-    public Result<MarketListingResponse> closeListing(Authentication authentication, @PathVariable long listingId) {
-        int sellerUserId = CurrentUser.requireUserId(authentication);
+    public Result<MarketListingResponse> closeListing(Authentication authentication, @PathVariable UUID listingId) {
+        UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketListingService.closeListing(sellerUserId, listingId));
     }
 
     @GetMapping("/listings/{listingId}/inventory")
-    public Result<List<MarketInventoryUnitResponse>> listInventory(Authentication authentication, @PathVariable long listingId) {
-        int sellerUserId = CurrentUser.requireUserId(authentication);
+    public Result<List<MarketInventoryUnitResponse>> listInventory(Authentication authentication, @PathVariable UUID listingId) {
+        UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketInventoryService.listInventory(listingId, sellerUserId));
     }
 
     @PostMapping("/listings/{listingId}/inventory")
     public Result<Void> addInventory(Authentication authentication,
-                                     @PathVariable long listingId,
+                                     @PathVariable UUID listingId,
                                      @RequestBody @Valid AddMarketInventoryBatchRequest request) {
-        int sellerUserId = CurrentUser.requireUserId(authentication);
+        UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
         marketInventoryService.appendInventory(listingId, sellerUserId, request);
         return Result.ok();
     }
 
     @PostMapping("/inventory/{inventoryUnitId}/invalidate")
-    public Result<Void> invalidateInventory(Authentication authentication, @PathVariable long inventoryUnitId) {
-        int sellerUserId = CurrentUser.requireUserId(authentication);
+    public Result<Void> invalidateInventory(Authentication authentication, @PathVariable UUID inventoryUnitId) {
+        UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
         marketInventoryService.invalidateInventory(inventoryUnitId, sellerUserId);
         return Result.ok();
     }
 
     @GetMapping("/addresses")
     public Result<List<MarketAddressResponse>> listAddresses(Authentication authentication) {
-        int userId = CurrentUser.requireUserId(authentication);
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketAddressService.listAddresses(userId));
     }
 
     @PostMapping("/addresses")
     public Result<MarketAddressResponse> createAddress(Authentication authentication,
                                                        @RequestBody @Valid CreateMarketAddressRequest request) {
-        int userId = CurrentUser.requireUserId(authentication);
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketAddressService.createAddress(userId, request));
     }
 
     @PutMapping("/addresses/{addressId}")
     public Result<MarketAddressResponse> updateAddress(Authentication authentication,
-                                                       @PathVariable long addressId,
+                                                       @PathVariable UUID addressId,
                                                        @RequestBody @Valid UpdateMarketAddressRequest request) {
-        int userId = CurrentUser.requireUserId(authentication);
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketAddressService.updateAddress(userId, addressId, request));
     }
 
     @DeleteMapping("/addresses/{addressId}")
-    public Result<Void> deleteAddress(Authentication authentication, @PathVariable long addressId) {
-        int userId = CurrentUser.requireUserId(authentication);
+    public Result<Void> deleteAddress(Authentication authentication, @PathVariable UUID addressId) {
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         marketAddressService.deleteAddress(userId, addressId);
         return Result.ok();
     }
@@ -165,7 +166,7 @@ public class MarketController {
     @PostMapping("/orders")
     public Result<MarketOrderResponse> createOrder(Authentication authentication,
                                                    @RequestBody @Valid CreateMarketOrderRequest request) {
-        int buyerUserId = CurrentUser.requireUserId(authentication);
+        UUID buyerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketOrderService.createOrder(
                 request.getRequestId(),
                 buyerUserId,
@@ -177,35 +178,35 @@ public class MarketController {
 
     @GetMapping("/orders/buying")
     public Result<List<MarketOrderResponse>> listBuyingOrders(Authentication authentication) {
-        int buyerUserId = CurrentUser.requireUserId(authentication);
+        UUID buyerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketQueryService.listBuyingOrders(buyerUserId));
     }
 
     @GetMapping("/orders/selling")
     public Result<List<MarketOrderResponse>> listSellingOrders(Authentication authentication) {
-        int sellerUserId = CurrentUser.requireUserId(authentication);
+        UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketQueryService.listSellingOrders(sellerUserId));
     }
 
     @GetMapping("/orders/{orderId}")
-    public Result<MarketOrderDetailResponse> getOrderDetail(Authentication authentication, @PathVariable long orderId) {
-        int actorUserId = CurrentUser.requireUserId(authentication);
+    public Result<MarketOrderDetailResponse> getOrderDetail(Authentication authentication, @PathVariable UUID orderId) {
+        UUID actorUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketQueryService.getOrderDetail(orderId, actorUserId));
     }
 
     @PostMapping("/orders/{orderId}/deliver")
     public Result<MarketOrderResponse> deliverOrder(Authentication authentication,
-                                                    @PathVariable long orderId,
+                                                    @PathVariable UUID orderId,
                                                     @RequestBody @Valid DeliverMarketOrderRequest request) {
-        int sellerUserId = CurrentUser.requireUserId(authentication);
+        UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketOrderService.deliverVirtualOrder(orderId, sellerUserId, request.getDeliveryContent()));
     }
 
     @PostMapping("/orders/{orderId}/ship")
     public Result<MarketOrderResponse> shipOrder(Authentication authentication,
-                                                 @PathVariable long orderId,
+                                                 @PathVariable UUID orderId,
                                                  @RequestBody @Valid ShipMarketOrderRequest request) {
-        int sellerUserId = CurrentUser.requireUserId(authentication);
+        UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketOrderService.shipPhysicalOrder(
                 orderId,
                 sellerUserId,
@@ -216,38 +217,38 @@ public class MarketController {
     }
 
     @PostMapping("/orders/{orderId}/confirm")
-    public Result<MarketOrderResponse> confirmOrder(Authentication authentication, @PathVariable long orderId) {
-        int buyerUserId = CurrentUser.requireUserId(authentication);
+    public Result<MarketOrderResponse> confirmOrder(Authentication authentication, @PathVariable UUID orderId) {
+        UUID buyerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketOrderService.confirmOrder(orderId, buyerUserId));
     }
 
     @PostMapping("/orders/{orderId}/cancel")
-    public Result<MarketOrderResponse> cancelOrder(Authentication authentication, @PathVariable long orderId) {
-        int buyerUserId = CurrentUser.requireUserId(authentication);
+    public Result<MarketOrderResponse> cancelOrder(Authentication authentication, @PathVariable UUID orderId) {
+        UUID buyerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketOrderService.cancelOrder(orderId, buyerUserId));
     }
 
     @PostMapping("/orders/{orderId}/disputes")
     public Result<MarketDisputeResponse> openDispute(Authentication authentication,
-                                                     @PathVariable long orderId,
+                                                     @PathVariable UUID orderId,
                                                      @RequestBody @Valid CreateMarketDisputeRequest request) {
-        int buyerUserId = CurrentUser.requireUserId(authentication);
+        UUID buyerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketDisputeService.openDispute(orderId, buyerUserId, request.getReason(), request.getBuyerNote()));
     }
 
     @PostMapping("/disputes/{disputeId}/seller-accept")
     public Result<MarketDisputeResponse> sellerAccept(Authentication authentication,
-                                                      @PathVariable long disputeId,
+                                                      @PathVariable UUID disputeId,
                                                       @RequestBody @Valid SellerDisputeDecisionRequest request) {
-        int sellerUserId = CurrentUser.requireUserId(authentication);
+        UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketDisputeService.sellerAcceptRefund(disputeId, sellerUserId, request.getNote()));
     }
 
     @PostMapping("/disputes/{disputeId}/seller-reject")
     public Result<MarketDisputeResponse> sellerReject(Authentication authentication,
-                                                      @PathVariable long disputeId,
+                                                      @PathVariable UUID disputeId,
                                                       @RequestBody @Valid SellerDisputeDecisionRequest request) {
-        int sellerUserId = CurrentUser.requireUserId(authentication);
+        UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketDisputeService.sellerRejectRefund(disputeId, sellerUserId, request.getNote()));
     }
 }

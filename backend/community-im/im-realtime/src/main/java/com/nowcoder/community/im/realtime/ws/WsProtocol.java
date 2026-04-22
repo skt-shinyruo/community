@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.Map;
+import java.util.UUID;
 
 public final class WsProtocol {
 
@@ -12,7 +13,7 @@ public final class WsProtocol {
     private WsProtocol() {
     }
 
-    public static String authOk(int userId) {
+    public static String authOk(UUID userId) {
         return json(Map.of("type", "auth_ok", "userId", userId));
     }
 

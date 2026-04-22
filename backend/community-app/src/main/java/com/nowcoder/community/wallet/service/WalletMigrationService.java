@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class WalletMigrationService {
@@ -25,8 +26,8 @@ public class WalletMigrationService {
     }
 
     @Transactional
-    public void migrateUser(int userId) {
-        long userWalletId = walletAccountService.ensureUserWallet(userId);
+    public void migrateUser(UUID userId) {
+        UUID userWalletId = walletAccountService.ensureUserWallet(userId);
         LegacyRewardAccountView legacy = legacyRewardAccountQueryApi.getLegacyRewardAccount(userId);
         if (legacy == null) {
             return;

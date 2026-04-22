@@ -56,6 +56,7 @@ class GatewayDefaultSecurityIntegrationTest {
         registry.add("spring.cloud.discovery.client.simple.instances.community-app[0].uri",
                 GatewayDefaultSecurityIntegrationTest::httpUpstreamBaseUrl);
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
+        registry.add("management.health.redis.enabled", () -> "false");
         registry.add("gateway.ws.proxy.path", () -> "/ws/im");
         registry.add("gateway.ws.proxy.auth-required", () -> false);
         registry.add("gateway.ws.proxy.default-worker-uri", GatewayDefaultSecurityIntegrationTest::workerUri);

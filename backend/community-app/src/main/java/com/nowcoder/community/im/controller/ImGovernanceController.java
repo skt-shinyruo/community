@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.UUID;
+
 /**
  * IM 私信发送治理校验（供 im-realtime 等服务侧转发用户 JWT 调用）。
  *
@@ -26,14 +28,14 @@ public class ImGovernanceController {
 
     @PostMapping("/private-messages/validate")
     public Result<Void> validateSendPrivateMessage(Authentication authentication, @RequestBody ValidatePrivateMessageRequest request) {
-        int fromUserId = CurrentUser.requireUserId(authentication);
-        int toUserId = request == null ? 0 : Math.max(0, request.toUserId());
+        UUID fromUserId = CurrentUser.requireUserUuid(authentication);
+        UUID toUserId = request == null ? null : request.toUserId();
 
         governanceActionApi.validateCanSendPrivateMessage(fromUserId, toUserId);
 
         return Result.ok();
     }
 
-    public record ValidatePrivateMessageRequest(int toUserId) {
+    public record ValidatePrivateMessageRequest(UUID toUserId) {
     }
 }

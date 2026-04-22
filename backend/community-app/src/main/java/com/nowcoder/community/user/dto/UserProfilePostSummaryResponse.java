@@ -2,37 +2,38 @@ package com.nowcoder.community.user.dto;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 public class UserProfilePostSummaryResponse {
 
-    private int id;
-    private int userId;
+    private UUID id;
+    private UUID userId;
     private String title;
     private int type;
     private int status;
     private Date createTime;
     private int commentCount;
     private double score;
-    private Integer categoryId;
+    private UUID categoryId;
     private List<String> tags;
-    private Integer lastReplyUserId;
+    private UUID lastReplyUserId;
     private Date lastReplyTime;
     private Date lastActivityTime;
     private String lastReplyPreview;
 
-    public int getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
-    public int getUserId() {
+    public UUID getUserId() {
         return userId;
     }
 
-    public void setUserId(int userId) {
+    public void setUserId(UUID userId) {
         this.userId = userId;
     }
 
@@ -84,11 +85,11 @@ public class UserProfilePostSummaryResponse {
         this.score = score;
     }
 
-    public Integer getCategoryId() {
+    public UUID getCategoryId() {
         return categoryId;
     }
 
-    public void setCategoryId(Integer categoryId) {
+    public void setCategoryId(UUID categoryId) {
         this.categoryId = categoryId;
     }
 
@@ -100,11 +101,11 @@ public class UserProfilePostSummaryResponse {
         this.tags = tags;
     }
 
-    public Integer getLastReplyUserId() {
+    public UUID getLastReplyUserId() {
         return lastReplyUserId;
     }
 
-    public void setLastReplyUserId(Integer lastReplyUserId) {
+    public void setLastReplyUserId(UUID lastReplyUserId) {
         this.lastReplyUserId = lastReplyUserId;
     }
 

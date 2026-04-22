@@ -5,15 +5,15 @@
 
 <mapper namespace="com.nowcoder.community.wallet.mapper.WalletEntryMapper">
 
-    <insert id="insert" parameterType="com.nowcoder.community.wallet.entity.WalletEntry" useGeneratedKeys="true" keyProperty="entryId" keyColumn="entry_id">
-        insert into wallet_entry(txn_id, account_id, direction, amount, balance_after)
-        values(#{txnId}, #{accountId}, #{direction}, #{amount}, #{balanceAfter})
+    <insert id="insert" parameterType="com.nowcoder.community.wallet.entity.WalletEntry">
+        insert into wallet_entry(entry_id, txn_id, account_id, direction, amount, balance_after)
+        values(#{entryId, jdbcType=BINARY}, #{txnId, jdbcType=BINARY}, #{accountId, jdbcType=BINARY}, #{direction}, #{amount}, #{balanceAfter})
     </insert>
 
     <select id="selectByTxnId" resultType="com.nowcoder.community.wallet.entity.WalletEntry">
         select entry_id, txn_id, account_id, direction, amount, balance_after, create_time
         from wallet_entry
-        where txn_id = #{txnId}
+        where txn_id = #{txnId, jdbcType=BINARY}
         order by entry_id asc
     </select>
 

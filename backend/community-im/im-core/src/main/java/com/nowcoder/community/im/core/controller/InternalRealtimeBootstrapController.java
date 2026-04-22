@@ -8,6 +8,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/internal/im/realtime")
@@ -22,23 +23,21 @@ public class InternalRealtimeBootstrapController {
     @GetMapping("/users/{userId}/rooms")
     public RoomIdPage listRoomsByUser(
             @AuthenticationPrincipal Jwt jwt,
-            @PathVariable int userId,
-            @RequestParam(name = "cursor", required = false, defaultValue = "0") long cursorExclusive,
+            @PathVariable UUID userId,
+            @RequestParam(name = "cursor", required = false) UUID cursorExclusive,
             @RequestParam(name = "limit", required = false, defaultValue = "1000") int limit
     ) {
-        int callerId = CurrentUser.userIdOrThrow(jwt);
-        if (callerId != userId) {
+        UUID callerId = CurrentUser.userIdOrThrow(jwt);
+        if (!callerId.equals(userId)) {
             throw new AccessDeniedException("userId mismatch");
         }
-        long cursor = Math.max(0L, cursorExclusive);
         int l = Math.min(Math.max(1, limit), 5000);
-        List<Long> roomIds = roomMembershipService.listRoomIdsByUser(userId, cursor, l);
+        List<UUID> roomIds = roomMembershipService.listRoomIdsByUser(userId, cursorExclusive, l);
         boolean hasMore = roomIds.size() >= l;
-        long nextCursorExclusive = roomIds.isEmpty() ? cursor : roomIds.get(roomIds.size() - 1);
+        UUID nextCursorExclusive = roomIds.isEmpty() ? null : roomIds.get(roomIds.size() - 1);
         return new RoomIdPage(roomIds, nextCursorExclusive, hasMore);
     }
 
-    public record RoomIdPage(List<Long> roomIds, long nextCursorExclusive, boolean hasMore) {
+    public record RoomIdPage(List<UUID> roomIds, UUID nextCursorExclusive, boolean hasMore) {
     }
 }
-

@@ -59,7 +59,7 @@ public class TaskProgressOutboxEnqueuer {
     }
 
     private void enqueue(TaskProgressProjectionService.TaskProgressProjectionCommand command) {
-        if (command == null || command.userId() <= 0 || command.bizDate() == null) {
+        if (command == null || command.userId() == null || command.bizDate() == null) {
             return;
         }
         if (command.sourceEventId() == null || command.sourceEventId().isBlank()) {

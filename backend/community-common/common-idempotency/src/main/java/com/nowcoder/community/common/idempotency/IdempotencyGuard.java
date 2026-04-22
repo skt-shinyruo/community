@@ -12,6 +12,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.function.Supplier;
 
 /**
@@ -47,12 +48,12 @@ public class IdempotencyGuard {
         this.properties = properties == null ? new IdempotencyProperties() : properties;
     }
 
-    public <T> T executeRequired(String operation, int userId, String idempotencyKey, Class<T> type, Supplier<T> supplier) {
+    public <T> T executeRequired(String operation, UUID userId, String idempotencyKey, Class<T> type, Supplier<T> supplier) {
         return execute(operation, userId, idempotencyKey, type, supplier, true);
     }
 
-    public <T> T execute(String operation, int userId, String idempotencyKey, Class<T> type, Supplier<T> supplier, boolean failClosedOnStoreError) {
-        if (userId <= 0) {
+    public <T> T execute(String operation, UUID userId, String idempotencyKey, Class<T> type, Supplier<T> supplier, boolean failClosedOnStoreError) {
+        if (userId == null) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "userId 非法");
         }
         if (!StringUtils.hasText(operation)) {
@@ -179,14 +180,14 @@ public class IdempotencyGuard {
         }
     }
 
-    private void safeDelete(String operation, int userId, String key) {
+    private void safeDelete(String operation, UUID userId, String key) {
         try {
             store.delete(operation, userId, key);
         } catch (RuntimeException ignored) {
         }
     }
 
-    private void safeExtendProcessing(String operation, int userId, String key, Duration ttl) {
+    private void safeExtendProcessing(String operation, UUID userId, String key, Duration ttl) {
         try {
             store.extendProcessing(operation, userId, key, ttl);
         } catch (RuntimeException ignored) {

@@ -4,20 +4,21 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
+import java.util.UUID;
+
 public class CreateMarketOrderRequest {
 
     @NotBlank
     private String requestId;
 
     @NotNull
-    @Min(1)
-    private Long listingId;
+    private UUID listingId;
 
     @NotNull
     @Min(1)
     private Integer quantity;
 
-    private Long addressId;
+    private UUID addressId;
 
     public String getRequestId() {
         return requestId;
@@ -27,11 +28,11 @@ public class CreateMarketOrderRequest {
         this.requestId = requestId;
     }
 
-    public Long getListingId() {
+    public UUID getListingId() {
         return listingId;
     }
 
-    public void setListingId(Long listingId) {
+    public void setListingId(UUID listingId) {
         this.listingId = listingId;
     }
 
@@ -43,11 +44,11 @@ public class CreateMarketOrderRequest {
         this.quantity = quantity;
     }
 
-    public Long getAddressId() {
+    public UUID getAddressId() {
         return addressId;
     }
 
-    public void setAddressId(Long addressId) {
+    public void setAddressId(UUID addressId) {
         this.addressId = addressId;
     }
 }

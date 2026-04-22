@@ -9,7 +9,7 @@
 use community;
 
 create table if not exists demo_batch (
-  id bigint auto_increment primary key,
+  id binary(16) primary key,
   batch_key varchar(128) not null,
   batch_type varchar(64) not null,
   requested_by varchar(128) not null,
@@ -24,8 +24,8 @@ create table if not exists demo_batch (
 );
 
 create table if not exists demo_job (
-  id bigint auto_increment primary key,
-  batch_id bigint not null,
+  id binary(16) primary key,
+  batch_id binary(16) not null,
   job_key varchar(128) not null,
   job_type varchar(64) not null,
   status varchar(32) not null,
@@ -39,8 +39,8 @@ create table if not exists demo_job (
 );
 
 create table if not exists demo_batch_target (
-  id bigint auto_increment primary key,
-  batch_id bigint not null,
+  id binary(16) primary key,
+  batch_id binary(16) not null,
   entity_type varchar(64) not null,
   target_key varchar(255) not null,
   target_count int not null default 1,
@@ -51,8 +51,8 @@ create table if not exists demo_batch_target (
 );
 
 create table if not exists demo_entity_ref (
-  id bigint auto_increment primary key,
-  batch_id bigint not null,
+  id binary(16) primary key,
+  batch_id binary(16) not null,
   entity_type varchar(64) not null,
   entity_key varchar(255) not null,
   created_at timestamp not null default current_timestamp,
@@ -61,7 +61,7 @@ create table if not exists demo_entity_ref (
 );
 
 create table if not exists ai_config (
-  id bigint auto_increment primary key,
+  id binary(16) primary key,
   name varchar(64) not null,
   provider varchar(32) not null default 'openai',
   base_url varchar(255) null,

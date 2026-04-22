@@ -17,7 +17,9 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -98,9 +100,9 @@ class EventPayloadContractTest {
 
     private PostPayload samplePostPayload() {
         PostPayload p = new PostPayload();
-        p.setPostId(1);
-        p.setUserId(2);
-        p.setCategoryId(3);
+        p.setPostId(uuid(1));
+        p.setUserId(uuid(2));
+        p.setCategoryId(uuid(3));
         p.setTags(List.of("tag-a", "tag-b"));
         p.setTitle("t");
         p.setContent("c");
@@ -113,12 +115,12 @@ class EventPayloadContractTest {
 
     private CommentPayload sampleCommentPayload() {
         CommentPayload p = new CommentPayload();
-        p.setCommentId(1);
-        p.setPostId(2);
-        p.setUserId(3);
+        p.setCommentId(uuid(1));
+        p.setPostId(uuid(2));
+        p.setUserId(uuid(3));
         p.setEntityType(1);
-        p.setEntityId(2);
-        p.setTargetUserId(4);
+        p.setEntityId(uuid(2));
+        p.setTargetUserId(uuid(4));
         p.setContent("c");
         p.setCreateTime(Instant.now());
         return p;
@@ -126,12 +128,12 @@ class EventPayloadContractTest {
 
     private ModerationPayload sampleModerationPayload() {
         ModerationPayload p = new ModerationPayload();
-        p.setReportId(1);
+        p.setReportId(UUID.fromString("00000000-0000-7000-8000-00000000030b"));
         p.setKind("report");
-        p.setToUserId(2);
-        p.setActorUserId(3);
+        p.setToUserId(uuid(2));
+        p.setActorUserId(uuid(3));
         p.setTargetType(1);
-        p.setTargetId(10);
+        p.setTargetId(uuid(10));
         p.setAction("mute");
         p.setReason("r");
         p.setDurationSeconds(60);
@@ -141,40 +143,40 @@ class EventPayloadContractTest {
 
     private ModerationCommandPayload sampleModerationCommandPayload() {
         ModerationCommandPayload p = new ModerationCommandPayload();
-        p.setUserId(1);
+        p.setUserId(UUID.fromString("00000000-0000-7000-8000-00000000030c"));
         p.setAction("ban");
         p.setDurationSeconds(3600);
-        p.setActorUserId(2);
-        p.setReportId(3);
+        p.setActorUserId(UUID.fromString("00000000-0000-7000-8000-00000000030d"));
+        p.setReportId(UUID.fromString("00000000-0000-7000-8000-00000000030e"));
         p.setReason("r");
         return p;
     }
 
     private LikePayload sampleLikePayload() {
         LikePayload p = new LikePayload();
-        p.setActorUserId(1);
+        p.setActorUserId(uuid(1));
         p.setEntityType(1);
-        p.setEntityId(2);
-        p.setEntityUserId(3);
-        p.setPostId(10);
+        p.setEntityId(uuid(2));
+        p.setEntityUserId(uuid(3));
+        p.setPostId(uuid(10));
         p.setCreateTime(Instant.now());
         return p;
     }
 
     private FollowPayload sampleFollowPayload() {
         FollowPayload p = new FollowPayload();
-        p.setActorUserId(1);
+        p.setActorUserId(uuid(1));
         p.setEntityType(3);
-        p.setEntityId(2);
-        p.setEntityUserId(4);
+        p.setEntityId(uuid(2));
+        p.setEntityUserId(uuid(4));
         p.setCreateTime(Instant.now());
         return p;
     }
 
     private BlockPayload sampleBlockPayload() {
         BlockPayload p = new BlockPayload();
-        p.setBlockerUserId(1);
-        p.setBlockedUserId(2);
+        p.setBlockerUserId(uuid(1));
+        p.setBlockedUserId(uuid(2));
         p.setBlocked(Boolean.TRUE);
         return p;
     }

@@ -1,5 +1,6 @@
 package com.nowcoder.community.user.service;
 
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
@@ -8,6 +9,7 @@ import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.query.UserPendingRegistrationQueryApi;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.mapper.UserMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -19,6 +21,7 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.Locale;
 import java.util.Random;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.user.exception.UserErrorCode.EMAIL_ALREADY_EXISTS;
@@ -32,10 +35,17 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
     private static final String EMAIL_UNIQUE_CONSTRAINT = "uk_user_email";
 
     private final UserMapper userMapper;
+    private final UuidV7Generator idGenerator;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
+    @Autowired
     public UserRegistrationService(UserMapper userMapper) {
+        this(userMapper, new UuidV7Generator());
+    }
+
+    UserRegistrationService(UserMapper userMapper, UuidV7Generator idGenerator) {
         this.userMapper = userMapper;
+        this.idGenerator = idGenerator;
     }
 
     @Override
@@ -74,6 +84,7 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
         user.setStatus(0);
         user.setHeaderUrl(String.format("http://images.nowcoder.com/head/%dt.png", new Random().nextInt(1000)));
         user.setCreateTime(new Date());
+        user.setId(idGenerator.next());
 
         try {
             userMapper.insertUser(user);
@@ -92,19 +103,19 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
             }
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败", ex);
         }
-        if (user.getId() <= 0) {
+        if (user.getId() == null) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败");
         }
         return user;
     }
 
     @Override
-    public PendingRegistrationUserView getPendingUser(int userId, Duration pendingTtl) {
+    public PendingRegistrationUserView getPendingUser(UUID userId, Duration pendingTtl) {
         return toPendingRegistrationView(getPendingRegistrationUser(userId, pendingTtl));
     }
 
-    public User getPendingRegistrationUser(int userId, Duration pendingTtl) {
-        if (userId <= 0) {
+    public User getPendingRegistrationUser(UUID userId, Duration pendingTtl) {
+        if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         User user = userMapper.selectById(userId);
@@ -122,8 +133,8 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
 
     @Override
     @Transactional
-    public UserCredentialView activatePendingUser(int userId) {
-        if (userId <= 0) {
+    public UserCredentialView activatePendingUser(UUID userId) {
+        if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         User user = userMapper.selectById(userId);
@@ -138,7 +149,7 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
         return toCredentialView(user);
     }
 
-    public void activateUser(int userId) {
+    public void activateUser(UUID userId) {
         activatePendingUser(userId);
     }
 
@@ -186,7 +197,7 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
     }
 
     private PendingRegistrationUserView toPendingRegistrationView(User user) {
-        if (user == null || user.getId() <= 0) {
+        if (user == null || user.getId() == null) {
             return null;
         }
         return new PendingRegistrationUserView(
@@ -200,7 +211,7 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
     }
 
     private UserCredentialView toCredentialView(User user) {
-        if (user == null || user.getId() <= 0) {
+        if (user == null || user.getId() == null) {
             return null;
         }
         return new UserCredentialView(

@@ -1,5 +1,6 @@
 package com.nowcoder.community.wallet.service;
 
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.wallet.entity.WalletAdminAction;
 import com.nowcoder.community.wallet.entity.WalletEntry;
@@ -10,6 +11,7 @@ import com.nowcoder.community.wallet.mapper.WalletEntryMapper;
 import com.nowcoder.community.wallet.mapper.WalletTxnMapper;
 import com.nowcoder.community.wallet.model.WalletPosting;
 import com.nowcoder.community.wallet.model.WalletTxnType;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,21 +38,40 @@ public class AdminWalletOpsService {
     private final WalletTxnMapper walletTxnMapper;
     private final WalletEntryMapper walletEntryMapper;
     private final WalletAdminActionMapper walletAdminActionMapper;
+    private final UuidV7Generator idGenerator;
 
+    @Autowired
     public AdminWalletOpsService(WalletAccountService accountService,
                                  WalletLedgerService ledgerService,
                                  WalletTxnMapper walletTxnMapper,
                                  WalletEntryMapper walletEntryMapper,
                                  WalletAdminActionMapper walletAdminActionMapper) {
+        this(
+                accountService,
+                ledgerService,
+                walletTxnMapper,
+                walletEntryMapper,
+                walletAdminActionMapper,
+                new UuidV7Generator()
+        );
+    }
+
+    AdminWalletOpsService(WalletAccountService accountService,
+                          WalletLedgerService ledgerService,
+                          WalletTxnMapper walletTxnMapper,
+                          WalletEntryMapper walletEntryMapper,
+                          WalletAdminActionMapper walletAdminActionMapper,
+                          UuidV7Generator idGenerator) {
         this.accountService = accountService;
         this.ledgerService = ledgerService;
         this.walletTxnMapper = walletTxnMapper;
         this.walletEntryMapper = walletEntryMapper;
         this.walletAdminActionMapper = walletAdminActionMapper;
+        this.idGenerator = idGenerator;
     }
 
     @Transactional
-    public void freezeWallet(int actorUserId, int targetUserId, String reason) {
+    public void freezeWallet(UUID actorUserId, UUID targetUserId, String reason) {
         validateActor(actorUserId);
         validateTargetUser(targetUserId);
         String normalizedReason = requireReason(reason);
@@ -61,7 +82,7 @@ public class AdminWalletOpsService {
     }
 
     @Transactional
-    public void reverseTxn(int actorUserId, String txnRef, String reason) {
+    public void reverseTxn(UUID actorUserId, String txnRef, String reason) {
         validateActor(actorUserId);
         String normalizedReason = requireReason(reason);
         if (!StringUtils.hasText(txnRef)) {
@@ -115,7 +136,7 @@ public class AdminWalletOpsService {
         }
     }
 
-    private void insertReverseAuditIfAbsent(int actorUserId, WalletTxn txn, String reason) {
+    private void insertReverseAuditIfAbsent(UUID actorUserId, WalletTxn txn, String reason) {
         String requestId = reverseAuditRequestId(txn.getRequestId());
         if (walletAdminActionMapper.selectByRequestId(requestId) != null) {
             return;
@@ -130,8 +151,9 @@ public class AdminWalletOpsService {
         }
     }
 
-    private void insertAudit(String requestId, int actorUserId, long targetAccountId, String actionType, long amount, String reason) {
+    private void insertAudit(String requestId, UUID actorUserId, UUID targetAccountId, String actionType, long amount, String reason) {
         WalletAdminAction action = new WalletAdminAction();
+        action.setActionId(idGenerator.next());
         action.setRequestId(requestId);
         action.setActorUserId(actorUserId);
         action.setTargetAccountId(targetAccountId);
@@ -149,15 +171,15 @@ public class AdminWalletOpsService {
         return "reversal:" + txnRef;
     }
 
-    private void validateActor(int actorUserId) {
-        if (actorUserId <= 0) {
-            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "actorUserId must be positive");
+    private void validateActor(UUID actorUserId) {
+        if (actorUserId == null) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "actorUserId must not be null");
         }
     }
 
-    private void validateTargetUser(int targetUserId) {
-        if (targetUserId <= 0) {
-            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "targetUserId must be positive");
+    private void validateTargetUser(UUID targetUserId) {
+        if (targetUserId == null) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "targetUserId must not be null");
         }
     }
 

@@ -3,23 +3,24 @@ package com.nowcoder.community.market.dto;
 import com.nowcoder.community.market.entity.MarketOrder;
 
 import java.util.Date;
+import java.util.UUID;
 
 public record MarketOrderResponse(
-        long orderId,
+        UUID orderId,
         String requestId,
-        long listingId,
+        UUID listingId,
         String goodsType,
-        int sellerUserId,
-        int buyerUserId,
+        UUID sellerUserId,
+        UUID buyerUserId,
         int quantity,
         long unitPriceSnapshot,
         long totalAmount,
         String deliveryModeSnapshot,
         String listingTitleSnapshot,
         String status,
-        Long escrowTxnId,
-        Long releaseTxnId,
-        Long refundTxnId,
+        UUID escrowTxnId,
+        UUID releaseTxnId,
+        UUID refundTxnId,
         Date autoConfirmAt,
         Date createTime,
         Date updateTime

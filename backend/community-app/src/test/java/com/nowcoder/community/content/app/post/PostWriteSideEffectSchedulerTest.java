@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -15,21 +16,23 @@ class PostWriteSideEffectSchedulerTest {
     void schedulePostScoreRefreshShouldRunImmediatelyWhenNoTransaction() {
         PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
         PostWriteSideEffectScheduler scheduler = new PostWriteSideEffectScheduler(postScoreQueue);
+        var postId = uuid(101);
 
-        scheduler.schedulePostScoreRefresh(101);
+        scheduler.schedulePostScoreRefresh(postId);
 
-        verify(postScoreQueue).add(101);
+        verify(postScoreQueue).add(postId);
     }
 
     @Test
     void schedulePostScoreRefreshShouldRunAfterCommitWhenTransactionActive() {
         PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
         PostWriteSideEffectScheduler scheduler = new PostWriteSideEffectScheduler(postScoreQueue);
+        var postId = uuid(101);
 
         TransactionSynchronizationManager.initSynchronization();
         TransactionSynchronizationManager.setActualTransactionActive(true);
         try {
-            scheduler.schedulePostScoreRefresh(101);
+            scheduler.schedulePostScoreRefresh(postId);
 
             verifyNoInteractions(postScoreQueue);
             for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
@@ -40,6 +43,6 @@ class PostWriteSideEffectSchedulerTest {
             TransactionSynchronizationManager.setActualTransactionActive(false);
         }
 
-        verify(postScoreQueue).add(101);
+        verify(postScoreQueue).add(postId);
     }
 }

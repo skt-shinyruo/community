@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/blocks")
@@ -29,40 +30,39 @@ public class BlockController {
 
     @PostMapping
     public Result<Void> block(Authentication authentication, @Valid @RequestBody BlockRequest request) {
-        int userId = CurrentUser.requireUserId(authentication);
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         blockService.block(userId, request.getUserId());
         return Result.ok();
     }
 
     @DeleteMapping
-    public Result<Void> unblock(Authentication authentication, @RequestParam int userId) {
-        int actorId = CurrentUser.requireUserId(authentication);
+    public Result<Void> unblock(Authentication authentication, @RequestParam UUID userId) {
+        UUID actorId = CurrentUser.requireUserUuid(authentication);
         blockService.unblock(actorId, userId);
         return Result.ok();
     }
 
     @GetMapping
-    public Result<List<Integer>> list(Authentication authentication) {
-        int userId = CurrentUser.requireUserId(authentication);
+    public Result<List<UUID>> list(Authentication authentication) {
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(blockService.listBlockedUserIds(userId));
     }
 
     @GetMapping("/status")
-    public Result<Boolean> status(Authentication authentication, @RequestParam int userId) {
-        int actorId = CurrentUser.requireUserId(authentication);
+    public Result<Boolean> status(Authentication authentication, @RequestParam UUID userId) {
+        UUID actorId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(blockService.hasBlocked(actorId, userId));
     }
 
     public static class BlockRequest {
         @NotNull
-        @Min(1)
-        private Integer userId;
+        private UUID userId;
 
-        public Integer getUserId() {
+        public UUID getUserId() {
             return userId;
         }
 
-        public void setUserId(Integer userId) {
+        public void setUserId(UUID userId) {
             this.userId = userId;
         }
     }

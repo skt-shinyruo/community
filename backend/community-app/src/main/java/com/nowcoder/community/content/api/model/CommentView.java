@@ -1,13 +1,14 @@
 package com.nowcoder.community.content.api.model;
 
 import java.util.Date;
+import java.util.UUID;
 
 public record CommentView(
-        int id,
-        int userId,
+        UUID id,
+        UUID userId,
         int entityType,
-        int entityId,
-        int targetId,
+        UUID entityId,
+        UUID targetId,
         String content,
         Date createTime,
         Date updateTime,

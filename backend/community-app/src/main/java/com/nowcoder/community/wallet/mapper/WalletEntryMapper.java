@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.UUID;
 
 @Repository
 @Mapper
@@ -13,5 +14,5 @@ public interface WalletEntryMapper {
 
     int insert(WalletEntry entry);
 
-    List<WalletEntry> selectByTxnId(@Param("txnId") long txnId);
+    List<WalletEntry> selectByTxnId(@Param("txnId") UUID txnId);
 }

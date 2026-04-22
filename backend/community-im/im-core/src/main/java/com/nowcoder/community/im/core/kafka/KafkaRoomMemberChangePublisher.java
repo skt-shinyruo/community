@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @Component
 @ConditionalOnProperty(prefix = "im.room-member-change", name = "publisher", havingValue = "kafka")
@@ -18,7 +19,7 @@ public class KafkaRoomMemberChangePublisher implements RoomMemberChangePublisher
     }
 
     @Override
-    public void publishJoined(long roomId, int userId) {
+    public void publishJoined(UUID roomId, UUID userId) {
         Instant now = Instant.now();
         eventProducer.publishRoomMemberChanged(new RoomMemberChangedEventV1(
                 "evt_room_member_joined_" + roomId + "_" + userId + "_" + now.toEpochMilli(),
@@ -30,7 +31,7 @@ public class KafkaRoomMemberChangePublisher implements RoomMemberChangePublisher
     }
 
     @Override
-    public void publishLeft(long roomId, int userId) {
+    public void publishLeft(UUID roomId, UUID userId) {
         Instant now = Instant.now();
         eventProducer.publishRoomMemberChanged(new RoomMemberChangedEventV1(
                 "evt_room_member_left_" + roomId + "_" + userId + "_" + now.toEpochMilli(),

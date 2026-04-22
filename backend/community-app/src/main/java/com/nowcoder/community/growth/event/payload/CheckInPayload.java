@@ -1,17 +1,18 @@
 package com.nowcoder.community.growth.event.payload;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
 public class CheckInPayload {
 
-    private int userId;
+    private UUID userId;
     private LocalDate bizDate;
 
-    public int getUserId() {
+    public UUID getUserId() {
         return userId;
     }
 
-    public void setUserId(int userId) {
+    public void setUserId(UUID userId) {
         this.userId = userId;
     }
 

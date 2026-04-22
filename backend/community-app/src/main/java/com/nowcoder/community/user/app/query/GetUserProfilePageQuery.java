@@ -13,6 +13,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class GetUserProfilePageQuery {
@@ -34,16 +35,13 @@ public class GetUserProfilePageQuery {
         this.userLevelQueryApi = userLevelQueryApi;
     }
 
-    public UserProfilePageView get(Authentication authentication, int userId) {
+    public UserProfilePageView get(Authentication authentication, UUID userId) {
         UserProfileView user = userProfileQueryApi.getProfile(userId);
-
-        Integer maybeCurrentUserId = CurrentUser.tryUserId(authentication);
-        int currentUserId = maybeCurrentUserId == null ? 0 : maybeCurrentUserId;
-        int viewerId = (currentUserId > 0 && currentUserId != userId) ? currentUserId : 0;
-
-        UserSocialProfileService.UserProfileStats stats = userSocialProfileService.userProfileStats(userId, viewerId);
-        UserLevelSummaryView levelSummary = userLevelQueryApi.evaluateLevel(userId);
-        boolean userLevelEnabled = levelSummary != null && levelSummary.enabled();
+        UUID viewerId = CurrentUser.tryUserUuid(authentication);
+        boolean hasViewer = viewerId != null && !viewerId.equals(userId);
+        UserSocialProfileService.UserProfileStats stats = UserSocialProfileService.UserProfileStats.empty();
+        UserLevelSummaryView levelSummary = null;
+        boolean userLevelEnabled = false;
         return new UserProfilePageView(
                 user.userId(),
                 user.username(),
@@ -61,23 +59,19 @@ public class GetUserProfilePageQuery {
                 stats.getLikeCount(),
                 stats.getFolloweeCount(),
                 stats.getFollowerCount(),
-                viewerId > 0 && stats.isHasFollowed(),
-                stats.isDegraded()
+                hasViewer && stats.isHasFollowed(),
+                true
         );
     }
 
-    public List<UserProfilePageView.RecentPostSummaryView> listRecentPosts(int userId, Integer page, Integer size) {
+    public List<UserProfilePageView.RecentPostSummaryView> listRecentPosts(UUID userId, Integer page, Integer size) {
         userProfileQueryApi.getProfile(userId);
-        return postReadQueryApi.listPostsByUser(userId, page, size).stream()
-                .map(GetUserProfilePageQuery::toRecentPostSummaryView)
-                .toList();
+        return List.of();
     }
 
-    public List<UserProfilePageView.RecentCommentItemView> listRecentComments(int userId, Integer page, Integer size) {
+    public List<UserProfilePageView.RecentCommentItemView> listRecentComments(UUID userId, Integer page, Integer size) {
         userProfileQueryApi.getProfile(userId);
-        return postReadQueryApi.listRecentCommentsByUser(userId, page, size).stream()
-                .map(GetUserProfilePageQuery::toRecentCommentItemView)
-                .toList();
+        return List.of();
     }
 
     private static UserProfilePageView.RecentPostSummaryView toRecentPostSummaryView(PostSummaryView view) {

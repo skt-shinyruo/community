@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/im/unread")
@@ -27,7 +28,7 @@ public class UnreadController {
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(name = "limit", required = false, defaultValue = "500") int limit
     ) {
-        int me = CurrentUser.userIdOrThrow(jwt);
+        UUID me = CurrentUser.userIdOrThrow(jwt);
         int l = Math.min(Math.max(1, limit), 5000);
         List<UnreadService.RoomUnreadItem> rooms = unreadService.listRoomUnread(me, l);
         List<UnreadService.ConversationUnreadItem> conversations = unreadService.listConversationUnread(me, l);

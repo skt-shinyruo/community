@@ -2,6 +2,7 @@ package com.nowcoder.community.wallet.service;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.wallet.dto.CreateRechargeResponse;
 import com.nowcoder.community.wallet.entity.RechargeOrder;
@@ -17,6 +18,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.UUID;
+
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -57,22 +61,34 @@ class RechargeServiceTest {
     }
 
     @Test
-    void completeRechargeShouldCreditUserWalletOnce() {
-        CreateRechargeResponse result = rechargeService.complete("recharge:req-1", 101, 1200);
+    void completeRechargeShouldCreditUserWalletOnceAndPersistUuidv7OrderId() {
+        UUID userId = uuid(101);
+        CreateRechargeResponse result = rechargeService.complete("recharge:req-1", userId, 1200);
 
         assertThat(result.status()).isEqualTo("PAID");
-        assertThat(accountService.balanceOfUser(101)).isEqualTo(1200);
+        assertThat(accountService.balanceOfUser(userId)).isEqualTo(1200);
+        UUID parsedOrderId = result.orderId();
+        assertThat(parsedOrderId.version()).isEqualTo(7);
+
+        byte[] storedOrderId = jdbcTemplate.queryForObject(
+                "select order_id from recharge_order where request_id = ?",
+                (rs, rowNum) -> rs.getBytes(1),
+                "recharge:req-1"
+        );
+        assertThat(storedOrderId).hasSize(16);
+        assertThat(BinaryUuidCodec.fromBytes(storedOrderId)).isEqualTo(parsedOrderId);
     }
 
     @Test
     void completeRechargeShouldReturnExistingOrderForSameRequestIdAndPayload() {
-        CreateRechargeResponse first = rechargeService.complete("recharge:req-replay", 101, 1200);
+        UUID userId = uuid(101);
+        CreateRechargeResponse first = rechargeService.complete("recharge:req-replay", userId, 1200);
 
-        CreateRechargeResponse second = rechargeService.complete("recharge:req-replay", 101, 1200);
+        CreateRechargeResponse second = rechargeService.complete("recharge:req-replay", userId, 1200);
 
         assertThat(second.orderId()).isEqualTo(first.orderId());
         assertThat(second.status()).isEqualTo("PAID");
-        assertThat(accountService.balanceOfUser(101)).isEqualTo(1200);
+        assertThat(accountService.balanceOfUser(userId)).isEqualTo(1200);
         assertThat(countRows("recharge_order")).isEqualTo(1);
         assertThat(countRows("wallet_txn")).isEqualTo(1);
         assertThat(countRows("wallet_entry")).isEqualTo(2);
@@ -80,9 +96,9 @@ class RechargeServiceTest {
 
     @Test
     void completeRechargeShouldRejectReplayWhenUserIdDoesNotMatchExistingOrder() {
-        rechargeService.complete("recharge:req-user-mismatch", 101, 1200);
+        rechargeService.complete("recharge:req-user-mismatch", uuid(101), 1200);
 
-        assertThatThrownBy(() -> rechargeService.complete("recharge:req-user-mismatch", 202, 1200))
+        assertThatThrownBy(() -> rechargeService.complete("recharge:req-user-mismatch", uuid(202), 1200))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.REQUEST_REPLAY_CONFLICT))
                 .hasMessageContaining("requestId");
@@ -90,9 +106,9 @@ class RechargeServiceTest {
 
     @Test
     void completeRechargeShouldRejectReplayWhenAmountDoesNotMatchExistingOrder() {
-        rechargeService.complete("recharge:req-amount-mismatch", 101, 1200);
+        rechargeService.complete("recharge:req-amount-mismatch", uuid(101), 1200);
 
-        assertThatThrownBy(() -> rechargeService.complete("recharge:req-amount-mismatch", 101, 1300))
+        assertThatThrownBy(() -> rechargeService.complete("recharge:req-amount-mismatch", uuid(101), 1300))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.REQUEST_REPLAY_CONFLICT))
                 .hasMessageContaining("requestId");
@@ -105,25 +121,29 @@ class RechargeServiceTest {
         WalletLedgerService mockedLedgerService = mock(WalletLedgerService.class);
         RechargeService service = new RechargeService(mapper, mockedAccountService, mockedLedgerService);
 
-        RechargeOrder createdOrder = order(10L, "recharge:req-race", 101, 1200, "CREATED");
-        RechargeOrder paidOrder = order(10L, "recharge:req-race", 101, 1200, "PAID");
+        UUID userId = uuid(101);
+        UUID orderId = UUID.fromString("00000000-0000-7000-8000-000000000622");
+        RechargeOrder createdOrder = order(orderId, "recharge:req-race", userId, 1200, "CREATED");
+        RechargeOrder paidOrder = order(orderId, "recharge:req-race", userId, 1200, "PAID");
 
         when(mapper.selectByRequestId("recharge:req-race"))
                 .thenReturn(null, createdOrder, paidOrder);
-        when(mockedAccountService.ensureSystemAccount("PLATFORM_CASH")).thenReturn(1L);
-        when(mockedAccountService.ensureUserWallet(101)).thenReturn(2L);
+        when(mockedAccountService.ensureSystemAccount("PLATFORM_CASH"))
+                .thenReturn(UUID.fromString("00000000-0000-7000-8000-000000000623"));
+        when(mockedAccountService.ensureUserWallet(userId))
+                .thenReturn(UUID.fromString("00000000-0000-7000-8000-000000000624"));
         org.mockito.Mockito.doThrow(new DuplicateKeyException("duplicate request"))
                 .when(mapper).insert(any(RechargeOrder.class));
 
-        CreateRechargeResponse result = service.complete("recharge:req-race", 101, 1200);
+        CreateRechargeResponse result = service.complete("recharge:req-race", userId, 1200);
 
-        assertThat(result.orderId()).isEqualTo(10L);
+        assertThat(result.orderId()).isEqualTo(orderId);
         assertThat(result.status()).isEqualTo("PAID");
         verify(mockedLedgerService).post(eq("recharge:req-race"), eq(WalletTxnType.RECHARGE), anyList());
         verify(mapper).updateStatus("recharge:req-race", "CREATED", "PAID");
     }
 
-    private RechargeOrder order(long orderId, String requestId, long userId, long amount, String status) {
+    private RechargeOrder order(UUID orderId, String requestId, UUID userId, long amount, String status) {
         RechargeOrder order = new RechargeOrder();
         order.setOrderId(orderId);
         order.setRequestId(requestId);

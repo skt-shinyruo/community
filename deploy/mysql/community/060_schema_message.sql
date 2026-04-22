@@ -5,9 +5,9 @@
 use community;
 
 create table if not exists message (
-  id int auto_increment primary key,
-  from_id int,
-  to_id int,
+  id binary(16) primary key,
+  from_id binary(16),
+  to_id binary(16),
   conversation_id varchar(255),
   content varchar(4000),
   status int default 0,

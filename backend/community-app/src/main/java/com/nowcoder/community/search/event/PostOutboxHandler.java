@@ -11,6 +11,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.util.UUID;
+
 /**
  * Outbox handler for search(post) projection.
  *
@@ -53,13 +55,13 @@ public class PostOutboxHandler implements OutboxHandler {
             throw new IllegalStateException("search outbox payload 反序列化失败", e);
         }
 
-        int postId = payload.getPostId();
-        if (postId <= 0) {
+        UUID postId = payload.getPostId();
+        if (postId == null) {
             return;
         }
 
         PostScanView.PostProjectionView projection = postScanQueryApi.getPostProjectionAllowDeleted(postId);
-        if (projection == null || projection.postId() <= 0 || projection.status() == 2) {
+        if (projection == null || projection.postId() == null || projection.status() == 2) {
             postSearchRepository.delete(postId);
             return;
         }
@@ -69,15 +71,15 @@ public class PostOutboxHandler implements OutboxHandler {
 
     public static class PostOutboxPayload {
 
-        private int postId;
+        private UUID postId;
         private String sourceEventId;
         private String sourceEventType;
 
-        public int getPostId() {
+        public UUID getPostId() {
             return postId;
         }
 
-        public void setPostId(int postId) {
+        public void setPostId(UUID postId) {
             this.postId = postId;
         }
 

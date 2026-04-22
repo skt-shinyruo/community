@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
@@ -21,33 +22,32 @@ public class SubscriptionService {
         this.categoryService = categoryService;
     }
 
-    public void subscribeCategory(int userId, int categoryId) {
-        if (userId <= 0 || categoryId <= 0) {
+    public void subscribeCategory(UUID userId, UUID categoryId) {
+        if (userId == null || categoryId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId/categoryId 非法");
         }
         categoryService.getById(categoryId);
         categoryMapper.insertSubscription(userId, categoryId, new Date());
     }
 
-    public void unsubscribeCategory(int userId, int categoryId) {
-        if (userId <= 0 || categoryId <= 0) {
+    public void unsubscribeCategory(UUID userId, UUID categoryId) {
+        if (userId == null || categoryId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId/categoryId 非法");
         }
         categoryMapper.deleteSubscription(userId, categoryId);
     }
 
-    public boolean hasSubscribedCategory(int userId, int categoryId) {
-        if (userId <= 0 || categoryId <= 0) {
+    public boolean hasSubscribedCategory(UUID userId, UUID categoryId) {
+        if (userId == null || categoryId == null) {
             return false;
         }
         return categoryMapper.existsSubscription(userId, categoryId) > 0;
     }
 
-    public List<Integer> listSubscribedCategoryIds(int userId) {
-        if (userId <= 0) {
+    public List<UUID> listSubscribedCategoryIds(UUID userId) {
+        if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         return categoryMapper.selectSubscribedCategoryIds(userId);
     }
 }
-

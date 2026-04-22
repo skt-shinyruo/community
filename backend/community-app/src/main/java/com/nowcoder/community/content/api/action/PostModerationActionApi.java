@@ -1,10 +1,12 @@
 package com.nowcoder.community.content.api.action;
 
+import java.util.UUID;
+
 public interface PostModerationActionApi {
 
-    void top(int actorUserId, int postId);
+    void top(UUID actorUserId, UUID postId);
 
-    void wonderful(int actorUserId, int postId);
+    void wonderful(UUID actorUserId, UUID postId);
 
-    void delete(int actorUserId, int postId);
+    void delete(UUID actorUserId, UUID postId);
 }

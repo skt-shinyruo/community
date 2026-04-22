@@ -26,6 +26,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -72,8 +73,8 @@ class CommandConsumerIsolationIntegrationTest {
 
     @Test
     void invalidRoomCommand_shouldGoToDlq_andNotBlockFollowingCommands() throws Exception {
-        int sender = 1;
-        long roomId = roomMembershipService.createRoom(sender, "room");
+        UUID sender = uuid(1);
+        UUID roomId = roomMembershipService.createRoom(sender, "room");
 
         String dlqTopic = ImTopics.COMMAND_ROOM_TEXT_V1 + ".dlq";
 
@@ -91,7 +92,7 @@ class CommandConsumerIsolationIntegrationTest {
         ConsumerRecord<String, String> dlqRecord = pollForSingleRecord(consumer, dlqTopic, Duration.ofSeconds(10));
         JsonNode dlqJson = objectMapper.readTree(dlqRecord.value());
         assertThat(dlqJson.path("clientMsgId").asText("")).isEqualTo("c-bad");
-        assertThat(dlqJson.path("roomId").asLong()).isEqualTo(roomId);
+        assertThat(dlqJson.path("roomId").asText("")).isEqualTo(roomId.toString());
 
         kafkaTemplate.send(
                 ImTopics.COMMAND_ROOM_TEXT_V1,
@@ -101,9 +102,9 @@ class CommandConsumerIsolationIntegrationTest {
 
         ConsumerRecord<String, String> eventRecord = pollForSingleRecord(consumer, ImTopics.EVENT_ROOM_PERSISTED_V1, Duration.ofSeconds(10));
         JsonNode eventJson = objectMapper.readTree(eventRecord.value());
-        assertThat(eventJson.path("roomId").asLong()).isEqualTo(roomId);
+        assertThat(eventJson.path("roomId").asText("")).isEqualTo(roomId.toString());
         assertThat(eventJson.path("seq").asLong()).isEqualTo(1L);
-        assertThat(eventJson.path("fromUserId").asInt()).isEqualTo(sender);
+        assertThat(eventJson.path("fromUserId").asText("")).isEqualTo(sender.toString());
     }
 
     private Consumer<String, String> newStringConsumer(String groupId) {
@@ -135,5 +136,8 @@ class CommandConsumerIsolationIntegrationTest {
         }
         throw new AssertionError("Timed out waiting for record on topic " + topic);
     }
-}
 
+    private static UUID uuid(long suffix) {
+        return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
+    }
+}

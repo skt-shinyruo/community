@@ -1,17 +1,18 @@
 package com.nowcoder.community.social.follow.dto;
 
 import java.time.Instant;
+import java.util.UUID;
 
 public class FollowItem {
 
-    private int targetId;
+    private UUID targetId;
     private Instant followTime;
 
-    public int getTargetId() {
+    public UUID getTargetId() {
         return targetId;
     }
 
-    public void setTargetId(int targetId) {
+    public void setTargetId(UUID targetId) {
         this.targetId = targetId;
     }
 
@@ -23,4 +24,3 @@ public class FollowItem {
         this.followTime = followTime;
     }
 }
-

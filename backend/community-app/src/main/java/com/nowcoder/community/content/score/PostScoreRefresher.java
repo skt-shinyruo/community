@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.UUID;
 
 @Component
 public class PostScoreRefresher {
@@ -55,7 +56,7 @@ public class PostScoreRefresher {
             return;
         }
         for (int i = 0; i < batchSize; i++) {
-            Integer postId = scoreQueue.pop();
+            UUID postId = scoreQueue.pop();
             if (postId == null) {
                 return;
             }
@@ -63,16 +64,15 @@ public class PostScoreRefresher {
         }
     }
 
-    void refreshSafely(int postId) {
-        int pid = Math.max(0, postId);
-        if (pid <= 0) {
+    void refreshSafely(UUID postId) {
+        if (postId == null) {
             meterRegistry.counter("content_post_score_refresh_total", Tags.of("outcome", "drop_invalid")).increment();
             return;
         }
         try {
-            refresh(pid);
+            refresh(postId);
             try {
-                scoreQueue.onSuccess(pid);
+                scoreQueue.onSuccess(postId);
             } catch (RuntimeException ignored) {
             }
             meterRegistry.counter("content_post_score_refresh_total", Tags.of("outcome", "success")).increment();
@@ -84,14 +84,14 @@ public class PostScoreRefresher {
                 return;
             }
             meterRegistry.counter("content_post_score_refresh_total", Tags.of("outcome", "failed")).increment();
-            reenqueue(pid, e);
+            reenqueue(postId, e);
         } catch (RuntimeException e) {
             meterRegistry.counter("content_post_score_refresh_total", Tags.of("outcome", "failed")).increment();
-            reenqueue(pid, e);
+            reenqueue(postId, e);
         }
     }
 
-    private void reenqueue(int postId, RuntimeException e) {
+    private void reenqueue(UUID postId, RuntimeException e) {
         try {
             scoreQueue.reenqueue(postId);
             meterRegistry.counter("content_post_score_refresh_total", Tags.of("outcome", "reenqueue")).increment();
@@ -102,7 +102,7 @@ public class PostScoreRefresher {
         log.warn("[post-score] refresh failed, re-enqueued (postId={}): {}", postId, e.toString());
     }
 
-    void refresh(int postId) {
+    void refresh(UUID postId) {
         DiscussPost post = postService.getById(postId);
 
         boolean wonderful = post.getStatus() == 1;

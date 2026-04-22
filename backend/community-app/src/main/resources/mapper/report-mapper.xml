@@ -9,27 +9,27 @@
     </sql>
 
     <sql id="insertFields">
-        reporter_id, target_type, target_id, reason, detail, status, create_time
+        id, reporter_id, target_type, target_id, reason, detail, status, create_time
     </sql>
 
-    <insert id="insertReport" parameterType="com.nowcoder.community.content.entity.Report" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+    <insert id="insertReport" parameterType="com.nowcoder.community.content.entity.Report">
         insert into report(<include refid="insertFields"></include>)
-        values(#{reporterId}, #{targetType}, #{targetId}, #{reason}, #{detail}, #{status}, #{createTime})
+        values(#{id, jdbcType=BINARY}, #{reporterId, jdbcType=BINARY}, #{targetType}, #{targetId, jdbcType=BINARY}, #{reason}, #{detail}, #{status}, #{createTime})
     </insert>
 
-    <select id="selectReportIdByDedupeKey" resultType="int">
+    <select id="selectReportIdByDedupeKey" resultType="java.util.UUID">
         select id
         from report
-        where reporter_id = #{reporterId}
+        where reporter_id = #{reporterId, jdbcType=BINARY}
           and target_type = #{targetType}
-          and target_id = #{targetId}
+          and target_id = #{targetId, jdbcType=BINARY}
         limit 1
     </select>
 
     <select id="selectReportById" resultType="com.nowcoder.community.content.entity.Report">
         select <include refid="selectFields"></include>
         from report
-        where id = #{id}
+        where id = #{id, jdbcType=BINARY}
     </select>
 
     <select id="selectReports" resultType="com.nowcoder.community.content.entity.Report">
@@ -43,14 +43,14 @@
             and target_type = #{targetType}
         </if>
         <if test="reporterId != null">
-            and reporter_id = #{reporterId}
+            and reporter_id = #{reporterId, jdbcType=BINARY}
         </if>
         order by create_time desc, id desc
         limit #{offset}, #{limit}
     </select>
 
     <update id="updateStatus">
-        update report set status = #{status} where id = #{id}
+        update report set status = #{status} where id = #{id, jdbcType=BINARY}
     </update>
 
 </mapper>

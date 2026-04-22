@@ -10,6 +10,8 @@ import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import com.nowcoder.community.wallet.api.action.WalletRewardActionApi;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @Service
 public class PointsProjectionService {
 
@@ -36,8 +38,8 @@ public class PointsProjectionService {
         if (event == null || !(event.payload() instanceof LikePayload payload)) {
             return null;
         }
-        int toUserId = payload.getEntityUserId() == null ? 0 : payload.getEntityUserId();
-        if (toUserId <= 0 || toUserId == payload.getActorUserId()) {
+        UUID toUserId = payload.getEntityUserId();
+        if (toUserId == null || toUserId.equals(payload.getActorUserId())) {
             return null;
         }
         if (SocialEventTypes.LIKE_CREATED.equals(event.type())) {
@@ -50,7 +52,7 @@ public class PointsProjectionService {
     }
 
     public void project(PointsProjectionCommand command) {
-        if (command == null || command.userId() <= 0 || command.delta() == 0) {
+        if (command == null || command.userId() == null || command.delta() == 0) {
             return;
         }
         walletRewardActionApi.applyDelta(
@@ -62,7 +64,7 @@ public class PointsProjectionService {
     }
 
     public record PointsProjectionCommand(
-            int userId,
+            UUID userId,
             int delta,
             String sourceEventId,
             String sourceEventType

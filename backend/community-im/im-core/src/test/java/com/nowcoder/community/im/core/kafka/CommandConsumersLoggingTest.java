@@ -25,6 +25,7 @@ import org.springframework.kafka.listener.MessageListenerContainer;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -50,22 +51,25 @@ class CommandConsumersLoggingTest {
 
     @Test
     void privateCommandShouldLogPersistedSummaryAtDebugWithoutMessageContent() {
+        UUID fromUserId = uuid(101);
+        UUID toUserId = uuid(202);
+        String conversationId = fromUserId + "_" + toUserId;
         SendPrivateTextCommandV1 cmd = new SendPrivateTextCommandV1(
                 "req-1",
                 "c1",
-                101,
-                202,
-                "101_202",
+                fromUserId,
+                toUserId,
+                conversationId,
                 "hello-private",
                 System.currentTimeMillis()
         );
         PrivateMessagePersistedEventV1 event = new PrivateMessagePersistedEventV1(
                 "evt-1",
-                "101_202",
+                conversationId,
                 7L,
-                7001L,
-                101,
-                202,
+                uuid(7001),
+                fromUserId,
+                toUserId,
                 "hello-private",
                 System.currentTimeMillis()
         );
@@ -82,11 +86,11 @@ class CommandConsumersLoggingTest {
                     .contains("community.category=async")
                     .contains("community.action=im_private_command_persist")
                     .contains("community.outcome=success")
-                    .contains("user.id=101")
+                    .contains("user.id=" + fromUserId)
                     .contains("community.target_type=conversation")
-                    .contains("community.target_id=101_202")
+                    .contains("community.target_id=" + conversationId)
                     .contains("community.message_seq=7")
-                    .contains("community.message_id=7001")
+                    .contains("community.message_id=" + uuid(7001))
                     .contains("community.client_msg_id=c1")
                     .doesNotContain("hello-private");
         } finally {
@@ -96,20 +100,21 @@ class CommandConsumersLoggingTest {
 
     @Test
     void roomCommandShouldLogPersistedSummaryAtDebug() {
+        UUID fromUserId = uuid(88);
         SendRoomTextCommandV1 cmd = new SendRoomTextCommandV1(
                 "req-2",
                 "c2",
-                88,
-                9001L,
+                fromUserId,
+                uuid(9001),
                 "hello-room",
                 System.currentTimeMillis()
         );
         RoomMessagePersistedEventV1 event = new RoomMessagePersistedEventV1(
                 "evt-2",
-                9001L,
+                uuid(9001),
                 3L,
-                8080L,
-                88,
+                uuid(8080),
+                fromUserId,
                 System.currentTimeMillis()
         );
         when(roomMessageService.persist(cmd)).thenReturn(event);
@@ -125,11 +130,11 @@ class CommandConsumersLoggingTest {
                     .contains("community.category=async")
                     .contains("community.action=im_room_command_persist")
                     .contains("community.outcome=success")
-                    .contains("user.id=88")
+                    .contains("user.id=" + fromUserId)
                     .contains("community.target_type=room")
-                    .contains("community.target_id=9001")
+                    .contains("community.target_id=" + uuid(9001))
                     .contains("community.message_seq=3")
-                    .contains("community.message_id=8080")
+                    .contains("community.message_id=" + uuid(8080))
                     .contains("community.client_msg_id=c2")
                     .doesNotContain("hello-room");
         } finally {
@@ -226,5 +231,9 @@ class CommandConsumersLoggingTest {
             ListAppender<ILoggingEvent> appender,
             Level previousLevel
     ) {
+    }
+
+    private static UUID uuid(long suffix) {
+        return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
     }
 }

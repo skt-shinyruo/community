@@ -16,8 +16,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.nowcoder.community.support.TestUuids.uuid;
 
 @SpringBootTest(
         classes = CommunityAppApplication.class,
@@ -68,85 +70,99 @@ class MarketOrderServiceTest {
 
     @Test
     void createPhysicalOrderShouldSnapshotSelectedAddressAndStayEscrowedBeforeShipment() {
-        long listingId = seedPhysicalListing(7);
-        long addressId = seedAddress(9, true);
-        seedBuyerBalance(9, 20_000L);
+        UUID sellerUserId = uuid(7);
+        UUID buyerUserId = uuid(9);
+        UUID listingId = seedPhysicalListing(sellerUserId);
+        UUID addressId = seedAddress(buyerUserId, true);
+        seedBuyerBalance(buyerUserId, 20_000L);
 
-        MarketOrderResponse response = marketOrderService.createOrder("physical:req-1", 9, listingId, 1, addressId);
+        MarketOrderResponse response = marketOrderService.createOrder("physical:req-1", buyerUserId, listingId, 1, addressId);
 
         assertThat(response.goodsType()).isEqualTo("PHYSICAL");
         assertThat(response.status()).isEqualTo("ESCROWED");
         assertThat(response.autoConfirmAt()).isNull();
 
-        MarketOrderDetailResponse detail = marketQueryService.getOrderDetail(response.orderId(), 9);
+        MarketOrderDetailResponse detail = marketQueryService.getOrderDetail(response.orderId(), buyerUserId);
         assertThat(detail.receiverNameSnapshot()).isEqualTo("张三");
         assertThat(detail.shipment()).isNull();
     }
 
     @Test
     void buyerAndSellerQueriesShouldReturnUnifiedMixedOrderSnapshots() {
-        seedBuyerBalance(9, 40_000L);
-        long virtualOrderId = seedDeliveredVirtualOrder(7, 9);
-        long physicalOrderId = seedEscrowedPhysicalOrder(8, 9);
+        UUID firstSellerUserId = uuid(7);
+        UUID secondSellerUserId = uuid(8);
+        UUID buyerUserId = uuid(9);
+        seedBuyerBalance(buyerUserId, 40_000L);
+        UUID virtualOrderId = seedDeliveredVirtualOrder(firstSellerUserId, buyerUserId);
+        UUID physicalOrderId = seedEscrowedPhysicalOrder(secondSellerUserId, buyerUserId);
 
-        assertThat(marketQueryService.listBuyingOrders(9))
+        assertThat(marketQueryService.listBuyingOrders(buyerUserId))
                 .extracting(MarketOrderResponse::goodsType)
                 .contains("VIRTUAL", "PHYSICAL");
-        assertThat(marketQueryService.listSellingOrders(8))
+        assertThat(marketQueryService.listSellingOrders(secondSellerUserId))
                 .extracting(MarketOrderResponse::orderId)
                 .contains(physicalOrderId);
-        assertThat(marketQueryService.getOrderDetail(virtualOrderId, 9).deliveryContents())
+        assertThat(marketQueryService.getOrderDetail(virtualOrderId, buyerUserId).deliveryContents())
                 .containsExactly("CODE-001");
     }
 
     @Test
     void deliverVirtualOrderShouldPersistManualDeliveryContent() {
-        seedBuyerBalance(9, 20_000L);
-        long orderId = seedEscrowedVirtualOrder(7, 9);
+        UUID sellerUserId = uuid(7);
+        UUID buyerUserId = uuid(9);
+        seedBuyerBalance(buyerUserId, 20_000L);
+        UUID orderId = seedEscrowedVirtualOrder(sellerUserId, buyerUserId);
 
-        MarketOrderResponse delivered = marketOrderService.deliverVirtualOrder(orderId, 7, "CODE-001");
+        MarketOrderResponse delivered = marketOrderService.deliverVirtualOrder(orderId, sellerUserId, "CODE-001");
 
         assertThat(delivered.status()).isEqualTo("DELIVERED");
         assertThat(delivered.autoConfirmAt()).isNotNull();
-        assertThat(marketQueryService.getOrderDetail(orderId, 9).deliveryContents()).containsExactly("CODE-001");
+        assertThat(marketQueryService.getOrderDetail(orderId, buyerUserId).deliveryContents()).containsExactly("CODE-001");
     }
 
     @Test
     void confirmDeliveredVirtualOrderShouldReleaseEscrowToSeller() {
-        seedBuyerBalance(9, 20_000L);
-        long orderId = seedEscrowedVirtualOrder(7, 9);
-        marketOrderService.deliverVirtualOrder(orderId, 7, "CODE-001");
+        UUID sellerUserId = uuid(7);
+        UUID buyerUserId = uuid(9);
+        seedBuyerBalance(buyerUserId, 20_000L);
+        UUID orderId = seedEscrowedVirtualOrder(sellerUserId, buyerUserId);
+        marketOrderService.deliverVirtualOrder(orderId, sellerUserId, "CODE-001");
 
-        MarketOrderResponse confirmed = marketOrderService.confirmOrder(orderId, 9);
+        MarketOrderResponse confirmed = marketOrderService.confirmOrder(orderId, buyerUserId);
 
         assertThat(confirmed.status()).isEqualTo("COMPLETED");
-        assertThat(balanceOfUser(7)).isEqualTo(1_200L);
+        assertThat(balanceOfUser(sellerUserId)).isEqualTo(1_200L);
     }
 
     @Test
     void shipPhysicalOrderShouldPersistShipmentAndSetSevenDayAutoConfirm() {
-        seedBuyerBalance(9, 20_000L);
-        long orderId = seedEscrowedPhysicalOrder(7, 9);
+        UUID sellerUserId = uuid(7);
+        UUID buyerUserId = uuid(9);
+        seedBuyerBalance(buyerUserId, 20_000L);
+        UUID orderId = seedEscrowedPhysicalOrder(sellerUserId, buyerUserId);
 
-        MarketOrderResponse shipped = marketOrderService.shipPhysicalOrder(orderId, 7, "顺丰", "SF1234567890", "工作日派送");
+        MarketOrderResponse shipped =
+                marketOrderService.shipPhysicalOrder(orderId, sellerUserId, "顺丰", "SF1234567890", "工作日派送");
 
         assertThat(shipped.status()).isEqualTo("SHIPPED");
         assertThat(shipped.autoConfirmAt()).isNotNull();
-        assertThat(marketQueryService.getOrderDetail(orderId, 9).shipment().trackingNo()).isEqualTo("SF1234567890");
+        assertThat(marketQueryService.getOrderDetail(orderId, buyerUserId).shipment().trackingNo()).isEqualTo("SF1234567890");
     }
 
     @Test
     void cancelPhysicalOrderBeforeShipmentShouldRefundBuyer() {
-        seedBuyerBalance(9, 20_000L);
-        long orderId = seedEscrowedPhysicalOrder(7, 9);
+        UUID sellerUserId = uuid(7);
+        UUID buyerUserId = uuid(9);
+        seedBuyerBalance(buyerUserId, 20_000L);
+        UUID orderId = seedEscrowedPhysicalOrder(sellerUserId, buyerUserId);
 
-        MarketOrderResponse cancelled = marketOrderService.cancelOrder(orderId, 9);
+        MarketOrderResponse cancelled = marketOrderService.cancelOrder(orderId, buyerUserId);
 
         assertThat(cancelled.status()).isEqualTo("CANCELLED");
-        assertThat(balanceOfUser(9)).isEqualTo(20_000L);
+        assertThat(balanceOfUser(buyerUserId)).isEqualTo(20_000L);
     }
 
-    private long seedDeliveredVirtualOrder(int sellerUserId, int buyerUserId) {
+    private UUID seedDeliveredVirtualOrder(UUID sellerUserId, UUID buyerUserId) {
         CreateMarketListingRequest request = new CreateMarketListingRequest();
         request.setGoodsType("VIRTUAL");
         request.setTitle("Steam 兑换码");
@@ -162,11 +178,11 @@ class MarketOrderServiceTest {
         inventory.setPayloadType("CODE");
         inventory.setPayloads(List.of("CODE-001"));
 
-        long listingId = marketListingService.createListing(sellerUserId, request, inventory).listingId();
+        UUID listingId = marketListingService.createListing(sellerUserId, request, inventory).listingId();
         return marketOrderService.createOrder("virtual:req-1", buyerUserId, listingId, 1, null).orderId();
     }
 
-    private long seedEscrowedVirtualOrder(int sellerUserId, int buyerUserId) {
+    private UUID seedEscrowedVirtualOrder(UUID sellerUserId, UUID buyerUserId) {
         CreateMarketListingRequest request = new CreateMarketListingRequest();
         request.setGoodsType("VIRTUAL");
         request.setTitle("邀请码");
@@ -178,17 +194,17 @@ class MarketOrderServiceTest {
         request.setMinPurchaseQuantity(1);
         request.setMaxPurchaseQuantity(2);
 
-        long listingId = marketListingService.createListing(sellerUserId, request, null).listingId();
+        UUID listingId = marketListingService.createListing(sellerUserId, request, null).listingId();
         return marketOrderService.createOrder("virtual:manual:req-1", buyerUserId, listingId, 1, null).orderId();
     }
 
-    private long seedEscrowedPhysicalOrder(int sellerUserId, int buyerUserId) {
-        long listingId = seedPhysicalListing(sellerUserId);
-        long addressId = seedAddress(buyerUserId, true);
+    private UUID seedEscrowedPhysicalOrder(UUID sellerUserId, UUID buyerUserId) {
+        UUID listingId = seedPhysicalListing(sellerUserId);
+        UUID addressId = seedAddress(buyerUserId, true);
         return marketOrderService.createOrder("physical:req-2", buyerUserId, listingId, 1, addressId).orderId();
     }
 
-    private long seedPhysicalListing(int sellerUserId) {
+    private UUID seedPhysicalListing(UUID sellerUserId) {
         CreateMarketListingRequest request = new CreateMarketListingRequest();
         request.setGoodsType("PHYSICAL");
         request.setTitle("二手键盘");
@@ -200,7 +216,7 @@ class MarketOrderServiceTest {
         return marketListingService.createListing(sellerUserId, request, null).listingId();
     }
 
-    private long seedAddress(int userId, boolean isDefault) {
+    private UUID seedAddress(UUID userId, boolean isDefault) {
         CreateMarketAddressRequest request = new CreateMarketAddressRequest();
         request.setReceiverName("张三");
         request.setReceiverPhone("13800000000");
@@ -213,8 +229,8 @@ class MarketOrderServiceTest {
         return marketAddressService.createAddress(userId, request).addressId();
     }
 
-    private void seedBuyerBalance(int userId, long balance) {
-        long accountId = walletAccountService.ensureUserWallet(userId);
+    private void seedBuyerBalance(UUID userId, long balance) {
+        UUID accountId = walletAccountService.ensureUserWallet(userId);
         jdbcTemplate.update(
                 "update wallet_account set balance = ?, version = 0, status = 'ACTIVE' where account_id = ?",
                 balance,
@@ -222,7 +238,7 @@ class MarketOrderServiceTest {
         );
     }
 
-    private long balanceOfUser(int userId) {
+    private long balanceOfUser(UUID userId) {
         return walletAccountService.balanceOfUser(userId);
     }
 }

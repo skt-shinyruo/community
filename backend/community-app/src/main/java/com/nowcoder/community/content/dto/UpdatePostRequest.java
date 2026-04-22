@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Size;
 import com.nowcoder.community.common.constants.ValidationLimits;
 
 import java.util.List;
+import java.util.UUID;
 
 public class UpdatePostRequest {
 
@@ -17,7 +18,7 @@ public class UpdatePostRequest {
     @Size(max = ValidationLimits.POST_CONTENT_MAX)
     private String content;
 
-    private Integer categoryId;
+    private UUID categoryId;
 
     @Size(max = ValidationLimits.TAGS_MAX)
     private List<@Size(max = ValidationLimits.TAG_MAX) String> tags;
@@ -38,11 +39,11 @@ public class UpdatePostRequest {
         this.content = content;
     }
 
-    public Integer getCategoryId() {
+    public UUID getCategoryId() {
         return categoryId;
     }
 
-    public void setCategoryId(Integer categoryId) {
+    public void setCategoryId(UUID categoryId) {
         this.categoryId = categoryId;
     }
 

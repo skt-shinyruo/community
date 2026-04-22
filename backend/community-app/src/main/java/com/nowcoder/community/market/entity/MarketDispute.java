@@ -1,37 +1,38 @@
 package com.nowcoder.community.market.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class MarketDispute {
 
-    private long disputeId;
-    private long orderId;
+    private UUID disputeId;
+    private UUID orderId;
     private String goodsType;
-    private int buyerUserId;
-    private int sellerUserId;
+    private UUID buyerUserId;
+    private UUID sellerUserId;
     private String status;
     private String reason;
     private String buyerNote;
     private String sellerNote;
     private String resolutionType;
-    private Integer resolvedBy;
+    private UUID resolvedBy;
     private Date resolvedAt;
     private Date createTime;
     private Date updateTime;
 
-    public long getDisputeId() {
+    public UUID getDisputeId() {
         return disputeId;
     }
 
-    public void setDisputeId(long disputeId) {
+    public void setDisputeId(UUID disputeId) {
         this.disputeId = disputeId;
     }
 
-    public long getOrderId() {
+    public UUID getOrderId() {
         return orderId;
     }
 
-    public void setOrderId(long orderId) {
+    public void setOrderId(UUID orderId) {
         this.orderId = orderId;
     }
 
@@ -43,19 +44,19 @@ public class MarketDispute {
         this.goodsType = goodsType;
     }
 
-    public int getBuyerUserId() {
+    public UUID getBuyerUserId() {
         return buyerUserId;
     }
 
-    public void setBuyerUserId(int buyerUserId) {
+    public void setBuyerUserId(UUID buyerUserId) {
         this.buyerUserId = buyerUserId;
     }
 
-    public int getSellerUserId() {
+    public UUID getSellerUserId() {
         return sellerUserId;
     }
 
-    public void setSellerUserId(int sellerUserId) {
+    public void setSellerUserId(UUID sellerUserId) {
         this.sellerUserId = sellerUserId;
     }
 
@@ -99,11 +100,11 @@ public class MarketDispute {
         this.resolutionType = resolutionType;
     }
 
-    public Integer getResolvedBy() {
+    public UUID getResolvedBy() {
         return resolvedBy;
     }
 
-    public void setResolvedBy(Integer resolvedBy) {
+    public void setResolvedBy(UUID resolvedBy) {
         this.resolvedBy = resolvedBy;
     }
 

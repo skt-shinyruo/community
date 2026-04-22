@@ -16,6 +16,7 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 
 import java.time.Duration;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -62,6 +63,7 @@ class RegistrationServiceTest {
 
     @Test
     void registerShouldIssueEmailCodeAndReturnMaskedEmailAndDebugCode(CapturedOutput output) {
+        UUID userId = uuid(7);
         RegisterRequest request = new RegisterRequest();
         request.setUsername("alice");
         request.setPassword("secret");
@@ -69,37 +71,41 @@ class RegistrationServiceTest {
         request.setCaptchaId("cid");
         request.setCaptchaCode("abcd");
 
-        PendingRegistrationUserView created = new PendingRegistrationUserView(7, "alice", "alice@example.com", 0, 0, null);
+        PendingRegistrationUserView created = new PendingRegistrationUserView(userId, "alice", "alice@example.com", 0, 0, null);
 
         when(captchaService.verify("cid", "abcd")).thenReturn(true);
         when(userRegistrationActionApi.registerPendingUser("alice", "secret", "alice@example.com", Duration.ofMinutes(30))).thenReturn(created);
-        when(registrationCodeStore.issue(eq(7), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
+        when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
                 .thenReturn(RegistrationCodeStore.IssueResult.ISSUED);
-        when(registrationSessionStore.issue(eq(7), eq(Duration.ofMinutes(30))))
+        when(registrationSessionStore.issue(eq(userId), eq(Duration.ofMinutes(30))))
                 .thenReturn("0123456789abcdef0123456789abcdef");
 
         HttpServletRequest httpRequest = new MockHttpServletRequest();
         RegisterResponse response = service.register(request, httpRequest);
 
-        assertThat(response.getUserId()).isEqualTo(7);
+        assertThat(response.getUserId()).isEqualTo(userId);
         assertThat(response.getRegistrationToken()).isNotBlank().matches("[a-f0-9]{32}");
         assertThat(response.isEmailCodeIssued()).isTrue();
         assertThat(response.getMaskedEmail()).isNotBlank().contains("@").isNotEqualTo("alice@example.com");
         assertThat(response.getDebugEmailCode()).matches("\\d{6}");
         verify(userRegistrationActionApi).registerPendingUser("alice", "secret", "alice@example.com", Duration.ofMinutes(30));
-        verify(registrationCodeStore).issue(eq(7), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)));
-        verify(registrationSessionStore).issue(eq(7), eq(Duration.ofMinutes(30)));
+        verify(registrationCodeStore).issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)));
+        verify(registrationSessionStore).issue(eq(userId), eq(Duration.ofMinutes(30)));
         verify(mailService).sendRegistrationCodeMail(eq("alice@example.com"), matches("\\d{6}"));
         assertThat(output.getAll())
                 .contains("community.category=security")
                 .contains("community.action=registration_code_issue")
                 .contains("community.outcome=success")
-                .contains("user.id=7")
+                .contains("user.id=" + userId)
                 .contains("username=alice")
                 .contains("masked.email=" + response.getMaskedEmail())
                 .doesNotContain("secret")
                 .doesNotContain("alice@example.com")
                 .doesNotContain(response.getRegistrationToken())
                 .doesNotContain(response.getDebugEmailCode());
+    }
+
+    private static UUID uuid(long suffix) {
+        return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
     }
 }

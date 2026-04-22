@@ -5,23 +5,24 @@ import com.nowcoder.community.market.entity.MarketShipment;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 public record MarketOrderDetailResponse(
-        long orderId,
+        UUID orderId,
         String requestId,
-        long listingId,
+        UUID listingId,
         String goodsType,
-        int sellerUserId,
-        int buyerUserId,
+        UUID sellerUserId,
+        UUID buyerUserId,
         int quantity,
         long unitPriceSnapshot,
         long totalAmount,
         String deliveryModeSnapshot,
         String listingTitleSnapshot,
         String status,
-        Long escrowTxnId,
-        Long releaseTxnId,
-        Long refundTxnId,
+        UUID escrowTxnId,
+        UUID releaseTxnId,
+        UUID refundTxnId,
         Date autoConfirmAt,
         String receiverNameSnapshot,
         String receiverPhoneSnapshot,
@@ -71,9 +72,9 @@ public record MarketOrderDetailResponse(
     }
 
     public record ShipmentView(
-            long shipmentId,
-            long orderId,
-            int sellerUserId,
+            UUID shipmentId,
+            UUID orderId,
+            UUID sellerUserId,
             String carrierName,
             String trackingNo,
             String shippingRemark,

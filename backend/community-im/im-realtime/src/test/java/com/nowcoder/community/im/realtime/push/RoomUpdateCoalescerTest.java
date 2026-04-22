@@ -11,6 +11,7 @@ import org.springframework.web.reactive.socket.WebSocketSession;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -36,12 +37,14 @@ class RoomUpdateCoalescerTest {
         Mockito.when(session.close()).thenReturn(Mono.empty());
 
         WsConnection conn = new WsConnection("c1", session, 100);
-        conn.bindUser(1);
+        conn.bindUser(uuid(1));
         connectionRegistry.register(conn);
 
-        coalescer.markRoomUpdated(conn, 10L, 1L);
-        coalescer.markRoomUpdated(conn, 10L, 2L);
-        coalescer.markRoomUpdated(conn, 11L, 5L);
+        UUID roomId10 = uuid(10);
+        UUID roomId11 = uuid(11);
+        coalescer.markRoomUpdated(conn, roomId10, 1L);
+        coalescer.markRoomUpdated(conn, roomId10, 2L);
+        coalescer.markRoomUpdated(conn, roomId11, 5L);
 
         String json = conn.outboundSink().asFlux()
                 .next()
@@ -56,17 +59,20 @@ class RoomUpdateCoalescerTest {
         boolean room10Ok = false;
         boolean room11Ok = false;
         for (JsonNode item : node.path("items")) {
-            long roomId = item.path("roomId").asLong();
+            String roomId = item.path("roomId").asText("");
             long lastSeq = item.path("lastSeq").asLong();
-            if (roomId == 10L) {
+            if (roomId10.toString().equals(roomId)) {
                 room10Ok = lastSeq == 2L;
             }
-            if (roomId == 11L) {
+            if (roomId11.toString().equals(roomId)) {
                 room11Ok = lastSeq == 5L;
             }
         }
         assertThat(room10Ok).isTrue();
         assertThat(room11Ok).isTrue();
     }
-}
 
+    private static UUID uuid(long suffix) {
+        return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
+    }
+}

@@ -15,6 +15,9 @@ import org.springframework.context.annotation.Import;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.UUID;
+
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -48,19 +51,21 @@ class AdminWalletControllerTest {
 
     @Test
     void nonAdminRequestsShouldBeRejected() throws Exception {
+        UUID actorUserId = uuid(2);
+        UUID targetUserId = uuid(101);
         mockMvc.perform(post("/api/wallet/admin/freeze")
-                        .with(jwt().jwt(jwt -> jwt.subject("2")).authorities(() -> "ROLE_USER"))
+                        .with(jwt().jwt(jwt -> jwt.subject(actorUserId.toString())).authorities(() -> "ROLE_USER"))
                         .contentType("application/json")
                         .content("""
                                 {
-                                  "userId": 101,
+                                  "userId": "%s",
                                   "reason": "risk review"
                                 }
-                                """))
+                                """.formatted(targetUserId)))
                 .andExpect(status().isForbidden());
 
         mockMvc.perform(post("/api/wallet/admin/reverse")
-                        .with(jwt().jwt(jwt -> jwt.subject("2")).authorities(() -> "ROLE_USER"))
+                        .with(jwt().jwt(jwt -> jwt.subject(actorUserId.toString())).authorities(() -> "ROLE_USER"))
                         .contentType("application/json")
                         .content("""
                                 {
@@ -73,25 +78,28 @@ class AdminWalletControllerTest {
 
     @Test
     void adminFreezeShouldDelegateToService() throws Exception {
+        UUID actorUserId = uuid(99);
+        UUID targetUserId = uuid(101);
         mockMvc.perform(post("/api/wallet/admin/freeze")
-                        .with(jwt().jwt(jwt -> jwt.subject("99")).authorities(() -> "ROLE_ADMIN"))
+                        .with(jwt().jwt(jwt -> jwt.subject(actorUserId.toString())).authorities(() -> "ROLE_ADMIN"))
                         .contentType("application/json")
                         .content("""
                                 {
-                                  "userId": 101,
+                                  "userId": "%s",
                                   "reason": "risk review"
                                 }
-                                """))
+                                """.formatted(targetUserId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
 
-        verify(adminWalletOpsService).freezeWallet(99, 101, "risk review");
+        verify(adminWalletOpsService).freezeWallet(actorUserId, targetUserId, "risk review");
     }
 
     @Test
     void adminReverseShouldDelegateToService() throws Exception {
+        UUID actorUserId = uuid(99);
         mockMvc.perform(post("/api/wallet/admin/reverse")
-                        .with(jwt().jwt(jwt -> jwt.subject("99")).authorities(() -> "ROLE_ADMIN"))
+                        .with(jwt().jwt(jwt -> jwt.subject(actorUserId.toString())).authorities(() -> "ROLE_ADMIN"))
                         .contentType("application/json")
                         .content("""
                                 {
@@ -102,6 +110,6 @@ class AdminWalletControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0));
 
-        verify(adminWalletOpsService).reverseTxn(99, "transfer:req-1", "fraud report");
+        verify(adminWalletOpsService).reverseTxn(actorUserId, "transfer:req-1", "fraud report");
     }
 }

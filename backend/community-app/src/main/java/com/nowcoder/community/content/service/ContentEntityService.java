@@ -4,6 +4,8 @@ import com.nowcoder.community.content.api.model.ResolvedContentRef;
 import com.nowcoder.community.content.api.query.ContentEntityQueryApi;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @Service
 public class ContentEntityService {
 
@@ -13,11 +15,11 @@ public class ContentEntityService {
         this.contentEntityQueryApi = contentEntityQueryApi;
     }
 
-    public ResolvedEntity resolve(int entityType, int entityId) {
+    public ResolvedEntity resolve(int entityType, UUID entityId) {
         ResolvedContentRef resolved = contentEntityQueryApi.resolve(entityType, entityId);
         return new ResolvedEntity(resolved.entityUserId(), resolved.postId());
     }
 
-    public record ResolvedEntity(int entityUserId, int postId) {
+    public record ResolvedEntity(UUID entityUserId, UUID postId) {
     }
 }

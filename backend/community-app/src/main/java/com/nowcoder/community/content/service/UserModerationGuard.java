@@ -6,6 +6,7 @@ import com.nowcoder.community.user.api.query.UserModerationQueryApi;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -24,8 +25,8 @@ public class UserModerationGuard {
         this.userModerationQueryApi = userModerationQueryApi;
     }
 
-    public void assertCanSpeak(int userId) {
-        if (userId <= 0) {
+    public void assertCanSpeak(UUID userId) {
+        if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
 
@@ -38,5 +39,9 @@ public class UserModerationGuard {
         if (status != null && status.muteUntil() != null && status.muteUntil().isAfter(now)) {
             throw new BusinessException(FORBIDDEN, "你已被禁言，暂时无法发言");
         }
+    }
+
+    public void assertCanSpeak(int userId) {
+        throw new BusinessException(INVALID_ARGUMENT, "numeric userId 已不再受支持");
     }
 }

@@ -1,20 +1,21 @@
 package com.nowcoder.community.growth.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class RewardAccount {
 
-    private int userId;
+    private UUID userId;
     private int availableBalance;
     private int frozenBalance;
     private int version;
     private Date updateTime;
 
-    public int getUserId() {
+    public UUID getUserId() {
         return userId;
     }
 
-    public void setUserId(int userId) {
+    public void setUserId(UUID userId) {
         this.userId = userId;
     }
 

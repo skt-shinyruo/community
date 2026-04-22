@@ -15,6 +15,7 @@ import org.springframework.util.DigestUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND;
@@ -45,7 +46,7 @@ class UserCredentialServiceTest {
     @Test
     void authenticateShouldRejectDisabledUser() {
         UserCredentialService service = new UserCredentialService(userMapper);
-        when(userMapper.selectByName("alice")).thenReturn(disabledUser("alice"));
+        when(userMapper.selectByName("alice")).thenReturn(disabledUser(uuid(7), "alice"));
 
         UserAuthenticationResultView result = service.authenticate("alice", "pw");
 
@@ -57,7 +58,8 @@ class UserCredentialServiceTest {
     @Test
     void authenticateShouldUpgradeLegacyPasswordHashOnSuccessfulMatch() {
         UserCredentialService service = new UserCredentialService(userMapper);
-        User user = activeUser(7, "alice");
+        UUID userId = uuid(7);
+        User user = activeUser(userId, "alice");
         user.setSalt("abc");
         user.setPassword(md5("secretabc"));
         when(userMapper.selectByName("alice")).thenReturn(user);
@@ -66,14 +68,14 @@ class UserCredentialServiceTest {
         UserCredentialView authenticated = authenticationResult.user();
 
         ArgumentCaptor<String> passwordCaptor = ArgumentCaptor.forClass(String.class);
-        verify(userMapper).updatePassword(eq(7), passwordCaptor.capture());
+        verify(userMapper).updatePassword(eq(userId), passwordCaptor.capture());
         assertThat(authenticationResult.authenticated()).isTrue();
         assertThat(authenticated).extracting(
                 UserCredentialView::userId,
                 UserCredentialView::username,
                 UserCredentialView::status,
                 UserCredentialView::type
-        ).containsExactly(7, "alice", 1, 0);
+        ).containsExactly(userId, "alice", 1, 0);
         assertThat(new BCryptPasswordEncoder().matches("secret", passwordCaptor.getValue())).isTrue();
         assertThat(user.getPassword()).isEqualTo(passwordCaptor.getValue());
     }
@@ -81,11 +83,12 @@ class UserCredentialServiceTest {
     @Test
     void getByUserIdShouldProjectCredentialView() {
         UserCredentialService service = new UserCredentialService(userMapper);
-        User user = activeUser(7, "alice");
+        UUID userId = uuid(7);
+        User user = activeUser(userId, "alice");
         user.setHeaderUrl("h7");
-        when(userMapper.selectById(7)).thenReturn(user);
+        when(userMapper.selectById(userId)).thenReturn(user);
 
-        UserCredentialView credential = service.getByUserId(7);
+        UserCredentialView credential = service.getByUserId(userId);
 
         assertThat(credential).extracting(
                 UserCredentialView::userId,
@@ -93,15 +96,16 @@ class UserCredentialServiceTest {
                 UserCredentialView::status,
                 UserCredentialView::type,
                 UserCredentialView::headerUrl
-        ).containsExactly(7, "alice", 1, 0, "h7");
+        ).containsExactly(userId, "alice", 1, 0, "h7");
     }
 
     @Test
     void getByUserIdShouldRejectMissingUser() {
         UserCredentialService service = new UserCredentialService(userMapper);
-        when(userMapper.selectById(7)).thenReturn(null);
+        UUID userId = uuid(7);
+        when(userMapper.selectById(userId)).thenReturn(null);
 
-        assertThatThrownBy(() -> service.getByUserId(7))
+        assertThatThrownBy(() -> service.getByUserId(userId))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(USER_NOT_FOUND);
@@ -110,9 +114,10 @@ class UserCredentialServiceTest {
     @Test
     void updatePasswordShouldRejectMissingUser() {
         UserCredentialService service = new UserCredentialService(userMapper);
-        when(userMapper.selectById(7)).thenReturn(null);
+        UUID userId = uuid(7);
+        when(userMapper.selectById(userId)).thenReturn(null);
 
-        assertThatThrownBy(() -> service.updatePassword(7, "secret"))
+        assertThatThrownBy(() -> service.updatePassword(userId, "secret"))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(USER_NOT_FOUND);
@@ -121,22 +126,23 @@ class UserCredentialServiceTest {
     @Test
     void updatePasswordShouldPersistBcryptHashForExistingUser() {
         UserCredentialService service = new UserCredentialService(userMapper);
-        when(userMapper.selectById(7)).thenReturn(activeUser(7, "alice"));
-        when(userMapper.updatePassword(eq(7), org.mockito.ArgumentMatchers.anyString())).thenReturn(1);
+        UUID userId = uuid(7);
+        when(userMapper.selectById(userId)).thenReturn(activeUser(userId, "alice"));
+        when(userMapper.updatePassword(eq(userId), org.mockito.ArgumentMatchers.anyString())).thenReturn(1);
 
-        service.updatePassword(7, "  secret  ");
+        service.updatePassword(userId, "  secret  ");
 
         ArgumentCaptor<String> passwordCaptor = ArgumentCaptor.forClass(String.class);
-        verify(userMapper).updatePassword(eq(7), passwordCaptor.capture());
+        verify(userMapper).updatePassword(eq(userId), passwordCaptor.capture());
         assertThat(new BCryptPasswordEncoder().matches("secret", passwordCaptor.getValue())).isTrue();
     }
 
     @Test
     void authoritiesOfShouldMapUserTypesToExpectedRoles() {
         UserCredentialService service = new UserCredentialService(userMapper);
-        UserCredentialView admin = new UserCredentialView(1, "admin", 1, 1, "h1");
-        UserCredentialView moderator = new UserCredentialView(2, "mod", 1, 2, "h2");
-        UserCredentialView regular = new UserCredentialView(3, "user", 1, 0, "h3");
+        UserCredentialView admin = new UserCredentialView(uuid(1), "admin", 1, 1, "h1");
+        UserCredentialView moderator = new UserCredentialView(uuid(2), "mod", 1, 2, "h2");
+        UserCredentialView regular = new UserCredentialView(uuid(3), "user", 1, 0, "h3");
 
         assertThat(service.authoritiesOf((UserCredentialView) null)).isEmpty();
         assertThat(service.authoritiesOf(admin)).isEqualTo(List.of("ROLE_ADMIN"));
@@ -148,7 +154,7 @@ class UserCredentialServiceTest {
     void updatePasswordShouldRejectBlankPassword() {
         UserCredentialService service = new UserCredentialService(userMapper);
 
-        assertThatThrownBy(() -> service.updatePassword(7, "  "))
+        assertThatThrownBy(() -> service.updatePassword(uuid(7), "  "))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> {
                     BusinessException businessException = (BusinessException) ex;
@@ -157,7 +163,7 @@ class UserCredentialServiceTest {
                 });
     }
 
-    private User activeUser(int id, String username) {
+    private User activeUser(UUID id, String username) {
         User user = new User();
         user.setId(id);
         user.setUsername(username);
@@ -166,13 +172,17 @@ class UserCredentialServiceTest {
         return user;
     }
 
-    private User disabledUser(String username) {
-        User user = activeUser(7, username);
+    private User disabledUser(UUID id, String username) {
+        User user = activeUser(id, username);
         user.setStatus(0);
         return user;
     }
 
     private String md5(String input) {
         return DigestUtils.md5DigestAsHex(input.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static UUID uuid(long suffix) {
+        return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
     }
 }

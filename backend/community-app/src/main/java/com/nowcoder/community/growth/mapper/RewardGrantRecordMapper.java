@@ -4,13 +4,16 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.UUID;
+
 @Repository
 @Mapper
 public interface RewardGrantRecordMapper {
 
     int insert(
+            @Param("id") UUID id,
             @Param("grantId") String grantId,
-            @Param("userId") int userId,
+            @Param("userId") UUID userId,
             @Param("grantType") String grantType,
             @Param("sourceEventId") String sourceEventId,
             @Param("sourceEventType") String sourceEventType,

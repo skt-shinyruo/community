@@ -24,6 +24,6 @@ public record UserAuthenticationResultView(
     }
 
     public boolean authenticated() {
-        return failure == Failure.NONE && user != null && user.userId() > 0;
+        return failure == Failure.NONE && user != null && user.userId() != null;
     }
 }

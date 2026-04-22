@@ -11,6 +11,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 import static com.nowcoder.community.common.exception.CommonErrorCode.SERVICE_UNAVAILABLE;
 
 /**
@@ -33,8 +35,8 @@ public class ContentEntityResolver {
         this.contentEntityQueryApi = contentEntityQueryApi;
     }
 
-    public ResolvedEntity resolve(int entityType, int entityId) {
-        if (entityId <= 0) {
+    public ResolvedEntity resolve(int entityType, UUID entityId) {
+        if (entityId == null) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "entityId 非法");
         }
         if (entityType != EntityTypes.POST && entityType != EntityTypes.COMMENT) {
@@ -44,12 +46,12 @@ public class ContentEntityResolver {
         return resolveInternal(entityType, entityId);
     }
 
-    private ResolvedEntity resolveInternal(int entityType, int entityId) {
+    private ResolvedEntity resolveInternal(int entityType, UUID entityId) {
         try {
             ResolvedContentRef data = contentEntityQueryApi.resolve(entityType, entityId);
-            int entityUserId = data == null ? 0 : data.entityUserId();
-            int postId = data == null ? 0 : data.postId();
-            if (entityUserId <= 0 || postId <= 0) {
+            UUID entityUserId = data == null ? null : data.entityUserId();
+            UUID postId = data == null ? null : data.postId();
+            if (entityUserId == null || postId == null) {
                 count(entityType, "service", "incomplete");
                 throw new BusinessException(SERVICE_UNAVAILABLE, "内容实体解析结果缺失或不完整");
             }
@@ -74,19 +76,19 @@ public class ContentEntityResolver {
     }
 
     public static final class ResolvedEntity {
-        private final int entityUserId;
-        private final int postId;
+        private final UUID entityUserId;
+        private final UUID postId;
 
-        public ResolvedEntity(int entityUserId, int postId) {
+        public ResolvedEntity(UUID entityUserId, UUID postId) {
             this.entityUserId = entityUserId;
             this.postId = postId;
         }
 
-        public int getEntityUserId() {
+        public UUID getEntityUserId() {
             return entityUserId;
         }
 
-        public int getPostId() {
+        public UUID getPostId() {
             return postId;
         }
     }

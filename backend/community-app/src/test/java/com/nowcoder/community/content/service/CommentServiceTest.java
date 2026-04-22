@@ -14,11 +14,12 @@ import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.UUID;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
@@ -52,13 +53,14 @@ class CommentServiceTest {
         );
 
         Comment comment = new Comment();
-        comment.setId(11);
-        when(commentMapper.selectRecentCommentsByUser(7, 5, 5)).thenReturn(List.of(comment));
+        UUID userId = uuid(7);
+        comment.setId(uuid(11));
+        when(commentMapper.selectRecentCommentsByUser(userId, 5, 5)).thenReturn(List.of(comment));
 
-        List<Comment> rows = service.listRecentCommentsByUser(7, 1, 5);
+        List<Comment> rows = service.listRecentCommentsByUser(userId, 1, 5);
 
         assertThat(rows).hasSize(1);
-        verify(commentMapper).selectRecentCommentsByUser(7, 5, 5);
+        verify(commentMapper).selectRecentCommentsByUser(userId, 5, 5);
     }
 
     @Test
@@ -83,20 +85,23 @@ class CommentServiceTest {
                 textCodec
         );
 
+        UUID postId = uuid(100);
+        UUID postAuthorId = uuid(2);
+        UUID targetCommentId = uuid(200);
         DiscussPost post = new DiscussPost();
-        post.setId(100);
-        post.setUserId(2);
-        when(postService.getById(100)).thenReturn(post);
+        post.setId(postId);
+        post.setUserId(postAuthorId);
+        when(postService.getById(postId)).thenReturn(post);
 
         Comment target = new Comment();
-        target.setId(200);
-        target.setUserId(2);
+        target.setId(targetCommentId);
+        target.setUserId(postAuthorId);
         target.setStatus(0);
         target.setEntityType(CommentService.ENTITY_TYPE_POST);
-        target.setEntityId(999); // 属于其他 post
-        when(commentMapper.selectCommentById(200)).thenReturn(target);
+        target.setEntityId(uuid(999));
+        when(commentMapper.selectCommentById(targetCommentId)).thenReturn(target);
 
-        assertThatThrownBy(() -> service.addComment(1, 100, CommentService.ENTITY_TYPE_COMMENT, 200, null, "hi"))
+        assertThatThrownBy(() -> service.addComment(uuid(1), postId, CommentService.ENTITY_TYPE_COMMENT, targetCommentId, null, "hi"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> {
                     BusinessException be = (BusinessException) e;
@@ -129,20 +134,23 @@ class CommentServiceTest {
                 textCodec
         );
 
+        UUID postId = uuid(100);
+        UUID postAuthorId = uuid(2);
+        UUID targetCommentId = uuid(200);
         DiscussPost post = new DiscussPost();
-        post.setId(100);
-        post.setUserId(2);
-        when(postService.getById(100)).thenReturn(post);
+        post.setId(postId);
+        post.setUserId(postAuthorId);
+        when(postService.getById(postId)).thenReturn(post);
 
         Comment target = new Comment();
-        target.setId(200);
-        target.setUserId(2);
+        target.setId(targetCommentId);
+        target.setUserId(postAuthorId);
         target.setStatus(0);
         target.setEntityType(CommentService.ENTITY_TYPE_COMMENT); // reply
-        target.setEntityId(123);
-        when(commentMapper.selectCommentById(200)).thenReturn(target);
+        target.setEntityId(uuid(123));
+        when(commentMapper.selectCommentById(targetCommentId)).thenReturn(target);
 
-        assertThatThrownBy(() -> service.addComment(1, 100, CommentService.ENTITY_TYPE_COMMENT, 200, null, "hi"))
+        assertThatThrownBy(() -> service.addComment(uuid(1), postId, CommentService.ENTITY_TYPE_COMMENT, targetCommentId, null, "hi"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> {
                     BusinessException be = (BusinessException) e;
@@ -175,19 +183,22 @@ class CommentServiceTest {
                 textCodec
         );
 
+        UUID actorUserId = uuid(1);
+        UUID postId = uuid(100);
+        UUID postAuthorId = uuid(2);
         DiscussPost post = new DiscussPost();
-        post.setId(100);
-        post.setUserId(2);
-        when(postService.getById(100)).thenReturn(post);
+        post.setId(postId);
+        post.setUserId(postAuthorId);
+        when(postService.getById(postId)).thenReturn(post);
 
         when(sensitiveFilter.filter(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        doNothing().when(postScoreQueue).add(anyInt());
+        doNothing().when(postScoreQueue).add(any(UUID.class));
         doNothing().when(eventPublisher).publishCommentCreated(any());
 
-        doNothing().when(moderationGuard).assertCanSpeak(eq(1));
-        when(blockQueryApplicationService.isEitherBlocked(1, 2)).thenThrow(new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "user 模块不可用"));
+        doNothing().when(moderationGuard).assertCanSpeak(eq(actorUserId));
+        when(blockQueryApplicationService.isEitherBlocked(actorUserId, postAuthorId)).thenThrow(new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "user 模块不可用"));
 
-        assertThatThrownBy(() -> service.addComment(1, 100, CommentService.ENTITY_TYPE_POST, null, 0, "hi"))
+        assertThatThrownBy(() -> service.addComment(actorUserId, postId, CommentService.ENTITY_TYPE_POST, null, null, "hi"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> {
                     BusinessException be = (BusinessException) e;
@@ -220,15 +231,18 @@ class CommentServiceTest {
                 textCodec
         );
 
+        UUID actorUserId = uuid(1);
+        UUID postId = uuid(100);
+        UUID postAuthorId = uuid(2);
         DiscussPost post = new DiscussPost();
-        post.setId(100);
-        post.setUserId(2);
-        when(postService.getById(100)).thenReturn(post);
+        post.setId(postId);
+        post.setUserId(postAuthorId);
+        when(postService.getById(postId)).thenReturn(post);
 
-        doNothing().when(moderationGuard).assertCanSpeak(eq(1));
-        when(blockQueryApplicationService.isEitherBlocked(1, 2)).thenReturn(true);
+        doNothing().when(moderationGuard).assertCanSpeak(eq(actorUserId));
+        when(blockQueryApplicationService.isEitherBlocked(actorUserId, postAuthorId)).thenReturn(true);
 
-        assertThatThrownBy(() -> service.addComment(1, 100, CommentService.ENTITY_TYPE_POST, null, 0, "hi"))
+        assertThatThrownBy(() -> service.addComment(actorUserId, postId, CommentService.ENTITY_TYPE_POST, null, null, "hi"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> {
                     BusinessException be = (BusinessException) e;
@@ -261,25 +275,28 @@ class CommentServiceTest {
                 textCodec
         );
 
+        UUID actorUserId = uuid(1);
+        UUID postId = uuid(100);
+        UUID postAuthorId = uuid(2);
         DiscussPost post = new DiscussPost();
-        post.setId(100);
-        post.setUserId(2);
-        when(postService.getById(100)).thenReturn(post);
+        post.setId(postId);
+        post.setUserId(postAuthorId);
+        when(postService.getById(postId)).thenReturn(post);
 
         when(sensitiveFilter.filter(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        doNothing().when(postScoreQueue).add(anyInt());
+        doNothing().when(postScoreQueue).add(any(UUID.class));
         doNothing().when(eventPublisher).publishCommentCreated(any());
 
-        doNothing().when(moderationGuard).assertCanSpeak(eq(1));
-        when(blockQueryApplicationService.isEitherBlocked(1, 2)).thenReturn(false);
+        doNothing().when(moderationGuard).assertCanSpeak(eq(actorUserId));
+        when(blockQueryApplicationService.isEitherBlocked(actorUserId, postAuthorId)).thenReturn(false);
 
         doAnswer(invocation -> {
             Comment c = invocation.getArgument(0);
-            c.setId(123);
+            c.setId(uuid(123));
             return 1;
         }).when(commentMapper).insertComment(any(Comment.class));
 
-        service.addComment(1, 100, CommentService.ENTITY_TYPE_POST, null, 0, "hi");
+        service.addComment(actorUserId, postId, CommentService.ENTITY_TYPE_POST, null, null, "hi");
 
         verify(commentMapper).insertComment(any(Comment.class));
         verify(eventPublisher).publishCommentCreated(any());
@@ -307,25 +324,28 @@ class CommentServiceTest {
                 textCodec
         );
 
+        UUID actorUserId = uuid(1);
+        UUID postId = uuid(100);
+        UUID commentId = uuid(200);
         DiscussPost post = new DiscussPost();
-        post.setId(100);
-        when(postService.getById(100)).thenReturn(post);
+        post.setId(postId);
+        when(postService.getById(postId)).thenReturn(post);
 
         Comment existed = new Comment();
-        existed.setId(200);
-        existed.setUserId(1);
+        existed.setId(commentId);
+        existed.setUserId(actorUserId);
         existed.setStatus(0);
         existed.setEntityType(CommentService.ENTITY_TYPE_POST);
-        existed.setEntityId(100);
+        existed.setEntityId(postId);
         existed.setCreateTime(new java.util.Date());
-        when(commentMapper.selectCommentById(200)).thenReturn(existed);
+        when(commentMapper.selectCommentById(commentId)).thenReturn(existed);
 
-        doNothing().when(moderationGuard).assertCanSpeak(eq(1));
+        doNothing().when(moderationGuard).assertCanSpeak(eq(actorUserId));
         when(sensitiveFilter.filter("hello &amp; world")).thenReturn("clean");
-        when(commentMapper.updateCommentContent(eq(200), eq("clean"), any())).thenReturn(1);
+        when(commentMapper.updateCommentContent(eq(commentId), eq("clean"), any())).thenReturn(1);
 
-        service.updateComment(1, 100, 200, "hello & world");
+        service.updateComment(actorUserId, postId, commentId, "hello & world");
 
-        verify(commentMapper).updateCommentContent(eq(200), eq("clean"), any());
+        verify(commentMapper).updateCommentContent(eq(commentId), eq("clean"), any());
     }
 }

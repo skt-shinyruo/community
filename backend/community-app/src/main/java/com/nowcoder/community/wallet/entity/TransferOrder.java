@@ -1,24 +1,25 @@
 package com.nowcoder.community.wallet.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class TransferOrder {
 
-    private long orderId;
+    private UUID orderId;
     private String requestId;
-    private long fromUserId;
-    private long toUserId;
+    private UUID fromUserId;
+    private UUID toUserId;
     private long amount;
     private String status;
     private String remark;
     private Date createTime;
     private Date updateTime;
 
-    public long getOrderId() {
+    public UUID getOrderId() {
         return orderId;
     }
 
-    public void setOrderId(long orderId) {
+    public void setOrderId(UUID orderId) {
         this.orderId = orderId;
     }
 
@@ -30,19 +31,19 @@ public class TransferOrder {
         this.requestId = requestId;
     }
 
-    public long getFromUserId() {
+    public UUID getFromUserId() {
         return fromUserId;
     }
 
-    public void setFromUserId(long fromUserId) {
+    public void setFromUserId(UUID fromUserId) {
         this.fromUserId = fromUserId;
     }
 
-    public long getToUserId() {
+    public UUID getToUserId() {
         return toUserId;
     }
 
-    public void setToUserId(long toUserId) {
+    public void setToUserId(UUID toUserId) {
         this.toUserId = toUserId;
     }
 

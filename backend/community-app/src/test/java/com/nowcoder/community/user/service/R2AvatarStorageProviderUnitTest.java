@@ -9,6 +9,8 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -19,6 +21,7 @@ class R2AvatarStorageProviderUnitTest {
 
     @Test
     void uploadShouldPutObjectToBucket() {
+        UUID userId = uuid(1);
         R2Properties r2 = new R2Properties();
         r2.setBucketName("bucket");
 
@@ -28,10 +31,10 @@ class R2AvatarStorageProviderUnitTest {
         S3Client s3 = mock(S3Client.class);
         R2AvatarStorageProvider provider = new R2AvatarStorageProvider(r2, avatar, s3);
 
-        String key = "avatar/1/0123456789abcdef0123456789abcdef";
+        String key = "avatar/" + userId + "/0123456789abcdef0123456789abcdef";
         MockMultipartFile file = new MockMultipartFile("file", "a.png", "image/png", new byte[]{1, 2, 3});
 
-        provider.upload(1, key, file);
+        provider.upload(userId, key, file);
 
         var reqCaptor = org.mockito.ArgumentCaptor.forClass(PutObjectRequest.class);
         verify(s3).putObject(reqCaptor.capture(), any(software.amazon.awssdk.core.sync.RequestBody.class));
@@ -43,6 +46,7 @@ class R2AvatarStorageProviderUnitTest {
 
     @Test
     void loadOrNullShouldReturnNullWhenNotFound() {
+        UUID userId = uuid(1);
         R2Properties r2 = new R2Properties();
         r2.setBucketName("bucket");
 
@@ -53,7 +57,10 @@ class R2AvatarStorageProviderUnitTest {
         when(s3.getObject(any(GetObjectRequest.class))).thenThrow(S3Exception.builder().statusCode(404).build());
 
         R2AvatarStorageProvider provider = new R2AvatarStorageProvider(r2, avatar, s3);
-        assertThat(provider.loadOrNull("avatar/1/0123456789abcdef0123456789abcdef")).isNull();
+        assertThat(provider.loadOrNull("avatar/" + userId + "/0123456789abcdef0123456789abcdef")).isNull();
+    }
+
+    private static UUID uuid(long suffix) {
+        return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
     }
 }
-

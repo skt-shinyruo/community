@@ -47,7 +47,7 @@ public class NoticeOutboxEnqueuer {
     }
 
     private void enqueue(NoticeProjectionService.NoticeProjectionCommand command) {
-        if (command == null || command.toUserId() <= 0) {
+        if (command == null || command.toUserId() == null) {
             return;
         }
         if (command.sourceEventId() == null || command.sourceEventId().isBlank()) {

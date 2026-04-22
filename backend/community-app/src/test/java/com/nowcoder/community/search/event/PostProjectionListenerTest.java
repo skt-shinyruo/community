@@ -6,6 +6,9 @@ import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.search.repo.PostSearchRepository;
 import org.junit.jupiter.api.Test;
 
+import java.util.UUID;
+
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -17,9 +20,10 @@ class PostProjectionListenerTest {
     void publishedOrUpdatedPostsShouldUpsertIntoSearch() {
         PostSearchRepository repository = mock(PostSearchRepository.class);
         PostProjectionListener listener = new PostProjectionListener(repository);
+        UUID postId = uuid(100);
 
         PostPayload payload = new PostPayload();
-        payload.setPostId(100);
+        payload.setPostId(postId);
 
         listener.onContentEvent(new ContentContractEvent("e1", ContentEventTypes.POST_PUBLISHED, payload));
         listener.onContentEvent(new ContentContractEvent("e2", ContentEventTypes.POST_UPDATED, payload));
@@ -31,12 +35,13 @@ class PostProjectionListenerTest {
     void deletedPostsShouldBeRemovedFromSearch() {
         PostSearchRepository repository = mock(PostSearchRepository.class);
         PostProjectionListener listener = new PostProjectionListener(repository);
+        UUID postId = uuid(101);
 
         PostPayload payload = new PostPayload();
-        payload.setPostId(101);
+        payload.setPostId(postId);
 
         listener.onContentEvent(new ContentContractEvent("e3", ContentEventTypes.POST_DELETED, payload));
 
-        verify(repository).delete(101);
+        verify(repository).delete(postId);
     }
 }

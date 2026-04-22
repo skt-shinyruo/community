@@ -1,5 +1,6 @@
 package com.nowcoder.community.content.service;
 
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.dto.HotTagResponse;
 import com.nowcoder.community.content.entity.HotTag;
@@ -8,6 +9,7 @@ import com.nowcoder.community.content.entity.Tag;
 import com.nowcoder.community.content.mapper.PostTagMapper;
 import com.nowcoder.community.content.mapper.TagMapper;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -18,6 +20,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -34,10 +37,17 @@ public class TagService {
 
     private final TagMapper tagMapper;
     private final PostTagMapper postTagMapper;
+    private final UuidV7Generator idGenerator;
 
+    @Autowired
     public TagService(TagMapper tagMapper, PostTagMapper postTagMapper) {
+        this(tagMapper, postTagMapper, new UuidV7Generator());
+    }
+
+    TagService(TagMapper tagMapper, PostTagMapper postTagMapper, UuidV7Generator idGenerator) {
         this.tagMapper = tagMapper;
         this.postTagMapper = postTagMapper;
+        this.idGenerator = idGenerator;
     }
 
     public List<HotTag> listHotTags(Integer limit) {
@@ -98,19 +108,22 @@ public class TagService {
                 .toList();
     }
 
-    public Map<Integer, List<String>> getTagsByPostIds(List<Integer> postIds) {
+    public Map<UUID, List<String>> getTagsByPostIds(List<UUID> postIds) {
         if (postIds == null || postIds.isEmpty()) {
             return Map.of();
         }
         List<PostTagName> rows = postTagMapper.selectTagNamesByPostIds(postIds);
-        Map<Integer, List<String>> map = new HashMap<>();
+        Map<UUID, List<String>> map = new HashMap<>();
         for (PostTagName row : rows) {
             map.computeIfAbsent(row.getPostId(), k -> new ArrayList<>()).add(row.getName());
         }
         return map;
     }
 
-    public List<String> bindTagsToPost(int postId, List<String> rawTags) {
+    public List<String> bindTagsToPost(UUID postId, List<String> rawTags) {
+        if (postId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "postId 非法");
+        }
         List<String> tags = normalizeTags(rawTags);
         if (tags.isEmpty()) {
             return List.of();
@@ -118,7 +131,7 @@ public class TagService {
 
         Date now = new Date();
         for (String name : tags) {
-            int tagId = ensureTagId(name, now);
+            UUID tagId = ensureTagId(name, now);
             try {
                 postTagMapper.insertPostTag(postId, tagId, now);
             } catch (DuplicateKeyException ignored) {
@@ -128,8 +141,8 @@ public class TagService {
         return tags;
     }
 
-    public List<String> replaceTagsForPost(int postId, List<String> rawTags) {
-        if (postId <= 0) {
+    public List<String> replaceTagsForPost(UUID postId, List<String> rawTags) {
+        if (postId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "postId 非法");
         }
         // 先删除再绑定：MVP 采用“全量替换”，后续可优化为 diff 更新。
@@ -191,13 +204,14 @@ public class TagService {
         return normalized;
     }
 
-    private int ensureTagId(String name, Date now) {
+    private UUID ensureTagId(String name, Date now) {
         Tag existed = tagMapper.selectTagByName(name);
         if (existed != null) {
             return existed.getId();
         }
 
         Tag tag = new Tag();
+        tag.setId(idGenerator.next());
         tag.setName(name);
         tag.setCreateTime(now);
 

@@ -28,7 +28,7 @@ public class PostProjectionListener {
         if (event == null) {
             return;
         }
-        if (!(event.payload() instanceof PostPayload payload) || payload.getPostId() <= 0) {
+        if (!(event.payload() instanceof PostPayload payload) || payload.getPostId() == null) {
             return;
         }
 

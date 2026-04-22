@@ -18,6 +18,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.constants.EntityTypes.COMMENT;
 import static com.nowcoder.community.common.constants.EntityTypes.POST;
@@ -48,13 +49,13 @@ public class LikeService implements SocialLikeQueryApi {
     }
 
     @Transactional
-    public LikeResponse setLike(int actorUserId, LikeRequest request) {
-        if (actorUserId <= 0) {
+    public LikeResponse setLike(UUID actorUserId, LikeRequest request) {
+        if (actorUserId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId 非法");
         }
         int entityType = request.getEntityType();
-        int entityId = request.getEntityId();
-        if (entityType <= 0 || entityId <= 0) {
+        UUID entityId = request.getEntityId();
+        if (entityType <= 0 || entityId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType/entityId 非法");
         }
 
@@ -72,7 +73,7 @@ public class LikeService implements SocialLikeQueryApi {
         ResolvedEntity resolvedForCreate = null;
         if (liked && !existed) {
             resolvedForCreate = resolveEntityForPayload(entityType, entityId);
-            if (resolvedForCreate.entityUserId > 0
+            if (resolvedForCreate.entityUserId != null
                     && blockService != null
                     && blockService.isEitherBlocked(actorUserId, resolvedForCreate.entityUserId)) {
                 throw new BusinessException(FORBIDDEN, "双方存在拉黑关系，无法执行该操作");
@@ -80,7 +81,7 @@ public class LikeService implements SocialLikeQueryApi {
         }
 
         ResolvedEntity resolved = resolvedForCreate == null ? resolveEntityForPayload(entityType, entityId) : resolvedForCreate;
-        int entityUserId = resolved.entityUserId;
+        UUID entityUserId = resolved.entityUserId;
 
         boolean changed = likeRepository.setLike(actorUserId, entityType, entityId, entityUserId, liked);
         if (!changed) {
@@ -97,8 +98,8 @@ public class LikeService implements SocialLikeQueryApi {
         payload.setActorUserId(actorUserId);
         payload.setEntityType(entityType);
         payload.setEntityId(entityId);
-        payload.setEntityUserId(entityUserId <= 0 ? null : entityUserId);
-        payload.setPostId(resolved.postId <= 0 ? null : resolved.postId);
+        payload.setEntityUserId(entityUserId);
+        payload.setPostId(resolved.postId);
         payload.setCreateTime(Instant.now());
         try {
             if (liked) {
@@ -139,12 +140,11 @@ public class LikeService implements SocialLikeQueryApi {
         });
     }
 
-    private ResolvedEntity resolveEntityForPayload(int entityType, int entityId) {
+    private ResolvedEntity resolveEntityForPayload(int entityType, UUID entityId) {
         if (entityType == USER) {
             // user 类型的 like（如未来启用）：由 entityId 自洽推导，避免信任客户端注入字段。
             ResolvedEntity r = new ResolvedEntity();
             r.entityUserId = entityId;
-            r.postId = 0;
             return r;
         }
         if (entityType == POST || entityType == COMMENT) {
@@ -158,47 +158,50 @@ public class LikeService implements SocialLikeQueryApi {
     }
 
     private static class ResolvedEntity {
-        private int entityUserId;
-        private int postId;
+        private UUID entityUserId;
+        private UUID postId;
     }
 
-    private LikeResponse buildResponse(int actorUserId, int entityType, int entityId) {
+    private LikeResponse buildResponse(UUID actorUserId, int entityType, UUID entityId) {
         LikeResponse resp = new LikeResponse();
         resp.setLiked(likeRepository.isLiked(actorUserId, entityType, entityId));
         resp.setLikeCount(likeRepository.countEntityLikes(entityType, entityId));
         return resp;
     }
 
-    public boolean isLiked(int actorUserId, int entityType, int entityId) {
-        if (actorUserId <= 0 || entityType <= 0 || entityId <= 0) {
+    @Override
+    public boolean isLiked(UUID actorUserId, int entityType, UUID entityId) {
+        if (actorUserId == null || entityType <= 0 || entityId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "参数错误");
         }
         return likeRepository.isLiked(actorUserId, entityType, entityId);
     }
 
-    public long count(int entityType, int entityId) {
-        if (entityType <= 0 || entityId <= 0) {
+    @Override
+    public long count(int entityType, UUID entityId) {
+        if (entityType <= 0 || entityId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "参数错误");
         }
         return likeRepository.countEntityLikes(entityType, entityId);
     }
 
-    public long userLikeCount(int userId) {
-        if (userId <= 0) {
+    @Override
+    public long userLikeCount(UUID userId) {
+        if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         return likeRepository.getUserLikeCount(userId);
     }
 
-    public Map<Integer, Long> counts(int entityType, List<Integer> entityIds) {
+    public Map<UUID, Long> counts(int entityType, List<UUID> entityIds) {
         if (entityType <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
         }
         return likeRepository.countEntityLikesBatch(entityType, entityIds);
     }
 
-    public Map<Integer, Boolean> statuses(int actorUserId, int entityType, List<Integer> entityIds) {
-        if (actorUserId <= 0) {
+    public Map<UUID, Boolean> statuses(UUID actorUserId, int entityType, List<UUID> entityIds) {
+        if (actorUserId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId 非法");
         }
         if (entityType <= 0) {

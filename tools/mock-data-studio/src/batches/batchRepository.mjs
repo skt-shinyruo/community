@@ -1,4 +1,5 @@
 import { formatMysqlTimestamp, toIsoTimestamp } from '../db/mysql.mjs'
+import { bufferToUuid, generateUuidV7, uuidToBuffer } from '../db/uuidv7.mjs'
 
 function serializeJson(value) {
   return value == null ? null : JSON.stringify(value)
@@ -10,7 +11,7 @@ function parseJson(value) {
 
 function mapBatchRow(row) {
   return {
-    id: row.id,
+    id: bufferToUuid(row.id),
     batchKey: row.batch_key,
     batchType: row.batch_type,
     requestedBy: row.requested_by,
@@ -35,7 +36,7 @@ async function findBatchById(db, batchId) {
     `select id, batch_key, batch_type, requested_by, status, summary_json, error_message, created_at, started_at, finished_at
        from demo_batch
       where id = ?`,
-    [batchId]
+    [uuidToBuffer(batchId)]
   )
 
   if (rows.length === 0) {
@@ -81,11 +82,13 @@ async function listAllBatches(db) {
   return rows.map(mapBatchRow)
 }
 
-export function createBatchRepository(db) {
+export function createBatchRepository(db, { createId = generateUuidV7 } = {}) {
   return {
     async create({ batchKey, batchType, requestedBy, createdAt = new Date().toISOString() }) {
-      const result = await db.execute(
+      const id = createId()
+      await db.execute(
         `insert into demo_batch (
+          id,
           batch_key,
           batch_type,
           requested_by,
@@ -97,6 +100,7 @@ export function createBatchRepository(db) {
           finished_at
         ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
+          uuidToBuffer(id),
           batchKey,
           batchType,
           requestedBy,
@@ -109,7 +113,7 @@ export function createBatchRepository(db) {
         ]
       )
 
-      return requireBatchById(db, result.insertId)
+      return requireBatchById(db, id)
     },
 
     async markStarted(batchId, { startedAt = new Date().toISOString(), status = 'running' } = {}) {
@@ -117,7 +121,7 @@ export function createBatchRepository(db) {
         `update demo_batch
             set status = ?, started_at = ?, finished_at = null, error_message = null
           where id = ? and status = ?`,
-        [status, formatMysqlTimestamp(startedAt, 'demo_batch.startedAt'), batchId, 'pending']
+        [status, formatMysqlTimestamp(startedAt, 'demo_batch.startedAt'), uuidToBuffer(batchId), 'pending']
       )
 
       if (result.affectedRows !== 1) {
@@ -132,7 +136,7 @@ export function createBatchRepository(db) {
         `update demo_batch
             set status = ?, summary_json = null, error_message = null, started_at = null, finished_at = null
           where id = ?`,
-        ['pending', batchId]
+        ['pending', uuidToBuffer(batchId)]
       )
 
       if (result.affectedRows !== 1) {
@@ -163,7 +167,7 @@ export function createBatchRepository(db) {
           formatMysqlTimestamp(finishedAt, 'demo_batch.finishedAt'),
           serializeJson(summaryJson),
           errorMessage,
-          batchId,
+          uuidToBuffer(batchId),
           ...normalizedStatuses
         ]
       )

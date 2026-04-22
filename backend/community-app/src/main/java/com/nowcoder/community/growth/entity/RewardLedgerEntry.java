@@ -1,11 +1,12 @@
 package com.nowcoder.community.growth.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class RewardLedgerEntry {
 
-    private long id;
-    private int userId;
+    private UUID id;
+    private UUID userId;
     private String eventId;
     private String eventType;
     private int delta;
@@ -16,19 +17,19 @@ public class RewardLedgerEntry {
     private String remark;
     private Date createTime;
 
-    public long getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(long id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
-    public int getUserId() {
+    public UUID getUserId() {
         return userId;
     }
 
-    public void setUserId(int userId) {
+    public void setUserId(UUID userId) {
         this.userId = userId;
     }
 

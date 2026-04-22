@@ -5,14 +5,15 @@ import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.search.dto.SearchPostItem;
 
 import java.util.List;
+import java.util.UUID;
 
 public interface PostSearchRepository {
 
     void upsert(PostPayload post);
 
-    void delete(int postId);
+    void delete(UUID postId);
 
-    List<SearchPostItem> search(String keyword, Integer categoryId, String tag, int page, int size);
+    List<SearchPostItem> search(String keyword, UUID categoryId, String tag, int page, int size);
 
     void clear();
 
@@ -20,7 +21,7 @@ public interface PostSearchRepository {
         upsert(post);
     }
 
-    default void deleteFromIndex(int postId, String indexName) {
+    default void deleteFromIndex(UUID postId, String indexName) {
         delete(postId);
     }
 

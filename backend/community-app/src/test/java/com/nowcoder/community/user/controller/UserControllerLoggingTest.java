@@ -17,6 +17,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -43,13 +45,15 @@ class UserControllerLoggingTest {
 
     @Test
     void uploadTokenShouldLogSecurityEventWithoutUploadTokenMaterial(CapturedOutput output) {
+        UUID userId = uuid(42);
+        String fileName = "avatar/" + userId + "/0123456789abcdef0123456789abcdef";
         AvatarUploadTokenResponse response = new AvatarUploadTokenResponse();
         response.setProvider("r2");
-        response.setFileName("avatar/42/abc123");
+        response.setFileName(fileName);
         response.setUploadToken("secret-upload-token");
-        when(avatarService.createUploadToken(42)).thenReturn(response);
+        when(avatarService.createUploadToken(userId)).thenReturn(response);
 
-        Result<AvatarUploadTokenResponse> result = controller.uploadToken(authentication(42), 42);
+        Result<AvatarUploadTokenResponse> result = controller.uploadToken(authentication(userId), userId);
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).isSameAs(response);
@@ -57,15 +61,17 @@ class UserControllerLoggingTest {
                 .contains("community.category=security")
                 .contains("community.action=avatar_upload_token")
                 .contains("community.outcome=success")
-                .contains("user.id=42")
+                .contains("user.id=" + userId)
                 .contains("community.target_type=user")
-                .contains("community.target_id=42")
+                .contains("community.target_id=" + userId)
                 .contains("community.avatar_provider=r2")
                 .doesNotContain("secret-upload-token");
     }
 
     @Test
     void uploadAvatarShouldLogSecurityEventWithoutFileContent(CapturedOutput output) {
+        UUID userId = uuid(42);
+        String fileName = "avatar/" + userId + "/0123456789abcdef0123456789abcdef";
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "avatar.png",
@@ -73,18 +79,18 @@ class UserControllerLoggingTest {
                 "fake-image-bytes".getBytes()
         );
 
-        Result<Void> result = controller.uploadAvatar(authentication(42), 42, file, "avatar/42/abc123");
+        Result<Void> result = controller.uploadAvatar(authentication(userId), userId, file, fileName);
 
         assertThat(result.getCode()).isEqualTo(0);
-        verify(avatarService).upload(42, "avatar/42/abc123", file);
+        verify(avatarService).upload(userId, fileName, file);
         assertThat(output.getAll())
                 .contains("community.category=security")
                 .contains("community.action=avatar_upload")
                 .contains("community.outcome=success")
-                .contains("user.id=42")
+                .contains("user.id=" + userId)
                 .contains("community.target_type=user")
-                .contains("community.target_id=42")
-                .contains("community.avatar_file_name=avatar/42/abc123")
+                .contains("community.target_id=" + userId)
+                .contains("community.avatar_file_name=" + fileName)
                 .contains("community.file_content_type=image/png")
                 .contains("community.file_size_bytes=16")
                 .doesNotContain("fake-image-bytes");
@@ -92,31 +98,37 @@ class UserControllerLoggingTest {
 
     @Test
     void updateAvatarShouldLogSecurityEventWithoutAvatarUrl(CapturedOutput output) {
+        UUID userId = uuid(42);
+        String fileName = "avatar/" + userId + "/0123456789abcdef0123456789abcdef";
         UpdateAvatarRequest request = new UpdateAvatarRequest();
-        request.setFileName("avatar/42/abc123");
-        when(avatarService.buildAvatarUrl("avatar/42/abc123")).thenReturn("https://cdn.example.com/avatar/42/abc123");
+        request.setFileName(fileName);
+        when(avatarService.buildAvatarUrl(fileName)).thenReturn("https://cdn.example.com/" + fileName);
 
-        Result<Void> result = controller.updateAvatar(authentication(42), 42, request);
+        Result<Void> result = controller.updateAvatar(authentication(userId), userId, request);
 
         assertThat(result.getCode()).isEqualTo(0);
-        verify(avatarService).assertAndConsumeUploadTicket(42, "avatar/42/abc123");
-        verify(userService).updateHeaderUrl(42, "https://cdn.example.com/avatar/42/abc123");
+        verify(avatarService).assertAndConsumeUploadTicket(userId, fileName);
+        verify(userService).updateHeaderUrl(userId, "https://cdn.example.com/" + fileName);
         assertThat(output.getAll())
                 .contains("community.category=security")
                 .contains("community.action=avatar_update")
                 .contains("community.outcome=success")
-                .contains("user.id=42")
+                .contains("user.id=" + userId)
                 .contains("community.target_type=user")
-                .contains("community.target_id=42")
-                .contains("community.avatar_file_name=avatar/42/abc123")
-                .doesNotContain("https://cdn.example.com/avatar/42/abc123");
+                .contains("community.target_id=" + userId)
+                .contains("community.avatar_file_name=" + fileName)
+                .doesNotContain("https://cdn.example.com/" + fileName);
     }
 
-    private Authentication authentication(int userId) {
+    private Authentication authentication(UUID userId) {
         Jwt jwt = Jwt.withTokenValue("token-" + userId)
                 .header("alg", "none")
-                .subject(String.valueOf(userId))
+                .subject(userId.toString())
                 .build();
         return new TestingAuthenticationToken(jwt, null);
+    }
+
+    private static UUID uuid(long suffix) {
+        return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
     }
 }

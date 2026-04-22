@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api")
@@ -28,15 +29,15 @@ public class BookmarkController {
     }
 
     @PutMapping("/posts/{postId}/bookmark")
-    public Result<Void> bookmark(Authentication authentication, @PathVariable int postId) {
-        int userId = CurrentUser.requireUserId(authentication);
+    public Result<Void> bookmark(Authentication authentication, @PathVariable UUID postId) {
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         bookmarkService.add(userId, postId);
         return Result.ok();
     }
 
     @DeleteMapping("/posts/{postId}/bookmark")
-    public Result<Void> unbookmark(Authentication authentication, @PathVariable int postId) {
-        int userId = CurrentUser.requireUserId(authentication);
+    public Result<Void> unbookmark(Authentication authentication, @PathVariable UUID postId) {
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         bookmarkService.remove(userId, postId);
         return Result.ok();
     }
@@ -47,7 +48,7 @@ public class BookmarkController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        int userId = CurrentUser.requireUserId(authentication);
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         int p = page == null ? 0 : Math.max(0, page);
         int s = size == null ? 10 : Math.min(50, Math.max(1, size));
         return Result.ok(bookmarkService.listBookmarkedPostSummaries(userId, p, s).stream()

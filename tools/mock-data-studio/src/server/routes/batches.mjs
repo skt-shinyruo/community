@@ -3,16 +3,15 @@ import { Router } from 'express'
 import {
   defaultAutoFillMetadataBatchKey
 } from '../../jobs/autoFillService.mjs'
+import { normalizeUuid } from '../../db/uuidv7.mjs'
 import { asyncHandler } from './asyncHandler.mjs'
 
 function parseBatchId(value) {
-  const normalized = String(value ?? '').trim()
-
-  if (!/^\d+$/u.test(normalized)) {
+  try {
+    return normalizeUuid(value)
+  } catch {
     return null
   }
-
-  return Number.parseInt(normalized, 10)
 }
 
 function sumTargetCounts(targets = []) {

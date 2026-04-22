@@ -6,6 +6,7 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.UUID;
 
 @Repository
 @ConditionalOnProperty(name = "social.storage", havingValue = "redis")
@@ -48,37 +49,37 @@ public class RedisLikeRepository implements LikeRepository {
     }
 
     @Override
-    public boolean addLike(int userId, int entityType, int entityId) {
+    public boolean addLike(UUID userId, int entityType, UUID entityId) {
         Long added = redisTemplate.opsForSet().add(entityKey(entityType, entityId), String.valueOf(userId));
         return added != null && added > 0;
     }
 
     @Override
-    public boolean removeLike(int userId, int entityType, int entityId) {
+    public boolean removeLike(UUID userId, int entityType, UUID entityId) {
         Long removed = redisTemplate.opsForSet().remove(entityKey(entityType, entityId), String.valueOf(userId));
         return removed != null && removed > 0;
     }
 
     @Override
-    public boolean isLiked(int userId, int entityType, int entityId) {
+    public boolean isLiked(UUID userId, int entityType, UUID entityId) {
         Boolean member = redisTemplate.opsForSet().isMember(entityKey(entityType, entityId), String.valueOf(userId));
         return member != null && member;
     }
 
     @Override
-    public long countEntityLikes(int entityType, int entityId) {
+    public long countEntityLikes(int entityType, UUID entityId) {
         Long size = redisTemplate.opsForSet().size(entityKey(entityType, entityId));
         return size == null ? 0 : size;
     }
 
     @Override
-    public long incrementUserLikeCount(int userId, long delta) {
+    public long incrementUserLikeCount(UUID userId, long delta) {
         Long v = redisTemplate.opsForValue().increment(userKey(userId), delta);
         return v == null ? 0 : v;
     }
 
     @Override
-    public long getUserLikeCount(int userId) {
+    public long getUserLikeCount(UUID userId) {
         String v = redisTemplate.opsForValue().get(userKey(userId));
         if (v == null || v.isBlank()) {
             return 0;
@@ -96,9 +97,9 @@ public class RedisLikeRepository implements LikeRepository {
     }
 
     @Override
-    public boolean setLike(int actorUserId, int entityType, int entityId, int entityUserId, boolean liked) {
+    public boolean setLike(UUID actorUserId, int entityType, UUID entityId, UUID entityUserId, boolean liked) {
         // entityUserId 为空时不更新获赞计数（保持与默认实现一致）
-        if (entityUserId <= 0) {
+        if (entityUserId == null) {
             return LikeRepository.super.setLike(actorUserId, entityType, entityId, entityUserId, liked);
         }
         String entityKey = entityKey(entityType, entityId);
@@ -112,11 +113,11 @@ public class RedisLikeRepository implements LikeRepository {
         return changed != null && changed > 0;
     }
 
-    private String entityKey(int entityType, int entityId) {
+    private String entityKey(int entityType, UUID entityId) {
         return "like:entity:" + entityType + ":" + entityId;
     }
 
-    private String userKey(int userId) {
+    private String userKey(UUID userId) {
         return "like:user:" + userId;
     }
 }

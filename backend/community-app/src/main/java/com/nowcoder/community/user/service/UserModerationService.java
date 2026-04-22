@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND;
@@ -28,13 +29,13 @@ public class UserModerationService implements UserModerationQueryApi {
     }
 
     @Override
-    public UserModerationStateView getModerationState(int userId) {
+    public UserModerationStateView getModerationState(UUID userId) {
         ModerationStatus status = moderationStatus(userId);
         return new UserModerationStateView(status.getUserId(), status.getMuteUntil(), status.getBanUntil());
     }
 
-    public ModerationStatus moderationStatus(int userId) {
-        if (userId <= 0) {
+    public ModerationStatus moderationStatus(UUID userId) {
+        if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         User user = userMapper.selectById(userId);
@@ -44,8 +45,8 @@ public class UserModerationService implements UserModerationQueryApi {
         return toStatus(user);
     }
 
-    public List<ModerationStatus> scanModerationStatusesAfterId(int afterId, int limit) {
-        int normalizedAfterId = Math.max(0, afterId);
+    public List<ModerationStatus> scanModerationStatusesAfterId(UUID afterId, int limit) {
+        UUID normalizedAfterId = afterId == null ? new UUID(0L, 0L) : afterId;
         int normalizedLimit = Math.min(500, Math.max(1, limit));
         List<User> users = userMapper.selectModerationUsersAfterId(normalizedAfterId, normalizedLimit);
         if (users == null || users.isEmpty()) {
@@ -53,7 +54,7 @@ public class UserModerationService implements UserModerationQueryApi {
         }
         List<ModerationStatus> statuses = new ArrayList<>(users.size());
         for (User user : users) {
-            if (user == null || user.getId() <= 0) {
+            if (user == null || user.getId() == null) {
                 continue;
             }
             statuses.add(toStatus(user));
@@ -62,8 +63,8 @@ public class UserModerationService implements UserModerationQueryApi {
     }
 
     @Transactional
-    public ModerationStatus applyModeration(int userId, String action, int durationSeconds) {
-        if (userId <= 0) {
+    public ModerationStatus applyModeration(UUID userId, String action, int durationSeconds) {
+        if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         String value = safeTrim(action).toLowerCase();
@@ -128,15 +129,15 @@ public class UserModerationService implements UserModerationQueryApi {
     }
 
     public static class ModerationStatus {
-        private int userId;
+        private UUID userId;
         private Instant muteUntil;
         private Instant banUntil;
 
-        public int getUserId() {
+        public UUID getUserId() {
             return userId;
         }
 
-        public void setUserId(int userId) {
+        public void setUserId(UUID userId) {
             this.userId = userId;
         }
 

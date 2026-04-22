@@ -1,41 +1,41 @@
 package com.nowcoder.community.notice.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class NoticeRecord {
 
-    public static final int SYSTEM_NOTICE_SENDER_ID = 0;
-    public static final int LEGACY_NOTICE_SENDER_ID = 1;
+    public static final UUID SYSTEM_NOTICE_SENDER_ID = new UUID(0L, 0L);
 
-    private int id;
-    private int senderUserId;
-    private int recipientUserId;
+    private UUID id;
+    private UUID senderUserId;
+    private UUID recipientUserId;
     private String topic;
     private String content;
     private int status;
     private Date createTime;
 
-    public int getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
-    public int getSenderUserId() {
+    public UUID getSenderUserId() {
         return senderUserId;
     }
 
-    public void setSenderUserId(int senderUserId) {
+    public void setSenderUserId(UUID senderUserId) {
         this.senderUserId = senderUserId;
     }
 
-    public int getRecipientUserId() {
+    public UUID getRecipientUserId() {
         return recipientUserId;
     }
 
-    public void setRecipientUserId(int recipientUserId) {
+    public void setRecipientUserId(UUID recipientUserId) {
         this.recipientUserId = recipientUserId;
     }
 

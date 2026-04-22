@@ -1,40 +1,41 @@
 package com.nowcoder.community.market.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class MarketInventoryUnit {
 
-    private long inventoryUnitId;
-    private long listingId;
-    private int sellerUserId;
+    private UUID inventoryUnitId;
+    private UUID listingId;
+    private UUID sellerUserId;
     private String payloadType;
     private String payloadContent;
     private String status;
-    private Long reservedOrderId;
+    private UUID reservedOrderId;
     private Date deliveredAt;
     private Date createTime;
 
-    public long getInventoryUnitId() {
+    public UUID getInventoryUnitId() {
         return inventoryUnitId;
     }
 
-    public void setInventoryUnitId(long inventoryUnitId) {
+    public void setInventoryUnitId(UUID inventoryUnitId) {
         this.inventoryUnitId = inventoryUnitId;
     }
 
-    public long getListingId() {
+    public UUID getListingId() {
         return listingId;
     }
 
-    public void setListingId(long listingId) {
+    public void setListingId(UUID listingId) {
         this.listingId = listingId;
     }
 
-    public int getSellerUserId() {
+    public UUID getSellerUserId() {
         return sellerUserId;
     }
 
-    public void setSellerUserId(int sellerUserId) {
+    public void setSellerUserId(UUID sellerUserId) {
         this.sellerUserId = sellerUserId;
     }
 
@@ -62,11 +63,11 @@ public class MarketInventoryUnit {
         this.status = status;
     }
 
-    public Long getReservedOrderId() {
+    public UUID getReservedOrderId() {
         return reservedOrderId;
     }
 
-    public void setReservedOrderId(Long reservedOrderId) {
+    public void setReservedOrderId(UUID reservedOrderId) {
         this.reservedOrderId = reservedOrderId;
     }
 

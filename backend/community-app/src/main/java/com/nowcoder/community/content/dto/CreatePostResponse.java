@@ -1,15 +1,16 @@
 package com.nowcoder.community.content.dto;
 
+import java.util.UUID;
+
 public class CreatePostResponse {
 
-    private int postId;
+    private UUID postId;
 
-    public int getPostId() {
+    public UUID getPostId() {
         return postId;
     }
 
-    public void setPostId(int postId) {
+    public void setPostId(UUID postId) {
         this.postId = postId;
     }
 }
-

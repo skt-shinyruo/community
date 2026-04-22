@@ -21,18 +21,18 @@ public class RedisRegistrationSessionStore implements RegistrationSessionStore {
     }
 
     @Override
-    public String issue(int userId, Duration ttl) {
-        if (userId <= 0 || ttl == null || ttl.isNegative() || ttl.isZero()) {
+    public String issue(UUID userId, Duration ttl) {
+        if (userId == null || ttl == null || ttl.isNegative() || ttl.isZero()) {
             return null;
         }
 
         String token = UUID.randomUUID().toString().replace("-", "");
-        redisTemplate.opsForValue().set(key(token), Integer.toString(userId), ttl);
+        redisTemplate.opsForValue().set(key(token), userId.toString(), ttl);
         return token;
     }
 
     @Override
-    public Integer findUserId(String registrationToken) {
+    public UUID findUserId(String registrationToken) {
         if (!StringUtils.hasText(registrationToken)) {
             return null;
         }
@@ -44,13 +44,8 @@ public class RedisRegistrationSessionStore implements RegistrationSessionStore {
         }
 
         try {
-            int userId = Integer.parseInt(raw.trim());
-            if (userId <= 0) {
-                redisTemplate.delete(key(token));
-                return null;
-            }
-            return userId;
-        } catch (NumberFormatException ex) {
+            return UUID.fromString(raw.trim());
+        } catch (IllegalArgumentException ex) {
             redisTemplate.delete(key(token));
             return null;
         }
@@ -73,4 +68,3 @@ public class RedisRegistrationSessionStore implements RegistrationSessionStore {
         return KEY_PREFIX + token;
     }
 }
-

@@ -1,6 +1,7 @@
 // 举报服务：负责举报写入、去重、基础校验与后台分页查询。
 package com.nowcoder.community.content.service;
 
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.content.mapper.CommentMapper;
@@ -8,14 +9,17 @@ import com.nowcoder.community.content.mapper.ReportMapper;
 import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.entity.Report;
 import com.nowcoder.community.infra.pagination.Pagination;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 import static com.nowcoder.community.content.exception.ContentErrorCode.COMMENT_NOT_FOUND;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 
@@ -36,18 +40,25 @@ public class ReportService {
     private final ReportMapper reportMapper;
     private final PostService postService;
     private final CommentMapper commentMapper;
+    private final UuidV7Generator idGenerator;
 
+    @Autowired
     public ReportService(ReportMapper reportMapper, PostService postService, CommentMapper commentMapper) {
+        this(reportMapper, postService, commentMapper, new UuidV7Generator());
+    }
+
+    ReportService(ReportMapper reportMapper, PostService postService, CommentMapper commentMapper, UuidV7Generator idGenerator) {
         this.reportMapper = reportMapper;
         this.postService = postService;
         this.commentMapper = commentMapper;
+        this.idGenerator = idGenerator;
     }
 
-    public int createReport(int reporterId, int targetType, int targetId, String reason, String detail) {
-        if (reporterId <= 0) {
+    public UUID createReport(UUID reporterId, int targetType, UUID targetId, String reason, String detail) {
+        if (reporterId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "reporterId 非法");
         }
-        if (targetId <= 0) {
+        if (targetId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "targetId 非法");
         }
         if (targetType != TARGET_TYPE_POST && targetType != TARGET_TYPE_COMMENT && targetType != TARGET_TYPE_USER) {
@@ -73,12 +84,13 @@ public class ReportService {
         }
         if (targetType == TARGET_TYPE_COMMENT) {
             Comment c = commentMapper.selectCommentById(targetId);
-            if (c == null || c.getId() <= 0) {
+            if (c == null || c.getStatus() != 0) {
                 throw new BusinessException(COMMENT_NOT_FOUND);
             }
         }
 
         Report report = new Report();
+        report.setId(idGenerator.next());
         report.setReporterId(reporterId);
         report.setTargetType(targetType);
         report.setTargetId(targetId);
@@ -92,13 +104,16 @@ public class ReportService {
             return report.getId();
         } catch (DuplicateKeyException ignored) {
             // 去重：同一用户对同一目标重复举报，返回已存在的 reportId（幂等）。
-            Integer existed = reportMapper.selectReportIdByDedupeKey(reporterId, targetType, targetId);
-            return existed == null ? 0 : existed;
+            UUID existed = reportMapper.selectReportIdByDedupeKey(reporterId, targetType, targetId);
+            if (existed != null) {
+                return existed;
+            }
+            throw new BusinessException(INTERNAL_ERROR, "举报写入失败");
         }
     }
 
-    public Report getById(int reportId) {
-        if (reportId <= 0) {
+    public Report getById(UUID reportId) {
+        if (reportId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "reportId 非法");
         }
         Report report = reportMapper.selectReportById(reportId);
@@ -108,19 +123,18 @@ public class ReportService {
         return report;
     }
 
-    public List<Report> listReports(Integer status, Integer targetType, Integer reporterId, int page, int size) {
+    public List<Report> listReports(Integer status, Integer targetType, UUID reporterId, int page, int size) {
         int p = Math.max(0, page);
         int s = Math.min(100, Math.max(1, size));
         Integer st = status == null ? null : status;
         Integer tt = targetType == null ? null : targetType;
-        Integer rid = reporterId == null ? null : reporterId;
-        if (rid != null && rid <= 0) {
-            rid = null;
-        }
-        return reportMapper.selectReports(st, tt, rid, Pagination.safeOffset(p, s), s);
+        return reportMapper.selectReports(st, tt, reporterId, Pagination.safeOffset(p, s), s);
     }
 
-    public void markStatus(int reportId, int status) {
+    public void markStatus(UUID reportId, int status) {
+        if (reportId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "reportId 非法");
+        }
         int updated = reportMapper.updateStatus(reportId, status);
         if (updated <= 0) {
             throw new BusinessException(NOT_FOUND, "举报不存在或更新失败");

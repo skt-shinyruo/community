@@ -2,6 +2,7 @@ package com.nowcoder.community.wallet.service;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.wallet.dto.CreateTransferResponse;
 import com.nowcoder.community.wallet.entity.TransferOrder;
@@ -17,6 +18,10 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.lang.reflect.Method;
+import java.util.UUID;
+
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -58,29 +63,47 @@ class TransferServiceTest {
     }
 
     @Test
-    void transferShouldDebitSenderAndCreditReceiverOnce() {
-        seedUserBalance(101, 900);
+    void transferShouldDebitSenderAndCreditReceiverOnceAndPersistUuidv7OrderId() throws Exception {
+        UUID fromUserId = uuid(101);
+        UUID toUserId = uuid(202);
+        seedUserBalance(fromUserId, 900);
 
-        CreateTransferResponse result = transferService.create("transfer:req-1", 101, 202, 300);
+        CreateTransferResponse result = transferService.create("transfer:req-1", fromUserId, toUserId, 300);
 
         assertThat(result.status()).isEqualTo("SUCCEEDED");
-        assertThat(accountService.balanceOfUser(101)).isEqualTo(600);
-        assertThat(accountService.balanceOfUser(202)).isEqualTo(300);
+        assertThat(accountService.balanceOfUser(fromUserId)).isEqualTo(600);
+        assertThat(accountService.balanceOfUser(toUserId)).isEqualTo(300);
         assertThat(countRows("transfer_order")).isEqualTo(1);
         assertThat(countRows("wallet_txn")).isEqualTo(1);
         assertThat(countRows("wallet_entry")).isEqualTo(2);
+
+        Method orderIdGetter = CreateTransferResponse.class.getMethod("orderId");
+        Object orderId = orderIdGetter.invoke(result);
+        assertThat(orderId).isInstanceOf(UUID.class);
+        UUID parsedOrderId = (UUID) orderId;
+        assertThat(parsedOrderId.version()).isEqualTo(7);
+
+        byte[] storedOrderId = jdbcTemplate.queryForObject(
+                "select order_id from transfer_order where request_id = ?",
+                (rs, rowNum) -> rs.getBytes(1),
+                "transfer:req-1"
+        );
+        assertThat(storedOrderId).hasSize(16);
+        assertThat(BinaryUuidCodec.fromBytes(storedOrderId)).isEqualTo(parsedOrderId);
     }
 
     @Test
     void duplicateTransferRequestShouldBeIdempotent() {
-        seedUserBalance(101, 900);
+        UUID fromUserId = uuid(101);
+        UUID toUserId = uuid(202);
+        seedUserBalance(fromUserId, 900);
 
-        CreateTransferResponse first = transferService.create("transfer:req-1", 101, 202, 300);
-        CreateTransferResponse second = transferService.create("transfer:req-1", 101, 202, 300);
+        CreateTransferResponse first = transferService.create("transfer:req-1", fromUserId, toUserId, 300);
+        CreateTransferResponse second = transferService.create("transfer:req-1", fromUserId, toUserId, 300);
 
         assertThat(second.orderId()).isEqualTo(first.orderId());
-        assertThat(accountService.balanceOfUser(101)).isEqualTo(600);
-        assertThat(accountService.balanceOfUser(202)).isEqualTo(300);
+        assertThat(accountService.balanceOfUser(fromUserId)).isEqualTo(600);
+        assertThat(accountService.balanceOfUser(toUserId)).isEqualTo(300);
         assertThat(countRows("transfer_order")).isEqualTo(1);
         assertThat(countRows("wallet_txn")).isEqualTo(1);
         assertThat(countRows("wallet_entry")).isEqualTo(2);
@@ -88,10 +111,11 @@ class TransferServiceTest {
 
     @Test
     void transferShouldRejectReplayWhenReceiverDoesNotMatchExistingOrder() {
-        seedUserBalance(101, 900);
-        transferService.create("transfer:req-receiver-mismatch", 101, 202, 300);
+        UUID fromUserId = uuid(101);
+        seedUserBalance(fromUserId, 900);
+        transferService.create("transfer:req-receiver-mismatch", fromUserId, uuid(202), 300);
 
-        assertThatThrownBy(() -> transferService.create("transfer:req-receiver-mismatch", 101, 303, 300))
+        assertThatThrownBy(() -> transferService.create("transfer:req-receiver-mismatch", fromUserId, uuid(303), 300))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.REQUEST_REPLAY_CONFLICT))
                 .hasMessageContaining("requestId");
@@ -99,10 +123,12 @@ class TransferServiceTest {
 
     @Test
     void transferShouldRejectReplayWhenAmountDoesNotMatchExistingOrder() {
-        seedUserBalance(101, 900);
-        transferService.create("transfer:req-amount-mismatch", 101, 202, 300);
+        UUID fromUserId = uuid(101);
+        UUID toUserId = uuid(202);
+        seedUserBalance(fromUserId, 900);
+        transferService.create("transfer:req-amount-mismatch", fromUserId, toUserId, 300);
 
-        assertThatThrownBy(() -> transferService.create("transfer:req-amount-mismatch", 101, 202, 400))
+        assertThatThrownBy(() -> transferService.create("transfer:req-amount-mismatch", fromUserId, toUserId, 400))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.REQUEST_REPLAY_CONFLICT))
                 .hasMessageContaining("requestId");
@@ -110,9 +136,10 @@ class TransferServiceTest {
 
     @Test
     void transferShouldRejectTransfersToSelf() {
-        seedUserBalance(101, 900);
+        UUID userId = uuid(101);
+        seedUserBalance(userId, 900);
 
-        assertThatThrownBy(() -> transferService.create("transfer:req-self", 101, 101, 300))
+        assertThatThrownBy(() -> transferService.create("transfer:req-self", userId, userId, 300))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.INVALID_TRANSFER))
                 .hasMessageContaining("self");
@@ -125,24 +152,29 @@ class TransferServiceTest {
         WalletLedgerService mockedLedgerService = mock(WalletLedgerService.class);
         TransferService service = new TransferService(mapper, mockedAccountService, mockedLedgerService);
 
-        TransferOrder succeededOrder = order(40L, "transfer:req-race", 101, 202, 300, "SUCCEEDED");
+        UUID fromUserId = uuid(101);
+        UUID toUserId = uuid(202);
+        UUID orderId = UUID.fromString("00000000-0000-7000-8000-000000000642");
+        TransferOrder succeededOrder = order(orderId, "transfer:req-race", fromUserId, toUserId, 300, "SUCCEEDED");
 
         when(mapper.selectByRequestId("transfer:req-race"))
                 .thenReturn(null, succeededOrder);
-        when(mockedAccountService.ensureUserWallet(101)).thenReturn(1L);
-        when(mockedAccountService.ensureUserWallet(202)).thenReturn(2L);
+        when(mockedAccountService.ensureUserWallet(fromUserId))
+                .thenReturn(UUID.fromString("00000000-0000-7000-8000-000000000643"));
+        when(mockedAccountService.ensureUserWallet(toUserId))
+                .thenReturn(UUID.fromString("00000000-0000-7000-8000-000000000644"));
         org.mockito.Mockito.doThrow(new DuplicateKeyException("duplicate request"))
                 .when(mapper).insert(any(TransferOrder.class));
 
-        CreateTransferResponse result = service.create("transfer:req-race", 101, 202, 300);
+        CreateTransferResponse result = service.create("transfer:req-race", fromUserId, toUserId, 300);
 
-        assertThat(result.orderId()).isEqualTo(40L);
+        assertThat(readOrderId(result)).isEqualTo(orderId);
         assertThat(result.status()).isEqualTo("SUCCEEDED");
         verify(mockedLedgerService).post(eq("transfer:req-race"), eq(WalletTxnType.TRANSFER), anyList());
     }
 
-    private void seedUserBalance(int userId, long balance) {
-        long accountId = accountService.ensureUserWallet(userId);
+    private void seedUserBalance(UUID userId, long balance) {
+        UUID accountId = accountService.ensureUserWallet(userId);
         jdbcTemplate.update(
                 "update wallet_account set balance = ?, version = 0 where account_id = ?",
                 balance,
@@ -155,7 +187,7 @@ class TransferServiceTest {
         return count == null ? 0 : count;
     }
 
-    private TransferOrder order(long orderId, String requestId, long fromUserId, long toUserId, long amount, String status) {
+    private TransferOrder order(UUID orderId, String requestId, UUID fromUserId, UUID toUserId, long amount, String status) {
         TransferOrder order = new TransferOrder();
         order.setOrderId(orderId);
         order.setRequestId(requestId);
@@ -164,5 +196,13 @@ class TransferServiceTest {
         order.setAmount(amount);
         order.setStatus(status);
         return order;
+    }
+
+    private UUID readOrderId(CreateTransferResponse response) {
+        try {
+            return (UUID) CreateTransferResponse.class.getMethod("orderId").invoke(response);
+        } catch (ReflectiveOperationException ex) {
+            throw new AssertionError(ex);
+        }
     }
 }

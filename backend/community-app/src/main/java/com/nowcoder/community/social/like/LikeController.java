@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
@@ -35,7 +36,7 @@ public class LikeController {
 
     @PostMapping
     public Result<LikeResponse> setLike(Authentication authentication, @Valid @RequestBody LikeRequest request) {
-        int userId = CurrentUser.requireUserId(authentication);
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         if (!EntityTypes.isValid(request.getEntityType())) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
         }
@@ -46,9 +47,9 @@ public class LikeController {
     public Result<Boolean> status(
             Authentication authentication,
             @RequestParam int entityType,
-            @RequestParam int entityId
+            @RequestParam UUID entityId
     ) {
-        int userId = CurrentUser.requireUserId(authentication);
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         if (!EntityTypes.isValid(entityType)) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
         }
@@ -56,7 +57,7 @@ public class LikeController {
     }
 
     @GetMapping("/count")
-    public Result<Long> count(@RequestParam int entityType, @RequestParam int entityId) {
+    public Result<Long> count(@RequestParam int entityType, @RequestParam UUID entityId) {
         if (!EntityTypes.isValid(entityType)) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
         }
@@ -64,30 +65,30 @@ public class LikeController {
     }
 
     @GetMapping("/counts")
-    public Result<Map<Integer, Long>> counts(@RequestParam int entityType, @RequestParam String entityIds) {
+    public Result<Map<UUID, Long>> counts(@RequestParam int entityType, @RequestParam String entityIds) {
         if (!EntityTypes.isValid(entityType)) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
         }
-        List<Integer> ids = parseEntityIds(entityIds, 200);
+        List<UUID> ids = parseEntityIds(entityIds, 200);
         return Result.ok(likeService.counts(entityType, ids));
     }
 
     @GetMapping("/statuses")
-    public Result<Map<Integer, Boolean>> statuses(Authentication authentication, @RequestParam int entityType, @RequestParam String entityIds) {
-        int userId = CurrentUser.requireUserId(authentication);
+    public Result<Map<UUID, Boolean>> statuses(Authentication authentication, @RequestParam int entityType, @RequestParam String entityIds) {
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         if (!EntityTypes.isValid(entityType)) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
         }
-        List<Integer> ids = parseEntityIds(entityIds, 200);
+        List<UUID> ids = parseEntityIds(entityIds, 200);
         return Result.ok(likeService.statuses(userId, entityType, ids));
     }
 
     @GetMapping("/users/{userId}/count")
-    public Result<Long> userLikeCount(@PathVariable int userId) {
+    public Result<Long> userLikeCount(@PathVariable UUID userId) {
         return Result.ok(likeService.userLikeCount(userId));
     }
 
-    private List<Integer> parseEntityIds(String raw, int limit) {
+    private List<UUID> parseEntityIds(String raw, int limit) {
         if (raw == null) {
             return List.of();
         }
@@ -96,7 +97,7 @@ public class LikeController {
             return List.of();
         }
 
-        LinkedHashSet<Integer> set = new LinkedHashSet<>();
+        LinkedHashSet<UUID> set = new LinkedHashSet<>();
         for (String part : trimmed.split(",")) {
             if (set.size() >= Math.max(1, limit)) {
                 break;
@@ -106,11 +107,8 @@ public class LikeController {
                 continue;
             }
             try {
-                int id = Integer.parseInt(p);
-                if (id > 0) {
-                    set.add(id);
-                }
-            } catch (NumberFormatException ignored) {
+                set.add(UUID.fromString(p));
+            } catch (IllegalArgumentException ignored) {
             }
         }
         if (set.isEmpty()) {

@@ -1,18 +1,19 @@
 package com.nowcoder.community.content.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class Tag {
 
-    private int id;
+    private UUID id;
     private String name;
     private Date createTime;
 
-    public int getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
@@ -32,4 +33,3 @@ public class Tag {
         this.createTime = createTime;
     }
 }
-

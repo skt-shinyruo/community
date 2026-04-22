@@ -50,7 +50,7 @@ public class PointsOutboxEnqueuer {
     }
 
     private void enqueue(PointsProjectionService.PointsProjectionCommand command) {
-        if (command == null || command.userId() <= 0 || command.delta() == 0) {
+        if (command == null || command.userId() == null || command.delta() == 0) {
             return;
         }
         if (command.sourceEventId() == null || command.sourceEventId().isBlank()) {

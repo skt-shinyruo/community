@@ -7,21 +7,22 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
+import java.util.UUID;
 
 @Mapper
 public interface BlockMapper {
 
-    @Insert("insert into social_block(user_id, target_user_id, created_at) values(#{userId}, #{targetUserId}, now())")
-    int insertBlock(@Param("userId") int userId, @Param("targetUserId") int targetUserId);
+    @Insert("insert into social_block(user_id, target_user_id, created_at) values(#{userId, jdbcType=BINARY}, #{targetUserId, jdbcType=BINARY}, now())")
+    int insertBlock(@Param("userId") UUID userId, @Param("targetUserId") UUID targetUserId);
 
-    @Delete("delete from social_block where user_id = #{userId} and target_user_id = #{targetUserId}")
-    int deleteBlock(@Param("userId") int userId, @Param("targetUserId") int targetUserId);
+    @Delete("delete from social_block where user_id = #{userId, jdbcType=BINARY} and target_user_id = #{targetUserId, jdbcType=BINARY}")
+    int deleteBlock(@Param("userId") UUID userId, @Param("targetUserId") UUID targetUserId);
 
-    @Select("select count(1) from social_block where user_id = #{userId} and target_user_id = #{targetUserId}")
-    int countBlock(@Param("userId") int userId, @Param("targetUserId") int targetUserId);
+    @Select("select count(1) from social_block where user_id = #{userId, jdbcType=BINARY} and target_user_id = #{targetUserId, jdbcType=BINARY}")
+    int countBlock(@Param("userId") UUID userId, @Param("targetUserId") UUID targetUserId);
 
-    @Select("select target_user_id from social_block where user_id = #{userId} order by created_at desc")
-    List<Integer> listBlockedUserIds(@Param("userId") int userId);
+    @Select("select target_user_id from social_block where user_id = #{userId, jdbcType=BINARY} order by created_at desc")
+    List<UUID> listBlockedUserIds(@Param("userId") UUID userId);
 
     @Select(
             """
@@ -34,8 +35,8 @@ public interface BlockMapper {
                     """
     )
     List<BlockScanRow> scanBlocks(
-            @Param("afterUserId") int afterUserId,
-            @Param("afterTargetUserId") int afterTargetUserId,
+            @Param("afterUserId") UUID afterUserId,
+            @Param("afterTargetUserId") UUID afterTargetUserId,
             @Param("limit") int limit
     );
 }

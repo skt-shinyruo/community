@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * MySQL 持久化实现：以 DB 为 SSOT（source of truth）。
@@ -24,7 +25,7 @@ public class DbFollowRepository implements FollowRepository {
     }
 
     @Override
-    public boolean follow(int userId, int entityType, int entityId, long followTimeMillis) {
+    public boolean follow(UUID userId, int entityType, UUID entityId, long followTimeMillis) {
         Date createdAt = followTimeMillis > 0 ? new Date(followTimeMillis) : new Date();
         try {
             return mapper.insertFollow(userId, entityType, entityId, createdAt) > 0;
@@ -35,32 +36,32 @@ public class DbFollowRepository implements FollowRepository {
     }
 
     @Override
-    public boolean unfollow(int userId, int entityType, int entityId) {
+    public boolean unfollow(UUID userId, int entityType, UUID entityId) {
         return mapper.deleteFollow(userId, entityType, entityId) > 0;
     }
 
     @Override
-    public boolean hasFollowed(int userId, int entityType, int entityId) {
+    public boolean hasFollowed(UUID userId, int entityType, UUID entityId) {
         return mapper.countFollow(userId, entityType, entityId) > 0;
     }
 
     @Override
-    public long countFollowees(int userId, int entityType) {
+    public long countFollowees(UUID userId, int entityType) {
         return mapper.countFollowees(userId, entityType);
     }
 
     @Override
-    public long countFollowers(int entityType, int entityId) {
+    public long countFollowers(int entityType, UUID entityId) {
         return mapper.countFollowers(entityType, entityId);
     }
 
     @Override
-    public List<FollowItem> listFollowees(int userId, int entityType, int offset, int limit) {
+    public List<FollowItem> listFollowees(UUID userId, int entityType, int offset, int limit) {
         return mapRows(mapper.listFollowees(userId, entityType, offset, limit));
     }
 
     @Override
-    public List<FollowItem> listFollowers(int entityType, int entityId, int offset, int limit) {
+    public List<FollowItem> listFollowers(int entityType, UUID entityId, int offset, int limit) {
         return mapRows(mapper.listFollowers(entityType, entityId, offset, limit));
     }
 

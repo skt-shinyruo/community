@@ -5,6 +5,8 @@ import com.nowcoder.community.social.api.query.SocialFollowQueryApi;
 import com.nowcoder.community.social.api.query.SocialLikeQueryApi;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @Service
 public class UserSocialProfileService {
 
@@ -21,8 +23,8 @@ public class UserSocialProfileService {
         this.followQueryApi = followQueryApi;
     }
 
-    public UserProfileStats userProfileStats(int userId, int viewerId) {
-        if (userId <= 0) {
+    public UserProfileStats userProfileStats(UUID userId, UUID viewerId) {
+        if (userId == null) {
             return UserProfileStats.empty();
         }
 
@@ -31,35 +33,35 @@ public class UserSocialProfileService {
         response.setFolloweeCount(followeeCount(userId));
         response.setFollowerCount(followerCount(userId));
 
-        if (viewerId > 0 && viewerId != userId) {
+        if (viewerId != null && !viewerId.equals(userId)) {
             response.setHasFollowed(hasFollowed(viewerId, userId));
         }
         return response;
     }
 
-    public long userLikeCount(int userId) {
-        if (userId <= 0) {
+    public long userLikeCount(UUID userId) {
+        if (userId == null) {
             return 0L;
         }
         return likeQueryApi.userLikeCount(userId);
     }
 
-    public long followeeCount(int userId) {
-        if (userId <= 0) {
+    public long followeeCount(UUID userId) {
+        if (userId == null) {
             return 0L;
         }
         return followQueryApi.followeeCount(userId, USER_ENTITY_TYPE);
     }
 
-    public long followerCount(int userId) {
-        if (userId <= 0) {
+    public long followerCount(UUID userId) {
+        if (userId == null) {
             return 0L;
         }
         return followQueryApi.followerCount(USER_ENTITY_TYPE, userId);
     }
 
-    public boolean hasFollowed(int actorUserId, int targetUserId) {
-        if (actorUserId <= 0 || targetUserId <= 0 || actorUserId == targetUserId) {
+    public boolean hasFollowed(UUID actorUserId, UUID targetUserId) {
+        if (actorUserId == null || targetUserId == null || actorUserId.equals(targetUserId)) {
             return false;
         }
         return followQueryApi.hasFollowed(actorUserId, USER_ENTITY_TYPE, targetUserId);

@@ -10,7 +10,9 @@ import org.junit.jupiter.api.Test;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -25,26 +27,30 @@ class BookmarkServiceTest {
         CommentService commentService = mock(CommentService.class);
         TagService tagService = mock(TagService.class);
         PostSummaryAssembler postSummaryAssembler = mock(PostSummaryAssembler.class);
+        UUID userId = uuid(7);
+        UUID postId = uuid(11);
+        UUID categoryId = uuid(2);
+        UUID lastReplyUserId = uuid(8);
 
         DiscussPost post = new DiscussPost();
-        post.setId(11);
+        post.setId(postId);
         Comment lastActivity = new Comment();
-        lastActivity.setEntityId(11);
-        lastActivity.setUserId(8);
+        lastActivity.setEntityId(postId);
+        lastActivity.setUserId(lastReplyUserId);
         lastActivity.setCreateTime(new Date());
         PostSummaryView assembled = new PostSummaryView(
-                11, 7, "title", 0, 0, new Date(), 3, 9.5, 2,
-                List.of("spring"), 8, lastActivity.getCreateTime(), lastActivity.getCreateTime(), "latest reply"
+                postId, userId, "title", 0, 0, new Date(), 3, 9.5, categoryId,
+                List.of("spring"), lastReplyUserId, lastActivity.getCreateTime(), lastActivity.getCreateTime(), "latest reply"
         );
 
-        when(bookmarkMapper.selectBookmarkedPosts(7, 0, 10)).thenReturn(List.of(post));
-        when(commentService.getLatestPostActivitiesByPostIds(List.of(11))).thenReturn(Map.of(11, lastActivity));
-        when(tagService.getTagsByPostIds(List.of(11))).thenReturn(Map.of(11, List.of("spring")));
+        when(bookmarkMapper.selectBookmarkedPosts(userId, 0, 10)).thenReturn(List.of(post));
+        when(commentService.getLatestPostActivitiesByPostIds(List.of(postId))).thenReturn(Map.of(postId, lastActivity));
+        when(tagService.getTagsByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of("spring")));
         when(postSummaryAssembler.assemble(post, lastActivity, List.of("spring"))).thenReturn(assembled);
 
         BookmarkService service = new BookmarkService(bookmarkMapper, postService, commentService, tagService, postSummaryAssembler);
 
-        List<PostSummaryView> summaries = service.listBookmarkedPostSummaries(7, 0, 10);
+        List<PostSummaryView> summaries = service.listBookmarkedPostSummaries(userId, 0, 10);
 
         assertThat(summaries).containsExactly(assembled);
         verify(postSummaryAssembler).assemble(post, lastActivity, List.of("spring"));

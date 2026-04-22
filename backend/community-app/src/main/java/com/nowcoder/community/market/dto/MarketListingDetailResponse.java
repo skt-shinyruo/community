@@ -3,10 +3,11 @@ package com.nowcoder.community.market.dto;
 import com.nowcoder.community.market.entity.MarketListing;
 
 import java.util.Date;
+import java.util.UUID;
 
 public record MarketListingDetailResponse(
-        long listingId,
-        int sellerUserId,
+        UUID listingId,
+        UUID sellerUserId,
         String goodsType,
         String title,
         String description,

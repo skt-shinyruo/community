@@ -17,6 +17,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 调用 community-app 的 IM 治理校验接口（转发用户 JWT）。
@@ -39,7 +40,7 @@ public class CommunityGovernanceClient {
         this.timeout = Duration.ofMillis(ms);
     }
 
-    public Mono<Decision> validateSendPrivateMessage(String bearerAccessToken, int toUserId, String traceId) {
+    public Mono<Decision> validateSendPrivateMessage(String bearerAccessToken, UUID toUserId, String traceId) {
         String token = StringUtils.hasText(bearerAccessToken) ? bearerAccessToken.trim() : "";
         if (!StringUtils.hasText(token)) {
             return Mono.just(Decision.deny(401, "未登录或登录已失效", ""));
@@ -124,7 +125,7 @@ public class CommunityGovernanceClient {
         };
     }
 
-    public record ValidatePrivateMessageRequest(int toUserId) {
+    public record ValidatePrivateMessageRequest(UUID toUserId) {
     }
 
     public record Decision(boolean allowed, int code, String message, String traceId) {

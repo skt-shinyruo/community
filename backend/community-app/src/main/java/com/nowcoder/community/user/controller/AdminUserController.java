@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/users/admin")
 public class AdminUserController {
@@ -26,7 +28,7 @@ public class AdminUserController {
 
     @GetMapping("/search")
     public Result<AdminUserResponse> search(
-            @RequestParam(required = false) Integer userId,
+            @RequestParam(required = false) UUID userId,
             @RequestParam(required = false) String username,
             @RequestParam(required = false) String email
     ) {
@@ -35,7 +37,7 @@ public class AdminUserController {
 
     @PostMapping("/role")
     public Result<Void> updateRole(Authentication authentication, @Valid @RequestBody UpdateUserRoleRequest request) {
-        int actorUserId = CurrentUser.requireUserId(authentication);
+        UUID actorUserId = CurrentUser.requireUserUuid(authentication);
         adminUserService.updateRole(actorUserId, request);
         return Result.ok();
     }

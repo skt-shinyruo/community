@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Size;
 import com.nowcoder.community.common.constants.ValidationLimits;
 
 import java.util.List;
+import java.util.UUID;
 
 public class CreatePostRequest {
 
@@ -17,7 +18,7 @@ public class CreatePostRequest {
     private String content;
 
     // 可选：分类（Discourse-like taxonomy）。
-    private Integer categoryId;
+    private UUID categoryId;
 
     // 可选：标签（由服务端做归一化与数量限制）。
     @Size(max = ValidationLimits.TAGS_MAX)
@@ -39,11 +40,11 @@ public class CreatePostRequest {
         this.content = content;
     }
 
-    public Integer getCategoryId() {
+    public UUID getCategoryId() {
         return categoryId;
     }
 
-    public void setCategoryId(Integer categoryId) {
+    public void setCategoryId(UUID categoryId) {
         this.categoryId = categoryId;
     }
 

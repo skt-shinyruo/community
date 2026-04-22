@@ -1,16 +1,17 @@
 package com.nowcoder.community.auth.service;
 
 import java.time.Duration;
+import java.util.UUID;
 
 public interface RegistrationCodeStore {
 
-    void save(int userId, String code, Duration ttl);
+    void save(UUID userId, String code, Duration ttl);
 
-    IssueResult issue(int userId, String code, Duration ttl, Duration cooldown);
+    IssueResult issue(UUID userId, String code, Duration ttl, Duration cooldown);
 
-    Long lastSentAtMillis(int userId);
+    Long lastSentAtMillis(UUID userId);
 
-    VerifyResult verifyAndConsume(int userId, String code);
+    VerifyResult verifyAndConsume(UUID userId, String code);
 
     enum IssueResult {
         ISSUED,

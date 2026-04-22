@@ -1,23 +1,24 @@
 package com.nowcoder.community.wallet.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class WalletAdminAction {
 
-    private long actionId;
+    private UUID actionId;
     private String requestId;
-    private long actorUserId;
-    private long targetAccountId;
+    private UUID actorUserId;
+    private UUID targetAccountId;
     private String actionType;
     private long amount;
     private String remark;
     private Date createTime;
 
-    public long getActionId() {
+    public UUID getActionId() {
         return actionId;
     }
 
-    public void setActionId(long actionId) {
+    public void setActionId(UUID actionId) {
         this.actionId = actionId;
     }
 
@@ -29,19 +30,19 @@ public class WalletAdminAction {
         this.requestId = requestId;
     }
 
-    public long getActorUserId() {
+    public UUID getActorUserId() {
         return actorUserId;
     }
 
-    public void setActorUserId(long actorUserId) {
+    public void setActorUserId(UUID actorUserId) {
         this.actorUserId = actorUserId;
     }
 
-    public long getTargetAccountId() {
+    public UUID getTargetAccountId() {
         return targetAccountId;
     }
 
-    public void setTargetAccountId(long targetAccountId) {
+    public void setTargetAccountId(UUID targetAccountId) {
         this.targetAccountId = targetAccountId;
     }
 

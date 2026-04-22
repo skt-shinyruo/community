@@ -2,9 +2,10 @@ package com.nowcoder.community.user.app.query;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 public record UserProfilePageView(
-        int userId,
+        UUID userId,
         String username,
         String headerUrl,
         int type,
@@ -25,17 +26,17 @@ public record UserProfilePageView(
 ) {
 
     public record RecentPostSummaryView(
-            int id,
-            int userId,
+            UUID id,
+            UUID userId,
             String title,
             int type,
             int status,
             Date createTime,
             int commentCount,
             double score,
-            Integer categoryId,
+            UUID categoryId,
             List<String> tags,
-            Integer lastReplyUserId,
+            UUID lastReplyUserId,
             Date lastReplyTime,
             Date lastActivityTime,
             String lastReplyPreview
@@ -43,12 +44,12 @@ public record UserProfilePageView(
     }
 
     public record RecentCommentItemView(
-            int id,
-            int userId,
+            UUID id,
+            UUID userId,
             int entityType,
-            int entityId,
-            int targetId,
-            int postId,
+            UUID entityId,
+            UUID targetId,
+            UUID postId,
             String postTitle,
             String content,
             Date createTime

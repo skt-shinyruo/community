@@ -24,34 +24,44 @@ function fakeConfig(overrides = {}) {
   }
 }
 
+function metadataId(sequence) {
+  return `01965429-b34a-7000-8000-${String(sequence).padStart(12, '0')}`
+}
+
 function createBatch(id, overrides = {}) {
+  const sequence = Number(id)
+  const batchId = metadataId(Number.isFinite(sequence) ? sequence : 1)
   return {
-    id,
-    batchKey: `batch-${id}`,
+    id: batchId,
+    batchKey: `batch-${sequence}`,
     batchType: 'demo-seed',
     requestedBy: 'test-runner',
     status: 'succeeded',
     summaryJson: null,
     errorMessage: null,
-    createdAt: `2026-03-2${id}T10:00:00.000Z`,
-    startedAt: `2026-03-2${id}T10:01:00.000Z`,
-    finishedAt: `2026-03-2${id}T10:02:00.000Z`,
+    createdAt: `2026-03-2${sequence}T10:00:00.000Z`,
+    startedAt: `2026-03-2${sequence}T10:01:00.000Z`,
+    finishedAt: `2026-03-2${sequence}T10:02:00.000Z`,
     ...overrides
   }
 }
 
 function createJob(id, batchId, overrides = {}) {
+  const sequence = Number(id)
+  const jobId = metadataId(100000 + (Number.isFinite(sequence) ? sequence : 1))
+  const normalizedBatchId =
+    typeof batchId === 'string' ? batchId : metadataId(Number.isFinite(Number(batchId)) ? Number(batchId) : 1)
   return {
-    id,
-    batchId,
-    jobKey: `job-${id}`,
+    id: jobId,
+    batchId: normalizedBatchId,
+    jobKey: `job-${sequence}`,
     jobType: 'demo-seed',
     status: 'succeeded',
     summaryJson: null,
     errorMessage: null,
-    createdAt: `2026-03-2${id}T10:00:00.000Z`,
-    startedAt: `2026-03-2${id}T10:01:00.000Z`,
-    finishedAt: `2026-03-2${id}T10:02:00.000Z`,
+    createdAt: `2026-03-2${sequence}T10:00:00.000Z`,
+    startedAt: `2026-03-2${sequence}T10:01:00.000Z`,
+    finishedAt: `2026-03-2${sequence}T10:02:00.000Z`,
     ...overrides
   }
 }
@@ -159,7 +169,7 @@ function createAppHarness({
       async getById(jobId) {
         return structuredClone(
           resolvedJobsById.get(jobId) ??
-            createJob(jobId, -1)
+            createJob(999999, metadataId(999998))
         )
       }
     },
@@ -353,7 +363,7 @@ test('job start and polling responses expose generate-flow helpers for the UI sh
         ready: true
       }
     }),
-    jobsById: new Map([[71, startedJob]]),
+    jobsById: new Map([[startedJob.id, startedJob]]),
     startJob: async () => ({
       batch: startedBatch,
       job: startedJob
@@ -377,24 +387,24 @@ test('job start and polling responses expose generate-flow helpers for the UI sh
     aiEnhancement: true
   })
   assert.deepEqual(createResponse.body.polling, {
-    jobId: 71,
-    batchId: 7,
+    jobId: startedJob.id,
+    batchId: startedBatch.id,
     status: 'running',
     isTerminal: false,
-    pollPath: '/api/jobs/71',
-    batchPath: '/api/batches/7'
+    pollPath: `/api/jobs/${startedJob.id}`,
+    batchPath: `/api/batches/${startedBatch.id}`
   })
 
-  const pollResponse = await request(app).get('/api/jobs/71')
+  const pollResponse = await request(app).get(`/api/jobs/${startedJob.id}`)
 
   assert.equal(pollResponse.status, 200)
   assert.deepEqual(pollResponse.body.polling, {
-    jobId: 71,
-    batchId: 7,
+    jobId: startedJob.id,
+    batchId: startedBatch.id,
     status: 'running',
     isTerminal: false,
-    pollPath: '/api/jobs/71',
-    batchPath: '/api/batches/7'
+    pollPath: `/api/jobs/${startedJob.id}`,
+    batchPath: `/api/batches/${startedBatch.id}`
   })
 })
 
@@ -443,19 +453,19 @@ test('batch history groups the default batch separately from manual batches', as
   const app = createAppHarness({
     batches: [manualNewest, defaultBatch, manualOlder],
     jobsByBatchId: new Map([
-      [1, [createJob(11, 1)]],
-      [2, [createJob(22, 2)]],
-      [3, [createJob(33, 3)]]
+      [defaultBatch.id, [createJob(11, defaultBatch.id)]],
+      [manualOlder.id, [createJob(22, manualOlder.id)]],
+      [manualNewest.id, [createJob(33, manualNewest.id)]]
     ]),
     targetsByBatchId: new Map([
-      [1, [{ entityType: 'users', targetCount: 2 }]],
-      [2, [{ entityType: 'posts', targetCount: 3 }]],
-      [3, [{ entityType: 'comments', targetCount: 5 }]]
+      [defaultBatch.id, [{ entityType: 'users', targetCount: 2 }]],
+      [manualOlder.id, [{ entityType: 'posts', targetCount: 3 }]],
+      [manualNewest.id, [{ entityType: 'comments', targetCount: 5 }]]
     ]),
     refsByBatchId: new Map([
-      [1, [{ entityType: 'users' }, { entityType: 'users' }]],
-      [2, [{ entityType: 'posts' }]],
-      [3, [{ entityType: 'comments' }, { entityType: 'comments' }]]
+      [defaultBatch.id, [{ entityType: 'users' }, { entityType: 'users' }]],
+      [manualOlder.id, [{ entityType: 'posts' }]],
+      [manualNewest.id, [{ entityType: 'comments' }, { entityType: 'comments' }]]
     ])
   })
 
@@ -463,16 +473,16 @@ test('batch history groups the default batch separately from manual batches', as
 
   assert.equal(response.status, 200)
   assert.equal(response.body.ok, true)
-  assert.equal(response.body.defaultBatch.batch.id, 1)
+  assert.equal(response.body.defaultBatch.batch.id, defaultBatch.id)
   assert.deepEqual(response.body.history, {
     totalBatchCount: 3,
-    defaultBatchId: 1,
+    defaultBatchId: defaultBatch.id,
     manualBatchCount: 2,
     hasManualBatches: true
   })
   assert.deepEqual(
     response.body.manualBatches.map((entry) => entry.batch.id),
-    [3, 2]
+    [manualNewest.id, manualOlder.id]
   )
 })
 
@@ -488,32 +498,32 @@ test('batch history does not misclassify unrelated startup-auto-fill rows as the
   const app = createAppHarness({
     batches: [unrelatedStartupRow, defaultBatch],
     jobsByBatchId: new Map([
-      [1, [createJob(11, 1)]],
-      [2, [createJob(22, 2)]]
+      [defaultBatch.id, [createJob(11, defaultBatch.id)]],
+      [unrelatedStartupRow.id, [createJob(22, unrelatedStartupRow.id)]]
     ]),
     targetsByBatchId: new Map([
-      [1, [{ entityType: 'users', targetCount: 2 }]],
-      [2, [{ entityType: 'users', targetCount: 1 }]]
+      [defaultBatch.id, [{ entityType: 'users', targetCount: 2 }]],
+      [unrelatedStartupRow.id, [{ entityType: 'users', targetCount: 1 }]]
     ]),
     refsByBatchId: new Map([
-      [1, [{ entityType: 'users' }]],
-      [2, [{ entityType: 'users' }]]
+      [defaultBatch.id, [{ entityType: 'users' }]],
+      [unrelatedStartupRow.id, [{ entityType: 'users' }]]
     ])
   })
 
   const response = await request(app).get('/api/batches')
 
   assert.equal(response.status, 200)
-  assert.equal(response.body.defaultBatch.batch.id, 1)
+  assert.equal(response.body.defaultBatch.batch.id, defaultBatch.id)
   assert.deepEqual(response.body.history, {
     totalBatchCount: 2,
-    defaultBatchId: 1,
+    defaultBatchId: defaultBatch.id,
     manualBatchCount: 1,
     hasManualBatches: true
   })
   assert.deepEqual(
     response.body.manualBatches.map((entry) => entry.batch.id),
-    [2]
+    [unrelatedStartupRow.id]
   )
 })
 
@@ -523,17 +533,17 @@ test('batch detail returns target, actual, and failure summaries', async () => {
     status: 'failed',
     errorMessage: 'write-community exploded'
   })
-  const latestFailedJob = createJob(142, 42, {
+  const latestFailedJob = createJob(142, batch.id, {
     status: 'failed',
     errorMessage: 'write-community exploded'
   })
-  const priorSucceededJob = createJob(141, 42)
+  const priorSucceededJob = createJob(141, batch.id)
   const app = createAppHarness({
     batches: [batch],
-    jobsByBatchId: new Map([[42, [latestFailedJob, priorSucceededJob]]]),
+    jobsByBatchId: new Map([[batch.id, [latestFailedJob, priorSucceededJob]]]),
     targetsByBatchId: new Map([
       [
-        42,
+        batch.id,
         [
           { entityType: 'users', targetCount: 2 },
           { entityType: 'posts', targetCount: 3 },
@@ -543,7 +553,7 @@ test('batch detail returns target, actual, and failure summaries', async () => {
     ]),
     refsByBatchId: new Map([
       [
-        42,
+        batch.id,
         [
           { entityType: 'users' },
           { entityType: 'users' },
@@ -557,7 +567,7 @@ test('batch detail returns target, actual, and failure summaries', async () => {
     ])
   })
 
-  const response = await request(app).get('/api/batches/42')
+  const response = await request(app).get(`/api/batches/${batch.id}`)
 
   assert.equal(response.status, 200)
   assert.deepEqual(response.body, {
@@ -592,10 +602,10 @@ test('batch detail returns target, actual, and failure summaries', async () => {
       lastErrorMessage: 'write-community exploded'
     },
     detail: {
-      batchId: 42,
+      batchId: batch.id,
       isDefaultBatch: false,
       jobCount: 2,
-      latestJobId: 142,
+      latestJobId: latestFailedJob.id,
       canDelete: true,
       lastErrorMessage: 'write-community exploded'
     }
@@ -607,13 +617,13 @@ test('batch detail summaries include phase 2 moderation, growth, reward, and im 
     batchKey: 'manual-seed-52',
     status: 'succeeded'
   })
-  const latestJob = createJob(152, 52)
+  const latestJob = createJob(152, batch.id)
   const app = createAppHarness({
     batches: [batch],
-    jobsByBatchId: new Map([[52, [latestJob]]]),
+    jobsByBatchId: new Map([[batch.id, [latestJob]]]),
     targetsByBatchId: new Map([
       [
-        52,
+        batch.id,
         [
           { entityType: 'messages', targetCount: 4 },
           { entityType: 'reports', targetCount: 2 },
@@ -625,7 +635,7 @@ test('batch detail summaries include phase 2 moderation, growth, reward, and im 
     ]),
     refsByBatchId: new Map([
       [
-        52,
+        batch.id,
         [
           { entityType: 'messages' },
           { entityType: 'messages' },
@@ -645,7 +655,7 @@ test('batch detail summaries include phase 2 moderation, growth, reward, and im 
     ])
   })
 
-  const response = await request(app).get('/api/batches/52')
+  const response = await request(app).get(`/api/batches/${batch.id}`)
 
   assert.equal(response.status, 200)
   assert.deepEqual(response.body.targetSummary, {
@@ -687,20 +697,20 @@ test('batch delete stays blocked while a nonterminal job exists', async () => {
       const error = new Error('Batch 7 still has a running job')
       error.code = 'BATCH_JOB_RUNNING'
       error.status = 409
-      error.runningJob = createJob(207, 7, {
+      error.runningJob = createJob(207, batch.id, {
         status: 'pending'
       })
       throw error
     }
   })
 
-  const response = await request(app).delete('/api/batches/7')
+  const response = await request(app).delete(`/api/batches/${batch.id}`)
 
   assert.equal(response.status, 409)
   assert.deepEqual(response.body, {
     ok: false,
     error: 'batch_job_running',
-    runningJob: createJob(207, 7, {
+    runningJob: createJob(207, batch.id, {
       status: 'pending'
     })
   })
@@ -730,12 +740,12 @@ test('batch delete returns deleted counts when the batch is removed', async () =
     })
   })
 
-  const response = await request(app).delete('/api/batches/8')
+  const response = await request(app).delete(`/api/batches/${batch.id}`)
 
   assert.equal(response.status, 200)
   assert.deepEqual(response.body, {
     ok: true,
-    batchId: 8,
+    batchId: batch.id,
     deleted: {
       business: {
         socialLikes: 4,

@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 @Repository
 @ConditionalOnProperty(name = "social.storage", havingValue = "redis")
@@ -75,7 +76,7 @@ public class RedisFollowRepository implements FollowRepository {
     }
 
     @Override
-    public boolean follow(int userId, int entityType, int entityId, long followTimeMillis) {
+    public boolean follow(UUID userId, int entityType, UUID entityId, long followTimeMillis) {
         String followeeKey = followeeKey(userId, entityType);
         String followerKey = followerKey(entityType, entityId);
         Long changed = redisTemplate.execute(
@@ -89,7 +90,7 @@ public class RedisFollowRepository implements FollowRepository {
     }
 
     @Override
-    public boolean unfollow(int userId, int entityType, int entityId) {
+    public boolean unfollow(UUID userId, int entityType, UUID entityId) {
         String followeeKey = followeeKey(userId, entityType);
         String followerKey = followerKey(entityType, entityId);
         Long changed = redisTemplate.execute(
@@ -102,25 +103,25 @@ public class RedisFollowRepository implements FollowRepository {
     }
 
     @Override
-    public boolean hasFollowed(int userId, int entityType, int entityId) {
+    public boolean hasFollowed(UUID userId, int entityType, UUID entityId) {
         Double score = redisTemplate.opsForZSet().score(followeeKey(userId, entityType), String.valueOf(entityId));
         return score != null;
     }
 
     @Override
-    public long countFollowees(int userId, int entityType) {
+    public long countFollowees(UUID userId, int entityType) {
         Long size = redisTemplate.opsForZSet().zCard(followeeKey(userId, entityType));
         return size == null ? 0 : size;
     }
 
     @Override
-    public long countFollowers(int entityType, int entityId) {
+    public long countFollowers(int entityType, UUID entityId) {
         Long size = redisTemplate.opsForZSet().zCard(followerKey(entityType, entityId));
         return size == null ? 0 : size;
     }
 
     @Override
-    public List<FollowItem> listFollowees(int userId, int entityType, int offset, int limit) {
+    public List<FollowItem> listFollowees(UUID userId, int entityType, int offset, int limit) {
         Set<ZSetOperations.TypedTuple<String>> tuples = redisTemplate.opsForZSet().reverseRangeWithScores(
                 followeeKey(userId, entityType),
                 offset,
@@ -130,7 +131,7 @@ public class RedisFollowRepository implements FollowRepository {
     }
 
     @Override
-    public List<FollowItem> listFollowers(int entityType, int entityId, int offset, int limit) {
+    public List<FollowItem> listFollowers(int entityType, UUID entityId, int offset, int limit) {
         Set<ZSetOperations.TypedTuple<String>> tuples = redisTemplate.opsForZSet().reverseRangeWithScores(
                 followerKey(entityType, entityId),
                 offset,
@@ -154,7 +155,7 @@ public class RedisFollowRepository implements FollowRepository {
                 continue;
             }
             FollowItem item = new FollowItem();
-            item.setTargetId(Integer.parseInt(t.getValue()));
+            item.setTargetId(UUID.fromString(t.getValue()));
             Double score = t.getScore();
             item.setFollowTime(score == null ? null : Instant.ofEpochMilli(score.longValue()));
             items.add(item);
@@ -162,11 +163,11 @@ public class RedisFollowRepository implements FollowRepository {
         return items;
     }
 
-    private String followeeKey(int userId, int entityType) {
+    private String followeeKey(UUID userId, int entityType) {
         return "followee:" + userId + ":" + entityType;
     }
 
-    private String followerKey(int entityType, int entityId) {
+    private String followerKey(int entityType, UUID entityId) {
         return "follower:" + entityType + ":" + entityId;
     }
 }

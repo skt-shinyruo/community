@@ -5,10 +5,11 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
+import java.util.UUID;
+
 public class UpdateUserRoleRequest {
 
-    @Min(value = 1, message = "targetUserId 非法")
-    private int targetUserId;
+    private UUID targetUserId;
 
     /**
      * 0=USER, 1=ADMIN, 2=MODERATOR
@@ -29,11 +30,11 @@ public class UpdateUserRoleRequest {
      */
     private boolean confirm;
 
-    public int getTargetUserId() {
+    public UUID getTargetUserId() {
         return targetUserId;
     }
 
-    public void setTargetUserId(int targetUserId) {
+    public void setTargetUserId(UUID targetUserId) {
         this.targetUserId = targetUserId;
     }
 
@@ -61,4 +62,3 @@ public class UpdateUserRoleRequest {
         this.confirm = confirm;
     }
 }
-

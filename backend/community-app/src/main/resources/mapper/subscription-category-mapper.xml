@@ -6,28 +6,27 @@
 
     <insert id="insertSubscription">
         insert ignore into user_subscription_category(user_id, category_id, create_time)
-        values(#{userId}, #{categoryId}, #{createTime})
+        values(#{userId, jdbcType=BINARY}, #{categoryId, jdbcType=BINARY}, #{createTime})
     </insert>
 
     <delete id="deleteSubscription">
         delete from user_subscription_category
-        where user_id = #{userId}
-          and category_id = #{categoryId}
+        where user_id = #{userId, jdbcType=BINARY}
+          and category_id = #{categoryId, jdbcType=BINARY}
     </delete>
 
     <select id="existsSubscription" resultType="int">
         select count(*)
         from user_subscription_category
-        where user_id = #{userId}
-          and category_id = #{categoryId}
+        where user_id = #{userId, jdbcType=BINARY}
+          and category_id = #{categoryId, jdbcType=BINARY}
     </select>
 
-    <select id="selectSubscribedCategoryIds" resultType="int">
+    <select id="selectSubscribedCategoryIds" resultType="java.util.UUID">
         select category_id
         from user_subscription_category
-        where user_id = #{userId}
+        where user_id = #{userId, jdbcType=BINARY}
         order by create_time desc, category_id desc
     </select>
 
 </mapper>
-

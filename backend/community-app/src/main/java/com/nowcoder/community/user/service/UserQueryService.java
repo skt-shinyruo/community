@@ -13,6 +13,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND;
@@ -30,7 +31,7 @@ public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi
         this.walletAccountQueryApi = walletAccountQueryApi;
     }
 
-    public User getById(int userId) {
+    public User getById(UUID userId) {
         User user = userMapper.selectById(userId);
         if (user == null) {
             throw new BusinessException(USER_NOT_FOUND);
@@ -57,12 +58,12 @@ public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi
         return userMapper.selectByEmail(value);
     }
 
-    public List<User> listUserSummariesByIds(List<Integer> userIds) {
+    public List<User> listUserSummariesByIds(List<UUID> userIds) {
         if (userIds == null || userIds.isEmpty()) {
             return List.of();
         }
-        List<Integer> ids = userIds.stream()
-                .filter(id -> id != null && id > 0)
+        List<UUID> ids = userIds.stream()
+                .filter(Objects::nonNull)
                 .distinct()
                 .limit(200)
                 .toList();
@@ -74,8 +75,8 @@ public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi
     }
 
     @Override
-    public UserSummaryView getSummaryById(int userId) {
-        if (userId <= 0) {
+    public UserSummaryView getSummaryById(UUID userId) {
+        if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         return toSummaryView(userMapper.selectById(userId));
@@ -96,7 +97,7 @@ public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi
     }
 
     @Override
-    public List<UserSummaryView> listSummariesByIds(List<Integer> userIds) {
+    public List<UserSummaryView> listSummariesByIds(List<UUID> userIds) {
         return listUserSummariesByIds(userIds).stream()
                 .map(this::toSummaryView)
                 .filter(Objects::nonNull)
@@ -104,19 +105,19 @@ public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi
     }
 
     @Override
-    public UserProfileView getProfile(int userId) {
+    public UserProfileView getProfile(UUID userId) {
         return toProfileView(getById(userId));
     }
 
     private UserSummaryView toSummaryView(User user) {
-        if (user == null || user.getId() <= 0) {
+        if (user == null || user.getId() == null) {
             return null;
         }
         return new UserSummaryView(user.getId(), user.getUsername(), user.getHeaderUrl(), user.getType());
     }
 
     private UserProfileView toProfileView(User user) {
-        if (user == null || user.getId() <= 0) {
+        if (user == null || user.getId() == null) {
             return null;
         }
         return new UserProfileView(
@@ -128,8 +129,8 @@ public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi
                 user.getCreateTime(),
                 user.getScore(),
                 levelForScore(user.getScore()),
-                walletAccountQueryApi.balanceOfUser(user.getId()),
-                walletAccountQueryApi.statusOfUser(user.getId())
+                0L,
+                "UNKNOWN"
         );
     }
 

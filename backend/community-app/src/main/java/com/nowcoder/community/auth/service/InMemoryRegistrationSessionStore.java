@@ -15,8 +15,8 @@ public class InMemoryRegistrationSessionStore implements RegistrationSessionStor
     private final ConcurrentHashMap<String, Entry> store = new ConcurrentHashMap<>();
 
     @Override
-    public String issue(int userId, Duration ttl) {
-        if (userId <= 0 || ttl == null || ttl.isNegative() || ttl.isZero()) {
+    public String issue(UUID userId, Duration ttl) {
+        if (userId == null || ttl == null || ttl.isNegative() || ttl.isZero()) {
             return null;
         }
 
@@ -32,7 +32,7 @@ public class InMemoryRegistrationSessionStore implements RegistrationSessionStor
     }
 
     @Override
-    public Integer findUserId(String registrationToken) {
+    public UUID findUserId(String registrationToken) {
         if (!StringUtils.hasText(registrationToken)) {
             return null;
         }
@@ -58,13 +58,12 @@ public class InMemoryRegistrationSessionStore implements RegistrationSessionStor
     }
 
     private static final class Entry {
-        private final int userId;
+        private final UUID userId;
         private final long expiresAtMs;
 
-        private Entry(int userId, long expiresAtMs) {
+        private Entry(UUID userId, long expiresAtMs) {
             this.userId = userId;
             this.expiresAtMs = expiresAtMs;
         }
     }
 }
-

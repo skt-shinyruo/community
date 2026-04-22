@@ -3,12 +3,13 @@ package com.nowcoder.community.content.contracts.event;
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 public class PostPayload implements Serializable {
 
-    private int postId;
-    private int userId;
-    private Integer categoryId;
+    private UUID postId;
+    private UUID userId;
+    private UUID categoryId;
     private List<String> tags;
     private String title;
     private String content;
@@ -17,27 +18,27 @@ public class PostPayload implements Serializable {
     private Instant createTime;
     private Double score;
 
-    public int getPostId() {
+    public UUID getPostId() {
         return postId;
     }
 
-    public void setPostId(int postId) {
+    public void setPostId(UUID postId) {
         this.postId = postId;
     }
 
-    public int getUserId() {
+    public UUID getUserId() {
         return userId;
     }
 
-    public void setUserId(int userId) {
+    public void setUserId(UUID userId) {
         this.userId = userId;
     }
 
-    public Integer getCategoryId() {
+    public UUID getCategoryId() {
         return categoryId;
     }
 
-    public void setCategoryId(Integer categoryId) {
+    public void setCategoryId(UUID categoryId) {
         this.categoryId = categoryId;
     }
 

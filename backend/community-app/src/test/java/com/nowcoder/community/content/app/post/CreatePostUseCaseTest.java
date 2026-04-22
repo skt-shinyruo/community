@@ -9,7 +9,9 @@ import com.nowcoder.community.content.service.UserModerationGuard;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.UUID;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -26,7 +28,10 @@ class CreatePostUseCaseTest {
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         PostDomainEventPublisher domainEventPublisher = mock(PostDomainEventPublisher.class);
         PostWriteSideEffectScheduler postWriteSideEffectScheduler = mock(PostWriteSideEffectScheduler.class);
-        when(postService.create(any(DiscussPost.class))).thenReturn(101);
+        UUID userId = uuid(7);
+        UUID categoryId = uuid(3);
+        UUID postId = uuid(101);
+        when(postService.create(any(DiscussPost.class))).thenReturn(postId);
 
         CreatePostUseCase useCase = new CreatePostUseCase(
                 postService,
@@ -37,14 +42,14 @@ class CreatePostUseCaseTest {
                 postWriteSideEffectScheduler
         );
 
-        int postId = useCase.createPost(7, "Title", "Content", 3, List.of("java"));
+        UUID createdPostId = useCase.createPost(userId, "Title", "Content", categoryId, List.of("java"));
 
-        assertThat(postId).isEqualTo(101);
-        verify(moderationGuard).assertCanSpeak(7);
-        verify(categoryService).assertExists(3);
+        assertThat(createdPostId).isEqualTo(postId);
+        verify(moderationGuard).assertCanSpeak(userId);
+        verify(categoryService).assertExists(categoryId);
         verify(postService).create(any(DiscussPost.class));
-        verify(tagService).bindTagsToPost(101, List.of("java"));
-        verify(domainEventPublisher).postPublished(101);
-        verify(postWriteSideEffectScheduler).schedulePostScoreRefresh(101);
+        verify(tagService).bindTagsToPost(postId, List.of("java"));
+        verify(domainEventPublisher).postPublished(postId);
+        verify(postWriteSideEffectScheduler).schedulePostScoreRefresh(postId);
     }
 }

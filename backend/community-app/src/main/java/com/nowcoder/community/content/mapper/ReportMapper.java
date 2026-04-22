@@ -6,28 +6,28 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+import java.util.UUID;
 
 @Mapper
 public interface ReportMapper {
 
     int insertReport(Report report);
 
-    Integer selectReportIdByDedupeKey(
-            @Param("reporterId") int reporterId,
+    UUID selectReportIdByDedupeKey(
+            @Param("reporterId") UUID reporterId,
             @Param("targetType") int targetType,
-            @Param("targetId") int targetId
+            @Param("targetId") UUID targetId
     );
 
-    Report selectReportById(@Param("id") int id);
+    Report selectReportById(@Param("id") UUID id);
 
     List<Report> selectReports(
             @Param("status") Integer status,
             @Param("targetType") Integer targetType,
-            @Param("reporterId") Integer reporterId,
+            @Param("reporterId") UUID reporterId,
             @Param("offset") int offset,
             @Param("limit") int limit
     );
 
-    int updateStatus(@Param("id") int id, @Param("status") int status);
+    int updateStatus(@Param("id") UUID id, @Param("status") int status);
 }
-

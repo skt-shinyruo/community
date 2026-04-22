@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -17,7 +18,7 @@ class CategoryControllerTest {
     void listShouldKeepCategoryFieldsAsReturnedByService() {
         CategoryService categoryService = mock(CategoryService.class);
         CategoryResponse category = new CategoryResponse();
-        category.setId(1);
+        category.setId(uuid(1));
         category.setName("公告");
         category.setDescription("官方公告/规则");
         category.setPosition(0);

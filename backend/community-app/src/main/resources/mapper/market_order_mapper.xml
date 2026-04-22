@@ -16,13 +16,13 @@
     <select id="selectById" resultType="com.nowcoder.community.market.entity.MarketOrder">
         select <include refid="BaseColumns"/>
         from market_order
-        where order_id = #{orderId}
+        where order_id = #{orderId, jdbcType=BINARY}
     </select>
 
     <select id="selectByIdForUpdate" resultType="com.nowcoder.community.market.entity.MarketOrder">
         select <include refid="BaseColumns"/>
         from market_order
-        where order_id = #{orderId}
+        where order_id = #{orderId, jdbcType=BINARY}
         for update
     </select>
 
@@ -35,27 +35,27 @@
     <select id="selectByBuyerUserId" resultType="com.nowcoder.community.market.entity.MarketOrder">
         select <include refid="BaseColumns"/>
         from market_order
-        where buyer_user_id = #{buyerUserId}
-        order by order_id desc
+        where buyer_user_id = #{buyerUserId, jdbcType=BINARY}
+        order by create_time desc, order_id desc
     </select>
 
     <select id="selectBySellerUserId" resultType="com.nowcoder.community.market.entity.MarketOrder">
         select <include refid="BaseColumns"/>
         from market_order
-        where seller_user_id = #{sellerUserId}
-        order by order_id desc
+        where seller_user_id = #{sellerUserId, jdbcType=BINARY}
+        order by create_time desc, order_id desc
     </select>
 
-    <insert id="insert" parameterType="com.nowcoder.community.market.entity.MarketOrder" useGeneratedKeys="true" keyProperty="orderId" keyColumn="order_id">
+    <insert id="insert" parameterType="com.nowcoder.community.market.entity.MarketOrder">
         insert into market_order(
-            request_id, listing_id, goods_type, seller_user_id, buyer_user_id, quantity, unit_price_snapshot, total_amount,
+            order_id, request_id, listing_id, goods_type, seller_user_id, buyer_user_id, quantity, unit_price_snapshot, total_amount,
             delivery_mode_snapshot, listing_title_snapshot, status, escrow_txn_id, release_txn_id, refund_txn_id,
             auto_confirm_at, receiver_name_snapshot, receiver_phone_snapshot, province_snapshot, city_snapshot,
             district_snapshot, detail_address_snapshot, postal_code_snapshot
         )
         values(
-            #{requestId}, #{listingId}, #{goodsType}, #{sellerUserId}, #{buyerUserId}, #{quantity}, #{unitPriceSnapshot}, #{totalAmount},
-            #{deliveryModeSnapshot}, #{listingTitleSnapshot}, #{status}, #{escrowTxnId}, #{releaseTxnId}, #{refundTxnId},
+            #{orderId, jdbcType=BINARY}, #{requestId}, #{listingId, jdbcType=BINARY}, #{goodsType}, #{sellerUserId, jdbcType=BINARY}, #{buyerUserId, jdbcType=BINARY}, #{quantity}, #{unitPriceSnapshot}, #{totalAmount},
+            #{deliveryModeSnapshot}, #{listingTitleSnapshot}, #{status}, #{escrowTxnId, jdbcType=BINARY}, #{releaseTxnId, jdbcType=BINARY}, #{refundTxnId, jdbcType=BINARY},
             #{autoConfirmAt}, #{receiverNameSnapshot}, #{receiverPhoneSnapshot}, #{provinceSnapshot}, #{citySnapshot},
             #{districtSnapshot}, #{detailAddressSnapshot}, #{postalCodeSnapshot}
         )
@@ -66,7 +66,7 @@
         set status = 'DELIVERED',
             auto_confirm_at = #{autoConfirmAt},
             update_time = current_timestamp
-        where order_id = #{orderId}
+        where order_id = #{orderId, jdbcType=BINARY}
     </update>
 
     <update id="markShipped">
@@ -74,45 +74,45 @@
         set status = 'SHIPPED',
             auto_confirm_at = #{autoConfirmAt},
             update_time = current_timestamp
-        where order_id = #{orderId}
+        where order_id = #{orderId, jdbcType=BINARY}
     </update>
 
     <update id="markCompleted">
         update market_order
         set status = 'COMPLETED',
-            release_txn_id = #{releaseTxnId},
+            release_txn_id = #{releaseTxnId, jdbcType=BINARY},
             update_time = current_timestamp
-        where order_id = #{orderId}
+        where order_id = #{orderId, jdbcType=BINARY}
     </update>
 
     <update id="markCancelled">
         update market_order
         set status = 'CANCELLED',
-            refund_txn_id = #{refundTxnId},
+            refund_txn_id = #{refundTxnId, jdbcType=BINARY},
             update_time = current_timestamp
-        where order_id = #{orderId}
+        where order_id = #{orderId, jdbcType=BINARY}
     </update>
 
     <update id="markDisputed">
         update market_order
         set status = 'DISPUTED',
             update_time = current_timestamp
-        where order_id = #{orderId}
+        where order_id = #{orderId, jdbcType=BINARY}
     </update>
 
     <update id="markRefunded">
         update market_order
         set status = 'REFUNDED',
-            refund_txn_id = #{refundTxnId},
+            refund_txn_id = #{refundTxnId, jdbcType=BINARY},
             update_time = current_timestamp
-        where order_id = #{orderId}
+        where order_id = #{orderId, jdbcType=BINARY}
     </update>
 
     <update id="updateStatus">
         update market_order
         set status = #{status},
             update_time = current_timestamp
-        where order_id = #{orderId}
+        where order_id = #{orderId, jdbcType=BINARY}
     </update>
 
     <select id="selectDueForAutoConfirm" resultType="com.nowcoder.community.market.entity.MarketOrder">
@@ -121,7 +121,7 @@
         where status in ('DELIVERED', 'SHIPPED')
           and auto_confirm_at is not null
           and auto_confirm_at &lt;= #{asOf}
-        order by order_id asc
+        order by auto_confirm_at asc, order_id asc
     </select>
 
 </mapper>

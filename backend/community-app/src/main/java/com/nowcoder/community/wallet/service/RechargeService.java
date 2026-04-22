@@ -1,5 +1,6 @@
 package com.nowcoder.community.wallet.service;
 
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.wallet.dto.CreateRechargeResponse;
 import com.nowcoder.community.wallet.entity.RechargeOrder;
@@ -7,11 +8,13 @@ import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.mapper.RechargeOrderMapper;
 import com.nowcoder.community.wallet.model.WalletPosting;
 import com.nowcoder.community.wallet.model.WalletTxnType;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class RechargeService {
@@ -19,17 +22,27 @@ public class RechargeService {
     private final RechargeOrderMapper rechargeOrderMapper;
     private final WalletAccountService accountService;
     private final WalletLedgerService ledgerService;
+    private final UuidV7Generator idGenerator;
 
+    @Autowired
     public RechargeService(RechargeOrderMapper rechargeOrderMapper,
                            WalletAccountService accountService,
                            WalletLedgerService ledgerService) {
+        this(rechargeOrderMapper, accountService, ledgerService, new UuidV7Generator());
+    }
+
+    RechargeService(RechargeOrderMapper rechargeOrderMapper,
+                    WalletAccountService accountService,
+                    WalletLedgerService ledgerService,
+                    UuidV7Generator idGenerator) {
         this.rechargeOrderMapper = rechargeOrderMapper;
         this.accountService = accountService;
         this.ledgerService = ledgerService;
+        this.idGenerator = idGenerator;
     }
 
     @Transactional
-    public CreateRechargeResponse complete(String requestId, int userId, long amount) {
+    public CreateRechargeResponse complete(String requestId, UUID userId, long amount) {
         validate(requestId, amount);
 
         RechargeOrder existing = rechargeOrderMapper.selectByRequestId(requestId);
@@ -67,8 +80,9 @@ public class RechargeService {
         }
     }
 
-    private RechargeOrder createOrLoad(String requestId, int userId, long amount) {
+    private RechargeOrder createOrLoad(String requestId, UUID userId, long amount) {
         RechargeOrder order = new RechargeOrder();
+        order.setOrderId(idGenerator.next());
         order.setRequestId(requestId);
         order.setUserId(userId);
         order.setAmount(amount);
@@ -93,8 +107,8 @@ public class RechargeService {
         return order;
     }
 
-    private void ensureReplayMatches(RechargeOrder order, int userId, long amount) {
-        if (order.getUserId() != userId || order.getAmount() != amount) {
+    private void ensureReplayMatches(RechargeOrder order, UUID userId, long amount) {
+        if (!userId.equals(order.getUserId()) || order.getAmount() != amount) {
             throw new BusinessException(
                     WalletErrorCode.REQUEST_REPLAY_CONFLICT,
                     "requestId replay conflict: requestId=" + order.getRequestId()

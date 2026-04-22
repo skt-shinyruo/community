@@ -1,38 +1,39 @@
 package com.nowcoder.community.content.dto;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class ModerationActionResponse {
 
-    private int id;
-    private Integer reportId;
-    private int actorId;
+    private UUID id;
+    private UUID reportId;
+    private UUID actorId;
     private String action;
     private String reason;
     private int durationSeconds;
     private Date createTime;
 
-    public int getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
-    public Integer getReportId() {
+    public UUID getReportId() {
         return reportId;
     }
 
-    public void setReportId(Integer reportId) {
+    public void setReportId(UUID reportId) {
         this.reportId = reportId;
     }
 
-    public int getActorId() {
+    public UUID getActorId() {
         return actorId;
     }
 
-    public void setActorId(int actorId) {
+    public void setActorId(UUID actorId) {
         this.actorId = actorId;
     }
 

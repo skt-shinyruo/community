@@ -14,12 +14,13 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.UUID;
 
 @Component
 public class ConnectionRegistry {
 
     private final ConcurrentHashMap<String, WsConnection> byConnectionId = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Integer, Set<String>> connectionIdsByUserId = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, Set<String>> connectionIdsByUserId = new ConcurrentHashMap<>();
 
     private final AtomicInteger onlineConnections = new AtomicInteger(0);
     private final AtomicInteger onlineUsers = new AtomicInteger(0);
@@ -52,8 +53,8 @@ public class ConnectionRegistry {
         if (conn == null) {
             return;
         }
-        Integer userId = conn.userId();
-        if (userId == null || userId <= 0) {
+        UUID userId = conn.userId();
+        if (userId == null) {
             throw new IllegalStateException("connection userId not bound");
         }
 
@@ -90,8 +91,8 @@ public class ConnectionRegistry {
         if (removed != null) {
             onlineConnections.decrementAndGet();
         }
-        Integer userId = conn.userId();
-        if (userId != null && userId > 0) {
+        UUID userId = conn.userId();
+        if (userId != null) {
             Set<String> ids = connectionIdsByUserId.get(userId);
             if (ids != null) {
                 ids.remove(conn.connectionId());
@@ -105,8 +106,8 @@ public class ConnectionRegistry {
         }
     }
 
-    public Collection<WsConnection> listByUserId(int userId) {
-        if (userId <= 0) {
+    public Collection<WsConnection> listByUserId(UUID userId) {
+        if (userId == null) {
             return List.of();
         }
         Set<String> ids = connectionIdsByUserId.get(userId);
@@ -123,8 +124,8 @@ public class ConnectionRegistry {
         return list;
     }
 
-    public void forEachConnectionByUserId(int userId, Consumer<WsConnection> consumer) {
-        if (userId <= 0 || consumer == null) {
+    public void forEachConnectionByUserId(UUID userId, Consumer<WsConnection> consumer) {
+        if (userId == null || consumer == null) {
             return;
         }
         Set<String> ids = connectionIdsByUserId.get(userId);

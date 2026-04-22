@@ -8,6 +8,7 @@ import com.nowcoder.community.content.text.ContentTextCodec;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * PostPayload 组装器（SSOT）：统一从权威数据源构造对外事件 payload，避免多处拼装导致字段漂移。
@@ -25,14 +26,14 @@ public class PostPayloadAssembler {
         this.textCodec = textCodec;
     }
 
-    public PostPayload assemble(int postId) {
+    public PostPayload assemble(UUID postId) {
         DiscussPost post = postService.getByIdAllowDeleted(postId);
         List<String> tags = tagService.getTagsByPostIds(List.of(postId)).getOrDefault(postId, List.of());
         return assemble(post, tags);
     }
 
     public PostPayload assemble(DiscussPost post, List<String> tags) {
-        if (post == null || post.getId() <= 0) {
+        if (post == null || post.getId() == null) {
             throw new IllegalArgumentException("post 为空或非法");
         }
         PostPayload payload = new PostPayload();

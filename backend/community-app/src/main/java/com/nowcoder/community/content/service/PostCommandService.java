@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 /**
  * 帖子写路径命令服务：
@@ -53,8 +54,8 @@ public class PostCommandService {
         this.adminDeletePostUseCase = adminDeletePostUseCase;
     }
 
-    public int createPost(int userId, String title, String content, Integer categoryId, List<String> tags) {
-        int postId = createPostUseCase.createPost(userId, title, content, categoryId, tags);
+    public UUID createPost(UUID userId, String title, String content, UUID categoryId, List<String> tags) {
+        UUID postId = createPostUseCase.createPost(userId, title, content, categoryId, tags);
         infoEvent(
                 CATEGORY_BUSINESS,
                 "post_create",
@@ -68,7 +69,7 @@ public class PostCommandService {
         return postId;
     }
 
-    public void updatePost(int actorUserId, int postId, String title, String content, Integer categoryId, List<String> tags) {
+    public void updatePost(UUID actorUserId, UUID postId, String title, String content, UUID categoryId, List<String> tags) {
         updatePostUseCase.updatePost(actorUserId, postId, title, content, categoryId, tags);
         infoEvent(
                 CATEGORY_BUSINESS,
@@ -81,7 +82,7 @@ public class PostCommandService {
         );
     }
 
-    public void deletePostByAuthor(int actorUserId, int postId) {
+    public void deletePostByAuthor(UUID actorUserId, UUID postId) {
         deleteOwnPostUseCase.deletePostByAuthor(actorUserId, postId);
         infoEvent(
                 CATEGORY_BUSINESS,
@@ -94,7 +95,7 @@ public class PostCommandService {
         );
     }
 
-    public void topPost(int actorUserId, int postId) {
+    public void topPost(UUID actorUserId, UUID postId) {
         topPostUseCase.topPost(actorUserId, postId);
         infoEvent(
                 CATEGORY_BUSINESS,
@@ -106,7 +107,7 @@ public class PostCommandService {
         );
     }
 
-    public void markWonderful(int actorUserId, int postId) {
+    public void markWonderful(UUID actorUserId, UUID postId) {
         markPostWonderfulUseCase.markWonderful(actorUserId, postId);
         infoEvent(
                 CATEGORY_BUSINESS,
@@ -118,7 +119,7 @@ public class PostCommandService {
         );
     }
 
-    public void adminDelete(int actorUserId, int postId) {
+    public void adminDelete(UUID actorUserId, UUID postId) {
         adminDeletePostUseCase.adminDelete(actorUserId, postId);
         infoEvent(
                 CATEGORY_BUSINESS,

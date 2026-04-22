@@ -18,7 +18,7 @@ public class RefreshTokenService {
         this.refreshTokenStore = refreshTokenStore;
     }
 
-    public IssuedRefreshToken issue(int userId) {
+    public IssuedRefreshToken issue(UUID userId) {
         String familyId = UUID.randomUUID().toString().replace("-", "");
         return issue(userId, familyId);
     }
@@ -82,7 +82,7 @@ public class RefreshTokenService {
                 .build();
     }
 
-    private IssuedRefreshToken issue(int userId, String familyId) {
+    private IssuedRefreshToken issue(UUID userId, String familyId) {
         String tokenValue = UUID.randomUUID().toString().replace("-", "");
         Instant expiresAt = Instant.now().plusSeconds(jwtProperties.getRefreshTokenTtlSeconds());
         refreshTokenStore.store(tokenValue, userId, familyId, expiresAt);

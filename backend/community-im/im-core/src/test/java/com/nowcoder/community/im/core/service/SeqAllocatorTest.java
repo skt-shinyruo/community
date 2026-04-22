@@ -9,6 +9,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
@@ -27,7 +29,7 @@ class SeqAllocatorTest {
 
     @Test
     void nextRoomSeq_incrementsMonotonically() {
-        long roomId = 1001L;
+        UUID roomId = uuid(1001);
         roomRepository.insertRoom(roomId, "test");
 
         assertThat(seqAllocator.nextRoomSeq(roomId)).isEqualTo(1L);
@@ -36,11 +38,16 @@ class SeqAllocatorTest {
 
     @Test
     void nextConversationSeq_incrementsMonotonically() {
-        String conversationId = "1_2";
-        conversationRepository.ensureExists(conversationId, 1, 2);
+        UUID userId1 = uuid(1);
+        UUID userId2 = uuid(2);
+        String conversationId = userId1 + "_" + userId2;
+        conversationRepository.ensureExists(conversationId, userId1, userId2);
 
         assertThat(seqAllocator.nextConversationSeq(conversationId)).isEqualTo(1L);
         assertThat(seqAllocator.nextConversationSeq(conversationId)).isEqualTo(2L);
     }
-}
 
+    private static UUID uuid(long suffix) {
+        return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
+    }
+}

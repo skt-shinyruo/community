@@ -1,10 +1,11 @@
 package com.nowcoder.community.auth.service;
 
 import java.time.Instant;
+import java.util.UUID;
 
 public interface RefreshTokenStore {
 
-    void store(String refreshToken, int userId, String familyId, Instant expiresAt);
+    void store(String refreshToken, UUID userId, String familyId, Instant expiresAt);
 
     StoredRefreshToken find(String refreshToken);
 
@@ -14,6 +15,6 @@ public interface RefreshTokenStore {
 
     void revokeFamily(String familyId);
 
-    record StoredRefreshToken(String refreshToken, int userId, String familyId, Instant expiresAt) {
+    record StoredRefreshToken(String refreshToken, UUID userId, String familyId, Instant expiresAt) {
     }
 }

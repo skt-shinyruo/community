@@ -6,20 +6,20 @@
 
     <insert id="insertBookmark">
         insert ignore into post_bookmark(user_id, post_id, create_time)
-        values(#{userId}, #{postId}, #{createTime})
+        values(#{userId, jdbcType=BINARY}, #{postId, jdbcType=BINARY}, #{createTime})
     </insert>
 
     <delete id="deleteBookmark">
         delete from post_bookmark
-        where user_id = #{userId}
-          and post_id = #{postId}
+        where user_id = #{userId, jdbcType=BINARY}
+          and post_id = #{postId, jdbcType=BINARY}
     </delete>
 
     <select id="existsBookmark" resultType="int">
         select count(*)
         from post_bookmark
-        where user_id = #{userId}
-          and post_id = #{postId}
+        where user_id = #{userId, jdbcType=BINARY}
+          and post_id = #{postId, jdbcType=BINARY}
     </select>
 
     <select id="selectBookmarkedPosts" resultType="com.nowcoder.community.content.entity.DiscussPost">
@@ -41,7 +41,7 @@
             p.score as score
         from post_bookmark b
         join discuss_post p on b.post_id = p.id
-        where b.user_id = #{userId}
+        where b.user_id = #{userId, jdbcType=BINARY}
           and p.status != 2
         order by b.create_time desc, p.id desc
         limit #{offset}, #{limit}

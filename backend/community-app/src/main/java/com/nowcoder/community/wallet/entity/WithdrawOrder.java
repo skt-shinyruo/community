@@ -1,12 +1,13 @@
 package com.nowcoder.community.wallet.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class WithdrawOrder {
 
-    private long orderId;
+    private UUID orderId;
     private String requestId;
-    private long userId;
+    private UUID userId;
     private long amount;
     private String status;
     private String payeeAccount;
@@ -14,11 +15,11 @@ public class WithdrawOrder {
     private Date createTime;
     private Date updateTime;
 
-    public long getOrderId() {
+    public UUID getOrderId() {
         return orderId;
     }
 
-    public void setOrderId(long orderId) {
+    public void setOrderId(UUID orderId) {
         this.orderId = orderId;
     }
 
@@ -30,11 +31,11 @@ public class WithdrawOrder {
         this.requestId = requestId;
     }
 
-    public long getUserId() {
+    public UUID getUserId() {
         return userId;
     }
 
-    public void setUserId(long userId) {
+    public void setUserId(UUID userId) {
         this.userId = userId;
     }
 

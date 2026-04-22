@@ -9,7 +9,7 @@
         select id, user_id, task_code, period_key, current_value, target_value, status, reached_at, claimed_at,
                reward_grant_id, last_source_event_id, update_time
         from user_task_progress
-        where user_id = #{userId}
+        where user_id = #{userId, jdbcType=BINARY}
           and task_code = #{taskCode}
           and period_key = #{periodKey}
     </select>
@@ -18,7 +18,7 @@
         select id, user_id, task_code, period_key, current_value, target_value, status, reached_at, claimed_at,
                reward_grant_id, last_source_event_id, update_time
         from user_task_progress
-        where user_id = #{userId}
+        where user_id = #{userId, jdbcType=BINARY}
           and task_code = #{taskCode}
           and period_key = #{periodKey}
         for update
@@ -27,14 +27,14 @@
     <select id="countByUserTaskAndPeriodKeyRange" resultType="int">
         select count(*)
         from user_task_progress
-        where user_id = #{userId}
+        where user_id = #{userId, jdbcType=BINARY}
           and task_code = #{taskCode}
           and period_key between #{startPeriodKey} and #{endPeriodKey}
     </select>
 
     <insert id="insert">
-        insert into user_task_progress(user_id, task_code, period_key, current_value, target_value, status, last_source_event_id, update_time)
-        values(#{userId}, #{taskCode}, #{periodKey}, 0, #{targetValue}, #{status}, #{lastSourceEventId}, current_timestamp)
+        insert into user_task_progress(id, user_id, task_code, period_key, current_value, target_value, status, last_source_event_id, update_time)
+        values(#{id, jdbcType=BINARY}, #{userId, jdbcType=BINARY}, #{taskCode}, #{periodKey}, 0, #{targetValue}, #{status}, #{lastSourceEventId}, current_timestamp)
     </insert>
 
     <update id="updateProgress">
@@ -46,7 +46,7 @@
             reward_grant_id = #{rewardGrantId},
             last_source_event_id = #{lastSourceEventId},
             update_time = current_timestamp
-        where id = #{id}
+        where id = #{id, jdbcType=BINARY}
     </update>
 
 </mapper>

@@ -13,6 +13,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
@@ -28,6 +29,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class RefreshTokenServiceTest {
+
+    private static final UUID USER_ID = UUID.fromString("00000000-0000-7000-8000-000000000007");
 
     @Test
     void authServiceShouldOnlyExposeFocusedServiceConstructor() {
@@ -47,7 +50,7 @@ class RefreshTokenServiceTest {
     void refreshShouldRejectReplayWhenSameTokenIsPresentedConcurrently() throws Exception {
         CoordinatedRefreshTokenStore store = new CoordinatedRefreshTokenStore("presented-token");
         RefreshTokenService refreshTokenService = new RefreshTokenService(jwtProperties(), store);
-        store.store("presented-token", 7, "family-1", Instant.now().plusSeconds(300));
+        store.store("presented-token", USER_ID, "family-1", Instant.now().plusSeconds(300));
 
         AuthService authService = authService(refreshTokenService);
         MockHttpServletRequest request = refreshRequest("presented-token");
@@ -79,7 +82,7 @@ class RefreshTokenServiceTest {
     void refreshShouldOnlyRotateOnceForSamePresentedToken() throws Exception {
         CoordinatedRefreshTokenStore store = new CoordinatedRefreshTokenStore("presented-token");
         RefreshTokenService refreshTokenService = new RefreshTokenService(jwtProperties(), store);
-        store.store("presented-token", 7, "family-1", Instant.now().plusSeconds(300));
+        store.store("presented-token", USER_ID, "family-1", Instant.now().plusSeconds(300));
 
         AuthService authService = authService(refreshTokenService);
         MockHttpServletRequest request = refreshRequest("presented-token");
@@ -103,8 +106,8 @@ class RefreshTokenServiceTest {
     @Test
     void refreshShouldBuildAccessTokenFromCredentialLookupOnly() {
         RefreshTokenService refreshTokenService = new RefreshTokenService(jwtProperties(), new InMemoryRefreshTokenStore());
-        RefreshTokenService.IssuedRefreshToken issued = refreshTokenService.issue(7);
-        AuthService authService = authService(refreshTokenService, new UserCredentialView(7, "alice", 1, 2, "h1"));
+        RefreshTokenService.IssuedRefreshToken issued = refreshTokenService.issue(USER_ID);
+        AuthService authService = authService(refreshTokenService, new UserCredentialView(USER_ID, "alice", 1, 2, "h1"));
 
         MockHttpServletRequest request = refreshRequest(issued.refreshToken());
         AuthService.RefreshResult result = authService.refresh(request);
@@ -116,7 +119,7 @@ class RefreshTokenServiceTest {
     void rotateShouldReturnNullWhenStoreThrows() {
         RefreshTokenService refreshTokenService = new RefreshTokenService(jwtProperties(), new RefreshTokenStore() {
             @Override
-            public void store(String refreshToken, int userId, String familyId, Instant expiresAt) {
+            public void store(String refreshToken, UUID userId, String familyId, Instant expiresAt) {
                 throw new IllegalStateException("store rejected");
             }
 
@@ -127,7 +130,7 @@ class RefreshTokenServiceTest {
 
             @Override
             public StoredRefreshToken consume(String refreshToken) {
-                return new StoredRefreshToken(refreshToken, 7, "family-1", Instant.now().plusSeconds(300));
+                return new StoredRefreshToken(refreshToken, USER_ID, "family-1", Instant.now().plusSeconds(300));
             }
 
             @Override
@@ -144,7 +147,7 @@ class RefreshTokenServiceTest {
     }
 
     private static AuthService authService(RefreshTokenService refreshTokenService) {
-        return authService(refreshTokenService, new UserCredentialView(7, "alice", 1, 0, "h1"));
+        return authService(refreshTokenService, new UserCredentialView(USER_ID, "alice", 1, 0, "h1"));
     }
 
     private static AuthService authService(RefreshTokenService refreshTokenService, UserCredentialView credentialView) {
@@ -154,16 +157,16 @@ class RefreshTokenServiceTest {
         CaptchaService captchaService = mock(CaptchaService.class);
         ClientIpResolver clientIpResolver = mock(ClientIpResolver.class);
 
-        when(userCredentialQueryApi.getByUserId(7)).thenReturn(credentialView);
+        when(userCredentialQueryApi.getByUserId(USER_ID)).thenReturn(credentialView);
         when(userCredentialQueryApi.authoritiesOf(argThat(user ->
                 user != null
-                        && user.userId() == 7
+                        && user.userId().equals(USER_ID)
                         && user.username().equals("alice")
                         && user.status() == 1
                         && user.type() == credentialView.type()
                         && user.headerUrl().equals("h1")
         ))).thenReturn(List.of("user"));
-        when(jwtTokenService.createAccessToken(7, "alice", List.of("user"))).thenReturn("access-token");
+        when(jwtTokenService.createAccessToken(USER_ID, "alice", List.of("user"))).thenReturn("access-token");
 
         return new AuthService(
                 userCredentialQueryApi,
@@ -216,7 +219,7 @@ class RefreshTokenServiceTest {
         }
 
         @Override
-        public void store(String refreshToken, int userId, String familyId, Instant expiresAt) {
+        public void store(String refreshToken, UUID userId, String familyId, Instant expiresAt) {
             tokens.put(refreshToken, new StoredRefreshToken(refreshToken, userId, familyId, expiresAt));
         }
 
@@ -266,7 +269,7 @@ class RefreshTokenServiceTest {
         private final ConcurrentHashMap<String, StoredRefreshToken> tokens = new ConcurrentHashMap<>();
 
         @Override
-        public void store(String refreshToken, int userId, String familyId, Instant expiresAt) {
+        public void store(String refreshToken, UUID userId, String familyId, Instant expiresAt) {
             tokens.put(refreshToken, new StoredRefreshToken(refreshToken, userId, familyId, expiresAt));
         }
 

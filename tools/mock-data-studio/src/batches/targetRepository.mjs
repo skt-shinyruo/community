@@ -1,4 +1,5 @@
 import { formatMysqlTimestamp, toIsoTimestamp } from '../db/mysql.mjs'
+import { bufferToUuid, generateUuidV7, uuidToBuffer } from '../db/uuidv7.mjs'
 
 function serializeJson(value) {
   return value == null ? null : JSON.stringify(value)
@@ -10,8 +11,8 @@ function parseJson(value) {
 
 function mapTargetRow(row) {
   return {
-    id: row.id,
-    batchId: row.batch_id,
+    id: bufferToUuid(row.id),
+    batchId: bufferToUuid(row.batch_id),
     entityType: row.entity_type,
     targetKey: row.target_key,
     targetCount: row.target_count,
@@ -26,13 +27,13 @@ async function listByBatchId(db, batchId) {
        from demo_batch_target
       where batch_id = ?
       order by id asc`,
-    [batchId]
+    [uuidToBuffer(batchId)]
   )
 
   return rows.map(mapTargetRow)
 }
 
-export function createTargetRepository(db) {
+export function createTargetRepository(db, { createId = generateUuidV7 } = {}) {
   return {
     async replaceForBatch(batchId, targets) {
       const runInTransaction = db.withTransaction
@@ -40,11 +41,12 @@ export function createTargetRepository(db) {
         : (work) => work(db)
 
       await runInTransaction(async (txDb) => {
-        await txDb.execute(`delete from demo_batch_target where batch_id = ?`, [batchId])
+        await txDb.execute(`delete from demo_batch_target where batch_id = ?`, [uuidToBuffer(batchId)])
 
         for (const target of targets) {
           await txDb.execute(
             `insert into demo_batch_target (
+              id,
               batch_id,
               entity_type,
               target_key,
@@ -53,7 +55,8 @@ export function createTargetRepository(db) {
               created_at
             ) values (?, ?, ?, ?, ?, ?)`,
             [
-              batchId,
+              uuidToBuffer(createId()),
+              uuidToBuffer(batchId),
               target.entityType,
               target.targetKey,
               target.targetCount,

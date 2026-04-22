@@ -5,13 +5,15 @@
 use community;
 
 create table if not exists user_level_rule_config (
-  id bigint primary key,
+  id binary(16) primary key,
+  config_key varchar(32) not null,
   window_days int not null,
   lv2_sign_in_days int not null,
   lv3_sign_in_days int not null,
   enabled tinyint(1) not null default 1,
-  updated_by int default null,
-  update_time timestamp null default current_timestamp on update current_timestamp
+  updated_by binary(16) default null,
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  unique key uk_user_level_rule_config_key (config_key)
 );
 
 create table if not exists task_template (
@@ -31,8 +33,8 @@ create table if not exists task_template (
 );
 
 create table if not exists user_task_progress (
-  id bigint auto_increment primary key,
-  user_id int not null,
+  id binary(16) primary key,
+  user_id binary(16) not null,
   task_code varchar(64) not null,
   period_key varchar(32) not null,
   current_value int not null,
@@ -48,8 +50,8 @@ create table if not exists user_task_progress (
 );
 
 create table if not exists user_task_event_log (
-  id bigint auto_increment primary key,
-  user_id int not null,
+  id binary(16) primary key,
+  user_id binary(16) not null,
   task_code varchar(64) not null,
   period_key varchar(32) not null,
   source_event_id varchar(64) not null,

@@ -23,6 +23,9 @@ import org.springframework.context.annotation.Import;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.UUID;
+
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -96,34 +99,37 @@ class WalletControllerTest {
                         .content("""
                                 {
                                   "requestId": "transfer:req-api-1",
-                                  "toUserId": 2,
+                                  "toUserId": "%s",
                                   "amount": 300
                                 }
-                                """))
+                                """.formatted(uuid(2))))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(401));
     }
 
     @Test
     void walletSummaryShouldReturnCurrentBalanceForAuthenticatedUser() throws Exception {
-        when(walletQueryService.summary(1)).thenReturn(new WalletSummaryResponse(1, 2300, "ACTIVE"));
+        UUID userId = uuid(1);
+        when(walletQueryService.summary(userId)).thenReturn(new WalletSummaryResponse(userId, 2300, "ACTIVE"));
 
         mockMvc.perform(get("/api/wallet/summary")
-                        .with(jwt().jwt(jwt -> jwt.subject("1").claim("username", "u1"))))
+                        .with(jwt().jwt(jwt -> jwt.subject(userId.toString()).claim("username", "u1"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data.userId").value(1))
+                .andExpect(jsonPath("$.data.userId").value(userId.toString()))
                 .andExpect(jsonPath("$.data.balance").value(2300))
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"));
     }
 
     @Test
     void rechargeEndpointShouldReturnRechargeResultForAuthenticatedUser() throws Exception {
-        when(rechargeService.complete(eq("recharge:req-api-1"), eq(1), eq(1200L)))
-                .thenReturn(new CreateRechargeResponse(10L, "recharge:req-api-1", 1L, 1200L, "PAID"));
+        UUID userId = uuid(1);
+        UUID orderId = UUID.fromString("00000000-0000-7000-8000-000000000623");
+        when(rechargeService.complete(eq("recharge:req-api-1"), eq(userId), eq(1200L)))
+                .thenReturn(new CreateRechargeResponse(orderId, "recharge:req-api-1", userId, 1200L, "PAID"));
 
         mockMvc.perform(post("/api/wallet/recharges")
-                        .with(jwt().jwt(jwt -> jwt.subject("1").claim("username", "u1")))
+                        .with(jwt().jwt(jwt -> jwt.subject(userId.toString()).claim("username", "u1")))
                         .contentType("application/json")
                         .content("""
                                 {
@@ -133,20 +139,22 @@ class WalletControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data.orderId").value(10))
+                .andExpect(jsonPath("$.data.orderId").value(orderId.toString()))
                 .andExpect(jsonPath("$.data.requestId").value("recharge:req-api-1"))
-                .andExpect(jsonPath("$.data.userId").value(1))
+                .andExpect(jsonPath("$.data.userId").value(userId.toString()))
                 .andExpect(jsonPath("$.data.amount").value(1200))
                 .andExpect(jsonPath("$.data.status").value("PAID"));
     }
 
     @Test
     void withdrawEndpointShouldReturnWithdrawResultForAuthenticatedUser() throws Exception {
-        when(withdrawService.request(eq("withdraw:req-api-1"), eq(1), eq(500L)))
-                .thenReturn(new CreateWithdrawResponse(20L, "withdraw:req-api-1", 1L, 500L, "SUCCEEDED"));
+        UUID userId = uuid(1);
+        UUID orderId = UUID.fromString("00000000-0000-7000-8000-000000000624");
+        when(withdrawService.request(eq("withdraw:req-api-1"), eq(userId), eq(500L)))
+                .thenReturn(new CreateWithdrawResponse(orderId, "withdraw:req-api-1", userId, 500L, "SUCCEEDED"));
 
         mockMvc.perform(post("/api/wallet/withdrawals")
-                        .with(jwt().jwt(jwt -> jwt.subject("1").claim("username", "u1")))
+                        .with(jwt().jwt(jwt -> jwt.subject(userId.toString()).claim("username", "u1")))
                         .contentType("application/json")
                         .content("""
                                 {
@@ -156,45 +164,49 @@ class WalletControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data.orderId").value(20))
+                .andExpect(jsonPath("$.data.orderId").value(orderId.toString()))
                 .andExpect(jsonPath("$.data.requestId").value("withdraw:req-api-1"))
-                .andExpect(jsonPath("$.data.userId").value(1))
+                .andExpect(jsonPath("$.data.userId").value(userId.toString()))
                 .andExpect(jsonPath("$.data.amount").value(500))
                 .andExpect(jsonPath("$.data.status").value("SUCCEEDED"));
     }
 
     @Test
-    void transferEndpointShouldReturnTransferResultForAuthenticatedUser() throws Exception {
-        when(transferService.create(eq("transfer:req-api-1"), eq(1), eq(2), eq(300L)))
-                .thenReturn(new CreateTransferResponse(30L, "transfer:req-api-1", 1L, 2L, 300L, "SUCCEEDED"));
+    void transferEndpointShouldReturnTransferResultForAuthenticatedUserWithUuidOrderId() throws Exception {
+        UUID fromUserId = uuid(1);
+        UUID toUserId = uuid(2);
+        UUID orderId = UUID.fromString("00000000-0000-7000-8000-000000000625");
+        when(transferService.create(eq("transfer:req-api-1"), eq(fromUserId), eq(toUserId), eq(300L)))
+                .thenReturn(transferResponse(orderId, "transfer:req-api-1", fromUserId, toUserId, 300L, "SUCCEEDED"));
 
         mockMvc.perform(post("/api/wallet/transfers")
-                        .with(jwt().jwt(jwt -> jwt.subject("1").claim("username", "u1")))
+                        .with(jwt().jwt(jwt -> jwt.subject(fromUserId.toString()).claim("username", "u1")))
                         .contentType("application/json")
                         .content("""
                                 {
                                   "requestId": "transfer:req-api-1",
-                                  "toUserId": 2,
+                                  "toUserId": "%s",
                                   "amount": 300
                                 }
-                                """))
+                                """.formatted(toUserId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data.orderId").value(30))
+                .andExpect(jsonPath("$.data.orderId").value(orderId.toString()))
                 .andExpect(jsonPath("$.data.requestId").value("transfer:req-api-1"))
-                .andExpect(jsonPath("$.data.fromUserId").value(1))
-                .andExpect(jsonPath("$.data.toUserId").value(2))
+                .andExpect(jsonPath("$.data.fromUserId").value(fromUserId.toString()))
+                .andExpect(jsonPath("$.data.toUserId").value(toUserId.toString()))
                 .andExpect(jsonPath("$.data.amount").value(300))
                 .andExpect(jsonPath("$.data.status").value("SUCCEEDED"));
     }
 
     @Test
     void rechargeEndpointShouldReturnConflictForReplayPayloadMismatch() throws Exception {
-        when(rechargeService.complete(eq("recharge:req-conflict"), eq(1), eq(1200L)))
+        UUID userId = uuid(1);
+        when(rechargeService.complete(eq("recharge:req-conflict"), eq(userId), eq(1200L)))
                 .thenThrow(new BusinessException(WalletErrorCode.REQUEST_REPLAY_CONFLICT, "requestId already used by another recharge"));
 
         mockMvc.perform(post("/api/wallet/recharges")
-                        .with(jwt().jwt(jwt -> jwt.subject("1").claim("username", "u1")))
+                        .with(jwt().jwt(jwt -> jwt.subject(userId.toString()).claim("username", "u1")))
                         .contentType("application/json")
                         .content("""
                                 {
@@ -208,11 +220,12 @@ class WalletControllerTest {
 
     @Test
     void withdrawEndpointShouldReturnConflictForReplayPayloadMismatch() throws Exception {
-        when(withdrawService.request(eq("withdraw:req-conflict"), eq(1), eq(500L)))
+        UUID userId = uuid(1);
+        when(withdrawService.request(eq("withdraw:req-conflict"), eq(userId), eq(500L)))
                 .thenThrow(new BusinessException(WalletErrorCode.REQUEST_REPLAY_CONFLICT, "requestId already used by another withdraw"));
 
         mockMvc.perform(post("/api/wallet/withdrawals")
-                        .with(jwt().jwt(jwt -> jwt.subject("1").claim("username", "u1")))
+                        .with(jwt().jwt(jwt -> jwt.subject(userId.toString()).claim("username", "u1")))
                         .contentType("application/json")
                         .content("""
                                 {
@@ -226,20 +239,31 @@ class WalletControllerTest {
 
     @Test
     void transferEndpointShouldReturnConflictForReplayPayloadMismatch() throws Exception {
-        when(transferService.create(eq("transfer:req-conflict"), eq(1), eq(2), eq(300L)))
+        UUID fromUserId = uuid(1);
+        UUID toUserId = uuid(2);
+        when(transferService.create(eq("transfer:req-conflict"), eq(fromUserId), eq(toUserId), eq(300L)))
                 .thenThrow(new BusinessException(WalletErrorCode.REQUEST_REPLAY_CONFLICT, "requestId already used by another transfer"));
 
         mockMvc.perform(post("/api/wallet/transfers")
-                        .with(jwt().jwt(jwt -> jwt.subject("1").claim("username", "u1")))
+                        .with(jwt().jwt(jwt -> jwt.subject(fromUserId.toString()).claim("username", "u1")))
                         .contentType("application/json")
                         .content("""
                                 {
                                   "requestId": "transfer:req-conflict",
-                                  "toUserId": 2,
+                                  "toUserId": "%s",
                                   "amount": 300
                                 }
-                                """))
+                                """.formatted(toUserId)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value(WalletErrorCode.REQUEST_REPLAY_CONFLICT.getCode()));
+    }
+
+    private CreateTransferResponse transferResponse(UUID orderId,
+                                                    String requestId,
+                                                    UUID fromUserId,
+                                                    UUID toUserId,
+                                                    long amount,
+                                                    String status) {
+        return new CreateTransferResponse(orderId, requestId, fromUserId, toUserId, amount, status);
     }
 }

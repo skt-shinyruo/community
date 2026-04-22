@@ -5,8 +5,8 @@
 use community;
 
 create table if not exists market_listing (
-  listing_id bigint auto_increment primary key,
-  seller_user_id int not null,
+  listing_id binary(16) primary key,
+  seller_user_id binary(16) not null,
   goods_type varchar(16) not null,
   title varchar(128) not null,
   description varchar(1000) not null,
@@ -24,22 +24,22 @@ create table if not exists market_listing (
 );
 
 create table if not exists market_inventory_unit (
-  inventory_unit_id bigint auto_increment primary key,
-  listing_id bigint not null,
-  seller_user_id int not null,
+  inventory_unit_id binary(16) primary key,
+  listing_id binary(16) not null,
+  seller_user_id binary(16) not null,
   payload_type varchar(16) not null,
   payload_content varchar(4000) not null,
   status varchar(16) not null,
-  reserved_order_id bigint default null,
+  reserved_order_id binary(16) default null,
   delivered_at timestamp null default null,
   create_time timestamp null default current_timestamp,
   key idx_market_inventory_listing_status (listing_id, status, inventory_unit_id)
 );
 
 create table if not exists market_delivery (
-  delivery_id bigint auto_increment primary key,
-  order_id bigint not null,
-  seller_user_id int not null,
+  delivery_id binary(16) primary key,
+  order_id binary(16) not null,
+  seller_user_id binary(16) not null,
   delivery_type varchar(32) not null,
   delivery_content varchar(8000) not null,
   status varchar(16) not null,
@@ -49,21 +49,21 @@ create table if not exists market_delivery (
 );
 
 create table if not exists market_order (
-  order_id bigint auto_increment primary key,
+  order_id binary(16) primary key,
   request_id varchar(96) not null,
-  listing_id bigint not null,
+  listing_id binary(16) not null,
   goods_type varchar(16) not null,
-  seller_user_id int not null,
-  buyer_user_id int not null,
+  seller_user_id binary(16) not null,
+  buyer_user_id binary(16) not null,
   quantity int not null,
   unit_price_snapshot bigint not null,
   total_amount bigint not null,
   delivery_mode_snapshot varchar(16) default null,
   listing_title_snapshot varchar(128) not null,
   status varchar(16) not null,
-  escrow_txn_id bigint default null,
-  release_txn_id bigint default null,
-  refund_txn_id bigint default null,
+  escrow_txn_id binary(16) default null,
+  release_txn_id binary(16) default null,
+  refund_txn_id binary(16) default null,
   auto_confirm_at timestamp null default null,
   receiver_name_snapshot varchar(64) default null,
   receiver_phone_snapshot varchar(32) default null,
@@ -82,17 +82,17 @@ create table if not exists market_order (
 );
 
 create table if not exists market_dispute (
-  dispute_id bigint auto_increment primary key,
-  order_id bigint not null,
+  dispute_id binary(16) primary key,
+  order_id binary(16) not null,
   goods_type varchar(16) not null,
-  buyer_user_id int not null,
-  seller_user_id int not null,
+  buyer_user_id binary(16) not null,
+  seller_user_id binary(16) not null,
   status varchar(32) not null,
   reason varchar(255) not null,
   buyer_note varchar(1000) default null,
   seller_note varchar(1000) default null,
   resolution_type varchar(16) default null,
-  resolved_by int default null,
+  resolved_by binary(16) default null,
   resolved_at timestamp null default null,
   create_time timestamp null default current_timestamp,
   update_time timestamp null default current_timestamp on update current_timestamp,
@@ -100,8 +100,8 @@ create table if not exists market_dispute (
 );
 
 create table if not exists market_address (
-  address_id bigint auto_increment primary key,
-  user_id int not null,
+  address_id binary(16) primary key,
+  user_id binary(16) not null,
   receiver_name varchar(64) not null,
   receiver_phone varchar(32) not null,
   province varchar(64) not null,
@@ -117,9 +117,9 @@ create table if not exists market_address (
 );
 
 create table if not exists market_shipment (
-  shipment_id bigint auto_increment primary key,
-  order_id bigint not null,
-  seller_user_id int not null,
+  shipment_id binary(16) primary key,
+  order_id binary(16) not null,
+  seller_user_id binary(16) not null,
   carrier_name varchar(64) not null,
   tracking_no varchar(128) not null,
   shipping_remark varchar(1000) default null,

@@ -1,9 +1,10 @@
 package com.nowcoder.community.content.like;
 
+import java.util.UUID;
+
 public interface LikeQueryService {
 
-    long countPostLikes(int postId);
+    long countPostLikes(UUID postId);
 
-    boolean hasLikedPost(int userId, int postId);
+    boolean hasLikedPost(UUID userId, UUID postId);
 }
-

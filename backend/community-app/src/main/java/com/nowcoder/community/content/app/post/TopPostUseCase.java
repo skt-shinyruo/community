@@ -6,6 +6,8 @@ import com.nowcoder.community.content.service.PostService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
@@ -20,8 +22,8 @@ public class TopPostUseCase {
     }
 
     @Transactional
-    public void topPost(int actorUserId, int postId) {
-        if (actorUserId <= 0 || postId <= 0) {
+    public void topPost(UUID actorUserId, UUID postId) {
+        if (actorUserId == null || postId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId/postId 非法");
         }
         postService.getById(postId);

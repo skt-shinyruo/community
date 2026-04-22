@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * refresh token 会话托管服务（供 auth 模块通过 owner-domain API 调用）。
@@ -21,8 +22,8 @@ public class RefreshTokenSessionService implements UserRefreshTokenSessionQueryA
     }
 
     @Override
-    public void store(String tokenHash, int userId, String familyId, Instant expiresAt) {
-        if (!isValidTokenHash(tokenHash) || userId <= 0 || !StringUtils.hasText(familyId) || expiresAt == null) {
+    public void store(String tokenHash, UUID userId, String familyId, Instant expiresAt) {
+        if (!isValidTokenHash(tokenHash) || userId == null || !StringUtils.hasText(familyId) || expiresAt == null) {
             return;
         }
         repository.store(tokenHash.trim(), userId, familyId.trim(), expiresAt);

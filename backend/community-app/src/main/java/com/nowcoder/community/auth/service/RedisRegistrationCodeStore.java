@@ -11,6 +11,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 
 @Component
 @ConditionalOnProperty(name = "auth.registration.code.store", havingValue = "redis", matchIfMissing = true)
@@ -120,16 +121,16 @@ public class RedisRegistrationCodeStore implements RegistrationCodeStore {
     }
 
     @Override
-    public void save(int userId, String code, Duration ttl) {
-        if (userId <= 0 || !StringUtils.hasText(code) || ttl == null || ttl.isNegative() || ttl.isZero()) {
+    public void save(UUID userId, String code, Duration ttl) {
+        if (userId == null || !StringUtils.hasText(code) || ttl == null || ttl.isNegative() || ttl.isZero()) {
             return;
         }
         issue(userId, code, ttl, Duration.ZERO);
     }
 
     @Override
-    public IssueResult issue(int userId, String code, Duration ttl, Duration cooldown) {
-        if (userId <= 0 || !StringUtils.hasText(code) || ttl == null || ttl.isNegative() || ttl.isZero()) {
+    public IssueResult issue(UUID userId, String code, Duration ttl, Duration cooldown) {
+        if (userId == null || !StringUtils.hasText(code) || ttl == null || ttl.isNegative() || ttl.isZero()) {
             return IssueResult.COOLDOWN_ACTIVE;
         }
 
@@ -155,8 +156,8 @@ public class RedisRegistrationCodeStore implements RegistrationCodeStore {
     }
 
     @Override
-    public Long lastSentAtMillis(int userId) {
-        if (userId <= 0) {
+    public Long lastSentAtMillis(UUID userId) {
+        if (userId == null) {
             return null;
         }
 
@@ -172,8 +173,8 @@ public class RedisRegistrationCodeStore implements RegistrationCodeStore {
     }
 
     @Override
-    public VerifyResult verifyAndConsume(int userId, String code) {
-        if (userId <= 0 || !StringUtils.hasText(code)) {
+    public VerifyResult verifyAndConsume(UUID userId, String code) {
+        if (userId == null || !StringUtils.hasText(code)) {
             return VerifyResult.NOT_FOUND;
         }
 
@@ -195,7 +196,7 @@ public class RedisRegistrationCodeStore implements RegistrationCodeStore {
         }
     }
 
-    private String key(int userId) {
+    private String key(UUID userId) {
         return KEY_PREFIX + userId;
     }
 

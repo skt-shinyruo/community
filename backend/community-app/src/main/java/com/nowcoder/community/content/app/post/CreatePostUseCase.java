@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
@@ -42,8 +43,8 @@ public class CreatePostUseCase {
     }
 
     @Transactional
-    public int createPost(int userId, String title, String content, Integer categoryId, List<String> tags) {
-        if (userId <= 0) {
+    public UUID createPost(UUID userId, String title, String content, UUID categoryId, List<String> tags) {
+        if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         moderationGuard.assertCanSpeak(userId);
@@ -60,7 +61,7 @@ public class CreatePostUseCase {
         post.setCommentCount(0);
         post.setScore(0.0);
 
-        int postId = postService.create(post);
+        UUID postId = postService.create(post);
         tagService.bindTagsToPost(postId, tags);
         domainEventPublisher.postPublished(postId);
         postWriteSideEffectScheduler.schedulePostScoreRefresh(postId);

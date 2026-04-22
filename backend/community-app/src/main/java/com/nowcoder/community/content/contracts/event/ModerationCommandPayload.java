@@ -1,5 +1,9 @@
 package com.nowcoder.community.content.contracts.event;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
+import java.util.UUID;
+
 /**
  * 处罚命令事件载荷：
  * - content 模块产生（举报处置触发 mute/ban）
@@ -9,20 +13,25 @@ package com.nowcoder.community.content.contracts.event;
  */
 public class ModerationCommandPayload {
 
-    private Integer userId;
+    private UUID userId;
     private String action;
     private Integer durationSeconds;
 
-    private Integer actorUserId;
-    private Integer reportId;
+    private UUID actorUserId;
+    private UUID reportId;
     private String reason;
 
-    public Integer getUserId() {
+    public UUID getUserId() {
         return userId;
     }
 
-    public void setUserId(Integer userId) {
+    public void setUserId(UUID userId) {
         this.userId = userId;
+    }
+
+    @JsonIgnore
+    public void setUserId(Integer userId) {
+        throw new IllegalArgumentException("numeric userId 已不再受支持");
     }
 
     public String getAction() {
@@ -41,20 +50,30 @@ public class ModerationCommandPayload {
         this.durationSeconds = durationSeconds;
     }
 
-    public Integer getActorUserId() {
+    public UUID getActorUserId() {
         return actorUserId;
     }
 
-    public void setActorUserId(Integer actorUserId) {
+    public void setActorUserId(UUID actorUserId) {
         this.actorUserId = actorUserId;
     }
 
-    public Integer getReportId() {
+    @JsonIgnore
+    public void setActorUserId(Integer actorUserId) {
+        throw new IllegalArgumentException("numeric actorUserId 已不再受支持");
+    }
+
+    public UUID getReportId() {
         return reportId;
     }
 
-    public void setReportId(Integer reportId) {
+    public void setReportId(UUID reportId) {
         this.reportId = reportId;
+    }
+
+    @JsonIgnore
+    public void setReportId(Integer reportId) {
+        throw new IllegalArgumentException("numeric reportId 已不再受支持");
     }
 
     public String getReason() {

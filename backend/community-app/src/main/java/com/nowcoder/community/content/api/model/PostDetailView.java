@@ -2,10 +2,11 @@ package com.nowcoder.community.content.api.model;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 public record PostDetailView(
-        int id,
-        int userId,
+        UUID id,
+        UUID userId,
         String title,
         String content,
         int type,
@@ -15,7 +16,7 @@ public record PostDetailView(
         int editCount,
         int commentCount,
         double score,
-        Integer categoryId,
+        UUID categoryId,
         List<String> tags,
         long likeCount,
         boolean liked,

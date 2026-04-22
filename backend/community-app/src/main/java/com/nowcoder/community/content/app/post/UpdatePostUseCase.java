@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -44,8 +45,8 @@ public class UpdatePostUseCase {
     }
 
     @Transactional
-    public void updatePost(int actorUserId, int postId, String title, String content, Integer categoryId, List<String> tags) {
-        if (actorUserId <= 0 || postId <= 0) {
+    public void updatePost(UUID actorUserId, UUID postId, String title, String content, UUID categoryId, List<String> tags) {
+        if (actorUserId == null || postId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId/postId 非法");
         }
         moderationGuard.assertCanSpeak(actorUserId);
@@ -55,7 +56,7 @@ public class UpdatePostUseCase {
         if (existed.getStatus() == 2) {
             throw new BusinessException(POST_NOT_FOUND);
         }
-        if (existed.getUserId() != actorUserId) {
+        if (!actorUserId.equals(existed.getUserId())) {
             throw new BusinessException(FORBIDDEN, "只能编辑自己的帖子");
         }
         if (existed.getCreateTime() == null) {

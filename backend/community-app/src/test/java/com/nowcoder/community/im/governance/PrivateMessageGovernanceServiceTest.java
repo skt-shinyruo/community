@@ -11,9 +11,12 @@ import com.nowcoder.community.user.exception.UserErrorCode;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -23,6 +26,10 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class PrivateMessageGovernanceServiceTest {
+
+    private static final UUID USER_ID_1 = uuid(1);
+    private static final UUID USER_ID_2 = uuid(2);
+    private static final UUID USER_ID_7 = uuid(7);
 
     private final UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
     private final UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
@@ -63,7 +70,7 @@ class PrivateMessageGovernanceServiceTest {
     @Test
     void validateShouldRejectInvalidSenderId() {
         BusinessException ex = catchThrowableOfType(
-                () -> service.validateCanSendPrivateMessage(0, 2),
+                () -> service.validateCanSendPrivateMessage(null, USER_ID_2),
                 BusinessException.class
         );
 
@@ -76,7 +83,7 @@ class PrivateMessageGovernanceServiceTest {
     @Test
     void validateShouldRejectInvalidRecipientId() {
         BusinessException ex = catchThrowableOfType(
-                () -> service.validateCanSendPrivateMessage(1, 0),
+                () -> service.validateCanSendPrivateMessage(USER_ID_1, null),
                 BusinessException.class
         );
 
@@ -89,7 +96,7 @@ class PrivateMessageGovernanceServiceTest {
     @Test
     void validateShouldRejectSelfSend() {
         BusinessException ex = catchThrowableOfType(
-                () -> service.validateCanSendPrivateMessage(7, 7),
+                () -> service.validateCanSendPrivateMessage(USER_ID_7, USER_ID_7),
                 BusinessException.class
         );
 
@@ -101,62 +108,62 @@ class PrivateMessageGovernanceServiceTest {
 
     @Test
     void validateShouldPropagateMissingSender() {
-        doThrow(new BusinessException(UserErrorCode.USER_NOT_FOUND)).when(userLookupQueryApi).requireSummaryById(1);
+        doThrow(new BusinessException(UserErrorCode.USER_NOT_FOUND)).when(userLookupQueryApi).requireSummaryById(USER_ID_1);
         BusinessException ex = catchThrowableOfType(
-                () -> service.validateCanSendPrivateMessage(1, 2),
+                () -> service.validateCanSendPrivateMessage(USER_ID_1, USER_ID_2),
                 BusinessException.class
         );
 
         assertThat(ex).isNotNull();
         assertThat(ex.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND);
         assertThat(ex.getMessage()).isEqualTo(UserErrorCode.USER_NOT_FOUND.getMessage());
-        verify(moderationGuard, never()).assertCanSendMessage(1);
-        verify(userLookupQueryApi, never()).requireSummaryById(2);
+        verify(moderationGuard, never()).assertCanSendMessage(USER_ID_1);
+        verify(userLookupQueryApi, never()).requireSummaryById(USER_ID_2);
         verifyNoInteractions(blockQueryApi);
     }
 
     @Test
     void validateShouldTranslateMissingReceiver() {
-        when(userLookupQueryApi.requireSummaryById(1)).thenReturn(new UserSummaryView(1, "from", "/h1", 0));
-        doThrow(new BusinessException(UserErrorCode.USER_NOT_FOUND, "目标用户不存在")).when(userLookupQueryApi).requireSummaryById(2);
+        when(userLookupQueryApi.requireSummaryById(USER_ID_1)).thenReturn(new UserSummaryView(USER_ID_1, "from", "/h1", 0));
+        doThrow(new BusinessException(UserErrorCode.USER_NOT_FOUND, "目标用户不存在")).when(userLookupQueryApi).requireSummaryById(USER_ID_2);
 
         BusinessException ex = catchThrowableOfType(
-                () -> service.validateCanSendPrivateMessage(1, 2),
+                () -> service.validateCanSendPrivateMessage(USER_ID_1, USER_ID_2),
                 BusinessException.class
         );
 
         assertThat(ex).isNotNull();
         assertThat(ex.getErrorCode()).isEqualTo(UserErrorCode.USER_NOT_FOUND);
         assertThat(ex.getMessage()).isEqualTo("目标用户不存在");
-        verify(moderationGuard).assertCanSendMessage(1);
+        verify(moderationGuard).assertCanSendMessage(USER_ID_1);
         verifyNoInteractions(blockQueryApi);
     }
 
     @Test
     void validateShouldRejectModerationDeniedBeforeReceiverLookup() {
-        when(userLookupQueryApi.requireSummaryById(1)).thenReturn(new UserSummaryView(1, "from", "/h1", 0));
+        when(userLookupQueryApi.requireSummaryById(USER_ID_1)).thenReturn(new UserSummaryView(USER_ID_1, "from", "/h1", 0));
         BusinessException moderationDenied = new BusinessException(CommonErrorCode.FORBIDDEN, "你已被禁言，暂时无法发送私信");
-        doThrow(moderationDenied).when(moderationGuard).assertCanSendMessage(1);
+        doThrow(moderationDenied).when(moderationGuard).assertCanSendMessage(USER_ID_1);
 
         BusinessException ex = catchThrowableOfType(
-                () -> service.validateCanSendPrivateMessage(1, 2),
+                () -> service.validateCanSendPrivateMessage(USER_ID_1, USER_ID_2),
                 BusinessException.class
         );
 
         assertThat(ex).isSameAs(moderationDenied);
-        verify(userLookupQueryApi).requireSummaryById(1);
-        verify(moderationGuard).assertCanSendMessage(1);
-        verify(userLookupQueryApi, never()).requireSummaryById(2);
+        verify(userLookupQueryApi).requireSummaryById(USER_ID_1);
+        verify(moderationGuard).assertCanSendMessage(USER_ID_1);
+        verify(userLookupQueryApi, never()).requireSummaryById(USER_ID_2);
         verifyNoInteractions(blockQueryApi);
     }
 
     @Test
     void validateShouldRejectBlockedPair() {
-        when(userLookupQueryApi.requireSummaryById(1)).thenReturn(new UserSummaryView(1, "from", "/h1", 0));
-        when(userLookupQueryApi.requireSummaryById(2)).thenReturn(new UserSummaryView(2, "to", "/h2", 0));
-        when(blockQueryApi.isEitherBlocked(1, 2)).thenReturn(true);
+        when(userLookupQueryApi.requireSummaryById(USER_ID_1)).thenReturn(new UserSummaryView(USER_ID_1, "from", "/h1", 0));
+        when(userLookupQueryApi.requireSummaryById(USER_ID_2)).thenReturn(new UserSummaryView(USER_ID_2, "to", "/h2", 0));
+        when(blockQueryApi.isEitherBlocked(USER_ID_1, USER_ID_2)).thenReturn(true);
 
-        assertThatThrownBy(() -> service.validateCanSendPrivateMessage(1, 2))
+        assertThatThrownBy(() -> service.validateCanSendPrivateMessage(USER_ID_1, USER_ID_2))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> {
                     BusinessException businessException = (BusinessException) ex;
@@ -167,16 +174,17 @@ class PrivateMessageGovernanceServiceTest {
 
     @Test
     void validateShouldCallCollaboratorsInOrderWhenAllowed() {
-        when(userLookupQueryApi.requireSummaryById(1)).thenReturn(new UserSummaryView(1, "from", "/h1", 0));
-        when(userLookupQueryApi.requireSummaryById(2)).thenReturn(new UserSummaryView(2, "to", "/h2", 0));
+        when(userLookupQueryApi.requireSummaryById(USER_ID_1)).thenReturn(new UserSummaryView(USER_ID_1, "from", "/h1", 0));
+        when(userLookupQueryApi.requireSummaryById(USER_ID_2)).thenReturn(new UserSummaryView(USER_ID_2, "to", "/h2", 0));
 
-        service.validateCanSendPrivateMessage(1, 2);
+        service.validateCanSendPrivateMessage(USER_ID_1, USER_ID_2);
 
         InOrder inOrder = inOrder(userLookupQueryApi, moderationGuard, blockQueryApi);
-        inOrder.verify(userLookupQueryApi).requireSummaryById(1);
-        inOrder.verify(moderationGuard).assertCanSendMessage(1);
-        inOrder.verify(userLookupQueryApi).requireSummaryById(2);
-        inOrder.verify(blockQueryApi).isEitherBlocked(1, 2);
+        inOrder.verify(userLookupQueryApi).requireSummaryById(USER_ID_1);
+        inOrder.verify(moderationGuard).assertCanSendMessage(USER_ID_1);
+        inOrder.verify(userLookupQueryApi).requireSummaryById(USER_ID_2);
+        inOrder.verify(blockQueryApi).isEitherBlocked(USER_ID_1, USER_ID_2);
         inOrder.verifyNoMoreInteractions();
     }
+
 }

@@ -1,10 +1,12 @@
 package com.nowcoder.community.social.api.query;
 
+import java.util.UUID;
+
 public interface SocialLikeQueryApi {
 
-    boolean isLiked(int actorUserId, int entityType, int entityId);
+    boolean isLiked(UUID actorUserId, int entityType, UUID entityId);
 
-    long count(int entityType, int entityId);
+    long count(int entityType, UUID entityId);
 
-    long userLikeCount(int userId);
+    long userLikeCount(UUID userId);
 }

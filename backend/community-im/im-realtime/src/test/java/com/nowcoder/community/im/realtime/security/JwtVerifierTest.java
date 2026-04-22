@@ -12,6 +12,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -23,14 +24,15 @@ class JwtVerifierTest {
         JwtProperties properties = new JwtProperties();
         properties.setHmacSecret("im-realtime-test-jwt-hmac-secret-please-change-123456");
         properties.setIssuer("community-auth");
-        String token = signHs256(properties.getHmacSecret(), properties.getIssuer(), "123", Instant.now().plusSeconds(60));
+        UUID userId = UUID.fromString("00000000-0000-7000-8000-000000000123");
+        String token = signHs256(properties.getHmacSecret(), properties.getIssuer(), userId.toString(), Instant.now().plusSeconds(60));
 
         JwtDecoder decoder = JwtCodecs.jwtDecoder(properties);
         JwtVerifier verifier = new JwtVerifier(decoder);
 
         JwtVerifier.VerifiedJwt verified = verifier.verify(token);
-        assertThat(verified.userId()).isEqualTo(123);
-        assertThat(verified.jwt().getSubject()).isEqualTo("123");
+        assertThat(verified.userId()).isEqualTo(userId);
+        assertThat(verified.jwt().getSubject()).isEqualTo(userId.toString());
     }
 
     @Test
@@ -41,7 +43,7 @@ class JwtVerifierTest {
         String token = signHs256(
                 signingProperties.getHmacSecret(),
                 signingProperties.getIssuer(),
-                "1",
+                "00000000-0000-7000-8000-000000000001",
                 Instant.now().plusSeconds(60)
         );
 

@@ -14,6 +14,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * refresh token DB 存储（SSOT=user 模块 MySQL）：
@@ -47,8 +48,8 @@ public class DbRefreshTokenStore implements RefreshTokenStore {
     }
 
     @Override
-    public void store(String refreshToken, int userId, String familyId, Instant expiresAt) {
-        if (!StringUtils.hasText(refreshToken) || userId <= 0 || !StringUtils.hasText(familyId) || expiresAt == null) {
+    public void store(String refreshToken, UUID userId, String familyId, Instant expiresAt) {
+        if (!StringUtils.hasText(refreshToken) || userId == null || !StringUtils.hasText(familyId) || expiresAt == null) {
             return;
         }
         refreshTokenSessionActionApi.store(sha256Hex(refreshToken), userId, familyId, expiresAt);

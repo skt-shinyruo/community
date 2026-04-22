@@ -3,6 +3,8 @@ package com.nowcoder.community.user.service;
 import com.nowcoder.community.user.dto.AvatarUploadTokenResponse;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.UUID;
+
 /**
  * 头像存储 provider 抽象：
  * - local：服务端接收 multipart 并落盘（返回 uploadUrl/uploadMethod）。
@@ -18,14 +20,14 @@ public interface AvatarStorageProvider {
     /**
      * 生成上传所需信息（fileName 由服务端生成并透传给 provider）。
      */
-    AvatarUploadTokenResponse createUploadToken(int userId, String fileName);
+    AvatarUploadTokenResponse createUploadToken(UUID userId, String fileName);
 
     /**
      * local provider：服务端接收上传并落盘。
      *
      * <p>若当前 provider 不支持服务端上传，应抛出业务异常。</p>
      */
-    void upload(int userId, String fileName, MultipartFile file);
+    void upload(UUID userId, String fileName, MultipartFile file);
 
     /**
      * 生成头像可访问 URL（用于写入用户 headerUrl）。

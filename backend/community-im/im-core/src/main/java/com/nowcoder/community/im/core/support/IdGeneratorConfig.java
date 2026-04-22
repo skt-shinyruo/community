@@ -1,17 +1,15 @@
 package com.nowcoder.community.im.core.support;
 
-import org.springframework.beans.factory.annotation.Value;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import java.time.Clock;
 
 @Configuration
 public class IdGeneratorConfig {
 
     @Bean
-    public IdGenerator idGenerator(@Value("${im.id.node-id:0}") long nodeId) {
-        return new SnowflakeIdGenerator(Clock.systemUTC(), nodeId);
+    public IdGenerator idGenerator() {
+        UuidV7Generator generator = new UuidV7Generator();
+        return generator::next;
     }
 }
-

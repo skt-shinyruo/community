@@ -1,5 +1,6 @@
 package com.nowcoder.community.common.outbox;
 
+import com.nowcoder.community.common.id.BinaryUuidCodec;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
@@ -40,6 +41,8 @@ class JdbcOutboxEventStoreTest {
             assertThat(due).hasSize(1);
 
             OutboxEvent ev = due.get(0);
+            assertThat(ev.id()).isNotNull();
+            assertThat(ev.id().version()).isEqualTo(7);
             assertThat(ev.eventId()).isEqualTo("e-1:points");
             assertThat(ev.topic()).isEqualTo("projection.points");
             assertThat(ev.status()).isEqualTo(OutboxEventStatus.PENDING);
@@ -51,14 +54,14 @@ class JdbcOutboxEventStoreTest {
             String status = jdbcTemplate.queryForObject(
                     "select status from outbox_event where id = ?",
                     String.class,
-                    ev.id()
+                    BinaryUuidCodec.toBytes(ev.id())
             );
             assertThat(status).isEqualTo(OutboxEventStatus.PROCESSING);
 
             Timestamp nextRetryAt = jdbcTemplate.queryForObject(
                     "select next_retry_at from outbox_event where id = ?",
                     Timestamp.class,
-                    ev.id()
+                    BinaryUuidCodec.toBytes(ev.id())
             );
             assertThat(nextRetryAt.toInstant()).isEqualTo(leaseUntil);
 
@@ -68,7 +71,7 @@ class JdbcOutboxEventStoreTest {
             String statusAfterRecover = jdbcTemplate.queryForObject(
                     "select status from outbox_event where id = ?",
                     String.class,
-                    ev.id()
+                    BinaryUuidCodec.toBytes(ev.id())
             );
             assertThat(statusAfterRecover).isEqualTo(OutboxEventStatus.PENDING);
         } finally {
@@ -79,7 +82,7 @@ class JdbcOutboxEventStoreTest {
     private static void createOutboxSchema(JdbcTemplate jdbcTemplate) {
         jdbcTemplate.execute(
                 "create table if not exists outbox_event (\n" +
-                        "  id bigint auto_increment primary key,\n" +
+                        "  id binary(16) primary key,\n" +
                         "  event_id varchar(64) not null,\n" +
                         "  topic varchar(255) not null,\n" +
                         "  event_key varchar(255) not null,\n" +

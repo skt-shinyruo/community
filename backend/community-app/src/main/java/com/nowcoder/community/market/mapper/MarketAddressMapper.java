@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.UUID;
 
 @Repository
 @Mapper
@@ -13,13 +14,13 @@ public interface MarketAddressMapper {
 
     int insert(MarketAddress address);
 
-    MarketAddress selectById(@Param("addressId") long addressId);
+    MarketAddress selectById(@Param("addressId") UUID addressId);
 
-    List<MarketAddress> selectByUserId(@Param("userId") int userId);
+    List<MarketAddress> selectByUserId(@Param("userId") UUID userId);
 
     int update(MarketAddress address);
 
-    int clearDefaultByUserId(@Param("userId") int userId);
+    int clearDefaultByUserId(@Param("userId") UUID userId);
 
-    int softDelete(@Param("addressId") long addressId, @Param("userId") int userId);
+    int softDelete(@Param("addressId") UUID addressId, @Param("userId") UUID userId);
 }

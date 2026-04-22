@@ -1,5 +1,6 @@
 package com.nowcoder.community.wallet.service;
 
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.wallet.entity.WalletAccount;
 import com.nowcoder.community.wallet.entity.WalletEntry;
@@ -10,11 +11,13 @@ import com.nowcoder.community.wallet.mapper.WalletTxnMapper;
 import com.nowcoder.community.wallet.model.WalletPosting;
 import com.nowcoder.community.wallet.model.WalletTxnResult;
 import com.nowcoder.community.wallet.model.WalletTxnType;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class WalletLedgerService {
@@ -27,28 +30,38 @@ public class WalletLedgerService {
     private final WalletAccountService walletAccountService;
     private final WalletTxnMapper walletTxnMapper;
     private final WalletEntryMapper walletEntryMapper;
+    private final UuidV7Generator idGenerator;
 
+    @Autowired
     public WalletLedgerService(WalletAccountService walletAccountService,
                                WalletTxnMapper walletTxnMapper,
                                WalletEntryMapper walletEntryMapper) {
+        this(walletAccountService, walletTxnMapper, walletEntryMapper, new UuidV7Generator());
+    }
+
+    WalletLedgerService(WalletAccountService walletAccountService,
+                        WalletTxnMapper walletTxnMapper,
+                        WalletEntryMapper walletEntryMapper,
+                        UuidV7Generator idGenerator) {
         this.walletAccountService = walletAccountService;
         this.walletTxnMapper = walletTxnMapper;
         this.walletEntryMapper = walletEntryMapper;
+        this.idGenerator = idGenerator;
     }
 
-    public long ensureUserWallet(long userId) {
+    public UUID ensureUserWallet(UUID userId) {
         return walletAccountService.ensureUserWallet(userId);
     }
 
-    public long ensureSystemAccount(String accountType) {
+    public UUID ensureSystemAccount(String accountType) {
         return walletAccountService.ensureSystemAccount(accountType);
     }
 
-    public long balanceOfUser(long userId) {
+    public long balanceOfUser(UUID userId) {
         return walletAccountService.balanceOfUser(userId);
     }
 
-    public List<WalletEntry> entriesOfTxn(long txnId) {
+    public List<WalletEntry> entriesOfTxn(UUID txnId) {
         return walletEntryMapper.selectByTxnId(txnId);
     }
 
@@ -63,6 +76,7 @@ public class WalletLedgerService {
         }
 
         WalletTxn txn = new WalletTxn();
+        txn.setTxnId(idGenerator.next());
         txn.setRequestId(requestId);
         txn.setTxnType(txnType.name());
         txn.setBizType(txnType.name());
@@ -84,6 +98,7 @@ public class WalletLedgerService {
             long nextBalance = walletAccountService.apply(account, walletAccountService.deltaOf(account, posting));
 
             WalletEntry entry = new WalletEntry();
+            entry.setEntryId(idGenerator.next());
             entry.setTxnId(txn.getTxnId());
             entry.setAccountId(account.getAccountId());
             entry.setDirection(posting.direction());

@@ -1,12 +1,13 @@
 package com.nowcoder.community.market.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class MarketShipment {
 
-    private long shipmentId;
-    private long orderId;
-    private int sellerUserId;
+    private UUID shipmentId;
+    private UUID orderId;
+    private UUID sellerUserId;
     private String carrierName;
     private String trackingNo;
     private String shippingRemark;
@@ -14,27 +15,27 @@ public class MarketShipment {
     private Date createTime;
     private Date updateTime;
 
-    public long getShipmentId() {
+    public UUID getShipmentId() {
         return shipmentId;
     }
 
-    public void setShipmentId(long shipmentId) {
+    public void setShipmentId(UUID shipmentId) {
         this.shipmentId = shipmentId;
     }
 
-    public long getOrderId() {
+    public UUID getOrderId() {
         return orderId;
     }
 
-    public void setOrderId(long orderId) {
+    public void setOrderId(UUID orderId) {
         this.orderId = orderId;
     }
 
-    public int getSellerUserId() {
+    public UUID getSellerUserId() {
         return sellerUserId;
     }
 
-    public void setSellerUserId(int sellerUserId) {
+    public void setSellerUserId(UUID sellerUserId) {
         this.sellerUserId = sellerUserId;
     }
 

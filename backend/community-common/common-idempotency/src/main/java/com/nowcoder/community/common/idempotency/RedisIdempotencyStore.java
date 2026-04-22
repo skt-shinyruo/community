@@ -8,6 +8,7 @@ import org.springframework.util.StringUtils;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 
 /**
  * Redis 幂等存储实现：
@@ -33,11 +34,11 @@ public class RedisIdempotencyStore implements IdempotencyStore {
     }
 
     @Override
-    public boolean tryAcquireProcessing(String operation, int userId, String key, Duration ttl) {
+    public boolean tryAcquireProcessing(String operation, UUID userId, String key, Duration ttl) {
         if (!StringUtils.hasText(operation)) {
             throw new IllegalArgumentException("operation is blank");
         }
-        if (userId <= 0) {
+        if (userId == null) {
             throw new IllegalArgumentException("userId is invalid");
         }
         if (!StringUtils.hasText(key)) {
@@ -52,8 +53,8 @@ public class RedisIdempotencyStore implements IdempotencyStore {
     }
 
     @Override
-    public Entry get(String operation, int userId, String key) {
-        if (!StringUtils.hasText(operation) || userId <= 0 || !StringUtils.hasText(key)) {
+    public Entry get(String operation, UUID userId, String key) {
+        if (!StringUtils.hasText(operation) || userId == null || !StringUtils.hasText(key)) {
             return null;
         }
         if (redisTemplate == null) {
@@ -74,11 +75,11 @@ public class RedisIdempotencyStore implements IdempotencyStore {
     }
 
     @Override
-    public void saveSuccess(String operation, int userId, String key, String successJson, Duration ttl) {
+    public void saveSuccess(String operation, UUID userId, String key, String successJson, Duration ttl) {
         if (!StringUtils.hasText(operation)) {
             throw new IllegalArgumentException("operation is blank");
         }
-        if (userId <= 0) {
+        if (userId == null) {
             throw new IllegalArgumentException("userId is invalid");
         }
         if (!StringUtils.hasText(key)) {
@@ -94,11 +95,11 @@ public class RedisIdempotencyStore implements IdempotencyStore {
     }
 
     @Override
-    public void extendProcessing(String operation, int userId, String key, Duration ttl) {
+    public void extendProcessing(String operation, UUID userId, String key, Duration ttl) {
         if (!StringUtils.hasText(operation)) {
             throw new IllegalArgumentException("operation is blank");
         }
-        if (userId <= 0) {
+        if (userId == null) {
             throw new IllegalArgumentException("userId is invalid");
         }
         if (!StringUtils.hasText(key)) {
@@ -116,8 +117,8 @@ public class RedisIdempotencyStore implements IdempotencyStore {
     }
 
     @Override
-    public void delete(String operation, int userId, String key) {
-        if (!StringUtils.hasText(operation) || userId <= 0 || !StringUtils.hasText(key)) {
+    public void delete(String operation, UUID userId, String key) {
+        if (!StringUtils.hasText(operation) || userId == null || !StringUtils.hasText(key)) {
             return;
         }
         if (redisTemplate == null) {
@@ -126,7 +127,7 @@ public class RedisIdempotencyStore implements IdempotencyStore {
         redisTemplate.delete(buildStoreKey(operation, userId, key));
     }
 
-    private String buildStoreKey(String operation, int userId, String key) {
+    private String buildStoreKey(String operation, UUID userId, String key) {
         String op = operation.trim().toLowerCase(Locale.ROOT);
         return "idem:" + op + ":" + userId + ":" + key.trim();
     }

@@ -6,24 +6,25 @@ import org.springframework.stereotype.Repository;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.UUID;
 
 @Repository
 @ConditionalOnProperty(name = "social.storage", havingValue = "memory")
 public class InMemoryLikeRepository implements LikeRepository {
 
-    private final Map<String, Set<Integer>> entityLikes = new ConcurrentHashMap<>();
-    private final Map<Integer, Long> userLikeCounts = new ConcurrentHashMap<>();
+    private final Map<String, Set<UUID>> entityLikes = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> userLikeCounts = new ConcurrentHashMap<>();
 
     @Override
-    public boolean addLike(int userId, int entityType, int entityId) {
+    public boolean addLike(UUID userId, int entityType, UUID entityId) {
         String key = entityKey(entityType, entityId);
-        Set<Integer> set = entityLikes.computeIfAbsent(key, ignored -> ConcurrentHashMap.newKeySet());
+        Set<UUID> set = entityLikes.computeIfAbsent(key, ignored -> ConcurrentHashMap.newKeySet());
         return set.add(userId);
     }
 
     @Override
-    public boolean removeLike(int userId, int entityType, int entityId) {
-        Set<Integer> set = entityLikes.get(entityKey(entityType, entityId));
+    public boolean removeLike(UUID userId, int entityType, UUID entityId) {
+        Set<UUID> set = entityLikes.get(entityKey(entityType, entityId));
         if (set == null) {
             return false;
         }
@@ -31,24 +32,24 @@ public class InMemoryLikeRepository implements LikeRepository {
     }
 
     @Override
-    public boolean isLiked(int userId, int entityType, int entityId) {
-        Set<Integer> set = entityLikes.get(entityKey(entityType, entityId));
+    public boolean isLiked(UUID userId, int entityType, UUID entityId) {
+        Set<UUID> set = entityLikes.get(entityKey(entityType, entityId));
         return set != null && set.contains(userId);
     }
 
     @Override
-    public long countEntityLikes(int entityType, int entityId) {
-        Set<Integer> set = entityLikes.get(entityKey(entityType, entityId));
+    public long countEntityLikes(int entityType, UUID entityId) {
+        Set<UUID> set = entityLikes.get(entityKey(entityType, entityId));
         return set == null ? 0 : set.size();
     }
 
     @Override
-    public long incrementUserLikeCount(int userId, long delta) {
+    public long incrementUserLikeCount(UUID userId, long delta) {
         return userLikeCounts.merge(userId, delta, Long::sum);
     }
 
     @Override
-    public long getUserLikeCount(int userId) {
+    public long getUserLikeCount(UUID userId) {
         return userLikeCounts.getOrDefault(userId, 0L);
     }
 
@@ -57,7 +58,7 @@ public class InMemoryLikeRepository implements LikeRepository {
         return true;
     }
 
-    private String entityKey(int entityType, int entityId) {
+    private String entityKey(int entityType, UUID entityId) {
         return "like:entity:" + entityType + ":" + entityId;
     }
 }

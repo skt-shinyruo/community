@@ -14,6 +14,9 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.UUID;
+
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(
@@ -69,18 +72,20 @@ class MarketDisputeServiceTest {
 
     @Test
     void sellerAcceptedPhysicalDisputeShouldRefundBuyer() {
-        seedBuyerBalance(9, 20_000L);
-        long orderId = seedShippedPhysicalOrder(7, 9);
+        UUID sellerUserId = uuid(7);
+        UUID buyerUserId = uuid(9);
+        seedBuyerBalance(buyerUserId, 20_000L);
+        UUID orderId = seedShippedPhysicalOrder(sellerUserId, buyerUserId);
 
-        MarketDisputeResponse dispute = marketDisputeService.openDispute(orderId, 9, "货不对板", "和描述不一致");
-        MarketDisputeResponse resolved = marketDisputeService.sellerAcceptRefund(dispute.disputeId(), 7, "同意退款");
+        MarketDisputeResponse dispute = marketDisputeService.openDispute(orderId, buyerUserId, "货不对板", "和描述不一致");
+        MarketDisputeResponse resolved = marketDisputeService.sellerAcceptRefund(dispute.disputeId(), sellerUserId, "同意退款");
 
         assertThat(resolved.status()).isEqualTo("SELLER_ACCEPTED");
-        assertThat(marketQueryService.getOrderDetail(orderId, 9).status()).isEqualTo("REFUNDED");
-        assertThat(walletAccountService.balanceOfUser(9)).isEqualTo(20_000L);
+        assertThat(marketQueryService.getOrderDetail(orderId, buyerUserId).status()).isEqualTo("REFUNDED");
+        assertThat(walletAccountService.balanceOfUser(buyerUserId)).isEqualTo(20_000L);
     }
 
-    private long seedShippedPhysicalOrder(int sellerUserId, int buyerUserId) {
+    private UUID seedShippedPhysicalOrder(UUID sellerUserId, UUID buyerUserId) {
         CreateMarketListingRequest request = new CreateMarketListingRequest();
         request.setGoodsType("PHYSICAL");
         request.setTitle("二手键盘");
@@ -89,7 +94,7 @@ class MarketDisputeServiceTest {
         request.setStockTotal(1);
         request.setMinPurchaseQuantity(1);
         request.setMaxPurchaseQuantity(1);
-        long listingId = marketListingService.createListing(sellerUserId, request, null).listingId();
+        UUID listingId = marketListingService.createListing(sellerUserId, request, null).listingId();
 
         CreateMarketAddressRequest addressRequest = new CreateMarketAddressRequest();
         addressRequest.setReceiverName("张三");
@@ -100,14 +105,14 @@ class MarketDisputeServiceTest {
         addressRequest.setDetailAddress("世纪大道 100 号");
         addressRequest.setPostalCode("200120");
         addressRequest.setDefault(true);
-        long addressId = marketAddressService.createAddress(buyerUserId, addressRequest).addressId();
+        UUID addressId = marketAddressService.createAddress(buyerUserId, addressRequest).addressId();
 
-        long orderId = marketOrderService.createOrder("dispute:physical:req-1", buyerUserId, listingId, 1, addressId).orderId();
+        UUID orderId = marketOrderService.createOrder("dispute:physical:req-1", buyerUserId, listingId, 1, addressId).orderId();
         return marketOrderService.shipPhysicalOrder(orderId, sellerUserId, "顺丰", "SF1234567890", "工作日派送").orderId();
     }
 
-    private void seedBuyerBalance(int userId, long balance) {
-        long accountId = walletAccountService.ensureUserWallet(userId);
+    private void seedBuyerBalance(UUID userId, long balance) {
+        UUID accountId = walletAccountService.ensureUserWallet(userId);
         jdbcTemplate.update(
                 "update wallet_account set balance = ?, version = 0, status = 'ACTIVE' where account_id = ?",
                 balance,

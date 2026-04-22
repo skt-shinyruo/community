@@ -1,12 +1,13 @@
 package com.nowcoder.community.content.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class DiscussPost {
 
-    private int id;
-    private int userId;
-    private Integer categoryId;
+    private UUID id;
+    private UUID userId;
+    private UUID categoryId;
     private String title;
     private String content;
     private int type;
@@ -14,33 +15,33 @@ public class DiscussPost {
     private Date createTime;
     private Date updateTime;
     private int editCount;
-    private int deletedBy;
+    private UUID deletedBy;
     private String deletedReason;
     private Date deletedTime;
     private int commentCount;
     private double score;
 
-    public int getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
-    public int getUserId() {
+    public UUID getUserId() {
         return userId;
     }
 
-    public void setUserId(int userId) {
+    public void setUserId(UUID userId) {
         this.userId = userId;
     }
 
-    public Integer getCategoryId() {
+    public UUID getCategoryId() {
         return categoryId;
     }
 
-    public void setCategoryId(Integer categoryId) {
+    public void setCategoryId(UUID categoryId) {
         this.categoryId = categoryId;
     }
 
@@ -100,11 +101,11 @@ public class DiscussPost {
         this.editCount = editCount;
     }
 
-    public int getDeletedBy() {
+    public UUID getDeletedBy() {
         return deletedBy;
     }
 
-    public void setDeletedBy(int deletedBy) {
+    public void setDeletedBy(UUID deletedBy) {
         this.deletedBy = deletedBy;
     }
 

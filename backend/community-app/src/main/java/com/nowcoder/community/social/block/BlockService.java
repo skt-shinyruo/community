@@ -13,6 +13,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.social.exception.SocialErrorCode.CANNOT_BLOCK_SELF;
@@ -31,8 +32,8 @@ public class BlockService implements SocialBlockQueryApi {
     }
 
     @Transactional
-    public void block(int userId, int targetUserId) {
-        if (userId <= 0 || targetUserId <= 0) {
+    public void block(UUID userId, UUID targetUserId) {
+        if (userId == null || targetUserId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId/targetUserId 非法");
         }
         if (userId == targetUserId) {
@@ -64,8 +65,8 @@ public class BlockService implements SocialBlockQueryApi {
     }
 
     @Transactional
-    public void unblock(int userId, int targetUserId) {
-        if (userId <= 0 || targetUserId <= 0) {
+    public void unblock(UUID userId, UUID targetUserId) {
+        if (userId == null || targetUserId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId/targetUserId 非法");
         }
         boolean changed = repository.unblock(userId, targetUserId);
@@ -93,15 +94,16 @@ public class BlockService implements SocialBlockQueryApi {
         }
     }
 
-    public boolean hasBlocked(int userId, int targetUserId) {
-        if (userId <= 0 || targetUserId <= 0) {
+    public boolean hasBlocked(UUID userId, UUID targetUserId) {
+        if (userId == null || targetUserId == null) {
             return false;
         }
         return repository.hasBlocked(userId, targetUserId);
     }
 
-    public boolean isEitherBlocked(int userIdA, int userIdB) {
-        if (userIdA <= 0 || userIdB <= 0) {
+    @Override
+    public boolean isEitherBlocked(UUID userIdA, UUID userIdB) {
+        if (userIdA == null || userIdB == null) {
             return false;
         }
         if (userIdA == userIdB) {
@@ -110,8 +112,8 @@ public class BlockService implements SocialBlockQueryApi {
         return repository.hasBlocked(userIdA, userIdB) || repository.hasBlocked(userIdB, userIdA);
     }
 
-    public List<Integer> listBlockedUserIds(int userId) {
-        if (userId <= 0) {
+    public List<UUID> listBlockedUserIds(UUID userId) {
+        if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         return repository.listBlockedUserIds(userId);

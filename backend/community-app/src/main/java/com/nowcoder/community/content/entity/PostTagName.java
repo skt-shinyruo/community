@@ -1,15 +1,17 @@
 package com.nowcoder.community.content.entity;
 
+import java.util.UUID;
+
 public class PostTagName {
 
-    private int postId;
+    private UUID postId;
     private String name;
 
-    public int getPostId() {
+    public UUID getPostId() {
         return postId;
     }
 
-    public void setPostId(int postId) {
+    public void setPostId(UUID postId) {
         this.postId = postId;
     }
 
@@ -21,4 +23,3 @@ public class PostTagName {
         this.name = name;
     }
 }
-

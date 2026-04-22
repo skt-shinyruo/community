@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @Service
 public class RoomMessageService {
@@ -58,8 +59,8 @@ public class RoomMessageService {
             throw new IllegalArgumentException("content too long (max=" + maxContentChars + ")");
         }
 
-        long roomId = cmd.roomId();
-        int fromUserId = cmd.fromUserId();
+        UUID roomId = cmd.roomId();
+        UUID fromUserId = cmd.fromUserId();
 
         if (!roomRepository.exists(roomId)) {
             throw new IllegalArgumentException("room not found: " + roomId);
@@ -82,7 +83,7 @@ public class RoomMessageService {
         }
 
         long seq = seqAllocator.nextRoomSeq(roomId);
-        long messageId = idGenerator.nextId();
+        UUID messageId = idGenerator.nextId();
         Instant now = Instant.now();
 
         roomMessageRepository.insert(new RoomMessageRepository.RoomMessageRow(
@@ -108,4 +109,3 @@ public class RoomMessageService {
         );
     }
 }
-

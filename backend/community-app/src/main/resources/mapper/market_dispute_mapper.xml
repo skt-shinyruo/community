@@ -9,15 +9,15 @@
         select dispute_id, order_id, goods_type, buyer_user_id, seller_user_id, status, reason, buyer_note, seller_note,
                resolution_type, resolved_by, resolved_at, create_time, update_time
         from market_dispute
-        where dispute_id = #{disputeId}
+        where dispute_id = #{disputeId, jdbcType=BINARY}
     </select>
 
     <select id="selectByOrderId" resultType="com.nowcoder.community.market.entity.MarketDispute">
         select dispute_id, order_id, goods_type, buyer_user_id, seller_user_id, status, reason, buyer_note, seller_note,
                resolution_type, resolved_by, resolved_at, create_time, update_time
         from market_dispute
-        where order_id = #{orderId}
-        order by dispute_id desc
+        where order_id = #{orderId, jdbcType=BINARY}
+        order by create_time desc, dispute_id desc
     </select>
 
     <select id="selectOpenDisputes" resultType="com.nowcoder.community.market.entity.MarketDispute">
@@ -25,17 +25,17 @@
                resolution_type, resolved_by, resolved_at, create_time, update_time
         from market_dispute
         where status in ('OPEN', 'SELLER_REJECTED')
-        order by dispute_id desc
+        order by create_time desc, dispute_id desc
     </select>
 
-    <insert id="insert" parameterType="com.nowcoder.community.market.entity.MarketDispute" useGeneratedKeys="true" keyProperty="disputeId" keyColumn="dispute_id">
+    <insert id="insert" parameterType="com.nowcoder.community.market.entity.MarketDispute">
         insert into market_dispute(
-            order_id, goods_type, buyer_user_id, seller_user_id, status, reason, buyer_note, seller_note,
+            dispute_id, order_id, goods_type, buyer_user_id, seller_user_id, status, reason, buyer_note, seller_note,
             resolution_type, resolved_by, resolved_at
         )
         values(
-            #{orderId}, #{goodsType}, #{buyerUserId}, #{sellerUserId}, #{status}, #{reason}, #{buyerNote}, #{sellerNote},
-            #{resolutionType}, #{resolvedBy}, #{resolvedAt}
+            #{disputeId, jdbcType=BINARY}, #{orderId, jdbcType=BINARY}, #{goodsType}, #{buyerUserId, jdbcType=BINARY}, #{sellerUserId, jdbcType=BINARY}, #{status}, #{reason}, #{buyerNote}, #{sellerNote},
+            #{resolutionType}, #{resolvedBy, jdbcType=BINARY}, #{resolvedAt}
         )
     </insert>
 
@@ -46,10 +46,10 @@
             buyer_note = #{buyerNote},
             seller_note = #{sellerNote},
             resolution_type = #{resolutionType},
-            resolved_by = #{resolvedBy},
+            resolved_by = #{resolvedBy, jdbcType=BINARY},
             resolved_at = #{resolvedAt},
             update_time = current_timestamp
-        where dispute_id = #{disputeId}
+        where dispute_id = #{disputeId, jdbcType=BINARY}
     </update>
 
 </mapper>

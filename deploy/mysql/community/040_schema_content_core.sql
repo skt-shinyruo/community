@@ -5,9 +5,9 @@
 use community;
 
 create table if not exists discuss_post (
-  id int auto_increment primary key,
-  user_id int,
-  category_id int default null,
+  id binary(16) primary key,
+  user_id binary(16),
+  category_id binary(16) default null,
   title varchar(255),
   content text,
   type int default 0,
@@ -15,7 +15,7 @@ create table if not exists discuss_post (
   create_time timestamp null default current_timestamp,
   update_time timestamp null default null,
   edit_count int default 0,
-  deleted_by int default 0,
+  deleted_by binary(16) default null,
   deleted_reason varchar(255) default '',
   deleted_time timestamp null default null,
   comment_count int default 0,
@@ -23,24 +23,24 @@ create table if not exists discuss_post (
 );
 
 create table if not exists comment (
-  id int auto_increment primary key,
-  user_id int,
+  id binary(16) primary key,
+  user_id binary(16),
   entity_type int,
-  entity_id int,
-  target_id int default 0,
+  entity_id binary(16),
+  target_id binary(16) default null,
   content text,
   status int default 0,
   create_time timestamp null default current_timestamp,
   update_time timestamp null default null,
   edit_count int default 0,
-  deleted_by int default 0,
+  deleted_by binary(16) default null,
   deleted_reason varchar(255) default '',
   deleted_time timestamp null default null
 );
 
 -- taxonomy: categories + tags (Discourse-like)
 create table if not exists category (
-  id int auto_increment primary key,
+  id binary(16) primary key,
   name varchar(64) not null,
   description varchar(255) default '',
   position int default 0,
@@ -49,25 +49,25 @@ create table if not exists category (
 );
 
 create table if not exists tag (
-  id int auto_increment primary key,
+  id binary(16) primary key,
   name varchar(64) not null,
   create_time timestamp null default current_timestamp,
   unique key uk_tag_name (name)
 );
 
 create table if not exists post_tag (
-  post_id int not null,
-  tag_id int not null,
+  post_id binary(16) not null,
+  tag_id binary(16) not null,
   create_time timestamp null default current_timestamp,
   primary key (post_id, tag_id)
 );
 
 -- moderation: reports + actions (MVP)
 create table if not exists report (
-  id int auto_increment primary key,
-  reporter_id int not null,
+  id binary(16) primary key,
+  reporter_id binary(16) not null,
   target_type int not null,
-  target_id int not null,
+  target_id binary(16) not null,
   reason varchar(64) not null,
   detail varchar(512) default '',
   status int default 0,
@@ -76,9 +76,9 @@ create table if not exists report (
 );
 
 create table if not exists moderation_action (
-  id int auto_increment primary key,
-  report_id int default null,
-  actor_id int not null,
+  id binary(16) primary key,
+  report_id binary(16) default null,
+  actor_id binary(16) not null,
   action varchar(32) not null,
   reason varchar(255) default '',
   duration_seconds int default 0,
@@ -87,15 +87,15 @@ create table if not exists moderation_action (
 
 -- bookmarks/subscriptions (MVP)
 create table if not exists post_bookmark (
-  user_id int not null,
-  post_id int not null,
+  user_id binary(16) not null,
+  post_id binary(16) not null,
   create_time timestamp null default current_timestamp,
   primary key (user_id, post_id)
 );
 
 create table if not exists user_subscription_category (
-  user_id int not null,
-  category_id int not null,
+  user_id binary(16) not null,
+  category_id binary(16) not null,
   create_time timestamp null default current_timestamp,
   primary key (user_id, category_id)
 );
@@ -108,7 +108,7 @@ set @has_category_id := (
     and table_name = 'discuss_post'
     and column_name = 'category_id'
 );
-set @sql := if(@has_category_id = 0, 'alter table discuss_post add column category_id int default null', 'select 1');
+set @sql := if(@has_category_id = 0, 'alter table discuss_post add column category_id binary(16) default null', 'select 1');
 prepare stmt from @sql;
 execute stmt;
 deallocate prepare stmt;
@@ -145,7 +145,7 @@ set @has_deleted_by := (
     and table_name = 'discuss_post'
     and column_name = 'deleted_by'
 );
-set @sql := if(@has_deleted_by = 0, 'alter table discuss_post add column deleted_by int default 0', 'select 1');
+set @sql := if(@has_deleted_by = 0, 'alter table discuss_post add column deleted_by binary(16) default null', 'select 1');
 prepare stmt from @sql;
 execute stmt;
 deallocate prepare stmt;
@@ -205,7 +205,7 @@ set @has_comment_deleted_by := (
     and table_name = 'comment'
     and column_name = 'deleted_by'
 );
-set @sql := if(@has_comment_deleted_by = 0, 'alter table comment add column deleted_by int default 0', 'select 1');
+set @sql := if(@has_comment_deleted_by = 0, 'alter table comment add column deleted_by binary(16) default null', 'select 1');
 prepare stmt from @sql;
 execute stmt;
 deallocate prepare stmt;
@@ -233,4 +233,3 @@ set @sql := if(@has_comment_deleted_time = 0, 'alter table comment add column de
 prepare stmt from @sql;
 execute stmt;
 deallocate prepare stmt;
-

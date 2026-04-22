@@ -1,4 +1,6 @@
 package com.nowcoder.community.content.api.model;
 
-public record PostCreateResult(int postId) {
+import java.util.UUID;
+
+public record PostCreateResult(UUID postId) {
 }

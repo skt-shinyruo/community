@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -33,10 +34,17 @@ class ImCoreClientTraceHeadersTest {
     @Test
     void listAllRoomIdsForUserShouldSendAuthTraceAndPagingParams() throws Exception {
         LinkedBlockingQueue<Map<String, String>> requests = new LinkedBlockingQueue<>();
+        UUID userId = uuid(42);
+        UUID roomId1 = uuid(101);
+        UUID roomId2 = uuid(102);
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/internal/im/realtime/users/42/rooms", exchange -> {
+        server.createContext("/internal/im/realtime/users/" + userId + "/rooms", exchange -> {
             requests.offer(captureRequest(exchange));
-            writeJson(exchange, 200, "{\"roomIds\":[101,102],\"nextCursorExclusive\":0,\"hasMore\":false}");
+            writeJson(
+                    exchange,
+                    200,
+                    "{\"roomIds\":[\"" + roomId1 + "\",\"" + roomId2 + "\"],\"nextCursorExclusive\":null,\"hasMore\":false}"
+            );
         });
         server.start();
 
@@ -46,11 +54,11 @@ class ImCoreClientTraceHeadersTest {
                         .build()
         );
 
-        List<Long> roomIds = client.listAllRoomIdsForUser(42, "token-123", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        List<UUID> roomIds = client.listAllRoomIdsForUser(userId, "token-123", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
                 .collectList()
                 .block();
 
-        assertThat(roomIds).containsExactly(101L, 102L);
+        assertThat(roomIds).containsExactly(roomId1, roomId2);
 
         Map<String, String> request = requests.poll(5, TimeUnit.SECONDS);
         assertThat(request).isNotNull();
@@ -59,8 +67,11 @@ class ImCoreClientTraceHeadersTest {
         assertThat(request.get("traceparent"))
                 .startsWith("00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-")
                 .endsWith("-01");
-        assertThat(request.get("query")).contains("cursor=0");
         assertThat(request.get("query")).contains("limit=1000");
+    }
+
+    private static UUID uuid(long suffix) {
+        return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
     }
 
     private static Map<String, String> captureRequest(HttpExchange exchange) {

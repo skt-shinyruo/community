@@ -11,6 +11,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Date;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
@@ -23,6 +24,10 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class AdminUserServiceTest {
+
+    private static final UUID ACTOR_ID = UUID.fromString("00000000-0000-7000-8000-000000000099");
+    private static final UUID TARGET_ID = UUID.fromString("00000000-0000-7000-8000-000000000008");
+    private static final UUID SEARCH_ID = UUID.fromString("00000000-0000-7000-8000-000000000009");
 
     @Mock
     private UserMapper userMapper;
@@ -44,13 +49,13 @@ class AdminUserServiceTest {
     void searchShouldTrimUsernameAndProjectAdminResponse() {
         AdminUserService service = new AdminUserService(userMapper);
         Date createTime = new Date();
-        User user = user(7, "alice", "alice@example.com", 2, 0, "h7", createTime);
+        User user = user(UUID.fromString("00000000-0000-7000-8000-000000000007"), "alice", "alice@example.com", 2, 0, "h7", createTime);
         when(userMapper.selectByName("alice")).thenReturn(user);
 
         AdminUserResponse response = service.search(null, "  alice  ", null);
 
         assertThat(response).isNotNull();
-        assertThat(response.getId()).isEqualTo(7);
+        assertThat(response.getId()).isEqualTo(UUID.fromString("00000000-0000-7000-8000-000000000007"));
         assertThat(response.getUsername()).isEqualTo("alice");
         assertThat(response.getEmail()).isEqualTo("alice@example.com");
         assertThat(response.getType()).isEqualTo(2);
@@ -63,17 +68,17 @@ class AdminUserServiceTest {
     @Test
     void searchShouldReturnNullWhenTargetUserMissing() {
         AdminUserService service = new AdminUserService(userMapper);
-        when(userMapper.selectById(9)).thenReturn(null);
+        when(userMapper.selectById(SEARCH_ID)).thenReturn(null);
 
-        assertThat(service.search(9, null, null)).isNull();
+        assertThat(service.search(SEARCH_ID, null, null)).isNull();
     }
 
     @Test
     void updateRoleShouldRejectWhenConfirmMissing() {
         AdminUserService service = new AdminUserService(userMapper);
-        UpdateUserRoleRequest request = roleRequest(8, 1, "elevate", false);
+        UpdateUserRoleRequest request = roleRequest(TARGET_ID, 1, "elevate", false);
 
-        assertThatThrownBy(() -> service.updateRole(99, request))
+        assertThatThrownBy(() -> service.updateRole(ACTOR_ID, request))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> {
                     BusinessException businessException = (BusinessException) ex;
@@ -85,9 +90,9 @@ class AdminUserServiceTest {
     @Test
     void updateRoleShouldRejectBlankReason() {
         AdminUserService service = new AdminUserService(userMapper);
-        UpdateUserRoleRequest request = roleRequest(8, 1, "   ", true);
+        UpdateUserRoleRequest request = roleRequest(TARGET_ID, 1, "   ", true);
 
-        assertThatThrownBy(() -> service.updateRole(99, request))
+        assertThatThrownBy(() -> service.updateRole(ACTOR_ID, request))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> {
                     BusinessException businessException = (BusinessException) ex;
@@ -99,10 +104,10 @@ class AdminUserServiceTest {
     @Test
     void updateRoleShouldRejectWhenTargetUserMissing() {
         AdminUserService service = new AdminUserService(userMapper);
-        UpdateUserRoleRequest request = roleRequest(8, 1, "elevate", true);
-        when(userMapper.selectById(8)).thenReturn(null);
+        UpdateUserRoleRequest request = roleRequest(TARGET_ID, 1, "elevate", true);
+        when(userMapper.selectById(TARGET_ID)).thenReturn(null);
 
-        assertThatThrownBy(() -> service.updateRole(99, request))
+        assertThatThrownBy(() -> service.updateRole(ACTOR_ID, request))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> {
                     BusinessException businessException = (BusinessException) ex;
@@ -114,10 +119,10 @@ class AdminUserServiceTest {
     @Test
     void updateRoleShouldRejectAdminSelfDowngrade() {
         AdminUserService service = new AdminUserService(userMapper);
-        UpdateUserRoleRequest request = roleRequest(8, 2, "handover", true);
-        when(userMapper.selectById(8)).thenReturn(user(8, "admin", "admin@example.com", 1, 0, "h8", new Date()));
+        UpdateUserRoleRequest request = roleRequest(TARGET_ID, 2, "handover", true);
+        when(userMapper.selectById(TARGET_ID)).thenReturn(user(TARGET_ID, "admin", "admin@example.com", 1, 0, "h8", new Date()));
 
-        assertThatThrownBy(() -> service.updateRole(8, request))
+        assertThatThrownBy(() -> service.updateRole(TARGET_ID, request))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> {
                     BusinessException businessException = (BusinessException) ex;
@@ -129,34 +134,34 @@ class AdminUserServiceTest {
     @Test
     void updateRoleShouldReturnWithoutWriteWhenRoleUnchanged() {
         AdminUserService service = new AdminUserService(userMapper);
-        UpdateUserRoleRequest request = roleRequest(8, 1, "noop", true);
-        when(userMapper.selectById(8)).thenReturn(user(8, "admin", "admin@example.com", 1, 0, "h8", new Date()));
+        UpdateUserRoleRequest request = roleRequest(TARGET_ID, 1, "noop", true);
+        when(userMapper.selectById(TARGET_ID)).thenReturn(user(TARGET_ID, "admin", "admin@example.com", 1, 0, "h8", new Date()));
 
-        service.updateRole(99, request);
+        service.updateRole(ACTOR_ID, request);
 
-        verify(userMapper, never()).updateType(8, 1);
+        verify(userMapper, never()).updateType(TARGET_ID, 1);
     }
 
     @Test
     void updateRoleShouldPersistRoleChange() {
         AdminUserService service = new AdminUserService(userMapper);
-        UpdateUserRoleRequest request = roleRequest(8, 2, "delegate moderation", true);
-        when(userMapper.selectById(8)).thenReturn(user(8, "admin", "admin@example.com", 1, 0, "h8", new Date()));
-        when(userMapper.updateType(8, 2)).thenReturn(1);
+        UpdateUserRoleRequest request = roleRequest(TARGET_ID, 2, "delegate moderation", true);
+        when(userMapper.selectById(TARGET_ID)).thenReturn(user(TARGET_ID, "admin", "admin@example.com", 1, 0, "h8", new Date()));
+        when(userMapper.updateType(TARGET_ID, 2)).thenReturn(1);
 
-        service.updateRole(99, request);
+        service.updateRole(ACTOR_ID, request);
 
-        verify(userMapper).updateType(8, 2);
+        verify(userMapper).updateType(TARGET_ID, 2);
     }
 
     @Test
     void updateRoleShouldFailWhenUpdateDoesNotAffectRows() {
         AdminUserService service = new AdminUserService(userMapper);
-        UpdateUserRoleRequest request = roleRequest(8, 2, "delegate moderation", true);
-        when(userMapper.selectById(8)).thenReturn(user(8, "admin", "admin@example.com", 1, 0, "h8", new Date()));
-        when(userMapper.updateType(8, 2)).thenReturn(0);
+        UpdateUserRoleRequest request = roleRequest(TARGET_ID, 2, "delegate moderation", true);
+        when(userMapper.selectById(TARGET_ID)).thenReturn(user(TARGET_ID, "admin", "admin@example.com", 1, 0, "h8", new Date()));
+        when(userMapper.updateType(TARGET_ID, 2)).thenReturn(0);
 
-        assertThatThrownBy(() -> service.updateRole(99, request))
+        assertThatThrownBy(() -> service.updateRole(ACTOR_ID, request))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> {
                     BusinessException businessException = (BusinessException) ex;
@@ -165,7 +170,7 @@ class AdminUserServiceTest {
                 });
     }
 
-    private UpdateUserRoleRequest roleRequest(int targetUserId, int type, String reason, boolean confirm) {
+    private UpdateUserRoleRequest roleRequest(UUID targetUserId, int type, String reason, boolean confirm) {
         UpdateUserRoleRequest request = new UpdateUserRoleRequest();
         request.setTargetUserId(targetUserId);
         request.setType(type);
@@ -174,7 +179,7 @@ class AdminUserServiceTest {
         return request;
     }
 
-    private User user(int id, String username, String email, int type, int status, String headerUrl, Date createTime) {
+    private User user(UUID id, String username, String email, int type, int status, String headerUrl, Date createTime) {
         User user = new User();
         user.setId(id);
         user.setUsername(username);

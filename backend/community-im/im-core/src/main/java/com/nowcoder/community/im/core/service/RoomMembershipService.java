@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class RoomMembershipService {
@@ -37,8 +38,8 @@ public class RoomMembershipService {
     }
 
     @Transactional
-    public long createRoom(int creatorUserId, String name) {
-        long roomId = idGenerator.nextId();
+    public UUID createRoom(UUID creatorUserId, String name) {
+        UUID roomId = idGenerator.nextId();
         roomRepository.insertRoom(roomId, name == null ? null : name.trim());
         roomMemberRepository.addMember(roomId, creatorUserId, ROLE_OWNER);
         AfterCommitExecutor.runAfterCommit(() -> changePublisher.publishJoined(roomId, creatorUserId));
@@ -46,7 +47,7 @@ public class RoomMembershipService {
     }
 
     @Transactional
-    public void joinRoom(int userId, long roomId) {
+    public void joinRoom(UUID userId, UUID roomId) {
         if (!roomRepository.exists(roomId)) {
             throw new IllegalArgumentException("room not found: " + roomId);
         }
@@ -62,17 +63,17 @@ public class RoomMembershipService {
     }
 
     @Transactional
-    public void leaveRoom(int userId, long roomId) {
+    public void leaveRoom(UUID userId, UUID roomId) {
         roomMemberRepository.removeMember(roomId, userId);
         AfterCommitExecutor.runAfterCommit(() -> changePublisher.publishLeft(roomId, userId));
     }
 
-    public List<Long> listRoomIdsByUser(int userId, long cursorExclusive, int limit) {
+    public List<UUID> listRoomIdsByUser(UUID userId, UUID cursorExclusive, int limit) {
         int l = Math.min(Math.max(1, limit), 5000);
         return roomMemberRepository.listRoomIdsByUser(userId, cursorExclusive, l);
     }
 
-    public boolean isMember(long roomId, int userId) {
+    public boolean isMember(UUID roomId, UUID userId) {
         return roomMemberRepository.isMember(roomId, userId);
     }
 }

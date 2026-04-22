@@ -6,18 +6,18 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+import java.util.UUID;
 
 @Mapper
 public interface ModerationActionMapper {
 
     int insertAction(ModerationAction action);
 
-    List<ModerationAction> selectActionsByReportId(@Param("reportId") int reportId);
+    List<ModerationAction> selectActionsByReportId(@Param("reportId") UUID reportId);
 
     List<ModerationAction> selectActions(
-            @Param("actorId") Integer actorId,
+            @Param("actorId") UUID actorId,
             @Param("offset") int offset,
             @Param("limit") int limit
     );
 }
-

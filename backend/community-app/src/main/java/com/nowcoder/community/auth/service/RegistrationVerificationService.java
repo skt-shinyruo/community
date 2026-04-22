@@ -17,6 +17,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.UUID;
 
 @Service
 public class RegistrationVerificationService {
@@ -60,7 +61,7 @@ public class RegistrationVerificationService {
             throw new BusinessException(AuthErrorCode.CAPTCHA_INVALID);
         }
 
-        int userId = resolveUserIdOrThrow(registrationToken);
+        UUID userId = resolveUserIdOrThrow(registrationToken);
         PendingRegistrationUserView user = requirePendingUser(userId);
 
         String code = generateCode();
@@ -86,13 +87,13 @@ public class RegistrationVerificationService {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "registrationToken/code 不能为空");
         }
 
-        int userId = resolveUserIdOrThrow(registrationToken);
+        UUID userId = resolveUserIdOrThrow(registrationToken);
 
         PendingRegistrationUserView user = requirePendingUser(userId);
         RegistrationCodeStore.VerifyResult result = registrationCodeStore.verifyAndConsume(userId, code.trim());
         if (result == RegistrationCodeStore.VerifyResult.SUCCESS) {
             UserCredentialView activatedUser = userRegistrationActionApi.activatePendingUser(userId);
-            if (activatedUser == null || activatedUser.userId() <= 0) {
+            if (activatedUser == null || activatedUser.userId() == null) {
                 throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "激活用户失败");
             }
             AuthService.LoginResult loginResult = authService.issueLoginResult(activatedUser);
@@ -115,18 +116,18 @@ public class RegistrationVerificationService {
         throw new BusinessException(AuthErrorCode.REGISTRATION_CODE_INVALID);
     }
 
-    private int resolveUserIdOrThrow(String registrationToken) {
+    private UUID resolveUserIdOrThrow(String registrationToken) {
         if (!StringUtils.hasText(registrationToken)) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "registrationToken 不能为空");
         }
-        Integer userId = registrationSessionStore == null ? null : registrationSessionStore.findUserId(registrationToken.trim());
-        if (userId == null || userId <= 0) {
+        UUID userId = registrationSessionStore == null ? null : registrationSessionStore.findUserId(registrationToken.trim());
+        if (userId == null) {
             throw new BusinessException(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);
         }
         return userId;
     }
 
-    private PendingRegistrationUserView requirePendingUser(int userId) {
+    private PendingRegistrationUserView requirePendingUser(UUID userId) {
         Duration pendingUserTtl = Duration.ofSeconds(Math.max(60, properties.getPendingUser().getTtlSeconds()));
         PendingRegistrationUserView user = userPendingRegistrationQueryApi.getPendingUser(userId, pendingUserTtl);
         if (user.status() != 0) {

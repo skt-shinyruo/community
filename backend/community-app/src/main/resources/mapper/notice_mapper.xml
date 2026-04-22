@@ -4,24 +4,13 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.nowcoder.community.notice.mapper.NoticeMapper">
 
-    <!--
-      Rollout note: legacy notice rows with from_id = 1 are still treated as notices
-      only for the known notice topics below. Real user 1 conversations keep numeric
-      conversation ids like "1_2" and must stay visible as letters.
-    -->
     <sql id="noticePredicate">
-        (
-            from_id = 0
-            or (
-                from_id = 1
-                and conversation_id in ('comment', 'like', 'follow', 'moderation')
-            )
-        )
+        conversation_id in ('comment', 'like', 'follow', 'moderation')
     </sql>
 
-    <insert id="insertNotice" parameterType="com.nowcoder.community.notice.entity.NoticeRecord" keyProperty="id">
-        insert into message(from_id, to_id, conversation_id, content, status, create_time)
-        values(#{senderUserId}, #{recipientUserId}, #{topic}, #{content}, #{status}, #{createTime})
+    <insert id="insertNotice" parameterType="com.nowcoder.community.notice.entity.NoticeRecord">
+        insert into message(id, from_id, to_id, conversation_id, content, status, create_time)
+        values(#{id, jdbcType=BINARY}, #{senderUserId, jdbcType=BINARY}, #{recipientUserId, jdbcType=BINARY}, #{topic}, #{content}, #{status}, #{createTime})
     </insert>
 
     <select id="selectNotices" resultType="com.nowcoder.community.notice.entity.NoticeRecord">
@@ -65,7 +54,7 @@
           and to_id = #{userId}
           and id in
         <foreach collection="ids" item="id" open="(" separator="," close=")">
-            #{id}
+            #{id, jdbcType=BINARY}
         </foreach>
     </update>
 

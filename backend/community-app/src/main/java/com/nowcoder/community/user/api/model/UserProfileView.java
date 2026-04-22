@@ -1,9 +1,10 @@
 package com.nowcoder.community.user.api.model;
 
 import java.util.Date;
+import java.util.UUID;
 
 public record UserProfileView(
-        int userId,
+        UUID userId,
         String username,
         String headerUrl,
         int type,

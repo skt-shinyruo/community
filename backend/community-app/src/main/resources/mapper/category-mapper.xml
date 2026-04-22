@@ -30,7 +30,7 @@
     <select id="selectCategoryById" resultType="com.nowcoder.community.content.entity.Category">
         select <include refid="selectFields"></include>
         from category
-        where id = #{id}
+        where id = #{id, jdbcType=BINARY}
     </select>
 
 </mapper>

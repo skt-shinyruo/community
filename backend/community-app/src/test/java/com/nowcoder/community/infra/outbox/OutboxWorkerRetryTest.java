@@ -16,6 +16,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -136,8 +137,9 @@ class OutboxWorkerRetryTest {
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         OutboxProperties properties = enabledProperties();
         properties.setMaxRetries(0);
+        UUID outboxId = UUID.fromString("01965429-b34a-7000-8000-000000000001");
         OutboxEvent event = new OutboxEvent(
-                1L,
+                outboxId,
                 "e-dead:points",
                 "projection.points",
                 "1",
@@ -161,14 +163,14 @@ class OutboxWorkerRetryTest {
 
         when(store.recoverExpiredLeases(now)).thenReturn(0);
         when(store.findDuePending(properties.getBatchSize(), now)).thenReturn(java.util.List.of(event));
-        when(store.tryClaimProcessing(eq(1L), any(), eq(now))).thenReturn(true);
+        when(store.tryClaimProcessing(eq(outboxId), any(), eq(now))).thenReturn(true);
 
         OutboxWorker worker = new OutboxWorker(store, Map.of(handler.topic(), handler), properties, Clock.fixed(now, ZoneOffset.UTC));
 
         int processed = worker.pollOnce();
 
         assertThat(processed).isEqualTo(1);
-        verify(store).markDead(1L, now, "java.lang.RuntimeException: boom");
+        verify(store).markDead(outboxId, now, "java.lang.RuntimeException: boom");
         String deadLine = findLogLine(output, "community.action=outbox_dispatch community.outcome=dead");
         assertThat(deadLine)
                 .contains("community.category=async")
@@ -185,8 +187,9 @@ class OutboxWorkerRetryTest {
         Instant now = Instant.parse("2026-03-14T00:00:00Z");
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         OutboxProperties properties = enabledProperties();
+        UUID outboxId = UUID.fromString("01965429-b34a-7000-8000-000000000002");
         OutboxEvent event = new OutboxEvent(
-                1L,
+                outboxId,
                 "e-missing:points",
                 "projection.points",
                 "1",
@@ -199,14 +202,14 @@ class OutboxWorkerRetryTest {
 
         when(store.recoverExpiredLeases(now)).thenReturn(0);
         when(store.findDuePending(properties.getBatchSize(), now)).thenReturn(java.util.List.of(event));
-        when(store.tryClaimProcessing(eq(1L), any(), eq(now))).thenReturn(true);
+        when(store.tryClaimProcessing(eq(outboxId), any(), eq(now))).thenReturn(true);
 
         OutboxWorker worker = new OutboxWorker(store, Map.of(), properties, Clock.fixed(now, ZoneOffset.UTC));
 
         int processed = worker.pollOnce();
 
         assertThat(processed).isEqualTo(1);
-        verify(store).markFailedAndScheduleRetry(1L, now, now.plus(Duration.ofSeconds(10)), "no handler for topic=projection.points");
+        verify(store).markFailedAndScheduleRetry(outboxId, now, now.plus(Duration.ofSeconds(10)), "no handler for topic=projection.points");
         assertThat(output.getAll())
                 .contains("community.category=async")
                 .contains("community.action=outbox_dispatch")
@@ -238,7 +241,7 @@ class OutboxWorkerRetryTest {
     private static void createOutboxSchema(JdbcTemplate jdbcTemplate) {
         jdbcTemplate.execute(
                 "create table if not exists outbox_event (\n" +
-                        "  id bigint auto_increment primary key,\n" +
+                        "  id binary(16) primary key,\n" +
                         "  event_id varchar(64) not null,\n" +
                         "  topic varchar(255) not null,\n" +
                         "  event_key varchar(255) not null,\n" +

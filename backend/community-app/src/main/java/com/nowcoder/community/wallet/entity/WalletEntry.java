@@ -1,38 +1,39 @@
 package com.nowcoder.community.wallet.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class WalletEntry {
 
-    private long entryId;
-    private long txnId;
-    private long accountId;
+    private UUID entryId;
+    private UUID txnId;
+    private UUID accountId;
     private String direction;
     private long amount;
     private long balanceAfter;
     private Date createTime;
 
-    public long getEntryId() {
+    public UUID getEntryId() {
         return entryId;
     }
 
-    public void setEntryId(long entryId) {
+    public void setEntryId(UUID entryId) {
         this.entryId = entryId;
     }
 
-    public long getTxnId() {
+    public UUID getTxnId() {
         return txnId;
     }
 
-    public void setTxnId(long txnId) {
+    public void setTxnId(UUID txnId) {
         this.txnId = txnId;
     }
 
-    public long getAccountId() {
+    public UUID getAccountId() {
         return accountId;
     }
 
-    public void setAccountId(long accountId) {
+    public void setAccountId(UUID accountId) {
         this.accountId = accountId;
     }
 

@@ -5,6 +5,8 @@ import com.nowcoder.community.common.security.jwt.JwtSubjects;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import java.util.UUID;
+
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.common.exception.CommonErrorCode.UNAUTHORIZED;
 
@@ -60,5 +62,24 @@ public final class CurrentUser {
             return null;
         }
         return JwtSubjects.tryUserId(jwt);
+    }
+
+    public static UUID requireUserUuid(Authentication authentication) {
+        try {
+            return JwtSubjects.userUuidOrThrow(requireJwt(authentication));
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(INVALID_ARGUMENT, "token subject 非法");
+        }
+    }
+
+    public static UUID tryUserUuid(Authentication authentication) {
+        if (authentication == null || authentication.getPrincipal() == null) {
+            return null;
+        }
+        Object principal = authentication.getPrincipal();
+        if (!(principal instanceof Jwt jwt)) {
+            return null;
+        }
+        return JwtSubjects.tryUserUuid(jwt);
     }
 }

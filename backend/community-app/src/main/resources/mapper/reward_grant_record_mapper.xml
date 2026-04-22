@@ -6,8 +6,8 @@
 <mapper namespace="com.nowcoder.community.growth.mapper.RewardGrantRecordMapper">
 
     <insert id="insert">
-        insert into reward_grant_record(grant_id, user_id, grant_type, source_event_id, source_event_type, growth_delta, reward_delta, status)
-        values(#{grantId}, #{userId}, #{grantType}, #{sourceEventId}, #{sourceEventType}, #{growthDelta}, #{rewardDelta}, #{status})
+        insert into reward_grant_record(id, grant_id, user_id, grant_type, source_event_id, source_event_type, growth_delta, reward_delta, status)
+        values(#{id, jdbcType=BINARY}, #{grantId}, #{userId, jdbcType=BINARY}, #{grantType}, #{sourceEventId}, #{sourceEventType}, #{growthDelta}, #{rewardDelta}, #{status})
     </insert>
 
 </mapper>

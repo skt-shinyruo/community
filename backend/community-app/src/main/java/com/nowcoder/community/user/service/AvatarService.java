@@ -27,8 +27,8 @@ public class AvatarService {
         this.redisTemplate = redisTemplate;
     }
 
-    public AvatarUploadTokenResponse createUploadToken(int userId) {
-        if (userId <= 0) {
+    public AvatarUploadTokenResponse createUploadToken(UUID userId) {
+        if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
 
@@ -44,13 +44,13 @@ public class AvatarService {
         return resp;
     }
 
-    public void upload(int userId, String fileName, MultipartFile file) {
+    public void upload(UUID userId, String fileName, MultipartFile file) {
         assertUploadTicketOwner(userId, fileName);
         currentProvider().upload(userId, fileName.trim(), file);
     }
 
-    public void assertAndConsumeUploadTicket(int userId, String fileName) {
-        if (userId <= 0) {
+    public void assertAndConsumeUploadTicket(UUID userId, String fileName) {
+        if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         if (!isSafeFileName(fileName)) {
@@ -61,13 +61,13 @@ public class AvatarService {
         }
         String key = KEY_PREFIX_UPLOAD_TICKET + fileName.trim();
         String owner = redisTemplate.opsForValue().getAndDelete(key);
-        if (!StringUtils.hasText(owner) || !owner.trim().equals(Integer.toString(userId))) {
+        if (!StringUtils.hasText(owner) || !owner.trim().equals(userId.toString())) {
             throw new BusinessException(FORBIDDEN, "上传凭证已失效或不匹配");
         }
     }
 
-    public void assertUploadTicketOwner(int userId, String fileName) {
-        if (userId <= 0) {
+    public void assertUploadTicketOwner(UUID userId, String fileName) {
+        if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         if (!isSafeFileName(fileName)) {
@@ -78,17 +78,17 @@ public class AvatarService {
         }
         String key = KEY_PREFIX_UPLOAD_TICKET + fileName.trim();
         String owner = redisTemplate.opsForValue().get(key);
-        if (!StringUtils.hasText(owner) || !owner.trim().equals(Integer.toString(userId))) {
+        if (!StringUtils.hasText(owner) || !owner.trim().equals(userId.toString())) {
             throw new BusinessException(FORBIDDEN, "上传凭证已失效或不匹配");
         }
     }
 
-    private void bindUploadTicket(int userId, String fileName) {
+    private void bindUploadTicket(UUID userId, String fileName) {
         if (redisTemplate == null) {
             throw new BusinessException(INVALID_ARGUMENT, "Redis 未配置，无法签发上传凭证");
         }
         String key = KEY_PREFIX_UPLOAD_TICKET + fileName;
-        redisTemplate.opsForValue().set(key, Integer.toString(userId), UPLOAD_TICKET_TTL_SECONDS, TimeUnit.SECONDS);
+        redisTemplate.opsForValue().set(key, userId.toString(), UPLOAD_TICKET_TTL_SECONDS, TimeUnit.SECONDS);
     }
 
     public String buildAvatarUrl(String fileName) {
@@ -108,7 +108,7 @@ public class AvatarService {
         return storageRouter.currentProviderOrThrow();
     }
 
-    private String generateFileName(int userId) {
+    private String generateFileName(UUID userId) {
         return AvatarConstraints.KEY_PREFIX + userId + "/" + UUID.randomUUID().toString().replace("-", "");
     }
 

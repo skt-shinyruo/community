@@ -9,9 +9,12 @@ import com.nowcoder.community.content.mapper.CommentMapper;
 import com.nowcoder.community.content.mapper.DiscussPostMapper;
 import org.junit.jupiter.api.Test;
 
+import java.util.UUID;
+
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.content.exception.ContentErrorCode.COMMENT_NOT_FOUND;
 import static com.nowcoder.community.content.exception.ContentErrorCode.POST_NOT_FOUND;
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
@@ -26,7 +29,7 @@ class ContentEntityQueryServiceTest {
                 mock(CommentMapper.class)
         );
 
-        assertThatThrownBy(() -> service.resolve(EntityTypes.POST, 0))
+        assertThatThrownBy(() -> service.resolve(EntityTypes.POST, null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> {
                     BusinessException businessException = (BusinessException) error;
@@ -42,7 +45,7 @@ class ContentEntityQueryServiceTest {
                 mock(CommentMapper.class)
         );
 
-        assertThatThrownBy(() -> service.resolve(EntityTypes.USER, 1))
+        assertThatThrownBy(() -> service.resolve(EntityTypes.USER, uuid(1)))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> {
                     BusinessException businessException = (BusinessException) error;
@@ -55,60 +58,70 @@ class ContentEntityQueryServiceTest {
     void resolveShouldReturnValidPost() {
         DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
         CommentMapper commentMapper = mock(CommentMapper.class);
+        UUID postId = uuid(101);
+        UUID userId = uuid(7);
 
         DiscussPost post = new DiscussPost();
-        post.setId(101);
-        post.setUserId(7);
+        post.setId(postId);
+        post.setUserId(userId);
         post.setStatus(0);
-        when(discussPostMapper.selectDiscussPostById(101)).thenReturn(post);
+        when(discussPostMapper.selectDiscussPostById(postId)).thenReturn(post);
 
         ContentEntityQueryService service = new ContentEntityQueryService(discussPostMapper, commentMapper);
 
-        ResolvedContentRef resolved = service.resolve(EntityTypes.POST, 101);
+        ResolvedContentRef resolved = service.resolve(EntityTypes.POST, postId);
 
-        assertThat(resolved.entityUserId()).isEqualTo(7);
-        assertThat(resolved.postId()).isEqualTo(101);
+        assertThat(resolved.entityUserId()).isEqualTo(userId);
+        assertThat(resolved.postId()).isEqualTo(postId);
     }
 
     @Test
     void resolveShouldReturnRootPostForReplyChain() {
         DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
         CommentMapper commentMapper = mock(CommentMapper.class);
+        UUID replyId = uuid(301);
+        UUID replyUserId = uuid(9);
+        UUID parentId = uuid(201);
+        UUID parentUserId = uuid(5);
+        UUID postId = uuid(101);
+        UUID postUserId = uuid(7);
 
-        Comment reply = activeComment(301, 9, EntityTypes.COMMENT, 201);
-        Comment parent = activeComment(201, 5, EntityTypes.POST, 101);
+        Comment reply = activeComment(replyId, replyUserId, EntityTypes.COMMENT, parentId);
+        Comment parent = activeComment(parentId, parentUserId, EntityTypes.POST, postId);
 
         DiscussPost post = new DiscussPost();
-        post.setId(101);
-        post.setUserId(7);
+        post.setId(postId);
+        post.setUserId(postUserId);
         post.setStatus(0);
 
-        when(commentMapper.selectCommentById(301)).thenReturn(reply);
-        when(commentMapper.selectCommentById(201)).thenReturn(parent);
-        when(discussPostMapper.selectDiscussPostById(101)).thenReturn(post);
+        when(commentMapper.selectCommentById(replyId)).thenReturn(reply);
+        when(commentMapper.selectCommentById(parentId)).thenReturn(parent);
+        when(discussPostMapper.selectDiscussPostById(postId)).thenReturn(post);
 
         ContentEntityQueryService service = new ContentEntityQueryService(discussPostMapper, commentMapper);
 
-        ResolvedContentRef resolved = service.resolve(EntityTypes.COMMENT, 301);
+        ResolvedContentRef resolved = service.resolve(EntityTypes.COMMENT, replyId);
 
-        assertThat(resolved.entityUserId()).isEqualTo(9);
-        assertThat(resolved.postId()).isEqualTo(101);
+        assertThat(resolved.entityUserId()).isEqualTo(replyUserId);
+        assertThat(resolved.postId()).isEqualTo(postId);
     }
 
     @Test
     void resolveShouldRejectDeletedPost() {
         DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
         CommentMapper commentMapper = mock(CommentMapper.class);
+        UUID postId = uuid(101);
+        UUID userId = uuid(7);
 
         DiscussPost post = new DiscussPost();
-        post.setId(101);
-        post.setUserId(7);
+        post.setId(postId);
+        post.setUserId(userId);
         post.setStatus(2);
-        when(discussPostMapper.selectDiscussPostById(101)).thenReturn(post);
+        when(discussPostMapper.selectDiscussPostById(postId)).thenReturn(post);
 
         ContentEntityQueryService service = new ContentEntityQueryService(discussPostMapper, commentMapper);
 
-        assertThatThrownBy(() -> service.resolve(EntityTypes.POST, 101))
+        assertThatThrownBy(() -> service.resolve(EntityTypes.POST, postId))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode()).isEqualTo(POST_NOT_FOUND));
     }
@@ -117,14 +130,16 @@ class ContentEntityQueryServiceTest {
     void resolveShouldRejectDeletedComment() {
         DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
         CommentMapper commentMapper = mock(CommentMapper.class);
+        UUID commentId = uuid(301);
+        UUID postId = uuid(101);
 
-        Comment deleted = activeComment(301, 9, EntityTypes.POST, 101);
+        Comment deleted = activeComment(commentId, uuid(9), EntityTypes.POST, postId);
         deleted.setStatus(2);
-        when(commentMapper.selectCommentById(301)).thenReturn(deleted);
+        when(commentMapper.selectCommentById(commentId)).thenReturn(deleted);
 
         ContentEntityQueryService service = new ContentEntityQueryService(discussPostMapper, commentMapper);
 
-        assertThatThrownBy(() -> service.resolve(EntityTypes.COMMENT, 301))
+        assertThatThrownBy(() -> service.resolve(EntityTypes.COMMENT, commentId))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode()).isEqualTo(COMMENT_NOT_FOUND));
     }
@@ -133,15 +148,17 @@ class ContentEntityQueryServiceTest {
     void resolveShouldRejectMissingCommentParent() {
         DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
         CommentMapper commentMapper = mock(CommentMapper.class);
+        UUID replyId = uuid(301);
+        UUID parentId = uuid(201);
 
-        Comment reply = activeComment(301, 9, EntityTypes.COMMENT, 201);
+        Comment reply = activeComment(replyId, uuid(9), EntityTypes.COMMENT, parentId);
 
-        when(commentMapper.selectCommentById(301)).thenReturn(reply);
-        when(commentMapper.selectCommentById(201)).thenReturn(null);
+        when(commentMapper.selectCommentById(replyId)).thenReturn(reply);
+        when(commentMapper.selectCommentById(parentId)).thenReturn(null);
 
         ContentEntityQueryService service = new ContentEntityQueryService(discussPostMapper, commentMapper);
 
-        assertThatThrownBy(() -> service.resolve(EntityTypes.COMMENT, 301))
+        assertThatThrownBy(() -> service.resolve(EntityTypes.COMMENT, replyId))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> {
                     BusinessException businessException = (BusinessException) error;
@@ -154,16 +171,19 @@ class ContentEntityQueryServiceTest {
     void resolveShouldRejectBrokenReplyChain() {
         DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
         CommentMapper commentMapper = mock(CommentMapper.class);
+        UUID replyId = uuid(301);
+        UUID parentId = uuid(201);
+        UUID targetId = uuid(101);
 
-        Comment reply = activeComment(301, 9, EntityTypes.COMMENT, 201);
-        Comment parent = activeComment(201, 5, EntityTypes.USER, 101);
+        Comment reply = activeComment(replyId, uuid(9), EntityTypes.COMMENT, parentId);
+        Comment parent = activeComment(parentId, uuid(5), EntityTypes.USER, targetId);
 
-        when(commentMapper.selectCommentById(301)).thenReturn(reply);
-        when(commentMapper.selectCommentById(201)).thenReturn(parent);
+        when(commentMapper.selectCommentById(replyId)).thenReturn(reply);
+        when(commentMapper.selectCommentById(parentId)).thenReturn(parent);
 
         ContentEntityQueryService service = new ContentEntityQueryService(discussPostMapper, commentMapper);
 
-        assertThatThrownBy(() -> service.resolve(EntityTypes.COMMENT, 301))
+        assertThatThrownBy(() -> service.resolve(EntityTypes.COMMENT, replyId))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> {
                     BusinessException businessException = (BusinessException) error;
@@ -172,7 +192,7 @@ class ContentEntityQueryServiceTest {
                 });
     }
 
-    private Comment activeComment(int id, int userId, int entityType, int entityId) {
+    private Comment activeComment(UUID id, UUID userId, int entityType, UUID entityId) {
         Comment comment = new Comment();
         comment.setId(id);
         comment.setUserId(userId);

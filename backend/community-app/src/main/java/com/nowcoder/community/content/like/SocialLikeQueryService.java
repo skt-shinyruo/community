@@ -4,6 +4,8 @@ import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.social.api.query.SocialLikeQueryApi;
 import org.springframework.stereotype.Component;
 
+import java.util.UUID;
+
 @Component
 public class SocialLikeQueryService implements LikeQueryService {
 
@@ -16,16 +18,16 @@ public class SocialLikeQueryService implements LikeQueryService {
     }
 
     @Override
-    public long countPostLikes(int postId) {
-        if (postId <= 0) {
+    public long countPostLikes(UUID postId) {
+        if (postId == null) {
             return 0L;
         }
         return likeQueryApi.count(ENTITY_TYPE_POST, postId);
     }
 
     @Override
-    public boolean hasLikedPost(int userId, int postId) {
-        if (userId <= 0 || postId <= 0) {
+    public boolean hasLikedPost(UUID userId, UUID postId) {
+        if (userId == null || postId == null) {
             return false;
         }
         return likeQueryApi.isLiked(userId, ENTITY_TYPE_POST, postId);

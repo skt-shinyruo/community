@@ -1,6 +1,7 @@
 package com.nowcoder.community.growth.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.growth.api.model.LegacyRewardAccountView;
 import com.nowcoder.community.growth.api.query.LegacyRewardAccountQueryApi;
 import com.nowcoder.community.growth.entity.RewardAccount;
@@ -8,9 +9,12 @@ import com.nowcoder.community.growth.exception.GrowthErrorCode;
 import com.nowcoder.community.growth.mapper.RewardAccountMapper;
 import com.nowcoder.community.growth.mapper.RewardLedgerMapper;
 import com.nowcoder.community.wallet.api.action.WalletRewardActionApi;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
 
 @Service
 public class RewardAccountService implements LegacyRewardAccountQueryApi {
@@ -18,17 +22,27 @@ public class RewardAccountService implements LegacyRewardAccountQueryApi {
     private final RewardAccountMapper rewardAccountMapper;
     private final RewardLedgerMapper rewardLedgerMapper;
     private final WalletRewardActionApi walletRewardActionApi;
+    private final UuidV7Generator idGenerator;
 
+    @Autowired
     public RewardAccountService(RewardAccountMapper rewardAccountMapper,
                                 RewardLedgerMapper rewardLedgerMapper,
                                 WalletRewardActionApi walletRewardActionApi) {
+        this(rewardAccountMapper, rewardLedgerMapper, walletRewardActionApi, new UuidV7Generator());
+    }
+
+    RewardAccountService(RewardAccountMapper rewardAccountMapper,
+                                RewardLedgerMapper rewardLedgerMapper,
+                                WalletRewardActionApi walletRewardActionApi,
+                                UuidV7Generator idGenerator) {
         this.rewardAccountMapper = rewardAccountMapper;
         this.rewardLedgerMapper = rewardLedgerMapper;
         this.walletRewardActionApi = walletRewardActionApi;
+        this.idGenerator = idGenerator;
     }
 
     @Override
-    public LegacyRewardAccountView getLegacyRewardAccount(int userId) {
+    public LegacyRewardAccountView getLegacyRewardAccount(UUID userId) {
         RewardAccount account = rewardAccountMapper.selectByUserId(userId);
         if (account == null) {
             return null;
@@ -36,23 +50,23 @@ public class RewardAccountService implements LegacyRewardAccountQueryApi {
         return new LegacyRewardAccountView(userId, account.getAvailableBalance(), account.getFrozenBalance());
     }
 
-    public int availableBalanceOf(int userId) {
+    public int availableBalanceOf(UUID userId) {
         RewardAccount account = rewardAccountMapper.selectByUserId(userId);
         return account == null ? 0 : account.getAvailableBalance();
     }
 
-    public int frozenBalanceOf(int userId) {
+    public int frozenBalanceOf(UUID userId) {
         RewardAccount account = rewardAccountMapper.selectByUserId(userId);
         return account == null ? 0 : account.getFrozenBalance();
     }
 
     @Transactional
-    public void creditAvailable(int userId, String eventId, String eventType, int delta, String sourceModule, String remark) {
+    public void creditAvailable(UUID userId, String eventId, String eventType, int delta, String sourceModule, String remark) {
         applyAvailableDelta(userId, eventId, eventType, delta, sourceModule, remark);
     }
 
     @Transactional
-    public void issueToWallet(int userId, String eventId, String eventType, int amount, String sourceModule, String remark) {
+    public void issueToWallet(UUID userId, String eventId, String eventType, int amount, String sourceModule, String remark) {
         if (amount <= 0) {
             throw new BusinessException(GrowthErrorCode.INVALID_REQUEST, "wallet reward amount must be positive");
         }
@@ -60,7 +74,7 @@ public class RewardAccountService implements LegacyRewardAccountQueryApi {
     }
 
     @Transactional
-    public void applyAvailableDelta(int userId, String eventId, String eventType, int delta, String sourceModule, String remark) {
+    public void applyAvailableDelta(UUID userId, String eventId, String eventType, int delta, String sourceModule, String remark) {
         ensureAccountExists(userId);
         int updated = rewardAccountMapper.addAvailableBalance(userId, delta);
         if (updated != 1) {
@@ -68,6 +82,7 @@ public class RewardAccountService implements LegacyRewardAccountQueryApi {
         }
         RewardAccount accountAfter = rewardAccountMapper.selectByUserId(userId);
         rewardLedgerMapper.insert(
+                idGenerator.next(),
                 userId,
                 eventId,
                 eventType,
@@ -80,7 +95,7 @@ public class RewardAccountService implements LegacyRewardAccountQueryApi {
     }
 
     @Transactional
-    public void moveAvailableToFrozen(int userId, String eventId, String eventType, int amount, String sourceModule, String remark) {
+    public void moveAvailableToFrozen(UUID userId, String eventId, String eventType, int amount, String sourceModule, String remark) {
         ensureAccountExists(userId);
         if (amount <= 0) {
             throw new BusinessException(GrowthErrorCode.INVALID_REQUEST, "freeze amount must be positive");
@@ -91,6 +106,7 @@ public class RewardAccountService implements LegacyRewardAccountQueryApi {
         }
         RewardAccount accountAfter = rewardAccountMapper.selectByUserId(userId);
         rewardLedgerMapper.insert(
+                idGenerator.next(),
                 userId,
                 eventId,
                 eventType,
@@ -103,7 +119,7 @@ public class RewardAccountService implements LegacyRewardAccountQueryApi {
     }
 
     @Transactional
-    public void moveFrozenToAvailable(int userId, String eventId, String eventType, int amount, String sourceModule, String remark) {
+    public void moveFrozenToAvailable(UUID userId, String eventId, String eventType, int amount, String sourceModule, String remark) {
         ensureAccountExists(userId);
         if (amount <= 0) {
             throw new BusinessException(GrowthErrorCode.INVALID_REQUEST, "release amount must be positive");
@@ -114,6 +130,7 @@ public class RewardAccountService implements LegacyRewardAccountQueryApi {
         }
         RewardAccount accountAfter = rewardAccountMapper.selectByUserId(userId);
         rewardLedgerMapper.insert(
+                idGenerator.next(),
                 userId,
                 eventId,
                 eventType,
@@ -126,7 +143,7 @@ public class RewardAccountService implements LegacyRewardAccountQueryApi {
     }
 
     @Transactional
-    public void deductFrozenBalance(int userId, String eventId, String eventType, int amount, String sourceModule, String remark) {
+    public void deductFrozenBalance(UUID userId, String eventId, String eventType, int amount, String sourceModule, String remark) {
         ensureAccountExists(userId);
         if (amount <= 0) {
             throw new BusinessException(GrowthErrorCode.INVALID_REQUEST, "deduct frozen amount must be positive");
@@ -137,6 +154,7 @@ public class RewardAccountService implements LegacyRewardAccountQueryApi {
         }
         RewardAccount accountAfter = rewardAccountMapper.selectByUserId(userId);
         rewardLedgerMapper.insert(
+                idGenerator.next(),
                 userId,
                 eventId,
                 eventType,
@@ -148,7 +166,7 @@ public class RewardAccountService implements LegacyRewardAccountQueryApi {
         );
     }
 
-    private void ensureAccountExists(int userId) {
+    private void ensureAccountExists(UUID userId) {
         if (rewardAccountMapper.selectByUserId(userId) != null) {
             return;
         }

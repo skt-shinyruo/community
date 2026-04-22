@@ -5,19 +5,19 @@
 
 <mapper namespace="com.nowcoder.community.market.mapper.MarketInventoryUnitMapper">
 
-    <insert id="insert" parameterType="com.nowcoder.community.market.entity.MarketInventoryUnit" useGeneratedKeys="true" keyProperty="inventoryUnitId" keyColumn="inventory_unit_id">
+    <insert id="insert" parameterType="com.nowcoder.community.market.entity.MarketInventoryUnit">
         insert into market_inventory_unit(
-            listing_id, seller_user_id, payload_type, payload_content, status, reserved_order_id, delivered_at
+            inventory_unit_id, listing_id, seller_user_id, payload_type, payload_content, status, reserved_order_id, delivered_at
         )
         values(
-            #{listingId}, #{sellerUserId}, #{payloadType}, #{payloadContent}, #{status}, #{reservedOrderId}, #{deliveredAt}
+            #{inventoryUnitId, jdbcType=BINARY}, #{listingId, jdbcType=BINARY}, #{sellerUserId, jdbcType=BINARY}, #{payloadType}, #{payloadContent}, #{status}, #{reservedOrderId, jdbcType=BINARY}, #{deliveredAt}
         )
     </insert>
 
     <select id="countAvailableByListingId" resultType="int">
         select count(*)
         from market_inventory_unit
-        where listing_id = #{listingId}
+        where listing_id = #{listingId, jdbcType=BINARY}
           and status = 'AVAILABLE'
     </select>
 
@@ -25,7 +25,7 @@
         select inventory_unit_id, listing_id, seller_user_id, payload_type, payload_content, status,
                reserved_order_id, delivered_at, create_time
         from market_inventory_unit
-        where listing_id = #{listingId}
+        where listing_id = #{listingId, jdbcType=BINARY}
           and status = 'AVAILABLE'
         order by inventory_unit_id asc
         limit #{limit}
@@ -36,7 +36,7 @@
         select inventory_unit_id, listing_id, seller_user_id, payload_type, payload_content, status,
                reserved_order_id, delivered_at, create_time
         from market_inventory_unit
-        where reserved_order_id = #{reservedOrderId}
+        where reserved_order_id = #{reservedOrderId, jdbcType=BINARY}
         order by inventory_unit_id asc
     </select>
 
@@ -44,7 +44,7 @@
         select inventory_unit_id, listing_id, seller_user_id, payload_type, payload_content, status,
                reserved_order_id, delivered_at, create_time
         from market_inventory_unit
-        where listing_id = #{listingId}
+        where listing_id = #{listingId, jdbcType=BINARY}
         order by inventory_unit_id asc
     </select>
 
@@ -52,22 +52,22 @@
         select inventory_unit_id, listing_id, seller_user_id, payload_type, payload_content, status,
                reserved_order_id, delivered_at, create_time
         from market_inventory_unit
-        where inventory_unit_id = #{inventoryUnitId}
+        where inventory_unit_id = #{inventoryUnitId, jdbcType=BINARY}
     </select>
 
     <update id="invalidateAvailable">
         update market_inventory_unit
         set status = 'INVALID'
-        where inventory_unit_id = #{inventoryUnitId}
-          and seller_user_id = #{sellerUserId}
+        where inventory_unit_id = #{inventoryUnitId, jdbcType=BINARY}
+          and seller_user_id = #{sellerUserId, jdbcType=BINARY}
           and status = 'AVAILABLE'
     </update>
 
     <update id="reserveForOrder">
         update market_inventory_unit
         set status = 'RESERVED',
-            reserved_order_id = #{reservedOrderId}
-        where inventory_unit_id = #{inventoryUnitId}
+            reserved_order_id = #{reservedOrderId, jdbcType=BINARY}
+        where inventory_unit_id = #{inventoryUnitId, jdbcType=BINARY}
           and status = 'AVAILABLE'
     </update>
 
@@ -75,7 +75,7 @@
         update market_inventory_unit
         set status = #{status},
             delivered_at = #{deliveredAt}
-        where reserved_order_id = #{reservedOrderId}
+        where reserved_order_id = #{reservedOrderId, jdbcType=BINARY}
           and status = 'RESERVED'
     </update>
 
@@ -83,7 +83,7 @@
         update market_inventory_unit
         set status = 'AVAILABLE',
             reserved_order_id = null
-        where reserved_order_id = #{reservedOrderId}
+        where reserved_order_id = #{reservedOrderId, jdbcType=BINARY}
           and status = 'RESERVED'
     </update>
 

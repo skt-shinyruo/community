@@ -11,9 +11,9 @@
         where request_id = #{requestId}
     </select>
 
-    <insert id="insert" parameterType="com.nowcoder.community.wallet.entity.RechargeOrder" useGeneratedKeys="true" keyProperty="orderId" keyColumn="order_id">
-        insert into recharge_order(request_id, user_id, amount, status, channel, channel_order_id, remark)
-        values(#{requestId}, #{userId}, #{amount}, #{status}, #{channel}, #{channelOrderId}, #{remark})
+    <insert id="insert" parameterType="com.nowcoder.community.wallet.entity.RechargeOrder">
+        insert into recharge_order(order_id, request_id, user_id, amount, status, channel, channel_order_id, remark)
+        values(#{orderId, jdbcType=BINARY}, #{requestId}, #{userId, jdbcType=BINARY}, #{amount}, #{status}, #{channel}, #{channelOrderId}, #{remark})
     </insert>
 
     <update id="updateStatus">

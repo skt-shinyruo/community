@@ -9,6 +9,7 @@ import org.springframework.util.StringUtils;
 import java.time.Duration;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Component
@@ -38,20 +39,19 @@ public class RedisPostScoreQueue implements PostScoreQueue {
     }
 
     @Override
-    public void add(int postId) {
-        int pid = Math.max(0, postId);
-        if (pid <= 0) {
+    public void add(UUID postId) {
+        if (postId == null) {
             return;
         }
         long now = System.currentTimeMillis();
-        redisTemplate.opsForZSet().add(QUEUE_ZSET_KEY, String.valueOf(pid), (double) now);
+        redisTemplate.opsForZSet().add(QUEUE_ZSET_KEY, postId.toString(), (double) now);
     }
 
     @Override
-    public Integer pop() {
+    public UUID pop() {
         // 1) v2 queue (ZSET): pop due items only (avoid tight retry loops)
-        Integer v2 = popDueFromZset();
-        if (v2 != null && v2 > 0) {
+        UUID v2 = popDueFromZset();
+        if (v2 != null) {
             return v2;
         }
 
@@ -61,12 +61,11 @@ public class RedisPostScoreQueue implements PostScoreQueue {
     }
 
     @Override
-    public void reenqueue(int postId) {
-        int pid = Math.max(0, postId);
-        if (pid <= 0) {
+    public void reenqueue(UUID postId) {
+        if (postId == null) {
             return;
         }
-        String member = String.valueOf(pid);
+        String member = postId.toString();
         Long attemptLong = redisTemplate.execute(
                 RETRY_ATTEMPT_SCRIPT,
                 List.of(RETRY_HASH_KEY),
@@ -81,18 +80,17 @@ public class RedisPostScoreQueue implements PostScoreQueue {
     }
 
     @Override
-    public void onSuccess(int postId) {
-        int pid = Math.max(0, postId);
-        if (pid <= 0) {
+    public void onSuccess(UUID postId) {
+        if (postId == null) {
             return;
         }
         try {
-            redisTemplate.opsForHash().delete(RETRY_HASH_KEY, String.valueOf(pid));
+            redisTemplate.opsForHash().delete(RETRY_HASH_KEY, postId.toString());
         } catch (RuntimeException ignored) {
         }
     }
 
-    private Integer popDueFromZset() {
+    private UUID popDueFromZset() {
         long now = System.currentTimeMillis();
         for (int i = 0; i < 3; i++) {
             Set<String> members = redisTemplate.opsForZSet().rangeByScore(QUEUE_ZSET_KEY, 0, now, 0, 1);
@@ -118,7 +116,7 @@ public class RedisPostScoreQueue implements PostScoreQueue {
         return null;
     }
 
-    private Integer parsePostIdOrNull(String raw) {
+    private UUID parsePostIdOrNull(String raw) {
         if (!StringUtils.hasText(raw)) {
             return null;
         }
@@ -127,9 +125,8 @@ public class RedisPostScoreQueue implements PostScoreQueue {
             return null;
         }
         try {
-            int pid = Integer.parseInt(v);
-            return pid > 0 ? pid : null;
-        } catch (NumberFormatException e) {
+            return UUID.fromString(v);
+        } catch (IllegalArgumentException e) {
             return null;
         }
     }

@@ -16,10 +16,12 @@ public class EsPostDocument {
     public static final String INDEX_PREFIX = "community_posts_v";
 
     @Id
-    private Integer postId;
+    private String postId;
 
-    private Integer userId;
-    private Integer categoryId;
+    @Field(type = FieldType.Keyword)
+    private String userId;
+    @Field(type = FieldType.Keyword)
+    private String categoryId;
 
     @Field(type = FieldType.Keyword)
     private List<String> tags;
@@ -33,27 +35,27 @@ public class EsPostDocument {
     private Long createTime;
     private Double score;
 
-    public Integer getPostId() {
+    public String getPostId() {
         return postId;
     }
 
-    public void setPostId(Integer postId) {
+    public void setPostId(String postId) {
         this.postId = postId;
     }
 
-    public Integer getUserId() {
+    public String getUserId() {
         return userId;
     }
 
-    public void setUserId(Integer userId) {
+    public void setUserId(String userId) {
         this.userId = userId;
     }
 
-    public Integer getCategoryId() {
+    public String getCategoryId() {
         return categoryId;
     }
 
-    public void setCategoryId(Integer categoryId) {
+    public void setCategoryId(String categoryId) {
         this.categoryId = categoryId;
     }
 

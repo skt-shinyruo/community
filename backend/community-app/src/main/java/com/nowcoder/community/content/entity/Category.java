@@ -1,10 +1,11 @@
 package com.nowcoder.community.content.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class Category {
 
-    private int id;
+    private UUID id;
     private String name;
     private String description;
     private int position;
@@ -13,11 +14,11 @@ public class Category {
     // 聚合字段（可选）：分类下帖子数（用于右侧面板/下拉展示）
     private int postCount;
 
-    public int getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
@@ -61,4 +62,3 @@ public class Category {
         this.postCount = postCount;
     }
 }
-

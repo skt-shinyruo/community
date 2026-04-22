@@ -1,4 +1,6 @@
 package com.nowcoder.community.content.api.model;
 
-public record ResolvedContentRef(int entityUserId, int postId) {
+import java.util.UUID;
+
+public record ResolvedContentRef(UUID entityUserId, UUID postId) {
 }

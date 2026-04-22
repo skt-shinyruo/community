@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/wallet/admin")
 public class AdminWalletController {
@@ -24,14 +26,14 @@ public class AdminWalletController {
 
     @PostMapping("/freeze")
     public Result<Void> freeze(Authentication authentication, @RequestBody @Valid AdminFreezeWalletRequest request) {
-        int actorUserId = CurrentUser.requireUserId(authentication);
+        UUID actorUserId = CurrentUser.requireUserUuid(authentication);
         adminWalletOpsService.freezeWallet(actorUserId, request.getUserId(), request.getReason());
         return Result.ok();
     }
 
     @PostMapping("/reverse")
     public Result<Void> reverse(Authentication authentication, @RequestBody @Valid AdminReverseTxnRequest request) {
-        int actorUserId = CurrentUser.requireUserId(authentication);
+        UUID actorUserId = CurrentUser.requireUserUuid(authentication);
         adminWalletOpsService.reverseTxn(actorUserId, request.getTxnRef(), request.getReason());
         return Result.ok();
     }

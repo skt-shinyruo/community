@@ -7,6 +7,8 @@ import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @Service
 public class PrivateMessageGovernanceService implements PrivateMessageGovernanceActionApi {
 
@@ -25,14 +27,14 @@ public class PrivateMessageGovernanceService implements PrivateMessageGovernance
     }
 
     @Override
-    public void validateCanSendPrivateMessage(int fromUserId, int toUserId) {
-        if (fromUserId <= 0) {
+    public void validateCanSendPrivateMessage(UUID fromUserId, UUID toUserId) {
+        if (fromUserId == null) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "fromUserId 非法");
         }
-        if (toUserId <= 0) {
+        if (toUserId == null) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "toUserId 非法");
         }
-        if (fromUserId == toUserId) {
+        if (fromUserId.equals(toUserId)) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "不能给自己发送私信");
         }
 

@@ -12,6 +12,7 @@ import {
   demoMetadataTableStatements
 } from '../src/db/bootstrap.mjs'
 import { createTargetRepository } from '../src/batches/targetRepository.mjs'
+import { bufferToUuid, isUuidV7 } from '../src/db/uuidv7.mjs'
 
 const communityDir = fileURLToPath(new URL('../../../deploy/mysql/community/', import.meta.url))
 const demoMetadataSchemaPath = path.join(communityDir, '011_schema_demo_metadata.sql')
@@ -35,6 +36,14 @@ function extractBootstrapOrder(scriptText) {
 
 function stringifyKey(batchId, entityType, key) {
   return `${batchId}:${entityType}:${key}`
+}
+
+function metadataId(sequence) {
+  return `01965429-b34a-7000-8000-${String(sequence).padStart(12, '0')}`
+}
+
+function normalizeDbId(value) {
+  return bufferToUuid(value)
 }
 
 class FakeMetadataDb {
@@ -137,7 +146,7 @@ function executeOnState(state, sql, params) {
     return { affectedRows: 0 }
   }
 
-  if (normalized.startsWith('insert ignore into ai_config ')) {
+  if (normalized.startsWith('insert into ai_config ')) {
     return { affectedRows: 1 }
   }
 
@@ -145,25 +154,25 @@ function executeOnState(state, sql, params) {
     return { affectedRows: 1 }
   }
 
-  if (normalized.startsWith("update ai_config set is_active = 1 where id = 1 and is_active = 0")) {
+  if (normalized.startsWith("update ai_config set is_active = 1 where name = 'default' and is_active = 0")) {
     return { affectedRows: 1 }
   }
 
   if (normalized.startsWith('insert into demo_batch ')) {
     const row = {
-      id: state.nextIds.demo_batch++,
-      batch_key: params[0],
-      batch_type: params[1],
-      requested_by: params[2],
-      status: params[3],
-      summary_json: params[4],
-      error_message: params[5],
-      created_at: params[6],
-      started_at: params[7],
-      finished_at: params[8]
+      id: normalizeDbId(params[0]),
+      batch_key: params[1],
+      batch_type: params[2],
+      requested_by: params[3],
+      status: params[4],
+      summary_json: params[5],
+      error_message: params[6],
+      created_at: params[7],
+      started_at: params[8],
+      finished_at: params[9]
     }
     state.tables.demo_batch.push(row)
-    return { insertId: row.id, affectedRows: 1 }
+    return { affectedRows: 1 }
   }
 
   if (
@@ -172,7 +181,7 @@ function executeOnState(state, sql, params) {
     )
   ) {
     const row = state.tables.demo_batch.find(
-      (candidate) => candidate.id === params[2] && candidate.status === params[3]
+      (candidate) => candidate.id === normalizeDbId(params[2]) && candidate.status === params[3]
     )
 
     if (!row) {
@@ -193,7 +202,7 @@ function executeOnState(state, sql, params) {
   ) {
     const expectedStatuses = params.slice(5)
     const row = state.tables.demo_batch.find(
-      (candidate) => candidate.id === params[4] && expectedStatuses.includes(candidate.status)
+      (candidate) => candidate.id === normalizeDbId(params[4]) && expectedStatuses.includes(candidate.status)
     )
 
     if (!row) {
@@ -209,19 +218,19 @@ function executeOnState(state, sql, params) {
 
   if (normalized.startsWith('insert into demo_job ')) {
     const row = {
-      id: state.nextIds.demo_job++,
-      batch_id: params[0],
-      job_key: params[1],
-      job_type: params[2],
-      status: params[3],
-      summary_json: params[4],
-      error_message: params[5],
-      created_at: params[6],
-      started_at: params[7],
-      finished_at: params[8]
+      id: normalizeDbId(params[0]),
+      batch_id: normalizeDbId(params[1]),
+      job_key: params[2],
+      job_type: params[3],
+      status: params[4],
+      summary_json: params[5],
+      error_message: params[6],
+      created_at: params[7],
+      started_at: params[8],
+      finished_at: params[9]
     }
     state.tables.demo_job.push(row)
-    return { insertId: row.id, affectedRows: 1 }
+    return { affectedRows: 1 }
   }
 
   if (
@@ -230,7 +239,7 @@ function executeOnState(state, sql, params) {
     )
   ) {
     const row = state.tables.demo_job.find(
-      (candidate) => candidate.id === params[2] && candidate.status === params[3]
+      (candidate) => candidate.id === normalizeDbId(params[2]) && candidate.status === params[3]
     )
 
     if (!row) {
@@ -251,7 +260,7 @@ function executeOnState(state, sql, params) {
   ) {
     const expectedStatuses = params.slice(5)
     const row = state.tables.demo_job.find(
-      (candidate) => candidate.id === params[4] && expectedStatuses.includes(candidate.status)
+      (candidate) => candidate.id === normalizeDbId(params[4]) && expectedStatuses.includes(candidate.status)
     )
 
     if (!row) {
@@ -267,58 +276,58 @@ function executeOnState(state, sql, params) {
 
   if (normalized.startsWith('delete from demo_batch_target where batch_id = ?')) {
     state.tables.demo_batch_target = state.tables.demo_batch_target.filter(
-      (row) => row.batch_id !== params[0]
+      (row) => row.batch_id !== normalizeDbId(params[0])
     )
     return { affectedRows: 1 }
   }
 
   if (normalized.startsWith('insert into demo_batch_target ')) {
-    if (state.failOnTargetKey === params[2]) {
-      throw new Error(`Injected target insert failure for ${params[2]}`)
+    if (state.failOnTargetKey === params[3]) {
+      throw new Error(`Injected target insert failure for ${params[3]}`)
     }
 
-    const compositeKey = stringifyKey(params[0], params[1], params[2])
+    const compositeKey = stringifyKey(normalizeDbId(params[1]), params[2], params[3])
     state.tables.demo_batch_target = state.tables.demo_batch_target.filter(
       (row) => stringifyKey(row.batch_id, row.entity_type, row.target_key) !== compositeKey
     )
 
     const row = {
-      id: state.nextIds.demo_batch_target++,
-      batch_id: params[0],
-      entity_type: params[1],
-      target_key: params[2],
-      target_count: params[3],
-      payload_json: params[4],
-      created_at: params[5]
+      id: normalizeDbId(params[0]),
+      batch_id: normalizeDbId(params[1]),
+      entity_type: params[2],
+      target_key: params[3],
+      target_count: params[4],
+      payload_json: params[5],
+      created_at: params[6]
     }
     state.tables.demo_batch_target.push(row)
-    return { insertId: row.id, affectedRows: 1 }
+    return { affectedRows: 1 }
   }
 
   if (normalized.startsWith('delete from demo_entity_ref where batch_id = ?')) {
-    state.tables.demo_entity_ref = state.tables.demo_entity_ref.filter((row) => row.batch_id !== params[0])
+    state.tables.demo_entity_ref = state.tables.demo_entity_ref.filter((row) => row.batch_id !== normalizeDbId(params[0]))
     return { affectedRows: 1 }
   }
 
   if (normalized.startsWith('insert into demo_entity_ref ')) {
-    if (state.failOnEntityKey === params[2]) {
-      throw new Error(`Injected entity ref insert failure for ${params[2]}`)
+    if (state.failOnEntityKey === params[3]) {
+      throw new Error(`Injected entity ref insert failure for ${params[3]}`)
     }
 
-    const compositeKey = stringifyKey(params[0], params[1], params[2])
+    const compositeKey = stringifyKey(normalizeDbId(params[1]), params[2], params[3])
     state.tables.demo_entity_ref = state.tables.demo_entity_ref.filter(
       (row) => stringifyKey(row.batch_id, row.entity_type, row.entity_key) !== compositeKey
     )
 
     const row = {
-      id: state.nextIds.demo_entity_ref++,
-      batch_id: params[0],
-      entity_type: params[1],
-      entity_key: params[2],
-      created_at: params[3]
+      id: normalizeDbId(params[0]),
+      batch_id: normalizeDbId(params[1]),
+      entity_type: params[2],
+      entity_key: params[3],
+      created_at: params[4]
     }
     state.tables.demo_entity_ref.push(row)
-    return { insertId: row.id, affectedRows: 1 }
+    return { affectedRows: 1 }
   }
 
   throw new Error(`Unexpected SQL: ${sql}`)
@@ -331,12 +340,16 @@ function queryOnState(state, sql, params) {
     return [...state.aiConfigColumns].map((Field) => ({ Field }))
   }
 
+  if (normalized === 'select id from ai_config where name = ? limit 1') {
+    return []
+  }
+
   if (
     normalized.startsWith(
       'select id, batch_key, batch_type, requested_by, status, summary_json, error_message, created_at, started_at, finished_at from demo_batch where id = ?'
     )
   ) {
-    return selectRows(state.tables.demo_batch, (row) => row.id === params[0], 'demo_batch')
+    return selectRows(state.tables.demo_batch, (row) => row.id === normalizeDbId(params[0]), 'demo_batch')
   }
 
   if (
@@ -344,7 +357,7 @@ function queryOnState(state, sql, params) {
       'select id, batch_id, job_key, job_type, status, summary_json, error_message, created_at, started_at, finished_at from demo_job where id = ?'
     )
   ) {
-    return selectRows(state.tables.demo_job, (row) => row.id === params[0], 'demo_job')
+    return selectRows(state.tables.demo_job, (row) => row.id === normalizeDbId(params[0]), 'demo_job')
   }
 
   if (
@@ -354,7 +367,7 @@ function queryOnState(state, sql, params) {
   ) {
     return selectRows(
       state.tables.demo_batch_target,
-      (row) => row.batch_id === params[0],
+      (row) => row.batch_id === normalizeDbId(params[0]),
       'demo_batch_target'
     )
   }
@@ -366,7 +379,7 @@ function queryOnState(state, sql, params) {
   ) {
     return selectRows(
       state.tables.demo_entity_ref,
-      (row) => row.batch_id === params[0],
+      (row) => row.batch_id === normalizeDbId(params[0]),
       'demo_entity_ref'
     )
   }
@@ -444,6 +457,7 @@ test('batch and job repositories return stable ISO timestamps and enforce valid 
     createdAt
   })
 
+  assert.ok(isUuidV7(batch.id))
   assert.equal(batch.status, 'pending')
   assert.equal(batch.createdAt, '2026-03-24T10:00:00.000Z')
   assert.equal(batch.startedAt, null)
@@ -477,6 +491,7 @@ test('batch and job repositories return stable ISO timestamps and enforce valid 
     createdAt
   })
 
+  assert.ok(isUuidV7(job.id))
   assert.equal(job.createdAt, '2026-03-24T10:00:00.000Z')
   await assert.rejects(
     () =>
@@ -503,17 +518,14 @@ test('batch and job repositories return stable ISO timestamps and enforce valid 
     }
   ])
 
-  assert.deepEqual(replacedTargets, [
-    {
-      id: 1,
-      batchId: batch.id,
-      entityType: 'user',
-      targetKey: 'users',
-      targetCount: 2,
-      payloadJson: { source: 'smoke' },
-      createdAt: '2026-03-24T10:00:00.000Z'
-    }
-  ])
+  assert.equal(replacedTargets.length, 1)
+  assert.ok(isUuidV7(replacedTargets[0].id))
+  assert.equal(replacedTargets[0].batchId, batch.id)
+  assert.equal(replacedTargets[0].entityType, 'user')
+  assert.equal(replacedTargets[0].targetKey, 'users')
+  assert.equal(replacedTargets[0].targetCount, 2)
+  assert.deepEqual(replacedTargets[0].payloadJson, { source: 'smoke' })
+  assert.equal(replacedTargets[0].createdAt, '2026-03-24T10:00:00.000Z')
 
   const finishedJob = await jobRepository.markFinished(job.id, {
     finishedAt: jobFinishedAt,
@@ -539,8 +551,9 @@ test('batch and job repositories return stable ISO timestamps and enforce valid 
 test('targetRepository replaceForBatch is atomic', async () => {
   const db = new FakeMetadataDb()
   const targetRepository = createTargetRepository(db)
+  const batchId = metadataId(42)
 
-  await targetRepository.replaceForBatch(42, [
+  await targetRepository.replaceForBatch(batchId, [
     {
       entityType: 'user',
       targetKey: 'existing',
@@ -554,7 +567,7 @@ test('targetRepository replaceForBatch is atomic', async () => {
 
   await assert.rejects(
     () =>
-      targetRepository.replaceForBatch(42, [
+      targetRepository.replaceForBatch(batchId, [
         {
           entityType: 'user',
           targetKey: 'users',
@@ -573,24 +586,23 @@ test('targetRepository replaceForBatch is atomic', async () => {
     /Injected target insert failure/
   )
 
-  assert.deepEqual(await targetRepository.listByBatchId(42), [
-    {
-      id: 1,
-      batchId: 42,
-      entityType: 'user',
-      targetKey: 'existing',
-      targetCount: 1,
-      payloadJson: { source: 'seed' },
-      createdAt: '2026-03-24T11:00:00.000Z'
-    }
-  ])
+  const targets = await targetRepository.listByBatchId(batchId)
+  assert.equal(targets.length, 1)
+  assert.ok(isUuidV7(targets[0].id))
+  assert.equal(targets[0].batchId, batchId)
+  assert.equal(targets[0].entityType, 'user')
+  assert.equal(targets[0].targetKey, 'existing')
+  assert.equal(targets[0].targetCount, 1)
+  assert.deepEqual(targets[0].payloadJson, { source: 'seed' })
+  assert.equal(targets[0].createdAt, '2026-03-24T11:00:00.000Z')
 })
 
 test('entity refs are atomic, strict on batchId, and support composite keys', async () => {
   const db = new FakeMetadataDb()
   const entityRefRepository = createEntityRefRepository(db)
+  const batchId = metadataId(42)
 
-  await entityRefRepository.replaceForBatch(42, [
+  await entityRefRepository.replaceForBatch(batchId, [
     {
       entityType: 'user',
       entityKey: '9001',
@@ -600,9 +612,9 @@ test('entity refs are atomic, strict on batchId, and support composite keys', as
 
   await assert.rejects(
     () =>
-      entityRefRepository.replaceForBatch(42, [
+      entityRefRepository.replaceForBatch(batchId, [
         {
-          batchId: 7,
+          batchId: metadataId(7),
           entityType: 'user',
           entityKey: '9001',
           createdAt: '2026-03-24T11:00:01.000Z'
@@ -614,7 +626,7 @@ test('entity refs are atomic, strict on batchId, and support composite keys', as
   db.failOnEntityKey = '9001:17'
   await assert.rejects(
     () =>
-      entityRefRepository.replaceForBatch(42, [
+      entityRefRepository.replaceForBatch(batchId, [
         {
           entityType: 'user',
           entityKey: '9001',
@@ -630,7 +642,7 @@ test('entity refs are atomic, strict on batchId, and support composite keys', as
   )
 
   db.failOnEntityKey = null
-  const refs = await entityRefRepository.replaceForBatch(42, [
+  const refs = await entityRefRepository.replaceForBatch(batchId, [
     {
       entityType: 'user',
       entityKey: '9001',
@@ -643,20 +655,15 @@ test('entity refs are atomic, strict on batchId, and support composite keys', as
     }
   ])
 
-  assert.deepEqual(refs, [
-    {
-      id: 2,
-      batchId: 42,
-      entityType: 'user',
-      entityKey: '9001',
-      createdAt: '2026-03-24T11:00:04.000Z'
-    },
-    {
-      id: 3,
-      batchId: 42,
-      entityType: 'im_room_member',
-      entityKey: '9001:17',
-      createdAt: '2026-03-24T11:00:05.000Z'
-    }
-  ])
+  assert.equal(refs.length, 2)
+  assert.ok(isUuidV7(refs[0].id))
+  assert.ok(isUuidV7(refs[1].id))
+  assert.equal(refs[0].batchId, batchId)
+  assert.equal(refs[1].batchId, batchId)
+  assert.equal(refs[0].entityType, 'user')
+  assert.equal(refs[1].entityType, 'im_room_member')
+  assert.equal(refs[0].entityKey, '9001')
+  assert.equal(refs[1].entityKey, '9001:17')
+  assert.equal(refs[0].createdAt, '2026-03-24T11:00:04.000Z')
+  assert.equal(refs[1].createdAt, '2026-03-24T11:00:05.000Z')
 })

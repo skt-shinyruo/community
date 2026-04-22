@@ -1,8 +1,10 @@
 package com.nowcoder.community.wallet.model;
 
-public record WalletTxnResult(long txnId, String status) {
+import java.util.UUID;
 
-    public WalletTxnResult(long txnId) {
+public record WalletTxnResult(UUID txnId, String status) {
+
+    public WalletTxnResult(UUID txnId) {
         this(txnId, "SUCCEEDED");
     }
 }

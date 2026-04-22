@@ -11,8 +11,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,10 +32,10 @@ class UserQueryServiceTest {
     private WalletAccountService walletAccountService;
 
     @Test
-    void getSummaryByIdShouldRejectNonPositiveUserId() {
+    void getSummaryByIdShouldRejectNullUserId() {
         UserQueryService service = new UserQueryService(userMapper, walletAccountService);
 
-        assertThatThrownBy(() -> service.getSummaryById(0))
+        assertThatThrownBy(() -> service.getSummaryById(null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> {
                     BusinessException businessException = (BusinessException) ex;
@@ -45,9 +47,10 @@ class UserQueryServiceTest {
     @Test
     void getSummaryByIdShouldReturnNullWhenUserMissing() {
         UserQueryService service = new UserQueryService(userMapper, walletAccountService);
-        when(userMapper.selectById(7)).thenReturn(null);
+        UUID userId = uuid(7);
+        when(userMapper.selectById(userId)).thenReturn(null);
 
-        assertThat(service.getSummaryById(7)).isNull();
+        assertThat(service.getSummaryById(userId)).isNull();
     }
 
     @Test
@@ -74,7 +77,8 @@ class UserQueryServiceTest {
     @Test
     void findSummaryByEmailOrNullShouldTrimAndDelegateToMapper() {
         UserQueryService service = new UserQueryService(userMapper, walletAccountService);
-        User user = user(9, "alice");
+        UUID userId = uuid(9);
+        User user = user(userId, "alice");
         user.setHeaderUrl("h1");
         user.setType(2);
         when(userMapper.selectByEmail("alice@example.com")).thenReturn(user);
@@ -86,36 +90,37 @@ class UserQueryServiceTest {
                 UserSummaryView::username,
                 UserSummaryView::headerUrl,
                 UserSummaryView::type
-        ).containsExactly(9, "alice", "h1", 2);
+        ).containsExactly(userId, "alice", "h1", 2);
         verify(userMapper).selectByEmail("alice@example.com");
     }
 
     @Test
     void listSummariesByIdsShouldIgnoreInvalidIdsAndProjectViews() {
         UserQueryService service = new UserQueryService(userMapper, walletAccountService);
-        when(userMapper.selectUserSummariesByIds(List.of(1, 2)))
-                .thenReturn(List.of(user(1, "alice"), user(2, "bob")));
+        UUID aliceId = uuid(1);
+        UUID bobId = uuid(2);
+        when(userMapper.selectUserSummariesByIds(List.of(aliceId, bobId)))
+                .thenReturn(List.of(user(aliceId, "alice"), user(bobId, "bob")));
 
-        assertThat(service.listSummariesByIds(List.of(0, 1, 2, 2)))
+        assertThat(service.listSummariesByIds(Arrays.asList(null, aliceId, bobId, bobId)))
                 .extracting(UserSummaryView::id)
-                .containsExactly(1, 2);
+                .containsExactly(aliceId, bobId);
     }
 
     @Test
     void getProfileShouldProjectFullProfileView() {
         UserQueryService service = new UserQueryService(userMapper, walletAccountService);
-        User user = user(6, "bob");
+        UUID userId = uuid(6);
+        User user = user(userId, "bob");
         Date createTime = new Date();
         user.setHeaderUrl("h6");
         user.setType(2);
         user.setStatus(1);
         user.setScore(120);
         user.setCreateTime(createTime);
-        when(userMapper.selectById(6)).thenReturn(user);
-        when(walletAccountService.balanceOfUser(6)).thenReturn(360L);
-        when(walletAccountService.statusOfUser(6)).thenReturn("ACTIVE");
+        when(userMapper.selectById(userId)).thenReturn(user);
 
-        UserProfileView profile = service.getProfile(6);
+        UserProfileView profile = service.getProfile(userId);
 
         assertThat(profile).extracting(
                 UserProfileView::userId,
@@ -128,13 +133,17 @@ class UserQueryServiceTest {
                 UserProfileView::level,
                 UserProfileView::walletBalance,
                 UserProfileView::walletStatus
-        ).containsExactly(6, "bob", "h6", 2, 1, createTime, 120, 2, 360L, "ACTIVE");
+        ).containsExactly(userId, "bob", "h6", 2, 1, createTime, 120, 2, 0L, "UNKNOWN");
     }
 
-    private User user(int id, String username) {
+    private User user(UUID id, String username) {
         User user = new User();
         user.setId(id);
         user.setUsername(username);
         return user;
+    }
+
+    private static UUID uuid(long suffix) {
+        return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
     }
 }

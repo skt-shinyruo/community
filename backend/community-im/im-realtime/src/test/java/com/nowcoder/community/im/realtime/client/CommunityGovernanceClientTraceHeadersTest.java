@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
@@ -33,6 +34,7 @@ class CommunityGovernanceClientTraceHeadersTest {
     @Test
     void validateSendPrivateMessageShouldForwardTraceHeaders() throws Exception {
         LinkedBlockingQueue<Map<String, String>> requests = new LinkedBlockingQueue<>();
+        UUID toUserId = UUID.fromString("00000000-0000-7000-8000-000000000200");
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/api/im-governance/private-messages/validate", exchange -> {
             requests.offer(captureHeaders(exchange));
@@ -49,7 +51,7 @@ class CommunityGovernanceClientTraceHeadersTest {
 
         String traceId = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
         CommunityGovernanceClient.Decision decision = client
-                .validateSendPrivateMessage("bearer-token", 200, traceId)
+                .validateSendPrivateMessage("bearer-token", toUserId, traceId)
                 .block();
 
         assertThat(decision).isNotNull();
@@ -66,6 +68,7 @@ class CommunityGovernanceClientTraceHeadersTest {
     @Test
     void validateSendPrivateMessageShouldForwardAuthorizationAndTraceHeaders() throws Exception {
         LinkedBlockingQueue<Map<String, String>> requests = new LinkedBlockingQueue<>();
+        UUID toUserId = UUID.fromString("00000000-0000-7000-8000-000000000201");
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/api/im-governance/private-messages/validate", exchange -> {
             requests.offer(captureHeaders(exchange));
@@ -82,7 +85,7 @@ class CommunityGovernanceClientTraceHeadersTest {
 
         String traceId = "ffffffffffffffffffffffffffffffff";
         CommunityGovernanceClient.Decision decision = client
-                .validateSendPrivateMessage("bearer-token", 201, traceId)
+                .validateSendPrivateMessage("bearer-token", toUserId, traceId)
                 .block();
 
         assertThat(decision).isNotNull();

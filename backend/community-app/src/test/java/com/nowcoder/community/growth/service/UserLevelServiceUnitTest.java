@@ -1,5 +1,6 @@
 package com.nowcoder.community.growth.service;
 
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.growth.dto.UpdateUserLevelConfigRequest;
 import com.nowcoder.community.growth.dto.UserLevelConfigResponse;
 import com.nowcoder.community.growth.mapper.UserTaskProgressMapper;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DuplicateKeyException;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -28,7 +30,8 @@ class UserLevelServiceUnitTest {
         UserLevelService service = new UserLevelService(
                 userTaskProgressMapper,
                 userLevelRuleConfigMapper,
-                growthBusinessTimeService
+                growthBusinessTimeService,
+                new UuidV7Generator()
         );
 
         UpdateUserLevelConfigRequest request = new UpdateUserLevelConfigRequest();
@@ -40,7 +43,7 @@ class UserLevelServiceUnitTest {
         when(userLevelRuleConfigMapper.updateCurrent(any())).thenReturn(0, 1);
         doThrow(new DuplicateKeyException("duplicate key")).when(userLevelRuleConfigMapper).insert(any());
 
-        UserLevelConfigResponse response = service.updateConfig(99, request);
+        UserLevelConfigResponse response = service.updateConfig(uuid(99), request);
 
         assertThat(response.getWindowDays()).isEqualTo(120);
         assertThat(response.getLv2SignInDays()).isEqualTo(20);

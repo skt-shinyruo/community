@@ -6,6 +6,8 @@ import com.nowcoder.community.content.app.post.TopPostUseCase;
 import com.nowcoder.community.content.api.action.PostModerationActionApi;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @Service
 public class PostModerationActionService implements PostModerationActionApi {
 
@@ -24,17 +26,17 @@ public class PostModerationActionService implements PostModerationActionApi {
     }
 
     @Override
-    public void top(int actorUserId, int postId) {
+    public void top(UUID actorUserId, UUID postId) {
         topPostUseCase.topPost(actorUserId, postId);
     }
 
     @Override
-    public void wonderful(int actorUserId, int postId) {
+    public void wonderful(UUID actorUserId, UUID postId) {
         markPostWonderfulUseCase.markWonderful(actorUserId, postId);
     }
 
     @Override
-    public void delete(int actorUserId, int postId) {
+    public void delete(UUID actorUserId, UUID postId) {
         adminDeletePostUseCase.adminDelete(actorUserId, postId);
     }
 }

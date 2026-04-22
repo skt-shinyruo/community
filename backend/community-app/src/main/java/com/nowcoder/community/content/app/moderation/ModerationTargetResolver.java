@@ -9,6 +9,8 @@ import com.nowcoder.community.content.mapper.DiscussPostMapper;
 import com.nowcoder.community.content.service.ReportService;
 import org.springframework.stereotype.Component;
 
+import java.util.UUID;
+
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.content.exception.ContentErrorCode.COMMENT_NOT_FOUND;
 import static com.nowcoder.community.content.exception.ContentErrorCode.POST_NOT_FOUND;
@@ -26,7 +28,7 @@ public class ModerationTargetResolver {
 
     public ResolvedTarget resolveTarget(Report report) {
         int type = report.getTargetType();
-        int targetId = report.getTargetId();
+        UUID targetId = report.getTargetId();
 
         if (type == ReportService.TARGET_TYPE_POST) {
             DiscussPost post = discussPostMapper.selectDiscussPostById(targetId);
@@ -51,6 +53,6 @@ public class ModerationTargetResolver {
         throw new BusinessException(INVALID_ARGUMENT, "targetType 非法");
     }
 
-    public record ResolvedTarget(int targetType, int targetId, int targetUserId) {
+    public record ResolvedTarget(int targetType, UUID targetId, UUID targetUserId) {
     }
 }

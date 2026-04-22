@@ -2,31 +2,32 @@
 package com.nowcoder.community.content.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class Report {
 
-    private int id;
-    private int reporterId;
+    private UUID id;
+    private UUID reporterId;
     private int targetType;
-    private int targetId;
+    private UUID targetId;
     private String reason;
     private String detail;
     private int status;
     private Date createTime;
 
-    public int getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
-    public int getReporterId() {
+    public UUID getReporterId() {
         return reporterId;
     }
 
-    public void setReporterId(int reporterId) {
+    public void setReporterId(UUID reporterId) {
         this.reporterId = reporterId;
     }
 
@@ -38,11 +39,11 @@ public class Report {
         this.targetType = targetType;
     }
 
-    public int getTargetId() {
+    public UUID getTargetId() {
         return targetId;
     }
 
-    public void setTargetId(int targetId) {
+    public void setTargetId(UUID targetId) {
         this.targetId = targetId;
     }
 
@@ -78,4 +79,3 @@ public class Report {
         this.createTime = createTime;
     }
 }
-

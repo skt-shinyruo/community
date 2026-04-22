@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.UNAUTHORIZED;
 
@@ -54,17 +55,17 @@ public class PostReadQueryService implements PostReadQueryApi {
     }
 
     @Override
-    public List<PostSummaryView> listPosts(int currentUserId, String order, Integer categoryId, String tag, Boolean subscribed, Integer page, Integer size) {
+    public List<PostSummaryView> listPosts(UUID currentUserId, String order, UUID categoryId, String tag, Boolean subscribed, Integer page, Integer size) {
         int p = page == null ? 0 : page;
         int s = size == null ? 10 : size;
         int orderMode = "hot".equalsIgnoreCase(order) ? PostService.ORDER_HOT : PostService.ORDER_LATEST;
 
         List<DiscussPost> posts;
         if (Boolean.TRUE.equals(subscribed)) {
-            if (currentUserId <= 0) {
+            if (currentUserId == null) {
                 throw new BusinessException(UNAUTHORIZED, "未获取到认证信息");
             }
-            List<Integer> subscribedCategoryIds = subscriptionService.listSubscribedCategoryIds(currentUserId);
+            List<UUID> subscribedCategoryIds = subscriptionService.listSubscribedCategoryIds(currentUserId);
             posts = postService.listSubscribedPosts(currentUserId, subscribedCategoryIds, p, s, orderMode, categoryId, tag);
         } else {
             posts = postService.listPosts(p, s, orderMode, categoryId, tag);
@@ -74,29 +75,29 @@ public class PostReadQueryService implements PostReadQueryApi {
     }
 
     @Override
-    public List<PostSummaryView> listPostsByUser(int userId, Integer page, Integer size) {
+    public List<PostSummaryView> listPostsByUser(UUID userId, Integer page, Integer size) {
         int p = page == null ? 0 : page;
         int s = size == null ? 3 : size;
         return assembleSummaries(postService.listPostsByUser(userId, p, s));
     }
 
     @Override
-    public List<PostSummaryView> listPostsByIds(List<Integer> postIds) {
+    public List<PostSummaryView> listPostsByIds(List<UUID> postIds) {
         return assembleSummaries(postService.listPostsByIds(postIds));
     }
 
     @Override
-    public PostDetailView getPostDetail(int currentUserId, int postId) {
+    public PostDetailView getPostDetail(UUID currentUserId, UUID postId) {
         DiscussPost post = postService.getById(postId);
         List<String> tags = tagService.getTagsByPostIds(List.of(postId)).getOrDefault(postId, List.of());
         long likeCount = likeQueryService.countPostLikes(postId);
         boolean liked = likeQueryService.hasLikedPost(currentUserId, postId);
-        boolean bookmarked = currentUserId > 0 && bookmarkService.hasBookmarked(currentUserId, postId);
+        boolean bookmarked = currentUserId != null && bookmarkService.hasBookmarked(currentUserId, postId);
         return postDetailAssembler.assemble(post, tags, likeCount, liked, bookmarked);
     }
 
     @Override
-    public List<RecentUserCommentView> listRecentCommentsByUser(int userId, Integer page, Integer size) {
+    public List<RecentUserCommentView> listRecentCommentsByUser(UUID userId, Integer page, Integer size) {
         int p = page == null ? 0 : page;
         int s = size == null ? 3 : size;
         List<Comment> comments = commentService.listRecentCommentsByUser(userId, p, s);
@@ -113,25 +114,25 @@ public class PostReadQueryService implements PostReadQueryApi {
         if (posts == null || posts.isEmpty()) {
             return List.of();
         }
-        List<Integer> postIds = posts.stream().map(DiscussPost::getId).toList();
-        Map<Integer, Comment> lastActivities = commentService.getLatestPostActivitiesByPostIds(postIds);
-        Map<Integer, List<String>> tagsByPostId = tagService.getTagsByPostIds(postIds);
+        List<UUID> postIds = posts.stream().map(DiscussPost::getId).toList();
+        Map<UUID, Comment> lastActivities = commentService.getLatestPostActivitiesByPostIds(postIds);
+        Map<UUID, List<String>> tagsByPostId = tagService.getTagsByPostIds(postIds);
         return posts.stream()
                 .map(post -> postSummaryAssembler.assemble(post, lastActivities.get(post.getId()), tagsByPostId.get(post.getId())))
                 .toList();
     }
 
     private RecentUserCommentView toRecentComment(Comment comment) {
-        if (comment == null || comment.getId() <= 0) {
+        if (comment == null || comment.getId() == null) {
             return null;
         }
         try {
-            int postId;
+            UUID postId;
             if (comment.getEntityType() == CommentService.ENTITY_TYPE_POST) {
                 postId = comment.getEntityId();
             } else if (comment.getEntityType() == CommentService.ENTITY_TYPE_COMMENT) {
                 Comment parent = commentService.getById(comment.getEntityId());
-                if (parent.getEntityType() != CommentService.ENTITY_TYPE_POST || parent.getEntityId() <= 0) {
+                if (parent.getEntityType() != CommentService.ENTITY_TYPE_POST || parent.getEntityId() == null) {
                     return null;
                 }
                 postId = parent.getEntityId();

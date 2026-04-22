@@ -15,12 +15,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -56,87 +55,100 @@ class PostCommandServiceLoggingTest {
 
     @Test
     void createPostShouldLogBusinessEvent(CapturedOutput output) {
-        when(createPostUseCase.createPost(7, "Title", "Content", 3, List.of("java"))).thenReturn(101);
+        UUID userId = uuid(7);
+        UUID postId = uuid(101);
+        UUID categoryId = uuid(3);
+        when(createPostUseCase.createPost(userId, "Title", "Content", categoryId, List.of("java"))).thenReturn(postId);
 
-        int postId = service.createPost(7, "Title", "Content", 3, List.of("java"));
+        UUID createdPostId = service.createPost(userId, "Title", "Content", categoryId, List.of("java"));
 
-        assertThat(postId).isEqualTo(101);
+        assertThat(createdPostId).isEqualTo(postId);
         assertThat(output.getAll())
                 .contains("community.category=business")
                 .contains("community.action=post_create")
                 .contains("community.outcome=success")
-                .contains("user.id=7")
-                .contains("community.post_category_id=3")
+                .contains("user.id=" + userId)
+                .contains("community.post_category_id=" + categoryId)
                 .contains("community.target_type=post")
-                .contains("community.target_id=101");
+                .contains("community.target_id=" + postId);
     }
 
     @Test
     void updatePostShouldLogBusinessEvent(CapturedOutput output) {
-        service.updatePost(7, 101, "Updated", "Body", 3, List.of("spring"));
+        UUID userId = uuid(7);
+        UUID postId = uuid(101);
+        UUID categoryId = uuid(3);
+        service.updatePost(userId, postId, "Updated", "Body", categoryId, List.of("spring"));
 
         assertThat(output.getAll())
                 .contains("community.category=business")
                 .contains("community.action=post_update")
                 .contains("community.outcome=success")
-                .contains("user.id=7")
-                .contains("community.post_category_id=3")
+                .contains("user.id=" + userId)
+                .contains("community.post_category_id=" + categoryId)
                 .contains("community.target_type=post")
-                .contains("community.target_id=101");
+                .contains("community.target_id=" + postId);
     }
 
     @Test
     void deletePostByAuthorShouldLogBusinessEvent(CapturedOutput output) {
-        service.deletePostByAuthor(7, 101);
+        UUID userId = uuid(7);
+        UUID postId = uuid(101);
+        service.deletePostByAuthor(userId, postId);
 
         assertThat(output.getAll())
                 .contains("community.category=business")
                 .contains("community.action=post_delete")
                 .contains("community.outcome=success")
                 .contains("community.reason_code=author_delete")
-                .contains("user.id=7")
+                .contains("user.id=" + userId)
                 .contains("community.target_type=post")
-                .contains("community.target_id=101");
+                .contains("community.target_id=" + postId);
     }
 
     @Test
     void topPostShouldLogBusinessEvent(CapturedOutput output) {
-        service.topPost(9, 101);
+        UUID userId = uuid(9);
+        UUID postId = uuid(101);
+        service.topPost(userId, postId);
 
         assertThat(output.getAll())
                 .contains("community.category=business")
                 .contains("community.action=post_top")
                 .contains("community.outcome=success")
-                .contains("user.id=9")
+                .contains("user.id=" + userId)
                 .contains("community.target_type=post")
-                .contains("community.target_id=101");
+                .contains("community.target_id=" + postId);
     }
 
     @Test
     void markWonderfulShouldLogBusinessEvent(CapturedOutput output) {
-        service.markWonderful(9, 101);
+        UUID userId = uuid(9);
+        UUID postId = uuid(101);
+        service.markWonderful(userId, postId);
 
         assertThat(output.getAll())
                 .contains("community.category=business")
                 .contains("community.action=post_wonderful")
                 .contains("community.outcome=success")
-                .contains("user.id=9")
+                .contains("user.id=" + userId)
                 .contains("community.target_type=post")
-                .contains("community.target_id=101");
+                .contains("community.target_id=" + postId);
     }
 
     @Test
     void adminDeleteShouldLogBusinessEvent(CapturedOutput output) {
-        service.adminDelete(99, 101);
+        UUID userId = uuid(99);
+        UUID postId = uuid(101);
+        service.adminDelete(userId, postId);
 
         assertThat(output.getAll())
                 .contains("community.category=business")
                 .contains("community.action=post_delete")
                 .contains("community.outcome=success")
                 .contains("community.reason_code=admin_delete")
-                .contains("user.id=99")
+                .contains("user.id=" + userId)
                 .contains("community.target_type=post")
-                .contains("community.target_id=101");
+                .contains("community.target_id=" + postId);
     }
-
 }

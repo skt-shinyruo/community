@@ -1,6 +1,7 @@
 package com.nowcoder.community.common.idempotency;
 
 import java.time.Duration;
+import java.util.UUID;
 
 /**
  * 幂等存储抽象（SSOT）：
@@ -14,15 +15,15 @@ public interface IdempotencyStore {
      *
      * @return true 表示占用成功（本次为 first-time）；false 表示 key 已存在（可能是并发/重复）
      */
-    boolean tryAcquireProcessing(String operation, int userId, String key, Duration ttl);
+    boolean tryAcquireProcessing(String operation, UUID userId, String key, Duration ttl);
 
-    Entry get(String operation, int userId, String key);
+    Entry get(String operation, UUID userId, String key);
 
-    void saveSuccess(String operation, int userId, String key, String successJson, Duration ttl);
+    void saveSuccess(String operation, UUID userId, String key, String successJson, Duration ttl);
 
-    void extendProcessing(String operation, int userId, String key, Duration ttl);
+    void extendProcessing(String operation, UUID userId, String key, Duration ttl);
 
-    void delete(String operation, int userId, String key);
+    void delete(String operation, UUID userId, String key);
 
     enum Status {
         PROCESSING,

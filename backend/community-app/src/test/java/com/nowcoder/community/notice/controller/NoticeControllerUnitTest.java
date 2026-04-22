@@ -13,13 +13,17 @@ import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class NoticeControllerUnitTest {
+
+    private static final UUID NOTICE_ID = UUID.fromString("00000000-0000-7000-8000-000000000421");
 
     @Mock
     private NoticeService noticeService;
@@ -33,22 +37,23 @@ class NoticeControllerUnitTest {
 
     @Test
     void listShouldDelegateToNoticeOwnedDtoReturningServiceMethod() {
+        UUID userId = uuid(7);
         NoticeItemResponse item = new NoticeItemResponse();
-        item.setId(15);
+        item.setId(NOTICE_ID);
         item.setTopic("comment");
-        when(noticeService.listNoticeItems(7, "comment", 0, 10)).thenReturn(List.of(item));
+        when(noticeService.listNoticeItems(userId, "comment", 0, 10)).thenReturn(List.of(item));
 
-        Result<List<NoticeItemResponse>> result = controller.list(authentication(7), "comment", null, null);
+        Result<List<NoticeItemResponse>> result = controller.list(authentication(userId), "comment", null, null);
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).containsExactly(item);
-        verify(noticeService).listNoticeItems(7, "comment", 0, 10);
+        verify(noticeService).listNoticeItems(userId, "comment", 0, 10);
     }
 
-    private Authentication authentication(int userId) {
+    private Authentication authentication(UUID userId) {
         Jwt jwt = Jwt.withTokenValue("token-" + userId)
                 .header("alg", "none")
-                .subject(String.valueOf(userId))
+                .subject(userId.toString())
                 .issuedAt(Instant.now())
                 .expiresAt(Instant.now().plusSeconds(60))
                 .build();

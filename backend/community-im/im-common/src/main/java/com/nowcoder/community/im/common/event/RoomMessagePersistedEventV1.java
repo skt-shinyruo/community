@@ -1,5 +1,7 @@
 package com.nowcoder.community.im.common.event;
 
+import java.util.UUID;
+
 /**
  * im-core -> Kafka -> im-realtime event.
  *
@@ -7,11 +9,10 @@ package com.nowcoder.community.im.common.event;
  */
 public record RoomMessagePersistedEventV1(
         String eventId,
-        long roomId,
+        UUID roomId,
         long seq,
-        long messageId,
-        int fromUserId,
+        UUID messageId,
+        UUID fromUserId,
         long createdAtEpochMs
 ) {
 }
-

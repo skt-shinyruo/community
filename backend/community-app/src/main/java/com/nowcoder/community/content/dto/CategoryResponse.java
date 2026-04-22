@@ -1,18 +1,20 @@
 package com.nowcoder.community.content.dto;
 
+import java.util.UUID;
+
 public class CategoryResponse {
 
-    private int id;
+    private UUID id;
     private String name;
     private String description;
     private int position;
     private int postCount;
 
-    public int getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
@@ -48,4 +50,3 @@ public class CategoryResponse {
         this.postCount = postCount;
     }
 }
-

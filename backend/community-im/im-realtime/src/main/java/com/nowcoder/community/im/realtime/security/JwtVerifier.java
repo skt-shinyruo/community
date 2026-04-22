@@ -5,6 +5,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.stereotype.Component;
 
+import java.util.UUID;
+
 @Component
 public class JwtVerifier {
 
@@ -19,10 +21,10 @@ public class JwtVerifier {
             throw new IllegalArgumentException("missing accessToken");
         }
         Jwt jwt = jwtDecoder.decode(accessToken.trim());
-        int userId = JwtSubjects.userIdOrThrow(jwt);
+        UUID userId = JwtSubjects.userUuidOrThrow(jwt);
         return new VerifiedJwt(userId, jwt);
     }
 
-    public record VerifiedJwt(int userId, Jwt jwt) {
+    public record VerifiedJwt(UUID userId, Jwt jwt) {
     }
 }

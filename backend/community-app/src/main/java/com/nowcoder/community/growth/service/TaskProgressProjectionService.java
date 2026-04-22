@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.UUID;
 
 @Service
 public class TaskProgressProjectionService {
@@ -43,8 +44,8 @@ public class TaskProgressProjectionService {
         if (event == null || !(event.payload() instanceof LikePayload payload)) {
             return null;
         }
-        int toUserId = payload.getEntityUserId() == null ? 0 : payload.getEntityUserId();
-        if (!SocialEventTypes.LIKE_CREATED.equals(event.type()) || toUserId <= 0 || toUserId == payload.getActorUserId()) {
+        UUID toUserId = payload.getEntityUserId();
+        if (!SocialEventTypes.LIKE_CREATED.equals(event.type()) || toUserId == null || toUserId.equals(payload.getActorUserId())) {
             return null;
         }
         return new TaskProgressProjectionCommand(toUserId, event.type(), event.eventId(), toDate(payload.getCreateTime()));
@@ -54,14 +55,14 @@ public class TaskProgressProjectionService {
         if (event == null || !GrowthEventTypes.CHECK_IN_COMPLETED.equals(event.type()) || !(event.payload() instanceof CheckInPayload payload)) {
             return null;
         }
-        if (payload.getUserId() <= 0 || payload.getBizDate() == null) {
+        if (payload.getBizDate() == null) {
             return null;
         }
         return new TaskProgressProjectionCommand(payload.getUserId(), event.type(), event.eventId(), payload.getBizDate());
     }
 
     public void project(TaskProgressProjectionCommand command) {
-        if (command == null || command.userId() <= 0 || command.bizDate() == null) {
+        if (command == null || command.userId() == null || command.bizDate() == null) {
             return;
         }
         taskProgressService.processEvent(command.userId(), command.triggerEventType(), command.sourceEventId(), command.bizDate());
@@ -72,7 +73,7 @@ public class TaskProgressProjectionService {
     }
 
     public record TaskProgressProjectionCommand(
-            int userId,
+            UUID userId,
             String triggerEventType,
             String sourceEventId,
             LocalDate bizDate

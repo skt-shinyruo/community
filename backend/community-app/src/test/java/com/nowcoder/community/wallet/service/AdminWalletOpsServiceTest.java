@@ -2,6 +2,7 @@ package com.nowcoder.community.wallet.service;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.wallet.entity.WalletTxn;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
@@ -14,6 +15,9 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.UUID;
+
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -66,16 +70,19 @@ class AdminWalletOpsServiceTest {
 
     @Test
     void freezeShouldBlockTransferAndWithdraw() {
-        seedUserBalance(101, 500);
+        UUID actorUserId = uuid(1);
+        UUID sourceUserId = uuid(101);
+        UUID targetUserId = uuid(202);
+        seedUserBalance(sourceUserId, 500);
         seedSystemBalance("PLATFORM_CASH", 800);
 
-        adminWalletOpsService.freezeWallet(1, 101, "risk review");
+        adminWalletOpsService.freezeWallet(actorUserId, sourceUserId, "risk review");
 
-        assertThatThrownBy(() -> transferService.create("transfer:req-2", 101, 202, 100))
+        assertThatThrownBy(() -> transferService.create("transfer:req-2", sourceUserId, targetUserId, 100))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.ACCOUNT_FROZEN))
                 .hasMessageContaining("frozen");
-        assertThatThrownBy(() -> withdrawService.request("withdraw:req-2", 101, 100))
+        assertThatThrownBy(() -> withdrawService.request("withdraw:req-2", sourceUserId, 100))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.ACCOUNT_FROZEN))
                 .hasMessageContaining("frozen");
@@ -85,20 +92,30 @@ class AdminWalletOpsServiceTest {
         assertThat(jdbcTemplate.queryForObject(
                 "select status from wallet_account where owner_type = 'USER' and owner_id = ? and account_type = 'USER_WALLET'",
                 String.class,
-                101
+                BinaryUuidCodec.toBytes(sourceUserId)
         )).isEqualTo("FROZEN");
         assertThat(countRows("wallet_admin_action")).isEqualTo(1);
+        byte[] actionId = jdbcTemplate.queryForObject(
+                "select action_id from wallet_admin_action where request_id like 'wallet-admin:freeze:%'",
+                (rs, rowNum) -> rs.getBytes(1)
+        );
+        assertThat(actionId).hasSize(16);
+        UUID parsedActionId = BinaryUuidCodec.fromBytes(actionId);
+        assertThat(parsedActionId.version()).isEqualTo(7);
     }
 
     @Test
     void reverseTransferShouldCreateReversalTxnInsteadOfEditingBalancesInPlace() {
-        seedUserBalance(101, 900);
-        transferService.create("transfer:req-1", 101, 202, 300);
+        UUID actorUserId = uuid(1);
+        UUID fromUserId = uuid(101);
+        UUID toUserId = uuid(202);
+        seedUserBalance(fromUserId, 900);
+        transferService.create("transfer:req-1", fromUserId, toUserId, 300);
 
-        adminWalletOpsService.reverseTxn(1, "transfer:req-1", "fraud report");
+        adminWalletOpsService.reverseTxn(actorUserId, "transfer:req-1", "fraud report");
 
-        assertThat(accountService.balanceOfUser(101)).isEqualTo(900);
-        assertThat(accountService.balanceOfUser(202)).isEqualTo(0);
+        assertThat(accountService.balanceOfUser(fromUserId)).isEqualTo(900);
+        assertThat(accountService.balanceOfUser(toUserId)).isEqualTo(0);
         assertThat(countRows("wallet_txn")).isEqualTo(2);
         assertThat(countRows("wallet_entry")).isEqualTo(4);
         assertThat(countRows("wallet_admin_action")).isEqualTo(1);
@@ -108,8 +125,11 @@ class AdminWalletOpsServiceTest {
         assertThat(original).isNotNull();
         assertThat(reversal).isNotNull();
         assertThat(reversal.getTxnType()).isEqualTo("REVERSAL");
-        assertThat(jdbcTemplate.queryForObject("select target_account_id from wallet_admin_action", Long.class))
-                .isEqualTo(original.getTxnId());
+        byte[] targetTxnId = jdbcTemplate.queryForObject(
+                "select target_account_id from wallet_admin_action",
+                (rs, rowNum) -> rs.getBytes(1)
+        );
+        assertThat(BinaryUuidCodec.fromBytes(targetTxnId)).isEqualTo(original.getTxnId());
         assertThat(jdbcTemplate.queryForObject("select request_id from wallet_admin_action", String.class))
                 .isEqualTo("wallet-admin:reverse:transfer:req-1");
         assertThat(ledgerService.entriesOfTxn(original.getTxnId()))
@@ -122,19 +142,23 @@ class AdminWalletOpsServiceTest {
 
     @Test
     void reverseShouldRejectWhenRecipientAlreadySpentFunds() {
-        seedUserBalance(101, 900);
-        transferService.create("transfer:req-spent-origin", 101, 202, 300);
-        transferService.create("transfer:req-spent-downstream", 202, 303, 300);
+        UUID actorUserId = uuid(1);
+        UUID originUserId = uuid(101);
+        UUID intermediateUserId = uuid(202);
+        UUID downstreamUserId = uuid(303);
+        seedUserBalance(originUserId, 900);
+        transferService.create("transfer:req-spent-origin", originUserId, intermediateUserId, 300);
+        transferService.create("transfer:req-spent-downstream", intermediateUserId, downstreamUserId, 300);
 
-        assertThatThrownBy(() -> adminWalletOpsService.reverseTxn(1, "transfer:req-spent-origin", "fraud report"))
+        assertThatThrownBy(() -> adminWalletOpsService.reverseTxn(actorUserId, "transfer:req-spent-origin", "fraud report"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT))
                 .hasMessageContaining("reversal")
                 .hasMessageContaining("transfer:req-spent-origin");
 
-        assertThat(accountService.balanceOfUser(101)).isEqualTo(600);
-        assertThat(accountService.balanceOfUser(202)).isEqualTo(0);
-        assertThat(accountService.balanceOfUser(303)).isEqualTo(300);
+        assertThat(accountService.balanceOfUser(originUserId)).isEqualTo(600);
+        assertThat(accountService.balanceOfUser(intermediateUserId)).isEqualTo(0);
+        assertThat(accountService.balanceOfUser(downstreamUserId)).isEqualTo(300);
         assertThat(countRows("wallet_txn")).isEqualTo(2);
         assertThat(countRows("wallet_entry")).isEqualTo(4);
         assertThat(countRows("wallet_admin_action")).isZero();
@@ -142,28 +166,36 @@ class AdminWalletOpsServiceTest {
 
     @Test
     void repeatReverseShouldKeepOneLogicalAdminAction() {
-        seedUserBalance(101, 900);
-        transferService.create("transfer:req-repeat", 101, 202, 300);
+        UUID actorUserId = uuid(1);
+        UUID fromUserId = uuid(101);
+        UUID toUserId = uuid(202);
+        seedUserBalance(fromUserId, 900);
+        transferService.create("transfer:req-repeat", fromUserId, toUserId, 300);
 
-        adminWalletOpsService.reverseTxn(1, "transfer:req-repeat", "fraud report");
-        adminWalletOpsService.reverseTxn(1, "transfer:req-repeat", "fraud report");
+        adminWalletOpsService.reverseTxn(actorUserId, "transfer:req-repeat", "fraud report");
+        adminWalletOpsService.reverseTxn(actorUserId, "transfer:req-repeat", "fraud report");
 
         WalletTxn original = walletTxnMapper.selectByRequestId("transfer:req-repeat");
         assertThat(countRows("wallet_txn")).isEqualTo(2);
         assertThat(countRows("wallet_entry")).isEqualTo(4);
         assertThat(countRows("wallet_admin_action")).isEqualTo(1);
-        assertThat(jdbcTemplate.queryForObject("select target_account_id from wallet_admin_action", Long.class))
-                .isEqualTo(original.getTxnId());
+        byte[] targetTxnId = jdbcTemplate.queryForObject(
+                "select target_account_id from wallet_admin_action",
+                (rs, rowNum) -> rs.getBytes(1)
+        );
+        assertThat(BinaryUuidCodec.fromBytes(targetTxnId)).isEqualTo(original.getTxnId());
         assertThat(jdbcTemplate.queryForObject("select request_id from wallet_admin_action", String.class))
                 .isEqualTo("wallet-admin:reverse:transfer:req-repeat");
     }
 
     @Test
     void reverseShouldRejectUnsupportedTxnType() {
+        UUID actorUserId = uuid(1);
+        UUID userId = uuid(101);
         seedSystemBalance("PLATFORM_CASH", 900);
-        rechargeService.complete("recharge:req-unsupported", 101, 200);
+        rechargeService.complete("recharge:req-unsupported", userId, 200);
 
-        assertThatThrownBy(() -> adminWalletOpsService.reverseTxn(1, "recharge:req-unsupported", "fraud report"))
+        assertThatThrownBy(() -> adminWalletOpsService.reverseTxn(actorUserId, "recharge:req-unsupported", "fraud report"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.INVALID_REQUEST))
                 .hasMessageContaining("not reversible");
@@ -173,8 +205,8 @@ class AdminWalletOpsServiceTest {
         assertThat(countRows("wallet_admin_action")).isZero();
     }
 
-    private void seedUserBalance(int userId, long balance) {
-        long accountId = accountService.ensureUserWallet(userId);
+    private void seedUserBalance(UUID userId, long balance) {
+        UUID accountId = accountService.ensureUserWallet(userId);
         jdbcTemplate.update(
                 "update wallet_account set balance = ?, version = 0, status = 'ACTIVE' where account_id = ?",
                 balance,
@@ -183,7 +215,7 @@ class AdminWalletOpsServiceTest {
     }
 
     private void seedSystemBalance(String accountType, long balance) {
-        long accountId = accountService.ensureSystemAccount(accountType);
+        UUID accountId = accountService.ensureSystemAccount(accountType);
         jdbcTemplate.update(
                 "update wallet_account set balance = ?, version = 0, status = 'ACTIVE' where account_id = ?",
                 balance,

@@ -15,11 +15,11 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import java.time.Duration;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -66,7 +66,8 @@ class PasswordResetServiceTest {
 
     @Test
     void requestResetShouldLogIssuedEventWithoutResetLink(CapturedOutput output) {
-        UserCredentialView user = new UserCredentialView(7, "alice", 1, 0, null);
+        UUID userId = uuid(7);
+        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, null);
 
         when(captchaService.verify("cid", "1234")).thenReturn(true);
         when(userCredentialQueryApi.findByEmailOrNull("alice@example.com")).thenReturn(user);
@@ -75,13 +76,13 @@ class PasswordResetServiceTest {
 
         assertThat(result.issued()).isTrue();
         assertThat(result.resetLink()).isBlank();
-        verify(tokenStore).store(anyString(), eq(7), eq(Duration.ofSeconds(600)));
+        verify(tokenStore).store(anyString(), eq(userId), eq(Duration.ofSeconds(600)));
         verify(mailService).sendPasswordResetMail(eq("alice@example.com"), contains("/#/auth/password/reset?token="));
         assertThat(output.getAll())
                 .contains("community.category=security")
                 .contains("community.action=password_reset_request")
                 .contains("community.outcome=success")
-                .contains("user.id=7")
+                .contains("user.id=" + userId)
                 .contains("masked.email=a***e@example.com")
                 .doesNotContain("alice@example.com")
                 .doesNotContain("1234")
@@ -97,7 +98,7 @@ class PasswordResetServiceTest {
 
         assertThat(result.issued()).isTrue();
         assertThat(result.resetLink()).isBlank();
-        verify(tokenStore, never()).store(anyString(), anyInt(), any(Duration.class));
+        verify(tokenStore, never()).store(anyString(), any(UUID.class), any(Duration.class));
         verify(mailService, never()).sendPasswordResetMail(anyString(), anyString());
         assertThat(output.getAll())
                 .contains("community.category=security")
@@ -111,18 +112,19 @@ class PasswordResetServiceTest {
 
     @Test
     void confirmResetShouldLogSuccessWithoutTokenOrPassword(CapturedOutput output) {
+        UUID userId = uuid(7);
         when(captchaService.verify("cid", "1234")).thenReturn(true);
-        when(tokenStore.consume("token-123")).thenReturn(7);
+        when(tokenStore.consume("token-123")).thenReturn(userId);
 
         boolean result = service.confirmReset(" token-123 ", " new-password ", "cid", "1234");
 
         assertThat(result).isTrue();
-        verify(userCredentialActionApi).updatePassword(7, "new-password");
+        verify(userCredentialActionApi).updatePassword(userId, "new-password");
         assertThat(output.getAll())
                 .contains("community.category=security")
                 .contains("community.action=password_reset_confirm")
                 .contains("community.outcome=success")
-                .contains("user.id=7")
+                .contains("user.id=" + userId)
                 .doesNotContain("token-123")
                 .doesNotContain("new-password")
                 .doesNotContain("1234");
@@ -146,5 +148,9 @@ class PasswordResetServiceTest {
                 .doesNotContain("token-123")
                 .doesNotContain("new-password")
                 .doesNotContain("1234");
+    }
+
+    private static UUID uuid(long suffix) {
+        return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
     }
 }

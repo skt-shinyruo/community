@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class JwtTokenService {
@@ -23,7 +24,7 @@ public class JwtTokenService {
         this.jwtProperties = jwtProperties;
     }
 
-    public String createAccessToken(int userId, String username, List<String> authorities) {
+    public String createAccessToken(UUID userId, String username, List<String> authorities) {
         Instant now = Instant.now();
         Instant exp = now.plusSeconds(jwtProperties.getAccessTokenTtlSeconds());
 

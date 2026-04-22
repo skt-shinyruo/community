@@ -1,5 +1,7 @@
 package com.nowcoder.community.common.idempotency;
 
+import com.nowcoder.community.common.id.BinaryUuidCodec;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.ResultSetExtractor;
@@ -10,6 +12,7 @@ import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
+import java.util.UUID;
 
 /**
  * MySQL 幂等存储实现（SSOT=DB）：
@@ -24,16 +27,22 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
     private static final String STATUS_SUCCESS = "S";
 
     private final JdbcTemplate jdbcTemplate;
+    private final UuidV7Generator idGenerator;
 
     public JdbcIdempotencyStore(JdbcTemplate jdbcTemplate) {
+        this(jdbcTemplate, new UuidV7Generator());
+    }
+
+    public JdbcIdempotencyStore(JdbcTemplate jdbcTemplate, UuidV7Generator idGenerator) {
         this.jdbcTemplate = jdbcTemplate;
+        this.idGenerator = idGenerator;
     }
 
     @Override
-    public boolean tryAcquireProcessing(String operation, int userId, String key, Duration ttl) {
+    public boolean tryAcquireProcessing(String operation, UUID userId, String key, Duration ttl) {
         String op = normalizeOp(operation);
         String k = normalizeKey(key);
-        if (userId <= 0) {
+        if (userId == null) {
             throw new IllegalArgumentException("userId is invalid");
         }
         Duration safeTtl = ttl == null ? Duration.ofSeconds(30) : ttl;
@@ -43,11 +52,12 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
         try {
             int inserted = jdbcTemplate.update(
                     """
-                            insert into http_idempotency(operation, user_id, idem_key, status, processing_expires_at)
-                            values (?, ?, ?, ?, ?)
+                            insert into http_idempotency(id, operation, user_id, idem_key, status, processing_expires_at)
+                            values (?, ?, ?, ?, ?, ?)
                             """,
+                    BinaryUuidCodec.toBytes(idGenerator.next()),
                     op,
-                    userId,
+                    BinaryUuidCodec.toBytes(userId),
                     k,
                     STATUS_PROCESSING,
                     processingExpiresAt
@@ -75,7 +85,7 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
                     STATUS_PROCESSING,
                     processingExpiresAt,
                     op,
-                    userId,
+                    BinaryUuidCodec.toBytes(userId),
                     k,
                     STATUS_PROCESSING,
                     cutoff,
@@ -87,10 +97,10 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
     }
 
     @Override
-    public Entry get(String operation, int userId, String key) {
+    public Entry get(String operation, UUID userId, String key) {
         String op = normalizeOp(operation);
         String k = normalizeKey(key);
-        if (userId <= 0) {
+        if (userId == null) {
             return null;
         }
 
@@ -105,16 +115,16 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
                         """,
                 (ResultSetExtractor<Entry>) rs -> mapEntryOrNull(rs, op, userId, k, now),
                 op,
-                userId,
+                BinaryUuidCodec.toBytes(userId),
                 k
         );
     }
 
     @Override
-    public void saveSuccess(String operation, int userId, String key, String successJson, Duration ttl) {
+    public void saveSuccess(String operation, UUID userId, String key, String successJson, Duration ttl) {
         String op = normalizeOp(operation);
         String k = normalizeKey(key);
-        if (userId <= 0) {
+        if (userId == null) {
             throw new IllegalArgumentException("userId is invalid");
         }
         Duration safeTtl = ttl == null ? Duration.ofHours(24) : ttl;
@@ -125,10 +135,10 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
         jdbcTemplate.update(
                 """
                         insert into http_idempotency(
-                          operation, user_id, idem_key, status,
+                          id, operation, user_id, idem_key, status,
                           response_json, success_expires_at, processing_expires_at
                         )
-                        values (?, ?, ?, ?, ?, ?, null)
+                        values (?, ?, ?, ?, ?, ?, ?, null)
                         on duplicate key update
                           status = values(status),
                           response_json = values(response_json),
@@ -136,8 +146,9 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
                           processing_expires_at = null,
                           updated_at = now()
                         """,
+                BinaryUuidCodec.toBytes(idGenerator.next()),
                 op,
-                userId,
+                BinaryUuidCodec.toBytes(userId),
                 k,
                 STATUS_SUCCESS,
                 json,
@@ -146,10 +157,10 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
     }
 
     @Override
-    public void extendProcessing(String operation, int userId, String key, Duration ttl) {
+    public void extendProcessing(String operation, UUID userId, String key, Duration ttl) {
         String op = normalizeOp(operation);
         String k = normalizeKey(key);
-        if (userId <= 0) {
+        if (userId == null) {
             throw new IllegalArgumentException("userId is invalid");
         }
         Duration safeTtl = ttl == null ? Duration.ofSeconds(30) : ttl;
@@ -166,17 +177,17 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
                         """,
                 processingExpiresAt,
                 op,
-                userId,
+                BinaryUuidCodec.toBytes(userId),
                 k,
                 STATUS_PROCESSING
         );
     }
 
     @Override
-    public void delete(String operation, int userId, String key) {
+    public void delete(String operation, UUID userId, String key) {
         String op = normalizeOp(operation);
         String k = normalizeKey(key);
-        if (userId <= 0) {
+        if (userId == null) {
             return;
         }
         jdbcTemplate.update(
@@ -187,12 +198,12 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
                           and idem_key = ?
                         """,
                 op,
-                userId,
+                BinaryUuidCodec.toBytes(userId),
                 k
         );
     }
 
-    private Entry mapEntryOrNull(ResultSet rs, String op, int userId, String key, Instant now) throws java.sql.SQLException {
+    private Entry mapEntryOrNull(ResultSet rs, String op, UUID userId, String key, Instant now) throws java.sql.SQLException {
         if (rs == null || !rs.next()) {
             return null;
         }

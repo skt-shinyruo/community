@@ -3,19 +3,20 @@ package com.nowcoder.community.market.dto;
 import com.nowcoder.community.market.entity.MarketDispute;
 
 import java.util.Date;
+import java.util.UUID;
 
 public record MarketDisputeResponse(
-        long disputeId,
-        long orderId,
+        UUID disputeId,
+        UUID orderId,
         String goodsType,
-        int buyerUserId,
-        int sellerUserId,
+        UUID buyerUserId,
+        UUID sellerUserId,
         String status,
         String reason,
         String buyerNote,
         String sellerNote,
         String resolutionType,
-        Integer resolvedBy,
+        UUID resolvedBy,
         Date resolvedAt,
         Date createTime,
         Date updateTime

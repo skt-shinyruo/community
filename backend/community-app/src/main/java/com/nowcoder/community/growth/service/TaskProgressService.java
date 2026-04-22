@@ -1,11 +1,13 @@
 package com.nowcoder.community.growth.service;
 
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.growth.entity.TaskTemplate;
 import com.nowcoder.community.growth.entity.UserTaskProgress;
 import com.nowcoder.community.growth.mapper.TaskTemplateMapper;
 import com.nowcoder.community.growth.mapper.UserTaskEventLogMapper;
 import com.nowcoder.community.growth.mapper.UserTaskProgressMapper;
 import com.nowcoder.community.wallet.api.action.WalletRewardActionApi;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class TaskProgressService {
@@ -25,7 +28,9 @@ public class TaskProgressService {
     private final UserTaskEventLogMapper userTaskEventLogMapper;
     private final WalletRewardActionApi walletRewardActionApi;
     private final GrowthBusinessTimeService growthBusinessTimeService;
+    private final UuidV7Generator idGenerator;
 
+    @Autowired
     public TaskProgressService(
             TaskTemplateMapper taskTemplateMapper,
             UserTaskProgressMapper userTaskProgressMapper,
@@ -33,16 +38,35 @@ public class TaskProgressService {
             WalletRewardActionApi walletRewardActionApi,
             GrowthBusinessTimeService growthBusinessTimeService
     ) {
+        this(
+                taskTemplateMapper,
+                userTaskProgressMapper,
+                userTaskEventLogMapper,
+                walletRewardActionApi,
+                growthBusinessTimeService,
+                new UuidV7Generator()
+        );
+    }
+
+    TaskProgressService(
+            TaskTemplateMapper taskTemplateMapper,
+            UserTaskProgressMapper userTaskProgressMapper,
+            UserTaskEventLogMapper userTaskEventLogMapper,
+            WalletRewardActionApi walletRewardActionApi,
+            GrowthBusinessTimeService growthBusinessTimeService,
+            UuidV7Generator idGenerator
+    ) {
         this.taskTemplateMapper = taskTemplateMapper;
         this.userTaskProgressMapper = userTaskProgressMapper;
         this.userTaskEventLogMapper = userTaskEventLogMapper;
         this.walletRewardActionApi = walletRewardActionApi;
         this.growthBusinessTimeService = growthBusinessTimeService;
+        this.idGenerator = idGenerator;
     }
 
     @Transactional
-    public void processEvent(int userId, String triggerEventType, String sourceEventId, LocalDate bizDate) {
-        if (userId <= 0 || triggerEventType == null || triggerEventType.isBlank() || sourceEventId == null || sourceEventId.isBlank() || bizDate == null) {
+    public void processEvent(UUID userId, String triggerEventType, String sourceEventId, LocalDate bizDate) {
+        if (userId == null || triggerEventType == null || triggerEventType.isBlank() || sourceEventId == null || sourceEventId.isBlank() || bizDate == null) {
             return;
         }
         List<TaskTemplate> templates = taskTemplateMapper.selectActiveByTriggerEventType(triggerEventType.trim());
@@ -54,7 +78,7 @@ public class TaskProgressService {
         }
     }
 
-    private void applyTemplate(int userId, TaskTemplate template, String sourceEventId, LocalDate bizDate) {
+    private void applyTemplate(UUID userId, TaskTemplate template, String sourceEventId, LocalDate bizDate) {
         String periodKey = TaskPeriodKeyResolver.resolve(template.getPeriodType(), bizDate);
         if (!recordSourceEvent(userId, template.getTaskCode(), periodKey, sourceEventId)) {
             return;
@@ -107,18 +131,18 @@ public class TaskProgressService {
         );
     }
 
-    private boolean recordSourceEvent(int userId, String taskCode, String periodKey, String sourceEventId) {
+    private boolean recordSourceEvent(UUID userId, String taskCode, String periodKey, String sourceEventId) {
         try {
-            userTaskEventLogMapper.insert(userId, taskCode, periodKey, sourceEventId);
+            userTaskEventLogMapper.insert(idGenerator.next(), userId, taskCode, periodKey, sourceEventId);
             return true;
         } catch (DataIntegrityViolationException ignored) {
             return false;
         }
     }
 
-    private void ensureProgressRowExists(int userId, TaskTemplate template, String periodKey) {
+    private void ensureProgressRowExists(UUID userId, TaskTemplate template, String periodKey) {
         try {
-            userTaskProgressMapper.insert(userId, template.getTaskCode(), periodKey, template.getTargetValue(), STATUS_IN_PROGRESS, null);
+            userTaskProgressMapper.insert(idGenerator.next(), userId, template.getTaskCode(), periodKey, template.getTargetValue(), STATUS_IN_PROGRESS, null);
         } catch (DataIntegrityViolationException ignored) {
             // Another event created the row first; lock and continue.
         }

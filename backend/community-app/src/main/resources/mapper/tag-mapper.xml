@@ -15,9 +15,9 @@
         limit 1
     </select>
 
-    <insert id="insertTag" parameterType="com.nowcoder.community.content.entity.Tag" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
-        insert into tag(name, create_time)
-        values(#{name}, #{createTime})
+    <insert id="insertTag" parameterType="com.nowcoder.community.content.entity.Tag">
+        insert into tag(id, name, create_time)
+        values(#{id, jdbcType=BINARY}, #{name}, #{createTime})
     </insert>
 
     <select id="selectHotTags" resultType="com.nowcoder.community.content.entity.HotTag">

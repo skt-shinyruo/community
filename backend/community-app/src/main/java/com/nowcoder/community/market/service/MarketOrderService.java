@@ -1,5 +1,6 @@
 package com.nowcoder.community.market.service;
 
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.market.api.action.MarketOrderAutoConfirmActionApi;
 import com.nowcoder.community.market.api.model.MarketOrderAutoConfirmResult;
@@ -17,6 +18,7 @@ import com.nowcoder.community.market.mapper.MarketOrderMapper;
 import com.nowcoder.community.market.mapper.MarketShipmentMapper;
 import com.nowcoder.community.wallet.api.action.WalletMarketActionApi;
 import com.nowcoder.community.wallet.api.model.WalletMarketTxnView;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -25,7 +27,9 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
@@ -56,7 +60,9 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
     private final MarketDeliveryMapper marketDeliveryMapper;
     private final MarketShipmentMapper marketShipmentMapper;
     private final WalletMarketActionApi walletMarketActionApi;
+    private final UuidV7Generator idGenerator;
 
+    @Autowired
     public MarketOrderService(MarketListingMapper marketListingMapper,
                               MarketInventoryUnitMapper marketInventoryUnitMapper,
                               MarketOrderMapper marketOrderMapper,
@@ -64,6 +70,24 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
                               MarketDeliveryMapper marketDeliveryMapper,
                               MarketShipmentMapper marketShipmentMapper,
                               WalletMarketActionApi walletMarketActionApi) {
+        this(marketListingMapper,
+                marketInventoryUnitMapper,
+                marketOrderMapper,
+                marketAddressMapper,
+                marketDeliveryMapper,
+                marketShipmentMapper,
+                walletMarketActionApi,
+                new UuidV7Generator());
+    }
+
+    MarketOrderService(MarketListingMapper marketListingMapper,
+                       MarketInventoryUnitMapper marketInventoryUnitMapper,
+                       MarketOrderMapper marketOrderMapper,
+                       MarketAddressMapper marketAddressMapper,
+                       MarketDeliveryMapper marketDeliveryMapper,
+                       MarketShipmentMapper marketShipmentMapper,
+                       WalletMarketActionApi walletMarketActionApi,
+                       UuidV7Generator idGenerator) {
         this.marketListingMapper = marketListingMapper;
         this.marketInventoryUnitMapper = marketInventoryUnitMapper;
         this.marketOrderMapper = marketOrderMapper;
@@ -71,10 +95,11 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
         this.marketDeliveryMapper = marketDeliveryMapper;
         this.marketShipmentMapper = marketShipmentMapper;
         this.walletMarketActionApi = walletMarketActionApi;
+        this.idGenerator = idGenerator;
     }
 
     @Transactional
-    public MarketOrderResponse createOrder(String requestId, int buyerUserId, long listingId, int quantity, Long addressId) {
+    public MarketOrderResponse createOrder(String requestId, UUID buyerUserId, UUID listingId, int quantity, UUID addressId) {
         validateCreateOrderRequest(requestId, buyerUserId, listingId, quantity);
         MarketOrder existing = marketOrderMapper.selectByRequestId(requestId);
         if (existing != null) {
@@ -96,6 +121,7 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
         adjustFiniteStockAfterOrder(listing, quantity);
 
         MarketOrder order = new MarketOrder();
+        order.setOrderId(idGenerator.next());
         order.setRequestId(requestId);
         order.setListingId(listing.getListingId());
         order.setGoodsType(listing.getGoodsType());
@@ -123,7 +149,7 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
     }
 
     @Transactional
-    public MarketOrderResponse deliverVirtualOrder(long orderId, int sellerUserId, String deliveryContent) {
+    public MarketOrderResponse deliverVirtualOrder(UUID orderId, UUID sellerUserId, String deliveryContent) {
         if (!StringUtils.hasText(deliveryContent)) {
             throw new BusinessException(INVALID_ARGUMENT, "deliveryContent must not be blank");
         }
@@ -136,6 +162,7 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
         }
 
         MarketDelivery delivery = new MarketDelivery();
+        delivery.setDeliveryId(idGenerator.next());
         delivery.setOrderId(orderId);
         delivery.setSellerUserId(sellerUserId);
         delivery.setDeliveryType(DELIVERY_TYPE_MANUAL_TEXT);
@@ -149,7 +176,7 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
     }
 
     @Transactional
-    public MarketOrderResponse confirmOrder(long orderId, int buyerUserId) {
+    public MarketOrderResponse confirmOrder(UUID orderId, UUID buyerUserId) {
         MarketOrder order = requireOrderForUpdate(orderId);
         requireBuyer(order, buyerUserId);
         if (!STATUS_DELIVERED.equals(order.getStatus()) && !STATUS_SHIPPED.equals(order.getStatus())) {
@@ -167,8 +194,8 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
     }
 
     @Transactional
-    public MarketOrderResponse shipPhysicalOrder(long orderId,
-                                                 int sellerUserId,
+    public MarketOrderResponse shipPhysicalOrder(UUID orderId,
+                                                 UUID sellerUserId,
                                                  String carrierName,
                                                  String trackingNo,
                                                  String remark) {
@@ -181,6 +208,7 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
         requireStatus(order, STATUS_ESCROWED);
 
         var shipment = new com.nowcoder.community.market.entity.MarketShipment();
+        shipment.setShipmentId(idGenerator.next());
         shipment.setOrderId(orderId);
         shipment.setSellerUserId(sellerUserId);
         shipment.setCarrierName(carrierName.trim());
@@ -194,7 +222,7 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
     }
 
     @Transactional
-    public MarketOrderResponse cancelOrder(long orderId, int buyerUserId) {
+    public MarketOrderResponse cancelOrder(UUID orderId, UUID buyerUserId) {
         MarketOrder order = requireOrderForUpdate(orderId);
         requireBuyer(order, buyerUserId);
         requireStatus(order, STATUS_ESCROWED);
@@ -238,22 +266,22 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
         return new MarketOrderAutoConfirmResult(completed, skipped);
     }
 
-    private void validateCreateOrderRequest(String requestId, int buyerUserId, long listingId, int quantity) {
+    private void validateCreateOrderRequest(String requestId, UUID buyerUserId, UUID listingId, int quantity) {
         if (!StringUtils.hasText(requestId)) {
             throw new BusinessException(INVALID_ARGUMENT, "market order requestId must not be blank");
         }
-        if (buyerUserId <= 0) {
-            throw new BusinessException(INVALID_ARGUMENT, "buyerUserId must be positive");
+        if (buyerUserId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "buyerUserId must not be null");
         }
-        if (listingId <= 0) {
-            throw new BusinessException(INVALID_ARGUMENT, "listingId must be positive");
+        if (listingId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "listingId must not be null");
         }
         if (quantity <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "quantity must be positive");
         }
     }
 
-    private MarketListing requireActiveListingForUpdate(long listingId) {
+    private MarketListing requireActiveListingForUpdate(UUID listingId) {
         MarketListing listing = marketListingMapper.selectByIdForUpdate(listingId);
         if (listing == null) {
             throw new BusinessException(NOT_FOUND, "market listing not found: listingId=" + listingId);
@@ -264,8 +292,8 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
         return listing;
     }
 
-    private void validateBuyerAndQuantity(int buyerUserId, MarketListing listing, int quantity) {
-        if (listing.getSellerUserId() == buyerUserId) {
+    private void validateBuyerAndQuantity(UUID buyerUserId, MarketListing listing, int quantity) {
+        if (Objects.equals(listing.getSellerUserId(), buyerUserId)) {
             throw new BusinessException(INVALID_ARGUMENT, "buyer cannot purchase own listing: listingId=" + listing.getListingId());
         }
         if (quantity < listing.getMinPurchaseQuantity() || quantity > listing.getMaxPurchaseQuantity()) {
@@ -302,7 +330,7 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
         marketListingMapper.adjustStock(listing.getListingId(), listing.getSellerUserId(), 0, -quantity, nextStatus);
     }
 
-    private void reserveUnitsForOrder(long orderId, List<MarketInventoryUnit> units) {
+    private void reserveUnitsForOrder(UUID orderId, List<MarketInventoryUnit> units) {
         for (MarketInventoryUnit unit : units) {
             int updated = marketInventoryUnitMapper.reserveForOrder(unit.getInventoryUnitId(), orderId);
             if (updated != 1) {
@@ -311,15 +339,15 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
         }
     }
 
-    private MarketAddress requireActiveAddress(Long addressId, int buyerUserId) {
-        if (addressId == null || addressId <= 0) {
-            throw new BusinessException(INVALID_ARGUMENT, "addressId must be positive for physical order");
+    private MarketAddress requireActiveAddress(UUID addressId, UUID buyerUserId) {
+        if (addressId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "addressId must not be null for physical order");
         }
         MarketAddress address = marketAddressMapper.selectById(addressId);
         if (address == null || !"ACTIVE".equals(address.getStatus())) {
             throw new BusinessException(NOT_FOUND, "market address not found: addressId=" + addressId);
         }
-        if (address.getUserId() != buyerUserId) {
+        if (!Objects.equals(address.getUserId(), buyerUserId)) {
             throw new BusinessException(INVALID_ARGUMENT, "address does not belong to buyer: addressId=" + addressId);
         }
         return address;
@@ -335,7 +363,7 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
         order.setPostalCodeSnapshot(address.getPostalCode());
     }
 
-    private MarketOrder reloadOrder(long orderId) {
+    private MarketOrder reloadOrder(UUID orderId) {
         MarketOrder order = marketOrderMapper.selectById(orderId);
         if (order == null) {
             throw new BusinessException(NOT_FOUND, "market order not found after write: orderId=" + orderId);
@@ -343,7 +371,7 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
         return order;
     }
 
-    private MarketOrder requireOrderForUpdate(long orderId) {
+    private MarketOrder requireOrderForUpdate(UUID orderId) {
         MarketOrder order = marketOrderMapper.selectByIdForUpdate(orderId);
         if (order == null) {
             throw new BusinessException(NOT_FOUND, "market order not found: orderId=" + orderId);
@@ -351,14 +379,14 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
         return order;
     }
 
-    private void requireSeller(MarketOrder order, int sellerUserId) {
-        if (order.getSellerUserId() != sellerUserId) {
+    private void requireSeller(MarketOrder order, UUID sellerUserId) {
+        if (!Objects.equals(order.getSellerUserId(), sellerUserId)) {
             throw new BusinessException(INVALID_ARGUMENT, "seller does not own order: orderId=" + order.getOrderId());
         }
     }
 
-    private void requireBuyer(MarketOrder order, int buyerUserId) {
-        if (order.getBuyerUserId() != buyerUserId) {
+    private void requireBuyer(MarketOrder order, UUID buyerUserId) {
+        if (!Objects.equals(order.getBuyerUserId(), buyerUserId)) {
             throw new BusinessException(INVALID_ARGUMENT, "buyer does not own order: orderId=" + order.getOrderId());
         }
     }

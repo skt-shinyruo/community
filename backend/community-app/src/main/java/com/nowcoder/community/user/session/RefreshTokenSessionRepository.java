@@ -1,5 +1,6 @@
 package com.nowcoder.community.user.session;
 
+import com.nowcoder.community.common.id.BinaryUuidCodec;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
@@ -7,6 +8,7 @@ import org.springframework.util.StringUtils;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * refresh token 存储仓库（SSOT=DB）。
@@ -22,8 +24,8 @@ public class RefreshTokenSessionRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public void store(String tokenHash, int userId, String familyId, Instant expiresAt) {
-        if (!StringUtils.hasText(tokenHash) || userId <= 0 || !StringUtils.hasText(familyId) || expiresAt == null) {
+    public void store(String tokenHash, UUID userId, String familyId, Instant expiresAt) {
+        if (!StringUtils.hasText(tokenHash) || userId == null || !StringUtils.hasText(familyId) || expiresAt == null) {
             return;
         }
         jdbcTemplate.update(
@@ -37,7 +39,7 @@ public class RefreshTokenSessionRepository {
                           revoked_at = null
                         """,
                 tokenHash.trim(),
-                userId,
+                BinaryUuidCodec.toBytes(userId),
                 familyId.trim(),
                 Timestamp.from(expiresAt)
         );
@@ -131,7 +133,7 @@ public class RefreshTokenSessionRepository {
             return null;
         }
         String tokenHash = rs.getString("token_hash");
-        int userId = rs.getInt("user_id");
+        UUID userId = BinaryUuidCodec.fromBytes(rs.getBytes("user_id"));
         String familyId = rs.getString("family_id");
         Timestamp expiresAt = rs.getTimestamp("expires_at");
         Timestamp revokedAt = rs.getTimestamp("revoked_at");
@@ -144,6 +146,6 @@ public class RefreshTokenSessionRepository {
         );
     }
 
-    public record RefreshTokenRecord(String tokenHash, int userId, String familyId, Instant expiresAt, Instant revokedAt) {
+    public record RefreshTokenRecord(String tokenHash, UUID userId, String familyId, Instant expiresAt, Instant revokedAt) {
     }
 }

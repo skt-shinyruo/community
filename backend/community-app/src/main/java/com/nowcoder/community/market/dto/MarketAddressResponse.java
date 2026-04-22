@@ -3,10 +3,11 @@ package com.nowcoder.community.market.dto;
 import com.nowcoder.community.market.entity.MarketAddress;
 
 import java.util.Date;
+import java.util.UUID;
 
 public record MarketAddressResponse(
-        long addressId,
-        int userId,
+        UUID addressId,
+        UUID userId,
         String receiverName,
         String receiverPhone,
         String province,

@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class WalletMarketActionService implements WalletMarketActionApi {
@@ -29,7 +30,7 @@ public class WalletMarketActionService implements WalletMarketActionApi {
 
     @Transactional
     @Override
-    public WalletMarketTxnView escrowOrder(String requestId, int buyerUserId, long amount, String bizId) {
+    public WalletMarketTxnView escrowOrder(String requestId, UUID buyerUserId, long amount, String bizId) {
         validateRequest(requestId, buyerUserId, amount, bizId);
         walletAccountService.requireUserWalletActive(buyerUserId);
         WalletTxnResult result = walletLedgerService.post(
@@ -45,7 +46,7 @@ public class WalletMarketActionService implements WalletMarketActionApi {
 
     @Transactional
     @Override
-    public WalletMarketTxnView releaseOrder(String requestId, int sellerUserId, long amount, String bizId) {
+    public WalletMarketTxnView releaseOrder(String requestId, UUID sellerUserId, long amount, String bizId) {
         validateRequest(requestId, sellerUserId, amount, bizId);
         walletAccountService.requireUserWalletActive(sellerUserId);
         WalletTxnResult result = walletLedgerService.post(
@@ -61,7 +62,7 @@ public class WalletMarketActionService implements WalletMarketActionApi {
 
     @Transactional
     @Override
-    public WalletMarketTxnView refundOrder(String requestId, int buyerUserId, long amount, String bizId) {
+    public WalletMarketTxnView refundOrder(String requestId, UUID buyerUserId, long amount, String bizId) {
         validateRequest(requestId, buyerUserId, amount, bizId);
         walletAccountService.requireUserWalletActive(buyerUserId);
         WalletTxnResult result = walletLedgerService.post(
@@ -75,12 +76,12 @@ public class WalletMarketActionService implements WalletMarketActionApi {
         return new WalletMarketTxnView(result.txnId(), WalletTxnType.ORDER_REFUND.name(), result.status(), amount, bizId);
     }
 
-    private void validateRequest(String requestId, int userId, long amount, String bizId) {
+    private void validateRequest(String requestId, UUID userId, long amount, String bizId) {
         if (!StringUtils.hasText(requestId)) {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "requestId must not be blank");
         }
-        if (userId <= 0) {
-            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "userId must be positive");
+        if (userId == null) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "userId must not be null");
         }
         if (amount <= 0) {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "amount must be positive");

@@ -7,6 +7,7 @@ import com.nowcoder.community.content.text.ContentTextCodec;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class CommentReadQueryService implements CommentReadQueryApi {
@@ -20,7 +21,7 @@ public class CommentReadQueryService implements CommentReadQueryApi {
     }
 
     @Override
-    public List<CommentView> comments(int postId, Integer page, Integer size) {
+    public List<CommentView> comments(UUID postId, Integer page, Integer size) {
         int p = page == null ? 0 : page;
         int s = size == null ? 10 : size;
         List<Comment> rows = commentService.listByPost(postId, p, s);
@@ -33,7 +34,7 @@ public class CommentReadQueryService implements CommentReadQueryApi {
     }
 
     @Override
-    public List<CommentView> replies(int postId, int commentId, Integer page, Integer size) {
+    public List<CommentView> replies(UUID postId, UUID commentId, Integer page, Integer size) {
         commentService.assertCommentBelongsToPost(postId, commentId);
         int p = page == null ? 0 : page;
         int s = size == null ? 10 : size;

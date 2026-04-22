@@ -4,20 +4,21 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
+import java.util.UUID;
+
 public class AdminFreezeWalletRequest {
 
     @NotNull
-    @Min(1)
-    private Integer userId;
+    private UUID userId;
 
     @NotBlank
     private String reason;
 
-    public Integer getUserId() {
+    public UUID getUserId() {
         return userId;
     }
 
-    public void setUserId(Integer userId) {
+    public void setUserId(UUID userId) {
         this.userId = userId;
     }
 

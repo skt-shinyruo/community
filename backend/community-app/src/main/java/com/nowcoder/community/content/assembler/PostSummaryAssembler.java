@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 @Component
 public class PostSummaryAssembler {
@@ -20,12 +21,12 @@ public class PostSummaryAssembler {
 
     public PostSummaryView assemble(DiscussPost post, Comment lastActivity, List<String> tags) {
         List<String> safeTags = tags == null ? List.of() : List.copyOf(tags);
-        Integer lastReplyUserId = null;
+        UUID lastReplyUserId = null;
         Date lastReplyTime = null;
         String lastReplyPreview = null;
         Date lastActivityTime = post == null ? null : post.getCreateTime();
 
-        if (lastActivity != null && lastActivity.getUserId() > 0 && lastActivity.getCreateTime() != null) {
+        if (lastActivity != null && lastActivity.getUserId() != null && lastActivity.getCreateTime() != null) {
             lastReplyUserId = lastActivity.getUserId();
             lastReplyTime = lastActivity.getCreateTime();
             lastReplyPreview = textCodec.decodeOnRead(lastActivity.getContent());

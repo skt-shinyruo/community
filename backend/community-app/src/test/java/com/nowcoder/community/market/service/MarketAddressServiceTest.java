@@ -12,6 +12,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(
@@ -42,6 +43,7 @@ class MarketAddressServiceTest {
 
     @Test
     void addressCrudShouldKeepOneDefaultAddressPerUser() {
+        var userId = uuid(9);
         CreateMarketAddressRequest first = new CreateMarketAddressRequest();
         first.setReceiverName("张三");
         first.setReceiverPhone("13800000000");
@@ -62,10 +64,10 @@ class MarketAddressServiceTest {
         second.setPostalCode("100080");
         second.setDefault(true);
 
-        marketAddressService.createAddress(9, first);
-        marketAddressService.createAddress(9, second);
+        marketAddressService.createAddress(userId, first);
+        marketAddressService.createAddress(userId, second);
 
-        assertThat(marketAddressService.listAddresses(9))
+        assertThat(marketAddressService.listAddresses(userId))
                 .filteredOn(MarketAddressResponse::isDefault)
                 .hasSize(1)
                 .first()

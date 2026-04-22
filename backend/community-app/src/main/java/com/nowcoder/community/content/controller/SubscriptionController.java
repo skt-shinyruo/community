@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api")
@@ -25,22 +26,22 @@ public class SubscriptionController {
     }
 
     @PutMapping("/categories/{categoryId}/subscribe")
-    public Result<Void> subscribeCategory(Authentication authentication, @PathVariable int categoryId) {
-        int userId = CurrentUser.requireUserId(authentication);
+    public Result<Void> subscribeCategory(Authentication authentication, @PathVariable UUID categoryId) {
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         subscriptionService.subscribeCategory(userId, categoryId);
         return Result.ok();
     }
 
     @DeleteMapping("/categories/{categoryId}/subscribe")
-    public Result<Void> unsubscribeCategory(Authentication authentication, @PathVariable int categoryId) {
-        int userId = CurrentUser.requireUserId(authentication);
+    public Result<Void> unsubscribeCategory(Authentication authentication, @PathVariable UUID categoryId) {
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         subscriptionService.unsubscribeCategory(userId, categoryId);
         return Result.ok();
     }
 
     @GetMapping("/subscriptions/categories")
-    public Result<List<Integer>> myCategories(Authentication authentication) {
-        int userId = CurrentUser.requireUserId(authentication);
+    public Result<List<UUID>> myCategories(Authentication authentication) {
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(subscriptionService.listSubscribedCategoryIds(userId));
     }
 }

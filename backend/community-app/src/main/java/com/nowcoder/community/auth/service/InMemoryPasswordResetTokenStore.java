@@ -6,6 +6,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
@@ -15,15 +16,15 @@ public class InMemoryPasswordResetTokenStore implements PasswordResetTokenStore 
     private final Map<String, Entry> store = new ConcurrentHashMap<>();
 
     @Override
-    public void store(String token, int userId, Duration ttl) {
-        if (!StringUtils.hasText(token) || userId <= 0 || ttl == null || ttl.isNegative() || ttl.isZero()) {
+    public void store(String token, UUID userId, Duration ttl) {
+        if (!StringUtils.hasText(token) || userId == null || ttl == null || ttl.isNegative() || ttl.isZero()) {
             return;
         }
         store.put(token.trim(), new Entry(userId, System.currentTimeMillis() + ttl.toMillis()));
     }
 
     @Override
-    public Integer consume(String token) {
+    public UUID consume(String token) {
         if (!StringUtils.hasText(token)) {
             return null;
         }
@@ -35,9 +36,9 @@ public class InMemoryPasswordResetTokenStore implements PasswordResetTokenStore 
         if (System.currentTimeMillis() > entry.expiresAtMs) {
             return null;
         }
-        return entry.userId > 0 ? entry.userId : null;
+        return entry.userId;
     }
 
-    private record Entry(int userId, long expiresAtMs) {
+    private record Entry(UUID userId, long expiresAtMs) {
     }
 }

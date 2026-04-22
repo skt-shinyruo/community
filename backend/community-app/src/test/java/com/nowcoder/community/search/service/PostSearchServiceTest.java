@@ -14,7 +14,9 @@ import org.springframework.beans.factory.support.StaticListableBeanFactory;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.eq;
@@ -32,20 +34,28 @@ class PostSearchServiceTest {
     void clearAndReindexShouldUpsertMappedPayloadsAndAdvanceCursorWhenNoTargetIndex() {
         PostSearchRepository repository = mock(PostSearchRepository.class);
         PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
+        UUID postId1 = uuid(101);
+        UUID postId2 = uuid(102);
+        UUID postId3 = uuid(150);
+        UUID userId1 = uuid(7);
+        UUID userId2 = uuid(8);
+        UUID userId3 = uuid(9);
+        UUID categoryId1 = uuid(3);
+        UUID categoryId3 = uuid(5);
 
-        when(postScanQueryApi.scanPosts(0, 2)).thenReturn(new PostScanView(
+        when(postScanQueryApi.scanPosts(null, 2)).thenReturn(new PostScanView(
                 List.of(
-                        projection(101, 7, 3, List.of("java"), "title-1", "content-1", 0, 0, Instant.parse("2026-03-28T00:00:00Z"), 1.5),
-                        projection(102, 8, null, List.of("spring", "boot"), "title-2", "content-2", 1, 1, null, 2.5)
+                        projection(postId1, userId1, categoryId1, List.of("java"), "title-1", "content-1", 0, 0, Instant.parse("2026-03-28T00:00:00Z"), 1.5),
+                        projection(postId2, userId2, null, List.of("spring", "boot"), "title-2", "content-2", 1, 1, null, 2.5)
                 ),
-                102,
+                postId2,
                 true
         ));
-        when(postScanQueryApi.scanPosts(102, 2)).thenReturn(new PostScanView(
+        when(postScanQueryApi.scanPosts(postId2, 2)).thenReturn(new PostScanView(
                 List.of(
-                        projection(150, 9, 5, List.of(), "title-3", "content-3", 2, 0, Instant.parse("2026-03-29T00:00:00Z"), null)
+                        projection(postId3, userId3, categoryId3, List.of(), "title-3", "content-3", 2, 0, Instant.parse("2026-03-29T00:00:00Z"), null)
                 ),
-                150,
+                postId3,
                 false
         ));
 
@@ -65,8 +75,8 @@ class PostSearchServiceTest {
         verifyNoMoreInteractions(repository);
 
         InOrder scanOrder = inOrder(postScanQueryApi);
-        scanOrder.verify(postScanQueryApi).scanPosts(0, 2);
-        scanOrder.verify(postScanQueryApi).scanPosts(102, 2);
+        scanOrder.verify(postScanQueryApi).scanPosts(null, 2);
+        scanOrder.verify(postScanQueryApi).scanPosts(postId2, 2);
         verifyNoMoreInteractions(postScanQueryApi);
 
         assertThat(total).isEqualTo(3);
@@ -84,9 +94,9 @@ class PostSearchServiceTest {
                         PostPayload::getScore
                 )
                 .containsExactly(
-                        tuple(101, 7, 3, List.of("java"), "title-1", "content-1", 0, 0, Instant.parse("2026-03-28T00:00:00Z"), 1.5),
-                        tuple(102, 8, null, List.of("spring", "boot"), "title-2", "content-2", 1, 1, null, 2.5),
-                        tuple(150, 9, 5, List.of(), "title-3", "content-3", 2, 0, Instant.parse("2026-03-29T00:00:00Z"), null)
+                        tuple(postId1, userId1, categoryId1, List.of("java"), "title-1", "content-1", 0, 0, Instant.parse("2026-03-28T00:00:00Z"), 1.5),
+                        tuple(postId2, userId2, null, List.of("spring", "boot"), "title-2", "content-2", 1, 1, null, 2.5),
+                        tuple(postId3, userId3, categoryId3, List.of(), "title-3", "content-3", 2, 0, Instant.parse("2026-03-29T00:00:00Z"), null)
                 );
     }
 
@@ -95,20 +105,26 @@ class PostSearchServiceTest {
         PostSearchRepository repository = mock(PostSearchRepository.class);
         PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         PostIndexManager indexManager = mock(PostIndexManager.class);
+        UUID postId1 = uuid(201);
+        UUID postId2 = uuid(205);
+        UUID userId1 = uuid(17);
+        UUID userId2 = uuid(18);
+        UUID categoryId1 = uuid(13);
+        UUID categoryId2 = uuid(14);
 
         when(indexManager.createNewIndex()).thenReturn("community_posts_v20260329000000");
-        when(postScanQueryApi.scanPosts(0, 2)).thenReturn(new PostScanView(
+        when(postScanQueryApi.scanPosts(null, 2)).thenReturn(new PostScanView(
                 List.of(
-                        projection(201, 17, 13, List.of("search"), "title-a", "content-a", 0, 0, Instant.parse("2026-03-27T00:00:00Z"), 8.0)
+                        projection(postId1, userId1, categoryId1, List.of("search"), "title-a", "content-a", 0, 0, Instant.parse("2026-03-27T00:00:00Z"), 8.0)
                 ),
-                201,
+                postId1,
                 true
         ));
-        when(postScanQueryApi.scanPosts(201, 2)).thenReturn(new PostScanView(
+        when(postScanQueryApi.scanPosts(postId1, 2)).thenReturn(new PostScanView(
                 List.of(
-                        projection(205, 18, 14, List.of("arch"), "title-b", "content-b", 1, 0, Instant.parse("2026-03-29T01:00:00Z"), 9.0)
+                        projection(postId2, userId2, categoryId2, List.of("arch"), "title-b", "content-b", 1, 0, Instant.parse("2026-03-29T01:00:00Z"), 9.0)
                 ),
-                205,
+                postId2,
                 false
         ));
 
@@ -134,8 +150,8 @@ class PostSearchServiceTest {
         verifyNoMoreInteractions(repository);
 
         InOrder scanOrder = inOrder(postScanQueryApi);
-        scanOrder.verify(postScanQueryApi).scanPosts(0, 2);
-        scanOrder.verify(postScanQueryApi).scanPosts(201, 2);
+        scanOrder.verify(postScanQueryApi).scanPosts(null, 2);
+        scanOrder.verify(postScanQueryApi).scanPosts(postId1, 2);
         verifyNoMoreInteractions(postScanQueryApi);
 
         assertThat(total).isEqualTo(2);
@@ -153,8 +169,8 @@ class PostSearchServiceTest {
                         PostPayload::getScore
                 )
                 .containsExactly(
-                        tuple(201, 17, 13, List.of("search"), "title-a", "content-a", 0, 0, Instant.parse("2026-03-27T00:00:00Z"), 8.0),
-                        tuple(205, 18, 14, List.of("arch"), "title-b", "content-b", 1, 0, Instant.parse("2026-03-29T01:00:00Z"), 9.0)
+                        tuple(postId1, userId1, categoryId1, List.of("search"), "title-a", "content-a", 0, 0, Instant.parse("2026-03-27T00:00:00Z"), 8.0),
+                        tuple(postId2, userId2, categoryId2, List.of("arch"), "title-b", "content-b", 1, 0, Instant.parse("2026-03-29T01:00:00Z"), 9.0)
                 );
     }
 
@@ -173,9 +189,9 @@ class PostSearchServiceTest {
     }
 
     private static PostScanView.PostProjectionView projection(
-            int postId,
-            int userId,
-            Integer categoryId,
+            UUID postId,
+            UUID userId,
+            UUID categoryId,
             List<String> tags,
             String title,
             String content,

@@ -6,7 +6,7 @@
 <mapper namespace="com.nowcoder.community.user.mapper.UserMapper">
 
     <sql id="insertFields">
-        username, password, salt, email, type, status, header_url, create_time
+        id, username, password, salt, email, type, status, header_url, create_time
     </sql>
 
     <sql id="selectFields">
@@ -17,7 +17,7 @@
         select
         <include refid="selectFields"></include>
         from user
-        where id = #{id}
+        where id = #{id, jdbcType=BINARY}
     </select>
 
     <select id="selectByName" resultType="com.nowcoder.community.user.entity.User">
@@ -34,15 +34,15 @@
         where email = #{email}
     </select>
 
-    <insert id="insertUser" parameterType="com.nowcoder.community.user.entity.User" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+    <insert id="insertUser" parameterType="com.nowcoder.community.user.entity.User">
         insert into user (<include refid="insertFields"></include>)
-        values(#{username}, #{password}, #{salt}, #{email}, #{type}, #{status}, #{headerUrl},
+        values(#{id, jdbcType=BINARY}, #{username}, #{password}, #{salt}, #{email}, #{type}, #{status}, #{headerUrl},
         #{createTime})
     </insert>
 
     <delete id="deletePendingUserIfExpired">
         delete from user
-        where id = #{id}
+        where id = #{id, jdbcType=BINARY}
           and status = #{status}
           and create_time is not null
           and create_time &lt;= #{cutoff}
@@ -56,26 +56,26 @@
     </delete>
 
     <update id="updateStatus">
-        update user set status = #{status} where id = #{id}
+        update user set status = #{status} where id = #{id, jdbcType=BINARY}
     </update>
 
     <update id="updateHeader">
-        update user set header_url = #{headerUrl} where id = #{id}
+        update user set header_url = #{headerUrl} where id = #{id, jdbcType=BINARY}
     </update>
 
     <update id="updatePassword">
-        update user set password = #{password} where id = #{id}
+        update user set password = #{password} where id = #{id, jdbcType=BINARY}
     </update>
 
     <update id="updateType">
-        update user set type = #{type} where id = #{id}
+        update user set type = #{type} where id = #{id, jdbcType=BINARY}
     </update>
 
     <update id="updateModerationUntil">
         update user
         set mute_until = #{muteUntil},
             ban_until = #{banUntil}
-        where id = #{id}
+        where id = #{id, jdbcType=BINARY}
     </update>
 
     <update id="addScore">
@@ -84,7 +84,7 @@
             when score + #{delta} &lt; 0 then 0
             else score + #{delta}
         end
-        where id = #{id}
+        where id = #{id, jdbcType=BINARY}
     </update>
 
     <select id="selectTopByScore" resultType="com.nowcoder.community.user.entity.User">
@@ -98,7 +98,7 @@
     <select id="selectModerationUsersAfterId" resultType="com.nowcoder.community.user.entity.User">
         select id, mute_until, ban_until
         from user
-        where id &gt; #{afterId}
+        where id &gt; #{afterId, jdbcType=BINARY}
         order by id asc
         limit #{limit}
     </select>
@@ -108,7 +108,7 @@
         from user
         where id in
         <foreach collection="ids" item="id" open="(" separator="," close=")">
-            #{id}
+            #{id, jdbcType=BINARY}
         </foreach>
     </select>
 

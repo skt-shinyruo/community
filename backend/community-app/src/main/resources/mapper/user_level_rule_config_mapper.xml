@@ -5,10 +5,20 @@
 
 <mapper namespace="com.nowcoder.community.growth.mapper.UserLevelRuleConfigMapper">
 
-    <select id="selectCurrent" resultType="com.nowcoder.community.growth.entity.UserLevelRuleConfig">
+    <resultMap id="UserLevelRuleConfigResultMap" type="com.nowcoder.community.growth.entity.UserLevelRuleConfig">
+        <id property="id" column="id" jdbcType="BINARY" typeHandler="com.nowcoder.community.infra.persistence.mybatis.UuidBinaryTypeHandler"/>
+        <result property="windowDays" column="window_days"/>
+        <result property="lv2SignInDays" column="lv2_sign_in_days"/>
+        <result property="lv3SignInDays" column="lv3_sign_in_days"/>
+        <result property="enabled" column="enabled"/>
+        <result property="updatedBy" column="updated_by" jdbcType="BINARY" typeHandler="com.nowcoder.community.infra.persistence.mybatis.UuidBinaryTypeHandler"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <select id="selectCurrent" resultMap="UserLevelRuleConfigResultMap">
         select id, window_days, lv2_sign_in_days, lv3_sign_in_days, enabled, updated_by, update_time
         from user_level_rule_config
-        where id = 1
+        where config_key = 'DEFAULT'
         limit 1
     </select>
 
@@ -18,14 +28,15 @@
             lv2_sign_in_days = #{lv2SignInDays},
             lv3_sign_in_days = #{lv3SignInDays},
             enabled = #{enabled},
-            updated_by = #{updatedBy},
+            updated_by = #{updatedBy, jdbcType=BINARY, typeHandler=com.nowcoder.community.infra.persistence.mybatis.UuidBinaryTypeHandler},
             update_time = current_timestamp
-        where id = 1
+        where config_key = 'DEFAULT'
     </update>
 
     <insert id="insert">
         insert into user_level_rule_config(
             id,
+            config_key,
             window_days,
             lv2_sign_in_days,
             lv3_sign_in_days,
@@ -33,12 +44,13 @@
             updated_by,
             update_time
         ) values (
-            1,
+            #{id, jdbcType=BINARY, typeHandler=com.nowcoder.community.infra.persistence.mybatis.UuidBinaryTypeHandler},
+            'DEFAULT',
             #{windowDays},
             #{lv2SignInDays},
             #{lv3SignInDays},
             #{enabled},
-            #{updatedBy},
+            #{updatedBy, jdbcType=BINARY, typeHandler=com.nowcoder.community.infra.persistence.mybatis.UuidBinaryTypeHandler},
             current_timestamp
         )
     </insert>

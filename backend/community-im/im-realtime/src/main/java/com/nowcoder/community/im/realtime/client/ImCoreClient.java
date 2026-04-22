@@ -13,6 +13,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 
 @Component
 public class ImCoreClient {
@@ -24,26 +25,29 @@ public class ImCoreClient {
         this.webClient = webClient;
     }
 
-    public Flux<Long> listAllRoomIdsForUser(int userId, String bearerAccessToken, String traceId) {
-        return fetchRoomIdPage(userId, 0L, 1000, bearerAccessToken, traceId)
+    public Flux<UUID> listAllRoomIdsForUser(UUID userId, String bearerAccessToken, String traceId) {
+        return fetchRoomIdPage(userId, null, 1000, bearerAccessToken, traceId)
                 .expand(page -> {
-                    if (page == null || !page.hasMore || page.nextCursorExclusive <= 0) {
+                    if (page == null || !page.hasMore || page.nextCursorExclusive == null) {
                         return Mono.empty();
                     }
                     return fetchRoomIdPage(userId, page.nextCursorExclusive, 1000, bearerAccessToken, traceId);
                 })
-                .flatMapIterable(page -> page == null || page.roomIds == null ? List.<Long>of() : page.roomIds)
-                .filter(id -> id != null && id > 0)
-                .map(Long::longValue);
+                .flatMapIterable(page -> page == null || page.roomIds == null ? List.<UUID>of() : page.roomIds)
+                .filter(id -> id != null);
     }
 
-    private Mono<RoomIdPage> fetchRoomIdPage(int userId, long cursorExclusive, int limit, String bearerAccessToken, String traceId) {
+    private Mono<RoomIdPage> fetchRoomIdPage(UUID userId, UUID cursorExclusive, int limit, String bearerAccessToken, String traceId) {
         RequestHeadersSpec<?> request = webClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/internal/im/realtime/users/{userId}/rooms")
-                        .queryParam("cursor", cursorExclusive)
-                        .queryParam("limit", limit)
-                        .build(userId))
+                .uri(uriBuilder -> {
+                    var builder = uriBuilder
+                            .path("/internal/im/realtime/users/{userId}/rooms")
+                            .queryParam("limit", limit);
+                    if (cursorExclusive != null) {
+                        builder.queryParam("cursor", cursorExclusive);
+                    }
+                    return builder.build(userId);
+                })
                 .header("Authorization", "Bearer " + bearerAccessToken);
 
         applyTraceHeaders(request, traceId);
@@ -65,14 +69,14 @@ public class ImCoreClient {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class RoomIdPage {
-        public List<Long> roomIds;
-        public long nextCursorExclusive;
+        public List<UUID> roomIds;
+        public UUID nextCursorExclusive;
         public boolean hasMore;
 
         public RoomIdPage() {
         }
 
-        public RoomIdPage(List<Long> roomIds, long nextCursorExclusive, boolean hasMore) {
+        public RoomIdPage(List<UUID> roomIds, UUID nextCursorExclusive, boolean hasMore) {
             this.roomIds = roomIds;
             this.nextCursorExclusive = nextCursorExclusive;
             this.hasMore = hasMore;

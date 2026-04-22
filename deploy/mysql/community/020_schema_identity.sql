@@ -8,7 +8,7 @@
 use community;
 
 create table if not exists user (
-  id int auto_increment primary key,
+  id binary(16) primary key,
   username varchar(255) not null,
   password varchar(255),
   salt varchar(255),
@@ -28,7 +28,7 @@ create table if not exists user (
 -- 注意：只存 token_hash（SHA-256 hex），避免明文凭据落库
 create table if not exists auth_refresh_token (
   token_hash char(64) primary key,
-  user_id int not null,
+  user_id binary(16) not null,
   family_id varchar(64) not null,
   expires_at timestamp not null,
   revoked_at timestamp null default null,
@@ -100,7 +100,7 @@ deallocate prepare stmt;
 
 -- 用户处罚类事件幂等（历史遗留）：以 event_id 唯一约束为准（insert-first）。
 create table if not exists user_consumed_event (
-  id bigint auto_increment primary key,
+  id binary(16) primary key,
   event_id varchar(64) not null,
   consumed_at timestamp not null default current_timestamp,
   unique key uk_user_consumed_event_id (event_id),

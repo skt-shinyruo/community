@@ -11,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Constructor;
 import java.time.Instant;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -21,6 +22,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class DbRefreshTokenStoreTest {
+
+    private static final UUID USER_ID = UUID.fromString("00000000-0000-7000-8000-000000000007");
 
     @Mock
     private UserRefreshTokenSessionActionApi refreshTokenSessionActionApi;
@@ -62,7 +65,7 @@ class DbRefreshTokenStoreTest {
         lenient().when(refreshTokenSessionQueryApi.find(anyString())).thenReturn(
                 new RefreshTokenSessionView(
                         "hash",
-                        7,
+                        USER_ID,
                         "family-1",
                         now.plusSeconds(300),
                         now.minusSeconds(60)
@@ -85,7 +88,7 @@ class DbRefreshTokenStoreTest {
         lenient().when(refreshTokenSessionQueryApi.find(anyString())).thenReturn(
                 new RefreshTokenSessionView(
                         "hash",
-                        7,
+                        USER_ID,
                         "family-1",
                         now.plusSeconds(300),
                         now.minusSeconds(3)
@@ -108,7 +111,7 @@ class DbRefreshTokenStoreTest {
         lenient().when(refreshTokenSessionQueryApi.find(anyString())).thenReturn(
                 new RefreshTokenSessionView(
                         "hash",
-                        7,
+                        USER_ID,
                         "family-1",
                         now.plusSeconds(300),
                         now.minusSeconds(3)
@@ -131,7 +134,7 @@ class DbRefreshTokenStoreTest {
         lenient().when(refreshTokenSessionQueryApi.find(anyString())).thenReturn(
                 new RefreshTokenSessionView(
                         "hash",
-                        7,
+                        USER_ID,
                         "family-1",
                         now.minusSeconds(1),
                         now.minusSeconds(60)

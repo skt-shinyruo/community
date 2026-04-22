@@ -1,32 +1,33 @@
 package com.nowcoder.community.user.dto;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class UserRecentCommentItemResponse {
 
-    private int id;
-    private int userId;
+    private UUID id;
+    private UUID userId;
     private int entityType;
-    private int entityId;
-    private int targetId;
-    private int postId;
+    private UUID entityId;
+    private UUID targetId;
+    private UUID postId;
     private String postTitle;
     private String content;
     private Date createTime;
 
-    public int getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
-    public int getUserId() {
+    public UUID getUserId() {
         return userId;
     }
 
-    public void setUserId(int userId) {
+    public void setUserId(UUID userId) {
         this.userId = userId;
     }
 
@@ -38,27 +39,27 @@ public class UserRecentCommentItemResponse {
         this.entityType = entityType;
     }
 
-    public int getEntityId() {
+    public UUID getEntityId() {
         return entityId;
     }
 
-    public void setEntityId(int entityId) {
+    public void setEntityId(UUID entityId) {
         this.entityId = entityId;
     }
 
-    public int getTargetId() {
+    public UUID getTargetId() {
         return targetId;
     }
 
-    public void setTargetId(int targetId) {
+    public void setTargetId(UUID targetId) {
         this.targetId = targetId;
     }
 
-    public int getPostId() {
+    public UUID getPostId() {
         return postId;
     }
 
-    public void setPostId(int postId) {
+    public void setPostId(UUID postId) {
         this.postId = postId;
     }
 

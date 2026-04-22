@@ -1,22 +1,23 @@
 package com.nowcoder.community.growth.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class UserLevelRuleConfig {
 
-    private long id;
+    private UUID id;
     private int windowDays;
     private int lv2SignInDays;
     private int lv3SignInDays;
     private boolean enabled;
-    private Integer updatedBy;
+    private UUID updatedBy;
     private Date updateTime;
 
-    public long getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(long id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
@@ -52,11 +53,11 @@ public class UserLevelRuleConfig {
         this.enabled = enabled;
     }
 
-    public Integer getUpdatedBy() {
+    public UUID getUpdatedBy() {
         return updatedBy;
     }
 
-    public void setUpdatedBy(Integer updatedBy) {
+    public void setUpdatedBy(UUID updatedBy) {
         this.updatedBy = updatedBy;
     }
 

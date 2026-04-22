@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import { bufferToUuid } from '../src/db/uuidv7.mjs'
 import { generateCommunityPhaseDataset } from '../src/generator/contentGenerator.mjs'
 import { createCommunityWriter } from '../src/writers/communityWriter.mjs'
 import { createDeleteBatchService } from '../src/writers/deleteBatchService.mjs'
@@ -8,6 +9,14 @@ import { createImWriter } from '../src/writers/imWriter.mjs'
 
 function normalizeSql(sql) {
   return sql.replace(/;+$/u, '').trim().replace(/\s+/gu, ' ').toLowerCase()
+}
+
+function metadataId(sequence) {
+  return `01965429-b34a-7000-8000-${String(sequence).padStart(12, '0')}`
+}
+
+function normalizeDbId(value) {
+  return bufferToUuid(value)
 }
 
 class FakeCommunityDb {
@@ -1572,25 +1581,27 @@ class FakeDeleteDb {
 
     if (normalized.startsWith('delete from demo_entity_ref where batch_id = ?')) {
       const before = this.state.demoEntityRef.length
-      this.state.demoEntityRef = this.state.demoEntityRef.filter((row) => row.batch_id !== params[0])
+      this.state.demoEntityRef = this.state.demoEntityRef.filter((row) => row.batch_id !== normalizeDbId(params[0]))
       return { affectedRows: before - this.state.demoEntityRef.length }
     }
 
     if (normalized.startsWith('delete from demo_batch_target where batch_id = ?')) {
       const before = this.state.demoBatchTarget.length
-      this.state.demoBatchTarget = this.state.demoBatchTarget.filter((row) => row.batch_id !== params[0])
+      this.state.demoBatchTarget = this.state.demoBatchTarget.filter(
+        (row) => row.batch_id !== normalizeDbId(params[0])
+      )
       return { affectedRows: before - this.state.demoBatchTarget.length }
     }
 
     if (normalized.startsWith('delete from demo_job where batch_id = ?')) {
       const before = this.state.demoJob.length
-      this.state.demoJob = this.state.demoJob.filter((row) => row.batch_id !== params[0])
+      this.state.demoJob = this.state.demoJob.filter((row) => row.batch_id !== normalizeDbId(params[0]))
       return { affectedRows: before - this.state.demoJob.length }
     }
 
     if (normalized.startsWith('delete from demo_batch where id = ?')) {
       const before = this.state.demoBatch.length
-      this.state.demoBatch = this.state.demoBatch.filter((row) => row.id !== params[0])
+      this.state.demoBatch = this.state.demoBatch.filter((row) => row.id !== normalizeDbId(params[0]))
       return { affectedRows: before - this.state.demoBatch.length }
     }
 
@@ -1634,7 +1645,7 @@ class FakeDeleteDb {
 }
 
 function createDeleteServiceHarness() {
-  const batchId = 42
+  const batchId = metadataId(42)
   const db = new FakeDeleteDb({
     users: [{ id: 1001 }],
     posts: [{ id: 2001, user_id: 1001, comment_count: 2 }],
@@ -1645,15 +1656,15 @@ function createDeleteServiceHarness() {
     follows: [{ user_id: 1001, entity_type: 3, entity_id: 1001 }],
     likes: [{ user_id: 1001, entity_type: 1, entity_id: 2001 }],
     demoBatch: [{ id: batchId }],
-    demoJob: [{ id: 501, batch_id: batchId, status: 'succeeded' }],
-    demoBatchTarget: [{ id: 601, batch_id: batchId }],
+    demoJob: [{ id: metadataId(501), batch_id: batchId, status: 'succeeded' }],
+    demoBatchTarget: [{ id: metadataId(601), batch_id: batchId }],
     demoEntityRef: [
-      { id: 701, batch_id: batchId, entity_type: 'users', entity_key: '1001' },
-      { id: 702, batch_id: batchId, entity_type: 'posts', entity_key: '2001' },
-      { id: 703, batch_id: batchId, entity_type: 'comments', entity_key: '3001' },
-      { id: 704, batch_id: batchId, entity_type: 'comments', entity_key: '3002' },
-      { id: 705, batch_id: batchId, entity_type: 'social_follows', entity_key: '1001:3:1001' },
-      { id: 706, batch_id: batchId, entity_type: 'social_likes', entity_key: '1001:1:2001' }
+      { id: metadataId(701), batch_id: batchId, entity_type: 'users', entity_key: '1001' },
+      { id: metadataId(702), batch_id: batchId, entity_type: 'posts', entity_key: '2001' },
+      { id: metadataId(703), batch_id: batchId, entity_type: 'comments', entity_key: '3001' },
+      { id: metadataId(704), batch_id: batchId, entity_type: 'comments', entity_key: '3002' },
+      { id: metadataId(705), batch_id: batchId, entity_type: 'social_follows', entity_key: '1001:3:1001' },
+      { id: metadataId(706), batch_id: batchId, entity_type: 'social_likes', entity_key: '1001:1:2001' }
     ]
   })
 
@@ -1693,7 +1704,7 @@ function createDeleteServiceHarness() {
 }
 
 function createSurvivingPostDeleteHarness({ jobStatus = 'succeeded' } = {}) {
-  const batchId = 77
+  const batchId = metadataId(77)
   const db = new FakeDeleteDb({
     users: [{ id: 9001 }],
     posts: [{ id: 500, user_id: 7, comment_count: 4 }],
@@ -1704,11 +1715,11 @@ function createSurvivingPostDeleteHarness({ jobStatus = 'succeeded' } = {}) {
       { id: 413, entity_type: 2, entity_id: 412, user_id: 3, status: 0 }
     ],
     demoBatch: [{ id: batchId }],
-    demoJob: [{ id: 801, batch_id: batchId, status: jobStatus }],
-    demoBatchTarget: [{ id: 901, batch_id: batchId }],
+    demoJob: [{ id: metadataId(801), batch_id: batchId, status: jobStatus }],
+    demoBatchTarget: [{ id: metadataId(901), batch_id: batchId }],
     demoEntityRef: [
-      { id: 1001, batch_id: batchId, entity_type: 'comments', entity_key: '410' },
-      { id: 1002, batch_id: batchId, entity_type: 'comments', entity_key: '411' }
+      { id: metadataId(1001), batch_id: batchId, entity_type: 'comments', entity_key: '410' },
+      { id: metadataId(1002), batch_id: batchId, entity_type: 'comments', entity_key: '411' }
     ]
   })
 
@@ -1744,7 +1755,7 @@ function createSurvivingPostDeleteHarness({ jobStatus = 'succeeded' } = {}) {
 }
 
 function createPhase2DeleteHarness() {
-  const batchId = 99
+  const batchId = metadataId(99)
   const db = new FakeDeleteDb({
     messages: [
       { id: 11, from_id: 2, to_id: 3, conversation_id: '2_3', status: 0 },
@@ -1771,27 +1782,27 @@ function createPhase2DeleteHarness() {
     imConversations: [{ conversation_id: '2_4', user_a: 2, user_b: 4, last_seq: 1 }],
     imPrivateMessages: [{ conversation_id: '2_4', seq: 1, message_id: 20001 }],
     demoBatch: [{ id: batchId }],
-    demoJob: [{ id: 1501, batch_id: batchId, status: 'succeeded' }],
-    demoBatchTarget: [{ id: 1601, batch_id: batchId }],
+    demoJob: [{ id: metadataId(1501), batch_id: batchId, status: 'succeeded' }],
+    demoBatchTarget: [{ id: metadataId(1601), batch_id: batchId }],
     demoEntityRef: [
-      { id: 1701, batch_id: batchId, entity_type: 'messages', entity_key: '11' },
-      { id: 1702, batch_id: batchId, entity_type: 'notices', entity_key: '12' },
-      { id: 1703, batch_id: batchId, entity_type: 'reports', entity_key: '21' },
-      { id: 1704, batch_id: batchId, entity_type: 'moderation_actions', entity_key: '31' },
-      { id: 1705, batch_id: batchId, entity_type: 'growth_check_ins', entity_key: '41' },
-      { id: 1706, batch_id: batchId, entity_type: 'user_task_progress', entity_key: '51' },
-      { id: 1707, batch_id: batchId, entity_type: 'reward_accounts', entity_key: '2' },
-      { id: 1708, batch_id: batchId, entity_type: 'reward_ledgers', entity_key: '61' },
-      { id: 1709, batch_id: batchId, entity_type: 'reward_grant_records', entity_key: '71' },
-      { id: 1710, batch_id: batchId, entity_type: 'reward_items', entity_key: '81' },
-      { id: 1711, batch_id: batchId, entity_type: 'reward_orders', entity_key: '91' },
-      { id: 1712, batch_id: batchId, entity_type: 'im_private_messages', entity_key: '2_4:1' },
-      { id: 1713, batch_id: batchId, entity_type: 'im_conversations', entity_key: '2_4' },
-      { id: 1714, batch_id: batchId, entity_type: 'im_room_messages', entity_key: '101:1' },
-      { id: 1715, batch_id: batchId, entity_type: 'im_room_messages', entity_key: '101:2' },
-      { id: 1716, batch_id: batchId, entity_type: 'im_room_members', entity_key: '101:2' },
-      { id: 1717, batch_id: batchId, entity_type: 'im_room_members', entity_key: '101:3' },
-      { id: 1718, batch_id: batchId, entity_type: 'im_rooms', entity_key: '101' }
+      { id: metadataId(1701), batch_id: batchId, entity_type: 'messages', entity_key: '11' },
+      { id: metadataId(1702), batch_id: batchId, entity_type: 'notices', entity_key: '12' },
+      { id: metadataId(1703), batch_id: batchId, entity_type: 'reports', entity_key: '21' },
+      { id: metadataId(1704), batch_id: batchId, entity_type: 'moderation_actions', entity_key: '31' },
+      { id: metadataId(1705), batch_id: batchId, entity_type: 'growth_check_ins', entity_key: '41' },
+      { id: metadataId(1706), batch_id: batchId, entity_type: 'user_task_progress', entity_key: '51' },
+      { id: metadataId(1707), batch_id: batchId, entity_type: 'reward_accounts', entity_key: '2' },
+      { id: metadataId(1708), batch_id: batchId, entity_type: 'reward_ledgers', entity_key: '61' },
+      { id: metadataId(1709), batch_id: batchId, entity_type: 'reward_grant_records', entity_key: '71' },
+      { id: metadataId(1710), batch_id: batchId, entity_type: 'reward_items', entity_key: '81' },
+      { id: metadataId(1711), batch_id: batchId, entity_type: 'reward_orders', entity_key: '91' },
+      { id: metadataId(1712), batch_id: batchId, entity_type: 'im_private_messages', entity_key: '2_4:1' },
+      { id: metadataId(1713), batch_id: batchId, entity_type: 'im_conversations', entity_key: '2_4' },
+      { id: metadataId(1714), batch_id: batchId, entity_type: 'im_room_messages', entity_key: '101:1' },
+      { id: metadataId(1715), batch_id: batchId, entity_type: 'im_room_messages', entity_key: '101:2' },
+      { id: metadataId(1716), batch_id: batchId, entity_type: 'im_room_members', entity_key: '101:2' },
+      { id: metadataId(1717), batch_id: batchId, entity_type: 'im_room_members', entity_key: '101:3' },
+      { id: metadataId(1718), batch_id: batchId, entity_type: 'im_rooms', entity_key: '101' }
     ]
   })
 

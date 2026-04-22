@@ -8,21 +8,22 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.UUID;
 
 @Repository
 @ConditionalOnProperty(name = "social.storage", havingValue = "memory")
 public class InMemoryBlockRepository implements BlockRepository {
 
-    private final ConcurrentHashMap<Integer, Set<Integer>> blocks = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, Set<UUID>> blocks = new ConcurrentHashMap<>();
 
     @Override
-    public boolean block(int userId, int targetUserId) {
+    public boolean block(UUID userId, UUID targetUserId) {
         return blocks.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet()).add(targetUserId);
     }
 
     @Override
-    public boolean unblock(int userId, int targetUserId) {
-        Set<Integer> set = blocks.get(userId);
+    public boolean unblock(UUID userId, UUID targetUserId) {
+        Set<UUID> set = blocks.get(userId);
         if (set == null) {
             return false;
         }
@@ -30,18 +31,17 @@ public class InMemoryBlockRepository implements BlockRepository {
     }
 
     @Override
-    public boolean hasBlocked(int userId, int targetUserId) {
-        Set<Integer> set = blocks.get(userId);
+    public boolean hasBlocked(UUID userId, UUID targetUserId) {
+        Set<UUID> set = blocks.get(userId);
         return set != null && set.contains(targetUserId);
     }
 
     @Override
-    public List<Integer> listBlockedUserIds(int userId) {
-        Set<Integer> set = blocks.get(userId);
+    public List<UUID> listBlockedUserIds(UUID userId) {
+        Set<UUID> set = blocks.get(userId);
         if (set == null || set.isEmpty()) {
             return List.of();
         }
         return new ArrayList<>(set);
     }
 }
-

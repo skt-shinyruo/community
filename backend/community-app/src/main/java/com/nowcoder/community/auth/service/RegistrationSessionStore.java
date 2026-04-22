@@ -1,6 +1,7 @@
 package com.nowcoder.community.auth.service;
 
 import java.time.Duration;
+import java.util.UUID;
 
 /**
  * Server-side mapping from opaque registrationToken -> userId for pending registrations.
@@ -16,18 +17,17 @@ public interface RegistrationSessionStore {
      * @param ttl   TTL for the pending registration context
      * @return opaque registration token, or {@code null} if it cannot be issued
      */
-    String issue(int userId, Duration ttl);
+    String issue(UUID userId, Duration ttl);
 
     /**
      * Resolve the token back to userId.
      *
      * @return userId, or {@code null} if missing/expired/invalid
      */
-    Integer findUserId(String registrationToken);
+    UUID findUserId(String registrationToken);
 
     /**
      * Best-effort delete the mapping.
      */
     void delete(String registrationToken);
 }
-

@@ -2,6 +2,8 @@ package com.nowcoder.community.im.core.repository;
 
 import org.springframework.stereotype.Component;
 
+import java.util.UUID;
+
 /**
  * Allocates per-room / per-conversation monotonic seq.
  *
@@ -18,7 +20,7 @@ public class SeqAllocator {
         this.conversationRepository = conversationRepository;
     }
 
-    public long nextRoomSeq(long roomId) {
+    public long nextRoomSeq(UUID roomId) {
         long current = roomRepository.selectLastSeqForUpdate(roomId);
         long next = current + 1;
         roomRepository.updateLastSeq(roomId, next);
@@ -32,4 +34,3 @@ public class SeqAllocator {
         return next;
     }
 }
-

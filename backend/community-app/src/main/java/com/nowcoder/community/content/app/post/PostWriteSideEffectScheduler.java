@@ -6,6 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 @Service
 public class PostWriteSideEffectScheduler {
 
@@ -17,8 +19,8 @@ public class PostWriteSideEffectScheduler {
         this.postScoreQueue = postScoreQueue;
     }
 
-    public void schedulePostScoreRefresh(int postId) {
-        if (postId <= 0) {
+    public void schedulePostScoreRefresh(UUID postId) {
+        if (postId == null) {
             return;
         }
         AfterCommitExecutor.runAfterCommit(() -> {

@@ -5,6 +5,8 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import com.nowcoder.community.common.constants.ValidationLimits;
 
+import java.util.UUID;
+
 public class CreateCommentRequest {
 
     @NotBlank
@@ -21,13 +23,12 @@ public class CreateCommentRequest {
     /**
      * 当 entityType=2 时，entityId 为被回复的 commentId。
      */
-    @Min(1)
-    private Integer entityId;
+    private UUID entityId;
 
     /**
      * 目标用户（可选）。当回复评论时可指定；不传则自动使用被回复评论的作者。
      */
-    private Integer targetId;
+    private UUID targetId;
 
     public String getContent() {
         return content;
@@ -45,19 +46,19 @@ public class CreateCommentRequest {
         this.entityType = entityType;
     }
 
-    public Integer getEntityId() {
+    public UUID getEntityId() {
         return entityId;
     }
 
-    public void setEntityId(Integer entityId) {
+    public void setEntityId(UUID entityId) {
         this.entityId = entityId;
     }
 
-    public Integer getTargetId() {
+    public UUID getTargetId() {
         return targetId;
     }
 
-    public void setTargetId(Integer targetId) {
+    public void setTargetId(UUID targetId) {
         this.targetId = targetId;
     }
 }

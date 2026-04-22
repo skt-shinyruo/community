@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class PostSearchService {
@@ -33,11 +34,11 @@ public class PostSearchService {
         this.postIndexManagerProvider = postIndexManagerProvider;
     }
 
-    public List<SearchPostItem> search(String keyword, Integer categoryId, String tag, Integer page, Integer size) {
+    public List<SearchPostItem> search(String keyword, UUID categoryId, String tag, Integer page, Integer size) {
         int p = page == null ? 0 : Math.max(0, page);
         int s = size == null ? 10 : Math.min(50, Math.max(1, size));
         String k = StringUtils.hasText(keyword) ? keyword.trim() : "";
-        Integer cid = categoryId != null && categoryId > 0 ? categoryId : null;
+        UUID cid = categoryId;
         String safeTag = StringUtils.hasText(tag) ? tag.trim() : "";
         if (safeTag.startsWith("#")) {
             safeTag = safeTag.substring(1).trim();
@@ -59,7 +60,7 @@ public class PostSearchService {
         }
 
         int total = 0;
-        int afterId = 0;
+        UUID afterId = null;
 
         while (true) {
             PostScanView page = postScanQueryApi.scanPosts(afterId, scanPageSize);
@@ -76,8 +77,8 @@ public class PostSearchService {
                 total++;
             }
 
-            int nextAfterId = page.nextAfterId();
-            if (nextAfterId <= afterId) {
+            UUID nextAfterId = page.nextAfterId();
+            if (nextAfterId == null || (afterId != null && nextAfterId.compareTo(afterId) <= 0)) {
                 // 防御：避免服务端 bug 导致 afterId 不推进而死循环
                 break;
             }

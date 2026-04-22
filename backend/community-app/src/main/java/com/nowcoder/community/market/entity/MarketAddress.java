@@ -1,11 +1,12 @@
 package com.nowcoder.community.market.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class MarketAddress {
 
-    private long addressId;
-    private int userId;
+    private UUID addressId;
+    private UUID userId;
     private String receiverName;
     private String receiverPhone;
     private String province;
@@ -18,19 +19,19 @@ public class MarketAddress {
     private Date createTime;
     private Date updateTime;
 
-    public long getAddressId() {
+    public UUID getAddressId() {
         return addressId;
     }
 
-    public void setAddressId(long addressId) {
+    public void setAddressId(UUID addressId) {
         this.addressId = addressId;
     }
 
-    public int getUserId() {
+    public UUID getUserId() {
         return userId;
     }
 
-    public void setUserId(int userId) {
+    public void setUserId(UUID userId) {
         this.userId = userId;
     }
 

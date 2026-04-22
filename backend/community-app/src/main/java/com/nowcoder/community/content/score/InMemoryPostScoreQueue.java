@@ -4,22 +4,22 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.Queue;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 @Component
 @ConditionalOnProperty(name = "content.storage", havingValue = "memory")
 public class InMemoryPostScoreQueue implements PostScoreQueue {
 
-    private final Queue<Integer> queue = new ConcurrentLinkedQueue<>();
+    private final Queue<UUID> queue = new ConcurrentLinkedQueue<>();
 
     @Override
-    public void add(int postId) {
+    public void add(UUID postId) {
         queue.add(postId);
     }
 
     @Override
-    public Integer pop() {
+    public UUID pop() {
         return queue.poll();
     }
 }
-

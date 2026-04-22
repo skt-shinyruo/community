@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @Service
 public class PrivateMessageService {
@@ -56,15 +57,15 @@ public class PrivateMessageService {
             throw new IllegalArgumentException("content too long (max=" + maxContentChars + ")");
         }
 
-        int fromUserId = cmd.fromUserId();
-        int toUserId = cmd.toUserId();
+        UUID fromUserId = cmd.fromUserId();
+        UUID toUserId = cmd.toUserId();
         String derivedConversationId = ConversationIdSupport.conversationId(fromUserId, toUserId);
         if (cmd.conversationId() == null || !derivedConversationId.equals(cmd.conversationId())) {
             throw new IllegalArgumentException("conversationId mismatch");
         }
 
-        int userA = Math.min(fromUserId, toUserId);
-        int userB = Math.max(fromUserId, toUserId);
+        UUID userA = fromUserId.compareTo(toUserId) <= 0 ? fromUserId : toUserId;
+        UUID userB = userA.equals(fromUserId) ? toUserId : fromUserId;
         conversationRepository.ensureExists(derivedConversationId, userA, userB);
 
         var existing = privateMessageRepository.findByIdempotency(derivedConversationId, fromUserId, cmd.clientMsgId());
@@ -83,7 +84,7 @@ public class PrivateMessageService {
         }
 
         long seq = seqAllocator.nextConversationSeq(derivedConversationId);
-        long messageId = idGenerator.nextId();
+        UUID messageId = idGenerator.nextId();
         Instant now = Instant.now();
 
         privateMessageRepository.insert(new PrivateMessageRepository.PrivateMessageRow(
@@ -112,4 +113,3 @@ public class PrivateMessageService {
         );
     }
 }
-

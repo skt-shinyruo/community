@@ -1,12 +1,13 @@
 package com.nowcoder.community.growth.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class RewardGrantRecord {
 
-    private long id;
+    private UUID id;
     private String grantId;
-    private int userId;
+    private UUID userId;
     private String grantType;
     private String sourceEventId;
     private String sourceEventType;
@@ -15,11 +16,11 @@ public class RewardGrantRecord {
     private String status;
     private Date createTime;
 
-    public long getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(long id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
@@ -31,11 +32,11 @@ public class RewardGrantRecord {
         this.grantId = grantId;
     }
 
-    public int getUserId() {
+    public UUID getUserId() {
         return userId;
     }
 
-    public void setUserId(int userId) {
+    public void setUserId(UUID userId) {
         this.userId = userId;
     }
 

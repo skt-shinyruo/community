@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -119,7 +120,7 @@ class AuthServiceLoginTest {
 
     @Test
     void loginShouldRecordFailureWhenUserIsDisabled(CapturedOutput output) {
-        UserCredentialView disabledUser = new UserCredentialView(7, "alice", 0, 0, "h1");
+        UserCredentialView disabledUser = new UserCredentialView(uuid(7), "alice", 0, 0, "h1");
         when(userCredentialQueryApi.authenticate("alice", "secret"))
                 .thenReturn(UserAuthenticationResultView.userDisabled(disabledUser));
 
@@ -142,13 +143,14 @@ class AuthServiceLoginTest {
 
     @Test
     void loginShouldResetRateLimitAfterSuccessfulAuthentication(CapturedOutput output) {
-        UserCredentialView user = new UserCredentialView(7, "alice", 1, 0, "h1");
+        UUID userId = uuid(7);
+        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, "h1");
         when(userCredentialQueryApi.authenticate("alice", "secret")).thenReturn(UserAuthenticationResultView.authenticated(user));
 
         ResponseCookie cookie = ResponseCookie.from("refresh_token", "rt").path("/api/auth").httpOnly(true).build();
         when(userCredentialQueryApi.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
-        when(jwtTokenService.createAccessToken(eq(7), eq("alice"), eq(List.of("ROLE_USER")))).thenReturn("access-token");
-        when(refreshTokenService.issue(7)).thenReturn(new RefreshTokenService.IssuedRefreshToken("rt", cookie));
+        when(jwtTokenService.createAccessToken(eq(userId), eq("alice"), eq(List.of("ROLE_USER")))).thenReturn("access-token");
+        when(refreshTokenService.issue(userId)).thenReturn(new RefreshTokenService.IssuedRefreshToken("rt", cookie));
 
         AuthService.LoginResult result = authService.login("alice", "secret", null, null, new MockHttpServletRequest());
 
@@ -160,7 +162,7 @@ class AuthServiceLoginTest {
                 .contains("community.category=security")
                 .contains("community.action=login")
                 .contains("community.outcome=success")
-                .contains("user.id=7")
+                .contains("user.id=" + userId)
                 .contains("username=alice")
                 .contains("source.ip=127.0.0.1")
                 .doesNotContain("secret")
@@ -213,11 +215,12 @@ class AuthServiceLoginTest {
 
     @Test
     void loginShouldNotLogSuccessWhenTokenIssuanceFails(CapturedOutput output) {
-        UserCredentialView user = new UserCredentialView(7, "alice", 1, 0, "h1");
+        UUID userId = uuid(7);
+        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, "h1");
         when(userCredentialQueryApi.authenticate("alice", "secret")).thenReturn(UserAuthenticationResultView.authenticated(user));
         when(userCredentialQueryApi.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
-        when(jwtTokenService.createAccessToken(eq(7), eq("alice"), eq(List.of("ROLE_USER")))).thenReturn("access-token");
-        when(refreshTokenService.issue(7)).thenThrow(new RuntimeException("issue failed"));
+        when(jwtTokenService.createAccessToken(eq(userId), eq("alice"), eq(List.of("ROLE_USER")))).thenReturn("access-token");
+        when(refreshTokenService.issue(userId)).thenThrow(new RuntimeException("issue failed"));
 
         Throwable thrown = catchThrowable(() -> authService.login("alice", "secret", null, null, new MockHttpServletRequest()));
 
@@ -288,5 +291,9 @@ class AuthServiceLoginTest {
         } catch (IOException ex) {
             return null;
         }
+    }
+
+    private static UUID uuid(long suffix) {
+        return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
     }
 }

@@ -35,6 +35,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -99,7 +100,7 @@ public class AuthController {
     public Result<MeResponse> me(Authentication authentication) {
         var jwt = CurrentUser.requireJwt(authentication);
         MeResponse me = new MeResponse();
-        me.setUserId(Integer.parseInt(jwt.getSubject()));
+        me.setUserId(UUID.fromString(jwt.getSubject()));
         me.setUsername(jwt.getClaimAsString("username"));
         List<String> authorities = jwt.getClaimAsStringList("authorities");
         me.setAuthorities(authorities == null ? List.of() : authorities);

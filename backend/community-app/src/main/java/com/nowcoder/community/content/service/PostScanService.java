@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class PostScanService implements PostScanQueryApi {
@@ -24,24 +25,23 @@ public class PostScanService implements PostScanQueryApi {
     }
 
     @Override
-    public PostScanView scanPosts(int afterId, int limit) {
-        int safeAfterId = Math.max(0, afterId);
+    public PostScanView scanPosts(UUID afterId, int limit) {
         int safeLimit = limit <= 0 ? 500 : Math.min(1000, Math.max(1, limit));
 
-        List<DiscussPost> posts = discussPostMapper.selectDiscussPostsAfterId(safeAfterId, safeLimit);
+        List<DiscussPost> posts = discussPostMapper.selectDiscussPostsAfterId(afterId, safeLimit);
         if (posts == null) {
             posts = List.of();
         }
 
-        List<Integer> postIds = posts.stream().map(DiscussPost::getId).toList();
-        Map<Integer, List<String>> tagsByPostId = tagService.getTagsByPostIds(postIds);
-        Map<Integer, List<String>> safeTagsByPostId = tagsByPostId == null ? Map.of() : tagsByPostId;
+        List<UUID> postIds = posts.stream().map(DiscussPost::getId).toList();
+        Map<UUID, List<String>> tagsByPostId = tagService.getTagsByPostIds(postIds);
+        Map<UUID, List<String>> safeTagsByPostId = tagsByPostId == null ? Map.of() : tagsByPostId;
 
         List<PostScanView.PostProjectionView> items = posts.stream()
                 .map(post -> toPostProjectionView(post, safeTagsByPostId.getOrDefault(post.getId(), List.of())))
                 .toList();
 
-        int nextAfterId = safeAfterId;
+        UUID nextAfterId = afterId;
         if (!posts.isEmpty()) {
             nextAfterId = posts.get(posts.size() - 1).getId();
         }
@@ -54,19 +54,18 @@ public class PostScanService implements PostScanQueryApi {
      * <p>Returns {@code null} when the post does not exist.</p>
      */
     @Override
-    public PostScanView.PostProjectionView getPostProjectionAllowDeleted(int postId) {
-        int pid = Math.max(0, postId);
-        if (pid <= 0) {
+    public PostScanView.PostProjectionView getPostProjectionAllowDeleted(UUID postId) {
+        if (postId == null) {
             return null;
         }
 
-        DiscussPost post = discussPostMapper.selectDiscussPostById(pid);
-        if (post == null || post.getId() <= 0) {
+        DiscussPost post = discussPostMapper.selectDiscussPostById(postId);
+        if (post == null || post.getId() == null) {
             return null;
         }
 
-        Map<Integer, List<String>> tagsByPostId = tagService.getTagsByPostIds(List.of(pid));
-        List<String> tags = tagsByPostId == null ? List.of() : tagsByPostId.getOrDefault(pid, List.of());
+        Map<UUID, List<String>> tagsByPostId = tagService.getTagsByPostIds(List.of(postId));
+        List<String> tags = tagsByPostId == null ? List.of() : tagsByPostId.getOrDefault(postId, List.of());
         return toPostProjectionView(post, tags);
     }
 

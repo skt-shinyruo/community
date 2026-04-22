@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Component
@@ -14,7 +15,7 @@ public class InMemoryRefreshTokenStore implements RefreshTokenStore {
     private final Map<String, StoredRefreshToken> tokens = new ConcurrentHashMap<>();
 
     @Override
-    public void store(String refreshToken, int userId, String familyId, Instant expiresAt) {
+    public void store(String refreshToken, UUID userId, String familyId, Instant expiresAt) {
         tokens.put(refreshToken, new StoredRefreshToken(refreshToken, userId, familyId, expiresAt));
     }
 

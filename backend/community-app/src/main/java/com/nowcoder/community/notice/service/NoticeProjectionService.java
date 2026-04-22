@@ -14,6 +14,7 @@ import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class NoticeProjectionService {
@@ -53,7 +54,7 @@ public class NoticeProjectionService {
     }
 
     public void project(NoticeProjectionCommand command) {
-        if (command == null || command.toUserId() <= 0) {
+        if (command == null || command.toUserId() == null) {
             return;
         }
         try {
@@ -68,8 +69,8 @@ public class NoticeProjectionService {
         }
     }
 
-    private NoticeProjectionCommand command(String eventId, String eventType, String topic, Integer toUserId, Object payload) {
-        if (toUserId == null || toUserId <= 0) {
+    private NoticeProjectionCommand command(String eventId, String eventType, String topic, UUID toUserId, Object payload) {
+        if (toUserId == null) {
             return null;
         }
         return new NoticeProjectionCommand(
@@ -82,7 +83,7 @@ public class NoticeProjectionService {
     }
 
     public record NoticeProjectionCommand(
-            int toUserId,
+            UUID toUserId,
             String topic,
             String sourceEventId,
             String sourceEventType,

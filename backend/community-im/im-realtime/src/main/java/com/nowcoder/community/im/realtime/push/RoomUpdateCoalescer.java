@@ -16,6 +16,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 @Component
@@ -44,7 +45,7 @@ public class RoomUpdateCoalescer implements DisposableBean {
                 .subscribe(tick -> flushOnceSafely());
     }
 
-    public void markRoomUpdated(WsConnection conn, long roomId, long lastSeq) {
+    public void markRoomUpdated(WsConnection conn, UUID roomId, long lastSeq) {
         if (conn == null) {
             return;
         }
@@ -77,7 +78,7 @@ public class RoomUpdateCoalescer implements DisposableBean {
             }
 
             conn.resetRoomFlushEnqueuedFlag();
-            Map<Long, Long> updates = conn.drainPendingRoomSeq();
+            Map<UUID, Long> updates = conn.drainPendingRoomSeq();
             if (updates.isEmpty()) {
                 continue;
             }
@@ -86,7 +87,7 @@ public class RoomUpdateCoalescer implements DisposableBean {
             for (var e : updates.entrySet()) {
                 items.add(new RoomUpdatedItem(e.getKey(), e.getValue()));
             }
-            items.sort(Comparator.comparingLong(RoomUpdatedItem::roomId));
+            items.sort(Comparator.comparing(RoomUpdatedItem::roomId));
 
             String json;
             try {
@@ -111,7 +112,6 @@ public class RoomUpdateCoalescer implements DisposableBean {
         }
     }
 
-    public record RoomUpdatedItem(long roomId, long lastSeq) {
+    public record RoomUpdatedItem(UUID roomId, long lastSeq) {
     }
 }
-

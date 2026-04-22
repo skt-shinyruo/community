@@ -11,16 +11,16 @@
         where request_id = #{requestId}
     </select>
 
-    <insert id="insert" parameterType="com.nowcoder.community.wallet.entity.WalletTxn" useGeneratedKeys="true" keyProperty="txnId" keyColumn="txn_id">
-        insert into wallet_txn(request_id, txn_type, biz_type, biz_id, status, amount, remark)
-        values(#{requestId}, #{txnType}, #{bizType}, #{bizId}, #{status}, #{amount}, #{remark})
+    <insert id="insert" parameterType="com.nowcoder.community.wallet.entity.WalletTxn">
+        insert into wallet_txn(txn_id, request_id, txn_type, biz_type, biz_id, status, amount, remark)
+        values(#{txnId, jdbcType=BINARY}, #{requestId}, #{txnType}, #{bizType}, #{bizId}, #{status}, #{amount}, #{remark})
     </insert>
 
     <update id="markSucceeded">
         update wallet_txn
         set status = 'SUCCEEDED',
             update_time = current_timestamp
-        where txn_id = #{txnId}
+        where txn_id = #{txnId, jdbcType=BINARY}
     </update>
 
 </mapper>

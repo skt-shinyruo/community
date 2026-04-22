@@ -11,9 +11,9 @@
         where request_id = #{requestId}
     </select>
 
-    <insert id="insert" parameterType="com.nowcoder.community.wallet.entity.WithdrawOrder" useGeneratedKeys="true" keyProperty="orderId" keyColumn="order_id">
-        insert into withdraw_order(request_id, user_id, amount, status, payee_account, failure_reason)
-        values(#{requestId}, #{userId}, #{amount}, #{status}, #{payeeAccount}, #{failureReason})
+    <insert id="insert" parameterType="com.nowcoder.community.wallet.entity.WithdrawOrder">
+        insert into withdraw_order(order_id, request_id, user_id, amount, status, payee_account, failure_reason)
+        values(#{orderId, jdbcType=BINARY}, #{requestId}, #{userId, jdbcType=BINARY}, #{amount}, #{status}, #{payeeAccount}, #{failureReason})
     </insert>
 
     <update id="updateStatus">

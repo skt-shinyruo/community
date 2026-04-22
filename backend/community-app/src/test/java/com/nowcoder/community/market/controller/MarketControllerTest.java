@@ -28,8 +28,10 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -78,9 +80,11 @@ class MarketControllerTest {
 
     @Test
     void publicListingApiShouldExposeUnifiedListingsWithoutAuthentication() throws Exception {
+        UUID listingId = UUID.fromString("00000000-0000-7000-8000-000000000011");
+        UUID sellerUserId = uuid(7);
         MarketListingResponse listing = new MarketListingResponse(
-                11L,
-                7,
+                listingId,
+                sellerUserId,
                 "VIRTUAL",
                 "Netflix 卡密",
                 "自动交付",
@@ -94,9 +98,9 @@ class MarketControllerTest {
                 "ACTIVE"
         );
         when(marketQueryService.listPublicListings()).thenReturn(List.of(listing));
-        when(marketQueryService.getListingDetail(11L)).thenReturn(new MarketListingDetailResponse(
-                11L,
-                7,
+        when(marketQueryService.getListingDetail(listingId)).thenReturn(new MarketListingDetailResponse(
+                listingId,
+                sellerUserId,
                 "VIRTUAL",
                 "Netflix 卡密",
                 "自动交付",
@@ -117,19 +121,30 @@ class MarketControllerTest {
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data[0].goodsType").value("VIRTUAL"));
 
-        mockMvc.perform(get("/api/market/listings/11"))
+        mockMvc.perform(get("/api/market/listings/" + listingId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data.listingId").value(11))
+                .andExpect(jsonPath("$.data.listingId").value(listingId.toString()))
                 .andExpect(jsonPath("$.data.goodsType").value("VIRTUAL"));
     }
 
     @Test
     void authenticatedApisShouldExposeSellerBuyerDetailAndAddresses() throws Exception {
         Date now = new Date();
+        UUID sellerListingId = UUID.fromString("00000000-0000-7000-8000-000000000021");
+        UUID buyingOrderId = UUID.fromString("00000000-0000-7000-8000-000000000031");
+        UUID buyingListingId = UUID.fromString("00000000-0000-7000-8000-000000000011");
+        UUID sellingOrderId = UUID.fromString("00000000-0000-7000-8000-000000000032");
+        UUID sellingListingId = UUID.fromString("00000000-0000-7000-8000-000000000012");
+        UUID addressId = UUID.fromString("00000000-0000-7000-8000-000000000041");
+        UUID buyingEscrowTxnId = UUID.fromString("00000000-0000-7000-8000-000000000701");
+        UUID sellingEscrowTxnId = UUID.fromString("00000000-0000-7000-8000-000000000702");
+        UUID sellerUserId = uuid(7);
+        UUID buyerUserId = uuid(9);
+        UUID anotherBuyerUserId = uuid(10);
         MarketListingResponse sellerListing = new MarketListingResponse(
-                21L,
-                7,
+                sellerListingId,
+                sellerUserId,
                 "PHYSICAL",
                 "二手键盘",
                 "九成新",
@@ -143,19 +158,19 @@ class MarketControllerTest {
                 "ACTIVE"
         );
         MarketOrderResponse buyingOrder = new MarketOrderResponse(
-                31L,
+                buyingOrderId,
                 "buying:req-1",
-                11L,
+                buyingListingId,
                 "VIRTUAL",
-                7,
-                9,
+                sellerUserId,
+                buyerUserId,
                 1,
                 1500L,
                 1500L,
                 "PRELOADED",
                 "Netflix 卡密",
                 "DELIVERED",
-                101L,
+                buyingEscrowTxnId,
                 null,
                 null,
                 now,
@@ -163,19 +178,19 @@ class MarketControllerTest {
                 now
         );
         MarketOrderResponse sellingOrder = new MarketOrderResponse(
-                32L,
+                sellingOrderId,
                 "selling:req-1",
-                12L,
+                sellingListingId,
                 "PHYSICAL",
-                7,
-                10,
+                sellerUserId,
+                anotherBuyerUserId,
                 1,
                 12_900L,
                 12_900L,
                 null,
                 "二手键盘",
                 "SHIPPED",
-                102L,
+                sellingEscrowTxnId,
                 null,
                 null,
                 now,
@@ -183,19 +198,19 @@ class MarketControllerTest {
                 now
         );
         MarketOrderDetailResponse detail = new MarketOrderDetailResponse(
-                31L,
+                buyingOrderId,
                 "buying:req-1",
-                11L,
+                buyingListingId,
                 "VIRTUAL",
-                7,
-                9,
+                sellerUserId,
+                buyerUserId,
                 1,
                 1500L,
                 1500L,
                 "PRELOADED",
                 "Netflix 卡密",
                 "DELIVERED",
-                101L,
+                buyingEscrowTxnId,
                 null,
                 null,
                 now,
@@ -212,8 +227,8 @@ class MarketControllerTest {
                 now
         );
         MarketAddressResponse address = new MarketAddressResponse(
-                41L,
-                9,
+                addressId,
+                buyerUserId,
                 "张三",
                 "13800000000",
                 "上海市",
@@ -226,49 +241,51 @@ class MarketControllerTest {
                 now,
                 now
         );
-        when(marketQueryService.listSellerListings(7)).thenReturn(List.of(sellerListing));
-        when(marketQueryService.listBuyingOrders(9)).thenReturn(List.of(buyingOrder));
-        when(marketQueryService.listSellingOrders(7)).thenReturn(List.of(sellingOrder));
-        when(marketQueryService.getOrderDetail(31L, 9)).thenReturn(detail);
-        when(marketAddressService.listAddresses(9)).thenReturn(List.of(address));
+        when(marketQueryService.listSellerListings(sellerUserId)).thenReturn(List.of(sellerListing));
+        when(marketQueryService.listBuyingOrders(buyerUserId)).thenReturn(List.of(buyingOrder));
+        when(marketQueryService.listSellingOrders(sellerUserId)).thenReturn(List.of(sellingOrder));
+        when(marketQueryService.getOrderDetail(buyingOrderId, buyerUserId)).thenReturn(detail);
+        when(marketAddressService.listAddresses(buyerUserId)).thenReturn(List.of(address));
 
         mockMvc.perform(get("/api/market/my-listings"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(401));
 
         mockMvc.perform(get("/api/market/my-listings")
-                        .with(jwt().jwt(jwt -> jwt.subject("7").claim("username", "seller7"))))
+                        .with(jwt().jwt(jwt -> jwt.subject(sellerUserId.toString()).claim("username", "seller7"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].goodsType").value("PHYSICAL"));
 
         mockMvc.perform(get("/api/market/orders/buying")
-                        .with(jwt().jwt(jwt -> jwt.subject("9").claim("username", "buyer9"))))
+                        .with(jwt().jwt(jwt -> jwt.subject(buyerUserId.toString()).claim("username", "buyer9"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].goodsType").value("VIRTUAL"));
 
         mockMvc.perform(get("/api/market/orders/selling")
-                        .with(jwt().jwt(jwt -> jwt.subject("7").claim("username", "seller7"))))
+                        .with(jwt().jwt(jwt -> jwt.subject(sellerUserId.toString()).claim("username", "seller7"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].goodsType").value("PHYSICAL"));
 
-        mockMvc.perform(get("/api/market/orders/31")
-                        .with(jwt().jwt(jwt -> jwt.subject("9").claim("username", "buyer9"))))
+        mockMvc.perform(get("/api/market/orders/" + buyingOrderId)
+                        .with(jwt().jwt(jwt -> jwt.subject(buyerUserId.toString()).claim("username", "buyer9"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.deliveryContents[0]").value("CODE-001"));
 
         mockMvc.perform(get("/api/market/addresses")
-                        .with(jwt().jwt(jwt -> jwt.subject("9").claim("username", "buyer9"))))
+                        .with(jwt().jwt(jwt -> jwt.subject(buyerUserId.toString()).claim("username", "buyer9"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].receiverName").value("张三"));
     }
 
     @Test
     void orderDetailApiShouldReturnForbiddenWhenActorCannotAccessOrder() throws Exception {
-        when(marketQueryService.getOrderDetail(31L, 8))
+        UUID orderId = UUID.fromString("00000000-0000-7000-8000-000000000031");
+        UUID actorUserId = uuid(8);
+        when(marketQueryService.getOrderDetail(orderId, actorUserId))
                 .thenThrow(new BusinessException(FORBIDDEN, "market order does not belong to actor: orderId=31"));
 
-        mockMvc.perform(get("/api/market/orders/31")
-                        .with(jwt().jwt(jwt -> jwt.subject("8").claim("username", "user8"))))
+        mockMvc.perform(get("/api/market/orders/" + orderId)
+                        .with(jwt().jwt(jwt -> jwt.subject(actorUserId.toString()).claim("username", "user8"))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
     }

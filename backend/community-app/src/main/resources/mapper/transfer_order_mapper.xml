@@ -11,9 +11,9 @@
         where request_id = #{requestId}
     </select>
 
-    <insert id="insert" parameterType="com.nowcoder.community.wallet.entity.TransferOrder" useGeneratedKeys="true" keyProperty="orderId" keyColumn="order_id">
-        insert into transfer_order(request_id, from_user_id, to_user_id, amount, status, remark)
-        values(#{requestId}, #{fromUserId}, #{toUserId}, #{amount}, #{status}, #{remark})
+    <insert id="insert" parameterType="com.nowcoder.community.wallet.entity.TransferOrder">
+        insert into transfer_order(order_id, request_id, from_user_id, to_user_id, amount, status, remark)
+        values(#{orderId, jdbcType=BINARY}, #{requestId}, #{fromUserId, jdbcType=BINARY}, #{toUserId, jdbcType=BINARY}, #{amount}, #{status}, #{remark})
     </insert>
 
 </mapper>

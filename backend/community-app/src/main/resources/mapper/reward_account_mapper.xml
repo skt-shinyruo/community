@@ -8,12 +8,12 @@
     <select id="selectByUserId" resultType="com.nowcoder.community.growth.entity.RewardAccount">
         select user_id, available_balance, frozen_balance, version, update_time
         from reward_account
-        where user_id = #{userId}
+        where user_id = #{userId, jdbcType=BINARY}
     </select>
 
     <insert id="insertAccount">
         insert into reward_account(user_id, available_balance, frozen_balance, version, update_time)
-        values(#{userId}, 0, 0, 0, current_timestamp)
+        values(#{userId, jdbcType=BINARY}, 0, 0, 0, current_timestamp)
     </insert>
 
     <update id="addAvailableBalance">
@@ -21,7 +21,7 @@
         set available_balance = available_balance + #{delta},
             version = version + 1,
             update_time = current_timestamp
-        where user_id = #{userId}
+        where user_id = #{userId, jdbcType=BINARY}
           and available_balance + #{delta} >= 0
     </update>
 
@@ -31,7 +31,7 @@
             frozen_balance = frozen_balance + #{amount},
             version = version + 1,
             update_time = current_timestamp
-        where user_id = #{userId}
+        where user_id = #{userId, jdbcType=BINARY}
           and available_balance >= #{amount}
     </update>
 
@@ -41,7 +41,7 @@
             frozen_balance = frozen_balance - #{amount},
             version = version + 1,
             update_time = current_timestamp
-        where user_id = #{userId}
+        where user_id = #{userId, jdbcType=BINARY}
           and frozen_balance >= #{amount}
     </update>
 
@@ -50,7 +50,7 @@
         set frozen_balance = frozen_balance - #{amount},
             version = version + 1,
             update_time = current_timestamp
-        where user_id = #{userId}
+        where user_id = #{userId, jdbcType=BINARY}
           and frozen_balance >= #{amount}
     </update>
 

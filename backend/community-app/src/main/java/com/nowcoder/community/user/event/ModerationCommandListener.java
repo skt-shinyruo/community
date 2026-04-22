@@ -24,8 +24,7 @@ public class ModerationCommandListener {
         if (event == null
                 || !ContentEventTypes.MODERATION_COMMAND_REQUESTED.equals(event.type())
                 || !(event.payload() instanceof ModerationCommandPayload payload)
-                || payload.getUserId() == null
-                || payload.getUserId() <= 0) {
+                || payload.getUserId() == null) {
             return;
         }
         String action = payload.getAction() == null ? "" : payload.getAction().trim();

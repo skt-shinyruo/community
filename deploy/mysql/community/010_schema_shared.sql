@@ -12,7 +12,7 @@ set names utf8mb4;
 
 -- Outbox (reliable event delivery) - shared SSOT.
 create table if not exists outbox_event (
-  id bigint auto_increment primary key,
+  id binary(16) primary key,
   event_id varchar(64) not null,
   topic varchar(255) not null,
   event_key varchar(255) not null,
@@ -54,9 +54,9 @@ deallocate prepare stmt;
 
 -- HTTP write idempotency（SSOT=DB）：same (operation, user_id, idem_key) executes side effects once.
 create table if not exists http_idempotency (
-  id bigint auto_increment primary key,
+  id binary(16) primary key,
   operation varchar(64) not null,
-  user_id int not null,
+  user_id binary(16) not null,
   idem_key varchar(128) not null,
   status varchar(16) not null,
   response_json mediumtext null,

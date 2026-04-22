@@ -1,5 +1,6 @@
 package com.nowcoder.community.market.service;
 
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.market.dto.AddMarketInventoryBatchRequest;
 import com.nowcoder.community.market.dto.CreateMarketListingRequest;
@@ -7,11 +8,14 @@ import com.nowcoder.community.market.dto.MarketListingResponse;
 import com.nowcoder.community.market.dto.UpdateMarketListingRequest;
 import com.nowcoder.community.market.entity.MarketListing;
 import com.nowcoder.community.market.mapper.MarketListingMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -33,21 +37,31 @@ public class MarketListingService {
 
     private final MarketListingMapper marketListingMapper;
     private final MarketInventoryService marketInventoryService;
+    private final UuidV7Generator idGenerator;
 
+    @Autowired
     public MarketListingService(MarketListingMapper marketListingMapper,
                                 MarketInventoryService marketInventoryService) {
+        this(marketListingMapper, marketInventoryService, new UuidV7Generator());
+    }
+
+    MarketListingService(MarketListingMapper marketListingMapper,
+                         MarketInventoryService marketInventoryService,
+                         UuidV7Generator idGenerator) {
         this.marketListingMapper = marketListingMapper;
         this.marketInventoryService = marketInventoryService;
+        this.idGenerator = idGenerator;
     }
 
     @Transactional
-    public MarketListingResponse createListing(int sellerUserId,
+    public MarketListingResponse createListing(UUID sellerUserId,
                                                CreateMarketListingRequest request,
                                                AddMarketInventoryBatchRequest inventoryRequest) {
         validateSellerUserId(sellerUserId);
         validateCreateRequest(request, inventoryRequest);
 
         MarketListing listing = new MarketListing();
+        listing.setListingId(idGenerator.next());
         listing.setSellerUserId(sellerUserId);
         listing.setGoodsType(request.getGoodsType().trim());
         listing.setTitle(request.getTitle().trim());
@@ -70,7 +84,7 @@ public class MarketListingService {
     }
 
     @Transactional
-    public MarketListingResponse updateListing(int sellerUserId, long listingId, UpdateMarketListingRequest request) {
+    public MarketListingResponse updateListing(UUID sellerUserId, UUID listingId, UpdateMarketListingRequest request) {
         validateSellerUserId(sellerUserId);
         validateUpdateRequest(request);
         MarketListing listing = requireOwnedListing(listingId, sellerUserId);
@@ -84,12 +98,12 @@ public class MarketListingService {
     }
 
     @Transactional
-    public MarketListingResponse pauseListing(int sellerUserId, long listingId) {
+    public MarketListingResponse pauseListing(UUID sellerUserId, UUID listingId) {
         return transitionStatus(sellerUserId, listingId, STATUS_PAUSED);
     }
 
     @Transactional
-    public MarketListingResponse resumeListing(int sellerUserId, long listingId) {
+    public MarketListingResponse resumeListing(UUID sellerUserId, UUID listingId) {
         MarketListing listing = requireOwnedListing(listingId, sellerUserId);
         String nextStatus = STOCK_MODE_FINITE.equals(listing.getStockMode()) && listing.getStockAvailable() <= 0
                 ? STATUS_SOLD_OUT
@@ -99,11 +113,11 @@ public class MarketListingService {
     }
 
     @Transactional
-    public MarketListingResponse closeListing(int sellerUserId, long listingId) {
+    public MarketListingResponse closeListing(UUID sellerUserId, UUID listingId) {
         return transitionStatus(sellerUserId, listingId, STATUS_CLOSED);
     }
 
-    private MarketListingResponse transitionStatus(int sellerUserId, long listingId, String nextStatus) {
+    private MarketListingResponse transitionStatus(UUID sellerUserId, UUID listingId, String nextStatus) {
         validateSellerUserId(sellerUserId);
         requireOwnedListing(listingId, sellerUserId);
         marketListingMapper.updateStatus(listingId, sellerUserId, nextStatus);
@@ -230,20 +244,20 @@ public class MarketListingService {
         return STATUS_ACTIVE;
     }
 
-    private MarketListing requireOwnedListing(long listingId, int sellerUserId) {
+    private MarketListing requireOwnedListing(UUID listingId, UUID sellerUserId) {
         MarketListing listing = marketListingMapper.selectById(listingId);
         if (listing == null) {
             throw new BusinessException(NOT_FOUND, "market listing not found: listingId=" + listingId);
         }
-        if (listing.getSellerUserId() != sellerUserId) {
+        if (!Objects.equals(listing.getSellerUserId(), sellerUserId)) {
             throw new BusinessException(FORBIDDEN, "market listing does not belong to seller: listingId=" + listingId);
         }
         return listing;
     }
 
-    private void validateSellerUserId(int sellerUserId) {
-        if (sellerUserId <= 0) {
-            throw new BusinessException(INVALID_ARGUMENT, "sellerUserId must be positive");
+    private void validateSellerUserId(UUID sellerUserId) {
+        if (sellerUserId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "sellerUserId must not be null");
         }
     }
 }

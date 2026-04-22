@@ -9,6 +9,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -28,8 +29,8 @@ class RoomMessageServiceTest {
 
     @Test
     void persist_isIdempotentByClientMsgId() {
-        int sender = 1;
-        long roomId = roomMembershipService.createRoom(sender, "room");
+        UUID sender = uuid(1);
+        UUID roomId = roomMembershipService.createRoom(sender, "room");
 
         SendRoomTextCommandV1 cmd = new SendRoomTextCommandV1(
                 "req-1",
@@ -50,5 +51,8 @@ class RoomMessageServiceTest {
                 roomMessageRepository.listAfterSeq(roomId, 0, 100);
         assertThat(rows).hasSize(1);
     }
-}
 
+    private static UUID uuid(long suffix) {
+        return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
+    }
+}

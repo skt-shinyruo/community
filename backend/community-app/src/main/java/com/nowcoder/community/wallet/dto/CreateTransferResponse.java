@@ -2,10 +2,12 @@ package com.nowcoder.community.wallet.dto;
 
 import com.nowcoder.community.wallet.entity.TransferOrder;
 
-public record CreateTransferResponse(long orderId,
+import java.util.UUID;
+
+public record CreateTransferResponse(UUID orderId,
                                      String requestId,
-                                     long fromUserId,
-                                     long toUserId,
+                                     UUID fromUserId,
+                                     UUID toUserId,
                                      long amount,
                                      String status) {
 

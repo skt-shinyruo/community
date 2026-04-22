@@ -60,7 +60,7 @@ public class PasswordResetService {
 
         String normalizedEmail = email.trim();
         UserCredentialView user = userCredentialQueryApi.findByEmailOrNull(normalizedEmail);
-        if (user == null || user.userId() <= 0 || user.status() == 0) {
+        if (user == null || user.userId() == null || user.status() == 0) {
             // 防用户枚举：邮箱不存在/未激活等情况也返回“已发送”（但不实际下发 token/邮件）
             SecurityEventLogger.info(log, "password_reset_request", "skipped",
                     "community.reason_code", "hidden_noop",
@@ -95,8 +95,8 @@ public class PasswordResetService {
             throw new BusinessException(AuthErrorCode.CAPTCHA_INVALID);
         }
 
-        Integer userId = tokenStore.consume(resetToken.trim());
-        if (userId == null || userId <= 0) {
+        UUID userId = tokenStore.consume(resetToken.trim());
+        if (userId == null) {
             SecurityEventLogger.info(log, "password_reset_confirm", "denied",
                     "community.reason_code", "invalid_token");
             throw new BusinessException(AuthErrorCode.PASSWORD_RESET_INVALID);

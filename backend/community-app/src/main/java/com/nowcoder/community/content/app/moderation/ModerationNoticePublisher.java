@@ -7,6 +7,7 @@ import com.nowcoder.community.content.contracts.event.ModerationPayload;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.UUID;
 
 @Component
 public class ModerationNoticePublisher {
@@ -22,9 +23,9 @@ public class ModerationNoticePublisher {
             ModerationAction action,
             ModerationTargetResolver.ResolvedTarget target,
             String kind,
-            int toUserId
+            UUID toUserId
     ) {
-        if (toUserId <= 0) {
+        if (toUserId == null) {
             return;
         }
         ModerationPayload payload = new ModerationPayload();

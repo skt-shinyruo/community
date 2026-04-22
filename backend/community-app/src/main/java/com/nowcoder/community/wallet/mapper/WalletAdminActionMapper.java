@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.UUID;
 
 @Repository
 @Mapper
@@ -15,6 +16,6 @@ public interface WalletAdminActionMapper {
 
     WalletAdminAction selectByRequestId(@Param("requestId") String requestId);
 
-    List<WalletAdminAction> selectRecentByTargetAccountId(@Param("targetAccountId") long targetAccountId,
+    List<WalletAdminAction> selectRecentByTargetAccountId(@Param("targetAccountId") UUID targetAccountId,
                                                           @Param("limit") int limit);
 }

@@ -1,6 +1,8 @@
 package com.nowcoder.community.im.governance.action;
 
+import java.util.UUID;
+
 public interface PrivateMessageGovernanceActionApi {
 
-    void validateCanSendPrivateMessage(int fromUserId, int toUserId);
+    void validateCanSendPrivateMessage(UUID fromUserId, UUID toUserId);
 }

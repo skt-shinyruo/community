@@ -20,6 +20,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.io.InputStream;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -50,7 +51,7 @@ public class R2AvatarStorageProvider implements AvatarStorageProvider {
     }
 
     @Override
-    public AvatarUploadTokenResponse createUploadToken(int userId, String fileName) {
+    public AvatarUploadTokenResponse createUploadToken(UUID userId, String fileName) {
         AvatarUploadTokenResponse resp = new AvatarUploadTokenResponse();
         resp.setProvider(provider());
         resp.setFileName(fileName);
@@ -60,8 +61,8 @@ public class R2AvatarStorageProvider implements AvatarStorageProvider {
     }
 
     @Override
-    public void upload(int userId, String fileName, MultipartFile file) {
-        if (userId <= 0) {
+    public void upload(UUID userId, String fileName, MultipartFile file) {
+        if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         if (file == null || file.isEmpty()) {

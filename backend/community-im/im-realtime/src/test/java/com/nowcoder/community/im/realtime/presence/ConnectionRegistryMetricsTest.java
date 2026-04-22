@@ -9,6 +9,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -18,11 +19,13 @@ class ConnectionRegistryMetricsTest {
     void shouldExposeGaugesAndSupportNoAllocationIteration() {
         SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
         ConnectionRegistry registry = new ConnectionRegistry(meterRegistry);
+        UUID userId1 = uuid(1);
+        UUID userId2 = uuid(2);
 
         WebSocketSession session1 = Mockito.mock(WebSocketSession.class);
         Mockito.when(session1.close()).thenReturn(Mono.empty());
         WsConnection c1 = new WsConnection("c1", session1, 10);
-        c1.bindUser(1);
+        c1.bindUser(userId1);
         registry.register(c1);
 
         assertThat(meterRegistry.get("im_ws_online_connections").gauge().value()).isEqualTo(1.0);
@@ -31,20 +34,20 @@ class ConnectionRegistryMetricsTest {
         WebSocketSession session2 = Mockito.mock(WebSocketSession.class);
         Mockito.when(session2.close()).thenReturn(Mono.empty());
         WsConnection c2 = new WsConnection("c2", session2, 10);
-        c2.bindUser(1);
+        c2.bindUser(userId1);
         registry.register(c2);
 
         WebSocketSession session3 = Mockito.mock(WebSocketSession.class);
         Mockito.when(session3.close()).thenReturn(Mono.empty());
         WsConnection c3 = new WsConnection("c3", session3, 10);
-        c3.bindUser(2);
+        c3.bindUser(userId2);
         registry.register(c3);
 
         assertThat(meterRegistry.get("im_ws_online_connections").gauge().value()).isEqualTo(3.0);
         assertThat(meterRegistry.get("im_ws_online_users").gauge().value()).isEqualTo(2.0);
 
         List<String> user1ConnectionIds = new ArrayList<>();
-        registry.forEachConnectionByUserId(1, conn -> user1ConnectionIds.add(conn.connectionId()));
+        registry.forEachConnectionByUserId(userId1, conn -> user1ConnectionIds.add(conn.connectionId()));
         assertThat(user1ConnectionIds).containsExactlyInAnyOrder("c1", "c2");
 
         DistributionSummary summary = meterRegistry.get("im_ws_connections_per_user").summary();
@@ -58,5 +61,8 @@ class ConnectionRegistryMetricsTest {
         assertThat(meterRegistry.get("im_ws_online_connections").gauge().value()).isEqualTo(0.0);
         assertThat(meterRegistry.get("im_ws_online_users").gauge().value()).isEqualTo(0.0);
     }
-}
 
+    private static UUID uuid(long suffix) {
+        return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
+    }
+}

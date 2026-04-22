@@ -6,6 +6,8 @@ import com.nowcoder.community.im.common.event.PrivateMessagePersistedEventV1;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
 import org.springframework.stereotype.Component;
 
+import java.util.UUID;
+
 @Component
 public class PrivatePushService {
 
@@ -32,7 +34,7 @@ public class PrivatePushService {
         pushToUser(event.fromUserId(), json);
     }
 
-    private void pushToUser(int userId, String json) {
+    private void pushToUser(UUID userId, String json) {
         connectionRegistry.forEachConnectionByUserId(userId, conn -> conn.trySendText(json));
     }
 
@@ -40,9 +42,9 @@ public class PrivatePushService {
             String type,
             String conversationId,
             long seq,
-            long messageId,
-            int fromUserId,
-            int toUserId,
+            UUID messageId,
+            UUID fromUserId,
+            UUID toUserId,
             String content,
             long createdAtEpochMs
     ) {

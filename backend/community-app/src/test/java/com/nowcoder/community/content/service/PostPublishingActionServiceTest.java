@@ -11,8 +11,10 @@ import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.function.Supplier;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -29,11 +31,14 @@ class PostPublishingActionServiceTest {
         UpdatePostUseCase updatePostUseCase = mock(UpdatePostUseCase.class);
         DeleteOwnPostUseCase deleteOwnPostUseCase = mock(DeleteOwnPostUseCase.class);
         IdempotencyGuard idempotencyGuard = mock(IdempotencyGuard.class);
+        UUID userId = uuid(7);
+        UUID categoryId = uuid(1);
+        UUID postId = uuid(99);
 
         when(sensitiveFilter.filter("<title>")).thenReturn("title");
         when(sensitiveFilter.filter("<content>")).thenReturn("content");
-        when(createPostUseCase.createPost(eq(7), eq("title"), eq("content"), eq(1), eq(List.of("java")))).thenReturn(99);
-        when(idempotencyGuard.executeRequired(eq("content:create_post"), eq(7), eq("idem-1"), eq(PostCreateResult.class), any()))
+        when(createPostUseCase.createPost(eq(userId), eq("title"), eq("content"), eq(categoryId), eq(List.of("java")))).thenReturn(postId);
+        when(idempotencyGuard.executeRequired(eq("content:create_post"), eq(userId), eq("idem-1"), eq(PostCreateResult.class), any()))
                 .thenAnswer(invocation -> invocation.<Supplier<PostCreateResult>>getArgument(4).get());
 
         PostPublishingActionService service = new PostPublishingActionService(
@@ -45,11 +50,11 @@ class PostPublishingActionServiceTest {
                 new ContentTextCodec(new ContentRenderProperties())
         );
 
-        PostCreateResult response = service.create(7, "idem-1", "<title>", "<content>", 1, List.of("java"));
+        PostCreateResult response = service.create(userId, "idem-1", "<title>", "<content>", categoryId, List.of("java"));
 
-        assertThat(response.postId()).isEqualTo(99);
-        verify(createPostUseCase).createPost(7, "title", "content", 1, List.of("java"));
-        verify(idempotencyGuard).executeRequired(eq("content:create_post"), eq(7), eq("idem-1"), eq(PostCreateResult.class), any());
+        assertThat(response.postId()).isEqualTo(postId);
+        verify(createPostUseCase).createPost(userId, "title", "content", categoryId, List.of("java"));
+        verify(idempotencyGuard).executeRequired(eq("content:create_post"), eq(userId), eq("idem-1"), eq(PostCreateResult.class), any());
     }
 
     @Test
@@ -59,6 +64,9 @@ class PostPublishingActionServiceTest {
         UpdatePostUseCase updatePostUseCase = mock(UpdatePostUseCase.class);
         DeleteOwnPostUseCase deleteOwnPostUseCase = mock(DeleteOwnPostUseCase.class);
         IdempotencyGuard idempotencyGuard = mock(IdempotencyGuard.class);
+        UUID userId = uuid(7);
+        UUID postId = uuid(101);
+        UUID categoryId = uuid(2);
 
         when(sensitiveFilter.filter("<title>")).thenReturn("title");
         when(sensitiveFilter.filter("<content>")).thenReturn("content");
@@ -72,10 +80,10 @@ class PostPublishingActionServiceTest {
                 new ContentTextCodec(new ContentRenderProperties())
         );
 
-        service.updatePost(7, 101, "<title>", "<content>", 2, List.of("spring"));
-        service.deleteByAuthor(7, 101);
+        service.updatePost(userId, postId, "<title>", "<content>", categoryId, List.of("spring"));
+        service.deleteByAuthor(userId, postId);
 
-        verify(updatePostUseCase).updatePost(7, 101, "title", "content", 2, List.of("spring"));
-        verify(deleteOwnPostUseCase).deletePostByAuthor(7, 101);
+        verify(updatePostUseCase).updatePost(userId, postId, "title", "content", categoryId, List.of("spring"));
+        verify(deleteOwnPostUseCase).deletePostByAuthor(userId, postId);
     }
 }

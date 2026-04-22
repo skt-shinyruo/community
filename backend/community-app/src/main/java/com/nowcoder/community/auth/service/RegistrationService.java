@@ -67,7 +67,7 @@ public class RegistrationService {
 
         Duration pendingUserTtl = Duration.ofSeconds(Math.max(60, properties.getPendingUser().getTtlSeconds()));
         PendingRegistrationUserView created = userRegistrationActionApi.registerPendingUser(username, password, email, pendingUserTtl);
-        if (created == null || created.userId() <= 0) {
+        if (created == null || created.userId() == null) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败");
         }
         String targetEmail = StringUtils.hasText(created.email()) ? created.email() : email;

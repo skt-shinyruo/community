@@ -9,18 +9,18 @@
     </sql>
 
     <sql id="insertFields">
-        report_id, actor_id, action, reason, duration_seconds, create_time
+        id, report_id, actor_id, action, reason, duration_seconds, create_time
     </sql>
 
-    <insert id="insertAction" parameterType="com.nowcoder.community.content.entity.ModerationAction" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+    <insert id="insertAction" parameterType="com.nowcoder.community.content.entity.ModerationAction">
         insert into moderation_action(<include refid="insertFields"></include>)
-        values(#{reportId}, #{actorId}, #{action}, #{reason}, #{durationSeconds}, #{createTime})
+        values(#{id, jdbcType=BINARY}, #{reportId, jdbcType=BINARY}, #{actorId, jdbcType=BINARY}, #{action}, #{reason}, #{durationSeconds}, #{createTime})
     </insert>
 
     <select id="selectActionsByReportId" resultType="com.nowcoder.community.content.entity.ModerationAction">
         select <include refid="selectFields"></include>
         from moderation_action
-        where report_id = #{reportId}
+        where report_id = #{reportId, jdbcType=BINARY}
         order by create_time asc, id asc
     </select>
 
@@ -29,7 +29,7 @@
         from moderation_action
         where 1=1
         <if test="actorId != null">
-            and actor_id = #{actorId}
+            and actor_id = #{actorId, jdbcType=BINARY}
         </if>
         order by create_time desc, id desc
         limit #{offset}, #{limit}

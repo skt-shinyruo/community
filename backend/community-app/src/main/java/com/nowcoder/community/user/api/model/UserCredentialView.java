@@ -1,7 +1,9 @@
 package com.nowcoder.community.user.api.model;
 
+import java.util.UUID;
+
 public record UserCredentialView(
-        int userId,
+        UUID userId,
         String username,
         int status,
         int type,

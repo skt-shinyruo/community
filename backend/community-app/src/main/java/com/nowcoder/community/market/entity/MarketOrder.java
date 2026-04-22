@@ -1,24 +1,25 @@
 package com.nowcoder.community.market.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class MarketOrder {
 
-    private long orderId;
+    private UUID orderId;
     private String requestId;
-    private long listingId;
+    private UUID listingId;
     private String goodsType;
-    private int sellerUserId;
-    private int buyerUserId;
+    private UUID sellerUserId;
+    private UUID buyerUserId;
     private int quantity;
     private long unitPriceSnapshot;
     private long totalAmount;
     private String deliveryModeSnapshot;
     private String listingTitleSnapshot;
     private String status;
-    private Long escrowTxnId;
-    private Long releaseTxnId;
-    private Long refundTxnId;
+    private UUID escrowTxnId;
+    private UUID releaseTxnId;
+    private UUID refundTxnId;
     private Date autoConfirmAt;
     private String receiverNameSnapshot;
     private String receiverPhoneSnapshot;
@@ -30,11 +31,11 @@ public class MarketOrder {
     private Date createTime;
     private Date updateTime;
 
-    public long getOrderId() {
+    public UUID getOrderId() {
         return orderId;
     }
 
-    public void setOrderId(long orderId) {
+    public void setOrderId(UUID orderId) {
         this.orderId = orderId;
     }
 
@@ -46,11 +47,11 @@ public class MarketOrder {
         this.requestId = requestId;
     }
 
-    public long getListingId() {
+    public UUID getListingId() {
         return listingId;
     }
 
-    public void setListingId(long listingId) {
+    public void setListingId(UUID listingId) {
         this.listingId = listingId;
     }
 
@@ -62,19 +63,19 @@ public class MarketOrder {
         this.goodsType = goodsType;
     }
 
-    public int getSellerUserId() {
+    public UUID getSellerUserId() {
         return sellerUserId;
     }
 
-    public void setSellerUserId(int sellerUserId) {
+    public void setSellerUserId(UUID sellerUserId) {
         this.sellerUserId = sellerUserId;
     }
 
-    public int getBuyerUserId() {
+    public UUID getBuyerUserId() {
         return buyerUserId;
     }
 
-    public void setBuyerUserId(int buyerUserId) {
+    public void setBuyerUserId(UUID buyerUserId) {
         this.buyerUserId = buyerUserId;
     }
 
@@ -126,27 +127,27 @@ public class MarketOrder {
         this.status = status;
     }
 
-    public Long getEscrowTxnId() {
+    public UUID getEscrowTxnId() {
         return escrowTxnId;
     }
 
-    public void setEscrowTxnId(Long escrowTxnId) {
+    public void setEscrowTxnId(UUID escrowTxnId) {
         this.escrowTxnId = escrowTxnId;
     }
 
-    public Long getReleaseTxnId() {
+    public UUID getReleaseTxnId() {
         return releaseTxnId;
     }
 
-    public void setReleaseTxnId(Long releaseTxnId) {
+    public void setReleaseTxnId(UUID releaseTxnId) {
         this.releaseTxnId = releaseTxnId;
     }
 
-    public Long getRefundTxnId() {
+    public UUID getRefundTxnId() {
         return refundTxnId;
     }
 
-    public void setRefundTxnId(Long refundTxnId) {
+    public void setRefundTxnId(UUID refundTxnId) {
         this.refundTxnId = refundTxnId;
     }
 

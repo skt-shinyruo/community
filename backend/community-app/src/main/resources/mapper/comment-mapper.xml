@@ -9,7 +9,7 @@
     </sql>
 
     <sql id="insertFields">
-        user_id, entity_type, entity_id, target_id, content, status, create_time
+        id, user_id, entity_type, entity_id, target_id, content, status, create_time
     </sql>
 
     <select id="selectCommentsByEntity" resultType="com.nowcoder.community.content.entity.Comment">
@@ -17,7 +17,7 @@
         from comment
         where status = 0
         and entity_type = #{entityType}
-        and entity_id = #{entityId}
+        and entity_id = #{entityId, jdbcType=BINARY}
         order by create_time asc
         limit #{offset}, #{limit}
     </select>
@@ -26,7 +26,7 @@
         select <include refid="selectFields"></include>
         from comment
         where status = 0
-          and user_id = #{userId}
+          and user_id = #{userId, jdbcType=BINARY}
         order by create_time desc, id desc
         limit #{offset}, #{limit}
     </select>
@@ -36,18 +36,18 @@
         from comment
         where status = 0
           and entity_type = #{entityType}
-          and entity_id = #{entityId}
+          and entity_id = #{entityId, jdbcType=BINARY}
     </select>
 
-    <insert id="insertComment" parameterType="com.nowcoder.community.content.entity.Comment" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+    <insert id="insertComment" parameterType="com.nowcoder.community.content.entity.Comment">
         insert into comment(<include refid="insertFields"></include>)
-        values(#{userId},#{entityType},#{entityId},#{targetId},#{content},#{status},#{createTime})
+        values(#{id, jdbcType=BINARY},#{userId, jdbcType=BINARY},#{entityType},#{entityId, jdbcType=BINARY},#{targetId, jdbcType=BINARY},#{content},#{status},#{createTime})
     </insert>
 
     <select id="selectCommentById" resultType="com.nowcoder.community.content.entity.Comment">
         select <include refid="selectFields"></include>
         from comment
-        where id = #{id}
+        where id = #{id, jdbcType=BINARY}
     </select>
 
     <!--
@@ -58,9 +58,9 @@
         select count(1)
         from comment
         where status = 0
-          and id = #{commentId}
+          and id = #{commentId, jdbcType=BINARY}
           and entity_type = 1
-          and entity_id = #{postId}
+          and entity_id = #{postId, jdbcType=BINARY}
     </select>
 
     <!--
@@ -76,13 +76,13 @@
             u.user_id as user_id,
             1 as entity_type,
             u.post_id as entity_id,
-            0 as target_id,
+            cast(null as binary(16)) as target_id,
             u.content as content,
             0 as status,
             u.create_time as create_time,
             null as update_time,
             0 as edit_count,
-            0 as deleted_by,
+            cast(null as binary(16)) as deleted_by,
             '' as deleted_reason,
             null as deleted_time
         from (
@@ -92,7 +92,7 @@
               and c.entity_type = 1
               and c.entity_id in
               <foreach collection="postIds" item="pid" open="(" separator="," close=")">
-                  #{pid}
+                  #{pid, jdbcType=BINARY}
               </foreach>
 
             union all
@@ -105,7 +105,7 @@
               and p.entity_type = 1
               and p.entity_id in
               <foreach collection="postIds" item="pid" open="(" separator="," close=")">
-                  #{pid}
+                  #{pid, jdbcType=BINARY}
               </foreach>
         ) u
         inner join (
@@ -117,7 +117,7 @@
                   and c.entity_type = 1
                   and c.entity_id in
                   <foreach collection="postIds" item="pid" open="(" separator="," close=")">
-                      #{pid}
+                      #{pid, jdbcType=BINARY}
                   </foreach>
 
                 union all
@@ -130,7 +130,7 @@
                   and p.entity_type = 1
                   and p.entity_id in
                   <foreach collection="postIds" item="pid" open="(" separator="," close=")">
-                      #{pid}
+                      #{pid, jdbcType=BINARY}
                   </foreach>
             ) t
             group by post_id
@@ -143,16 +143,16 @@
         set content = #{content},
             update_time = #{updateTime},
             edit_count = edit_count + 1
-        where id = #{id}
+        where id = #{id, jdbcType=BINARY}
     </update>
 
     <update id="updateModerationDeleteMeta">
         update comment
         set status = #{status},
-            deleted_by = #{deletedBy},
+            deleted_by = #{deletedBy, jdbcType=BINARY},
             deleted_reason = #{deletedReason},
             deleted_time = #{deletedTime}
-        where id = #{id}
+        where id = #{id, jdbcType=BINARY}
     </update>
 
 </mapper>

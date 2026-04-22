@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.UUID;
+
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -26,16 +28,16 @@ public class AdminUserService {
         this.userMapper = userMapper;
     }
 
-    public AdminUserResponse search(Integer userId, String username, String email) {
+    public AdminUserResponse search(UUID userId, String username, String email) {
         User user = resolveSearchTarget(userId, username, email);
-        if (user == null || user.getId() <= 0) {
+        if (user == null || user.getId() == null) {
             return null;
         }
         return toAdminUserResponse(user);
     }
 
     @Transactional
-    public void updateRole(int actorUserId, UpdateUserRoleRequest request) {
+    public void updateRole(UUID actorUserId, UpdateUserRoleRequest request) {
         if (request == null) {
             throw new BusinessException(INVALID_ARGUMENT, "request 不能为空");
         }
@@ -47,15 +49,18 @@ public class AdminUserService {
             throw new BusinessException(INVALID_ARGUMENT, "reason 不能为空");
         }
 
-        int targetUserId = request.getTargetUserId();
+        UUID targetUserId = request.getTargetUserId();
+        if (targetUserId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "targetUserId 非法");
+        }
         int toType = request.getType();
         User target = userMapper.selectById(targetUserId);
-        if (target == null || target.getId() <= 0) {
+        if (target == null || target.getId() == null) {
             throw new BusinessException(INVALID_ARGUMENT, "目标用户不存在");
         }
 
         int fromType = target.getType();
-        if (actorUserId == targetUserId && toType != 1) {
+        if (targetUserId.equals(actorUserId) && toType != 1) {
             throw new BusinessException(FORBIDDEN, "不允许降级自己的管理员权限");
         }
         if (fromType == toType) {
@@ -71,8 +76,8 @@ public class AdminUserService {
                 actorUserId, targetUserId, fromType, toType, reason);
     }
 
-    private User resolveSearchTarget(Integer userId, String username, String email) {
-        if (userId != null && userId > 0) {
+    private User resolveSearchTarget(UUID userId, String username, String email) {
+        if (userId != null) {
             return userMapper.selectById(userId);
         }
         if (StringUtils.hasText(username)) {

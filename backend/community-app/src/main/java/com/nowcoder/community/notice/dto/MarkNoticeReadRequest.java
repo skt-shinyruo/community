@@ -3,17 +3,18 @@ package com.nowcoder.community.notice.dto;
 import jakarta.validation.constraints.NotEmpty;
 
 import java.util.List;
+import java.util.UUID;
 
 public class MarkNoticeReadRequest {
 
     @NotEmpty
-    private List<Integer> ids;
+    private List<UUID> ids;
 
-    public List<Integer> getIds() {
+    public List<UUID> getIds() {
         return ids;
     }
 
-    public void setIds(List<Integer> ids) {
+    public void setIds(List<UUID> ids) {
         this.ids = ids;
     }
 }

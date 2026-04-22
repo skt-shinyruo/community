@@ -7,6 +7,7 @@ import com.nowcoder.community.content.mapper.CategoryMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.UUID;
 
 import static com.nowcoder.community.content.exception.ContentErrorCode.CATEGORY_NOT_FOUND;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -30,7 +31,7 @@ public class CategoryService {
                 .toList();
     }
 
-    public Category getById(int id) {
+    public Category getById(UUID id) {
         Category c = categoryMapper.selectCategoryById(id);
         if (c == null) {
             throw new BusinessException(CATEGORY_NOT_FOUND);
@@ -38,12 +39,9 @@ public class CategoryService {
         return c;
     }
 
-    public void assertExists(Integer categoryId) {
+    public void assertExists(UUID categoryId) {
         if (categoryId == null) {
             return;
-        }
-        if (categoryId <= 0) {
-            throw new BusinessException(INVALID_ARGUMENT, "分类参数非法");
         }
         getById(categoryId);
     }

@@ -6,8 +6,8 @@
 <mapper namespace="com.nowcoder.community.market.mapper.MarketAddressMapper">
 
     <resultMap id="MarketAddressResultMap" type="com.nowcoder.community.market.entity.MarketAddress">
-        <id property="addressId" column="address_id"/>
-        <result property="userId" column="user_id"/>
+        <id property="addressId" column="address_id" jdbcType="BINARY"/>
+        <result property="userId" column="user_id" jdbcType="BINARY"/>
         <result property="receiverName" column="receiver_name"/>
         <result property="receiverPhone" column="receiver_phone"/>
         <result property="province" column="province"/>
@@ -21,12 +21,12 @@
         <result property="updateTime" column="update_time"/>
     </resultMap>
 
-    <insert id="insert" parameterType="com.nowcoder.community.market.entity.MarketAddress" useGeneratedKeys="true" keyProperty="addressId" keyColumn="address_id">
+    <insert id="insert" parameterType="com.nowcoder.community.market.entity.MarketAddress">
         insert into market_address(
-            user_id, receiver_name, receiver_phone, province, city, district, detail_address, postal_code, is_default, status
+            address_id, user_id, receiver_name, receiver_phone, province, city, district, detail_address, postal_code, is_default, status
         )
         values(
-            #{userId}, #{receiverName}, #{receiverPhone}, #{province}, #{city}, #{district}, #{detailAddress}, #{postalCode}, #{default}, #{status}
+            #{addressId, jdbcType=BINARY}, #{userId, jdbcType=BINARY}, #{receiverName}, #{receiverPhone}, #{province}, #{city}, #{district}, #{detailAddress}, #{postalCode}, #{default}, #{status}
         )
     </insert>
 
@@ -34,16 +34,16 @@
         select address_id, user_id, receiver_name, receiver_phone, province, city, district, detail_address,
                postal_code, is_default, status, create_time, update_time
         from market_address
-        where address_id = #{addressId}
+        where address_id = #{addressId, jdbcType=BINARY}
     </select>
 
     <select id="selectByUserId" resultMap="MarketAddressResultMap">
         select address_id, user_id, receiver_name, receiver_phone, province, city, district, detail_address,
                postal_code, is_default, status, create_time, update_time
         from market_address
-        where user_id = #{userId}
+        where user_id = #{userId, jdbcType=BINARY}
           and status = 'ACTIVE'
-        order by is_default desc, address_id desc
+        order by is_default desc, create_time desc, address_id desc
     </select>
 
     <update id="update" parameterType="com.nowcoder.community.market.entity.MarketAddress">
@@ -58,15 +58,15 @@
             is_default = #{default},
             status = #{status},
             update_time = current_timestamp
-        where address_id = #{addressId}
-          and user_id = #{userId}
+        where address_id = #{addressId, jdbcType=BINARY}
+          and user_id = #{userId, jdbcType=BINARY}
     </update>
 
     <update id="clearDefaultByUserId">
         update market_address
         set is_default = false,
             update_time = current_timestamp
-        where user_id = #{userId}
+        where user_id = #{userId, jdbcType=BINARY}
           and status = 'ACTIVE'
           and is_default = true
     </update>
@@ -76,8 +76,8 @@
         set status = 'DELETED',
             is_default = false,
             update_time = current_timestamp
-        where address_id = #{addressId}
-          and user_id = #{userId}
+        where address_id = #{addressId, jdbcType=BINARY}
+          and user_id = #{userId, jdbcType=BINARY}
           and status = 'ACTIVE'
     </update>
 

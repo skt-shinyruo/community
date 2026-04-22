@@ -3,15 +3,16 @@ package com.nowcoder.community.market.dto;
 import com.nowcoder.community.market.entity.MarketInventoryUnit;
 
 import java.util.Date;
+import java.util.UUID;
 
 public record MarketInventoryUnitResponse(
-        long inventoryUnitId,
-        long listingId,
-        int sellerUserId,
+        UUID inventoryUnitId,
+        UUID listingId,
+        UUID sellerUserId,
         String payloadType,
         String payloadContent,
         String status,
-        Long reservedOrderId,
+        UUID reservedOrderId,
         Date deliveredAt,
         Date createTime
 ) {

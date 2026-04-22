@@ -1,21 +1,22 @@
 package com.nowcoder.community.social.contracts.event;
 
 import java.time.Instant;
+import java.util.UUID;
 
 public class LikePayload {
 
-    private int actorUserId;
+    private UUID actorUserId;
     private int entityType;
-    private int entityId;
-    private Integer entityUserId;
-    private Integer postId;
+    private UUID entityId;
+    private UUID entityUserId;
+    private UUID postId;
     private Instant createTime;
 
-    public int getActorUserId() {
+    public UUID getActorUserId() {
         return actorUserId;
     }
 
-    public void setActorUserId(int actorUserId) {
+    public void setActorUserId(UUID actorUserId) {
         this.actorUserId = actorUserId;
     }
 
@@ -27,27 +28,27 @@ public class LikePayload {
         this.entityType = entityType;
     }
 
-    public int getEntityId() {
+    public UUID getEntityId() {
         return entityId;
     }
 
-    public void setEntityId(int entityId) {
+    public void setEntityId(UUID entityId) {
         this.entityId = entityId;
     }
 
-    public Integer getEntityUserId() {
+    public UUID getEntityUserId() {
         return entityUserId;
     }
 
-    public void setEntityUserId(Integer entityUserId) {
+    public void setEntityUserId(UUID entityUserId) {
         this.entityUserId = entityUserId;
     }
 
-    public Integer getPostId() {
+    public UUID getPostId() {
         return postId;
     }
 
-    public void setPostId(Integer postId) {
+    public void setPostId(UUID postId) {
         this.postId = postId;
     }
 

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * MySQL 持久化实现：以 DB 为 SSOT（source of truth）。
@@ -24,7 +25,7 @@ public class DbLikeRepository implements LikeRepository {
     }
 
     @Override
-    public boolean addLike(int userId, int entityType, int entityId) {
+    public boolean addLike(UUID userId, int entityType, UUID entityId) {
         try {
             return mapper.insertLike(userId, entityType, entityId) > 0;
         } catch (DuplicateKeyException ignored) {
@@ -34,22 +35,22 @@ public class DbLikeRepository implements LikeRepository {
     }
 
     @Override
-    public boolean removeLike(int userId, int entityType, int entityId) {
+    public boolean removeLike(UUID userId, int entityType, UUID entityId) {
         return mapper.deleteLike(userId, entityType, entityId) > 0;
     }
 
     @Override
-    public boolean isLiked(int userId, int entityType, int entityId) {
+    public boolean isLiked(UUID userId, int entityType, UUID entityId) {
         return mapper.countLike(userId, entityType, entityId) > 0;
     }
 
     @Override
-    public long countEntityLikes(int entityType, int entityId) {
+    public long countEntityLikes(int entityType, UUID entityId) {
         return mapper.countEntityLikes(entityType, entityId);
     }
 
     @Override
-    public long incrementUserLikeCount(int userId, long delta) {
+    public long incrementUserLikeCount(UUID userId, long delta) {
         if (delta == 0) {
             return getUserLikeCount(userId);
         }
@@ -58,19 +59,19 @@ public class DbLikeRepository implements LikeRepository {
     }
 
     @Override
-    public long getUserLikeCount(int userId) {
+    public long getUserLikeCount(UUID userId) {
         Long v = mapper.getUserLikeCount(userId);
         return v == null ? 0 : v;
     }
 
     @Override
-    public Map<Integer, Long> countEntityLikesBatch(int entityType, List<Integer> entityIds) {
-        Map<Integer, Long> out = new HashMap<>();
+    public Map<UUID, Long> countEntityLikesBatch(int entityType, List<UUID> entityIds) {
+        Map<UUID, Long> out = new HashMap<>();
         if (entityIds == null || entityIds.isEmpty()) {
             return out;
         }
-        for (Integer id : entityIds) {
-            if (id != null && id > 0) {
+        for (UUID id : entityIds) {
+            if (id != null) {
                 out.put(id, 0L);
             }
         }
@@ -82,7 +83,7 @@ public class DbLikeRepository implements LikeRepository {
             return out;
         }
         for (EntityLikeCountRow r : rows) {
-            if (r == null || r.getEntityId() <= 0) {
+            if (r == null || r.getEntityId() == null) {
                 continue;
             }
             out.put(r.getEntityId(), Math.max(0, r.getLikeCount()));
@@ -91,25 +92,25 @@ public class DbLikeRepository implements LikeRepository {
     }
 
     @Override
-    public Map<Integer, Boolean> likedStatusesBatch(int userId, int entityType, List<Integer> entityIds) {
-        Map<Integer, Boolean> out = new HashMap<>();
+    public Map<UUID, Boolean> likedStatusesBatch(UUID userId, int entityType, List<UUID> entityIds) {
+        Map<UUID, Boolean> out = new HashMap<>();
         if (entityIds == null || entityIds.isEmpty()) {
             return out;
         }
-        for (Integer id : entityIds) {
-            if (id != null && id > 0) {
+        for (UUID id : entityIds) {
+            if (id != null) {
                 out.put(id, Boolean.FALSE);
             }
         }
         if (out.isEmpty()) {
             return out;
         }
-        List<Integer> liked = mapper.selectLikedEntityIds(userId, entityType, entityIds);
+        List<UUID> liked = mapper.selectLikedEntityIds(userId, entityType, entityIds);
         if (liked == null || liked.isEmpty()) {
             return out;
         }
-        for (Integer id : liked) {
-            if (id != null && id > 0) {
+        for (UUID id : liked) {
+            if (id != null) {
                 out.put(id, Boolean.TRUE);
             }
         }

@@ -1,4 +1,5 @@
 import { formatMysqlTimestamp, toIsoTimestamp } from '../db/mysql.mjs'
+import { bufferToUuid, generateUuidV7, uuidToBuffer } from '../db/uuidv7.mjs'
 
 function serializeJson(value) {
   return value == null ? null : JSON.stringify(value)
@@ -10,8 +11,8 @@ function parseJson(value) {
 
 function mapJobRow(row) {
   return {
-    id: row.id,
-    batchId: row.batch_id,
+    id: bufferToUuid(row.id),
+    batchId: bufferToUuid(row.batch_id),
     jobKey: row.job_key,
     jobType: row.job_type,
     status: row.status,
@@ -35,7 +36,7 @@ async function findJobById(db, jobId) {
     `select id, batch_id, job_key, job_type, status, summary_json, error_message, created_at, started_at, finished_at
        from demo_job
       where id = ?`,
-    [jobId]
+    [uuidToBuffer(jobId)]
   )
 
   if (rows.length === 0) {
@@ -61,17 +62,19 @@ async function listJobsByBatchId(db, batchId) {
        from demo_job
       where batch_id = ?
       order by created_at desc, id desc`,
-    [batchId]
+    [uuidToBuffer(batchId)]
   )
 
   return rows.map(mapJobRow)
 }
 
-export function createJobRepository(db) {
+export function createJobRepository(db, { createId = generateUuidV7 } = {}) {
   return {
     async create({ batchId, jobKey, jobType, createdAt = new Date().toISOString() }) {
-      const result = await db.execute(
+      const id = createId()
+      await db.execute(
         `insert into demo_job (
+          id,
           batch_id,
           job_key,
           job_type,
@@ -83,7 +86,8 @@ export function createJobRepository(db) {
           finished_at
         ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          batchId,
+          uuidToBuffer(id),
+          uuidToBuffer(batchId),
           jobKey,
           jobType,
           'pending',
@@ -95,7 +99,7 @@ export function createJobRepository(db) {
         ]
       )
 
-      return requireJobById(db, result.insertId)
+      return requireJobById(db, id)
     },
 
     async markStarted(jobId, { startedAt = new Date().toISOString(), status = 'running' } = {}) {
@@ -103,7 +107,7 @@ export function createJobRepository(db) {
         `update demo_job
             set status = ?, started_at = ?, finished_at = null, error_message = null
           where id = ? and status = ?`,
-        [status, formatMysqlTimestamp(startedAt, 'demo_job.startedAt'), jobId, 'pending']
+        [status, formatMysqlTimestamp(startedAt, 'demo_job.startedAt'), uuidToBuffer(jobId), 'pending']
       )
 
       if (result.affectedRows !== 1) {
@@ -134,7 +138,7 @@ export function createJobRepository(db) {
           formatMysqlTimestamp(finishedAt, 'demo_job.finishedAt'),
           serializeJson(summaryJson),
           errorMessage,
-          jobId,
+          uuidToBuffer(jobId),
           ...normalizedStatuses
         ]
       )
@@ -153,7 +157,7 @@ export function createJobRepository(db) {
         `update demo_job
             set summary_json = ?, error_message = ?
           where id = ? and status = ?`,
-        [serializeJson(summaryJson), errorMessage, jobId, 'running']
+        [serializeJson(summaryJson), errorMessage, uuidToBuffer(jobId), 'running']
       )
 
       if (result.affectedRows !== 1) {

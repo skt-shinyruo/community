@@ -19,11 +19,13 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 import java.util.Date;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -36,6 +38,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "gateway.origin-guard.allowed-origins[0]=http://localhost:12881"
 })
 class PublicReadEndpointSecurityTest {
+
+    private static final UUID USER_ID = uuid(42);
 
     @Autowired
     private MockMvc mockMvc;
@@ -58,29 +62,33 @@ class PublicReadEndpointSecurityTest {
 
         mockMvc.perform(post("/api/posts/batch-summary")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"postIds\":[1,2]}"))
+                        .content("""
+                                {
+                                  "postIds": ["%s", "%s"]
+                                }
+                                """.formatted(uuid(1), uuid(2))))
                 .andExpect(status().isOk());
     }
 
     @Test
     void unauthenticatedRecentActivityEndpointsShouldBeAllowed() throws Exception {
-        when(userQueryService.getProfile(42)).thenReturn(new UserProfileView(42, "u42", "h42", 0, 0, new Date(), 0, 1, 0L, "UNKNOWN"));
-        when(postReadQueryApi.listPostsByUser(anyInt(), any(), any())).thenReturn(List.<PostSummaryView>of());
-        when(postReadQueryApi.listRecentCommentsByUser(anyInt(), any(), any())).thenReturn(List.<RecentUserCommentView>of());
+        when(userQueryService.getProfile(USER_ID)).thenReturn(new UserProfileView(USER_ID, "u42", "h42", 0, 0, new Date(), 0, 1, 0L, "UNKNOWN"));
+        when(postReadQueryApi.listPostsByUser(eq(USER_ID), any(), any())).thenReturn(List.<PostSummaryView>of());
+        when(postReadQueryApi.listRecentCommentsByUser(eq(USER_ID), any(), any())).thenReturn(List.<RecentUserCommentView>of());
 
-        mockMvc.perform(get("/api/users/42/recent-posts"))
+        mockMvc.perform(get("/api/users/" + USER_ID + "/recent-posts"))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/users/42/recent-comments"))
+        mockMvc.perform(get("/api/users/" + USER_ID + "/recent-comments"))
                 .andExpect(status().isOk());
     }
 
     @Test
     void directCommunityAppReadEndpointShouldNotEmitCorsHeaders() throws Exception {
-        when(userQueryService.getProfile(42)).thenReturn(new UserProfileView(42, "u42", "h42", 0, 0, new Date(), 0, 1, 0L, "UNKNOWN"));
-        when(postReadQueryApi.listPostsByUser(anyInt(), any(), any())).thenReturn(List.<PostSummaryView>of());
+        when(userQueryService.getProfile(USER_ID)).thenReturn(new UserProfileView(USER_ID, "u42", "h42", 0, 0, new Date(), 0, 1, 0L, "UNKNOWN"));
+        when(postReadQueryApi.listPostsByUser(eq(USER_ID), any(), any())).thenReturn(List.<PostSummaryView>of());
 
-        mockMvc.perform(get("/api/users/42/recent-posts").header("Origin", "http://localhost:12881"))
+        mockMvc.perform(get("/api/users/" + USER_ID + "/recent-posts").header("Origin", "http://localhost:12881"))
                 .andExpect(status().isOk())
                 .andExpect(header().doesNotExist("Access-Control-Allow-Origin"))
                 .andExpect(header().doesNotExist("Access-Control-Allow-Credentials"));

@@ -1,10 +1,11 @@
 package com.nowcoder.community.auth.service;
 
 import java.time.Duration;
+import java.util.UUID;
 
 public interface PasswordResetTokenStore {
 
-    void store(String token, int userId, Duration ttl);
+    void store(String token, UUID userId, Duration ttl);
 
-    Integer consume(String token);
+    UUID consume(String token);
 }

@@ -1,39 +1,40 @@
 package com.nowcoder.community.market.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class MarketDelivery {
 
-    private long deliveryId;
-    private long orderId;
-    private int sellerUserId;
+    private UUID deliveryId;
+    private UUID orderId;
+    private UUID sellerUserId;
     private String deliveryType;
     private String deliveryContent;
     private String status;
     private Date deliveredAt;
     private Date createTime;
 
-    public long getDeliveryId() {
+    public UUID getDeliveryId() {
         return deliveryId;
     }
 
-    public void setDeliveryId(long deliveryId) {
+    public void setDeliveryId(UUID deliveryId) {
         this.deliveryId = deliveryId;
     }
 
-    public long getOrderId() {
+    public UUID getOrderId() {
         return orderId;
     }
 
-    public void setOrderId(long orderId) {
+    public void setOrderId(UUID orderId) {
         this.orderId = orderId;
     }
 
-    public int getSellerUserId() {
+    public UUID getSellerUserId() {
         return sellerUserId;
     }
 
-    public void setSellerUserId(int sellerUserId) {
+    public void setSellerUserId(UUID sellerUserId) {
         this.sellerUserId = sellerUserId;
     }
 

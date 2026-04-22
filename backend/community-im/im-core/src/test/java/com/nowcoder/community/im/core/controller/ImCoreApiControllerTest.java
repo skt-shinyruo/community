@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -66,10 +67,10 @@ class ImCoreApiControllerTest {
 
     @Test
     void conversation_history_and_markRead_should_enforce_membership_and_update_watermark() throws Exception {
-        int user1 = 1;
-        int user2 = 2;
-        int user3 = 3;
-        String conversationId = "1_2";
+        UUID user1 = uuid(1);
+        UUID user2 = uuid(2);
+        UUID user3 = uuid(3);
+        String conversationId = conversationId(user1, user2);
 
         privateMessageService.persist(new SendPrivateTextCommandV1(
                 "req-1",
@@ -125,11 +126,11 @@ class ImCoreApiControllerTest {
 
     @Test
     void room_history_and_markRead_should_require_membership() throws Exception {
-        int owner = 1;
-        int member = 2;
-        int outsider = 99;
+        UUID owner = uuid(1);
+        UUID member = uuid(2);
+        UUID outsider = uuid(99);
 
-        long roomId = roomMembershipService.createRoom(owner, "room");
+        UUID roomId = roomMembershipService.createRoom(owner, "room");
         roomMembershipService.joinRoom(member, roomId);
 
         roomMessageService.persist(new SendRoomTextCommandV1(
@@ -152,7 +153,7 @@ class ImCoreApiControllerTest {
         JsonNode json = objectMapper.readTree(res);
         assertThat(json.path("code").asInt(-1)).isEqualTo(0);
         JsonNode roomData = json.path("data");
-        assertThat(roomData.path("roomId").asLong()).isEqualTo(roomId);
+        assertThat(roomData.path("roomId").asText("")).isEqualTo(roomId.toString());
         assertThat(roomData.path("items").isArray()).isTrue();
         assertThat(roomData.path("items").size()).isEqualTo(1);
         assertThat(roomData.path("items").get(0).path("content").asText("")).isEqualTo("hi room");
@@ -183,11 +184,11 @@ class ImCoreApiControllerTest {
 
     @Test
     void unread_summary_should_reflect_room_and_conversation_unread() throws Exception {
-        int sender = 1;
-        int receiver = 2;
-        String conversationId = "1_2";
+        UUID sender = uuid(1);
+        UUID receiver = uuid(2);
+        String conversationId = conversationId(sender, receiver);
 
-        long roomId = roomMembershipService.createRoom(sender, "room");
+        UUID roomId = roomMembershipService.createRoom(sender, "room");
         roomMembershipService.joinRoom(receiver, roomId);
 
         privateMessageService.persist(new SendPrivateTextCommandV1(
@@ -221,7 +222,7 @@ class ImCoreApiControllerTest {
         assertThat(receiverData.path("conversations").isArray()).isTrue();
 
         JsonNode roomItem = receiverData.path("rooms").get(0);
-        assertThat(roomItem.path("roomId").asLong()).isEqualTo(roomId);
+        assertThat(roomItem.path("roomId").asText("")).isEqualTo(roomId.toString());
         assertThat(roomItem.path("lastSeq").asLong()).isEqualTo(1L);
         assertThat(roomItem.path("lastReadSeq").asLong()).isEqualTo(0L);
         assertThat(roomItem.path("unreadCount").asLong()).isEqualTo(1L);
@@ -247,10 +248,10 @@ class ImCoreApiControllerTest {
 
     @Test
     void internal_room_bootstrap_should_forbid_userId_mismatch() throws Exception {
-        int user1 = 1;
-        int user2 = 2;
+        UUID user1 = uuid(1);
+        UUID user2 = uuid(2);
 
-        long roomId = roomMembershipService.createRoom(user1, "room");
+        UUID roomId = roomMembershipService.createRoom(user1, "room");
         roomMembershipService.joinRoom(user2, roomId);
 
         String okRes = mockMvc.perform(get("/internal/im/realtime/users/{userId}/rooms", user1)
@@ -264,7 +265,7 @@ class ImCoreApiControllerTest {
         assertThat(okJson.path("data").path("roomIds").isArray()).isTrue();
         boolean found = false;
         for (JsonNode n : okJson.path("data").path("roomIds")) {
-            if (n != null && n.asLong() == roomId) {
+            if (n != null && roomId.toString().equals(n.asText())) {
                 found = true;
                 break;
             }
@@ -276,9 +277,19 @@ class ImCoreApiControllerTest {
                 .andExpect(status().isForbidden());
     }
 
-    private String bearer(int userId) throws Exception {
+    private String bearer(UUID userId) throws Exception {
         String token = signHs256(jwtSecret, jwtIssuer, String.valueOf(userId), Instant.now().plusSeconds(120));
         return "Bearer " + token;
+    }
+
+    private static UUID uuid(long suffix) {
+        return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
+    }
+
+    private static String conversationId(UUID userId1, UUID userId2) {
+        UUID first = userId1.compareTo(userId2) <= 0 ? userId1 : userId2;
+        UUID second = first.equals(userId1) ? userId2 : userId1;
+        return first + "_" + second;
     }
 
     private static String signHs256(String secret, String issuer, String sub, Instant exp) throws Exception {

@@ -1,10 +1,11 @@
 package com.nowcoder.community.user.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class User {
 
-    private int id;
+    private UUID id;
     private String username;
     private String password;
     private String salt;
@@ -17,11 +18,11 @@ public class User {
     private Date muteUntil;
     private Date banUntil;
 
-    public int getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 

@@ -5,6 +5,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -21,12 +22,14 @@ import static org.mockito.Mockito.when;
 
 class IdempotencyGuardStoreFailureTest {
 
+    private static final UUID USER_ID = UUID.fromString("01966f76-9d81-7f10-8d11-223344556677");
+
     @Test
     void executeRequiredShouldExtendProcessingAndReturnConflictWhenSaveSuccessFails() {
         IdempotencyStore store = mock(IdempotencyStore.class);
-        when(store.tryAcquireProcessing(anyString(), anyInt(), anyString(), any(Duration.class))).thenReturn(true);
+        when(store.tryAcquireProcessing(anyString(), any(), anyString(), any(Duration.class))).thenReturn(true);
         doThrow(new RuntimeException("redis down"))
-                .when(store).saveSuccess(anyString(), anyInt(), anyString(), anyString(), any(Duration.class));
+                .when(store).saveSuccess(anyString(), any(), anyString(), anyString(), any(Duration.class));
 
         IdempotencyProperties properties = new IdempotencyProperties();
         properties.setSuccessTtl(Duration.ofMinutes(10));
@@ -34,7 +37,7 @@ class IdempotencyGuardStoreFailureTest {
         IdempotencyGuard guard = new IdempotencyGuard(new ObjectMapper(), store, null, properties);
         AtomicInteger supplierCalls = new AtomicInteger();
 
-        assertThatThrownBy(() -> guard.executeRequired("op", 1, "k1", String.class, () -> {
+        assertThatThrownBy(() -> guard.executeRequired("op", USER_ID, "k1", String.class, () -> {
             supplierCalls.incrementAndGet();
             return "OK";
         }))
@@ -46,7 +49,7 @@ class IdempotencyGuardStoreFailureTest {
                 });
 
         assertThat(supplierCalls).hasValue(1);
-        verify(store).extendProcessing(eq("op"), eq(1), eq("k1"), eq(Duration.ofMinutes(10)));
-        verify(store, never()).delete(anyString(), anyInt(), anyString());
+        verify(store).extendProcessing(eq("op"), eq(USER_ID), eq("k1"), eq(Duration.ofMinutes(10)));
+        verify(store, never()).delete(anyString(), any(), anyString());
     }
 }

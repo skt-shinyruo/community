@@ -1,5 +1,7 @@
 package com.nowcoder.community.im.common.event;
 
+import java.util.UUID;
+
 /**
  * im-core -> Kafka -> im-realtime event.
  *
@@ -9,11 +11,10 @@ public record PrivateMessagePersistedEventV1(
         String eventId,
         String conversationId,
         long seq,
-        long messageId,
-        int fromUserId,
-        int toUserId,
+        UUID messageId,
+        UUID fromUserId,
+        UUID toUserId,
         String content,
         long createdAtEpochMs
 ) {
 }
-

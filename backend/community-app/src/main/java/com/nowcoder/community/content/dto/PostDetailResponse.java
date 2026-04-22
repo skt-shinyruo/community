@@ -2,11 +2,12 @@ package com.nowcoder.community.content.dto;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 public class PostDetailResponse {
 
-    private int id;
-    private int userId;
+    private UUID id;
+    private UUID userId;
     private String title;
     private String content;
     private int type;
@@ -17,26 +18,26 @@ public class PostDetailResponse {
     private int commentCount;
     private double score;
 
-    private Integer categoryId;
+    private UUID categoryId;
     private List<String> tags;
 
     private long likeCount;
     private boolean liked;
     private boolean bookmarked;
 
-    public int getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
-    public int getUserId() {
+    public UUID getUserId() {
         return userId;
     }
 
-    public void setUserId(int userId) {
+    public void setUserId(UUID userId) {
         this.userId = userId;
     }
 
@@ -112,11 +113,11 @@ public class PostDetailResponse {
         this.score = score;
     }
 
-    public Integer getCategoryId() {
+    public UUID getCategoryId() {
         return categoryId;
     }
 
-    public void setCategoryId(Integer categoryId) {
+    public void setCategoryId(UUID categoryId) {
         this.categoryId = categoryId;
     }
 

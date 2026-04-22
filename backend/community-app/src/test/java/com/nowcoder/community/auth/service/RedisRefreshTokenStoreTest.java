@@ -12,6 +12,7 @@ import org.springframework.data.redis.core.script.RedisScript;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,6 +33,7 @@ class RedisRefreshTokenStoreTest {
 
     @Test
     void storeShouldUseAtomicScriptToStoreTokenAndIndexFamily() {
+        UUID userId = UUID.fromString("00000000-0000-7000-8000-000000000007");
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")
         ValueOperations<String, String> valueOps = mock(ValueOperations.class);
@@ -45,7 +47,7 @@ class RedisRefreshTokenStoreTest {
                 .thenReturn(1L);
 
         RedisRefreshTokenStore store = new RedisRefreshTokenStore(redisTemplate, objectMapper());
-        store.store("t1", 7, "f1", Instant.now().plusSeconds(120));
+        store.store("t1", userId, "f1", Instant.now().plusSeconds(120));
 
         ArgumentCaptor<RedisScript<Long>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
         ArgumentCaptor<List<String>> keysCaptor = ArgumentCaptor.forClass(List.class);
@@ -93,6 +95,7 @@ class RedisRefreshTokenStoreTest {
 
     @Test
     void consumeShouldTrimTokenForKeyAndFamilyRemoval() throws Exception {
+        UUID userId = UUID.fromString("00000000-0000-7000-8000-000000000007");
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")
         ValueOperations<String, String> valueOps = mock(ValueOperations.class);
@@ -103,7 +106,7 @@ class RedisRefreshTokenStoreTest {
         when(redisTemplate.opsForSet()).thenReturn(setOps);
 
         String json = objectMapper().writeValueAsString(
-                new RefreshTokenStore.StoredRefreshToken("t1", 7, "f1", Instant.now().plusSeconds(60))
+                new RefreshTokenStore.StoredRefreshToken("t1", userId, "f1", Instant.now().plusSeconds(60))
         );
         when(valueOps.getAndDelete(eq("auth:refresh:t1"))).thenReturn(json);
 
@@ -112,6 +115,7 @@ class RedisRefreshTokenStoreTest {
 
         assertThat(found).isNotNull();
         assertThat(found.refreshToken()).isEqualTo("t1");
+        assertThat(found.userId()).isEqualTo(userId);
         assertThat(found.familyId()).isEqualTo("f1");
         verify(valueOps).getAndDelete(eq("auth:refresh:t1"));
         verify(setOps).remove(eq("auth:refresh:family:f1"), eq("t1"));
@@ -119,6 +123,7 @@ class RedisRefreshTokenStoreTest {
 
     @Test
     void revokeShouldTrimTokenForKeyAndFamilyRemoval() throws Exception {
+        UUID userId = UUID.fromString("00000000-0000-7000-8000-000000000007");
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")
         ValueOperations<String, String> valueOps = mock(ValueOperations.class);
@@ -129,7 +134,7 @@ class RedisRefreshTokenStoreTest {
         when(redisTemplate.opsForSet()).thenReturn(setOps);
 
         String json = objectMapper().writeValueAsString(
-                new RefreshTokenStore.StoredRefreshToken("t1", 7, "f1", Instant.now().plusSeconds(60))
+                new RefreshTokenStore.StoredRefreshToken("t1", userId, "f1", Instant.now().plusSeconds(60))
         );
         when(valueOps.get(eq("auth:refresh:t1"))).thenReturn(json);
 

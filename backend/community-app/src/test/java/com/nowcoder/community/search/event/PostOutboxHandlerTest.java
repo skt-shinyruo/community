@@ -12,7 +12,9 @@ import org.mockito.ArgumentCaptor;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -29,11 +31,14 @@ class PostOutboxHandlerTest {
 
         PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         PostSearchRepository repository = mock(PostSearchRepository.class);
+        UUID postId = uuid(101);
+        UUID userId = uuid(7);
+        UUID categoryId = uuid(3);
 
         PostScanView.PostProjectionView doc = new PostScanView.PostProjectionView(
-                101,
-                7,
-                3,
+                postId,
+                userId,
+                categoryId,
                 List.of("java"),
                 "title",
                 "content",
@@ -42,23 +47,33 @@ class PostOutboxHandlerTest {
                 Instant.parse("2026-03-28T00:00:00Z"),
                 1.5
         );
-        when(postScanQueryApi.getPostProjectionAllowDeleted(101)).thenReturn(doc);
+        when(postScanQueryApi.getPostProjectionAllowDeleted(postId)).thenReturn(doc);
 
         PostOutboxHandler handler = new PostOutboxHandler(objectMapper, postScanQueryApi, repository);
 
-        String payloadJson = objectMapper.writeValueAsString(Map.of("postId", 101, "sourceEventId", "src-s1", "sourceEventType", "PostUpdated"));
-        OutboxEvent event = new OutboxEvent(1L, "src-s1:search_post", PostOutboxHandler.TOPIC, "101", payloadJson, "PENDING", 0, null, null);
+        String payloadJson = objectMapper.writeValueAsString(Map.of("postId", postId, "sourceEventId", "src-s1", "sourceEventType", "PostUpdated"));
+        OutboxEvent event = new OutboxEvent(
+                UUID.fromString("01965429-b34a-7000-8000-000000000021"),
+                "src-s1:search_post",
+                PostOutboxHandler.TOPIC,
+                postId.toString(),
+                payloadJson,
+                "PENDING",
+                0,
+                null,
+                null
+        );
 
         handler.handle(event);
 
         ArgumentCaptor<PostPayload> payloadCaptor = ArgumentCaptor.forClass(PostPayload.class);
         verify(repository).upsert(payloadCaptor.capture());
-        verify(repository, never()).delete(eq(101));
+        verify(repository, never()).delete(eq(postId));
 
         PostPayload payload = payloadCaptor.getValue();
-        assertThat(payload.getPostId()).isEqualTo(101);
-        assertThat(payload.getUserId()).isEqualTo(7);
-        assertThat(payload.getCategoryId()).isEqualTo(3);
+        assertThat(payload.getPostId()).isEqualTo(postId);
+        assertThat(payload.getUserId()).isEqualTo(userId);
+        assertThat(payload.getCategoryId()).isEqualTo(categoryId);
         assertThat(payload.getTags()).containsExactly("java");
         assertThat(payload.getTitle()).isEqualTo("title");
         assertThat(payload.getContent()).isEqualTo("content");
@@ -74,11 +89,14 @@ class PostOutboxHandlerTest {
 
         PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         PostSearchRepository repository = mock(PostSearchRepository.class);
+        UUID postId = uuid(101);
+        UUID userId = uuid(7);
+        UUID categoryId = uuid(3);
 
         PostScanView.PostProjectionView doc = new PostScanView.PostProjectionView(
-                101,
-                7,
-                3,
+                postId,
+                userId,
+                categoryId,
                 List.of("java"),
                 "title",
                 "content",
@@ -87,16 +105,26 @@ class PostOutboxHandlerTest {
                 Instant.parse("2026-03-28T00:00:00Z"),
                 1.5
         );
-        when(postScanQueryApi.getPostProjectionAllowDeleted(101)).thenReturn(doc);
+        when(postScanQueryApi.getPostProjectionAllowDeleted(postId)).thenReturn(doc);
 
         PostOutboxHandler handler = new PostOutboxHandler(objectMapper, postScanQueryApi, repository);
 
-        String payloadJson = objectMapper.writeValueAsString(Map.of("postId", 101, "sourceEventId", "src-s2", "sourceEventType", "PostDeleted"));
-        OutboxEvent event = new OutboxEvent(1L, "src-s2:search_post", PostOutboxHandler.TOPIC, "101", payloadJson, "PENDING", 0, null, null);
+        String payloadJson = objectMapper.writeValueAsString(Map.of("postId", postId, "sourceEventId", "src-s2", "sourceEventType", "PostDeleted"));
+        OutboxEvent event = new OutboxEvent(
+                UUID.fromString("01965429-b34a-7000-8000-000000000022"),
+                "src-s2:search_post",
+                PostOutboxHandler.TOPIC,
+                postId.toString(),
+                payloadJson,
+                "PENDING",
+                0,
+                null,
+                null
+        );
 
         handler.handle(event);
 
-        verify(repository).delete(eq(101));
+        verify(repository).delete(eq(postId));
         verify(repository, never()).upsert(any());
     }
 }

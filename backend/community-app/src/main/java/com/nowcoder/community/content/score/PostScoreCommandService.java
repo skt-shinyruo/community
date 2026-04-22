@@ -6,6 +6,8 @@ import com.nowcoder.community.content.service.PostService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 /**
@@ -24,12 +26,11 @@ public class PostScoreCommandService {
     }
 
     @Transactional
-    public void updateScore(int postId, double score) {
-        int pid = Math.max(0, postId);
-        if (pid <= 0) {
+    public void updateScore(UUID postId, double score) {
+        if (postId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "postId 非法");
         }
-        postService.updateScore(pid, score);
-        domainEventPublisher.postUpdated(pid);
+        postService.updateScore(postId, score);
+        domainEventPublisher.postUpdated(postId);
     }
 }

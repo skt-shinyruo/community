@@ -1,16 +1,18 @@
 // 创建举报请求：支持对帖子/评论/用户提交举报（reason 必填，detail 可选）。
 package com.nowcoder.community.content.dto;
 
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
+import java.util.UUID;
 
 public class CreateReportRequest {
 
     @NotBlank
     private String targetType;
 
-    @Min(1)
-    private Integer targetId;
+    @NotNull
+    private UUID targetId;
 
     @NotBlank
     private String reason;
@@ -25,11 +27,11 @@ public class CreateReportRequest {
         this.targetType = targetType;
     }
 
-    public Integer getTargetId() {
+    public UUID getTargetId() {
         return targetId;
     }
 
-    public void setTargetId(Integer targetId) {
+    public void setTargetId(UUID targetId) {
         this.targetId = targetId;
     }
 
@@ -49,4 +51,3 @@ public class CreateReportRequest {
         this.detail = detail;
     }
 }
-

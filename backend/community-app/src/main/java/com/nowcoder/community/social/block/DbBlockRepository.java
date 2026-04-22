@@ -5,6 +5,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * MySQL 持久化实现：以 DB 为 SSOT（source of truth）。
@@ -20,7 +21,7 @@ public class DbBlockRepository implements BlockRepository {
     }
 
     @Override
-    public boolean block(int userId, int targetUserId) {
+    public boolean block(UUID userId, UUID targetUserId) {
         try {
             return mapper.insertBlock(userId, targetUserId) > 0;
         } catch (DuplicateKeyException ignored) {
@@ -30,18 +31,18 @@ public class DbBlockRepository implements BlockRepository {
     }
 
     @Override
-    public boolean unblock(int userId, int targetUserId) {
+    public boolean unblock(UUID userId, UUID targetUserId) {
         return mapper.deleteBlock(userId, targetUserId) > 0;
     }
 
     @Override
-    public boolean hasBlocked(int userId, int targetUserId) {
+    public boolean hasBlocked(UUID userId, UUID targetUserId) {
         return mapper.countBlock(userId, targetUserId) > 0;
     }
 
     @Override
-    public List<Integer> listBlockedUserIds(int userId) {
-        List<Integer> list = mapper.listBlockedUserIds(userId);
+    public List<UUID> listBlockedUserIds(UUID userId) {
+        List<UUID> list = mapper.listBlockedUserIds(userId);
         return list == null ? List.of() : list;
     }
 }

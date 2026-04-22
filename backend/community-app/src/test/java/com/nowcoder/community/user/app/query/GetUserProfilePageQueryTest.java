@@ -14,17 +14,18 @@ import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.time.Instant;
 import java.util.Date;
-import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class GetUserProfilePageQueryTest {
 
     @Test
-    void getShouldKeepAnonymousViewerBehaviorForProfilePage() {
+    void getShouldProjectProfileWithDegradedSocialStateWhileMigrationIsInProgress() {
         UserProfileQueryApi userProfileQueryApi = mock(UserProfileQueryApi.class);
         UserSocialProfileService userSocialProfileService = mock(UserSocialProfileService.class);
         PostReadQueryApi postReadQueryApi = mock(PostReadQueryApi.class);
@@ -35,21 +36,14 @@ class GetUserProfilePageQueryTest {
                 postReadQueryApi,
                 userLevelQueryApi
         );
+        UUID userId = uuid(7);
         Date createTime = new Date();
-        when(userProfileQueryApi.getProfile(7))
-                .thenReturn(new UserProfileView(7, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
-        when(userLevelQueryApi.evaluateLevel(7))
-                .thenReturn(new UserLevelSummaryView(2, 13, 100, 12, 88, true));
-        UserSocialProfileService.UserProfileStats stats = new UserSocialProfileService.UserProfileStats();
-        stats.setLikeCount(12);
-        stats.setFolloweeCount(5);
-        stats.setFollowerCount(8);
-        stats.setHasFollowed(true);
-        when(userSocialProfileService.userProfileStats(7, 0)).thenReturn(stats);
+        when(userProfileQueryApi.getProfile(userId))
+                .thenReturn(new UserProfileView(userId, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
 
-        UserProfilePageView page = query.get(null, 7);
+        UserProfilePageView page = query.get(null, userId);
 
-        assertThat(page.userId()).isEqualTo(7);
+        assertThat(page.userId()).isEqualTo(userId);
         assertThat(page.username()).isEqualTo("alice");
         assertThat(page.headerUrl()).isEqualTo("h7");
         assertThat(page.type()).isEqualTo(2);
@@ -59,20 +53,20 @@ class GetUserProfilePageQueryTest {
         assertThat(page.level()).isEqualTo(3);
         assertThat(page.walletBalance()).isEqualTo(900L);
         assertThat(page.walletStatus()).isEqualTo("ACTIVE");
-        assertThat(page.userLevelEnabled()).isTrue();
-        assertThat(page.userLevel()).isEqualTo(2);
-        assertThat(page.signInDaysInWindow()).isEqualTo(13);
-        assertThat(page.likeCount()).isEqualTo(12);
-        assertThat(page.followeeCount()).isEqualTo(5);
-        assertThat(page.followerCount()).isEqualTo(8);
+        assertThat(page.userLevelEnabled()).isFalse();
+        assertThat(page.userLevel()).isNull();
+        assertThat(page.signInDaysInWindow()).isNull();
+        assertThat(page.likeCount()).isZero();
+        assertThat(page.followeeCount()).isZero();
+        assertThat(page.followerCount()).isZero();
         assertThat(page.hasFollowed()).isFalse();
-        assertThat(page.socialDegraded()).isFalse();
-        verify(userProfileQueryApi).getProfile(7);
-        verify(userSocialProfileService).userProfileStats(7, 0);
+        assertThat(page.socialDegraded()).isTrue();
+        verify(userProfileQueryApi).getProfile(userId);
+        verifyNoInteractions(userSocialProfileService, postReadQueryApi, userLevelQueryApi);
     }
 
     @Test
-    void getShouldKeepLoggedInViewerBehaviorForAnotherUsersProfilePage() {
+    void getShouldParseUuidViewerWithoutChangingDegradedSocialProjection() {
         UserProfileQueryApi userProfileQueryApi = mock(UserProfileQueryApi.class);
         UserSocialProfileService userSocialProfileService = mock(UserSocialProfileService.class);
         PostReadQueryApi postReadQueryApi = mock(PostReadQueryApi.class);
@@ -83,28 +77,23 @@ class GetUserProfilePageQueryTest {
                 postReadQueryApi,
                 userLevelQueryApi
         );
+        UUID userId = uuid(7);
+        UUID viewerId = uuid(42);
         Date createTime = new Date();
-        when(userProfileQueryApi.getProfile(7))
-                .thenReturn(new UserProfileView(7, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
-        when(userLevelQueryApi.evaluateLevel(7))
-                .thenReturn(new UserLevelSummaryView(2, 13, 100, 12, 88, true));
-        UserSocialProfileService.UserProfileStats stats = new UserSocialProfileService.UserProfileStats();
-        stats.setLikeCount(12);
-        stats.setFolloweeCount(5);
-        stats.setFollowerCount(8);
-        stats.setHasFollowed(true);
-        when(userSocialProfileService.userProfileStats(7, 42)).thenReturn(stats);
+        when(userProfileQueryApi.getProfile(userId))
+                .thenReturn(new UserProfileView(userId, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
 
-        UserProfilePageView page = query.get(authentication(42), 7);
+        UserProfilePageView page = query.get(authentication(viewerId), userId);
 
-        assertThat(page.userId()).isEqualTo(7);
-        assertThat(page.hasFollowed()).isTrue();
-        verify(userProfileQueryApi).getProfile(7);
-        verify(userSocialProfileService).userProfileStats(7, 42);
+        assertThat(page.userId()).isEqualTo(userId);
+        assertThat(page.hasFollowed()).isFalse();
+        assertThat(page.socialDegraded()).isTrue();
+        verify(userProfileQueryApi).getProfile(userId);
+        verifyNoInteractions(userSocialProfileService, postReadQueryApi, userLevelQueryApi);
     }
 
     @Test
-    void listRecentPostsShouldVerifyUserAndProjectOwnerDomainItems() {
+    void listRecentPostsShouldReturnEmptyWhileProjectionIsTemporarilyDisabled() {
         UserProfileQueryApi userProfileQueryApi = mock(UserProfileQueryApi.class);
         UserSocialProfileService userSocialProfileService = mock(UserSocialProfileService.class);
         PostReadQueryApi postReadQueryApi = mock(PostReadQueryApi.class);
@@ -115,52 +104,20 @@ class GetUserProfilePageQueryTest {
                 postReadQueryApi,
                 userLevelQueryApi
         );
+        UUID userId = uuid(7);
         Date createTime = new Date();
-        Date lastReplyTime = new Date(createTime.getTime() + 1_000);
-        Date lastActivityTime = new Date(createTime.getTime() + 2_000);
-        when(userProfileQueryApi.getProfile(7))
-                .thenReturn(new UserProfileView(7, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
-        when(postReadQueryApi.listPostsByUser(7, 1, 5)).thenReturn(List.of(new PostSummaryView(
-                11,
-                7,
-                "first post",
-                1,
-                0,
-                createTime,
-                4,
-                9.5,
-                3,
-                List.of("java", "spring"),
-                8,
-                lastReplyTime,
-                lastActivityTime,
-                "latest reply"
-        )));
+        when(userProfileQueryApi.getProfile(userId))
+                .thenReturn(new UserProfileView(userId, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
 
-        List<UserProfilePageView.RecentPostSummaryView> items = query.listRecentPosts(7, 1, 5);
+        var items = query.listRecentPosts(userId, 1, 5);
 
-        assertThat(items).hasSize(1);
-        UserProfilePageView.RecentPostSummaryView item = items.get(0);
-        assertThat(item.id()).isEqualTo(11);
-        assertThat(item.userId()).isEqualTo(7);
-        assertThat(item.title()).isEqualTo("first post");
-        assertThat(item.type()).isEqualTo(1);
-        assertThat(item.status()).isEqualTo(0);
-        assertThat(item.createTime()).isEqualTo(createTime);
-        assertThat(item.commentCount()).isEqualTo(4);
-        assertThat(item.score()).isEqualTo(9.5);
-        assertThat(item.categoryId()).isEqualTo(3);
-        assertThat(item.tags()).containsExactly("java", "spring");
-        assertThat(item.lastReplyUserId()).isEqualTo(8);
-        assertThat(item.lastReplyTime()).isEqualTo(lastReplyTime);
-        assertThat(item.lastActivityTime()).isEqualTo(lastActivityTime);
-        assertThat(item.lastReplyPreview()).isEqualTo("latest reply");
-        verify(userProfileQueryApi).getProfile(7);
-        verify(postReadQueryApi).listPostsByUser(7, 1, 5);
+        assertThat(items).isEmpty();
+        verify(userProfileQueryApi).getProfile(userId);
+        verifyNoInteractions(postReadQueryApi, userSocialProfileService, userLevelQueryApi);
     }
 
     @Test
-    void listRecentCommentsShouldVerifyUserAndProjectOwnerDomainItems() {
+    void listRecentCommentsShouldReturnEmptyWhileProjectionIsTemporarilyDisabled() {
         UserProfileQueryApi userProfileQueryApi = mock(UserProfileQueryApi.class);
         UserSocialProfileService userSocialProfileService = mock(UserSocialProfileService.class);
         PostReadQueryApi postReadQueryApi = mock(PostReadQueryApi.class);
@@ -171,47 +128,31 @@ class GetUserProfilePageQueryTest {
                 postReadQueryApi,
                 userLevelQueryApi
         );
+        UUID userId = uuid(7);
         Date createTime = new Date();
-        when(userProfileQueryApi.getProfile(7))
-                .thenReturn(new UserProfileView(7, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
-        when(postReadQueryApi.listRecentCommentsByUser(7, 2, 10)).thenReturn(List.of(new RecentUserCommentView(
-                21,
-                7,
-                1,
-                101,
-                0,
-                201,
-                "post title",
-                "reply body",
-                createTime
-        )));
+        when(userProfileQueryApi.getProfile(userId))
+                .thenReturn(new UserProfileView(userId, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
 
-        List<UserProfilePageView.RecentCommentItemView> items = query.listRecentComments(7, 2, 10);
+        var items = query.listRecentComments(userId, 2, 10);
 
-        assertThat(items).hasSize(1);
-        UserProfilePageView.RecentCommentItemView item = items.get(0);
-        assertThat(item.id()).isEqualTo(21);
-        assertThat(item.userId()).isEqualTo(7);
-        assertThat(item.entityType()).isEqualTo(1);
-        assertThat(item.entityId()).isEqualTo(101);
-        assertThat(item.targetId()).isEqualTo(0);
-        assertThat(item.postId()).isEqualTo(201);
-        assertThat(item.postTitle()).isEqualTo("post title");
-        assertThat(item.content()).isEqualTo("reply body");
-        assertThat(item.createTime()).isEqualTo(createTime);
-        verify(userProfileQueryApi).getProfile(7);
-        verify(postReadQueryApi).listRecentCommentsByUser(7, 2, 10);
+        assertThat(items).isEmpty();
+        verify(userProfileQueryApi).getProfile(userId);
+        verifyNoInteractions(postReadQueryApi, userSocialProfileService, userLevelQueryApi);
     }
 
-    private Authentication authentication(int userId) {
+    private Authentication authentication(UUID userId) {
         Jwt jwt = Jwt.withTokenValue("token-" + userId)
                 .header("alg", "none")
-                .subject(String.valueOf(userId))
+                .subject(userId.toString())
                 .issuedAt(Instant.now())
                 .expiresAt(Instant.now().plusSeconds(60))
                 .build();
         Authentication authentication = mock(Authentication.class);
         when(authentication.getPrincipal()).thenReturn(jwt);
         return authentication;
+    }
+
+    private static UUID uuid(long suffix) {
+        return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
     }
 }

@@ -6,9 +6,8 @@
 <mapper namespace="com.nowcoder.community.user.mapper.UserScoreLogMapper">
 
     <insert id="insert">
-        insert into user_score_log(user_id, event_id, event_type, delta)
-        values(#{userId}, #{eventId}, #{eventType}, #{delta})
+        insert into user_score_log(id, user_id, event_id, event_type, delta)
+        values(#{id, jdbcType=BINARY}, #{userId, jdbcType=BINARY}, #{eventId}, #{eventType}, #{delta})
     </insert>
 
 </mapper>
-

@@ -11,6 +11,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.UUID;
+
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -30,18 +33,20 @@ class ImGovernanceControllerTest {
 
     @Test
     void validateSendPrivateMessageShouldDelegateToPrivateMessageGovernanceAction() throws Exception {
+        UUID fromUserId = uuid(7);
+        UUID toUserId = uuid(9);
         mockMvc.perform(post("/api/im-governance/private-messages/validate")
-                        .with(jwt().jwt(jwt -> jwt.subject("7")))
+                        .with(jwt().jwt(jwt -> jwt.subject(fromUserId.toString())))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "toUserId": 9
+                                  "toUserId": "%s"
                                 }
-                                """))
+                                """.formatted(toUserId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.message").value("OK"));
 
-        verify(governanceActionApi).validateCanSendPrivateMessage(7, 9);
+        verify(governanceActionApi).validateCanSendPrivateMessage(fromUserId, toUserId);
     }
 }

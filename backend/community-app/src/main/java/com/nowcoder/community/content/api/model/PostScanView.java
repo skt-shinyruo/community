@@ -2,10 +2,11 @@ package com.nowcoder.community.content.api.model;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 public record PostScanView(
         List<PostProjectionView> items,
-        int nextAfterId,
+        UUID nextAfterId,
         boolean hasMore
 ) {
 
@@ -14,9 +15,9 @@ public record PostScanView(
     }
 
     public record PostProjectionView(
-            int postId,
-            int userId,
-            Integer categoryId,
+            UUID postId,
+            UUID userId,
+            UUID categoryId,
             List<String> tags,
             String title,
             String content,

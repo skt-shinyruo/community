@@ -1,11 +1,12 @@
 package com.nowcoder.community.market.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class MarketListing {
 
-    private long listingId;
-    private int sellerUserId;
+    private UUID listingId;
+    private UUID sellerUserId;
     private String goodsType;
     private String title;
     private String description;
@@ -20,19 +21,19 @@ public class MarketListing {
     private Date createTime;
     private Date updateTime;
 
-    public long getListingId() {
+    public UUID getListingId() {
         return listingId;
     }
 
-    public void setListingId(long listingId) {
+    public void setListingId(UUID listingId) {
         this.listingId = listingId;
     }
 
-    public int getSellerUserId() {
+    public UUID getSellerUserId() {
         return sellerUserId;
     }
 
-    public void setSellerUserId(int sellerUserId) {
+    public void setSellerUserId(UUID sellerUserId) {
         this.sellerUserId = sellerUserId;
     }
 

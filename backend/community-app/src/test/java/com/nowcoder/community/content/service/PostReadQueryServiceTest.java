@@ -18,7 +18,9 @@ import org.junit.jupiter.api.Test;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -33,22 +35,25 @@ class PostReadQueryServiceTest {
         TagService tagService = mock(TagService.class);
         BookmarkService bookmarkService = mock(BookmarkService.class);
         SubscriptionService subscriptionService = mock(SubscriptionService.class);
+        UUID postId = uuid(10);
+        UUID authorUserId = uuid(2);
+        UUID lastReplyUserId = uuid(3);
 
         DiscussPost post = new DiscussPost();
-        post.setId(10);
-        post.setUserId(2);
+        post.setId(postId);
+        post.setUserId(authorUserId);
         post.setTitle("&lt;title&gt;");
         post.setContent("&lt;content&gt;");
         post.setCommentCount(3);
 
         Comment lastActivity = new Comment();
-        lastActivity.setUserId(3);
+        lastActivity.setUserId(lastReplyUserId);
         lastActivity.setCreateTime(new Date(2_000));
         lastActivity.setContent("&lt;latest reply&gt;");
 
         when(postService.listPosts(0, 10, PostService.ORDER_LATEST, null, null)).thenReturn(List.of(post));
-        when(commentService.getLatestPostActivitiesByPostIds(List.of(10))).thenReturn(Map.of(10, lastActivity));
-        when(tagService.getTagsByPostIds(List.of(10))).thenReturn(Map.of(10, List.of("java")));
+        when(commentService.getLatestPostActivitiesByPostIds(List.of(postId))).thenReturn(Map.of(postId, lastActivity));
+        when(tagService.getTagsByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of("java")));
 
         PostReadQueryService service = new PostReadQueryService(
                 postService,
@@ -62,10 +67,10 @@ class PostReadQueryServiceTest {
                 new RecentUserCommentAssembler(textCodec())
         );
 
-        List<PostSummaryView> items = service.listPosts(0, "latest", null, null, false, 0, 10);
+        List<PostSummaryView> items = service.listPosts(null, "latest", null, null, false, 0, 10);
 
         assertThat(items).hasSize(1);
-        assertThat(items.get(0).id()).isEqualTo(10);
+        assertThat(items.get(0).id()).isEqualTo(postId);
         assertThat(items.get(0).title()).isEqualTo("<title>");
         assertThat(items.get(0).tags()).containsExactly("java");
         assertThat(items.get(0).lastActivityTime()).isEqualTo(lastActivity.getCreateTime());
@@ -80,10 +85,14 @@ class PostReadQueryServiceTest {
         TagService tagService = mock(TagService.class);
         BookmarkService bookmarkService = mock(BookmarkService.class);
         SubscriptionService subscriptionService = mock(SubscriptionService.class);
+        UUID currentUserId = uuid(7);
+        UUID postId = uuid(10);
+        UUID authorUserId = uuid(8);
+        UUID categoryId = uuid(3);
 
         DiscussPost post = new DiscussPost();
-        post.setId(10);
-        post.setUserId(8);
+        post.setId(postId);
+        post.setUserId(authorUserId);
         post.setTitle("&lt;title&gt;");
         post.setContent("&lt;body&gt;");
         post.setType(1);
@@ -93,13 +102,13 @@ class PostReadQueryServiceTest {
         post.setEditCount(2);
         post.setCommentCount(5);
         post.setScore(12.5);
-        post.setCategoryId(3);
+        post.setCategoryId(categoryId);
 
-        when(postService.getById(10)).thenReturn(post);
-        when(tagService.getTagsByPostIds(List.of(10))).thenReturn(Map.of(10, List.of("java", "spring")));
-        when(likeQueryService.countPostLikes(10)).thenReturn(9L);
-        when(likeQueryService.hasLikedPost(7, 10)).thenReturn(true);
-        when(bookmarkService.hasBookmarked(7, 10)).thenReturn(true);
+        when(postService.getById(postId)).thenReturn(post);
+        when(tagService.getTagsByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of("java", "spring")));
+        when(likeQueryService.countPostLikes(postId)).thenReturn(9L);
+        when(likeQueryService.hasLikedPost(currentUserId, postId)).thenReturn(true);
+        when(bookmarkService.hasBookmarked(currentUserId, postId)).thenReturn(true);
 
         PostReadQueryService service = new PostReadQueryService(
                 postService,
@@ -113,9 +122,9 @@ class PostReadQueryServiceTest {
                 new RecentUserCommentAssembler(textCodec())
         );
 
-        PostDetailView detail = service.getPostDetail(7, 10);
+        PostDetailView detail = service.getPostDetail(currentUserId, postId);
 
-        assertThat(detail.id()).isEqualTo(10);
+        assertThat(detail.id()).isEqualTo(postId);
         assertThat(detail.title()).isEqualTo("<title>");
         assertThat(detail.content()).isEqualTo("<body>");
         assertThat(detail.tags()).containsExactly("java", "spring");
@@ -132,27 +141,31 @@ class PostReadQueryServiceTest {
         TagService tagService = mock(TagService.class);
         BookmarkService bookmarkService = mock(BookmarkService.class);
         SubscriptionService subscriptionService = mock(SubscriptionService.class);
+        UUID userId = uuid(7);
+        UUID firstPostId = uuid(21);
+        UUID secondPostId = uuid(22);
+        UUID lastReplyUserId = uuid(11);
 
         DiscussPost first = new DiscussPost();
-        first.setId(21);
-        first.setUserId(7);
+        first.setId(firstPostId);
+        first.setUserId(userId);
         first.setTitle("&lt;first&gt;");
         first.setCommentCount(5);
 
         DiscussPost second = new DiscussPost();
-        second.setId(22);
-        second.setUserId(7);
+        second.setId(secondPostId);
+        second.setUserId(userId);
         second.setTitle("&lt;second&gt;");
         second.setCommentCount(1);
 
         Comment lastActivity = new Comment();
-        lastActivity.setUserId(11);
+        lastActivity.setUserId(lastReplyUserId);
         lastActivity.setCreateTime(new Date(3_000));
         lastActivity.setContent("&lt;newest&gt;");
 
-        when(postService.listPostsByUser(7, 0, 3)).thenReturn(List.of(first, second));
-        when(commentService.getLatestPostActivitiesByPostIds(List.of(21, 22))).thenReturn(Map.of(21, lastActivity));
-        when(tagService.getTagsByPostIds(List.of(21, 22))).thenReturn(Map.of(21, List.of("java"), 22, List.of("spring")));
+        when(postService.listPostsByUser(userId, 0, 3)).thenReturn(List.of(first, second));
+        when(commentService.getLatestPostActivitiesByPostIds(List.of(firstPostId, secondPostId))).thenReturn(Map.of(firstPostId, lastActivity));
+        when(tagService.getTagsByPostIds(List.of(firstPostId, secondPostId))).thenReturn(Map.of(firstPostId, List.of("java"), secondPostId, List.of("spring")));
 
         PostReadQueryService service = new PostReadQueryService(
                 postService,
@@ -166,13 +179,13 @@ class PostReadQueryServiceTest {
                 new RecentUserCommentAssembler(textCodec())
         );
 
-        List<PostSummaryView> items = service.listPostsByUser(7, 0, 3);
+        List<PostSummaryView> items = service.listPostsByUser(userId, 0, 3);
 
         assertThat(items).hasSize(2);
-        assertThat(items.get(0).userId()).isEqualTo(7);
+        assertThat(items.get(0).userId()).isEqualTo(userId);
         assertThat(items.get(0).title()).isEqualTo("<first>");
         assertThat(items.get(0).tags()).containsExactly("java");
-        assertThat(items.get(0).lastReplyUserId()).isEqualTo(11);
+        assertThat(items.get(0).lastReplyUserId()).isEqualTo(lastReplyUserId);
         assertThat(items.get(0).lastReplyPreview()).isEqualTo("<newest>");
         assertThat(items.get(1).tags()).containsExactly("spring");
     }
@@ -185,40 +198,46 @@ class PostReadQueryServiceTest {
         TagService tagService = mock(TagService.class);
         BookmarkService bookmarkService = mock(BookmarkService.class);
         SubscriptionService subscriptionService = mock(SubscriptionService.class);
+        UUID userId = uuid(7);
+        UUID directCommentId = uuid(31);
+        UUID replyCommentId = uuid(32);
+        UUID parentCommentId = uuid(88);
+        UUID firstPostId = uuid(201);
+        UUID secondPostId = uuid(202);
 
         Comment direct = new Comment();
-        direct.setId(31);
-        direct.setUserId(7);
+        direct.setId(directCommentId);
+        direct.setUserId(userId);
         direct.setEntityType(CommentService.ENTITY_TYPE_POST);
-        direct.setEntityId(201);
+        direct.setEntityId(firstPostId);
         direct.setContent("&lt;direct&gt;");
         direct.setCreateTime(new Date(2_000));
 
         Comment reply = new Comment();
-        reply.setId(32);
-        reply.setUserId(7);
+        reply.setId(replyCommentId);
+        reply.setUserId(userId);
         reply.setEntityType(CommentService.ENTITY_TYPE_COMMENT);
-        reply.setEntityId(88);
+        reply.setEntityId(parentCommentId);
         reply.setContent("&lt;reply&gt;");
         reply.setCreateTime(new Date(3_000));
 
         Comment parent = new Comment();
-        parent.setId(88);
+        parent.setId(parentCommentId);
         parent.setEntityType(CommentService.ENTITY_TYPE_POST);
-        parent.setEntityId(202);
+        parent.setEntityId(secondPostId);
 
         DiscussPost firstPost = new DiscussPost();
-        firstPost.setId(201);
+        firstPost.setId(firstPostId);
         firstPost.setTitle("&lt;first&gt;");
 
         DiscussPost secondPost = new DiscussPost();
-        secondPost.setId(202);
+        secondPost.setId(secondPostId);
         secondPost.setTitle("&lt;second&gt;");
 
-        when(commentService.listRecentCommentsByUser(7, 0, 3)).thenReturn(List.of(reply, direct));
-        when(commentService.getById(88)).thenReturn(parent);
-        when(postService.getById(201)).thenReturn(firstPost);
-        when(postService.getById(202)).thenReturn(secondPost);
+        when(commentService.listRecentCommentsByUser(userId, 0, 3)).thenReturn(List.of(reply, direct));
+        when(commentService.getById(parentCommentId)).thenReturn(parent);
+        when(postService.getById(firstPostId)).thenReturn(firstPost);
+        when(postService.getById(secondPostId)).thenReturn(secondPost);
 
         PostReadQueryService service = new PostReadQueryService(
                 postService,
@@ -232,13 +251,13 @@ class PostReadQueryServiceTest {
                 new RecentUserCommentAssembler(textCodec())
         );
 
-        List<RecentUserCommentView> items = service.listRecentCommentsByUser(7, 0, 3);
+        List<RecentUserCommentView> items = service.listRecentCommentsByUser(userId, 0, 3);
 
         assertThat(items).hasSize(2);
-        assertThat(items.get(0).postId()).isEqualTo(202);
+        assertThat(items.get(0).postId()).isEqualTo(secondPostId);
         assertThat(items.get(0).postTitle()).isEqualTo("<second>");
         assertThat(items.get(0).content()).isEqualTo("<reply>");
-        assertThat(items.get(1).postId()).isEqualTo(201);
+        assertThat(items.get(1).postId()).isEqualTo(firstPostId);
         assertThat(items.get(1).postTitle()).isEqualTo("<first>");
     }
 
@@ -250,30 +269,35 @@ class PostReadQueryServiceTest {
         TagService tagService = mock(TagService.class);
         BookmarkService bookmarkService = mock(BookmarkService.class);
         SubscriptionService subscriptionService = mock(SubscriptionService.class);
+        UUID userId = uuid(7);
+        UUID brokenReplyId = uuid(41);
+        UUID directCommentId = uuid(42);
+        UUID missingParentCommentId = uuid(404);
+        UUID postId = uuid(201);
 
         Comment brokenReply = new Comment();
-        brokenReply.setId(41);
-        brokenReply.setUserId(7);
+        brokenReply.setId(brokenReplyId);
+        brokenReply.setUserId(userId);
         brokenReply.setEntityType(CommentService.ENTITY_TYPE_COMMENT);
-        brokenReply.setEntityId(404);
+        brokenReply.setEntityId(missingParentCommentId);
         brokenReply.setContent("&lt;reply&gt;");
         brokenReply.setCreateTime(new Date(3_000));
 
         Comment direct = new Comment();
-        direct.setId(42);
-        direct.setUserId(7);
+        direct.setId(directCommentId);
+        direct.setUserId(userId);
         direct.setEntityType(CommentService.ENTITY_TYPE_POST);
-        direct.setEntityId(201);
+        direct.setEntityId(postId);
         direct.setContent("&lt;direct&gt;");
         direct.setCreateTime(new Date(2_000));
 
         DiscussPost firstPost = new DiscussPost();
-        firstPost.setId(201);
+        firstPost.setId(postId);
         firstPost.setTitle("&lt;first&gt;");
 
-        when(commentService.listRecentCommentsByUser(7, 0, 3)).thenReturn(List.of(brokenReply, direct));
-        when(commentService.getById(404)).thenThrow(new BusinessException(ContentErrorCode.COMMENT_NOT_FOUND));
-        when(postService.getById(201)).thenReturn(firstPost);
+        when(commentService.listRecentCommentsByUser(userId, 0, 3)).thenReturn(List.of(brokenReply, direct));
+        when(commentService.getById(missingParentCommentId)).thenThrow(new BusinessException(ContentErrorCode.COMMENT_NOT_FOUND));
+        when(postService.getById(postId)).thenReturn(firstPost);
 
         PostReadQueryService service = new PostReadQueryService(
                 postService,
@@ -287,11 +311,11 @@ class PostReadQueryServiceTest {
                 new RecentUserCommentAssembler(textCodec())
         );
 
-        List<RecentUserCommentView> items = service.listRecentCommentsByUser(7, 0, 3);
+        List<RecentUserCommentView> items = service.listRecentCommentsByUser(userId, 0, 3);
 
         assertThat(items).hasSize(1);
-        assertThat(items.get(0).id()).isEqualTo(42);
-        assertThat(items.get(0).postId()).isEqualTo(201);
+        assertThat(items.get(0).id()).isEqualTo(directCommentId);
+        assertThat(items.get(0).postId()).isEqualTo(postId);
     }
 
     @Test
@@ -302,26 +326,32 @@ class PostReadQueryServiceTest {
         TagService tagService = mock(TagService.class);
         BookmarkService bookmarkService = mock(BookmarkService.class);
         SubscriptionService subscriptionService = mock(SubscriptionService.class);
+        UUID firstPostId = uuid(12);
+        UUID secondPostId = uuid(9);
+        UUID firstAuthorId = uuid(2);
+        UUID secondAuthorId = uuid(3);
+        UUID lastReplyUserId = uuid(5);
+        List<UUID> requestedPostIds = List.of(firstPostId, secondPostId);
 
         DiscussPost first = new DiscussPost();
-        first.setId(12);
-        first.setUserId(2);
+        first.setId(firstPostId);
+        first.setUserId(firstAuthorId);
         first.setTitle("&lt;first&gt;");
         first.setCommentCount(4);
 
         DiscussPost second = new DiscussPost();
-        second.setId(9);
-        second.setUserId(3);
+        second.setId(secondPostId);
+        second.setUserId(secondAuthorId);
         second.setTitle("&lt;second&gt;");
         second.setCommentCount(1);
 
         Comment lastActivity = new Comment();
-        lastActivity.setUserId(5);
+        lastActivity.setUserId(lastReplyUserId);
         lastActivity.setCreateTime(new Date(4_000));
 
-        when(postService.listPostsByIds(List.of(12, 9))).thenReturn(List.of(first, second));
-        when(commentService.getLatestPostActivitiesByPostIds(List.of(12, 9))).thenReturn(Map.of(12, lastActivity));
-        when(tagService.getTagsByPostIds(List.of(12, 9))).thenReturn(Map.of(12, List.of("java"), 9, List.of("spring")));
+        when(postService.listPostsByIds(requestedPostIds)).thenReturn(List.of(first, second));
+        when(commentService.getLatestPostActivitiesByPostIds(requestedPostIds)).thenReturn(Map.of(firstPostId, lastActivity));
+        when(tagService.getTagsByPostIds(requestedPostIds)).thenReturn(Map.of(firstPostId, List.of("java"), secondPostId, List.of("spring")));
 
         PostReadQueryService service = new PostReadQueryService(
                 postService,
@@ -335,11 +365,11 @@ class PostReadQueryServiceTest {
                 new RecentUserCommentAssembler(textCodec())
         );
 
-        List<PostSummaryView> items = service.listPostsByIds(List.of(12, 9));
+        List<PostSummaryView> items = service.listPostsByIds(requestedPostIds);
 
         assertThat(items).hasSize(2);
-        assertThat(items.get(0).id()).isEqualTo(12);
-        assertThat(items.get(1).id()).isEqualTo(9);
+        assertThat(items.get(0).id()).isEqualTo(firstPostId);
+        assertThat(items.get(1).id()).isEqualTo(secondPostId);
         assertThat(items.get(0).commentCount()).isEqualTo(4);
     }
 

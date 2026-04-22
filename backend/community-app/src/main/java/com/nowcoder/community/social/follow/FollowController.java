@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
@@ -35,7 +36,7 @@ public class FollowController {
 
     @PostMapping
     public Result<Void> follow(Authentication authentication, @Valid @RequestBody FollowRequest request) {
-        int userId = CurrentUser.requireUserId(authentication);
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         if (request.getEntityType() != ENTITY_TYPE_USER) {
             throw new BusinessException(INVALID_ARGUMENT, "follow 仅支持 USER");
         }
@@ -44,8 +45,8 @@ public class FollowController {
     }
 
     @DeleteMapping
-    public Result<Void> unfollow(Authentication authentication, @RequestParam int entityType, @RequestParam int entityId) {
-        int userId = CurrentUser.requireUserId(authentication);
+    public Result<Void> unfollow(Authentication authentication, @RequestParam int entityType, @RequestParam UUID entityId) {
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         if (entityType != ENTITY_TYPE_USER) {
             throw new BusinessException(INVALID_ARGUMENT, "unfollow 仅支持 USER");
         }
@@ -54,8 +55,8 @@ public class FollowController {
     }
 
     @GetMapping("/status")
-    public Result<Boolean> status(Authentication authentication, @RequestParam int entityType, @RequestParam int entityId) {
-        int userId = CurrentUser.requireUserId(authentication);
+    public Result<Boolean> status(Authentication authentication, @RequestParam int entityType, @RequestParam UUID entityId) {
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         if (entityType != ENTITY_TYPE_USER) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
         }
@@ -64,7 +65,7 @@ public class FollowController {
 
     @GetMapping("/{userId}/followees")
     public Result<List<FollowItem>> followees(
-            @PathVariable int userId,
+            @PathVariable UUID userId,
             @RequestParam(required = false) Integer entityType,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
@@ -80,7 +81,7 @@ public class FollowController {
 
     @GetMapping("/{userId}/followers")
     public Result<List<FollowItem>> followers(
-            @PathVariable int userId,
+            @PathVariable UUID userId,
             @RequestParam(required = false) Integer entityType,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
@@ -95,7 +96,7 @@ public class FollowController {
     }
 
     @GetMapping("/{userId}/followees/count")
-    public Result<Long> followeeCount(@PathVariable int userId, @RequestParam(required = false) Integer entityType) {
+    public Result<Long> followeeCount(@PathVariable UUID userId, @RequestParam(required = false) Integer entityType) {
         int t = entityType == null ? ENTITY_TYPE_USER : entityType;
         if (!EntityTypes.isValid(t)) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
@@ -104,7 +105,7 @@ public class FollowController {
     }
 
     @GetMapping("/{userId}/followers/count")
-    public Result<Long> followerCount(@PathVariable int userId, @RequestParam(required = false) Integer entityType) {
+    public Result<Long> followerCount(@PathVariable UUID userId, @RequestParam(required = false) Integer entityType) {
         int t = entityType == null ? ENTITY_TYPE_USER : entityType;
         if (!EntityTypes.isValid(t)) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");

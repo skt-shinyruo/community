@@ -5,9 +5,12 @@ import com.nowcoder.community.social.api.query.SocialFollowQueryApi;
 import com.nowcoder.community.social.api.query.SocialLikeQueryApi;
 import org.junit.jupiter.api.Test;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.anyInt;
+import static com.nowcoder.community.support.TestUuids.uuid;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -18,13 +21,15 @@ class UserSocialProfileServiceTest {
         SocialLikeQueryApi likeQueryApi = mock(SocialLikeQueryApi.class);
         SocialFollowQueryApi followQueryApi = mock(SocialFollowQueryApi.class);
         UserSocialProfileService service = new UserSocialProfileService(likeQueryApi, followQueryApi);
+        UUID userId = uuid(1);
+        UUID viewerId = uuid(2);
 
-        when(likeQueryApi.userLikeCount(1)).thenReturn(5L);
-        when(followQueryApi.followeeCount(1, EntityTypes.USER)).thenReturn(2L);
-        when(followQueryApi.followerCount(EntityTypes.USER, 1)).thenReturn(3L);
-        when(followQueryApi.hasFollowed(2, EntityTypes.USER, 1)).thenReturn(true);
+        when(likeQueryApi.userLikeCount(userId)).thenReturn(5L);
+        when(followQueryApi.followeeCount(userId, EntityTypes.USER)).thenReturn(2L);
+        when(followQueryApi.followerCount(EntityTypes.USER, userId)).thenReturn(3L);
+        when(followQueryApi.hasFollowed(viewerId, EntityTypes.USER, userId)).thenReturn(true);
 
-        UserSocialProfileService.UserProfileStats stats = service.userProfileStats(1, 2);
+        UserSocialProfileService.UserProfileStats stats = service.userProfileStats(userId, viewerId);
 
         assertThat(stats.getLikeCount()).isEqualTo(5L);
         assertThat(stats.getFolloweeCount()).isEqualTo(2L);
@@ -40,9 +45,9 @@ class UserSocialProfileServiceTest {
         UserSocialProfileService service = new UserSocialProfileService(likeQueryApi, followQueryApi);
 
         RuntimeException error = new RuntimeException("boom");
-        when(likeQueryApi.userLikeCount(anyInt())).thenThrow(error);
+        when(likeQueryApi.userLikeCount(any(UUID.class))).thenThrow(error);
 
-        assertThatThrownBy(() -> service.userProfileStats(1, 2))
+        assertThatThrownBy(() -> service.userProfileStats(uuid(1), uuid(2)))
                 .isSameAs(error);
     }
 }

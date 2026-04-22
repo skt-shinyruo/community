@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.core.controller;
 
+import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.im.core.repository.ConversationReadStateRepository;
 import com.nowcoder.community.im.core.repository.ConversationRepository;
 import com.nowcoder.community.im.core.repository.PrivateMessageRepository;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/im/conversations")
@@ -44,7 +46,8 @@ public class ConversationController {
             @RequestParam(name = "page", required = false, defaultValue = "0") int page,
             @RequestParam(name = "size", required = false, defaultValue = "20") int size
     ) {
-        int me = CurrentUser.userIdOrThrow(jwt);
+        UUID me = CurrentUser.userIdOrThrow(jwt);
+        byte[] meBytes = BinaryUuidCodec.toBytes(me);
         int s = Math.min(Math.max(1, size), 200);
         int p = Math.max(0, page);
         long offset = (long) p * (long) s;
@@ -57,23 +60,23 @@ public class ConversationController {
                         "left join im_conversation_read_state r on r.conversation_id = c.conversation_id and r.user_id = ? " +
                         "left join im_private_message m on m.conversation_id = c.conversation_id and m.seq = c.last_seq " +
                         "where c.user_a = ? or c.user_b = ? " +
-                        "order by c.updated_at desc " +
+                "order by c.updated_at desc " +
                         "limit ? offset ?",
                 (rs, rowNum) -> {
                     String conversationId = rs.getString("conversation_id");
-                    int userA = rs.getInt("user_a");
-                    int userB = rs.getInt("user_b");
-                    int otherUserId = userA == me ? userB : userA;
+                    UUID userA = BinaryUuidCodec.fromBytes(rs.getBytes("user_a"));
+                    UUID userB = BinaryUuidCodec.fromBytes(rs.getBytes("user_b"));
+                    UUID otherUserId = me.equals(userA) ? userB : userA;
 
                     long lastSeq = rs.getLong("last_seq");
                     long lastReadSeq = rs.getLong("last_read_seq");
                     long unread = Math.max(0L, lastSeq - lastReadSeq);
 
-                    long lastMessageId = rs.getLong("last_message_id");
+                    UUID lastMessageId = BinaryUuidCodec.fromBytes(rs.getBytes("last_message_id"));
                     LastMessage lastMessage = null;
-                    if (!rs.wasNull() && lastMessageId > 0) {
-                        int fromUserId = rs.getInt("last_from_user_id");
-                        int toUserId = rs.getInt("last_to_user_id");
+                    if (lastMessageId != null) {
+                        UUID fromUserId = BinaryUuidCodec.fromBytes(rs.getBytes("last_from_user_id"));
+                        UUID toUserId = BinaryUuidCodec.fromBytes(rs.getBytes("last_to_user_id"));
                         String content = rs.getString("last_content");
                         Timestamp ts = rs.getTimestamp("last_created_at");
                         long createdAtEpochMs = ts == null ? 0L : ts.toInstant().toEpochMilli();
@@ -82,9 +85,9 @@ public class ConversationController {
 
                     return new ConversationListItem(conversationId, otherUserId, lastSeq, lastReadSeq, unread, lastMessage);
                 },
-                me,
-                me,
-                me,
+                meBytes,
+                meBytes,
+                meBytes,
                 s,
                 offset
         );
@@ -98,12 +101,12 @@ public class ConversationController {
             @RequestParam(name = "afterSeq", required = false, defaultValue = "0") long afterSeq,
             @RequestParam(name = "limit", required = false, defaultValue = "50") int limit
     ) {
-        int me = CurrentUser.userIdOrThrow(jwt);
+        UUID me = CurrentUser.userIdOrThrow(jwt);
         ParsedConversationId parsed = parseConversationId(conversationId);
         if (parsed == null) {
             throw new IllegalArgumentException("invalid conversationId");
         }
-        if (me != parsed.user1 && me != parsed.user2) {
+        if (!me.equals(parsed.user1) && !me.equals(parsed.user2)) {
             throw new AccessDeniedException("not a conversation member");
         }
 
@@ -138,12 +141,12 @@ public class ConversationController {
             @PathVariable String conversationId,
             @RequestBody MarkReadRequest req
     ) {
-        int me = CurrentUser.userIdOrThrow(jwt);
+        UUID me = CurrentUser.userIdOrThrow(jwt);
         ParsedConversationId parsed = parseConversationId(conversationId);
         if (parsed == null) {
             throw new IllegalArgumentException("invalid conversationId");
         }
-        if (me != parsed.user1 && me != parsed.user2) {
+        if (!me.equals(parsed.user1) && !me.equals(parsed.user2)) {
             throw new AccessDeniedException("not a conversation member");
         }
         String canonicalConversationId = parsed.canonicalConversationId;
@@ -167,18 +170,18 @@ public class ConversationController {
             return null;
         }
         try {
-            int a = Integer.parseInt(parts[0].trim());
-            int b = Integer.parseInt(parts[1].trim());
-            if (a <= 0 || b <= 0 || a == b) {
+            UUID a = UUID.fromString(parts[0].trim());
+            UUID b = UUID.fromString(parts[1].trim());
+            if (a.equals(b)) {
                 return null;
             }
             return new ParsedConversationId(a, b, ConversationIdSupport.conversationId(a, b));
-        } catch (NumberFormatException e) {
+        } catch (IllegalArgumentException e) {
             return null;
         }
     }
 
-    private record ParsedConversationId(int user1, int user2, String canonicalConversationId) {
+    private record ParsedConversationId(UUID user1, UUID user2, String canonicalConversationId) {
     }
 
     public record MarkReadRequest(long lastReadSeq) {
@@ -194,7 +197,7 @@ public class ConversationController {
 
     public record ConversationListItem(
             String conversationId,
-            int otherUserId,
+            UUID otherUserId,
             long lastSeq,
             long lastReadSeq,
             long unreadCount,
@@ -203,9 +206,9 @@ public class ConversationController {
     }
 
     public record LastMessage(
-            long messageId,
-            int fromUserId,
-            int toUserId,
+            UUID messageId,
+            UUID fromUserId,
+            UUID toUserId,
             String content,
             long createdAtEpochMs
     ) {
@@ -214,9 +217,9 @@ public class ConversationController {
     public record ConversationMessageItem(
             String conversationId,
             long seq,
-            long messageId,
-            int fromUserId,
-            int toUserId,
+            UUID messageId,
+            UUID fromUserId,
+            UUID toUserId,
             String content,
             String clientMsgId,
             long createdAtEpochMs

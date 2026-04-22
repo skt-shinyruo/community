@@ -6,8 +6,8 @@
 <mapper namespace="com.nowcoder.community.growth.mapper.UserTaskEventLogMapper">
 
     <insert id="insert">
-        insert into user_task_event_log(user_id, task_code, period_key, source_event_id, create_time)
-        values(#{userId}, #{taskCode}, #{periodKey}, #{sourceEventId}, current_timestamp)
+        insert into user_task_event_log(id, user_id, task_code, period_key, source_event_id, create_time)
+        values(#{id, jdbcType=BINARY}, #{userId, jdbcType=BINARY}, #{taskCode}, #{periodKey}, #{sourceEventId}, current_timestamp)
     </insert>
 
 </mapper>

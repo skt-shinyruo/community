@@ -12,6 +12,8 @@ import com.nowcoder.community.im.realtime.push.RoomUpdateCoalescer;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
+import java.util.UUID;
+
 @Component
 public class EventConsumers {
 
@@ -61,8 +63,8 @@ public class EventConsumers {
         if (event == null) {
             return;
         }
-        long roomId = event.roomId();
-        int userId = event.userId();
+        UUID roomId = event.roomId();
+        UUID userId = event.userId();
         String action = event.action() == null ? "" : event.action().trim().toUpperCase();
         if ("JOINED".equals(action)) {
             connectionRegistry.forEachConnectionByUserId(userId, conn -> {

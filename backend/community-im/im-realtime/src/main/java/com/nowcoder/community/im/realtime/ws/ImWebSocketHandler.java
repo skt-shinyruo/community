@@ -164,9 +164,9 @@ public class ImWebSocketHandler implements WebSocketHandler {
         String accessToken = node.path("accessToken").asText("");
         try {
             JwtVerifier.VerifiedJwt verified = jwtVerifier.verify(accessToken);
-            Integer previous = conn.userId();
+            UUID previous = conn.userId();
             if (previous != null) {
-                if (previous != verified.userId()) {
+                if (!previous.equals(verified.userId())) {
                     warnEvent(
                             CATEGORY_SECURITY,
                             "ws_auth",
@@ -231,17 +231,17 @@ public class ImWebSocketHandler implements WebSocketHandler {
     }
 
     private Mono<Void> handleSendPrivate(WsConnection conn, JsonNode node) {
-        Integer fromUserId = conn.userId();
+        UUID fromUserId = conn.userId();
         if (fromUserId == null) {
             conn.trySendText(WsProtocol.authError("auth required"));
             conn.closeAsync(Duration.ofSeconds(1));
             return Mono.empty();
         }
-        int toUserId = node.path("toUserId").asInt(0);
+        UUID toUserId = parseUuid(node.path("toUserId").asText(""), "toUserId");
         String content = node.path("content").asText("");
         String clientMsgId = String.valueOf(node.path("clientMsgId").asText("")).trim();
         String requestId = newRequestId();
-        if (toUserId <= 0) {
+        if (toUserId == null) {
             conn.trySendText(WsProtocol.sendError("sendPrivateText", clientMsgId, requestId, 400, "toUserId 非法", ""));
             return Mono.empty();
         }
@@ -301,14 +301,14 @@ public class ImWebSocketHandler implements WebSocketHandler {
     }
 
     private Mono<Void> handleSendRoom(WsConnection conn, JsonNode node) {
-        Integer fromUserId = conn.userId();
+        UUID fromUserId = conn.userId();
         if (fromUserId == null) {
             return Mono.empty();
         }
-        long roomId = node.path("roomId").asLong(0L);
+        UUID roomId = parseUuid(node.path("roomId").asText(""), "roomId");
         String content = node.path("content").asText("");
         String clientMsgId = node.path("clientMsgId").asText("");
-        if (roomId <= 0L || !StringUtils.hasText(clientMsgId) || !StringUtils.hasText(content)) {
+        if (roomId == null || !StringUtils.hasText(clientMsgId) || !StringUtils.hasText(content)) {
             conn.trySendText(WsProtocol.error("invalid sendRoomText"));
             return Mono.empty();
         }
@@ -418,7 +418,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
         try {
             conn.disposeRoomBootstrapSubscription();
             connectionRegistry.unregister(conn);
-            for (Long roomId : conn.joinedRoomsView()) {
+            for (UUID roomId : conn.joinedRoomsView()) {
                 roomLocalIndex.remove(roomId, conn.connectionId());
             }
             conn.complete();
@@ -442,6 +442,17 @@ public class ImWebSocketHandler implements WebSocketHandler {
             return UUID.randomUUID().toString();
         } catch (RuntimeException e) {
             return String.valueOf(System.currentTimeMillis());
+        }
+    }
+
+    private UUID parseUuid(String raw, String fieldName) {
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        try {
+            return UUID.fromString(raw.trim());
+        } catch (IllegalArgumentException ex) {
+            return null;
         }
     }
 

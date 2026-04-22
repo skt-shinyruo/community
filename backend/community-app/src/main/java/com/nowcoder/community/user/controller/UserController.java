@@ -38,6 +38,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND;
@@ -64,7 +65,7 @@ public class UserController {
     }
 
     @GetMapping("/{userId}")
-    public Result<UserProfileResponse> getUser(Authentication authentication, @PathVariable int userId) {
+    public Result<UserProfileResponse> getUser(Authentication authentication, @PathVariable UUID userId) {
         UserProfilePageView user = getUserProfilePageQuery.get(authentication, userId);
         UserProfileResponse resp = new UserProfileResponse();
         resp.setId(user.userId());
@@ -89,7 +90,7 @@ public class UserController {
     }
 
     @GetMapping("/{userId}/recent-posts")
-    public Result<List<UserProfilePostSummaryResponse>> recentPosts(@PathVariable int userId,
+    public Result<List<UserProfilePostSummaryResponse>> recentPosts(@PathVariable UUID userId,
                                                                     @RequestParam(required = false) Integer page,
                                                                     @RequestParam(required = false) Integer size) {
         return Result.ok(getUserProfilePageQuery.listRecentPosts(userId, page, size).stream()
@@ -98,7 +99,7 @@ public class UserController {
     }
 
     @GetMapping("/{userId}/recent-comments")
-    public Result<List<UserRecentCommentItemResponse>> recentComments(@PathVariable int userId,
+    public Result<List<UserRecentCommentItemResponse>> recentComments(@PathVariable UUID userId,
                                                                       @RequestParam(required = false) Integer page,
                                                                       @RequestParam(required = false) Integer size) {
         return Result.ok(getUserProfilePageQuery.listRecentComments(userId, page, size).stream()
@@ -121,14 +122,14 @@ public class UserController {
 
     @PostMapping("/batch-summary")
     public Result<List<UserSummaryResponse>> batchSummary(@Valid @RequestBody BatchUserSummaryRequest request) {
-        List<Integer> raw = request == null ? List.of() : request.getUserIds();
+        List<UUID> raw = request == null ? List.of() : request.getUserIds();
         if (raw == null || raw.isEmpty()) {
             return Result.ok(List.of());
         }
 
-        LinkedHashSet<Integer> dedup = new LinkedHashSet<>();
-        for (Integer id : raw) {
-            if (id == null || id <= 0) {
+        LinkedHashSet<UUID> dedup = new LinkedHashSet<>();
+        for (UUID id : raw) {
+            if (id == null) {
                 continue;
             }
             dedup.add(id);
@@ -140,11 +141,11 @@ public class UserController {
             return Result.ok(List.of());
         }
 
-        List<Integer> ids = new ArrayList<>(dedup);
+        List<UUID> ids = new ArrayList<>(dedup);
         List<UserSummaryView> users = userLookupQueryApi.listSummariesByIds(ids);
-        Map<Integer, UserSummaryResponse> map = new HashMap<>();
+        Map<UUID, UserSummaryResponse> map = new HashMap<>();
         for (UserSummaryView u : users) {
-            if (u == null || u.id() <= 0) {
+            if (u == null || u.id() == null) {
                 continue;
             }
             UserSummaryResponse s = new UserSummaryResponse();
@@ -156,7 +157,7 @@ public class UserController {
         }
 
         List<UserSummaryResponse> out = new ArrayList<>();
-        for (Integer id : ids) {
+        for (UUID id : ids) {
             UserSummaryResponse s = map.get(id);
             if (s != null) {
                 out.add(s);
@@ -166,9 +167,9 @@ public class UserController {
     }
 
     @GetMapping("/{userId}/avatar/upload-token")
-    public Result<AvatarUploadTokenResponse> uploadToken(Authentication authentication, @PathVariable int userId) {
-        int currentUserId = CurrentUser.requireUserId(authentication);
-        if (currentUserId != userId) {
+    public Result<AvatarUploadTokenResponse> uploadToken(Authentication authentication, @PathVariable UUID userId) {
+        UUID currentUserId = CurrentUser.requireUserUuid(authentication);
+        if (!userId.equals(currentUserId)) {
             throw new BusinessException(FORBIDDEN, "只能操作自己的头像");
         }
         AvatarUploadTokenResponse response = avatarService.createUploadToken(userId);
@@ -186,9 +187,9 @@ public class UserController {
     }
 
     @PostMapping(value = "/{userId}/avatar/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Result<Void> uploadAvatar(Authentication authentication, @PathVariable int userId, @RequestParam("file") MultipartFile file, @RequestParam("fileName") String fileName) {
-        int currentUserId = CurrentUser.requireUserId(authentication);
-        if (currentUserId != userId) {
+    public Result<Void> uploadAvatar(Authentication authentication, @PathVariable UUID userId, @RequestParam("file") MultipartFile file, @RequestParam("fileName") String fileName) {
+        UUID currentUserId = CurrentUser.requireUserUuid(authentication);
+        if (!userId.equals(currentUserId)) {
             throw new BusinessException(FORBIDDEN, "只能操作自己的头像");
         }
         avatarService.upload(userId, fileName, file);
@@ -207,9 +208,9 @@ public class UserController {
     }
 
     @PutMapping("/{userId}/avatar")
-    public Result<Void> updateAvatar(Authentication authentication, @PathVariable int userId, @Valid @RequestBody UpdateAvatarRequest request) {
-        int currentUserId = CurrentUser.requireUserId(authentication);
-        if (currentUserId != userId) {
+    public Result<Void> updateAvatar(Authentication authentication, @PathVariable UUID userId, @Valid @RequestBody UpdateAvatarRequest request) {
+        UUID currentUserId = CurrentUser.requireUserUuid(authentication);
+        if (!userId.equals(currentUserId)) {
             throw new BusinessException(FORBIDDEN, "只能操作自己的头像");
         }
         avatarService.assertAndConsumeUploadTicket(userId, request.getFileName());

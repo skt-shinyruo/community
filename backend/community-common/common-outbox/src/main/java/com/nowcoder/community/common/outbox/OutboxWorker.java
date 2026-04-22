@@ -76,7 +76,7 @@ public class OutboxWorker {
         int processed = 0;
 
         for (OutboxEvent event : due) {
-            if (event == null || event.id() <= 0) {
+            if (event == null || event.id() == null) {
                 continue;
             }
 

@@ -5,12 +5,12 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+import java.util.UUID;
 
 @Mapper
 public interface CategoryMapper {
 
     List<Category> selectCategories();
 
-    Category selectCategoryById(@Param("id") int id);
+    Category selectCategoryById(@Param("id") UUID id);
 }
-

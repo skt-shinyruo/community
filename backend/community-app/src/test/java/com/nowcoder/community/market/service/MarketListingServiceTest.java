@@ -12,6 +12,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(
@@ -45,6 +46,7 @@ class MarketListingServiceTest {
 
     @Test
     void createPhysicalListingShouldPersistGoodsTypeWithoutVirtualOnlyFields() {
+        var sellerUserId = uuid(7);
         CreateMarketListingRequest request = new CreateMarketListingRequest();
         request.setGoodsType("PHYSICAL");
         request.setTitle("二手键盘");
@@ -54,7 +56,7 @@ class MarketListingServiceTest {
         request.setMinPurchaseQuantity(1);
         request.setMaxPurchaseQuantity(1);
 
-        MarketListingResponse response = marketListingService.createListing(7, request, null);
+        MarketListingResponse response = marketListingService.createListing(sellerUserId, request, null);
 
         assertThat(response.goodsType()).isEqualTo("PHYSICAL");
         assertThat(response.deliveryMode()).isNull();
@@ -63,6 +65,8 @@ class MarketListingServiceTest {
 
     @Test
     void sellerListingQueryShouldOnlyReturnOwnedListings() {
+        var firstSellerId = uuid(7);
+        var secondSellerId = uuid(8);
         CreateMarketListingRequest request = new CreateMarketListingRequest();
         request.setGoodsType("PHYSICAL");
         request.setTitle("二手键盘");
@@ -72,11 +76,11 @@ class MarketListingServiceTest {
         request.setMinPurchaseQuantity(1);
         request.setMaxPurchaseQuantity(1);
 
-        marketListingService.createListing(7, request, null);
-        marketListingService.createListing(8, request, null);
+        marketListingService.createListing(firstSellerId, request, null);
+        marketListingService.createListing(secondSellerId, request, null);
 
-        assertThat(marketQueryService.listSellerListings(7))
+        assertThat(marketQueryService.listSellerListings(firstSellerId))
                 .extracting(MarketListingResponse::sellerUserId)
-                .containsExactly(7);
+                .containsExactly(firstSellerId);
     }
 }

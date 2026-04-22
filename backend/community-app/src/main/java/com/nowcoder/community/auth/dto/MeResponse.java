@@ -1,18 +1,19 @@
 package com.nowcoder.community.auth.dto;
 
 import java.util.List;
+import java.util.UUID;
 
 public class MeResponse {
 
-    private int userId;
+    private UUID userId;
     private String username;
     private List<String> authorities;
 
-    public int getUserId() {
+    public UUID getUserId() {
         return userId;
     }
 
-    public void setUserId(int userId) {
+    public void setUserId(UUID userId) {
         this.userId = userId;
     }
 
@@ -32,4 +33,3 @@ public class MeResponse {
         this.authorities = authorities;
     }
 }
-

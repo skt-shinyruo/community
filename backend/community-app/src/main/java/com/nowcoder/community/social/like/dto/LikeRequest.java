@@ -1,21 +1,20 @@
 package com.nowcoder.community.social.like.dto;
 
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+
+import java.util.UUID;
 
 public class LikeRequest {
 
     @NotNull
-    @Min(1)
     private Integer entityType;
 
     @NotNull
-    @Min(1)
-    private Integer entityId;
+    private UUID entityId;
 
-    private Integer entityUserId;
+    private UUID entityUserId;
 
-    private Integer postId;
+    private UUID postId;
 
     private Boolean liked;
 
@@ -27,27 +26,27 @@ public class LikeRequest {
         this.entityType = entityType;
     }
 
-    public int getEntityId() {
-        return entityId == null ? 0 : entityId;
+    public UUID getEntityId() {
+        return entityId;
     }
 
-    public void setEntityId(Integer entityId) {
+    public void setEntityId(UUID entityId) {
         this.entityId = entityId;
     }
 
-    public Integer getEntityUserId() {
+    public UUID getEntityUserId() {
         return entityUserId;
     }
 
-    public void setEntityUserId(Integer entityUserId) {
+    public void setEntityUserId(UUID entityUserId) {
         this.entityUserId = entityUserId;
     }
 
-    public Integer getPostId() {
+    public UUID getPostId() {
         return postId;
     }
 
-    public void setPostId(Integer postId) {
+    public void setPostId(UUID postId) {
         this.postId = postId;
     }
 

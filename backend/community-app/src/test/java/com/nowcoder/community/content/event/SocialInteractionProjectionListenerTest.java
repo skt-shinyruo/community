@@ -7,6 +7,9 @@ import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import org.junit.jupiter.api.Test;
 
+import java.util.UUID;
+
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -18,14 +21,15 @@ class SocialInteractionProjectionListenerTest {
         PostScoreQueue queue = mock(PostScoreQueue.class);
         SocialInteractionProjectionListener listener = new SocialInteractionProjectionListener(queue);
 
+        UUID postId = uuid(123);
         LikePayload payload = new LikePayload();
         payload.setEntityType(EntityTypes.POST);
-        payload.setEntityId(123);
-        payload.setPostId(123);
+        payload.setEntityId(postId);
+        payload.setPostId(postId);
 
         listener.onSocialEvent(new SocialContractEvent("like-created-1", SocialEventTypes.LIKE_CREATED, payload));
         listener.onSocialEvent(new SocialContractEvent("like-removed-1", SocialEventTypes.LIKE_REMOVED, payload));
 
-        verify(queue, times(2)).add(123);
+        verify(queue, times(2)).add(postId);
     }
 }

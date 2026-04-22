@@ -1,10 +1,12 @@
 package com.nowcoder.community.social.api.query;
 
+import java.util.UUID;
+
 public interface SocialFollowQueryApi {
 
-    boolean hasFollowed(int actorUserId, int entityType, int entityId);
+    boolean hasFollowed(UUID actorUserId, int entityType, UUID entityId);
 
-    long followeeCount(int userId, int entityType);
+    long followeeCount(UUID userId, int entityType);
 
-    long followerCount(int entityType, int entityId);
+    long followerCount(int entityType, UUID entityId);
 }

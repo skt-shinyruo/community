@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/notices")
@@ -34,7 +35,7 @@ public class NoticeController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        int userId = CurrentUser.requireUserId(authentication);
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         int p = page == null ? 0 : Math.max(0, page);
         int s = size == null ? 10 : Math.min(50, Math.max(1, size));
         return Result.ok(noticeService.listNoticeItems(userId, topic, p, s));
@@ -42,19 +43,19 @@ public class NoticeController {
 
     @GetMapping("/unread-count")
     public Result<Integer> unreadCount(Authentication authentication, @RequestParam(required = false) String topic) {
-        int userId = CurrentUser.requireUserId(authentication);
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(noticeService.unreadCount(userId, topic));
     }
 
     @GetMapping("/summary")
     public Result<List<NoticeTopicSummaryResponse>> summary(Authentication authentication) {
-        int userId = CurrentUser.requireUserId(authentication);
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(noticeService.topicSummary(userId));
     }
 
     @PutMapping("/read")
     public Result<Void> markRead(Authentication authentication, @Valid @RequestBody MarkNoticeReadRequest request) {
-        int userId = CurrentUser.requireUserId(authentication);
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         noticeService.markRead(userId, request.getIds());
         return Result.ok();
     }

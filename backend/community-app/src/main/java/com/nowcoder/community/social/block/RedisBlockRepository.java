@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 @Repository
 @ConditionalOnProperty(name = "social.storage", havingValue = "redis")
@@ -20,44 +21,41 @@ public class RedisBlockRepository implements BlockRepository {
     }
 
     @Override
-    public boolean block(int userId, int targetUserId) {
+    public boolean block(UUID userId, UUID targetUserId) {
         Long added = redisTemplate.opsForSet().add(key(userId), String.valueOf(targetUserId));
         return added != null && added > 0;
     }
 
     @Override
-    public boolean unblock(int userId, int targetUserId) {
+    public boolean unblock(UUID userId, UUID targetUserId) {
         Long removed = redisTemplate.opsForSet().remove(key(userId), String.valueOf(targetUserId));
         return removed != null && removed > 0;
     }
 
     @Override
-    public boolean hasBlocked(int userId, int targetUserId) {
+    public boolean hasBlocked(UUID userId, UUID targetUserId) {
         Boolean member = redisTemplate.opsForSet().isMember(key(userId), String.valueOf(targetUserId));
         return Boolean.TRUE.equals(member);
     }
 
     @Override
-    public List<Integer> listBlockedUserIds(int userId) {
+    public List<UUID> listBlockedUserIds(UUID userId) {
         Set<String> members = redisTemplate.opsForSet().members(key(userId));
         if (members == null || members.isEmpty()) {
             return List.of();
         }
-        List<Integer> list = new ArrayList<>(members.size());
+        List<UUID> list = new ArrayList<>(members.size());
         for (String s : members) {
             if (s == null) continue;
             try {
-                int id = Integer.parseInt(s);
-                if (id > 0) {
-                    list.add(id);
-                }
-            } catch (NumberFormatException ignored) {
+                list.add(UUID.fromString(s));
+            } catch (IllegalArgumentException ignored) {
             }
         }
         return list;
     }
 
-    private String key(int userId) {
+    private String key(UUID userId) {
         return "block:" + userId;
     }
 }

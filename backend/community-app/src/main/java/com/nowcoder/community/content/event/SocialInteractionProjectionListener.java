@@ -9,6 +9,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.util.UUID;
+
 @Component
 public class SocialInteractionProjectionListener {
 
@@ -25,8 +27,8 @@ public class SocialInteractionProjectionListener {
         if (!supported || !(event.payload() instanceof LikePayload payload) || payload.getEntityType() != EntityTypes.POST) {
             return;
         }
-        int postId = payload.getPostId() != null && payload.getPostId() > 0 ? payload.getPostId() : payload.getEntityId();
-        if (postId > 0) {
+        UUID postId = payload.getPostId() != null ? payload.getPostId() : payload.getEntityId();
+        if (postId != null) {
             postScoreQueue.add(postId);
         }
     }

@@ -1,11 +1,15 @@
 package com.nowcoder.community.growth.service;
 
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.growth.api.action.GrowthGrantActionApi;
 import com.nowcoder.community.growth.mapper.RewardGrantRecordMapper;
 import com.nowcoder.community.wallet.api.action.WalletRewardActionApi;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.UUID;
 
 @Service
 public class UnifiedGrantService implements GrowthGrantActionApi {
@@ -17,18 +21,29 @@ public class UnifiedGrantService implements GrowthGrantActionApi {
 
     private final RewardGrantRecordMapper rewardGrantRecordMapper;
     private final WalletRewardActionApi walletRewardActionApi;
+    private final UuidV7Generator idGenerator;
 
+    @Autowired
     public UnifiedGrantService(
             RewardGrantRecordMapper rewardGrantRecordMapper,
             WalletRewardActionApi walletRewardActionApi
     ) {
+        this(rewardGrantRecordMapper, walletRewardActionApi, new UuidV7Generator());
+    }
+
+    UnifiedGrantService(
+            RewardGrantRecordMapper rewardGrantRecordMapper,
+            WalletRewardActionApi walletRewardActionApi,
+            UuidV7Generator idGenerator
+    ) {
         this.rewardGrantRecordMapper = rewardGrantRecordMapper;
         this.walletRewardActionApi = walletRewardActionApi;
+        this.idGenerator = idGenerator;
     }
 
     @Transactional
     @Override
-    public boolean applyPointsProjection(int userId, String sourceEventId, String sourceEventType, int growthDelta) {
+    public boolean applyPointsProjection(UUID userId, String sourceEventId, String sourceEventType, int growthDelta) {
         return applyGrant(
                 userId,
                 sourceEventId + POINTS_GRANT_SUFFIX,
@@ -44,7 +59,7 @@ public class UnifiedGrantService implements GrowthGrantActionApi {
 
     @Transactional
     public boolean applyGrant(
-            int userId,
+            UUID userId,
             String grantId,
             String grantType,
             String sourceEventId,
@@ -56,6 +71,7 @@ public class UnifiedGrantService implements GrowthGrantActionApi {
     ) {
         try {
             rewardGrantRecordMapper.insert(
+                    idGenerator.next(),
                     grantId,
                     userId,
                     grantType,

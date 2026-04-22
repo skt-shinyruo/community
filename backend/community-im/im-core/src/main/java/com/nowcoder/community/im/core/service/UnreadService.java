@@ -1,9 +1,11 @@
 package com.nowcoder.community.im.core.service;
 
+import com.nowcoder.community.common.id.BinaryUuidCodec;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class UnreadService {
@@ -14,8 +16,9 @@ public class UnreadService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public List<RoomUnreadItem> listRoomUnread(int userId, int limit) {
+    public List<RoomUnreadItem> listRoomUnread(UUID userId, int limit) {
         int l = Math.min(Math.max(1, limit), 5000);
+        byte[] userIdBytes = BinaryUuidCodec.toBytes(userId);
         return jdbcTemplate.query(
                 "select m.room_id, r.last_seq, coalesce(s.last_read_seq, 0) as last_read_seq " +
                         "from im_room_member m " +
@@ -23,21 +26,22 @@ public class UnreadService {
                         "left join im_room_read_state s on s.room_id = m.room_id and s.user_id = m.user_id " +
                         "where m.user_id = ? " +
                         "order by m.room_id asc " +
-                        "limit ?",
+                "limit ?",
                 (rs, rowNum) -> {
-                    long roomId = rs.getLong("room_id");
+                    UUID roomId = BinaryUuidCodec.fromBytes(rs.getBytes("room_id"));
                     long lastSeq = rs.getLong("last_seq");
                     long lastReadSeq = rs.getLong("last_read_seq");
                     long unread = Math.max(0L, lastSeq - lastReadSeq);
                     return new RoomUnreadItem(roomId, lastSeq, lastReadSeq, unread);
                 },
-                userId,
+                userIdBytes,
                 l
         );
     }
 
-    public List<ConversationUnreadItem> listConversationUnread(int userId, int limit) {
+    public List<ConversationUnreadItem> listConversationUnread(UUID userId, int limit) {
         int l = Math.min(Math.max(1, limit), 5000);
+        byte[] userIdBytes = BinaryUuidCodec.toBytes(userId);
         return jdbcTemplate.query(
                 "select c.conversation_id, c.last_seq, coalesce(s.last_read_seq, 0) as last_read_seq " +
                         "from im_conversation c " +
@@ -52,17 +56,16 @@ public class UnreadService {
                     long unread = Math.max(0L, lastSeq - lastReadSeq);
                     return new ConversationUnreadItem(conversationId, lastSeq, lastReadSeq, unread);
                 },
-                userId,
-                userId,
-                userId,
+                userIdBytes,
+                userIdBytes,
+                userIdBytes,
                 l
         );
     }
 
-    public record RoomUnreadItem(long roomId, long lastSeq, long lastReadSeq, long unreadCount) {
+    public record RoomUnreadItem(UUID roomId, long lastSeq, long lastReadSeq, long unreadCount) {
     }
 
     public record ConversationUnreadItem(String conversationId, long lastSeq, long lastReadSeq, long unreadCount) {
     }
 }
-

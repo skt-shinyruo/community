@@ -1,6 +1,7 @@
 package com.nowcoder.community.content.service;
 
 // 评论领域服务：负责评论写入与基础校验、评论事件发布。
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
@@ -16,6 +17,7 @@ import com.nowcoder.community.content.util.SensitiveFilter;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static com.nowcoder.community.content.exception.ContentErrorCode.COMMENT_NOT_FOUND;
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
@@ -46,7 +49,9 @@ public class CommentService {
     private final SocialBlockQueryApi blockQueryApi;
     private final UserModerationGuard moderationGuard;
     private final ContentTextCodec textCodec;
+    private final UuidV7Generator idGenerator;
 
+    @Autowired
     public CommentService(
             CommentMapper commentMapper,
             PostService postService,
@@ -57,6 +62,20 @@ public class CommentService {
             UserModerationGuard moderationGuard,
             ContentTextCodec textCodec
     ) {
+        this(commentMapper, postService, sensitiveFilter, postScoreQueue, eventPublisher, blockQueryApi, moderationGuard, textCodec, new UuidV7Generator());
+    }
+
+    CommentService(
+            CommentMapper commentMapper,
+            PostService postService,
+            SensitiveFilter sensitiveFilter,
+            PostScoreQueue postScoreQueue,
+            ContentEventPublisher eventPublisher,
+            SocialBlockQueryApi blockQueryApi,
+            UserModerationGuard moderationGuard,
+            ContentTextCodec textCodec,
+            UuidV7Generator idGenerator
+    ) {
         this.commentMapper = commentMapper;
         this.postService = postService;
         this.sensitiveFilter = sensitiveFilter;
@@ -65,40 +84,46 @@ public class CommentService {
         this.blockQueryApi = blockQueryApi;
         this.moderationGuard = moderationGuard;
         this.textCodec = textCodec;
+        this.idGenerator = idGenerator;
     }
 
-    public List<Comment> listByPost(int postId, int page, int size) {
+    public List<Comment> listByPost(UUID postId, int page, int size) {
+        if (postId == null) {
+            return List.of();
+        }
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
         return commentMapper.selectCommentsByEntity(ENTITY_TYPE_POST, postId, Pagination.safeOffset(p, s), s);
     }
 
-    public List<Comment> listReplies(int commentId, int page, int size) {
+    public List<Comment> listReplies(UUID commentId, int page, int size) {
+        if (commentId == null) {
+            return List.of();
+        }
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
         return commentMapper.selectCommentsByEntity(ENTITY_TYPE_COMMENT, commentId, Pagination.safeOffset(p, s), s);
     }
 
-    public List<Comment> listRecentCommentsByUser(int userId, int page, int size) {
-        int uid = Math.max(0, userId);
-        if (uid <= 0) {
+    public List<Comment> listRecentCommentsByUser(UUID userId, int page, int size) {
+        if (userId == null) {
             return List.of();
         }
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
-        return commentMapper.selectRecentCommentsByUser(uid, Pagination.safeOffset(p, s), s);
+        return commentMapper.selectRecentCommentsByUser(userId, Pagination.safeOffset(p, s), s);
     }
 
-    public Comment getById(int commentId) {
+    public Comment getById(UUID commentId) {
         Comment comment = commentMapper.selectCommentById(commentId);
-        if (comment == null || comment.getId() <= 0 || comment.getStatus() != 0) {
+        if (comment == null || comment.getStatus() != 0) {
             throw new BusinessException(COMMENT_NOT_FOUND);
         }
         return comment;
     }
 
-    public void assertCommentBelongsToPost(int postId, int commentId) {
-        if (postId <= 0 || commentId <= 0) {
+    public void assertCommentBelongsToPost(UUID postId, UUID commentId) {
+        if (postId == null || commentId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "postId/commentId 非法");
         }
         // 先校验帖子存在（避免通过 commentId 侧信道探测帖子状态）
@@ -113,8 +138,8 @@ public class CommentService {
      * 批量查询帖子“最后活动”（包含直接评论 + 回复评论）。
      * 返回 Map 的 key 为 postId（通过 Comment.entityId 复用承载）。
      */
-    public Map<Integer, Comment> getLatestPostActivitiesByPostIds(List<Integer> postIds) {
-        Map<Integer, Comment> map = new HashMap<>();
+    public Map<UUID, Comment> getLatestPostActivitiesByPostIds(List<UUID> postIds) {
+        Map<UUID, Comment> map = new HashMap<>();
         if (postIds == null || postIds.isEmpty()) {
             return map;
         }
@@ -127,47 +152,47 @@ public class CommentService {
         // SQL 已按 post_id asc, cid desc 排序：每个 post_id 的第一条即为 tie-break 后的最终结果。
         for (Comment c : rows) {
             if (c == null) continue;
-            int postId = c.getEntityId();
-            if (postId <= 0) continue;
+            UUID postId = c.getEntityId();
+            if (postId == null) continue;
             map.putIfAbsent(postId, c);
         }
         return map;
     }
 
     @Transactional
-    public int addComment(int actorUserId, int postId, Integer entityType, Integer entityId, Integer targetId, String content) {
-        if (actorUserId <= 0 || postId <= 0) {
+    public UUID addComment(UUID actorUserId, UUID postId, Integer entityType, UUID entityId, UUID targetId, String content) {
+        if (actorUserId == null || postId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId/postId 非法");
         }
 
         assertCanSpeak(actorUserId);
 
         int type = entityType == null ? ENTITY_TYPE_POST : entityType;
-        int eid;
-        Integer targetUserId;
+        UUID eid;
+        UUID targetUserId;
 
         DiscussPost post = postService.getById(postId);
 
         if (type == ENTITY_TYPE_POST) {
             eid = postId;
             targetUserId = post.getUserId();
-            targetId = 0;
+            targetId = null;
         } else if (type == ENTITY_TYPE_COMMENT) {
-            if (entityId == null || entityId <= 0) {
+            if (entityId == null) {
                 throw new BusinessException(INVALID_ARGUMENT, "回复评论时 entityId(commentId) 不能为空");
             }
             eid = entityId;
             Comment targetComment = commentMapper.selectCommentById(eid);
-            if (targetComment == null || targetComment.getId() <= 0 || targetComment.getStatus() != 0) {
+            if (targetComment == null || targetComment.getStatus() != 0) {
                 throw new BusinessException(NOT_FOUND, "资源不存在");
             }
 
             // 统一回复语义：仅允许回复“该帖子下的一级评论”，避免跨帖/多层回复写入后读侧不可达。
-            if (targetComment.getEntityType() != ENTITY_TYPE_POST || targetComment.getEntityId() != postId) {
+            if (targetComment.getEntityType() != ENTITY_TYPE_POST || !postId.equals(targetComment.getEntityId())) {
                 throw new BusinessException(NOT_FOUND, "资源不存在");
             }
             targetUserId = targetComment.getUserId();
-            if (targetId == null || targetId <= 0) {
+            if (targetId == null) {
                 targetId = targetUserId;
             }
         } else {
@@ -175,7 +200,7 @@ public class CommentService {
         }
 
         // 反骚扰：双方任意一方拉黑另一方，都禁止互动（评论/回复）。
-        if (targetUserId != null && targetUserId > 0) {
+        if (targetUserId != null) {
             if (blockQueryApi != null && blockQueryApi.isEitherBlocked(actorUserId, targetUserId)) {
                 throw new BusinessException(FORBIDDEN, "双方存在拉黑关系，无法执行该操作");
             }
@@ -185,10 +210,11 @@ public class CommentService {
         safe = sensitiveFilter.filter(safe);
 
         Comment comment = new Comment();
+        comment.setId(idGenerator.next());
         comment.setUserId(actorUserId);
         comment.setEntityType(type);
         comment.setEntityId(eid);
-        comment.setTargetId(targetId == null ? 0 : Math.max(0, targetId));
+        comment.setTargetId(targetId);
         comment.setContent(safe);
         comment.setStatus(0);
         comment.setCreateTime(new Date());
@@ -222,8 +248,8 @@ public class CommentService {
     }
 
     @Transactional
-    public void updateComment(int actorUserId, int postId, int commentId, String content) {
-        if (actorUserId <= 0 || postId <= 0 || commentId <= 0) {
+    public void updateComment(UUID actorUserId, UUID postId, UUID commentId, String content) {
+        if (actorUserId == null || postId == null || commentId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId/postId/commentId 非法");
         }
 
@@ -233,13 +259,13 @@ public class CommentService {
         postService.getById(postId);
 
         Comment existed = commentMapper.selectCommentById(commentId);
-        if (existed == null || existed.getId() <= 0) {
+        if (existed == null) {
             throw new BusinessException(COMMENT_NOT_FOUND);
         }
         if (existed.getStatus() != 0) {
             throw new BusinessException(COMMENT_NOT_FOUND);
         }
-        if (existed.getUserId() != actorUserId) {
+        if (!actorUserId.equals(existed.getUserId())) {
             throw new BusinessException(FORBIDDEN, "只能编辑自己的评论");
         }
 
@@ -255,12 +281,12 @@ public class CommentService {
 
         // 跨帖校验：直接评论 / 回复评论
         if (existed.getEntityType() == ENTITY_TYPE_POST) {
-            if (existed.getEntityId() != postId) {
+            if (!postId.equals(existed.getEntityId())) {
                 throw new BusinessException(INVALID_ARGUMENT, "commentId 不属于该帖子");
             }
         } else if (existed.getEntityType() == ENTITY_TYPE_COMMENT) {
             Comment parent = commentMapper.selectCommentById(existed.getEntityId());
-            if (parent == null || parent.getId() <= 0 || parent.getEntityType() != ENTITY_TYPE_POST || parent.getEntityId() != postId) {
+            if (parent == null || parent.getEntityType() != ENTITY_TYPE_POST || !postId.equals(parent.getEntityId())) {
                 throw new BusinessException(INVALID_ARGUMENT, "commentId 不属于该帖子");
             }
         }
@@ -274,7 +300,7 @@ public class CommentService {
         }
     }
 
-    private void assertCanSpeak(int userId) {
+    private void assertCanSpeak(UUID userId) {
         moderationGuard.assertCanSpeak(userId);
     }
 }

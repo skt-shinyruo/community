@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
@@ -15,7 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Component
 public class RoomLocalIndex {
 
-    private final ConcurrentHashMap<Long, Set<String>> connectionIdsByRoomId = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, Set<String>> connectionIdsByRoomId = new ConcurrentHashMap<>();
 
     private static final int DEFAULT_ROOM_SIZE_SAMPLE_RATE = 256;
 
@@ -45,8 +46,8 @@ public class RoomLocalIndex {
         this(meterRegistryProvider == null ? null : meterRegistryProvider.getIfAvailable(), DEFAULT_ROOM_SIZE_SAMPLE_RATE);
     }
 
-    public void add(long roomId, String connectionId) {
-        if (roomId <= 0 || connectionId == null || connectionId.isBlank()) {
+    public void add(UUID roomId, String connectionId) {
+        if (roomId == null || connectionId == null || connectionId.isBlank()) {
             return;
         }
         Set<String> ids = connectionIdsByRoomId.get(roomId);
@@ -62,8 +63,8 @@ public class RoomLocalIndex {
         recordRoomSizeSampled(ids);
     }
 
-    public void remove(long roomId, String connectionId) {
-        if (roomId <= 0 || connectionId == null || connectionId.isBlank()) {
+    public void remove(UUID roomId, String connectionId) {
+        if (roomId == null || connectionId == null || connectionId.isBlank()) {
             return;
         }
         Set<String> ids = connectionIdsByRoomId.get(roomId);
@@ -79,8 +80,8 @@ public class RoomLocalIndex {
         recordRoomSizeSampled(ids);
     }
 
-    public void forEachConnectionId(long roomId, Consumer<String> consumer) {
-        if (roomId <= 0 || consumer == null) {
+    public void forEachConnectionId(UUID roomId, Consumer<String> consumer) {
+        if (roomId == null || consumer == null) {
             return;
         }
         Set<String> ids = connectionIdsByRoomId.get(roomId);

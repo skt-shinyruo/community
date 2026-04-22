@@ -6,12 +6,13 @@ import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.UUID;
 
 @Repository
 @Mapper
 public interface UserMapper {
 
-    User selectById(int id);
+    User selectById(UUID id);
 
     User selectByName(String username);
 
@@ -19,31 +20,31 @@ public interface UserMapper {
 
     int insertUser(User user);
 
-    int deletePendingUserIfExpired(@Param("id") int id, @Param("status") int status, @Param("cutoff") java.util.Date cutoff);
+    int deletePendingUserIfExpired(@Param("id") UUID id, @Param("status") int status, @Param("cutoff") java.util.Date cutoff);
 
     int deleteExpiredPendingUsers(@Param("status") int status, @Param("cutoff") java.util.Date cutoff);
 
-    int updateStatus(int id, int status);
+    int updateStatus(UUID id, int status);
 
-    int updateHeader(int id, String headerUrl);
+    int updateHeader(UUID id, String headerUrl);
 
-    int updatePassword(int id, String password);
+    int updatePassword(UUID id, String password);
 
-    int updateType(@Param("id") int id, @Param("type") int type);
+    int updateType(@Param("id") UUID id, @Param("type") int type);
 
-    int updateModerationUntil(int id, java.util.Date muteUntil, java.util.Date banUntil);
+    int updateModerationUntil(UUID id, java.util.Date muteUntil, java.util.Date banUntil);
 
     /**
      * internal 扫描接口使用：按主键游标向后扫描用户的治理状态（用于投影回填/纠偏）。
      */
-    List<User> selectModerationUsersAfterId(@Param("afterId") int afterId, @Param("limit") int limit);
+    List<User> selectModerationUsersAfterId(@Param("afterId") UUID afterId, @Param("limit") int limit);
 
     /**
      * internal 批量用户摘要：用于下游聚合接口避免 N+1 模块调用。
      */
-    List<User> selectUserSummariesByIds(@Param("ids") List<Integer> ids);
+    List<User> selectUserSummariesByIds(@Param("ids") List<UUID> ids);
 
-    int addScore(int id, int delta);
+    int addScore(UUID id, int delta);
 
     List<User> selectTopByScore(int limit);
 }

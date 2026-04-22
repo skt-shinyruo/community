@@ -1,3 +1,5 @@
+import { uuidToBuffer } from '../db/uuidv7.mjs'
+
 function createMissingBatchError(batchId) {
   const error = new Error(`Missing demo_batch row ${batchId}`)
   error.code = 'BATCH_NOT_FOUND'
@@ -429,16 +431,16 @@ export function createDeleteBatchService({
         }
 
         deleted.metadata.entityRefs = Number(
-          (await txDb.execute(`delete from demo_entity_ref where batch_id = ?`, [batchId]))?.affectedRows ?? 0
+          (await txDb.execute(`delete from demo_entity_ref where batch_id = ?`, [uuidToBuffer(batchId)]))?.affectedRows ?? 0
         )
         deleted.metadata.targets = Number(
-          (await txDb.execute(`delete from demo_batch_target where batch_id = ?`, [batchId]))?.affectedRows ?? 0
+          (await txDb.execute(`delete from demo_batch_target where batch_id = ?`, [uuidToBuffer(batchId)]))?.affectedRows ?? 0
         )
         deleted.metadata.jobs = Number(
-          (await txDb.execute(`delete from demo_job where batch_id = ?`, [batchId]))?.affectedRows ?? 0
+          (await txDb.execute(`delete from demo_job where batch_id = ?`, [uuidToBuffer(batchId)]))?.affectedRows ?? 0
         )
         deleted.metadata.batches = Number(
-          (await txDb.execute(`delete from demo_batch where id = ?`, [batchId]))?.affectedRows ?? 0
+          (await txDb.execute(`delete from demo_batch where id = ?`, [uuidToBuffer(batchId)]))?.affectedRows ?? 0
         )
       })
 

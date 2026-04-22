@@ -10,6 +10,7 @@ import com.nowcoder.community.infra.pagination.Pagination;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class ModerationService {
@@ -32,27 +33,23 @@ public class ModerationService {
         this.actionMapper = actionMapper;
     }
 
-    public List<Report> listReports(Integer status, Integer targetType, Integer reporterId, int page, int size) {
+    public List<Report> listReports(Integer status, Integer targetType, UUID reporterId, int page, int size) {
         return reportService.listReports(status, targetType, reporterId, page, size);
     }
 
-    public List<ReportResponse> listReportResponses(Integer status, Integer targetType, Integer reporterId, int page, int size) {
+    public List<ReportResponse> listReportResponses(Integer status, Integer targetType, UUID reporterId, int page, int size) {
         return listReports(status, targetType, reporterId, page, size).stream()
                 .map(this::toReportResponse)
                 .toList();
     }
 
-    public List<ModerationAction> listActions(Integer actorId, int page, int size) {
+    public List<ModerationAction> listActions(UUID actorId, int page, int size) {
         int p = Math.max(0, page);
         int s = Math.min(100, Math.max(1, size));
-        Integer aid = actorId == null ? null : actorId;
-        if (aid != null && aid <= 0) {
-            aid = null;
-        }
-        return actionMapper.selectActions(aid, Pagination.safeOffset(p, s), s);
+        return actionMapper.selectActions(actorId, Pagination.safeOffset(p, s), s);
     }
 
-    public List<ModerationActionResponse> listModerationActionResponses(Integer actorId, int page, int size) {
+    public List<ModerationActionResponse> listModerationActionResponses(UUID actorId, int page, int size) {
         return listActions(actorId, page, size).stream()
                 .map(this::toModerationActionResponse)
                 .toList();

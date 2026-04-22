@@ -6,14 +6,14 @@
 <mapper namespace="com.nowcoder.community.growth.mapper.RewardLedgerMapper">
 
     <insert id="insert">
-        insert into reward_ledger(user_id, event_id, event_type, delta, balance_after, frozen_balance_after, source_module, remark)
-        values(#{userId}, #{eventId}, #{eventType}, #{delta}, #{balanceAfter}, #{frozenBalanceAfter}, #{sourceModule}, #{remark})
+        insert into reward_ledger(id, user_id, event_id, event_type, delta, balance_after, frozen_balance_after, source_module, remark)
+        values(#{id, jdbcType=BINARY}, #{userId, jdbcType=BINARY}, #{eventId}, #{eventType}, #{delta}, #{balanceAfter}, #{frozenBalanceAfter}, #{sourceModule}, #{remark})
     </insert>
 
     <select id="selectRecentByUserId" resultType="com.nowcoder.community.growth.entity.RewardLedgerEntry">
         select id, user_id, event_id, event_type, delta, balance_after, frozen_balance_after, biz_key, source_module, remark, create_time
         from reward_ledger
-        where user_id = #{userId}
+        where user_id = #{userId, jdbcType=BINARY}
         order by id desc
         limit #{limit}
     </select>

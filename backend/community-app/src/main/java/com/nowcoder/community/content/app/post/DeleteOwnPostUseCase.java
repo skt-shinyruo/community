@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -25,15 +26,15 @@ public class DeleteOwnPostUseCase {
     }
 
     @Transactional
-    public void deletePostByAuthor(int actorUserId, int postId) {
-        if (actorUserId <= 0 || postId <= 0) {
+    public void deletePostByAuthor(UUID actorUserId, UUID postId) {
+        if (actorUserId == null || postId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId/postId 非法");
         }
         DiscussPost existed = postService.getByIdAllowDeleted(postId);
         if (existed.getStatus() == 2) {
             throw new BusinessException(POST_NOT_FOUND);
         }
-        if (existed.getUserId() != actorUserId) {
+        if (!actorUserId.equals(existed.getUserId())) {
             throw new BusinessException(FORBIDDEN, "只能删除自己的帖子");
         }
         postService.updateModerationDeleteMeta(postId, 2, actorUserId, "author_delete", new Date());

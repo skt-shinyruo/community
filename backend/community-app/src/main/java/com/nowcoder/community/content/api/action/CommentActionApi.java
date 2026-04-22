@@ -1,8 +1,10 @@
 package com.nowcoder.community.content.api.action;
 
+import java.util.UUID;
+
 public interface CommentActionApi {
 
-    int addComment(int userId, String idempotencyKey, int postId, Integer entityType, Integer entityId, Integer targetId, String content);
+    UUID addComment(UUID userId, String idempotencyKey, UUID postId, Integer entityType, UUID entityId, UUID targetId, String content);
 
-    void updateComment(int userId, int postId, int commentId, String content);
+    void updateComment(UUID userId, UUID postId, UUID commentId, String content);
 }

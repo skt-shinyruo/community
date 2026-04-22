@@ -1,10 +1,11 @@
 package com.nowcoder.community.wallet.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class WalletTxn {
 
-    private long txnId;
+    private UUID txnId;
     private String requestId;
     private String txnType;
     private String bizType;
@@ -15,11 +16,11 @@ public class WalletTxn {
     private Date createTime;
     private Date updateTime;
 
-    public long getTxnId() {
+    public UUID getTxnId() {
         return txnId;
     }
 
-    public void setTxnId(long txnId) {
+    public void setTxnId(UUID txnId) {
         this.txnId = txnId;
     }
 

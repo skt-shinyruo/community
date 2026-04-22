@@ -4,12 +4,13 @@ import com.nowcoder.community.user.api.model.PendingRegistrationUserView;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 
 import java.time.Duration;
+import java.util.UUID;
 
 public interface UserRegistrationActionApi {
 
     PendingRegistrationUserView registerPendingUser(String username, String password, String email, Duration pendingTtl);
 
-    UserCredentialView activatePendingUser(int userId);
+    UserCredentialView activatePendingUser(UUID userId);
 
     int cleanupExpiredPendingUsers(Duration pendingTtl);
 }

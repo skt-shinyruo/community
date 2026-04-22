@@ -35,6 +35,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/posts")
@@ -64,14 +65,13 @@ public class PostController {
     public Result<List<PostSummaryResponse>> list(
             Authentication authentication,
             @RequestParam(required = false) String order,
-            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) UUID categoryId,
             @RequestParam(required = false) String tag,
             @RequestParam(required = false) Boolean subscribed,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        Integer maybeCurrentUserId = CurrentUser.tryUserId(authentication);
-        int currentUserId = maybeCurrentUserId == null ? 0 : maybeCurrentUserId;
+        UUID currentUserId = CurrentUser.tryUserUuid(authentication);
         return Result.ok(postReadQueryApi.listPosts(currentUserId, order, categoryId, tag, subscribed, page, size).stream()
                 .map(this::toPostSummaryResponse)
                 .toList());
@@ -83,7 +83,7 @@ public class PostController {
             @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
             @Valid @RequestBody CreatePostRequest request
     ) {
-        int userId = CurrentUser.requireUserId(authentication);
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         PostCreateResult result = postPublishingActionApi.create(
                 userId,
                 idempotencyKey,
@@ -97,22 +97,21 @@ public class PostController {
 
     @PostMapping("/batch-summary")
     public Result<List<PostSummaryResponse>> batchSummary(@Valid @RequestBody BatchPostSummaryRequest request) {
-        List<Integer> postIds = request == null ? List.of() : request.getPostIds();
+        List<UUID> postIds = request == null ? List.of() : request.getPostIds();
         return Result.ok(postReadQueryApi.listPostsByIds(postIds).stream()
                 .map(this::toPostSummaryResponse)
                 .toList());
     }
 
     @GetMapping("/{postId}")
-    public Result<PostDetailResponse> detail(Authentication authentication, @PathVariable int postId) {
-        Integer maybeCurrentUserId = CurrentUser.tryUserId(authentication);
-        int currentUserId = maybeCurrentUserId == null ? 0 : maybeCurrentUserId;
+    public Result<PostDetailResponse> detail(Authentication authentication, @PathVariable UUID postId) {
+        UUID currentUserId = CurrentUser.tryUserUuid(authentication);
         return Result.ok(toPostDetailResponse(postReadQueryApi.getPostDetail(currentUserId, postId)));
     }
 
     @GetMapping("/{postId}/comments")
     public Result<List<CommentResponse>> comments(
-            @PathVariable int postId,
+            @PathVariable UUID postId,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
@@ -122,13 +121,13 @@ public class PostController {
     }
 
     @PostMapping("/{postId}/comments")
-    public Result<Integer> addComment(
+    public Result<UUID> addComment(
             Authentication authentication,
             @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
-            @PathVariable int postId,
+            @PathVariable UUID postId,
             @Valid @RequestBody CreateCommentRequest request
     ) {
-        int userId = CurrentUser.requireUserId(authentication);
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(commentActionApi.addComment(
                 userId,
                 idempotencyKey,
@@ -141,15 +140,15 @@ public class PostController {
     }
 
     @PutMapping("/{postId}")
-    public Result<Void> updatePost(Authentication authentication, @PathVariable int postId, @Valid @RequestBody UpdatePostRequest request) {
-        int userId = CurrentUser.requireUserId(authentication);
+    public Result<Void> updatePost(Authentication authentication, @PathVariable UUID postId, @Valid @RequestBody UpdatePostRequest request) {
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         postPublishingActionApi.updatePost(userId, postId, request.getTitle(), request.getContent(), request.getCategoryId(), request.getTags());
         return Result.ok();
     }
 
     @DeleteMapping("/{postId}")
-    public Result<Void> deleteByAuthor(Authentication authentication, @PathVariable int postId) {
-        int userId = CurrentUser.requireUserId(authentication);
+    public Result<Void> deleteByAuthor(Authentication authentication, @PathVariable UUID postId) {
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         postPublishingActionApi.deleteByAuthor(userId, postId);
         return Result.ok();
     }
@@ -157,19 +156,19 @@ public class PostController {
     @PutMapping("/{postId}/comments/{commentId}")
     public Result<Void> updateComment(
             Authentication authentication,
-            @PathVariable int postId,
-            @PathVariable int commentId,
+            @PathVariable UUID postId,
+            @PathVariable UUID commentId,
             @Valid @RequestBody UpdateCommentRequest request
     ) {
-        int userId = CurrentUser.requireUserId(authentication);
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         commentActionApi.updateComment(userId, postId, commentId, request.getContent());
         return Result.ok();
     }
 
     @GetMapping("/{postId}/comments/{commentId}/replies")
     public Result<List<CommentResponse>> replies(
-            @PathVariable int postId,
-            @PathVariable int commentId,
+            @PathVariable UUID postId,
+            @PathVariable UUID commentId,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
@@ -179,22 +178,22 @@ public class PostController {
     }
 
     @PostMapping("/{postId}/top")
-    public Result<Void> top(Authentication authentication, @PathVariable int postId) {
-        int actorUserId = CurrentUser.requireUserId(authentication);
+    public Result<Void> top(Authentication authentication, @PathVariable UUID postId) {
+        UUID actorUserId = CurrentUser.requireUserUuid(authentication);
         postModerationActionApi.top(actorUserId, postId);
         return Result.ok();
     }
 
     @PostMapping("/{postId}/wonderful")
-    public Result<Void> wonderful(Authentication authentication, @PathVariable int postId) {
-        int actorUserId = CurrentUser.requireUserId(authentication);
+    public Result<Void> wonderful(Authentication authentication, @PathVariable UUID postId) {
+        UUID actorUserId = CurrentUser.requireUserUuid(authentication);
         postModerationActionApi.wonderful(actorUserId, postId);
         return Result.ok();
     }
 
     @PostMapping("/{postId}/delete")
-    public Result<Void> delete(Authentication authentication, @PathVariable int postId) {
-        int actorUserId = CurrentUser.requireUserId(authentication);
+    public Result<Void> delete(Authentication authentication, @PathVariable UUID postId) {
+        UUID actorUserId = CurrentUser.requireUserUuid(authentication);
         postModerationActionApi.delete(actorUserId, postId);
         return Result.ok();
     }

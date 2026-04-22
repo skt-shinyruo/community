@@ -2,15 +2,18 @@ package com.nowcoder.community.content.service;
 
 // 帖子领域服务：封装帖子查询与状态/计数更新等操作。
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.content.mapper.DiscussPostMapper;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.infra.pagination.Pagination;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static com.nowcoder.community.content.exception.ContentErrorCode.POST_NOT_FOUND;
 
@@ -21,46 +24,50 @@ public class PostService {
     public static final int ORDER_HOT = 1;
 
     private final DiscussPostMapper discussPostMapper;
+    private final UuidV7Generator idGenerator;
 
+    @Autowired
     public PostService(DiscussPostMapper discussPostMapper) {
+        this(discussPostMapper, new UuidV7Generator());
+    }
+
+    PostService(DiscussPostMapper discussPostMapper, UuidV7Generator idGenerator) {
         this.discussPostMapper = discussPostMapper;
+        this.idGenerator = idGenerator;
     }
 
     public List<DiscussPost> listPosts(int page, int size, int orderMode) {
         return listPosts(page, size, orderMode, null, null);
     }
 
-    public List<DiscussPost> listPosts(int page, int size, int orderMode, Integer categoryId, String tag) {
+    public List<DiscussPost> listPosts(int page, int size, int orderMode, UUID categoryId, String tag) {
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
         String safeTag = tag == null ? null : tag.trim();
         if (safeTag != null && safeTag.isBlank()) {
             safeTag = null;
         }
-        Integer safeCategoryId = (categoryId != null && categoryId > 0) ? categoryId : null;
-        return discussPostMapper.selectDiscussPosts(0, safeCategoryId, null, safeTag, Pagination.safeOffset(p, s), s, orderMode);
+        return discussPostMapper.selectDiscussPosts(null, categoryId, null, safeTag, Pagination.safeOffset(p, s), s, orderMode);
     }
 
-    public List<DiscussPost> listPostsByUser(int userId, int page, int size) {
-        int uid = Math.max(0, userId);
-        if (uid <= 0) {
+    public List<DiscussPost> listPostsByUser(UUID userId, int page, int size) {
+        if (userId == null) {
             return List.of();
         }
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
-        return discussPostMapper.selectDiscussPosts(uid, null, null, null, Pagination.safeOffset(p, s), s, ORDER_LATEST);
+        return discussPostMapper.selectDiscussPosts(userId, null, null, null, Pagination.safeOffset(p, s), s, ORDER_LATEST);
     }
 
-    public List<DiscussPost> listPostsByIds(List<Integer> postIds) {
+    public List<DiscussPost> listPostsByIds(List<UUID> postIds) {
         if (postIds == null || postIds.isEmpty()) {
             return List.of();
         }
 
-        LinkedHashMap<Integer, Boolean> orderedIds = new LinkedHashMap<>();
-        for (Integer rawId : postIds) {
-            int id = rawId == null ? 0 : rawId;
-            if (id <= 0) continue;
-            orderedIds.putIfAbsent(id, Boolean.TRUE);
+        LinkedHashMap<UUID, Boolean> orderedIds = new LinkedHashMap<>();
+        for (UUID rawId : postIds) {
+            if (rawId == null) continue;
+            orderedIds.putIfAbsent(rawId, Boolean.TRUE);
             if (orderedIds.size() >= 200) break;
         }
         if (orderedIds.isEmpty()) {
@@ -68,9 +75,9 @@ public class PostService {
         }
 
         List<DiscussPost> rows = discussPostMapper.selectDiscussPostsByIds(List.copyOf(orderedIds.keySet()));
-        Map<Integer, DiscussPost> byId = new LinkedHashMap<>();
+        Map<UUID, DiscussPost> byId = new LinkedHashMap<>();
         for (DiscussPost post : rows) {
-            if (post == null || post.getId() <= 0) continue;
+            if (post == null || post.getId() == null) continue;
             byId.put(post.getId(), post);
         }
 
@@ -80,7 +87,7 @@ public class PostService {
                 .toList();
     }
 
-    public DiscussPost getById(int postId) {
+    public DiscussPost getById(UUID postId) {
         DiscussPost post = discussPostMapper.selectDiscussPostById(postId);
         if (post == null) {
             throw new BusinessException(POST_NOT_FOUND);
@@ -91,7 +98,7 @@ public class PostService {
         return post;
     }
 
-    public DiscussPost getByIdAllowDeleted(int postId) {
+    public DiscussPost getByIdAllowDeleted(UUID postId) {
         DiscussPost post = discussPostMapper.selectDiscussPostById(postId);
         if (post == null) {
             throw new BusinessException(POST_NOT_FOUND);
@@ -100,18 +107,18 @@ public class PostService {
     }
 
     public List<DiscussPost> listSubscribedPosts(
-            int userId,
-            List<Integer> subscribedCategoryIds,
+            UUID userId,
+            List<UUID> subscribedCategoryIds,
             int page,
             int size,
             int orderMode,
-            Integer categoryId,
+            UUID categoryId,
             String tag
     ) {
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
 
-        if (userId <= 0) {
+        if (userId == null) {
             return List.of();
         }
         if (subscribedCategoryIds == null || subscribedCategoryIds.isEmpty()) {
@@ -122,40 +129,42 @@ public class PostService {
         if (safeTag != null && safeTag.isBlank()) {
             safeTag = null;
         }
-        Integer safeCategoryId = (categoryId != null && categoryId > 0) ? categoryId : null;
-        return discussPostMapper.selectDiscussPosts(0, safeCategoryId, subscribedCategoryIds, safeTag, Pagination.safeOffset(p, s), s, orderMode);
+        return discussPostMapper.selectDiscussPosts(null, categoryId, subscribedCategoryIds, safeTag, Pagination.safeOffset(p, s), s, orderMode);
     }
 
-    public int create(DiscussPost post) {
+    public UUID create(DiscussPost post) {
+        if (post.getId() == null) {
+            post.setId(idGenerator.next());
+        }
         discussPostMapper.insertDiscussPost(post);
         return post.getId();
     }
 
-    public void updateCommentCount(int postId, int commentCount) {
+    public void updateCommentCount(UUID postId, int commentCount) {
         discussPostMapper.updateCommentCount(postId, commentCount);
     }
 
-    public void incrementCommentCount(int postId, int delta) {
+    public void incrementCommentCount(UUID postId, int delta) {
         discussPostMapper.incrementCommentCount(postId, delta);
     }
 
-    public void updateType(int postId, int type) {
+    public void updateType(UUID postId, int type) {
         discussPostMapper.updateType(postId, type);
     }
 
-    public void updateStatus(int postId, int status) {
+    public void updateStatus(UUID postId, int status) {
         discussPostMapper.updateStatus(postId, status);
     }
 
-    public void updateScore(int postId, double score) {
+    public void updateScore(UUID postId, double score) {
         discussPostMapper.updateScore(postId, score);
     }
 
-    public void updatePostContent(int postId, String title, String content, Integer categoryId, Date updateTime) {
+    public void updatePostContent(UUID postId, String title, String content, UUID categoryId, Date updateTime) {
         discussPostMapper.updatePostContent(postId, title, content, categoryId, updateTime);
     }
 
-    public void updateModerationDeleteMeta(int postId, int status, int deletedBy, String deletedReason, Date deletedTime) {
+    public void updateModerationDeleteMeta(UUID postId, int status, UUID deletedBy, String deletedReason, Date deletedTime) {
         discussPostMapper.updateModerationDeleteMeta(postId, status, deletedBy, deletedReason, deletedTime);
     }
 }

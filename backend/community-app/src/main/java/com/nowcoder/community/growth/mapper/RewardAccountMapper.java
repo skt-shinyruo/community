@@ -5,19 +5,21 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.UUID;
+
 @Repository
 @Mapper
 public interface RewardAccountMapper {
 
-    RewardAccount selectByUserId(int userId);
+    RewardAccount selectByUserId(UUID userId);
 
-    int insertAccount(int userId);
+    int insertAccount(UUID userId);
 
-    int addAvailableBalance(@Param("userId") int userId, @Param("delta") int delta);
+    int addAvailableBalance(@Param("userId") UUID userId, @Param("delta") int delta);
 
-    int moveAvailableToFrozen(@Param("userId") int userId, @Param("amount") int amount);
+    int moveAvailableToFrozen(@Param("userId") UUID userId, @Param("amount") int amount);
 
-    int moveFrozenToAvailable(@Param("userId") int userId, @Param("amount") int amount);
+    int moveFrozenToAvailable(@Param("userId") UUID userId, @Param("amount") int amount);
 
-    int deductFrozenBalance(@Param("userId") int userId, @Param("amount") int amount);
+    int deductFrozenBalance(@Param("userId") UUID userId, @Param("amount") int amount);
 }

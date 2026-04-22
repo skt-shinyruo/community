@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/search")
@@ -23,7 +24,7 @@ public class SearchController {
     @GetMapping("/posts")
     public Result<List<SearchPostItem>> searchPosts(
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) UUID categoryId,
             @RequestParam(required = false) String tag,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size

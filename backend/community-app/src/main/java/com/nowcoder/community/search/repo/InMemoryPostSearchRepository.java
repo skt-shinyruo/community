@@ -12,12 +12,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.UUID;
 
 @Repository
 @ConditionalOnProperty(name = "search.storage", havingValue = "memory", matchIfMissing = false)
 public class InMemoryPostSearchRepository implements PostSearchRepository {
 
-    private final Map<Integer, PostPayload> store = new ConcurrentHashMap<>();
+    private final Map<UUID, PostPayload> store = new ConcurrentHashMap<>();
 
     @Override
     public void upsert(PostPayload post) {
@@ -25,18 +26,18 @@ public class InMemoryPostSearchRepository implements PostSearchRepository {
     }
 
     @Override
-    public void delete(int postId) {
+    public void delete(UUID postId) {
         store.remove(postId);
     }
 
     @Override
-    public List<SearchPostItem> search(String keyword, Integer categoryId, String tag, int page, int size) {
+    public List<SearchPostItem> search(String keyword, UUID categoryId, String tag, int page, int size) {
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
 
         String k = keyword == null ? "" : keyword.trim();
         String kLower = StringUtils.hasText(k) ? k.toLowerCase(Locale.ROOT) : "";
-        Integer cid = categoryId != null && categoryId > 0 ? categoryId : null;
+        UUID cid = categoryId;
         String safeTag = tag == null ? "" : tag.trim();
         if (safeTag.startsWith("#")) {
             safeTag = safeTag.substring(1).trim();
@@ -46,7 +47,7 @@ public class InMemoryPostSearchRepository implements PostSearchRepository {
         List<PostPayload> matched = new ArrayList<>();
         for (PostPayload post : store.values()) {
             if (cid != null) {
-                Integer pc = post.getCategoryId();
+                UUID pc = post.getCategoryId();
                 if (pc == null || !cid.equals(pc)) {
                     continue;
                 }

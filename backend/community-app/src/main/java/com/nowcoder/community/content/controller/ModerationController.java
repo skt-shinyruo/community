@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/moderation")
@@ -35,7 +36,7 @@ public class ModerationController {
     public Result<List<ReportResponse>> reports(
             @RequestParam(required = false) Integer status,
             @RequestParam(required = false) Integer targetType,
-            @RequestParam(required = false) Integer reporterId,
+            @RequestParam(required = false) UUID reporterId,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
@@ -45,9 +46,9 @@ public class ModerationController {
     }
 
     @PostMapping("/actions")
-    public Result<Integer> action(Authentication authentication, @Valid @RequestBody ModerationActionRequest request) {
-        int actorId = CurrentUser.requireUserId(authentication);
-        int id = takeModerationActionUseCase.takeAction(
+    public Result<UUID> action(Authentication authentication, @Valid @RequestBody ModerationActionRequest request) {
+        UUID actorId = CurrentUser.requireUserUuid(authentication);
+        UUID id = takeModerationActionUseCase.takeAction(
                 actorId,
                 request.getReportId(),
                 request.getAction(),
@@ -59,7 +60,7 @@ public class ModerationController {
 
     @GetMapping("/actions")
     public Result<List<ModerationActionResponse>> actions(
-            @RequestParam(required = false) Integer actorId,
+            @RequestParam(required = false) UUID actorId,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {

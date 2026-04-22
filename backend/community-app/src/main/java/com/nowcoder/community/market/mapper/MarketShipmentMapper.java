@@ -5,11 +5,13 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.UUID;
+
 @Repository
 @Mapper
 public interface MarketShipmentMapper {
 
     int insert(MarketShipment shipment);
 
-    MarketShipment selectByOrderId(@Param("orderId") long orderId);
+    MarketShipment selectByOrderId(@Param("orderId") UUID orderId);
 }

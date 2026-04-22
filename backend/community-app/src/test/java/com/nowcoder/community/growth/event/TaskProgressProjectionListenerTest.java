@@ -15,7 +15,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.UUID;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -32,14 +34,15 @@ class TaskProgressProjectionListenerTest {
                         ZoneId.of("Asia/Shanghai")
                 )
         );
+        UUID userId = uuid(7);
 
         PostPayload payload = new PostPayload();
-        payload.setUserId(7);
+        payload.setUserId(userId);
         payload.setCreateTime(Instant.parse("2026-03-21T16:30:00Z"));
 
         listener.onContentEvent(new ContentContractEvent("post-evt-1", ContentEventTypes.POST_PUBLISHED, payload));
 
-        verify(taskProgressService).processEvent(7, ContentEventTypes.POST_PUBLISHED, "post-evt-1", LocalDate.of(2026, 3, 22));
+        verify(taskProgressService).processEvent(userId, ContentEventTypes.POST_PUBLISHED, "post-evt-1", LocalDate.of(2026, 3, 22));
     }
 
     @Test
@@ -52,15 +55,17 @@ class TaskProgressProjectionListenerTest {
                         ZoneId.of("Asia/Shanghai")
                 )
         );
+        UUID actorUserId = uuid(2);
+        UUID entityUserId = uuid(9);
 
         LikePayload payload = new LikePayload();
-        payload.setActorUserId(2);
-        payload.setEntityUserId(9);
+        payload.setActorUserId(actorUserId);
+        payload.setEntityUserId(entityUserId);
         payload.setCreateTime(Instant.parse("2026-03-22T01:00:00Z"));
 
         listener.onSocialEvent(new SocialContractEvent("like-evt-1", SocialEventTypes.LIKE_CREATED, payload));
 
-        verify(taskProgressService).processEvent(9, SocialEventTypes.LIKE_CREATED, "like-evt-1", LocalDate.of(2026, 3, 22));
+        verify(taskProgressService).processEvent(entityUserId, SocialEventTypes.LIKE_CREATED, "like-evt-1", LocalDate.of(2026, 3, 22));
     }
 
     @Test
@@ -73,15 +78,16 @@ class TaskProgressProjectionListenerTest {
                         ZoneId.of("Asia/Shanghai")
                 )
         );
+        UUID userId = uuid(2);
 
         LikePayload payload = new LikePayload();
-        payload.setActorUserId(2);
-        payload.setEntityUserId(2);
+        payload.setActorUserId(userId);
+        payload.setEntityUserId(userId);
         payload.setCreateTime(Instant.parse("2026-03-22T01:00:00Z"));
 
         listener.onSocialEvent(new SocialContractEvent("like-evt-1", SocialEventTypes.LIKE_CREATED, payload));
 
-        verify(taskProgressService, never()).processEvent(org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+        verify(taskProgressService, never()).processEvent(org.mockito.ArgumentMatchers.any(UUID.class), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -94,13 +100,15 @@ class TaskProgressProjectionListenerTest {
                         ZoneId.of("Asia/Shanghai")
                 )
         );
+        UUID userId = uuid(5);
+        String eventId = "check-in:" + userId + ":2026-03-22";
 
         CheckInPayload payload = new CheckInPayload();
-        payload.setUserId(5);
+        payload.setUserId(userId);
         payload.setBizDate(LocalDate.of(2026, 3, 22));
 
-        listener.onGrowthEvent(new GrowthLocalEvent("check-in:5:2026-03-22", GrowthEventTypes.CHECK_IN_COMPLETED, payload));
+        listener.onGrowthEvent(new GrowthLocalEvent(eventId, GrowthEventTypes.CHECK_IN_COMPLETED, payload));
 
-        verify(taskProgressService).processEvent(5, GrowthEventTypes.CHECK_IN_COMPLETED, "check-in:5:2026-03-22", LocalDate.of(2026, 3, 22));
+        verify(taskProgressService).processEvent(userId, GrowthEventTypes.CHECK_IN_COMPLETED, eventId, LocalDate.of(2026, 3, 22));
     }
 }

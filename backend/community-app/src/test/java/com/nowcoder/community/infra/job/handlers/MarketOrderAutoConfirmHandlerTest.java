@@ -20,6 +20,9 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.UUID;
+
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(
@@ -81,9 +84,10 @@ class MarketOrderAutoConfirmHandlerTest {
 
     @Test
     void autoConfirmShouldCompleteDeliveredAndShippedOrdersIdempotently() {
-        seedBuyerBalance(9, 50_000L);
-        long virtualOrderId = seedDueDeliveredVirtualOrder(7, 9);
-        long physicalOrderId = seedDueShippedPhysicalOrder(8, 9);
+        UUID buyerUserId = uuid(9);
+        seedBuyerBalance(buyerUserId, 50_000L);
+        UUID virtualOrderId = seedDueDeliveredVirtualOrder(uuid(7), buyerUserId);
+        UUID physicalOrderId = seedDueShippedPhysicalOrder(uuid(8), buyerUserId);
 
         MarketOrderAutoConfirmResult result = marketOrderAutoConfirmActionApi.autoConfirmDueOrders();
 
@@ -95,16 +99,17 @@ class MarketOrderAutoConfirmHandlerTest {
 
     @Test
     void handlerShouldMarkJobSuccessAfterCompletingDueOrders() {
-        seedBuyerBalance(9, 50_000L);
-        seedDueDeliveredVirtualOrder(7, 9);
-        seedDueShippedPhysicalOrder(8, 9);
+        UUID buyerUserId = uuid(9);
+        seedBuyerBalance(buyerUserId, 50_000L);
+        seedDueDeliveredVirtualOrder(uuid(7), buyerUserId);
+        seedDueShippedPhysicalOrder(uuid(8), buyerUserId);
 
         handler.autoConfirm();
 
         assertThat(XxlJobContext.getXxlJobContext().getHandleCode()).isEqualTo(XxlJobContext.HANDLE_CODE_SUCCESS);
     }
 
-    private long seedDueDeliveredVirtualOrder(int sellerUserId, int buyerUserId) {
+    private UUID seedDueDeliveredVirtualOrder(UUID sellerUserId, UUID buyerUserId) {
         CreateMarketListingRequest request = new CreateMarketListingRequest();
         request.setGoodsType("VIRTUAL");
         request.setTitle("邀请码");
@@ -115,8 +120,8 @@ class MarketOrderAutoConfirmHandlerTest {
         request.setStockTotal(2);
         request.setMinPurchaseQuantity(1);
         request.setMaxPurchaseQuantity(2);
-        long listingId = marketListingService.createListing(sellerUserId, request, null).listingId();
-        long orderId = marketOrderService.createOrder("auto-confirm:virtual:req-1", buyerUserId, listingId, 1, null).orderId();
+        UUID listingId = marketListingService.createListing(sellerUserId, request, null).listingId();
+        UUID orderId = marketOrderService.createOrder("auto-confirm:virtual:req-1", buyerUserId, listingId, 1, null).orderId();
         marketOrderService.deliverVirtualOrder(orderId, sellerUserId, "邀请码-A");
         jdbcTemplate.update(
                 "update market_order set auto_confirm_at = timestampadd('HOUR', -1, current_timestamp) where order_id = ?",
@@ -125,7 +130,7 @@ class MarketOrderAutoConfirmHandlerTest {
         return orderId;
     }
 
-    private long seedDueShippedPhysicalOrder(int sellerUserId, int buyerUserId) {
+    private UUID seedDueShippedPhysicalOrder(UUID sellerUserId, UUID buyerUserId) {
         CreateMarketListingRequest request = new CreateMarketListingRequest();
         request.setGoodsType("PHYSICAL");
         request.setTitle("二手键盘");
@@ -134,7 +139,7 @@ class MarketOrderAutoConfirmHandlerTest {
         request.setStockTotal(1);
         request.setMinPurchaseQuantity(1);
         request.setMaxPurchaseQuantity(1);
-        long listingId = marketListingService.createListing(sellerUserId, request, null).listingId();
+        UUID listingId = marketListingService.createListing(sellerUserId, request, null).listingId();
 
         CreateMarketAddressRequest addressRequest = new CreateMarketAddressRequest();
         addressRequest.setReceiverName("张三");
@@ -145,9 +150,9 @@ class MarketOrderAutoConfirmHandlerTest {
         addressRequest.setDetailAddress("世纪大道 100 号");
         addressRequest.setPostalCode("200120");
         addressRequest.setDefault(true);
-        long addressId = marketAddressService.createAddress(buyerUserId, addressRequest).addressId();
+        UUID addressId = marketAddressService.createAddress(buyerUserId, addressRequest).addressId();
 
-        long orderId = marketOrderService.createOrder("auto-confirm:physical:req-1", buyerUserId, listingId, 1, addressId).orderId();
+        UUID orderId = marketOrderService.createOrder("auto-confirm:physical:req-1", buyerUserId, listingId, 1, addressId).orderId();
         marketOrderService.shipPhysicalOrder(orderId, sellerUserId, "顺丰", "SF1234567890", "工作日派送");
         jdbcTemplate.update(
                 "update market_order set auto_confirm_at = timestampadd('DAY', -1, current_timestamp) where order_id = ?",
@@ -156,8 +161,8 @@ class MarketOrderAutoConfirmHandlerTest {
         return orderId;
     }
 
-    private void seedBuyerBalance(int userId, long balance) {
-        long accountId = walletAccountService.ensureUserWallet(userId);
+    private void seedBuyerBalance(UUID userId, long balance) {
+        UUID accountId = walletAccountService.ensureUserWallet(userId);
         jdbcTemplate.update(
                 "update wallet_account set balance = ?, version = 0, status = 'ACTIVE' where account_id = ?",
                 balance,
@@ -165,7 +170,7 @@ class MarketOrderAutoConfirmHandlerTest {
         );
     }
 
-    private String orderStatus(long orderId) {
+    private String orderStatus(UUID orderId) {
         return jdbcTemplate.queryForObject(
                 "select status from market_order where order_id = ?",
                 String.class,

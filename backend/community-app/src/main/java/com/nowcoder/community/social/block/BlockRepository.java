@@ -2,15 +2,15 @@
 package com.nowcoder.community.social.block;
 
 import java.util.List;
+import java.util.UUID;
 
 public interface BlockRepository {
 
-    boolean block(int userId, int targetUserId);
+    boolean block(UUID userId, UUID targetUserId);
 
-    boolean unblock(int userId, int targetUserId);
+    boolean unblock(UUID userId, UUID targetUserId);
 
-    boolean hasBlocked(int userId, int targetUserId);
+    boolean hasBlocked(UUID userId, UUID targetUserId);
 
-    List<Integer> listBlockedUserIds(int userId);
+    List<UUID> listBlockedUserIds(UUID userId);
 }
-

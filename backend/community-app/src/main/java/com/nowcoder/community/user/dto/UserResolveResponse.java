@@ -1,16 +1,18 @@
 package com.nowcoder.community.user.dto;
 
+import java.util.UUID;
+
 public class UserResolveResponse {
 
-    private int id;
+    private UUID id;
     private String username;
     private String headerUrl;
 
-    public int getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
@@ -30,4 +32,3 @@ public class UserResolveResponse {
         this.headerUrl = headerUrl;
     }
 }
-

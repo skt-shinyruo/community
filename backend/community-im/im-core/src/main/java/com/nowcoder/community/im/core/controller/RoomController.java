@@ -11,6 +11,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/im/rooms")
@@ -32,22 +33,22 @@ public class RoomController {
 
     @PostMapping
     public Result<CreateRoomResponse> createRoom(@AuthenticationPrincipal Jwt jwt, @RequestBody CreateRoomRequest req) {
-        int me = CurrentUser.userIdOrThrow(jwt);
+        UUID me = CurrentUser.userIdOrThrow(jwt);
         String name = req == null ? null : req.name();
-        long roomId = membershipService.createRoom(me, name);
+        UUID roomId = membershipService.createRoom(me, name);
         return Result.ok(new CreateRoomResponse(roomId));
     }
 
     @PostMapping("/{roomId}/join")
-    public Result<Void> joinRoom(@AuthenticationPrincipal Jwt jwt, @PathVariable long roomId) {
-        int me = CurrentUser.userIdOrThrow(jwt);
+    public Result<Void> joinRoom(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID roomId) {
+        UUID me = CurrentUser.userIdOrThrow(jwt);
         membershipService.joinRoom(me, roomId);
         return Result.ok();
     }
 
     @PostMapping("/{roomId}/leave")
-    public Result<Void> leaveRoom(@AuthenticationPrincipal Jwt jwt, @PathVariable long roomId) {
-        int me = CurrentUser.userIdOrThrow(jwt);
+    public Result<Void> leaveRoom(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID roomId) {
+        UUID me = CurrentUser.userIdOrThrow(jwt);
         membershipService.leaveRoom(me, roomId);
         return Result.ok();
     }
@@ -55,11 +56,11 @@ public class RoomController {
     @GetMapping("/{roomId}/messages")
     public Result<RoomMessagesResponse> listMessages(
             @AuthenticationPrincipal Jwt jwt,
-            @PathVariable long roomId,
+            @PathVariable UUID roomId,
             @RequestParam(name = "afterSeq", required = false, defaultValue = "0") long afterSeq,
             @RequestParam(name = "limit", required = false, defaultValue = "50") int limit
     ) {
-        int me = CurrentUser.userIdOrThrow(jwt);
+        UUID me = CurrentUser.userIdOrThrow(jwt);
         if (!membershipService.isMember(roomId, me)) {
             throw new AccessDeniedException("not a room member");
         }
@@ -86,10 +87,10 @@ public class RoomController {
     @PostMapping("/{roomId}/read")
     public Result<Void> markRead(
             @AuthenticationPrincipal Jwt jwt,
-            @PathVariable long roomId,
+            @PathVariable UUID roomId,
             @RequestBody MarkReadRequest req
     ) {
-        int me = CurrentUser.userIdOrThrow(jwt);
+        UUID me = CurrentUser.userIdOrThrow(jwt);
         if (!membershipService.isMember(roomId, me)) {
             throw new AccessDeniedException("not a room member");
         }
@@ -103,14 +104,14 @@ public class RoomController {
     public record CreateRoomRequest(String name) {
     }
 
-    public record CreateRoomResponse(long roomId) {
+    public record CreateRoomResponse(UUID roomId) {
     }
 
     public record MarkReadRequest(long lastReadSeq) {
     }
 
     public record RoomMessagesResponse(
-            long roomId,
+            UUID roomId,
             List<RoomMessageItem> items,
             long nextAfterSeq,
             long lastReadSeq
@@ -118,10 +119,10 @@ public class RoomController {
     }
 
     public record RoomMessageItem(
-            long roomId,
+            UUID roomId,
             long seq,
-            long messageId,
-            int fromUserId,
+            UUID messageId,
+            UUID fromUserId,
             String content,
             String clientMsgId,
             long createdAtEpochMs

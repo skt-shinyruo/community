@@ -11,7 +11,9 @@ import org.junit.jupiter.api.Test;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.UUID;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -27,9 +29,10 @@ class TaskProgressOutboxEnqueuerTest {
                 ZoneId.of("Asia/Shanghai")
         );
         TaskProgressOutboxEnqueuer enqueuer = new TaskProgressOutboxEnqueuer(objectMapper, store, businessTimeService);
+        UUID userId = uuid(7);
 
         PostPayload payload = new PostPayload();
-        payload.setUserId(7);
+        payload.setUserId(userId);
         payload.setCreateTime(Instant.parse("2026-03-21T16:30:00Z"));
 
         enqueuer.onContentEvent(new ContentContractEvent("post-evt-1", ContentEventTypes.POST_PUBLISHED, payload));
@@ -37,8 +40,8 @@ class TaskProgressOutboxEnqueuerTest {
         verify(store).enqueue(
                 eq("post-evt-1:task-progress"),
                 eq(TaskProgressOutboxHandler.TOPIC),
-                eq("7"),
-                eq("{\"userId\":7,\"triggerEventType\":\"PostPublished\",\"sourceEventId\":\"post-evt-1\",\"bizDate\":[2026,3,22]}")
+                eq(userId.toString()),
+                eq("{\"userId\":\"" + userId + "\",\"triggerEventType\":\"PostPublished\",\"sourceEventId\":\"post-evt-1\",\"bizDate\":[2026,3,22]}")
         );
     }
 }

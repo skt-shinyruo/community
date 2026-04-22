@@ -13,6 +13,7 @@ import reactor.core.publisher.Flux;
 
 import java.time.Duration;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -32,9 +33,9 @@ public class RoomFanoutCoalescer implements DisposableBean {
     private final RoomUpdateCoalescer roomUpdateCoalescer;
     private final Duration flushInterval;
 
-    private final ConcurrentHashMap<Long, Long> latestSeqByRoomId = new ConcurrentHashMap<>();
-    private final Set<Long> enqueuedRooms = ConcurrentHashMap.newKeySet();
-    private final ConcurrentLinkedQueue<Long> pendingRoomIds = new ConcurrentLinkedQueue<>();
+    private final ConcurrentHashMap<UUID, Long> latestSeqByRoomId = new ConcurrentHashMap<>();
+    private final Set<UUID> enqueuedRooms = ConcurrentHashMap.newKeySet();
+    private final ConcurrentLinkedQueue<UUID> pendingRoomIds = new ConcurrentLinkedQueue<>();
     private final Disposable ticker;
 
     public RoomFanoutCoalescer(
@@ -53,8 +54,8 @@ public class RoomFanoutCoalescer implements DisposableBean {
                 .subscribe(tick -> flushOnceSafely());
     }
 
-    public void markRoomUpdated(long roomId, long lastSeq) {
-        if (roomId <= 0 || lastSeq <= 0) {
+    public void markRoomUpdated(UUID roomId, long lastSeq) {
+        if (roomId == null || lastSeq <= 0) {
             return;
         }
         latestSeqByRoomId.merge(roomId, lastSeq, Math::max);
@@ -73,7 +74,7 @@ public class RoomFanoutCoalescer implements DisposableBean {
 
     private void flushOnce() {
         while (true) {
-            Long roomId = pendingRoomIds.poll();
+            UUID roomId = pendingRoomIds.poll();
             if (roomId == null) {
                 return;
             }

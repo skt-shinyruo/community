@@ -1,8 +1,10 @@
 package com.nowcoder.community.auth.dto;
 
+import java.util.UUID;
+
 public class RegisterResponse {
 
-    private int userId;
+    private UUID userId;
     /**
      * Opaque token representing a pending registration context.
      * Used by resend/verify endpoints to avoid exposing sequential userId.
@@ -12,11 +14,11 @@ public class RegisterResponse {
     private String maskedEmail;
     private String debugEmailCode;
 
-    public int getUserId() {
+    public UUID getUserId() {
         return userId;
     }
 
-    public void setUserId(int userId) {
+    public void setUserId(UUID userId) {
         this.userId = userId;
     }
 

@@ -1,10 +1,11 @@
 package com.nowcoder.community.user.dto;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class UserProfileResponse {
 
-    private int id;
+    private UUID id;
     private String username;
     private String headerUrl;
     private int type;
@@ -29,11 +30,11 @@ public class UserProfileResponse {
      */
     private boolean socialDegraded;
 
-    public int getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 

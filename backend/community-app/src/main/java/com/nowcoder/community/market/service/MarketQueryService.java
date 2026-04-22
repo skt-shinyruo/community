@@ -17,6 +17,8 @@ import com.nowcoder.community.market.mapper.MarketShipmentMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
@@ -48,7 +50,7 @@ public class MarketQueryService {
                 .toList();
     }
 
-    public MarketListingDetailResponse getListingDetail(long listingId) {
+    public MarketListingDetailResponse getListingDetail(UUID listingId) {
         MarketListing listing = marketListingMapper.selectById(listingId);
         if (listing == null) {
             throw new BusinessException(NOT_FOUND, "market listing not found: listingId=" + listingId);
@@ -56,37 +58,37 @@ public class MarketQueryService {
         return MarketListingDetailResponse.from(listing);
     }
 
-    public List<MarketListingResponse> listSellerListings(int sellerUserId) {
+    public List<MarketListingResponse> listSellerListings(UUID sellerUserId) {
         return marketListingMapper.selectBySellerUserId(sellerUserId).stream()
                 .map(MarketListingResponse::from)
                 .toList();
     }
 
-    public List<MarketOrderResponse> listBuyingOrders(int buyerUserId) {
+    public List<MarketOrderResponse> listBuyingOrders(UUID buyerUserId) {
         return marketOrderMapper.selectByBuyerUserId(buyerUserId).stream()
                 .map(MarketOrderResponse::from)
                 .toList();
     }
 
-    public List<MarketOrderResponse> listSellingOrders(int sellerUserId) {
+    public List<MarketOrderResponse> listSellingOrders(UUID sellerUserId) {
         return marketOrderMapper.selectBySellerUserId(sellerUserId).stream()
                 .map(MarketOrderResponse::from)
                 .toList();
     }
 
-    public MarketOrderDetailResponse getOrderDetail(long orderId, int actorUserId) {
+    public MarketOrderDetailResponse getOrderDetail(UUID orderId, UUID actorUserId) {
         MarketOrder order = marketOrderMapper.selectById(orderId);
         if (order == null) {
             throw new BusinessException(NOT_FOUND, "market order not found: orderId=" + orderId);
         }
-        if (order.getBuyerUserId() != actorUserId && order.getSellerUserId() != actorUserId) {
+        if (!Objects.equals(order.getBuyerUserId(), actorUserId) && !Objects.equals(order.getSellerUserId(), actorUserId)) {
             throw new BusinessException(FORBIDDEN, "market order does not belong to actor: orderId=" + orderId);
         }
         List<String> deliveryContents = loadDeliveryContents(orderId, order.getGoodsType());
         return MarketOrderDetailResponse.from(order, deliveryContents, marketShipmentMapper.selectByOrderId(orderId));
     }
 
-    private List<String> loadDeliveryContents(long orderId, String goodsType) {
+    private List<String> loadDeliveryContents(UUID orderId, String goodsType) {
         if (!"VIRTUAL".equals(goodsType)) {
             return List.of();
         }

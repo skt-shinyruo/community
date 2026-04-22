@@ -32,6 +32,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
@@ -158,9 +159,10 @@ class AuthControllerUnitTest {
 
     @Test
     void meShouldReadSubjectAndClaimsFromJwt() {
+        UUID userId = UUID.fromString("00000000-0000-7000-8000-000000000042");
         Jwt jwt = Jwt.withTokenValue("t")
                 .header("alg", "none")
-                .subject("42")
+                .subject(userId.toString())
                 .claim("username", "u42")
                 .claim("authorities", List.of("ROLE_USER"))
                 .issuedAt(Instant.now())
@@ -173,7 +175,7 @@ class AuthControllerUnitTest {
         Result<MeResponse> resp = controller.me(authentication);
         assertThat(resp.getCode()).isEqualTo(0);
         assertThat(resp.getData()).isNotNull();
-        assertThat(resp.getData().getUserId()).isEqualTo(42);
+        assertThat(resp.getData().getUserId()).isEqualTo(userId);
         assertThat(resp.getData().getUsername()).isEqualTo("u42");
         assertThat(resp.getData().getAuthorities()).contains("ROLE_USER");
     }
@@ -194,6 +196,7 @@ class AuthControllerUnitTest {
 
     @Test
     void registerShouldReturnNewRegisterResponseContract() {
+        UUID userId = UUID.fromString("00000000-0000-7000-8000-000000000007");
         RegisterRequest request = new RegisterRequest();
         request.setUsername("alice");
         request.setPassword("secret");
@@ -202,7 +205,7 @@ class AuthControllerUnitTest {
         request.setCaptchaCode("abcd");
 
         RegisterResponse registerResponse = new RegisterResponse();
-        registerResponse.setUserId(7);
+        registerResponse.setUserId(userId);
         registerResponse.setRegistrationToken("0123456789abcdef0123456789abcdef");
         registerResponse.setEmailCodeIssued(true);
         registerResponse.setMaskedEmail("a***@example.com");

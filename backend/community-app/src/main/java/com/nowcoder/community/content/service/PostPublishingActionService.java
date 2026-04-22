@@ -11,6 +11,7 @@ import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class PostPublishingActionService implements PostPublishingActionApi {
@@ -39,24 +40,24 @@ public class PostPublishingActionService implements PostPublishingActionApi {
     }
 
     @Override
-    public PostCreateResult create(int userId, String idempotencyKey, String title, String content, Integer categoryId, List<String> tags) {
+    public PostCreateResult create(UUID userId, String idempotencyKey, String title, String content, UUID categoryId, List<String> tags) {
         return idempotencyGuard.executeRequired("content:create_post", userId, idempotencyKey, PostCreateResult.class, () -> {
             String safeTitle = sanitize(title);
             String safeContent = sanitize(content);
-            int postId = createPostUseCase.createPost(userId, safeTitle, safeContent, categoryId, tags);
+            UUID postId = createPostUseCase.createPost(userId, safeTitle, safeContent, categoryId, tags);
             return new PostCreateResult(postId);
         });
     }
 
     @Override
-    public void updatePost(int userId, int postId, String title, String content, Integer categoryId, List<String> tags) {
+    public void updatePost(UUID userId, UUID postId, String title, String content, UUID categoryId, List<String> tags) {
         String safeTitle = sanitize(title);
         String safeContent = sanitize(content);
         updatePostUseCase.updatePost(userId, postId, safeTitle, safeContent, categoryId, tags);
     }
 
     @Override
-    public void deleteByAuthor(int userId, int postId) {
+    public void deleteByAuthor(UUID userId, UUID postId) {
         deleteOwnPostUseCase.deletePostByAuthor(userId, postId);
     }
 

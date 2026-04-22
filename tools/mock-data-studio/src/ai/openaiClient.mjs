@@ -18,6 +18,17 @@ function extractResponseText(response = {}) {
     return response.output_text.trim()
   }
 
+  if (typeof response?.choices?.[0]?.message?.content === 'string') {
+    return response.choices[0].message.content.trim()
+  }
+
+  if (Array.isArray(response?.choices?.[0]?.message?.content)) {
+    return response.choices[0].message.content
+      .map((part) => (part?.type === 'text' ? part.text : ''))
+      .join('\n')
+      .trim()
+  }
+
   const output = Array.isArray(response?.output) ? response.output : []
   const textParts = []
 
@@ -31,6 +42,21 @@ function extractResponseText(response = {}) {
   }
 
   return textParts.join('\n').trim()
+}
+
+async function createTextResponse({ client, model, prompt }) {
+  if (client?.responses?.create) {
+    return client.responses.create({
+      model,
+      input: prompt
+    })
+  }
+
+  return client.chat.completions.create({
+    model,
+    messages: [{ role: 'user', content: prompt }],
+    max_tokens: 4096
+  })
 }
 
 function parseOutputsFromText(text, expectedCount) {
@@ -119,7 +145,13 @@ export function createOpenAiClient({
       }
 
       if (!enabled || !openaiClient) {
-        const error = new Error('AI is not configured or not enabled')
+        const error = new Error(
+          !enabled
+            ? 'AI is not configured or not enabled'
+            : provider === 'openai'
+              ? 'OpenAI API key is not configured'
+              : `${provider} AI client is not configured`
+        )
         error.code = 'AI_NOT_CONFIGURED'
         throw error
       }
@@ -138,13 +170,12 @@ export function createOpenAiClient({
       const skipped = normalizedInputs.slice(selected.length)
       const prompt = buildPrompt({ kind, inputs: selected })
 
-      const response = await openaiClient.chat.completions.create({
+      const response = await createTextResponse({
+        client: openaiClient,
         model,
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 4096
+        prompt
       })
-
-      const responseText = response.choices?.[0]?.message?.content ?? ''
+      const responseText = extractResponseText(response)
       const enhancedSelected = parseOutputsFromText(responseText, selected.length)
 
       if (!enhancedSelected) {

@@ -1,17 +1,19 @@
 package com.nowcoder.community.user.dto;
 
+import java.util.UUID;
+
 public class UserSummaryResponse {
 
-    private int id;
+    private UUID id;
     private String username;
     private String headerUrl;
     private int type;
 
-    public int getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
@@ -39,4 +41,3 @@ public class UserSummaryResponse {
         this.type = type;
     }
 }
-

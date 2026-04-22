@@ -1,19 +1,18 @@
 package com.nowcoder.community.social.follow.dto;
 
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+
+import java.util.UUID;
 
 public class FollowRequest {
 
     @NotNull
-    @Min(1)
     private Integer entityType;
 
     @NotNull
-    @Min(1)
-    private Integer entityId;
+    private UUID entityId;
 
-    private Integer entityUserId;
+    private UUID entityUserId;
 
     public int getEntityType() {
         return entityType == null ? 0 : entityType;
@@ -23,20 +22,19 @@ public class FollowRequest {
         this.entityType = entityType;
     }
 
-    public int getEntityId() {
-        return entityId == null ? 0 : entityId;
+    public UUID getEntityId() {
+        return entityId;
     }
 
-    public void setEntityId(Integer entityId) {
+    public void setEntityId(UUID entityId) {
         this.entityId = entityId;
     }
 
-    public Integer getEntityUserId() {
+    public UUID getEntityUserId() {
         return entityUserId;
     }
 
-    public void setEntityUserId(Integer entityUserId) {
+    public void setEntityUserId(UUID entityUserId) {
         this.entityUserId = entityUserId;
     }
 }
-

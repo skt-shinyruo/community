@@ -3,20 +3,21 @@ package com.nowcoder.community.social.like;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public interface LikeRepository {
 
-    boolean addLike(int userId, int entityType, int entityId);
+    boolean addLike(UUID userId, int entityType, UUID entityId);
 
-    boolean removeLike(int userId, int entityType, int entityId);
+    boolean removeLike(UUID userId, int entityType, UUID entityId);
 
-    boolean isLiked(int userId, int entityType, int entityId);
+    boolean isLiked(UUID userId, int entityType, UUID entityId);
 
-    long countEntityLikes(int entityType, int entityId);
+    long countEntityLikes(int entityType, UUID entityId);
 
-    long incrementUserLikeCount(int userId, long delta);
+    long incrementUserLikeCount(UUID userId, long delta);
 
-    long getUserLikeCount(int userId);
+    long getUserLikeCount(UUID userId);
 
     default boolean requiresExplicitCompensation() {
         return false;
@@ -38,28 +39,28 @@ public interface LikeRepository {
      * @param liked        目标状态：true=点赞，false=取消点赞
      * @return true 表示状态发生变更（从无到有/从有到无）；false 表示幂等 no-op
      */
-    default boolean setLike(int actorUserId, int entityType, int entityId, int entityUserId, boolean liked) {
+    default boolean setLike(UUID actorUserId, int entityType, UUID entityId, UUID entityUserId, boolean liked) {
         if (liked) {
             boolean added = addLike(actorUserId, entityType, entityId);
-            if (added && entityUserId > 0) {
+            if (added && entityUserId != null) {
                 incrementUserLikeCount(entityUserId, 1);
             }
             return added;
         }
         boolean removed = removeLike(actorUserId, entityType, entityId);
-        if (removed && entityUserId > 0) {
+        if (removed && entityUserId != null) {
             incrementUserLikeCount(entityUserId, -1);
         }
         return removed;
     }
 
-    default Map<Integer, Long> countEntityLikesBatch(int entityType, List<Integer> entityIds) {
-        Map<Integer, Long> out = new HashMap<>();
+    default Map<UUID, Long> countEntityLikesBatch(int entityType, List<UUID> entityIds) {
+        Map<UUID, Long> out = new HashMap<>();
         if (entityIds == null || entityIds.isEmpty()) {
             return out;
         }
-        for (Integer id : entityIds) {
-            if (id == null || id <= 0) {
+        for (UUID id : entityIds) {
+            if (id == null) {
                 continue;
             }
             out.put(id, countEntityLikes(entityType, id));
@@ -67,13 +68,13 @@ public interface LikeRepository {
         return out;
     }
 
-    default Map<Integer, Boolean> likedStatusesBatch(int userId, int entityType, List<Integer> entityIds) {
-        Map<Integer, Boolean> out = new HashMap<>();
+    default Map<UUID, Boolean> likedStatusesBatch(UUID userId, int entityType, List<UUID> entityIds) {
+        Map<UUID, Boolean> out = new HashMap<>();
         if (entityIds == null || entityIds.isEmpty()) {
             return out;
         }
-        for (Integer id : entityIds) {
-            if (id == null || id <= 0) {
+        for (UUID id : entityIds) {
+            if (id == null) {
                 continue;
             }
             out.put(id, isLiked(userId, entityType, id));

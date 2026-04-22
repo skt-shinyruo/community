@@ -9,7 +9,9 @@ import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -21,6 +23,7 @@ class PostScoreRefresherTest {
         PostService postService = Mockito.mock(PostService.class);
         LikeQueryService likeQueryService = Mockito.mock(LikeQueryService.class);
         PostScoreCommandService scoreCommandService = Mockito.mock(PostScoreCommandService.class);
+        UUID postId = uuid(100);
 
         PostScoreRefresher refresher = new PostScoreRefresher(
                 queue,
@@ -32,10 +35,10 @@ class PostScoreRefresherTest {
                 1
         );
 
-        Mockito.when(postService.getById(100)).thenThrow(new RuntimeException("db down"));
-        refresher.refreshSafely(100);
+        Mockito.when(postService.getById(postId)).thenThrow(new RuntimeException("db down"));
+        refresher.refreshSafely(postId);
 
-        assertThat(queue.added).containsExactly(100);
+        assertThat(queue.added).containsExactly(postId);
     }
 
     @Test
@@ -44,6 +47,7 @@ class PostScoreRefresherTest {
         PostService postService = Mockito.mock(PostService.class);
         LikeQueryService likeQueryService = Mockito.mock(LikeQueryService.class);
         PostScoreCommandService scoreCommandService = Mockito.mock(PostScoreCommandService.class);
+        UUID postId = uuid(100);
 
         PostScoreRefresher refresher = new PostScoreRefresher(
                 queue,
@@ -55,22 +59,22 @@ class PostScoreRefresherTest {
                 1
         );
 
-        Mockito.when(postService.getById(100)).thenThrow(new BusinessException(NOT_FOUND, "post missing"));
-        refresher.refreshSafely(100);
+        Mockito.when(postService.getById(postId)).thenThrow(new BusinessException(NOT_FOUND, "post missing"));
+        refresher.refreshSafely(postId);
 
         assertThat(queue.added).isEmpty();
     }
 
     private static class CapturingQueue implements PostScoreQueue {
-        private final List<Integer> added = new ArrayList<>();
+        private final List<UUID> added = new ArrayList<>();
 
         @Override
-        public void add(int postId) {
+        public void add(UUID postId) {
             added.add(postId);
         }
 
         @Override
-        public Integer pop() {
+        public UUID pop() {
             return null;
         }
     }

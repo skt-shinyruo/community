@@ -5,6 +5,8 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.UUID;
+
 @Repository
 @Mapper
 public interface WalletTxnMapper {
@@ -13,5 +15,5 @@ public interface WalletTxnMapper {
 
     int insert(WalletTxn txn);
 
-    int markSucceeded(@Param("txnId") long txnId);
+    int markSucceeded(@Param("txnId") UUID txnId);
 }

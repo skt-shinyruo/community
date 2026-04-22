@@ -1,4 +1,6 @@
 package com.nowcoder.community.wallet.dto;
 
-public record WalletSummaryResponse(int userId, long balance, String status) {
+import java.util.UUID;
+
+public record WalletSummaryResponse(UUID userId, long balance, String status) {
 }

@@ -5,6 +5,8 @@ import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.text.ContentTextCodec;
 import org.springframework.stereotype.Component;
 
+import java.util.UUID;
+
 @Component
 public class RecentUserCommentAssembler {
 
@@ -14,7 +16,7 @@ public class RecentUserCommentAssembler {
         this.textCodec = textCodec;
     }
 
-    public RecentUserCommentView assemble(Comment comment, int postId, String postTitle) {
+    public RecentUserCommentView assemble(Comment comment, UUID postId, String postTitle) {
         return new RecentUserCommentView(
                 comment.getId(),
                 comment.getUserId(),

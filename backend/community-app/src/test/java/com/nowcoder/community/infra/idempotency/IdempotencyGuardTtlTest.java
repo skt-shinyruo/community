@@ -8,7 +8,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.Duration;
+import java.util.UUID;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -39,8 +41,9 @@ class IdempotencyGuardTtlTest {
                 meterRegistryProvider,
                 properties
         );
+        UUID userId = uuid(1);
 
-        guard.executeRequired("op", 1, "k1", String.class, () -> "OK");
+        guard.executeRequired("op", userId, "k1", String.class, () -> "OK");
 
         verify(valueOps).setIfAbsent(anyString(), eq("P"), eq(Duration.ofSeconds(45)));
         verify(valueOps).set(anyString(), anyString(), eq(Duration.ofMinutes(10)));

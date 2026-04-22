@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -34,7 +35,7 @@ public class ContentModerationApplier {
         this.contentEventPublisher = contentEventPublisher;
     }
 
-    public void applyContentAction(int actorId, ModerationTargetResolver.ResolvedTarget target, String action, String reason) {
+    public void applyContentAction(UUID actorId, ModerationTargetResolver.ResolvedTarget target, String action, String reason) {
         if (target.targetType() == ReportService.TARGET_TYPE_POST) {
             int updated = discussPostMapper.updateModerationDeleteMeta(
                     target.targetId(),
@@ -68,12 +69,12 @@ public class ContentModerationApplier {
         throw new BusinessException(FORBIDDEN, "该目标类型不支持此处置动作");
     }
 
-    private void publishPostDeletedEvent(int postId) {
-        if (postId <= 0) {
+    private void publishPostDeletedEvent(UUID postId) {
+        if (postId == null) {
             return;
         }
         DiscussPost post = discussPostMapper.selectDiscussPostById(postId);
-        if (post == null || post.getId() <= 0) {
+        if (post == null || post.getId() == null) {
             return;
         }
         PostPayload payload = new PostPayload();
@@ -87,18 +88,18 @@ public class ContentModerationApplier {
         contentEventPublisher.publishPostDeleted(payload);
     }
 
-    private void publishCommentDeletedEvent(int commentId) {
-        if (commentId <= 0) {
+    private void publishCommentDeletedEvent(UUID commentId) {
+        if (commentId == null) {
             return;
         }
         Comment comment = commentMapper.selectCommentById(commentId);
-        if (comment == null || comment.getId() <= 0) {
+        if (comment == null || comment.getId() == null) {
             return;
         }
-        int postId = resolveRootPostIdByComment(comment, 12);
+        UUID postId = resolveRootPostIdByComment(comment, 12);
         CommentPayload payload = new CommentPayload();
         payload.setCommentId(comment.getId());
-        payload.setPostId(Math.max(0, postId));
+        payload.setPostId(postId);
         payload.setUserId(comment.getUserId());
         payload.setEntityType(comment.getEntityType());
         payload.setEntityId(comment.getEntityId());
@@ -106,27 +107,27 @@ public class ContentModerationApplier {
         contentEventPublisher.publishCommentDeleted(payload);
     }
 
-    private int resolveRootPostIdByComment(Comment comment, int maxHops) {
-        if (comment == null || comment.getId() <= 0) {
-            return 0;
+    private UUID resolveRootPostIdByComment(Comment comment, int maxHops) {
+        if (comment == null || comment.getId() == null) {
+            return null;
         }
         int type = comment.getEntityType();
-        int id = comment.getEntityId();
+        UUID id = comment.getEntityId();
         for (int i = 0; i < Math.max(1, maxHops); i++) {
             if (type == ReportService.TARGET_TYPE_POST) {
                 return id;
             }
-            if (type != ReportService.TARGET_TYPE_COMMENT || id <= 0) {
-                return 0;
+            if (type != ReportService.TARGET_TYPE_COMMENT || id == null) {
+                return null;
             }
             Comment parent = commentMapper.selectCommentById(id);
-            if (parent == null || parent.getId() <= 0 || parent.getStatus() != 0) {
-                return 0;
+            if (parent == null || parent.getStatus() != 0) {
+                return null;
             }
             type = parent.getEntityType();
             id = parent.getEntityId();
         }
-        return 0;
+        return null;
     }
 
     private String buildDeletedReason(String action, String reason) {

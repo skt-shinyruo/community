@@ -1,39 +1,40 @@
 package com.nowcoder.community.content.contracts.event;
 
 import java.time.Instant;
+import java.util.UUID;
 
 public class CommentPayload {
 
-    private int commentId;
-    private int postId;
-    private int userId;
+    private UUID commentId;
+    private UUID postId;
+    private UUID userId;
     private int entityType;
-    private int entityId;
-    private Integer targetUserId;
+    private UUID entityId;
+    private UUID targetUserId;
     private String content;
     private Instant createTime;
 
-    public int getCommentId() {
+    public UUID getCommentId() {
         return commentId;
     }
 
-    public void setCommentId(int commentId) {
+    public void setCommentId(UUID commentId) {
         this.commentId = commentId;
     }
 
-    public int getPostId() {
+    public UUID getPostId() {
         return postId;
     }
 
-    public void setPostId(int postId) {
+    public void setPostId(UUID postId) {
         this.postId = postId;
     }
 
-    public int getUserId() {
+    public UUID getUserId() {
         return userId;
     }
 
-    public void setUserId(int userId) {
+    public void setUserId(UUID userId) {
         this.userId = userId;
     }
 
@@ -45,19 +46,19 @@ public class CommentPayload {
         this.entityType = entityType;
     }
 
-    public int getEntityId() {
+    public UUID getEntityId() {
         return entityId;
     }
 
-    public void setEntityId(int entityId) {
+    public void setEntityId(UUID entityId) {
         this.entityId = entityId;
     }
 
-    public Integer getTargetUserId() {
+    public UUID getTargetUserId() {
         return targetUserId;
     }
 
-    public void setTargetUserId(Integer targetUserId) {
+    public void setTargetUserId(UUID targetUserId) {
         this.targetUserId = targetUserId;
     }
 

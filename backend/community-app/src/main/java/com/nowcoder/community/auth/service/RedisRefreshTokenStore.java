@@ -11,6 +11,7 @@ import org.springframework.util.StringUtils;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 @Component
@@ -43,8 +44,8 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
     }
 
     @Override
-    public void store(String refreshToken, int userId, String familyId, Instant expiresAt) {
-        if (!StringUtils.hasText(refreshToken) || userId <= 0 || !StringUtils.hasText(familyId) || expiresAt == null) {
+    public void store(String refreshToken, UUID userId, String familyId, Instant expiresAt) {
+        if (!StringUtils.hasText(refreshToken) || userId == null || !StringUtils.hasText(familyId) || expiresAt == null) {
             return;
         }
         String token = refreshToken.trim();

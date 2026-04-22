@@ -6,24 +6,26 @@ import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Date;
+import java.util.UUID;
 
 @Repository
 @Mapper
 public interface UserTaskProgressMapper {
 
-    UserTaskProgress selectByUserTaskAndPeriod(@Param("userId") int userId, @Param("taskCode") String taskCode, @Param("periodKey") String periodKey);
+    UserTaskProgress selectByUserTaskAndPeriod(@Param("userId") UUID userId, @Param("taskCode") String taskCode, @Param("periodKey") String periodKey);
 
-    UserTaskProgress selectByUserTaskAndPeriodForUpdate(@Param("userId") int userId, @Param("taskCode") String taskCode, @Param("periodKey") String periodKey);
+    UserTaskProgress selectByUserTaskAndPeriodForUpdate(@Param("userId") UUID userId, @Param("taskCode") String taskCode, @Param("periodKey") String periodKey);
 
     int countByUserTaskAndPeriodKeyRange(
-            @Param("userId") int userId,
+            @Param("userId") UUID userId,
             @Param("taskCode") String taskCode,
             @Param("startPeriodKey") String startPeriodKey,
             @Param("endPeriodKey") String endPeriodKey
     );
 
     int insert(
-            @Param("userId") int userId,
+            @Param("id") UUID id,
+            @Param("userId") UUID userId,
             @Param("taskCode") String taskCode,
             @Param("periodKey") String periodKey,
             @Param("targetValue") int targetValue,
@@ -32,7 +34,7 @@ public interface UserTaskProgressMapper {
     );
 
     int updateProgress(
-            @Param("id") long id,
+            @Param("id") UUID id,
             @Param("currentValue") int currentValue,
             @Param("status") String status,
             @Param("reachedAt") Date reachedAt,

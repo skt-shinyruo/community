@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
@@ -23,8 +24,8 @@ public class AdminDeletePostUseCase {
     }
 
     @Transactional
-    public void adminDelete(int actorUserId, int postId) {
-        if (actorUserId <= 0 || postId <= 0) {
+    public void adminDelete(UUID actorUserId, UUID postId) {
+        if (actorUserId == null || postId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId/postId 非法");
         }
         DiscussPost existed = postService.getByIdAllowDeleted(postId);

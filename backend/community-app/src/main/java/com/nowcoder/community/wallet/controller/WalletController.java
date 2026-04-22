@@ -21,6 +21,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/wallet")
 public class WalletController {
@@ -42,25 +44,25 @@ public class WalletController {
 
     @GetMapping("/summary")
     public Result<WalletSummaryResponse> summary(Authentication authentication) {
-        int userId = CurrentUser.requireUserId(authentication);
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(walletQueryService.summary(userId));
     }
 
     @PostMapping("/recharges")
     public Result<CreateRechargeResponse> recharge(Authentication authentication, @RequestBody @Valid CreateRechargeRequest request) {
-        int userId = CurrentUser.requireUserId(authentication);
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(rechargeService.complete(request.getRequestId(), userId, request.getAmount()));
     }
 
     @PostMapping("/withdrawals")
     public Result<CreateWithdrawResponse> withdraw(Authentication authentication, @RequestBody @Valid CreateWithdrawRequest request) {
-        int userId = CurrentUser.requireUserId(authentication);
+        UUID userId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(withdrawService.request(request.getRequestId(), userId, request.getAmount()));
     }
 
     @PostMapping("/transfers")
     public Result<CreateTransferResponse> transfer(Authentication authentication, @RequestBody @Valid CreateTransferRequest request) {
-        int fromUserId = CurrentUser.requireUserId(authentication);
+        UUID fromUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(transferService.create(
                 request.getRequestId(),
                 fromUserId,

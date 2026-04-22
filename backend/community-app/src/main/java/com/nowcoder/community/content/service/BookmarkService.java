@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
@@ -39,8 +40,8 @@ public class BookmarkService {
         this.postSummaryAssembler = postSummaryAssembler;
     }
 
-    public void add(int userId, int postId) {
-        if (userId <= 0 || postId <= 0) {
+    public void add(UUID userId, UUID postId) {
+        if (userId == null || postId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId/postId 非法");
         }
         // 校验帖子存在且未删除
@@ -48,22 +49,22 @@ public class BookmarkService {
         bookmarkMapper.insertBookmark(userId, postId, new Date());
     }
 
-    public void remove(int userId, int postId) {
-        if (userId <= 0 || postId <= 0) {
+    public void remove(UUID userId, UUID postId) {
+        if (userId == null || postId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId/postId 非法");
         }
         bookmarkMapper.deleteBookmark(userId, postId);
     }
 
-    public boolean hasBookmarked(int userId, int postId) {
-        if (userId <= 0 || postId <= 0) {
+    public boolean hasBookmarked(UUID userId, UUID postId) {
+        if (userId == null || postId == null) {
             return false;
         }
         return bookmarkMapper.existsBookmark(userId, postId) > 0;
     }
 
-    public List<DiscussPost> listBookmarkedPosts(int userId, int page, int size) {
-        if (userId <= 0) {
+    public List<DiscussPost> listBookmarkedPosts(UUID userId, int page, int size) {
+        if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         int p = Math.max(0, page);
@@ -71,14 +72,14 @@ public class BookmarkService {
         return bookmarkMapper.selectBookmarkedPosts(userId, Pagination.safeOffset(p, s), s);
     }
 
-    public List<PostSummaryView> listBookmarkedPostSummaries(int userId, int page, int size) {
+    public List<PostSummaryView> listBookmarkedPostSummaries(UUID userId, int page, int size) {
         List<DiscussPost> posts = listBookmarkedPosts(userId, page, size);
         if (posts == null || posts.isEmpty()) {
             return List.of();
         }
-        List<Integer> postIds = posts.stream().map(DiscussPost::getId).toList();
-        Map<Integer, Comment> lastActivities = commentService.getLatestPostActivitiesByPostIds(postIds);
-        Map<Integer, List<String>> tagsByPostId = tagService.getTagsByPostIds(postIds);
+        List<UUID> postIds = posts.stream().map(DiscussPost::getId).toList();
+        Map<UUID, Comment> lastActivities = commentService.getLatestPostActivitiesByPostIds(postIds);
+        Map<UUID, List<String>> tagsByPostId = tagService.getTagsByPostIds(postIds);
         return posts.stream()
                 .map(post -> postSummaryAssembler.assemble(post, lastActivities.get(post.getId()), tagsByPostId.get(post.getId())))
                 .toList();

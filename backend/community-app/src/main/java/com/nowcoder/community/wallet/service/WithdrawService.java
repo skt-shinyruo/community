@@ -1,5 +1,6 @@
 package com.nowcoder.community.wallet.service;
 
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.wallet.dto.CreateWithdrawResponse;
 import com.nowcoder.community.wallet.entity.WithdrawOrder;
@@ -7,11 +8,13 @@ import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.mapper.WithdrawOrderMapper;
 import com.nowcoder.community.wallet.model.WalletPosting;
 import com.nowcoder.community.wallet.model.WalletTxnType;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class WithdrawService {
@@ -19,17 +22,27 @@ public class WithdrawService {
     private final WithdrawOrderMapper withdrawOrderMapper;
     private final WalletAccountService accountService;
     private final WalletLedgerService ledgerService;
+    private final UuidV7Generator idGenerator;
 
+    @Autowired
     public WithdrawService(WithdrawOrderMapper withdrawOrderMapper,
                            WalletAccountService accountService,
                            WalletLedgerService ledgerService) {
+        this(withdrawOrderMapper, accountService, ledgerService, new UuidV7Generator());
+    }
+
+    WithdrawService(WithdrawOrderMapper withdrawOrderMapper,
+                    WalletAccountService accountService,
+                    WalletLedgerService ledgerService,
+                    UuidV7Generator idGenerator) {
         this.withdrawOrderMapper = withdrawOrderMapper;
         this.accountService = accountService;
         this.ledgerService = ledgerService;
+        this.idGenerator = idGenerator;
     }
 
     @Transactional
-    public CreateWithdrawResponse request(String requestId, int userId, long amount) {
+    public CreateWithdrawResponse request(String requestId, UUID userId, long amount) {
         validate(requestId, amount);
         WithdrawOrder order = withdrawOrderMapper.selectByRequestId(requestId);
         if (order != null) {
@@ -90,8 +103,9 @@ public class WithdrawService {
         }
     }
 
-    private WithdrawOrder createOrLoad(String requestId, int userId, long amount) {
+    private WithdrawOrder createOrLoad(String requestId, UUID userId, long amount) {
         WithdrawOrder order = new WithdrawOrder();
+        order.setOrderId(idGenerator.next());
         order.setRequestId(requestId);
         order.setUserId(userId);
         order.setAmount(amount);
@@ -116,8 +130,8 @@ public class WithdrawService {
         return order;
     }
 
-    private void ensureReplayMatches(WithdrawOrder order, int userId, long amount) {
-        if (order.getUserId() != userId || order.getAmount() != amount) {
+    private void ensureReplayMatches(WithdrawOrder order, UUID userId, long amount) {
+        if (!userId.equals(order.getUserId()) || order.getAmount() != amount) {
             throw new BusinessException(
                     WalletErrorCode.REQUEST_REPLAY_CONFLICT,
                     "requestId replay conflict: requestId=" + order.getRequestId()

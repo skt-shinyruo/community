@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/admin/market/disputes")
@@ -28,23 +29,23 @@ public class AdminMarketController {
 
     @GetMapping
     public Result<List<MarketDisputeResponse>> list(Authentication authentication) {
-        CurrentUser.requireUserId(authentication);
+        CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketDisputeService.listOpenDisputes());
     }
 
     @PostMapping("/{disputeId}/resolve-refund")
     public Result<MarketDisputeResponse> resolveRefund(Authentication authentication,
-                                                       @PathVariable long disputeId,
+                                                       @PathVariable UUID disputeId,
                                                        @RequestBody @Valid AdminResolveMarketDisputeRequest request) {
-        int actorUserId = CurrentUser.requireUserId(authentication);
+        UUID actorUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketDisputeService.adminResolveRefund(disputeId, actorUserId, request.getNote()));
     }
 
     @PostMapping("/{disputeId}/resolve-release")
     public Result<MarketDisputeResponse> resolveRelease(Authentication authentication,
-                                                        @PathVariable long disputeId,
+                                                        @PathVariable UUID disputeId,
                                                         @RequestBody @Valid AdminResolveMarketDisputeRequest request) {
-        int actorUserId = CurrentUser.requireUserId(authentication);
+        UUID actorUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketDisputeService.adminResolveRelease(disputeId, actorUserId, request.getNote()));
     }
 }

@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.UUID;
+
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @RestController
@@ -28,10 +30,9 @@ public class ReportController {
 
     @PostMapping
     public Result<CreateReportResponse> create(Authentication authentication, @Valid @RequestBody CreateReportRequest request) {
-        int reporterId = CurrentUser.requireUserId(authentication);
+        UUID reporterId = CurrentUser.requireUserUuid(authentication);
         int targetType = parseTargetType(request.getTargetType());
-        int targetId = request.getTargetId() == null ? 0 : request.getTargetId();
-        int reportId = reportService.createReport(reporterId, targetType, targetId, request.getReason(), request.getDetail());
+        UUID reportId = reportService.createReport(reporterId, targetType, request.getTargetId(), request.getReason(), request.getDetail());
 
         CreateReportResponse resp = new CreateReportResponse();
         resp.setReportId(reportId);

@@ -7,16 +7,16 @@ import org.apache.ibatis.annotations.Param;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 @Mapper
 public interface BookmarkMapper {
 
-    int insertBookmark(@Param("userId") int userId, @Param("postId") int postId, @Param("createTime") Date createTime);
+    int insertBookmark(@Param("userId") UUID userId, @Param("postId") UUID postId, @Param("createTime") Date createTime);
 
-    int deleteBookmark(@Param("userId") int userId, @Param("postId") int postId);
+    int deleteBookmark(@Param("userId") UUID userId, @Param("postId") UUID postId);
 
-    int existsBookmark(@Param("userId") int userId, @Param("postId") int postId);
+    int existsBookmark(@Param("userId") UUID userId, @Param("postId") UUID postId);
 
-    List<DiscussPost> selectBookmarkedPosts(@Param("userId") int userId, @Param("offset") int offset, @Param("limit") int limit);
+    List<DiscussPost> selectBookmarkedPosts(@Param("userId") UUID userId, @Param("offset") int offset, @Param("limit") int limit);
 }
-

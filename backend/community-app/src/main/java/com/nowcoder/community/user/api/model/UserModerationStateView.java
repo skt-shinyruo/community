@@ -1,6 +1,7 @@
 package com.nowcoder.community.user.api.model;
 
 import java.time.Instant;
+import java.util.UUID;
 
-public record UserModerationStateView(int userId, Instant muteUntil, Instant banUntil) {
+public record UserModerationStateView(UUID userId, Instant muteUntil, Instant banUntil) {
 }

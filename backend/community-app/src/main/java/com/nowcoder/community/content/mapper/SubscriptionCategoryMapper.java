@@ -6,16 +6,16 @@ import org.apache.ibatis.annotations.Param;
 
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 @Mapper
 public interface SubscriptionCategoryMapper {
 
-    int insertSubscription(@Param("userId") int userId, @Param("categoryId") int categoryId, @Param("createTime") Date createTime);
+    int insertSubscription(@Param("userId") UUID userId, @Param("categoryId") UUID categoryId, @Param("createTime") Date createTime);
 
-    int deleteSubscription(@Param("userId") int userId, @Param("categoryId") int categoryId);
+    int deleteSubscription(@Param("userId") UUID userId, @Param("categoryId") UUID categoryId);
 
-    int existsSubscription(@Param("userId") int userId, @Param("categoryId") int categoryId);
+    int existsSubscription(@Param("userId") UUID userId, @Param("categoryId") UUID categoryId);
 
-    List<Integer> selectSubscribedCategoryIds(@Param("userId") int userId);
+    List<UUID> selectSubscribedCategoryIds(@Param("userId") UUID userId);
 }
-

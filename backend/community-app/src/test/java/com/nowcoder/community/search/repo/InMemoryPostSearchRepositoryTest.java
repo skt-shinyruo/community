@@ -6,7 +6,9 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class InMemoryPostSearchRepositoryTest {
@@ -14,11 +16,14 @@ class InMemoryPostSearchRepositoryTest {
     @Test
     void searchShouldExposeIndexedUserId() {
         InMemoryPostSearchRepository repository = new InMemoryPostSearchRepository();
+        UUID postId = uuid(101);
+        UUID userId = uuid(7);
+        UUID categoryId = uuid(3);
 
         PostPayload payload = new PostPayload();
-        payload.setPostId(101);
-        payload.setUserId(7);
-        payload.setCategoryId(3);
+        payload.setPostId(postId);
+        payload.setUserId(userId);
+        payload.setCategoryId(categoryId);
         payload.setTags(List.of("java"));
         payload.setTitle("Search payload");
         payload.setContent("payload content");
@@ -29,7 +34,7 @@ class InMemoryPostSearchRepositoryTest {
         List<SearchPostItem> items = repository.search("payload", null, null, 0, 10);
 
         assertThat(items).hasSize(1);
-        assertThat(items.get(0).getPostId()).isEqualTo(101);
-        assertThat(items.get(0).getUserId()).isEqualTo(7);
+        assertThat(items.get(0).getPostId()).isEqualTo(postId);
+        assertThat(items.get(0).getUserId()).isEqualTo(userId);
     }
 }

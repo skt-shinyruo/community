@@ -11,6 +11,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -30,8 +31,8 @@ class PrivateMessageServiceTest {
 
     @Test
     void persist_isIdempotentByClientMsgId() {
-        int fromUserId = 1;
-        int toUserId = 2;
+        UUID fromUserId = uuid(1);
+        UUID toUserId = uuid(2);
         String conversationId = ConversationIdSupport.conversationId(fromUserId, toUserId);
 
         SendPrivateTextCommandV1 cmd = new SendPrivateTextCommandV1(
@@ -57,8 +58,8 @@ class PrivateMessageServiceTest {
 
     @Test
     void persist_marksSenderReadWatermarkToSeq() {
-        int fromUserId = 1;
-        int toUserId = 2;
+        UUID fromUserId = uuid(1);
+        UUID toUserId = uuid(2);
         String conversationId = ConversationIdSupport.conversationId(fromUserId, toUserId);
 
         SendPrivateTextCommandV1 cmd = new SendPrivateTextCommandV1(
@@ -74,5 +75,8 @@ class PrivateMessageServiceTest {
         var e = privateMessageService.persist(cmd);
         assertThat(readStateRepository.getLastReadSeq(conversationId, fromUserId)).isEqualTo(e.seq());
     }
-}
 
+    private static UUID uuid(long suffix) {
+        return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
+    }
+}

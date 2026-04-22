@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.UUID;
+
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
@@ -41,11 +43,11 @@ public class TakeModerationActionUseCase {
     }
 
     @Transactional
-    public int takeAction(int actorId, int reportId, String action, String reason, Integer durationSeconds) {
-        if (actorId <= 0) {
+    public UUID takeAction(UUID actorId, UUID reportId, String action, String reason, Integer durationSeconds) {
+        if (actorId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "actorId 非法");
         }
-        if (reportId <= 0) {
+        if (reportId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "reportId 非法");
         }
         String normalizedAction = safeLower(action);
@@ -91,14 +93,7 @@ public class TakeModerationActionUseCase {
         }
 
         if (ModerationService.ACTION_MUTE.equals(normalizedAction) || ModerationService.ACTION_BAN.equals(normalizedAction)) {
-            userModerationCommandPublisher.publishModerationCommand(
-                    actorId,
-                    reportId,
-                    target.targetUserId(),
-                    normalizedAction,
-                    resolvedDuration,
-                    normalizedReason
-            );
+            userModerationCommandPublisher.publishModerationCommand(actorId, reportId, target.targetUserId(), normalizedAction, resolvedDuration, normalizedReason);
             reportService.markStatus(reportId, ReportService.STATUS_PROCESSED);
             moderationNoticePublisher.publish(report, actionRow, target, "to_target", target.targetUserId());
             moderationNoticePublisher.publish(report, actionRow, target, "to_reporter", report.getReporterId());

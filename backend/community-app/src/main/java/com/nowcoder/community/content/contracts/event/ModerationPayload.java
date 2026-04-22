@@ -1,29 +1,37 @@
 package com.nowcoder.community.content.contracts.event;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * Moderation notification event payload (report/action/punishment -> user notice).
  */
 public class ModerationPayload {
 
-    private Integer reportId;
+    private UUID reportId;
     private String kind;
-    private Integer toUserId;
-    private Integer actorUserId;
+    private UUID toUserId;
+    private UUID actorUserId;
     private Integer targetType;
-    private Integer targetId;
+    private UUID targetId;
     private String action;
     private String reason;
     private Integer durationSeconds;
     private Instant createTime;
 
-    public Integer getReportId() {
+    public UUID getReportId() {
         return reportId;
     }
 
-    public void setReportId(Integer reportId) {
+    public void setReportId(UUID reportId) {
         this.reportId = reportId;
+    }
+
+    @JsonIgnore
+    public void setReportId(Integer reportId) {
+        throw new IllegalArgumentException("numeric reportId 已不再受支持");
     }
 
     public String getKind() {
@@ -34,19 +42,19 @@ public class ModerationPayload {
         this.kind = kind;
     }
 
-    public Integer getToUserId() {
+    public UUID getToUserId() {
         return toUserId;
     }
 
-    public void setToUserId(Integer toUserId) {
+    public void setToUserId(UUID toUserId) {
         this.toUserId = toUserId;
     }
 
-    public Integer getActorUserId() {
+    public UUID getActorUserId() {
         return actorUserId;
     }
 
-    public void setActorUserId(Integer actorUserId) {
+    public void setActorUserId(UUID actorUserId) {
         this.actorUserId = actorUserId;
     }
 
@@ -58,11 +66,11 @@ public class ModerationPayload {
         this.targetType = targetType;
     }
 
-    public Integer getTargetId() {
+    public UUID getTargetId() {
         return targetId;
     }
 
-    public void setTargetId(Integer targetId) {
+    public void setTargetId(UUID targetId) {
         this.targetId = targetId;
     }
 

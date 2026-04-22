@@ -2,7 +2,9 @@ package com.nowcoder.community.wallet.dto;
 
 import com.nowcoder.community.wallet.entity.WithdrawOrder;
 
-public record CreateWithdrawResponse(long orderId, String requestId, long userId, long amount, String status) {
+import java.util.UUID;
+
+public record CreateWithdrawResponse(UUID orderId, String requestId, UUID userId, long amount, String status) {
 
     public static CreateWithdrawResponse from(WithdrawOrder order) {
         return new CreateWithdrawResponse(

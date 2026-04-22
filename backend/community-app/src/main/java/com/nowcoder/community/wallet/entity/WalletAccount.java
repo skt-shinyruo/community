@@ -1,12 +1,13 @@
 package com.nowcoder.community.wallet.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class WalletAccount {
 
-    private long accountId;
+    private UUID accountId;
     private String ownerType;
-    private long ownerId;
+    private UUID ownerId;
     private String accountType;
     private long balance;
     private String status;
@@ -14,11 +15,11 @@ public class WalletAccount {
     private Date createTime;
     private Date updateTime;
 
-    public long getAccountId() {
+    public UUID getAccountId() {
         return accountId;
     }
 
-    public void setAccountId(long accountId) {
+    public void setAccountId(UUID accountId) {
         this.accountId = accountId;
     }
 
@@ -30,11 +31,11 @@ public class WalletAccount {
         this.ownerType = ownerType;
     }
 
-    public long getOwnerId() {
+    public UUID getOwnerId() {
         return ownerId;
     }
 
-    public void setOwnerId(long ownerId) {
+    public void setOwnerId(UUID ownerId) {
         this.ownerId = ownerId;
     }
 

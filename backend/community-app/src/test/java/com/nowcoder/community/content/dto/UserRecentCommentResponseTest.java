@@ -5,33 +5,40 @@ import com.nowcoder.community.content.entity.DiscussPost;
 import org.junit.jupiter.api.Test;
 
 import java.util.Date;
+import java.util.UUID;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class UserRecentCommentResponseTest {
 
     @Test
     void fromShouldAssembleReadableCommentActivity() {
+        UUID commentId = uuid(11);
+        UUID userId = uuid(7);
+        UUID entityId = uuid(5);
+        UUID targetId = uuid(9);
+        UUID postId = uuid(101);
         Comment comment = new Comment();
-        comment.setId(11);
-        comment.setUserId(7);
+        comment.setId(commentId);
+        comment.setUserId(userId);
         comment.setEntityType(2);
-        comment.setEntityId(5);
-        comment.setTargetId(9);
+        comment.setEntityId(entityId);
+        comment.setTargetId(targetId);
         comment.setContent("<reply>");
         comment.setCreateTime(new Date());
 
         DiscussPost post = new DiscussPost();
-        post.setId(101);
+        post.setId(postId);
         post.setTitle("<title>");
 
-        UserRecentCommentResponse response = UserRecentCommentResponse.from(comment, 101, "<title>");
+        UserRecentCommentResponse response = UserRecentCommentResponse.from(comment, postId, "<title>");
 
-        assertThat(response.getId()).isEqualTo(11);
-        assertThat(response.getUserId()).isEqualTo(7);
+        assertThat(response.getId()).isEqualTo(commentId);
+        assertThat(response.getUserId()).isEqualTo(userId);
         assertThat(response.getEntityType()).isEqualTo(2);
-        assertThat(response.getEntityId()).isEqualTo(5);
-        assertThat(response.getPostId()).isEqualTo(101);
+        assertThat(response.getEntityId()).isEqualTo(entityId);
+        assertThat(response.getPostId()).isEqualTo(postId);
         assertThat(response.getPostTitle()).isEqualTo("<title>");
         assertThat(response.getContent()).isEqualTo("<reply>");
     }

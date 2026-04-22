@@ -1,6 +1,7 @@
 package com.nowcoder.community.growth.service;
 
 import com.nowcoder.community.app.CommunityAppApplication;
+import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,7 +13,9 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(
@@ -39,34 +42,37 @@ class RewardAccountServiceTest {
 
     @Test
     void missingAccountShouldReadAsZeroAndBeCreatedOnFirstCredit() {
-        assertThat(service.availableBalanceOf(1)).isZero();
-        assertThat(service.frozenBalanceOf(1)).isZero();
-        assertThat(accountRowCount(1)).isZero();
+        UUID userId = uuid(1);
+        assertThat(service.availableBalanceOf(userId)).isZero();
+        assertThat(service.frozenBalanceOf(userId)).isZero();
+        assertThat(accountRowCount(userId)).isZero();
 
-        service.creditAvailable(1, "reward-evt-1", "TaskReward", 10, "growth", "first credit");
+        service.creditAvailable(userId, "reward-evt-1", "TaskReward", 10, "growth", "first credit");
 
-        assertThat(accountRowCount(1)).isEqualTo(1);
-        assertThat(service.availableBalanceOf(1)).isEqualTo(10);
-        assertThat(service.frozenBalanceOf(1)).isZero();
+        assertThat(accountRowCount(userId)).isEqualTo(1);
+        assertThat(service.availableBalanceOf(userId)).isEqualTo(10);
+        assertThat(service.frozenBalanceOf(userId)).isZero();
     }
 
     @Test
     void repeatedCreditsShouldReuseTheSameAccountRow() {
-        service.creditAvailable(1, "reward-evt-1", "TaskReward", 10, "growth", "first credit");
-        service.creditAvailable(1, "reward-evt-2", "TaskReward", 5, "growth", "second credit");
+        UUID userId = uuid(1);
+        service.creditAvailable(userId, "reward-evt-1", "TaskReward", 10, "growth", "first credit");
+        service.creditAvailable(userId, "reward-evt-2", "TaskReward", 5, "growth", "second credit");
 
-        assertThat(accountRowCount(1)).isEqualTo(1);
-        assertThat(service.availableBalanceOf(1)).isEqualTo(15);
+        assertThat(accountRowCount(userId)).isEqualTo(1);
+        assertThat(service.availableBalanceOf(userId)).isEqualTo(15);
     }
 
     @Test
     void creditShouldAppendRewardLedgerWithBalanceAfter() {
-        service.creditAvailable(1, "reward-evt-1", "TaskReward", 10, "growth", "first credit");
-        service.creditAvailable(1, "reward-evt-2", "TaskReward", 5, "growth", "second credit");
+        UUID userId = uuid(1);
+        service.creditAvailable(userId, "reward-evt-1", "TaskReward", 10, "growth", "first credit");
+        service.creditAvailable(userId, "reward-evt-2", "TaskReward", 5, "growth", "second credit");
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(
                 "select event_id, event_type, delta, balance_after from reward_ledger where user_id = ? order by id asc",
-                1
+                BinaryUuidCodec.toBytes(userId)
         );
 
         assertThat(rows).hasSize(2);
@@ -82,15 +88,17 @@ class RewardAccountServiceTest {
 
     @Test
     void deductFrozenBalanceShouldAppendLedgerWithUpdatedFrozenBalance() {
+        UUID userId = uuid(1);
         jdbcTemplate.update(
-                "insert into reward_account(user_id, available_balance, frozen_balance, version, update_time) values (1, 10, 6, 0, current_timestamp)"
+                "insert into reward_account(user_id, available_balance, frozen_balance, version, update_time) values (?, 10, 6, 0, current_timestamp)",
+                BinaryUuidCodec.toBytes(userId)
         );
 
-        service.deductFrozenBalance(1, "reward-evt-3", "RewardOrderFulfilled", 4, "growth", "fulfill");
+        service.deductFrozenBalance(userId, "reward-evt-3", "RewardOrderFulfilled", 4, "growth", "fulfill");
 
         Map<String, Object> row = jdbcTemplate.queryForMap(
                 "select event_id, event_type, delta, balance_after, frozen_balance_after from reward_ledger where user_id = ?",
-                1
+                BinaryUuidCodec.toBytes(userId)
         );
 
         assertThat(row).containsEntry("EVENT_ID", "reward-evt-3");
@@ -98,15 +106,15 @@ class RewardAccountServiceTest {
         assertThat(((Number) row.get("DELTA")).intValue()).isZero();
         assertThat(((Number) row.get("BALANCE_AFTER")).intValue()).isEqualTo(10);
         assertThat(((Number) row.get("FROZEN_BALANCE_AFTER")).intValue()).isEqualTo(2);
-        assertThat(service.availableBalanceOf(1)).isEqualTo(10);
-        assertThat(service.frozenBalanceOf(1)).isEqualTo(2);
+        assertThat(service.availableBalanceOf(userId)).isEqualTo(10);
+        assertThat(service.frozenBalanceOf(userId)).isEqualTo(2);
     }
 
-    private int accountRowCount(int userId) {
+    private int accountRowCount(UUID userId) {
         Integer count = jdbcTemplate.queryForObject(
                 "select count(*) from reward_account where user_id = ?",
                 Integer.class,
-                userId
+                BinaryUuidCodec.toBytes(userId)
         );
         return count == null ? 0 : count;
     }

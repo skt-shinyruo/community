@@ -1,5 +1,6 @@
 package com.nowcoder.community.market.service;
 
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.market.dto.MarketDisputeResponse;
 import com.nowcoder.community.market.entity.MarketDispute;
@@ -8,13 +9,16 @@ import com.nowcoder.community.market.mapper.MarketDisputeMapper;
 import com.nowcoder.community.market.mapper.MarketOrderMapper;
 import com.nowcoder.community.wallet.api.action.WalletMarketActionApi;
 import com.nowcoder.community.wallet.api.model.WalletMarketTxnView;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
@@ -35,21 +39,31 @@ public class MarketDisputeService {
     private final MarketDisputeMapper marketDisputeMapper;
     private final MarketOrderMapper marketOrderMapper;
     private final WalletMarketActionApi walletMarketActionApi;
+    private final UuidV7Generator idGenerator;
 
+    @Autowired
     public MarketDisputeService(MarketDisputeMapper marketDisputeMapper,
                                 MarketOrderMapper marketOrderMapper,
                                 WalletMarketActionApi walletMarketActionApi) {
+        this(marketDisputeMapper, marketOrderMapper, walletMarketActionApi, new UuidV7Generator());
+    }
+
+    MarketDisputeService(MarketDisputeMapper marketDisputeMapper,
+                         MarketOrderMapper marketOrderMapper,
+                         WalletMarketActionApi walletMarketActionApi,
+                         UuidV7Generator idGenerator) {
         this.marketDisputeMapper = marketDisputeMapper;
         this.marketOrderMapper = marketOrderMapper;
         this.walletMarketActionApi = walletMarketActionApi;
+        this.idGenerator = idGenerator;
     }
 
     @Transactional
-    public MarketDisputeResponse openDispute(long orderId, int buyerUserId, String reason, String buyerNote) {
+    public MarketDisputeResponse openDispute(UUID orderId, UUID buyerUserId, String reason, String buyerNote) {
         validateText(reason, "reason");
         validateText(buyerNote, "buyerNote");
         MarketOrder order = requireOrderForUpdate(orderId);
-        if (order.getBuyerUserId() != buyerUserId) {
+        if (!Objects.equals(order.getBuyerUserId(), buyerUserId)) {
             throw new BusinessException(INVALID_ARGUMENT, "buyer does not own order: orderId=" + orderId);
         }
         if (!Set.of(ORDER_STATUS_DELIVERED, ORDER_STATUS_SHIPPED).contains(order.getStatus())) {
@@ -61,6 +75,7 @@ public class MarketDisputeService {
         }
 
         MarketDispute dispute = new MarketDispute();
+        dispute.setDisputeId(idGenerator.next());
         dispute.setOrderId(orderId);
         dispute.setGoodsType(order.getGoodsType());
         dispute.setBuyerUserId(order.getBuyerUserId());
@@ -74,7 +89,7 @@ public class MarketDisputeService {
     }
 
     @Transactional
-    public MarketDisputeResponse sellerAcceptRefund(long disputeId, int sellerUserId, String sellerNote) {
+    public MarketDisputeResponse sellerAcceptRefund(UUID disputeId, UUID sellerUserId, String sellerNote) {
         validateText(sellerNote, "sellerNote");
         MarketDispute dispute = requireOpenDisputeForSeller(disputeId, sellerUserId);
         MarketOrder order = requireDisputedOrderForUpdate(dispute.getOrderId());
@@ -96,7 +111,7 @@ public class MarketDisputeService {
     }
 
     @Transactional
-    public MarketDisputeResponse sellerRejectRefund(long disputeId, int sellerUserId, String sellerNote) {
+    public MarketDisputeResponse sellerRejectRefund(UUID disputeId, UUID sellerUserId, String sellerNote) {
         validateText(sellerNote, "sellerNote");
         MarketDispute dispute = requireOpenDisputeForSeller(disputeId, sellerUserId);
         dispute.setStatus(DISPUTE_STATUS_SELLER_REJECTED);
@@ -106,7 +121,7 @@ public class MarketDisputeService {
     }
 
     @Transactional
-    public MarketDisputeResponse adminResolveRefund(long disputeId, int adminUserId, String note) {
+    public MarketDisputeResponse adminResolveRefund(UUID disputeId, UUID adminUserId, String note) {
         validateActor(adminUserId);
         validateText(note, "note");
         MarketDispute dispute = requireAdminResolvableDispute(disputeId);
@@ -130,7 +145,7 @@ public class MarketDisputeService {
     }
 
     @Transactional
-    public MarketDisputeResponse adminResolveRelease(long disputeId, int adminUserId, String note) {
+    public MarketDisputeResponse adminResolveRelease(UUID disputeId, UUID adminUserId, String note) {
         validateActor(adminUserId);
         validateText(note, "note");
         MarketDispute dispute = requireAdminResolvableDispute(disputeId);
@@ -159,9 +174,9 @@ public class MarketDisputeService {
                 .toList();
     }
 
-    private MarketDispute requireOpenDisputeForSeller(long disputeId, int sellerUserId) {
+    private MarketDispute requireOpenDisputeForSeller(UUID disputeId, UUID sellerUserId) {
         MarketDispute dispute = reloadDispute(disputeId);
-        if (dispute.getSellerUserId() != sellerUserId) {
+        if (!Objects.equals(dispute.getSellerUserId(), sellerUserId)) {
             throw new BusinessException(INVALID_ARGUMENT, "seller does not own dispute: disputeId=" + disputeId);
         }
         if (!DISPUTE_STATUS_OPEN.equals(dispute.getStatus())) {
@@ -170,7 +185,7 @@ public class MarketDisputeService {
         return dispute;
     }
 
-    private MarketDispute requireAdminResolvableDispute(long disputeId) {
+    private MarketDispute requireAdminResolvableDispute(UUID disputeId) {
         MarketDispute dispute = reloadDispute(disputeId);
         if (!isActiveDispute(dispute)) {
             throw new BusinessException(INVALID_ARGUMENT, "dispute is not admin-resolvable: disputeId=" + disputeId);
@@ -178,7 +193,7 @@ public class MarketDisputeService {
         return dispute;
     }
 
-    private MarketOrder requireDisputedOrderForUpdate(long orderId) {
+    private MarketOrder requireDisputedOrderForUpdate(UUID orderId) {
         MarketOrder order = requireOrderForUpdate(orderId);
         if (!ORDER_STATUS_DISPUTED.equals(order.getStatus())) {
             throw new BusinessException(INVALID_ARGUMENT, "order is not disputed: orderId=" + orderId);
@@ -186,7 +201,7 @@ public class MarketDisputeService {
         return order;
     }
 
-    private MarketOrder requireOrderForUpdate(long orderId) {
+    private MarketOrder requireOrderForUpdate(UUID orderId) {
         MarketOrder order = marketOrderMapper.selectByIdForUpdate(orderId);
         if (order == null) {
             throw new BusinessException(NOT_FOUND, "market order not found: orderId=" + orderId);
@@ -194,7 +209,7 @@ public class MarketDisputeService {
         return order;
     }
 
-    private MarketDispute reloadDispute(long disputeId) {
+    private MarketDispute reloadDispute(UUID disputeId) {
         MarketDispute dispute = marketDisputeMapper.selectById(disputeId);
         if (dispute == null) {
             throw new BusinessException(NOT_FOUND, "market dispute not found: disputeId=" + disputeId);
@@ -212,9 +227,9 @@ public class MarketDisputeService {
         }
     }
 
-    private void validateActor(int userId) {
-        if (userId <= 0) {
-            throw new BusinessException(INVALID_ARGUMENT, "actorUserId must be positive");
+    private void validateActor(UUID userId) {
+        if (userId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "actorUserId must not be null");
         }
     }
 }

@@ -1,10 +1,11 @@
 package com.nowcoder.community.user.dto;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class AdminUserResponse {
 
-    private int id;
+    private UUID id;
     private String username;
     private String email;
     private int type;
@@ -12,11 +13,11 @@ public class AdminUserResponse {
     private String headerUrl;
     private Date createTime;
 
-    public int getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
@@ -68,4 +69,3 @@ public class AdminUserResponse {
         this.createTime = createTime;
     }
 }
-

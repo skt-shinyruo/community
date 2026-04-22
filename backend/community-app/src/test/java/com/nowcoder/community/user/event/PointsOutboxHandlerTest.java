@@ -5,6 +5,9 @@ import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.wallet.service.WalletRewardService;
 import org.junit.jupiter.api.Test;
 
+import java.util.UUID;
+
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -14,21 +17,22 @@ class PointsOutboxHandlerTest {
     void handlerShouldCallPointsProjectionActionWithSourceEventId() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         WalletRewardService walletRewardService = mock(WalletRewardService.class);
+        UUID userId = uuid(7);
 
         PointsOutboxHandler handler = new PointsOutboxHandler(objectMapper, walletRewardService);
 
         String payloadJson = objectMapper.writeValueAsString(java.util.Map.of(
-                "userId", 7,
+                "userId", userId.toString(),
                 "delta", 10,
                 "sourceEventId", "src-1",
                 "sourceEventType", "PostPublished"
         ));
 
         OutboxEvent event = new OutboxEvent(
-                1L,
+                UUID.fromString("01965429-b34a-7000-8000-000000000011"),
                 "src-1:points",
                 PointsOutboxHandler.TOPIC,
-                "7",
+                userId.toString(),
                 payloadJson,
                 "PENDING",
                 0,
@@ -40,7 +44,7 @@ class PointsOutboxHandlerTest {
 
         verify(walletRewardService).applyDelta(
                 "wallet-reward:src-1",
-                7,
+                userId,
                 10,
                 "PostPublished"
         );

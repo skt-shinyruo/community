@@ -1,14 +1,15 @@
 package com.nowcoder.community.im.common.event;
 
+import java.util.UUID;
+
 /**
  * Room membership change event, used by im-realtime to keep local indexes updated.
  */
 public record RoomMemberChangedEventV1(
         String eventId,
-        long roomId,
-        int userId,
+        UUID roomId,
+        UUID userId,
         String action,
         long occurredAtEpochMs
 ) {
 }
-

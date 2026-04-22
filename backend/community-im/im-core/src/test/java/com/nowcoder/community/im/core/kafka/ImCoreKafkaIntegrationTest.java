@@ -29,6 +29,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -82,8 +83,8 @@ class ImCoreKafkaIntegrationTest {
 
     @Test
     void roomCommand_shouldPersist_andEmitRoomPersistedEvent_withoutContent() throws Exception {
-        int sender = 1;
-        long roomId = roomMembershipService.createRoom(sender, "room");
+        UUID sender = uuid(1);
+        UUID roomId = roomMembershipService.createRoom(sender, "room");
 
         // subscribe before sending to avoid missing the event
         consumer = newStringConsumer("im-core-it-room");
@@ -100,9 +101,9 @@ class ImCoreKafkaIntegrationTest {
         ConsumerRecord<String, String> record = pollForSingleRecord(consumer, ImTopics.EVENT_ROOM_PERSISTED_V1, Duration.ofSeconds(10));
         JsonNode eventJson = objectMapper.readTree(record.value());
 
-        assertThat(eventJson.path("roomId").asLong()).isEqualTo(roomId);
+        assertThat(eventJson.path("roomId").asText("")).isEqualTo(roomId.toString());
         assertThat(eventJson.path("seq").asLong()).isEqualTo(1L);
-        assertThat(eventJson.path("fromUserId").asInt()).isEqualTo(sender);
+        assertThat(eventJson.path("fromUserId").asText("")).isEqualTo(sender.toString());
         assertThat(eventJson.hasNonNull("content")).isFalse();
 
         List<RoomMessageRepository.RoomMessageRow> rows = roomMessageRepository.listAfterSeq(roomId, 0, 10);
@@ -112,9 +113,9 @@ class ImCoreKafkaIntegrationTest {
 
     @Test
     void privateCommand_shouldPersist_andEmitPrivatePersistedEvent_withContent() throws Exception {
-        int fromUserId = 101;
-        int toUserId = 202;
-        String conversationId = "101_202";
+        UUID fromUserId = uuid(101);
+        UUID toUserId = uuid(202);
+        String conversationId = fromUserId + "_" + toUserId;
 
         consumer = newStringConsumer("im-core-it-private");
         consumer.subscribe(List.of(ImTopics.EVENT_PRIVATE_PERSISTED_V1));
@@ -131,8 +132,8 @@ class ImCoreKafkaIntegrationTest {
 
         assertThat(eventJson.path("conversationId").asText("")).isEqualTo(conversationId);
         assertThat(eventJson.path("seq").asLong()).isEqualTo(1L);
-        assertThat(eventJson.path("fromUserId").asInt()).isEqualTo(fromUserId);
-        assertThat(eventJson.path("toUserId").asInt()).isEqualTo(toUserId);
+        assertThat(eventJson.path("fromUserId").asText("")).isEqualTo(fromUserId.toString());
+        assertThat(eventJson.path("toUserId").asText("")).isEqualTo(toUserId.toString());
         assertThat(eventJson.path("content").asText("")).isEqualTo("hello");
 
         List<PrivateMessageRepository.PrivateMessageRow> rows = privateMessageRepository.listAfterSeq(conversationId, 0, 10);
@@ -168,5 +169,9 @@ class ImCoreKafkaIntegrationTest {
             }
         }
         throw new AssertionError("Timed out waiting for record on topic " + topic);
+    }
+
+    private static UUID uuid(long suffix) {
+        return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
     }
 }

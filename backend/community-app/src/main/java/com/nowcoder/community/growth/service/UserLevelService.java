@@ -1,5 +1,6 @@
 package com.nowcoder.community.growth.service;
 
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.growth.api.model.UserLevelSummaryView;
 import com.nowcoder.community.growth.api.query.UserLevelQueryApi;
 import com.nowcoder.community.common.exception.BusinessException;
@@ -9,11 +10,13 @@ import com.nowcoder.community.growth.entity.UserLevelRuleConfig;
 import com.nowcoder.community.growth.exception.GrowthErrorCode;
 import com.nowcoder.community.growth.mapper.UserTaskProgressMapper;
 import com.nowcoder.community.growth.mapper.UserLevelRuleConfigMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
 @Service
 public class UserLevelService implements UserLevelQueryApi {
@@ -22,32 +25,43 @@ public class UserLevelService implements UserLevelQueryApi {
     public static final int DEFAULT_WINDOW_DAYS = 100;
     public static final int DEFAULT_LV2_SIGN_IN_DAYS = 12;
     public static final int DEFAULT_LV3_SIGN_IN_DAYS = 88;
-    private static final long SINGLETON_CONFIG_ID = 1L;
 
     private final UserTaskProgressMapper userTaskProgressMapper;
     private final UserLevelRuleConfigMapper userLevelRuleConfigMapper;
     private final GrowthBusinessTimeService growthBusinessTimeService;
+    private final UuidV7Generator idGenerator;
 
+    @Autowired
     public UserLevelService(
             UserTaskProgressMapper userTaskProgressMapper,
             UserLevelRuleConfigMapper userLevelRuleConfigMapper,
             GrowthBusinessTimeService growthBusinessTimeService
     ) {
+        this(userTaskProgressMapper, userLevelRuleConfigMapper, growthBusinessTimeService, new UuidV7Generator());
+    }
+
+    UserLevelService(
+            UserTaskProgressMapper userTaskProgressMapper,
+            UserLevelRuleConfigMapper userLevelRuleConfigMapper,
+            GrowthBusinessTimeService growthBusinessTimeService,
+            UuidV7Generator idGenerator
+    ) {
         this.userTaskProgressMapper = userTaskProgressMapper;
         this.userLevelRuleConfigMapper = userLevelRuleConfigMapper;
         this.growthBusinessTimeService = growthBusinessTimeService;
+        this.idGenerator = idGenerator;
     }
 
     @Override
-    public UserLevelSummaryView evaluateLevel(int userId) {
+    public UserLevelSummaryView evaluateLevel(UUID userId) {
         return toView(evaluateLevelSummary(userId, growthBusinessTimeService.today()));
     }
 
-    public UserLevelSummaryView evaluateLevel(int userId, LocalDate bizDate) {
+    public UserLevelSummaryView evaluateLevel(UUID userId, LocalDate bizDate) {
         return toView(evaluateLevelSummary(userId, bizDate));
     }
 
-    public UserLevelSummary evaluateLevelSummary(int userId, LocalDate bizDate) {
+    public UserLevelSummary evaluateLevelSummary(UUID userId, LocalDate bizDate) {
         UserLevelRuleConfig config = activeConfigOrDefault();
         if (!config.isEnabled()) {
             return new UserLevelSummary(
@@ -89,11 +103,10 @@ public class UserLevelService implements UserLevelQueryApi {
     }
 
     @Transactional
-    public UserLevelConfigResponse updateConfig(int actorUserId, UpdateUserLevelConfigRequest request) {
+    public UserLevelConfigResponse updateConfig(UUID actorUserId, UpdateUserLevelConfigRequest request) {
         validateUpdateRequest(request);
 
         UserLevelRuleConfig config = new UserLevelRuleConfig();
-        config.setId(SINGLETON_CONFIG_ID);
         config.setWindowDays(request.getWindowDays());
         config.setLv2SignInDays(request.getLv2SignInDays());
         config.setLv3SignInDays(request.getLv3SignInDays());
@@ -102,6 +115,7 @@ public class UserLevelService implements UserLevelQueryApi {
 
         int updated = userLevelRuleConfigMapper.updateCurrent(config);
         if (updated <= 0) {
+            config.setId(idGenerator.next());
             try {
                 userLevelRuleConfigMapper.insert(config);
             } catch (DuplicateKeyException ex) {

@@ -9,6 +9,9 @@ import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import com.nowcoder.community.wallet.service.WalletRewardService;
 import org.junit.jupiter.api.Test;
 
+import java.util.UUID;
+
+import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -18,15 +21,16 @@ class PointsProjectionListenerTest {
     void postPublishedShouldAwardAuthorPoints() {
         WalletRewardService walletRewardService = mock(WalletRewardService.class);
         PointsProjectionListener listener = new PointsProjectionListener(walletRewardService);
+        UUID userId = uuid(7);
 
         PostPayload payload = new PostPayload();
-        payload.setUserId(7);
+        payload.setUserId(userId);
 
         listener.onContentEvent(new ContentContractEvent("post-evt-1", ContentEventTypes.POST_PUBLISHED, payload));
 
         verify(walletRewardService).applyDelta(
                 "wallet-reward:post-evt-1",
-                7,
+                userId,
                 10,
                 ContentEventTypes.POST_PUBLISHED
         );
@@ -36,16 +40,18 @@ class PointsProjectionListenerTest {
     void likeRemovedShouldSubtractPointsFromEntityOwner() {
         WalletRewardService walletRewardService = mock(WalletRewardService.class);
         PointsProjectionListener listener = new PointsProjectionListener(walletRewardService);
+        UUID actorUserId = uuid(2);
+        UUID entityUserId = uuid(9);
 
         LikePayload payload = new LikePayload();
-        payload.setActorUserId(2);
-        payload.setEntityUserId(9);
+        payload.setActorUserId(actorUserId);
+        payload.setEntityUserId(entityUserId);
 
         listener.onSocialEvent(new SocialContractEvent("like-evt-2", SocialEventTypes.LIKE_REMOVED, payload));
 
         verify(walletRewardService).applyDelta(
                 "wallet-reward:like-evt-2",
-                9,
+                entityUserId,
                 -1,
                 SocialEventTypes.LIKE_REMOVED
         );

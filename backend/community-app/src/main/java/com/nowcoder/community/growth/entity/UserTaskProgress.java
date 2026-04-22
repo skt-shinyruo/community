@@ -1,11 +1,12 @@
 package com.nowcoder.community.growth.entity;
 
 import java.util.Date;
+import java.util.UUID;
 
 public class UserTaskProgress {
 
-    private long id;
-    private int userId;
+    private UUID id;
+    private UUID userId;
     private String taskCode;
     private String periodKey;
     private int currentValue;
@@ -17,19 +18,19 @@ public class UserTaskProgress {
     private String lastSourceEventId;
     private Date updateTime;
 
-    public long getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(long id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
-    public int getUserId() {
+    public UUID getUserId() {
         return userId;
     }
 
-    public void setUserId(int userId) {
+    public void setUserId(UUID userId) {
         this.userId = userId;
     }
 

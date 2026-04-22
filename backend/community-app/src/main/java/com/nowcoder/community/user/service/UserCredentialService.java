@@ -15,6 +15,7 @@ import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND;
@@ -59,8 +60,8 @@ public class UserCredentialService implements UserCredentialQueryApi, UserCreden
     }
 
     @Override
-    public UserCredentialView getByUserId(int userId) {
-        if (userId <= 0) {
+    public UserCredentialView getByUserId(UUID userId) {
+        if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         User user = userMapper.selectById(userId);
@@ -80,8 +81,8 @@ public class UserCredentialService implements UserCredentialQueryApi, UserCreden
     }
 
     @Override
-    public void updatePassword(int userId, String newPassword) {
-        if (userId <= 0) {
+    public void updatePassword(UUID userId, String newPassword) {
+        if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         String trimmedPassword = safeTrim(newPassword);
@@ -156,7 +157,7 @@ public class UserCredentialService implements UserCredentialQueryApi, UserCreden
     }
 
     private UserCredentialView toCredentialView(User user) {
-        if (user == null || user.getId() <= 0) {
+        if (user == null || user.getId() == null) {
             return null;
         }
         return new UserCredentialView(user.getId(), user.getUsername(), user.getStatus(), user.getType(), user.getHeaderUrl());

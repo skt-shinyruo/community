@@ -3,7 +3,6 @@ package com.nowcoder.community.user.controller;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.user.service.UserProfileApplicationService;
 import com.nowcoder.community.user.service.UserProfilePageView;
-import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.dto.BatchUserSummaryRequest;
 import com.nowcoder.community.user.dto.UserProfilePostSummaryResponse;
 import com.nowcoder.community.user.dto.UserProfileResponse;
@@ -204,10 +203,13 @@ class UserControllerUnitTest {
     }
 
     @Test
-    void resolveByUsernameShouldUseLookupSummaryView() {
+    void resolveByUsernameShouldUseControllerFacingApplicationServiceResponse() {
         UUID userId = uuid(7);
-        when(userReadApplicationService.getSummaryByUsername("alice"))
-                .thenReturn(new UserSummaryView(userId, "alice", "h7", 2));
+        UserResolveResponse response = new UserResolveResponse();
+        response.setId(userId);
+        response.setUsername("alice");
+        response.setHeaderUrl("h7");
+        when(userReadApplicationService.resolveByUsername("alice")).thenReturn(response);
 
         Result<UserResolveResponse> result = controller.resolveByUsername("alice");
 
@@ -216,27 +218,34 @@ class UserControllerUnitTest {
         assertThat(result.getData().getId()).isEqualTo(userId);
         assertThat(result.getData().getUsername()).isEqualTo("alice");
         assertThat(result.getData().getHeaderUrl()).isEqualTo("h7");
-        verify(userReadApplicationService).getSummaryByUsername("alice");
+        verify(userReadApplicationService).resolveByUsername("alice");
     }
 
     @Test
-    void batchSummaryShouldPreserveRequestOrderUsingSummaryViews() {
+    void batchSummaryShouldPreserveRequestOrderUsingApplicationServiceResponses() {
         UUID aliceId = uuid(7);
         UUID bobId = uuid(9);
         BatchUserSummaryRequest request = new BatchUserSummaryRequest();
         request.setUserIds(Arrays.asList(aliceId, bobId, aliceId, null));
-        when(userReadApplicationService.listSummariesByIds(List.of(aliceId, bobId)))
-                .thenReturn(List.of(
-                        new UserSummaryView(bobId, "bob", "h9", 2),
-                        new UserSummaryView(aliceId, "alice", "h7", 1)
-                ));
+        UserSummaryResponse alice = new UserSummaryResponse();
+        alice.setId(aliceId);
+        alice.setUsername("alice");
+        alice.setHeaderUrl("h7");
+        alice.setType(1);
+        UserSummaryResponse bob = new UserSummaryResponse();
+        bob.setId(bobId);
+        bob.setUsername("bob");
+        bob.setHeaderUrl("h9");
+        bob.setType(2);
+        when(userReadApplicationService.listSummaryResponsesByIds(Arrays.asList(aliceId, bobId, aliceId, null)))
+                .thenReturn(List.of(alice, bob));
 
         Result<List<UserSummaryResponse>> result = controller.batchSummary(request);
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).extracting(UserSummaryResponse::getId).containsExactly(aliceId, bobId);
         assertThat(result.getData()).extracting(UserSummaryResponse::getUsername).containsExactly("alice", "bob");
-        verify(userReadApplicationService).listSummariesByIds(List.of(aliceId, bobId));
+        verify(userReadApplicationService).listSummaryResponsesByIds(Arrays.asList(aliceId, bobId, aliceId, null));
     }
 
     private Authentication authentication(UUID userId) {

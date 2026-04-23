@@ -299,7 +299,7 @@ final class ArchitectureRulesSupport {
                     if (!originDomain.equals(domainOf(target))) {
                         continue;
                     }
-                    if (!residesInPackagePrefixes(target, Set.of("api.query", "api.action"))) {
+                    if (!residesInPackagePrefixes(target, Set.of("api.query", "api.action", "api.model"))) {
                         continue;
                     }
                     events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));

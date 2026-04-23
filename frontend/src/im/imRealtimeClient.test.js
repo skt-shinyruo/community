@@ -23,10 +23,25 @@ class FakeWebSocket {
 }
 
 describe('imRealtimeClient URL resolution', () => {
+  let windowListeners
+  let documentListeners
+
   beforeEach(() => {
     vi.resetModules()
     FakeWebSocket.instances = []
     vi.stubGlobal('WebSocket', FakeWebSocket)
+    windowListeners = new Map()
+    documentListeners = new Map()
+    vi.stubGlobal('addEventListener', (type, listener) => {
+      windowListeners.set(type, listener)
+    })
+    vi.stubGlobal('document', {
+      visibilityState: 'visible',
+      addEventListener(type, listener) {
+        documentListeners.set(type, listener)
+      },
+      removeEventListener() {}
+    })
   })
 
   afterEach(async () => {
@@ -115,5 +130,25 @@ describe('imRealtimeClient URL resolution', () => {
       toUserId: '22222222-2222-7222-8222-222222222222',
       content: 'hello'
     })
+  })
+
+  it('should retry connection when the browser comes back online or visible', async () => {
+    const { imRealtimeClient } = await import('./imRealtimeClient')
+
+    imRealtimeClient.connect('token-1')
+    expect(FakeWebSocket.instances).toHaveLength(1)
+
+    FakeWebSocket.instances[0].readyState = 3
+    imRealtimeClient.ws = null
+
+    windowListeners.get('online')?.()
+    expect(FakeWebSocket.instances).toHaveLength(2)
+
+    FakeWebSocket.instances[1].readyState = 3
+    imRealtimeClient.ws = null
+    globalThis.document.visibilityState = 'visible'
+
+    documentListeners.get('visibilitychange')?.()
+    expect(FakeWebSocket.instances).toHaveLength(3)
   })
 })

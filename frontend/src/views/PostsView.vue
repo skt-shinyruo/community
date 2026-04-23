@@ -298,6 +298,10 @@ import {
   isDefaultLatestFeedView,
   resolveAppendPageAfterLoad
 } from './postsFeedState'
+import {
+  collectPostsHydrationIds,
+  commitComposerTagDraft
+} from './postsViewState'
 import { formatTime, formatTimeAgo } from '../utils/time'
 import { getPostReadAt, getPostsListBaselineAt, markPostRead, touchPostsListSeen } from '../utils/readTracker'
 import { normalizeOpaqueId } from '../utils/opaqueId'
@@ -480,58 +484,11 @@ function activityUser(p) {
   return p?.lastReplyAuthor || p?.author || null
 }
 
-const TAG_MAX = 5
-const TAG_MAX_LEN = 20
-const TAG_PATTERN = /^[\p{L}\p{N}_-]{1,20}$/u
-
-function normalizeTagToken(raw) {
-  let t = String(raw || '').trim()
-  if (t.startsWith('#')) t = t.slice(1).trim()
-  t = t.replaceAll(/\s+/g, '-').trim()
-  return t
-}
-
-function addOneTag(token) {
-  const t = normalizeTagToken(token)
-  if (!t) return
-  if (t.length > TAG_MAX_LEN) {
-    throw new Error(`标签过长（单个标签最长 ${TAG_MAX_LEN}）`)
-  }
-  if (!TAG_PATTERN.test(t)) {
-    throw new Error('标签格式非法（仅允许中英文、数字、_、-）')
-  }
-
-  const list = Array.isArray(newTags.value) ? [...newTags.value] : []
-  const key = t.toLowerCase()
-  const exists = list.some((x) => String(x || '').toLowerCase() === key)
-  if (!exists) {
-    if (list.length >= TAG_MAX) {
-      throw new Error(`标签最多 ${TAG_MAX} 个`)
-    }
-    list.push(t)
-    newTags.value = list
-  }
-}
-
 function commitNewTags() {
-  newTagError.value = ''
-  const raw = String(newTagDraft.value || '').trim()
-  if (!raw) return
-
-  try {
-    const parts = raw
-      .split(/[\\s,，]+/g)
-      .map((s) => String(s || '').trim())
-      .filter(Boolean)
-
-    for (const p of parts) {
-      addOneTag(p)
-    }
-
-    newTagDraft.value = ''
-  } catch (e) {
-    newTagError.value = e?.message || '标签不合法'
-  }
+  const result = commitComposerTagDraft(newTags.value, newTagDraft.value)
+  newTags.value = result.tags
+  newTagError.value = result.error
+  newTagDraft.value = result.draft
 }
 
 function onTagDraftKeydown(e) {
@@ -661,40 +618,10 @@ function openPost(p) {
   router.push({ name: 'postDetail', params: { postId: String(p.id) } })
 }
 
-function collectBatchIds(list) {
-  const userIds = []
-  const postIds = []
-  const seenUsers = new Set()
-  const seenPosts = new Set()
-
-  for (const p of Array.isArray(list) ? list : []) {
-    const uid = normalizeOpaqueId(p?.userId)
-    const lr = normalizeOpaqueId(p?.lastReplyUserId)
-    const pid = normalizeOpaqueId(p?.id)
-
-    if (uid && !seenUsers.has(uid)) {
-      seenUsers.add(uid)
-      userIds.push(uid)
-    }
-    if (lr && !seenUsers.has(lr)) {
-      seenUsers.add(lr)
-      userIds.push(lr)
-    }
-    if (pid && !seenPosts.has(pid)) {
-      seenPosts.add(pid)
-      postIds.push(pid)
-    }
-
-    // 后端建议 max=200，这里前置截断，避免请求体/URL 过大。
-    if (userIds.length >= 200 && postIds.length >= 200) break
-  }
-  return { userIds, postIds }
-}
-
 async function hydrateBatch(list, token) {
   if (!Array.isArray(list) || list.length === 0) return
 
-  const { userIds, postIds } = collectBatchIds(list)
+  const { userIds, postIds } = collectPostsHydrationIds(list)
   let users = {}
   let counts = {}
   let statuses = {}

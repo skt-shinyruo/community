@@ -385,7 +385,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useSocialPrefsStore } from '../stores/socialPrefs'
@@ -408,6 +408,7 @@ import UiModalConfirm from '../components/ui/UiModalConfirm.vue'
 import ReportModal from '../components/modals/ReportModal.vue'
 import EditContentModal from '../components/modals/EditContentModal.vue'
 import { formatTime } from '../utils/time'
+import { createLatestRequestTracker } from '../utils/latestRequest'
 import { markPostRead } from '../utils/readTracker'
 import { scrollToAnchor } from '../utils/scrollToAnchor'
 import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
@@ -427,6 +428,14 @@ import {
   moderationWonderful,
   moderationDelete
 } from '../api/services/postService'
+import {
+  buildQuotePreview,
+  collectCommentHydrationIds,
+  collectReplyHydrationIds,
+  composeReplyContent,
+  hydratePostComment,
+  hydratePostReply
+} from './postDetailState'
 
 const emit = defineEmits(['trace'])
 
@@ -457,6 +466,9 @@ const reportOpen = ref(false)
 
 const meUserId = computed(() => normalizeOpaqueId(auth.userId))
 const followStatus = ref(null) // Boolean|null
+const postRequestTracker = createLatestRequestTracker()
+const commentsRequestTracker = createLatestRequestTracker()
+const followStatusRequestTracker = createLatestRequestTracker()
 
 const isBlockedAuthor = computed(() => {
   const uid = normalizeOpaqueId(post.value?.userId)
@@ -523,39 +535,6 @@ function commentAnchorId(id) {
 
 function replyAnchorId(id) {
   return `r-${normalizeOpaqueId(id)}`
-}
-
-function buildQuotePreview(text) {
-  const s = String(text || '').replace(/\s+/g, ' ').trim()
-  if (!s) return ''
-  return s.length > 120 ? `${s.slice(0, 120)}…` : s
-}
-
-function buildQuoteMarkdown(quote) {
-  const raw = String(quote?.raw || '').trim()
-  if (!raw) return ''
-
-  const username = String(quote?.username || '').trim()
-  const userId = normalizeOpaqueId(quote?.userId)
-  const who = username ? `@${username}` : userId ? `成员 ${userId}` : '用户'
-
-  const lines = raw
-    .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .slice(0, 6)
-
-  const header = `> 引用 ${who}`
-  const body = lines.map((l) => `> ${l}`).join('\n')
-  return body ? `${header}\n${body}` : header
-}
-
-function composeReplyContent(draft, quote) {
-  const d = String(draft || '').trim()
-  const q = quote ? buildQuoteMarkdown(quote) : ''
-  if (!q) return d
-  if (!d) return q
-  return `${q}\n\n${d}`
 }
 
 function clearReplyQuote(c) {
@@ -643,10 +622,12 @@ async function runConfirm() {
 }
 
 async function loadPost() {
+  const token = postRequestTracker.begin()
   error.value = ''
   loading.value = true
   try {
     const resp = await getPostDetail(postId.value)
+    if (!postRequestTracker.isCurrent(token)) return
     post.value = resp?.data || null
     emit('trace', resp?.traceId || '')
 
@@ -654,13 +635,17 @@ async function loadPost() {
 
     if (post.value?.userId) {
       postAuthor.value = await getUserProfile(post.value.userId).catch(() => null)
+      if (!postRequestTracker.isCurrent(token)) return
     } else {
       postAuthor.value = null
     }
   } catch (e) {
+    if (!postRequestTracker.isCurrent(token)) return
     error.value = e?.message || '加载失败'
   } finally {
-    loading.value = false
+    if (postRequestTracker.isCurrent(token)) {
+      loading.value = false
+    }
   }
 }
 
@@ -687,15 +672,20 @@ function applyPostLikeOverlay() {
 }
 
 async function loadFollowStatus() {
-  if (!authed.value || !post.value || !post.value.userId || sameOpaqueId(post.value.userId, meUserId.value)) {
+  const expectedUserId = normalizeOpaqueId(post.value?.userId)
+  if (!authed.value || !expectedUserId || sameOpaqueId(expectedUserId, meUserId.value)) {
     followStatus.value = null
     return
   }
+  const token = followStatusRequestTracker.begin()
   try {
-    const resp = await getFollowStatus(3, post.value.userId, { force: true })
+    const resp = await getFollowStatus(3, expectedUserId, { force: true })
+    if (!followStatusRequestTracker.isCurrent(token)) return
+    if (!sameOpaqueId(post.value?.userId, expectedUserId)) return
     emit('trace', resp?.traceId || '')
     followStatus.value = resp?.data ?? null
   } catch {
+    if (!followStatusRequestTracker.isCurrent(token)) return
     followStatus.value = null
   }
 }
@@ -879,54 +869,6 @@ async function submitEdit(payload) {
   }
 }
 
-function hydrateComment(raw, { users = {}, counts = {}, statuses = {} } = {}) {
-  const commentId = normalizeOpaqueId(raw?.id)
-  const userId = normalizeOpaqueId(raw?.userId)
-  const likeCount = counts?.[commentId]
-  const liked = statuses?.[commentId]
-
-  return {
-    ...raw,
-    user: users?.[userId] || null,
-    likeCount: typeof likeCount === 'number' ? likeCount : 0,
-    liked: !!liked,
-    _likeLoading: false,
-
-    _replying: false,
-    _replyDraft: '',
-    _replyError: '',
-    _replySubmitting: false,
-    _replyTargetId: '',
-    _replyTargetUser: null,
-    _replyQuote: null,
-
-    _repliesExpanded: false,
-    _replies: [],
-    _repliesPage: 0,
-    _repliesSize: 5,
-    _repliesLoading: false,
-    _repliesError: ''
-  }
-}
-
-function hydrateReply(raw, { users = {}, counts = {}, statuses = {} } = {}) {
-  const replyId = normalizeOpaqueId(raw?.id)
-  const userId = normalizeOpaqueId(raw?.userId)
-  const targetUserId = normalizeOpaqueId(raw?.targetId)
-  const likeCount = counts?.[replyId]
-  const liked = statuses?.[replyId]
-
-  return {
-    ...raw,
-    user: users?.[userId] || null,
-    targetUserId,
-    targetUser: targetUserId ? (users?.[targetUserId] || null) : null,
-    likeCount: typeof likeCount === 'number' ? likeCount : 0,
-    liked: !!liked,
-    _likeLoading: false
-  }
-}
-
 async function maybeScrollFromRoute() {
   // 1) 优先使用 hash（例如：#c-123 / #r-456）
   const rawHash = String(route.hash || '').trim()
@@ -960,57 +902,47 @@ async function maybeScrollFromRoute() {
 }
 
 async function loadComments() {
+  const token = commentsRequestTracker.begin()
   commentsError.value = ''
   commentsLoading.value = true
   try {
     const resp = await apiListComments(postId.value, { page: commentsPage.value, size: commentsSize.value })
+    if (!commentsRequestTracker.isCurrent(token)) return
     emit('trace', resp?.traceId || '')
     const raw = Array.isArray(resp?.data) ? resp.data : []
-    const userIds = []
-    const commentIds = []
-    const seenUsers = new Set()
-    const seenComments = new Set()
-    for (const c of raw) {
-      const uid = normalizeOpaqueId(c?.userId)
-      const cid = normalizeOpaqueId(c?.id)
-      if (uid && !seenUsers.has(uid)) {
-        seenUsers.add(uid)
-        userIds.push(uid)
-      }
-      if (cid && !seenComments.has(cid)) {
-        seenComments.add(cid)
-        commentIds.push(cid)
-      }
-      if (userIds.length >= 200 && commentIds.length >= 200) break
-    }
+    const { userIds, entityIds: commentIds } = collectCommentHydrationIds(raw)
 
     let users = {}
     let counts = {}
     let statuses = {}
-    try {
-      users = await postMetaCache.ensureUserSummaries(userIds)
-    } catch {
-      users = {}
-    }
-    try {
-      counts = await postMetaCache.ensureLikeCounts(2, commentIds)
-    } catch {
-      counts = {}
-    }
+    const hydrationTasks = [
+      postMetaCache.ensureUserSummaries(userIds),
+      postMetaCache.ensureLikeCounts(2, commentIds)
+    ]
     if (authed.value) {
-      try {
-        statuses = await postMetaCache.ensureLikeStatuses(2, commentIds)
-      } catch {
-        statuses = {}
-      }
+      hydrationTasks.push(postMetaCache.ensureLikeStatuses(2, commentIds))
+    }
+    const [usersResult, countsResult, statusesResult] = await Promise.allSettled(hydrationTasks)
+    if (!commentsRequestTracker.isCurrent(token)) return
+    if (usersResult?.status === 'fulfilled') {
+      users = usersResult.value || {}
+    }
+    if (countsResult?.status === 'fulfilled') {
+      counts = countsResult.value || {}
+    }
+    if (statusesResult?.status === 'fulfilled') {
+      statuses = statusesResult.value || {}
     }
 
-    comments.value = raw.map((c) => hydrateComment(c, { users, counts, statuses }))
+    comments.value = raw.map((c) => hydratePostComment(c, { users, counts, statuses }))
     await maybeScrollFromRoute()
   } catch (e) {
+    if (!commentsRequestTracker.isCurrent(token)) return
     commentsError.value = e?.message || '加载评论失败'
   } finally {
-    commentsLoading.value = false
+    if (commentsRequestTracker.isCurrent(token)) {
+      commentsLoading.value = false
+    }
   }
 }
 
@@ -1026,51 +958,30 @@ async function loadReplies(c) {
     const resp = await apiListReplies(postId.value, c.id, { page: c._repliesPage, size: c._repliesSize })
     emit('trace', resp?.traceId || '')
     const raw = Array.isArray(resp?.data) ? resp.data : []
-    const userIds = []
-    const replyIds = []
-    const seenUsers = new Set()
-    const seenReplies = new Set()
-    for (const r of raw) {
-      const uid = normalizeOpaqueId(r?.userId)
-      const tid = normalizeOpaqueId(r?.targetId)
-      const rid = normalizeOpaqueId(r?.id)
-      if (uid && !seenUsers.has(uid)) {
-        seenUsers.add(uid)
-        userIds.push(uid)
-      }
-      if (tid && !seenUsers.has(tid)) {
-        seenUsers.add(tid)
-        userIds.push(tid)
-      }
-      if (rid && !seenReplies.has(rid)) {
-        seenReplies.add(rid)
-        replyIds.push(rid)
-      }
-      if (userIds.length >= 200 && replyIds.length >= 200) break
-    }
+    const { userIds, entityIds: replyIds } = collectReplyHydrationIds(raw)
 
     let users = {}
     let counts = {}
     let statuses = {}
-    try {
-      users = await postMetaCache.ensureUserSummaries(userIds)
-    } catch {
-      users = {}
-    }
-    try {
-      counts = await postMetaCache.ensureLikeCounts(2, replyIds)
-    } catch {
-      counts = {}
-    }
+    const hydrationTasks = [
+      postMetaCache.ensureUserSummaries(userIds),
+      postMetaCache.ensureLikeCounts(2, replyIds)
+    ]
     if (authed.value) {
-      try {
-        statuses = await postMetaCache.ensureLikeStatuses(2, replyIds)
-      } catch {
-        statuses = {}
-      }
+      hydrationTasks.push(postMetaCache.ensureLikeStatuses(2, replyIds))
+    }
+    const [usersResult, countsResult, statusesResult] = await Promise.allSettled(hydrationTasks)
+    if (usersResult?.status === 'fulfilled') {
+      users = usersResult.value || {}
+    }
+    if (countsResult?.status === 'fulfilled') {
+      counts = countsResult.value || {}
+    }
+    if (statusesResult?.status === 'fulfilled') {
+      statuses = statusesResult.value || {}
     }
 
-    c._replies = raw.map((r) => hydrateReply(r, { users, counts, statuses }))
+    c._replies = raw.map((r) => hydratePostReply(r, { users, counts, statuses }))
   } catch (e) {
     c._repliesError = e?.message || '加载回复失败'
   } finally {
@@ -1311,6 +1222,9 @@ watch(
 watch(
   () => route.params.postId,
   () => {
+    postRequestTracker.invalidate()
+    commentsRequestTracker.invalidate()
+    followStatusRequestTracker.invalidate()
     post.value = null
     postAuthor.value = null
     comments.value = []
@@ -1325,6 +1239,12 @@ watch(
     reload()
   }
 )
+
+onBeforeUnmount(() => {
+  postRequestTracker.invalidate()
+  commentsRequestTracker.invalidate()
+  followStatusRequestTracker.invalidate()
+})
 
 onMounted(() => {
   taxonomy.ensureCategories()

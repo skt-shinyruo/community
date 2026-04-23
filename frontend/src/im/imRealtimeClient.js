@@ -56,10 +56,26 @@ class ImRealtimeClient {
     this.emitter = new Emitter()
     this.reconnectTimer = null
     this.reconnectAttempts = 0
+    this._bindBrowserRecovery()
   }
 
   on(type, fn) {
     return this.emitter.on(type, fn)
+  }
+
+  _bindBrowserRecovery() {
+    try {
+      globalThis?.addEventListener?.('online', () => {
+        this._resumeConnection()
+      })
+    } catch {}
+
+    try {
+      globalThis?.document?.addEventListener?.('visibilitychange', () => {
+        if (globalThis?.document?.visibilityState !== 'visible') return
+        this._resumeConnection()
+      })
+    } catch {}
   }
 
   connect(accessToken) {
@@ -76,6 +92,14 @@ class ImRealtimeClient {
 
     this._clearReconnect()
     this._open(url)
+  }
+
+  _resumeConnection() {
+    const readyState = this.ws?.readyState
+    if (!this.accessToken) return
+    if (readyState === WebSocket.OPEN || readyState === WebSocket.CONNECTING) return
+    this._clearReconnect()
+    this.connect(this.accessToken)
   }
 
   disconnect() {

@@ -1,41 +1,41 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { authGuard } from './authGuard'
 
-import LoginView from '../views/LoginView.vue'
-import HomeView from '../views/HomeView.vue'
-import EditorialPreviewView from '../views/EditorialPreviewView.vue'
-import PostsView from '../views/PostsView.vue'
-import PostDetailView from '../views/PostDetailView.vue'
-import UserProfileView from '../views/UserProfileView.vue'
-import RegisterView from '../views/RegisterView.vue'
-import PasswordResetView from '../views/PasswordResetView.vue'
-import SearchView from '../views/SearchView.vue'
-import MarketListView from '../views/MarketListView.vue'
-import MarketDetailView from '../views/MarketDetailView.vue'
-import MarketPublishView from '../views/MarketPublishView.vue'
-import MarketMyListingsView from '../views/MarketMyListingsView.vue'
-import MarketInventoryView from '../views/MarketInventoryView.vue'
-import MarketBuyingOrdersView from '../views/MarketBuyingOrdersView.vue'
-import MarketSellingOrdersView from '../views/MarketSellingOrdersView.vue'
-import MarketOrderDetailView from '../views/MarketOrderDetailView.vue'
-import MarketAddressesView from '../views/MarketAddressesView.vue'
-import WalletView from '../views/WalletView.vue'
-import ConversationsView from '../views/ConversationsView.vue'
-import ConversationDetailView from '../views/ConversationDetailView.vue'
-import NoticesView from '../views/NoticesView.vue'
-import NoticeDetailView from '../views/NoticeDetailView.vue'
-import AnalyticsView from '../views/AnalyticsView.vue'
-import SettingsView from '../views/SettingsView.vue'
-import FolloweesView from '../views/FolloweesView.vue'
-import FollowersView from '../views/FollowersView.vue'
-import BookmarksView from '../views/BookmarksView.vue'
-import WalletAdminView from '../views/WalletAdminView.vue'
-import AdminMarketDisputesView from '../views/AdminMarketDisputesView.vue'
-import ModerationView from '../views/ModerationView.vue'
-import OpsConsoleView from '../views/OpsConsoleView.vue'
-import UserManagementView from '../views/UserManagementView.vue'
-import ForbiddenView from '../views/ForbiddenView.vue'
-import NotFoundView from '../views/NotFoundView.vue'
+const LoginView = () => import('../views/LoginView.vue')
+const HomeView = () => import('../views/HomeView.vue')
+const EditorialPreviewView = () => import('../views/EditorialPreviewView.vue')
+const PostsView = () => import('../views/PostsView.vue')
+const PostDetailView = () => import('../views/PostDetailView.vue')
+const UserProfileView = () => import('../views/UserProfileView.vue')
+const RegisterView = () => import('../views/RegisterView.vue')
+const PasswordResetView = () => import('../views/PasswordResetView.vue')
+const SearchView = () => import('../views/SearchView.vue')
+const MarketListView = () => import('../views/MarketListView.vue')
+const MarketDetailView = () => import('../views/MarketDetailView.vue')
+const MarketPublishView = () => import('../views/MarketPublishView.vue')
+const MarketMyListingsView = () => import('../views/MarketMyListingsView.vue')
+const MarketInventoryView = () => import('../views/MarketInventoryView.vue')
+const MarketBuyingOrdersView = () => import('../views/MarketBuyingOrdersView.vue')
+const MarketSellingOrdersView = () => import('../views/MarketSellingOrdersView.vue')
+const MarketOrderDetailView = () => import('../views/MarketOrderDetailView.vue')
+const MarketAddressesView = () => import('../views/MarketAddressesView.vue')
+const WalletView = () => import('../views/WalletView.vue')
+const ConversationsView = () => import('../views/ConversationsView.vue')
+const ConversationDetailView = () => import('../views/ConversationDetailView.vue')
+const NoticesView = () => import('../views/NoticesView.vue')
+const NoticeDetailView = () => import('../views/NoticeDetailView.vue')
+const AnalyticsView = () => import('../views/AnalyticsView.vue')
+const SettingsView = () => import('../views/SettingsView.vue')
+const FolloweesView = () => import('../views/FolloweesView.vue')
+const FollowersView = () => import('../views/FollowersView.vue')
+const BookmarksView = () => import('../views/BookmarksView.vue')
+const WalletAdminView = () => import('../views/WalletAdminView.vue')
+const AdminMarketDisputesView = () => import('../views/AdminMarketDisputesView.vue')
+const ModerationView = () => import('../views/ModerationView.vue')
+const OpsConsoleView = () => import('../views/OpsConsoleView.vue')
+const UserManagementView = () => import('../views/UserManagementView.vue')
+const ForbiddenView = () => import('../views/ForbiddenView.vue')
+const NotFoundView = () => import('../views/NotFoundView.vue')
 
 const router = createRouter({
   history: createWebHashHistory(),

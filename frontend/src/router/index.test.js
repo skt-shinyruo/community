@@ -120,4 +120,21 @@ describe('router/index', () => {
     expect(routeNames).not.toContain('rewardOps')
     expect(routeNames).not.toContain('leaderboard')
   })
+
+  it('should lazy-load non-trivial route views to keep them out of the entry bundle', async () => {
+    vi.doMock('./authGuard', () => ({
+      authGuard: () => true
+    }))
+
+    stubRouterGlobals()
+
+    const { default: router } = await import('./index')
+    const routesByName = new Map(router.getRoutes().map((route) => [route.name, route]))
+
+    expect(typeof routesByName.get('posts')?.components?.default).toBe('function')
+    expect(typeof routesByName.get('postDetail')?.components?.default).toBe('function')
+    expect(typeof routesByName.get('market')?.components?.default).toBe('function')
+    expect(typeof routesByName.get('messages')?.components?.default).toBe('function')
+    expect(typeof routesByName.get('moderation')?.components?.default).toBe('function')
+  })
 })

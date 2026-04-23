@@ -208,6 +208,7 @@
 	import { emOnlyHtml } from '../utils/highlight'
 	import { useTaxonomyStore } from '../stores/taxonomy'
 	import { applySearchHydration, applySearchSummaries, collectSearchHydrationIds, describeSearchActivity } from './searchResultSurface'
+	import { createLatestRequestTracker } from '../utils/latestRequest'
 		import UiAutosuggestInput from '../components/ui/UiAutosuggestInput.vue'
 		import UiInput from '../components/ui/UiInput.vue'
 	import UiButton from '../components/ui/UiButton.vue'
@@ -234,6 +235,7 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 	const items = ref([])
 	const hasNext = computed(() => items.value.length === Number(size.value))
 	const reindexConfirmOpen = ref(false)
+	const searchRequestTracker = createLatestRequestTracker()
 
 	const taxonomy = useTaxonomyStore()
 	const categories = computed(() => (Array.isArray(taxonomy.categories) ? taxonomy.categories : []))
@@ -302,7 +304,39 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 	  run()
 	}
 
+	async function resolveSearchItems(data) {
+	  const baseItems = Array.isArray(data) ? data : []
+	  let summaries = []
+	  let users = {}
+	  let likeCounts = {}
+
+	  const [summaryResult] = await Promise.allSettled([
+	    batchPostSummaries(baseItems.map((item) => item?.postId))
+	  ])
+
+	  if (summaryResult.status === 'fulfilled') {
+	    summaries = Array.isArray(summaryResult.value?.data) ? summaryResult.value.data : []
+	  }
+
+	  const merged = applySearchSummaries(baseItems, summaries)
+	  const { userIds, postIds } = collectSearchHydrationIds(merged)
+	  const [userResult, likeCountResult] = await Promise.allSettled([
+	    postMetaCache.ensureUserSummaries(userIds),
+	    postMetaCache.ensureLikeCounts(1, postIds)
+	  ])
+
+	  if (userResult.status === 'fulfilled') {
+	    users = userResult.value || {}
+	  }
+	  if (likeCountResult.status === 'fulfilled') {
+	    likeCounts = likeCountResult.value || {}
+	  }
+
+	  return applySearchHydration(merged, { users, likeCounts })
+	}
+
 	async function run() {
+	  const token = searchRequestTracker.begin()
 	  error.value = ''
 	  loading.value = true
 	  try {
@@ -313,33 +347,18 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 	      page: page.value,
 	      size: size.value
 	    })
-	    let summaries = []
-	    let users = {}
-	    let likeCounts = {}
-	    try {
-	      const resp = await batchPostSummaries(data.map((item) => item?.postId))
-	      summaries = Array.isArray(resp?.data) ? resp.data : []
-	    } catch {
-	      summaries = []
-	    }
-	    const merged = applySearchSummaries(data, summaries)
-	    const { userIds, postIds } = collectSearchHydrationIds(merged)
-	    try {
-	      users = await postMetaCache.ensureUserSummaries(userIds)
-	    } catch {
-	      users = {}
-	    }
-	    try {
-	      likeCounts = await postMetaCache.ensureLikeCounts(1, postIds)
-	    } catch {
-	      likeCounts = {}
-	    }
-	    items.value = applySearchHydration(merged, { users, likeCounts })
+	    if (!searchRequestTracker.isCurrent(token)) return
+	    const nextItems = await resolveSearchItems(data)
+	    if (!searchRequestTracker.isCurrent(token)) return
+	    items.value = nextItems
 	    emit('trace', traceId || '')
 	  } catch (e) {
+	    if (!searchRequestTracker.isCurrent(token)) return
 	    error.value = e?.message || '搜索失败'
 	  } finally {
-	    loading.value = false
+	    if (searchRequestTracker.isCurrent(token)) {
+	      loading.value = false
+	    }
 	  }
 	}
 
@@ -358,10 +377,12 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 	}
 
 	function clearSearch() {
+	  searchRequestTracker.invalidate()
 	  keyword.value = ''
 	  page.value = 0
 	  items.value = []
 	  error.value = ''
+	  loading.value = false
 	  categoryId.value = ''
 	  tagDraft.value = ''
 	  tagSuggestNames.value = []
@@ -415,13 +436,15 @@ async function onConfirmReindex() {
 	  const cid = normalizeCategoryId(route.query?.categoryId)
 	  const t = normalizeTag(route.query?.tag)
 	
-		  const hasAny = !!q || !!cid || !!t
+	  const hasAny = !!q || !!cid || !!t
 	  if (!hasAny) {
+	    searchRequestTracker.invalidate()
 	    keyword.value = ''
 	    categoryId.value = ''
 	    tagDraft.value = ''
 	    items.value = []
 	    error.value = ''
+	    loading.value = false
 	    page.value = 0
 	    return
 	  }

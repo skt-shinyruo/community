@@ -47,6 +47,16 @@ import { searchPosts } from '../api/services/searchService'
 describe('SearchView', () => {
   const categoryId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
 
+  function createDeferred() {
+    let resolve
+    let reject
+    const promise = new Promise((res, rej) => {
+      resolve = res
+      reject = rej
+    })
+    return { promise, resolve, reject }
+  }
+
   function mountView() {
     const pinia = createPinia()
     setActivePinia(pinia)
@@ -137,5 +147,64 @@ describe('SearchView', () => {
       size: 10
     })
     expect(wrapper.text()).toContain('公告')
+  })
+
+  it('keeps the newest search result when an older request resolves later', async () => {
+    const first = createDeferred()
+    const second = createDeferred()
+    let callCount = 0
+
+    searchPosts.mockImplementation(({ keyword }) => {
+      callCount += 1
+      if (keyword === 'first' && callCount === 1) return first.promise
+      if (keyword === 'second' && callCount === 2) return second.promise
+      return Promise.resolve({ data: [], traceId: `trace-${keyword}` })
+    })
+
+    const wrapper = mountView()
+    const keywordInput = wrapper.get('input[name="search-keyword"]')
+
+    await keywordInput.setValue('first')
+    const firstRun = wrapper.vm.onSearch()
+
+    await keywordInput.setValue('second')
+    const secondRun = wrapper.vm.onSearch()
+
+    second.resolve({
+      data: [
+        {
+          postId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
+          userId: '11111111-1111-7111-8111-111111111111',
+          title: 'Second Result',
+          highlightedTitle: 'Second Result',
+          createTime: Date.now(),
+          lastActivityTime: Date.now()
+        }
+      ],
+      traceId: 'trace-second'
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Second Result')
+
+    first.resolve({
+      data: [
+        {
+          postId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
+          userId: '22222222-2222-7222-8222-222222222222',
+          title: 'First Result',
+          highlightedTitle: 'First Result',
+          createTime: Date.now(),
+          lastActivityTime: Date.now()
+        }
+      ],
+      traceId: 'trace-first'
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Second Result')
+    expect(wrapper.text()).not.toContain('First Result')
+
+    await Promise.allSettled([firstRun, secondRun])
   })
 })

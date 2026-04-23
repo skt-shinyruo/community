@@ -40,7 +40,7 @@
         </UiEmpty>
 
         <div v-else class="message-list">
-          <div v-for="m in sortedItems" :key="m.id" class="message-row" :class="{ mine: m.fromId === meId }">
+          <div v-for="m in items" :key="m.id" class="message-row" :class="{ mine: m.fromId === meId }">
             <div class="message-meta">
               <span class="message-author">{{ m.fromId === meId ? '我' : '对方' }}</span>
               <span class="message-time">{{ formatTimeShort(m.createTime) }}</span>
@@ -67,18 +67,24 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { listImConversationMessages, markImConversationRead } from '../api/services/imCoreChatService'
 import { imRealtimeClient } from '../im/imRealtimeClient'
 import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
+import { createLatestRequestTracker } from '../utils/latestRequest'
 import ConversationComposer from '../components/scene/ConversationComposer.vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiDivider from '../components/ui/UiDivider.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
-import { mapConversationMessage, parseConversationTargetId } from './conversationDetailState'
+import {
+  findLatestConversationSeq,
+  mapConversationMessage,
+  mergeConversationMessages,
+  parseConversationTargetId
+} from './conversationDetailState'
 
 const emit = defineEmits(['trace'])
 const props = defineProps({ conversationId: String })
@@ -92,14 +98,10 @@ const content = ref('')
 const sending = ref(false)
 const chatArea = ref(null)
 const pendingClientMsgIds = new Set()
+const loadRequestTracker = createLatestRequestTracker()
 
 const conversationId = computed(() => String(props.conversationId || '').trim())
 const targetId = computed(() => parseTargetId())
-
-const sortedItems = computed(() => {
-   // Ensure chronological order
-   return [...items.value].sort((a, b) => new Date(a.createTime) - new Date(b.createTime))
-})
 
 function formatTimeShort(ts) {
    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -110,23 +112,28 @@ function parseTargetId() {
 }
 
 async function load() {
+  const token = loadRequestTracker.begin()
   error.value = ''
   loading.value = true
   try {
     const resp = await listImConversationMessages(conversationId.value, { afterSeq: 0, limit: 50 })
+    if (!loadRequestTracker.isCurrent(token)) return
     const rows = Array.isArray(resp?.items) ? resp.items : []
-    items.value = rows.map((m) => mapConversationMessage(m))
+    items.value = mergeConversationMessages([], rows.map((m) => mapConversationMessage(m)))
 
-    const maxSeq = items.value.reduce((acc, m) => Math.max(acc, Number(m?.seq || 0)), 0)
+    const maxSeq = findLatestConversationSeq(items.value)
     if (maxSeq > 0) {
       await markImConversationRead(conversationId.value, maxSeq)
     }
-    
+    if (!loadRequestTracker.isCurrent(token)) return
     scrollToBottom()
   } catch (e) {
+    if (!loadRequestTracker.isCurrent(token)) return
     error.value = e?.message || '加载失败'
   } finally {
-    loading.value = false
+    if (loadRequestTracker.isCurrent(token)) {
+      loading.value = false
+    }
   }
 }
 
@@ -160,6 +167,15 @@ function scrollToBottom() {
 
 onMounted(load)
 
+watch(conversationId, (nextConversationId, previousConversationId) => {
+  if (!nextConversationId || nextConversationId === previousConversationId) return
+  loadRequestTracker.invalidate()
+  items.value = []
+  error.value = ''
+  pendingClientMsgIds.clear()
+  load()
+})
+
 let offPrivate = null
 let offSendCommitted = null
 let offSendRejected = null
@@ -173,10 +189,10 @@ onMounted(() => {
       createdAtEpochMs: msg?.createdAtEpochMs || Date.now()
     })
 
-    items.value.push({
+    items.value = mergeConversationMessages(items.value, [{
       ...message,
       seq
-    })
+    }])
     scrollToBottom()
 
     // When this conversation is open, best-effort mark read to the latest seq.
@@ -187,6 +203,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  loadRequestTracker.invalidate()
   try { offPrivate?.() } catch {}
   try { offSendCommitted?.() } catch {}
   try { offSendRejected?.() } catch {}

@@ -6,7 +6,7 @@ public record RoomMemberChanged(
         String eventId,
         UUID roomId,
         UUID userId,
-        boolean active,
+        String action,
         long occurredAtEpochMillis
 ) {
 }

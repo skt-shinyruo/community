@@ -386,12 +386,13 @@ class JsonContractsTest {
                 "evt-room-member-1",
                 uuid(71),
                 uuid(72),
-                true,
+                "JOINED",
                 1_712_345_678_904L
         );
 
         RoomMemberChanged back = roundTrip(event, RoomMemberChanged.class);
         assertEquals(event, back);
+        assertEquals("JOINED", back.action());
     }
 
     @Test

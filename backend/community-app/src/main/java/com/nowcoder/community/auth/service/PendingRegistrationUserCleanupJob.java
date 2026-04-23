@@ -13,7 +13,6 @@ import java.time.Duration;
 public class PendingRegistrationUserCleanupJob {
 
     private static final Logger log = LoggerFactory.getLogger(PendingRegistrationUserCleanupJob.class);
-    private static final int CLEANUP_BATCH_SIZE = 500;
 
     private final UserRegistrationActionApi userRegistrationActionApi;
     private final RegistrationProperties properties;
@@ -35,7 +34,7 @@ public class PendingRegistrationUserCleanupJob {
             do {
                 deleted = userRegistrationActionApi.cleanupExpiredPendingUsers(ttl);
                 totalDeleted += deleted;
-            } while (deleted >= CLEANUP_BATCH_SIZE);
+            } while (deleted > 0);
             if (totalDeleted > 0) {
                 log.info("[registration] cleaned up expired pending users count={}", totalDeleted);
             }

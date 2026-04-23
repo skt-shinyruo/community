@@ -112,7 +112,7 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
         if (user.getId() == null) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败");
         }
-        publishUserPolicyChanged(user.getId());
+        publishUserPolicyChanged(user.getId(), true);
         return user;
     }
 
@@ -156,7 +156,7 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "更新用户状态失败");
         }
         user.setStatus(1);
-        publishUserPolicyChanged(userId);
+        publishUserPolicyChanged(userId, true);
         return toCredentialView(user);
     }
 
@@ -257,18 +257,25 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
         );
     }
 
-    private void publishUserPolicyChanged(UUID userId) {
+    private void publishUserPolicyChanged(UUID userId, boolean userExists) {
         if (userId == null) {
             return;
         }
         UserPolicyChangedPayload payload = new UserPolicyChangedPayload();
         payload.setUserId(userId);
+        payload.setUserExists(userExists);
+        payload.setSuspended(false);
+        payload.setMuted(false);
+        payload.setMuteUntil(null);
+        payload.setBanUntil(null);
+        payload.setCanSendPrivate(userExists);
+        payload.setOccurredAtEpochMillis(System.currentTimeMillis());
         userEventPublisher.publishUserPolicyChanged(payload);
     }
 
     private void publishUserPolicyChangedIfDeleted(UUID userId, int deleted) {
         if (deleted > 0) {
-            publishUserPolicyChanged(userId);
+            publishUserPolicyChanged(userId, false);
         }
     }
 }

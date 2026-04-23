@@ -33,12 +33,12 @@ class PendingRegistrationUserCleanupJobTest {
         RegistrationProperties properties = new RegistrationProperties();
         properties.getPendingUser().setTtlSeconds(1800);
         properties.getPendingUser().setLocalSchedulerEnabled(true);
-        when(userRegistrationActionApi.cleanupExpiredPendingUsers(Duration.ofMinutes(30))).thenReturn(500, 2);
+        when(userRegistrationActionApi.cleanupExpiredPendingUsers(Duration.ofMinutes(30))).thenReturn(500, 2, 0);
 
         PendingRegistrationUserCleanupJob job = new PendingRegistrationUserCleanupJob(userRegistrationActionApi, properties);
         job.cleanup();
 
-        verify(userRegistrationActionApi, times(2)).cleanupExpiredPendingUsers(Duration.ofMinutes(30));
+        verify(userRegistrationActionApi, times(3)).cleanupExpiredPendingUsers(Duration.ofMinutes(30));
         verifyNoMoreInteractions(userRegistrationActionApi);
     }
 }

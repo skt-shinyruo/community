@@ -57,8 +57,22 @@ im:
   clients:
     community-service-id: ${IM_COMMUNITY_SERVICE_ID:community-app}
     im-core-service-id: ${IM_CORE_SERVICE_ID:im-core}
+    membership-snapshot-service-id: ${IM_MEMBERSHIP_SNAPSHOT_SERVICE_ID:${IM_CORE_SERVICE_ID:im-core}}
+    policy-snapshot-service-id: ${IM_POLICY_SNAPSHOT_SERVICE_ID:${IM_COMMUNITY_SERVICE_ID:community-app}}
+    snapshot-timeout-ms: ${IM_SNAPSHOT_TIMEOUT_MS:3000}
+    internal-scope: ${IM_INTERNAL_SCOPE:im.realtime.internal}
   community:
     timeout-ms: ${IM_COMMUNITY_TIMEOUT_MS:1500}
+  projection:
+    bootstrap-on-startup: ${IM_PROJECTION_BOOTSTRAP_ON_STARTUP:true}
+  session:
+    worker-service-id: ${IM_REALTIME_WORKER_SERVICE_ID:im-realtime-worker}
+    worker-id: ${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}
+    ws-base-url: "${IM_SESSION_WS_BASE_URL:ws://127.0.0.1:${SERVER_PORT:18081}${IM_WS_PATH:${IM_DIRECT_PUBLIC_WS_PATH:/ws/im}}}"
+    ticket-ttl: ${IM_SESSION_TICKET_TTL:PT2M}
+    worker-id-metadata-key: ${IM_SESSION_WORKER_ID_METADATA_KEY:workerId}
+    ws-path-metadata-key: ${IM_SESSION_WS_PATH_METADATA_KEY:wsPath}
+    ws-port-metadata-key: ${IM_SESSION_WS_PORT_METADATA_KEY:wsPort}
   kafka:
     event:
       concurrency: ${IM_REALTIME_KAFKA_EVENT_CONCURRENCY:3}

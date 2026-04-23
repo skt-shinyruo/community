@@ -42,8 +42,9 @@ public class ImRealtimeSecurityConfig {
                         .accessDeniedHandler(accessDeniedHandler))
                 .authorizeExchange(ex -> ex
                         .pathMatchers("/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
+                        .pathMatchers("/api/im/sessions").permitAll()
                         .pathMatchers(wsPathValue).permitAll()
-                        // Safer default: new HTTP endpoints must be explicitly allowed.
+                        // WebSocket connect auth remains inside the handler; session creation verifies bearer auth explicitly.
                         .anyExchange().denyAll()
                 )
                 .build();

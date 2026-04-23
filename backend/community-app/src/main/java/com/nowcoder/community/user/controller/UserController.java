@@ -4,7 +4,6 @@ import com.nowcoder.community.common.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
-import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.dto.AvatarUploadTokenResponse;
 import com.nowcoder.community.user.dto.BatchUserSummaryRequest;
 import com.nowcoder.community.user.dto.UpdateAvatarRequest;
@@ -33,15 +32,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
-import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND;
 
 @RestController
 @RequestMapping("/api/users")
@@ -109,61 +103,13 @@ public class UserController {
 
     @GetMapping("/resolve")
     public Result<UserResolveResponse> resolveByUsername(@RequestParam String username) {
-        UserSummaryView user = userReadApplicationService.getSummaryByUsername(username);
-        if (user == null) {
-            throw new BusinessException(USER_NOT_FOUND);
-        }
-        UserResolveResponse resp = new UserResolveResponse();
-        resp.setId(user.id());
-        resp.setUsername(user.username());
-        resp.setHeaderUrl(user.headerUrl());
-        return Result.ok(resp);
+        return Result.ok(userReadApplicationService.resolveByUsername(username));
     }
 
     @PostMapping("/batch-summary")
     public Result<List<UserSummaryResponse>> batchSummary(@Valid @RequestBody BatchUserSummaryRequest request) {
-        List<UUID> raw = request == null ? List.of() : request.getUserIds();
-        if (raw == null || raw.isEmpty()) {
-            return Result.ok(List.of());
-        }
-
-        LinkedHashSet<UUID> dedup = new LinkedHashSet<>();
-        for (UUID id : raw) {
-            if (id == null) {
-                continue;
-            }
-            dedup.add(id);
-            if (dedup.size() >= 200) {
-                break;
-            }
-        }
-        if (dedup.isEmpty()) {
-            return Result.ok(List.of());
-        }
-
-        List<UUID> ids = new ArrayList<>(dedup);
-        List<UserSummaryView> users = userReadApplicationService.listSummariesByIds(ids);
-        Map<UUID, UserSummaryResponse> map = new HashMap<>();
-        for (UserSummaryView u : users) {
-            if (u == null || u.id() == null) {
-                continue;
-            }
-            UserSummaryResponse s = new UserSummaryResponse();
-            s.setId(u.id());
-            s.setUsername(u.username());
-            s.setHeaderUrl(u.headerUrl());
-            s.setType(u.type());
-            map.put(u.id(), s);
-        }
-
-        List<UserSummaryResponse> out = new ArrayList<>();
-        for (UUID id : ids) {
-            UserSummaryResponse s = map.get(id);
-            if (s != null) {
-                out.add(s);
-            }
-        }
-        return Result.ok(out);
+        List<UUID> raw = request == null ? null : request.getUserIds();
+        return Result.ok(userReadApplicationService.listSummaryResponsesByIds(raw));
     }
 
     @GetMapping("/{userId}/avatar/upload-token")

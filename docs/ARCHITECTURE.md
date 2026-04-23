@@ -124,7 +124,7 @@ flowchart TD
 
 - 跨域协作一律通过 owner-domain `api.query` / `api.action` / `api.model` / `contracts`；
 - 域内持久化默认允许 owner-domain service 直接依赖本域 MyBatis mapper。
-- 同域同步入口统一走 owner `*ApplicationService`；controller、job、listener 默认都不再把 same-domain `api.query` / `api.action` 当入口。
+- 同域同步入口统一走 owner `*ApplicationService`；controller、job、listener 默认都不再把 same-domain `api.query` / `api.action` / `api.model` 当入口。
 - `api.query` / `api.action` / `api.model` 的职责固定为跨域同步协作边界，不是域内 service locator。
 - `..app.query..` 属于历史迁移期结构，当前不应继续保留，也不允许新增。
 

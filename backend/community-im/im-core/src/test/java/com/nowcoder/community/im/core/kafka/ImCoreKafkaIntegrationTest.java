@@ -43,13 +43,15 @@ import static org.assertj.core.api.Assertions.assertThat;
                 ImTopics.EVENT_PRIVATE_PERSISTED_V1,
                 ImTopics.EVENT_ROOM_PERSISTED_V1,
                 ImTopics.EVENT_PRIVATE_REJECTED_V1,
-                ImTopics.EVENT_ROOM_REJECTED_V1
+                ImTopics.EVENT_ROOM_REJECTED_V1,
+                ImTopics.EVENT_ROOM_MEMBER_CHANGED
         }
 )
 @TestPropertySource(properties = {
         "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
         "spring.kafka.listener.auto-startup=true",
-        "spring.kafka.consumer.auto-offset-reset=earliest"
+        "spring.kafka.consumer.auto-offset-reset=earliest",
+        "im.room-member-change.publisher=kafka"
 })
 class ImCoreKafkaIntegrationTest {
 
@@ -147,6 +149,27 @@ class ImCoreKafkaIntegrationTest {
         assertThat(rows.get(0).content()).isEqualTo("hello");
     }
 
+    @Test
+    void roomMembershipJoin_shouldEmitRoomMemberChangedEvent() {
+        UUID owner = uuid(1);
+        UUID member = uuid(3);
+        UUID roomId = roomMembershipService.createRoom(owner, "room");
+
+        consumer = newStringConsumer("im-core-it-room-member-changed");
+        consumer.subscribe(List.of(ImTopics.EVENT_ROOM_MEMBER_CHANGED));
+        awaitAssignment(consumer, Duration.ofSeconds(5));
+        consumer.seekToEnd(consumer.assignment());
+        consumer.assignment().forEach(consumer::position);
+
+        roomMembershipService.joinRoom(member, roomId);
+
+        ConsumerRecord<String, String> changedRecord =
+                pollForSingleRecord(consumer, ImTopics.EVENT_ROOM_MEMBER_CHANGED, Duration.ofSeconds(10));
+        assertThat(changedRecord.value())
+                .contains("\"action\":\"JOINED\"")
+                .contains("\"userId\":\"" + member + "\"");
+    }
+
     private Consumer<String, String> newStringConsumer(String groupId) {
         Map<String, Object> props = KafkaTestUtils.consumerProps(groupId, "true", embeddedKafka);
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
@@ -154,6 +177,17 @@ class ImCoreKafkaIntegrationTest {
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         DefaultKafkaConsumerFactory<String, String> cf = new DefaultKafkaConsumerFactory<>(props);
         return cf.createConsumer();
+    }
+
+    private static void awaitAssignment(Consumer<String, String> consumer, Duration timeout) {
+        Instant deadline = Instant.now().plus(timeout);
+        while (Instant.now().isBefore(deadline)) {
+            consumer.poll(Duration.ofMillis(200));
+            if (!consumer.assignment().isEmpty()) {
+                return;
+            }
+        }
+        throw new AssertionError("Timed out waiting for consumer assignment");
     }
 
     private static ConsumerRecord<String, String> pollForSingleRecord(

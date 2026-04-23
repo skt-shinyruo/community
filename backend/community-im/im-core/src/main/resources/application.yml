@@ -45,6 +45,7 @@ im:
   room:
     max-members: ${IM_ROOM_MAX_MEMBERS:10000}
   room-member-change:
+    # kafka publishes RoomMemberChanged to ImTopics.EVENT_ROOM_MEMBER_CHANGED.
     publisher: ${IM_ROOM_MEMBER_CHANGE_PUBLISHER:kafka}
   cors:
     allowed-origins: ${IM_CORS_ALLOWED_ORIGINS:}

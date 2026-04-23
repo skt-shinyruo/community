@@ -5,7 +5,7 @@ import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import com.nowcoder.community.user.contracts.event.UserContractEvent;
 import com.nowcoder.community.user.contracts.event.UserEventTypes;
-import com.nowcoder.community.user.contracts.event.UserModerationChangedPayload;
+import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
 import org.junit.jupiter.api.Test;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -44,10 +44,10 @@ class ImPolicyOutboxEnqueuerTest {
         ImPolicyChangePublisher changePublisher = mock(ImPolicyChangePublisher.class);
         ImPolicyOutboxEnqueuer enqueuer = new ImPolicyOutboxEnqueuer(changePublisher);
 
-        UserModerationChangedPayload payload = new UserModerationChangedPayload();
+        UserPolicyChangedPayload payload = new UserPolicyChangedPayload();
         payload.setUserId(uuid(7));
 
-        enqueuer.onUserEvent(new UserContractEvent("evt-user-1", UserEventTypes.USER_MODERATION_CHANGED, payload));
+        enqueuer.onUserEvent(new UserContractEvent("evt-user-1", UserEventTypes.USER_POLICY_CHANGED, payload));
 
         verify(changePublisher).publishUserPolicyChanged(uuid(7));
     }

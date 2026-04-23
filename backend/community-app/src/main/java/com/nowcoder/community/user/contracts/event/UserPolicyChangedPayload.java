@@ -2,7 +2,7 @@ package com.nowcoder.community.user.contracts.event;
 
 import java.util.UUID;
 
-public class UserModerationChangedPayload {
+public class UserPolicyChangedPayload {
 
     private UUID userId;
 

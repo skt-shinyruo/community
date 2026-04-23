@@ -1,8 +1,8 @@
 package com.nowcoder.community.user.event;
 
-import com.nowcoder.community.user.contracts.event.UserModerationChangedPayload;
+import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
 
 public interface UserEventPublisher {
 
-    void publishUserModerationChanged(UserModerationChangedPayload payload);
+    void publishUserPolicyChanged(UserPolicyChangedPayload payload);
 }

@@ -1,7 +1,9 @@
 package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
 import com.nowcoder.community.user.entity.User;
+import com.nowcoder.community.user.event.UserEventPublisher;
 import com.nowcoder.community.user.exception.UserErrorCode;
 import com.nowcoder.community.user.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
@@ -33,9 +35,12 @@ class UserRegistrationServiceTest {
     @Mock
     private UserMapper userMapper;
 
+    @Mock
+    private UserEventPublisher userEventPublisher;
+
     @Test
     void registerShouldCreatePendingUserWithEncodedPassword() {
-        UserRegistrationService service = new UserRegistrationService(userMapper);
+        UserRegistrationService service = new UserRegistrationService(userMapper, userEventPublisher);
         UUID generatedId = UUID.fromString("018f7f66-3f8f-7a5a-8e32-1a2b3c4d5e6f");
         when(userMapper.selectByName("alice")).thenReturn((User) null).thenReturn((User) null);
         when(userMapper.selectByEmail("alice@example.com")).thenReturn((User) null).thenReturn((User) null);
@@ -56,11 +61,14 @@ class UserRegistrationServiceTest {
         assertThat(userCaptor.getValue().getType()).isEqualTo(0);
         assertThat(userCaptor.getValue().getSalt()).isEmpty();
         assertThat(new BCryptPasswordEncoder().matches("secret", userCaptor.getValue().getPassword())).isTrue();
+        ArgumentCaptor<UserPolicyChangedPayload> payloadCaptor = ArgumentCaptor.forClass(UserPolicyChangedPayload.class);
+        verify(userEventPublisher).publishUserPolicyChanged(payloadCaptor.capture());
+        assertThat(payloadCaptor.getValue().getUserId()).isEqualTo(generatedId);
     }
 
     @Test
     void registerShouldRejectDuplicateUsernameFromPrecheck() {
-        UserRegistrationService service = new UserRegistrationService(userMapper);
+        UserRegistrationService service = new UserRegistrationService(userMapper, userEventPublisher);
         when(userMapper.selectByName("alice")).thenReturn(existingUser(userId(1), "alice", "alice@example.com"));
 
         assertThatThrownBy(() -> service.register("alice", "pw", "alice2@example.com", Duration.ofMinutes(30)))
@@ -73,7 +81,7 @@ class UserRegistrationServiceTest {
 
     @Test
     void registerShouldRejectDuplicateEmailFromPrecheck() {
-        UserRegistrationService service = new UserRegistrationService(userMapper);
+        UserRegistrationService service = new UserRegistrationService(userMapper, userEventPublisher);
         when(userMapper.selectByName("alice")).thenReturn(null);
         when(userMapper.selectByEmail("alice@example.com")).thenReturn(existingUser(userId(2), "bob", "alice@example.com"));
 
@@ -87,7 +95,7 @@ class UserRegistrationServiceTest {
 
     @Test
     void registerShouldTranslateDuplicateKeyRaceForUsername() {
-        UserRegistrationService service = new UserRegistrationService(userMapper);
+        UserRegistrationService service = new UserRegistrationService(userMapper, userEventPublisher);
         when(userMapper.selectByName("alice")).thenReturn((User) null).thenReturn((User) null);
         when(userMapper.selectByEmail("alice@example.com")).thenReturn((User) null);
         when(userMapper.insertUser(any())).thenThrow(new DuplicateKeyException("uk_user_username"));
@@ -100,7 +108,7 @@ class UserRegistrationServiceTest {
 
     @Test
     void registerShouldTranslateDuplicateKeyRaceForEmail() {
-        UserRegistrationService service = new UserRegistrationService(userMapper);
+        UserRegistrationService service = new UserRegistrationService(userMapper, userEventPublisher);
         when(userMapper.selectByName("alice")).thenReturn((User) null).thenReturn((User) null);
         when(userMapper.selectByEmail("alice@example.com")).thenReturn((User) null).thenReturn((User) null);
         when(userMapper.insertUser(any())).thenThrow(new DuplicateKeyException("uk_user_email"));
@@ -113,7 +121,7 @@ class UserRegistrationServiceTest {
 
     @Test
     void registerShouldRecycleExpiredPendingUserBeforeInsert() {
-        UserRegistrationService service = new UserRegistrationService(userMapper);
+        UserRegistrationService service = new UserRegistrationService(userMapper, userEventPublisher);
         User expired = expiredPendingUser(userId(5), "alice", "alice@example.com");
         UUID createdId = userId(7);
         when(userMapper.selectByName("alice")).thenReturn(expired).thenReturn((User) null);
@@ -130,11 +138,14 @@ class UserRegistrationServiceTest {
         assertThat(created.getId()).isEqualTo(createdId);
         verify(userMapper, atLeastOnce()).deletePendingUserIfExpired(any(), anyInt(), any(Date.class));
         verify(userMapper).insertUser(any());
+        ArgumentCaptor<UserPolicyChangedPayload> payloadCaptor = ArgumentCaptor.forClass(UserPolicyChangedPayload.class);
+        verify(userEventPublisher).publishUserPolicyChanged(payloadCaptor.capture());
+        assertThat(payloadCaptor.getValue().getUserId()).isEqualTo(createdId);
     }
 
     @Test
     void getPendingRegistrationUserShouldDeleteExpiredPendingUserAndThrowNotFound() {
-        UserRegistrationService service = new UserRegistrationService(userMapper);
+        UserRegistrationService service = new UserRegistrationService(userMapper, userEventPublisher);
         UUID userId = userId(7);
         when(userMapper.selectById(userId)).thenReturn(expiredPendingUser(userId, "alice", "alice@example.com"));
 
@@ -148,7 +159,7 @@ class UserRegistrationServiceTest {
 
     @Test
     void activateUserShouldUpdateStatusForExistingPendingUser() {
-        UserRegistrationService service = new UserRegistrationService(userMapper);
+        UserRegistrationService service = new UserRegistrationService(userMapper, userEventPublisher);
         UUID userId = userId(7);
         when(userMapper.selectById(userId)).thenReturn(expiredPendingUser(userId, "alice", "alice@example.com"));
         when(userMapper.updateStatus(userId, 1)).thenReturn(1);
@@ -156,11 +167,14 @@ class UserRegistrationServiceTest {
         service.activateUser(userId);
 
         verify(userMapper).updateStatus(userId, 1);
+        ArgumentCaptor<UserPolicyChangedPayload> payloadCaptor = ArgumentCaptor.forClass(UserPolicyChangedPayload.class);
+        verify(userEventPublisher).publishUserPolicyChanged(payloadCaptor.capture());
+        assertThat(payloadCaptor.getValue().getUserId()).isEqualTo(userId);
     }
 
     @Test
     void activateUserShouldThrowWhenStatusUpdateFails() {
-        UserRegistrationService service = new UserRegistrationService(userMapper);
+        UserRegistrationService service = new UserRegistrationService(userMapper, userEventPublisher);
         UUID userId = userId(7);
         when(userMapper.selectById(userId)).thenReturn(existingUser(userId, "alice", "alice@example.com"));
         when(userMapper.updateStatus(userId, 1)).thenReturn(0);
@@ -173,7 +187,7 @@ class UserRegistrationServiceTest {
 
     @Test
     void cleanupExpiredPendingUsersShouldDelegateToMapper() {
-        UserRegistrationService service = new UserRegistrationService(userMapper);
+        UserRegistrationService service = new UserRegistrationService(userMapper, userEventPublisher);
         when(userMapper.deleteExpiredPendingUsers(anyInt(), any(Date.class))).thenReturn(3);
 
         assertThat(service.cleanupExpiredPendingUsers(Duration.ofMinutes(30))).isEqualTo(3);
@@ -182,7 +196,7 @@ class UserRegistrationServiceTest {
 
     @Test
     void deletePendingUserShouldDeleteOnlyPendingUser() {
-        UserRegistrationService service = new UserRegistrationService(userMapper);
+        UserRegistrationService service = new UserRegistrationService(userMapper, userEventPublisher);
         UUID userId = userId(8);
 
         service.deletePendingUser(userId);

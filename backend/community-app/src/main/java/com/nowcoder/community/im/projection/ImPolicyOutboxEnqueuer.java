@@ -5,7 +5,7 @@ import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import com.nowcoder.community.user.contracts.event.UserContractEvent;
 import com.nowcoder.community.user.contracts.event.UserEventTypes;
-import com.nowcoder.community.user.contracts.event.UserModerationChangedPayload;
+import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -41,8 +41,8 @@ public class ImPolicyOutboxEnqueuer {
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT, fallbackExecution = false)
     public void onUserEvent(UserContractEvent event) {
         if (event == null
-                || !UserEventTypes.USER_MODERATION_CHANGED.equals(event.type())
-                || !(event.payload() instanceof UserModerationChangedPayload payload)
+                || !UserEventTypes.USER_POLICY_CHANGED.equals(event.type())
+                || !(event.payload() instanceof UserPolicyChangedPayload payload)
                 || payload.getUserId() == null) {
             return;
         }

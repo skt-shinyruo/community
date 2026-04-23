@@ -7,7 +7,9 @@ import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
 import com.nowcoder.community.user.api.model.PendingRegistrationUserView;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.query.UserPendingRegistrationQueryApi;
+import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
 import com.nowcoder.community.user.entity.User;
+import com.nowcoder.community.user.event.UserEventPublisher;
 import com.nowcoder.community.user.mapper.UserMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -36,16 +38,18 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
 
     private final UserMapper userMapper;
     private final UuidV7Generator idGenerator;
+    private final UserEventPublisher userEventPublisher;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Autowired
-    public UserRegistrationService(UserMapper userMapper) {
-        this(userMapper, new UuidV7Generator());
+    public UserRegistrationService(UserMapper userMapper, UserEventPublisher userEventPublisher) {
+        this(userMapper, new UuidV7Generator(), userEventPublisher);
     }
 
-    UserRegistrationService(UserMapper userMapper, UuidV7Generator idGenerator) {
+    UserRegistrationService(UserMapper userMapper, UuidV7Generator idGenerator, UserEventPublisher userEventPublisher) {
         this.userMapper = userMapper;
         this.idGenerator = idGenerator;
+        this.userEventPublisher = userEventPublisher;
     }
 
     @Override
@@ -106,6 +110,7 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
         if (user.getId() == null) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败");
         }
+        publishUserPolicyChanged(user.getId());
         return user;
     }
 
@@ -146,6 +151,7 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "更新用户状态失败");
         }
         user.setStatus(1);
+        publishUserPolicyChanged(userId);
         return toCredentialView(user);
     }
 
@@ -230,5 +236,14 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
                 user.getType(),
                 user.getHeaderUrl()
         );
+    }
+
+    private void publishUserPolicyChanged(UUID userId) {
+        if (userId == null) {
+            return;
+        }
+        UserPolicyChangedPayload payload = new UserPolicyChangedPayload();
+        payload.setUserId(userId);
+        userEventPublisher.publishUserPolicyChanged(payload);
     }
 }

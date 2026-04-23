@@ -4,7 +4,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.user.api.model.UserModerationStateView;
 import com.nowcoder.community.user.api.query.UserModerationQueryApi;
-import com.nowcoder.community.user.contracts.event.UserModerationChangedPayload;
+import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.event.UserEventPublisher;
 import com.nowcoder.community.user.mapper.UserMapper;
@@ -117,9 +117,9 @@ public class UserModerationService implements UserModerationQueryApi {
         status.setUserId(userId);
         status.setMuteUntil(muteUntil);
         status.setBanUntil(banUntil);
-        UserModerationChangedPayload payload = new UserModerationChangedPayload();
+        UserPolicyChangedPayload payload = new UserPolicyChangedPayload();
         payload.setUserId(userId);
-        userEventPublisher.publishUserModerationChanged(payload);
+        userEventPublisher.publishUserPolicyChanged(payload);
         return status;
     }
 

@@ -3,7 +3,7 @@ package com.nowcoder.community.user.service;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.user.api.model.UserModerationStateView;
-import com.nowcoder.community.user.contracts.event.UserModerationChangedPayload;
+import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.event.UserEventPublisher;
 import com.nowcoder.community.user.exception.UserErrorCode;
@@ -102,9 +102,9 @@ class UserModerationServiceTest {
         assertThat(status.getBanUntil()).isNull();
         assertThat(status.getMuteUntil()).isBetween(before.plusSeconds(120), after.plusSeconds(120));
         verify(userMapper).updateModerationUntil(USER_ID_7, Date.from(status.getMuteUntil()), null);
-        ArgumentCaptor<UserModerationChangedPayload> payloadCaptor =
-                ArgumentCaptor.forClass(UserModerationChangedPayload.class);
-        verify(userEventPublisher).publishUserModerationChanged(payloadCaptor.capture());
+        ArgumentCaptor<UserPolicyChangedPayload> payloadCaptor =
+                ArgumentCaptor.forClass(UserPolicyChangedPayload.class);
+        verify(userEventPublisher).publishUserPolicyChanged(payloadCaptor.capture());
         assertThat(payloadCaptor.getValue().getUserId()).isEqualTo(USER_ID_7);
     }
 
@@ -210,16 +210,16 @@ class UserModerationServiceTest {
     }
 
     @Test
-    void applyModerationShouldPublishUserModerationChangedEventForAffectedUser() {
+    void applyModerationShouldPublishUserPolicyChangedEventForAffectedUser() {
         UserModerationService service = new UserModerationService(userMapper, userEventPublisher);
         when(userMapper.selectById(USER_ID_1)).thenReturn(userWithId(USER_ID_1));
         when(userMapper.updateModerationUntil(eq(USER_ID_1), any(Date.class), isNull())).thenReturn(1);
 
         service.applyModeration(USER_ID_1, "mute", 60);
 
-        ArgumentCaptor<UserModerationChangedPayload> payloadCaptor =
-                ArgumentCaptor.forClass(UserModerationChangedPayload.class);
-        verify(userEventPublisher).publishUserModerationChanged(payloadCaptor.capture());
+        ArgumentCaptor<UserPolicyChangedPayload> payloadCaptor =
+                ArgumentCaptor.forClass(UserPolicyChangedPayload.class);
+        verify(userEventPublisher).publishUserPolicyChanged(payloadCaptor.capture());
         assertThat(payloadCaptor.getValue().getUserId()).isEqualTo(USER_ID_1);
     }
 

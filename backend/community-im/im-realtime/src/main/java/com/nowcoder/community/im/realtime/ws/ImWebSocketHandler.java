@@ -175,14 +175,14 @@ public class ImWebSocketHandler implements WebSocketHandler {
             }
 
             if (conn.userId() != null) {
-                conn.trySendText(frameCodec.write(new ConnectedFrame("connected", conn.sessionId())));
+                conn.trySendText(frameCodec.write(new ConnectedFrame("connected", conn.sessionId(), conn.workerId())));
                 return Mono.empty();
             }
 
             conn.bindSession(ticket.sessionId(), ticket.userId(), ticket.workerId());
             membershipProjectionService.bindExistingRooms(conn, roomLocalIndex);
             connectionRegistry.register(conn);
-            conn.trySendText(frameCodec.write(new ConnectedFrame("connected", ticket.sessionId())));
+            conn.trySendText(frameCodec.write(new ConnectedFrame("connected", ticket.sessionId(), ticket.workerId())));
             infoEvent(
                     CATEGORY_ACCESS,
                     "ws_connect",

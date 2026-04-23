@@ -5,20 +5,39 @@ import com.nowcoder.community.im.common.command.SendPrivateTextCommandV1;
 import com.nowcoder.community.im.common.command.SendRoomTextCommandV1;
 import com.nowcoder.community.im.common.event.PrivateMessagePersistedEventV1;
 import com.nowcoder.community.im.common.event.PrivateMessageRejectedEventV1;
+import com.nowcoder.community.im.common.event.RoomMemberChanged;
 import com.nowcoder.community.im.common.event.RoomMemberChangedEventV1;
 import com.nowcoder.community.im.common.event.RoomMessagePersistedEventV1;
 import com.nowcoder.community.im.common.event.RoomMessageRejectedEventV1;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
+import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
 import com.nowcoder.community.im.common.projection.RoomMembershipEntry;
 import com.nowcoder.community.im.common.projection.RoomMembershipSnapshot;
+import com.nowcoder.community.im.common.projection.UserBlockRelationEntry;
+import com.nowcoder.community.im.common.projection.UserBlockRelationSnapshot;
+import com.nowcoder.community.im.common.projection.UserMessagingPolicyEntry;
+import com.nowcoder.community.im.common.projection.UserMessagingPolicySnapshot;
+import com.nowcoder.community.im.common.session.OpenImSessionRequest;
 import com.nowcoder.community.im.common.session.OpenImSessionResponse;
+import com.nowcoder.community.im.common.ws.AckFrame;
+import com.nowcoder.community.im.common.ws.CommittedFrame;
+import com.nowcoder.community.im.common.ws.ConnectFrame;
+import com.nowcoder.community.im.common.ws.PingFrame;
+import com.nowcoder.community.im.common.ws.PongFrame;
+import com.nowcoder.community.im.common.ws.PrivateMessageFrame;
+import com.nowcoder.community.im.common.ws.RejectFrame;
+import com.nowcoder.community.im.common.ws.RoomMessageFrame;
+import com.nowcoder.community.im.common.ws.SendPrivateTextFrame;
+import com.nowcoder.community.im.common.ws.SendRoomTextFrame;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JsonContractsTest {
 
@@ -38,8 +57,7 @@ class JsonContractsTest {
                 1700000000000L
         );
 
-        String json = objectMapper.writeValueAsString(cmd);
-        SendPrivateTextCommandV1 back = objectMapper.readValue(json, SendPrivateTextCommandV1.class);
+        SendPrivateTextCommandV1 back = roundTrip(cmd, SendPrivateTextCommandV1.class);
         assertEquals(cmd, back);
     }
 
@@ -55,8 +73,7 @@ class JsonContractsTest {
                 1700000000001L
         );
 
-        String json = objectMapper.writeValueAsString(cmd);
-        SendRoomTextCommandV1 back = objectMapper.readValue(json, SendRoomTextCommandV1.class);
+        SendRoomTextCommandV1 back = roundTrip(cmd, SendRoomTextCommandV1.class);
         assertEquals(cmd, back);
     }
 
@@ -77,8 +94,7 @@ class JsonContractsTest {
                 1700000001000L
         );
 
-        String json = objectMapper.writeValueAsString(event);
-        PrivateMessagePersistedEventV1 back = objectMapper.readValue(json, PrivateMessagePersistedEventV1.class);
+        PrivateMessagePersistedEventV1 back = roundTrip(event, PrivateMessagePersistedEventV1.class);
         assertEquals(event, back);
     }
 
@@ -96,8 +112,7 @@ class JsonContractsTest {
                 1700000002000L
         );
 
-        String json = objectMapper.writeValueAsString(event);
-        RoomMessagePersistedEventV1 back = objectMapper.readValue(json, RoomMessagePersistedEventV1.class);
+        RoomMessagePersistedEventV1 back = roundTrip(event, RoomMessagePersistedEventV1.class);
         assertEquals(event, back);
     }
 
@@ -111,8 +126,7 @@ class JsonContractsTest {
                 1700000003000L
         );
 
-        String json = objectMapper.writeValueAsString(event);
-        RoomMemberChangedEventV1 back = objectMapper.readValue(json, RoomMemberChangedEventV1.class);
+        RoomMemberChangedEventV1 back = roundTrip(event, RoomMemberChangedEventV1.class);
         assertEquals(event, back);
     }
 
@@ -133,8 +147,7 @@ class JsonContractsTest {
                 1700000004000L
         );
 
-        String json = objectMapper.writeValueAsString(event);
-        PrivateMessageRejectedEventV1 back = objectMapper.readValue(json, PrivateMessageRejectedEventV1.class);
+        PrivateMessageRejectedEventV1 back = roundTrip(event, PrivateMessageRejectedEventV1.class);
         assertEquals(event, back);
     }
 
@@ -152,9 +165,21 @@ class JsonContractsTest {
                 1700000005000L
         );
 
-        String json = objectMapper.writeValueAsString(event);
-        RoomMessageRejectedEventV1 back = objectMapper.readValue(json, RoomMessageRejectedEventV1.class);
+        RoomMessageRejectedEventV1 back = roundTrip(event, RoomMessageRejectedEventV1.class);
         assertEquals(event, back);
+    }
+
+    @Test
+    void shouldRoundTripOpenImSessionRequest() throws Exception {
+        OpenImSessionRequest request = new OpenImSessionRequest(Map.of(
+                "deviceId", "ios-1",
+                "clientVersion", "1.0.0"
+        ));
+
+        OpenImSessionRequest back = roundTrip(request, OpenImSessionRequest.class);
+
+        assertEquals("ios-1", back.metadata().get("deviceId"));
+        assertEquals("1.0.0", back.metadata().get("clientVersion"));
     }
 
     @Test
@@ -167,11 +192,128 @@ class JsonContractsTest {
                 1_712_345_678_901L
         );
 
-        String json = objectMapper.writeValueAsString(response);
-        OpenImSessionResponse back = objectMapper.readValue(json, OpenImSessionResponse.class);
+        OpenImSessionResponse back = roundTrip(response, OpenImSessionResponse.class);
 
-        assertThat(back.workerId()).isEqualTo("worker-a");
-        assertThat(back.wsUrl()).contains("/ws/im/workers/worker-a");
+        assertEquals("worker-a", back.workerId());
+        assertTrue(back.wsUrl().contains("/ws/im/workers/worker-a"));
+    }
+
+    @Test
+    void shouldRoundTripConnectFrame() throws Exception {
+        ConnectFrame frame = new ConnectFrame("connect", "ticket-1");
+
+        ConnectFrame back = roundTrip(frame, ConnectFrame.class);
+        assertEquals(frame, back);
+    }
+
+    @Test
+    void shouldRoundTripSendPrivateTextFrame() throws Exception {
+        SendPrivateTextFrame frame = new SendPrivateTextFrame(
+                "sendPrivateText",
+                "cmsg-6",
+                uuid(21),
+                "hello private"
+        );
+
+        SendPrivateTextFrame back = roundTrip(frame, SendPrivateTextFrame.class);
+        assertEquals(frame, back);
+    }
+
+    @Test
+    void shouldRoundTripSendRoomTextFrame() throws Exception {
+        SendRoomTextFrame frame = new SendRoomTextFrame(
+                "sendRoomText",
+                "cmsg-7",
+                uuid(2001),
+                "hello room frame"
+        );
+
+        SendRoomTextFrame back = roundTrip(frame, SendRoomTextFrame.class);
+        assertEquals(frame, back);
+    }
+
+    @Test
+    void shouldRoundTripAckFrame() throws Exception {
+        AckFrame frame = new AckFrame("ack", "sendPrivateText", "cmsg-8", "req-8");
+
+        AckFrame back = roundTrip(frame, AckFrame.class);
+        assertEquals(frame, back);
+    }
+
+    @Test
+    void shouldRoundTripRejectFrame() throws Exception {
+        RejectFrame frame = new RejectFrame(
+                "reject",
+                "sendRoomText",
+                "cmsg-9",
+                "req-9",
+                403,
+                "not_room_member",
+                "not a room member"
+        );
+
+        RejectFrame back = roundTrip(frame, RejectFrame.class);
+        assertEquals(frame, back);
+    }
+
+    @Test
+    void shouldRoundTripCommittedFrame() throws Exception {
+        CommittedFrame frame = new CommittedFrame("committed", "sendPrivateText", "cmsg-10", "req-10");
+
+        CommittedFrame back = roundTrip(frame, CommittedFrame.class);
+        assertEquals(frame, back);
+    }
+
+    @Test
+    void shouldRoundTripPrivateMessageFrame() throws Exception {
+        PrivateMessageFrame frame = new PrivateMessageFrame(
+                "privateMessage",
+                conversationId(uuid(31), uuid(32)),
+                12L,
+                uuid(12001),
+                uuid(31),
+                uuid(32),
+                "persisted hello",
+                1_712_345_678_901L
+        );
+
+        PrivateMessageFrame back = roundTrip(frame, PrivateMessageFrame.class);
+        assertEquals(frame, back);
+    }
+
+    @Test
+    void shouldRoundTripRoomMessageFrame() throws Exception {
+        RoomMessageFrame frame = new RoomMessageFrame(
+                "roomMessage",
+                uuid(3001),
+                14L,
+                uuid(14001),
+                uuid(41),
+                1_712_345_678_902L
+        );
+
+        RoomMessageFrame back = roundTrip(frame, RoomMessageFrame.class);
+        assertEquals(frame, back);
+    }
+
+    @Test
+    void shouldRoundTripPingAndPongFrames() throws Exception {
+        PingFrame ping = new PingFrame("ping", 1_712_345_678_903L);
+        PongFrame pong = new PongFrame("pong", 1_712_345_678_903L);
+
+        PingFrame pingBack = roundTrip(ping, PingFrame.class);
+        PongFrame pongBack = roundTrip(pong, PongFrame.class);
+
+        assertEquals(ping, pingBack);
+        assertEquals(pong, pongBack);
+    }
+
+    @Test
+    void shouldRoundTripRoomMembershipEntry() throws Exception {
+        RoomMembershipEntry entry = new RoomMembershipEntry(uuid(10), uuid(1));
+
+        RoomMembershipEntry back = roundTrip(entry, RoomMembershipEntry.class);
+        assertEquals(entry, back);
     }
 
     @Test
@@ -186,11 +328,81 @@ class JsonContractsTest {
                 false
         );
 
-        String json = objectMapper.writeValueAsString(snapshot);
-        RoomMembershipSnapshot back = objectMapper.readValue(json, RoomMembershipSnapshot.class);
+        RoomMembershipSnapshot back = roundTrip(snapshot, RoomMembershipSnapshot.class);
 
-        assertThat(back.entries()).hasSize(1);
-        assertThat(back.entries().get(0).roomId()).isEqualTo(snapshot.entries().get(0).roomId());
+        assertEquals(1, back.entries().size());
+        assertEquals(snapshot.entries().get(0).roomId(), back.entries().get(0).roomId());
+        assertEquals(snapshot.entries().get(0).userId(), back.entries().get(0).userId());
+        assertFalse(back.hasMore());
+    }
+
+    @Test
+    void shouldRoundTripUserMessagingPolicySnapshot() throws Exception {
+        UserMessagingPolicySnapshot snapshot = new UserMessagingPolicySnapshot(
+                List.of(new UserMessagingPolicyEntry(
+                        uuid(51),
+                        true,
+                        false,
+                        true,
+                        false
+                )),
+                uuid(52),
+                true
+        );
+
+        UserMessagingPolicySnapshot back = roundTrip(snapshot, UserMessagingPolicySnapshot.class);
+
+        assertEquals(snapshot, back);
+        assertTrue(back.hasMore());
+    }
+
+    @Test
+    void shouldRoundTripUserBlockRelationSnapshot() throws Exception {
+        UserBlockRelationSnapshot snapshot = new UserBlockRelationSnapshot(
+                List.of(new UserBlockRelationEntry(
+                        uuid(61),
+                        uuid(62),
+                        true
+                )),
+                uuid(63),
+                uuid(64),
+                false
+        );
+
+        UserBlockRelationSnapshot back = roundTrip(snapshot, UserBlockRelationSnapshot.class);
+
+        assertEquals(snapshot, back);
+        assertFalse(back.hasMore());
+    }
+
+    @Test
+    void shouldRoundTripRoomMemberChangedEvent() throws Exception {
+        RoomMemberChanged event = new RoomMemberChanged(
+                "evt-room-member-1",
+                uuid(71),
+                uuid(72),
+                true,
+                1_712_345_678_904L
+        );
+
+        RoomMemberChanged back = roundTrip(event, RoomMemberChanged.class);
+        assertEquals(event, back);
+    }
+
+    @Test
+    void shouldRoundTripUserMessagingPolicyChanged() throws Exception {
+        UserMessagingPolicyChanged event = new UserMessagingPolicyChanged(
+                "evt-policy-1",
+                uuid(81),
+                true,
+                false,
+                true,
+                false,
+                1_712_345_678_905L
+        );
+
+        UserMessagingPolicyChanged back = roundTrip(event, UserMessagingPolicyChanged.class);
+        assertEquals(event, back);
     }
 
     @Test
@@ -203,21 +415,22 @@ class JsonContractsTest {
                 1_712_345_678_901L
         );
 
-        String json = objectMapper.writeValueAsString(event);
-        UserBlockRelationChanged back = objectMapper.readValue(json, UserBlockRelationChanged.class);
+        UserBlockRelationChanged back = roundTrip(event, UserBlockRelationChanged.class);
 
-        assertThat(back.active()).isTrue();
-        assertThat(back.blockerUserId()).isEqualTo(event.blockerUserId());
+        assertTrue(back.active());
+        assertEquals(event.blockerUserId(), back.blockerUserId());
     }
 
     @Test
     void shouldExposeNewProjectionTopics() {
-        assertThat(ImTopics.EVENT_ROOM_MEMBER_CHANGED)
-                .isEqualTo("im.event.room-member-changed");
-        assertThat(ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED)
-                .isEqualTo("im.event.user-messaging-policy-changed");
-        assertThat(ImTopics.EVENT_USER_BLOCK_RELATION_CHANGED)
-                .isEqualTo("im.event.user-block-relation-changed");
+        assertEquals("im.event.room-member-changed", ImTopics.EVENT_ROOM_MEMBER_CHANGED);
+        assertEquals("im.event.user-messaging-policy-changed", ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED);
+        assertEquals("im.event.user-block-relation-changed", ImTopics.EVENT_USER_BLOCK_RELATION_CHANGED);
+    }
+
+    private <T> T roundTrip(T value, Class<T> type) throws Exception {
+        String json = objectMapper.writeValueAsString(value);
+        return objectMapper.readValue(json, type);
     }
 
     private static UUID uuid(long suffix) {

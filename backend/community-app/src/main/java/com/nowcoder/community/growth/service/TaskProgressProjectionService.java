@@ -4,9 +4,6 @@ import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.PostPayload;
-import com.nowcoder.community.growth.event.GrowthEventTypes;
-import com.nowcoder.community.growth.event.GrowthLocalEvent;
-import com.nowcoder.community.growth.event.payload.CheckInPayload;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
@@ -49,16 +46,6 @@ public class TaskProgressProjectionService {
             return null;
         }
         return new TaskProgressProjectionCommand(toUserId, event.type(), event.eventId(), toDate(payload.getCreateTime()));
-    }
-
-    public TaskProgressProjectionCommand commandForGrowthEvent(GrowthLocalEvent event) {
-        if (event == null || !GrowthEventTypes.CHECK_IN_COMPLETED.equals(event.type()) || !(event.payload() instanceof CheckInPayload payload)) {
-            return null;
-        }
-        if (payload.getBizDate() == null) {
-            return null;
-        }
-        return new TaskProgressProjectionCommand(payload.getUserId(), event.type(), event.eventId(), payload.getBizDate());
     }
 
     public void project(TaskProgressProjectionCommand command) {

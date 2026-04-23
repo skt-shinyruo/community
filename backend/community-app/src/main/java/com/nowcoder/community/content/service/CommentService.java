@@ -14,7 +14,9 @@ import com.nowcoder.community.content.event.ContentEventPublisher;
 import com.nowcoder.community.content.score.PostScoreQueue;
 import com.nowcoder.community.content.text.ContentTextCodec;
 import com.nowcoder.community.content.util.SensitiveFilter;
+import com.nowcoder.community.growth.service.TaskProgressTriggerService;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
+import com.nowcoder.community.user.service.PointsAwardService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,8 +52,9 @@ public class CommentService {
     private final UserModerationGuard moderationGuard;
     private final ContentTextCodec textCodec;
     private final UuidV7Generator idGenerator;
+    private final PointsAwardService pointsAwardService;
+    private final TaskProgressTriggerService taskProgressTriggerService;
 
-    @Autowired
     public CommentService(
             CommentMapper commentMapper,
             PostService postService,
@@ -62,7 +65,47 @@ public class CommentService {
             UserModerationGuard moderationGuard,
             ContentTextCodec textCodec
     ) {
-        this(commentMapper, postService, sensitiveFilter, postScoreQueue, eventPublisher, blockQueryApi, moderationGuard, textCodec, new UuidV7Generator());
+        this(
+                commentMapper,
+                postService,
+                sensitiveFilter,
+                postScoreQueue,
+                eventPublisher,
+                blockQueryApi,
+                moderationGuard,
+                textCodec,
+                new UuidV7Generator(),
+                null,
+                null
+        );
+    }
+
+    @Autowired
+    CommentService(
+            CommentMapper commentMapper,
+            PostService postService,
+            SensitiveFilter sensitiveFilter,
+            PostScoreQueue postScoreQueue,
+            ContentEventPublisher eventPublisher,
+            SocialBlockQueryApi blockQueryApi,
+            UserModerationGuard moderationGuard,
+            ContentTextCodec textCodec,
+            PointsAwardService pointsAwardService,
+            TaskProgressTriggerService taskProgressTriggerService
+    ) {
+        this(
+                commentMapper,
+                postService,
+                sensitiveFilter,
+                postScoreQueue,
+                eventPublisher,
+                blockQueryApi,
+                moderationGuard,
+                textCodec,
+                new UuidV7Generator(),
+                pointsAwardService,
+                taskProgressTriggerService
+        );
     }
 
     CommentService(
@@ -76,6 +119,34 @@ public class CommentService {
             ContentTextCodec textCodec,
             UuidV7Generator idGenerator
     ) {
+        this(
+                commentMapper,
+                postService,
+                sensitiveFilter,
+                postScoreQueue,
+                eventPublisher,
+                blockQueryApi,
+                moderationGuard,
+                textCodec,
+                idGenerator,
+                null,
+                null
+        );
+    }
+
+    CommentService(
+            CommentMapper commentMapper,
+            PostService postService,
+            SensitiveFilter sensitiveFilter,
+            PostScoreQueue postScoreQueue,
+            ContentEventPublisher eventPublisher,
+            SocialBlockQueryApi blockQueryApi,
+            UserModerationGuard moderationGuard,
+            ContentTextCodec textCodec,
+            UuidV7Generator idGenerator,
+            PointsAwardService pointsAwardService,
+            TaskProgressTriggerService taskProgressTriggerService
+    ) {
         this.commentMapper = commentMapper;
         this.postService = postService;
         this.sensitiveFilter = sensitiveFilter;
@@ -85,6 +156,8 @@ public class CommentService {
         this.moderationGuard = moderationGuard;
         this.textCodec = textCodec;
         this.idGenerator = idGenerator;
+        this.pointsAwardService = pointsAwardService;
+        this.taskProgressTriggerService = taskProgressTriggerService;
     }
 
     public List<Comment> listByPost(UUID postId, int page, int size) {
@@ -243,6 +316,12 @@ public class CommentService {
         payload.setTargetUserId(targetUserId);
         payload.setContent(textCodec.decodeOnRead(safe));
         payload.setCreateTime(Instant.now());
+        if (pointsAwardService != null) {
+            pointsAwardService.awardCommentCreated(payload);
+        }
+        if (taskProgressTriggerService != null) {
+            taskProgressTriggerService.triggerCommentCreated(payload);
+        }
         eventPublisher.publishCommentCreated(payload);
 
         return comment.getId();

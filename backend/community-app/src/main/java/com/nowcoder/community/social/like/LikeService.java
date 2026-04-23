@@ -8,8 +8,11 @@ import com.nowcoder.community.social.event.SocialEventPublisher;
 import com.nowcoder.community.social.like.dto.LikeRequest;
 import com.nowcoder.community.social.like.dto.LikeResponse;
 import com.nowcoder.community.social.service.ContentEntityResolver;
+import com.nowcoder.community.growth.service.TaskProgressTriggerService;
+import com.nowcoder.community.user.service.PointsAwardService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -35,17 +38,24 @@ public class LikeService implements SocialLikeQueryApi {
     private final SocialEventPublisher eventPublisher;
     private final ContentEntityResolver contentEntityResolver;
     private final BlockService blockService;
+    private final PointsAwardService pointsAwardService;
+    private final TaskProgressTriggerService taskProgressTriggerService;
 
+    @Autowired
     public LikeService(
             LikeRepository likeRepository,
             SocialEventPublisher eventPublisher,
             ContentEntityResolver contentEntityResolver,
-            BlockService blockService
+            BlockService blockService,
+            PointsAwardService pointsAwardService,
+            TaskProgressTriggerService taskProgressTriggerService
     ) {
         this.likeRepository = likeRepository;
         this.eventPublisher = eventPublisher;
         this.contentEntityResolver = contentEntityResolver;
         this.blockService = blockService;
+        this.pointsAwardService = pointsAwardService;
+        this.taskProgressTriggerService = taskProgressTriggerService;
     }
 
     @Transactional
@@ -101,10 +111,23 @@ public class LikeService implements SocialLikeQueryApi {
         payload.setEntityUserId(entityUserId);
         payload.setPostId(resolved.postId);
         payload.setCreateTime(Instant.now());
+        String sideEffectEventId = null;
         try {
             if (liked) {
+                if (pointsAwardService != null) {
+                    sideEffectEventId = ensureSideEffectEventId(sideEffectEventId, "like-created");
+                    pointsAwardService.awardLikeCreated(sideEffectEventId, payload);
+                }
+                if (taskProgressTriggerService != null) {
+                    sideEffectEventId = ensureSideEffectEventId(sideEffectEventId, "like-created");
+                    taskProgressTriggerService.triggerLikeCreated(sideEffectEventId, payload);
+                }
                 eventPublisher.publishLikeCreated(payload);
             } else {
+                if (pointsAwardService != null) {
+                    sideEffectEventId = ensureSideEffectEventId(sideEffectEventId, "like-removed");
+                    pointsAwardService.awardLikeRemoved(sideEffectEventId, payload);
+                }
                 eventPublisher.publishLikeRemoved(payload);
             }
         } catch (RuntimeException ex) {
@@ -119,6 +142,13 @@ public class LikeService implements SocialLikeQueryApi {
             throw ex;
         }
         return buildResponse(actorUserId, entityType, entityId);
+    }
+
+    private String ensureSideEffectEventId(String currentEventId, String prefix) {
+        if (currentEventId != null) {
+            return currentEventId;
+        }
+        return prefix + ":" + UUID.randomUUID();
     }
 
     private void registerRollbackIfTxRolledBack(Runnable rollback) {

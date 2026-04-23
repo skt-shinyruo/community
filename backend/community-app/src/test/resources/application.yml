@@ -69,7 +69,7 @@ content:
 
 events:
   outbox:
-    enabled: false
+    enabled: true
 
 user:
   events:

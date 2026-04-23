@@ -7,18 +7,12 @@ import com.nowcoder.community.common.outbox.OutboxHandler;
 import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
-import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
-import com.nowcoder.community.user.api.model.UserModerationStateView;
-import com.nowcoder.community.user.api.model.UserSummaryView;
-import com.nowcoder.community.user.api.query.UserLookupQueryApi;
-import com.nowcoder.community.user.api.query.UserModerationQueryApi;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
 
@@ -30,22 +24,13 @@ public class ImPolicyKafkaOutboxHandler implements OutboxHandler {
     public static final String TOPIC = ImPolicyChangePublisher.TOPIC;
 
     private final ObjectMapper objectMapper;
-    private final UserModerationQueryApi userModerationQueryApi;
-    private final SocialBlockQueryApi socialBlockQueryApi;
-    private final UserLookupQueryApi userLookupQueryApi;
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
     public ImPolicyKafkaOutboxHandler(
             ObjectMapper objectMapper,
-            UserModerationQueryApi userModerationQueryApi,
-            SocialBlockQueryApi socialBlockQueryApi,
-            UserLookupQueryApi userLookupQueryApi,
             KafkaTemplate<String, Object> kafkaTemplate
     ) {
         this.objectMapper = objectMapper;
-        this.userModerationQueryApi = userModerationQueryApi;
-        this.socialBlockQueryApi = socialBlockQueryApi;
-        this.userLookupQueryApi = userLookupQueryApi;
         this.kafkaTemplate = kafkaTemplate;
     }
 
@@ -68,53 +53,37 @@ public class ImPolicyKafkaOutboxHandler implements OutboxHandler {
         }
 
         String kind = text(payload, "kind");
-        if ("MODERATION".equalsIgnoreCase(kind)) {
-            publishModerationState(event, firstUuid(payload, "primaryUserId", "userId"));
+        if ("USER_POLICY".equalsIgnoreCase(kind) || "MODERATION".equalsIgnoreCase(kind)) {
+            publishModerationState(event, payload);
             return;
         }
         if ("BLOCK".equalsIgnoreCase(kind)) {
-            publishBlockState(
-                    event,
-                    firstUuid(payload, "primaryUserId", "blockerUserId"),
-                    firstUuid(payload, "secondaryUserId", "blockedUserId")
-            );
+            publishBlockState(event, payload);
         }
     }
 
-    private void publishModerationState(OutboxEvent event, UUID userId) {
+    private void publishModerationState(OutboxEvent event, JsonNode payload) {
+        UUID userId = firstUuid(payload, "primaryUserId", "userId");
         if (userId == null) {
             return;
         }
-        Instant now = Instant.now();
-        UserSummaryView summary = userLookupQueryApi.getSummaryById(userId);
-        boolean userExists = summary != null && summary.id() != null;
-        boolean suspended = false;
-        boolean muted = false;
-        Long muteUntil = null;
-        Long banUntil = null;
-        if (userExists) {
-            UserModerationStateView state = userModerationQueryApi.getModerationState(userId);
-            muteUntil = toEpochMillis(state == null ? null : state.muteUntil());
-            banUntil = toEpochMillis(state == null ? null : state.banUntil());
-            suspended = isActive(state == null ? null : state.banUntil(), now);
-            muted = isActive(state == null ? null : state.muteUntil(), now);
-        }
-
         UserMessagingPolicyChanged changed = new UserMessagingPolicyChanged(
                 event.eventId(),
                 userId,
-                userExists,
-                suspended,
-                muted,
-                muteUntil,
-                banUntil,
-                userExists && !suspended && !muted,
-                now.toEpochMilli()
+                booleanValue(payload, "userExists"),
+                booleanValue(payload, "suspended"),
+                booleanValue(payload, "muted"),
+                longValue(payload, "muteUntil"),
+                longValue(payload, "banUntil"),
+                booleanValue(payload, "canSendPrivate"),
+                requiredLongValue(payload, "occurredAtEpochMillis")
         );
         sendToKafka(ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED, userId.toString(), changed);
     }
 
-    private void publishBlockState(OutboxEvent event, UUID blockerUserId, UUID blockedUserId) {
+    private void publishBlockState(OutboxEvent event, JsonNode payload) {
+        UUID blockerUserId = firstUuid(payload, "primaryUserId", "blockerUserId");
+        UUID blockedUserId = firstUuid(payload, "secondaryUserId", "blockedUserId");
         if (blockerUserId == null || blockedUserId == null) {
             return;
         }
@@ -122,8 +91,8 @@ public class ImPolicyKafkaOutboxHandler implements OutboxHandler {
                 event.eventId(),
                 blockerUserId,
                 blockedUserId,
-                socialBlockQueryApi.hasBlocked(blockerUserId, blockedUserId),
-                Instant.now().toEpochMilli()
+                booleanValue(payload, "active"),
+                requiredLongValue(payload, "occurredAtEpochMillis")
         );
         sendToKafka(ImTopics.EVENT_USER_BLOCK_RELATION_CHANGED, blockerUserId.toString(), changed);
     }
@@ -135,14 +104,6 @@ public class ImPolicyKafkaOutboxHandler implements OutboxHandler {
             Throwable cause = e.getCause() == null ? e : e.getCause();
             throw new IllegalStateException("im policy kafka publish failed: " + topic, cause);
         }
-    }
-
-    private boolean isActive(Instant until, Instant now) {
-        return until != null && until.isAfter(now);
-    }
-
-    private Long toEpochMillis(Instant until) {
-        return until == null ? null : until.toEpochMilli();
     }
 
     private String text(JsonNode node, String fieldName) {
@@ -165,5 +126,29 @@ public class ImPolicyKafkaOutboxHandler implements OutboxHandler {
             }
         }
         return null;
+    }
+
+    private boolean booleanValue(JsonNode node, String fieldName) {
+        if (node == null || fieldName == null) {
+            return false;
+        }
+        JsonNode value = node.get(fieldName);
+        return value != null && !value.isNull() && value.asBoolean(false);
+    }
+
+    private Long longValue(JsonNode node, String fieldName) {
+        if (node == null || fieldName == null) {
+            return null;
+        }
+        JsonNode value = node.get(fieldName);
+        return value == null || value.isNull() ? null : value.asLong();
+    }
+
+    private long requiredLongValue(JsonNode node, String fieldName) {
+        Long value = longValue(node, fieldName);
+        if (value == null) {
+            throw new IllegalStateException("im policy outbox payload 缺少字段: " + fieldName);
+        }
+        return value;
     }
 }

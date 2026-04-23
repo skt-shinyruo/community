@@ -46,6 +46,6 @@ public class ImPolicyOutboxEnqueuer {
                 || payload.getUserId() == null) {
             return;
         }
-        imPolicyChangePublisher.publishUserPolicyChanged(payload.getUserId());
+        imPolicyChangePublisher.publishUserPolicyChanged(payload);
     }
 }

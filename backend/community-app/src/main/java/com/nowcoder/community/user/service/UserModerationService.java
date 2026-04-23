@@ -117,9 +117,7 @@ public class UserModerationService implements UserModerationQueryApi {
         status.setUserId(userId);
         status.setMuteUntil(muteUntil);
         status.setBanUntil(banUntil);
-        UserPolicyChangedPayload payload = new UserPolicyChangedPayload();
-        payload.setUserId(userId);
-        userEventPublisher.publishUserPolicyChanged(payload);
+        userEventPublisher.publishUserPolicyChanged(toUserPolicyChangedPayload(status, System.currentTimeMillis()));
         return status;
     }
 
@@ -142,6 +140,25 @@ public class UserModerationService implements UserModerationQueryApi {
             return null;
         }
         return new UserModerationStateView(status.getUserId(), status.getMuteUntil(), status.getBanUntil());
+    }
+
+    private UserPolicyChangedPayload toUserPolicyChangedPayload(ModerationStatus status, long occurredAtEpochMillis) {
+        Instant occurredAt = Instant.ofEpochMilli(occurredAtEpochMillis);
+        Long muteUntil = status == null || status.getMuteUntil() == null ? null : status.getMuteUntil().toEpochMilli();
+        Long banUntil = status == null || status.getBanUntil() == null ? null : status.getBanUntil().toEpochMilli();
+        boolean suspended = banUntil != null && status.getBanUntil().isAfter(occurredAt);
+        boolean muted = muteUntil != null && status.getMuteUntil().isAfter(occurredAt);
+
+        UserPolicyChangedPayload payload = new UserPolicyChangedPayload();
+        payload.setUserId(status == null ? null : status.getUserId());
+        payload.setUserExists(status != null && status.getUserId() != null);
+        payload.setSuspended(suspended);
+        payload.setMuted(muted);
+        payload.setMuteUntil(muteUntil);
+        payload.setBanUntil(banUntil);
+        payload.setCanSendPrivate(payload.isUserExists() && !suspended && !muted);
+        payload.setOccurredAtEpochMillis(occurredAtEpochMillis);
+        return payload;
     }
 
     private String safeTrim(String value) {

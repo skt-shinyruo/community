@@ -5,11 +5,6 @@ import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
-import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
-import com.nowcoder.community.user.api.model.UserModerationStateView;
-import com.nowcoder.community.user.api.model.UserSummaryView;
-import com.nowcoder.community.user.api.query.UserLookupQueryApi;
-import com.nowcoder.community.user.api.query.UserModerationQueryApi;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -39,9 +34,6 @@ class ImPolicyKafkaOutboxHandlerTest {
                 .singleElement()
                 .satisfies(constructor -> assertThat(constructor.getParameterTypes()).containsExactly(
                         ObjectMapper.class,
-                        UserModerationQueryApi.class,
-                        SocialBlockQueryApi.class,
-                        UserLookupQueryApi.class,
                         KafkaTemplate.class
                 ));
     }
@@ -49,31 +41,22 @@ class ImPolicyKafkaOutboxHandlerTest {
     @Test
     void moderationOutboxShouldPublishCurrentPolicyState() {
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
-        UserModerationQueryApi moderationQueryApi = mock(UserModerationQueryApi.class);
-        SocialBlockQueryApi socialBlockQueryApi = mock(SocialBlockQueryApi.class);
-        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
         Instant muteUntil = Instant.parse("2026-04-24T09:15:30Z");
         Instant expiredBanUntil = Instant.parse("2026-04-22T09:15:30Z");
-        when(moderationQueryApi.getModerationState(uuid(7)))
-                .thenReturn(new UserModerationStateView(uuid(7), muteUntil, expiredBanUntil));
-        when(userLookupQueryApi.getSummaryById(uuid(7))).thenReturn(new UserSummaryView(uuid(7), "u7", "/avatar.png", 0));
         when(kafkaTemplate.send(eq(ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED), eq(uuid(7).toString()), any()))
                 .thenReturn(completedSend());
 
-        ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(
-                objectMapper,
-                moderationQueryApi,
-                socialBlockQueryApi,
-                userLookupQueryApi,
-                kafkaTemplate
-        );
+        ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(objectMapper, kafkaTemplate);
 
         handler.handle(new OutboxEvent(
                 UUID.randomUUID(),
                 "evt-policy-1",
                 ImPolicyKafkaOutboxHandler.TOPIC,
                 uuid(7).toString(),
-                "{\"kind\":\"MODERATION\",\"userId\":\"" + uuid(7) + "\"}",
+                "{\"kind\":\"USER_POLICY\",\"primaryUserId\":\"" + uuid(7)
+                        + "\",\"userExists\":true,\"suspended\":false,\"muted\":true,\"muteUntil\":" + muteUntil.toEpochMilli()
+                        + ",\"banUntil\":" + expiredBanUntil.toEpochMilli()
+                        + ",\"canSendPrivate\":false,\"occurredAtEpochMillis\":1712345678901}",
                 "PENDING",
                 0,
                 null,
@@ -94,27 +77,19 @@ class ImPolicyKafkaOutboxHandlerTest {
     @Test
     void blockOutboxShouldPublishCurrentBlockState() {
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
-        UserModerationQueryApi moderationQueryApi = mock(UserModerationQueryApi.class);
-        SocialBlockQueryApi socialBlockQueryApi = mock(SocialBlockQueryApi.class);
-        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
-        when(socialBlockQueryApi.hasBlocked(uuid(7), uuid(8))).thenReturn(true);
         when(kafkaTemplate.send(eq(ImTopics.EVENT_USER_BLOCK_RELATION_CHANGED), eq(uuid(7).toString()), any()))
                 .thenReturn(completedSend());
 
-        ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(
-                objectMapper,
-                moderationQueryApi,
-                socialBlockQueryApi,
-                userLookupQueryApi,
-                kafkaTemplate
-        );
+        ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(objectMapper, kafkaTemplate);
 
         handler.handle(new OutboxEvent(
                 UUID.randomUUID(),
                 "evt-policy-2",
                 ImPolicyKafkaOutboxHandler.TOPIC,
                 uuid(7).toString(),
-                "{\"kind\":\"BLOCK\",\"primaryUserId\":\"" + uuid(7) + "\",\"secondaryUserId\":\"" + uuid(8) + "\"}",
+                "{\"kind\":\"BLOCK\",\"primaryUserId\":\"" + uuid(7)
+                        + "\",\"secondaryUserId\":\"" + uuid(8)
+                        + "\",\"active\":true,\"occurredAtEpochMillis\":1712345678902}",
                 "PENDING",
                 0,
                 null,
@@ -127,29 +102,19 @@ class ImPolicyKafkaOutboxHandlerTest {
     @Test
     void kafkaPublishFailureShouldFailOutboxHandlingForRetry() {
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
-        UserModerationQueryApi moderationQueryApi = mock(UserModerationQueryApi.class);
-        SocialBlockQueryApi socialBlockQueryApi = mock(SocialBlockQueryApi.class);
-        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
-        when(moderationQueryApi.getModerationState(uuid(7)))
-                .thenReturn(new UserModerationStateView(uuid(7), Instant.now().plusSeconds(60), null));
-        when(userLookupQueryApi.getSummaryById(uuid(7))).thenReturn(new UserSummaryView(uuid(7), "u7", "/avatar.png", 0));
         when(kafkaTemplate.send(eq(ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED), eq(uuid(7).toString()), any()))
                 .thenReturn(failedSend());
 
-        ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(
-                objectMapper,
-                moderationQueryApi,
-                socialBlockQueryApi,
-                userLookupQueryApi,
-                kafkaTemplate
-        );
+        ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(objectMapper, kafkaTemplate);
 
         assertThatThrownBy(() -> handler.handle(new OutboxEvent(
                 UUID.randomUUID(),
                 "evt-policy-1",
                 ImPolicyKafkaOutboxHandler.TOPIC,
                 uuid(7).toString(),
-                "{\"kind\":\"MODERATION\",\"userId\":\"" + uuid(7) + "\"}",
+                "{\"kind\":\"USER_POLICY\",\"primaryUserId\":\"" + uuid(7)
+                        + "\",\"userExists\":true,\"suspended\":false,\"muted\":false,\"muteUntil\":null,\"banUntil\":null"
+                        + ",\"canSendPrivate\":true,\"occurredAtEpochMillis\":1712345678903}",
                 "PENDING",
                 0,
                 null,

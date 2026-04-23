@@ -7,6 +7,7 @@ import com.nowcoder.community.user.contracts.event.UserContractEvent;
 import com.nowcoder.community.user.contracts.event.UserEventTypes;
 import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,9 +47,15 @@ class ImPolicyOutboxEnqueuerTest {
 
         UserPolicyChangedPayload payload = new UserPolicyChangedPayload();
         payload.setUserId(uuid(7));
+        payload.setUserExists(true);
+        payload.setCanSendPrivate(true);
+        payload.setOccurredAtEpochMillis(1712345678901L);
 
         enqueuer.onUserEvent(new UserContractEvent("evt-user-1", UserEventTypes.USER_POLICY_CHANGED, payload));
 
-        verify(changePublisher).publishUserPolicyChanged(uuid(7));
+        ArgumentCaptor<UserPolicyChangedPayload> payloadCaptor = ArgumentCaptor.forClass(UserPolicyChangedPayload.class);
+        verify(changePublisher).publishUserPolicyChanged(payloadCaptor.capture());
+        assertThat(payloadCaptor.getValue().getUserId()).isEqualTo(uuid(7));
+        assertThat(payloadCaptor.getValue().isUserExists()).isTrue();
     }
 }

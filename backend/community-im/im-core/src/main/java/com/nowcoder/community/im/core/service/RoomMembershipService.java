@@ -4,6 +4,8 @@ import com.nowcoder.community.im.core.repository.RoomMemberRepository;
 import com.nowcoder.community.im.core.repository.RoomRepository;
 import com.nowcoder.community.im.core.support.IdGenerator;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
+import com.nowcoder.community.im.common.projection.RoomMembershipEntry;
+import com.nowcoder.community.im.common.projection.RoomMembershipSnapshot;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,6 +73,19 @@ public class RoomMembershipService {
     public List<UUID> listRoomIdsByUser(UUID userId, UUID cursorExclusive, int limit) {
         int l = Math.min(Math.max(1, limit), 5000);
         return roomMemberRepository.listRoomIdsByUser(userId, cursorExclusive, l);
+    }
+
+    @Transactional(readOnly = true)
+    public RoomMembershipSnapshot snapshot(UUID afterRoomId, UUID afterUserId, int limit) {
+        int l = Math.min(500, Math.max(1, limit));
+        List<RoomMembershipEntry> entries = roomMemberRepository.scanMemberships(afterRoomId, afterUserId, l);
+        RoomMembershipEntry last = entries.isEmpty() ? null : entries.get(entries.size() - 1);
+        return new RoomMembershipSnapshot(
+                entries,
+                last == null ? null : last.roomId(),
+                last == null ? null : last.userId(),
+                entries.size() >= l
+        );
     }
 
     public boolean isMember(UUID roomId, UUID userId) {

@@ -1,6 +1,6 @@
 package com.nowcoder.community.im.core.kafka;
 
-import com.nowcoder.community.im.common.event.RoomMemberChangedEventV1;
+import com.nowcoder.community.im.common.event.RoomMemberChanged;
 import com.nowcoder.community.im.core.service.RoomMemberChangePublisher;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -21,7 +21,7 @@ public class KafkaRoomMemberChangePublisher implements RoomMemberChangePublisher
     @Override
     public void publishJoined(UUID roomId, UUID userId) {
         Instant now = Instant.now();
-        eventProducer.publishRoomMemberChanged(new RoomMemberChangedEventV1(
+        eventProducer.publishRoomMemberChanged(new RoomMemberChanged(
                 "evt_room_member_joined_" + roomId + "_" + userId + "_" + now.toEpochMilli(),
                 roomId,
                 userId,
@@ -33,7 +33,7 @@ public class KafkaRoomMemberChangePublisher implements RoomMemberChangePublisher
     @Override
     public void publishLeft(UUID roomId, UUID userId) {
         Instant now = Instant.now();
-        eventProducer.publishRoomMemberChanged(new RoomMemberChangedEventV1(
+        eventProducer.publishRoomMemberChanged(new RoomMemberChanged(
                 "evt_room_member_left_" + roomId + "_" + userId + "_" + now.toEpochMilli(),
                 roomId,
                 userId,

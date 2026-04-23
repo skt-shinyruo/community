@@ -52,6 +52,10 @@ public class UserReadApplicationService implements UserLookupQueryApi, UserProfi
         return userQueryService.getProfile(userId);
     }
 
+    public void requireExistingUser(UUID userId) {
+        userQueryService.getById(userId);
+    }
+
     public UserResolveResponse resolveByUsername(String username) {
         UserSummaryView user = userQueryService.getSummaryByUsername(username);
         if (user == null) {

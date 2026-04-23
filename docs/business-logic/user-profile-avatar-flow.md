@@ -113,13 +113,14 @@
 
 当前实现里：
 
-- `listRecentPosts(...)`：先校验用户存在，再调用 `PostReadQueryApi.listPostsByUser(...)`
-- `listRecentComments(...)`：先校验用户存在，再调用 `PostReadQueryApi.listRecentCommentsByUser(...)`
+- `listRecentPosts(...)`：先用轻量用户读取校验用户存在，再调用 `PostReadQueryApi.listPostsByUser(...)`
+- `listRecentComments(...)`：先用轻量用户读取校验用户存在，再调用 `PostReadQueryApi.listRecentCommentsByUser(...)`
 
 也就是说：
 
 - 这两个接口已经对外暴露
 - 当前实现已经接入 content 的跨域读模型
+- 最近动态只需要用户存在性校验，不加载钱包状态等资料页字段
 
 ### 3.4 当前聚合行为被测试锁定
 

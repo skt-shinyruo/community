@@ -194,8 +194,11 @@ class JsonContractsTest {
 
         OpenImSessionResponse back = roundTrip(response, OpenImSessionResponse.class);
 
+        assertEquals("sess-1", back.sessionId());
         assertEquals("worker-a", back.workerId());
         assertTrue(back.wsUrl().contains("/ws/im/workers/worker-a"));
+        assertEquals("ticket-1", back.ticket());
+        assertEquals(1_712_345_678_901L, back.expiresAtEpochMillis());
     }
 
     @Test
@@ -333,6 +336,8 @@ class JsonContractsTest {
         assertEquals(1, back.entries().size());
         assertEquals(snapshot.entries().get(0).roomId(), back.entries().get(0).roomId());
         assertEquals(snapshot.entries().get(0).userId(), back.entries().get(0).userId());
+        assertEquals(snapshot.nextRoomId(), back.nextRoomId());
+        assertEquals(snapshot.nextUserId(), back.nextUserId());
         assertFalse(back.hasMore());
     }
 
@@ -417,8 +422,11 @@ class JsonContractsTest {
 
         UserBlockRelationChanged back = roundTrip(event, UserBlockRelationChanged.class);
 
+        assertEquals("evt-block-1", back.eventId());
         assertTrue(back.active());
         assertEquals(event.blockerUserId(), back.blockerUserId());
+        assertEquals(event.blockedUserId(), back.blockedUserId());
+        assertEquals(1_712_345_678_901L, back.occurredAtEpochMillis());
     }
 
     @Test

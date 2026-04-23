@@ -17,6 +17,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
@@ -139,8 +140,10 @@ class UserRegistrationServiceTest {
         verify(userMapper, atLeastOnce()).deletePendingUserIfExpired(any(), anyInt(), any(Date.class));
         verify(userMapper).insertUser(any());
         ArgumentCaptor<UserPolicyChangedPayload> payloadCaptor = ArgumentCaptor.forClass(UserPolicyChangedPayload.class);
-        verify(userEventPublisher).publishUserPolicyChanged(payloadCaptor.capture());
-        assertThat(payloadCaptor.getValue().getUserId()).isEqualTo(createdId);
+        verify(userEventPublisher, atLeastOnce()).publishUserPolicyChanged(payloadCaptor.capture());
+        assertThat(payloadCaptor.getAllValues())
+                .extracting(UserPolicyChangedPayload::getUserId)
+                .contains(createdId, expired.getId());
     }
 
     @Test
@@ -148,6 +151,7 @@ class UserRegistrationServiceTest {
         UserRegistrationService service = new UserRegistrationService(userMapper, userEventPublisher);
         UUID userId = userId(7);
         when(userMapper.selectById(userId)).thenReturn(expiredPendingUser(userId, "alice", "alice@example.com"));
+        when(userMapper.deletePendingUserIfExpired(any(), anyInt(), any(Date.class))).thenReturn(1);
 
         assertThatThrownBy(() -> service.getPendingRegistrationUser(userId, Duration.ofMinutes(30)))
                 .isInstanceOf(BusinessException.class)
@@ -155,6 +159,9 @@ class UserRegistrationServiceTest {
                 .isEqualTo(UserErrorCode.USER_NOT_FOUND);
 
         verify(userMapper).deletePendingUserIfExpired(any(), anyInt(), any(Date.class));
+        ArgumentCaptor<UserPolicyChangedPayload> payloadCaptor = ArgumentCaptor.forClass(UserPolicyChangedPayload.class);
+        verify(userEventPublisher).publishUserPolicyChanged(payloadCaptor.capture());
+        assertThat(payloadCaptor.getValue().getUserId()).isEqualTo(userId);
     }
 
     @Test
@@ -188,20 +195,33 @@ class UserRegistrationServiceTest {
     @Test
     void cleanupExpiredPendingUsersShouldDelegateToMapper() {
         UserRegistrationService service = new UserRegistrationService(userMapper, userEventPublisher);
-        when(userMapper.deleteExpiredPendingUsers(anyInt(), any(Date.class))).thenReturn(3);
+        UUID userId1 = userId(11);
+        UUID userId2 = userId(12);
+        when(userMapper.selectExpiredPendingUserIds(anyInt(), any(Date.class))).thenReturn(List.of(userId1, userId2));
+        when(userMapper.deletePendingUserIfExpired(any(), anyInt(), any(Date.class))).thenReturn(1);
 
-        assertThat(service.cleanupExpiredPendingUsers(Duration.ofMinutes(30))).isEqualTo(3);
-        verify(userMapper).deleteExpiredPendingUsers(anyInt(), any(Date.class));
+        assertThat(service.cleanupExpiredPendingUsers(Duration.ofMinutes(30))).isEqualTo(2);
+        verify(userMapper).selectExpiredPendingUserIds(anyInt(), any(Date.class));
+        verify(userMapper, atLeastOnce()).deletePendingUserIfExpired(any(), anyInt(), any(Date.class));
+        ArgumentCaptor<UserPolicyChangedPayload> payloadCaptor = ArgumentCaptor.forClass(UserPolicyChangedPayload.class);
+        verify(userEventPublisher, atLeastOnce()).publishUserPolicyChanged(payloadCaptor.capture());
+        assertThat(payloadCaptor.getAllValues())
+                .extracting(UserPolicyChangedPayload::getUserId)
+                .containsExactly(userId1, userId2);
     }
 
     @Test
     void deletePendingUserShouldDeleteOnlyPendingUser() {
         UserRegistrationService service = new UserRegistrationService(userMapper, userEventPublisher);
         UUID userId = userId(8);
+        when(userMapper.deletePendingUser(userId, 0)).thenReturn(1);
 
         service.deletePendingUser(userId);
 
         verify(userMapper).deletePendingUser(userId, 0);
+        ArgumentCaptor<UserPolicyChangedPayload> payloadCaptor = ArgumentCaptor.forClass(UserPolicyChangedPayload.class);
+        verify(userEventPublisher).publishUserPolicyChanged(payloadCaptor.capture());
+        assertThat(payloadCaptor.getValue().getUserId()).isEqualTo(userId);
     }
 
     private User existingUser(UUID id, String username, String email) {

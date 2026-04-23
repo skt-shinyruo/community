@@ -21,6 +21,7 @@ import org.springframework.util.StringUtils;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 import java.util.UUID;
@@ -115,10 +116,12 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
     }
 
     @Override
+    @Transactional
     public PendingRegistrationUserView getPendingUser(UUID userId, Duration pendingTtl) {
         return toPendingRegistrationView(getPendingRegistrationUser(userId, pendingTtl));
     }
 
+    @Transactional
     public User getPendingRegistrationUser(UUID userId, Duration pendingTtl) {
         if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
@@ -130,7 +133,8 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
 
         Date cutoff = pendingUserCutoff(pendingTtl);
         if (isExpiredPendingUser(user, cutoff)) {
-            userMapper.deletePendingUserIfExpired(user.getId(), 0, cutoff);
+            int deleted = userMapper.deletePendingUserIfExpired(user.getId(), 0, cutoff);
+            publishUserPolicyChangedIfDeleted(user.getId(), deleted);
             throw new BusinessException(USER_NOT_FOUND, "注册已过期，请重新注册");
         }
         return user;
@@ -160,8 +164,20 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
     }
 
     @Override
+    @Transactional
     public int cleanupExpiredPendingUsers(Duration pendingTtl) {
-        return userMapper.deleteExpiredPendingUsers(0, pendingUserCutoff(pendingTtl));
+        Date cutoff = pendingUserCutoff(pendingTtl);
+        List<UUID> expiredUserIds = userMapper.selectExpiredPendingUserIds(0, cutoff);
+        if (expiredUserIds == null || expiredUserIds.isEmpty()) {
+            return 0;
+        }
+        int deleted = 0;
+        for (UUID userId : expiredUserIds) {
+            int affected = userMapper.deletePendingUserIfExpired(userId, 0, cutoff);
+            deleted += affected;
+            publishUserPolicyChangedIfDeleted(userId, affected);
+        }
+        return deleted;
     }
 
     @Override
@@ -170,12 +186,14 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
         if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
-        userMapper.deletePendingUser(userId, 0);
+        int deleted = userMapper.deletePendingUser(userId, 0);
+        publishUserPolicyChangedIfDeleted(userId, deleted);
     }
 
     private void cleanupExpiredPendingConflict(User user, Date cutoff) {
         if (isExpiredPendingUser(user, cutoff)) {
-            userMapper.deletePendingUserIfExpired(user.getId(), 0, cutoff);
+            int deleted = userMapper.deletePendingUserIfExpired(user.getId(), 0, cutoff);
+            publishUserPolicyChangedIfDeleted(user.getId(), deleted);
         }
     }
 
@@ -245,5 +263,11 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
         UserPolicyChangedPayload payload = new UserPolicyChangedPayload();
         payload.setUserId(userId);
         userEventPublisher.publishUserPolicyChanged(payload);
+    }
+
+    private void publishUserPolicyChangedIfDeleted(UUID userId, int deleted) {
+        if (deleted > 0) {
+            publishUserPolicyChanged(userId);
+        }
     }
 }

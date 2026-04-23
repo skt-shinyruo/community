@@ -36,6 +36,7 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
 
     private static final String USERNAME_UNIQUE_CONSTRAINT = "uk_user_username";
     private static final String EMAIL_UNIQUE_CONSTRAINT = "uk_user_email";
+    private static final int EXPIRED_PENDING_USER_BATCH_SIZE = 500;
 
     private final UserMapper userMapper;
     private final UuidV7Generator idGenerator;
@@ -116,12 +117,12 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
     }
 
     @Override
-    @Transactional
+    @Transactional(noRollbackFor = BusinessException.class)
     public PendingRegistrationUserView getPendingUser(UUID userId, Duration pendingTtl) {
         return toPendingRegistrationView(getPendingRegistrationUser(userId, pendingTtl));
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = BusinessException.class)
     public User getPendingRegistrationUser(UUID userId, Duration pendingTtl) {
         if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
@@ -167,7 +168,7 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
     @Transactional
     public int cleanupExpiredPendingUsers(Duration pendingTtl) {
         Date cutoff = pendingUserCutoff(pendingTtl);
-        List<UUID> expiredUserIds = userMapper.selectExpiredPendingUserIds(0, cutoff);
+        List<UUID> expiredUserIds = userMapper.selectExpiredPendingUserIds(0, cutoff, EXPIRED_PENDING_USER_BATCH_SIZE);
         if (expiredUserIds == null || expiredUserIds.isEmpty()) {
             return 0;
         }

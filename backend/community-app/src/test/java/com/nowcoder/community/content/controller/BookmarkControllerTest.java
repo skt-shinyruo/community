@@ -1,9 +1,8 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.content.api.model.PostSummaryView;
 import com.nowcoder.community.content.dto.PostSummaryResponse;
-import com.nowcoder.community.content.service.BookmarkService;
+import com.nowcoder.community.content.service.BookmarkApplicationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,40 +25,39 @@ import static org.mockito.Mockito.when;
 class BookmarkControllerTest {
 
     @Mock
-    private BookmarkService bookmarkService;
+    private BookmarkApplicationService bookmarkApplicationService;
 
     private BookmarkController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new BookmarkController(bookmarkService);
+        controller = new BookmarkController(bookmarkApplicationService);
     }
 
     @Test
-    void listShouldDelegateToBookmarkServiceAndProjectViews() {
+    void listShouldDelegateToBookmarkApplicationServiceAndReturnHttpDtos() {
         UUID userId = uuid(7);
         UUID postId = uuid(11);
         UUID categoryId = uuid(2);
         UUID lastReplyUserId = uuid(8);
         Date createTime = new Date();
         Date lastReplyTime = new Date(createTime.getTime() + 1_000);
-        PostSummaryView view = new PostSummaryView(
-                postId,
-                userId,
-                "decoded title",
-                0,
-                0,
-                createTime,
-                3,
-                9.5,
-                categoryId,
-                List.of("spring"),
-                lastReplyUserId,
-                lastReplyTime,
-                lastReplyTime,
-                "latest reply"
-        );
-        when(bookmarkService.listBookmarkedPostSummaries(userId, 0, 10)).thenReturn(List.of(view));
+        PostSummaryResponse dto = new PostSummaryResponse();
+        dto.setId(postId);
+        dto.setUserId(userId);
+        dto.setTitle("decoded title");
+        dto.setType(0);
+        dto.setStatus(0);
+        dto.setCreateTime(createTime);
+        dto.setCommentCount(3);
+        dto.setScore(9.5);
+        dto.setCategoryId(categoryId);
+        dto.setTags(List.of("spring"));
+        dto.setLastReplyUserId(lastReplyUserId);
+        dto.setLastReplyTime(lastReplyTime);
+        dto.setLastActivityTime(lastReplyTime);
+        dto.setLastReplyPreview("latest reply");
+        when(bookmarkApplicationService.listBookmarkedPostSummaryResponses(userId, 0, 10)).thenReturn(List.of(dto));
 
         Result<List<PostSummaryResponse>> result = controller.list(authentication(userId), null, null);
 
@@ -70,7 +68,21 @@ class BookmarkControllerTest {
             assertThat(response.getTags()).containsExactly("spring");
             assertThat(response.getLastReplyPreview()).isEqualTo("latest reply");
         });
-        verify(bookmarkService).listBookmarkedPostSummaries(userId, 0, 10);
+        verify(bookmarkApplicationService).listBookmarkedPostSummaryResponses(userId, 0, 10);
+    }
+
+    @Test
+    void bookmarkAndUnbookmarkShouldDelegateToApplicationService() {
+        UUID userId = uuid(7);
+        UUID postId = uuid(11);
+
+        Result<Void> bookmarkResult = controller.bookmark(authentication(userId), postId);
+        Result<Void> unbookmarkResult = controller.unbookmark(authentication(userId), postId);
+
+        assertThat(bookmarkResult.getCode()).isEqualTo(0);
+        assertThat(unbookmarkResult.getCode()).isEqualTo(0);
+        verify(bookmarkApplicationService).add(userId, postId);
+        verify(bookmarkApplicationService).remove(userId, postId);
     }
 
     private Authentication authentication(UUID userId) {

@@ -1,8 +1,12 @@
 package com.nowcoder.community.app.security;
 
-import com.nowcoder.community.content.api.model.PostSummaryView;
-import com.nowcoder.community.content.api.model.RecentUserCommentView;
-import com.nowcoder.community.content.api.query.PostReadQueryApi;
+import com.nowcoder.community.content.dto.PostSummaryResponse;
+import com.nowcoder.community.content.service.BookmarkApplicationService;
+import com.nowcoder.community.content.service.CommentApplicationService;
+import com.nowcoder.community.content.service.CommentReadApplicationService;
+import com.nowcoder.community.content.service.PostModerationApplicationService;
+import com.nowcoder.community.content.service.PostPublishingApplicationService;
+import com.nowcoder.community.content.service.PostReadApplicationService;
 import com.nowcoder.community.user.api.model.UserProfileView;
 import com.nowcoder.community.user.service.AvatarService;
 import com.nowcoder.community.user.service.UserProfileApplicationService;
@@ -47,7 +51,22 @@ class PublicReadEndpointSecurityTest {
     private MockMvc mockMvc;
 
     @MockBean
-    private PostReadQueryApi postReadQueryApi;
+    private PostReadApplicationService postReadApplicationService;
+
+    @MockBean
+    private CommentReadApplicationService commentReadApplicationService;
+
+    @MockBean
+    private PostPublishingApplicationService postPublishingApplicationService;
+
+    @MockBean
+    private PostModerationApplicationService postModerationApplicationService;
+
+    @MockBean
+    private CommentApplicationService commentApplicationService;
+
+    @MockBean
+    private BookmarkApplicationService bookmarkApplicationService;
 
     @MockBean
     private UserReadApplicationService userReadApplicationService;
@@ -63,7 +82,7 @@ class PublicReadEndpointSecurityTest {
 
     @Test
     void unauthenticatedBatchPostSummaryShouldBeAllowed() throws Exception {
-        when(postReadQueryApi.listPostsByIds(anyList())).thenReturn(List.<PostSummaryView>of());
+        when(postReadApplicationService.listPostSummaryResponsesByIds(anyList())).thenReturn(List.<PostSummaryResponse>of());
 
         mockMvc.perform(post("/api/posts/batch-summary")
                         .contentType(MediaType.APPLICATION_JSON)

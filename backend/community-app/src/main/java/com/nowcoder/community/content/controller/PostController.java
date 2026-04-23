@@ -1,14 +1,5 @@
 package com.nowcoder.community.content.controller;
 
-import com.nowcoder.community.content.api.action.CommentActionApi;
-import com.nowcoder.community.content.api.action.PostModerationActionApi;
-import com.nowcoder.community.content.api.action.PostPublishingActionApi;
-import com.nowcoder.community.content.api.model.CommentView;
-import com.nowcoder.community.content.api.model.PostCreateResult;
-import com.nowcoder.community.content.api.model.PostDetailView;
-import com.nowcoder.community.content.api.model.PostSummaryView;
-import com.nowcoder.community.content.api.query.CommentReadQueryApi;
-import com.nowcoder.community.content.api.query.PostReadQueryApi;
 import com.nowcoder.community.content.dto.CommentResponse;
 import com.nowcoder.community.content.dto.BatchPostSummaryRequest;
 import com.nowcoder.community.content.dto.CreateCommentRequest;
@@ -18,6 +9,11 @@ import com.nowcoder.community.content.dto.PostDetailResponse;
 import com.nowcoder.community.content.dto.PostSummaryResponse;
 import com.nowcoder.community.content.dto.UpdateCommentRequest;
 import com.nowcoder.community.content.dto.UpdatePostRequest;
+import com.nowcoder.community.content.service.CommentApplicationService;
+import com.nowcoder.community.content.service.CommentReadApplicationService;
+import com.nowcoder.community.content.service.PostModerationApplicationService;
+import com.nowcoder.community.content.service.PostPublishingApplicationService;
+import com.nowcoder.community.content.service.PostReadApplicationService;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
@@ -41,24 +37,24 @@ import java.util.UUID;
 @RequestMapping("/api/posts")
 public class PostController {
 
-    private final PostReadQueryApi postReadQueryApi;
-    private final CommentReadQueryApi commentReadQueryApi;
-    private final PostPublishingActionApi postPublishingActionApi;
-    private final PostModerationActionApi postModerationActionApi;
-    private final CommentActionApi commentActionApi;
+    private final PostReadApplicationService postReadApplicationService;
+    private final CommentReadApplicationService commentReadApplicationService;
+    private final PostPublishingApplicationService postPublishingApplicationService;
+    private final PostModerationApplicationService postModerationApplicationService;
+    private final CommentApplicationService commentApplicationService;
 
     public PostController(
-            PostReadQueryApi postReadQueryApi,
-            CommentReadQueryApi commentReadQueryApi,
-            PostPublishingActionApi postPublishingActionApi,
-            PostModerationActionApi postModerationActionApi,
-            CommentActionApi commentActionApi
+            PostReadApplicationService postReadApplicationService,
+            CommentReadApplicationService commentReadApplicationService,
+            PostPublishingApplicationService postPublishingApplicationService,
+            PostModerationApplicationService postModerationApplicationService,
+            CommentApplicationService commentApplicationService
     ) {
-        this.postReadQueryApi = postReadQueryApi;
-        this.commentReadQueryApi = commentReadQueryApi;
-        this.postPublishingActionApi = postPublishingActionApi;
-        this.postModerationActionApi = postModerationActionApi;
-        this.commentActionApi = commentActionApi;
+        this.postReadApplicationService = postReadApplicationService;
+        this.commentReadApplicationService = commentReadApplicationService;
+        this.postPublishingApplicationService = postPublishingApplicationService;
+        this.postModerationApplicationService = postModerationApplicationService;
+        this.commentApplicationService = commentApplicationService;
     }
 
     @GetMapping
@@ -72,9 +68,7 @@ public class PostController {
             @RequestParam(required = false) Integer size
     ) {
         UUID currentUserId = CurrentUser.tryUserUuid(authentication);
-        return Result.ok(postReadQueryApi.listPosts(currentUserId, order, categoryId, tag, subscribed, page, size).stream()
-                .map(this::toPostSummaryResponse)
-                .toList());
+        return Result.ok(postReadApplicationService.listPostSummaryResponses(currentUserId, order, categoryId, tag, subscribed, page, size));
     }
 
     @PostMapping
@@ -84,7 +78,7 @@ public class PostController {
             @Valid @RequestBody CreatePostRequest request
     ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        PostCreateResult result = postPublishingActionApi.create(
+        UUID postId = postPublishingApplicationService.createPost(
                 userId,
                 idempotencyKey,
                 request.getTitle(),
@@ -92,21 +86,19 @@ public class PostController {
                 request.getCategoryId(),
                 request.getTags()
         );
-        return Result.ok(toCreatePostResponse(result));
+        return Result.ok(toCreatePostResponse(postId));
     }
 
     @PostMapping("/batch-summary")
     public Result<List<PostSummaryResponse>> batchSummary(@Valid @RequestBody BatchPostSummaryRequest request) {
         List<UUID> postIds = request == null ? List.of() : request.getPostIds();
-        return Result.ok(postReadQueryApi.listPostsByIds(postIds).stream()
-                .map(this::toPostSummaryResponse)
-                .toList());
+        return Result.ok(postReadApplicationService.listPostSummaryResponsesByIds(postIds));
     }
 
     @GetMapping("/{postId}")
     public Result<PostDetailResponse> detail(Authentication authentication, @PathVariable UUID postId) {
         UUID currentUserId = CurrentUser.tryUserUuid(authentication);
-        return Result.ok(toPostDetailResponse(postReadQueryApi.getPostDetail(currentUserId, postId)));
+        return Result.ok(postReadApplicationService.getPostDetailResponse(currentUserId, postId));
     }
 
     @GetMapping("/{postId}/comments")
@@ -115,9 +107,7 @@ public class PostController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        return Result.ok(commentReadQueryApi.comments(postId, page, size).stream()
-                .map(this::toCommentResponse)
-                .toList());
+        return Result.ok(commentReadApplicationService.commentResponses(postId, page, size));
     }
 
     @PostMapping("/{postId}/comments")
@@ -128,7 +118,7 @@ public class PostController {
             @Valid @RequestBody CreateCommentRequest request
     ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(commentActionApi.addComment(
+        return Result.ok(commentApplicationService.addComment(
                 userId,
                 idempotencyKey,
                 postId,
@@ -142,14 +132,14 @@ public class PostController {
     @PutMapping("/{postId}")
     public Result<Void> updatePost(Authentication authentication, @PathVariable UUID postId, @Valid @RequestBody UpdatePostRequest request) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        postPublishingActionApi.updatePost(userId, postId, request.getTitle(), request.getContent(), request.getCategoryId(), request.getTags());
+        postPublishingApplicationService.updatePost(userId, postId, request.getTitle(), request.getContent(), request.getCategoryId(), request.getTags());
         return Result.ok();
     }
 
     @DeleteMapping("/{postId}")
     public Result<Void> deleteByAuthor(Authentication authentication, @PathVariable UUID postId) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        postPublishingActionApi.deleteByAuthor(userId, postId);
+        postPublishingApplicationService.deleteByAuthor(userId, postId);
         return Result.ok();
     }
 
@@ -161,7 +151,7 @@ public class PostController {
             @Valid @RequestBody UpdateCommentRequest request
     ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        commentActionApi.updateComment(userId, postId, commentId, request.getContent());
+        commentApplicationService.updateComment(userId, postId, commentId, request.getContent());
         return Result.ok();
     }
 
@@ -172,89 +162,33 @@ public class PostController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        return Result.ok(commentReadQueryApi.replies(postId, commentId, page, size).stream()
-                .map(this::toCommentResponse)
-                .toList());
+        return Result.ok(commentReadApplicationService.replyResponses(postId, commentId, page, size));
     }
 
     @PostMapping("/{postId}/top")
     public Result<Void> top(Authentication authentication, @PathVariable UUID postId) {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
-        postModerationActionApi.top(actorUserId, postId);
+        postModerationApplicationService.top(actorUserId, postId);
         return Result.ok();
     }
 
     @PostMapping("/{postId}/wonderful")
     public Result<Void> wonderful(Authentication authentication, @PathVariable UUID postId) {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
-        postModerationActionApi.wonderful(actorUserId, postId);
+        postModerationApplicationService.wonderful(actorUserId, postId);
         return Result.ok();
     }
 
     @PostMapping("/{postId}/delete")
     public Result<Void> delete(Authentication authentication, @PathVariable UUID postId) {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
-        postModerationActionApi.delete(actorUserId, postId);
+        postModerationApplicationService.delete(actorUserId, postId);
         return Result.ok();
     }
 
-    private CreatePostResponse toCreatePostResponse(PostCreateResult result) {
+    private CreatePostResponse toCreatePostResponse(UUID postId) {
         CreatePostResponse response = new CreatePostResponse();
-        response.setPostId(result.postId());
-        return response;
-    }
-
-    private PostSummaryResponse toPostSummaryResponse(PostSummaryView view) {
-        PostSummaryResponse response = new PostSummaryResponse();
-        response.setId(view.id());
-        response.setUserId(view.userId());
-        response.setTitle(view.title());
-        response.setType(view.type());
-        response.setStatus(view.status());
-        response.setCreateTime(view.createTime());
-        response.setCommentCount(view.commentCount());
-        response.setScore(view.score());
-        response.setCategoryId(view.categoryId());
-        response.setTags(view.tags());
-        response.setLastReplyUserId(view.lastReplyUserId());
-        response.setLastReplyTime(view.lastReplyTime());
-        response.setLastActivityTime(view.lastActivityTime());
-        response.setLastReplyPreview(view.lastReplyPreview());
-        return response;
-    }
-
-    private PostDetailResponse toPostDetailResponse(PostDetailView view) {
-        PostDetailResponse response = new PostDetailResponse();
-        response.setId(view.id());
-        response.setUserId(view.userId());
-        response.setTitle(view.title());
-        response.setContent(view.content());
-        response.setType(view.type());
-        response.setStatus(view.status());
-        response.setCreateTime(view.createTime());
-        response.setUpdateTime(view.updateTime());
-        response.setEditCount(view.editCount());
-        response.setCommentCount(view.commentCount());
-        response.setScore(view.score());
-        response.setCategoryId(view.categoryId());
-        response.setTags(view.tags());
-        response.setLikeCount(view.likeCount());
-        response.setLiked(view.liked());
-        response.setBookmarked(view.bookmarked());
-        return response;
-    }
-
-    private CommentResponse toCommentResponse(CommentView view) {
-        CommentResponse response = new CommentResponse();
-        response.setId(view.id());
-        response.setUserId(view.userId());
-        response.setEntityType(view.entityType());
-        response.setEntityId(view.entityId());
-        response.setTargetId(view.targetId());
-        response.setContent(view.content());
-        response.setCreateTime(view.createTime());
-        response.setUpdateTime(view.updateTime());
-        response.setEditCount(view.editCount());
+        response.setPostId(postId);
         return response;
     }
 }

@@ -18,4 +18,8 @@ public final class ImTopics {
     public static final String EVENT_PRIVATE_REJECTED_V1 = "im.event.private_rejected.v1";
     public static final String EVENT_ROOM_REJECTED_V1 = "im.event.room_rejected.v1";
     public static final String EVENT_ROOM_MEMBER_CHANGED_V1 = "im.event.room_member_changed.v1";
+
+    public static final String EVENT_ROOM_MEMBER_CHANGED = "im.event.room-member-changed";
+    public static final String EVENT_USER_MESSAGING_POLICY_CHANGED = "im.event.user-messaging-policy-changed";
+    public static final String EVENT_USER_BLOCK_RELATION_CHANGED = "im.event.user-block-relation-changed";
 }

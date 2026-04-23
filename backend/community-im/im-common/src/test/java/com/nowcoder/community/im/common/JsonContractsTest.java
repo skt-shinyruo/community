@@ -8,10 +8,16 @@ import com.nowcoder.community.im.common.event.PrivateMessageRejectedEventV1;
 import com.nowcoder.community.im.common.event.RoomMemberChangedEventV1;
 import com.nowcoder.community.im.common.event.RoomMessagePersistedEventV1;
 import com.nowcoder.community.im.common.event.RoomMessageRejectedEventV1;
+import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
+import com.nowcoder.community.im.common.projection.RoomMembershipEntry;
+import com.nowcoder.community.im.common.projection.RoomMembershipSnapshot;
+import com.nowcoder.community.im.common.session.OpenImSessionResponse;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class JsonContractsTest {
@@ -149,6 +155,69 @@ class JsonContractsTest {
         String json = objectMapper.writeValueAsString(event);
         RoomMessageRejectedEventV1 back = objectMapper.readValue(json, RoomMessageRejectedEventV1.class);
         assertEquals(event, back);
+    }
+
+    @Test
+    void shouldRoundTripOpenImSessionResponse() throws Exception {
+        OpenImSessionResponse response = new OpenImSessionResponse(
+                "sess-1",
+                "worker-a",
+                "wss://community.example/ws/im/workers/worker-a",
+                "ticket-1",
+                1_712_345_678_901L
+        );
+
+        String json = objectMapper.writeValueAsString(response);
+        OpenImSessionResponse back = objectMapper.readValue(json, OpenImSessionResponse.class);
+
+        assertThat(back.workerId()).isEqualTo("worker-a");
+        assertThat(back.wsUrl()).contains("/ws/im/workers/worker-a");
+    }
+
+    @Test
+    void shouldRoundTripRoomMembershipSnapshot() throws Exception {
+        RoomMembershipSnapshot snapshot = new RoomMembershipSnapshot(
+                List.of(new RoomMembershipEntry(
+                        UUID.fromString("00000000-0000-7000-8000-000000000010"),
+                        UUID.fromString("00000000-0000-7000-8000-000000000001")
+                )),
+                UUID.fromString("00000000-0000-7000-8000-000000000010"),
+                UUID.fromString("00000000-0000-7000-8000-000000000001"),
+                false
+        );
+
+        String json = objectMapper.writeValueAsString(snapshot);
+        RoomMembershipSnapshot back = objectMapper.readValue(json, RoomMembershipSnapshot.class);
+
+        assertThat(back.entries()).hasSize(1);
+        assertThat(back.entries().get(0).roomId()).isEqualTo(snapshot.entries().get(0).roomId());
+    }
+
+    @Test
+    void shouldRoundTripUserBlockRelationChanged() throws Exception {
+        UserBlockRelationChanged event = new UserBlockRelationChanged(
+                "evt-block-1",
+                UUID.fromString("00000000-0000-7000-8000-000000000011"),
+                UUID.fromString("00000000-0000-7000-8000-000000000022"),
+                true,
+                1_712_345_678_901L
+        );
+
+        String json = objectMapper.writeValueAsString(event);
+        UserBlockRelationChanged back = objectMapper.readValue(json, UserBlockRelationChanged.class);
+
+        assertThat(back.active()).isTrue();
+        assertThat(back.blockerUserId()).isEqualTo(event.blockerUserId());
+    }
+
+    @Test
+    void shouldExposeNewProjectionTopics() {
+        assertThat(ImTopics.EVENT_ROOM_MEMBER_CHANGED)
+                .isEqualTo("im.event.room-member-changed");
+        assertThat(ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED)
+                .isEqualTo("im.event.user-messaging-policy-changed");
+        assertThat(ImTopics.EVENT_USER_BLOCK_RELATION_CHANGED)
+                .isEqualTo("im.event.user-block-relation-changed");
     }
 
     private static UUID uuid(long suffix) {

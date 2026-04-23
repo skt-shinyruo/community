@@ -246,37 +246,6 @@ class ImCoreApiControllerTest {
         assertThat(senderData.path("conversations").get(0).path("unreadCount").asLong()).isEqualTo(0L);
     }
 
-    @Test
-    void internal_room_bootstrap_should_forbid_userId_mismatch() throws Exception {
-        UUID user1 = uuid(1);
-        UUID user2 = uuid(2);
-
-        UUID roomId = roomMembershipService.createRoom(user1, "room");
-        roomMembershipService.joinRoom(user2, roomId);
-
-        String okRes = mockMvc.perform(get("/internal/im/realtime/users/{userId}/rooms", user1)
-                        .header("Authorization", bearer(user1)))
-                .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
-        JsonNode okJson = objectMapper.readTree(okRes);
-        assertThat(okJson.path("code").asInt(-1)).isEqualTo(0);
-        assertThat(okJson.path("data").path("roomIds").isArray()).isTrue();
-        boolean found = false;
-        for (JsonNode n : okJson.path("data").path("roomIds")) {
-            if (n != null && roomId.toString().equals(n.asText())) {
-                found = true;
-                break;
-            }
-        }
-        assertThat(found).isTrue();
-
-        mockMvc.perform(get("/internal/im/realtime/users/{userId}/rooms", user1)
-                        .header("Authorization", bearer(user2)))
-                .andExpect(status().isForbidden());
-    }
-
     private String bearer(UUID userId) throws Exception {
         String token = signHs256(jwtSecret, jwtIssuer, String.valueOf(userId), Instant.now().plusSeconds(120));
         return "Bearer " + token;

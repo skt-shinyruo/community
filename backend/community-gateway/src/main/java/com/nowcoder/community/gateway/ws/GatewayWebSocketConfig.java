@@ -1,8 +1,6 @@
 package com.nowcoder.community.gateway.ws;
 
-import com.nowcoder.community.gateway.shard.ConsistentHashShardRouter;
 import com.nowcoder.community.gateway.shard.DiscoveredWorkerDescriptorFactory;
-import com.nowcoder.community.gateway.shard.ShardRouter;
 import com.nowcoder.community.gateway.shard.WorkerRegistry;
 import com.nowcoder.community.gateway.shard.WorkerDiscoveryProperties;
 import com.nowcoder.community.gateway.security.GatewayCorsConfig;
@@ -29,7 +27,7 @@ public class GatewayWebSocketConfig {
     HandlerMapping gatewayWebSocketMapping(
             ExternalImWebSocketHandler handler,
             GatewayCorsProperties corsProperties,
-            @Value("${gateway.ws.proxy.path:/ws/im}") String path
+            @Value("${gateway.ws.proxy.path:/ws/im/workers/**}") String path
     ) {
         SimpleUrlHandlerMapping mapping = new SimpleUrlHandlerMapping();
         mapping.setOrder(-1);
@@ -64,8 +62,4 @@ public class GatewayWebSocketConfig {
         return new WorkerRegistry(discoveryClient, properties, factory);
     }
 
-    @Bean
-    ShardRouter shardRouter(WorkerRegistry registry) {
-        return new ConsistentHashShardRouter(registry);
-    }
 }

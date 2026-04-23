@@ -45,9 +45,14 @@ class WsTransparentProxyIntegrationTest {
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
-        registry.add("gateway.ws.proxy.path", () -> "/ws/im");
-        registry.add("gateway.ws.proxy.auth-required", () -> false);
-        registry.add("gateway.ws.proxy.default-worker-uri", WsTransparentProxyIntegrationTest::workerUri);
+        registry.add("gateway.ws.proxy.path", () -> "/ws/im/workers/**");
+        registry.add("gateway.ws.discovery.service-id", () -> "im-realtime-worker");
+        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].uri",
+                () -> "http://127.0.0.1:" + workerPort());
+        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].metadata.workerId", () -> "worker-a");
+        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].metadata.wsPath", () -> "/internal/ws/im");
+        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].metadata.wsPort",
+                () -> String.valueOf(workerPort()));
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
         registry.add("security.jwt.hmac-secret", () -> "gateway-test-jwt-secret-please-change-123456");
     }
@@ -61,13 +66,13 @@ class WsTransparentProxyIntegrationTest {
     }
 
     @Test
-    void shouldProxyFramesBidirectionallyToConfiguredWorker() throws Exception {
+    void shouldProxyFramesToWorkerSelectedByPath() throws Exception {
         LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
         Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
         CountDownLatch connected = new CountDownLatch(1);
 
         ReactorNettyWebSocketClient client = new ReactorNettyWebSocketClient();
-        URI gatewayUri = URI.create("ws://localhost:" + port + "/ws/im");
+        URI gatewayUri = URI.create("ws://localhost:" + port + "/ws/im/workers/worker-a");
 
         Disposable ws = client.execute(gatewayUri, session -> {
                     connected.countDown();
@@ -84,25 +89,23 @@ class WsTransparentProxyIntegrationTest {
             assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
             outbound.tryEmitNext("hello");
             outbound.tryEmitComplete();
-
-            String msg = received.poll(5, TimeUnit.SECONDS);
-            assertThat(msg).isEqualTo("worker:hello");
+            assertThat(received.poll(5, TimeUnit.SECONDS)).isEqualTo("worker-a:hello");
         } finally {
             ws.dispose();
         }
     }
 
-    private static synchronized String workerUri() {
+    private static synchronized int workerPort() {
         if (workerServer == null) {
             workerServer = HttpServer.create()
                     .host("127.0.0.1")
                     .port(0)
                     .route(routes -> routes.ws("/internal/ws/im", (in, out) ->
-                            out.sendString(in.receive().asString().map(text -> "worker:" + text))
+                            out.sendString(in.receive().asString().map(text -> "worker-a:" + text))
                     ))
                     .bindNow(Duration.ofSeconds(5));
         }
-        return "ws://127.0.0.1:" + workerServer.port() + "/internal/ws/im";
+        return workerServer.port();
     }
 
     @TestConfiguration(proxyBeanMethods = false)

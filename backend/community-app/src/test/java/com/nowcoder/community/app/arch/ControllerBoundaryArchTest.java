@@ -29,6 +29,11 @@ class ControllerBoundaryArchTest {
 
     private static final Set<String> LEGACY_FOREIGN_DTO_CONTROLLER_CALLERS = Set.of();
     private static final Set<String> LEGACY_FOREIGN_SERVICE_CONTROLLER_CALLERS = Set.of();
+    private static final Set<String> LEGACY_SAME_DOMAIN_OWNER_API_CONTROLLER_CALLERS = Set.of(
+            "com.nowcoder.community.content.controller.BookmarkController",
+            "com.nowcoder.community.content.controller.PostController",
+            "com.nowcoder.community.user.controller.UserController"
+    );
 
     @Test
     void dtoBoundaryShouldNotRequireSharedMessageDtoExceptions() {
@@ -86,6 +91,14 @@ class ControllerBoundaryArchTest {
             classes()
                     .that().resideInAnyPackage("..controller..")
                     .should(notDependOnForeignPackage("services", SERVICE_PACKAGE, LEGACY_FOREIGN_SERVICE_CONTROLLER_CALLERS));
+
+    @ArchTest
+    static final ArchRule controllers_must_not_depend_on_same_domain_owner_apis =
+            classes()
+                    .that().resideInAnyPackage("..controller..")
+                    .should(ArchitectureRulesSupport.notDependOnSameDomainOwnerApiPackages(
+                            LEGACY_SAME_DOMAIN_OWNER_API_CONTROLLER_CALLERS
+                    ));
 
     @ArchTest
     static final ArchRule controllers_must_not_depend_on_domain_entities =

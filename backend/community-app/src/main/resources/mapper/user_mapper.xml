@@ -48,6 +48,12 @@
           and create_time &lt;= #{cutoff}
     </delete>
 
+    <delete id="deletePendingUser">
+        delete from user
+        where id = #{id, jdbcType=BINARY}
+          and status = #{status}
+    </delete>
+
     <delete id="deleteExpiredPendingUsers">
         delete from user
         where status = #{status}

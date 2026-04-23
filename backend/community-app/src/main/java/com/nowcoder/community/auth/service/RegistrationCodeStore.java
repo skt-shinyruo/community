@@ -11,6 +11,8 @@ public interface RegistrationCodeStore {
 
     Long lastSentAtMillis(UUID userId);
 
+    void delete(UUID userId);
+
     VerifyResult verifyAndConsume(UUID userId, String code);
 
     enum IssueResult {

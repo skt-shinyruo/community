@@ -79,6 +79,14 @@ public class InMemoryRegistrationCodeStore implements RegistrationCodeStore {
     }
 
     @Override
+    public void delete(UUID userId) {
+        if (userId == null) {
+            return;
+        }
+        store.remove(userId);
+    }
+
+    @Override
     public VerifyResult verifyAndConsume(UUID userId, String code) {
         if (userId == null || !StringUtils.hasText(code)) {
             return VerifyResult.NOT_FOUND;

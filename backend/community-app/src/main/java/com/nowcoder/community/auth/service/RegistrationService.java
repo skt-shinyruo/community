@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Service
@@ -75,18 +76,26 @@ public class RegistrationService {
         String code = generateCode();
         Duration ttl = Duration.ofSeconds(Math.max(60, properties.getCode().getTtlSeconds()));
         Duration cooldown = Duration.ofSeconds(Math.max(0, properties.getCode().getResendCooldownSeconds()));
-        RegistrationCodeStore.IssueResult issueResult = registrationCodeStore.issue(created.userId(), code, ttl, cooldown);
-        if (issueResult != RegistrationCodeStore.IssueResult.ISSUED) {
-            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "注册验证码签发失败");
+        String registrationToken = null;
+        try {
+            registrationToken = registrationSessionStore == null ? null : registrationSessionStore.issue(created.userId(), pendingUserTtl);
+            if (!StringUtils.hasText(registrationToken)) {
+                throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "注册上下文创建失败");
+            }
+
+            RegistrationCodeStore.IssueResult issueResult = registrationCodeStore.issue(created.userId(), code, ttl, cooldown);
+            if (issueResult != RegistrationCodeStore.IssueResult.ISSUED) {
+                throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "注册验证码签发失败");
+            }
+
+            mailService.sendRegistrationCodeMail(targetEmail, code);
+        } catch (RuntimeException ex) {
+            rollbackFailedRegistration(created.userId(), registrationToken);
+            throw ex;
         }
-        mailService.sendRegistrationCodeMail(targetEmail, code);
 
         RegisterResponse resp = new RegisterResponse();
         resp.setUserId(created.userId());
-        String registrationToken = registrationSessionStore == null ? null : registrationSessionStore.issue(created.userId(), pendingUserTtl);
-        if (!StringUtils.hasText(registrationToken)) {
-            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "注册上下文创建失败");
-        }
         resp.setRegistrationToken(registrationToken);
         resp.setEmailCodeIssued(true);
         resp.setMaskedEmail(maskEmail(targetEmail));
@@ -102,6 +111,32 @@ public class RegistrationService {
 
     private String generateCode() {
         return Integer.toString(ThreadLocalRandom.current().nextInt(100000, 1000000));
+    }
+
+    private void rollbackFailedRegistration(UUID userId, String registrationToken) {
+        if (StringUtils.hasText(registrationToken) && registrationSessionStore != null) {
+            try {
+                registrationSessionStore.delete(registrationToken);
+            } catch (RuntimeException cleanupEx) {
+                log.warn("[registration] failed to cleanup session for userId={}: {}", userId, cleanupEx.toString());
+            }
+        }
+
+        if (userId != null && registrationCodeStore != null) {
+            try {
+                registrationCodeStore.delete(userId);
+            } catch (RuntimeException cleanupEx) {
+                log.warn("[registration] failed to cleanup code for userId={}: {}", userId, cleanupEx.toString());
+            }
+        }
+
+        if (userId != null) {
+            try {
+                userRegistrationActionApi.deletePendingUser(userId);
+            } catch (RuntimeException cleanupEx) {
+                log.warn("[registration] failed to cleanup pending user userId={}: {}", userId, cleanupEx.toString());
+            }
+        }
     }
 
     private String maskEmail(String email) {

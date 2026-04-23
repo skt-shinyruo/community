@@ -180,6 +180,16 @@ class UserRegistrationServiceTest {
         verify(userMapper).deleteExpiredPendingUsers(anyInt(), any(Date.class));
     }
 
+    @Test
+    void deletePendingUserShouldDeleteOnlyPendingUser() {
+        UserRegistrationService service = new UserRegistrationService(userMapper);
+        UUID userId = userId(8);
+
+        service.deletePendingUser(userId);
+
+        verify(userMapper).deletePendingUser(userId, 0);
+    }
+
     private User existingUser(UUID id, String username, String email) {
         User user = new User();
         user.setId(id);

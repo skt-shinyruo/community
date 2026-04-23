@@ -173,6 +173,18 @@ public class RedisRegistrationCodeStore implements RegistrationCodeStore {
     }
 
     @Override
+    public void delete(UUID userId) {
+        if (userId == null) {
+            return;
+        }
+        try {
+            redisTemplate.delete(key(userId));
+        } catch (RuntimeException ignored) {
+            // best-effort cleanup
+        }
+    }
+
+    @Override
     public VerifyResult verifyAndConsume(UUID userId, String code) {
         if (userId == null || !StringUtils.hasText(code)) {
             return VerifyResult.NOT_FOUND;

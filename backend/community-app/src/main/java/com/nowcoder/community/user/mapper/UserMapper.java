@@ -22,6 +22,8 @@ public interface UserMapper {
 
     int deletePendingUserIfExpired(@Param("id") UUID id, @Param("status") int status, @Param("cutoff") java.util.Date cutoff);
 
+    int deletePendingUser(@Param("id") UUID id, @Param("status") int status);
+
     int deleteExpiredPendingUsers(@Param("status") int status, @Param("cutoff") java.util.Date cutoff);
 
     int updateStatus(UUID id, int status);

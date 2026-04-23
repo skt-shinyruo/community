@@ -158,6 +158,15 @@ public class UserRegistrationService implements UserRegistrationActionApi, UserP
         return userMapper.deleteExpiredPendingUsers(0, pendingUserCutoff(pendingTtl));
     }
 
+    @Override
+    @Transactional
+    public void deletePendingUser(UUID userId) {
+        if (userId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
+        }
+        userMapper.deletePendingUser(userId, 0);
+    }
+
     private void cleanupExpiredPendingConflict(User user, Date cutoff) {
         if (isExpiredPendingUser(user, cutoff)) {
             userMapper.deletePendingUserIfExpired(user.getId(), 0, cutoff);

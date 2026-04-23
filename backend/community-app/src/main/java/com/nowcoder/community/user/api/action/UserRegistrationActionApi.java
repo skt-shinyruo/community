@@ -12,5 +12,7 @@ public interface UserRegistrationActionApi {
 
     UserCredentialView activatePendingUser(UUID userId);
 
+    void deletePendingUser(UUID userId);
+
     int cleanupExpiredPendingUsers(Duration pendingTtl);
 }

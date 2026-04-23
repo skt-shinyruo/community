@@ -91,6 +91,7 @@ public class CommentService {
         if (postId == null) {
             return List.of();
         }
+        postService.getById(postId);
         int p = Math.max(0, page);
         int s = Math.min(50, Math.max(1, size));
         return commentMapper.selectCommentsByEntity(ENTITY_TYPE_POST, postId, Pagination.safeOffset(p, s), s);

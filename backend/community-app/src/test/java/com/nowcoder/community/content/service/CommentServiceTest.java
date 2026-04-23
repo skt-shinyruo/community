@@ -17,9 +17,11 @@ import java.util.List;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static com.nowcoder.community.content.exception.ContentErrorCode.POST_NOT_FOUND;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
@@ -61,6 +63,70 @@ class CommentServiceTest {
 
         assertThat(rows).hasSize(1);
         verify(commentMapper).selectRecentCommentsByUser(userId, 5, 5);
+    }
+
+    @Test
+    void listByPostShouldRejectDeletedPost() {
+        CommentMapper commentMapper = mock(CommentMapper.class);
+        PostService postService = mock(PostService.class);
+        SensitiveFilter sensitiveFilter = mock(SensitiveFilter.class);
+        PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
+        ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
+        SocialBlockQueryApi blockQueryApplicationService = mock(SocialBlockQueryApi.class);
+        UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
+        ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
+        UUID postId = uuid(101);
+
+        CommentService service = new CommentService(
+                commentMapper,
+                postService,
+                sensitiveFilter,
+                postScoreQueue,
+                eventPublisher,
+                blockQueryApplicationService,
+                moderationGuard,
+                textCodec
+        );
+
+        when(postService.getById(postId)).thenThrow(new BusinessException(POST_NOT_FOUND));
+
+        assertThatThrownBy(() -> service.listByPost(postId, 0, 10))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode()).isEqualTo(POST_NOT_FOUND));
+
+        verify(commentMapper, never()).selectCommentsByEntity(eq(CommentService.ENTITY_TYPE_POST), eq(postId), anyInt(), anyInt());
+    }
+
+    @Test
+    void listByPostShouldRejectMissingPost() {
+        CommentMapper commentMapper = mock(CommentMapper.class);
+        PostService postService = mock(PostService.class);
+        SensitiveFilter sensitiveFilter = mock(SensitiveFilter.class);
+        PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
+        ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
+        SocialBlockQueryApi blockQueryApplicationService = mock(SocialBlockQueryApi.class);
+        UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
+        ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
+        UUID postId = uuid(102);
+
+        CommentService service = new CommentService(
+                commentMapper,
+                postService,
+                sensitiveFilter,
+                postScoreQueue,
+                eventPublisher,
+                blockQueryApplicationService,
+                moderationGuard,
+                textCodec
+        );
+
+        when(postService.getById(postId)).thenThrow(new BusinessException(POST_NOT_FOUND));
+
+        assertThatThrownBy(() -> service.listByPost(postId, 1, 5))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode()).isEqualTo(POST_NOT_FOUND));
+
+        verify(commentMapper, never()).selectCommentsByEntity(eq(CommentService.ENTITY_TYPE_POST), eq(postId), anyInt(), anyInt());
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.im.projection.ImPolicyChangePublisher;
 import com.nowcoder.community.user.api.model.UserModerationStateView;
 import com.nowcoder.community.user.api.query.UserModerationQueryApi;
 import com.nowcoder.community.user.entity.User;
@@ -23,9 +24,11 @@ import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND
 public class UserModerationService implements UserModerationQueryApi {
 
     private final UserMapper userMapper;
+    private final ImPolicyChangePublisher imPolicyChangePublisher;
 
-    public UserModerationService(UserMapper userMapper) {
+    public UserModerationService(UserMapper userMapper, ImPolicyChangePublisher imPolicyChangePublisher) {
         this.userMapper = userMapper;
+        this.imPolicyChangePublisher = imPolicyChangePublisher;
     }
 
     @Override
@@ -107,6 +110,7 @@ public class UserModerationService implements UserModerationQueryApi {
         status.setUserId(userId);
         status.setMuteUntil(muteUntil);
         status.setBanUntil(banUntil);
+        imPolicyChangePublisher.publishUserPolicyChanged(userId);
         return status;
     }
 

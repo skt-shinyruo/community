@@ -2,6 +2,7 @@ package com.nowcoder.community.social.service;
 
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.im.projection.ImPolicyChangePublisher;
 import com.nowcoder.community.social.contracts.event.BlockPayload;
 import com.nowcoder.community.social.contracts.event.FollowPayload;
 import com.nowcoder.community.social.contracts.event.LikePayload;
@@ -20,6 +21,7 @@ import java.util.UUID;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
 class FollowServiceTest {
 
@@ -27,7 +29,7 @@ class FollowServiceTest {
     void followShouldRejectSelfWhenUuidValuesMatchButInstancesDiffer() {
         InMemoryFollowRepository repo = new InMemoryFollowRepository();
         InMemorySocialEventPublisher publisher = new InMemorySocialEventPublisher();
-        BlockService blockService = new BlockService(new InMemoryBlockRepository(), new InMemorySocialEventPublisher());
+        BlockService blockService = new BlockService(new InMemoryBlockRepository(), new InMemorySocialEventPublisher(), mock(ImPolicyChangePublisher.class));
         FollowService service = new FollowService(repo, publisher, blockService);
         UUID actorUserId = uuid(1);
         UUID targetUserId = UUID.fromString(actorUserId.toString());
@@ -58,7 +60,7 @@ class FollowServiceTest {
         java.util.UUID targetUserId = uuid(2);
         // 模拟“关注者拉黑了被关注者”
         blockRepository.block(actorUserId, targetUserId);
-        BlockService blockService = new BlockService(blockRepository, new InMemorySocialEventPublisher());
+        BlockService blockService = new BlockService(blockRepository, new InMemorySocialEventPublisher(), mock(ImPolicyChangePublisher.class));
 
         FollowService service = new FollowService(repo, publisher, blockService);
 
@@ -79,7 +81,7 @@ class FollowServiceTest {
     void followShouldBeIdempotentAndPublishOnce() {
         InMemoryFollowRepository repo = new InMemoryFollowRepository();
         InMemorySocialEventPublisher publisher = new InMemorySocialEventPublisher();
-        BlockService blockService = new BlockService(new InMemoryBlockRepository(), new InMemorySocialEventPublisher());
+        BlockService blockService = new BlockService(new InMemoryBlockRepository(), new InMemorySocialEventPublisher(), mock(ImPolicyChangePublisher.class));
         FollowService service = new FollowService(repo, publisher, blockService);
         java.util.UUID actorUserId = uuid(1);
         java.util.UUID targetUserId = uuid(2);
@@ -112,7 +114,7 @@ class FollowServiceTest {
     @Test
     void followShouldRollbackStateWhenPublisherFailsForCompensatingRepository() {
         InMemoryFollowRepository repo = new InMemoryFollowRepository();
-        BlockService blockService = new BlockService(new InMemoryBlockRepository(), new InMemorySocialEventPublisher());
+        BlockService blockService = new BlockService(new InMemoryBlockRepository(), new InMemorySocialEventPublisher(), mock(ImPolicyChangePublisher.class));
         FollowService service = new FollowService(repo, new FailingSocialEventPublisher(), blockService);
         java.util.UUID actorUserId = uuid(1);
         java.util.UUID targetUserId = uuid(2);

@@ -24,7 +24,7 @@ public class CommunitySecurityConfig {
             List<ApiSecurityRules> securityRules
     ) throws Exception {
         return http
-                .securityMatcher("/api/**", "/files/**")
+                .securityMatcher("/api/**", "/files/**", "/internal/**")
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -35,6 +35,7 @@ public class CommunitySecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS).permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/internal/im/realtime/projections/**").hasAuthority("SCOPE_im.realtime.internal")
                 )
                 .authorizeHttpRequests(auth -> {
                     for (ApiSecurityRules rules : securityRules) {

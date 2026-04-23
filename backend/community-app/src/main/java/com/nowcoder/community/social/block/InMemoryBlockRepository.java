@@ -5,6 +5,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -43,5 +44,39 @@ public class InMemoryBlockRepository implements BlockRepository {
             return List.of();
         }
         return new ArrayList<>(set);
+    }
+
+    @Override
+    public List<BlockScanRow> scanBlocksAfter(UUID afterUserId, UUID afterTargetUserId, int limit) {
+        int normalizedLimit = Math.min(500, Math.max(1, limit));
+        UUID normalizedAfterUserId = afterUserId == null ? new UUID(0L, 0L) : afterUserId;
+        UUID normalizedAfterTargetUserId = afterTargetUserId == null ? new UUID(0L, 0L) : afterTargetUserId;
+
+        List<UUID> blockerIds = blocks.keySet().stream()
+                .sorted()
+                .toList();
+
+        List<BlockScanRow> rows = new ArrayList<>();
+        for (UUID blockerId : blockerIds) {
+            List<UUID> blockedIds = blocks.getOrDefault(blockerId, Set.of()).stream()
+                    .sorted(Comparator.naturalOrder())
+                    .toList();
+            for (UUID blockedId : blockedIds) {
+                if (blockerId.compareTo(normalizedAfterUserId) < 0) {
+                    continue;
+                }
+                if (blockerId.equals(normalizedAfterUserId) && blockedId.compareTo(normalizedAfterTargetUserId) <= 0) {
+                    continue;
+                }
+                BlockScanRow row = new BlockScanRow();
+                row.setUserId(blockerId);
+                row.setTargetUserId(blockedId);
+                rows.add(row);
+                if (rows.size() >= normalizedLimit) {
+                    return rows;
+                }
+            }
+        }
+        return rows;
     }
 }

@@ -6,6 +6,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -55,7 +56,57 @@ public class RedisBlockRepository implements BlockRepository {
         return list;
     }
 
+    @Override
+    public List<BlockScanRow> scanBlocksAfter(UUID afterUserId, UUID afterTargetUserId, int limit) {
+        int normalizedLimit = Math.min(500, Math.max(1, limit));
+        UUID normalizedAfterUserId = afterUserId == null ? new UUID(0L, 0L) : afterUserId;
+        UUID normalizedAfterTargetUserId = afterTargetUserId == null ? new UUID(0L, 0L) : afterTargetUserId;
+        Set<String> keys = redisTemplate.keys("block:*");
+        if (keys == null || keys.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> blockerIds = keys.stream()
+                .map(this::parseUserIdFromKey)
+                .filter(java.util.Objects::nonNull)
+                .sorted()
+                .toList();
+
+        List<BlockScanRow> rows = new ArrayList<>();
+        for (UUID blockerId : blockerIds) {
+            List<UUID> blockedIds = listBlockedUserIds(blockerId).stream()
+                    .sorted(Comparator.naturalOrder())
+                    .toList();
+            for (UUID blockedId : blockedIds) {
+                if (blockerId.compareTo(normalizedAfterUserId) < 0) {
+                    continue;
+                }
+                if (blockerId.equals(normalizedAfterUserId) && blockedId.compareTo(normalizedAfterTargetUserId) <= 0) {
+                    continue;
+                }
+                BlockScanRow row = new BlockScanRow();
+                row.setUserId(blockerId);
+                row.setTargetUserId(blockedId);
+                rows.add(row);
+                if (rows.size() >= normalizedLimit) {
+                    return rows;
+                }
+            }
+        }
+        return rows;
+    }
+
     private String key(UUID userId) {
         return "block:" + userId;
+    }
+
+    private UUID parseUserIdFromKey(String key) {
+        if (key == null || !key.startsWith("block:")) {
+            return null;
+        }
+        try {
+            return UUID.fromString(key.substring("block:".length()));
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 }

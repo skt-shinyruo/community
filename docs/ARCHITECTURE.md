@@ -124,6 +124,9 @@ flowchart TD
 
 - 跨域协作一律通过 owner-domain `api.query` / `api.action` / `api.model` / `contracts`；
 - 域内持久化默认允许 owner-domain service 直接依赖本域 MyBatis mapper。
+- 同域同步入口统一走 owner `*ApplicationService`，不再把 same-domain `api.query` / `api.action` 当 controller 默认入口。
+- `api.query` / `api.action` / `api.model` 的职责固定为跨域协作边界，不是域内 service locator。
+- 当前 ArchUnit 临时基线仅保留 `PostController`、`UserController`、`BookmarkController` 三个 same-domain `api.*` 既有调用点，后续分域迁移会逐步清零。
 
 Repository / port 不是默认必选层，只有在下面场景才引入：
 

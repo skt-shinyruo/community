@@ -5,7 +5,7 @@ import java.util.UUID;
 /**
  * im-core -> Kafka -> im-realtime event for async send rejection after enqueue.
  */
-public record PrivateMessageRejectedEventV1(
+public record PrivateMessageRejectedEvent(
         String eventId,
         String requestId,
         String clientMsgId,

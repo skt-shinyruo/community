@@ -1,19 +1,25 @@
 package com.nowcoder.community.im.realtime.ws;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.im.common.command.SendPrivateTextCommandV1;
-import com.nowcoder.community.im.common.command.SendRoomTextCommandV1;
-import com.nowcoder.community.im.realtime.client.CommunityGovernanceClient;
-import com.nowcoder.community.im.realtime.client.ImCoreClient;
-import com.nowcoder.community.im.realtime.kafka.CommandProducer;
+import com.nowcoder.community.common.trace.TraceHeaders;
+import com.nowcoder.community.common.trace.TraceIdCodec;
+import com.nowcoder.community.im.common.ws.ConnectFrame;
+import com.nowcoder.community.im.common.ws.ConnectedFrame;
+import com.nowcoder.community.im.common.ws.PingFrame;
+import com.nowcoder.community.im.common.ws.PongFrame;
+import com.nowcoder.community.im.common.ws.RejectFrame;
+import com.nowcoder.community.im.common.ws.SendPrivateTextFrame;
+import com.nowcoder.community.im.common.ws.SendRoomTextFrame;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
 import com.nowcoder.community.im.realtime.presence.RoomLocalIndex;
 import com.nowcoder.community.im.realtime.presence.WsConnection;
-import com.nowcoder.community.im.realtime.security.JwtVerifier;
-import com.nowcoder.community.im.realtime.support.ConversationIdSupport;
-import com.nowcoder.community.common.trace.TraceHeaders;
-import com.nowcoder.community.common.trace.TraceIdCodec;
+import com.nowcoder.community.im.realtime.projection.MembershipProjectionService;
+import com.nowcoder.community.im.realtime.projection.PolicyDecision;
+import com.nowcoder.community.im.realtime.projection.PolicyProjectionService;
+import com.nowcoder.community.im.realtime.projection.ProjectionSyncCoordinator;
+import com.nowcoder.community.im.realtime.service.MessageCommandIngressService;
+import com.nowcoder.community.im.realtime.session.ImSessionProperties;
+import com.nowcoder.community.im.realtime.session.SessionTicketCodec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -23,17 +29,14 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.socket.WebSocketHandler;
 import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.WebSocketSession;
-import reactor.core.Disposable;
+import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.Locale;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
 public class ImWebSocketHandler implements WebSocketHandler {
@@ -41,45 +44,47 @@ public class ImWebSocketHandler implements WebSocketHandler {
     private static final Logger log = LoggerFactory.getLogger(ImWebSocketHandler.class);
     private static final String CATEGORY_ACCESS = "access";
     private static final String CATEGORY_SECURITY = "security";
-    private static final String CATEGORY_INTEGRATION = "integration";
     private static final String MDC_CATEGORY = "community.category";
     private static final String MDC_ACTION = "community.action";
     private static final String MDC_OUTCOME = "community.outcome";
     private static final String MDC_TRACE_ID = "traceId";
 
-    private final ObjectMapper objectMapper;
-    private final JwtVerifier jwtVerifier;
+    private final ImFrameCodec frameCodec;
+    private final SessionTicketCodec sessionTicketCodec;
+    private final ImSessionProperties sessionProperties;
+    private final ProjectionSyncCoordinator projectionSyncCoordinator;
+    private final MembershipProjectionService membershipProjectionService;
+    private final PolicyProjectionService policyProjectionService;
+    private final MessageCommandIngressService commandIngressService;
     private final ConnectionRegistry connectionRegistry;
     private final RoomLocalIndex roomLocalIndex;
-    private final ImCoreClient imCoreClient;
-    private final CommunityGovernanceClient governanceClient;
-    private final CommandProducer commandProducer;
     private final int maxChars;
     private final int maxOutboundBacklog;
-    private final int kafkaSendTimeoutMs;
 
     public ImWebSocketHandler(
-            ObjectMapper objectMapper,
-            JwtVerifier jwtVerifier,
+            ImFrameCodec frameCodec,
+            SessionTicketCodec sessionTicketCodec,
+            ImSessionProperties sessionProperties,
+            ProjectionSyncCoordinator projectionSyncCoordinator,
+            MembershipProjectionService membershipProjectionService,
+            PolicyProjectionService policyProjectionService,
+            MessageCommandIngressService commandIngressService,
             ConnectionRegistry connectionRegistry,
             RoomLocalIndex roomLocalIndex,
-            ImCoreClient imCoreClient,
-            CommunityGovernanceClient governanceClient,
-            CommandProducer commandProducer,
             @Value("${im.ws.max-inbound-chars:10000}") int maxChars,
-            @Value("${im.ws.outbound-buffer-size:256}") int maxOutboundBacklog,
-            @Value("${im.ws.kafka-send-timeout-ms:5000}") int kafkaSendTimeoutMs
+            @Value("${im.ws.outbound-buffer-size:256}") int maxOutboundBacklog
     ) {
-        this.objectMapper = objectMapper;
-        this.jwtVerifier = jwtVerifier;
+        this.frameCodec = frameCodec;
+        this.sessionTicketCodec = sessionTicketCodec;
+        this.sessionProperties = sessionProperties;
+        this.projectionSyncCoordinator = projectionSyncCoordinator;
+        this.membershipProjectionService = membershipProjectionService;
+        this.policyProjectionService = policyProjectionService;
+        this.commandIngressService = commandIngressService;
         this.connectionRegistry = connectionRegistry;
         this.roomLocalIndex = roomLocalIndex;
-        this.imCoreClient = imCoreClient;
-        this.governanceClient = governanceClient;
-        this.commandProducer = commandProducer;
         this.maxChars = Math.min(Math.max(1, maxChars), 100_000);
         this.maxOutboundBacklog = Math.min(Math.max(1, maxOutboundBacklog), 10_000);
-        this.kafkaSendTimeoutMs = Math.min(Math.max(100, kafkaSendTimeoutMs), 60_000);
     }
 
     @Override
@@ -99,314 +104,191 @@ public class ImWebSocketHandler implements WebSocketHandler {
                 .doOnNext(msg -> conn.onOutboundDelivered())
                 .map(session::textMessage);
 
-        Mono<Void> sender = session.send(outboundFlux)
-                .doFinally(sig -> cleanupOnce.run());
-
+        Mono<Void> sender = session.send(outboundFlux).doFinally(signalType -> cleanupOnce.run());
         Mono<Void> receiver = session.receive()
                 .map(WebSocketMessage::getPayloadAsText)
                 .flatMap(text -> handleInboundText(conn, text))
-                .doFinally(sig -> cleanupOnce.run())
+                .doFinally(signalType -> cleanupOnce.run())
                 .then();
 
         return Mono.when(sender, receiver);
     }
 
     private Mono<Void> handleInboundText(WsConnection conn, String text) {
-        if (text == null || text.isBlank()) {
+        if (!StringUtils.hasText(text)) {
             return Mono.empty();
         }
         if (text.length() > maxChars) {
-            conn.trySendText(WsProtocol.error("payload too large"));
-            conn.closeAsync(Duration.ofSeconds(1));
-            return Mono.empty();
-        }
-        JsonNode node;
-        try {
-            node = objectMapper.readTree(text);
-        } catch (Exception e) {
-            conn.trySendText(WsProtocol.error("invalid json"));
-            return Mono.empty();
-        }
-        String type = node.path("type").asText("");
-        if (!StringUtils.hasText(type)) {
-            conn.trySendText(WsProtocol.error("missing type"));
+            rejectAndClose(conn, "protocol", "", "", 400, "payload_too_large", "payload too large");
             return Mono.empty();
         }
 
-        if (conn.userId() == null && !"auth".equals(type)) {
+        JsonNode node;
+        try {
+            node = frameCodec.readTree(text);
+        } catch (RuntimeException e) {
+            sendReject(conn, "protocol", "", "", 400, "invalid_json", "invalid json");
+            return Mono.empty();
+        }
+
+        String type = node.path("type").asText("");
+        if (!StringUtils.hasText(type)) {
+            sendReject(conn, "protocol", "", "", 400, "missing_type", "missing type");
+            return Mono.empty();
+        }
+
+        if (conn.userId() == null && !"connect".equals(type)) {
             warnEvent(
                     CATEGORY_SECURITY,
-                    "ws_auth",
+                    "ws_connect",
                     "denied",
                     conn.traceId(),
-                    null,
-                    "community.reason_code", "auth_required",
+                    "community.reason_code", "connect_required",
                     "community.connection_id", conn.connectionId()
             );
-            conn.trySendText(WsProtocol.authError("auth required"));
-            conn.closeAsync(Duration.ofSeconds(1));
+            rejectAndClose(conn, type, "", "", 401, "connect_required", "connect required");
             return Mono.empty();
         }
 
         return switch (type) {
-            case "auth" -> handleAuth(conn, node);
+            case "connect" -> handleConnect(conn, node);
             case "sendPrivateText" -> handleSendPrivate(conn, node);
             case "sendRoomText" -> handleSendRoom(conn, node);
-            case "ping" -> {
-                conn.trySendText(WsProtocol.pong());
+            case "ping" -> handlePing(conn, node);
+            default -> {
+                sendReject(conn, type, "", "", 400, "unsupported_type", "unsupported type");
                 yield Mono.empty();
             }
-            default -> Mono.empty();
         };
     }
 
-    private Mono<Void> handleAuth(WsConnection conn, JsonNode node) {
-        String accessToken = node.path("accessToken").asText("");
+    private Mono<Void> handleConnect(WsConnection conn, JsonNode node) {
         try {
-            JwtVerifier.VerifiedJwt verified = jwtVerifier.verify(accessToken);
-            UUID previous = conn.userId();
-            if (previous != null) {
-                if (!previous.equals(verified.userId())) {
-                    warnEvent(
-                            CATEGORY_SECURITY,
-                            "ws_auth",
-                            "denied",
-                            conn.traceId(),
-                            null,
-                            "community.reason_code", "user_mismatch",
-                            "community.connection_id", conn.connectionId(),
-                            "user.id", previous
-                    );
-                    conn.trySendText(WsProtocol.authError("user mismatch"));
-                    conn.closeAsync(Duration.ofSeconds(1));
-                    return Mono.empty();
-                }
-                // Token refresh (do not re-bootstrap rooms, but update token for downstream calls).
-                conn.bindAuth(verified.userId(), accessToken);
-                conn.trySendText(WsProtocol.authOk(verified.userId()));
+            projectionSyncCoordinator.requireReady();
+            ConnectFrame frame = frameCodec.read(node, ConnectFrame.class);
+            SessionTicketCodec.TicketClaims ticket = sessionTicketCodec.decode(frame.ticket());
+
+            if (!StringUtils.hasText(ticket.workerId())
+                    || !ticket.workerId().equals(sessionProperties.getWorkerId())) {
+                rejectAndClose(conn, "connect", "", "", 403, "wrong_worker", "ticket is bound to another worker");
                 return Mono.empty();
             }
 
-            conn.bindAuth(verified.userId(), accessToken);
-            connectionRegistry.register(conn);
-            conn.trySendText(WsProtocol.authOk(verified.userId()));
+            if (conn.userId() != null) {
+                conn.trySendText(frameCodec.write(new ConnectedFrame("connected", conn.sessionId())));
+                return Mono.empty();
+            }
 
-            // Best-effort bootstrap: pull membership from im-core (paged) and build local indexes.
-            Disposable sub = imCoreClient.listAllRoomIdsForUser(verified.userId(), accessToken, conn.traceId())
-                    .onBackpressureBuffer(2048)
-                    .doOnError(ex -> warnEvent(
-                            CATEGORY_INTEGRATION,
-                            "ws_room_bootstrap",
-                            "degraded",
-                            conn.traceId(),
-                            null,
-                            "community.reason_code", "bootstrap_failed",
-                            "community.connection_id", conn.connectionId(),
-                            "user.id", verified.userId(),
-                            "community.error_class", errorClass(ex),
-                            "community.error_message", errorMessage(ex)
-                    ))
-                    .onErrorResume(ex -> Flux.empty())
-                    .subscribe(roomId -> {
-                        roomLocalIndex.add(roomId, conn.connectionId());
-                        conn.joinRoom(roomId);
-                    });
-            conn.setRoomBootstrapSubscription(sub);
-        } catch (Exception e) {
+            conn.bindSession(ticket.sessionId(), ticket.userId(), ticket.workerId());
+            membershipProjectionService.bindExistingRooms(conn, roomLocalIndex);
+            connectionRegistry.register(conn);
+            conn.trySendText(frameCodec.write(new ConnectedFrame("connected", ticket.sessionId())));
+            infoEvent(
+                    CATEGORY_ACCESS,
+                    "ws_connect",
+                    "success",
+                    conn.traceId(),
+                    "community.connection_id", conn.connectionId(),
+                    "user.id", conn.userId(),
+                    "community.session_id", conn.sessionId(),
+                    "community.worker_id", conn.workerId()
+            );
+        } catch (ResponseStatusException e) {
+            rejectAndClose(conn, "connect", "", "", e.getStatusCode().value(), "projection_not_ready", e.getReason());
+        } catch (RuntimeException e) {
             warnEvent(
-                CATEGORY_SECURITY,
-                "ws_auth",
-                "denied",
-                conn.traceId(),
-                null,
-                "community.reason_code", "invalid_token",
-                "community.connection_id", conn.connectionId(),
+                    CATEGORY_SECURITY,
+                    "ws_connect",
+                    "denied",
+                    conn.traceId(),
+                    "community.reason_code", "invalid_ticket",
+                    "community.connection_id", conn.connectionId(),
                     "community.error_class", errorClass(e),
                     "community.error_message", errorMessage(e)
             );
-            conn.trySendText(WsProtocol.authError("invalid token"));
-            conn.closeAsync(Duration.ofSeconds(1));
+            rejectAndClose(conn, "connect", "", "", 401, "invalid_ticket", "invalid ticket");
         }
         return Mono.empty();
     }
 
     private Mono<Void> handleSendPrivate(WsConnection conn, JsonNode node) {
-        UUID fromUserId = conn.userId();
-        if (fromUserId == null) {
-            conn.trySendText(WsProtocol.authError("auth required"));
-            conn.closeAsync(Duration.ofSeconds(1));
+        SendPrivateTextFrame frame;
+        try {
+            projectionSyncCoordinator.requireReady();
+            frame = frameCodec.read(node, SendPrivateTextFrame.class);
+        } catch (ResponseStatusException e) {
+            sendReject(conn, "sendPrivateText", "", "", e.getStatusCode().value(), "projection_not_ready", e.getReason());
             return Mono.empty();
-        }
-        UUID toUserId = parseUuid(node.path("toUserId").asText(""), "toUserId");
-        String content = node.path("content").asText("");
-        String clientMsgId = String.valueOf(node.path("clientMsgId").asText("")).trim();
-        String requestId = newRequestId();
-        if (toUserId == null) {
-            conn.trySendText(WsProtocol.sendError("sendPrivateText", clientMsgId, requestId, 400, "toUserId 非法", ""));
-            return Mono.empty();
-        }
-        if (!StringUtils.hasText(clientMsgId)) {
-            conn.trySendText(WsProtocol.error("clientMsgId required"));
-            return Mono.empty();
-        }
-        if (!StringUtils.hasText(content)) {
-            conn.trySendText(WsProtocol.sendError("sendPrivateText", clientMsgId, requestId, 400, "content required", ""));
-            return Mono.empty();
-        }
-        if (content.length() > maxChars) {
-            conn.trySendText(WsProtocol.sendError("sendPrivateText", clientMsgId, requestId, 400, "content too long", ""));
+        } catch (RuntimeException e) {
+            sendReject(conn, "sendPrivateText", "", "", 400, "invalid_frame", "invalid sendPrivateText");
             return Mono.empty();
         }
 
-        String accessToken = conn.accessToken();
-        if (!StringUtils.hasText(accessToken)) {
-            conn.trySendText(WsProtocol.sendError("sendPrivateText", clientMsgId, requestId, 401, "未登录或登录已失效", ""));
-            conn.closeAsync(Duration.ofSeconds(1));
+        String clientMsgId = frame.clientMsgId() == null ? "" : frame.clientMsgId().trim();
+        if (!StringUtils.hasText(clientMsgId) || frame.toUserId() == null || !StringUtils.hasText(frame.content())) {
+            sendReject(conn, "sendPrivateText", clientMsgId, "", 400, "invalid_frame", "invalid sendPrivateText");
+            return Mono.empty();
+        }
+        if (frame.content().length() > maxChars) {
+            sendReject(conn, "sendPrivateText", clientMsgId, "", 400, "content_too_long", "content too long");
             return Mono.empty();
         }
 
-        return governanceClient.validateSendPrivateMessage(accessToken, toUserId, conn.traceId())
-                .flatMap(decision -> {
-                    if (decision == null || !decision.allowed()) {
-                        int code = decision == null ? 503 : decision.code();
-                        String msg = decision == null ? "治理校验服务不可用，请稍后重试" : decision.message();
-                        String traceId = decision == null ? "" : decision.traceId();
-                        conn.trySendText(WsProtocol.sendError("sendPrivateText", clientMsgId, requestId, code, msg, traceId));
-                        if (code == 401) {
-                            conn.trySendText(WsProtocol.authError("invalid token"));
-                            conn.closeAsync(Duration.ofSeconds(1));
-                        }
-                        return Mono.empty();
-                    }
-
-                    String conversationId = ConversationIdSupport.conversationId(fromUserId, toUserId);
-                    SendPrivateTextCommandV1 cmd = new SendPrivateTextCommandV1(
-                            requestId,
-                            clientMsgId,
-                            fromUserId,
-                            toUserId,
-                            conversationId,
-                            content,
-                            System.currentTimeMillis()
-                    );
-                    CompletableFuture<?> f;
-                    try {
-                        f = commandProducer.sendPrivateText(cmd);
-                    } catch (RuntimeException e) {
-                        f = CompletableFuture.failedFuture(e);
-                    }
-                    sendWithAccepted(conn, "sendPrivateText", cmd.clientMsgId(), cmd.requestId(), f);
-                    return Mono.empty();
-                });
+        PolicyDecision decision = policyProjectionService.canSendPrivate(conn.userId(), frame.toUserId());
+        if (!decision.allowed()) {
+            sendReject(
+                    conn,
+                    "sendPrivateText",
+                    clientMsgId,
+                    UUID.randomUUID().toString(),
+                    decision.code(),
+                    decision.reasonCode(),
+                    decision.message()
+            );
+            return Mono.empty();
+        }
+        return commandIngressService.sendPrivate(conn, frame.toUserId(), clientMsgId, frame.content());
     }
 
     private Mono<Void> handleSendRoom(WsConnection conn, JsonNode node) {
-        UUID fromUserId = conn.userId();
-        if (fromUserId == null) {
-            return Mono.empty();
-        }
-        UUID roomId = parseUuid(node.path("roomId").asText(""), "roomId");
-        String content = node.path("content").asText("");
-        String clientMsgId = node.path("clientMsgId").asText("");
-        if (roomId == null || !StringUtils.hasText(clientMsgId) || !StringUtils.hasText(content)) {
-            conn.trySendText(WsProtocol.error("invalid sendRoomText"));
-            return Mono.empty();
-        }
-        if (content.length() > maxChars) {
-            conn.trySendText(WsProtocol.error("content too long"));
-            return Mono.empty();
-        }
-        SendRoomTextCommandV1 cmd = new SendRoomTextCommandV1(
-                newRequestId(),
-                clientMsgId.trim(),
-                fromUserId,
-                roomId,
-                content,
-                System.currentTimeMillis()
-        );
-        CompletableFuture<?> f;
+        SendRoomTextFrame frame;
         try {
-            f = commandProducer.sendRoomText(cmd);
+            projectionSyncCoordinator.requireReady();
+            frame = frameCodec.read(node, SendRoomTextFrame.class);
+        } catch (ResponseStatusException e) {
+            sendReject(conn, "sendRoomText", "", "", e.getStatusCode().value(), "projection_not_ready", e.getReason());
+            return Mono.empty();
         } catch (RuntimeException e) {
-            f = CompletableFuture.failedFuture(e);
+            sendReject(conn, "sendRoomText", "", "", 400, "invalid_frame", "invalid sendRoomText");
+            return Mono.empty();
         }
-        sendWithAccepted(conn, "sendRoomText", cmd.clientMsgId(), cmd.requestId(), f);
-        return Mono.empty();
+
+        String clientMsgId = frame.clientMsgId() == null ? "" : frame.clientMsgId().trim();
+        if (!StringUtils.hasText(clientMsgId) || frame.roomId() == null || !StringUtils.hasText(frame.content())) {
+            sendReject(conn, "sendRoomText", clientMsgId, "", 400, "invalid_frame", "invalid sendRoomText");
+            return Mono.empty();
+        }
+        if (!membershipProjectionService.isMember(frame.roomId(), conn.userId())) {
+            sendReject(conn, "sendRoomText", clientMsgId, UUID.randomUUID().toString(), 403, "not_room_member", "not a room member");
+            return Mono.empty();
+        }
+        if (frame.content().length() > maxChars) {
+            sendReject(conn, "sendRoomText", clientMsgId, "", 400, "content_too_long", "content too long");
+            return Mono.empty();
+        }
+        return commandIngressService.sendRoom(conn, frame.roomId(), clientMsgId, frame.content());
     }
 
-    private void sendWithAccepted(
-            WsConnection conn,
-            String cmdType,
-            String clientMsgId,
-            String requestId,
-            CompletableFuture<?> future
-    ) {
-        if (conn == null) {
-            return;
-        }
-        if (future == null) {
-            warnEvent(
-                    CATEGORY_INTEGRATION,
-                    "ws_command_enqueue",
-                    "failure",
-                    conn.traceId(),
-                    null,
-                    "community.reason_code", "kafka_send_failed",
-                    "community.connection_id", conn.connectionId(),
-                    "user.id", conn.userId(),
-                    "community.command", cmdType,
-                    "community.client_msg_id", clientMsgId,
-                    "community.request_id", requestId
-            );
-            conn.trySendText(WsProtocol.sendError(cmdType, clientMsgId, requestId, "kafka send failed"));
-            return;
-        }
+    private Mono<Void> handlePing(WsConnection conn, JsonNode node) {
+        long sentAtEpochMillis;
         try {
-            future.orTimeout(kafkaSendTimeoutMs, TimeUnit.MILLISECONDS).whenComplete((ok, ex) -> {
-                try {
-                    if (ex != null) {
-                        String reasonCode = ex instanceof TimeoutException ? "kafka_send_timeout" : "kafka_send_failed";
-                        String errorMessage = ex instanceof TimeoutException ? "kafka send timeout" : "kafka send failed";
-                        warnEvent(
-                                CATEGORY_INTEGRATION,
-                                "ws_command_enqueue",
-                                "failure",
-                                conn.traceId(),
-                                null,
-                                "community.reason_code", reasonCode,
-                                "community.connection_id", conn.connectionId(),
-                                "user.id", conn.userId(),
-                                "community.command", cmdType,
-                                "community.client_msg_id", clientMsgId,
-                                "community.request_id", requestId,
-                                "community.error_class", errorClass(ex),
-                                "community.error_message", errorMessage(ex)
-                        );
-                        conn.trySendText(WsProtocol.sendError(cmdType, clientMsgId, requestId, errorMessage));
-                        return;
-                    }
-                    conn.trySendText(WsProtocol.sendAccepted(cmdType, clientMsgId, requestId));
-                } catch (RuntimeException ignore) {
-                }
-            });
+            PingFrame frame = frameCodec.read(node, PingFrame.class);
+            sentAtEpochMillis = frame.sentAtEpochMillis();
         } catch (RuntimeException e) {
-            warnEvent(
-                    CATEGORY_INTEGRATION,
-                    "ws_command_enqueue",
-                    "failure",
-                    conn.traceId(),
-                    null,
-                    "community.reason_code", "kafka_send_failed",
-                    "community.connection_id", conn.connectionId(),
-                    "user.id", conn.userId(),
-                    "community.command", cmdType,
-                    "community.client_msg_id", clientMsgId,
-                    "community.request_id", requestId,
-                    "community.error_class", errorClass(e),
-                    "community.error_message", errorMessage(e)
-            );
-            conn.trySendText(WsProtocol.sendError(cmdType, clientMsgId, requestId, "kafka send failed"));
+            sentAtEpochMillis = System.currentTimeMillis();
         }
+        conn.trySendText(frameCodec.write(new PongFrame("pong", sentAtEpochMillis)));
+        return Mono.empty();
     }
 
     private void cleanup(WsConnection conn) {
@@ -416,7 +298,6 @@ public class ImWebSocketHandler implements WebSocketHandler {
         int joinedRoomCount = conn.joinedRoomsView().size();
         int outboundBacklog = conn.outboundBacklog();
         try {
-            conn.disposeRoomBootstrapSubscription();
             connectionRegistry.unregister(conn);
             for (UUID roomId : conn.joinedRoomsView()) {
                 roomLocalIndex.remove(roomId, conn.connectionId());
@@ -437,23 +318,37 @@ public class ImWebSocketHandler implements WebSocketHandler {
         }
     }
 
-    private static String newRequestId() {
-        try {
-            return UUID.randomUUID().toString();
-        } catch (RuntimeException e) {
-            return String.valueOf(System.currentTimeMillis());
-        }
+    private void rejectAndClose(
+            WsConnection conn,
+            String cmd,
+            String clientMsgId,
+            String requestId,
+            int code,
+            String reasonCode,
+            String message
+    ) {
+        sendReject(conn, cmd, clientMsgId, requestId, code, reasonCode, message);
+        conn.closeAsync(Duration.ofSeconds(1));
     }
 
-    private UUID parseUuid(String raw, String fieldName) {
-        if (!StringUtils.hasText(raw)) {
-            return null;
-        }
-        try {
-            return UUID.fromString(raw.trim());
-        } catch (IllegalArgumentException ex) {
-            return null;
-        }
+    private void sendReject(
+            WsConnection conn,
+            String cmd,
+            String clientMsgId,
+            String requestId,
+            int code,
+            String reasonCode,
+            String message
+    ) {
+        conn.trySendText(frameCodec.write(new RejectFrame(
+                "reject",
+                cmd == null ? "" : cmd,
+                clientMsgId == null ? "" : clientMsgId,
+                requestId == null ? "" : requestId,
+                code,
+                reasonCode == null ? "" : reasonCode,
+                message == null ? "" : message
+        )));
     }
 
     private String resolveTraceId(WebSocketSession session) {
@@ -466,23 +361,19 @@ public class ImWebSocketHandler implements WebSocketHandler {
     }
 
     private void infoEvent(String category, String action, String outcome, String traceId, Object... keyValues) {
-        logEvent(category, action, outcome, traceId, false, null, keyValues);
+        logEvent(category, action, outcome, traceId, false, keyValues);
     }
 
-    private void warnEvent(String category, String action, String outcome, String traceId, Throwable throwable, Object... keyValues) {
-        logEvent(category, action, outcome, traceId, true, throwable, keyValues);
+    private void warnEvent(String category, String action, String outcome, String traceId, Object... keyValues) {
+        logEvent(category, action, outcome, traceId, true, keyValues);
     }
 
-    private void logEvent(String category, String action, String outcome, String traceId, boolean warn, Throwable throwable, Object... keyValues) {
-        if (keyValues.length % 2 != 0) {
-            throw new IllegalArgumentException("IM realtime event keyValues must contain key/value pairs");
-        }
+    private void logEvent(String category, String action, String outcome, String traceId, boolean warn, Object... keyValues) {
         String previousCategory = MDC.get(MDC_CATEGORY);
         String previousAction = MDC.get(MDC_ACTION);
         String previousOutcome = MDC.get(MDC_OUTCOME);
         String previousTraceId = MDC.get(MDC_TRACE_ID);
-        String resolvedCategory = StringUtils.hasText(category) ? category.trim() : CATEGORY_INTEGRATION;
-        MDC.put(MDC_CATEGORY, resolvedCategory);
+        MDC.put(MDC_CATEGORY, category);
         MDC.put(MDC_ACTION, action);
         MDC.put(MDC_OUTCOME, outcome);
         if (StringUtils.hasText(traceId)) {
@@ -491,16 +382,12 @@ public class ImWebSocketHandler implements WebSocketHandler {
             MDC.remove(MDC_TRACE_ID);
         }
         try {
-            String message = buildMessage(resolvedCategory, action, outcome, keyValues);
+            String message = buildMessage(category, action, outcome, keyValues);
             if (warn) {
-                if (throwable == null) {
-                    log.warn(message);
-                } else {
-                    log.warn(message, throwable);
-                }
-                return;
+                log.warn(message);
+            } else {
+                log.info(message);
             }
-            log.info(message);
         } finally {
             restore(MDC_CATEGORY, previousCategory);
             restore(MDC_ACTION, previousAction);
@@ -555,9 +442,9 @@ public class ImWebSocketHandler implements WebSocketHandler {
     private void restore(String key, String previousValue) {
         if (previousValue == null) {
             MDC.remove(key);
-            return;
+        } else {
+            MDC.put(key, previousValue);
         }
-        MDC.put(key, previousValue);
     }
 
     private String errorClass(Throwable throwable) {

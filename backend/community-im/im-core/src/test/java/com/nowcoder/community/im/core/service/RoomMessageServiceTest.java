@@ -1,6 +1,6 @@
 package com.nowcoder.community.im.core.service;
 
-import com.nowcoder.community.im.common.command.SendRoomTextCommandV1;
+import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.core.repository.RoomMessageRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,7 +32,7 @@ class RoomMessageServiceTest {
         UUID sender = uuid(1);
         UUID roomId = roomMembershipService.createRoom(sender, "room");
 
-        SendRoomTextCommandV1 cmd = new SendRoomTextCommandV1(
+        SendRoomTextCommand cmd = new SendRoomTextCommand(
                 "req-1",
                 "c1",
                 sender,

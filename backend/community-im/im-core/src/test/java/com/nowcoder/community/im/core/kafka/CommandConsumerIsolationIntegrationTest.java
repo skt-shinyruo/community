@@ -3,7 +3,7 @@ package com.nowcoder.community.im.core.kafka;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.im.common.ImTopics;
-import com.nowcoder.community.im.common.command.SendRoomTextCommandV1;
+import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.core.service.RoomMembershipService;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -37,10 +37,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 @EmbeddedKafka(
         partitions = 1,
         topics = {
-                ImTopics.COMMAND_ROOM_TEXT_V1,
+                ImTopics.COMMAND_ROOM_TEXT,
                 "im.command.room_text.v1.dlq",
-                ImTopics.EVENT_ROOM_PERSISTED_V1,
-                ImTopics.EVENT_ROOM_REJECTED_V1
+                ImTopics.EVENT_ROOM_PERSISTED,
+                ImTopics.EVENT_ROOM_REJECTED
         }
 )
 @TestPropertySource(properties = {
@@ -79,22 +79,22 @@ class CommandConsumerIsolationIntegrationTest {
         UUID sender = uuid(1);
         UUID roomId = roomMembershipService.createRoom(sender, "room");
 
-        String dlqTopic = ImTopics.COMMAND_ROOM_TEXT_V1 + ".dlq";
+        String dlqTopic = ImTopics.COMMAND_ROOM_TEXT + ".dlq";
 
         consumer = newStringConsumer("im-core-it-isolation");
-        consumer.subscribe(List.of(dlqTopic, ImTopics.EVENT_ROOM_PERSISTED_V1, ImTopics.EVENT_ROOM_REJECTED_V1));
+        consumer.subscribe(List.of(dlqTopic, ImTopics.EVENT_ROOM_PERSISTED, ImTopics.EVENT_ROOM_REJECTED));
         consumer.poll(Duration.ofMillis(200));
 
         kafkaTemplate.send(
-                ImTopics.COMMAND_ROOM_TEXT_V1,
+                ImTopics.COMMAND_ROOM_TEXT,
                 String.valueOf(roomId),
                 // invalid content => should be recovered to dlq (not block partition)
-                new SendRoomTextCommandV1("req-bad", "c-bad", sender, roomId, " ", System.currentTimeMillis())
+                new SendRoomTextCommand("req-bad", "c-bad", sender, roomId, " ", System.currentTimeMillis())
         );
 
         Map<String, ConsumerRecord<String, String>> rejectedBatch = pollForTopics(
                 consumer,
-                Set.of(dlqTopic, ImTopics.EVENT_ROOM_REJECTED_V1),
+                Set.of(dlqTopic, ImTopics.EVENT_ROOM_REJECTED),
                 Duration.ofSeconds(10)
         );
 
@@ -103,7 +103,7 @@ class CommandConsumerIsolationIntegrationTest {
         assertThat(dlqJson.path("clientMsgId").asText("")).isEqualTo("c-bad");
         assertThat(dlqJson.path("roomId").asText("")).isEqualTo(roomId.toString());
 
-        ConsumerRecord<String, String> rejectedRecord = rejectedBatch.get(ImTopics.EVENT_ROOM_REJECTED_V1);
+        ConsumerRecord<String, String> rejectedRecord = rejectedBatch.get(ImTopics.EVENT_ROOM_REJECTED);
         JsonNode rejectedJson = objectMapper.readTree(rejectedRecord.value());
         assertThat(rejectedJson.path("requestId").asText("")).isEqualTo("req-bad");
         assertThat(rejectedJson.path("clientMsgId").asText("")).isEqualTo("c-bad");
@@ -112,12 +112,12 @@ class CommandConsumerIsolationIntegrationTest {
         assertThat(rejectedJson.path("reasonCode").asText("")).isEqualTo("invalid_command");
 
         kafkaTemplate.send(
-                ImTopics.COMMAND_ROOM_TEXT_V1,
+                ImTopics.COMMAND_ROOM_TEXT,
                 String.valueOf(roomId),
-                new SendRoomTextCommandV1("req-ok", "c-ok", sender, roomId, "hi", System.currentTimeMillis())
+                new SendRoomTextCommand("req-ok", "c-ok", sender, roomId, "hi", System.currentTimeMillis())
         );
 
-        ConsumerRecord<String, String> eventRecord = pollForSingleRecord(consumer, ImTopics.EVENT_ROOM_PERSISTED_V1, Duration.ofSeconds(10));
+        ConsumerRecord<String, String> eventRecord = pollForSingleRecord(consumer, ImTopics.EVENT_ROOM_PERSISTED, Duration.ofSeconds(10));
         JsonNode eventJson = objectMapper.readTree(eventRecord.value());
         assertThat(eventJson.path("roomId").asText("")).isEqualTo(roomId.toString());
         assertThat(eventJson.path("seq").asLong()).isEqualTo(1L);

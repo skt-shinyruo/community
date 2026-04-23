@@ -1,7 +1,7 @@
 package com.nowcoder.community.im.core.service;
 
-import com.nowcoder.community.im.common.command.SendPrivateTextCommandV1;
-import com.nowcoder.community.im.common.event.PrivateMessagePersistedEventV1;
+import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
+import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
 import com.nowcoder.community.im.core.repository.ConversationReadStateRepository;
 import com.nowcoder.community.im.core.repository.ConversationRepository;
 import com.nowcoder.community.im.core.repository.PrivateMessageRepository;
@@ -42,7 +42,7 @@ public class PrivateMessageService {
     }
 
     @Transactional
-    public PrivateMessagePersistedEventV1 persist(SendPrivateTextCommandV1 cmd) {
+    public PrivateMessagePersistedEvent persist(SendPrivateTextCommand cmd) {
         if (cmd == null) {
             throw new IllegalArgumentException("command required");
         }
@@ -71,7 +71,7 @@ public class PrivateMessageService {
         var existing = privateMessageRepository.findByIdempotency(derivedConversationId, fromUserId, cmd.clientMsgId());
         if (existing.isPresent()) {
             var m = existing.get();
-            return new PrivateMessagePersistedEventV1(
+            return new PrivateMessagePersistedEvent(
                     "evt_" + m.messageId(),
                     m.conversationId(),
                     m.seq(),
@@ -103,7 +103,7 @@ public class PrivateMessageService {
         // Sender has read their own outgoing message.
         readStateRepository.updateLastReadSeqMax(derivedConversationId, fromUserId, seq);
 
-        return new PrivateMessagePersistedEventV1(
+        return new PrivateMessagePersistedEvent(
                 "evt_" + messageId,
                 derivedConversationId,
                 seq,

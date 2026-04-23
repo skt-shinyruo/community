@@ -1,14 +1,14 @@
 package com.nowcoder.community.im.common;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.im.common.command.SendPrivateTextCommandV1;
-import com.nowcoder.community.im.common.command.SendRoomTextCommandV1;
-import com.nowcoder.community.im.common.event.PrivateMessagePersistedEventV1;
-import com.nowcoder.community.im.common.event.PrivateMessageRejectedEventV1;
+import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
+import com.nowcoder.community.im.common.command.SendRoomTextCommand;
+import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
+import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.RoomMemberChanged;
 import com.nowcoder.community.im.common.event.RoomMemberChangedEventV1;
-import com.nowcoder.community.im.common.event.RoomMessagePersistedEventV1;
-import com.nowcoder.community.im.common.event.RoomMessageRejectedEventV1;
+import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
+import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
 import com.nowcoder.community.im.common.projection.RoomMembershipEntry;
@@ -50,7 +50,7 @@ class JsonContractsTest {
     void command_roundtrip_privateText() throws Exception {
         UUID fromUserId = uuid(12);
         UUID toUserId = uuid(99);
-        SendPrivateTextCommandV1 cmd = new SendPrivateTextCommandV1(
+        SendPrivateTextCommand cmd = new SendPrivateTextCommand(
                 "req-1",
                 "cmsg-1",
                 fromUserId,
@@ -60,14 +60,14 @@ class JsonContractsTest {
                 1700000000000L
         );
 
-        SendPrivateTextCommandV1 back = roundTrip(cmd, SendPrivateTextCommandV1.class);
+        SendPrivateTextCommand back = roundTrip(cmd, SendPrivateTextCommand.class);
         assertEquals(cmd, back);
     }
 
     @Test
     void command_roundtrip_roomText() throws Exception {
         UUID fromUserId = uuid(12);
-        SendRoomTextCommandV1 cmd = new SendRoomTextCommandV1(
+        SendRoomTextCommand cmd = new SendRoomTextCommand(
                 "req-2",
                 "cmsg-2",
                 fromUserId,
@@ -76,7 +76,7 @@ class JsonContractsTest {
                 1700000000001L
         );
 
-        SendRoomTextCommandV1 back = roundTrip(cmd, SendRoomTextCommandV1.class);
+        SendRoomTextCommand back = roundTrip(cmd, SendRoomTextCommand.class);
         assertEquals(cmd, back);
     }
 
@@ -84,7 +84,7 @@ class JsonContractsTest {
     void event_roundtrip_privatePersisted() throws Exception {
         UUID fromUserId = uuid(12);
         UUID toUserId = uuid(99);
-        PrivateMessagePersistedEventV1 event = new PrivateMessagePersistedEventV1(
+        PrivateMessagePersistedEvent event = new PrivateMessagePersistedEvent(
                 "evt-1",
                 conversationId(fromUserId, toUserId),
                 7L,
@@ -97,14 +97,14 @@ class JsonContractsTest {
                 1700000001000L
         );
 
-        PrivateMessagePersistedEventV1 back = roundTrip(event, PrivateMessagePersistedEventV1.class);
+        PrivateMessagePersistedEvent back = roundTrip(event, PrivateMessagePersistedEvent.class);
         assertEquals(event, back);
     }
 
     @Test
     void event_roundtrip_roomPersisted() throws Exception {
         UUID fromUserId = uuid(12);
-        RoomMessagePersistedEventV1 event = new RoomMessagePersistedEventV1(
+        RoomMessagePersistedEvent event = new RoomMessagePersistedEvent(
                 "evt-2",
                 uuid(1001),
                 7L,
@@ -115,7 +115,7 @@ class JsonContractsTest {
                 1700000002000L
         );
 
-        RoomMessagePersistedEventV1 back = roundTrip(event, RoomMessagePersistedEventV1.class);
+        RoomMessagePersistedEvent back = roundTrip(event, RoomMessagePersistedEvent.class);
         assertEquals(event, back);
     }
 
@@ -137,7 +137,7 @@ class JsonContractsTest {
     void event_roundtrip_privateRejected() throws Exception {
         UUID fromUserId = uuid(12);
         UUID toUserId = uuid(99);
-        PrivateMessageRejectedEventV1 event = new PrivateMessageRejectedEventV1(
+        PrivateMessageRejectedEvent event = new PrivateMessageRejectedEvent(
                 "evt-4",
                 "req-4",
                 "cmsg-4",
@@ -150,13 +150,13 @@ class JsonContractsTest {
                 1700000004000L
         );
 
-        PrivateMessageRejectedEventV1 back = roundTrip(event, PrivateMessageRejectedEventV1.class);
+        PrivateMessageRejectedEvent back = roundTrip(event, PrivateMessageRejectedEvent.class);
         assertEquals(event, back);
     }
 
     @Test
     void event_roundtrip_roomRejected() throws Exception {
-        RoomMessageRejectedEventV1 event = new RoomMessageRejectedEventV1(
+        RoomMessageRejectedEvent event = new RoomMessageRejectedEvent(
                 "evt-5",
                 "req-5",
                 "cmsg-5",
@@ -168,7 +168,7 @@ class JsonContractsTest {
                 1700000005000L
         );
 
-        RoomMessageRejectedEventV1 back = roundTrip(event, RoomMessageRejectedEventV1.class);
+        RoomMessageRejectedEvent back = roundTrip(event, RoomMessageRejectedEvent.class);
         assertEquals(event, back);
     }
 
@@ -264,7 +264,16 @@ class JsonContractsTest {
 
     @Test
     void shouldRoundTripCommittedFrame() throws Exception {
-        CommittedFrame frame = new CommittedFrame("committed", "sendPrivateText", "cmsg-10", "req-10");
+        CommittedFrame frame = new CommittedFrame(
+                "committed",
+                "sendPrivateText",
+                "cmsg-10",
+                "req-10",
+                conversationId(uuid(31), uuid(32)),
+                null,
+                uuid(10001),
+                18L
+        );
 
         CommittedFrame back = roundTrip(frame, CommittedFrame.class);
         assertEquals(frame, back);

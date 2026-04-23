@@ -1,16 +1,19 @@
 package com.nowcoder.community.im.realtime.kafka;
 
 import com.nowcoder.community.im.common.ImTopics;
-import com.nowcoder.community.im.common.event.PrivateMessagePersistedEventV1;
-import com.nowcoder.community.im.common.event.PrivateMessageRejectedEventV1;
-import com.nowcoder.community.im.common.event.RoomMemberChangedEventV1;
-import com.nowcoder.community.im.common.event.RoomMessagePersistedEventV1;
-import com.nowcoder.community.im.common.event.RoomMessageRejectedEventV1;
+import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
+import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
+import com.nowcoder.community.im.common.event.RoomMemberChanged;
+import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
+import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
+import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
+import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
 import com.nowcoder.community.im.realtime.presence.RoomLocalIndex;
+import com.nowcoder.community.im.realtime.projection.MembershipProjectionService;
+import com.nowcoder.community.im.realtime.projection.PolicyProjectionService;
 import com.nowcoder.community.im.realtime.push.PrivatePushService;
 import com.nowcoder.community.im.realtime.push.RoomFanoutCoalescer;
-import com.nowcoder.community.im.realtime.push.RoomUpdateCoalescer;
 import com.nowcoder.community.im.realtime.push.SendResultPushService;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
@@ -21,44 +24,47 @@ import java.util.UUID;
 public class EventConsumers {
 
     private final PrivatePushService privatePushService;
+    private final MembershipProjectionService membershipProjectionService;
+    private final PolicyProjectionService policyProjectionService;
     private final ConnectionRegistry connectionRegistry;
     private final RoomLocalIndex roomLocalIndex;
-    private final RoomUpdateCoalescer roomUpdateCoalescer;
     private final RoomFanoutCoalescer roomFanoutCoalescer;
     private final SendResultPushService sendResultPushService;
 
     public EventConsumers(
             PrivatePushService privatePushService,
+            MembershipProjectionService membershipProjectionService,
+            PolicyProjectionService policyProjectionService,
             ConnectionRegistry connectionRegistry,
             RoomLocalIndex roomLocalIndex,
-            RoomUpdateCoalescer roomUpdateCoalescer,
             RoomFanoutCoalescer roomFanoutCoalescer,
             SendResultPushService sendResultPushService
     ) {
         this.privatePushService = privatePushService;
+        this.membershipProjectionService = membershipProjectionService;
+        this.policyProjectionService = policyProjectionService;
         this.connectionRegistry = connectionRegistry;
         this.roomLocalIndex = roomLocalIndex;
-        this.roomUpdateCoalescer = roomUpdateCoalescer;
         this.roomFanoutCoalescer = roomFanoutCoalescer;
         this.sendResultPushService = sendResultPushService;
     }
 
     @KafkaListener(
-            topics = ImTopics.EVENT_PRIVATE_PERSISTED_V1,
+            topics = ImTopics.EVENT_PRIVATE_PERSISTED,
             containerFactory = "kafkaListenerContainerFactory",
             concurrency = "${im.kafka.event.concurrency:3}"
     )
-    public void onPrivatePersisted(PrivateMessagePersistedEventV1 event) {
+    public void onPrivatePersisted(PrivateMessagePersistedEvent event) {
         sendResultPushService.pushPrivateCommitted(event);
         privatePushService.pushPrivateMessage(event);
     }
 
     @KafkaListener(
-            topics = ImTopics.EVENT_ROOM_PERSISTED_V1,
+            topics = ImTopics.EVENT_ROOM_PERSISTED,
             containerFactory = "kafkaListenerContainerFactory",
             concurrency = "${im.kafka.event.concurrency:3}"
     )
-    public void onRoomPersisted(RoomMessagePersistedEventV1 event) {
+    public void onRoomPersisted(RoomMessagePersistedEvent event) {
         if (event == null) {
             return;
         }
@@ -67,28 +73,29 @@ public class EventConsumers {
     }
 
     @KafkaListener(
-            topics = ImTopics.EVENT_PRIVATE_REJECTED_V1,
+            topics = ImTopics.EVENT_PRIVATE_REJECTED,
             containerFactory = "kafkaListenerContainerFactory",
             concurrency = "${im.kafka.event.concurrency:3}"
     )
-    public void onPrivateRejected(PrivateMessageRejectedEventV1 event) {
+    public void onPrivateRejected(PrivateMessageRejectedEvent event) {
         sendResultPushService.pushPrivateRejected(event);
     }
 
     @KafkaListener(
-            topics = ImTopics.EVENT_ROOM_REJECTED_V1,
+            topics = ImTopics.EVENT_ROOM_REJECTED,
             containerFactory = "kafkaListenerContainerFactory",
             concurrency = "${im.kafka.event.concurrency:3}"
     )
-    public void onRoomRejected(RoomMessageRejectedEventV1 event) {
+    public void onRoomRejected(RoomMessageRejectedEvent event) {
         sendResultPushService.pushRoomRejected(event);
     }
 
-    @KafkaListener(topics = ImTopics.EVENT_ROOM_MEMBER_CHANGED_V1, containerFactory = "kafkaListenerContainerFactory")
-    public void onRoomMemberChanged(RoomMemberChangedEventV1 event) {
+    @KafkaListener(topics = ImTopics.EVENT_ROOM_MEMBER_CHANGED, containerFactory = "kafkaListenerContainerFactory")
+    public void onRoomMemberChanged(RoomMemberChanged event) {
         if (event == null) {
             return;
         }
+        membershipProjectionService.applyRoomMemberChanged(event);
         UUID roomId = event.roomId();
         UUID userId = event.userId();
         String action = event.action() == null ? "" : event.action().trim().toUpperCase();
@@ -105,5 +112,15 @@ public class EventConsumers {
                 conn.leaveRoom(roomId);
             });
         }
+    }
+
+    @KafkaListener(topics = ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED, containerFactory = "kafkaListenerContainerFactory")
+    public void onUserMessagingPolicyChanged(UserMessagingPolicyChanged event) {
+        policyProjectionService.applyUserMessagingPolicyChanged(event);
+    }
+
+    @KafkaListener(topics = ImTopics.EVENT_USER_BLOCK_RELATION_CHANGED, containerFactory = "kafkaListenerContainerFactory")
+    public void onUserBlockRelationChanged(UserBlockRelationChanged event) {
+        policyProjectionService.applyUserBlockRelationChanged(event);
     }
 }

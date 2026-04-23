@@ -1,11 +1,11 @@
 package com.nowcoder.community.im.core.kafka;
 
 import com.nowcoder.community.im.common.ImTopics;
-import com.nowcoder.community.im.common.event.PrivateMessagePersistedEventV1;
-import com.nowcoder.community.im.common.event.PrivateMessageRejectedEventV1;
+import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
+import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.RoomMemberChanged;
-import com.nowcoder.community.im.common.event.RoomMessagePersistedEventV1;
-import com.nowcoder.community.im.common.event.RoomMessageRejectedEventV1;
+import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
+import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
@@ -18,32 +18,32 @@ public class EventProducer {
         this.kafkaTemplate = kafkaTemplate;
     }
 
-    public void publishPrivatePersisted(PrivateMessagePersistedEventV1 event) {
+    public void publishPrivatePersisted(PrivateMessagePersistedEvent event) {
         if (event == null) {
             return;
         }
-        kafkaTemplate.send(ImTopics.EVENT_PRIVATE_PERSISTED_V1, event.conversationId(), event);
+        kafkaTemplate.send(ImTopics.EVENT_PRIVATE_PERSISTED, event.conversationId(), event);
     }
 
-    public void publishPrivateRejected(PrivateMessageRejectedEventV1 event) {
+    public void publishPrivateRejected(PrivateMessageRejectedEvent event) {
         if (event == null) {
             return;
         }
-        kafkaTemplate.send(ImTopics.EVENT_PRIVATE_REJECTED_V1, event.conversationId(), event);
+        kafkaTemplate.send(ImTopics.EVENT_PRIVATE_REJECTED, event.conversationId(), event);
     }
 
-    public void publishRoomPersisted(RoomMessagePersistedEventV1 event) {
+    public void publishRoomPersisted(RoomMessagePersistedEvent event) {
         if (event == null) {
             return;
         }
-        kafkaTemplate.send(ImTopics.EVENT_ROOM_PERSISTED_V1, String.valueOf(event.roomId()), event);
+        kafkaTemplate.send(ImTopics.EVENT_ROOM_PERSISTED, String.valueOf(event.roomId()), event);
     }
 
-    public void publishRoomRejected(RoomMessageRejectedEventV1 event) {
+    public void publishRoomRejected(RoomMessageRejectedEvent event) {
         if (event == null) {
             return;
         }
-        kafkaTemplate.send(ImTopics.EVENT_ROOM_REJECTED_V1, String.valueOf(event.roomId()), event);
+        kafkaTemplate.send(ImTopics.EVENT_ROOM_REJECTED, String.valueOf(event.roomId()), event);
     }
 
     public void publishRoomMemberChanged(RoomMemberChanged event) {

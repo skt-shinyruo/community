@@ -1,8 +1,8 @@
 package com.nowcoder.community.im.realtime.kafka;
 
 import com.nowcoder.community.im.common.ImTopics;
-import com.nowcoder.community.im.common.command.SendPrivateTextCommandV1;
-import com.nowcoder.community.im.common.command.SendRoomTextCommandV1;
+import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
+import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Component;
@@ -18,23 +18,23 @@ public class CommandProducer {
         this.kafkaTemplate = kafkaTemplate;
     }
 
-    public CompletableFuture<SendResult<String, Object>> sendPrivateText(SendPrivateTextCommandV1 cmd) {
+    public CompletableFuture<SendResult<String, Object>> sendPrivateText(SendPrivateTextCommand cmd) {
         if (cmd == null) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("command required"));
         }
         try {
-            return kafkaTemplate.send(ImTopics.COMMAND_PRIVATE_TEXT_V1, cmd.conversationId(), cmd);
+            return kafkaTemplate.send(ImTopics.COMMAND_PRIVATE_TEXT, cmd.conversationId(), cmd);
         } catch (RuntimeException e) {
             return CompletableFuture.failedFuture(e);
         }
     }
 
-    public CompletableFuture<SendResult<String, Object>> sendRoomText(SendRoomTextCommandV1 cmd) {
+    public CompletableFuture<SendResult<String, Object>> sendRoomText(SendRoomTextCommand cmd) {
         if (cmd == null) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("command required"));
         }
         try {
-            return kafkaTemplate.send(ImTopics.COMMAND_ROOM_TEXT_V1, String.valueOf(cmd.roomId()), cmd);
+            return kafkaTemplate.send(ImTopics.COMMAND_ROOM_TEXT, String.valueOf(cmd.roomId()), cmd);
         } catch (RuntimeException e) {
             return CompletableFuture.failedFuture(e);
         }

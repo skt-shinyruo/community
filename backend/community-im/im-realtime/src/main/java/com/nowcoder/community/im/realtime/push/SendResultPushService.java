@@ -1,95 +1,99 @@
 package com.nowcoder.community.im.realtime.push;
 
-import com.nowcoder.community.im.common.event.PrivateMessagePersistedEventV1;
-import com.nowcoder.community.im.common.event.PrivateMessageRejectedEventV1;
-import com.nowcoder.community.im.common.event.RoomMessagePersistedEventV1;
-import com.nowcoder.community.im.common.event.RoomMessageRejectedEventV1;
+import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
+import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
+import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
+import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
+import com.nowcoder.community.im.common.ws.CommittedFrame;
+import com.nowcoder.community.im.common.ws.RejectFrame;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
-import com.nowcoder.community.im.realtime.ws.WsProtocol;
+import com.nowcoder.community.im.realtime.ws.ImFrameCodec;
 import org.springframework.stereotype.Component;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.UUID;
 
 @Component
 public class SendResultPushService {
 
     private final ConnectionRegistry connectionRegistry;
+    private final ImFrameCodec frameCodec;
 
-    public SendResultPushService(ConnectionRegistry connectionRegistry) {
+    public SendResultPushService(ConnectionRegistry connectionRegistry, ImFrameCodec frameCodec) {
         this.connectionRegistry = connectionRegistry;
+        this.frameCodec = frameCodec;
     }
 
-    public void pushPrivateCommitted(PrivateMessagePersistedEventV1 event) {
+    public void pushPrivateCommitted(PrivateMessagePersistedEvent event) {
         if (event == null) {
             return;
         }
         pushToUser(
                 event.fromUserId(),
-                WsProtocol.sendCommitted(
+                frameCodec.write(new CommittedFrame(
+                        "committed",
                         "sendPrivateText",
                         event.clientMsgId(),
                         event.requestId(),
-                        extras(
-                                "conversationId", event.conversationId(),
-                                "messageId", event.messageId(),
-                                "seq", event.seq()
-                        )
-                )
+                        event.conversationId(),
+                        null,
+                        event.messageId(),
+                        event.seq()
+                ))
         );
     }
 
-    public void pushRoomCommitted(RoomMessagePersistedEventV1 event) {
+    public void pushRoomCommitted(RoomMessagePersistedEvent event) {
         if (event == null) {
             return;
         }
         pushToUser(
                 event.fromUserId(),
-                WsProtocol.sendCommitted(
+                frameCodec.write(new CommittedFrame(
+                        "committed",
                         "sendRoomText",
                         event.clientMsgId(),
                         event.requestId(),
-                        extras(
-                                "roomId", event.roomId(),
-                                "messageId", event.messageId(),
-                                "seq", event.seq()
-                        )
-                )
+                        null,
+                        event.roomId(),
+                        event.messageId(),
+                        event.seq()
+                ))
         );
     }
 
-    public void pushPrivateRejected(PrivateMessageRejectedEventV1 event) {
+    public void pushPrivateRejected(PrivateMessageRejectedEvent event) {
         if (event == null) {
             return;
         }
         pushToUser(
                 event.fromUserId(),
-                WsProtocol.sendRejected(
+                frameCodec.write(new RejectFrame(
+                        "reject",
                         "sendPrivateText",
                         event.clientMsgId(),
                         event.requestId(),
                         event.code(),
                         event.reasonCode(),
                         event.message()
-                )
+                ))
         );
     }
 
-    public void pushRoomRejected(RoomMessageRejectedEventV1 event) {
+    public void pushRoomRejected(RoomMessageRejectedEvent event) {
         if (event == null) {
             return;
         }
         pushToUser(
                 event.fromUserId(),
-                WsProtocol.sendRejected(
+                frameCodec.write(new RejectFrame(
+                        "reject",
                         "sendRoomText",
                         event.clientMsgId(),
                         event.requestId(),
                         event.code(),
                         event.reasonCode(),
                         event.message()
-                )
+                ))
         );
     }
 
@@ -98,13 +102,5 @@ public class SendResultPushService {
             return;
         }
         connectionRegistry.forEachConnectionByUserId(userId, conn -> conn.trySendText(json));
-    }
-
-    private Map<String, Object> extras(Object... keyValues) {
-        LinkedHashMap<String, Object> payload = new LinkedHashMap<>();
-        for (int i = 0; i + 1 < keyValues.length; i += 2) {
-            payload.put(String.valueOf(keyValues[i]), keyValues[i + 1]);
-        }
-        return payload;
     }
 }

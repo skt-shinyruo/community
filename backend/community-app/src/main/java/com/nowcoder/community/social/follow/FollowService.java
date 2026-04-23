@@ -52,7 +52,7 @@ public class FollowService implements SocialFollowQueryApi {
         if (entityType != USER) {
             throw new BusinessException(INVALID_ARGUMENT, "follow 仅支持 USER");
         }
-        if (actorUserId == entityId) {
+        if (actorUserId.equals(entityId)) {
             throw new BusinessException(CANNOT_FOLLOW_SELF);
         }
 

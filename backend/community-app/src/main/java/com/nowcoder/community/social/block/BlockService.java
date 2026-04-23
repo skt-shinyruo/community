@@ -36,7 +36,7 @@ public class BlockService implements SocialBlockQueryApi {
         if (userId == null || targetUserId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId/targetUserId 非法");
         }
-        if (userId == targetUserId) {
+        if (userId.equals(targetUserId)) {
             throw new BusinessException(CANNOT_BLOCK_SELF);
         }
         boolean changed = repository.block(userId, targetUserId);
@@ -106,7 +106,7 @@ public class BlockService implements SocialBlockQueryApi {
         if (userIdA == null || userIdB == null) {
             return false;
         }
-        if (userIdA == userIdB) {
+        if (userIdA.equals(userIdB)) {
             return false;
         }
         return repository.hasBlocked(userIdA, userIdB) || repository.hasBlocked(userIdB, userIdA);

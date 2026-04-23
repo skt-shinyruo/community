@@ -13,6 +13,7 @@ import java.time.Duration;
 public class PendingRegistrationUserCleanupJob {
 
     private static final Logger log = LoggerFactory.getLogger(PendingRegistrationUserCleanupJob.class);
+    private static final int CLEANUP_BATCH_SIZE = 500;
 
     private final UserRegistrationActionApi userRegistrationActionApi;
     private final RegistrationProperties properties;
@@ -29,9 +30,14 @@ public class PendingRegistrationUserCleanupJob {
         }
         try {
             Duration ttl = Duration.ofSeconds(Math.max(60, properties.getPendingUser().getTtlSeconds()));
-            int deleted = userRegistrationActionApi.cleanupExpiredPendingUsers(ttl);
-            if (deleted > 0) {
-                log.info("[registration] cleaned up expired pending users count={}", deleted);
+            int deleted;
+            int totalDeleted = 0;
+            do {
+                deleted = userRegistrationActionApi.cleanupExpiredPendingUsers(ttl);
+                totalDeleted += deleted;
+            } while (deleted >= CLEANUP_BATCH_SIZE);
+            if (totalDeleted > 0) {
+                log.info("[registration] cleaned up expired pending users count={}", totalDeleted);
             }
         } catch (RuntimeException e) {
             log.warn("[registration] pending-user cleanup failed: {}", e.toString());

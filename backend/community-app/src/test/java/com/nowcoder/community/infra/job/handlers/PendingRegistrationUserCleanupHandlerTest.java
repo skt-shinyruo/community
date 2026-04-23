@@ -26,7 +26,7 @@ class PendingRegistrationUserCleanupHandlerTest {
     @Test
     void cleanupShouldDelegateToUserRegistrationServiceWithConfiguredTtlAndReportDeletedCount() {
         UserRegistrationActionApi userRegistrationActionApi = mock(UserRegistrationActionApi.class);
-        when(userRegistrationActionApi.cleanupExpiredPendingUsers(Duration.ofMinutes(30))).thenReturn(2);
+        when(userRegistrationActionApi.cleanupExpiredPendingUsers(Duration.ofMinutes(30))).thenReturn(500, 2);
 
         PendingRegistrationUserCleanupHandler handler =
                 new PendingRegistrationUserCleanupHandler(userRegistrationActionApi, 1800);
@@ -35,10 +35,10 @@ class PendingRegistrationUserCleanupHandlerTest {
 
         handler.cleanup();
 
-        verify(userRegistrationActionApi, times(1)).cleanupExpiredPendingUsers(Duration.ofMinutes(30));
+        verify(userRegistrationActionApi, times(2)).cleanupExpiredPendingUsers(Duration.ofMinutes(30));
         verifyNoMoreInteractions(userRegistrationActionApi);
         assertThat(context.getHandleCode()).isEqualTo(XxlJobContext.HANDLE_CODE_SUCCESS);
-        assertThat(context.getHandleMsg()).contains("2");
+        assertThat(context.getHandleMsg()).contains("502");
     }
 
     @Test

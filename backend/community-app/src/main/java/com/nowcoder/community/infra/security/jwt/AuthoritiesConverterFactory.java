@@ -9,6 +9,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * JWT authorities 解析器工厂（跨服务 SSOT）。
@@ -22,10 +23,6 @@ public final class AuthoritiesConverterFactory {
     }
 
     public static JwtAuthenticationConverter jwtAuthenticationConverter() {
-        JwtGrantedAuthoritiesConverter authorityClaimConverter = new JwtGrantedAuthoritiesConverter();
-        authorityClaimConverter.setAuthorityPrefix("ROLE_");
-        authorityClaimConverter.setAuthoritiesClaimName("authorities");
-
         JwtGrantedAuthoritiesConverter scopeConverter = new JwtGrantedAuthoritiesConverter();
 
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
@@ -36,6 +33,13 @@ public final class AuthoritiesConverterFactory {
                 authorities = list.stream()
                         .map(Object::toString)
                         .filter(StringUtils::hasText)
+                        .map(String::trim)
+                        .filter(StringUtils::hasText)
+                        .map(SimpleGrantedAuthority::new)
+                        .map(a -> (GrantedAuthority) a)
+                        .toList();
+            } else if (claim instanceof String text) {
+                authorities = Stream.of(text.split("[,\\s]+"))
                         .map(String::trim)
                         .filter(StringUtils::hasText)
                         .map(SimpleGrantedAuthority::new)

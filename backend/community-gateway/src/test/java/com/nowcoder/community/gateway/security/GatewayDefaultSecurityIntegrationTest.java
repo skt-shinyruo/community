@@ -55,11 +55,16 @@ class GatewayDefaultSecurityIntegrationTest {
         registry.add("gateway.http.routes[0].service-id", () -> "community-app");
         registry.add("spring.cloud.discovery.client.simple.instances.community-app[0].uri",
                 GatewayDefaultSecurityIntegrationTest::httpUpstreamBaseUrl);
+        registry.add("gateway.ws.discovery.service-id", () -> "im-realtime-worker");
+        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].uri",
+                () -> "http://127.0.0.1:" + workerServerPort());
+        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].metadata.workerId", () -> "worker-a");
+        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].metadata.wsPath", () -> "/internal/ws/im");
+        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].metadata.wsPort",
+                () -> String.valueOf(workerServerPort()));
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
         registry.add("management.health.redis.enabled", () -> "false");
-        registry.add("gateway.ws.proxy.path", () -> "/ws/im");
-        registry.add("gateway.ws.proxy.auth-required", () -> false);
-        registry.add("gateway.ws.proxy.default-worker-uri", GatewayDefaultSecurityIntegrationTest::workerUri);
+        registry.add("gateway.ws.proxy.path", () -> "/ws/im/workers/**");
         registry.add("security.jwt.hmac-secret", () -> "gateway-test-jwt-secret-please-change-123456");
         registry.add("community.metrics.basic-auth.username", () -> METRICS_USERNAME);
         registry.add("community.metrics.basic-auth.password", () -> METRICS_PASSWORD);
@@ -93,7 +98,7 @@ class GatewayDefaultSecurityIntegrationTest {
         Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
 
         ReactorNettyWebSocketClient client = new ReactorNettyWebSocketClient();
-        URI uri = URI.create("ws://127.0.0.1:" + port + "/ws/im");
+        URI uri = URI.create("ws://127.0.0.1:" + port + "/ws/im/workers/worker-a");
 
         Disposable handle = client.execute(uri, session -> {
                     Mono<Void> send = session.send(outbound.asFlux().map(session::textMessage));
@@ -108,7 +113,7 @@ class GatewayDefaultSecurityIntegrationTest {
         try {
             outbound.tryEmitNext("hello");
             outbound.tryEmitComplete();
-            assertThat(received.poll(5, TimeUnit.SECONDS)).isEqualTo("worker:hello");
+            assertThat(received.poll(5, TimeUnit.SECONDS)).isEqualTo("worker-a:hello");
         } finally {
             handle.dispose();
         }
@@ -154,15 +159,15 @@ class GatewayDefaultSecurityIntegrationTest {
         return "http://127.0.0.1:" + httpUpstream.port();
     }
 
-    private static synchronized String workerUri() {
+    private static synchronized int workerServerPort() {
         if (workerServer == null) {
             workerServer = HttpServer.create()
                     .host("127.0.0.1")
                     .port(0)
                     .route(routes -> routes.ws("/internal/ws/im", (in, out) ->
-                            out.sendString(in.receive().asString().map(text -> "worker:" + text))))
+                            out.sendString(in.receive().asString().map(text -> "worker-a:" + text))))
                     .bindNow(Duration.ofSeconds(5));
         }
-        return "ws://127.0.0.1:" + workerServer.port() + "/internal/ws/im";
+        return workerServer.port();
     }
 }

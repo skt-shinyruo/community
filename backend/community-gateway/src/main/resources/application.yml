@@ -54,6 +54,4 @@ gateway:
       rules: []
   ws:
     proxy:
-      path: /ws/im
-      auth-required: false
-      default-worker-uri: ${IM_REALTIME_WS_BASE_URL:}
+      path: /ws/im/workers/**

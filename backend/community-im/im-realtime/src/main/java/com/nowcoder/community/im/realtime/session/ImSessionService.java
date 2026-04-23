@@ -36,6 +36,8 @@ public class ImSessionService {
     }
 
     public OpenImSessionResponse openSession(String authorizationHeader) {
+        projectionSyncCoordinator.requireReady();
+
         String accessToken = extractBearerToken(authorizationHeader);
         JwtVerifier.VerifiedJwt verified;
         try {
@@ -45,7 +47,6 @@ public class ImSessionService {
         }
 
         RendezvousWorkerSelector.SelectedWorker worker = workerSelector.select(verified.userId());
-        projectionSyncCoordinator.requireReady();
 
         String sessionId = UUID.randomUUID().toString();
         Instant expiresAt = Instant.now().plus(properties.getTicketTtl());

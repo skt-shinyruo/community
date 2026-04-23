@@ -3,7 +3,7 @@ package com.nowcoder.community.social.service;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.growth.service.TaskProgressTriggerService;
+import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
 import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.social.block.InMemoryBlockRepository;
 import com.nowcoder.community.social.contracts.event.BlockPayload;
@@ -13,7 +13,7 @@ import com.nowcoder.community.social.event.SocialEventPublisher;
 import com.nowcoder.community.social.like.InMemoryLikeRepository;
 import com.nowcoder.community.social.like.LikeService;
 import com.nowcoder.community.social.like.dto.LikeRequest;
-import com.nowcoder.community.user.service.PointsAwardService;
+import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
 import org.mockito.Mockito;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -135,8 +135,8 @@ class LikeServiceTest {
         Mockito.when(resolver.resolve(1, uuid(100))).thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)));
         BlockService blockService = mock(BlockService.class);
         Mockito.when(blockService.isEitherBlocked(uuid(1), uuid(2))).thenReturn(false);
-        PointsAwardService pointsAwardService = mock(PointsAwardService.class);
-        TaskProgressTriggerService taskProgressTriggerService = mock(TaskProgressTriggerService.class);
+        UserPointsAwardActionApi pointsAwardService = mock(UserPointsAwardActionApi.class);
+        GrowthTaskProgressActionApi taskProgressTriggerService = mock(GrowthTaskProgressActionApi.class);
 
         LikeService service = new LikeService(
                 repo,
@@ -171,8 +171,8 @@ class LikeServiceTest {
         Mockito.when(resolver.resolve(1, uuid(100))).thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)));
         BlockService blockService = mock(BlockService.class);
         Mockito.when(blockService.isEitherBlocked(uuid(1), uuid(2))).thenReturn(false);
-        PointsAwardService pointsAwardService = mock(PointsAwardService.class);
-        TaskProgressTriggerService taskProgressTriggerService = mock(TaskProgressTriggerService.class);
+        UserPointsAwardActionApi pointsAwardService = mock(UserPointsAwardActionApi.class);
+        GrowthTaskProgressActionApi taskProgressTriggerService = mock(GrowthTaskProgressActionApi.class);
         doThrow(new IllegalStateException("award failed")).when(pointsAwardService).awardLikeCreated(anyString(), any(LikePayload.class));
 
         LikeService service = new LikeService(

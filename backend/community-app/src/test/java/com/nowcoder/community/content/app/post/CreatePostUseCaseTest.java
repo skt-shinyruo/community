@@ -6,8 +6,8 @@ import com.nowcoder.community.content.service.CategoryService;
 import com.nowcoder.community.content.service.PostService;
 import com.nowcoder.community.content.service.TagService;
 import com.nowcoder.community.content.service.UserModerationGuard;
-import com.nowcoder.community.growth.service.TaskProgressTriggerService;
-import com.nowcoder.community.user.service.PointsAwardService;
+import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
+import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -33,8 +33,8 @@ class CreatePostUseCaseTest {
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         PostDomainEventPublisher domainEventPublisher = mock(PostDomainEventPublisher.class);
         PostWriteSideEffectScheduler postWriteSideEffectScheduler = mock(PostWriteSideEffectScheduler.class);
-        PointsAwardService pointsAwardService = mock(PointsAwardService.class);
-        TaskProgressTriggerService taskProgressTriggerService = mock(TaskProgressTriggerService.class);
+        UserPointsAwardActionApi pointsAwardService = mock(UserPointsAwardActionApi.class);
+        GrowthTaskProgressActionApi taskProgressTriggerService = mock(GrowthTaskProgressActionApi.class);
         UUID userId = uuid(7);
         UUID categoryId = uuid(3);
         UUID postId = uuid(101);

@@ -4,6 +4,7 @@ import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.PostPayload;
+import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
@@ -14,7 +15,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Service
-public class TaskProgressTriggerService {
+public class TaskProgressTriggerService implements GrowthTaskProgressActionApi {
 
     private final TaskProgressProjectionService taskProgressProjectionService;
 
@@ -22,6 +23,7 @@ public class TaskProgressTriggerService {
         this.taskProgressProjectionService = taskProgressProjectionService;
     }
 
+    @Override
     public void triggerPostPublished(UUID postId, UUID userId, Instant createTime) {
         if (postId == null || userId == null || createTime == null) {
             return;
@@ -35,6 +37,7 @@ public class TaskProgressTriggerService {
         ));
     }
 
+    @Override
     public void triggerCommentCreated(CommentPayload payload) {
         if (payload == null || payload.getCommentId() == null) {
             return;
@@ -44,6 +47,7 @@ public class TaskProgressTriggerService {
         ));
     }
 
+    @Override
     public void triggerLikeCreated(String sourceEventId, LikePayload payload) {
         if (!StringUtils.hasText(sourceEventId) || payload == null) {
             return;

@@ -10,9 +10,9 @@ import com.nowcoder.community.content.event.ContentEventPublisher;
 import com.nowcoder.community.content.score.PostScoreQueue;
 import com.nowcoder.community.content.text.ContentTextCodec;
 import com.nowcoder.community.content.util.SensitiveFilter;
-import com.nowcoder.community.growth.service.TaskProgressTriggerService;
+import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
-import com.nowcoder.community.user.service.PointsAwardService;
+import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -331,8 +331,8 @@ class CommentServiceTest {
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
         SocialBlockQueryApi blockQueryApplicationService = mock(SocialBlockQueryApi.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
-        PointsAwardService pointsAwardService = mock(PointsAwardService.class);
-        TaskProgressTriggerService taskProgressTriggerService = mock(TaskProgressTriggerService.class);
+        UserPointsAwardActionApi pointsAwardService = mock(UserPointsAwardActionApi.class);
+        GrowthTaskProgressActionApi taskProgressTriggerService = mock(GrowthTaskProgressActionApi.class);
         ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
 
         CommentService service = new CommentService(

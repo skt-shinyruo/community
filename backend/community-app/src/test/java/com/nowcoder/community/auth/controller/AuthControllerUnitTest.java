@@ -118,7 +118,7 @@ class AuthControllerUnitTest {
     }
 
     @Test
-    void refreshShouldNotClearRefreshCookieWhenTokenIsInvalid() {
+    void refreshShouldClearRefreshCookieWhenTokenIsInvalid() {
         ResponseCookie clearCookie = ResponseCookie.from("refresh_token", "")
                 .httpOnly(true)
                 .path("/api/auth")
@@ -127,7 +127,7 @@ class AuthControllerUnitTest {
 
         when(authService.refresh(any(HttpServletRequest.class)))
                 .thenThrow(new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID));
-        org.mockito.Mockito.lenient().when(authService.clearRefreshCookie()).thenReturn(clearCookie);
+        when(authService.clearRefreshCookie()).thenReturn(clearCookie);
 
         MockHttpServletRequest httpRequest = new MockHttpServletRequest();
         MockHttpServletResponse httpResponse = new MockHttpServletResponse();
@@ -135,7 +135,30 @@ class AuthControllerUnitTest {
         Throwable thrown = catchThrowable(() -> controller.refresh(httpRequest, httpResponse));
 
         assertThat(thrown).isInstanceOf(BusinessException.class);
-        assertThat(httpResponse.getHeader(HttpHeaders.SET_COOKIE)).isNull();
+        verify(authService).clearRefreshCookie();
+        assertThat(httpResponse.getHeader(HttpHeaders.SET_COOKIE)).contains("refresh_token=");
+    }
+
+    @Test
+    void refreshShouldClearRefreshCookieWhenUserIsDisabled() {
+        ResponseCookie clearCookie = ResponseCookie.from("refresh_token", "")
+                .httpOnly(true)
+                .path("/api/auth")
+                .maxAge(0)
+                .build();
+
+        when(authService.refresh(any(HttpServletRequest.class)))
+                .thenThrow(new BusinessException(AuthErrorCode.USER_DISABLED));
+        when(authService.clearRefreshCookie()).thenReturn(clearCookie);
+
+        MockHttpServletRequest httpRequest = new MockHttpServletRequest();
+        MockHttpServletResponse httpResponse = new MockHttpServletResponse();
+
+        Throwable thrown = catchThrowable(() -> controller.refresh(httpRequest, httpResponse));
+
+        assertThat(thrown).isInstanceOf(BusinessException.class);
+        verify(authService).clearRefreshCookie();
+        assertThat(httpResponse.getHeader(HttpHeaders.SET_COOKIE)).contains("refresh_token=");
     }
 
     @Test

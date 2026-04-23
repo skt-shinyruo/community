@@ -167,6 +167,7 @@ public class AuthController {
             return false;
         }
         int code = ex.getErrorCode().getCode();
-        return code == AuthErrorCode.USER_DISABLED.getCode();
+        return code == AuthErrorCode.USER_DISABLED.getCode()
+                || code == AuthErrorCode.REFRESH_TOKEN_INVALID.getCode();
     }
 }

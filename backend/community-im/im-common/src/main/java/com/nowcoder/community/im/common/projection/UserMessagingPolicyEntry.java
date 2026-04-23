@@ -10,6 +10,8 @@ public record UserMessagingPolicyEntry(
         boolean userExists,
         boolean suspended,
         boolean muted,
+        Long muteUntil,
+        Long banUntil,
         @JsonProperty("canSendPrivate")
         @JsonAlias("allowPrivateMessages")
         boolean allowPrivateMessages

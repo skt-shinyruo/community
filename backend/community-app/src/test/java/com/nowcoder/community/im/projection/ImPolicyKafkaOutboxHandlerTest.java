@@ -11,9 +11,11 @@ import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import com.nowcoder.community.user.api.query.UserModerationQueryApi;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 
+import java.lang.reflect.RecordComponent;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -50,8 +52,10 @@ class ImPolicyKafkaOutboxHandlerTest {
         UserModerationQueryApi moderationQueryApi = mock(UserModerationQueryApi.class);
         SocialBlockQueryApi socialBlockQueryApi = mock(SocialBlockQueryApi.class);
         UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
+        Instant muteUntil = Instant.parse("2026-04-24T09:15:30Z");
+        Instant expiredBanUntil = Instant.parse("2026-04-22T09:15:30Z");
         when(moderationQueryApi.getModerationState(uuid(7)))
-                .thenReturn(new UserModerationStateView(uuid(7), Instant.now().plusSeconds(60), null));
+                .thenReturn(new UserModerationStateView(uuid(7), muteUntil, expiredBanUntil));
         when(userLookupQueryApi.getSummaryById(uuid(7))).thenReturn(new UserSummaryView(uuid(7), "u7", "/avatar.png", 0));
         when(kafkaTemplate.send(eq(ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED), eq(uuid(7).toString()), any()))
                 .thenReturn(completedSend());
@@ -76,7 +80,15 @@ class ImPolicyKafkaOutboxHandlerTest {
                 null
         ));
 
-        verify(kafkaTemplate).send(eq(ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED), eq(uuid(7).toString()), any(UserMessagingPolicyChanged.class));
+        ArgumentCaptor<UserMessagingPolicyChanged> policyCaptor = ArgumentCaptor.forClass(UserMessagingPolicyChanged.class);
+        verify(kafkaTemplate).send(eq(ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED), eq(uuid(7).toString()), policyCaptor.capture());
+        UserMessagingPolicyChanged published = policyCaptor.getValue();
+        assertThat(published.userId()).isEqualTo(uuid(7));
+        assertThat(published.userExists()).isTrue();
+        assertThat(published.muted()).isTrue();
+        assertThat(published.suspended()).isFalse();
+        assertThat(recordComponentValue(published, "muteUntil")).isEqualTo(muteUntil.toEpochMilli());
+        assertThat(recordComponentValue(published, "banUntil")).isEqualTo(expiredBanUntil.toEpochMilli());
     }
 
     @Test
@@ -155,5 +167,18 @@ class ImPolicyKafkaOutboxHandlerTest {
         CompletableFuture<SendResult<String, Object>> future = new CompletableFuture<>();
         future.completeExceptionally(new RuntimeException("kafka down"));
         return future;
+    }
+
+    private static Object recordComponentValue(Object record, String componentName) {
+        for (RecordComponent component : record.getClass().getRecordComponents()) {
+            if (component.getName().equals(componentName)) {
+                try {
+                    return component.getAccessor().invoke(record);
+                } catch (ReflectiveOperationException e) {
+                    throw new AssertionError("cannot read component: " + componentName, e);
+                }
+            }
+        }
+        throw new AssertionError(record.getClass().getSimpleName() + " missing component: " + componentName);
     }
 }

@@ -90,8 +90,12 @@ public class ImPolicyKafkaOutboxHandler implements OutboxHandler {
         boolean userExists = summary != null && summary.id() != null;
         boolean suspended = false;
         boolean muted = false;
+        Long muteUntil = null;
+        Long banUntil = null;
         if (userExists) {
             UserModerationStateView state = userModerationQueryApi.getModerationState(userId);
+            muteUntil = toEpochMillis(state == null ? null : state.muteUntil());
+            banUntil = toEpochMillis(state == null ? null : state.banUntil());
             suspended = isActive(state == null ? null : state.banUntil(), now);
             muted = isActive(state == null ? null : state.muteUntil(), now);
         }
@@ -102,6 +106,8 @@ public class ImPolicyKafkaOutboxHandler implements OutboxHandler {
                 userExists,
                 suspended,
                 muted,
+                muteUntil,
+                banUntil,
                 userExists && !suspended && !muted,
                 now.toEpochMilli()
         );
@@ -133,6 +139,10 @@ public class ImPolicyKafkaOutboxHandler implements OutboxHandler {
 
     private boolean isActive(Instant until, Instant now) {
         return until != null && until.isAfter(now);
+    }
+
+    private Long toEpochMillis(Instant until) {
+        return until == null ? null : until.toEpochMilli();
     }
 
     private String text(JsonNode node, String fieldName) {

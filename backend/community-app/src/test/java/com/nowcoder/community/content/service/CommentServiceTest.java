@@ -10,7 +10,9 @@ import com.nowcoder.community.content.event.ContentEventPublisher;
 import com.nowcoder.community.content.score.PostScoreQueue;
 import com.nowcoder.community.content.text.ContentTextCodec;
 import com.nowcoder.community.content.util.SensitiveFilter;
+import com.nowcoder.community.growth.service.TaskProgressTriggerService;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
+import com.nowcoder.community.user.service.PointsAwardService;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -25,6 +27,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -328,6 +331,8 @@ class CommentServiceTest {
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
         SocialBlockQueryApi blockQueryApplicationService = mock(SocialBlockQueryApi.class);
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
+        PointsAwardService pointsAwardService = mock(PointsAwardService.class);
+        TaskProgressTriggerService taskProgressTriggerService = mock(TaskProgressTriggerService.class);
         ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
 
         CommentService service = new CommentService(
@@ -338,7 +343,9 @@ class CommentServiceTest {
                 eventPublisher,
                 blockQueryApplicationService,
                 moderationGuard,
-                textCodec
+                textCodec,
+                pointsAwardService,
+                taskProgressTriggerService
         );
 
         UUID actorUserId = uuid(1);
@@ -365,7 +372,10 @@ class CommentServiceTest {
         service.addComment(actorUserId, postId, CommentService.ENTITY_TYPE_POST, null, null, "hi");
 
         verify(commentMapper).insertComment(any(Comment.class));
-        verify(eventPublisher).publishCommentCreated(any());
+        var inOrder = inOrder(pointsAwardService, taskProgressTriggerService, eventPublisher);
+        inOrder.verify(pointsAwardService).awardCommentCreated(any());
+        inOrder.verify(taskProgressTriggerService).triggerCommentCreated(any());
+        inOrder.verify(eventPublisher).publishCommentCreated(any());
     }
 
     @Test

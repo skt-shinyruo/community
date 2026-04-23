@@ -30,22 +30,3 @@ export function resolveApiBaseUrl() {
 export function resolveImHttpBaseUrl() {
   return readRuntimeConfigString('imHttpBaseUrl') || readViteString('VITE_IM_CORE_BASE_URL') || inferLocalGatewayOrigin() || ''
 }
-
-export function resolveImWsUrl() {
-  const configured = readRuntimeConfigString('imWsUrl') || readViteString('VITE_IM_WS_URL')
-  if (configured) return configured
-
-  const gatewayOrigin = inferLocalGatewayOrigin()
-  if (gatewayOrigin) {
-    return gatewayOrigin.replace(/^http/, 'ws') + '/ws/im'
-  }
-
-  try {
-    const loc = globalThis?.location
-    if (!loc) return ''
-    const scheme = loc.protocol === 'https:' ? 'wss' : 'ws'
-    return `${scheme}://${loc.host}/ws/im`
-  } catch {
-    return ''
-  }
-}

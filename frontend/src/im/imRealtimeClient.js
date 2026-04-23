@@ -1,7 +1,6 @@
-// IM realtime client: WebSocket connection + simple event emitter.
-// Protocol: first message must be { type: "auth", accessToken }.
-import { resolveImWsUrl } from '../config/endpointResolution'
+// IM realtime client: open a server-side session, then connect to the assigned worker.
 import { normalizeOpaqueId } from '../utils/opaqueId'
+import imCoreHttp from '../api/imCoreHttp'
 
 function safeJsonParse(s) {
   try {
@@ -17,6 +16,24 @@ function randomId() {
     if (c?.randomUUID) return c.randomUUID()
   } catch {}
   return `c_${Date.now()}_${Math.random().toString(36).slice(2)}`
+}
+
+function createInitialState() {
+  return {
+    connected: false,
+    authed: false,
+    userId: '',
+    sessionId: '',
+    workerId: ''
+  }
+}
+
+function readSessionBootstrap(response) {
+  const data = response?.data?.data || {}
+  return {
+    wsUrl: String(data?.wsUrl || '').trim(),
+    ticket: String(data?.ticket || '').trim()
+  }
 }
 
 class Emitter {
@@ -52,7 +69,8 @@ class ImRealtimeClient {
   constructor() {
     this.ws = null
     this.accessToken = ''
-    this.state = { connected: false, authed: false, userId: '' }
+    this.connectAttempt = 0
+    this.state = createInitialState()
     this.emitter = new Emitter()
     this.reconnectTimer = null
     this.reconnectAttempts = 0
@@ -78,38 +96,31 @@ class ImRealtimeClient {
     } catch {}
   }
 
-  connect(accessToken) {
+  async connect(accessToken) {
     const token = String(accessToken || '').trim()
     this.accessToken = token
-    if (!token) return
-
-    const url = resolveImWsUrl()
-    if (!url) return
-
-    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
-      return
-    }
+    if (!token || this._hasActiveSocket()) return
 
     this._clearReconnect()
-    this._open(url)
+    const attempt = ++this.connectAttempt
+    return this._connectWithSession(token, attempt)
   }
 
   _resumeConnection() {
-    const readyState = this.ws?.readyState
-    if (!this.accessToken) return
-    if (readyState === WebSocket.OPEN || readyState === WebSocket.CONNECTING) return
+    if (!this.accessToken || this._hasActiveSocket()) return
     this._clearReconnect()
-    this.connect(this.accessToken)
+    void this.connect(this.accessToken)
   }
 
   disconnect() {
     this.accessToken = ''
+    this.connectAttempt += 1
     this._clearReconnect()
     try {
       if (this.ws) this.ws.close()
     } catch {}
     this.ws = null
-    this.state = { connected: false, authed: false, userId: '' }
+    this.state = createInitialState()
   }
 
   sendPrivateText({ toUserId, content, clientMsgId } = {}) {
@@ -139,7 +150,32 @@ class ImRealtimeClient {
     return cmid
   }
 
-  _open(url) {
+  _hasActiveSocket() {
+    const readyState = this.ws?.readyState
+    return readyState === WebSocket.OPEN || readyState === WebSocket.CONNECTING
+  }
+
+  async _connectWithSession(token, attempt) {
+    try {
+      const response = await imCoreHttp.post('/api/im/sessions', null, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      })
+      const { wsUrl, ticket } = readSessionBootstrap(response)
+      if (!wsUrl || !ticket) {
+        throw new Error('missing IM session bootstrap data')
+      }
+      if (attempt !== this.connectAttempt || token !== this.accessToken || this._hasActiveSocket()) return
+      this._open(wsUrl, ticket)
+    } catch {
+      if (attempt === this.connectAttempt && token === this.accessToken && !this._hasActiveSocket()) {
+        this._scheduleReconnect()
+      }
+    }
+  }
+
+  _open(url, ticket) {
     try {
       this.ws = new WebSocket(url)
     } catch {
@@ -151,20 +187,24 @@ class ImRealtimeClient {
       this.state.connected = true
       this.state.authed = false
       this.state.userId = ''
+      this.state.sessionId = ''
+      this.state.workerId = ''
       this.reconnectAttempts = 0
-      this._send({ type: 'auth', accessToken: this.accessToken })
+      this._send({ type: 'connect', ticket })
     }
 
     this.ws.onmessage = (evt) => {
       const msg = safeJsonParse(evt?.data)
       const type = String(msg?.type || '')
       if (!type) return
-      if (type === 'auth_ok') {
+      if (type === 'connected') {
         this.state.authed = true
-        this.state.userId = normalizeOpaqueId(msg?.userId)
-      }
-      if (type === 'auth_error') {
+        this.state.sessionId = String(msg?.sessionId || '').trim()
+        this.state.workerId = String(msg?.workerId || '').trim()
+      } else if (type === 'reject' && String(msg?.cmd || '') === 'connect') {
         this.state.authed = false
+        this.state.sessionId = ''
+        this.state.workerId = ''
       }
       this.emitter.emit(type, msg)
     }
@@ -173,6 +213,8 @@ class ImRealtimeClient {
       this.state.connected = false
       this.state.authed = false
       this.state.userId = ''
+      this.state.sessionId = ''
+      this.state.workerId = ''
       this.ws = null
       if (this.accessToken) this._scheduleReconnect()
     }

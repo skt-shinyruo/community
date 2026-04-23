@@ -77,14 +77,19 @@ public class RoomMembershipService {
 
     @Transactional(readOnly = true)
     public RoomMembershipSnapshot snapshot(UUID afterRoomId, UUID afterUserId, int limit) {
+        if ((afterRoomId == null) != (afterUserId == null)) {
+            throw new IllegalArgumentException("afterRoomId and afterUserId must be provided together");
+        }
         int l = Math.min(500, Math.max(1, limit));
-        List<RoomMembershipEntry> entries = roomMemberRepository.scanMemberships(afterRoomId, afterUserId, l);
-        RoomMembershipEntry last = entries.isEmpty() ? null : entries.get(entries.size() - 1);
+        List<RoomMembershipEntry> scannedEntries = roomMemberRepository.scanMemberships(afterRoomId, afterUserId, l + 1);
+        boolean hasMore = scannedEntries.size() > l;
+        List<RoomMembershipEntry> pageEntries = hasMore ? scannedEntries.subList(0, l) : scannedEntries;
+        RoomMembershipEntry last = pageEntries.isEmpty() ? null : pageEntries.get(pageEntries.size() - 1);
         return new RoomMembershipSnapshot(
-                entries,
+                pageEntries,
                 last == null ? null : last.roomId(),
                 last == null ? null : last.userId(),
-                entries.size() >= l
+                hasMore
         );
     }
 

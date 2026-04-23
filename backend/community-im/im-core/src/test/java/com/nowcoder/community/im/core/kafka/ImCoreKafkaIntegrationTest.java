@@ -150,7 +150,7 @@ class ImCoreKafkaIntegrationTest {
     }
 
     @Test
-    void roomMembershipJoin_shouldEmitRoomMemberChangedEvent() {
+    void roomMembershipJoin_shouldEmitRoomMemberChangedEvent() throws Exception {
         UUID owner = uuid(1);
         UUID member = uuid(3);
         UUID roomId = roomMembershipService.createRoom(owner, "room");
@@ -161,13 +161,18 @@ class ImCoreKafkaIntegrationTest {
         consumer.seekToEnd(consumer.assignment());
         consumer.assignment().forEach(consumer::position);
 
+        long beforeJoin = System.currentTimeMillis();
         roomMembershipService.joinRoom(member, roomId);
 
         ConsumerRecord<String, String> changedRecord =
                 pollForSingleRecord(consumer, ImTopics.EVENT_ROOM_MEMBER_CHANGED, Duration.ofSeconds(10));
-        assertThat(changedRecord.value())
-                .contains("\"action\":\"JOINED\"")
-                .contains("\"userId\":\"" + member + "\"");
+        JsonNode eventJson = objectMapper.readTree(changedRecord.value());
+
+        assertThat(changedRecord.key()).isEqualTo(roomId.toString());
+        assertThat(eventJson.path("roomId").asText("")).isEqualTo(roomId.toString());
+        assertThat(eventJson.path("userId").asText("")).isEqualTo(member.toString());
+        assertThat(eventJson.path("action").asText("")).isEqualTo("JOINED");
+        assertThat(eventJson.path("occurredAtEpochMillis").asLong()).isGreaterThanOrEqualTo(beforeJoin);
     }
 
     private Consumer<String, String> newStringConsumer(String groupId) {

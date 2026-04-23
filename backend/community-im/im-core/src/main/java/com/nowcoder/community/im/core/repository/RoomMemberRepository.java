@@ -80,7 +80,7 @@ public class RoomMemberRepository {
     public List<RoomMembershipEntry> scanMemberships(UUID afterRoomId, UUID afterUserId, int limit) {
         UUID roomCursor = afterRoomId == null ? new UUID(0L, 0L) : afterRoomId;
         UUID userCursor = afterUserId == null ? new UUID(0L, 0L) : afterUserId;
-        int l = Math.min(500, Math.max(1, limit));
+        int l = Math.min(501, Math.max(1, limit));
         return jdbcTemplate.query(
                 """
                         select room_id, user_id

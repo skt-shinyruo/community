@@ -1,7 +1,7 @@
 package com.nowcoder.community.im.common;
 
 /**
- * IM Kafka topic constants (v1).
+ * IM Kafka topic constants.
  *
  * <p>Topics are cross-service stable contracts and must live in the contracts module.</p>
  */

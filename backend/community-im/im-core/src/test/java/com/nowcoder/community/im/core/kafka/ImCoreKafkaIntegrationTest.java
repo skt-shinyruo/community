@@ -3,8 +3,8 @@ package com.nowcoder.community.im.core.kafka;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.im.common.ImTopics;
-import com.nowcoder.community.im.common.command.SendPrivateTextCommandV1;
-import com.nowcoder.community.im.common.command.SendRoomTextCommandV1;
+import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
+import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.core.repository.PrivateMessageRepository;
 import com.nowcoder.community.im.core.repository.RoomMessageRepository;
 import com.nowcoder.community.im.core.service.RoomMembershipService;
@@ -38,12 +38,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 @EmbeddedKafka(
         partitions = 1,
         topics = {
-                ImTopics.COMMAND_PRIVATE_TEXT_V1,
-                ImTopics.COMMAND_ROOM_TEXT_V1,
-                ImTopics.EVENT_PRIVATE_PERSISTED_V1,
-                ImTopics.EVENT_ROOM_PERSISTED_V1,
-                ImTopics.EVENT_PRIVATE_REJECTED_V1,
-                ImTopics.EVENT_ROOM_REJECTED_V1,
+                ImTopics.COMMAND_PRIVATE_TEXT,
+                ImTopics.COMMAND_ROOM_TEXT,
+                ImTopics.EVENT_PRIVATE_PERSISTED,
+                ImTopics.EVENT_ROOM_PERSISTED,
+                ImTopics.EVENT_PRIVATE_REJECTED,
+                ImTopics.EVENT_ROOM_REJECTED,
                 ImTopics.EVENT_ROOM_MEMBER_CHANGED
         }
 )
@@ -92,17 +92,17 @@ class ImCoreKafkaIntegrationTest {
 
         // subscribe before sending to avoid missing the event
         consumer = newStringConsumer("im-core-it-room");
-        consumer.subscribe(List.of(ImTopics.EVENT_ROOM_PERSISTED_V1));
+        consumer.subscribe(List.of(ImTopics.EVENT_ROOM_PERSISTED));
         // trigger partition assignment
         consumer.poll(Duration.ofMillis(200));
 
         kafkaTemplate.send(
-                ImTopics.COMMAND_ROOM_TEXT_V1,
+                ImTopics.COMMAND_ROOM_TEXT,
                 String.valueOf(roomId),
-                new SendRoomTextCommandV1("req-1", "c1", sender, roomId, "hi", System.currentTimeMillis())
+                new SendRoomTextCommand("req-1", "c1", sender, roomId, "hi", System.currentTimeMillis())
         );
 
-        ConsumerRecord<String, String> record = pollForSingleRecord(consumer, ImTopics.EVENT_ROOM_PERSISTED_V1, Duration.ofSeconds(10));
+        ConsumerRecord<String, String> record = pollForSingleRecord(consumer, ImTopics.EVENT_ROOM_PERSISTED, Duration.ofSeconds(10));
         JsonNode eventJson = objectMapper.readTree(record.value());
 
         assertThat(eventJson.path("roomId").asText("")).isEqualTo(roomId.toString());
@@ -124,16 +124,16 @@ class ImCoreKafkaIntegrationTest {
         String conversationId = fromUserId + "_" + toUserId;
 
         consumer = newStringConsumer("im-core-it-private");
-        consumer.subscribe(List.of(ImTopics.EVENT_PRIVATE_PERSISTED_V1));
+        consumer.subscribe(List.of(ImTopics.EVENT_PRIVATE_PERSISTED));
         consumer.poll(Duration.ofMillis(200));
 
         kafkaTemplate.send(
-                ImTopics.COMMAND_PRIVATE_TEXT_V1,
+                ImTopics.COMMAND_PRIVATE_TEXT,
                 conversationId,
-                new SendPrivateTextCommandV1("req-1", "c1", fromUserId, toUserId, conversationId, "hello", System.currentTimeMillis())
+                new SendPrivateTextCommand("req-1", "c1", fromUserId, toUserId, conversationId, "hello", System.currentTimeMillis())
         );
 
-        ConsumerRecord<String, String> record = pollForSingleRecord(consumer, ImTopics.EVENT_PRIVATE_PERSISTED_V1, Duration.ofSeconds(10));
+        ConsumerRecord<String, String> record = pollForSingleRecord(consumer, ImTopics.EVENT_PRIVATE_PERSISTED, Duration.ofSeconds(10));
         JsonNode eventJson = objectMapper.readTree(record.value());
 
         assertThat(eventJson.path("conversationId").asText("")).isEqualTo(conversationId);

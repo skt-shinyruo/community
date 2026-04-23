@@ -7,7 +7,7 @@ import java.util.UUID;
  *
  * <p>Room chat is pushed as state-only (no content): clients pull history by seq.</p>
  */
-public record RoomMessagePersistedEventV1(
+public record RoomMessagePersistedEvent(
         String eventId,
         UUID roomId,
         long seq,

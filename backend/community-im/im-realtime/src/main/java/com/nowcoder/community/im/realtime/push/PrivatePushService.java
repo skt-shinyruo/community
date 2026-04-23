@@ -1,9 +1,9 @@
 package com.nowcoder.community.im.realtime.push;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.im.common.event.PrivateMessagePersistedEventV1;
+import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
+import com.nowcoder.community.im.common.ws.PrivateMessageFrame;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
+import com.nowcoder.community.im.realtime.ws.ImFrameCodec;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
@@ -12,21 +12,30 @@ import java.util.UUID;
 public class PrivatePushService {
 
     private final ConnectionRegistry connectionRegistry;
-    private final ObjectMapper objectMapper;
+    private final ImFrameCodec frameCodec;
 
-    public PrivatePushService(ConnectionRegistry connectionRegistry, ObjectMapper objectMapper) {
+    public PrivatePushService(ConnectionRegistry connectionRegistry, ImFrameCodec frameCodec) {
         this.connectionRegistry = connectionRegistry;
-        this.objectMapper = objectMapper;
+        this.frameCodec = frameCodec;
     }
 
-    public void pushPrivateMessage(PrivateMessagePersistedEventV1 event) {
+    public void pushPrivateMessage(PrivateMessagePersistedEvent event) {
         if (event == null) {
             return;
         }
         String json;
         try {
-            json = objectMapper.writeValueAsString(new PrivateMessage(event));
-        } catch (JsonProcessingException e) {
+            json = frameCodec.write(new PrivateMessageFrame(
+                    "privateMessage",
+                    event.conversationId(),
+                    event.seq(),
+                    event.messageId(),
+                    event.fromUserId(),
+                    event.toUserId(),
+                    event.content(),
+                    event.createdAtEpochMs()
+            ));
+        } catch (RuntimeException e) {
             return;
         }
 
@@ -36,29 +45,5 @@ public class PrivatePushService {
 
     private void pushToUser(UUID userId, String json) {
         connectionRegistry.forEachConnectionByUserId(userId, conn -> conn.trySendText(json));
-    }
-
-    public record PrivateMessage(
-            String type,
-            String conversationId,
-            long seq,
-            UUID messageId,
-            UUID fromUserId,
-            UUID toUserId,
-            String content,
-            long createdAtEpochMs
-    ) {
-        public PrivateMessage(PrivateMessagePersistedEventV1 e) {
-            this(
-                    "privateMessage",
-                    e.conversationId(),
-                    e.seq(),
-                    e.messageId(),
-                    e.fromUserId(),
-                    e.toUserId(),
-                    e.content(),
-                    e.createdAtEpochMs()
-            );
-        }
     }
 }

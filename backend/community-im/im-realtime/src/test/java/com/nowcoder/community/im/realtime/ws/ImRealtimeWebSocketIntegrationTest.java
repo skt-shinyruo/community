@@ -1,9 +1,5 @@
 package com.nowcoder.community.im.realtime.ws;
 
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpServer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -12,17 +8,16 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.nowcoder.community.im.common.ImTopics;
-import com.nowcoder.community.im.common.command.SendPrivateTextCommandV1;
-import com.nowcoder.community.im.common.event.PrivateMessagePersistedEventV1;
-import com.nowcoder.community.im.common.event.PrivateMessageRejectedEventV1;
-import com.nowcoder.community.im.common.event.RoomMemberChangedEventV1;
-import com.nowcoder.community.im.common.event.RoomMessagePersistedEventV1;
-import com.nowcoder.community.im.common.event.RoomMessageRejectedEventV1;
-import com.nowcoder.community.im.realtime.client.CommunityGovernanceClient;
-import com.nowcoder.community.im.realtime.kafka.CommandProducer;
-import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
-import com.nowcoder.community.im.realtime.presence.RoomLocalIndex;
-import com.nowcoder.community.im.realtime.presence.WsConnection;
+import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
+import com.nowcoder.community.im.common.projection.RoomMembershipEntry;
+import com.nowcoder.community.im.common.projection.UserBlockRelationEntry;
+import com.nowcoder.community.im.common.projection.UserMessagingPolicyEntry;
+import com.nowcoder.community.im.common.ws.ConnectFrame;
+import com.nowcoder.community.im.common.ws.SendPrivateTextFrame;
+import com.nowcoder.community.im.realtime.projection.PolicyProjectionService;
+import com.nowcoder.community.im.realtime.projection.ProjectionSyncCoordinator;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -32,11 +27,8 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
@@ -45,12 +37,15 @@ import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
-import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClient;
+import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.socket.WebSocketMessage;
+import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClient;
 import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
@@ -58,44 +53,32 @@ import reactor.core.publisher.Sinks;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Date;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.when;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
 @ActiveProfiles("test")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @EmbeddedKafka(
         partitions = 1,
         topics = {
-                ImTopics.COMMAND_PRIVATE_TEXT_V1,
-                ImTopics.COMMAND_ROOM_TEXT_V1,
-                ImTopics.EVENT_PRIVATE_PERSISTED_V1,
-                ImTopics.EVENT_ROOM_PERSISTED_V1,
-                ImTopics.EVENT_PRIVATE_REJECTED_V1,
-                ImTopics.EVENT_ROOM_REJECTED_V1,
-                ImTopics.EVENT_ROOM_MEMBER_CHANGED_V1
+                ImTopics.COMMAND_PRIVATE_TEXT,
+                ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED
         }
 )
 @TestPropertySource(properties = {
@@ -103,22 +86,21 @@ import static org.mockito.Mockito.when;
         "spring.kafka.listener.auto-startup=true",
         "spring.kafka.consumer.auto-offset-reset=earliest",
         "spring.cloud.nacos.discovery.enabled=false",
-        "im.ws.room-flush-interval-ms=10",
+        "im.projection.bootstrap-on-startup=false",
+        "im.session.worker-id=worker-a",
         "im.ws.kafka-send-timeout-ms=1000"
 })
 class ImRealtimeWebSocketIntegrationTest {
 
-    private enum ImCoreBootstrapMode {
-        EMPTY,
-        FAILURE
-    }
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final int APP_PORT = findAvailablePort();
 
-    private static final AtomicReference<ImCoreBootstrapMode> IM_CORE_BOOTSTRAP_MODE = new AtomicReference<>(ImCoreBootstrapMode.EMPTY);
-    private static final LinkedBlockingQueue<Map<String, String>> IM_CORE_REQUEST_HEADERS = new LinkedBlockingQueue<>();
+    private static final AtomicReference<List<RoomMembershipEntry>> MEMBERSHIP_ENTRIES = new AtomicReference<>(List.of());
+    private static final AtomicReference<List<UserMessagingPolicyEntry>> POLICY_ENTRIES = new AtomicReference<>(List.of());
+    private static final AtomicReference<List<UserBlockRelationEntry>> BLOCK_ENTRIES = new AtomicReference<>(List.of());
+
     private static HttpServer imCoreServer;
-
-    @LocalServerPort
-    private int port;
+    private static HttpServer communityServer;
 
     @Autowired
     private EmbeddedKafkaBroker embeddedKafka;
@@ -127,22 +109,16 @@ class ImRealtimeWebSocketIntegrationTest {
     private KafkaTemplate<String, Object> kafkaTemplate;
 
     @Autowired
+    private KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
+
+    @Autowired
     private ObjectMapper objectMapper;
 
     @Autowired
-    private ConnectionRegistry connectionRegistry;
+    private ProjectionSyncCoordinator projectionSyncCoordinator;
 
     @Autowired
-    private RoomLocalIndex roomLocalIndex;
-
-    @Autowired
-    private KafkaListenerEndpointRegistry kafkaListenerEndpointRegistry;
-
-    @MockBean
-    private CommunityGovernanceClient governanceClient;
-
-    @SpyBean
-    private CommandProducer commandProducer;
+    private PolicyProjectionService policyProjectionService;
 
     @Value("${security.jwt.hmac-secret}")
     private String jwtSecret;
@@ -154,460 +130,157 @@ class ImRealtimeWebSocketIntegrationTest {
 
     @DynamicPropertySource
     static void registerDynamicProperties(DynamicPropertyRegistry registry) {
-        ensureImCoreServer();
+        ensureSnapshotServers();
+        registry.add("server.port", () -> APP_PORT);
+        registry.add("im.session.ws-base-url", () -> "ws://127.0.0.1:" + APP_PORT + "/ws/im");
         registry.add("spring.cloud.discovery.client.simple.instances.im-core[0].uri",
                 () -> "http://127.0.0.1:" + imCoreServer.getAddress().getPort());
+        registry.add("spring.cloud.discovery.client.simple.instances.community-app[0].uri",
+                () -> "http://127.0.0.1:" + communityServer.getAddress().getPort());
     }
 
     @AfterEach
     void tearDown() {
+        MEMBERSHIP_ENTRIES.set(List.of());
+        POLICY_ENTRIES.set(List.of());
+        BLOCK_ENTRIES.set(List.of());
         if (commandConsumer != null) {
             try {
                 commandConsumer.close();
             } catch (RuntimeException ignore) {
             }
         }
-        IM_CORE_BOOTSTRAP_MODE.set(ImCoreBootstrapMode.EMPTY);
-        IM_CORE_REQUEST_HEADERS.clear();
     }
 
     @Test
-    void websocket_shouldAuth_sendCommands_andReceiveAcceptedCommittedAndPushFrames() throws Exception {
-        when(governanceClient.validateSendPrivateMessage(anyString(), any(), anyString()))
-                .thenReturn(Mono.just(CommunityGovernanceClient.Decision.allow("")));
+    void websocket_shouldOpenSession_connectWithTicket_andApplyLocalPrivatePolicyProjection() throws Exception {
+        UUID senderUserId = uuid(100);
+        UUID allowedRecipientId = uuid(200);
+        UUID deniedRecipientId = uuid(201);
 
-        UUID userId = uuid(100);
-        UUID toUserId = uuid(200);
-        UUID roomId = uuid(10);
-        String conversationId = conversationId(userId, toUserId);
+        MEMBERSHIP_ENTRIES.set(List.of());
+        POLICY_ENTRIES.set(List.of(
+                policy(senderUserId, true),
+                policy(allowedRecipientId, true),
+                policy(deniedRecipientId, true)
+        ));
+        BLOCK_ENTRIES.set(List.of());
 
-        commandConsumer = newCommandStringConsumer("im-realtime-it-commands");
-        commandConsumer.subscribe(List.of(ImTopics.COMMAND_PRIVATE_TEXT_V1, ImTopics.COMMAND_ROOM_TEXT_V1));
+        projectionSyncCoordinator.refreshNow().block(Duration.ofSeconds(5));
+
+        commandConsumer = newCommandStringConsumer("im-realtime-ws-it");
+        commandConsumer.subscribe(List.of(ImTopics.COMMAND_PRIVATE_TEXT));
         commandConsumer.poll(Duration.ofMillis(200));
 
+        OpenSessionData sessionData = openSession(senderUserId);
+        assertThat(sessionData.wsUrl()).isNotBlank();
+        assertThat(sessionData.ticket()).isNotBlank();
+        assertThat(sessionData.sessionId()).isNotBlank();
+
         LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
         Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
         Sinks.Empty<Void> done = Sinks.empty();
-
         CountDownLatch connected = new CountDownLatch(1);
 
-        ReactorNettyWebSocketClient client = new ReactorNettyWebSocketClient();
-        URI uri = URI.create("ws://localhost:" + port + "/ws/im");
-
-        Disposable ws = client.execute(uri, session -> {
-                    connected.countDown();
-
-                    Mono<Void> send = session.send(outbound.asFlux().map(session::textMessage));
-                    Mono<Void> recv = session.receive()
-                            .map(WebSocketMessage::getPayloadAsText)
-                            .doOnNext(received::offer)
-                            .then();
-                    Mono<Void> closer = done.asMono().then(session.close());
-                    return Mono.when(send, recv, closer);
-                })
-                .subscribe();
-
+        Disposable websocket = openWebSocket(sessionData.wsUrl(), received, outbound, done, connected);
         try {
             assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
 
-            String token = signHs256(jwtSecret, jwtIssuer, userId.toString(), Instant.now().plusSeconds(120));
-            outbound.tryEmitNext("{\"type\":\"auth\",\"accessToken\":\"" + token + "\"}");
+            outbound.tryEmitNext(json(new ConnectFrame("connect", sessionData.ticket())));
 
-            JsonNode authOk = awaitType(received, "auth_ok", Duration.ofSeconds(5));
-            assertThat(authOk.path("userId").asText("")).isEqualTo(userId.toString());
+            JsonNode connectedFrame = awaitType(received, "connected", Duration.ofSeconds(5));
+            assertThat(connectedFrame.path("sessionId").asText("")).isEqualTo(sessionData.sessionId());
 
-            awaitRealtimeEventAssignments(
-                    Set.of(
-                            ImTopics.EVENT_PRIVATE_PERSISTED_V1,
-                            ImTopics.EVENT_ROOM_PERSISTED_V1,
-                            ImTopics.EVENT_PRIVATE_REJECTED_V1,
-                            ImTopics.EVENT_ROOM_REJECTED_V1,
-                            ImTopics.EVENT_ROOM_MEMBER_CHANGED_V1
-                    ),
-                    Duration.ofSeconds(8)
-            );
+            outbound.tryEmitNext(json(new SendPrivateTextFrame("sendPrivateText", "c-allow", allowedRecipientId, "hi")));
 
-            outbound.tryEmitNext("{\"type\":\"sendPrivateText\",\"clientMsgId\":\"c1\",\"toUserId\":\"" + toUserId + "\",\"content\":\"hi\"}");
-            JsonNode privateAccepted = awaitType(received, "sendAccepted", Duration.ofSeconds(5));
-            assertThat(privateAccepted.path("cmd").asText("")).isEqualTo("sendPrivateText");
-            assertThat(privateAccepted.path("clientMsgId").asText("")).isEqualTo("c1");
-            ConsumerRecord<String, String> privateCmdRecord = pollForSingleRecord(commandConsumer, ImTopics.COMMAND_PRIVATE_TEXT_V1, Duration.ofSeconds(10));
-            JsonNode privateCmd = objectMapper.readTree(privateCmdRecord.value());
-            assertThat(privateCmd.path("fromUserId").asText("")).isEqualTo(userId.toString());
-            assertThat(privateCmd.path("toUserId").asText("")).isEqualTo(toUserId.toString());
-            assertThat(privateCmd.path("conversationId").asText("")).isEqualTo(conversationId);
-            assertThat(privateCmd.path("content").asText("")).isEqualTo("hi");
-            assertThat(privateCmd.path("clientMsgId").asText("")).isEqualTo("c1");
+            JsonNode ackFrame = awaitType(received, "ack", Duration.ofSeconds(5));
+            assertThat(ackFrame.path("cmd").asText("")).isEqualTo("sendPrivateText");
+            assertThat(ackFrame.path("clientMsgId").asText("")).isEqualTo("c-allow");
+            assertThat(ackFrame.path("requestId").asText("")).isNotBlank();
 
-            outbound.tryEmitNext("{\"type\":\"sendRoomText\",\"clientMsgId\":\"c2\",\"roomId\":\"" + roomId + "\",\"content\":\"hello\"}");
-            JsonNode roomAccepted = awaitType(received, "sendAccepted", Duration.ofSeconds(5));
-            assertThat(roomAccepted.path("cmd").asText("")).isEqualTo("sendRoomText");
-            assertThat(roomAccepted.path("clientMsgId").asText("")).isEqualTo("c2");
-            ConsumerRecord<String, String> roomCmdRecord = pollForSingleRecord(commandConsumer, ImTopics.COMMAND_ROOM_TEXT_V1, Duration.ofSeconds(10));
-            JsonNode roomCmd = objectMapper.readTree(roomCmdRecord.value());
-            assertThat(roomCmd.path("fromUserId").asText("")).isEqualTo(userId.toString());
-            assertThat(roomCmd.path("roomId").asText("")).isEqualTo(roomId.toString());
-            assertThat(roomCmd.path("content").asText("")).isEqualTo("hello");
-            assertThat(roomCmd.path("clientMsgId").asText("")).isEqualTo("c2");
+            ConsumerRecord<String, String> commandRecord =
+                    pollForSingleRecord(commandConsumer, ImTopics.COMMAND_PRIVATE_TEXT, Duration.ofSeconds(10));
+            JsonNode command = objectMapper.readTree(commandRecord.value());
+            assertThat(command.path("fromUserId").asText("")).isEqualTo(senderUserId.toString());
+            assertThat(command.path("toUserId").asText("")).isEqualTo(allowedRecipientId.toString());
+            assertThat(command.path("content").asText("")).isEqualTo("hi");
+            assertThat(command.path("clientMsgId").asText("")).isEqualTo("c-allow");
+
+            awaitRealtimeEventAssignments(Set.of(ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED), Duration.ofSeconds(8));
 
             kafkaTemplate.send(
-                    ImTopics.EVENT_ROOM_MEMBER_CHANGED_V1,
-                    String.valueOf(roomId),
-                    new RoomMemberChangedEventV1("evt-join", roomId, userId, "JOINED", System.currentTimeMillis())
+                    ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED,
+                    deniedRecipientId.toString(),
+                    new UserMessagingPolicyChanged(
+                            "evt-policy-deny",
+                            deniedRecipientId,
+                            true,
+                            false,
+                            false,
+                            null,
+                            null,
+                            false,
+                            System.currentTimeMillis()
+                    )
             ).get(5, TimeUnit.SECONDS);
 
-            awaitRoomJoinedInProcess(userId, roomId, Duration.ofSeconds(3));
+            awaitPrivatePolicyDenied(senderUserId, deniedRecipientId, Duration.ofSeconds(5));
 
-            kafkaTemplate.send(
-                    ImTopics.EVENT_ROOM_PERSISTED_V1,
-                    String.valueOf(roomId),
-                    new RoomMessagePersistedEventV1("evt-room", roomId, 7L, uuid(9001), userId, "req-room-1", "c2", System.currentTimeMillis())
-            ).get(5, TimeUnit.SECONDS);
+            outbound.tryEmitNext(json(new SendPrivateTextFrame("sendPrivateText", "c-deny", deniedRecipientId, "blocked")));
 
-            JsonNode roomCommitted = awaitType(received, "sendCommitted", Duration.ofSeconds(5));
-            assertThat(roomCommitted.path("cmd").asText("")).isEqualTo("sendRoomText");
-            assertThat(roomCommitted.path("clientMsgId").asText("")).isEqualTo("c2");
-            assertThat(roomCommitted.path("roomId").asText("")).isEqualTo(roomId.toString());
-            assertThat(roomCommitted.path("seq").asLong()).isEqualTo(7L);
-
-            JsonNode roomUpdated = awaitType(received, "roomUpdatedBatch", Duration.ofSeconds(5));
-            assertThat(roomUpdated.hasNonNull("content")).isFalse();
-            assertThat(roomUpdated.path("items").isArray()).isTrue();
-            boolean match = false;
-            for (JsonNode item : roomUpdated.path("items")) {
-                if (roomId.toString().equals(item.path("roomId").asText("")) && item.path("lastSeq").asLong() == 7L) {
-                    match = true;
-                    break;
-                }
+            JsonNode rejectFrame = awaitType(received, "reject", Duration.ofSeconds(5));
+            assertThat(rejectFrame.path("cmd").asText("")).isEqualTo("sendPrivateText");
+            assertThat(rejectFrame.path("clientMsgId").asText("")).isEqualTo("c-deny");
+            assertThat(rejectFrame.path("reasonCode").asText("")).isEqualTo("policy_denied");
+            assertThat(rejectFrame.path("requestId").asText("")).isNotBlank();
+        } finally {
+            done.tryEmitEmpty();
+            outbound.tryEmitComplete();
+            if (websocket != null) {
+                websocket.dispose();
             }
-            assertThat(match).isTrue();
-
-            kafkaTemplate.send(
-                    ImTopics.EVENT_PRIVATE_PERSISTED_V1,
-                    conversationId,
-                    new PrivateMessagePersistedEventV1(
-                            "evt-private",
-                            conversationId,
-                            3L,
-                            uuid(12345),
-                            userId,
-                            toUserId,
-                            "server-hi",
-                            "req-private-1",
-                            "c1",
-                            System.currentTimeMillis()
-                    )
-            );
-
-            JsonNode privateCommitted = awaitType(received, "sendCommitted", Duration.ofSeconds(5));
-            assertThat(privateCommitted.path("cmd").asText("")).isEqualTo("sendPrivateText");
-            assertThat(privateCommitted.path("clientMsgId").asText("")).isEqualTo("c1");
-            assertThat(privateCommitted.path("conversationId").asText("")).isEqualTo(conversationId);
-            assertThat(privateCommitted.path("seq").asLong()).isEqualTo(3L);
-
-            JsonNode privateMsg = awaitType(received, "privateMessage", Duration.ofSeconds(5));
-            assertThat(privateMsg.path("conversationId").asText("")).isEqualTo(conversationId);
-            assertThat(privateMsg.path("fromUserId").asText("")).isEqualTo(userId.toString());
-            assertThat(privateMsg.path("toUserId").asText("")).isEqualTo(toUserId.toString());
-            assertThat(privateMsg.path("content").asText("")).isEqualTo("server-hi");
-        } finally {
-            done.tryEmitEmpty();
-            outbound.tryEmitComplete();
         }
     }
 
-    @Test
-    void websocket_shouldReceiveSendRejectedWhenImCoreRejectsAcceptedRoomCommand() throws Exception {
-        UUID userId = uuid(100);
-        UUID roomId = uuid(10);
-
-        LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
-        Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
-        Sinks.Empty<Void> done = Sinks.empty();
-        CountDownLatch connected = new CountDownLatch(1);
-
-        Disposable ws = openWebSocket(received, outbound, done, connected);
-        try {
-            assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
-
-            String token = signHs256(jwtSecret, jwtIssuer, userId.toString(), Instant.now().plusSeconds(120));
-            outbound.tryEmitNext("{\"type\":\"auth\",\"accessToken\":\"" + token + "\"}");
-            JsonNode authOk = awaitType(received, "auth_ok", Duration.ofSeconds(5));
-            assertThat(authOk.path("userId").asText("")).isEqualTo(userId.toString());
-
-            awaitRealtimeEventAssignments(Set.of(ImTopics.EVENT_ROOM_REJECTED_V1), Duration.ofSeconds(8));
-
-            kafkaTemplate.send(
-                    ImTopics.EVENT_ROOM_REJECTED_V1,
-                    String.valueOf(roomId),
-                    new RoomMessageRejectedEventV1(
-                            "evt-room-rejected",
-                            "req-room-rejected",
-                            "c-room-rejected",
-                            userId,
-                            roomId,
-                            403,
-                            "not_room_member",
-                            "not a room member",
-                            System.currentTimeMillis()
-                    )
-            ).get(5, TimeUnit.SECONDS);
-
-            JsonNode rejected = awaitType(received, "sendRejected", Duration.ofSeconds(5));
-            assertThat(rejected.path("cmd").asText("")).isEqualTo("sendRoomText");
-            assertThat(rejected.path("clientMsgId").asText("")).isEqualTo("c-room-rejected");
-            assertThat(rejected.path("requestId").asText("")).isEqualTo("req-room-rejected");
-            assertThat(rejected.path("code").asInt()).isEqualTo(403);
-            assertThat(rejected.path("reasonCode").asText("")).isEqualTo("not_room_member");
-            assertThat(rejected.path("message").asText("")).isEqualTo("not a room member");
-        } finally {
-            done.tryEmitEmpty();
-            outbound.tryEmitComplete();
-        }
+    private OpenSessionData openSession(UUID userId) throws Exception {
+        JsonNode body = client()
+                .post()
+                .uri("/api/im/sessions")
+                .header(HttpHeaders.AUTHORIZATION, bearer(userId))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(JsonNode.class)
+                .returnResult()
+                .getResponseBody();
+        assertThat(body).isNotNull();
+        assertThat(body.path("code").asInt(-1)).isEqualTo(0);
+        JsonNode data = body.path("data");
+        return new OpenSessionData(
+                data.path("sessionId").asText(""),
+                data.path("wsUrl").asText(""),
+                data.path("ticket").asText("")
+        );
     }
 
-    @Test
-    void websocket_shouldLogAuthDeniedWhenTokenIsInvalid() throws Exception {
-        String headerTraceId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-        String expectedTraceId = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-        ListAppender<ILoggingEvent> logs = startWsLogCapture();
-        LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
-        Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
-        Sinks.Empty<Void> done = Sinks.empty();
-        CountDownLatch connected = new CountDownLatch(1);
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("X-Trace-Id", headerTraceId);
-        headers.set("traceparent", "00-" + expectedTraceId + "-1234567890abcdef-01");
-
-        Disposable ws = openWebSocket(received, outbound, done, connected, headers);
-        try {
-            assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
-
-            outbound.tryEmitNext("{\"type\":\"auth\",\"accessToken\":\"invalid.jwt.token\"}");
-
-            JsonNode authError = awaitType(received, "auth_error", Duration.ofSeconds(5));
-            assertThat(authError.path("message").asText("")).isEqualTo("invalid token");
-
-            ILoggingEvent authEvent = awaitLogEvent(logs, "community.action=ws_auth", Duration.ofSeconds(5));
-            assertThat(authEvent.getThrowableProxy()).isNull();
-            assertThat(authEvent.getFormattedMessage())
-                    .contains("community.category=security")
-                    .contains("community.action=ws_auth")
-                    .contains("community.outcome=denied")
-                    .contains("community.reason_code=invalid_token")
-                    .contains("community.error_class=org.springframework.security.oauth2.jwt.BadJwtException")
-                    .contains("community.error_message=")
-                    .doesNotContain("\n")
-                    .doesNotContain("invalid.jwt.token");
-            assertThat(authEvent.getMDCPropertyMap()).containsEntry("traceId", expectedTraceId);
-        } finally {
-            done.tryEmitEmpty();
-            outbound.tryEmitComplete();
-            stopWsLogCapture(logs);
-        }
-    }
-
-    @Test
-    void websocket_shouldLogBootstrapFailureAndDisconnectSummary() throws Exception {
-        IM_CORE_BOOTSTRAP_MODE.set(ImCoreBootstrapMode.FAILURE);
-        ListAppender<ILoggingEvent> logs = startWsLogCapture();
-
-        LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
-        Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
-        Sinks.Empty<Void> done = Sinks.empty();
-        CountDownLatch connected = new CountDownLatch(1);
-
-        Disposable ws = openWebSocket(received, outbound, done, connected);
-        try {
-            assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
-
-            UUID userId = uuid(100);
-            String token = signHs256(jwtSecret, jwtIssuer, userId.toString(), Instant.now().plusSeconds(120));
-            outbound.tryEmitNext("{\"type\":\"auth\",\"accessToken\":\"" + token + "\"}");
-
-            JsonNode authOk = awaitType(received, "auth_ok", Duration.ofSeconds(5));
-            assertThat(authOk.path("userId").asText("")).isEqualTo(userId.toString());
-
-            ILoggingEvent bootstrapEvent = awaitLogEvent(logs, "community.action=ws_room_bootstrap", Duration.ofSeconds(5));
-            assertThat(bootstrapEvent.getThrowableProxy()).isNull();
-            assertThat(bootstrapEvent.getFormattedMessage())
-                    .contains("community.category=integration")
-                    .contains("community.error_class=org.springframework.web.reactive.function.client.WebClientResponseException$ServiceUnavailable")
-                    .contains("community.error_message=")
-                    .doesNotContain("\n");
-        } finally {
-            done.tryEmitEmpty();
-            outbound.tryEmitComplete();
-        }
-
-        try {
-            awaitLogContains(logs, "community.action=ws_disconnect", Duration.ofSeconds(5));
-            assertThat(logOutput(logs))
-                    .contains("community.category=integration")
-                    .contains("community.action=ws_room_bootstrap")
-                    .contains("community.outcome=degraded")
-                    .contains("community.reason_code=bootstrap_failed")
-                    .contains("user.id=" + uuid(100))
-                    .contains("community.category=access")
-                    .contains("community.action=ws_disconnect")
-                    .contains("community.outcome=success")
-                    .contains("community.joined_room_count=0");
-        } finally {
-            stopWsLogCapture(logs);
-        }
-    }
-
-    @Test
-    void websocket_shouldLogKafkaSendFailureWithoutMessageContent() throws Exception {
-        when(governanceClient.validateSendPrivateMessage(anyString(), any(), anyString()))
-                .thenReturn(Mono.just(CommunityGovernanceClient.Decision.allow("")));
-        doReturn(CompletableFuture.failedFuture(new RuntimeException("broker unavailable")))
-                .when(commandProducer).sendPrivateText(any(SendPrivateTextCommandV1.class));
-        ListAppender<ILoggingEvent> logs = startWsLogCapture();
-
-        LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
-        Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
-        Sinks.Empty<Void> done = Sinks.empty();
-        CountDownLatch connected = new CountDownLatch(1);
-
-        Disposable ws = openWebSocket(received, outbound, done, connected);
-        try {
-            assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
-
-            UUID userId = uuid(100);
-            UUID toUserId = uuid(200);
-            String token = signHs256(jwtSecret, jwtIssuer, userId.toString(), Instant.now().plusSeconds(120));
-            outbound.tryEmitNext("{\"type\":\"auth\",\"accessToken\":\"" + token + "\"}");
-            JsonNode authOk = awaitType(received, "auth_ok", Duration.ofSeconds(5));
-            assertThat(authOk.path("userId").asText("")).isEqualTo(userId.toString());
-
-            outbound.tryEmitNext("{\"type\":\"sendPrivateText\",\"clientMsgId\":\"c-fail\",\"toUserId\":\"" + toUserId + "\",\"content\":\"secret-payload\"}");
-
-            JsonNode sendError = awaitType(received, "sendError", Duration.ofSeconds(5));
-            assertThat(sendError.path("cmd").asText("")).isEqualTo("sendPrivateText");
-            assertThat(sendError.path("clientMsgId").asText("")).isEqualTo("c-fail");
-
-            ILoggingEvent enqueueEvent = awaitLogEvent(logs, "community.action=ws_command_enqueue", Duration.ofSeconds(5));
-            assertThat(enqueueEvent.getThrowableProxy()).isNull();
-            assertThat(enqueueEvent.getFormattedMessage())
-                    .contains("community.category=integration")
-                    .contains("community.action=ws_command_enqueue")
-                    .contains("community.outcome=failure")
-                    .contains("community.reason_code=kafka_send_failed")
-                    .contains("user.id=" + userId)
-                    .contains("community.command=sendPrivateText")
-                    .contains("community.client_msg_id=c-fail")
-                    .contains("community.error_class=java.lang.RuntimeException")
-                    .contains("community.error_message=broker%20unavailable")
-                    .doesNotContain("\n")
-                    .doesNotContain("secret-payload");
-        } finally {
-            done.tryEmitEmpty();
-            outbound.tryEmitComplete();
-            stopWsLogCapture(logs);
-        }
-    }
-
-    @Test
-    void websocket_shouldForwardHandshakeTraceHeadersToImCoreBootstrapAndDisconnectLog() throws Exception {
-        String headerTraceId = "cccccccccccccccccccccccccccccccc";
-        String expectedTraceId = "dddddddddddddddddddddddddddddddd";
-        ListAppender<ILoggingEvent> logs = startWsLogCapture();
-
-        LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
-        Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
-        Sinks.Empty<Void> done = Sinks.empty();
-        CountDownLatch connected = new CountDownLatch(1);
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("X-Trace-Id", headerTraceId);
-        headers.set("traceparent", "00-" + expectedTraceId + "-fedcba0987654321-01");
-
-        Disposable ws = openWebSocket(received, outbound, done, connected, headers);
-        try {
-            assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
-
-            UUID userId = uuid(100);
-            String token = signHs256(jwtSecret, jwtIssuer, userId.toString(), Instant.now().plusSeconds(120));
-            outbound.tryEmitNext("{\"type\":\"auth\",\"accessToken\":\"" + token + "\"}");
-
-            JsonNode authOk = awaitType(received, "auth_ok", Duration.ofSeconds(5));
-            assertThat(authOk.path("userId").asText("")).isEqualTo(userId.toString());
-
-            Map<String, String> requestHeaders = IM_CORE_REQUEST_HEADERS.poll(5, TimeUnit.SECONDS);
-            assertThat(requestHeaders).isNotNull();
-            assertThat(requestHeaders).containsEntry("X-Trace-Id", expectedTraceId);
-            assertThat(requestHeaders.get("traceparent"))
-                    .startsWith("00-" + expectedTraceId + "-")
-                    .endsWith("-01");
-        } finally {
-            done.tryEmitEmpty();
-            outbound.tryEmitComplete();
-        }
-
-        try {
-            ILoggingEvent disconnectEvent = awaitLogEvent(logs, "community.action=ws_disconnect", Duration.ofSeconds(5));
-            assertThat(disconnectEvent.getMDCPropertyMap()).containsEntry("traceId", expectedTraceId);
-        } finally {
-            stopWsLogCapture(logs);
-        }
-    }
-
-    @Test
-    void websocket_shouldReturnSendErrorWhenKafkaSendDoesNotCompleteWithinTimeout() throws Exception {
-        when(governanceClient.validateSendPrivateMessage(anyString(), any(), anyString()))
-                .thenReturn(Mono.just(CommunityGovernanceClient.Decision.allow("")));
-        doReturn(new CompletableFuture<>())
-                .when(commandProducer).sendPrivateText(any(SendPrivateTextCommandV1.class));
-
-        LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
-        Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
-        Sinks.Empty<Void> done = Sinks.empty();
-        CountDownLatch connected = new CountDownLatch(1);
-
-        Disposable ws = openWebSocket(received, outbound, done, connected);
-        try {
-            assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
-
-            UUID userId = uuid(100);
-            UUID toUserId = uuid(200);
-            String token = signHs256(jwtSecret, jwtIssuer, userId.toString(), Instant.now().plusSeconds(120));
-            outbound.tryEmitNext("{\"type\":\"auth\",\"accessToken\":\"" + token + "\"}");
-            JsonNode authOk = awaitType(received, "auth_ok", Duration.ofSeconds(5));
-            assertThat(authOk.path("userId").asText("")).isEqualTo(userId.toString());
-
-            outbound.tryEmitNext("{\"type\":\"sendPrivateText\",\"clientMsgId\":\"c-timeout\",\"toUserId\":\"" + toUserId + "\",\"content\":\"slow-broker\"}");
-
-            JsonNode sendError = awaitType(received, "sendError", Duration.ofSeconds(2));
-            assertThat(sendError.path("cmd").asText("")).isEqualTo("sendPrivateText");
-            assertThat(sendError.path("clientMsgId").asText("")).isEqualTo("c-timeout");
-            assertThat(sendError.path("message").asText("")).contains("timeout");
-        } finally {
-            done.tryEmitEmpty();
-            outbound.tryEmitComplete();
-        }
+    private WebTestClient client() {
+        return WebTestClient.bindToServer()
+                .baseUrl("http://127.0.0.1:" + APP_PORT)
+                .responseTimeout(Duration.ofSeconds(5))
+                .exchangeStrategies(ExchangeStrategies.builder()
+                        .codecs(cfg -> cfg.defaultCodecs().maxInMemorySize(256 * 1024))
+                        .build())
+                .build();
     }
 
     private Disposable openWebSocket(
+            String wsUrl,
             LinkedBlockingQueue<String> received,
             Sinks.Many<String> outbound,
             Sinks.Empty<Void> done,
             CountDownLatch connected
     ) {
-        return openWebSocket(received, outbound, done, connected, new HttpHeaders());
-    }
-
-    private Disposable openWebSocket(
-            LinkedBlockingQueue<String> received,
-            Sinks.Many<String> outbound,
-            Sinks.Empty<Void> done,
-            CountDownLatch connected,
-            HttpHeaders headers
-    ) {
         ReactorNettyWebSocketClient client = new ReactorNettyWebSocketClient();
-        URI uri = URI.create("ws://localhost:" + port + "/ws/im");
-        return client.execute(uri, headers, session -> {
+        return client.execute(URI.create(wsUrl), session -> {
                     connected.countDown();
 
                     Mono<Void> send = session.send(outbound.asFlux().map(session::textMessage));
@@ -626,50 +299,35 @@ class ImRealtimeWebSocketIntegrationTest {
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        DefaultKafkaConsumerFactory<String, String> cf = new DefaultKafkaConsumerFactory<>(props);
-        return cf.createConsumer();
+        DefaultKafkaConsumerFactory<String, String> factory = new DefaultKafkaConsumerFactory<>(props);
+        return factory.createConsumer();
     }
 
     private JsonNode awaitType(LinkedBlockingQueue<String> received, String type, Duration timeout) throws Exception {
         long deadlineMs = System.currentTimeMillis() + timeout.toMillis();
         while (System.currentTimeMillis() < deadlineMs) {
             long waitMs = Math.max(1L, deadlineMs - System.currentTimeMillis());
-            String msg = received.poll(waitMs, TimeUnit.MILLISECONDS);
-            if (msg == null) {
+            String message = received.poll(waitMs, TimeUnit.MILLISECONDS);
+            if (message == null) {
                 continue;
             }
-            JsonNode node = objectMapper.readTree(msg);
+            JsonNode node = objectMapper.readTree(message);
             if (type.equals(node.path("type").asText(""))) {
                 return node;
             }
         }
-        throw new AssertionError("Timed out waiting for ws message type=" + type);
-    }
-
-    private void awaitRoomJoinedInProcess(UUID userId, UUID roomId, Duration timeout) throws Exception {
-        long deadlineMs = System.currentTimeMillis() + timeout.toMillis();
-        while (System.currentTimeMillis() < deadlineMs) {
-            List<WsConnection> conns = new ArrayList<>(connectionRegistry.listByUserId(userId));
-            if (!conns.isEmpty()) {
-                WsConnection conn = conns.get(0);
-                if (conn.joinedRoomsView().contains(roomId) && roomIndexContains(roomId, conn.connectionId())) {
-                    return;
-                }
-            }
-            Thread.sleep(50L);
-        }
-        throw new AssertionError("Timed out waiting for in-process room join (userId=" + userId + ", roomId=" + roomId + ")");
+        throw new AssertionError("Timed out waiting for websocket message type=" + type);
     }
 
     private void awaitRealtimeEventAssignments(Set<String> expectedTopics, Duration timeout) throws Exception {
         long deadlineMs = System.currentTimeMillis() + timeout.toMillis();
         while (System.currentTimeMillis() < deadlineMs) {
-            Set<String> assignedTopics = new HashSet<>();
+            Set<String> assignedTopics = new java.util.HashSet<>();
             for (MessageListenerContainer container : kafkaListenerEndpointRegistry.getListenerContainers()) {
                 if (container == null || !container.isRunning()) {
                     continue;
                 }
-                Collection<TopicPartition> partitions = container.getAssignedPartitions();
+                var partitions = container.getAssignedPartitions();
                 if (partitions == null || partitions.isEmpty()) {
                     continue;
                 }
@@ -687,140 +345,15 @@ class ImRealtimeWebSocketIntegrationTest {
         throw new AssertionError("Timed out waiting for realtime Kafka assignments: " + expectedTopics);
     }
 
-    private void awaitLogContains(ListAppender<ILoggingEvent> logs, String token, Duration timeout) throws Exception {
-        awaitLogEvent(logs, token, timeout);
-    }
-
-    private ILoggingEvent awaitLogEvent(ListAppender<ILoggingEvent> logs, String token, Duration timeout) throws Exception {
+    private void awaitPrivatePolicyDenied(UUID fromUserId, UUID toUserId, Duration timeout) throws Exception {
         long deadlineMs = System.currentTimeMillis() + timeout.toMillis();
         while (System.currentTimeMillis() < deadlineMs) {
-            if (logs != null && logs.list != null) {
-                for (ILoggingEvent event : logs.list) {
-                    if (event != null && event.getFormattedMessage() != null && event.getFormattedMessage().contains(token)) {
-                        return event;
-                    }
-                }
+            if (!policyProjectionService.canSendPrivate(fromUserId, toUserId).allowed()) {
+                return;
             }
             Thread.sleep(50L);
         }
-        throw new AssertionError("Timed out waiting for log token=" + token + " in output: " + logOutput(logs));
-    }
-
-    private ListAppender<ILoggingEvent> startWsLogCapture() {
-        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(ImWebSocketHandler.class);
-        ListAppender<ILoggingEvent> appender = new ListAppender<>();
-        appender.start();
-        logger.addAppender(appender);
-        return appender;
-    }
-
-    private void stopWsLogCapture(ListAppender<ILoggingEvent> appender) {
-        if (appender == null) {
-            return;
-        }
-        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(ImWebSocketHandler.class);
-        logger.detachAppender(appender);
-        appender.stop();
-    }
-
-    private String logOutput(ListAppender<ILoggingEvent> appender) {
-        if (appender == null || appender.list == null || appender.list.isEmpty()) {
-            return "";
-        }
-        return appender.list.stream()
-                .map(ILoggingEvent::getFormattedMessage)
-                .collect(Collectors.joining("\n"));
-    }
-
-    private static void ensureImCoreServer() {
-        if (imCoreServer != null) {
-            return;
-        }
-        try {
-            HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-            server.createContext("/internal/im/realtime/users", ImRealtimeWebSocketIntegrationTest::handleImCoreBootstrapRequest);
-            server.start();
-            imCoreServer = server;
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to start im-core mock server", e);
-        }
-    }
-
-    private static void handleImCoreBootstrapRequest(HttpExchange exchange) throws IOException {
-        try (exchange) {
-            if (exchange == null) {
-                return;
-            }
-            String path = exchange.getRequestURI() == null ? "" : String.valueOf(exchange.getRequestURI().getPath());
-            if (!isBootstrapRoomsPath(path)) {
-                writeJson(exchange, 404, "{\"message\":\"not found\"}");
-                return;
-            }
-            IM_CORE_REQUEST_HEADERS.offer(captureHeaders(exchange));
-            if (IM_CORE_BOOTSTRAP_MODE.get() == ImCoreBootstrapMode.FAILURE) {
-                writeJson(exchange, 503, "{\"message\":\"bootstrap unavailable\"}");
-                return;
-            }
-            writeJson(exchange, 200, "{\"roomIds\":[],\"nextCursorExclusive\":null,\"hasMore\":false}");
-        }
-    }
-
-    private static boolean isBootstrapRoomsPath(String path) {
-        String prefix = "/internal/im/realtime/users/";
-        String suffix = "/rooms";
-        if (path == null || !path.startsWith(prefix) || !path.endsWith(suffix)) {
-            return false;
-        }
-        String userId = path.substring(prefix.length(), path.length() - suffix.length());
-        try {
-            UUID.fromString(userId);
-            return true;
-        } catch (IllegalArgumentException ex) {
-            return false;
-        }
-    }
-
-    private static Map<String, String> captureHeaders(HttpExchange exchange) {
-        Map<String, String> captured = new HashMap<>();
-        if (exchange == null || exchange.getRequestHeaders() == null) {
-            return captured;
-        }
-        captured.put("X-Trace-Id", firstHeader(exchange, "X-Trace-Id"));
-        captured.put("traceparent", firstHeader(exchange, "traceparent"));
-        return captured;
-    }
-
-    private static String firstHeader(HttpExchange exchange, String name) {
-        if (exchange == null || exchange.getRequestHeaders() == null || name == null) {
-            return "";
-        }
-        List<String> values = exchange.getRequestHeaders().get(name);
-        if (values == null || values.isEmpty() || values.get(0) == null) {
-            return "";
-        }
-        return values.get(0);
-    }
-
-    private static void writeJson(HttpExchange exchange, int status, String body) throws IOException {
-        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-        exchange.getResponseHeaders().set("Content-Type", "application/json;charset=UTF-8");
-        exchange.sendResponseHeaders(status, bytes.length);
-        try (OutputStream outputStream = exchange.getResponseBody()) {
-            outputStream.write(bytes);
-        }
-    }
-
-    private boolean roomIndexContains(UUID roomId, String connectionId) {
-        if (connectionId == null) {
-            return false;
-        }
-        final boolean[] found = {false};
-        roomLocalIndex.forEachConnectionId(roomId, id -> {
-            if (connectionId.equals(id)) {
-                found[0] = true;
-            }
-        });
-        return found[0];
+        throw new AssertionError("Timed out waiting for private policy denial");
     }
 
     private static ConsumerRecord<String, String> pollForSingleRecord(
@@ -836,12 +369,87 @@ class ImRealtimeWebSocketIntegrationTest {
             }
             Iterable<ConsumerRecord<String, String>> iterable = records.records(topic);
             if (iterable != null) {
-                for (ConsumerRecord<String, String> r : iterable) {
-                    return r;
+                for (ConsumerRecord<String, String> record : iterable) {
+                    return record;
                 }
             }
         }
         throw new AssertionError("Timed out waiting for record on topic " + topic);
+    }
+
+    private String bearer(UUID userId) throws Exception {
+        return "Bearer " + signHs256(jwtSecret, jwtIssuer, userId.toString(), Instant.now().plusSeconds(120));
+    }
+
+    private static String json(Object value) throws Exception {
+        return JSON.writeValueAsString(value);
+    }
+
+    private static synchronized void ensureSnapshotServers() {
+        if (imCoreServer != null && communityServer != null) {
+            return;
+        }
+        try {
+            if (imCoreServer == null) {
+                imCoreServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+                imCoreServer.createContext(
+                        "/internal/im/realtime/projections/room-memberships",
+                        ImRealtimeWebSocketIntegrationTest::handleMembershipSnapshot
+                );
+                imCoreServer.start();
+            }
+            if (communityServer == null) {
+                communityServer = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+                communityServer.createContext(
+                        "/internal/im/realtime/projections/user-policies",
+                        ImRealtimeWebSocketIntegrationTest::handlePolicySnapshot
+                );
+                communityServer.createContext(
+                        "/internal/im/realtime/projections/block-relations",
+                        ImRealtimeWebSocketIntegrationTest::handleBlockSnapshot
+                );
+                communityServer.start();
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to start snapshot stubs", e);
+        }
+    }
+
+    private static void handleMembershipSnapshot(HttpExchange exchange) throws IOException {
+        LinkedHashMap<String, Object> body = new LinkedHashMap<>();
+        body.put("entries", MEMBERSHIP_ENTRIES.get());
+        body.put("nextRoomId", null);
+        body.put("nextUserId", null);
+        body.put("hasMore", false);
+        writeJson(exchange, 200, body);
+    }
+
+    private static void handlePolicySnapshot(HttpExchange exchange) throws IOException {
+        LinkedHashMap<String, Object> body = new LinkedHashMap<>();
+        body.put("entries", POLICY_ENTRIES.get());
+        body.put("nextUserId", null);
+        body.put("hasMore", false);
+        writeJson(exchange, 200, body);
+    }
+
+    private static void handleBlockSnapshot(HttpExchange exchange) throws IOException {
+        LinkedHashMap<String, Object> body = new LinkedHashMap<>();
+        body.put("entries", BLOCK_ENTRIES.get());
+        body.put("nextBlockerUserId", null);
+        body.put("nextBlockedUserId", null);
+        body.put("hasMore", false);
+        writeJson(exchange, 200, body);
+    }
+
+    private static void writeJson(HttpExchange exchange, int status, Object body) throws IOException {
+        try (exchange) {
+            byte[] bytes = JSON.writeValueAsBytes(body);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(status, bytes.length);
+            try (OutputStream outputStream = exchange.getResponseBody()) {
+                outputStream.write(bytes);
+            }
+        }
     }
 
     private static String signHs256(String secret, String issuer, String sub, Instant exp) throws Exception {
@@ -857,13 +465,23 @@ class ImRealtimeWebSocketIntegrationTest {
         return jwt.serialize();
     }
 
+    private static UserMessagingPolicyEntry policy(UUID userId, boolean allowPrivateMessages) {
+        return new UserMessagingPolicyEntry(userId, true, false, false, null, null, allowPrivateMessages);
+    }
+
     private static UUID uuid(long suffix) {
         return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
     }
 
-    private static String conversationId(UUID userId1, UUID userId2) {
-        UUID first = userId1.compareTo(userId2) <= 0 ? userId1 : userId2;
-        UUID second = first.equals(userId1) ? userId2 : userId1;
-        return first + "_" + second;
+    private static int findAvailablePort() {
+        try (ServerSocket socket = new ServerSocket(0)) {
+            socket.setReuseAddress(true);
+            return socket.getLocalPort();
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to allocate test port", e);
+        }
+    }
+
+    private record OpenSessionData(String sessionId, String wsUrl, String ticket) {
     }
 }

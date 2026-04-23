@@ -7,8 +7,8 @@ import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
-import com.nowcoder.community.im.common.command.SendPrivateTextCommandV1;
-import com.nowcoder.community.im.common.command.SendRoomTextCommandV1;
+import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
+import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.core.service.PrivateMessageService;
 import com.nowcoder.community.im.core.service.RoomMembershipService;
 import com.nowcoder.community.im.core.service.RoomMessageService;
@@ -72,7 +72,7 @@ class ImCoreApiControllerTest {
         UUID user3 = uuid(3);
         String conversationId = conversationId(user1, user2);
 
-        privateMessageService.persist(new SendPrivateTextCommandV1(
+        privateMessageService.persist(new SendPrivateTextCommand(
                 "req-1",
                 "c1",
                 user1,
@@ -133,7 +133,7 @@ class ImCoreApiControllerTest {
         UUID roomId = roomMembershipService.createRoom(owner, "room");
         roomMembershipService.joinRoom(member, roomId);
 
-        roomMessageService.persist(new SendRoomTextCommandV1(
+        roomMessageService.persist(new SendRoomTextCommand(
                 "req-1",
                 "c1",
                 owner,
@@ -191,7 +191,7 @@ class ImCoreApiControllerTest {
         UUID roomId = roomMembershipService.createRoom(sender, "room");
         roomMembershipService.joinRoom(receiver, roomId);
 
-        privateMessageService.persist(new SendPrivateTextCommandV1(
+        privateMessageService.persist(new SendPrivateTextCommand(
                 "req-p1",
                 "cp1",
                 sender,
@@ -200,7 +200,7 @@ class ImCoreApiControllerTest {
                 "hello",
                 System.currentTimeMillis()
         ));
-        roomMessageService.persist(new SendRoomTextCommandV1(
+        roomMessageService.persist(new SendRoomTextCommand(
                 "req-r1",
                 "cr1",
                 sender,

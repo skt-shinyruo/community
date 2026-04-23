@@ -1,7 +1,7 @@
 package com.nowcoder.community.im.core.service;
 
-import com.nowcoder.community.im.common.command.SendRoomTextCommandV1;
-import com.nowcoder.community.im.common.event.RoomMessagePersistedEventV1;
+import com.nowcoder.community.im.common.command.SendRoomTextCommand;
+import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
 import com.nowcoder.community.im.core.repository.RoomMessageRepository;
 import com.nowcoder.community.im.core.repository.RoomReadStateRepository;
 import com.nowcoder.community.im.core.repository.RoomRepository;
@@ -44,7 +44,7 @@ public class RoomMessageService {
     }
 
     @Transactional
-    public RoomMessagePersistedEventV1 persist(SendRoomTextCommandV1 cmd) {
+    public RoomMessagePersistedEvent persist(SendRoomTextCommand cmd) {
         if (cmd == null) {
             throw new IllegalArgumentException("command required");
         }
@@ -72,7 +72,7 @@ public class RoomMessageService {
         var existing = roomMessageRepository.findByIdempotency(roomId, fromUserId, cmd.clientMsgId());
         if (existing.isPresent()) {
             var m = existing.get();
-            return new RoomMessagePersistedEventV1(
+            return new RoomMessagePersistedEvent(
                     "evt_" + m.messageId(),
                     m.roomId(),
                     m.seq(),
@@ -101,7 +101,7 @@ public class RoomMessageService {
         // Sender has read their own outgoing message.
         readStateRepository.updateLastReadSeqMax(roomId, fromUserId, seq);
 
-        return new RoomMessagePersistedEventV1(
+        return new RoomMessagePersistedEvent(
                 "evt_" + messageId,
                 roomId,
                 seq,

@@ -4,12 +4,15 @@ import java.util.UUID;
 
 /**
  * Client -> im-realtime -> Kafka -> im-core command.
+ *
+ * <p>conversationId must be derived as: canonicalUuid1 + "_" + canonicalUuid2.</p>
  */
-public record SendRoomTextCommandV1(
+public record SendPrivateTextCommand(
         String requestId,
         String clientMsgId,
         UUID fromUserId,
-        UUID roomId,
+        UUID toUserId,
+        String conversationId,
         String content,
         long clientSentAtEpochMs
 ) {

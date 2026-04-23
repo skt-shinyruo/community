@@ -10,14 +10,13 @@ public final class ImTopics {
     private ImTopics() {
     }
 
-    public static final String COMMAND_PRIVATE_TEXT_V1 = "im.command.private_text.v1";
-    public static final String COMMAND_ROOM_TEXT_V1 = "im.command.room_text.v1";
+    public static final String COMMAND_PRIVATE_TEXT = "im.command.private-text";
+    public static final String COMMAND_ROOM_TEXT = "im.command.room-text";
 
-    public static final String EVENT_PRIVATE_PERSISTED_V1 = "im.event.private_persisted.v1";
-    public static final String EVENT_ROOM_PERSISTED_V1 = "im.event.room_persisted.v1";
-    public static final String EVENT_PRIVATE_REJECTED_V1 = "im.event.private_rejected.v1";
-    public static final String EVENT_ROOM_REJECTED_V1 = "im.event.room_rejected.v1";
-    public static final String EVENT_ROOM_MEMBER_CHANGED_V1 = "im.event.room_member_changed.v1";
+    public static final String EVENT_PRIVATE_PERSISTED = "im.event.private-persisted";
+    public static final String EVENT_ROOM_PERSISTED = "im.event.room-persisted";
+    public static final String EVENT_PRIVATE_REJECTED = "im.event.private-rejected";
+    public static final String EVENT_ROOM_REJECTED = "im.event.room-rejected";
 
     public static final String EVENT_ROOM_MEMBER_CHANGED = "im.event.room-member-changed";
     public static final String EVENT_USER_MESSAGING_POLICY_CHANGED = "im.event.user-messaging-policy-changed";

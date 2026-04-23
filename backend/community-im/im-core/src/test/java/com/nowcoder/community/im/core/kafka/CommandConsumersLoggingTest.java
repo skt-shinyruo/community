@@ -5,12 +5,12 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.nowcoder.community.im.common.ImTopics;
-import com.nowcoder.community.im.common.command.SendPrivateTextCommandV1;
-import com.nowcoder.community.im.common.command.SendRoomTextCommandV1;
-import com.nowcoder.community.im.common.event.PrivateMessagePersistedEventV1;
-import com.nowcoder.community.im.common.event.PrivateMessageRejectedEventV1;
-import com.nowcoder.community.im.common.event.RoomMessagePersistedEventV1;
-import com.nowcoder.community.im.common.event.RoomMessageRejectedEventV1;
+import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
+import com.nowcoder.community.im.common.command.SendRoomTextCommand;
+import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
+import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
+import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
+import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
 import com.nowcoder.community.im.core.service.PrivateMessageService;
 import com.nowcoder.community.im.core.service.RoomMessageService;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -57,7 +57,7 @@ class CommandConsumersLoggingTest {
         UUID fromUserId = uuid(101);
         UUID toUserId = uuid(202);
         String conversationId = fromUserId + "_" + toUserId;
-        SendPrivateTextCommandV1 cmd = new SendPrivateTextCommandV1(
+        SendPrivateTextCommand cmd = new SendPrivateTextCommand(
                 "req-1",
                 "c1",
                 fromUserId,
@@ -66,7 +66,7 @@ class CommandConsumersLoggingTest {
                 "hello-private",
                 System.currentTimeMillis()
         );
-        PrivateMessagePersistedEventV1 event = new PrivateMessagePersistedEventV1(
+        PrivateMessagePersistedEvent event = new PrivateMessagePersistedEvent(
                 "evt-1",
                 conversationId,
                 7L,
@@ -107,7 +107,7 @@ class CommandConsumersLoggingTest {
     @Test
     void roomCommandShouldLogPersistedSummaryAtDebug() {
         UUID fromUserId = uuid(88);
-        SendRoomTextCommandV1 cmd = new SendRoomTextCommandV1(
+        SendRoomTextCommand cmd = new SendRoomTextCommand(
                 "req-2",
                 "c2",
                 fromUserId,
@@ -115,7 +115,7 @@ class CommandConsumersLoggingTest {
                 "hello-room",
                 System.currentTimeMillis()
         );
-        RoomMessagePersistedEventV1 event = new RoomMessagePersistedEventV1(
+        RoomMessagePersistedEvent event = new RoomMessagePersistedEvent(
                 "evt-2",
                 uuid(9001),
                 3L,
@@ -155,7 +155,7 @@ class CommandConsumersLoggingTest {
     void roomCommandShouldPublishRejectedEventAndWarnWithoutMessageContent() {
         UUID fromUserId = uuid(88);
         UUID roomId = uuid(9001);
-        SendRoomTextCommandV1 cmd = new SendRoomTextCommandV1(
+        SendRoomTextCommand cmd = new SendRoomTextCommand(
                 "req-2",
                 "c2",
                 fromUserId,
@@ -172,8 +172,8 @@ class CommandConsumersLoggingTest {
             } catch (SecurityException expected) {
             }
 
-            verify(eventProducer, never()).publishRoomPersisted(any(RoomMessagePersistedEventV1.class));
-            verify(eventProducer).publishRoomRejected(any(RoomMessageRejectedEventV1.class));
+            verify(eventProducer, never()).publishRoomPersisted(any(RoomMessagePersistedEvent.class));
+            verify(eventProducer).publishRoomRejected(any(RoomMessageRejectedEvent.class));
             ILoggingEvent rejectedEvent = findSingleEvent(capture.appender(), "community.action=im_room_command_reject");
             assertThat(rejectedEvent.getLevel()).isEqualTo(Level.WARN);
             assertThat(rejectedEvent.getFormattedMessage())
@@ -200,13 +200,13 @@ class CommandConsumersLoggingTest {
         @SuppressWarnings("unchecked")
         KafkaTemplate<Object, Object> kafkaTemplate = mock(KafkaTemplate.class);
         when(kafkaTemplate.isTransactional()).thenReturn(false);
-        when(kafkaTemplate.partitionsFor(ImTopics.COMMAND_ROOM_TEXT_V1 + ".dlq"))
-                .thenReturn(List.of(new PartitionInfo(ImTopics.COMMAND_ROOM_TEXT_V1 + ".dlq", 0, null, null, null)));
+        when(kafkaTemplate.partitionsFor(ImTopics.COMMAND_ROOM_TEXT + ".dlq"))
+                .thenReturn(List.of(new PartitionInfo(ImTopics.COMMAND_ROOM_TEXT + ".dlq", 0, null, null, null)));
         when(kafkaTemplate.send(any(org.apache.kafka.clients.producer.ProducerRecord.class)))
                 .thenReturn(CompletableFuture.completedFuture(null));
 
         DefaultErrorHandler handler = new KafkaConfig().kafkaDefaultErrorHandler(kafkaTemplate);
-        ConsumerRecord<Object, Object> record = new ConsumerRecord<>(ImTopics.COMMAND_ROOM_TEXT_V1, 0, 15L, "9001", "{\"clientMsgId\":\"c-bad\"}");
+        ConsumerRecord<Object, Object> record = new ConsumerRecord<>(ImTopics.COMMAND_ROOM_TEXT, 0, 15L, "9001", "{\"clientMsgId\":\"c-bad\"}");
 
         handler.handleOne(
                 new IllegalArgumentException("content required"),
@@ -225,8 +225,8 @@ class CommandConsumersLoggingTest {
                 .contains("community.category=async")
                 .contains("community.action=kafka_dlq_recover")
                 .contains("community.outcome=degraded")
-                .contains("community.source_topic=" + ImTopics.COMMAND_ROOM_TEXT_V1)
-                .contains("community.dlq_topic=" + ImTopics.COMMAND_ROOM_TEXT_V1 + ".dlq")
+                .contains("community.source_topic=" + ImTopics.COMMAND_ROOM_TEXT)
+                .contains("community.dlq_topic=" + ImTopics.COMMAND_ROOM_TEXT + ".dlq")
                 .contains("community.kafka_partition=0")
                 .contains("community.kafka_offset=15")
                 .contains("community.reason_code=illegal_argument")

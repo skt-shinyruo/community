@@ -7,7 +7,7 @@ import java.util.UUID;
  *
  * <p>Private chat is pushed with content in realtime.</p>
  */
-public record PrivateMessagePersistedEventV1(
+public record PrivateMessagePersistedEvent(
         String eventId,
         String conversationId,
         long seq,

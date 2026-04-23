@@ -1,10 +1,10 @@
 package com.nowcoder.community.im.core.kafka;
 
 import com.nowcoder.community.im.common.ImTopics;
-import com.nowcoder.community.im.common.command.SendPrivateTextCommandV1;
-import com.nowcoder.community.im.common.command.SendRoomTextCommandV1;
-import com.nowcoder.community.im.common.event.PrivateMessageRejectedEventV1;
-import com.nowcoder.community.im.common.event.RoomMessageRejectedEventV1;
+import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
+import com.nowcoder.community.im.common.command.SendRoomTextCommand;
+import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
+import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
 import com.nowcoder.community.im.core.service.PrivateMessageService;
 import com.nowcoder.community.im.core.service.RoomMessageService;
 import org.slf4j.Logger;
@@ -39,11 +39,11 @@ public class CommandConsumers {
     }
 
     @KafkaListener(
-            topics = ImTopics.COMMAND_PRIVATE_TEXT_V1,
+            topics = ImTopics.COMMAND_PRIVATE_TEXT,
             containerFactory = "kafkaListenerContainerFactory",
             concurrency = "${im.kafka.command.concurrency:3}"
     )
-    public void onPrivateText(SendPrivateTextCommandV1 cmd) {
+    public void onPrivateText(SendPrivateTextCommand cmd) {
         if (cmd == null) {
             return;
         }
@@ -81,11 +81,11 @@ public class CommandConsumers {
     }
 
     @KafkaListener(
-            topics = ImTopics.COMMAND_ROOM_TEXT_V1,
+            topics = ImTopics.COMMAND_ROOM_TEXT,
             containerFactory = "kafkaListenerContainerFactory",
             concurrency = "${im.kafka.command.concurrency:3}"
     )
-    public void onRoomText(SendRoomTextCommandV1 cmd) {
+    public void onRoomText(SendRoomTextCommand cmd) {
         if (cmd == null) {
             return;
         }
@@ -130,8 +130,8 @@ public class CommandConsumers {
         logEvent(action, outcome, true, throwable, keyValues);
     }
 
-    private PrivateMessageRejectedEventV1 toPrivateRejectedEvent(SendPrivateTextCommandV1 cmd, RuntimeException e) {
-        return new PrivateMessageRejectedEventV1(
+    private PrivateMessageRejectedEvent toPrivateRejectedEvent(SendPrivateTextCommand cmd, RuntimeException e) {
+        return new PrivateMessageRejectedEvent(
                 "evt_reject_" + String.valueOf(cmd.requestId()),
                 cmd.requestId(),
                 cmd.clientMsgId(),
@@ -145,8 +145,8 @@ public class CommandConsumers {
         );
     }
 
-    private RoomMessageRejectedEventV1 toRoomRejectedEvent(SendRoomTextCommandV1 cmd, RuntimeException e) {
-        return new RoomMessageRejectedEventV1(
+    private RoomMessageRejectedEvent toRoomRejectedEvent(SendRoomTextCommand cmd, RuntimeException e) {
+        return new RoomMessageRejectedEvent(
                 "evt_reject_" + String.valueOf(cmd.requestId()),
                 cmd.requestId(),
                 cmd.clientMsgId(),

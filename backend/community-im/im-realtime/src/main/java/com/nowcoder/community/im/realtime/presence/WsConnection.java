@@ -1,7 +1,6 @@
 package com.nowcoder.community.im.realtime.presence;
 
 import org.springframework.web.reactive.socket.WebSocketSession;
-import reactor.core.Disposable;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 
@@ -14,7 +13,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class WsConnection {
 
@@ -25,14 +23,13 @@ public class WsConnection {
     private final int maxOutboundBacklog;
 
     private volatile UUID userId;
-    private volatile String accessToken = "";
+    private volatile String sessionId = "";
+    private volatile String workerId = "";
     private volatile String traceId = "";
 
     private final Set<UUID> joinedRooms = ConcurrentHashMap.newKeySet();
     private final ConcurrentHashMap<UUID, Long> pendingRoomSeq = new ConcurrentHashMap<>();
     private final AtomicBoolean enqueuedForRoomFlush = new AtomicBoolean(false);
-
-    private final AtomicReference<Disposable> roomBootstrapSubscription = new AtomicReference<>();
 
     public WsConnection(String connectionId, WebSocketSession session, int maxOutboundBacklog) {
         this.connectionId = connectionId;
@@ -54,25 +51,30 @@ public class WsConnection {
         return userId;
     }
 
-    public String accessToken() {
-        return accessToken;
-    }
-
     public String traceId() {
         return traceId;
+    }
+
+    public String sessionId() {
+        return sessionId;
+    }
+
+    public String workerId() {
+        return workerId;
     }
 
     public void bindTrace(String traceId) {
         this.traceId = traceId == null ? "" : traceId;
     }
 
-    public void bindUser(UUID userId) {
+    public void bindSession(String sessionId, UUID userId, String workerId) {
+        this.sessionId = sessionId == null ? "" : sessionId;
         this.userId = userId;
+        this.workerId = workerId == null ? "" : workerId;
     }
 
-    public void bindAuth(UUID userId, String accessToken) {
+    public void bindUser(UUID userId) {
         this.userId = userId;
-        this.accessToken = accessToken == null ? "" : accessToken;
     }
 
     public Set<UUID> joinedRoomsView() {
@@ -168,17 +170,4 @@ public class WsConnection {
         }
     }
 
-    public void setRoomBootstrapSubscription(Disposable subscription) {
-        Disposable prev = roomBootstrapSubscription.getAndSet(subscription);
-        if (prev != null) {
-            prev.dispose();
-        }
-    }
-
-    public void disposeRoomBootstrapSubscription() {
-        Disposable d = roomBootstrapSubscription.getAndSet(null);
-        if (d != null) {
-            d.dispose();
-        }
-    }
 }

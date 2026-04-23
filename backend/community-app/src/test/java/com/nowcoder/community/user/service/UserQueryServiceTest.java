@@ -119,6 +119,8 @@ class UserQueryServiceTest {
         user.setScore(120);
         user.setCreateTime(createTime);
         when(userMapper.selectById(userId)).thenReturn(user);
+        when(walletAccountService.balanceOfUser(userId)).thenReturn(520L);
+        when(walletAccountService.statusOfUser(userId)).thenReturn("ACTIVE");
 
         UserProfileView profile = service.getProfile(userId);
 
@@ -133,7 +135,9 @@ class UserQueryServiceTest {
                 UserProfileView::level,
                 UserProfileView::walletBalance,
                 UserProfileView::walletStatus
-        ).containsExactly(userId, "bob", "h6", 2, 1, createTime, 120, 2, 0L, "UNKNOWN");
+        ).containsExactly(userId, "bob", "h6", 2, 1, createTime, 120, 2, 520L, "ACTIVE");
+        verify(walletAccountService).balanceOfUser(userId);
+        verify(walletAccountService).statusOfUser(userId);
     }
 
     private User user(UUID id, String username) {

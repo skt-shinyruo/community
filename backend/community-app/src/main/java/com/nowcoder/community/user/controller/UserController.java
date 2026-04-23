@@ -4,10 +4,7 @@ import com.nowcoder.community.common.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
-import com.nowcoder.community.user.app.query.GetUserProfilePageQuery;
-import com.nowcoder.community.user.app.query.UserProfilePageView;
 import com.nowcoder.community.user.api.model.UserSummaryView;
-import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import com.nowcoder.community.user.dto.AvatarUploadTokenResponse;
 import com.nowcoder.community.user.dto.BatchUserSummaryRequest;
 import com.nowcoder.community.user.dto.UpdateAvatarRequest;
@@ -17,6 +14,9 @@ import com.nowcoder.community.user.dto.UserRecentCommentItemResponse;
 import com.nowcoder.community.user.dto.UserResolveResponse;
 import com.nowcoder.community.user.dto.UserSummaryResponse;
 import com.nowcoder.community.user.service.AvatarService;
+import com.nowcoder.community.user.service.UserProfileApplicationService;
+import com.nowcoder.community.user.service.UserProfilePageView;
+import com.nowcoder.community.user.service.UserReadApplicationService;
 import com.nowcoder.community.user.service.UserService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -49,24 +49,24 @@ public class UserController {
 
     private static final Logger log = LoggerFactory.getLogger(UserController.class);
 
-    private final UserLookupQueryApi userLookupQueryApi;
-    private final GetUserProfilePageQuery getUserProfilePageQuery;
+    private final UserReadApplicationService userReadApplicationService;
+    private final UserProfileApplicationService userProfileApplicationService;
     private final UserService userService;
     private final AvatarService avatarService;
 
-    public UserController(UserLookupQueryApi userLookupQueryApi,
-                          GetUserProfilePageQuery getUserProfilePageQuery,
+    public UserController(UserReadApplicationService userReadApplicationService,
+                          UserProfileApplicationService userProfileApplicationService,
                           UserService userService,
                           AvatarService avatarService) {
-        this.userLookupQueryApi = userLookupQueryApi;
-        this.getUserProfilePageQuery = getUserProfilePageQuery;
+        this.userReadApplicationService = userReadApplicationService;
+        this.userProfileApplicationService = userProfileApplicationService;
         this.userService = userService;
         this.avatarService = avatarService;
     }
 
     @GetMapping("/{userId}")
     public Result<UserProfileResponse> getUser(Authentication authentication, @PathVariable UUID userId) {
-        UserProfilePageView user = getUserProfilePageQuery.get(authentication, userId);
+        UserProfilePageView user = userProfileApplicationService.get(authentication, userId);
         UserProfileResponse resp = new UserProfileResponse();
         resp.setId(user.userId());
         resp.setUsername(user.username());
@@ -93,7 +93,7 @@ public class UserController {
     public Result<List<UserProfilePostSummaryResponse>> recentPosts(@PathVariable UUID userId,
                                                                     @RequestParam(required = false) Integer page,
                                                                     @RequestParam(required = false) Integer size) {
-        return Result.ok(getUserProfilePageQuery.listRecentPosts(userId, page, size).stream()
+        return Result.ok(userProfileApplicationService.listRecentPosts(userId, page, size).stream()
                 .map(UserController::toUserProfilePostSummaryResponse)
                 .toList());
     }
@@ -102,14 +102,14 @@ public class UserController {
     public Result<List<UserRecentCommentItemResponse>> recentComments(@PathVariable UUID userId,
                                                                       @RequestParam(required = false) Integer page,
                                                                       @RequestParam(required = false) Integer size) {
-        return Result.ok(getUserProfilePageQuery.listRecentComments(userId, page, size).stream()
+        return Result.ok(userProfileApplicationService.listRecentComments(userId, page, size).stream()
                 .map(UserController::toUserRecentCommentItemResponse)
                 .toList());
     }
 
     @GetMapping("/resolve")
     public Result<UserResolveResponse> resolveByUsername(@RequestParam String username) {
-        UserSummaryView user = userLookupQueryApi.getSummaryByUsername(username);
+        UserSummaryView user = userReadApplicationService.getSummaryByUsername(username);
         if (user == null) {
             throw new BusinessException(USER_NOT_FOUND);
         }
@@ -142,7 +142,7 @@ public class UserController {
         }
 
         List<UUID> ids = new ArrayList<>(dedup);
-        List<UserSummaryView> users = userLookupQueryApi.listSummariesByIds(ids);
+        List<UserSummaryView> users = userReadApplicationService.listSummariesByIds(ids);
         Map<UUID, UserSummaryResponse> map = new HashMap<>();
         for (UserSummaryView u : users) {
             if (u == null || u.id() == null) {

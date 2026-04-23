@@ -3,8 +3,6 @@ package com.nowcoder.community.user.service;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.api.model.UserProfileView;
 import com.nowcoder.community.user.api.model.UserSummaryView;
-import com.nowcoder.community.user.api.query.UserLookupQueryApi;
-import com.nowcoder.community.user.api.query.UserProfileQueryApi;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.mapper.UserMapper;
 import com.nowcoder.community.wallet.api.query.WalletAccountQueryApi;
@@ -19,7 +17,7 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND;
 
 @Service
-public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi {
+public class UserQueryService {
 
     private static final int LEVEL_SCORE_STEP = 100;
 
@@ -74,7 +72,6 @@ public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi
         return users == null ? List.of() : users;
     }
 
-    @Override
     public UserSummaryView getSummaryById(UUID userId) {
         if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
@@ -82,7 +79,6 @@ public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi
         return toSummaryView(userMapper.selectById(userId));
     }
 
-    @Override
     public UserSummaryView getSummaryByUsername(String username) {
         String value = safeTrim(username);
         if (!StringUtils.hasText(value)) {
@@ -91,12 +87,10 @@ public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi
         return toSummaryView(userMapper.selectByName(value));
     }
 
-    @Override
     public UserSummaryView findSummaryByEmailOrNull(String email) {
         return toSummaryView(findByEmailOrNull(email));
     }
 
-    @Override
     public List<UserSummaryView> listSummariesByIds(List<UUID> userIds) {
         return listUserSummariesByIds(userIds).stream()
                 .map(this::toSummaryView)
@@ -104,7 +98,6 @@ public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi
                 .toList();
     }
 
-    @Override
     public UserProfileView getProfile(UUID userId) {
         return toProfileView(getById(userId));
     }
@@ -129,8 +122,8 @@ public class UserQueryService implements UserLookupQueryApi, UserProfileQueryApi
                 user.getCreateTime(),
                 user.getScore(),
                 levelForScore(user.getScore()),
-                0L,
-                "UNKNOWN"
+                walletAccountQueryApi.balanceOfUser(user.getId()),
+                walletAccountQueryApi.statusOfUser(user.getId())
         );
     }
 

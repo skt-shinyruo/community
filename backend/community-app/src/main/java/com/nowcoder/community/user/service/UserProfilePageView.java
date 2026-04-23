@@ -1,4 +1,4 @@
-package com.nowcoder.community.user.app.query;
+package com.nowcoder.community.user.service;
 
 import java.util.Date;
 import java.util.List;

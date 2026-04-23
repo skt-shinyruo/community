@@ -1,10 +1,9 @@
 package com.nowcoder.community.user.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.user.app.query.GetUserProfilePageQuery;
-import com.nowcoder.community.user.app.query.UserProfilePageView;
+import com.nowcoder.community.user.service.UserProfileApplicationService;
+import com.nowcoder.community.user.service.UserProfilePageView;
 import com.nowcoder.community.user.api.model.UserSummaryView;
-import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import com.nowcoder.community.user.dto.BatchUserSummaryRequest;
 import com.nowcoder.community.user.dto.UserProfilePostSummaryResponse;
 import com.nowcoder.community.user.dto.UserProfileResponse;
@@ -12,6 +11,7 @@ import com.nowcoder.community.user.dto.UserRecentCommentItemResponse;
 import com.nowcoder.community.user.dto.UserResolveResponse;
 import com.nowcoder.community.user.dto.UserSummaryResponse;
 import com.nowcoder.community.user.service.AvatarService;
+import com.nowcoder.community.user.service.UserReadApplicationService;
 import com.nowcoder.community.user.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,10 +36,10 @@ import static org.mockito.Mockito.when;
 class UserControllerUnitTest {
 
     @Mock
-    private UserLookupQueryApi userLookupQueryApi;
+    private UserReadApplicationService userReadApplicationService;
 
     @Mock
-    private GetUserProfilePageQuery getUserProfilePageQuery;
+    private UserProfileApplicationService userProfileApplicationService;
 
     @Mock
     private UserService userService;
@@ -52,8 +52,8 @@ class UserControllerUnitTest {
     @BeforeEach
     void setUp() {
         controller = new UserController(
-                userLookupQueryApi,
-                getUserProfilePageQuery,
+                userReadApplicationService,
+                userProfileApplicationService,
                 userService,
                 avatarService
         );
@@ -65,7 +65,7 @@ class UserControllerUnitTest {
         UUID userId = uuid(7);
         Authentication authentication = authentication(actorUserId);
         Date createTime = new Date();
-        when(getUserProfilePageQuery.get(authentication, userId))
+        when(userProfileApplicationService.get(authentication, userId))
                 .thenReturn(new UserProfilePageView(userId, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE", true, 2, 13, 12, 5, 8, true, false));
 
         Result<UserProfileResponse> result = controller.getUser(authentication, userId);
@@ -90,7 +90,7 @@ class UserControllerUnitTest {
         assertThat(result.getData().getFollowerCount()).isEqualTo(8);
         assertThat(result.getData().getHasFollowed()).isTrue();
         assertThat(result.getData().isSocialDegraded()).isFalse();
-        verify(getUserProfilePageQuery).get(authentication, userId);
+        verify(userProfileApplicationService).get(authentication, userId);
     }
 
     @Test
@@ -99,7 +99,7 @@ class UserControllerUnitTest {
         UUID userId = uuid(8);
         Authentication authentication = authentication(actorUserId);
         Date createTime = new Date();
-        when(getUserProfilePageQuery.get(authentication, userId))
+        when(userProfileApplicationService.get(authentication, userId))
                 .thenReturn(new UserProfilePageView(userId, "bob", "h8", 1, 0, createTime, 99, 2, 0L, "ACTIVE", false, null, null, 3, 4, 5, false, false));
 
         Result<UserProfileResponse> result = controller.getUser(authentication, userId);
@@ -113,7 +113,7 @@ class UserControllerUnitTest {
         assertThat(result.getData().getScore()).isEqualTo(99);
         assertThat(result.getData().getWalletBalance()).isZero();
         assertThat(result.getData().getWalletStatus()).isEqualTo("ACTIVE");
-        verify(getUserProfilePageQuery).get(authentication, userId);
+        verify(userProfileApplicationService).get(authentication, userId);
     }
 
     @Test
@@ -125,7 +125,7 @@ class UserControllerUnitTest {
         Date createTime = new Date();
         Date lastReplyTime = new Date(createTime.getTime() + 1_000);
         Date lastActivityTime = new Date(createTime.getTime() + 2_000);
-        when(getUserProfilePageQuery.listRecentPosts(userId, 1, 5))
+        when(userProfileApplicationService.listRecentPosts(userId, 1, 5))
                 .thenReturn(List.of(new UserProfilePageView.RecentPostSummaryView(
                         postId,
                         userId,
@@ -162,7 +162,7 @@ class UserControllerUnitTest {
         assertThat(item.getLastReplyTime()).isEqualTo(lastReplyTime);
         assertThat(item.getLastActivityTime()).isEqualTo(lastActivityTime);
         assertThat(item.getLastReplyPreview()).isEqualTo("latest reply");
-        verify(getUserProfilePageQuery).listRecentPosts(userId, 1, 5);
+        verify(userProfileApplicationService).listRecentPosts(userId, 1, 5);
     }
 
     @Test
@@ -173,7 +173,7 @@ class UserControllerUnitTest {
         UUID targetId = uuid(301);
         UUID postId = uuid(201);
         Date createTime = new Date();
-        when(getUserProfilePageQuery.listRecentComments(userId, 2, 10))
+        when(userProfileApplicationService.listRecentComments(userId, 2, 10))
                 .thenReturn(List.of(new UserProfilePageView.RecentCommentItemView(
                         commentId,
                         userId,
@@ -200,13 +200,13 @@ class UserControllerUnitTest {
         assertThat(item.getPostTitle()).isEqualTo("post title");
         assertThat(item.getContent()).isEqualTo("reply body");
         assertThat(item.getCreateTime()).isEqualTo(createTime);
-        verify(getUserProfilePageQuery).listRecentComments(userId, 2, 10);
+        verify(userProfileApplicationService).listRecentComments(userId, 2, 10);
     }
 
     @Test
     void resolveByUsernameShouldUseLookupSummaryView() {
         UUID userId = uuid(7);
-        when(userLookupQueryApi.getSummaryByUsername("alice"))
+        when(userReadApplicationService.getSummaryByUsername("alice"))
                 .thenReturn(new UserSummaryView(userId, "alice", "h7", 2));
 
         Result<UserResolveResponse> result = controller.resolveByUsername("alice");
@@ -216,7 +216,7 @@ class UserControllerUnitTest {
         assertThat(result.getData().getId()).isEqualTo(userId);
         assertThat(result.getData().getUsername()).isEqualTo("alice");
         assertThat(result.getData().getHeaderUrl()).isEqualTo("h7");
-        verify(userLookupQueryApi).getSummaryByUsername("alice");
+        verify(userReadApplicationService).getSummaryByUsername("alice");
     }
 
     @Test
@@ -225,7 +225,7 @@ class UserControllerUnitTest {
         UUID bobId = uuid(9);
         BatchUserSummaryRequest request = new BatchUserSummaryRequest();
         request.setUserIds(Arrays.asList(aliceId, bobId, aliceId, null));
-        when(userLookupQueryApi.listSummariesByIds(List.of(aliceId, bobId)))
+        when(userReadApplicationService.listSummariesByIds(List.of(aliceId, bobId)))
                 .thenReturn(List.of(
                         new UserSummaryView(bobId, "bob", "h9", 2),
                         new UserSummaryView(aliceId, "alice", "h7", 1)
@@ -236,7 +236,7 @@ class UserControllerUnitTest {
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).extracting(UserSummaryResponse::getId).containsExactly(aliceId, bobId);
         assertThat(result.getData()).extracting(UserSummaryResponse::getUsername).containsExactly("alice", "bob");
-        verify(userLookupQueryApi).listSummariesByIds(List.of(aliceId, bobId));
+        verify(userReadApplicationService).listSummariesByIds(List.of(aliceId, bobId));
     }
 
     private Authentication authentication(UUID userId) {

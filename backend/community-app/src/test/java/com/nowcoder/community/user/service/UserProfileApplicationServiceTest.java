@@ -21,6 +21,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -204,7 +205,7 @@ class UserProfileApplicationServiceTest {
     }
 
     @Test
-    void listRecentPostsShouldRequireProfileAndMapNestedPostFields() {
+    void listRecentPostsShouldRequireUserExistenceWithoutLoadingWalletProfileAndMapNestedPostFields() {
         UserProfileApplicationService service = new UserProfileApplicationService(
                 userReadApplicationService,
                 userSocialProfileService,
@@ -218,8 +219,6 @@ class UserProfileApplicationServiceTest {
         Date createTime = new Date();
         Date lastReplyTime = new Date(createTime.getTime() + 1_000L);
         Date lastActivityTime = new Date(createTime.getTime() + 2_000L);
-        when(userReadApplicationService.getProfile(userId))
-                .thenReturn(new UserProfileView(userId, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
         when(postReadQueryApi.listPostsByUser(userId, 1, 5))
                 .thenReturn(List.of(new PostSummaryView(
                         postId,
@@ -256,12 +255,13 @@ class UserProfileApplicationServiceTest {
                 lastActivityTime,
                 "latest reply"
         ));
-        verify(userReadApplicationService).getProfile(userId);
+        verify(userReadApplicationService).requireExistingUser(userId);
+        verify(userReadApplicationService, never()).getProfile(userId);
         verify(postReadQueryApi).listPostsByUser(userId, 1, 5);
     }
 
     @Test
-    void listRecentCommentsShouldRequireProfileAndMapNestedCommentFields() {
+    void listRecentCommentsShouldRequireUserExistenceWithoutLoadingWalletProfileAndMapNestedCommentFields() {
         UserProfileApplicationService service = new UserProfileApplicationService(
                 userReadApplicationService,
                 userSocialProfileService,
@@ -274,8 +274,6 @@ class UserProfileApplicationServiceTest {
         UUID targetId = uuid(301);
         UUID postId = uuid(201);
         Date createTime = new Date();
-        when(userReadApplicationService.getProfile(userId))
-                .thenReturn(new UserProfileView(userId, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
         when(postReadQueryApi.listRecentCommentsByUser(userId, 2, 10))
                 .thenReturn(List.of(new RecentUserCommentView(
                         commentId,
@@ -302,7 +300,8 @@ class UserProfileApplicationServiceTest {
                 "reply body",
                 createTime
         ));
-        verify(userReadApplicationService).getProfile(userId);
+        verify(userReadApplicationService).requireExistingUser(userId);
+        verify(userReadApplicationService, never()).getProfile(userId);
         verify(postReadQueryApi).listRecentCommentsByUser(userId, 2, 10);
     }
 

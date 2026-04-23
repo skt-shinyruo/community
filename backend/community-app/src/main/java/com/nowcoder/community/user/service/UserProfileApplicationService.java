@@ -62,14 +62,14 @@ public class UserProfileApplicationService {
     }
 
     public List<UserProfilePageView.RecentPostSummaryView> listRecentPosts(UUID userId, Integer page, Integer size) {
-        userReadApplicationService.getProfile(userId);
+        userReadApplicationService.requireExistingUser(userId);
         return postReadQueryApi.listPostsByUser(userId, page, size).stream()
                 .map(UserProfileApplicationService::toRecentPostSummaryView)
                 .toList();
     }
 
     public List<UserProfilePageView.RecentCommentItemView> listRecentComments(UUID userId, Integer page, Integer size) {
-        userReadApplicationService.getProfile(userId);
+        userReadApplicationService.requireExistingUser(userId);
         return postReadQueryApi.listRecentCommentsByUser(userId, page, size).stream()
                 .map(UserProfileApplicationService::toRecentCommentItemView)
                 .toList();

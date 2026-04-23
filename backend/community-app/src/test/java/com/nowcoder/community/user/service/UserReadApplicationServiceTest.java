@@ -7,6 +7,7 @@ import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import com.nowcoder.community.user.api.query.UserProfileQueryApi;
 import com.nowcoder.community.user.dto.UserResolveResponse;
 import com.nowcoder.community.user.dto.UserSummaryResponse;
+import com.nowcoder.community.user.entity.User;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -19,6 +20,7 @@ import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -69,6 +71,20 @@ class UserReadApplicationServiceTest {
         assertThat(response.getUsername()).isEqualTo("alice");
         assertThat(response.getHeaderUrl()).isEqualTo("h7");
         verify(userQueryService).getSummaryByUsername("alice");
+    }
+
+    @Test
+    void requireExistingUserShouldDelegateToLightweightUserLookup() {
+        UserReadApplicationService service = new UserReadApplicationService(userQueryService);
+        UUID userId = uuid(7);
+        User user = new User();
+        user.setId(userId);
+        when(userQueryService.getById(userId)).thenReturn(user);
+
+        service.requireExistingUser(userId);
+
+        verify(userQueryService).getById(userId);
+        verify(userQueryService, never()).getProfile(userId);
     }
 
     @Test

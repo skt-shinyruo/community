@@ -16,6 +16,7 @@ import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 @AnalyzeClasses(
         packages = "com.nowcoder.community",
@@ -29,16 +30,17 @@ class ControllerBoundaryArchTest {
 
     private static final Set<String> LEGACY_FOREIGN_DTO_CONTROLLER_CALLERS = Set.of();
     private static final Set<String> LEGACY_FOREIGN_SERVICE_CONTROLLER_CALLERS = Set.of();
-    private static final Set<String> LEGACY_SAME_DOMAIN_OWNER_API_CONTROLLER_CALLERS = Set.of(
-            "com.nowcoder.community.content.controller.BookmarkController",
-            "com.nowcoder.community.content.controller.PostController",
-            "com.nowcoder.community.user.controller.UserController"
-    );
+    private static final Set<String> LEGACY_SAME_DOMAIN_OWNER_API_CONTROLLER_CALLERS = Set.of();
 
     @Test
     void dtoBoundaryShouldNotRequireSharedMessageDtoExceptions() {
         assertThat(LEGACY_FOREIGN_DTO_CONTROLLER_CALLERS).isEmpty();
         assertThat(ArchitectureRulesSupport.TEMPORARY_SHARED_MESSAGE_TYPES_BY_ORIGIN).isEmpty();
+    }
+
+    @Test
+    void sameDomainOwnerApiBoundaryShouldNotRequireLegacyControllerExceptions() {
+        assertThat(LEGACY_SAME_DOMAIN_OWNER_API_CONTROLLER_CALLERS).isEmpty();
     }
 
     @ArchTest
@@ -110,6 +112,11 @@ class ControllerBoundaryArchTest {
                             false,
                             ArchitectureRulesSupport.MIGRATION_BASELINE_CONTROLLER_ENTITY_CALLERS
                     ));
+
+    @ArchTest
+    static final ArchRule production_code_must_not_use_legacy_app_query_package =
+            noClasses()
+                    .should().resideInAnyPackage("..app.query..");
 
     private static ArchCondition<JavaClass> notDependOnForeignPackage(
             String packageLabel,

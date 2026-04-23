@@ -2,7 +2,7 @@
 package com.nowcoder.community.social.block;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.im.projection.ImPolicyChangePublisher;
+import com.nowcoder.community.social.api.model.SocialBlockRelationView;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import com.nowcoder.community.social.contracts.event.BlockPayload;
 import com.nowcoder.community.social.event.SocialEventPublisher;
@@ -26,16 +26,13 @@ public class BlockService implements SocialBlockQueryApi {
 
     private final BlockRepository repository;
     private final SocialEventPublisher eventPublisher;
-    private final ImPolicyChangePublisher imPolicyChangePublisher;
 
     public BlockService(
             BlockRepository repository,
-            SocialEventPublisher eventPublisher,
-            ImPolicyChangePublisher imPolicyChangePublisher
+            SocialEventPublisher eventPublisher
     ) {
         this.repository = repository;
         this.eventPublisher = eventPublisher;
-        this.imPolicyChangePublisher = imPolicyChangePublisher;
     }
 
     @Transactional
@@ -60,7 +57,6 @@ public class BlockService implements SocialBlockQueryApi {
         payload.setBlocked(Boolean.TRUE);
         try {
             eventPublisher.publishBlockRelationChanged(payload);
-            imPolicyChangePublisher.publishBlockRelationChanged(userId, targetUserId, true);
         } catch (RuntimeException ex) {
             try {
                 rollback.run();
@@ -91,7 +87,6 @@ public class BlockService implements SocialBlockQueryApi {
         payload.setBlocked(Boolean.FALSE);
         try {
             eventPublisher.publishBlockRelationChanged(payload);
-            imPolicyChangePublisher.publishBlockRelationChanged(userId, targetUserId, false);
         } catch (RuntimeException ex) {
             try {
                 rollback.run();
@@ -103,6 +98,7 @@ public class BlockService implements SocialBlockQueryApi {
         }
     }
 
+    @Override
     public boolean hasBlocked(UUID userId, UUID targetUserId) {
         if (userId == null || targetUserId == null) {
             return false;
@@ -128,11 +124,14 @@ public class BlockService implements SocialBlockQueryApi {
         return repository.listBlockedUserIds(userId);
     }
 
-    public List<BlockScanRow> scanBlockRelationsAfter(UUID afterBlockerUserId, UUID afterBlockedUserId, int limit) {
+    @Override
+    public List<SocialBlockRelationView> scanBlockRelationsAfter(UUID afterBlockerUserId, UUID afterBlockedUserId, int limit) {
         if ((afterBlockerUserId == null) != (afterBlockedUserId == null)) {
             throw new IllegalArgumentException("afterBlockerUserId and afterBlockedUserId must be provided together");
         }
-        return repository.scanBlocksAfter(afterBlockerUserId, afterBlockedUserId, limit);
+        return repository.scanBlocksAfter(afterBlockerUserId, afterBlockedUserId, limit).stream()
+                .map(this::toBlockRelationView)
+                .toList();
     }
 
     private void registerRollbackIfTxRolledBack(Runnable rollback) {
@@ -155,5 +154,9 @@ public class BlockService implements SocialBlockQueryApi {
                 }
             }
         });
+    }
+
+    private SocialBlockRelationView toBlockRelationView(BlockScanRow row) {
+        return new SocialBlockRelationView(row.getUserId(), row.getTargetUserId());
     }
 }

@@ -127,7 +127,7 @@ class DomainBoundaryArchTest {
     @ArchTest
     static final ArchRule common_must_not_depend_on_business_or_adapter_domains =
             classes()
-                    .that().resideInAnyPackage("..common..")
+                    .that().resideInAnyPackage("com.nowcoder.community.common..")
                     .should(ArchitectureRulesSupport.notDependOnDomains(
                             "not depend on business or adapter domains",
                             BUSINESS_OR_ADAPTER_DOMAINS,

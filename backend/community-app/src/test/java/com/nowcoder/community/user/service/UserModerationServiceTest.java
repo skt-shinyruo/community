@@ -2,15 +2,17 @@ package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import com.nowcoder.community.im.projection.ImPolicyChangePublisher;
 import com.nowcoder.community.user.api.model.UserModerationStateView;
+import com.nowcoder.community.user.contracts.event.UserModerationChangedPayload;
 import com.nowcoder.community.user.entity.User;
+import com.nowcoder.community.user.event.UserEventPublisher;
 import com.nowcoder.community.user.exception.UserErrorCode;
 import com.nowcoder.community.user.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.ArgumentCaptor;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -42,11 +44,21 @@ class UserModerationServiceTest {
     private UserMapper userMapper;
 
     @Mock
-    private ImPolicyChangePublisher imPolicyChangePublisher;
+    private UserEventPublisher userEventPublisher;
+
+    @Test
+    void userModerationServiceShouldOnlyExposeUserMapperAndUserEventPublisherConstructor() {
+        assertThat(UserModerationService.class.getDeclaredConstructors())
+                .singleElement()
+                .satisfies(constructor -> assertThat(constructor.getParameterTypes()).containsExactly(
+                        UserMapper.class,
+                        UserEventPublisher.class
+                ));
+    }
 
     @Test
     void getModerationStateShouldProjectMuteAndBanTimestamps() {
-        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
+        UserModerationService service = new UserModerationService(userMapper, userEventPublisher);
         when(userMapper.selectById(USER_ID_7)).thenReturn(userWithModeration(USER_ID_7));
 
         UserModerationStateView status = service.getModerationState(USER_ID_7);
@@ -58,7 +70,7 @@ class UserModerationServiceTest {
 
     @Test
     void scanModerationStatusesAfterIdShouldClampInputsAndSkipInvalidRows() {
-        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
+        UserModerationService service = new UserModerationService(userMapper, userEventPublisher);
         when(userMapper.selectModerationUsersAfterId(ZERO_UUID, 500)).thenReturn(Arrays.asList(
                 null,
                 userWithId(null),
@@ -78,7 +90,7 @@ class UserModerationServiceTest {
 
     @Test
     void applyModerationShouldMuteUserAndPersistProjectedTimestamp() {
-        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
+        UserModerationService service = new UserModerationService(userMapper, userEventPublisher);
         when(userMapper.selectById(USER_ID_7)).thenReturn(userWithId(USER_ID_7));
         when(userMapper.updateModerationUntil(eq(USER_ID_7), any(Date.class), isNull())).thenReturn(1);
 
@@ -90,12 +102,15 @@ class UserModerationServiceTest {
         assertThat(status.getBanUntil()).isNull();
         assertThat(status.getMuteUntil()).isBetween(before.plusSeconds(120), after.plusSeconds(120));
         verify(userMapper).updateModerationUntil(USER_ID_7, Date.from(status.getMuteUntil()), null);
-        verify(imPolicyChangePublisher).publishUserPolicyChanged(USER_ID_7);
+        ArgumentCaptor<UserModerationChangedPayload> payloadCaptor =
+                ArgumentCaptor.forClass(UserModerationChangedPayload.class);
+        verify(userEventPublisher).publishUserModerationChanged(payloadCaptor.capture());
+        assertThat(payloadCaptor.getValue().getUserId()).isEqualTo(USER_ID_7);
     }
 
     @Test
     void applyModerationShouldBanUserAndPreserveExistingMute() {
-        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
+        UserModerationService service = new UserModerationService(userMapper, userEventPublisher);
         User user = userWithId(USER_ID_7);
         user.setMuteUntil(Date.from(Instant.parse("2026-03-27T10:15:30Z")));
         when(userMapper.selectById(USER_ID_7)).thenReturn(user);
@@ -112,7 +127,7 @@ class UserModerationServiceTest {
 
     @Test
     void applyModerationShouldClearMuteWithoutChangingBan() {
-        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
+        UserModerationService service = new UserModerationService(userMapper, userEventPublisher);
         User user = userWithModeration(USER_ID_7);
         when(userMapper.selectById(USER_ID_7)).thenReturn(user);
         when(userMapper.updateModerationUntil(USER_ID_7, null, Date.from(Instant.parse("2026-03-28T10:15:30Z")))).thenReturn(1);
@@ -126,7 +141,7 @@ class UserModerationServiceTest {
 
     @Test
     void applyModerationShouldClearBanWithoutChangingMute() {
-        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
+        UserModerationService service = new UserModerationService(userMapper, userEventPublisher);
         User user = userWithModeration(USER_ID_7);
         when(userMapper.selectById(USER_ID_7)).thenReturn(user);
         when(userMapper.updateModerationUntil(USER_ID_7, Date.from(Instant.parse("2026-03-27T10:15:30Z")), null)).thenReturn(1);
@@ -140,7 +155,7 @@ class UserModerationServiceTest {
 
     @Test
     void applyModerationShouldRejectBlankAction() {
-        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
+        UserModerationService service = new UserModerationService(userMapper, userEventPublisher);
 
         assertThatThrownBy(() -> service.applyModeration(USER_ID_7, " ", 60))
                 .isInstanceOf(BusinessException.class)
@@ -153,7 +168,7 @@ class UserModerationServiceTest {
 
     @Test
     void applyModerationShouldRejectInvalidAction() {
-        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
+        UserModerationService service = new UserModerationService(userMapper, userEventPublisher);
         when(userMapper.selectById(USER_ID_7)).thenReturn(userWithId(USER_ID_7));
 
         assertThatThrownBy(() -> service.applyModeration(USER_ID_7, "freeze", 60))
@@ -169,7 +184,7 @@ class UserModerationServiceTest {
 
     @Test
     void applyModerationShouldRejectMissingUser() {
-        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
+        UserModerationService service = new UserModerationService(userMapper, userEventPublisher);
         when(userMapper.selectById(USER_ID_7)).thenReturn(null);
 
         assertThatThrownBy(() -> service.applyModeration(USER_ID_7, "mute", 60))
@@ -181,7 +196,7 @@ class UserModerationServiceTest {
 
     @Test
     void applyModerationShouldFailWhenMapperUpdateFails() {
-        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
+        UserModerationService service = new UserModerationService(userMapper, userEventPublisher);
         when(userMapper.selectById(USER_ID_7)).thenReturn(userWithId(USER_ID_7));
         when(userMapper.updateModerationUntil(eq(USER_ID_7), any(Date.class), isNull())).thenReturn(0);
 
@@ -195,14 +210,17 @@ class UserModerationServiceTest {
     }
 
     @Test
-    void applyModerationShouldPublishImPolicyChangeEventForAffectedUser() {
-        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
+    void applyModerationShouldPublishUserModerationChangedEventForAffectedUser() {
+        UserModerationService service = new UserModerationService(userMapper, userEventPublisher);
         when(userMapper.selectById(USER_ID_1)).thenReturn(userWithId(USER_ID_1));
         when(userMapper.updateModerationUntil(eq(USER_ID_1), any(Date.class), isNull())).thenReturn(1);
 
         service.applyModeration(USER_ID_1, "mute", 60);
 
-        verify(imPolicyChangePublisher).publishUserPolicyChanged(USER_ID_1);
+        ArgumentCaptor<UserModerationChangedPayload> payloadCaptor =
+                ArgumentCaptor.forClass(UserModerationChangedPayload.class);
+        verify(userEventPublisher).publishUserModerationChanged(payloadCaptor.capture());
+        assertThat(payloadCaptor.getValue().getUserId()).isEqualTo(USER_ID_1);
     }
 
     private User userWithModeration(UUID id) {

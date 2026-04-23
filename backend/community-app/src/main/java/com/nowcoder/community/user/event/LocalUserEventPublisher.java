@@ -1,0 +1,28 @@
+package com.nowcoder.community.user.event;
+
+import com.nowcoder.community.user.contracts.event.UserContractEvent;
+import com.nowcoder.community.user.contracts.event.UserEventTypes;
+import com.nowcoder.community.user.contracts.event.UserModerationChangedPayload;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Component;
+
+import java.util.UUID;
+
+@Component
+public class LocalUserEventPublisher implements UserEventPublisher {
+
+    private final ApplicationEventPublisher applicationEventPublisher;
+
+    public LocalUserEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
+        this.applicationEventPublisher = applicationEventPublisher;
+    }
+
+    @Override
+    public void publishUserModerationChanged(UserModerationChangedPayload payload) {
+        applicationEventPublisher.publishEvent(new UserContractEvent(
+                UUID.randomUUID().toString(),
+                UserEventTypes.USER_MODERATION_CHANGED,
+                payload
+        ));
+    }
+}

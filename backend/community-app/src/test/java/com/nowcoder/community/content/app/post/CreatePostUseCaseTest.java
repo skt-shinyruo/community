@@ -6,14 +6,19 @@ import com.nowcoder.community.content.service.CategoryService;
 import com.nowcoder.community.content.service.PostService;
 import com.nowcoder.community.content.service.TagService;
 import com.nowcoder.community.content.service.UserModerationGuard;
+import com.nowcoder.community.growth.service.TaskProgressTriggerService;
+import com.nowcoder.community.user.service.PointsAwardService;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -28,6 +33,8 @@ class CreatePostUseCaseTest {
         UserModerationGuard moderationGuard = mock(UserModerationGuard.class);
         PostDomainEventPublisher domainEventPublisher = mock(PostDomainEventPublisher.class);
         PostWriteSideEffectScheduler postWriteSideEffectScheduler = mock(PostWriteSideEffectScheduler.class);
+        PointsAwardService pointsAwardService = mock(PointsAwardService.class);
+        TaskProgressTriggerService taskProgressTriggerService = mock(TaskProgressTriggerService.class);
         UUID userId = uuid(7);
         UUID categoryId = uuid(3);
         UUID postId = uuid(101);
@@ -39,7 +46,9 @@ class CreatePostUseCaseTest {
                 tagService,
                 moderationGuard,
                 domainEventPublisher,
-                postWriteSideEffectScheduler
+                postWriteSideEffectScheduler,
+                pointsAwardService,
+                taskProgressTriggerService
         );
 
         UUID createdPostId = useCase.createPost(userId, "Title", "Content", categoryId, List.of("java"));
@@ -49,7 +58,10 @@ class CreatePostUseCaseTest {
         verify(categoryService).assertExists(categoryId);
         verify(postService).create(any(DiscussPost.class));
         verify(tagService).bindTagsToPost(postId, List.of("java"));
-        verify(domainEventPublisher).postPublished(postId);
+        var inOrder = inOrder(pointsAwardService, taskProgressTriggerService, domainEventPublisher);
+        inOrder.verify(pointsAwardService).awardPostPublished(postId, userId);
+        inOrder.verify(taskProgressTriggerService).triggerPostPublished(eq(postId), eq(userId), any(Instant.class));
+        inOrder.verify(domainEventPublisher).postPublished(postId);
         verify(postWriteSideEffectScheduler).schedulePostScoreRefresh(postId);
     }
 }

@@ -7,6 +7,8 @@ import com.nowcoder.community.content.service.CategoryService;
 import com.nowcoder.community.content.service.PostService;
 import com.nowcoder.community.content.service.TagService;
 import com.nowcoder.community.content.service.UserModerationGuard;
+import com.nowcoder.community.growth.service.TaskProgressTriggerService;
+import com.nowcoder.community.user.service.PointsAwardService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +27,8 @@ public class CreatePostUseCase {
     private final UserModerationGuard moderationGuard;
     private final PostDomainEventPublisher domainEventPublisher;
     private final PostWriteSideEffectScheduler postWriteSideEffectScheduler;
+    private final PointsAwardService pointsAwardService;
+    private final TaskProgressTriggerService taskProgressTriggerService;
 
     public CreatePostUseCase(
             PostService postService,
@@ -32,7 +36,9 @@ public class CreatePostUseCase {
             TagService tagService,
             UserModerationGuard moderationGuard,
             PostDomainEventPublisher domainEventPublisher,
-            PostWriteSideEffectScheduler postWriteSideEffectScheduler
+            PostWriteSideEffectScheduler postWriteSideEffectScheduler,
+            PointsAwardService pointsAwardService,
+            TaskProgressTriggerService taskProgressTriggerService
     ) {
         this.postService = postService;
         this.categoryService = categoryService;
@@ -40,6 +46,8 @@ public class CreatePostUseCase {
         this.moderationGuard = moderationGuard;
         this.domainEventPublisher = domainEventPublisher;
         this.postWriteSideEffectScheduler = postWriteSideEffectScheduler;
+        this.pointsAwardService = pointsAwardService;
+        this.taskProgressTriggerService = taskProgressTriggerService;
     }
 
     @Transactional
@@ -63,6 +71,8 @@ public class CreatePostUseCase {
 
         UUID postId = postService.create(post);
         tagService.bindTagsToPost(postId, tags);
+        pointsAwardService.awardPostPublished(postId, userId);
+        taskProgressTriggerService.triggerPostPublished(postId, userId, post.getCreateTime().toInstant());
         domainEventPublisher.postPublished(postId);
         postWriteSideEffectScheduler.schedulePostScoreRefresh(postId);
         return postId;

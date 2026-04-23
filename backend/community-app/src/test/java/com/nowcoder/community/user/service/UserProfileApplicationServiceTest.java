@@ -92,6 +92,118 @@ class UserProfileApplicationServiceTest {
     }
 
     @Test
+    void getShouldUseAnonymousViewerStatsWithoutSocialPlaceholderFallback() {
+        UserProfileApplicationService service = new UserProfileApplicationService(
+                userReadApplicationService,
+                userSocialProfileService,
+                postReadQueryApi,
+                userLevelQueryApi
+        );
+        UUID userId = uuid(7);
+        Date createTime = new Date();
+        UserSocialProfileService.UserProfileStats stats = new UserSocialProfileService.UserProfileStats();
+        stats.setLikeCount(2);
+        stats.setFolloweeCount(3);
+        stats.setFollowerCount(4);
+        stats.setHasFollowed(false);
+        stats.setDegraded(false);
+        when(userReadApplicationService.getProfile(userId))
+                .thenReturn(new UserProfileView(userId, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
+        when(userSocialProfileService.userProfileStats(userId, null)).thenReturn(stats);
+        when(userLevelQueryApi.evaluateLevel(userId)).thenReturn(new UserLevelSummaryView(4, 13, 30, 7, 14, true));
+
+        UserProfilePageView page = service.get(null, userId);
+
+        assertThat(page.likeCount()).isEqualTo(2L);
+        assertThat(page.followeeCount()).isEqualTo(3L);
+        assertThat(page.followerCount()).isEqualTo(4L);
+        assertThat(page.hasFollowed()).isFalse();
+        assertThat(page.socialDegraded()).isFalse();
+        verify(userSocialProfileService).userProfileStats(userId, null);
+    }
+
+    @Test
+    void getShouldUseSelfViewerStatsWhenViewerMatchesTargetUser() {
+        UserProfileApplicationService service = new UserProfileApplicationService(
+                userReadApplicationService,
+                userSocialProfileService,
+                postReadQueryApi,
+                userLevelQueryApi
+        );
+        UUID userId = uuid(7);
+        Date createTime = new Date();
+        UserSocialProfileService.UserProfileStats stats = new UserSocialProfileService.UserProfileStats();
+        stats.setLikeCount(7);
+        stats.setFolloweeCount(8);
+        stats.setFollowerCount(9);
+        stats.setHasFollowed(false);
+        stats.setDegraded(false);
+        when(userReadApplicationService.getProfile(userId))
+                .thenReturn(new UserProfileView(userId, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
+        when(userSocialProfileService.userProfileStats(userId, userId)).thenReturn(stats);
+        when(userLevelQueryApi.evaluateLevel(userId)).thenReturn(new UserLevelSummaryView(4, 13, 30, 7, 14, true));
+
+        UserProfilePageView page = service.get(authentication(userId), userId);
+
+        assertThat(page.likeCount()).isEqualTo(7L);
+        assertThat(page.followeeCount()).isEqualTo(8L);
+        assertThat(page.followerCount()).isEqualTo(9L);
+        assertThat(page.hasFollowed()).isFalse();
+        assertThat(page.socialDegraded()).isFalse();
+        verify(userSocialProfileService).userProfileStats(userId, userId);
+    }
+
+    @Test
+    void getShouldHideLevelFieldsWhenLevelProjectionIsDisabled() {
+        UserProfileApplicationService service = new UserProfileApplicationService(
+                userReadApplicationService,
+                userSocialProfileService,
+                postReadQueryApi,
+                userLevelQueryApi
+        );
+        UUID userId = uuid(7);
+        UUID viewerId = uuid(42);
+        Date createTime = new Date();
+        UserSocialProfileService.UserProfileStats stats = new UserSocialProfileService.UserProfileStats();
+        stats.setHasFollowed(false);
+        when(userReadApplicationService.getProfile(userId))
+                .thenReturn(new UserProfileView(userId, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
+        when(userSocialProfileService.userProfileStats(userId, viewerId)).thenReturn(stats);
+        when(userLevelQueryApi.evaluateLevel(userId)).thenReturn(new UserLevelSummaryView(1, 0, 100, 12, 88, false));
+
+        UserProfilePageView page = service.get(authentication(viewerId), userId);
+
+        assertThat(page.userLevelEnabled()).isFalse();
+        assertThat(page.userLevel()).isNull();
+        assertThat(page.signInDaysInWindow()).isNull();
+    }
+
+    @Test
+    void getShouldHideLevelFieldsWhenLevelProjectionIsNull() {
+        UserProfileApplicationService service = new UserProfileApplicationService(
+                userReadApplicationService,
+                userSocialProfileService,
+                postReadQueryApi,
+                userLevelQueryApi
+        );
+        UUID userId = uuid(7);
+        UUID viewerId = uuid(42);
+        Date createTime = new Date();
+        UserSocialProfileService.UserProfileStats stats = new UserSocialProfileService.UserProfileStats();
+        stats.setHasFollowed(false);
+        when(userReadApplicationService.getProfile(userId))
+                .thenReturn(new UserProfileView(userId, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE"));
+        when(userSocialProfileService.userProfileStats(userId, viewerId)).thenReturn(stats);
+        when(userLevelQueryApi.evaluateLevel(userId)).thenReturn(null);
+
+        UserProfilePageView page = service.get(authentication(viewerId), userId);
+
+        assertThat(page.userLevelEnabled()).isFalse();
+        assertThat(page.userLevel()).isNull();
+        assertThat(page.signInDaysInWindow()).isNull();
+    }
+
+    @Test
     void listRecentPostsShouldRequireProfileAndMapNestedPostFields() {
         UserProfileApplicationService service = new UserProfileApplicationService(
                 userReadApplicationService,

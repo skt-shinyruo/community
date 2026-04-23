@@ -14,29 +14,35 @@ public class PostModerationApplicationService implements PostModerationActionApi
     private final TopPostUseCase topPostUseCase;
     private final MarkPostWonderfulUseCase markPostWonderfulUseCase;
     private final AdminDeletePostUseCase adminDeletePostUseCase;
+    private final PostBusinessEventLogger postBusinessEventLogger;
 
     public PostModerationApplicationService(
             TopPostUseCase topPostUseCase,
             MarkPostWonderfulUseCase markPostWonderfulUseCase,
-            AdminDeletePostUseCase adminDeletePostUseCase
+            AdminDeletePostUseCase adminDeletePostUseCase,
+            PostBusinessEventLogger postBusinessEventLogger
     ) {
         this.topPostUseCase = topPostUseCase;
         this.markPostWonderfulUseCase = markPostWonderfulUseCase;
         this.adminDeletePostUseCase = adminDeletePostUseCase;
+        this.postBusinessEventLogger = postBusinessEventLogger;
     }
 
     @Override
     public void top(UUID actorUserId, UUID postId) {
         topPostUseCase.topPost(actorUserId, postId);
+        postBusinessEventLogger.postTop(actorUserId, postId);
     }
 
     @Override
     public void wonderful(UUID actorUserId, UUID postId) {
         markPostWonderfulUseCase.markWonderful(actorUserId, postId);
+        postBusinessEventLogger.postWonderful(actorUserId, postId);
     }
 
     @Override
     public void delete(UUID actorUserId, UUID postId) {
         adminDeletePostUseCase.adminDelete(actorUserId, postId);
+        postBusinessEventLogger.postDeleteByAdmin(actorUserId, postId);
     }
 }

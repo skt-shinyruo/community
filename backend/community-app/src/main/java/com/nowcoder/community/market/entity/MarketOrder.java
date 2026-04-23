@@ -21,6 +21,7 @@ public class MarketOrder {
     private UUID releaseTxnId;
     private UUID refundTxnId;
     private Date autoConfirmAt;
+    private UUID addressIdSnapshot;
     private String receiverNameSnapshot;
     private String receiverPhoneSnapshot;
     private String provinceSnapshot;
@@ -157,6 +158,14 @@ public class MarketOrder {
 
     public void setAutoConfirmAt(Date autoConfirmAt) {
         this.autoConfirmAt = autoConfirmAt;
+    }
+
+    public UUID getAddressIdSnapshot() {
+        return addressIdSnapshot;
+    }
+
+    public void setAddressIdSnapshot(UUID addressIdSnapshot) {
+        this.addressIdSnapshot = addressIdSnapshot;
     }
 
     public String getReceiverNameSnapshot() {

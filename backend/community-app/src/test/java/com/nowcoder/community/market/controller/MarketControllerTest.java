@@ -9,6 +9,7 @@ import com.nowcoder.community.market.dto.MarketListingDetailResponse;
 import com.nowcoder.community.market.dto.MarketListingResponse;
 import com.nowcoder.community.market.dto.MarketOrderDetailResponse;
 import com.nowcoder.community.market.dto.MarketOrderResponse;
+import com.nowcoder.community.market.exception.MarketErrorCode;
 import com.nowcoder.community.market.security.MarketSecurityRules;
 import com.nowcoder.community.market.service.MarketAddressService;
 import com.nowcoder.community.market.service.MarketDisputeService;
@@ -36,6 +37,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -288,5 +290,31 @@ class MarketControllerTest {
                         .with(jwt().jwt(jwt -> jwt.subject(actorUserId.toString()).claim("username", "user8"))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    void createOrderApiShouldReturnConflictWhenRequestIdReplayDoesNotMatchExistingOrder() throws Exception {
+        UUID buyerUserId = uuid(9);
+        UUID listingId = UUID.fromString("00000000-0000-7000-8000-000000000011");
+        UUID addressId = UUID.fromString("00000000-0000-7000-8000-000000000041");
+        when(marketOrderService.createOrder("market:req-replay-conflict", buyerUserId, listingId, 1, addressId))
+                .thenThrow(new BusinessException(
+                        MarketErrorCode.REQUEST_REPLAY_CONFLICT,
+                        "requestId replay conflict: requestId=market:req-replay-conflict"
+                ));
+
+        mockMvc.perform(post("/api/market/orders")
+                        .with(jwt().jwt(jwt -> jwt.subject(buyerUserId.toString()).claim("username", "buyer9")))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "requestId": "market:req-replay-conflict",
+                                  "listingId": "%s",
+                                  "quantity": 1,
+                                  "addressId": "%s"
+                                }
+                                """.formatted(listingId, addressId)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(MarketErrorCode.REQUEST_REPLAY_CONFLICT.getCode()));
     }
 }

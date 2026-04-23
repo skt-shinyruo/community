@@ -8,7 +8,7 @@
     <sql id="BaseColumns">
         order_id, request_id, listing_id, goods_type, seller_user_id, buyer_user_id, quantity, unit_price_snapshot,
         total_amount, delivery_mode_snapshot, listing_title_snapshot, status, escrow_txn_id,
-        release_txn_id, refund_txn_id, auto_confirm_at, receiver_name_snapshot, receiver_phone_snapshot,
+        release_txn_id, refund_txn_id, auto_confirm_at, address_id_snapshot, receiver_name_snapshot, receiver_phone_snapshot,
         province_snapshot, city_snapshot, district_snapshot, detail_address_snapshot, postal_code_snapshot,
         create_time, update_time
     </sql>
@@ -32,6 +32,13 @@
         where request_id = #{requestId}
     </select>
 
+    <select id="selectByRequestIdForUpdate" resultType="com.nowcoder.community.market.entity.MarketOrder">
+        select <include refid="BaseColumns"/>
+        from market_order
+        where request_id = #{requestId}
+        for update
+    </select>
+
     <select id="selectByBuyerUserId" resultType="com.nowcoder.community.market.entity.MarketOrder">
         select <include refid="BaseColumns"/>
         from market_order
@@ -50,13 +57,13 @@
         insert into market_order(
             order_id, request_id, listing_id, goods_type, seller_user_id, buyer_user_id, quantity, unit_price_snapshot, total_amount,
             delivery_mode_snapshot, listing_title_snapshot, status, escrow_txn_id, release_txn_id, refund_txn_id,
-            auto_confirm_at, receiver_name_snapshot, receiver_phone_snapshot, province_snapshot, city_snapshot,
+            auto_confirm_at, address_id_snapshot, receiver_name_snapshot, receiver_phone_snapshot, province_snapshot, city_snapshot,
             district_snapshot, detail_address_snapshot, postal_code_snapshot
         )
         values(
             #{orderId, jdbcType=BINARY}, #{requestId}, #{listingId, jdbcType=BINARY}, #{goodsType}, #{sellerUserId, jdbcType=BINARY}, #{buyerUserId, jdbcType=BINARY}, #{quantity}, #{unitPriceSnapshot}, #{totalAmount},
             #{deliveryModeSnapshot}, #{listingTitleSnapshot}, #{status}, #{escrowTxnId, jdbcType=BINARY}, #{releaseTxnId, jdbcType=BINARY}, #{refundTxnId, jdbcType=BINARY},
-            #{autoConfirmAt}, #{receiverNameSnapshot}, #{receiverPhoneSnapshot}, #{provinceSnapshot}, #{citySnapshot},
+            #{autoConfirmAt}, #{addressIdSnapshot, jdbcType=BINARY}, #{receiverNameSnapshot}, #{receiverPhoneSnapshot}, #{provinceSnapshot}, #{citySnapshot},
             #{districtSnapshot}, #{detailAddressSnapshot}, #{postalCodeSnapshot}
         )
     </insert>

@@ -213,6 +213,7 @@ create table if not exists market_order (
   release_txn_id binary(16) default null,
   refund_txn_id binary(16) default null,
   auto_confirm_at timestamp null default null,
+  address_id_snapshot binary(16) default null,
   receiver_name_snapshot varchar(64) default null,
   receiver_phone_snapshot varchar(32) default null,
   province_snapshot varchar(64) default null,

@@ -1,6 +1,8 @@
 package com.nowcoder.community.market.service;
 
 import com.nowcoder.community.app.CommunityAppApplication;
+import com.nowcoder.community.common.id.BinaryUuidCodec;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.dto.CreateMarketAddressRequest;
 import com.nowcoder.community.market.dto.CreateMarketListingRequest;
@@ -15,10 +17,18 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static com.nowcoder.community.support.TestUuids.uuid;
 
 @SpringBootTest(
@@ -45,6 +55,9 @@ class MarketOrderServiceTest {
 
     @Autowired
     private WalletAccountService walletAccountService;
+
+    @Autowired
+    private DataSource dataSource;
 
     @MockBean
     private ClientIpResolver clientIpResolver;
@@ -162,6 +175,118 @@ class MarketOrderServiceTest {
         assertThat(balanceOfUser(buyerUserId)).isEqualTo(20_000L);
     }
 
+    @Test
+    void createOrderShouldReturnExistingOrderForSameRequestIdAndPayload() {
+        UUID sellerUserId = uuid(7);
+        UUID buyerUserId = uuid(9);
+        UUID listingId = seedPhysicalListing(sellerUserId);
+        UUID addressId = seedAddress(buyerUserId, true);
+        seedBuyerBalance(buyerUserId, 20_000L);
+
+        MarketOrderResponse first = marketOrderService.createOrder("physical:req-replay-ok", buyerUserId, listingId, 1, addressId);
+        MarketOrderResponse second = marketOrderService.createOrder("physical:req-replay-ok", buyerUserId, listingId, 1, addressId);
+
+        assertThat(second.orderId()).isEqualTo(first.orderId());
+        assertThat(second.status()).isEqualTo("ESCROWED");
+        assertThat(countRows("market_order")).isEqualTo(1);
+        assertThat(countRows("wallet_txn")).isEqualTo(1);
+        assertThat(countRows("wallet_entry")).isEqualTo(2);
+    }
+
+    @Test
+    void createOrderShouldRejectReplayWhenBuyerDoesNotMatchExistingOrder() {
+        UUID sellerUserId = uuid(7);
+        UUID firstBuyerUserId = uuid(9);
+        UUID secondBuyerUserId = uuid(10);
+        UUID listingId = seedManualVirtualListing(sellerUserId, "邀请码", 1_200L);
+        seedBuyerBalance(firstBuyerUserId, 20_000L);
+        seedBuyerBalance(secondBuyerUserId, 20_000L);
+
+        marketOrderService.createOrder("virtual:req-buyer-mismatch", firstBuyerUserId, listingId, 1, null);
+
+        assertThatThrownBy(() -> marketOrderService.createOrder("virtual:req-buyer-mismatch", secondBuyerUserId, listingId, 1, null))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode().getHttpStatus()).isEqualTo(409))
+                .hasMessageContaining("requestId");
+    }
+
+    @Test
+    void createOrderShouldRejectReplayWhenListingDoesNotMatchExistingOrder() {
+        UUID sellerUserId = uuid(7);
+        UUID buyerUserId = uuid(9);
+        UUID firstListingId = seedManualVirtualListing(sellerUserId, "邀请码 A", 1_200L);
+        UUID secondListingId = seedManualVirtualListing(sellerUserId, "邀请码 B", 1_500L);
+        seedBuyerBalance(buyerUserId, 20_000L);
+
+        marketOrderService.createOrder("virtual:req-listing-mismatch", buyerUserId, firstListingId, 1, null);
+
+        assertThatThrownBy(() -> marketOrderService.createOrder("virtual:req-listing-mismatch", buyerUserId, secondListingId, 1, null))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode().getHttpStatus()).isEqualTo(409))
+                .hasMessageContaining("requestId");
+    }
+
+    @Test
+    void createOrderShouldRejectReplayWhenPhysicalAddressDoesNotMatchExistingOrder() {
+        UUID sellerUserId = uuid(7);
+        UUID buyerUserId = uuid(9);
+        UUID listingId = seedPhysicalListing(sellerUserId);
+        UUID firstAddressId = seedAddress(buyerUserId, true);
+        UUID secondAddressId = seedAddress(buyerUserId, false);
+        seedBuyerBalance(buyerUserId, 20_000L);
+
+        marketOrderService.createOrder("physical:req-address-mismatch", buyerUserId, listingId, 1, firstAddressId);
+
+        assertThatThrownBy(() -> marketOrderService.createOrder("physical:req-address-mismatch", buyerUserId, listingId, 1, secondAddressId))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode().getHttpStatus()).isEqualTo(409))
+                .hasMessageContaining("requestId");
+    }
+
+    @Test
+    void concurrentReplayShouldReturnCommittedOrderEvenIfListingTurnsSoldOutBeforeRetryContinues() throws Exception {
+        UUID sellerUserId = uuid(7);
+        UUID buyerUserId = uuid(9);
+        UUID listingId = seedPhysicalListing(sellerUserId, 1);
+        UUID addressId = seedAddress(buyerUserId, true);
+        seedBuyerBalance(buyerUserId, 20_000L);
+
+        String requestId = "physical:req-concurrent-replay";
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try (Connection lockConnection = dataSource.getConnection();
+             PreparedStatement lockStatement = lockConnection.prepareStatement(
+                     "select listing_id from market_listing where listing_id = ? for update"
+             )) {
+            lockConnection.setAutoCommit(false);
+            lockStatement.setBytes(1, BinaryUuidCodec.toBytes(listingId));
+            lockStatement.executeQuery();
+
+            Future<MarketOrderResponse> firstAttempt =
+                    executor.submit(() -> marketOrderService.createOrder(requestId, buyerUserId, listingId, 1, addressId));
+            TimeUnit.MILLISECONDS.sleep(200);
+            assertThat(firstAttempt.isDone()).isFalse();
+
+            Future<MarketOrderResponse> replayAttempt =
+                    executor.submit(() -> marketOrderService.createOrder(requestId, buyerUserId, listingId, 1, addressId));
+            TimeUnit.MILLISECONDS.sleep(200);
+            assertThat(replayAttempt.isDone()).isFalse();
+
+            lockConnection.commit();
+            MarketOrderResponse firstOrder = firstAttempt.get(5, TimeUnit.SECONDS);
+            MarketOrderResponse replayOrder = replayAttempt.get(5, TimeUnit.SECONDS);
+
+            assertThat(replayOrder.orderId()).isEqualTo(firstOrder.orderId());
+            assertThat(replayOrder.status()).isEqualTo(firstOrder.status());
+            assertThat(jdbcTemplate.queryForObject(
+                    "select count(*) from market_order where request_id = ?",
+                    Integer.class,
+                    requestId
+            )).isEqualTo(1);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
     private UUID seedDeliveredVirtualOrder(UUID sellerUserId, UUID buyerUserId) {
         CreateMarketListingRequest request = new CreateMarketListingRequest();
         request.setGoodsType("VIRTUAL");
@@ -198,6 +323,20 @@ class MarketOrderServiceTest {
         return marketOrderService.createOrder("virtual:manual:req-1", buyerUserId, listingId, 1, null).orderId();
     }
 
+    private UUID seedManualVirtualListing(UUID sellerUserId, String title, long unitPrice) {
+        CreateMarketListingRequest request = new CreateMarketListingRequest();
+        request.setGoodsType("VIRTUAL");
+        request.setTitle(title);
+        request.setDescription("手工交付");
+        request.setUnitPrice(unitPrice);
+        request.setDeliveryMode("MANUAL");
+        request.setStockMode("FINITE");
+        request.setStockTotal(2);
+        request.setMinPurchaseQuantity(1);
+        request.setMaxPurchaseQuantity(2);
+        return marketListingService.createListing(sellerUserId, request, null).listingId();
+    }
+
     private UUID seedEscrowedPhysicalOrder(UUID sellerUserId, UUID buyerUserId) {
         UUID listingId = seedPhysicalListing(sellerUserId);
         UUID addressId = seedAddress(buyerUserId, true);
@@ -205,12 +344,16 @@ class MarketOrderServiceTest {
     }
 
     private UUID seedPhysicalListing(UUID sellerUserId) {
+        return seedPhysicalListing(sellerUserId, 3);
+    }
+
+    private UUID seedPhysicalListing(UUID sellerUserId, int stockTotal) {
         CreateMarketListingRequest request = new CreateMarketListingRequest();
         request.setGoodsType("PHYSICAL");
         request.setTitle("二手键盘");
         request.setDescription("九成新");
         request.setUnitPrice(12_900L);
-        request.setStockTotal(3);
+        request.setStockTotal(stockTotal);
         request.setMinPurchaseQuantity(1);
         request.setMaxPurchaseQuantity(1);
         return marketListingService.createListing(sellerUserId, request, null).listingId();
@@ -240,5 +383,10 @@ class MarketOrderServiceTest {
 
     private long balanceOfUser(UUID userId) {
         return walletAccountService.balanceOfUser(userId);
+    }
+
+    private int countRows(String tableName) {
+        Integer count = jdbcTemplate.queryForObject("select count(*) from " + tableName, Integer.class);
+        return count == null ? 0 : count;
     }
 }

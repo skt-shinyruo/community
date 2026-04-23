@@ -5,11 +5,12 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.market.api.action.MarketOrderAutoConfirmActionApi;
 import com.nowcoder.community.market.api.model.MarketOrderAutoConfirmResult;
 import com.nowcoder.community.market.dto.MarketOrderResponse;
-import com.nowcoder.community.market.entity.MarketDelivery;
 import com.nowcoder.community.market.entity.MarketAddress;
+import com.nowcoder.community.market.entity.MarketDelivery;
 import com.nowcoder.community.market.entity.MarketInventoryUnit;
 import com.nowcoder.community.market.entity.MarketListing;
 import com.nowcoder.community.market.entity.MarketOrder;
+import com.nowcoder.community.market.exception.MarketErrorCode;
 import com.nowcoder.community.market.mapper.MarketAddressMapper;
 import com.nowcoder.community.market.mapper.MarketDeliveryMapper;
 import com.nowcoder.community.market.mapper.MarketInventoryUnitMapper;
@@ -19,6 +20,7 @@ import com.nowcoder.community.market.mapper.MarketShipmentMapper;
 import com.nowcoder.community.wallet.api.action.WalletMarketActionApi;
 import com.nowcoder.community.wallet.api.model.WalletMarketTxnView;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -103,10 +105,18 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
         validateCreateOrderRequest(requestId, buyerUserId, listingId, quantity);
         MarketOrder existing = marketOrderMapper.selectByRequestId(requestId);
         if (existing != null) {
+            ensureReplayMatches(existing, buyerUserId, listingId, quantity, addressId);
             return MarketOrderResponse.from(existing);
         }
 
-        MarketListing listing = requireActiveListingForUpdate(listingId);
+        MarketListing listing = requireListingForUpdate(listingId);
+        existing = marketOrderMapper.selectByRequestIdForUpdate(requestId);
+        if (existing != null) {
+            ensureReplayMatches(existing, buyerUserId, listingId, quantity, addressId);
+            return MarketOrderResponse.from(existing);
+        }
+
+        requireActiveListing(listing);
         validateBuyerAndQuantity(buyerUserId, listing, quantity);
         List<MarketInventoryUnit> reservedUnits = reserveInventoryIfNeeded(listing, quantity);
 
@@ -135,9 +145,20 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
         order.setStatus(STATUS_ESCROWED);
         order.setEscrowTxnId(escrowTxn.txnId());
         if (GOODS_TYPE_PHYSICAL.equals(listing.getGoodsType())) {
-            snapshotAddress(order, requireActiveAddress(addressId, buyerUserId));
+            MarketAddress address = requireActiveAddress(addressId, buyerUserId);
+            order.setAddressIdSnapshot(address.getAddressId());
+            snapshotAddress(order, address);
         }
-        marketOrderMapper.insert(order);
+        try {
+            marketOrderMapper.insert(order);
+        } catch (DataIntegrityViolationException ex) {
+            MarketOrder duplicated = marketOrderMapper.selectByRequestIdForUpdate(requestId);
+            if (duplicated != null) {
+                ensureReplayMatches(duplicated, buyerUserId, listingId, quantity, addressId);
+                return MarketOrderResponse.from(duplicated);
+            }
+            throw ex;
+        }
 
         if (DELIVERY_MODE_PRELOADED.equals(listing.getDeliveryMode())) {
             reserveUnitsForOrder(order.getOrderId(), reservedUnits);
@@ -281,15 +302,18 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
         }
     }
 
-    private MarketListing requireActiveListingForUpdate(UUID listingId) {
+    private MarketListing requireListingForUpdate(UUID listingId) {
         MarketListing listing = marketListingMapper.selectByIdForUpdate(listingId);
         if (listing == null) {
             throw new BusinessException(NOT_FOUND, "market listing not found: listingId=" + listingId);
         }
-        if (!STATUS_ACTIVE.equals(listing.getStatus())) {
-            throw new BusinessException(INVALID_ARGUMENT, "market listing is not active: listingId=" + listingId);
-        }
         return listing;
+    }
+
+    private void requireActiveListing(MarketListing listing) {
+        if (!STATUS_ACTIVE.equals(listing.getStatus())) {
+            throw new BusinessException(INVALID_ARGUMENT, "market listing is not active: listingId=" + listing.getListingId());
+        }
     }
 
     private void validateBuyerAndQuantity(UUID buyerUserId, MarketListing listing, int quantity) {
@@ -351,6 +375,40 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
             throw new BusinessException(INVALID_ARGUMENT, "address does not belong to buyer: addressId=" + addressId);
         }
         return address;
+    }
+
+    private void ensureReplayMatches(MarketOrder order, UUID buyerUserId, UUID listingId, int quantity, UUID addressId) {
+        if (!Objects.equals(order.getBuyerUserId(), buyerUserId)
+                || !Objects.equals(order.getListingId(), listingId)
+                || order.getQuantity() != quantity
+                || !addressMatchesReplay(order, buyerUserId, addressId)) {
+            throw new BusinessException(
+                    MarketErrorCode.REQUEST_REPLAY_CONFLICT,
+                    "requestId replay conflict: requestId=" + order.getRequestId()
+            );
+        }
+    }
+
+    private boolean addressMatchesReplay(MarketOrder order, UUID buyerUserId, UUID addressId) {
+        if (!GOODS_TYPE_PHYSICAL.equals(order.getGoodsType())) {
+            return true;
+        }
+        if (order.getAddressIdSnapshot() != null) {
+            return Objects.equals(order.getAddressIdSnapshot(), addressId);
+        }
+        if (addressId == null) {
+            return false;
+        }
+        MarketAddress address = marketAddressMapper.selectById(addressId);
+        return address != null
+                && Objects.equals(address.getUserId(), buyerUserId)
+                && Objects.equals(address.getReceiverName(), order.getReceiverNameSnapshot())
+                && Objects.equals(address.getReceiverPhone(), order.getReceiverPhoneSnapshot())
+                && Objects.equals(address.getProvince(), order.getProvinceSnapshot())
+                && Objects.equals(address.getCity(), order.getCitySnapshot())
+                && Objects.equals(address.getDistrict(), order.getDistrictSnapshot())
+                && Objects.equals(address.getDetailAddress(), order.getDetailAddressSnapshot())
+                && Objects.equals(address.getPostalCode(), order.getPostalCodeSnapshot());
     }
 
     private void snapshotAddress(MarketOrder order, MarketAddress address) {

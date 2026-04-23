@@ -29,6 +29,8 @@ public class ImPolicySnapshotController {
     ) {
         try {
             return ResponseEntity.ok(snapshotService.userPolicies(afterUserId, limit));
+        } catch (UnsupportedOperationException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage(), e);
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
         }
@@ -42,6 +44,8 @@ public class ImPolicySnapshotController {
     ) {
         try {
             return ResponseEntity.ok(snapshotService.blockRelations(afterBlockerUserId, afterBlockedUserId, limit));
+        } catch (UnsupportedOperationException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage(), e);
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
         }

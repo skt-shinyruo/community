@@ -8,7 +8,11 @@ import com.nowcoder.community.content.config.ContentRenderProperties;
 import com.nowcoder.community.content.text.ContentTextCodec;
 import com.nowcoder.community.content.util.SensitiveFilter;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import java.util.List;
 import java.util.UUID;
@@ -24,15 +28,38 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(OutputCaptureExtension.class)
 class PostPublishingApplicationServiceTest {
 
+    private SensitiveFilter sensitiveFilter;
+    private CreatePostUseCase createPostUseCase;
+    private UpdatePostUseCase updatePostUseCase;
+    private DeleteOwnPostUseCase deleteOwnPostUseCase;
+    private IdempotencyGuard idempotencyGuard;
+    private PostBusinessEventLogger postBusinessEventLogger;
+    private PostPublishingApplicationService service;
+
+    @BeforeEach
+    void setUp() {
+        sensitiveFilter = mock(SensitiveFilter.class);
+        createPostUseCase = mock(CreatePostUseCase.class);
+        updatePostUseCase = mock(UpdatePostUseCase.class);
+        deleteOwnPostUseCase = mock(DeleteOwnPostUseCase.class);
+        idempotencyGuard = mock(IdempotencyGuard.class);
+        postBusinessEventLogger = new PostBusinessEventLogger();
+        service = new PostPublishingApplicationService(
+                sensitiveFilter,
+                createPostUseCase,
+                updatePostUseCase,
+                deleteOwnPostUseCase,
+                idempotencyGuard,
+                new ContentTextCodec(new ContentRenderProperties()),
+                postBusinessEventLogger
+        );
+    }
+
     @Test
-    void createShouldEscapeFilterAndDelegateCommandThroughIdempotencyGuard() {
-        SensitiveFilter sensitiveFilter = mock(SensitiveFilter.class);
-        CreatePostUseCase createPostUseCase = mock(CreatePostUseCase.class);
-        UpdatePostUseCase updatePostUseCase = mock(UpdatePostUseCase.class);
-        DeleteOwnPostUseCase deleteOwnPostUseCase = mock(DeleteOwnPostUseCase.class);
-        IdempotencyGuard idempotencyGuard = mock(IdempotencyGuard.class);
+    void createShouldEscapeFilterDelegateCommandThroughIdempotencyGuardAndLogBusinessEvent(CapturedOutput output) {
         UUID userId = uuid(7);
         UUID categoryId = uuid(1);
         UUID postId = uuid(99);
@@ -43,15 +70,6 @@ class PostPublishingApplicationServiceTest {
         when(idempotencyGuard.executeRequired(eq("content:create_post"), eq(userId), anyString(), eq(PostCreateResult.class), any()))
                 .thenAnswer(invocation -> invocation.<Supplier<PostCreateResult>>getArgument(4).get());
 
-        PostPublishingApplicationService service = new PostPublishingApplicationService(
-                sensitiveFilter,
-                createPostUseCase,
-                updatePostUseCase,
-                deleteOwnPostUseCase,
-                idempotencyGuard,
-                new ContentTextCodec(new ContentRenderProperties())
-        );
-
         UUID createdPostId = service.createPost(userId, "idem-1", "<title>", "<content>", categoryId, List.of("java"));
         PostCreateResult response = service.create(userId, "idem-2", "<title>", "<content>", categoryId, List.of("java"));
 
@@ -60,15 +78,18 @@ class PostPublishingApplicationServiceTest {
         verify(createPostUseCase, times(2)).createPost(userId, "title", "content", categoryId, List.of("java"));
         verify(idempotencyGuard).executeRequired(eq("content:create_post"), eq(userId), eq("idem-1"), eq(PostCreateResult.class), any());
         verify(idempotencyGuard).executeRequired(eq("content:create_post"), eq(userId), eq("idem-2"), eq(PostCreateResult.class), any());
+        assertThat(output.getAll())
+                .contains("community.category=business")
+                .contains("community.action=post_create")
+                .contains("community.outcome=success")
+                .contains("user.id=" + userId)
+                .contains("community.post_category_id=" + categoryId)
+                .contains("community.target_type=post")
+                .contains("community.target_id=" + postId);
     }
 
     @Test
-    void updateAndDeleteByAuthorShouldDelegateCommandsWithoutFacadeLayer() {
-        SensitiveFilter sensitiveFilter = mock(SensitiveFilter.class);
-        CreatePostUseCase createPostUseCase = mock(CreatePostUseCase.class);
-        UpdatePostUseCase updatePostUseCase = mock(UpdatePostUseCase.class);
-        DeleteOwnPostUseCase deleteOwnPostUseCase = mock(DeleteOwnPostUseCase.class);
-        IdempotencyGuard idempotencyGuard = mock(IdempotencyGuard.class);
+    void updateAndDeleteByAuthorShouldDelegateCommandsWithoutFacadeLayerAndLogBusinessEvents(CapturedOutput output) {
         UUID userId = uuid(7);
         UUID postId = uuid(101);
         UUID categoryId = uuid(2);
@@ -76,19 +97,17 @@ class PostPublishingApplicationServiceTest {
         when(sensitiveFilter.filter("<title>")).thenReturn("title");
         when(sensitiveFilter.filter("<content>")).thenReturn("content");
 
-        PostPublishingApplicationService service = new PostPublishingApplicationService(
-                sensitiveFilter,
-                createPostUseCase,
-                updatePostUseCase,
-                deleteOwnPostUseCase,
-                idempotencyGuard,
-                new ContentTextCodec(new ContentRenderProperties())
-        );
-
         service.updatePost(userId, postId, "<title>", "<content>", categoryId, List.of("spring"));
         service.deleteByAuthor(userId, postId);
 
         verify(updatePostUseCase).updatePost(userId, postId, "title", "content", categoryId, List.of("spring"));
         verify(deleteOwnPostUseCase).deletePostByAuthor(userId, postId);
+        assertThat(output.getAll())
+                .contains("community.action=post_update")
+                .contains("community.post_category_id=" + categoryId)
+                .contains("community.target_id=" + postId)
+                .contains("community.action=post_delete")
+                .contains("community.reason_code=author_delete")
+                .contains("user.id=" + userId);
     }
 }

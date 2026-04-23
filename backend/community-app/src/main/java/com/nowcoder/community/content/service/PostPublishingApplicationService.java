@@ -22,6 +22,7 @@ public class PostPublishingApplicationService implements PostPublishingActionApi
     private final DeleteOwnPostUseCase deleteOwnPostUseCase;
     private final IdempotencyGuard idempotencyGuard;
     private final ContentTextCodec textCodec;
+    private final PostBusinessEventLogger postBusinessEventLogger;
 
     public PostPublishingApplicationService(
             SensitiveFilter sensitiveFilter,
@@ -29,7 +30,8 @@ public class PostPublishingApplicationService implements PostPublishingActionApi
             UpdatePostUseCase updatePostUseCase,
             DeleteOwnPostUseCase deleteOwnPostUseCase,
             IdempotencyGuard idempotencyGuard,
-            ContentTextCodec textCodec
+            ContentTextCodec textCodec,
+            PostBusinessEventLogger postBusinessEventLogger
     ) {
         this.sensitiveFilter = sensitiveFilter;
         this.createPostUseCase = createPostUseCase;
@@ -37,6 +39,7 @@ public class PostPublishingApplicationService implements PostPublishingActionApi
         this.deleteOwnPostUseCase = deleteOwnPostUseCase;
         this.idempotencyGuard = idempotencyGuard;
         this.textCodec = textCodec;
+        this.postBusinessEventLogger = postBusinessEventLogger;
     }
 
     @Override
@@ -45,6 +48,7 @@ public class PostPublishingApplicationService implements PostPublishingActionApi
             String safeTitle = sanitize(title);
             String safeContent = sanitize(content);
             UUID postId = createPostUseCase.createPost(userId, safeTitle, safeContent, categoryId, tags);
+            postBusinessEventLogger.postCreate(userId, categoryId, postId);
             return new PostCreateResult(postId);
         });
     }
@@ -58,11 +62,13 @@ public class PostPublishingApplicationService implements PostPublishingActionApi
         String safeTitle = sanitize(title);
         String safeContent = sanitize(content);
         updatePostUseCase.updatePost(userId, postId, safeTitle, safeContent, categoryId, tags);
+        postBusinessEventLogger.postUpdate(userId, categoryId, postId);
     }
 
     @Override
     public void deleteByAuthor(UUID userId, UUID postId) {
         deleteOwnPostUseCase.deletePostByAuthor(userId, postId);
+        postBusinessEventLogger.postDeleteByAuthor(userId, postId);
     }
 
     private String sanitize(String value) {

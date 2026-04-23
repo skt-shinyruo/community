@@ -7,8 +7,7 @@ const config = {
   apiBaseUrl: String(process.env.FRONTEND_RUNTIME_API_BASE_URL ?? process.env.GATEWAY_PUBLIC_BASE_URL ?? '').trim(),
   imHttpBaseUrl: String(
     process.env.FRONTEND_RUNTIME_IM_HTTP_BASE_URL ?? process.env.GATEWAY_PUBLIC_BASE_URL ?? ''
-  ).trim(),
-  imWsUrl: String(process.env.FRONTEND_RUNTIME_IM_WS_URL ?? process.env.IM_WS_PUBLIC_URL ?? '').trim()
+  ).trim()
 }
 
 await mkdir(path.dirname(outputPath), { recursive: true })

@@ -197,11 +197,11 @@ class UserRegistrationServiceTest {
         UserRegistrationService service = new UserRegistrationService(userMapper, userEventPublisher);
         UUID userId1 = userId(11);
         UUID userId2 = userId(12);
-        when(userMapper.selectExpiredPendingUserIds(anyInt(), any(Date.class))).thenReturn(List.of(userId1, userId2));
+        when(userMapper.selectExpiredPendingUserIds(anyInt(), any(Date.class), anyInt())).thenReturn(List.of(userId1, userId2));
         when(userMapper.deletePendingUserIfExpired(any(), anyInt(), any(Date.class))).thenReturn(1);
 
         assertThat(service.cleanupExpiredPendingUsers(Duration.ofMinutes(30))).isEqualTo(2);
-        verify(userMapper).selectExpiredPendingUserIds(anyInt(), any(Date.class));
+        verify(userMapper).selectExpiredPendingUserIds(anyInt(), any(Date.class), anyInt());
         verify(userMapper, atLeastOnce()).deletePendingUserIfExpired(any(), anyInt(), any(Date.class));
         ArgumentCaptor<UserPolicyChangedPayload> payloadCaptor = ArgumentCaptor.forClass(UserPolicyChangedPayload.class);
         verify(userEventPublisher, atLeastOnce()).publishUserPolicyChanged(payloadCaptor.capture());

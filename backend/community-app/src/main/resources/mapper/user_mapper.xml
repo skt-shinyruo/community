@@ -61,6 +61,7 @@
           and create_time is not null
           and create_time &lt;= #{cutoff}
         order by create_time asc, id asc
+        limit #{limit}
     </select>
 
     <delete id="deleteExpiredPendingUsers">

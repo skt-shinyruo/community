@@ -92,11 +92,69 @@ class PublicReadEndpointSecurityTest {
     }
 
     @Test
+    void unauthenticatedUserProfileShouldBeAllowed() throws Exception {
+        when(userProfileApplicationService.get(any(), eq(USER_ID)))
+                .thenReturn(new UserProfilePageView(
+                        USER_ID,
+                        "u42",
+                        "h42",
+                        0,
+                        0,
+                        new Date(),
+                        0,
+                        1,
+                        0L,
+                        "UNKNOWN",
+                        false,
+                        null,
+                        null,
+                        0L,
+                        0L,
+                        0L,
+                        false,
+                        false
+                ));
+
+        mockMvc.perform(get("/api/users/" + USER_ID))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void directCommunityAppReadEndpointShouldNotEmitCorsHeaders() throws Exception {
         when(userProfileApplicationService.listRecentPosts(eq(USER_ID), any(), any()))
                 .thenReturn(List.<UserProfilePageView.RecentPostSummaryView>of());
 
         mockMvc.perform(get("/api/users/" + USER_ID + "/recent-posts").header("Origin", "http://localhost:12881"))
+                .andExpect(status().isOk())
+                .andExpect(header().doesNotExist("Access-Control-Allow-Origin"))
+                .andExpect(header().doesNotExist("Access-Control-Allow-Credentials"));
+    }
+
+    @Test
+    void directUserProfileReadEndpointShouldNotEmitCorsHeaders() throws Exception {
+        when(userProfileApplicationService.get(any(), eq(USER_ID)))
+                .thenReturn(new UserProfilePageView(
+                        USER_ID,
+                        "u42",
+                        "h42",
+                        0,
+                        0,
+                        new Date(),
+                        0,
+                        1,
+                        0L,
+                        "UNKNOWN",
+                        false,
+                        null,
+                        null,
+                        0L,
+                        0L,
+                        0L,
+                        false,
+                        false
+                ));
+
+        mockMvc.perform(get("/api/users/" + USER_ID).header("Origin", "http://localhost:12881"))
                 .andExpect(status().isOk())
                 .andExpect(header().doesNotExist("Access-Control-Allow-Origin"))
                 .andExpect(header().doesNotExist("Access-Control-Allow-Credentials"));

@@ -3,12 +3,13 @@ package com.nowcoder.community.im.projection;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.im.common.ImTopics;
+import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
+import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import com.nowcoder.community.user.api.model.UserModerationStateView;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
-import com.nowcoder.community.user.service.UserModerationService;
-import com.nowcoder.community.social.block.BlockService;
+import com.nowcoder.community.user.api.query.UserModerationQueryApi;
 import org.junit.jupiter.api.Test;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
@@ -18,6 +19,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -30,12 +32,25 @@ class ImPolicyKafkaOutboxHandlerTest {
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @Test
+    void handlerShouldOnlyExposeOwnerDomainQueryApiConstructor() {
+        assertThat(ImPolicyKafkaOutboxHandler.class.getDeclaredConstructors())
+                .singleElement()
+                .satisfies(constructor -> assertThat(constructor.getParameterTypes()).containsExactly(
+                        ObjectMapper.class,
+                        UserModerationQueryApi.class,
+                        SocialBlockQueryApi.class,
+                        UserLookupQueryApi.class,
+                        KafkaTemplate.class
+                ));
+    }
+
+    @Test
     void moderationOutboxShouldPublishCurrentPolicyState() {
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
-        UserModerationService moderationService = mock(UserModerationService.class);
-        BlockService blockService = mock(BlockService.class);
+        UserModerationQueryApi moderationQueryApi = mock(UserModerationQueryApi.class);
+        SocialBlockQueryApi socialBlockQueryApi = mock(SocialBlockQueryApi.class);
         UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
-        when(moderationService.getModerationState(uuid(7)))
+        when(moderationQueryApi.getModerationState(uuid(7)))
                 .thenReturn(new UserModerationStateView(uuid(7), Instant.now().plusSeconds(60), null));
         when(userLookupQueryApi.getSummaryById(uuid(7))).thenReturn(new UserSummaryView(uuid(7), "u7", "/avatar.png", 0));
         when(kafkaTemplate.send(eq(ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED), eq(uuid(7).toString()), any()))
@@ -43,8 +58,8 @@ class ImPolicyKafkaOutboxHandlerTest {
 
         ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(
                 objectMapper,
-                moderationService,
-                blockService,
+                moderationQueryApi,
+                socialBlockQueryApi,
                 userLookupQueryApi,
                 kafkaTemplate
         );
@@ -65,12 +80,45 @@ class ImPolicyKafkaOutboxHandlerTest {
     }
 
     @Test
+    void blockOutboxShouldPublishCurrentBlockState() {
+        KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
+        UserModerationQueryApi moderationQueryApi = mock(UserModerationQueryApi.class);
+        SocialBlockQueryApi socialBlockQueryApi = mock(SocialBlockQueryApi.class);
+        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
+        when(socialBlockQueryApi.hasBlocked(uuid(7), uuid(8))).thenReturn(true);
+        when(kafkaTemplate.send(eq(ImTopics.EVENT_USER_BLOCK_RELATION_CHANGED), eq(uuid(7).toString()), any()))
+                .thenReturn(completedSend());
+
+        ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(
+                objectMapper,
+                moderationQueryApi,
+                socialBlockQueryApi,
+                userLookupQueryApi,
+                kafkaTemplate
+        );
+
+        handler.handle(new OutboxEvent(
+                UUID.randomUUID(),
+                "evt-policy-2",
+                ImPolicyKafkaOutboxHandler.TOPIC,
+                uuid(7).toString(),
+                "{\"kind\":\"BLOCK\",\"primaryUserId\":\"" + uuid(7) + "\",\"secondaryUserId\":\"" + uuid(8) + "\"}",
+                "PENDING",
+                0,
+                null,
+                null
+        ));
+
+        verify(kafkaTemplate).send(eq(ImTopics.EVENT_USER_BLOCK_RELATION_CHANGED), eq(uuid(7).toString()), any(UserBlockRelationChanged.class));
+    }
+
+    @Test
     void kafkaPublishFailureShouldFailOutboxHandlingForRetry() {
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
-        UserModerationService moderationService = mock(UserModerationService.class);
-        BlockService blockService = mock(BlockService.class);
+        UserModerationQueryApi moderationQueryApi = mock(UserModerationQueryApi.class);
+        SocialBlockQueryApi socialBlockQueryApi = mock(SocialBlockQueryApi.class);
         UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
-        when(moderationService.getModerationState(uuid(7)))
+        when(moderationQueryApi.getModerationState(uuid(7)))
                 .thenReturn(new UserModerationStateView(uuid(7), Instant.now().plusSeconds(60), null));
         when(userLookupQueryApi.getSummaryById(uuid(7))).thenReturn(new UserSummaryView(uuid(7), "u7", "/avatar.png", 0));
         when(kafkaTemplate.send(eq(ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED), eq(uuid(7).toString()), any()))
@@ -78,8 +126,8 @@ class ImPolicyKafkaOutboxHandlerTest {
 
         ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(
                 objectMapper,
-                moderationService,
-                blockService,
+                moderationQueryApi,
+                socialBlockQueryApi,
                 userLookupQueryApi,
                 kafkaTemplate
         );

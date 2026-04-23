@@ -1,7 +1,6 @@
 package com.nowcoder.community.social.service;
 
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import com.nowcoder.community.im.projection.ImPolicyChangePublisher;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.growth.service.TaskProgressTriggerService;
@@ -42,7 +41,7 @@ class LikeServiceTest {
         InMemoryBlockRepository blockRepository = new InMemoryBlockRepository();
         // 模拟“被点赞用户拉黑了点赞者”
         blockRepository.block(uuid(2), uuid(1));
-        BlockService blockService = new BlockService(blockRepository, new InMemorySocialEventPublisher(), mock(ImPolicyChangePublisher.class));
+        BlockService blockService = new BlockService(blockRepository, new InMemorySocialEventPublisher());
 
         LikeService service = new LikeService(repo, publisher, resolver, blockService, null, null);
 
@@ -67,7 +66,7 @@ class LikeServiceTest {
         ContentEntityResolver resolver = Mockito.mock(ContentEntityResolver.class);
         Mockito.when(resolver.resolve(1, uuid(100))).thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)));
 
-        BlockService blockService = new BlockService(new InMemoryBlockRepository(), new InMemorySocialEventPublisher(), mock(ImPolicyChangePublisher.class));
+        BlockService blockService = new BlockService(new InMemoryBlockRepository(), new InMemorySocialEventPublisher());
         LikeService service = new LikeService(repo, publisher, resolver, blockService, null, null);
 
         LikeRequest req = new LikeRequest();
@@ -111,7 +110,7 @@ class LikeServiceTest {
         ContentEntityResolver resolver = Mockito.mock(ContentEntityResolver.class);
         Mockito.when(resolver.resolve(1, uuid(100))).thenReturn(new ContentEntityResolver.ResolvedEntity(uuid(2), uuid(100)));
 
-        BlockService blockService = new BlockService(new InMemoryBlockRepository(), new InMemorySocialEventPublisher(), mock(ImPolicyChangePublisher.class));
+        BlockService blockService = new BlockService(new InMemoryBlockRepository(), new InMemorySocialEventPublisher());
         LikeService service = new LikeService(repo, new FailingSocialEventPublisher(), resolver, blockService, null, null);
 
         LikeRequest req = new LikeRequest();

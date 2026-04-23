@@ -2,10 +2,11 @@ package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import com.nowcoder.community.im.projection.ImPolicyChangePublisher;
 import com.nowcoder.community.user.api.model.UserModerationStateView;
 import com.nowcoder.community.user.api.query.UserModerationQueryApi;
+import com.nowcoder.community.user.contracts.event.UserModerationChangedPayload;
 import com.nowcoder.community.user.entity.User;
+import com.nowcoder.community.user.event.UserEventPublisher;
 import com.nowcoder.community.user.mapper.UserMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,17 +25,23 @@ import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND
 public class UserModerationService implements UserModerationQueryApi {
 
     private final UserMapper userMapper;
-    private final ImPolicyChangePublisher imPolicyChangePublisher;
+    private final UserEventPublisher userEventPublisher;
 
-    public UserModerationService(UserMapper userMapper, ImPolicyChangePublisher imPolicyChangePublisher) {
+    public UserModerationService(UserMapper userMapper, UserEventPublisher userEventPublisher) {
         this.userMapper = userMapper;
-        this.imPolicyChangePublisher = imPolicyChangePublisher;
+        this.userEventPublisher = userEventPublisher;
     }
 
     @Override
     public UserModerationStateView getModerationState(UUID userId) {
-        ModerationStatus status = moderationStatus(userId);
-        return new UserModerationStateView(status.getUserId(), status.getMuteUntil(), status.getBanUntil());
+        return toView(moderationStatus(userId));
+    }
+
+    @Override
+    public List<UserModerationStateView> scanModerationStatesAfterId(UUID afterUserId, int limit) {
+        return scanModerationStatusesAfterId(afterUserId, limit).stream()
+                .map(this::toView)
+                .toList();
     }
 
     public ModerationStatus moderationStatus(UUID userId) {
@@ -110,7 +117,9 @@ public class UserModerationService implements UserModerationQueryApi {
         status.setUserId(userId);
         status.setMuteUntil(muteUntil);
         status.setBanUntil(banUntil);
-        imPolicyChangePublisher.publishUserPolicyChanged(userId);
+        UserModerationChangedPayload payload = new UserModerationChangedPayload();
+        payload.setUserId(userId);
+        userEventPublisher.publishUserModerationChanged(payload);
         return status;
     }
 
@@ -126,6 +135,13 @@ public class UserModerationService implements UserModerationQueryApi {
         int max = 365 * 24 * 3600;
         int normalized = Math.max(0, seconds);
         return Math.min(max, normalized);
+    }
+
+    private UserModerationStateView toView(ModerationStatus status) {
+        if (status == null) {
+            return null;
+        }
+        return new UserModerationStateView(status.getUserId(), status.getMuteUntil(), status.getBanUntil());
     }
 
     private String safeTrim(String value) {

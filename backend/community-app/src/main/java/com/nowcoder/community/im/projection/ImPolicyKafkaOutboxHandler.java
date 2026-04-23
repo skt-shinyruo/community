@@ -7,11 +7,11 @@ import com.nowcoder.community.common.outbox.OutboxHandler;
 import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
-import com.nowcoder.community.social.block.BlockService;
+import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import com.nowcoder.community.user.api.model.UserModerationStateView;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
-import com.nowcoder.community.user.service.UserModerationService;
+import com.nowcoder.community.user.api.query.UserModerationQueryApi;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -30,21 +30,21 @@ public class ImPolicyKafkaOutboxHandler implements OutboxHandler {
     public static final String TOPIC = ImPolicyChangePublisher.TOPIC;
 
     private final ObjectMapper objectMapper;
-    private final UserModerationService moderationService;
-    private final BlockService blockService;
+    private final UserModerationQueryApi userModerationQueryApi;
+    private final SocialBlockQueryApi socialBlockQueryApi;
     private final UserLookupQueryApi userLookupQueryApi;
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
     public ImPolicyKafkaOutboxHandler(
             ObjectMapper objectMapper,
-            UserModerationService moderationService,
-            BlockService blockService,
+            UserModerationQueryApi userModerationQueryApi,
+            SocialBlockQueryApi socialBlockQueryApi,
             UserLookupQueryApi userLookupQueryApi,
             KafkaTemplate<String, Object> kafkaTemplate
     ) {
         this.objectMapper = objectMapper;
-        this.moderationService = moderationService;
-        this.blockService = blockService;
+        this.userModerationQueryApi = userModerationQueryApi;
+        this.socialBlockQueryApi = socialBlockQueryApi;
         this.userLookupQueryApi = userLookupQueryApi;
         this.kafkaTemplate = kafkaTemplate;
     }
@@ -91,7 +91,7 @@ public class ImPolicyKafkaOutboxHandler implements OutboxHandler {
         boolean suspended = false;
         boolean muted = false;
         if (userExists) {
-            UserModerationStateView state = moderationService.getModerationState(userId);
+            UserModerationStateView state = userModerationQueryApi.getModerationState(userId);
             suspended = isActive(state == null ? null : state.banUntil(), now);
             muted = isActive(state == null ? null : state.muteUntil(), now);
         }
@@ -116,7 +116,7 @@ public class ImPolicyKafkaOutboxHandler implements OutboxHandler {
                 event.eventId(),
                 blockerUserId,
                 blockedUserId,
-                blockService.hasBlocked(blockerUserId, blockedUserId),
+                socialBlockQueryApi.hasBlocked(blockerUserId, blockedUserId),
                 Instant.now().toEpochMilli()
         );
         sendToKafka(ImTopics.EVENT_USER_BLOCK_RELATION_CHANGED, blockerUserId.toString(), changed);

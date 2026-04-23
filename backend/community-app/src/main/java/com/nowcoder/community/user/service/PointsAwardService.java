@@ -7,13 +7,14 @@ import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
+import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.UUID;
 
 @Service
-public class PointsAwardService {
+public class PointsAwardService implements UserPointsAwardActionApi {
 
     private final PointsProjectionService pointsProjectionService;
 
@@ -21,6 +22,7 @@ public class PointsAwardService {
         this.pointsProjectionService = pointsProjectionService;
     }
 
+    @Override
     public void awardPostPublished(UUID postId, UUID userId) {
         if (postId == null || userId == null) {
             return;
@@ -33,6 +35,7 @@ public class PointsAwardService {
         ));
     }
 
+    @Override
     public void awardCommentCreated(CommentPayload payload) {
         if (payload == null || payload.getCommentId() == null) {
             return;
@@ -42,6 +45,7 @@ public class PointsAwardService {
         ));
     }
 
+    @Override
     public void awardLikeCreated(String sourceEventId, LikePayload payload) {
         if (!StringUtils.hasText(sourceEventId) || payload == null) {
             return;
@@ -51,6 +55,7 @@ public class PointsAwardService {
         ));
     }
 
+    @Override
     public void awardLikeRemoved(String sourceEventId, LikePayload payload) {
         if (!StringUtils.hasText(sourceEventId) || payload == null) {
             return;

@@ -7,8 +7,8 @@ import com.nowcoder.community.content.service.CategoryService;
 import com.nowcoder.community.content.service.PostService;
 import com.nowcoder.community.content.service.TagService;
 import com.nowcoder.community.content.service.UserModerationGuard;
-import com.nowcoder.community.growth.service.TaskProgressTriggerService;
-import com.nowcoder.community.user.service.PointsAwardService;
+import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
+import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,8 +27,8 @@ public class CreatePostUseCase {
     private final UserModerationGuard moderationGuard;
     private final PostDomainEventPublisher domainEventPublisher;
     private final PostWriteSideEffectScheduler postWriteSideEffectScheduler;
-    private final PointsAwardService pointsAwardService;
-    private final TaskProgressTriggerService taskProgressTriggerService;
+    private final UserPointsAwardActionApi pointsAwardService;
+    private final GrowthTaskProgressActionApi taskProgressTriggerService;
 
     public CreatePostUseCase(
             PostService postService,
@@ -37,8 +37,8 @@ public class CreatePostUseCase {
             UserModerationGuard moderationGuard,
             PostDomainEventPublisher domainEventPublisher,
             PostWriteSideEffectScheduler postWriteSideEffectScheduler,
-            PointsAwardService pointsAwardService,
-            TaskProgressTriggerService taskProgressTriggerService
+            UserPointsAwardActionApi pointsAwardService,
+            GrowthTaskProgressActionApi taskProgressTriggerService
     ) {
         this.postService = postService;
         this.categoryService = categoryService;

@@ -14,9 +14,9 @@ import com.nowcoder.community.content.event.ContentEventPublisher;
 import com.nowcoder.community.content.score.PostScoreQueue;
 import com.nowcoder.community.content.text.ContentTextCodec;
 import com.nowcoder.community.content.util.SensitiveFilter;
-import com.nowcoder.community.growth.service.TaskProgressTriggerService;
+import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
-import com.nowcoder.community.user.service.PointsAwardService;
+import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,8 +52,8 @@ public class CommentService {
     private final UserModerationGuard moderationGuard;
     private final ContentTextCodec textCodec;
     private final UuidV7Generator idGenerator;
-    private final PointsAwardService pointsAwardService;
-    private final TaskProgressTriggerService taskProgressTriggerService;
+    private final UserPointsAwardActionApi pointsAwardService;
+    private final GrowthTaskProgressActionApi taskProgressTriggerService;
 
     public CommentService(
             CommentMapper commentMapper,
@@ -90,8 +90,8 @@ public class CommentService {
             SocialBlockQueryApi blockQueryApi,
             UserModerationGuard moderationGuard,
             ContentTextCodec textCodec,
-            PointsAwardService pointsAwardService,
-            TaskProgressTriggerService taskProgressTriggerService
+            UserPointsAwardActionApi pointsAwardService,
+            GrowthTaskProgressActionApi taskProgressTriggerService
     ) {
         this(
                 commentMapper,
@@ -144,8 +144,8 @@ public class CommentService {
             UserModerationGuard moderationGuard,
             ContentTextCodec textCodec,
             UuidV7Generator idGenerator,
-            PointsAwardService pointsAwardService,
-            TaskProgressTriggerService taskProgressTriggerService
+            UserPointsAwardActionApi pointsAwardService,
+            GrowthTaskProgressActionApi taskProgressTriggerService
     ) {
         this.commentMapper = commentMapper;
         this.postService = postService;

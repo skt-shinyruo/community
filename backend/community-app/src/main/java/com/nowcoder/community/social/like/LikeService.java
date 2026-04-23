@@ -1,15 +1,15 @@
 package com.nowcoder.community.social.like;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
 import com.nowcoder.community.social.api.query.SocialLikeQueryApi;
 import com.nowcoder.community.social.contracts.event.LikePayload;
-import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.social.event.SocialEventPublisher;
 import com.nowcoder.community.social.like.dto.LikeRequest;
 import com.nowcoder.community.social.like.dto.LikeResponse;
 import com.nowcoder.community.social.service.ContentEntityResolver;
-import com.nowcoder.community.growth.service.TaskProgressTriggerService;
-import com.nowcoder.community.user.service.PointsAwardService;
+import com.nowcoder.community.social.block.BlockService;
+import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,8 +38,8 @@ public class LikeService implements SocialLikeQueryApi {
     private final SocialEventPublisher eventPublisher;
     private final ContentEntityResolver contentEntityResolver;
     private final BlockService blockService;
-    private final PointsAwardService pointsAwardService;
-    private final TaskProgressTriggerService taskProgressTriggerService;
+    private final UserPointsAwardActionApi pointsAwardService;
+    private final GrowthTaskProgressActionApi taskProgressTriggerService;
 
     @Autowired
     public LikeService(
@@ -47,8 +47,8 @@ public class LikeService implements SocialLikeQueryApi {
             SocialEventPublisher eventPublisher,
             ContentEntityResolver contentEntityResolver,
             BlockService blockService,
-            PointsAwardService pointsAwardService,
-            TaskProgressTriggerService taskProgressTriggerService
+            UserPointsAwardActionApi pointsAwardService,
+            GrowthTaskProgressActionApi taskProgressTriggerService
     ) {
         this.likeRepository = likeRepository;
         this.eventPublisher = eventPublisher;

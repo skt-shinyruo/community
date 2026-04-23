@@ -5,7 +5,6 @@ import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceId;
 import com.nowcoder.community.common.trace.TraceIdCodec;
-import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.ResolvableType;
 import org.springframework.core.io.Resource;
@@ -34,10 +33,6 @@ public class ResultTraceIdAdvice implements ResponseBodyAdvice<Object> {
     public boolean supports(MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {
         if (returnType == null) {
             return true;
-        }
-        if (AnnotatedElementUtils.hasAnnotation(returnType.getContainingClass(), SkipResultWrap.class)
-                || returnType.hasMethodAnnotation(SkipResultWrap.class)) {
-            return false;
         }
         if (converterType != null && StringHttpMessageConverter.class.isAssignableFrom(converterType)) {
             return false;

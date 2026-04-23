@@ -79,31 +79,64 @@ class ImPolicySnapshotControllerTest {
 
     @Test
     void userMessagingPolicySnapshotShouldExposeMuteBanAndExistence() throws Exception {
-        UUID userId = uuid(7);
-        insertUser(userId, "u7");
-        userModerationService.applyModeration(userId, "mute", 300);
+        UUID mutedUserId = uuid(7);
+        UUID bannedUserId = uuid(8);
+        insertUser(mutedUserId, "u7");
+        insertUser(bannedUserId, "u8");
+        userModerationService.applyModeration(mutedUserId, "mute", 300);
+        userModerationService.applyModeration(bannedUserId, "ban", 300);
 
         mockMvc.perform(get("/internal/im/realtime/projections/user-policies")
-                        .header("Authorization", internalBearer(userId))
+                        .header("Authorization", internalBearer(mutedUserId))
                         .param("afterUserId", uuid(2).toString())
                         .param("limit", "10"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.entries[0].userId").value(userId.toString()))
+                .andExpect(jsonPath("$.entries[0].userId").value(mutedUserId.toString()))
                 .andExpect(jsonPath("$.entries[0].userExists").value(true))
+                .andExpect(jsonPath("$.entries[0].suspended").value(false))
                 .andExpect(jsonPath("$.entries[0].muted").value(true))
-                .andExpect(jsonPath("$.entries[0].canSendPrivate").value(false));
+                .andExpect(jsonPath("$.entries[0].canSendPrivate").value(false))
+                .andExpect(jsonPath("$.entries[1].userId").value(bannedUserId.toString()))
+                .andExpect(jsonPath("$.entries[1].userExists").value(true))
+                .andExpect(jsonPath("$.entries[1].suspended").value(true))
+                .andExpect(jsonPath("$.entries[1].muted").value(false))
+                .andExpect(jsonPath("$.entries[1].canSendPrivate").value(false));
     }
 
     @Test
     void userBlockRelationSnapshotShouldPageBlockPairs() throws Exception {
         blockService.block(uuid(1), uuid(2));
+        blockService.block(uuid(1), uuid(3));
+        blockService.block(uuid(2), uuid(1));
 
         mockMvc.perform(get("/internal/im/realtime/projections/block-relations")
                         .header("Authorization", internalBearer(uuid(7)))
-                        .param("limit", "10"))
+                        .param("limit", "2"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.entries.length()").value(2))
                 .andExpect(jsonPath("$.entries[0].blockerUserId").value(uuid(1).toString()))
-                .andExpect(jsonPath("$.entries[0].blockedUserId").value(uuid(2).toString()));
+                .andExpect(jsonPath("$.entries[0].blockedUserId").value(uuid(2).toString()))
+                .andExpect(jsonPath("$.entries[0].active").value(true))
+                .andExpect(jsonPath("$.entries[1].blockerUserId").value(uuid(1).toString()))
+                .andExpect(jsonPath("$.entries[1].blockedUserId").value(uuid(3).toString()))
+                .andExpect(jsonPath("$.entries[1].active").value(true))
+                .andExpect(jsonPath("$.nextBlockerUserId").value(uuid(1).toString()))
+                .andExpect(jsonPath("$.nextBlockedUserId").value(uuid(3).toString()))
+                .andExpect(jsonPath("$.hasMore").value(true));
+
+        mockMvc.perform(get("/internal/im/realtime/projections/block-relations")
+                        .header("Authorization", internalBearer(uuid(7)))
+                        .param("afterBlockerUserId", uuid(1).toString())
+                        .param("afterBlockedUserId", uuid(3).toString())
+                        .param("limit", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.entries.length()").value(1))
+                .andExpect(jsonPath("$.entries[0].blockerUserId").value(uuid(2).toString()))
+                .andExpect(jsonPath("$.entries[0].blockedUserId").value(uuid(1).toString()))
+                .andExpect(jsonPath("$.entries[0].active").value(true))
+                .andExpect(jsonPath("$.nextBlockerUserId").value(uuid(2).toString()))
+                .andExpect(jsonPath("$.nextBlockedUserId").value(uuid(1).toString()))
+                .andExpect(jsonPath("$.hasMore").value(false));
     }
 
     private void insertUser(UUID userId, String username) {

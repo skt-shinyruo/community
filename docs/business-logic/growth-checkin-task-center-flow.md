@@ -262,29 +262,27 @@
 
 - `DAILY_CHECK_IN` 任务在配置窗口内完成了多少天
 
-### 7.2 但当前用户页没有真正启用它
+### 7.2 用户页已经接入等级查询
 
-`GetUserProfilePageQuery` 虽然注入了 `UserLevelQueryApi`，但当前实现直接写死了：
+`UserProfileApplicationService` 会在用户资料页聚合时调用：
 
-- `UserLevelSummaryView levelSummary = null`
-- `boolean userLevelEnabled = false`
+- `UserLevelQueryApi.evaluateLevel(UUID userId)`
 
-而且测试也明确验证：
+返回结果按 `enabled` 字段投影到资料页：
 
-- `userLevelEnabled == false`
-- `userLevel == null`
-- `signInDaysInWindow == null`
-- `userLevelQueryApi` 不会被调用
+- `enabled == true`：返回 `userLevel` 与 `signInDaysInWindow`
+- `enabled == false` 或结果为空：`userLevelEnabled=false`，等级展示字段为空
 
-这表示等级底座还在，但用户页聚合暂时没有打开这条能力。
+这表示等级底座和用户页读模型已经接通；是否展示由 `UserLevelService` 的评估结果决定。
 
-### 7.3 这条降级行为同样被测试固定住了
+### 7.3 这条接入行为被测试固定住了
 
-`GetUserProfilePageQueryTest` 当前不是只验证返回值，而是明确断言：
+`UserProfileApplicationServiceTest` 当前覆盖：
 
-- `userLevelQueryApi` 不会被调用
+- 已启用等级时返回真实等级字段
+- 等级禁用或结果为空时返回关闭态字段
 
-所以这里不是“实现还没补完”的模糊中间态，而是当前代码显式承认的降级现状。
+所以这里不是“底座存在但页面没接”的中间态，而是页面聚合已经对等级能力闭环。
 
 ## 8. 为什么会出现“底座在，产品面没了”的状态
 
@@ -363,5 +361,5 @@
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/service/TaskProgressProjectionService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/service/UnifiedGrantService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/service/UserLevelService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/user/app/query/GetUserProfilePageQuery.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/service/UserProfileApplicationService.java`
 - `backend/community-app/src/test/resources/schema.sql`

@@ -12,15 +12,19 @@
 
 - `docs/business-logic/wallet-ledger-flow.md`
 - `docs/business-logic/social-like-follow-outbox-flow.md`
+- `docs/business-logic/content-post-comment-bookmark-subscription-flow.md`
 
 ---
 
 ## 1. 参与组件
 
 - `UserController`：用户资料、批量摘要、头像相关接口
-- `GetUserProfilePageQuery`：用户资料页聚合入口
-- `UserQueryService`：用户主资料 owner
+- `UserProfileApplicationService`：用户资料页聚合入口
+- `UserReadApplicationService`：同域用户读取应用入口，同时承接跨域 user query API
+- `UserQueryService`：用户主资料 owner，负责基础资料和钱包状态投影
 - `UserSocialProfileService`：点赞数 / 关注数 / 粉丝数 / 是否已关注
+- `PostReadQueryApi`：跨域读取最近帖子 / 最近评论
+- `UserLevelQueryApi`：跨域读取用户等级摘要
 - `AvatarService`：上传 token、上传校验、确认消费
 - `AvatarStorageRouter`：存储策略路由
 - `LocalAvatarStorageProvider`：本地文件存储
@@ -53,39 +57,30 @@
 
 ### 3.1 理论上的聚合边界
 
-从 `GetUserProfilePageQuery` 的依赖可以看出，用户页想聚合：
+`UserProfileApplicationService` 聚合：
 
-- `userProfileQueryApi`：用户基础资料
-- `userSocialProfileService`：社交统计
-- `postReadQueryApi`：最近帖子 / 最近评论
-- `userLevelQueryApi`：用户等级
+- `UserReadApplicationService`：用户基础资料、钱包余额、钱包状态
+- `UserSocialProfileService`：社交统计与 viewer 是否已关注
+- `PostReadQueryApi`：最近帖子 / 最近评论
+- `UserLevelQueryApi`：用户等级
 
 ### 3.2 当前 `get(...)` 的实际行为
 
-当前实现里，`GetUserProfilePageQuery.get(...)` 的行为是：
+当前实现里，`UserProfileApplicationService.get(...)` 的行为是：
 
-1. 通过 `userProfileQueryApi.getProfile(userId)` 读取用户基础资料
+1. 通过 `UserReadApplicationService.getProfile(userId)` 读取用户基础资料
 2. 解析当前 viewer
-3. 但**没有真正调用**：
-   - `userSocialProfileService.userProfileStats(...)`
-   - `userLevelQueryApi.evaluateLevel(...)`
-4. 最终返回的 `UserProfilePageView` 中：
-   - 社交统计使用空对象
-   - `userLevelEnabled=false`
-   - `userLevel=null`
-   - `signInDaysInWindow=null`
-   - `socialDegraded=true`
+3. 调用 `UserSocialProfileService.userProfileStats(userId, viewerId)` 补齐点赞 / 关注 / 粉丝 / 是否已关注
+4. 调用 `UserLevelQueryApi.evaluateLevel(userId)` 补齐等级摘要
+5. 最终返回 `UserProfilePageView`
 
-所以当前资料页代码形态是：
+所以当前资料页代码形态是：同域应用服务负责页面级编排，跨域只通过 owner-domain API 读取协作模型。
 
-- 聚合结构已经搭好
-- 但社交 / 等级数据仍处于占位返回
+### 3.2.1 当前字段来源
 
-### 3.2.1 当前哪些字段是真实返回，哪些是占位
+当前 `GET /api/users/{userId}` 返回值里，可以按来源理解。
 
-当前 `GET /api/users/{userId}` 返回值里，可以分成两类理解。
-
-真实来自 `UserProfileView` 的字段：
+来自 `UserProfileView` 的字段：
 
 - `id`
 - `username`
@@ -98,43 +93,44 @@
 - `walletBalance`
 - `walletStatus`
 
-当前被显式降级或占位的字段：
+来自 `UserSocialProfileService` 的字段：
 
-- `likeCount = 0`
-- `followeeCount = 0`
-- `followerCount = 0`
-- `hasFollowed = false`
-- `userLevelEnabled = false`
-- `userLevel = null`
-- `signInDaysInWindow = null`
-- `socialDegraded = true`
+- `likeCount`
+- `followeeCount`
+- `followerCount`
+- `hasFollowed`
+- `socialDegraded`
 
-所以看到用户页 DTO 很长，不要误以为每个字段都已经连到真实下游。
+来自 `UserLevelQueryApi` 的字段：
+
+- `userLevelEnabled`
+- `userLevel`
+- `signInDaysInWindow`
+
+等级结果为空或禁用时，等级展示字段会返回关闭态；这不是硬编码占位，而是显式的降级语义。
 
 ### 3.3 最近帖子与最近评论
 
 当前实现里：
 
-- `listRecentPosts(...)`：直接返回 `List.of()`
-- `listRecentComments(...)`：直接返回 `List.of()`
+- `listRecentPosts(...)`：先校验用户存在，再调用 `PostReadQueryApi.listPostsByUser(...)`
+- `listRecentComments(...)`：先校验用户存在，再调用 `PostReadQueryApi.listRecentCommentsByUser(...)`
 
 也就是说：
 
 - 这两个接口已经对外暴露
-- 但当前实现仍然是空结果占位，不是完整聚合
+- 当前实现已经接入 content 的跨域读模型
 
-### 3.4 这不是“忘了实现”，而是当前被测试锁定的降级态
+### 3.4 当前聚合行为被测试锁定
 
-`GetUserProfilePageQueryTest` 当前明确验证：
+`UserProfileApplicationServiceTest` 当前明确验证：
 
-- `get(...)` 不会调用 `userSocialProfileService`
-- `get(...)` 不会调用 `userLevelQueryApi`
-- `listRecentPosts(...)` 返回空列表
-- `listRecentComments(...)` 返回空列表
+- `get(...)` 会组合用户基础资料、社交统计、等级摘要
+- 匿名 viewer、本人 viewer、他人 viewer 都有覆盖
+- 等级禁用或结果为空时返回关闭态
+- `listRecentPosts(...)` / `listRecentComments(...)` 会在用户存在校验后委托 content query API
 
-也就是说，当前用户页的降级行为不是偶然漏写，而是有测试把这个现状固定住了。
-
-这部分必须在文档里当成“当前限制”看待，不能写成已完成能力。
+这部分现在应当被看作已闭环的页面聚合，而不是迁移期占位。
 
 ---
 
@@ -156,6 +152,8 @@
 - `createTime`
 - `score`
 - `level`
+- `walletBalance`
+- `walletStatus`
 
 ### 4.2 用户名解析与批量摘要
 

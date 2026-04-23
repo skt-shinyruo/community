@@ -2,6 +2,7 @@ package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.im.projection.ImPolicyChangePublisher;
 import com.nowcoder.community.user.api.model.UserModerationStateView;
 import com.nowcoder.community.user.entity.User;
 import com.nowcoder.community.user.exception.UserErrorCode;
@@ -32,6 +33,7 @@ import static org.mockito.Mockito.when;
 class UserModerationServiceTest {
 
     private static final UUID ZERO_UUID = new UUID(0L, 0L);
+    private static final UUID USER_ID_1 = UUID.fromString("00000000-0000-7000-8000-000000000001");
     private static final UUID USER_ID_3 = UUID.fromString("00000000-0000-7000-8000-000000000003");
     private static final UUID USER_ID_4 = UUID.fromString("00000000-0000-7000-8000-000000000004");
     private static final UUID USER_ID_7 = UUID.fromString("00000000-0000-7000-8000-000000000007");
@@ -39,9 +41,12 @@ class UserModerationServiceTest {
     @Mock
     private UserMapper userMapper;
 
+    @Mock
+    private ImPolicyChangePublisher imPolicyChangePublisher;
+
     @Test
     void getModerationStateShouldProjectMuteAndBanTimestamps() {
-        UserModerationService service = new UserModerationService(userMapper);
+        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
         when(userMapper.selectById(USER_ID_7)).thenReturn(userWithModeration(USER_ID_7));
 
         UserModerationStateView status = service.getModerationState(USER_ID_7);
@@ -53,7 +58,7 @@ class UserModerationServiceTest {
 
     @Test
     void scanModerationStatusesAfterIdShouldClampInputsAndSkipInvalidRows() {
-        UserModerationService service = new UserModerationService(userMapper);
+        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
         when(userMapper.selectModerationUsersAfterId(ZERO_UUID, 500)).thenReturn(Arrays.asList(
                 null,
                 userWithId(null),
@@ -73,7 +78,7 @@ class UserModerationServiceTest {
 
     @Test
     void applyModerationShouldMuteUserAndPersistProjectedTimestamp() {
-        UserModerationService service = new UserModerationService(userMapper);
+        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
         when(userMapper.selectById(USER_ID_7)).thenReturn(userWithId(USER_ID_7));
         when(userMapper.updateModerationUntil(eq(USER_ID_7), any(Date.class), isNull())).thenReturn(1);
 
@@ -85,11 +90,12 @@ class UserModerationServiceTest {
         assertThat(status.getBanUntil()).isNull();
         assertThat(status.getMuteUntil()).isBetween(before.plusSeconds(120), after.plusSeconds(120));
         verify(userMapper).updateModerationUntil(USER_ID_7, Date.from(status.getMuteUntil()), null);
+        verify(imPolicyChangePublisher).publishUserPolicyChanged(USER_ID_7);
     }
 
     @Test
     void applyModerationShouldBanUserAndPreserveExistingMute() {
-        UserModerationService service = new UserModerationService(userMapper);
+        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
         User user = userWithId(USER_ID_7);
         user.setMuteUntil(Date.from(Instant.parse("2026-03-27T10:15:30Z")));
         when(userMapper.selectById(USER_ID_7)).thenReturn(user);
@@ -106,7 +112,7 @@ class UserModerationServiceTest {
 
     @Test
     void applyModerationShouldClearMuteWithoutChangingBan() {
-        UserModerationService service = new UserModerationService(userMapper);
+        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
         User user = userWithModeration(USER_ID_7);
         when(userMapper.selectById(USER_ID_7)).thenReturn(user);
         when(userMapper.updateModerationUntil(USER_ID_7, null, Date.from(Instant.parse("2026-03-28T10:15:30Z")))).thenReturn(1);
@@ -120,7 +126,7 @@ class UserModerationServiceTest {
 
     @Test
     void applyModerationShouldClearBanWithoutChangingMute() {
-        UserModerationService service = new UserModerationService(userMapper);
+        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
         User user = userWithModeration(USER_ID_7);
         when(userMapper.selectById(USER_ID_7)).thenReturn(user);
         when(userMapper.updateModerationUntil(USER_ID_7, Date.from(Instant.parse("2026-03-27T10:15:30Z")), null)).thenReturn(1);
@@ -134,7 +140,7 @@ class UserModerationServiceTest {
 
     @Test
     void applyModerationShouldRejectBlankAction() {
-        UserModerationService service = new UserModerationService(userMapper);
+        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
 
         assertThatThrownBy(() -> service.applyModeration(USER_ID_7, " ", 60))
                 .isInstanceOf(BusinessException.class)
@@ -147,7 +153,7 @@ class UserModerationServiceTest {
 
     @Test
     void applyModerationShouldRejectInvalidAction() {
-        UserModerationService service = new UserModerationService(userMapper);
+        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
         when(userMapper.selectById(USER_ID_7)).thenReturn(userWithId(USER_ID_7));
 
         assertThatThrownBy(() -> service.applyModeration(USER_ID_7, "freeze", 60))
@@ -163,7 +169,7 @@ class UserModerationServiceTest {
 
     @Test
     void applyModerationShouldRejectMissingUser() {
-        UserModerationService service = new UserModerationService(userMapper);
+        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
         when(userMapper.selectById(USER_ID_7)).thenReturn(null);
 
         assertThatThrownBy(() -> service.applyModeration(USER_ID_7, "mute", 60))
@@ -175,7 +181,7 @@ class UserModerationServiceTest {
 
     @Test
     void applyModerationShouldFailWhenMapperUpdateFails() {
-        UserModerationService service = new UserModerationService(userMapper);
+        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
         when(userMapper.selectById(USER_ID_7)).thenReturn(userWithId(USER_ID_7));
         when(userMapper.updateModerationUntil(eq(USER_ID_7), any(Date.class), isNull())).thenReturn(0);
 
@@ -186,6 +192,17 @@ class UserModerationServiceTest {
                     assertThat(businessException.getErrorCode()).isEqualTo(CommonErrorCode.INTERNAL_ERROR);
                     assertThat(businessException.getMessage()).isEqualTo("更新处罚状态失败");
                 });
+    }
+
+    @Test
+    void applyModerationShouldPublishImPolicyChangeEventForAffectedUser() {
+        UserModerationService service = new UserModerationService(userMapper, imPolicyChangePublisher);
+        when(userMapper.selectById(USER_ID_1)).thenReturn(userWithId(USER_ID_1));
+        when(userMapper.updateModerationUntil(eq(USER_ID_1), any(Date.class), isNull())).thenReturn(1);
+
+        service.applyModeration(USER_ID_1, "mute", 60);
+
+        verify(imPolicyChangePublisher).publishUserPolicyChanged(USER_ID_1);
     }
 
     private User userWithModeration(UUID id) {

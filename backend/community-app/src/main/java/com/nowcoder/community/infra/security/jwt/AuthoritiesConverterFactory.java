@@ -22,15 +22,18 @@ public final class AuthoritiesConverterFactory {
     }
 
     public static JwtAuthenticationConverter jwtAuthenticationConverter() {
-        JwtGrantedAuthoritiesConverter defaults = new JwtGrantedAuthoritiesConverter();
-        defaults.setAuthorityPrefix("ROLE_");
-        defaults.setAuthoritiesClaimName("authorities");
+        JwtGrantedAuthoritiesConverter authorityClaimConverter = new JwtGrantedAuthoritiesConverter();
+        authorityClaimConverter.setAuthorityPrefix("ROLE_");
+        authorityClaimConverter.setAuthoritiesClaimName("authorities");
+
+        JwtGrantedAuthoritiesConverter scopeConverter = new JwtGrantedAuthoritiesConverter();
 
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter((Jwt jwt) -> {
             Object claim = jwt == null ? null : jwt.getClaim("authorities");
+            List<GrantedAuthority> authorities = List.of();
             if (claim instanceof List<?> list) {
-                return list.stream()
+                authorities = list.stream()
                         .map(Object::toString)
                         .filter(StringUtils::hasText)
                         .map(String::trim)
@@ -39,8 +42,16 @@ public final class AuthoritiesConverterFactory {
                         .map(a -> (GrantedAuthority) a)
                         .toList();
             }
-            Collection<GrantedAuthority> fallback = defaults.convert(jwt);
-            return fallback == null ? List.of() : List.copyOf(fallback);
+            Collection<GrantedAuthority> scopes = scopeConverter.convert(jwt);
+            if (authorities.isEmpty()) {
+                return scopes == null ? List.of() : List.copyOf(scopes);
+            }
+            if (scopes == null || scopes.isEmpty()) {
+                return authorities;
+            }
+            return java.util.stream.Stream.concat(authorities.stream(), scopes.stream())
+                    .distinct()
+                    .toList();
         });
         return converter;
     }

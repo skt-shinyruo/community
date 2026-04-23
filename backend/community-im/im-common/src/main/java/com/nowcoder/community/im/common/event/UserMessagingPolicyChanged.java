@@ -1,5 +1,8 @@
 package com.nowcoder.community.im.common.event;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import java.util.UUID;
 
 public record UserMessagingPolicyChanged(
@@ -8,6 +11,8 @@ public record UserMessagingPolicyChanged(
         boolean userExists,
         boolean suspended,
         boolean muted,
+        @JsonProperty("canSendPrivate")
+        @JsonAlias("allowPrivateMessages")
         boolean allowPrivateMessages,
         long occurredAtEpochMillis
 ) {

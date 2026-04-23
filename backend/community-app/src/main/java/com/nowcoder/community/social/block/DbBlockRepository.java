@@ -14,6 +14,8 @@ import java.util.UUID;
 @ConditionalOnProperty(name = "social.storage", havingValue = "db", matchIfMissing = true)
 public class DbBlockRepository implements BlockRepository {
 
+    private static final UUID ZERO_UUID = new UUID(0L, 0L);
+
     private final BlockMapper mapper;
 
     public DbBlockRepository(BlockMapper mapper) {
@@ -44,5 +46,14 @@ public class DbBlockRepository implements BlockRepository {
     public List<UUID> listBlockedUserIds(UUID userId) {
         List<UUID> list = mapper.listBlockedUserIds(userId);
         return list == null ? List.of() : list;
+    }
+
+    @Override
+    public List<BlockScanRow> scanBlocksAfter(UUID afterUserId, UUID afterTargetUserId, int limit) {
+        UUID normalizedAfterUserId = afterUserId == null ? ZERO_UUID : afterUserId;
+        UUID normalizedAfterTargetUserId = afterTargetUserId == null ? ZERO_UUID : afterTargetUserId;
+        int normalizedLimit = Math.min(500, Math.max(1, limit));
+        List<BlockScanRow> rows = mapper.scanBlocks(normalizedAfterUserId, normalizedAfterTargetUserId, normalizedLimit);
+        return rows == null ? List.of() : rows;
     }
 }

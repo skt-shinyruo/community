@@ -13,4 +13,6 @@ public interface BlockRepository {
     boolean hasBlocked(UUID userId, UUID targetUserId);
 
     List<UUID> listBlockedUserIds(UUID userId);
+
+    List<BlockScanRow> scanBlocksAfter(UUID afterUserId, UUID afterTargetUserId, int limit);
 }

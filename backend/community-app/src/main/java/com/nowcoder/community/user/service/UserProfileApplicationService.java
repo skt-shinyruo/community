@@ -1,4 +1,4 @@
-package com.nowcoder.community.user.app.query;
+package com.nowcoder.community.user.service;
 
 import com.nowcoder.community.content.api.model.PostSummaryView;
 import com.nowcoder.community.content.api.model.RecentUserCommentView;
@@ -7,8 +7,6 @@ import com.nowcoder.community.growth.api.model.UserLevelSummaryView;
 import com.nowcoder.community.growth.api.query.UserLevelQueryApi;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.user.api.model.UserProfileView;
-import com.nowcoder.community.user.api.query.UserProfileQueryApi;
-import com.nowcoder.community.user.service.UserSocialProfileService;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
@@ -16,32 +14,31 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
-public class GetUserProfilePageQuery {
+public class UserProfileApplicationService {
 
-    private final UserProfileQueryApi userProfileQueryApi;
+    private final UserReadApplicationService userReadApplicationService;
     private final UserSocialProfileService userSocialProfileService;
     private final PostReadQueryApi postReadQueryApi;
     private final UserLevelQueryApi userLevelQueryApi;
 
-    public GetUserProfilePageQuery(
-            UserProfileQueryApi userProfileQueryApi,
+    public UserProfileApplicationService(
+            UserReadApplicationService userReadApplicationService,
             UserSocialProfileService userSocialProfileService,
             PostReadQueryApi postReadQueryApi,
             UserLevelQueryApi userLevelQueryApi
     ) {
-        this.userProfileQueryApi = userProfileQueryApi;
+        this.userReadApplicationService = userReadApplicationService;
         this.userSocialProfileService = userSocialProfileService;
         this.postReadQueryApi = postReadQueryApi;
         this.userLevelQueryApi = userLevelQueryApi;
     }
 
     public UserProfilePageView get(Authentication authentication, UUID userId) {
-        UserProfileView user = userProfileQueryApi.getProfile(userId);
+        UserProfileView user = userReadApplicationService.getProfile(userId);
         UUID viewerId = CurrentUser.tryUserUuid(authentication);
-        boolean hasViewer = viewerId != null && !viewerId.equals(userId);
-        UserSocialProfileService.UserProfileStats stats = UserSocialProfileService.UserProfileStats.empty();
-        UserLevelSummaryView levelSummary = null;
-        boolean userLevelEnabled = false;
+        UserSocialProfileService.UserProfileStats stats = userSocialProfileService.userProfileStats(userId, viewerId);
+        UserLevelSummaryView levelSummary = userLevelQueryApi.evaluateLevel(userId);
+        boolean userLevelEnabled = levelSummary != null && levelSummary.enabled();
         return new UserProfilePageView(
                 user.userId(),
                 user.username(),
@@ -59,19 +56,23 @@ public class GetUserProfilePageQuery {
                 stats.getLikeCount(),
                 stats.getFolloweeCount(),
                 stats.getFollowerCount(),
-                hasViewer && stats.isHasFollowed(),
-                true
+                stats.isHasFollowed(),
+                stats.isDegraded()
         );
     }
 
     public List<UserProfilePageView.RecentPostSummaryView> listRecentPosts(UUID userId, Integer page, Integer size) {
-        userProfileQueryApi.getProfile(userId);
-        return List.of();
+        userReadApplicationService.getProfile(userId);
+        return postReadQueryApi.listPostsByUser(userId, page, size).stream()
+                .map(UserProfileApplicationService::toRecentPostSummaryView)
+                .toList();
     }
 
     public List<UserProfilePageView.RecentCommentItemView> listRecentComments(UUID userId, Integer page, Integer size) {
-        userProfileQueryApi.getProfile(userId);
-        return List.of();
+        userReadApplicationService.getProfile(userId);
+        return postReadQueryApi.listRecentCommentsByUser(userId, page, size).stream()
+                .map(UserProfileApplicationService::toRecentCommentItemView)
+                .toList();
     }
 
     private static UserProfilePageView.RecentPostSummaryView toRecentPostSummaryView(PostSummaryView view) {

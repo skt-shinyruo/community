@@ -5,7 +5,9 @@ import com.nowcoder.community.content.api.model.RecentUserCommentView;
 import com.nowcoder.community.content.api.query.PostReadQueryApi;
 import com.nowcoder.community.user.api.model.UserProfileView;
 import com.nowcoder.community.user.service.AvatarService;
-import com.nowcoder.community.user.service.UserQueryService;
+import com.nowcoder.community.user.service.UserProfileApplicationService;
+import com.nowcoder.community.user.service.UserProfilePageView;
+import com.nowcoder.community.user.service.UserReadApplicationService;
 import com.nowcoder.community.user.service.UserSocialProfileService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,7 +50,10 @@ class PublicReadEndpointSecurityTest {
     private PostReadQueryApi postReadQueryApi;
 
     @MockBean
-    private UserQueryService userQueryService;
+    private UserReadApplicationService userReadApplicationService;
+
+    @MockBean
+    private UserProfileApplicationService userProfileApplicationService;
 
     @MockBean
     private AvatarService avatarService;
@@ -72,9 +77,12 @@ class PublicReadEndpointSecurityTest {
 
     @Test
     void unauthenticatedRecentActivityEndpointsShouldBeAllowed() throws Exception {
-        when(userQueryService.getProfile(USER_ID)).thenReturn(new UserProfileView(USER_ID, "u42", "h42", 0, 0, new Date(), 0, 1, 0L, "UNKNOWN"));
-        when(postReadQueryApi.listPostsByUser(eq(USER_ID), any(), any())).thenReturn(List.<PostSummaryView>of());
-        when(postReadQueryApi.listRecentCommentsByUser(eq(USER_ID), any(), any())).thenReturn(List.<RecentUserCommentView>of());
+        when(userReadApplicationService.getProfile(USER_ID))
+                .thenReturn(new UserProfileView(USER_ID, "u42", "h42", 0, 0, new Date(), 0, 1, 0L, "UNKNOWN"));
+        when(userProfileApplicationService.listRecentPosts(eq(USER_ID), any(), any()))
+                .thenReturn(List.<UserProfilePageView.RecentPostSummaryView>of());
+        when(userProfileApplicationService.listRecentComments(eq(USER_ID), any(), any()))
+                .thenReturn(List.<UserProfilePageView.RecentCommentItemView>of());
 
         mockMvc.perform(get("/api/users/" + USER_ID + "/recent-posts"))
                 .andExpect(status().isOk());
@@ -85,8 +93,8 @@ class PublicReadEndpointSecurityTest {
 
     @Test
     void directCommunityAppReadEndpointShouldNotEmitCorsHeaders() throws Exception {
-        when(userQueryService.getProfile(USER_ID)).thenReturn(new UserProfileView(USER_ID, "u42", "h42", 0, 0, new Date(), 0, 1, 0L, "UNKNOWN"));
-        when(postReadQueryApi.listPostsByUser(eq(USER_ID), any(), any())).thenReturn(List.<PostSummaryView>of());
+        when(userProfileApplicationService.listRecentPosts(eq(USER_ID), any(), any()))
+                .thenReturn(List.<UserProfilePageView.RecentPostSummaryView>of());
 
         mockMvc.perform(get("/api/users/" + USER_ID + "/recent-posts").header("Origin", "http://localhost:12881"))
                 .andExpect(status().isOk())

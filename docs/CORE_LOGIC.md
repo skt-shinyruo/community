@@ -96,8 +96,8 @@
 
 例如：
 
-- `content.controller.PostController` 依赖 `PostPublishingActionApi`、`PostReadQueryApi`
-- `im.governance.PrivateMessageGovernanceService` 依赖 `UserLookupQueryApi`、`SocialBlockQueryApi`
+- `content.controller.PostController` 依赖同域 `PostPublishingApplicationService`、`PostReadApplicationService`
+- `im.governance.PrivateMessageGovernanceService` 跨域依赖 `UserLookupQueryApi`、`SocialBlockQueryApi`
 
 不要把 `api.*` 理解成“多此一举的一层”；在这个项目里，它的职责是保护领域边界。
 
@@ -165,7 +165,7 @@ IM 不是 `community-app` 里的普通一个包，而是一个单独的子系统
 - controller 薄层：
   - `backend/community-app/src/main/java/com/nowcoder/community/content/controller/PostController.java`
 - 写路径编排：
-  - `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostPublishingActionService.java`
+  - `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostPublishingApplicationService.java`
   - `backend/community-app/src/main/java/com/nowcoder/community/content/app/post/CreatePostUseCase.java`
 - 典型“直接 Mapper”领域：
   - `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostService.java`
@@ -193,7 +193,7 @@ IM 不是 `community-app` 里的普通一个包，而是一个单独的子系统
 2. `community-gateway` 根据 `/api/**` 路由到 `community-app`
 3. `CommunitySecurityConfig` 完成 JWT 资源服务器鉴权和路径授权
 4. `PostController.create(...)` 提取当前用户和 `Idempotency-Key`
-5. `PostPublishingActionService.create(...)` 做文本清洗，并调用 `IdempotencyGuard.executeRequired(...)`
+5. `PostPublishingApplicationService.create(...)` 做文本清洗，并调用 `IdempotencyGuard.executeRequired(...)`
 6. `CreatePostUseCase.createPost(...)` 在事务内完成：
    - 用户发言资格校验
    - 分类存在性校验
@@ -205,7 +205,7 @@ IM 不是 `community-app` 里的普通一个包，而是一个单独的子系统
 关键文件：
 
 - `backend/community-app/src/main/java/com/nowcoder/community/content/controller/PostController.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostPublishingActionService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostPublishingApplicationService.java`
 - `backend/community-common/common-idempotency/src/main/java/com/nowcoder/community/common/idempotency/IdempotencyGuard.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/content/app/post/CreatePostUseCase.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostService.java`
@@ -423,8 +423,8 @@ IM 子系统最容易读乱，因为它同时有 HTTP、WebSocket、Kafka、MySQ
    - 理解主站的统一安全边界
 5. `backend/community-app/src/main/java/com/nowcoder/community/content/controller/PostController.java`
    - 从一个最典型的 HTTP controller 进入
-6. `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostPublishingActionService.java`
-   - 看清 `api.action`、幂等包装和文本清洗的位置
+6. `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostPublishingApplicationService.java`
+   - 看清同域应用入口、幂等包装和文本清洗的位置
 7. `backend/community-app/src/main/java/com/nowcoder/community/content/app/post/CreatePostUseCase.java`
    - 看清事务内真正做了什么
 8. `backend/community-app/src/main/java/com/nowcoder/community/content/domain/event/PostDomainEventBridge.java`

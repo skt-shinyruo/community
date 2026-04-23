@@ -192,8 +192,8 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 ### 4.2 典型写路径：发帖 → 本地编排 → 事件投影
 1. 前端 `POST http://localhost:12880/api/posts`
 2. `community-gateway` 将请求转发到 `community-app`
-3. `content.controller.PostController` 通过 owner-domain 的 `content.api.action.PostPublishingActionApi` 进入写路径，当前由 `PostPublishingActionService` 负责参数清洗、幂等包装与命令编排
-4. `PostCommandService` 在事务内写主存储并发布帖子领域事件，读路径仍通过 `content.api.query.*` 提供
+3. `content.controller.PostController` 通过同域 `PostPublishingApplicationService` 进入写路径，负责参数清洗、幂等包装与命令编排
+4. `CreatePostUseCase` 等内部 use case 在事务内写主存储并发布帖子领域事件，读路径通过同域 `PostReadApplicationService` 和跨域 `content.api.query.*` 提供
 5. 帖子领域事件继续驱动搜索、通知、积分等本地投影；跨域同步协作模型统一落在 `content.api.model` / `user.api.model` 等 owner-domain API 包下，跨域异步协作模型统一落在 `content.contracts.event` / `social.contracts.event`
 6. 通知、积分、任务进度等投影的业务判定统一由 owner-domain projection service 负责（如 `NoticeProjectionService`、`PointsProjectionService`、`TaskProgressProjectionService`），`@TransactionalEventListener` 与 outbox adapter 只负责订阅、序列化和重试，避免本地监听与 outbox 双路径重复维护
 

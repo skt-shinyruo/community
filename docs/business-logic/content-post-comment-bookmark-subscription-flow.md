@@ -99,13 +99,15 @@
 
 在 `content` 域里，可以先把能力分成四层：
 
-1. **读模型入口**
-- `PostReadQueryApi`
-- `CommentReadQueryApi`
+1. **同域读模型入口**
+- `PostReadApplicationService`
+- `CommentReadApplicationService`
 
-2. **写动作入口**
-- `PostPublishingActionApi`
-- `CommentActionApi`
+2. **同域写动作入口**
+- `PostPublishingApplicationService`
+- `CommentApplicationService`
+
+跨域调用方仍通过 owner-domain `content.api.query` / `content.api.action` / `content.api.model` 协作，同域 controller 不直接把这些 API 当入口。
 
 3. **领域主事实**
 - 帖子：`DiscussPost`
@@ -143,8 +145,8 @@ HTTP controller
 调用链如下：
 
 1. controller 接收排序、分类、标签、是否仅看订阅、分页参数
-2. 通过 `PostReadQueryApi.listPosts(...)` 进入 `PostReadQueryService`
-3. `PostReadQueryService` 决定是：
+2. 通过 `PostReadApplicationService.listPostSummaryResponses(...)` 进入同域应用读入口
+3. `PostReadApplicationService` 决定是：
    - 普通列表：`PostService.listPosts(...)`
    - 仅看订阅：`SubscriptionService.listSubscribedCategoryIds(...)` 后再调 `PostService.listSubscribedPosts(...)`
 4. 读出帖子后，再额外补齐：
@@ -155,7 +157,7 @@ HTTP controller
 关键代码：
 
 - `backend/community-app/src/main/java/com/nowcoder/community/content/controller/PostController.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostReadQueryService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostReadApplicationService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/content/service/SubscriptionService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/content/service/CommentService.java`
@@ -172,7 +174,7 @@ HTTP controller
 
 调用链如下：
 
-1. `PostReadQueryService.getPostDetail(...)`
+1. `PostReadApplicationService.getPostDetailResponse(...)`
 2. `PostService.getById(postId)` 读取帖子主事实
 3. `TagService.getTagsByPostIds(...)` 补标签
 4. `LikeQueryService` 补点赞数与当前用户点赞状态
@@ -181,7 +183,7 @@ HTTP controller
 
 关键代码：
 
-- `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostReadQueryService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostReadApplicationService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/content/assembler/PostDetailAssembler.java`
 
 ---
@@ -195,7 +197,7 @@ sequenceDiagram
     participant FE as Frontend
     participant GW as community-gateway
     participant CTRL as PostController
-    participant ACT as PostPublishingActionService
+    participant ACT as PostPublishingApplicationService
     participant IDEM as IdempotencyGuard
     participant UC as CreatePostUseCase
     participant DB as MySQL
@@ -221,7 +223,7 @@ sequenceDiagram
 `POST /api/posts` 的链路如下：
 
 1. `PostController.create(...)` 从认证信息里取出当前用户，并读取 `Idempotency-Key`
-2. `PostPublishingActionService.create(...)` 先做：
+2. `PostPublishingApplicationService.create(...)` 先做：
    - `trim`
    - HTML 转义：`ContentTextCodec.escapeOnWrite(...)`
    - 敏感词过滤：`SensitiveFilter.filter(...)`
@@ -236,7 +238,7 @@ sequenceDiagram
 
 关键代码：
 
-- `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostPublishingActionService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostPublishingApplicationService.java`
 - `backend/community-common/common-idempotency/src/main/java/com/nowcoder/community/common/idempotency/IdempotencyGuard.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/content/app/post/CreatePostUseCase.java`
 
@@ -282,7 +284,7 @@ sequenceDiagram
 sequenceDiagram
     participant FE as Frontend
     participant CTRL as PostController
-    participant ACT as CommentActionService
+    participant ACT as CommentApplicationService
     participant IDEM as IdempotencyGuard
     participant SVC as CommentService
     participant DB as MySQL
@@ -327,7 +329,7 @@ sequenceDiagram
 `POST /api/posts/{postId}/comments` 的链路如下：
 
 1. `PostController.addComment(...)` 取登录用户和 `Idempotency-Key`
-2. `CommentActionService.addComment(...)` 用 `IdempotencyGuard.executeRequired("content:create_comment", ...)` 包住真实副作用
+2. `CommentApplicationService.addComment(...)` 用 `IdempotencyGuard.executeRequired("content:create_comment", ...)` 包住真实副作用
 3. `CommentService.addComment(...)` 在事务内完成：
    - `assertCanSpeak(actorUserId)`
    - 校验帖子存在：`PostService.getById(postId)`
@@ -344,12 +346,12 @@ sequenceDiagram
 
 关键代码：
 
-- `backend/community-app/src/main/java/com/nowcoder/community/content/service/CommentActionService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/service/CommentApplicationService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/content/service/CommentService.java`
 
 ### 6.4 读取评论与回复
 
-读取链路通过 `CommentReadQueryService` 统一提供：
+读取链路通过 `CommentReadApplicationService` 统一提供：
 
 - `comments(postId, ...)`：查一级评论
 - `replies(postId, commentId, ...)`：先校验该评论确实属于该帖子，再查回复
@@ -358,7 +360,7 @@ sequenceDiagram
 
 关键代码：
 
-- `backend/community-app/src/main/java/com/nowcoder/community/content/service/CommentReadQueryService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/service/CommentReadApplicationService.java`
 
 ### 6.5 编辑评论
 
@@ -413,12 +415,12 @@ sequenceDiagram
 - 写 / 删 `subscription_category`
 - 返回当前用户订阅的分类 id 列表
 
-然后 `PostReadQueryService.listPosts(..., subscribed=true, ...)` 会利用这份列表回查帖子。
+然后 `PostReadApplicationService.listPosts(..., subscribed=true, ...)` 会利用这份列表回查帖子。
 
 关键代码：
 
 - `backend/community-app/src/main/java/com/nowcoder/community/content/service/SubscriptionService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostReadQueryService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostReadApplicationService.java`
 
 ### 7.3 分类
 
@@ -608,13 +610,13 @@ sequenceDiagram
 如果你想从代码中顺着这条链路读下去，建议按下面顺序：
 
 1. `backend/community-app/src/main/java/com/nowcoder/community/content/controller/PostController.java`
-2. `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostPublishingActionService.java`
+2. `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostPublishingApplicationService.java`
 3. `backend/community-app/src/main/java/com/nowcoder/community/content/app/post/CreatePostUseCase.java`
 4. `backend/community-app/src/main/java/com/nowcoder/community/content/app/post/UpdatePostUseCase.java`
 5. `backend/community-app/src/main/java/com/nowcoder/community/content/app/post/DeleteOwnPostUseCase.java`
-6. `backend/community-app/src/main/java/com/nowcoder/community/content/service/CommentActionService.java`
+6. `backend/community-app/src/main/java/com/nowcoder/community/content/service/CommentApplicationService.java`
 7. `backend/community-app/src/main/java/com/nowcoder/community/content/service/CommentService.java`
-8. `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostReadQueryService.java`
+8. `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostReadApplicationService.java`
 9. `backend/community-app/src/main/java/com/nowcoder/community/content/domain/event/PostDomainEventBridge.java`
 10. `backend/community-app/src/main/java/com/nowcoder/community/search/event/PostOutboxEnqueuer.java`
 11. `backend/community-app/src/main/java/com/nowcoder/community/notice/event/NoticeOutboxEnqueuer.java`

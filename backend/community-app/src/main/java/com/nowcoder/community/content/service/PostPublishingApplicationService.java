@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
-public class PostPublishingActionService implements PostPublishingActionApi {
+public class PostPublishingApplicationService implements PostPublishingActionApi {
 
     private final SensitiveFilter sensitiveFilter;
     private final CreatePostUseCase createPostUseCase;
@@ -23,7 +23,7 @@ public class PostPublishingActionService implements PostPublishingActionApi {
     private final IdempotencyGuard idempotencyGuard;
     private final ContentTextCodec textCodec;
 
-    public PostPublishingActionService(
+    public PostPublishingApplicationService(
             SensitiveFilter sensitiveFilter,
             CreatePostUseCase createPostUseCase,
             UpdatePostUseCase updatePostUseCase,
@@ -47,6 +47,10 @@ public class PostPublishingActionService implements PostPublishingActionApi {
             UUID postId = createPostUseCase.createPost(userId, safeTitle, safeContent, categoryId, tags);
             return new PostCreateResult(postId);
         });
+    }
+
+    public UUID createPost(UUID userId, String idempotencyKey, String title, String content, UUID categoryId, List<String> tags) {
+        return create(userId, idempotencyKey, title, content, categoryId, tags).postId();
     }
 
     @Override

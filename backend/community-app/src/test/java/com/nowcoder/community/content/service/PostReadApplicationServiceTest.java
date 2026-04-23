@@ -8,6 +8,8 @@ import com.nowcoder.community.content.assembler.PostDetailAssembler;
 import com.nowcoder.community.content.assembler.PostSummaryAssembler;
 import com.nowcoder.community.content.assembler.RecentUserCommentAssembler;
 import com.nowcoder.community.content.config.ContentRenderProperties;
+import com.nowcoder.community.content.dto.PostDetailResponse;
+import com.nowcoder.community.content.dto.PostSummaryResponse;
 import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.exception.ContentErrorCode;
@@ -25,10 +27,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-class PostReadQueryServiceTest {
+class PostReadApplicationServiceTest {
 
     @Test
-    void listPostsShouldAssemblePostSummariesOutsideController() {
+    void listPostSummaryResponsesShouldAssemblePostSummariesOutsideController() {
         PostService postService = mock(PostService.class);
         CommentService commentService = mock(CommentService.class);
         LikeQueryService likeQueryService = mock(LikeQueryService.class);
@@ -55,7 +57,7 @@ class PostReadQueryServiceTest {
         when(commentService.getLatestPostActivitiesByPostIds(List.of(postId))).thenReturn(Map.of(postId, lastActivity));
         when(tagService.getTagsByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of("java")));
 
-        PostReadQueryService service = new PostReadQueryService(
+        PostReadApplicationService service = new PostReadApplicationService(
                 postService,
                 commentService,
                 likeQueryService,
@@ -67,18 +69,20 @@ class PostReadQueryServiceTest {
                 new RecentUserCommentAssembler(textCodec())
         );
 
-        List<PostSummaryView> items = service.listPosts(null, "latest", null, null, false, 0, 10);
+        List<PostSummaryView> views = service.listPosts(null, "latest", null, null, false, 0, 10);
+        List<PostSummaryResponse> responses = service.listPostSummaryResponses(null, "latest", null, null, false, 0, 10);
 
-        assertThat(items).hasSize(1);
-        assertThat(items.get(0).id()).isEqualTo(postId);
-        assertThat(items.get(0).title()).isEqualTo("<title>");
-        assertThat(items.get(0).tags()).containsExactly("java");
-        assertThat(items.get(0).lastActivityTime()).isEqualTo(lastActivity.getCreateTime());
-        assertThat(items.get(0).lastReplyPreview()).isEqualTo("<latest reply>");
+        assertThat(views).hasSize(1);
+        assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).getId()).isEqualTo(postId);
+        assertThat(responses.get(0).getTitle()).isEqualTo("<title>");
+        assertThat(responses.get(0).getTags()).containsExactly("java");
+        assertThat(responses.get(0).getLastActivityTime()).isEqualTo(lastActivity.getCreateTime());
+        assertThat(responses.get(0).getLastReplyPreview()).isEqualTo("<latest reply>");
     }
 
     @Test
-    void getPostDetailShouldAssembleTagsLikesAndBookmarkState() {
+    void getPostDetailResponseShouldAssembleTagsLikesAndBookmarkState() {
         PostService postService = mock(PostService.class);
         CommentService commentService = mock(CommentService.class);
         LikeQueryService likeQueryService = mock(LikeQueryService.class);
@@ -110,7 +114,7 @@ class PostReadQueryServiceTest {
         when(likeQueryService.hasLikedPost(currentUserId, postId)).thenReturn(true);
         when(bookmarkService.hasBookmarked(currentUserId, postId)).thenReturn(true);
 
-        PostReadQueryService service = new PostReadQueryService(
+        PostReadApplicationService service = new PostReadApplicationService(
                 postService,
                 commentService,
                 likeQueryService,
@@ -123,14 +127,16 @@ class PostReadQueryServiceTest {
         );
 
         PostDetailView detail = service.getPostDetail(currentUserId, postId);
+        PostDetailResponse response = service.getPostDetailResponse(currentUserId, postId);
 
         assertThat(detail.id()).isEqualTo(postId);
-        assertThat(detail.title()).isEqualTo("<title>");
-        assertThat(detail.content()).isEqualTo("<body>");
-        assertThat(detail.tags()).containsExactly("java", "spring");
-        assertThat(detail.likeCount()).isEqualTo(9L);
-        assertThat(detail.liked()).isTrue();
-        assertThat(detail.bookmarked()).isTrue();
+        assertThat(response.getId()).isEqualTo(postId);
+        assertThat(response.getTitle()).isEqualTo("<title>");
+        assertThat(response.getContent()).isEqualTo("<body>");
+        assertThat(response.getTags()).containsExactly("java", "spring");
+        assertThat(response.getLikeCount()).isEqualTo(9L);
+        assertThat(response.isLiked()).isTrue();
+        assertThat(response.isBookmarked()).isTrue();
     }
 
     @Test
@@ -167,7 +173,7 @@ class PostReadQueryServiceTest {
         when(commentService.getLatestPostActivitiesByPostIds(List.of(firstPostId, secondPostId))).thenReturn(Map.of(firstPostId, lastActivity));
         when(tagService.getTagsByPostIds(List.of(firstPostId, secondPostId))).thenReturn(Map.of(firstPostId, List.of("java"), secondPostId, List.of("spring")));
 
-        PostReadQueryService service = new PostReadQueryService(
+        PostReadApplicationService service = new PostReadApplicationService(
                 postService,
                 commentService,
                 likeQueryService,
@@ -239,7 +245,7 @@ class PostReadQueryServiceTest {
         when(postService.getById(firstPostId)).thenReturn(firstPost);
         when(postService.getById(secondPostId)).thenReturn(secondPost);
 
-        PostReadQueryService service = new PostReadQueryService(
+        PostReadApplicationService service = new PostReadApplicationService(
                 postService,
                 commentService,
                 likeQueryService,
@@ -299,7 +305,7 @@ class PostReadQueryServiceTest {
         when(commentService.getById(missingParentCommentId)).thenThrow(new BusinessException(ContentErrorCode.COMMENT_NOT_FOUND));
         when(postService.getById(postId)).thenReturn(firstPost);
 
-        PostReadQueryService service = new PostReadQueryService(
+        PostReadApplicationService service = new PostReadApplicationService(
                 postService,
                 commentService,
                 likeQueryService,
@@ -319,7 +325,7 @@ class PostReadQueryServiceTest {
     }
 
     @Test
-    void listPostsByIdsShouldPreserveRequestedOrder() {
+    void listPostSummaryResponsesByIdsShouldPreserveRequestedOrder() {
         PostService postService = mock(PostService.class);
         CommentService commentService = mock(CommentService.class);
         LikeQueryService likeQueryService = mock(LikeQueryService.class);
@@ -343,17 +349,18 @@ class PostReadQueryServiceTest {
         second.setId(secondPostId);
         second.setUserId(secondAuthorId);
         second.setTitle("&lt;second&gt;");
-        second.setCommentCount(1);
+        second.setCommentCount(2);
 
         Comment lastActivity = new Comment();
         lastActivity.setUserId(lastReplyUserId);
-        lastActivity.setCreateTime(new Date(4_000));
+        lastActivity.setCreateTime(new Date(3_000));
+        lastActivity.setContent("&lt;newest&gt;");
 
         when(postService.listPostsByIds(requestedPostIds)).thenReturn(List.of(first, second));
         when(commentService.getLatestPostActivitiesByPostIds(requestedPostIds)).thenReturn(Map.of(firstPostId, lastActivity));
         when(tagService.getTagsByPostIds(requestedPostIds)).thenReturn(Map.of(firstPostId, List.of("java"), secondPostId, List.of("spring")));
 
-        PostReadQueryService service = new PostReadQueryService(
+        PostReadApplicationService service = new PostReadApplicationService(
                 postService,
                 commentService,
                 likeQueryService,
@@ -365,15 +372,16 @@ class PostReadQueryServiceTest {
                 new RecentUserCommentAssembler(textCodec())
         );
 
-        List<PostSummaryView> items = service.listPostsByIds(requestedPostIds);
+        List<PostSummaryResponse> items = service.listPostSummaryResponsesByIds(requestedPostIds);
 
         assertThat(items).hasSize(2);
-        assertThat(items.get(0).id()).isEqualTo(firstPostId);
-        assertThat(items.get(1).id()).isEqualTo(secondPostId);
-        assertThat(items.get(0).commentCount()).isEqualTo(4);
+        assertThat(items).extracting(PostSummaryResponse::getId).containsExactly(firstPostId, secondPostId);
+        assertThat(items.get(0).getUserId()).isEqualTo(firstAuthorId);
+        assertThat(items.get(0).getLastReplyUserId()).isEqualTo(lastReplyUserId);
+        assertThat(items.get(1).getUserId()).isEqualTo(secondAuthorId);
     }
 
-    private ContentTextCodec textCodec() {
+    private static ContentTextCodec textCodec() {
         return new ContentTextCodec(new ContentRenderProperties());
     }
 }

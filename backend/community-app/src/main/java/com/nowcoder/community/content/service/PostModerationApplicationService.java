@@ -9,13 +9,13 @@ import org.springframework.stereotype.Service;
 import java.util.UUID;
 
 @Service
-public class PostModerationActionService implements PostModerationActionApi {
+public class PostModerationApplicationService implements PostModerationActionApi {
 
     private final TopPostUseCase topPostUseCase;
     private final MarkPostWonderfulUseCase markPostWonderfulUseCase;
     private final AdminDeletePostUseCase adminDeletePostUseCase;
 
-    public PostModerationActionService(
+    public PostModerationApplicationService(
             TopPostUseCase topPostUseCase,
             MarkPostWonderfulUseCase markPostWonderfulUseCase,
             AdminDeletePostUseCase adminDeletePostUseCase

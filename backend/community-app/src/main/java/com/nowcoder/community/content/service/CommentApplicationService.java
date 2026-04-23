@@ -7,12 +7,12 @@ import org.springframework.stereotype.Service;
 import java.util.UUID;
 
 @Service
-public class CommentActionService implements CommentActionApi {
+public class CommentApplicationService implements CommentActionApi {
 
     private final CommentService commentService;
     private final IdempotencyGuard idempotencyGuard;
 
-    public CommentActionService(CommentService commentService, IdempotencyGuard idempotencyGuard) {
+    public CommentApplicationService(CommentService commentService, IdempotencyGuard idempotencyGuard) {
         this.commentService = commentService;
         this.idempotencyGuard = idempotencyGuard;
     }

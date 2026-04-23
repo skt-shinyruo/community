@@ -68,6 +68,8 @@ public class ImPolicySnapshotService {
                 state != null && state.userId() != null,
                 suspended,
                 muted,
+                toEpochMillis(state == null ? null : state.muteUntil()),
+                toEpochMillis(state == null ? null : state.banUntil()),
                 allowPrivateMessages
         );
     }
@@ -78,5 +80,9 @@ public class ImPolicySnapshotService {
 
     private int normalizeLimit(int limit) {
         return Math.min(500, Math.max(1, limit));
+    }
+
+    private Long toEpochMillis(Instant instant) {
+        return instant == null ? null : instant.toEpochMilli();
     }
 }

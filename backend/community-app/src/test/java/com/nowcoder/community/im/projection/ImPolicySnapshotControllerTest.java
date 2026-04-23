@@ -28,6 +28,7 @@ import java.util.Date;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -95,11 +96,13 @@ class ImPolicySnapshotControllerTest {
                 .andExpect(jsonPath("$.entries[0].userExists").value(true))
                 .andExpect(jsonPath("$.entries[0].suspended").value(false))
                 .andExpect(jsonPath("$.entries[0].muted").value(true))
+                .andExpect(jsonPath("$.entries[0].muteUntil").value(greaterThan(0L)))
                 .andExpect(jsonPath("$.entries[0].canSendPrivate").value(false))
                 .andExpect(jsonPath("$.entries[1].userId").value(bannedUserId.toString()))
                 .andExpect(jsonPath("$.entries[1].userExists").value(true))
                 .andExpect(jsonPath("$.entries[1].suspended").value(true))
                 .andExpect(jsonPath("$.entries[1].muted").value(false))
+                .andExpect(jsonPath("$.entries[1].banUntil").value(greaterThan(0L)))
                 .andExpect(jsonPath("$.entries[1].canSendPrivate").value(false));
     }
 

@@ -31,7 +31,10 @@ import com.nowcoder.community.im.common.ws.SendPrivateTextFrame;
 import com.nowcoder.community.im.common.ws.SendRoomTextFrame;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.RecordComponent;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -344,13 +347,15 @@ class JsonContractsTest {
     @Test
     void shouldRoundTripUserMessagingPolicySnapshot() throws Exception {
         UserMessagingPolicySnapshot snapshot = new UserMessagingPolicySnapshot(
-                List.of(new UserMessagingPolicyEntry(
+                List.of(newRecord(UserMessagingPolicyEntry.class, userMessagingPolicyEntryValues(
                         uuid(51),
                         true,
                         false,
                         true,
+                        1_712_345_678_906L,
+                        null,
                         false
-                )),
+                ))),
                 uuid(52),
                 true
         );
@@ -358,6 +363,8 @@ class JsonContractsTest {
         UserMessagingPolicySnapshot back = roundTrip(snapshot, UserMessagingPolicySnapshot.class);
 
         assertEquals(snapshot, back);
+        assertEquals(1_712_345_678_906L, recordComponentValue(back.entries().get(0), "muteUntil"));
+        assertEquals(null, recordComponentValue(back.entries().get(0), "banUntil"));
         assertTrue(back.hasMore());
     }
 
@@ -397,18 +404,22 @@ class JsonContractsTest {
 
     @Test
     void shouldRoundTripUserMessagingPolicyChanged() throws Exception {
-        UserMessagingPolicyChanged event = new UserMessagingPolicyChanged(
+        UserMessagingPolicyChanged event = newRecord(UserMessagingPolicyChanged.class, userMessagingPolicyChangedValues(
                 "evt-policy-1",
                 uuid(81),
                 true,
                 false,
                 true,
+                1_712_345_678_907L,
+                null,
                 false,
                 1_712_345_678_905L
-        );
+        ));
 
         UserMessagingPolicyChanged back = roundTrip(event, UserMessagingPolicyChanged.class);
         assertEquals(event, back);
+        assertEquals(1_712_345_678_907L, recordComponentValue(back, "muteUntil"));
+        assertEquals(null, recordComponentValue(back, "banUntil"));
     }
 
     @Test
@@ -440,6 +451,85 @@ class JsonContractsTest {
     private <T> T roundTrip(T value, Class<T> type) throws Exception {
         String json = objectMapper.writeValueAsString(value);
         return objectMapper.readValue(json, type);
+    }
+
+    private static Map<String, Object> userMessagingPolicyEntryValues(
+            UUID userId,
+            boolean userExists,
+            boolean suspended,
+            boolean muted,
+            Long muteUntil,
+            Long banUntil,
+            boolean allowPrivateMessages
+    ) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("userId", userId);
+        values.put("userExists", userExists);
+        values.put("suspended", suspended);
+        values.put("muted", muted);
+        values.put("muteUntil", muteUntil);
+        values.put("banUntil", banUntil);
+        values.put("allowPrivateMessages", allowPrivateMessages);
+        return values;
+    }
+
+    private static Map<String, Object> userMessagingPolicyChangedValues(
+            String eventId,
+            UUID userId,
+            boolean userExists,
+            boolean suspended,
+            boolean muted,
+            Long muteUntil,
+            Long banUntil,
+            boolean allowPrivateMessages,
+            long occurredAtEpochMillis
+    ) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("eventId", eventId);
+        values.put("userId", userId);
+        values.put("userExists", userExists);
+        values.put("suspended", suspended);
+        values.put("muted", muted);
+        values.put("muteUntil", muteUntil);
+        values.put("banUntil", banUntil);
+        values.put("allowPrivateMessages", allowPrivateMessages);
+        values.put("occurredAtEpochMillis", occurredAtEpochMillis);
+        return values;
+    }
+
+    private static <T> T newRecord(Class<T> recordType, Map<String, Object> values) throws Exception {
+        assertTrue(recordType.isRecord(), recordType.getSimpleName() + " must be a record");
+
+        RecordComponent[] components = recordType.getRecordComponents();
+        for (String expected : values.keySet()) {
+            boolean present = false;
+            for (RecordComponent component : components) {
+                if (component.getName().equals(expected)) {
+                    present = true;
+                    break;
+                }
+            }
+            assertTrue(present, recordType.getSimpleName() + " missing component: " + expected);
+        }
+
+        Class<?>[] parameterTypes = new Class<?>[components.length];
+        Object[] args = new Object[components.length];
+        for (int i = 0; i < components.length; i++) {
+            parameterTypes[i] = components[i].getType();
+            args[i] = values.get(components[i].getName());
+        }
+
+        Constructor<T> constructor = recordType.getDeclaredConstructor(parameterTypes);
+        return constructor.newInstance(args);
+    }
+
+    private static Object recordComponentValue(Object record, String componentName) throws Exception {
+        for (RecordComponent component : record.getClass().getRecordComponents()) {
+            if (component.getName().equals(componentName)) {
+                return component.getAccessor().invoke(record);
+            }
+        }
+        throw new AssertionError(record.getClass().getSimpleName() + " missing component: " + componentName);
     }
 
     private static UUID uuid(long suffix) {

@@ -23,7 +23,7 @@
 - `MarketOrderService`：下单、虚拟交付、实物发货、确认、取消、自动确认
 - `MarketDisputeService`：开争议、卖家接受 / 拒绝、管理员裁决
 - `MarketQueryService`：公开 listing、我的 listing、买单 / 卖单、订单详情
-- `WalletMarketActionService`：托管、放款、退款
+- `WalletMarketApplicationService`：托管、放款、退款
 - XXL Job：
   - `MarketOrderAutoConfirmHandler`
 

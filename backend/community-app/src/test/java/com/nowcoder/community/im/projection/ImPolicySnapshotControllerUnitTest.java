@@ -13,7 +13,8 @@ class ImPolicySnapshotControllerUnitTest {
 
     @Test
     void blockRelationsShouldTranslateUnsupportedModeToConflict() {
-        ImPolicySnapshotService snapshotService = mock(ImPolicySnapshotService.class);
+        com.nowcoder.community.im.service.ImPolicySnapshotApplicationService snapshotService =
+                mock(com.nowcoder.community.im.service.ImPolicySnapshotApplicationService.class);
         doThrow(new UnsupportedOperationException("Redis-backed block projection snapshots are not supported"))
                 .when(snapshotService).blockRelations(null, null, 10);
 

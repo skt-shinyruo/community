@@ -13,20 +13,12 @@ import com.nowcoder.community.auth.dto.RegisterResponse;
 import com.nowcoder.community.auth.dto.PasswordResetConfirmRequest;
 import com.nowcoder.community.auth.dto.PasswordResetRequestRequest;
 import com.nowcoder.community.auth.dto.PasswordResetRequestResponse;
-import com.nowcoder.community.auth.exception.AuthErrorCode;
-import com.nowcoder.community.auth.service.AuthService;
-import com.nowcoder.community.auth.service.CaptchaService;
-import com.nowcoder.community.auth.service.PasswordResetService;
-import com.nowcoder.community.auth.service.RegistrationService;
-import com.nowcoder.community.auth.service.RegistrationVerificationService;
-import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.auth.service.AuthApplicationService;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -41,58 +33,25 @@ import java.util.UUID;
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    private final AuthService authService;
-    private final RegistrationService registrationService;
-    private final RegistrationVerificationService registrationVerificationService;
-    private final CaptchaService captchaService;
-    private final PasswordResetService passwordResetService;
+    private final AuthApplicationService authApplicationService;
 
-    public AuthController(
-            AuthService authService,
-            RegistrationService registrationService,
-            RegistrationVerificationService registrationVerificationService,
-            CaptchaService captchaService,
-            PasswordResetService passwordResetService
-    ) {
-        this.authService = authService;
-        this.registrationService = registrationService;
-        this.registrationVerificationService = registrationVerificationService;
-        this.captchaService = captchaService;
-        this.passwordResetService = passwordResetService;
+    public AuthController(AuthApplicationService authApplicationService) {
+        this.authApplicationService = authApplicationService;
     }
 
     @PostMapping("/login")
     public Result<LoginResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse response) {
-        AuthService.LoginResult result = authService.login(
-                request.getUsername(),
-                request.getPassword(),
-                request.getCaptchaId(),
-                request.getCaptchaCode(),
-                httpRequest
-        );
-        ResponseCookie refreshCookie = result.refreshCookie();
-        response.addHeader("Set-Cookie", refreshCookie.toString());
-        return Result.ok(new LoginResponse(result.accessToken()));
+        return Result.ok(authApplicationService.login(request, httpRequest, response));
     }
 
     @PostMapping("/refresh")
     public Result<LoginResponse> refresh(HttpServletRequest request, HttpServletResponse response) {
-        try {
-            AuthService.RefreshResult result = authService.refresh(request);
-            response.addHeader("Set-Cookie", result.refreshCookie().toString());
-            return Result.ok(new LoginResponse(result.accessToken()));
-        } catch (BusinessException ex) {
-            if (shouldClearRefreshCookie(ex)) {
-                response.addHeader(HttpHeaders.SET_COOKIE, authService.clearRefreshCookie().toString());
-            }
-            throw ex;
-        }
+        return Result.ok(authApplicationService.refresh(request, response));
     }
 
     @PostMapping("/logout")
     public Result<Void> logout(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
-        authService.logout(request);
-        response.addHeader("Set-Cookie", authService.clearRefreshCookie().toString());
+        authApplicationService.logout(request, response);
         return Result.ok();
     }
 
@@ -109,65 +68,36 @@ public class AuthController {
 
     @PostMapping("/register")
     public Result<RegisterResponse> register(@Valid @RequestBody RegisterRequest request, HttpServletRequest httpRequest) {
-        return Result.ok(registrationService.register(request, httpRequest));
+        return Result.ok(authApplicationService.register(request, httpRequest));
     }
 
     @PostMapping("/register/code/resend")
     public Result<RegisterCodeResendResponse> resendRegisterCode(@Valid @RequestBody RegisterCodeResendRequest request) {
-        return Result.ok(registrationVerificationService.resendCode(
-                request.getRegistrationToken(),
-                request.getCaptchaId(),
-                request.getCaptchaCode()
-        ));
+        return Result.ok(authApplicationService.resendRegisterCode(request));
     }
 
     @PostMapping("/register/code/verify")
     public Result<LoginResponse> verifyRegisterCode(@Valid @RequestBody RegisterCodeVerifyRequest request, HttpServletResponse response) {
-        AuthService.LoginResult result = registrationVerificationService.verifyAndLogin(request.getRegistrationToken(), request.getCode());
-        response.addHeader(HttpHeaders.SET_COOKIE, result.refreshCookie().toString());
-        return Result.ok(new LoginResponse(result.accessToken()));
+        return Result.ok(authApplicationService.verifyRegisterCode(request, response));
     }
 
     @GetMapping("/captcha")
     public Result<CaptchaIssueResponse> captcha(HttpServletResponse response) {
-        CaptchaService.IssuedCaptcha issued = captchaService.issue();
-        response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0");
-        response.setHeader(HttpHeaders.PRAGMA, "no-cache");
-        return Result.ok(new CaptchaIssueResponse(issued.captchaId(), issued.imageBase64(), issued.ttlSeconds()));
+        return Result.ok(authApplicationService.captcha(response));
     }
 
     @PostMapping("/captcha/verify")
     public Result<Boolean> verifyCaptcha(@Valid @RequestBody CaptchaVerifyRequest request) {
-        return Result.ok(captchaService.verify(request.getCaptchaId(), request.getCode()));
+        return Result.ok(authApplicationService.verifyCaptcha(request));
     }
 
     @PostMapping("/password/reset/request")
     public Result<PasswordResetRequestResponse> requestPasswordReset(@Valid @RequestBody PasswordResetRequestRequest request) {
-        PasswordResetService.RequestResult result = passwordResetService.requestReset(
-                request.getEmail(),
-                request.getCaptchaId(),
-                request.getCaptchaCode()
-        );
-        return Result.ok(new PasswordResetRequestResponse(result.issued(), result.resetLink()));
+        return Result.ok(authApplicationService.requestPasswordReset(request));
     }
 
     @PostMapping("/password/reset/confirm")
     public Result<Boolean> confirmPasswordReset(@Valid @RequestBody PasswordResetConfirmRequest request) {
-        boolean ok = passwordResetService.confirmReset(
-                request.getResetToken(),
-                request.getNewPassword(),
-                request.getCaptchaId(),
-                request.getCaptchaCode()
-        );
-        return Result.ok(ok);
-    }
-
-    private boolean shouldClearRefreshCookie(BusinessException ex) {
-        if (ex == null || ex.getErrorCode() == null) {
-            return false;
-        }
-        int code = ex.getErrorCode().getCode();
-        return code == AuthErrorCode.USER_DISABLED.getCode()
-                || code == AuthErrorCode.REFRESH_TOKEN_INVALID.getCode();
+        return Result.ok(authApplicationService.confirmPasswordReset(request));
     }
 }

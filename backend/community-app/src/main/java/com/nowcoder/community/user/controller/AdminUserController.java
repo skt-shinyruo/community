@@ -4,7 +4,7 @@ import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.user.dto.AdminUserResponse;
 import com.nowcoder.community.user.dto.UpdateUserRoleRequest;
-import com.nowcoder.community.user.service.AdminUserService;
+import com.nowcoder.community.user.service.AdminUserApplicationService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,10 +20,10 @@ import java.util.UUID;
 @RequestMapping("/api/users/admin")
 public class AdminUserController {
 
-    private final AdminUserService adminUserService;
+    private final AdminUserApplicationService adminUserApplicationService;
 
-    public AdminUserController(AdminUserService adminUserService) {
-        this.adminUserService = adminUserService;
+    public AdminUserController(AdminUserApplicationService adminUserApplicationService) {
+        this.adminUserApplicationService = adminUserApplicationService;
     }
 
     @GetMapping("/search")
@@ -32,13 +32,13 @@ public class AdminUserController {
             @RequestParam(required = false) String username,
             @RequestParam(required = false) String email
     ) {
-        return Result.ok(adminUserService.search(userId, username, email));
+        return Result.ok(adminUserApplicationService.search(userId, username, email));
     }
 
     @PostMapping("/role")
     public Result<Void> updateRole(Authentication authentication, @Valid @RequestBody UpdateUserRoleRequest request) {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
-        adminUserService.updateRole(actorUserId, request);
+        adminUserApplicationService.updateRole(actorUserId, request);
         return Result.ok();
     }
 }

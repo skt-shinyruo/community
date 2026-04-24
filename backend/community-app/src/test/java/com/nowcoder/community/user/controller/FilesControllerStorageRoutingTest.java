@@ -5,6 +5,7 @@ import com.nowcoder.community.user.config.AvatarStorageProperties;
 import com.nowcoder.community.user.service.AvatarStorageProvider;
 import com.nowcoder.community.user.service.AvatarStorageRouter;
 import com.nowcoder.community.user.service.StoredAvatar;
+import com.nowcoder.community.user.service.UserFileApplicationService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
@@ -57,7 +58,7 @@ class FilesControllerStorageRoutingTest {
         };
 
         AvatarStorageRouter router = new AvatarStorageRouter(props, List.of(stub));
-        FilesController controller = new FilesController(router);
+        FilesController controller = new FilesController(new UserFileApplicationService(router));
 
         HttpServletRequest req = mock(HttpServletRequest.class);
         when(req.getRequestURI()).thenReturn("/files/avatar/" + userId + "/0123456789abcdef0123456789abcdef");

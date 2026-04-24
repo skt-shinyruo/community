@@ -9,6 +9,7 @@ import com.nowcoder.community.wallet.dto.CreateTransferResponse;
 import com.nowcoder.community.wallet.dto.CreateWithdrawResponse;
 import com.nowcoder.community.wallet.dto.WalletSummaryResponse;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
+import com.nowcoder.community.wallet.service.WalletApplicationService;
 import com.nowcoder.community.wallet.service.RechargeService;
 import com.nowcoder.community.wallet.service.TransferService;
 import com.nowcoder.community.wallet.service.WalletQueryService;
@@ -37,6 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(WalletController.class)
 @Import({
         WalletController.class,
+        WalletApplicationService.class,
         CommunitySecurityConfig.class,
         SecurityExceptionHandler.class,
         GlobalExceptionHandler.class

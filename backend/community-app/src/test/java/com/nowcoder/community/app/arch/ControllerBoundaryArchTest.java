@@ -10,6 +10,7 @@ import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -31,11 +32,7 @@ class ControllerBoundaryArchTest {
     private static final Set<String> LEGACY_FOREIGN_DTO_CONTROLLER_CALLERS = Set.of();
     private static final Set<String> LEGACY_FOREIGN_SERVICE_CONTROLLER_CALLERS = Set.of();
     private static final Set<String> LEGACY_SAME_DOMAIN_OWNER_API_CONTROLLER_CALLERS = Set.of();
-    private static final Set<String> LEGACY_CONTENT_CONTROLLER_APPLICATION_BOUNDARY = Set.of(
-            "com.nowcoder.community.content.controller.CategoryController",
-            "com.nowcoder.community.content.controller.SubscriptionController",
-            "com.nowcoder.community.content.controller.TagController"
-    );
+    private static final Set<String> LEGACY_CONTROLLER_APPLICATION_BOUNDARY = Set.of();
 
     @Test
     void dtoBoundaryShouldNotRequireSharedMessageDtoExceptions() {
@@ -48,10 +45,15 @@ class ControllerBoundaryArchTest {
         assertThat(LEGACY_SAME_DOMAIN_OWNER_API_CONTROLLER_CALLERS).isEmpty();
     }
 
+    @Test
+    void applicationBoundaryShouldNotRequireLegacyControllerExceptions() {
+        assertThat(LEGACY_CONTROLLER_APPLICATION_BOUNDARY).isEmpty();
+    }
+
     @ArchTest
     static final ArchRule controllers_must_not_depend_on_other_controllers =
             classes()
-                    .that().resideInAnyPackage("..controller..")
+                    .that().areAnnotatedWith(RestController.class)
                     .should(ArchitectureRulesSupport.notDependOnLayers(
                             "not depend on controller packages",
                             Set.of("controller"),
@@ -62,7 +64,7 @@ class ControllerBoundaryArchTest {
     @ArchTest
     static final ArchRule controllers_must_not_depend_on_mappers_or_daos =
             classes()
-                    .that().resideInAnyPackage("..controller..")
+                    .that().areAnnotatedWith(RestController.class)
                     .should(ArchitectureRulesSupport.notDependOnLayers(
                             "not depend on mapper or dao packages",
                             Set.of("mapper", "dao"),
@@ -73,7 +75,7 @@ class ControllerBoundaryArchTest {
     @ArchTest
     static final ArchRule controllers_must_not_depend_on_foreign_entities =
             classes()
-                    .that().resideInAnyPackage("..controller..")
+                    .that().areAnnotatedWith(RestController.class)
                     .should(ArchitectureRulesSupport.notDependOnLayers(
                             "not depend on foreign entity packages",
                             Set.of("entity"),
@@ -84,7 +86,7 @@ class ControllerBoundaryArchTest {
     @ArchTest
     static final ArchRule controllers_must_not_depend_on_foreign_dtos =
             classes()
-                    .that().resideInAnyPackage("..controller..")
+                    .that().areAnnotatedWith(RestController.class)
                     .should(ArchitectureRulesSupport.notDependOnLayers(
                             "not depend on foreign dto packages",
                             Set.of("dto"),
@@ -96,13 +98,13 @@ class ControllerBoundaryArchTest {
     @ArchTest
     static final ArchRule controllers_must_not_depend_on_foreign_services =
             classes()
-                    .that().resideInAnyPackage("..controller..")
+                    .that().areAnnotatedWith(RestController.class)
                     .should(notDependOnForeignPackage("services", SERVICE_PACKAGE, LEGACY_FOREIGN_SERVICE_CONTROLLER_CALLERS));
 
     @ArchTest
     static final ArchRule controllers_must_not_depend_on_same_domain_owner_apis =
             classes()
-                    .that().resideInAnyPackage("..controller..")
+                    .that().areAnnotatedWith(RestController.class)
                     .should(ArchitectureRulesSupport.notDependOnSameDomainOwnerApiPackages(
                             LEGACY_SAME_DOMAIN_OWNER_API_CONTROLLER_CALLERS
                     ));
@@ -110,7 +112,7 @@ class ControllerBoundaryArchTest {
     @ArchTest
     static final ArchRule controllers_must_not_depend_on_domain_entities =
             classes()
-                    .that().resideInAnyPackage("..controller..")
+                    .that().areAnnotatedWith(RestController.class)
                     .should(ArchitectureRulesSupport.notDependOnLayers(
                             "not depend on any entity packages",
                             Set.of("entity"),
@@ -119,11 +121,11 @@ class ControllerBoundaryArchTest {
                     ));
 
     @ArchTest
-    static final ArchRule content_controllers_must_not_depend_on_same_domain_non_application_entry_points =
+    static final ArchRule controllers_must_not_depend_on_same_domain_non_application_entry_points =
             classes()
-                    .that().resideInAnyPackage("..content.controller..")
+                    .that().areAnnotatedWith(RestController.class)
                     .should(ArchitectureRulesSupport.notDependOnSameDomainServicesExceptApplicationServices(
-                            LEGACY_CONTENT_CONTROLLER_APPLICATION_BOUNDARY
+                            LEGACY_CONTROLLER_APPLICATION_BOUNDARY
                     ));
 
     @ArchTest

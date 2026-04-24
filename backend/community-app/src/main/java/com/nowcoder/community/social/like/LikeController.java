@@ -6,6 +6,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.social.like.dto.LikeRequest;
 import com.nowcoder.community.social.like.dto.LikeResponse;
+import com.nowcoder.community.social.service.LikeApplicationService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,10 +29,10 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 @RequestMapping("/api/likes")
 public class LikeController {
 
-    private final LikeService likeService;
+    private final LikeApplicationService likeApplicationService;
 
-    public LikeController(LikeService likeService) {
-        this.likeService = likeService;
+    public LikeController(LikeApplicationService likeApplicationService) {
+        this.likeApplicationService = likeApplicationService;
     }
 
     @PostMapping
@@ -40,7 +41,7 @@ public class LikeController {
         if (!EntityTypes.isValid(request.getEntityType())) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
         }
-        return Result.ok(likeService.setLike(userId, request));
+        return Result.ok(likeApplicationService.setLike(userId, request));
     }
 
     @GetMapping("/status")
@@ -53,7 +54,7 @@ public class LikeController {
         if (!EntityTypes.isValid(entityType)) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
         }
-        return Result.ok(likeService.isLiked(userId, entityType, entityId));
+        return Result.ok(likeApplicationService.isLiked(userId, entityType, entityId));
     }
 
     @GetMapping("/count")
@@ -61,7 +62,7 @@ public class LikeController {
         if (!EntityTypes.isValid(entityType)) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
         }
-        return Result.ok(likeService.count(entityType, entityId));
+        return Result.ok(likeApplicationService.count(entityType, entityId));
     }
 
     @GetMapping("/counts")
@@ -70,7 +71,7 @@ public class LikeController {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
         }
         List<UUID> ids = parseEntityIds(entityIds, 200);
-        return Result.ok(likeService.counts(entityType, ids));
+        return Result.ok(likeApplicationService.counts(entityType, ids));
     }
 
     @GetMapping("/statuses")
@@ -80,12 +81,12 @@ public class LikeController {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
         }
         List<UUID> ids = parseEntityIds(entityIds, 200);
-        return Result.ok(likeService.statuses(userId, entityType, ids));
+        return Result.ok(likeApplicationService.statuses(userId, entityType, ids));
     }
 
     @GetMapping("/users/{userId}/count")
     public Result<Long> userLikeCount(@PathVariable UUID userId) {
-        return Result.ok(likeService.userLikeCount(userId));
+        return Result.ok(likeApplicationService.userLikeCount(userId));
     }
 
     private List<UUID> parseEntityIds(String raw, int limit) {

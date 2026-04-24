@@ -2,6 +2,7 @@ package com.nowcoder.community.im.projection;
 
 import com.nowcoder.community.im.common.projection.UserBlockRelationSnapshot;
 import com.nowcoder.community.im.common.projection.UserMessagingPolicySnapshot;
+import com.nowcoder.community.im.service.ImPolicySnapshotApplicationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,9 +17,9 @@ import java.util.UUID;
 @RequestMapping("/internal/im/realtime/projections")
 public class ImPolicySnapshotController {
 
-    private final ImPolicySnapshotService snapshotService;
+    private final ImPolicySnapshotApplicationService snapshotService;
 
-    public ImPolicySnapshotController(ImPolicySnapshotService snapshotService) {
+    public ImPolicySnapshotController(ImPolicySnapshotApplicationService snapshotService) {
         this.snapshotService = snapshotService;
     }
 

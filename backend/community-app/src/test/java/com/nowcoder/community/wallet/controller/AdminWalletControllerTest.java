@@ -4,6 +4,7 @@ import com.nowcoder.community.app.security.CommunitySecurityConfig;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.wallet.security.WalletSecurityRules;
+import com.nowcoder.community.wallet.service.AdminWalletApplicationService;
 import com.nowcoder.community.wallet.service.AdminWalletOpsService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(AdminWalletController.class)
 @Import({
         AdminWalletController.class,
+        AdminWalletApplicationService.class,
         WalletSecurityRules.class,
         CommunitySecurityConfig.class,
         SecurityExceptionHandler.class,

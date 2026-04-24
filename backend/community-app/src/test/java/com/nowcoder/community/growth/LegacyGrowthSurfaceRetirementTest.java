@@ -30,11 +30,22 @@ class LegacyGrowthSurfaceRetirementTest {
         assertClassIsRetired("com.nowcoder.community.growth.service.RewardRedemptionService");
         assertClassIsRetired("com.nowcoder.community.growth.service.CheckInService");
         assertClassIsRetired("com.nowcoder.community.growth.service.TaskCenterService");
+        assertClassIsRetired("com.nowcoder.community.growth.service.TaskProgressTriggerService");
+        assertClassIsRetired("com.nowcoder.community.growth.service.TaskProgressProjectionService");
+        assertClassIsRetired("com.nowcoder.community.growth.api.query.LegacyRewardAccountQueryApi");
+        assertClassIsRetired("com.nowcoder.community.growth.api.model.LegacyRewardAccountView");
+        assertClassIsRetired("com.nowcoder.community.growth.service.RewardAccountService");
+        assertClassIsRetired("com.nowcoder.community.wallet.service.WalletMigrationService");
+        assertClassIsRetired("com.nowcoder.community.growth.api.action.GrowthGrantActionApi");
+        assertClassIsRetired("com.nowcoder.community.growth.service.UnifiedGrantService");
         assertClassIsRetired("com.nowcoder.community.growth.entity.RewardItem");
         assertClassIsRetired("com.nowcoder.community.growth.entity.RewardOrder");
         assertClassIsRetired("com.nowcoder.community.growth.entity.AdminRewardAdjustment");
         assertClassIsRetired("com.nowcoder.community.growth.entity.AdminRewardOrderAction");
         assertClassIsRetired("com.nowcoder.community.growth.entity.GrowthCheckIn");
+        assertClassIsRetired("com.nowcoder.community.growth.mapper.RewardAccountMapper");
+        assertClassIsRetired("com.nowcoder.community.growth.mapper.RewardLedgerMapper");
+        assertClassIsRetired("com.nowcoder.community.growth.mapper.RewardGrantRecordMapper");
         assertClassIsRetired("com.nowcoder.community.growth.mapper.RewardItemMapper");
         assertClassIsRetired("com.nowcoder.community.growth.mapper.RewardOrderMapper");
         assertClassIsRetired("com.nowcoder.community.growth.mapper.AdminRewardAdjustmentMapper");
@@ -53,6 +64,9 @@ class LegacyGrowthSurfaceRetirementTest {
         assertThat(MODULE_ROOT.resolve("src/main/resources/mapper/admin_reward_adjustment_mapper.xml")).doesNotExist();
         assertThat(MODULE_ROOT.resolve("src/main/resources/mapper/admin_reward_order_action_mapper.xml")).doesNotExist();
         assertThat(MODULE_ROOT.resolve("src/main/resources/mapper/growth_check_in_mapper.xml")).doesNotExist();
+        assertThat(MODULE_ROOT.resolve("src/main/resources/mapper/reward_account_mapper.xml")).doesNotExist();
+        assertThat(MODULE_ROOT.resolve("src/main/resources/mapper/reward_ledger_mapper.xml")).doesNotExist();
+        assertThat(MODULE_ROOT.resolve("src/main/resources/mapper/reward_grant_record_mapper.xml")).doesNotExist();
     }
 
     @Test

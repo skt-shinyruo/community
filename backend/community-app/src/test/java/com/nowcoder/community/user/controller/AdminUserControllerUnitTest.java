@@ -3,7 +3,7 @@ package com.nowcoder.community.user.controller;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.user.dto.AdminUserResponse;
 import com.nowcoder.community.user.dto.UpdateUserRoleRequest;
-import com.nowcoder.community.user.service.AdminUserService;
+import com.nowcoder.community.user.service.AdminUserApplicationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,13 +23,13 @@ import static org.mockito.Mockito.when;
 class AdminUserControllerUnitTest {
 
     @Mock
-    private AdminUserService adminUserService;
+    private AdminUserApplicationService adminUserApplicationService;
 
     private AdminUserController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new AdminUserController(adminUserService);
+        controller = new AdminUserController(adminUserApplicationService);
     }
 
     @Test
@@ -38,13 +38,13 @@ class AdminUserControllerUnitTest {
         AdminUserResponse response = new AdminUserResponse();
         response.setId(userId);
         response.setUsername("alice");
-        when(adminUserService.search(userId, null, null)).thenReturn(response);
+        when(adminUserApplicationService.search(userId, null, null)).thenReturn(response);
 
         Result<AdminUserResponse> result = controller.search(userId, null, null);
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).isSameAs(response);
-        verify(adminUserService).search(userId, null, null);
+        verify(adminUserApplicationService).search(userId, null, null);
     }
 
     @Test
@@ -60,7 +60,7 @@ class AdminUserControllerUnitTest {
         Result<Void> result = controller.updateRole(authentication(actorUserId), request);
 
         assertThat(result.getCode()).isEqualTo(0);
-        verify(adminUserService).updateRole(actorUserId, request);
+        verify(adminUserApplicationService).updateRole(actorUserId, request);
     }
 
     private Authentication authentication(UUID userId) {

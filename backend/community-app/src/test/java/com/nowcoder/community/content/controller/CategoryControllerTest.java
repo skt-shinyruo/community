@@ -2,7 +2,7 @@ package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.content.dto.CategoryResponse;
-import com.nowcoder.community.content.service.CategoryService;
+import com.nowcoder.community.content.service.CategoryApplicationService;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -16,7 +16,7 @@ class CategoryControllerTest {
 
     @Test
     void listShouldKeepCategoryFieldsAsReturnedByService() {
-        CategoryService categoryService = mock(CategoryService.class);
+        CategoryApplicationService categoryApplicationService = mock(CategoryApplicationService.class);
         CategoryResponse category = new CategoryResponse();
         category.setId(uuid(1));
         category.setName("公告");
@@ -24,9 +24,9 @@ class CategoryControllerTest {
         category.setPosition(0);
         category.setPostCount(0);
 
-        when(categoryService.listCategoryResponses()).thenReturn(List.of(category));
+        when(categoryApplicationService.listCategoryResponses()).thenReturn(List.of(category));
 
-        CategoryController controller = new CategoryController(categoryService);
+        CategoryController controller = new CategoryController(categoryApplicationService);
 
         Result<List<CategoryResponse>> result = controller.list();
 

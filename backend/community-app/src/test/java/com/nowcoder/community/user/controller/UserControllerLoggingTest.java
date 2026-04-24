@@ -4,6 +4,7 @@ import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.user.dto.AvatarUploadTokenResponse;
 import com.nowcoder.community.user.dto.UpdateAvatarRequest;
 import com.nowcoder.community.user.service.AvatarService;
+import com.nowcoder.community.user.service.UserAvatarApplicationService;
 import com.nowcoder.community.user.service.UserProfileApplicationService;
 import com.nowcoder.community.user.service.UserReadApplicationService;
 import com.nowcoder.community.user.service.UserService;
@@ -38,8 +39,7 @@ class UserControllerLoggingTest {
         controller = new UserController(
                 mock(UserReadApplicationService.class),
                 mock(UserProfileApplicationService.class),
-                userService,
-                avatarService
+                new UserAvatarApplicationService(avatarService, userService)
         );
     }
 

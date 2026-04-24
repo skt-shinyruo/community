@@ -1,17 +1,16 @@
 package com.nowcoder.community.user.controller;
 
 import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.user.dto.UserProfilePageView;
+import com.nowcoder.community.user.service.UserAvatarApplicationService;
 import com.nowcoder.community.user.service.UserProfileApplicationService;
-import com.nowcoder.community.user.service.UserProfilePageView;
 import com.nowcoder.community.user.dto.BatchUserSummaryRequest;
 import com.nowcoder.community.user.dto.UserProfilePostSummaryResponse;
 import com.nowcoder.community.user.dto.UserProfileResponse;
 import com.nowcoder.community.user.dto.UserRecentCommentItemResponse;
 import com.nowcoder.community.user.dto.UserResolveResponse;
 import com.nowcoder.community.user.dto.UserSummaryResponse;
-import com.nowcoder.community.user.service.AvatarService;
 import com.nowcoder.community.user.service.UserReadApplicationService;
-import com.nowcoder.community.user.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,10 +40,7 @@ class UserControllerUnitTest {
     private UserProfileApplicationService userProfileApplicationService;
 
     @Mock
-    private UserService userService;
-
-    @Mock
-    private AvatarService avatarService;
+    private UserAvatarApplicationService userAvatarApplicationService;
 
     private UserController controller;
 
@@ -53,8 +49,7 @@ class UserControllerUnitTest {
         controller = new UserController(
                 userReadApplicationService,
                 userProfileApplicationService,
-                userService,
-                avatarService
+                userAvatarApplicationService
         );
     }
 

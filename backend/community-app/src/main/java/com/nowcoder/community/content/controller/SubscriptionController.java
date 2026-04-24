@@ -2,7 +2,7 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.content.service.SubscriptionService;
+import com.nowcoder.community.content.service.SubscriptionApplicationService;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -19,29 +19,29 @@ import java.util.UUID;
 @RequestMapping("/api")
 public class SubscriptionController {
 
-    private final SubscriptionService subscriptionService;
+    private final SubscriptionApplicationService subscriptionApplicationService;
 
-    public SubscriptionController(SubscriptionService subscriptionService) {
-        this.subscriptionService = subscriptionService;
+    public SubscriptionController(SubscriptionApplicationService subscriptionApplicationService) {
+        this.subscriptionApplicationService = subscriptionApplicationService;
     }
 
     @PutMapping("/categories/{categoryId}/subscribe")
     public Result<Void> subscribeCategory(Authentication authentication, @PathVariable UUID categoryId) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        subscriptionService.subscribeCategory(userId, categoryId);
+        subscriptionApplicationService.subscribeCategory(userId, categoryId);
         return Result.ok();
     }
 
     @DeleteMapping("/categories/{categoryId}/subscribe")
     public Result<Void> unsubscribeCategory(Authentication authentication, @PathVariable UUID categoryId) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        subscriptionService.unsubscribeCategory(userId, categoryId);
+        subscriptionApplicationService.unsubscribeCategory(userId, categoryId);
         return Result.ok();
     }
 
     @GetMapping("/subscriptions/categories")
     public Result<List<UUID>> myCategories(Authentication authentication) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(subscriptionService.listSubscribedCategoryIds(userId));
+        return Result.ok(subscriptionApplicationService.listSubscribedCategoryIds(userId));
     }
 }

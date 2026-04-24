@@ -162,6 +162,10 @@ class DomainBoundaryArchTest {
             classes().should(notUseFacadeServiceNaming());
 
     @ArchTest
+    static final ArchRule production_code_must_not_use_legacy_entry_service_naming =
+            classes().should(notUseLegacyEntryServiceNaming());
+
+    @ArchTest
     static final ArchRule content_api_must_not_depend_on_content_legacy_transport_or_event_payloads =
             noClasses()
                     .that().resideInAnyPackage("..content.api..")
@@ -213,6 +217,21 @@ class DomainBoundaryArchTest {
                     events.add(SimpleConditionEvent.violated(
                             item,
                             item.getName() + " ends with FacadeService"
+                    ));
+                }
+            }
+        };
+    }
+
+    private static ArchCondition<JavaClass> notUseLegacyEntryServiceNaming() {
+        return new ArchCondition<>("not use CommandService or ActionService suffix") {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                if (item.getSimpleName().endsWith("CommandService")
+                        || item.getSimpleName().endsWith("ActionService")) {
+                    events.add(SimpleConditionEvent.violated(
+                            item,
+                            item.getName() + " uses legacy service entry naming"
                     ));
                 }
             }

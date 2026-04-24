@@ -10,7 +10,7 @@ import com.nowcoder.community.content.service.PostReadApplicationService;
 import com.nowcoder.community.user.api.model.UserProfileView;
 import com.nowcoder.community.user.service.AvatarService;
 import com.nowcoder.community.user.service.UserProfileApplicationService;
-import com.nowcoder.community.user.service.UserProfilePageView;
+import com.nowcoder.community.user.dto.UserProfilePageView;
 import com.nowcoder.community.user.service.UserReadApplicationService;
 import com.nowcoder.community.user.service.UserSocialProfileService;
 import org.junit.jupiter.api.Test;

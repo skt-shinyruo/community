@@ -33,9 +33,10 @@ class ImPolicySnapshotServiceTest {
     void userPoliciesShouldProjectOwnerDomainModerationViews() {
         UserModerationQueryApi moderationQueryApi = mock(UserModerationQueryApi.class);
         SocialBlockQueryApi blockQueryApi = mock(SocialBlockQueryApi.class);
-        Instant activeMuteUntil = Instant.parse("2026-04-24T08:15:30Z");
-        Instant activeBanUntil = Instant.parse("2026-04-24T09:15:30Z");
-        Instant expiredMuteUntil = Instant.parse("2026-04-22T08:15:30Z");
+        Instant now = Instant.now();
+        Instant activeMuteUntil = now.plusSeconds(300);
+        Instant activeBanUntil = now.plusSeconds(3600);
+        Instant expiredMuteUntil = now.minusSeconds(2 * 24 * 3600);
         when(moderationQueryApi.scanModerationStatesAfterId(null, 2)).thenReturn(List.of(
                 new UserModerationStateView(uuid(7), activeMuteUntil, null),
                 new UserModerationStateView(uuid(8), expiredMuteUntil, activeBanUntil)

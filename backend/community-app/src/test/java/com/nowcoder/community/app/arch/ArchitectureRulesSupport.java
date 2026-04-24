@@ -324,7 +324,7 @@ final class ArchitectureRulesSupport {
                     if (!originDomain.equals(domainOf(target))) {
                         continue;
                     }
-                    boolean sameDomainRawService = residesInLayer(target, Set.of("service"))
+                    boolean sameDomainRawService = target.getSimpleName().endsWith("Service")
                             && !target.getSimpleName().endsWith("ApplicationService");
                     boolean sameDomainUseCaseOrAppPackage = residesInLayer(target, Set.of("app"));
                     if (sameDomainRawService || sameDomainUseCaseOrAppPackage) {

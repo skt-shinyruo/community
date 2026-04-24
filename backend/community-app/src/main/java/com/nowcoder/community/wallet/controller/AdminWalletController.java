@@ -4,7 +4,7 @@ import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.wallet.dto.AdminFreezeWalletRequest;
 import com.nowcoder.community.wallet.dto.AdminReverseTxnRequest;
-import com.nowcoder.community.wallet.service.AdminWalletOpsService;
+import com.nowcoder.community.wallet.service.AdminWalletApplicationService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,23 +18,23 @@ import java.util.UUID;
 @RequestMapping("/api/wallet/admin")
 public class AdminWalletController {
 
-    private final AdminWalletOpsService adminWalletOpsService;
+    private final AdminWalletApplicationService adminWalletApplicationService;
 
-    public AdminWalletController(AdminWalletOpsService adminWalletOpsService) {
-        this.adminWalletOpsService = adminWalletOpsService;
+    public AdminWalletController(AdminWalletApplicationService adminWalletApplicationService) {
+        this.adminWalletApplicationService = adminWalletApplicationService;
     }
 
     @PostMapping("/freeze")
     public Result<Void> freeze(Authentication authentication, @RequestBody @Valid AdminFreezeWalletRequest request) {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
-        adminWalletOpsService.freezeWallet(actorUserId, request.getUserId(), request.getReason());
+        adminWalletApplicationService.freezeWallet(actorUserId, request.getUserId(), request.getReason());
         return Result.ok();
     }
 
     @PostMapping("/reverse")
     public Result<Void> reverse(Authentication authentication, @RequestBody @Valid AdminReverseTxnRequest request) {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
-        adminWalletOpsService.reverseTxn(actorUserId, request.getTxnRef(), request.getReason());
+        adminWalletApplicationService.reverseTxn(actorUserId, request.getTxnRef(), request.getReason());
         return Result.ok();
     }
 }

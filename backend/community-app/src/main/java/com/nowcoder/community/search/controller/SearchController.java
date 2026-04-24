@@ -2,7 +2,7 @@ package com.nowcoder.community.search.controller;
 
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.search.dto.SearchPostItem;
-import com.nowcoder.community.search.service.PostSearchService;
+import com.nowcoder.community.search.service.SearchApplicationService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -15,10 +15,10 @@ import java.util.UUID;
 @RequestMapping("/api/search")
 public class SearchController {
 
-    private final PostSearchService postSearchService;
+    private final SearchApplicationService searchApplicationService;
 
-    public SearchController(PostSearchService postSearchService) {
-        this.postSearchService = postSearchService;
+    public SearchController(SearchApplicationService searchApplicationService) {
+        this.searchApplicationService = searchApplicationService;
     }
 
     @GetMapping("/posts")
@@ -29,6 +29,6 @@ public class SearchController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        return Result.ok(postSearchService.search(keyword, categoryId, tag, page, size));
+        return Result.ok(searchApplicationService.searchPosts(keyword, categoryId, tag, page, size));
     }
 }

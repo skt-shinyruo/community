@@ -2,6 +2,7 @@ package com.nowcoder.community.content.event;
 
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.content.score.PostScoreQueue;
+import com.nowcoder.community.content.service.SocialInteractionProjectionApplicationService;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
@@ -19,7 +20,8 @@ class SocialInteractionProjectionListenerTest {
     @Test
     void postLikeEventsShouldEnqueueScoreRefresh() {
         PostScoreQueue queue = mock(PostScoreQueue.class);
-        SocialInteractionProjectionListener listener = new SocialInteractionProjectionListener(queue);
+        SocialInteractionProjectionListener listener =
+                new SocialInteractionProjectionListener(new SocialInteractionProjectionApplicationService(queue));
 
         UUID postId = uuid(123);
         LikePayload payload = new LikePayload();

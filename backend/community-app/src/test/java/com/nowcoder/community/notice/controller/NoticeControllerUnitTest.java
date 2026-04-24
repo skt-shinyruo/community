@@ -2,7 +2,7 @@ package com.nowcoder.community.notice.controller;
 
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.notice.dto.NoticeItemResponse;
-import com.nowcoder.community.notice.service.NoticeService;
+import com.nowcoder.community.notice.service.NoticeApplicationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,13 +26,13 @@ class NoticeControllerUnitTest {
     private static final UUID NOTICE_ID = UUID.fromString("00000000-0000-7000-8000-000000000421");
 
     @Mock
-    private NoticeService noticeService;
+    private NoticeApplicationService noticeApplicationService;
 
     private NoticeController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new NoticeController(noticeService);
+        controller = new NoticeController(noticeApplicationService);
     }
 
     @Test
@@ -41,13 +41,13 @@ class NoticeControllerUnitTest {
         NoticeItemResponse item = new NoticeItemResponse();
         item.setId(NOTICE_ID);
         item.setTopic("comment");
-        when(noticeService.listNoticeItems(userId, "comment", 0, 10)).thenReturn(List.of(item));
+        when(noticeApplicationService.listNoticeItems(userId, "comment", null, null)).thenReturn(List.of(item));
 
         Result<List<NoticeItemResponse>> result = controller.list(authentication(userId), "comment", null, null);
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).containsExactly(item);
-        verify(noticeService).listNoticeItems(userId, "comment", 0, 10);
+        verify(noticeApplicationService).listNoticeItems(userId, "comment", null, null);
     }
 
     private Authentication authentication(UUID userId) {

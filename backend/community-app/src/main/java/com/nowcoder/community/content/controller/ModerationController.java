@@ -2,11 +2,10 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.content.app.moderation.TakeModerationActionUseCase;
 import com.nowcoder.community.content.dto.ModerationActionResponse;
 import com.nowcoder.community.content.dto.ModerationActionRequest;
 import com.nowcoder.community.content.dto.ReportResponse;
-import com.nowcoder.community.content.service.ModerationService;
+import com.nowcoder.community.content.service.ModerationApplicationService;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
@@ -24,12 +23,10 @@ import java.util.UUID;
 @RequestMapping("/api/moderation")
 public class ModerationController {
 
-    private final ModerationService moderationService;
-    private final TakeModerationActionUseCase takeModerationActionUseCase;
+    private final ModerationApplicationService moderationApplicationService;
 
-    public ModerationController(ModerationService moderationService, TakeModerationActionUseCase takeModerationActionUseCase) {
-        this.moderationService = moderationService;
-        this.takeModerationActionUseCase = takeModerationActionUseCase;
+    public ModerationController(ModerationApplicationService moderationApplicationService) {
+        this.moderationApplicationService = moderationApplicationService;
     }
 
     @GetMapping("/reports")
@@ -40,21 +37,13 @@ public class ModerationController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        int p = page == null ? 0 : Math.max(0, page);
-        int s = size == null ? 20 : Math.min(100, Math.max(1, size));
-        return Result.ok(moderationService.listReportResponses(status, targetType, reporterId, p, s));
+        return Result.ok(moderationApplicationService.listReports(status, targetType, reporterId, page, size));
     }
 
     @PostMapping("/actions")
     public Result<UUID> action(Authentication authentication, @Valid @RequestBody ModerationActionRequest request) {
         UUID actorId = CurrentUser.requireUserUuid(authentication);
-        UUID id = takeModerationActionUseCase.takeAction(
-                actorId,
-                request.getReportId(),
-                request.getAction(),
-                request.getReason(),
-                request.getDurationSeconds()
-        );
+        UUID id = moderationApplicationService.takeAction(actorId, request);
         return Result.ok(id);
     }
 
@@ -64,8 +53,6 @@ public class ModerationController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        int p = page == null ? 0 : Math.max(0, page);
-        int s = size == null ? 20 : Math.min(100, Math.max(1, size));
-        return Result.ok(moderationService.listModerationActionResponses(actorId, p, s));
+        return Result.ok(moderationApplicationService.listActions(actorId, page, size));
     }
 }

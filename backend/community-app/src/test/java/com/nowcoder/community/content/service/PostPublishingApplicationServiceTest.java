@@ -24,7 +24,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -70,14 +69,11 @@ class PostPublishingApplicationServiceTest {
         when(idempotencyGuard.executeRequired(eq("content:create_post"), eq(userId), anyString(), eq(PostCreateResult.class), any()))
                 .thenAnswer(invocation -> invocation.<Supplier<PostCreateResult>>getArgument(4).get());
 
-        UUID createdPostId = service.createPost(userId, "idem-1", "<title>", "<content>", categoryId, List.of("java"));
-        PostCreateResult response = service.create(userId, "idem-2", "<title>", "<content>", categoryId, List.of("java"));
+        PostCreateResult response = service.create(userId, "idem-1", "<title>", "<content>", categoryId, List.of("java"));
 
         assertThat(response.postId()).isEqualTo(postId);
-        assertThat(createdPostId).isEqualTo(postId);
-        verify(createPostUseCase, times(2)).createPost(userId, "title", "content", categoryId, List.of("java"));
+        verify(createPostUseCase).createPost(userId, "title", "content", categoryId, List.of("java"));
         verify(idempotencyGuard).executeRequired(eq("content:create_post"), eq(userId), eq("idem-1"), eq(PostCreateResult.class), any());
-        verify(idempotencyGuard).executeRequired(eq("content:create_post"), eq(userId), eq("idem-2"), eq(PostCreateResult.class), any());
         assertThat(output.getAll())
                 .contains("community.category=business")
                 .contains("community.action=post_create")

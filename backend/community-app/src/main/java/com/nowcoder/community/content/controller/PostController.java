@@ -1,5 +1,10 @@
 package com.nowcoder.community.content.controller;
 
+import com.nowcoder.community.content.api.model.CommentView;
+import com.nowcoder.community.content.api.model.PostCreateResult;
+import com.nowcoder.community.content.api.model.PostDetailView;
+import com.nowcoder.community.content.api.model.PostSummaryView;
+import com.nowcoder.community.content.assembler.PostHttpResponseAssembler;
 import com.nowcoder.community.content.dto.CommentResponse;
 import com.nowcoder.community.content.dto.BatchPostSummaryRequest;
 import com.nowcoder.community.content.dto.CreateCommentRequest;
@@ -42,19 +47,22 @@ public class PostController {
     private final PostPublishingApplicationService postPublishingApplicationService;
     private final PostModerationApplicationService postModerationApplicationService;
     private final CommentApplicationService commentApplicationService;
+    private final PostHttpResponseAssembler responseAssembler;
 
     public PostController(
             PostReadApplicationService postReadApplicationService,
             CommentReadApplicationService commentReadApplicationService,
             PostPublishingApplicationService postPublishingApplicationService,
             PostModerationApplicationService postModerationApplicationService,
-            CommentApplicationService commentApplicationService
+            CommentApplicationService commentApplicationService,
+            PostHttpResponseAssembler responseAssembler
     ) {
         this.postReadApplicationService = postReadApplicationService;
         this.commentReadApplicationService = commentReadApplicationService;
         this.postPublishingApplicationService = postPublishingApplicationService;
         this.postModerationApplicationService = postModerationApplicationService;
         this.commentApplicationService = commentApplicationService;
+        this.responseAssembler = responseAssembler;
     }
 
     @GetMapping
@@ -68,7 +76,8 @@ public class PostController {
             @RequestParam(required = false) Integer size
     ) {
         UUID currentUserId = CurrentUser.tryUserUuid(authentication);
-        return Result.ok(postReadApplicationService.listPostSummaryResponses(currentUserId, order, categoryId, tag, subscribed, page, size));
+        List<PostSummaryView> posts = postReadApplicationService.listPosts(currentUserId, order, categoryId, tag, subscribed, page, size);
+        return Result.ok(responseAssembler.toPostSummaryResponses(posts));
     }
 
     @PostMapping
@@ -78,7 +87,7 @@ public class PostController {
             @Valid @RequestBody CreatePostRequest request
     ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        UUID postId = postPublishingApplicationService.createPost(
+        PostCreateResult createResult = postPublishingApplicationService.create(
                 userId,
                 idempotencyKey,
                 request.getTitle(),
@@ -86,19 +95,21 @@ public class PostController {
                 request.getCategoryId(),
                 request.getTags()
         );
-        return Result.ok(toCreatePostResponse(postId));
+        return Result.ok(responseAssembler.toCreatePostResponse(createResult));
     }
 
     @PostMapping("/batch-summary")
     public Result<List<PostSummaryResponse>> batchSummary(@Valid @RequestBody BatchPostSummaryRequest request) {
         List<UUID> postIds = request == null ? List.of() : request.getPostIds();
-        return Result.ok(postReadApplicationService.listPostSummaryResponsesByIds(postIds));
+        List<PostSummaryView> posts = postReadApplicationService.listPostsByIds(postIds);
+        return Result.ok(responseAssembler.toPostSummaryResponses(posts));
     }
 
     @GetMapping("/{postId}")
     public Result<PostDetailResponse> detail(Authentication authentication, @PathVariable UUID postId) {
         UUID currentUserId = CurrentUser.tryUserUuid(authentication);
-        return Result.ok(postReadApplicationService.getPostDetailResponse(currentUserId, postId));
+        PostDetailView detail = postReadApplicationService.getPostDetail(currentUserId, postId);
+        return Result.ok(responseAssembler.toPostDetailResponse(detail));
     }
 
     @GetMapping("/{postId}/comments")
@@ -107,7 +118,8 @@ public class PostController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        return Result.ok(commentReadApplicationService.commentResponses(postId, page, size));
+        List<CommentView> comments = commentReadApplicationService.comments(postId, page, size);
+        return Result.ok(responseAssembler.toCommentResponses(comments));
     }
 
     @PostMapping("/{postId}/comments")
@@ -162,7 +174,8 @@ public class PostController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        return Result.ok(commentReadApplicationService.replyResponses(postId, commentId, page, size));
+        List<CommentView> replies = commentReadApplicationService.replies(postId, commentId, page, size);
+        return Result.ok(responseAssembler.toCommentResponses(replies));
     }
 
     @PostMapping("/{postId}/top")
@@ -184,11 +197,5 @@ public class PostController {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
         postModerationApplicationService.delete(actorUserId, postId);
         return Result.ok();
-    }
-
-    private CreatePostResponse toCreatePostResponse(UUID postId) {
-        CreatePostResponse response = new CreatePostResponse();
-        response.setPostId(postId);
-        return response;
     }
 }

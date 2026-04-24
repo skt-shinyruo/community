@@ -8,8 +8,6 @@ import com.nowcoder.community.content.api.query.PostReadQueryApi;
 import com.nowcoder.community.content.assembler.PostDetailAssembler;
 import com.nowcoder.community.content.assembler.PostSummaryAssembler;
 import com.nowcoder.community.content.assembler.RecentUserCommentAssembler;
-import com.nowcoder.community.content.dto.PostDetailResponse;
-import com.nowcoder.community.content.dto.PostSummaryResponse;
 import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.like.LikeQueryService;
@@ -88,26 +86,6 @@ public class PostReadApplicationService implements PostReadQueryApi {
         return assembleSummaries(postService.listPostsByIds(postIds));
     }
 
-    public List<PostSummaryResponse> listPostSummaryResponses(
-            UUID currentUserId,
-            String order,
-            UUID categoryId,
-            String tag,
-            Boolean subscribed,
-            Integer page,
-            Integer size
-    ) {
-        return listPosts(currentUserId, order, categoryId, tag, subscribed, page, size).stream()
-                .map(this::toPostSummaryResponse)
-                .toList();
-    }
-
-    public List<PostSummaryResponse> listPostSummaryResponsesByIds(List<UUID> postIds) {
-        return listPostsByIds(postIds).stream()
-                .map(this::toPostSummaryResponse)
-                .toList();
-    }
-
     @Override
     public PostDetailView getPostDetail(UUID currentUserId, UUID postId) {
         DiscussPost post = postService.getById(postId);
@@ -116,10 +94,6 @@ public class PostReadApplicationService implements PostReadQueryApi {
         boolean liked = likeQueryService.hasLikedPost(currentUserId, postId);
         boolean bookmarked = currentUserId != null && bookmarkService.hasBookmarked(currentUserId, postId);
         return postDetailAssembler.assemble(post, tags, likeCount, liked, bookmarked);
-    }
-
-    public PostDetailResponse getPostDetailResponse(UUID currentUserId, UUID postId) {
-        return toPostDetailResponse(getPostDetail(currentUserId, postId));
     }
 
     @Override
@@ -170,45 +144,5 @@ public class PostReadApplicationService implements PostReadQueryApi {
         } catch (BusinessException ex) {
             return null;
         }
-    }
-
-    private PostSummaryResponse toPostSummaryResponse(PostSummaryView view) {
-        PostSummaryResponse response = new PostSummaryResponse();
-        response.setId(view.id());
-        response.setUserId(view.userId());
-        response.setTitle(view.title());
-        response.setType(view.type());
-        response.setStatus(view.status());
-        response.setCreateTime(view.createTime());
-        response.setCommentCount(view.commentCount());
-        response.setScore(view.score());
-        response.setCategoryId(view.categoryId());
-        response.setTags(view.tags());
-        response.setLastReplyUserId(view.lastReplyUserId());
-        response.setLastReplyTime(view.lastReplyTime());
-        response.setLastActivityTime(view.lastActivityTime());
-        response.setLastReplyPreview(view.lastReplyPreview());
-        return response;
-    }
-
-    private PostDetailResponse toPostDetailResponse(PostDetailView view) {
-        PostDetailResponse response = new PostDetailResponse();
-        response.setId(view.id());
-        response.setUserId(view.userId());
-        response.setTitle(view.title());
-        response.setContent(view.content());
-        response.setType(view.type());
-        response.setStatus(view.status());
-        response.setCreateTime(view.createTime());
-        response.setUpdateTime(view.updateTime());
-        response.setEditCount(view.editCount());
-        response.setCommentCount(view.commentCount());
-        response.setScore(view.score());
-        response.setCategoryId(view.categoryId());
-        response.setTags(view.tags());
-        response.setLikeCount(view.likeCount());
-        response.setLiked(view.liked());
-        response.setBookmarked(view.bookmarked());
-        return response;
     }
 }

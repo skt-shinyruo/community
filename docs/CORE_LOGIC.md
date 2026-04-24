@@ -123,10 +123,11 @@
 - `events.outbox.enabled: true`
 - `http.idempotency.enabled: true`
 
-这意味着主站的写链路通常会分成两段：
+这意味着主站的写链路不是“打开 outbox 后所有副作用都入箱”，而是按业务语义分成几类：
 
-1. 同步段：校验、鉴权、幂等、主存储写入、领域事件发布
-2. 异步段：搜索、通知、积分、任务进度等投影通过 outbox 重试执行
+1. 同步段：校验、鉴权、幂等、主存储写入，以及必须在当前用例内完成的本地编排
+2. outbox 投影：当前发帖相关真正入箱的是搜索投影，由 `PostOutboxEnqueuer` 写入 outbox，再由 worker 重试消费
+3. best-effort 投影：通知仍是本地 `AFTER_COMMIT` listener，失败只记录 warn，不自动重试
 
 ### 2.6 IM 是独立双服务模型
 
@@ -155,7 +156,7 @@ IM 不是 `community-app` 里的普通一个包，而是一个单独的子系统
 5. 领域服务写 MyBatis mapper，只有少数多后端场景才抽 repository
 6. 事务内发布领域事件
 7. 事件桥接成 `contracts.event`
-8. outbox / projection 把变化扩散到搜索、通知、积分等下游
+8. 本地编排、`AFTER_COMMIT` listener、outbox projection 按各自语义把变化扩散到搜索、通知、积分等下游
 
 关键代码锚点：
 
@@ -199,6 +200,8 @@ IM 不是 `community-app` 里的普通一个包，而是一个单独的子系统
    - 分类存在性校验
    - `DiscussPost` 落库
    - tag 绑定
+   - 同步发放发帖积分
+   - 同步触发发帖任务进度
    - 发布帖子领域事件
    - 安排分数刷新副作用
 
@@ -209,6 +212,8 @@ IM 不是 `community-app` 里的普通一个包，而是一个单独的子系统
 - `backend/community-common/common-idempotency/src/main/java/com/nowcoder/community/common/idempotency/IdempotencyGuard.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/content/app/post/CreatePostUseCase.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/api/action/UserPointsAwardActionApi.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/api/action/GrowthTaskProgressActionApi.java`
 
 这里要特别注意两件事：
 
@@ -217,7 +222,7 @@ IM 不是 `community-app` 里的普通一个包，而是一个单独的子系统
 
 ### 4.2 从领域事件到事件契约
 
-`CreatePostUseCase` 不会直接去调搜索、通知、积分服务。它只做一件更稳定的事：发布领域事件。
+`CreatePostUseCase` 不会直接去调搜索或通知服务。积分和任务进度已经属于发帖写用例内的本地同步编排；需要异步扩散的帖子状态变化，则通过领域事件继续对外发布。
 
 关键文件：
 
@@ -240,46 +245,49 @@ IM 不是 `community-app` 里的普通一个包，而是一个单独的子系统
 
 明确拆开了。
 
-### 4.3 默认的下游扩散：outbox
+### 4.3 搜索投影：outbox
 
-当前默认配置 `events.outbox.enabled=true`，所以发布 `ContentContractEvent` 后，常见下游不是直接执行，而是先入 outbox。
+当前默认配置 `events.outbox.enabled=true`，但这个开关不能理解成“通知、积分、任务进度都会默认走 outbox”。在当前 `community-app` 代码里，发帖事件真正 outbox 化的是搜索投影：
 
 关键文件：
 
 - 入箱：
   - `backend/community-app/src/main/java/com/nowcoder/community/search/event/PostOutboxEnqueuer.java`
-  - `backend/community-app/src/main/java/com/nowcoder/community/notice/event/NoticeOutboxEnqueuer.java`
-  - `backend/community-app/src/main/java/com/nowcoder/community/user/event/PointsOutboxEnqueuer.java`
-  - `backend/community-app/src/main/java/com/nowcoder/community/growth/event/TaskProgressOutboxEnqueuer.java`
 - 调度与分发：
   - `backend/community-common/common-outbox/src/main/java/com/nowcoder/community/common/outbox/OutboxWorkerScheduler.java`
   - `backend/community-common/common-outbox/src/main/java/com/nowcoder/community/common/outbox/OutboxWorker.java`
 - 真正消费：
   - `backend/community-app/src/main/java/com/nowcoder/community/search/event/PostOutboxHandler.java`
-  - `backend/community-app/src/main/java/com/nowcoder/community/notice/event/NoticeOutboxHandler.java`
-  - `backend/community-app/src/main/java/com/nowcoder/community/user/event/PointsOutboxHandler.java`
-  - `backend/community-app/src/main/java/com/nowcoder/community/growth/event/TaskProgressOutboxHandler.java`
 
 要点不是“用了 outbox 很高级”，而是：
 
 - 入箱发生在同一事务里，避免“主数据提交了，但下游完全不知道”
-- 真正投影由 worker 轮询执行，失败可重试
-- handler 必须按至少一次投递去设计
+- 搜索投影由 worker 轮询执行，失败可重试
+- 搜索 handler 必须按至少一次投递去设计
 
-### 4.4 关闭 outbox 时会怎样
+同时，旧的通知 / 积分 / 任务进度 outbox adapter 已经退役，测试会断言它们不在 classpath：
 
-如果 `events.outbox.enabled=false`，项目会退回到本地 `AFTER_COMMIT` 监听器做 best-effort 投影。
+- `backend/community-app/src/test/java/com/nowcoder/community/event/EventDeliverySurfaceRetirementTest.java`
 
-关键文件：
+### 4.4 非 outbox 下游现在怎么走
 
-- `backend/community-app/src/main/java/com/nowcoder/community/search/event/PostProjectionListener.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/user/event/PointsProjectionListener.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/event/TaskProgressProjectionListener.java`
+通知仍由本地事务事件监听器处理：
+
+- `backend/community-app/src/main/java/com/nowcoder/community/notice/event/NoticeProjectionListener.java`
+
+它在 `AFTER_COMMIT` 阶段投影通知，异常只记录 warn，不会回滚主事务，也没有 outbox 重试。
+
+积分和任务进度不再通过事件 listener / outbox adapter 补投影，而是在发帖用例内同步调用 owner-domain action API：
+
+- `backend/community-app/src/main/java/com/nowcoder/community/user/api/action/UserPointsAwardActionApi.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/api/action/GrowthTaskProgressActionApi.java`
+
+因此，`events.outbox.enabled=false` 现在不会退回到旧的 `PostProjectionListener`、`PointsProjectionListener`、`TaskProgressProjectionListener` 路径；这些事件适配器已经被测试明确要求退役。
 
 所以初学者要形成一个稳定认知：
 
 - **主链路成功** 和 **所有投影都完成** 不是一个时刻
-- 这正是项目采用“同步写主数据 + 异步补投影”模型的原因
+- `events.outbox.enabled=true` 只说明 outbox 基础设施和受该开关控制的 adapter 会启用，不代表所有下游副作用都具备 outbox 重试语义
 
 ---
 

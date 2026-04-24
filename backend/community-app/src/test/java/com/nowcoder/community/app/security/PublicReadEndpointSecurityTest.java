@@ -1,6 +1,6 @@
 package com.nowcoder.community.app.security;
 
-import com.nowcoder.community.content.dto.PostSummaryResponse;
+import com.nowcoder.community.content.api.model.PostSummaryView;
 import com.nowcoder.community.content.service.BookmarkApplicationService;
 import com.nowcoder.community.content.service.CommentApplicationService;
 import com.nowcoder.community.content.service.CommentReadApplicationService;
@@ -82,7 +82,7 @@ class PublicReadEndpointSecurityTest {
 
     @Test
     void unauthenticatedBatchPostSummaryShouldBeAllowed() throws Exception {
-        when(postReadApplicationService.listPostSummaryResponsesByIds(anyList())).thenReturn(List.<PostSummaryResponse>of());
+        when(postReadApplicationService.listPostsByIds(anyList())).thenReturn(List.<PostSummaryView>of());
 
         mockMvc.perform(post("/api/posts/batch-summary")
                         .contentType(MediaType.APPLICATION_JSON)

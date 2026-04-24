@@ -1,9 +1,9 @@
 package com.nowcoder.community.social.service;
 
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
+import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.block.BlockService;
 import com.nowcoder.community.social.block.InMemoryBlockRepository;
 import com.nowcoder.community.social.contracts.event.BlockPayload;

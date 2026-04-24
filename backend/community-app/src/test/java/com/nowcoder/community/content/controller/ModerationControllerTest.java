@@ -1,11 +1,10 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.content.app.moderation.TakeModerationActionUseCase;
 import com.nowcoder.community.content.dto.ModerationActionResponse;
 import com.nowcoder.community.content.dto.ModerationActionRequest;
 import com.nowcoder.community.content.dto.ReportResponse;
-import com.nowcoder.community.content.service.ModerationService;
+import com.nowcoder.community.content.service.ModerationApplicationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,52 +30,49 @@ class ModerationControllerTest {
     private static final UUID ACTION_ID = UUID.fromString("00000000-0000-7000-8000-000000000305");
 
     @Mock
-    private ModerationService moderationService;
-
-    @Mock
-    private TakeModerationActionUseCase takeModerationActionUseCase;
+    private ModerationApplicationService moderationApplicationService;
 
     private ModerationController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new ModerationController(moderationService, takeModerationActionUseCase);
+        controller = new ModerationController(moderationApplicationService);
     }
 
     @Test
-    void reportsShouldReturnServiceProjectedResponses() {
+    void reportsShouldReturnApplicationServiceProjectedResponses() {
         UUID reporterId = uuid(7);
         ReportResponse response = new ReportResponse();
         response.setId(REPORT_ID);
         response.setReason("spam");
         response.setCreateTime(new Date());
-        when(moderationService.listReportResponses(0, 1, reporterId, 0, 20)).thenReturn(List.of(response));
+        when(moderationApplicationService.listReports(0, 1, reporterId, null, null)).thenReturn(List.of(response));
 
         Result<List<ReportResponse>> result = controller.reports(0, 1, reporterId, null, null);
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).containsExactly(response);
-        verify(moderationService).listReportResponses(0, 1, reporterId, 0, 20);
+        verify(moderationApplicationService).listReports(0, 1, reporterId, null, null);
     }
 
     @Test
-    void actionsShouldReturnServiceProjectedResponses() {
+    void actionsShouldReturnApplicationServiceProjectedResponses() {
         UUID actorId = uuid(99);
         ModerationActionResponse response = new ModerationActionResponse();
         response.setId(ACTION_ID);
         response.setAction("ban");
         response.setCreateTime(new Date());
-        when(moderationService.listModerationActionResponses(actorId, 0, 20)).thenReturn(List.of(response));
+        when(moderationApplicationService.listActions(actorId, null, null)).thenReturn(List.of(response));
 
         Result<List<ModerationActionResponse>> result = controller.actions(actorId, null, null);
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).containsExactly(response);
-        verify(moderationService).listModerationActionResponses(actorId, 0, 20);
+        verify(moderationApplicationService).listActions(actorId, null, null);
     }
 
     @Test
-    void actionShouldDelegateToDedicatedUseCase() {
+    void actionShouldDelegateToModerationApplicationService() {
         UUID actorId = uuid(42);
         Authentication authentication = authentication(actorId);
         ModerationActionRequest request = new ModerationActionRequest();
@@ -84,13 +80,13 @@ class ModerationControllerTest {
         request.setAction("ban");
         request.setReason("abuse");
         request.setDurationSeconds(3600);
-        when(takeModerationActionUseCase.takeAction(actorId, REPORT_ID, "ban", "abuse", 3600)).thenReturn(ACTION_ID);
+        when(moderationApplicationService.takeAction(actorId, request)).thenReturn(ACTION_ID);
 
         Result<UUID> result = controller.action(authentication, request);
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).isEqualTo(ACTION_ID);
-        verify(takeModerationActionUseCase).takeAction(actorId, REPORT_ID, "ban", "abuse", 3600);
+        verify(moderationApplicationService).takeAction(actorId, request);
     }
 
     private Authentication authentication(UUID userId) {

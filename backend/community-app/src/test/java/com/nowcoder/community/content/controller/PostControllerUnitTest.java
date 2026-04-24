@@ -1,6 +1,11 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.content.assembler.PostHttpResponseAssembler;
+import com.nowcoder.community.content.api.model.CommentView;
+import com.nowcoder.community.content.api.model.PostCreateResult;
+import com.nowcoder.community.content.api.model.PostDetailView;
+import com.nowcoder.community.content.api.model.PostSummaryView;
 import com.nowcoder.community.content.dto.BatchPostSummaryRequest;
 import com.nowcoder.community.content.dto.CommentResponse;
 import com.nowcoder.community.content.dto.CreateCommentRequest;
@@ -32,6 +37,7 @@ import java.util.UUID;
 import static com.nowcoder.community.common.idempotency.IdempotencyGuard.HEADER_IDEMPOTENCY_KEY;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -53,6 +59,9 @@ class PostControllerUnitTest {
     @Mock
     private CommentApplicationService commentApplicationService;
 
+    @Mock
+    private PostHttpResponseAssembler responseAssembler;
+
     private PostController controller;
 
     @BeforeEach
@@ -62,7 +71,8 @@ class PostControllerUnitTest {
                 commentReadApplicationService,
                 postPublishingApplicationService,
                 postModerationApplicationService,
-                commentApplicationService
+                commentApplicationService,
+                responseAssembler
         );
     }
 
@@ -71,61 +81,93 @@ class PostControllerUnitTest {
         UUID userId = uuid(7);
         UUID postId = uuid(11);
         UUID categoryId = uuid(3);
+        PostCreateResult createResult = new PostCreateResult(postId);
+        CreatePostResponse createPostResponse = new CreatePostResponse();
+        createPostResponse.setPostId(postId);
         CreatePostRequest request = new CreatePostRequest();
         request.setTitle("title");
         request.setContent("content");
         request.setCategoryId(categoryId);
         request.setTags(List.of("java"));
-        when(postPublishingApplicationService.createPost(userId, "idem-1", "title", "content", categoryId, List.of("java")))
-                .thenReturn(postId);
+        when(postPublishingApplicationService.create(userId, "idem-1", "title", "content", categoryId, List.of("java")))
+                .thenReturn(createResult);
+        when(responseAssembler.toCreatePostResponse(createResult)).thenReturn(createPostResponse);
 
         Result<CreatePostResponse> result = controller.create(authentication(userId), "idem-1", request);
 
         assertThat(result.getCode()).isEqualTo(0);
-        assertThat(result.getData()).isNotNull();
-        assertThat(result.getData().getPostId()).isEqualTo(postId);
-        verify(postPublishingApplicationService).createPost(userId, "idem-1", "title", "content", categoryId, List.of("java"));
+        assertThat(result.getData()).isSameAs(createPostResponse);
+        verify(postPublishingApplicationService).create(userId, "idem-1", "title", "content", categoryId, List.of("java"));
+        verify(responseAssembler).toCreatePostResponse(createResult);
     }
 
     @Test
-    void listAndBatchSummaryShouldReturnDtoResponsesFromReadApplicationService() {
+    void listAndBatchSummaryShouldReturnDtoResponsesFromControllerMapper() {
         UUID userId = uuid(7);
         UUID postId = uuid(11);
         UUID secondPostId = uuid(12);
         UUID categoryId = uuid(3);
         Date createTime = new Date();
+        PostSummaryView firstView = postSummaryView(postId, userId, categoryId, createTime, "first");
+        PostSummaryView secondView = postSummaryView(secondPostId, userId, categoryId, createTime, "second");
         PostSummaryResponse first = postSummary(postId, userId, categoryId, createTime, "first");
         PostSummaryResponse second = postSummary(secondPostId, userId, categoryId, createTime, "second");
         BatchPostSummaryRequest request = new BatchPostSummaryRequest();
         request.setPostIds(List.of(postId, secondPostId));
-        when(postReadApplicationService.listPostSummaryResponses(userId, "latest", categoryId, "java", false, 0, 10))
-                .thenReturn(List.of(first));
-        when(postReadApplicationService.listPostSummaryResponsesByIds(List.of(postId, secondPostId)))
-                .thenReturn(List.of(first, second));
+        when(postReadApplicationService.listPosts(userId, "latest", categoryId, "java", false, 0, 10))
+                .thenReturn(List.of(firstView));
+        when(postReadApplicationService.listPostsByIds(List.of(postId, secondPostId)))
+                .thenReturn(List.of(firstView, secondView));
+        when(responseAssembler.toPostSummaryResponses(List.of(firstView))).thenReturn(List.of(first));
+        when(responseAssembler.toPostSummaryResponses(List.of(firstView, secondView))).thenReturn(List.of(first, second));
 
         Result<List<PostSummaryResponse>> listResult = controller.list(authentication(userId), "latest", categoryId, "java", false, 0, 10);
         Result<List<PostSummaryResponse>> batchResult = controller.batchSummary(request);
 
         assertThat(listResult.getData()).containsExactly(first);
         assertThat(batchResult.getData()).containsExactly(first, second);
-        verify(postReadApplicationService).listPostSummaryResponses(userId, "latest", categoryId, "java", false, 0, 10);
-        verify(postReadApplicationService).listPostSummaryResponsesByIds(List.of(postId, secondPostId));
+        verify(postReadApplicationService).listPosts(userId, "latest", categoryId, "java", false, 0, 10);
+        verify(postReadApplicationService).listPostsByIds(List.of(postId, secondPostId));
+        verify(responseAssembler).toPostSummaryResponses(List.of(firstView));
+        verify(responseAssembler).toPostSummaryResponses(List.of(firstView, secondView));
     }
 
     @Test
-    void detailCommentsAndRepliesShouldUseApplicationServicesReturningHttpDtos() {
+    void detailCommentsAndRepliesShouldUseApplicationServicesReturningOwnerViews() {
         UUID actorUserId = uuid(7);
         UUID postId = uuid(11);
         UUID commentId = uuid(21);
+        UUID categoryId = uuid(3);
+        PostDetailView detailView = new PostDetailView(
+                postId,
+                actorUserId,
+                "detail",
+                "body",
+                0,
+                0,
+                new Date(),
+                null,
+                0,
+                1,
+                10.0,
+                categoryId,
+                List.of("java"),
+                3L,
+                false,
+                false
+        );
         PostDetailResponse detail = new PostDetailResponse();
         detail.setId(postId);
         detail.setTitle("detail");
+        CommentView commentView = new CommentView(commentId, actorUserId, 1, postId, null, "comment", new Date(), null, 0);
         CommentResponse comment = new CommentResponse();
         comment.setId(commentId);
         comment.setContent("comment");
-        when(postReadApplicationService.getPostDetailResponse(actorUserId, postId)).thenReturn(detail);
-        when(commentReadApplicationService.commentResponses(postId, 0, 10)).thenReturn(List.of(comment));
-        when(commentReadApplicationService.replyResponses(postId, commentId, 0, 10)).thenReturn(List.of(comment));
+        when(postReadApplicationService.getPostDetail(actorUserId, postId)).thenReturn(detailView);
+        when(commentReadApplicationService.comments(postId, 0, 10)).thenReturn(List.of(commentView));
+        when(commentReadApplicationService.replies(postId, commentId, 0, 10)).thenReturn(List.of(commentView));
+        when(responseAssembler.toPostDetailResponse(detailView)).thenReturn(detail);
+        when(responseAssembler.toCommentResponses(List.of(commentView))).thenReturn(List.of(comment));
 
         Result<PostDetailResponse> detailResult = controller.detail(authentication(actorUserId), postId);
         Result<List<CommentResponse>> commentsResult = controller.comments(postId, 0, 10);
@@ -134,9 +176,11 @@ class PostControllerUnitTest {
         assertThat(detailResult.getData()).isSameAs(detail);
         assertThat(commentsResult.getData()).containsExactly(comment);
         assertThat(repliesResult.getData()).containsExactly(comment);
-        verify(postReadApplicationService).getPostDetailResponse(actorUserId, postId);
-        verify(commentReadApplicationService).commentResponses(postId, 0, 10);
-        verify(commentReadApplicationService).replyResponses(postId, commentId, 0, 10);
+        verify(postReadApplicationService).getPostDetail(actorUserId, postId);
+        verify(commentReadApplicationService).comments(postId, 0, 10);
+        verify(commentReadApplicationService).replies(postId, commentId, 0, 10);
+        verify(responseAssembler).toPostDetailResponse(detailView);
+        verify(responseAssembler, times(2)).toCommentResponses(List.of(commentView));
     }
 
     @Test
@@ -194,6 +238,25 @@ class PostControllerUnitTest {
         response.setTitle(title);
         response.setTags(List.of("java"));
         return response;
+    }
+
+    private static PostSummaryView postSummaryView(UUID postId, UUID userId, UUID categoryId, Date createTime, String title) {
+        return new PostSummaryView(
+                postId,
+                userId,
+                title,
+                0,
+                0,
+                createTime,
+                1,
+                10.0,
+                categoryId,
+                List.of("java"),
+                null,
+                null,
+                createTime,
+                null
+        );
     }
 
     private static Authentication authentication(UUID userId) {

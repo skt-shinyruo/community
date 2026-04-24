@@ -307,4 +307,31 @@ final class ArchitectureRulesSupport {
             }
         };
     }
+
+    static ArchCondition<JavaClass> notDependOnSameDomainServicesExceptApplicationServices(Set<String> legacyOriginWhitelist) {
+        return new ArchCondition<>("not depend on same-domain non-ApplicationService services or app packages") {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                if (isWhitelisted(item, legacyOriginWhitelist)) {
+                    return;
+                }
+                String originDomain = domainOf(item);
+                if (originDomain.isEmpty()) {
+                    return;
+                }
+                for (Dependency dependency : item.getDirectDependenciesFromSelf()) {
+                    JavaClass target = dependency.getTargetClass();
+                    if (!originDomain.equals(domainOf(target))) {
+                        continue;
+                    }
+                    boolean sameDomainRawService = residesInLayer(target, Set.of("service"))
+                            && !target.getSimpleName().endsWith("ApplicationService");
+                    boolean sameDomainUseCaseOrAppPackage = residesInLayer(target, Set.of("app"));
+                    if (sameDomainRawService || sameDomainUseCaseOrAppPackage) {
+                        events.add(SimpleConditionEvent.violated(item, dependency.getDescription()));
+                    }
+                }
+            }
+        };
+    }
 }

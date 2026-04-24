@@ -53,10 +53,6 @@ public class PostPublishingApplicationService implements PostPublishingActionApi
         });
     }
 
-    public UUID createPost(UUID userId, String idempotencyKey, String title, String content, UUID categoryId, List<String> tags) {
-        return create(userId, idempotencyKey, title, content, categoryId, tags).postId();
-    }
-
     @Override
     public void updatePost(UUID userId, UUID postId, String title, String content, UUID categoryId, List<String> tags) {
         String safeTitle = sanitize(title);

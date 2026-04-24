@@ -8,8 +8,6 @@ import com.nowcoder.community.content.assembler.PostDetailAssembler;
 import com.nowcoder.community.content.assembler.PostSummaryAssembler;
 import com.nowcoder.community.content.assembler.RecentUserCommentAssembler;
 import com.nowcoder.community.content.config.ContentRenderProperties;
-import com.nowcoder.community.content.dto.PostDetailResponse;
-import com.nowcoder.community.content.dto.PostSummaryResponse;
 import com.nowcoder.community.content.entity.Comment;
 import com.nowcoder.community.content.entity.DiscussPost;
 import com.nowcoder.community.content.exception.ContentErrorCode;
@@ -30,7 +28,7 @@ import static org.mockito.Mockito.when;
 class PostReadApplicationServiceTest {
 
     @Test
-    void listPostSummaryResponsesShouldAssemblePostSummariesOutsideController() {
+    void listPostsShouldAssemblePostSummariesWithoutHttpDtoProjection() {
         PostService postService = mock(PostService.class);
         CommentService commentService = mock(CommentService.class);
         LikeQueryService likeQueryService = mock(LikeQueryService.class);
@@ -70,19 +68,17 @@ class PostReadApplicationServiceTest {
         );
 
         List<PostSummaryView> views = service.listPosts(null, "latest", null, null, false, 0, 10);
-        List<PostSummaryResponse> responses = service.listPostSummaryResponses(null, "latest", null, null, false, 0, 10);
 
         assertThat(views).hasSize(1);
-        assertThat(responses).hasSize(1);
-        assertThat(responses.get(0).getId()).isEqualTo(postId);
-        assertThat(responses.get(0).getTitle()).isEqualTo("<title>");
-        assertThat(responses.get(0).getTags()).containsExactly("java");
-        assertThat(responses.get(0).getLastActivityTime()).isEqualTo(lastActivity.getCreateTime());
-        assertThat(responses.get(0).getLastReplyPreview()).isEqualTo("<latest reply>");
+        assertThat(views.get(0).id()).isEqualTo(postId);
+        assertThat(views.get(0).title()).isEqualTo("<title>");
+        assertThat(views.get(0).tags()).containsExactly("java");
+        assertThat(views.get(0).lastActivityTime()).isEqualTo(lastActivity.getCreateTime());
+        assertThat(views.get(0).lastReplyPreview()).isEqualTo("<latest reply>");
     }
 
     @Test
-    void getPostDetailResponseShouldAssembleTagsLikesAndBookmarkState() {
+    void getPostDetailShouldAssembleTagsLikesAndBookmarkStateWithoutHttpDtoProjection() {
         PostService postService = mock(PostService.class);
         CommentService commentService = mock(CommentService.class);
         LikeQueryService likeQueryService = mock(LikeQueryService.class);
@@ -127,16 +123,14 @@ class PostReadApplicationServiceTest {
         );
 
         PostDetailView detail = service.getPostDetail(currentUserId, postId);
-        PostDetailResponse response = service.getPostDetailResponse(currentUserId, postId);
 
         assertThat(detail.id()).isEqualTo(postId);
-        assertThat(response.getId()).isEqualTo(postId);
-        assertThat(response.getTitle()).isEqualTo("<title>");
-        assertThat(response.getContent()).isEqualTo("<body>");
-        assertThat(response.getTags()).containsExactly("java", "spring");
-        assertThat(response.getLikeCount()).isEqualTo(9L);
-        assertThat(response.isLiked()).isTrue();
-        assertThat(response.isBookmarked()).isTrue();
+        assertThat(detail.title()).isEqualTo("<title>");
+        assertThat(detail.content()).isEqualTo("<body>");
+        assertThat(detail.tags()).containsExactly("java", "spring");
+        assertThat(detail.likeCount()).isEqualTo(9L);
+        assertThat(detail.liked()).isTrue();
+        assertThat(detail.bookmarked()).isTrue();
     }
 
     @Test
@@ -325,7 +319,7 @@ class PostReadApplicationServiceTest {
     }
 
     @Test
-    void listPostSummaryResponsesByIdsShouldPreserveRequestedOrder() {
+    void listPostsByIdsShouldPreserveRequestedOrderWithoutHttpDtoProjection() {
         PostService postService = mock(PostService.class);
         CommentService commentService = mock(CommentService.class);
         LikeQueryService likeQueryService = mock(LikeQueryService.class);
@@ -372,13 +366,13 @@ class PostReadApplicationServiceTest {
                 new RecentUserCommentAssembler(textCodec())
         );
 
-        List<PostSummaryResponse> items = service.listPostSummaryResponsesByIds(requestedPostIds);
+        List<PostSummaryView> items = service.listPostsByIds(requestedPostIds);
 
         assertThat(items).hasSize(2);
-        assertThat(items).extracting(PostSummaryResponse::getId).containsExactly(firstPostId, secondPostId);
-        assertThat(items.get(0).getUserId()).isEqualTo(firstAuthorId);
-        assertThat(items.get(0).getLastReplyUserId()).isEqualTo(lastReplyUserId);
-        assertThat(items.get(1).getUserId()).isEqualTo(secondAuthorId);
+        assertThat(items).extracting(PostSummaryView::id).containsExactly(firstPostId, secondPostId);
+        assertThat(items.get(0).userId()).isEqualTo(firstAuthorId);
+        assertThat(items.get(0).lastReplyUserId()).isEqualTo(lastReplyUserId);
+        assertThat(items.get(1).userId()).isEqualTo(secondAuthorId);
     }
 
     private static ContentTextCodec textCodec() {

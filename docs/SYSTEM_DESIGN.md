@@ -13,6 +13,20 @@
 - `community-app` 仍是主业务 owner，承接主站 `/api/**`、`/files/**`、`/api/ops/**`
 - `community-gateway` 负责入口级路由、CORS、traceId、HTTP/WS 边缘策略
 - `community-app` 负责业务鉴权矩阵、OriginGuard、审计、统一错误协议
+- same-domain HTTP 入口默认经 owner `*ApplicationService` 编排；`controller` 不再作为 `..app..` use case 或 raw `service` 的直接拼装层
+
+`content` phase 1 的额外治理规则：
+- `content.controller..` 不直接依赖 `..content.app..`
+- `content.controller..` 不直接依赖 same-domain `..content.service..` 中不以 `ApplicationService` 结尾的类型
+- foreign-domain 调用仍继续使用 `content.api.query` / `content.api.action`
+- 临时白名单仅保留：
+  - `CategoryController`
+  - `SubscriptionController`
+  - `TagController`
+- 保留原因：
+  - 这三个入口当前都只承接单一、低复杂度的 same-domain 用例
+  - 在它们真正出现第二个用例、跨域编排或页面聚合需求前，不为了命名统一再造薄壳
+- 退出规则：控制器迁移到 owner `ApplicationService` 后，必须在同一变更里从白名单删除
 
 边界与弃用窗口（SSOT）：
 - External（对外业务）：`/api/**`

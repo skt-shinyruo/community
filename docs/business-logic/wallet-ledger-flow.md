@@ -27,7 +27,7 @@
 - `RechargeService` / `WithdrawService` / `TransferService`：三条用户资金链路
 - `AdminWalletOpsService`：管理员冻结与冲正
 - `WalletRewardService`：奖励 / 积分投影写入钱包
-- `WalletMarketActionService`：市场托管、放款、退款写入钱包
+- `WalletMarketApplicationService`：市场托管、放款、退款写入钱包
 - MySQL：
   - `wallet_account`
   - `wallet_txn`
@@ -304,7 +304,7 @@
 
 ### 8.2 市场托管 / 放款 / 退款
 
-`WalletMarketActionService` 是 `market` 域进入钱包的边界：
+`WalletMarketApplicationService` 是 `market` 域进入钱包的边界：
 
 - 托管：
   - `USER_WALLET:buyer -> ORDER_ESCROW`
@@ -367,7 +367,7 @@
 7. `backend/community-app/src/main/java/com/nowcoder/community/wallet/service/TransferService.java`
 8. `backend/community-app/src/main/java/com/nowcoder/community/wallet/service/AdminWalletOpsService.java`
 9. `backend/community-app/src/main/java/com/nowcoder/community/wallet/service/WalletRewardService.java`
-10. `backend/community-app/src/main/java/com/nowcoder/community/wallet/service/WalletMarketActionService.java`
+10. `backend/community-app/src/main/java/com/nowcoder/community/wallet/service/WalletMarketApplicationService.java`
 
 ---
 

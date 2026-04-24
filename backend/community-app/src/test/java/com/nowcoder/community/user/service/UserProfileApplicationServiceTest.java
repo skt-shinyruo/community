@@ -6,6 +6,7 @@ import com.nowcoder.community.content.api.query.PostReadQueryApi;
 import com.nowcoder.community.growth.api.model.UserLevelSummaryView;
 import com.nowcoder.community.growth.api.query.UserLevelQueryApi;
 import com.nowcoder.community.user.api.model.UserProfileView;
+import com.nowcoder.community.user.dto.UserProfilePageView;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;

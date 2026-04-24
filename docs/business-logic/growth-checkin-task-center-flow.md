@@ -19,7 +19,7 @@
 - 任务模板 `task_template`
 - 任务进度 `user_task_progress`
 - 任务事件去重日志 `user_task_event_log`
-- 奖励发放记录 `reward_grant_record`
+- 历史奖励发放记录表 `reward_grant_record`
 - 用户等级规则 `user_level_rule_config`
 - 内容 / 社交 / growth 事件驱动的任务投影
 - 基于签到任务完成数的等级计算
@@ -70,7 +70,7 @@
 - `task_template`
 - `user_task_progress`
 - `user_task_event_log`
-- `reward_grant_record`
+- `reward_grant_record`（保留为历史表，不再作为在线 runtime 发奖入口）
 - `user_level_rule_config`
 
 对应 mapper / entity 也都还在：
@@ -82,7 +82,6 @@
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/mapper/TaskTemplateMapper.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/mapper/UserTaskProgressMapper.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/mapper/UserTaskEventLogMapper.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/mapper/RewardGrantRecordMapper.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/mapper/UserLevelRuleConfigMapper.java`
 
 ### 3.2 任务模板种子
@@ -243,12 +242,11 @@
 
 任务达标后仍会通过：
 
-- `UnifiedGrantService`
 - `WalletRewardActionApi`
 
-把奖励记到 `reward_grant_record`，再写入钱包奖励流水。
+把奖励直接写入钱包奖励流水。
 
-所以 growth 的“奖励会计底座”没有退休，只是“签到 / 任务中心产品面”没有在当前代码里暴露出来。
+所以 growth 当前保留的是“任务进度与钱包发奖底座”；`reward_grant_record` 表虽然还在 schema 里，但已经不是在线 runtime 的发奖入口。
 
 ## 7. 用户等级现在是什么状态
 
@@ -358,8 +356,8 @@
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/event/LocalGrowthEventPublisher.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/event/GrowthEventTypes.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/service/TaskProgressService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/TaskProgressProjectionService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/UnifiedGrantService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/TaskProgressApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/wallet/api/action/WalletRewardActionApi.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/service/UserLevelService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/user/service/UserProfileApplicationService.java`
 - `backend/community-app/src/test/resources/schema.sql`

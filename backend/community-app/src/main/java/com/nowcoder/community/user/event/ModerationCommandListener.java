@@ -3,8 +3,7 @@ package com.nowcoder.community.user.event;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.ModerationCommandPayload;
-import com.nowcoder.community.user.service.UserModerationService;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.nowcoder.community.user.service.UserModerationApplicationService;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -12,11 +11,10 @@ import org.springframework.transaction.event.TransactionalEventListener;
 @Component
 public class ModerationCommandListener {
 
-    private final UserModerationService userModerationService;
+    private final UserModerationApplicationService userModerationApplicationService;
 
-    @Autowired
-    public ModerationCommandListener(UserModerationService userModerationService) {
-        this.userModerationService = userModerationService;
+    public ModerationCommandListener(UserModerationApplicationService userModerationApplicationService) {
+        this.userModerationApplicationService = userModerationApplicationService;
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = false)
@@ -29,6 +27,6 @@ public class ModerationCommandListener {
         }
         String action = payload.getAction() == null ? "" : payload.getAction().trim();
         int durationSeconds = payload.getDurationSeconds() == null ? 0 : payload.getDurationSeconds();
-        userModerationService.applyModeration(payload.getUserId(), action, durationSeconds);
+        userModerationApplicationService.applyModeration(payload.getUserId(), action, durationSeconds);
     }
 }

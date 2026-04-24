@@ -11,6 +11,7 @@ import com.nowcoder.community.market.dto.MarketOrderDetailResponse;
 import com.nowcoder.community.market.dto.MarketOrderResponse;
 import com.nowcoder.community.market.exception.MarketErrorCode;
 import com.nowcoder.community.market.security.MarketSecurityRules;
+import com.nowcoder.community.market.service.MarketApplicationService;
 import com.nowcoder.community.market.service.MarketAddressService;
 import com.nowcoder.community.market.service.MarketDisputeService;
 import com.nowcoder.community.market.service.MarketInventoryService;
@@ -44,6 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(MarketController.class)
 @Import({
         MarketController.class,
+        MarketApplicationService.class,
         MarketSecurityRules.class,
         CommunitySecurityConfig.class,
         SecurityExceptionHandler.class,

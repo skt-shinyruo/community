@@ -109,12 +109,12 @@ flowchart TD
 - `com.nowcoder.community.im`：IM 治理校验入口（`/api/im-governance/private-messages/validate`）
 - `com.nowcoder.community.search`：搜索投影（ES）
 - `com.nowcoder.community.analytics`：统计/分析
-- `com.nowcoder.community.growth`：积分、任务进度、奖励等投影/记账能力；当前以内部投影与服务为主
+- `com.nowcoder.community.growth`：积分、任务进度、奖励等投影/记账能力；task-progress 写入口已收敛到 owner `TaskProgressApplicationService`，legacy reward/account runtime 已退休，`reward_account` / `reward_ledger` / `reward_grant_record` 仅保留为历史数据，在线余额事实来源统一落在 `wallet`
 - `com.nowcoder.community.market`：交易市场、地址簿、订单、争议处理
 - `com.nowcoder.community.wallet`：钱包账户汇总、充值/提现/转账与管理员冻结/冲正
 - `com.nowcoder.community.ops`：运维平面（`/api/ops/**`）
 
-跨域同步协作统一通过 owner-domain 暴露的 `api.query`、`api.action`、`api.model` 完成；跨域异步协作统一通过 owner-domain 暴露的 `contracts.event` 完成。`service`、`entity`、`mapper` 以及 producer 域的 `event` 实现包均视为域内实现细节，不再作为默认跨域入口。当前分支上的 `DomainBoundaryArchTest` 与 `ControllerBoundaryArchTest` 已默认绿色；notice/message 临时共享类型白名单已删除，其中同步边界采用 allowlist 规则，遗留的非协作面依赖通过精确类名 migration baseline 冻结，后续只允许收缩不允许扩散。
+跨域同步协作统一通过 owner-domain 暴露的 `api.query`、`api.action`、`api.model` 完成；跨域异步协作统一通过 owner-domain 暴露的 `contracts.event` 完成。`service`、`entity`、`mapper` 以及 producer 域的 `event` 实现包均视为域内实现细节，不再作为默认跨域入口。当前分支上的 `DomainBoundaryArchTest`、`ControllerBoundaryArchTest` 与 `ListenerBoundaryArchTest` 已默认绿色；notice/message 临时共享类型白名单已删除，其中同步边界采用 allowlist 规则，遗留的非协作面依赖通过精确类名 migration baseline 冻结，后续只允许收缩不允许扩散。
 
 需要明确的是：`community-app` 仍然是“靠包边界治理的单 deployable”，还不是靠 Maven 子模块强制执行的 modular monolith。当前阶段先稳定 use-case owner、projection owner 和 event contracts；下一阶段才考虑把 `api` / `contracts` / `impl` 拆成独立 artifact，并收紧 Spring 装配范围。
 
@@ -124,9 +124,9 @@ flowchart TD
 
 - 跨域协作一律通过 owner-domain `api.query` / `api.action` / `api.model` / `contracts`；
 - 域内持久化默认允许 owner-domain service 直接依赖本域 MyBatis mapper。
-- 同域同步入口统一走 owner `*ApplicationService`；controller、job、listener 默认都不再把 same-domain `api.query` / `api.action` / `api.model` 当入口。
-- `content` phase 1 额外收紧为：`content.controller..` 不直接依赖 `..content.app..`，也不直接依赖 same-domain `..content.service..` 中不以 `ApplicationService` 结尾的类型。
-- `content` phase 1 的临时 controller 白名单仅保留 `CategoryController`、`SubscriptionController`、`TagController`，后续只能收缩不能扩散。
+- 同域同步入口统一走 owner `*ApplicationService`；`@RestController`、本地 `*Listener`、本地持续型 worker 默认都不再把 same-domain `api.query` / `api.action` / `api.model` 当入口。
+- 应用边界已全局冻结：所有 `@RestController` 与 `..event..` 下的 `*Listener` 不直接依赖 same-domain `..app..`，也不直接依赖 same-domain raw service / projection service 等非 `ApplicationService` 类型。
+- 当前 controller / listener 应用边界 baseline 为空；后续不允许重新引入 legacy 例外。
 - `api.query` / `api.action` / `api.model` 的职责固定为跨域同步协作边界，不是域内 service locator。
 - `..app.query..` 属于历史迁移期结构，当前不应继续保留，也不允许新增。
 
@@ -197,7 +197,7 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 3. `content.controller.PostController` 通过同域 `PostPublishingApplicationService` 进入写路径，负责参数清洗、幂等包装与命令编排
 4. `CreatePostUseCase` 等内部 use case 在事务内写主存储并发布帖子领域事件，读路径通过同域 `PostReadApplicationService` 和跨域 `content.api.query.*` 提供
 5. 帖子领域事件继续驱动搜索、通知、积分等本地投影；跨域同步协作模型统一落在 `content.api.model` / `user.api.model` 等 owner-domain API 包下，跨域异步协作模型统一落在 `content.contracts.event` / `social.contracts.event`
-6. 通知、积分、任务进度等投影的业务判定统一由 owner-domain projection service 负责（如 `NoticeProjectionService`、`PointsProjectionService`、`TaskProgressProjectionService`），`@TransactionalEventListener` 与 outbox adapter 只负责订阅、序列化和重试，避免本地监听与 outbox 双路径重复维护
+6. 通知、积分、任务进度等投影的业务判定统一由 owner-domain 应用入口负责（如 `NoticeProjectionApplicationService`、`PointsProjectionService`、`TaskProgressApplicationService`）；`@TransactionalEventListener` 与 outbox adapter 只负责订阅、序列化和重试，避免本地监听与 outbox 双路径重复维护
 
 ### 4.3 典型后台运维路径：XXL-JOB 调度
 1. 运维人员访问 `http://localhost:12887/xxl-job-admin`
@@ -206,7 +206,7 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 4. 清理类/运维类离散任务通过 XXL handler 进入业务 service
 5. 高频/持续 worker 仍保留在应用内：
    - `PendingRegistrationUserCleanupJob` 仅作为无 admin 的本地兜底
-   - `PostScoreRefresher` 继续本地 `@Scheduled`
+   - `PostScoreRefresher` 继续本地 `@Scheduled`，但调度壳层只负责批次触发，实际刷新编排收敛到 `PostScoreRefreshApplicationService`
    - `OutboxWorkerScheduler` 继续本地 `@Scheduled`
 
 ---

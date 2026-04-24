@@ -41,15 +41,6 @@ class WalletLedgerServiceTest {
     @Autowired
     private WalletLedgerService service;
 
-    @Autowired
-    private WalletAccountService accountService;
-
-    @Autowired
-    private WalletMigrationService migrationService;
-
-    @Autowired
-    private WalletTxnMapper txnMapper;
-
     @SpyBean
     private WalletAccountMapper walletAccountMapper;
 
@@ -59,8 +50,6 @@ class WalletLedgerServiceTest {
     @BeforeEach
     void setUp() {
         reset(walletAccountMapper);
-        jdbcTemplate.update("delete from reward_ledger");
-        jdbcTemplate.update("delete from reward_account");
         jdbcTemplate.update("delete from wallet_entry");
         jdbcTemplate.update("delete from wallet_txn");
         jdbcTemplate.update("delete from wallet_account");
@@ -147,63 +136,6 @@ class WalletLedgerServiceTest {
 
         assertThat(txnCount()).isZero();
         assertThat(entryCount()).isZero();
-    }
-
-    @Test
-    void migrateOpeningBalanceShouldCreateOneOpeningTxnFromLegacyRewardAccount() {
-        UUID userId = uuid(101);
-        jdbcTemplate.update(
-                "insert into reward_account(user_id, available_balance, frozen_balance, version) values (?,?,?,?)",
-                BinaryUuidCodec.toBytes(userId),
-                880,
-                0,
-                0
-        );
-
-        migrationService.migrateUser(userId);
-
-        assertThat(accountService.balanceOfUser(userId)).isEqualTo(880);
-        assertThat(txnMapper.selectByRequestId("migration:opening:" + userId).getTxnType()).isEqualTo("OPENING_BALANCE");
-    }
-
-    @Test
-    void migrateUserShouldCarryFrozenOnlyLegacyBalanceIntoMigrationHold() {
-        UUID userId = uuid(101);
-        jdbcTemplate.update(
-                "insert into reward_account(user_id, available_balance, frozen_balance, version) values (?,?,?,?)",
-                BinaryUuidCodec.toBytes(userId),
-                0,
-                66,
-                0
-        );
-
-        migrationService.migrateUser(userId);
-
-        assertThat(accountService.balanceOfUser(userId)).isZero();
-        assertThat(systemBalance("MIGRATION_HOLD")).isEqualTo(66);
-        assertThat(systemBalance("RISK_FROZEN")).isEqualTo(66);
-        assertThat(txnMapper.selectByRequestId("migration:frozen:" + userId).getTxnType()).isEqualTo("FREEZE");
-        assertThat(txnMapper.selectByRequestId("migration:opening:" + userId)).isNull();
-    }
-
-    @Test
-    void migrateUserShouldCarryBothAvailableAndFrozenLegacyBalances() {
-        UUID userId = uuid(101);
-        jdbcTemplate.update(
-                "insert into reward_account(user_id, available_balance, frozen_balance, version) values (?,?,?,?)",
-                BinaryUuidCodec.toBytes(userId),
-                880,
-                66,
-                0
-        );
-
-        migrationService.migrateUser(userId);
-
-        assertThat(accountService.balanceOfUser(userId)).isEqualTo(880);
-        assertThat(systemBalance("MIGRATION_HOLD")).isEqualTo(946);
-        assertThat(systemBalance("RISK_FROZEN")).isEqualTo(66);
-        assertThat(txnMapper.selectByRequestId("migration:opening:" + userId).getTxnType()).isEqualTo("OPENING_BALANCE");
-        assertThat(txnMapper.selectByRequestId("migration:frozen:" + userId).getTxnType()).isEqualTo("FREEZE");
     }
 
     @Test

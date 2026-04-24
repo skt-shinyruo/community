@@ -4,6 +4,7 @@ import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
+import com.nowcoder.community.social.service.FollowApplicationService;
 import com.nowcoder.community.social.follow.dto.FollowItem;
 import com.nowcoder.community.social.follow.dto.FollowRequest;
 import jakarta.validation.Valid;
@@ -28,10 +29,10 @@ public class FollowController {
 
     private static final int ENTITY_TYPE_USER = EntityTypes.USER;
 
-    private final FollowService followService;
+    private final FollowApplicationService followApplicationService;
 
-    public FollowController(FollowService followService) {
-        this.followService = followService;
+    public FollowController(FollowApplicationService followApplicationService) {
+        this.followApplicationService = followApplicationService;
     }
 
     @PostMapping
@@ -40,7 +41,7 @@ public class FollowController {
         if (request.getEntityType() != ENTITY_TYPE_USER) {
             throw new BusinessException(INVALID_ARGUMENT, "follow 仅支持 USER");
         }
-        followService.follow(userId, request);
+        followApplicationService.follow(userId, request);
         return Result.ok();
     }
 
@@ -50,7 +51,7 @@ public class FollowController {
         if (entityType != ENTITY_TYPE_USER) {
             throw new BusinessException(INVALID_ARGUMENT, "unfollow 仅支持 USER");
         }
-        followService.unfollow(userId, entityType, entityId);
+        followApplicationService.unfollow(userId, entityType, entityId);
         return Result.ok();
     }
 
@@ -60,7 +61,7 @@ public class FollowController {
         if (entityType != ENTITY_TYPE_USER) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
         }
-        return Result.ok(followService.hasFollowed(userId, entityType, entityId));
+        return Result.ok(followApplicationService.hasFollowed(userId, entityType, entityId));
     }
 
     @GetMapping("/{userId}/followees")
@@ -76,7 +77,7 @@ public class FollowController {
         }
         int p = page == null ? 0 : page;
         int s = size == null ? 10 : size;
-        return Result.ok(followService.listFollowees(userId, t, p, s));
+        return Result.ok(followApplicationService.listFollowees(userId, t, p, s));
     }
 
     @GetMapping("/{userId}/followers")
@@ -92,7 +93,7 @@ public class FollowController {
         }
         int p = page == null ? 0 : page;
         int s = size == null ? 10 : size;
-        return Result.ok(followService.listFollowers(t, userId, p, s));
+        return Result.ok(followApplicationService.listFollowers(t, userId, p, s));
     }
 
     @GetMapping("/{userId}/followees/count")
@@ -101,7 +102,7 @@ public class FollowController {
         if (!EntityTypes.isValid(t)) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
         }
-        return Result.ok(followService.followeeCount(userId, t));
+        return Result.ok(followApplicationService.followeeCount(userId, t));
     }
 
     @GetMapping("/{userId}/followers/count")
@@ -110,6 +111,6 @@ public class FollowController {
         if (!EntityTypes.isValid(t)) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
         }
-        return Result.ok(followService.followerCount(t, userId));
+        return Result.ok(followApplicationService.followerCount(t, userId));
     }
 }

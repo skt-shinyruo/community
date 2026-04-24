@@ -1,6 +1,6 @@
 package com.nowcoder.community.analytics.controller;
 
-import com.nowcoder.community.analytics.service.AnalyticsService;
+import com.nowcoder.community.analytics.service.AnalyticsApplicationService;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import jakarta.validation.constraints.NotNull;
@@ -17,10 +17,10 @@ import java.time.LocalDate;
 @RequestMapping("/api/analytics")
 public class AnalyticsController {
 
-    private final AnalyticsService analyticsService;
+    private final AnalyticsApplicationService analyticsApplicationService;
 
-    public AnalyticsController(AnalyticsService analyticsService) {
-        this.analyticsService = analyticsService;
+    public AnalyticsController(AnalyticsApplicationService analyticsApplicationService) {
+        this.analyticsApplicationService = analyticsApplicationService;
     }
 
     @GetMapping("/uv")
@@ -28,7 +28,7 @@ public class AnalyticsController {
             @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
             @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end
     ) {
-        return Result.ok(analyticsService.calculateUv(start, end));
+        return Result.ok(analyticsApplicationService.calculateUv(start, end));
     }
 
     @GetMapping("/dau")
@@ -36,7 +36,7 @@ public class AnalyticsController {
             @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
             @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end
     ) {
-        return Result.ok(analyticsService.calculateDau(start, end));
+        return Result.ok(analyticsApplicationService.calculateDau(start, end));
     }
 
     @GetMapping("/me")

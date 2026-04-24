@@ -13,20 +13,16 @@
 - `community-app` 仍是主业务 owner，承接主站 `/api/**`、`/files/**`、`/api/ops/**`
 - `community-gateway` 负责入口级路由、CORS、traceId、HTTP/WS 边缘策略
 - `community-app` 负责业务鉴权矩阵、OriginGuard、审计、统一错误协议
-- same-domain HTTP 入口默认经 owner `*ApplicationService` 编排；`controller` 不再作为 `..app..` use case 或 raw `service` 的直接拼装层
+- same-domain HTTP 入口默认经 owner `*ApplicationService` 编排；本地 listener / 本地持续型 worker 也默认经 owner `*ApplicationService` 进入业务编排
+- `@RestController` 不再作为 `..app..` use case 或 raw `service` 的直接拼装层
 
-`content` phase 1 的额外治理规则：
-- `content.controller..` 不直接依赖 `..content.app..`
-- `content.controller..` 不直接依赖 same-domain `..content.service..` 中不以 `ApplicationService` 结尾的类型
-- foreign-domain 调用仍继续使用 `content.api.query` / `content.api.action`
-- 临时白名单仅保留：
-  - `CategoryController`
-  - `SubscriptionController`
-  - `TagController`
-- 保留原因：
-  - 这三个入口当前都只承接单一、低复杂度的 same-domain 用例
-  - 在它们真正出现第二个用例、跨域编排或页面聚合需求前，不为了命名统一再造薄壳
-- 退出规则：控制器迁移到 owner `ApplicationService` 后，必须在同一变更里从白名单删除
+controller 应用边界冻结规则：
+- 所有 `@RestController` 不直接依赖 same-domain `..app..`
+- 所有 `@RestController` 不直接依赖 same-domain raw `*Service` / projection service 等非 `ApplicationService` 类型
+- 所有 `..event..` 下的 `*Listener` 不直接依赖 same-domain `..app..`
+- 所有 `..event..` 下的 `*Listener` 不直接依赖 same-domain raw `*Service` / projection service 等非 `ApplicationService` 类型
+- foreign-domain 调用仍继续使用 owner-domain `api.query` / `api.action`
+- 当前 controller / listener application boundary baseline 已清空，后续不允许重新引入 legacy 例外
 
 边界与弃用窗口（SSOT）：
 - External（对外业务）：`/api/**`
@@ -278,16 +274,17 @@ IM 链路：使用 Kafka 作为 backplane（topic 常量见 `backend/community-i
 2. owner-domain projection service 先统一完成“该事件是否需要投影、投影目标是什么”的业务判定
 3. 对“必须最终达成”的投影（通知/积分/搜索）使用 `@TransactionalEventListener(phase = BEFORE_COMMIT)` 写入 `community.outbox_event`（同事务提交）
 4. 本地 `@Scheduled` outbox worker 轮询并执行投影 handler（失败自动重试，最终一致）
-5. 若关闭 outbox，本地 `AFTER_COMMIT` listener 仍走同一个 projection service；监听器本身不拥有业务分支，避免双路径同构逻辑长期漂移
+5. 若关闭 outbox，本地 `AFTER_COMMIT` listener 仍走同一个 owner `ApplicationService`；监听器本身不拥有业务分支，避免双路径同构逻辑长期漂移
 6. 对“尽力而为”的本地副作用（如热度队列）仍使用 after-commit 执行，并在监听方做兜底（不影响主链路）
 
-当前已经显式收口到 shared projection service 的链路包括：
-- notice projection：`NoticeProjectionService`
+当前已经显式收口到 shared projection application entry 的链路包括：
+- notice projection：`NoticeProjectionApplicationService`
 - user points：`PointsProjectionService`
-- growth task progress：`TaskProgressProjectionService`
+- growth task progress：`TaskProgressApplicationService`
 
 下一阶段目标：
 - 继续缩小 ArchUnit migration baseline，把剩余 foreign `service` / `exception` / `session` 依赖迁回 owner-domain API
+- 剩余 wider rollout 已不再包含 `ops`；growth reward/account legacy runtime 已在当前 worktree 退休，`reward_account` / `reward_ledger` / `reward_grant_record` 仅保留为历史表，不再参与在线 runtime
 - 在语义稳定后，再把 `api` / `contracts` / `impl` 进一步拆成独立 Maven artifact，避免继续依赖“包结构自律”
 
 ### 3.4 典型消费方（最终一致）
@@ -315,7 +312,7 @@ phase 1 的运行边界是：
 - `community-app` 是唯一 XXL executor
 - `pendingRegistrationUserCleanup` 与 `searchReindex` 通过 XXL handler 进入业务 service
 - `PendingRegistrationUserCleanupJob` 仅在无 admin 的本地开发环境里保留兜底；这份 compose 栈作为 XXL-enabled 路径会显式关闭本地 scheduler，避免双跑
-- `PostScoreRefresher` 与 `OutboxWorkerScheduler` 明确保留本地调度，不迁入 XXL
+- `PostScoreRefresher` 与 `OutboxWorkerScheduler` 明确保留本地调度，不迁入 XXL；其中 `PostScoreRefresher` 只保留调度壳层，刷新编排已收敛到 `PostScoreRefreshApplicationService`
 
 ---
 

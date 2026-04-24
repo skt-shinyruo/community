@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
+import com.nowcoder.community.notice.service.NoticeProjectionApplicationService;
+import com.nowcoder.community.notice.service.NoticeProjectionService;
 import com.nowcoder.community.notice.service.NoticeService;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
@@ -23,7 +25,11 @@ class NoticeProjectionListenerTest {
     @Test
     void commentCreatedShouldCreateCommentNotice() {
         NoticeService noticeService = mock(NoticeService.class);
-        NoticeProjectionListener listener = new NoticeProjectionListener(new ObjectMapper().findAndRegisterModules(), noticeService);
+        NoticeProjectionListener listener = new NoticeProjectionListener(
+                new NoticeProjectionApplicationService(
+                        new NoticeProjectionService(new ObjectMapper().findAndRegisterModules(), noticeService)
+                )
+        );
         UUID targetUserId = uuid(9);
         UUID postId = uuid(100);
 
@@ -39,7 +45,11 @@ class NoticeProjectionListenerTest {
     @Test
     void likeCreatedShouldCreateLikeNotice() {
         NoticeService noticeService = mock(NoticeService.class);
-        NoticeProjectionListener listener = new NoticeProjectionListener(new ObjectMapper().findAndRegisterModules(), noticeService);
+        NoticeProjectionListener listener = new NoticeProjectionListener(
+                new NoticeProjectionApplicationService(
+                        new NoticeProjectionService(new ObjectMapper().findAndRegisterModules(), noticeService)
+                )
+        );
         UUID entityUserId = uuid(8);
         UUID entityId = uuid(200);
 

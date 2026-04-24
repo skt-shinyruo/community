@@ -1,13 +1,13 @@
 # 成长任务、奖励发放与用户等级链路实现说明
 
-本文说明当前代码里“事件如何推进任务进度、任务如何发奖、等级如何计算”的真实实现。它不是一个独立 HTTP 模块，而是一组挂在内容、社交、签到事件之后的投影与奖励链路。
+本文说明当前代码里“内容/社交写路径如何推进任务进度、任务如何发奖、等级如何计算”的真实实现。它不是一个独立 HTTP 模块，而是一组挂在内容、社交写路径之后的成长投影与奖励链路。
 
 ## 1. 这条链路解决什么问题
 
 成长域当前主要承担三件事：
 
 - 把帖子、评论、被点赞、签到等事件投影成任务进度
-- 在任务达成或积分投影时，统一落奖励发放记录，并把增量写入钱包
+- 在任务达成或积分投影时，把奖励增量直接写入钱包
 - 基于签到类任务完成情况计算用户等级
 
 这意味着成长域本身不是“主事实写入口”，它更像一层业务投影器：
@@ -18,21 +18,19 @@
 
 ## 2. 关键入口与核心类
 
-### 2.1 任务进度投影入口
+### 2.1 任务进度 owner 应用入口
 
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/TaskProgressProjectionService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/event/TaskProgressProjectionListener.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/event/TaskProgressOutboxEnqueuer.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/event/TaskProgressOutboxHandler.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/api/action/GrowthTaskProgressActionApi.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/TaskProgressApplicationService.java`
 
 ### 2.2 任务状态推进核心
 
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/service/TaskProgressService.java`
 
-### 2.3 奖励统一发放核心
+### 2.3 积分投影与钱包奖励入口
 
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/UnifiedGrantService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/api/action/GrowthGrantActionApi.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/service/PointsProjectionService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/wallet/api/action/WalletRewardActionApi.java`
 
 ### 2.4 用户等级查询与配置核心
 
@@ -41,14 +39,12 @@
 
 ## 3. 上游事件如何进入成长域
 
-`TaskProgressProjectionService` 负责把不同领域事件统一翻译成：
+`TaskProgressApplicationService` 负责把不同领域输入统一翻译成：
 
 - `userId`
 - `triggerEventType`
 - `sourceEventId`
 - `bizDate`
-
-也就是 `TaskProgressProjectionCommand`。
 
 当前已接入三类事件。
 
@@ -80,59 +76,24 @@
 
 所以它表达的是“内容收到别人的点赞”这一类成长行为，而不是“我点了一个赞”。
 
-### 3.3 成长域本地事件
+## 4. 任务进度是怎么触发的
 
-支持：
+当前实现不再通过成长域本地 listener / outbox 入口转一圈，而是直接由上游写路径调用 owner-domain contract：
 
-- `CHECK_IN_COMPLETED`
+1. `CreatePostUseCase` 调用 `GrowthTaskProgressActionApi.triggerPostPublished(...)`
+2. `CommentService` 调用 `GrowthTaskProgressActionApi.triggerCommentCreated(...)`
+3. `LikeService` 调用 `GrowthTaskProgressActionApi.triggerLikeCreated(...)`
+4. `TaskProgressApplicationService` 负责：
+   - 生成 `sourceEventId`
+   - 计算 `bizDate`
+   - 过滤无效输入和 self-like
+5. 然后统一调用 `TaskProgressService.processEvent(...)`
 
-这里直接从 `CheckInPayload` 取：
+这意味着：
 
-- `userId`
-- `bizDate`
-
-签到完成后，成长域会再反过来推动签到类任务累计。
-
-## 4. 投影是怎么触发的
-
-当前代码同时保留了两种消费方式。
-
-### 4.1 事务提交后直接监听
-
-`TaskProgressProjectionListener` 使用 `@TransactionalEventListener(phase = AFTER_COMMIT)` 监听：
-
-- `ContentContractEvent`
-- `SocialContractEvent`
-- `GrowthLocalEvent`
-
-流程很直接：
-
-1. 上游事务提交
-2. listener 收到事件
-3. 交给 `TaskProgressProjectionService`
-4. 翻译为统一命令
-5. 调用 `TaskProgressService.processEvent(...)`
-
-这种方式简单、实时，但依赖本地事务事件发布成功。
-
-### 4.2 outbox 异步补位
-
-代码里同时存在：
-
-- `TaskProgressOutboxEnqueuer`
-- `TaskProgressOutboxHandler`
-
-这说明成长投影也支持通过 outbox 做异步追平，目的通常有两个：
-
-- 降低主事务里直接投影的耦合
-- 在跨模块投影中保留更稳定的补偿能力
-
-对初学者来说，可以把它理解为：
-
-- listener 负责“事务提交后立即做一次”
-- outbox handler 负责“用可靠消息再追一遍”
-
-真正的幂等，最终靠 `TaskProgressService` 内部的事件去重保证。
+- foreign domain 只知道 `GrowthTaskProgressActionApi`
+- `TaskProgressApplicationService` 是 owner-domain 唯一应用入口
+- 真正的幂等和状态推进仍然完全由 `TaskProgressService` 内部负责
 
 ## 5. 任务进度状态机如何工作
 
@@ -273,47 +234,50 @@
 - 源事件日志去重
 - 已领奖进度行短路
 
-## 6. 积分投影为什么也会进钱包
+## 6. 积分投影为什么现在直接进钱包
 
 这部分核心在：
 
-- `UnifiedGrantService`
+- `PointsProjectionService`
 
-它实现了 `GrowthGrantActionApi`，最关键的方法是：
+它会先把内容域、社交域的事实翻译成：
 
-- `applyPointsProjection(userId, sourceEventId, sourceEventType, growthDelta)`
+- `PointsProjectionCommand`
 
-### 6.1 grant record 先落库
+然后在 `project(...)` 里直接调用：
 
-`applyPointsProjection(...)` 会把 `grantId` 固定成：
+- `walletRewardActionApi.applyDelta("wallet-reward:" + sourceEventId, userId, delta, sourceEventType)`
 
-- `sourceEventId + ":points"`
+### 6.1 先把上游事实翻成统一命令
 
-随后进入 `applyGrant(...)`，先插入 `reward_grant_record`。
+`PointsProjectionService` 当前支持两类输入：
 
-如果插入时唯一键冲突，直接返回 `false`。
+- 内容域：发帖、评论
+- 社交域：收到他人点赞
 
-这表示：
+翻译结果只保留四个核心字段：
 
-- 同一个 source event 的积分投影只会成功一次
-- 积分投影具备天然幂等
+- `userId`
+- `delta`
+- `sourceEventId`
+- `sourceEventType`
 
-### 6.2 再把增量交给钱包
+如果输入为空、事件不支持，或者属于 self-like，这一步就直接 no-op。
 
-插入成功后会算：
+### 6.2 再把请求直接交给钱包
 
-- `walletDelta = growthDelta + rewardDelta`
+只要 `PointsProjectionCommand` 合法且 `delta != 0`，服务就直接调用钱包奖励接口。
 
-只要不为 0，就调用：
+这里的关键点是：
 
-- `walletRewardActionApi.applyDelta(grantId, userId, walletDelta, grantType)`
+- 当前积分投影不再经过 `UnifiedGrantService`
+- 当前积分投影也不再依赖 `reward_grant_record` 作为在线运行时幂等面
+- 幂等语义改由钱包侧 requestId 去重承担
 
-这里要特别提醒初学者：
+所以现在“积分投影为什么会进钱包”的答案已经非常直接：
 
-- 从业务命名看，这是“成长奖励/积分奖励”
-- 从底层落账看，最终还是统一调用钱包奖励接口
-
-所以钱包域不仅是充值提现转账的资金底座，也承接了成长奖励、积分投影等“内部奖励型资金事实”。
+- 因为内容/社交写路径生成的积分增量，本身就是通过 wallet action 落账的
+- 钱包域不仅是充值提现转账的资金底座，也承接了站内奖励型资金事实
 
 ## 7. 用户等级是怎么计算出来的
 
@@ -378,7 +342,7 @@
 - 发帖成功
 - 评论成功
 
-成长域订阅后推进任务。
+成长域在写路径成功后被直接调用推进任务。
 
 ### 8.2 与社交域的关系
 
@@ -413,7 +377,7 @@
 
 当前代码的核心并不在某个对外 controller，而在：
 
-- 监听事件
+- 上游写路径进入 owner application entry
 - 投影进度
 - 发奖
 - 查等级
@@ -438,9 +402,10 @@
 真正的幂等在：
 
 - `user_task_event_log`
-- `reward_grant_record`
+- 任务进度行上的 `rewardGrantId` 短路
+- 钱包侧按 `requestId` 的去重
 
-listener、outbox、重放只是触发方式，去重仍然发生在服务内部。
+listener、outbox、重放只是触发方式，去重仍然发生在服务内部或钱包记账层。
 
 ## 10. 可以据此继续补的文档点
 
@@ -452,12 +417,10 @@ listener、outbox、重放只是触发方式，去重仍然发生在服务内部
 
 ## 11. 关键代码定位
 
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/TaskProgressProjectionService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/event/TaskProgressProjectionListener.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/event/TaskProgressOutboxEnqueuer.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/event/TaskProgressOutboxHandler.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/api/action/GrowthTaskProgressActionApi.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/TaskProgressApplicationService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/service/TaskProgressService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/UnifiedGrantService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/service/PointsProjectionService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/service/UserLevelService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/api/action/GrowthGrantActionApi.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/wallet/api/action/WalletRewardActionApi.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/api/query/UserLevelQueryApi.java`

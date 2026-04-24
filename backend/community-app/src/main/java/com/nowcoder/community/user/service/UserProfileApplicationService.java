@@ -7,6 +7,7 @@ import com.nowcoder.community.growth.api.model.UserLevelSummaryView;
 import com.nowcoder.community.growth.api.query.UserLevelQueryApi;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.user.api.model.UserProfileView;
+import com.nowcoder.community.user.dto.UserProfilePageView;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 

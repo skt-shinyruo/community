@@ -12,11 +12,10 @@ import com.nowcoder.community.user.dto.UserProfileResponse;
 import com.nowcoder.community.user.dto.UserRecentCommentItemResponse;
 import com.nowcoder.community.user.dto.UserResolveResponse;
 import com.nowcoder.community.user.dto.UserSummaryResponse;
-import com.nowcoder.community.user.service.AvatarService;
+import com.nowcoder.community.user.dto.UserProfilePageView;
+import com.nowcoder.community.user.service.UserAvatarApplicationService;
 import com.nowcoder.community.user.service.UserProfileApplicationService;
-import com.nowcoder.community.user.service.UserProfilePageView;
 import com.nowcoder.community.user.service.UserReadApplicationService;
-import com.nowcoder.community.user.service.UserService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,17 +44,14 @@ public class UserController {
 
     private final UserReadApplicationService userReadApplicationService;
     private final UserProfileApplicationService userProfileApplicationService;
-    private final UserService userService;
-    private final AvatarService avatarService;
+    private final UserAvatarApplicationService userAvatarApplicationService;
 
     public UserController(UserReadApplicationService userReadApplicationService,
                           UserProfileApplicationService userProfileApplicationService,
-                          UserService userService,
-                          AvatarService avatarService) {
+                          UserAvatarApplicationService userAvatarApplicationService) {
         this.userReadApplicationService = userReadApplicationService;
         this.userProfileApplicationService = userProfileApplicationService;
-        this.userService = userService;
-        this.avatarService = avatarService;
+        this.userAvatarApplicationService = userAvatarApplicationService;
     }
 
     @GetMapping("/{userId}")
@@ -118,7 +114,7 @@ public class UserController {
         if (!userId.equals(currentUserId)) {
             throw new BusinessException(FORBIDDEN, "只能操作自己的头像");
         }
-        AvatarUploadTokenResponse response = avatarService.createUploadToken(userId);
+        AvatarUploadTokenResponse response = userAvatarApplicationService.createUploadToken(currentUserId, userId);
         SecurityEventLogger.info(
                 log,
                 "avatar_upload_token",
@@ -138,7 +134,7 @@ public class UserController {
         if (!userId.equals(currentUserId)) {
             throw new BusinessException(FORBIDDEN, "只能操作自己的头像");
         }
-        avatarService.upload(userId, fileName, file);
+        userAvatarApplicationService.upload(currentUserId, userId, fileName, file);
         SecurityEventLogger.info(
                 log,
                 "avatar_upload",
@@ -159,9 +155,7 @@ public class UserController {
         if (!userId.equals(currentUserId)) {
             throw new BusinessException(FORBIDDEN, "只能操作自己的头像");
         }
-        avatarService.assertAndConsumeUploadTicket(userId, request.getFileName());
-        String url = avatarService.buildAvatarUrl(request.getFileName());
-        userService.updateHeaderUrl(userId, url);
+        userAvatarApplicationService.updateAvatar(currentUserId, userId, request.getFileName());
         SecurityEventLogger.info(
                 log,
                 "avatar_update",

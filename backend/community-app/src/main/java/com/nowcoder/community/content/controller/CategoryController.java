@@ -2,7 +2,7 @@ package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.content.dto.CategoryResponse;
-import com.nowcoder.community.content.service.CategoryService;
+import com.nowcoder.community.content.service.CategoryApplicationService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -13,14 +13,14 @@ import java.util.List;
 @RequestMapping("/api/categories")
 public class CategoryController {
 
-    private final CategoryService categoryService;
+    private final CategoryApplicationService categoryApplicationService;
 
-    public CategoryController(CategoryService categoryService) {
-        this.categoryService = categoryService;
+    public CategoryController(CategoryApplicationService categoryApplicationService) {
+        this.categoryApplicationService = categoryApplicationService;
     }
 
     @GetMapping
     public Result<List<CategoryResponse>> list() {
-        return Result.ok(categoryService.listCategoryResponses());
+        return Result.ok(categoryApplicationService.listCategoryResponses());
     }
 }

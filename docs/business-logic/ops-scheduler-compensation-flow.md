@@ -216,7 +216,7 @@
 2. `postService.getById(postId)` 读取帖子
 3. 查点赞数与评论数
 4. 按热度公式重算 score
-5. `scoreCommandService.updateScore(postId, score)`
+5. `scoreUpdateService.updateScore(postId, score)`
 6. `scoreQueue.onSuccess(postId)` 清掉重试计数
 
 ### 2.3.4 失败路径

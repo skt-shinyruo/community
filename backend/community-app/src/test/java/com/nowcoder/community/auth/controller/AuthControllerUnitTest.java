@@ -10,6 +10,7 @@ import com.nowcoder.community.auth.dto.RegisterCodeVerifyRequest;
 import com.nowcoder.community.auth.dto.RegisterRequest;
 import com.nowcoder.community.auth.dto.RegisterResponse;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
+import com.nowcoder.community.auth.service.AuthApplicationService;
 import com.nowcoder.community.auth.service.AuthService;
 import com.nowcoder.community.auth.service.CaptchaService;
 import com.nowcoder.community.auth.service.PasswordResetService;
@@ -64,7 +65,13 @@ class AuthControllerUnitTest {
 
     @BeforeEach
     void setUp() {
-        controller = new AuthController(authService, registrationService, registrationVerificationService, captchaService, passwordResetService);
+        controller = new AuthController(new AuthApplicationService(
+                authService,
+                registrationService,
+                registrationVerificationService,
+                captchaService,
+                passwordResetService
+        ));
     }
 
     @Test

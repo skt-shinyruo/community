@@ -144,7 +144,8 @@
 1. 校验 `requestId`、`txnType`、`postings`
 2. 校验借贷平衡：`debitTotal == creditTotal`
 3. 先按 `requestId` 查重：
-   - 已存在则直接返回已有 `txnId + status`
+   - 已存在则校验交易类型、业务 id、金额和账本分录语义一致，再返回已有 `txnId + status`
+   - 不一致则抛 `REQUEST_REPLAY_CONFLICT`
 4. 新建 `wallet_txn(status=PENDING)`
 5. 对每条 posting：
    - `lock(accountId)`
@@ -156,8 +157,11 @@
 这条链路的关键特征是：
 
 - 总账是单一资金事实来源
-- 请求重放按 `requestId` 去重
+- 请求重放按 `requestId` 去重，但不是简单返回旧交易
 - 余额更新不是“直接 set 值”，而是“锁定账户后按 delta 更新”
+
+钱包 `requestId` 重放不是简单返回旧交易。重放必须匹配交易类型、业务 id、金额和账本分录语义；
+不匹配时返回 `REQUEST_REPLAY_CONFLICT`，避免错误复用幂等键。
 
 ### 5.2 账户的借贷方向不是统一的
 

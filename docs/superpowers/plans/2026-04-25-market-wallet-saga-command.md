@@ -249,7 +249,7 @@ cd backend && mvn -pl community-app -am -Dtest=WalletLedgerServiceTest,WalletMar
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add backend/community-app/src/main/java/com/nowcoder/community/wallet/service/WalletLedgerService.java \
@@ -1127,7 +1127,7 @@ git commit -m "feat: enqueue market refund and dispute wallet commands"
 - Create: `backend/community-app/src/test/java/com/nowcoder/community/market/service/MarketWalletActionRecoveryServiceTest.java`
 - Modify: `backend/community-app/src/test/java/com/nowcoder/community/market/service/MarketWalletActionProcessorTest.java`
 
-- [ ] **Step 1: Add failing recovery tests**
+- [x] **Step 1: Add failing recovery tests**
 
 Create `MarketWalletActionRecoveryServiceTest`:
 
@@ -1155,7 +1155,7 @@ void reconcileWalletTxnWithoutSucceededActionShouldAdvanceRemainingMarketState()
 }
 ```
 
-- [ ] **Step 2: Run recovery tests to verify failure**
+- [x] **Step 2: Run recovery tests to verify failure**
 
 Run:
 
@@ -1165,7 +1165,7 @@ cd backend && mvn -pl community-app -am -Dtest=MarketWalletActionRecoveryService
 
 Expected: FAIL because recovery service does not exist.
 
-- [ ] **Step 3: Implement recovery service**
+- [x] **Step 3: Implement recovery service**
 
 Expose:
 
@@ -1187,7 +1187,7 @@ public record MarketWalletActionRecoveryResult(int recoveredLeases, int reconcil
 }
 ```
 
-- [ ] **Step 4: Add XXL job handlers**
+- [x] **Step 4: Add XXL job handlers**
 
 `MarketWalletActionProcessorHandler`:
 
@@ -1210,7 +1210,7 @@ public class MarketWalletActionProcessorHandler {
 
 `MarketWalletActionRecoveryHandler` follows the same style and calls `recoveryService.reconcileOnce(100)`.
 
-- [ ] **Step 5: Run recovery/job verification**
+- [x] **Step 5: Run recovery/job verification**
 
 Run:
 
@@ -1240,7 +1240,7 @@ git commit -m "feat: add market wallet action recovery"
 - Modify: `docs/business-logic/wallet-ledger-flow.md`
 - Modify: `docs/superpowers/specs/2026-04-25-market-wallet-saga-command-design.md` only if implementation names diverge from the spec.
 
-- [ ] **Step 1: Update business docs**
+- [x] **Step 1: Update business docs**
 
 `market-order-dispute-flow.md` must state:
 
@@ -1257,7 +1257,7 @@ git commit -m "feat: add market wallet action recovery"
 不匹配时返回 `REQUEST_REPLAY_CONFLICT`，避免错误复用幂等键。
 ```
 
-- [ ] **Step 2: Run focused service suite**
+- [x] **Step 2: Run focused service suite**
 
 Run:
 
@@ -1267,7 +1267,7 @@ cd backend && mvn -pl community-app -am -Dtest=WalletLedgerServiceTest,WalletMar
 
 Expected: PASS.
 
-- [ ] **Step 3: Run compile check for community-app**
+- [x] **Step 3: Run compile check for community-app**
 
 Run:
 
@@ -1277,7 +1277,7 @@ cd backend && mvn -pl community-app -am -DskipTests compile
 
 Expected: PASS.
 
-- [ ] **Step 4: Verify no synchronous market wallet calls remain**
+- [x] **Step 4: Verify no synchronous market wallet calls remain**
 
 Run:
 
@@ -1287,7 +1287,7 @@ rg -n "walletMarketActionApi\\.(escrowOrder|releaseOrder|refundOrder)" backend/c
 
 Expected: no matches.
 
-- [ ] **Step 5: Commit documentation and verification cleanup**
+- [x] **Step 5: Commit documentation and verification cleanup**
 
 ```bash
 git add docs/business-logic/market-order-dispute-flow.md \

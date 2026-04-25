@@ -107,6 +107,66 @@ class WalletLedgerServiceTest {
     }
 
     @Test
+    void postShouldRejectReplayWithDifferentTxnType() {
+        UUID userId = uuid(101);
+        UUID userAccountId = service.ensureUserWallet(userId);
+        UUID systemAccountId = service.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
+
+        service.post(
+                "wallet:replay:type",
+                WalletTxnType.REWARD_ISSUE,
+                "reward:biz:1",
+                List.of(
+                        WalletPosting.debit(systemAccountId, 100),
+                        WalletPosting.credit(userAccountId, 100)
+                )
+        );
+
+        assertThatThrownBy(() -> service.post(
+                "wallet:replay:type",
+                WalletTxnType.TRANSFER,
+                "reward:biz:1",
+                List.of(
+                        WalletPosting.debit(systemAccountId, 100),
+                        WalletPosting.credit(userAccountId, 100)
+                )
+        ))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.REQUEST_REPLAY_CONFLICT))
+                .hasMessageContaining("wallet request replay conflict");
+    }
+
+    @Test
+    void postShouldRejectReplayWithDifferentAmountOrBizId() {
+        UUID userId = uuid(101);
+        UUID userAccountId = service.ensureUserWallet(userId);
+        UUID systemAccountId = service.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
+
+        service.post(
+                "wallet:replay:amount",
+                WalletTxnType.REWARD_ISSUE,
+                "reward:biz:1",
+                List.of(
+                        WalletPosting.debit(systemAccountId, 100),
+                        WalletPosting.credit(userAccountId, 100)
+                )
+        );
+
+        assertThatThrownBy(() -> service.post(
+                "wallet:replay:amount",
+                WalletTxnType.REWARD_ISSUE,
+                "reward:biz:2",
+                List.of(
+                        WalletPosting.debit(systemAccountId, 200),
+                        WalletPosting.credit(userAccountId, 200)
+                )
+        ))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.REQUEST_REPLAY_CONFLICT))
+                .hasMessageContaining("wallet request replay conflict");
+    }
+
+    @Test
     void ensureSystemAccountShouldRejectUserWalletAccountType() {
         assertThatThrownBy(() -> service.ensureSystemAccount("USER_WALLET"))
                 .isInstanceOf(BusinessException.class)

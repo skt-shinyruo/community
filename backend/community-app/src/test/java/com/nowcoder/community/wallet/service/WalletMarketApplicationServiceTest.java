@@ -71,6 +71,7 @@ class WalletMarketApplicationServiceTest {
         assertThat(walletAccountService.balanceOfUser(firstBuyerId)).isEqualTo(3_000L);
         assertThat(walletAccountService.balanceOfSystem("ORDER_ESCROW")).isEqualTo(2_000L);
         assertThat(walletTxnMapper.selectByRequestId("order:1:escrow").getTxnType()).isEqualTo("ORDER_ESCROW");
+        assertThat(walletTxnMapper.selectByRequestId("order:1:escrow").getBizId()).isEqualTo("virtual-order:1");
 
         WalletMarketTxnView release = walletMarketActionApi.releaseOrder("order:1:release", sellerUserId, 2_000L, "virtual-order:1");
 
@@ -78,6 +79,7 @@ class WalletMarketApplicationServiceTest {
         assertThat(walletAccountService.balanceOfUser(sellerUserId)).isEqualTo(2_000L);
         assertThat(walletAccountService.balanceOfSystem("ORDER_ESCROW")).isEqualTo(0L);
         assertThat(walletTxnMapper.selectByRequestId("order:1:release").getTxnType()).isEqualTo("ORDER_RELEASE");
+        assertThat(walletTxnMapper.selectByRequestId("order:1:release").getBizId()).isEqualTo("virtual-order:1");
 
         seedUserBalance(secondBuyerId, 4_000L);
         walletMarketActionApi.escrowOrder("order:2:escrow", secondBuyerId, 1_500L, "virtual-order:2");
@@ -88,6 +90,7 @@ class WalletMarketApplicationServiceTest {
         assertThat(walletAccountService.balanceOfUser(secondBuyerId)).isEqualTo(4_000L);
         assertThat(walletAccountService.balanceOfSystem("ORDER_ESCROW")).isEqualTo(0L);
         assertThat(walletTxnMapper.selectByRequestId("order:2:refund").getTxnType()).isEqualTo("ORDER_REFUND");
+        assertThat(walletTxnMapper.selectByRequestId("order:2:refund").getBizId()).isEqualTo("virtual-order:2");
     }
 
     private void seedUserBalance(UUID userId, long balance) {

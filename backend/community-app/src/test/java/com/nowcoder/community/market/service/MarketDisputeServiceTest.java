@@ -42,6 +42,9 @@ class MarketDisputeServiceTest {
     private MarketDisputeService marketDisputeService;
 
     @Autowired
+    private MarketWalletActionProcessor marketWalletActionProcessor;
+
+    @Autowired
     private MarketQueryService marketQueryService;
 
     @Autowired
@@ -55,6 +58,7 @@ class MarketDisputeServiceTest {
         jdbcTemplate.update("delete from market_shipment");
         jdbcTemplate.update("delete from market_dispute");
         jdbcTemplate.update("delete from market_delivery");
+        jdbcTemplate.update("delete from market_wallet_action");
         jdbcTemplate.update("delete from market_order");
         jdbcTemplate.update("delete from market_inventory_unit");
         jdbcTemplate.update("delete from market_address");
@@ -81,8 +85,31 @@ class MarketDisputeServiceTest {
         MarketDisputeResponse resolved = marketDisputeService.sellerAcceptRefund(dispute.disputeId(), sellerUserId, "同意退款");
 
         assertThat(resolved.status()).isEqualTo("SELLER_ACCEPTED");
+        assertThat(marketQueryService.getOrderDetail(orderId, buyerUserId).status()).isEqualTo("DISPUTE_REFUND_PENDING");
+        marketWalletActionProcessor.processDue(10);
+
         assertThat(marketQueryService.getOrderDetail(orderId, buyerUserId).status()).isEqualTo("REFUNDED");
         assertThat(walletAccountService.balanceOfUser(buyerUserId)).isEqualTo(20_000L);
+    }
+
+    @Test
+    void adminResolveReleaseShouldRemainPendingUntilReleaseProcessorSucceeds() {
+        UUID sellerUserId = uuid(7);
+        UUID buyerUserId = uuid(9);
+        UUID adminUserId = uuid(99);
+        seedBuyerBalance(buyerUserId, 20_000L);
+        UUID orderId = seedShippedPhysicalOrder(sellerUserId, buyerUserId);
+
+        MarketDisputeResponse dispute = marketDisputeService.openDispute(orderId, buyerUserId, "货不对板", "和描述不一致");
+        MarketDisputeResponse resolved = marketDisputeService.adminResolveRelease(dispute.disputeId(), adminUserId, "证据支持卖家");
+
+        assertThat(resolved.status()).isEqualTo("ADMIN_RESOLVED");
+        assertThat(resolved.resolutionType()).isEqualTo("RELEASE");
+        assertThat(marketQueryService.getOrderDetail(orderId, buyerUserId).status()).isEqualTo("DISPUTE_RELEASE_PENDING");
+        marketWalletActionProcessor.processDue(10);
+
+        assertThat(marketQueryService.getOrderDetail(orderId, buyerUserId).status()).isEqualTo("COMPLETED");
+        assertThat(walletAccountService.balanceOfUser(sellerUserId)).isEqualTo(12_900L);
     }
 
     private UUID seedShippedPhysicalOrder(UUID sellerUserId, UUID buyerUserId) {
@@ -108,6 +135,7 @@ class MarketDisputeServiceTest {
         UUID addressId = marketAddressService.createAddress(buyerUserId, addressRequest).addressId();
 
         UUID orderId = marketOrderService.createOrder("dispute:physical:req-1", buyerUserId, listingId, 1, addressId).orderId();
+        marketWalletActionProcessor.processDue(10);
         return marketOrderService.shipPhysicalOrder(orderId, sellerUserId, "顺丰", "SF1234567890", "工作日派送").orderId();
     }
 

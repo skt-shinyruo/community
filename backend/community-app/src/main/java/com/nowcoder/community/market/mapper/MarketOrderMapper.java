@@ -43,6 +43,8 @@ public interface MarketOrderMapper {
 
     int markEscrowCancelPending(@Param("orderId") UUID orderId);
 
+    int markEscrowCancelRefundPending(@Param("orderId") UUID orderId, @Param("escrowTxnId") UUID escrowTxnId);
+
     int markCancelledNoRefund(@Param("orderId") UUID orderId);
 
     int markCancelledWithRefund(@Param("orderId") UUID orderId, @Param("refundTxnId") UUID refundTxnId);

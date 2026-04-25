@@ -135,6 +135,15 @@
           and status = 'ESCROW_PENDING'
     </update>
 
+    <update id="markEscrowCancelRefundPending">
+        update market_order
+        set status = 'REFUND_PENDING',
+            escrow_txn_id = #{escrowTxnId, jdbcType=BINARY},
+            update_time = current_timestamp
+        where order_id = #{orderId, jdbcType=BINARY}
+          and status = 'ESCROW_CANCEL_PENDING'
+    </update>
+
     <update id="markCancelledNoRefund">
         update market_order
         set status = 'CANCELLED',

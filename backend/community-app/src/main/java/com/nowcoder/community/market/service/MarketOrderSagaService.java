@@ -65,6 +65,11 @@ public class MarketOrderSagaService {
     }
 
     @Transactional
+    public boolean markEscrowCancelRefundPending(UUID orderId, UUID escrowTxnId) {
+        return marketOrderMapper.markEscrowCancelRefundPending(orderId, escrowTxnId) == 1;
+    }
+
+    @Transactional
     public void markEscrowTerminalFailed(UUID orderId, String reason) {
         MarketOrder order = marketOrderMapper.selectByIdForUpdate(orderId);
         if (order == null) {

@@ -29,6 +29,8 @@ public interface MarketWalletActionMapper {
 
     int markCancelled(@Param("actionId") UUID actionId, @Param("resultType") String resultType);
 
+    int cancelPendingEscrow(@Param("requestId") String requestId, @Param("resultType") String resultType);
+
     int markRetrying(@Param("actionId") UUID actionId,
                      @Param("nextRetryAt") Date nextRetryAt,
                      @Param("lastError") String lastError);

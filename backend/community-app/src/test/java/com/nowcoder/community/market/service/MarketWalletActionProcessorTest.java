@@ -22,12 +22,13 @@ class MarketWalletActionProcessorTest {
     void processOneShouldNoopEscrowWhenSagaRejectsForwardAction() {
         MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
         MarketOrderSagaService sagaService = mock(MarketOrderSagaService.class);
+        MarketWalletActionService actionService = mock(MarketWalletActionService.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = escrowAction();
         when(mapper.claimProcessing(eq(action.getActionId()), any())).thenReturn(1);
         when(sagaService.canApplyEscrow(action.getOrderId())).thenReturn(false);
 
-        MarketWalletActionProcessor processor = new MarketWalletActionProcessor(mapper, walletApi, sagaService, Clock.systemUTC());
+        MarketWalletActionProcessor processor = new MarketWalletActionProcessor(mapper, walletApi, sagaService, actionService, Clock.systemUTC());
 
         processor.processOne(action);
 

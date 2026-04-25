@@ -17,8 +17,6 @@ import com.nowcoder.community.market.mapper.MarketInventoryUnitMapper;
 import com.nowcoder.community.market.mapper.MarketListingMapper;
 import com.nowcoder.community.market.mapper.MarketOrderMapper;
 import com.nowcoder.community.market.mapper.MarketShipmentMapper;
-import com.nowcoder.community.wallet.api.action.WalletMarketActionApi;
-import com.nowcoder.community.wallet.api.model.WalletMarketTxnView;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -40,8 +38,6 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
 
     private static final String GOODS_TYPE_PHYSICAL = "PHYSICAL";
     private static final String GOODS_TYPE_VIRTUAL = "VIRTUAL";
-    private static final String STATUS_CANCELLED = "CANCELLED";
-    private static final String STATUS_COMPLETED = "COMPLETED";
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_ESCROW_PENDING = "ESCROW_PENDING";
     private static final String STATUS_ESCROWED = "ESCROWED";
@@ -60,9 +56,9 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
     private final MarketAddressMapper marketAddressMapper;
     private final MarketDeliveryMapper marketDeliveryMapper;
     private final MarketShipmentMapper marketShipmentMapper;
-    private final WalletMarketActionApi walletMarketActionApi;
     private final MarketWalletActionService marketWalletActionService;
     private final MarketOrderAutoConfirmService marketOrderAutoConfirmService;
+    private final MarketOrderSagaService marketOrderSagaService;
     private final UuidV7Generator idGenerator;
 
     @Autowired
@@ -72,18 +68,18 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
                               MarketAddressMapper marketAddressMapper,
                               MarketDeliveryMapper marketDeliveryMapper,
                               MarketShipmentMapper marketShipmentMapper,
-                              WalletMarketActionApi walletMarketActionApi,
                               MarketWalletActionService marketWalletActionService,
-                              MarketOrderAutoConfirmService marketOrderAutoConfirmService) {
+                              MarketOrderAutoConfirmService marketOrderAutoConfirmService,
+                              MarketOrderSagaService marketOrderSagaService) {
         this(marketListingMapper,
                 marketInventoryUnitMapper,
                 marketOrderMapper,
                 marketAddressMapper,
                 marketDeliveryMapper,
                 marketShipmentMapper,
-                walletMarketActionApi,
                 marketWalletActionService,
                 marketOrderAutoConfirmService,
+                marketOrderSagaService,
                 new UuidV7Generator());
     }
 
@@ -93,9 +89,9 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
                        MarketAddressMapper marketAddressMapper,
                        MarketDeliveryMapper marketDeliveryMapper,
                        MarketShipmentMapper marketShipmentMapper,
-                       WalletMarketActionApi walletMarketActionApi,
                        MarketWalletActionService marketWalletActionService,
                        MarketOrderAutoConfirmService marketOrderAutoConfirmService,
+                       MarketOrderSagaService marketOrderSagaService,
                        UuidV7Generator idGenerator) {
         this.marketListingMapper = marketListingMapper;
         this.marketInventoryUnitMapper = marketInventoryUnitMapper;
@@ -103,9 +99,9 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
         this.marketAddressMapper = marketAddressMapper;
         this.marketDeliveryMapper = marketDeliveryMapper;
         this.marketShipmentMapper = marketShipmentMapper;
-        this.walletMarketActionApi = walletMarketActionApi;
         this.marketWalletActionService = marketWalletActionService;
         this.marketOrderAutoConfirmService = marketOrderAutoConfirmService;
+        this.marketOrderSagaService = marketOrderSagaService;
         this.idGenerator = idGenerator;
     }
 
@@ -255,25 +251,21 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
     public MarketOrderResponse cancelOrder(UUID orderId, UUID buyerUserId) {
         MarketOrder order = requireOrderForUpdate(orderId);
         requireBuyer(order, buyerUserId);
-        requireStatus(order, STATUS_ESCROWED);
-
-        WalletMarketTxnView refundTxn = walletMarketActionApi.refundOrder(
-                order.getRequestId() + ":refund",
-                buyerUserId,
-                order.getTotalAmount(),
-                "market-order:" + orderId
-        );
-
-        MarketListing listing = marketListingMapper.selectByIdForUpdate(order.getListingId());
-        if (listing != null && isFiniteStock(listing)) {
-            String nextStatus = STATUS_SOLD_OUT.equals(listing.getStatus()) ? STATUS_ACTIVE : listing.getStatus();
-            marketListingMapper.adjustStock(listing.getListingId(), listing.getSellerUserId(), 0, order.getQuantity(), nextStatus);
+        if (STATUS_ESCROWED.equals(order.getStatus())) {
+            int updated = marketOrderMapper.markRefundPending(orderId);
+            if (updated == 1) {
+                marketWalletActionService.enqueueRefund(orderId, buyerUserId, order.getSellerUserId(), order.getTotalAmount());
+            }
+            return MarketOrderResponse.from(reloadOrder(orderId));
         }
-        if (GOODS_TYPE_VIRTUAL.equals(order.getGoodsType()) && DELIVERY_MODE_PRELOADED.equals(order.getDeliveryModeSnapshot())) {
-            marketInventoryUnitMapper.releaseReservedByOrder(orderId);
+        if (STATUS_ESCROW_PENDING.equals(order.getStatus())) {
+            int updated = marketOrderMapper.markEscrowCancelPending(orderId);
+            if (updated == 1 && marketWalletActionService.cancelPendingEscrowIfPossible(orderId)) {
+                marketOrderSagaService.completeEscrowNoop(orderId);
+            }
+            return MarketOrderResponse.from(reloadOrder(orderId));
         }
-        marketOrderMapper.markCancelled(orderId, refundTxn.txnId());
-        return MarketOrderResponse.from(reloadOrder(orderId));
+        throw new BusinessException(INVALID_ARGUMENT, "order status mismatch: orderId=" + order.getOrderId());
     }
 
     @Override

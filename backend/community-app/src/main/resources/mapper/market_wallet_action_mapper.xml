@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.market.mapper.MarketWalletActionMapper">
+
+    <sql id="BaseColumns">
+        action_id, order_id, dispute_id, action_type, request_id, wallet_biz_id, actor_user_id,
+        counterparty_user_id, amount, status, result_type, wallet_txn_id, failure_code, last_error,
+        retry_count, next_retry_at, processing_lease_until, create_time, update_time
+    </sql>
+
+    <insert id="insert" parameterType="com.nowcoder.community.market.entity.MarketWalletAction">
+        insert into market_wallet_action(
+            action_id, order_id, dispute_id, action_type, request_id, wallet_biz_id, actor_user_id,
+            counterparty_user_id, amount, status, result_type, wallet_txn_id, failure_code, last_error,
+            retry_count, next_retry_at, processing_lease_until
+        )
+        values(
+            #{actionId, jdbcType=BINARY}, #{orderId, jdbcType=BINARY}, #{disputeId, jdbcType=BINARY},
+            #{actionType}, #{requestId}, #{walletBizId}, #{actorUserId, jdbcType=BINARY},
+            #{counterpartyUserId, jdbcType=BINARY}, #{amount}, #{status}, #{resultType},
+            #{walletTxnId, jdbcType=BINARY}, #{failureCode}, #{lastError}, #{retryCount},
+            #{nextRetryAt}, #{processingLeaseUntil}
+        )
+    </insert>
+
+    <select id="selectById" resultType="com.nowcoder.community.market.entity.MarketWalletAction">
+        select <include refid="BaseColumns"/>
+        from market_wallet_action
+        where action_id = #{actionId, jdbcType=BINARY}
+    </select>
+
+    <select id="selectByRequestId" resultType="com.nowcoder.community.market.entity.MarketWalletAction">
+        select <include refid="BaseColumns"/>
+        from market_wallet_action
+        where request_id = #{requestId}
+    </select>
+
+    <select id="selectDue" resultType="com.nowcoder.community.market.entity.MarketWalletAction">
+        select <include refid="BaseColumns"/>
+        from market_wallet_action
+        where status in ('PENDING', 'RETRYING')
+          and (next_retry_at is null or next_retry_at &lt;= #{asOf})
+        order by coalesce(next_retry_at, create_time) asc, action_id asc
+        limit #{limit}
+    </select>
+
+    <update id="claimProcessing">
+        update market_wallet_action
+        set status = 'PROCESSING',
+            processing_lease_until = #{leaseUntil},
+            update_time = current_timestamp
+        where action_id = #{actionId, jdbcType=BINARY}
+          and status in ('PENDING', 'RETRYING')
+    </update>
+
+    <update id="markSucceeded">
+        update market_wallet_action
+        set status = 'SUCCEEDED',
+            result_type = #{resultType},
+            wallet_txn_id = #{walletTxnId, jdbcType=BINARY},
+            failure_code = null,
+            last_error = null,
+            processing_lease_until = null,
+            update_time = current_timestamp
+        where action_id = #{actionId, jdbcType=BINARY}
+    </update>
+
+    <update id="markCancelled">
+        update market_wallet_action
+        set status = 'CANCELLED',
+            result_type = #{resultType},
+            processing_lease_until = null,
+            update_time = current_timestamp
+        where action_id = #{actionId, jdbcType=BINARY}
+    </update>
+
+    <update id="markRetrying">
+        update market_wallet_action
+        set status = 'RETRYING',
+            retry_count = retry_count + 1,
+            next_retry_at = #{nextRetryAt},
+            last_error = #{lastError},
+            processing_lease_until = null,
+            update_time = current_timestamp
+        where action_id = #{actionId, jdbcType=BINARY}
+    </update>
+
+    <update id="markFailed">
+        update market_wallet_action
+        set status = 'FAILED',
+            failure_code = #{failureCode},
+            last_error = #{lastError},
+            processing_lease_until = null,
+            update_time = current_timestamp
+        where action_id = #{actionId, jdbcType=BINARY}
+    </update>
+
+    <update id="markDead">
+        update market_wallet_action
+        set status = 'DEAD',
+            last_error = #{lastError},
+            processing_lease_until = null,
+            update_time = current_timestamp
+        where action_id = #{actionId, jdbcType=BINARY}
+    </update>
+
+    <update id="recoverExpiredProcessing">
+        update market_wallet_action
+        set status = 'RETRYING',
+            retry_count = retry_count + 1,
+            next_retry_at = current_timestamp,
+            processing_lease_until = null,
+            update_time = current_timestamp
+        where status = 'PROCESSING'
+          and processing_lease_until is not null
+          and processing_lease_until &lt;= #{asOf}
+    </update>
+
+</mapper>

@@ -19,7 +19,11 @@ public interface MarketWalletActionMapper {
 
     MarketWalletAction selectByRequestId(@Param("requestId") String requestId);
 
+    MarketWalletAction selectByOrderAndType(@Param("orderId") UUID orderId, @Param("actionType") String actionType);
+
     List<MarketWalletAction> selectDue(@Param("asOf") Date asOf, @Param("limit") int limit);
+
+    List<MarketWalletAction> selectUnfinishedWithWalletTxn(@Param("limit") int limit);
 
     int claimProcessing(@Param("actionId") UUID actionId, @Param("leaseUntil") Date leaseUntil);
 

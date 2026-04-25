@@ -231,6 +231,32 @@ create index if not exists idx_market_order_seller_time on market_order(seller_u
 create index if not exists idx_market_order_listing_status on market_order(listing_id, status);
 create index if not exists idx_market_order_auto_confirm on market_order(status, auto_confirm_at);
 
+create table if not exists market_wallet_action (
+  action_id binary(16) primary key,
+  order_id binary(16) not null,
+  dispute_id binary(16) default null,
+  action_type varchar(16) not null,
+  request_id varchar(96) not null,
+  wallet_biz_id varchar(96) not null,
+  actor_user_id binary(16) not null,
+  counterparty_user_id binary(16) default null,
+  amount bigint not null,
+  status varchar(16) not null,
+  result_type varchar(16) default null,
+  wallet_txn_id binary(16) default null,
+  failure_code varchar(64) default null,
+  last_error varchar(255) default null,
+  retry_count int not null default 0,
+  next_retry_at timestamp null default null,
+  processing_lease_until timestamp null default null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default current_timestamp on update current_timestamp,
+  constraint uk_market_wallet_action_request unique (request_id)
+);
+
+create index if not exists idx_market_wallet_action_status_next on market_wallet_action(status, next_retry_at, action_id);
+create index if not exists idx_market_wallet_action_order_type on market_wallet_action(order_id, action_type);
+
 create table if not exists market_dispute (
   dispute_id binary(16) primary key,
   order_id binary(16) not null,

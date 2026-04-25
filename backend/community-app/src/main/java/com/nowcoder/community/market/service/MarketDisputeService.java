@@ -7,8 +7,6 @@ import com.nowcoder.community.market.entity.MarketDispute;
 import com.nowcoder.community.market.entity.MarketOrder;
 import com.nowcoder.community.market.mapper.MarketDisputeMapper;
 import com.nowcoder.community.market.mapper.MarketOrderMapper;
-import com.nowcoder.community.wallet.api.action.WalletMarketActionApi;
-import com.nowcoder.community.wallet.api.model.WalletMarketTxnView;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,23 +36,23 @@ public class MarketDisputeService {
 
     private final MarketDisputeMapper marketDisputeMapper;
     private final MarketOrderMapper marketOrderMapper;
-    private final WalletMarketActionApi walletMarketActionApi;
+    private final MarketWalletActionService marketWalletActionService;
     private final UuidV7Generator idGenerator;
 
     @Autowired
     public MarketDisputeService(MarketDisputeMapper marketDisputeMapper,
                                 MarketOrderMapper marketOrderMapper,
-                                WalletMarketActionApi walletMarketActionApi) {
-        this(marketDisputeMapper, marketOrderMapper, walletMarketActionApi, new UuidV7Generator());
+                                MarketWalletActionService marketWalletActionService) {
+        this(marketDisputeMapper, marketOrderMapper, marketWalletActionService, new UuidV7Generator());
     }
 
     MarketDisputeService(MarketDisputeMapper marketDisputeMapper,
                          MarketOrderMapper marketOrderMapper,
-                         WalletMarketActionApi walletMarketActionApi,
+                         MarketWalletActionService marketWalletActionService,
                          UuidV7Generator idGenerator) {
         this.marketDisputeMapper = marketDisputeMapper;
         this.marketOrderMapper = marketOrderMapper;
-        this.walletMarketActionApi = walletMarketActionApi;
+        this.marketWalletActionService = marketWalletActionService;
         this.idGenerator = idGenerator;
     }
 
@@ -94,19 +92,19 @@ public class MarketDisputeService {
         MarketDispute dispute = requireOpenDisputeForSeller(disputeId, sellerUserId);
         MarketOrder order = requireDisputedOrderForUpdate(dispute.getOrderId());
 
-        WalletMarketTxnView refundTxn = walletMarketActionApi.refundOrder(
-                "market-order:" + order.getOrderId() + ":refund",
-                order.getBuyerUserId(),
-                order.getTotalAmount(),
-                "market-order:" + order.getOrderId()
-        );
-
         dispute.setStatus(DISPUTE_STATUS_SELLER_ACCEPTED);
         dispute.setSellerNote(sellerNote.trim());
         dispute.setResolutionType(RESOLUTION_REFUND);
         dispute.setResolvedAt(new Date());
         marketDisputeMapper.update(dispute);
-        marketOrderMapper.markRefunded(order.getOrderId(), refundTxn.txnId());
+        marketOrderMapper.markDisputeRefundPending(order.getOrderId());
+        marketWalletActionService.enqueueDisputeRefund(
+                order.getOrderId(),
+                disputeId,
+                order.getBuyerUserId(),
+                order.getSellerUserId(),
+                order.getTotalAmount()
+        );
         return MarketDisputeResponse.from(reloadDispute(disputeId));
     }
 
@@ -127,20 +125,20 @@ public class MarketDisputeService {
         MarketDispute dispute = requireAdminResolvableDispute(disputeId);
         MarketOrder order = requireDisputedOrderForUpdate(dispute.getOrderId());
 
-        WalletMarketTxnView refundTxn = walletMarketActionApi.refundOrder(
-                "market-order:" + order.getOrderId() + ":refund",
-                order.getBuyerUserId(),
-                order.getTotalAmount(),
-                "market-order:" + order.getOrderId()
-        );
-
         dispute.setStatus(DISPUTE_STATUS_ADMIN_RESOLVED);
         dispute.setSellerNote(note.trim());
         dispute.setResolutionType(RESOLUTION_REFUND);
         dispute.setResolvedBy(adminUserId);
         dispute.setResolvedAt(new Date());
         marketDisputeMapper.update(dispute);
-        marketOrderMapper.markRefunded(order.getOrderId(), refundTxn.txnId());
+        marketOrderMapper.markDisputeRefundPending(order.getOrderId());
+        marketWalletActionService.enqueueDisputeRefund(
+                order.getOrderId(),
+                disputeId,
+                order.getBuyerUserId(),
+                order.getSellerUserId(),
+                order.getTotalAmount()
+        );
         return MarketDisputeResponse.from(reloadDispute(disputeId));
     }
 
@@ -151,20 +149,20 @@ public class MarketDisputeService {
         MarketDispute dispute = requireAdminResolvableDispute(disputeId);
         MarketOrder order = requireDisputedOrderForUpdate(dispute.getOrderId());
 
-        WalletMarketTxnView releaseTxn = walletMarketActionApi.releaseOrder(
-                "market-order:" + order.getOrderId() + ":release",
-                order.getSellerUserId(),
-                order.getTotalAmount(),
-                "market-order:" + order.getOrderId()
-        );
-
         dispute.setStatus(DISPUTE_STATUS_ADMIN_RESOLVED);
         dispute.setSellerNote(note.trim());
         dispute.setResolutionType(RESOLUTION_RELEASE);
         dispute.setResolvedBy(adminUserId);
         dispute.setResolvedAt(new Date());
         marketDisputeMapper.update(dispute);
-        marketOrderMapper.markCompleted(order.getOrderId(), releaseTxn.txnId());
+        marketOrderMapper.markDisputeReleasePending(order.getOrderId());
+        marketWalletActionService.enqueueDisputeRelease(
+                order.getOrderId(),
+                disputeId,
+                order.getSellerUserId(),
+                order.getBuyerUserId(),
+                order.getTotalAmount()
+        );
         return MarketDisputeResponse.from(reloadDispute(disputeId));
     }
 

@@ -26,22 +26,26 @@ public class MarketWalletActionProcessor {
     private final MarketWalletActionMapper actionMapper;
     private final WalletMarketActionApi walletApi;
     private final MarketOrderSagaService sagaService;
+    private final MarketWalletActionService actionService;
     private final Clock clock;
 
     @Autowired
     public MarketWalletActionProcessor(MarketWalletActionMapper actionMapper,
                                        WalletMarketActionApi walletApi,
-                                       MarketOrderSagaService sagaService) {
-        this(actionMapper, walletApi, sagaService, Clock.systemUTC());
+                                       MarketOrderSagaService sagaService,
+                                       MarketWalletActionService actionService) {
+        this(actionMapper, walletApi, sagaService, actionService, Clock.systemUTC());
     }
 
     MarketWalletActionProcessor(MarketWalletActionMapper actionMapper,
                                 WalletMarketActionApi walletApi,
                                 MarketOrderSagaService sagaService,
+                                MarketWalletActionService actionService,
                                 Clock clock) {
         this.actionMapper = actionMapper;
         this.walletApi = walletApi;
         this.sagaService = sagaService;
+        this.actionService = actionService;
         this.clock = clock;
     }
 
@@ -116,7 +120,15 @@ public class MarketWalletActionProcessor {
                 action.getAmount(),
                 action.getWalletBizId()
         );
-        sagaService.markEscrowSucceeded(action.getOrderId(), result.txnId());
+        if (!sagaService.markEscrowSucceeded(action.getOrderId(), result.txnId())
+                && sagaService.markEscrowCancelRefundPending(action.getOrderId(), result.txnId())) {
+            actionService.enqueueRefund(
+                    action.getOrderId(),
+                    action.getActorUserId(),
+                    action.getCounterpartyUserId(),
+                    action.getAmount()
+            );
+        }
         actionMapper.markSucceeded(action.getActionId(), result.txnId(), MarketWalletActionResultType.APPLIED);
     }
 

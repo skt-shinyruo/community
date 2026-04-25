@@ -10,7 +10,6 @@ import com.nowcoder.community.market.mapper.MarketInventoryUnitMapper;
 import com.nowcoder.community.market.mapper.MarketListingMapper;
 import com.nowcoder.community.market.mapper.MarketOrderMapper;
 import com.nowcoder.community.market.mapper.MarketShipmentMapper;
-import com.nowcoder.community.wallet.api.action.WalletMarketActionApi;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -48,13 +47,13 @@ class MarketOrderServiceUnitTest {
     private MarketShipmentMapper marketShipmentMapper;
 
     @Mock
-    private WalletMarketActionApi walletMarketActionApi;
-
-    @Mock
     private MarketWalletActionService marketWalletActionService;
 
     @Mock
     private MarketOrderAutoConfirmService marketOrderAutoConfirmService;
+
+    @Mock
+    private MarketOrderSagaService marketOrderSagaService;
 
     @Test
     void createOrderShouldReturnExistingReplayAfterListingLockEvenIfListingIsAlreadySoldOut() {
@@ -65,9 +64,9 @@ class MarketOrderServiceUnitTest {
                 marketAddressMapper,
                 marketDeliveryMapper,
                 marketShipmentMapper,
-                walletMarketActionApi,
                 marketWalletActionService,
                 marketOrderAutoConfirmService,
+                marketOrderSagaService,
                 new UuidV7Generator()
         );
         UUID buyerUserId = UUID.fromString("00000000-0000-7000-8000-000000000009");
@@ -82,7 +81,6 @@ class MarketOrderServiceUnitTest {
 
         assertThat(response.requestId()).isEqualTo(requestId);
         assertThat(response.listingId()).isEqualTo(listingId);
-        verify(walletMarketActionApi, never()).escrowOrder(any(), any(), anyLong(), any());
         verify(marketWalletActionService, never()).enqueueEscrow(any(), any(), any(), anyLong());
     }
 
@@ -95,9 +93,9 @@ class MarketOrderServiceUnitTest {
                 marketAddressMapper,
                 marketDeliveryMapper,
                 marketShipmentMapper,
-                walletMarketActionApi,
                 marketWalletActionService,
                 marketOrderAutoConfirmService,
+                marketOrderSagaService,
                 new UuidV7Generator()
         );
         UUID buyerUserId = UUID.fromString("00000000-0000-7000-8000-000000000009");

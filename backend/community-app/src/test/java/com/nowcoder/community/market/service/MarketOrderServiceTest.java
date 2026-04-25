@@ -217,7 +217,28 @@ class MarketOrderServiceTest {
 
         MarketOrderResponse cancelled = marketOrderService.cancelOrder(orderId, buyerUserId);
 
+        assertThat(cancelled.status()).isEqualTo("REFUND_PENDING");
+        marketWalletActionProcessor.processDue(10);
+
+        assertThat(marketQueryService.getOrderDetail(orderId, buyerUserId).status()).isEqualTo("CANCELLED");
+        assertThat(balanceOfUser(buyerUserId)).isEqualTo(20_000L);
+    }
+
+    @Test
+    void cancelEscrowPendingOrderShouldPreventLaterEscrowWalletCall() {
+        UUID sellerUserId = uuid(7);
+        UUID buyerUserId = uuid(9);
+        UUID listingId = seedPhysicalListing(sellerUserId);
+        UUID addressId = seedAddress(buyerUserId, true);
+        seedBuyerBalance(buyerUserId, 20_000L);
+        UUID orderId = marketOrderService.createOrder("cancel:pending", buyerUserId, listingId, 1, addressId).orderId();
+
+        MarketOrderResponse cancelled = marketOrderService.cancelOrder(orderId, buyerUserId);
+        marketWalletActionProcessor.processDue(10);
+
         assertThat(cancelled.status()).isEqualTo("CANCELLED");
+        assertThat(jdbcTemplate.queryForObject("select count(*) from wallet_txn", Integer.class)).isZero();
+        assertThat(marketQueryService.getOrderDetail(orderId, buyerUserId).status()).isEqualTo("CANCELLED");
         assertThat(balanceOfUser(buyerUserId)).isEqualTo(20_000L);
     }
 

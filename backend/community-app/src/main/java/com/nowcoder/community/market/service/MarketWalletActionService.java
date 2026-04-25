@@ -5,6 +5,7 @@ import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.market.entity.MarketWalletAction;
 import com.nowcoder.community.market.exception.MarketErrorCode;
 import com.nowcoder.community.market.mapper.MarketWalletActionMapper;
+import com.nowcoder.community.market.model.MarketWalletActionResultType;
 import com.nowcoder.community.market.model.MarketWalletActionStatus;
 import com.nowcoder.community.market.model.MarketWalletActionType;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -63,6 +64,14 @@ public class MarketWalletActionService {
                                                     UUID buyerUserId,
                                                     long amount) {
         return enqueue(orderId, disputeId, MarketWalletActionType.RELEASE, sellerUserId, buyerUserId, amount);
+    }
+
+    @Transactional
+    public boolean cancelPendingEscrowIfPossible(UUID orderId) {
+        return mapper.cancelPendingEscrow(
+                requestId(orderId, MarketWalletActionType.ESCROW),
+                MarketWalletActionResultType.NOOP
+        ) == 1;
     }
 
     private MarketWalletAction enqueue(UUID orderId,

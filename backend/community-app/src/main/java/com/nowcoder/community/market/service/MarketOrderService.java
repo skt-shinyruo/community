@@ -30,7 +30,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -63,6 +62,7 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
     private final MarketShipmentMapper marketShipmentMapper;
     private final WalletMarketActionApi walletMarketActionApi;
     private final MarketWalletActionService marketWalletActionService;
+    private final MarketOrderAutoConfirmService marketOrderAutoConfirmService;
     private final UuidV7Generator idGenerator;
 
     @Autowired
@@ -73,7 +73,8 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
                               MarketDeliveryMapper marketDeliveryMapper,
                               MarketShipmentMapper marketShipmentMapper,
                               WalletMarketActionApi walletMarketActionApi,
-                              MarketWalletActionService marketWalletActionService) {
+                              MarketWalletActionService marketWalletActionService,
+                              MarketOrderAutoConfirmService marketOrderAutoConfirmService) {
         this(marketListingMapper,
                 marketInventoryUnitMapper,
                 marketOrderMapper,
@@ -82,6 +83,7 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
                 marketShipmentMapper,
                 walletMarketActionApi,
                 marketWalletActionService,
+                marketOrderAutoConfirmService,
                 new UuidV7Generator());
     }
 
@@ -93,6 +95,7 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
                        MarketShipmentMapper marketShipmentMapper,
                        WalletMarketActionApi walletMarketActionApi,
                        MarketWalletActionService marketWalletActionService,
+                       MarketOrderAutoConfirmService marketOrderAutoConfirmService,
                        UuidV7Generator idGenerator) {
         this.marketListingMapper = marketListingMapper;
         this.marketInventoryUnitMapper = marketInventoryUnitMapper;
@@ -102,6 +105,7 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
         this.marketShipmentMapper = marketShipmentMapper;
         this.walletMarketActionApi = walletMarketActionApi;
         this.marketWalletActionService = marketWalletActionService;
+        this.marketOrderAutoConfirmService = marketOrderAutoConfirmService;
         this.idGenerator = idGenerator;
     }
 
@@ -207,13 +211,15 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
             throw new BusinessException(INVALID_ARGUMENT, "order is not confirmable: orderId=" + orderId);
         }
 
-        WalletMarketTxnView releaseTxn = walletMarketActionApi.releaseOrder(
-                "market-order:" + orderId + ":release",
-                order.getSellerUserId(),
-                order.getTotalAmount(),
-                "market-order:" + orderId
-        );
-        marketOrderMapper.markCompleted(orderId, releaseTxn.txnId());
+        int updated = marketOrderMapper.markReleasePending(orderId);
+        if (updated == 1) {
+            marketWalletActionService.enqueueRelease(
+                    orderId,
+                    order.getSellerUserId(),
+                    order.getBuyerUserId(),
+                    order.getTotalAmount()
+            );
+        }
         return MarketOrderResponse.from(reloadOrder(orderId));
     }
 
@@ -270,22 +276,21 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
         return MarketOrderResponse.from(reloadOrder(orderId));
     }
 
-    @Transactional
     @Override
     public MarketOrderAutoConfirmResult autoConfirmDueOrders() {
         int completed = 0;
         int skipped = 0;
         Date now = new Date();
         for (MarketOrder dueOrder : marketOrderMapper.selectDueForAutoConfirm(now)) {
-            MarketOrder locked = requireOrderForUpdate(dueOrder.getOrderId());
-            if (!Set.of(STATUS_DELIVERED, STATUS_SHIPPED).contains(locked.getStatus())
-                    || locked.getAutoConfirmAt() == null
-                    || locked.getAutoConfirmAt().after(now)) {
+            try {
+                if (marketOrderAutoConfirmService.confirmOneDueOrder(dueOrder.getOrderId(), now)) {
+                    completed++;
+                } else {
+                    skipped++;
+                }
+            } catch (RuntimeException e) {
                 skipped++;
-                continue;
             }
-            confirmOrder(locked.getOrderId(), locked.getBuyerUserId());
-            completed++;
         }
         return new MarketOrderAutoConfirmResult(completed, skipped);
     }

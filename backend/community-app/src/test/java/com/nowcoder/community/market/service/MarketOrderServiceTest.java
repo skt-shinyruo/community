@@ -175,7 +175,21 @@ class MarketOrderServiceTest {
 
         MarketOrderResponse confirmed = marketOrderService.confirmOrder(orderId, buyerUserId);
 
-        assertThat(confirmed.status()).isEqualTo("COMPLETED");
+        assertThat(confirmed.status()).isEqualTo("RELEASE_PENDING");
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from market_wallet_action where request_id = ?",
+                Integer.class,
+                "market-order:" + orderId + ":release"
+        )).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from wallet_txn where request_id = ?",
+                Integer.class,
+                "market-order:" + orderId + ":release"
+        )).isZero();
+
+        marketWalletActionProcessor.processDue(10);
+
+        assertThat(marketQueryService.getOrderDetail(orderId, buyerUserId).status()).isEqualTo("COMPLETED");
         assertThat(balanceOfUser(sellerUserId)).isEqualTo(1_200L);
     }
 

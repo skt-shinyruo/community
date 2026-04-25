@@ -8,6 +8,7 @@ import com.nowcoder.community.market.dto.CreateMarketAddressRequest;
 import com.nowcoder.community.market.dto.CreateMarketListingRequest;
 import com.nowcoder.community.market.service.MarketAddressService;
 import com.nowcoder.community.market.service.MarketListingService;
+import com.nowcoder.community.market.service.MarketWalletActionProcessor;
 import com.nowcoder.community.market.service.MarketOrderService;
 import com.nowcoder.community.wallet.service.WalletAccountService;
 import com.xxl.job.core.context.XxlJobContext;
@@ -45,6 +46,9 @@ class MarketOrderAutoConfirmHandlerTest {
     private MarketOrderService marketOrderService;
 
     @Autowired
+    private MarketWalletActionProcessor marketWalletActionProcessor;
+
+    @Autowired
     private MarketOrderAutoConfirmActionApi marketOrderAutoConfirmActionApi;
 
     @Autowired
@@ -61,6 +65,7 @@ class MarketOrderAutoConfirmHandlerTest {
         jdbcTemplate.update("delete from market_shipment");
         jdbcTemplate.update("delete from market_dispute");
         jdbcTemplate.update("delete from market_delivery");
+        jdbcTemplate.update("delete from market_wallet_action");
         jdbcTemplate.update("delete from market_order");
         jdbcTemplate.update("delete from market_inventory_unit");
         jdbcTemplate.update("delete from market_address");
@@ -83,7 +88,7 @@ class MarketOrderAutoConfirmHandlerTest {
     }
 
     @Test
-    void autoConfirmShouldCompleteDeliveredAndShippedOrdersIdempotently() {
+    void autoConfirmShouldQueueReleaseAndProcessorShouldCompleteDeliveredAndShippedOrders() {
         UUID buyerUserId = uuid(9);
         seedBuyerBalance(buyerUserId, 50_000L);
         UUID virtualOrderId = seedDueDeliveredVirtualOrder(uuid(7), buyerUserId);
@@ -93,6 +98,19 @@ class MarketOrderAutoConfirmHandlerTest {
 
         assertThat(result.completedCount()).isEqualTo(2);
         assertThat(result.skippedCount()).isEqualTo(0);
+        assertThat(orderStatus(virtualOrderId)).isEqualTo("RELEASE_PENDING");
+        assertThat(orderStatus(physicalOrderId)).isEqualTo("RELEASE_PENDING");
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from market_wallet_action where action_type = 'RELEASE'",
+                Integer.class
+        )).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from wallet_txn where txn_type = 'ORDER_RELEASE'",
+                Integer.class
+        )).isZero();
+
+        marketWalletActionProcessor.processDue(10);
+
         assertThat(orderStatus(virtualOrderId)).isEqualTo("COMPLETED");
         assertThat(orderStatus(physicalOrderId)).isEqualTo("COMPLETED");
     }
@@ -122,6 +140,7 @@ class MarketOrderAutoConfirmHandlerTest {
         request.setMaxPurchaseQuantity(2);
         UUID listingId = marketListingService.createListing(sellerUserId, request, null).listingId();
         UUID orderId = marketOrderService.createOrder("auto-confirm:virtual:req-1", buyerUserId, listingId, 1, null).orderId();
+        marketWalletActionProcessor.processDue(10);
         marketOrderService.deliverVirtualOrder(orderId, sellerUserId, "邀请码-A");
         jdbcTemplate.update(
                 "update market_order set auto_confirm_at = timestampadd('HOUR', -1, current_timestamp) where order_id = ?",
@@ -153,6 +172,7 @@ class MarketOrderAutoConfirmHandlerTest {
         UUID addressId = marketAddressService.createAddress(buyerUserId, addressRequest).addressId();
 
         UUID orderId = marketOrderService.createOrder("auto-confirm:physical:req-1", buyerUserId, listingId, 1, addressId).orderId();
+        marketWalletActionProcessor.processDue(10);
         marketOrderService.shipPhysicalOrder(orderId, sellerUserId, "顺丰", "SF1234567890", "工作日派送");
         jdbcTemplate.update(
                 "update market_order set auto_confirm_at = timestampadd('DAY', -1, current_timestamp) where order_id = ?",

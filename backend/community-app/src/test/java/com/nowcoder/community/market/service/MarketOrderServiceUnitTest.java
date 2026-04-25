@@ -53,6 +53,9 @@ class MarketOrderServiceUnitTest {
     @Mock
     private MarketWalletActionService marketWalletActionService;
 
+    @Mock
+    private MarketOrderAutoConfirmService marketOrderAutoConfirmService;
+
     @Test
     void createOrderShouldReturnExistingReplayAfterListingLockEvenIfListingIsAlreadySoldOut() {
         MarketOrderService service = new MarketOrderService(
@@ -64,6 +67,7 @@ class MarketOrderServiceUnitTest {
                 marketShipmentMapper,
                 walletMarketActionApi,
                 marketWalletActionService,
+                marketOrderAutoConfirmService,
                 new UuidV7Generator()
         );
         UUID buyerUserId = UUID.fromString("00000000-0000-7000-8000-000000000009");
@@ -93,6 +97,7 @@ class MarketOrderServiceUnitTest {
                 marketShipmentMapper,
                 walletMarketActionApi,
                 marketWalletActionService,
+                marketOrderAutoConfirmService,
                 new UuidV7Generator()
         );
         UUID buyerUserId = UUID.fromString("00000000-0000-7000-8000-000000000009");

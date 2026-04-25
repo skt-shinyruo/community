@@ -4,6 +4,46 @@
 
 use im_core;
 
+create table if not exists outbox_event (
+  id binary(16) primary key,
+  event_id varchar(64) not null,
+  topic varchar(255) not null,
+  event_key varchar(255) not null,
+  payload mediumtext not null,
+  status varchar(32) not null,
+  retry_count int not null default 0,
+  next_retry_at timestamp null default null,
+  last_error varchar(255),
+  created_at timestamp not null default current_timestamp,
+  updated_at timestamp not null default current_timestamp on update current_timestamp,
+  unique key uk_outbox_event_id (event_id),
+  index idx_outbox_status_next (status, next_retry_at, id)
+);
+
+set @idx_im_core_outbox_status_updated := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'outbox_event'
+    and index_name = 'idx_outbox_status_updated'
+);
+set @sql := if(@idx_im_core_outbox_status_updated = 0, 'create index idx_outbox_status_updated on outbox_event(status, updated_at, id)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
+set @idx_im_core_outbox_status_created := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'outbox_event'
+    and index_name = 'idx_outbox_status_created'
+);
+set @sql := if(@idx_im_core_outbox_status_created = 0, 'create index idx_outbox_status_created on outbox_event(status, created_at, id)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
 create table if not exists im_room (
   room_id binary(16) primary key,
   name varchar(128),

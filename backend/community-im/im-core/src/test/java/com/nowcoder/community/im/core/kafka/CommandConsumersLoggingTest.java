@@ -11,6 +11,7 @@ import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
+import com.nowcoder.community.im.core.outbox.ImMessageOutboxEnqueuer;
 import com.nowcoder.community.im.core.service.PrivateMessageService;
 import com.nowcoder.community.im.core.service.RoomMessageService;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -41,15 +42,15 @@ class CommandConsumersLoggingTest {
 
     private PrivateMessageService privateMessageService;
     private RoomMessageService roomMessageService;
-    private EventProducer eventProducer;
+    private ImMessageOutboxEnqueuer outboxEnqueuer;
     private CommandConsumers consumers;
 
     @BeforeEach
     void setUp() {
         privateMessageService = mock(PrivateMessageService.class);
         roomMessageService = mock(RoomMessageService.class);
-        eventProducer = mock(EventProducer.class);
-        consumers = new CommandConsumers(privateMessageService, roomMessageService, eventProducer);
+        outboxEnqueuer = mock(ImMessageOutboxEnqueuer.class);
+        consumers = new CommandConsumers(privateMessageService, roomMessageService, outboxEnqueuer);
     }
 
     @Test
@@ -84,7 +85,8 @@ class CommandConsumersLoggingTest {
         try {
             consumers.onPrivateText(cmd);
 
-            verify(eventProducer).publishPrivatePersisted(event);
+            verify(privateMessageService).persist(cmd);
+            verify(outboxEnqueuer, never()).enqueuePrivatePersisted(any(PrivateMessagePersistedEvent.class));
             ILoggingEvent persistedEvent = findSingleEvent(capture.appender(), "community.action=im_private_command_persist");
             assertThat(persistedEvent.getLevel()).isEqualTo(Level.DEBUG);
             assertThat(persistedEvent.getFormattedMessage())
@@ -131,7 +133,8 @@ class CommandConsumersLoggingTest {
         try {
             consumers.onRoomText(cmd);
 
-            verify(eventProducer).publishRoomPersisted(event);
+            verify(roomMessageService).persist(cmd);
+            verify(outboxEnqueuer, never()).enqueueRoomPersisted(any(RoomMessagePersistedEvent.class));
             ILoggingEvent persistedEvent = findSingleEvent(capture.appender(), "community.action=im_room_command_persist");
             assertThat(persistedEvent.getLevel()).isEqualTo(Level.DEBUG);
             assertThat(persistedEvent.getFormattedMessage())
@@ -172,8 +175,8 @@ class CommandConsumersLoggingTest {
             } catch (SecurityException expected) {
             }
 
-            verify(eventProducer, never()).publishRoomPersisted(any(RoomMessagePersistedEvent.class));
-            verify(eventProducer).publishRoomRejected(any(RoomMessageRejectedEvent.class));
+            verify(outboxEnqueuer, never()).enqueueRoomPersisted(any(RoomMessagePersistedEvent.class));
+            verify(outboxEnqueuer).enqueueRoomRejected(any(RoomMessageRejectedEvent.class));
             ILoggingEvent rejectedEvent = findSingleEvent(capture.appender(), "community.action=im_room_command_reject");
             assertThat(rejectedEvent.getLevel()).isEqualTo(Level.WARN);
             assertThat(rejectedEvent.getFormattedMessage())
@@ -192,6 +195,31 @@ class CommandConsumersLoggingTest {
         } finally {
             stopCommandConsumersLogCapture(capture);
         }
+    }
+
+    @Test
+    void privateCommandShouldNotEnqueueRejectedEventForTransientFailure() {
+        UUID fromUserId = uuid(101);
+        UUID toUserId = uuid(202);
+        String conversationId = fromUserId + "_" + toUserId;
+        SendPrivateTextCommand cmd = new SendPrivateTextCommand(
+                "req-transient",
+                "c-transient",
+                fromUserId,
+                toUserId,
+                conversationId,
+                "hello-private",
+                System.currentTimeMillis()
+        );
+        when(privateMessageService.persist(cmd)).thenThrow(new IllegalStateException("database unavailable"));
+
+        try {
+            consumers.onPrivateText(cmd);
+        } catch (IllegalStateException expected) {
+        }
+
+        verify(outboxEnqueuer, never()).enqueuePrivatePersisted(any(PrivateMessagePersistedEvent.class));
+        verify(outboxEnqueuer, never()).enqueuePrivateRejected(any(PrivateMessageRejectedEvent.class));
     }
 
     @Test

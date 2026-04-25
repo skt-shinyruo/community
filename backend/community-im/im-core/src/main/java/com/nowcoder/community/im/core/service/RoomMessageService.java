@@ -6,6 +6,7 @@ import com.nowcoder.community.im.core.repository.RoomMessageRepository;
 import com.nowcoder.community.im.core.repository.RoomReadStateRepository;
 import com.nowcoder.community.im.core.repository.RoomRepository;
 import com.nowcoder.community.im.core.repository.SeqAllocator;
+import com.nowcoder.community.im.core.outbox.ImMessageOutboxEnqueuer;
 import com.nowcoder.community.im.core.support.IdGenerator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ public class RoomMessageService {
     private final RoomReadStateRepository readStateRepository;
     private final SeqAllocator seqAllocator;
     private final IdGenerator idGenerator;
+    private final ImMessageOutboxEnqueuer outboxEnqueuer;
     private final int maxContentChars;
 
     public RoomMessageService(
@@ -32,6 +34,7 @@ public class RoomMessageService {
             RoomReadStateRepository readStateRepository,
             SeqAllocator seqAllocator,
             IdGenerator idGenerator,
+            ImMessageOutboxEnqueuer outboxEnqueuer,
             @Value("${im.message.max-chars:10000}") int maxContentChars
     ) {
         this.roomRepository = roomRepository;
@@ -40,6 +43,7 @@ public class RoomMessageService {
         this.readStateRepository = readStateRepository;
         this.seqAllocator = seqAllocator;
         this.idGenerator = idGenerator;
+        this.outboxEnqueuer = outboxEnqueuer;
         this.maxContentChars = Math.max(1, maxContentChars);
     }
 
@@ -72,7 +76,7 @@ public class RoomMessageService {
         var existing = roomMessageRepository.findByIdempotency(roomId, fromUserId, cmd.clientMsgId());
         if (existing.isPresent()) {
             var m = existing.get();
-            return new RoomMessagePersistedEvent(
+            RoomMessagePersistedEvent event = new RoomMessagePersistedEvent(
                     "evt_" + m.messageId(),
                     m.roomId(),
                     m.seq(),
@@ -82,6 +86,8 @@ public class RoomMessageService {
                     cmd.clientMsgId(),
                     m.createdAt().toEpochMilli()
             );
+            outboxEnqueuer.enqueueRoomPersisted(event);
+            return event;
         }
 
         long seq = seqAllocator.nextRoomSeq(roomId);
@@ -101,7 +107,7 @@ public class RoomMessageService {
         // Sender has read their own outgoing message.
         readStateRepository.updateLastReadSeqMax(roomId, fromUserId, seq);
 
-        return new RoomMessagePersistedEvent(
+        RoomMessagePersistedEvent event = new RoomMessagePersistedEvent(
                 "evt_" + messageId,
                 roomId,
                 seq,
@@ -111,5 +117,7 @@ public class RoomMessageService {
                 cmd.clientMsgId(),
                 now.toEpochMilli()
         );
+        outboxEnqueuer.enqueueRoomPersisted(event);
+        return event;
     }
 }

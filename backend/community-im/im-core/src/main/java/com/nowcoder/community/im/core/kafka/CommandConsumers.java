@@ -5,6 +5,7 @@ import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
+import com.nowcoder.community.im.core.outbox.ImMessageOutboxEnqueuer;
 import com.nowcoder.community.im.core.service.PrivateMessageService;
 import com.nowcoder.community.im.core.service.RoomMessageService;
 import org.slf4j.Logger;
@@ -26,16 +27,16 @@ public class CommandConsumers {
 
     private final PrivateMessageService privateMessageService;
     private final RoomMessageService roomMessageService;
-    private final EventProducer eventProducer;
+    private final ImMessageOutboxEnqueuer outboxEnqueuer;
 
     public CommandConsumers(
             PrivateMessageService privateMessageService,
             RoomMessageService roomMessageService,
-            EventProducer eventProducer
+            ImMessageOutboxEnqueuer outboxEnqueuer
     ) {
         this.privateMessageService = privateMessageService;
         this.roomMessageService = roomMessageService;
-        this.eventProducer = eventProducer;
+        this.outboxEnqueuer = outboxEnqueuer;
     }
 
     @KafkaListener(
@@ -49,7 +50,6 @@ public class CommandConsumers {
         }
         try {
             var event = privateMessageService.persist(cmd);
-            eventProducer.publishPrivatePersisted(event);
             debugEvent(
                     "im_private_command_persist",
                     "success",
@@ -62,20 +62,24 @@ public class CommandConsumers {
                     "community.request_id", cmd.requestId()
             );
         } catch (RuntimeException e) {
-            eventProducer.publishPrivateRejected(toPrivateRejectedEvent(cmd, e));
-            warnEvent(
-                    "im_private_command_reject",
-                    "failure",
-                    null,
-                    "user.id", cmd.fromUserId(),
-                    "community.target_type", "conversation",
-                    "community.target_id", cmd.conversationId(),
-                    "community.client_msg_id", cmd.clientMsgId(),
-                    "community.request_id", cmd.requestId(),
-                    "community.reason_code", rejectionReasonCode(e),
-                    "community.error_class", errorClass(e),
-                    "community.error_message", rejectionMessage(e)
-            );
+            if (isBusinessRejection(e)) {
+                outboxEnqueuer.enqueuePrivateRejected(toPrivateRejectedEvent(cmd, e));
+                warnEvent(
+                        "im_private_command_reject",
+                        "failure",
+                        null,
+                        "user.id", cmd.fromUserId(),
+                        "community.target_type", "conversation",
+                        "community.target_id", cmd.conversationId(),
+                        "community.client_msg_id", cmd.clientMsgId(),
+                        "community.request_id", cmd.requestId(),
+                        "community.reason_code", rejectionReasonCode(e),
+                        "community.error_class", errorClass(e),
+                        "community.error_message", rejectionMessage(e)
+                );
+            } else {
+                warnProcessingFailure("im_private_command_process", cmd.fromUserId(), "conversation", cmd.conversationId(), cmd.clientMsgId(), cmd.requestId(), e);
+            }
             throw e;
         }
     }
@@ -91,7 +95,6 @@ public class CommandConsumers {
         }
         try {
             var event = roomMessageService.persist(cmd);
-            eventProducer.publishRoomPersisted(event);
             debugEvent(
                     "im_room_command_persist",
                     "success",
@@ -104,22 +107,54 @@ public class CommandConsumers {
                     "community.request_id", cmd.requestId()
             );
         } catch (RuntimeException e) {
-            eventProducer.publishRoomRejected(toRoomRejectedEvent(cmd, e));
-            warnEvent(
-                    "im_room_command_reject",
-                    "failure",
-                    null,
-                    "user.id", cmd.fromUserId(),
-                    "community.target_type", "room",
-                    "community.target_id", cmd.roomId(),
-                    "community.client_msg_id", cmd.clientMsgId(),
-                    "community.request_id", cmd.requestId(),
-                    "community.reason_code", rejectionReasonCode(e),
-                    "community.error_class", errorClass(e),
-                    "community.error_message", rejectionMessage(e)
-            );
+            if (isBusinessRejection(e)) {
+                outboxEnqueuer.enqueueRoomRejected(toRoomRejectedEvent(cmd, e));
+                warnEvent(
+                        "im_room_command_reject",
+                        "failure",
+                        null,
+                        "user.id", cmd.fromUserId(),
+                        "community.target_type", "room",
+                        "community.target_id", cmd.roomId(),
+                        "community.client_msg_id", cmd.clientMsgId(),
+                        "community.request_id", cmd.requestId(),
+                        "community.reason_code", rejectionReasonCode(e),
+                        "community.error_class", errorClass(e),
+                        "community.error_message", rejectionMessage(e)
+                );
+            } else {
+                warnProcessingFailure("im_room_command_process", cmd.fromUserId(), "room", cmd.roomId(), cmd.clientMsgId(), cmd.requestId(), e);
+            }
             throw e;
         }
+    }
+
+    private boolean isBusinessRejection(RuntimeException e) {
+        return e instanceof IllegalArgumentException || e instanceof SecurityException;
+    }
+
+    private void warnProcessingFailure(
+            String action,
+            Object userId,
+            String targetType,
+            Object targetId,
+            String clientMsgId,
+            String requestId,
+            RuntimeException e
+    ) {
+        warnEvent(
+                action,
+                "failure",
+                null,
+                "user.id", userId,
+                "community.target_type", targetType,
+                "community.target_id", targetId,
+                "community.client_msg_id", clientMsgId,
+                "community.request_id", requestId,
+                "community.reason_code", rejectionReasonCode(e),
+                "community.error_class", errorClass(e),
+                "community.error_message", rejectionMessage(e)
+        );
     }
 
     private void debugEvent(String action, String outcome, Object... keyValues) {

@@ -65,3 +65,22 @@ create table if not exists im_conversation_read_state (
   updated_at timestamp null default current_timestamp,
   primary key (conversation_id, user_id)
 );
+
+create table if not exists outbox_event (
+  id binary(16) primary key,
+  event_id varchar(64) not null,
+  topic varchar(255) not null,
+  event_key varchar(255) not null,
+  payload clob not null,
+  status varchar(32) not null,
+  retry_count int not null default 0,
+  next_retry_at timestamp,
+  last_error varchar(512),
+  created_at timestamp default current_timestamp,
+  updated_at timestamp default current_timestamp,
+  constraint uk_outbox_event_id unique (event_id)
+);
+
+create index if not exists idx_outbox_status_next on outbox_event(status, next_retry_at, id);
+create index if not exists idx_outbox_status_updated on outbox_event(status, updated_at, id);
+create index if not exists idx_outbox_status_created on outbox_event(status, created_at, id);

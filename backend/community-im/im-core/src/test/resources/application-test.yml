@@ -16,6 +16,10 @@ security:
     hmac-secret: im-core-test-jwt-secret-at-least-32b
     issuer: community-auth
 
+events:
+  outbox:
+    enabled: false
+
 im:
   room:
     max-members: 3

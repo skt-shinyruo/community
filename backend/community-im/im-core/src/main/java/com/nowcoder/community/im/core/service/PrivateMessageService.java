@@ -6,6 +6,7 @@ import com.nowcoder.community.im.core.repository.ConversationReadStateRepository
 import com.nowcoder.community.im.core.repository.ConversationRepository;
 import com.nowcoder.community.im.core.repository.PrivateMessageRepository;
 import com.nowcoder.community.im.core.repository.SeqAllocator;
+import com.nowcoder.community.im.core.outbox.ImMessageOutboxEnqueuer;
 import com.nowcoder.community.im.core.support.ConversationIdSupport;
 import com.nowcoder.community.im.core.support.IdGenerator;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,6 +24,7 @@ public class PrivateMessageService {
     private final ConversationReadStateRepository readStateRepository;
     private final SeqAllocator seqAllocator;
     private final IdGenerator idGenerator;
+    private final ImMessageOutboxEnqueuer outboxEnqueuer;
     private final int maxContentChars;
 
     public PrivateMessageService(
@@ -31,6 +33,7 @@ public class PrivateMessageService {
             ConversationReadStateRepository readStateRepository,
             SeqAllocator seqAllocator,
             IdGenerator idGenerator,
+            ImMessageOutboxEnqueuer outboxEnqueuer,
             @Value("${im.message.max-chars:10000}") int maxContentChars
     ) {
         this.conversationRepository = conversationRepository;
@@ -38,6 +41,7 @@ public class PrivateMessageService {
         this.readStateRepository = readStateRepository;
         this.seqAllocator = seqAllocator;
         this.idGenerator = idGenerator;
+        this.outboxEnqueuer = outboxEnqueuer;
         this.maxContentChars = Math.max(1, maxContentChars);
     }
 
@@ -71,7 +75,7 @@ public class PrivateMessageService {
         var existing = privateMessageRepository.findByIdempotency(derivedConversationId, fromUserId, cmd.clientMsgId());
         if (existing.isPresent()) {
             var m = existing.get();
-            return new PrivateMessagePersistedEvent(
+            PrivateMessagePersistedEvent event = new PrivateMessagePersistedEvent(
                     "evt_" + m.messageId(),
                     m.conversationId(),
                     m.seq(),
@@ -83,6 +87,8 @@ public class PrivateMessageService {
                     cmd.clientMsgId(),
                     m.createdAt().toEpochMilli()
             );
+            outboxEnqueuer.enqueuePrivatePersisted(event);
+            return event;
         }
 
         long seq = seqAllocator.nextConversationSeq(derivedConversationId);
@@ -103,7 +109,7 @@ public class PrivateMessageService {
         // Sender has read their own outgoing message.
         readStateRepository.updateLastReadSeqMax(derivedConversationId, fromUserId, seq);
 
-        return new PrivateMessagePersistedEvent(
+        PrivateMessagePersistedEvent event = new PrivateMessagePersistedEvent(
                 "evt_" + messageId,
                 derivedConversationId,
                 seq,
@@ -115,5 +121,7 @@ public class PrivateMessageService {
                 cmd.clientMsgId(),
                 now.toEpochMilli()
         );
+        outboxEnqueuer.enqueuePrivatePersisted(event);
+        return event;
     }
 }

@@ -7,6 +7,7 @@ import com.nowcoder.community.im.core.support.ConversationIdSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +29,9 @@ class PrivateMessageServiceTest {
 
     @Autowired
     private ConversationReadStateRepository readStateRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     void persist_isIdempotentByClientMsgId() {
@@ -78,6 +82,33 @@ class PrivateMessageServiceTest {
         assertThat(readStateRepository.getLastReadSeq(conversationId, fromUserId)).isEqualTo(e.seq());
         assertThat(e.requestId()).isEqualTo("req-2");
         assertThat(e.clientMsgId()).isEqualTo("c2");
+    }
+
+    @Test
+    void persist_enqueuesPrivatePersistedOutboxEvent() {
+        UUID fromUserId = uuid(1);
+        UUID toUserId = uuid(2);
+        String conversationId = ConversationIdSupport.conversationId(fromUserId, toUserId);
+
+        SendPrivateTextCommand cmd = new SendPrivateTextCommand(
+                "req-3",
+                "c3",
+                fromUserId,
+                toUserId,
+                conversationId,
+                "hello",
+                System.currentTimeMillis()
+        );
+
+        privateMessageService.persist(cmd);
+
+        Integer count = jdbcTemplate.queryForObject(
+                "select count(*) from outbox_event where event_id = ? and event_key = ?",
+                Integer.class,
+                "req-3:private_persisted",
+                conversationId
+        );
+        assertThat(count).isEqualTo(1);
     }
 
     private static UUID uuid(long suffix) {

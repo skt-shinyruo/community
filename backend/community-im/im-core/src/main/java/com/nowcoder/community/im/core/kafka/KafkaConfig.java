@@ -62,8 +62,8 @@ public class KafkaConfig {
                 }
         );
 
-        // No retries by default: invalid commands should not block the partition.
-        DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, new FixedBackOff(0L, 0L));
+        // Retry transient processing failures before DLQ; validation failures remain non-retryable below.
+        DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3L));
 
         // Treat common validation errors as non-retryable.
         handler.addNotRetryableExceptions(IllegalArgumentException.class, SecurityException.class);

@@ -14,11 +14,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.kafka.test.utils.KafkaTestUtils;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
@@ -34,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @ActiveProfiles("test")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @EmbeddedKafka(
         partitions = 1,
         topics = {
@@ -46,7 +49,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @TestPropertySource(properties = {
         "spring.kafka.bootstrap-servers=${spring.embedded.kafka.brokers}",
         "spring.kafka.listener.auto-startup=true",
-        "spring.kafka.consumer.auto-offset-reset=earliest"
+        "spring.kafka.consumer.auto-offset-reset=earliest",
+        "events.outbox.enabled=true",
+        "events.outbox.worker-fixed-delay-ms=100"
 })
 class CommandConsumerIsolationIntegrationTest {
 
@@ -62,6 +67,9 @@ class CommandConsumerIsolationIntegrationTest {
     @Autowired
     private RoomMembershipService roomMembershipService;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     private Consumer<String, String> consumer;
 
     @AfterEach
@@ -76,8 +84,13 @@ class CommandConsumerIsolationIntegrationTest {
 
     @Test
     void invalidRoomCommand_shouldGoToDlq_andNotBlockFollowingCommands() throws Exception {
+        jdbcTemplate.update("delete from outbox_event");
         UUID sender = uuid(1);
         UUID roomId = roomMembershipService.createRoom(sender, "room");
+        String badRequestId = "req-bad-" + UUID.randomUUID();
+        String badClientMsgId = "c-bad-" + UUID.randomUUID();
+        String okRequestId = "req-ok-" + UUID.randomUUID();
+        String okClientMsgId = "c-ok-" + UUID.randomUUID();
 
         String dlqTopic = ImTopics.COMMAND_ROOM_TEXT + ".dlq";
 
@@ -89,7 +102,7 @@ class CommandConsumerIsolationIntegrationTest {
                 ImTopics.COMMAND_ROOM_TEXT,
                 String.valueOf(roomId),
                 // invalid content => should be recovered to dlq (not block partition)
-                new SendRoomTextCommand("req-bad", "c-bad", sender, roomId, " ", System.currentTimeMillis())
+                new SendRoomTextCommand(badRequestId, badClientMsgId, sender, roomId, " ", System.currentTimeMillis())
         );
 
         Map<String, ConsumerRecord<String, String>> rejectedBatch = pollForTopics(
@@ -100,13 +113,13 @@ class CommandConsumerIsolationIntegrationTest {
 
         ConsumerRecord<String, String> dlqRecord = rejectedBatch.get(dlqTopic);
         JsonNode dlqJson = objectMapper.readTree(dlqRecord.value());
-        assertThat(dlqJson.path("clientMsgId").asText("")).isEqualTo("c-bad");
+        assertThat(dlqJson.path("clientMsgId").asText("")).isEqualTo(badClientMsgId);
         assertThat(dlqJson.path("roomId").asText("")).isEqualTo(roomId.toString());
 
         ConsumerRecord<String, String> rejectedRecord = rejectedBatch.get(ImTopics.EVENT_ROOM_REJECTED);
         JsonNode rejectedJson = objectMapper.readTree(rejectedRecord.value());
-        assertThat(rejectedJson.path("requestId").asText("")).isEqualTo("req-bad");
-        assertThat(rejectedJson.path("clientMsgId").asText("")).isEqualTo("c-bad");
+        assertThat(rejectedJson.path("requestId").asText("")).isEqualTo(badRequestId);
+        assertThat(rejectedJson.path("clientMsgId").asText("")).isEqualTo(badClientMsgId);
         assertThat(rejectedJson.path("roomId").asText("")).isEqualTo(roomId.toString());
         assertThat(rejectedJson.path("code").asInt()).isEqualTo(400);
         assertThat(rejectedJson.path("reasonCode").asText("")).isEqualTo("invalid_command");
@@ -114,7 +127,7 @@ class CommandConsumerIsolationIntegrationTest {
         kafkaTemplate.send(
                 ImTopics.COMMAND_ROOM_TEXT,
                 String.valueOf(roomId),
-                new SendRoomTextCommand("req-ok", "c-ok", sender, roomId, "hi", System.currentTimeMillis())
+                new SendRoomTextCommand(okRequestId, okClientMsgId, sender, roomId, "hi", System.currentTimeMillis())
         );
 
         ConsumerRecord<String, String> eventRecord = pollForSingleRecord(consumer, ImTopics.EVENT_ROOM_PERSISTED, Duration.ofSeconds(10));
@@ -122,8 +135,8 @@ class CommandConsumerIsolationIntegrationTest {
         assertThat(eventJson.path("roomId").asText("")).isEqualTo(roomId.toString());
         assertThat(eventJson.path("seq").asLong()).isEqualTo(1L);
         assertThat(eventJson.path("fromUserId").asText("")).isEqualTo(sender.toString());
-        assertThat(eventJson.path("requestId").asText("")).isEqualTo("req-ok");
-        assertThat(eventJson.path("clientMsgId").asText("")).isEqualTo("c-ok");
+        assertThat(eventJson.path("requestId").asText("")).isEqualTo(okRequestId);
+        assertThat(eventJson.path("clientMsgId").asText("")).isEqualTo(okClientMsgId);
     }
 
     private Consumer<String, String> newStringConsumer(String groupId) {

@@ -5,6 +5,7 @@ import com.nowcoder.community.im.core.repository.RoomMessageRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +27,9 @@ class RoomMessageServiceTest {
 
     @Autowired
     private RoomMessageRepository roomMessageRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     void persist_isIdempotentByClientMsgId() {
@@ -52,6 +56,31 @@ class RoomMessageServiceTest {
         List<RoomMessageRepository.RoomMessageRow> rows =
                 roomMessageRepository.listAfterSeq(roomId, 0, 100);
         assertThat(rows).hasSize(1);
+    }
+
+    @Test
+    void persist_enqueuesRoomPersistedOutboxEvent() {
+        UUID sender = uuid(1);
+        UUID roomId = roomMembershipService.createRoom(sender, "room");
+
+        SendRoomTextCommand cmd = new SendRoomTextCommand(
+                "req-2",
+                "c2",
+                sender,
+                roomId,
+                "hi",
+                System.currentTimeMillis()
+        );
+
+        roomMessageService.persist(cmd);
+
+        Integer count = jdbcTemplate.queryForObject(
+                "select count(*) from outbox_event where event_id = ? and event_key = ?",
+                Integer.class,
+                "req-2:room_persisted",
+                roomId.toString()
+        );
+        assertThat(count).isEqualTo(1);
     }
 
     private static UUID uuid(long suffix) {

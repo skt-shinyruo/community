@@ -1,6 +1,7 @@
 package com.nowcoder.community.im.core.kafka;
 
 import com.nowcoder.community.im.common.event.RoomMemberChanged;
+import com.nowcoder.community.im.core.outbox.ImMessageOutboxEnqueuer;
 import com.nowcoder.community.im.core.service.RoomMemberChangePublisher;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -12,17 +13,17 @@ import java.util.UUID;
 @ConditionalOnProperty(prefix = "im.room-member-change", name = "publisher", havingValue = "kafka")
 public class KafkaRoomMemberChangePublisher implements RoomMemberChangePublisher {
 
-    private final EventProducer eventProducer;
+    private final ImMessageOutboxEnqueuer outboxEnqueuer;
 
-    public KafkaRoomMemberChangePublisher(EventProducer eventProducer) {
-        this.eventProducer = eventProducer;
+    public KafkaRoomMemberChangePublisher(ImMessageOutboxEnqueuer outboxEnqueuer) {
+        this.outboxEnqueuer = outboxEnqueuer;
     }
 
     @Override
     public void publishJoined(UUID roomId, UUID userId) {
         Instant now = Instant.now();
-        eventProducer.publishRoomMemberChanged(new RoomMemberChanged(
-                "evt_room_member_joined_" + roomId + "_" + userId + "_" + now.toEpochMilli(),
+        outboxEnqueuer.enqueueRoomMemberChanged(new RoomMemberChanged(
+                newEventId(),
                 roomId,
                 userId,
                 "JOINED",
@@ -33,12 +34,16 @@ public class KafkaRoomMemberChangePublisher implements RoomMemberChangePublisher
     @Override
     public void publishLeft(UUID roomId, UUID userId) {
         Instant now = Instant.now();
-        eventProducer.publishRoomMemberChanged(new RoomMemberChanged(
-                "evt_room_member_left_" + roomId + "_" + userId + "_" + now.toEpochMilli(),
+        outboxEnqueuer.enqueueRoomMemberChanged(new RoomMemberChanged(
+                newEventId(),
                 roomId,
                 userId,
                 "LEFT",
                 now.toEpochMilli()
         ));
+    }
+
+    private String newEventId() {
+        return "evt_room_member_" + UUID.randomUUID();
     }
 }

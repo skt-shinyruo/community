@@ -23,9 +23,14 @@
 - `MarketOrderService`：下单、虚拟交付、实物发货、确认、取消、自动确认
 - `MarketDisputeService`：开争议、卖家接受 / 拒绝、管理员裁决
 - `MarketQueryService`：公开 listing、我的 listing、买单 / 卖单、订单详情
-- `WalletMarketApplicationService`：托管、放款、退款
+- `MarketWalletActionService`：写入 `market_wallet_action` 钱包命令
+- `MarketWalletActionProcessor`：异步调用钱包托管、放款、退款并推进订单 saga
+- `MarketWalletActionRecoveryService`：恢复过期处理租约、对账未完成的钱包命令
+- `WalletMarketApplicationService`：钱包域内执行托管、放款、退款落账
 - XXL Job：
   - `MarketOrderAutoConfirmHandler`
+  - `MarketWalletActionProcessorHandler`
+  - `MarketWalletActionRecoveryHandler`
 
 ---
 
@@ -131,34 +136,45 @@
    - 数量必须落在 `min/max purchase quantity`
    - 有限库存必须足够
 4. 如果是预置虚拟商品：
-   - 预锁足够数量的 `AVAILABLE` inventory unit
+   - 预留足够数量的 `AVAILABLE` inventory unit，状态变为 `RESERVED`
 5. 计算 `totalAmount`
-6. 调 `walletMarketActionApi.escrowOrder(...)`
+6. 写入 `market_order(status=ESCROW_PENDING)`
 7. 对有限库存执行扣减
-8. 写入 `market_order(status=ESCROWED)`
-9. 如果是预置虚拟商品：
-   - 把预锁库存绑定到订单
-   - 订单直接进入 `DELIVERED`
-   - 同时写入 `autoConfirmAt = now + 24h`
+8. 写入 `market_wallet_action(action_type=ESCROW, status=PENDING)`
+9. 后台 processor 调 `WalletMarketApplicationService.escrowOrder(...)`
+10. 钱包成功后由 `MarketOrderSagaService` 推进到 `ESCROWED`
+11. 如果是预置虚拟商品：
+    - escrow 成功后把预留库存交付给买家
+    - 订单进入 `DELIVERED`
+    - 同时写入 `autoConfirmAt = now + 24h`
 
 关键点：
 
 - 市场订单不直接改余额
-- 下单的资金动作必须先走钱包托管
+- 资金动作不再在 `MarketOrderService` / `MarketDisputeService` 的同步事务内直接落钱包账本。
+- 市场先写 `market_wallet_action`，订单进入 `ESCROW_PENDING`、`RELEASE_PENDING`、`REFUND_PENDING`
+  或争议 pending 状态；后台 processor 调钱包并回写最终状态。
 
 ### 4.2 订单主要状态
 
 从当前代码看，订单的核心状态包括：
 
 - `ESCROWED`
+- `ESCROW_PENDING`
+- `ESCROW_CANCEL_PENDING`
+- `ESCROW_FAILED`
 - `DELIVERED`
 - `SHIPPED`
+- `RELEASE_PENDING`
 - `COMPLETED`
 - `DISPUTED`
+- `REFUND_PENDING`
+- `DISPUTE_REFUND_PENDING`
+- `DISPUTE_RELEASE_PENDING`
 - `REFUNDED`
 - `CANCELLED`
 
-下单后不会长期停留在 `CREATED`，而是直接进入 `ESCROWED`。
+下单后不会长期停留在 `CREATED`，而是先进入 `ESCROW_PENDING`。钱包托管成功后才进入 `ESCROWED`。
 
 ---
 
@@ -208,12 +224,13 @@
 
 资金动作：
 
-- 调 `walletMarketActionApi.releaseOrder(...)`
-- 资金从 `ORDER_ESCROW -> USER_WALLET:seller`
+- 订单先改成 `RELEASE_PENDING`
+- 写入 `market_wallet_action(action_type=RELEASE)`
+- 后台 processor 放款，资金从 `ORDER_ESCROW -> USER_WALLET:seller`
 
 然后：
 
-- 订单改成 `COMPLETED`
+- 放款成功后订单改成 `COMPLETED`
 
 ### 5.4 买家取消
 
@@ -222,16 +239,21 @@
 允许状态：
 
 - `ESCROWED`
+- `ESCROW_PENDING`
 
 资金动作：
 
-- 调 `walletMarketActionApi.refundOrder(...)`
+- `ESCROWED` 订单先改成 `REFUND_PENDING`
+- 写入 `market_wallet_action(action_type=REFUND)`
+- 后台 processor 退款
 
 然后：
 
-- 有限库存回补
+- 退款成功后有限库存回补
 - 预置虚拟库存释放回 `AVAILABLE`
 - 订单改成 `CANCELLED`
+
+如果买家在 `ESCROW_PENDING` 时取消，订单会进入 `ESCROW_CANCEL_PENDING` 或直接 `CANCELLED`。后台 processor 会避免再执行无意义托管；如果托管已经成功，则补发退款命令。
 
 ---
 
@@ -258,13 +280,14 @@
 
 资金动作：
 
-- `walletMarketActionApi.refundOrder(...)`
+- dispute -> `SELLER_ACCEPTED`
+- `resolutionType=REFUND`
+- 订单 -> `DISPUTE_REFUND_PENDING`
+- 写入 `market_wallet_action(action_type=REFUND)`
 
 然后：
 
-- dispute -> `SELLER_ACCEPTED`
-- `resolutionType=REFUND`
-- 订单 -> `REFUNDED`
+- 退款成功后订单 -> `REFUNDED`
 
 ### 6.3 卖家拒绝退款
 
@@ -287,6 +310,8 @@
 
 - 退款给买家
 - 放款给卖家
+
+管理员裁决先把订单推进到 `DISPUTE_REFUND_PENDING` 或 `DISPUTE_RELEASE_PENDING` 并写入对应 `market_wallet_action`。
 
 两者都会把 dispute 改成：
 
@@ -312,12 +337,13 @@
    - 当前仍是 `DELIVERED` 或 `SHIPPED`
    - `autoConfirmAt <= now`
 3. 复用 `confirmOrder(...)`
+4. `completedCount` 表示成功排队 release 命令的数量；最终 `COMPLETED` 由钱包 action processor 回写
 
 调度入口是：
 
 - `backend/community-app/src/main/java/com/nowcoder/community/infra/job/handlers/MarketOrderAutoConfirmHandler.java`
 
-也就是说，自动确认不是单独一套放款逻辑，而是复用人工确认路径。
+也就是说，自动确认不是单独一套放款逻辑，而是复用人工确认路径，并由后台钱包命令完成最终放款。
 
 ---
 
@@ -362,6 +388,6 @@
 当前市场实现的核心思路是：
 
 - listing / inventory / order / dispute 各自维护自己的业务状态
-- 钱相关动作统一委托给钱包域做托管、放款、退款
-- 预置虚拟商品可以下单即交付，手动虚拟与实物则要等卖家动作
+- 钱相关动作先落 `market_wallet_action`，再由后台 processor 委托钱包域做托管、放款、退款
+- 预置虚拟商品在托管成功后自动交付，手动虚拟与实物则要等卖家动作
 - 争议只在已交付 / 已发货后打开，最终以退款或放款收敛

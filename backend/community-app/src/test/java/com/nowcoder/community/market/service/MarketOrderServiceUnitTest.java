@@ -11,7 +11,6 @@ import com.nowcoder.community.market.mapper.MarketListingMapper;
 import com.nowcoder.community.market.mapper.MarketOrderMapper;
 import com.nowcoder.community.market.mapper.MarketShipmentMapper;
 import com.nowcoder.community.wallet.api.action.WalletMarketActionApi;
-import com.nowcoder.community.wallet.api.model.WalletMarketTxnView;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -23,7 +22,6 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -52,6 +50,9 @@ class MarketOrderServiceUnitTest {
     @Mock
     private WalletMarketActionApi walletMarketActionApi;
 
+    @Mock
+    private MarketWalletActionService marketWalletActionService;
+
     @Test
     void createOrderShouldReturnExistingReplayAfterListingLockEvenIfListingIsAlreadySoldOut() {
         MarketOrderService service = new MarketOrderService(
@@ -62,6 +63,7 @@ class MarketOrderServiceUnitTest {
                 marketDeliveryMapper,
                 marketShipmentMapper,
                 walletMarketActionApi,
+                marketWalletActionService,
                 new UuidV7Generator()
         );
         UUID buyerUserId = UUID.fromString("00000000-0000-7000-8000-000000000009");
@@ -77,6 +79,7 @@ class MarketOrderServiceUnitTest {
         assertThat(response.requestId()).isEqualTo(requestId);
         assertThat(response.listingId()).isEqualTo(listingId);
         verify(walletMarketActionApi, never()).escrowOrder(any(), any(), anyLong(), any());
+        verify(marketWalletActionService, never()).enqueueEscrow(any(), any(), any(), anyLong());
     }
 
     @Test
@@ -89,6 +92,7 @@ class MarketOrderServiceUnitTest {
                 marketDeliveryMapper,
                 marketShipmentMapper,
                 walletMarketActionApi,
+                marketWalletActionService,
                 new UuidV7Generator()
         );
         UUID buyerUserId = UUID.fromString("00000000-0000-7000-8000-000000000009");
@@ -99,18 +103,6 @@ class MarketOrderServiceUnitTest {
         when(marketOrderMapper.selectByRequestId(requestId)).thenReturn(null);
         when(marketListingMapper.selectByIdForUpdate(listingId)).thenReturn(activeListing(listingId));
         when(marketOrderMapper.selectByRequestIdForUpdate(requestId)).thenReturn(null, duplicated);
-        when(walletMarketActionApi.escrowOrder(
-                eq(requestId + ":escrow"),
-                eq(buyerUserId),
-                eq(1_200L),
-                eq("market-order:" + requestId)
-        )).thenReturn(new WalletMarketTxnView(
-                UUID.fromString("00000000-0000-7000-8000-000000000123"),
-                "ORDER_ESCROW",
-                "SUCCEEDED",
-                1_200L,
-                "market-order:" + requestId
-        ));
         when(marketOrderMapper.insert(any(MarketOrder.class)))
                 .thenThrow(new DataIntegrityViolationException("duplicate requestId"));
 
@@ -118,6 +110,7 @@ class MarketOrderServiceUnitTest {
 
         assertThat(response.orderId()).isEqualTo(duplicated.getOrderId());
         assertThat(response.requestId()).isEqualTo(requestId);
+        verify(marketWalletActionService, never()).enqueueEscrow(any(), any(), any(), anyLong());
     }
 
     private MarketListing activeListing(UUID listingId) {

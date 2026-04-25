@@ -44,6 +44,7 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
     private static final String STATUS_CANCELLED = "CANCELLED";
     private static final String STATUS_COMPLETED = "COMPLETED";
     private static final String STATUS_ACTIVE = "ACTIVE";
+    private static final String STATUS_ESCROW_PENDING = "ESCROW_PENDING";
     private static final String STATUS_ESCROWED = "ESCROWED";
     private static final String STATUS_DELIVERED = "DELIVERED";
     private static final String STATUS_SHIPPED = "SHIPPED";
@@ -51,7 +52,6 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
     private static final String STOCK_MODE_FINITE = "FINITE";
     private static final String DELIVERY_MODE_MANUAL = "MANUAL";
     private static final String DELIVERY_MODE_PRELOADED = "PRELOADED";
-    private static final String INVENTORY_STATUS_DELIVERED = "DELIVERED";
     private static final String DELIVERY_TYPE_MANUAL_TEXT = "MANUAL_TEXT";
     private static final String DELIVERY_STATUS_DELIVERED = "DELIVERED";
 
@@ -62,6 +62,7 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
     private final MarketDeliveryMapper marketDeliveryMapper;
     private final MarketShipmentMapper marketShipmentMapper;
     private final WalletMarketActionApi walletMarketActionApi;
+    private final MarketWalletActionService marketWalletActionService;
     private final UuidV7Generator idGenerator;
 
     @Autowired
@@ -71,7 +72,8 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
                               MarketAddressMapper marketAddressMapper,
                               MarketDeliveryMapper marketDeliveryMapper,
                               MarketShipmentMapper marketShipmentMapper,
-                              WalletMarketActionApi walletMarketActionApi) {
+                              WalletMarketActionApi walletMarketActionApi,
+                              MarketWalletActionService marketWalletActionService) {
         this(marketListingMapper,
                 marketInventoryUnitMapper,
                 marketOrderMapper,
@@ -79,6 +81,7 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
                 marketDeliveryMapper,
                 marketShipmentMapper,
                 walletMarketActionApi,
+                marketWalletActionService,
                 new UuidV7Generator());
     }
 
@@ -89,6 +92,7 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
                        MarketDeliveryMapper marketDeliveryMapper,
                        MarketShipmentMapper marketShipmentMapper,
                        WalletMarketActionApi walletMarketActionApi,
+                       MarketWalletActionService marketWalletActionService,
                        UuidV7Generator idGenerator) {
         this.marketListingMapper = marketListingMapper;
         this.marketInventoryUnitMapper = marketInventoryUnitMapper;
@@ -97,6 +101,7 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
         this.marketDeliveryMapper = marketDeliveryMapper;
         this.marketShipmentMapper = marketShipmentMapper;
         this.walletMarketActionApi = walletMarketActionApi;
+        this.marketWalletActionService = marketWalletActionService;
         this.idGenerator = idGenerator;
     }
 
@@ -121,17 +126,10 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
         List<MarketInventoryUnit> reservedUnits = reserveInventoryIfNeeded(listing, quantity);
 
         long totalAmount = listing.getUnitPrice() * quantity;
-        WalletMarketTxnView escrowTxn = walletMarketActionApi.escrowOrder(
-                requestId + ":escrow",
-                buyerUserId,
-                totalAmount,
-                "market-order:" + requestId
-        );
-
-        adjustFiniteStockAfterOrder(listing, quantity);
+        UUID orderId = idGenerator.next();
 
         MarketOrder order = new MarketOrder();
-        order.setOrderId(idGenerator.next());
+        order.setOrderId(orderId);
         order.setRequestId(requestId);
         order.setListingId(listing.getListingId());
         order.setGoodsType(listing.getGoodsType());
@@ -142,8 +140,8 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
         order.setTotalAmount(totalAmount);
         order.setDeliveryModeSnapshot(listing.getDeliveryMode());
         order.setListingTitleSnapshot(listing.getTitle());
-        order.setStatus(STATUS_ESCROWED);
-        order.setEscrowTxnId(escrowTxn.txnId());
+        order.setStatus(STATUS_ESCROW_PENDING);
+        order.setEscrowTxnId(null);
         if (GOODS_TYPE_PHYSICAL.equals(listing.getGoodsType())) {
             MarketAddress address = requireActiveAddress(addressId, buyerUserId);
             order.setAddressIdSnapshot(address.getAddressId());
@@ -160,11 +158,16 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
             throw ex;
         }
 
+        adjustFiniteStockAfterOrder(listing, quantity);
         if (DELIVERY_MODE_PRELOADED.equals(listing.getDeliveryMode())) {
             reserveUnitsForOrder(order.getOrderId(), reservedUnits);
-            marketOrderMapper.markDelivered(order.getOrderId(), Date.from(Instant.now().plus(24, ChronoUnit.HOURS)));
-            marketInventoryUnitMapper.markDeliveredByOrder(order.getOrderId(), INVENTORY_STATUS_DELIVERED, new Date());
         }
+        marketWalletActionService.enqueueEscrow(
+                order.getOrderId(),
+                buyerUserId,
+                listing.getSellerUserId(),
+                totalAmount
+        );
 
         return MarketOrderResponse.from(reloadOrder(order.getOrderId()));
     }

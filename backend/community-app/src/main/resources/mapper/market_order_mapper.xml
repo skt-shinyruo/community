@@ -233,4 +233,19 @@
         order by auto_confirm_at asc, order_id asc
     </select>
 
+    <select id="selectWalletPendingOrders" resultType="com.nowcoder.community.market.entity.MarketOrder">
+        select <include refid="BaseColumns"/>
+        from market_order
+        where status in (
+            'ESCROW_PENDING',
+            'ESCROW_CANCEL_PENDING',
+            'RELEASE_PENDING',
+            'REFUND_PENDING',
+            'DISPUTE_RELEASE_PENDING',
+            'DISPUTE_REFUND_PENDING'
+        )
+        order by update_time asc, order_id asc
+        limit #{limit}
+    </select>
+
 </mapper>

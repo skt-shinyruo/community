@@ -38,12 +38,30 @@
         where request_id = #{requestId}
     </select>
 
+    <select id="selectByOrderAndType" resultType="com.nowcoder.community.market.entity.MarketWalletAction">
+        select <include refid="BaseColumns"/>
+        from market_wallet_action
+        where order_id = #{orderId, jdbcType=BINARY}
+          and action_type = #{actionType}
+        order by create_time desc, action_id desc
+        limit 1
+    </select>
+
     <select id="selectDue" resultType="com.nowcoder.community.market.entity.MarketWalletAction">
         select <include refid="BaseColumns"/>
         from market_wallet_action
         where status in ('PENDING', 'RETRYING')
           and (next_retry_at is null or next_retry_at &lt;= #{asOf})
         order by coalesce(next_retry_at, create_time) asc, action_id asc
+        limit #{limit}
+    </select>
+
+    <select id="selectUnfinishedWithWalletTxn" resultType="com.nowcoder.community.market.entity.MarketWalletAction">
+        select <include refid="BaseColumns"/>
+        from market_wallet_action
+        where wallet_txn_id is not null
+          and status != 'SUCCEEDED'
+        order by update_time asc, action_id asc
         limit #{limit}
     </select>
 

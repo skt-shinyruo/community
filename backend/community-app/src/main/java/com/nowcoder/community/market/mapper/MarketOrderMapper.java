@@ -66,4 +66,6 @@ public interface MarketOrderMapper {
     int updateStatus(@Param("orderId") UUID orderId, @Param("status") String status);
 
     List<MarketOrder> selectDueForAutoConfirm(@Param("asOf") Date asOf);
+
+    List<MarketOrder> selectWalletPendingOrders(@Param("limit") int limit);
 }

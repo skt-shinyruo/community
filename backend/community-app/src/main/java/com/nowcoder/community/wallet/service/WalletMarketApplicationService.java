@@ -36,6 +36,7 @@ public class WalletMarketApplicationService implements WalletMarketActionApi {
         WalletTxnResult result = walletLedgerService.post(
                 requestId,
                 WalletTxnType.ORDER_ESCROW,
+                bizId,
                 List.of(
                         WalletPosting.debit(walletAccountService.ensureUserWallet(buyerUserId), amount),
                         WalletPosting.credit(walletAccountService.ensureSystemAccount(ESCROW_ACCOUNT_TYPE), amount)
@@ -52,6 +53,7 @@ public class WalletMarketApplicationService implements WalletMarketActionApi {
         WalletTxnResult result = walletLedgerService.post(
                 requestId,
                 WalletTxnType.ORDER_RELEASE,
+                bizId,
                 List.of(
                         WalletPosting.debit(walletAccountService.ensureSystemAccount(ESCROW_ACCOUNT_TYPE), amount),
                         WalletPosting.credit(walletAccountService.ensureUserWallet(sellerUserId), amount)
@@ -68,6 +70,7 @@ public class WalletMarketApplicationService implements WalletMarketActionApi {
         WalletTxnResult result = walletLedgerService.post(
                 requestId,
                 WalletTxnType.ORDER_REFUND,
+                bizId,
                 List.of(
                         WalletPosting.debit(walletAccountService.ensureSystemAccount(ESCROW_ACCOUNT_TYPE), amount),
                         WalletPosting.credit(walletAccountService.ensureUserWallet(buyerUserId), amount)

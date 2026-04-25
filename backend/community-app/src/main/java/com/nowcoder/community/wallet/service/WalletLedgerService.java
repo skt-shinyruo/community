@@ -16,7 +16,10 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -67,11 +70,18 @@ public class WalletLedgerService {
 
     @Transactional
     public WalletTxnResult post(String requestId, WalletTxnType txnType, List<WalletPosting> postings) {
+        return post(requestId, txnType, requestId, postings);
+    }
+
+    @Transactional
+    public WalletTxnResult post(String requestId, WalletTxnType txnType, String bizId, List<WalletPosting> postings) {
         validateRequest(requestId, txnType, postings);
+        String normalizedBizId = validateBizId(bizId);
         requireBalanced(requestId, postings);
 
         WalletTxn existing = walletTxnMapper.selectByRequestId(requestId);
         if (existing != null) {
+            ensureReplayMatches(existing, txnType, normalizedBizId, postings);
             return new WalletTxnResult(existing.getTxnId(), existing.getStatus());
         }
 
@@ -80,14 +90,15 @@ public class WalletLedgerService {
         txn.setRequestId(requestId);
         txn.setTxnType(txnType.name());
         txn.setBizType(txnType.name());
-        txn.setBizId(requestId);
+        txn.setBizId(normalizedBizId);
         txn.setStatus(TXN_STATUS_PENDING);
-        txn.setAmount(postings.stream().mapToLong(WalletPosting::amount).sum() / 2);
+        txn.setAmount(amountOf(postings));
         try {
             walletTxnMapper.insert(txn);
         } catch (DataIntegrityViolationException ex) {
             WalletTxn duplicated = walletTxnMapper.selectByRequestId(requestId);
             if (duplicated != null) {
+                ensureReplayMatches(duplicated, txnType, normalizedBizId, postings);
                 return new WalletTxnResult(duplicated.getTxnId(), duplicated.getStatus());
             }
             throw ex;
@@ -109,6 +120,53 @@ public class WalletLedgerService {
 
         walletTxnMapper.markSucceeded(txn.getTxnId());
         return new WalletTxnResult(txn.getTxnId(), TXN_STATUS_SUCCEEDED);
+    }
+
+    private long amountOf(List<WalletPosting> postings) {
+        return postings.stream().mapToLong(WalletPosting::amount).sum() / 2;
+    }
+
+    private String validateBizId(String bizId) {
+        if (bizId == null || bizId.isBlank()) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "bizId must not be blank");
+        }
+        return bizId.trim();
+    }
+
+    private void ensureReplayMatches(WalletTxn existing,
+                                     WalletTxnType txnType,
+                                     String bizId,
+                                     List<WalletPosting> postings) {
+        boolean matches = Objects.equals(existing.getTxnType(), txnType.name())
+                && Objects.equals(existing.getBizId(), bizId)
+                && existing.getAmount() == amountOf(postings)
+                && postingFingerprintMatches(existing.getTxnId(), postings);
+        if (!matches) {
+            throw new BusinessException(
+                    WalletErrorCode.REQUEST_REPLAY_CONFLICT,
+                    "wallet request replay conflict: requestId=" + existing.getRequestId()
+            );
+        }
+    }
+
+    private boolean postingFingerprintMatches(UUID txnId, List<WalletPosting> postings) {
+        return entryFingerprint(walletEntryMapper.selectByTxnId(txnId)).equals(postingFingerprint(postings));
+    }
+
+    private Map<String, Long> postingFingerprint(List<WalletPosting> postings) {
+        Map<String, Long> fingerprint = new HashMap<>();
+        for (WalletPosting posting : postings) {
+            fingerprint.merge(posting.accountId() + ":" + posting.direction() + ":" + posting.amount(), 1L, Long::sum);
+        }
+        return fingerprint;
+    }
+
+    private Map<String, Long> entryFingerprint(List<WalletEntry> entries) {
+        Map<String, Long> fingerprint = new HashMap<>();
+        for (WalletEntry entry : entries) {
+            fingerprint.merge(entry.getAccountId() + ":" + entry.getDirection() + ":" + entry.getAmount(), 1L, Long::sum);
+        }
+        return fingerprint;
     }
 
     private void validateRequest(String requestId, WalletTxnType txnType, List<WalletPosting> postings) {

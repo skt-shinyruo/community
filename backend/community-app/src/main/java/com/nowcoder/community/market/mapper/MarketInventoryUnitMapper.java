@@ -35,5 +35,10 @@ public interface MarketInventoryUnitMapper {
                              @Param("status") String status,
                              @Param("deliveredAt") java.util.Date deliveredAt);
 
+    int markDeliveredByOrderIfReserved(@Param("orderId") UUID orderId,
+                                       @Param("deliveredAt") java.util.Date deliveredAt);
+
     int releaseReservedByOrder(@Param("reservedOrderId") UUID reservedOrderId);
+
+    int releaseReservedByOrderIfNeeded(@Param("orderId") UUID orderId);
 }

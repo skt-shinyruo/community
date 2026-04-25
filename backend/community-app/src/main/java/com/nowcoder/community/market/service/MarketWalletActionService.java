@@ -7,6 +7,7 @@ import com.nowcoder.community.market.exception.MarketErrorCode;
 import com.nowcoder.community.market.mapper.MarketWalletActionMapper;
 import com.nowcoder.community.market.model.MarketWalletActionStatus;
 import com.nowcoder.community.market.model.MarketWalletActionType;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +22,7 @@ public class MarketWalletActionService {
     private final MarketWalletActionMapper mapper;
     private final UuidV7Generator idGenerator;
 
+    @Autowired
     public MarketWalletActionService(MarketWalletActionMapper mapper) {
         this(mapper, new UuidV7Generator());
     }

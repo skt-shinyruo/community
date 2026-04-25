@@ -72,9 +72,13 @@ Recommended columns:
   - `PENDING`
   - `PROCESSING`
   - `SUCCEEDED`
+  - `CANCELLED`
   - `RETRYING`
   - `FAILED`
   - `DEAD`
+- `result_type varchar(16) default null`
+  - `APPLIED`
+  - `NOOP`
 - `wallet_txn_id binary(16) default null`
 - `failure_code varchar(64) default null`
 - `last_error varchar(255) default null`
@@ -100,6 +104,7 @@ Add explicit pending states to `market_order.status`.
 Recommended statuses:
 
 - `ESCROW_PENDING`
+- `ESCROW_CANCEL_PENDING`
 - `ESCROWED`
 - `DELIVERED`
 - `SHIPPED`
@@ -173,9 +178,86 @@ For escrow terminal failure:
 
 For release or refund terminal failure, do not silently complete the order. Keep the order in the pending money state and surface it for operator repair unless the failure has a safe automatic compensation.
 
-## 8. Flow Changes
+## 8. Saga Failure Semantics
 
-### 8.1 Create Order
+The command processor must handle the standard saga/TCC failure patterns explicitly. These rules are part of the contract, not implementation details.
+
+### 8.1 Idempotency
+
+The same command may execute more than once because of timeouts, retries, scheduler overlap, lease recovery, or future MQ redelivery. Idempotency is required at three layers:
+
+- command layer: `market_wallet_action.request_id` is unique
+- wallet layer: `wallet_txn.request_id` is unique
+- market state layer: every order/dispute transition is a conditional update from an expected state
+
+If a command already has `wallet_txn_id` and the market state is already advanced, replay returns success without calling wallet again. If wallet succeeded but the process crashed before market advancement, replay uses the same wallet `requestId`, loads the same wallet transaction, and resumes the market transition.
+
+### 8.2 Empty Compensation
+
+A compensation request may arrive even when the forward action did not actually apply. This must be a successful no-op, not an error.
+
+Examples:
+
+- escrow failed before wallet posted money, but an escrow-cancel compensation path runs
+- inventory reservation was already released, but retry attempts to release it again
+- refund compensation is requested for an order that never reached `ESCROWED`
+
+The rule is:
+
+1. check the durable forward state first
+2. if the forward side effect is absent, record the compensation as `SUCCEEDED` with `result_type = NOOP`
+3. leave money and inventory unchanged
+4. do not throw solely because there is nothing left to compensate
+
+For wallet refund specifically, the processor must not call `refundOrder` unless the order has a successful escrow marker, either `escrow_txn_id` on `market_order` or an applied `ESCROW` action. If no escrow was applied, refund is a no-op market compensation.
+
+### 8.3 Hanging Prevention
+
+A compensation or cancellation may arrive before the forward command is processed. The forward command must not later apply after the system has already accepted cancellation.
+
+For escrow:
+
+1. if buyer cancels while order is `ESCROW_PENDING`, move the order to `ESCROW_CANCEL_PENDING`
+2. try to cancel the pending `ESCROW` action if it is still `PENDING` or `RETRYING`
+3. the escrow processor must re-read the order after claiming the action and before calling wallet
+4. if the order is no longer `ESCROW_PENDING`, mark the escrow action `CANCELLED` or `SUCCEEDED/NOOP` and do not call wallet
+5. if wallet escrow already applied concurrently, cancellation must enqueue a normal `REFUND` action instead of pretending escrow did not happen
+
+This prevents the classic hanging case where cancel arrives first, then the old forward request wakes up and applies money movement after cancellation.
+
+### 8.4 Persisted State Machine
+
+All saga progress must be durable before any external or cross-domain side effect is attempted.
+
+Required durable markers:
+
+- order status
+- dispute status and resolution decision
+- wallet action status
+- wallet action request id
+- wallet transaction id when known
+- retry count and next retry time
+- terminal failure or no-op result
+
+In-memory flags, scheduler-local state, or Java object state must never be the source of truth. After process restart, the system must recover by scanning persisted order and action states.
+
+### 8.5 Compensation Failure
+
+Compensation can fail. Refund may throw, inventory restoration may conflict, or the process may crash after wallet refund but before market state is updated.
+
+The rule is:
+
+1. compensation is represented by a durable command
+2. wallet refund uses a deterministic request id and is safe to retry
+3. market restoration uses conditional, idempotent updates
+4. the command is not marked `SUCCEEDED` until both wallet and required market-side compensation state are complete
+5. repeated compensation failure moves the action to `DEAD` or `FAILED` with enough context for operator repair
+
+If wallet refund succeeds but inventory restoration fails, retry must not refund twice. It must reload the wallet transaction by the same request id, then retry only the remaining market-side restoration and final state transition.
+
+## 9. Flow Changes
+
+### 9.1 Create Order
 
 Current flow:
 
@@ -195,7 +277,7 @@ New flow:
 
 Preloaded virtual delivery should happen only after escrow succeeds. If preloaded stock is reserved during `ESCROW_PENDING`, it must not be exposed to the buyer as delivered until the order reaches `ESCROWED`.
 
-### 8.2 Manual Confirm And Auto Confirm
+### 9.2 Manual Confirm And Auto Confirm
 
 Current flow:
 
@@ -213,7 +295,7 @@ New flow:
 
 `autoConfirmDueOrders` must not execute wallet release in a large loop transaction. It should enqueue release commands for due orders using small per-order transactions or a claim-based batch.
 
-### 8.3 Buyer Cancel
+### 9.3 Buyer Cancel
 
 Current flow:
 
@@ -232,7 +314,9 @@ New flow:
 
 Inventory should be restored after refund succeeds. This avoids reselling stock before escrow money has been returned. If product strategy requires faster stock reuse, that must be a separate explicit decision with reconciliation rules.
 
-### 8.4 Dispute Refund Or Release
+If the buyer cancels while order is still `ESCROW_PENDING`, use the hanging-prevention flow from section 8.3. Do not enqueue wallet refund unless escrow has actually applied.
+
+### 9.4 Dispute Refund Or Release
 
 Current flow:
 
@@ -252,7 +336,7 @@ New flow:
 
 The dispute decision and pending money action should be visible to admins so they can distinguish "decision made, money still processing" from "fully resolved".
 
-## 9. Idempotency Rules
+## 10. Idempotency Rules
 
 Canonical request ids:
 
@@ -270,7 +354,7 @@ Rules:
 - state advancement uses conditional updates, for example `ESCROW_PENDING -> ESCROWED`, not unconditional status overwrite.
 - replaying an already succeeded command must not change money twice or regress order state.
 
-## 10. Boundaries
+## 11. Boundaries
 
 Market owns:
 
@@ -290,7 +374,7 @@ Wallet owns:
 
 The wallet API should remain a synchronous owner-domain action API from the processor's perspective. The important change is not "make wallet async internally"; it is "do not call wallet inside the market business transaction".
 
-## 11. Observability And Operations
+## 12. Observability And Operations
 
 Add logs and metrics for:
 
@@ -300,6 +384,8 @@ Add logs and metrics for:
 - action retry scheduled
 - action failed terminally
 - action lease recovered
+- action completed as no-op compensation
+- forward action cancelled because compensation arrived first
 
 Operators need queries for:
 
@@ -308,10 +394,12 @@ Operators need queries for:
 - order pending money state without matching action
 - action succeeded but order not advanced
 - wallet transaction exists for request id but action not succeeded
+- compensation action in `DEAD` or `FAILED`
+- cancelled order with an applied escrow action but no refund action
 
 This design should include a repair command or admin endpoint later, but the first implementation can start with database-backed operational queries and clear logs.
 
-## 12. Migration Strategy
+## 13. Migration Strategy
 
 1. Add the command table and new statuses without changing behavior.
 2. Implement command creation and processor behind code paths for escrow only.
@@ -327,7 +415,7 @@ For already existing orders:
 - no backfill is required for completed wallet actions
 - the new processor only handles rows in `market_wallet_action`
 
-## 13. Testing Strategy
+## 14. Testing Strategy
 
 Unit tests:
 
@@ -336,6 +424,8 @@ Unit tests:
 - processor maps action types to the correct wallet API method
 - retryable and terminal failures update action state correctly
 - conditional state advancement is idempotent
+- empty compensation records `NOOP` success
+- forward escrow does not apply after `ESCROW_CANCEL_PENDING`
 
 Service tests:
 
@@ -349,12 +439,15 @@ Service tests:
 - refund processor marks order `CANCELLED` or `REFUNDED`
 - dispute resolution remains pending until wallet succeeds
 - auto-confirm enqueues release commands without one large wallet transaction
+- cancel during `ESCROW_PENDING` prevents hanging escrow execution
+- refund retry after wallet success but market update failure does not refund twice
 
 Concurrency tests:
 
 - two processors cannot claim the same action at the same time
 - retry after process crash does not duplicate wallet transactions
 - duplicate HTTP confirm/cancel calls do not enqueue duplicate wallet commands
+- cancel-before-escrow and escrow-before-cancel races converge to either no wallet action or escrow plus refund
 
 Integration tests:
 
@@ -362,7 +455,7 @@ Integration tests:
 - refund lifecycle with inventory restoration
 - dispute refund and dispute release lifecycle
 
-## 14. Acceptance Criteria
+## 15. Acceptance Criteria
 
 - No market order or dispute transaction directly calls `WalletMarketActionApi`.
 - `WalletLedgerService.post` still runs in a wallet-owned transaction.
@@ -371,4 +464,6 @@ Integration tests:
 - Market order states expose money-in-progress states.
 - Auto-confirm no longer wraps many wallet releases in one market transaction.
 - Tests cover success, retry, terminal failure, and duplicate execution paths.
-
+- Empty compensation is a successful no-op, not an error.
+- Hanging prevention stops a forward wallet action from applying after cancellation has been durably accepted.
+- Compensation failure is durable, retryable, and operator-visible.

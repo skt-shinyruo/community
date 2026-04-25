@@ -8,6 +8,7 @@ import com.nowcoder.community.market.model.MarketWalletActionResultType;
 import com.nowcoder.community.market.model.MarketWalletActionType;
 import com.nowcoder.community.wallet.api.action.WalletMarketActionApi;
 import com.nowcoder.community.wallet.api.model.WalletMarketTxnView;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -27,6 +28,7 @@ public class MarketWalletActionProcessor {
     private final MarketOrderSagaService sagaService;
     private final Clock clock;
 
+    @Autowired
     public MarketWalletActionProcessor(MarketWalletActionMapper actionMapper,
                                        WalletMarketActionApi walletApi,
                                        MarketOrderSagaService sagaService) {

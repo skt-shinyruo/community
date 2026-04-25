@@ -79,11 +79,27 @@
           and status = 'RESERVED'
     </update>
 
+    <update id="markDeliveredByOrderIfReserved">
+        update market_inventory_unit
+        set status = 'DELIVERED',
+            delivered_at = #{deliveredAt}
+        where reserved_order_id = #{orderId, jdbcType=BINARY}
+          and status = 'RESERVED'
+    </update>
+
     <update id="releaseReservedByOrder">
         update market_inventory_unit
         set status = 'AVAILABLE',
             reserved_order_id = null
         where reserved_order_id = #{reservedOrderId, jdbcType=BINARY}
+          and status = 'RESERVED'
+    </update>
+
+    <update id="releaseReservedByOrderIfNeeded">
+        update market_inventory_unit
+        set status = 'AVAILABLE',
+            reserved_order_id = null
+        where reserved_order_id = #{orderId, jdbcType=BINARY}
           and status = 'RESERVED'
     </update>
 

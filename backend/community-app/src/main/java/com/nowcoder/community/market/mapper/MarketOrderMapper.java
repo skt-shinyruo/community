@@ -31,6 +31,28 @@ public interface MarketOrderMapper {
 
     int markShipped(@Param("orderId") UUID orderId, @Param("autoConfirmAt") Date autoConfirmAt);
 
+    int markEscrowSucceeded(@Param("orderId") UUID orderId, @Param("escrowTxnId") UUID escrowTxnId);
+
+    int markEscrowFailed(@Param("orderId") UUID orderId);
+
+    int markReleasePending(@Param("orderId") UUID orderId);
+
+    int markReleaseSucceeded(@Param("orderId") UUID orderId, @Param("releaseTxnId") UUID releaseTxnId);
+
+    int markRefundPending(@Param("orderId") UUID orderId);
+
+    int markEscrowCancelPending(@Param("orderId") UUID orderId);
+
+    int markCancelledNoRefund(@Param("orderId") UUID orderId);
+
+    int markCancelledWithRefund(@Param("orderId") UUID orderId, @Param("refundTxnId") UUID refundTxnId);
+
+    int markDisputeRefundPending(@Param("orderId") UUID orderId);
+
+    int markDisputeReleasePending(@Param("orderId") UUID orderId);
+
+    int markDisputeRefundSucceeded(@Param("orderId") UUID orderId, @Param("refundTxnId") UUID refundTxnId);
+
     int markCompleted(@Param("orderId") UUID orderId, @Param("releaseTxnId") UUID releaseTxnId);
 
     int markCancelled(@Param("orderId") UUID orderId, @Param("refundTxnId") UUID refundTxnId);

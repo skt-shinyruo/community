@@ -84,6 +84,99 @@
         where order_id = #{orderId, jdbcType=BINARY}
     </update>
 
+    <update id="markEscrowSucceeded">
+        update market_order
+        set status = 'ESCROWED',
+            escrow_txn_id = #{escrowTxnId, jdbcType=BINARY},
+            update_time = current_timestamp
+        where order_id = #{orderId, jdbcType=BINARY}
+          and status = 'ESCROW_PENDING'
+    </update>
+
+    <update id="markEscrowFailed">
+        update market_order
+        set status = 'ESCROW_FAILED',
+            update_time = current_timestamp
+        where order_id = #{orderId, jdbcType=BINARY}
+          and status = 'ESCROW_PENDING'
+    </update>
+
+    <update id="markReleasePending">
+        update market_order
+        set status = 'RELEASE_PENDING',
+            update_time = current_timestamp
+        where order_id = #{orderId, jdbcType=BINARY}
+          and status in ('DELIVERED', 'SHIPPED')
+    </update>
+
+    <update id="markReleaseSucceeded">
+        update market_order
+        set status = 'COMPLETED',
+            release_txn_id = #{releaseTxnId, jdbcType=BINARY},
+            auto_confirm_at = null,
+            update_time = current_timestamp
+        where order_id = #{orderId, jdbcType=BINARY}
+          and status in ('RELEASE_PENDING', 'DISPUTE_RELEASE_PENDING')
+    </update>
+
+    <update id="markRefundPending">
+        update market_order
+        set status = 'REFUND_PENDING',
+            update_time = current_timestamp
+        where order_id = #{orderId, jdbcType=BINARY}
+          and status = 'ESCROWED'
+    </update>
+
+    <update id="markEscrowCancelPending">
+        update market_order
+        set status = 'ESCROW_CANCEL_PENDING',
+            update_time = current_timestamp
+        where order_id = #{orderId, jdbcType=BINARY}
+          and status = 'ESCROW_PENDING'
+    </update>
+
+    <update id="markCancelledNoRefund">
+        update market_order
+        set status = 'CANCELLED',
+            update_time = current_timestamp
+        where order_id = #{orderId, jdbcType=BINARY}
+          and status in ('ESCROW_CANCEL_PENDING', 'ESCROW_FAILED')
+    </update>
+
+    <update id="markCancelledWithRefund">
+        update market_order
+        set status = 'CANCELLED',
+            refund_txn_id = #{refundTxnId, jdbcType=BINARY},
+            update_time = current_timestamp
+        where order_id = #{orderId, jdbcType=BINARY}
+          and status = 'REFUND_PENDING'
+    </update>
+
+    <update id="markDisputeRefundPending">
+        update market_order
+        set status = 'DISPUTE_REFUND_PENDING',
+            update_time = current_timestamp
+        where order_id = #{orderId, jdbcType=BINARY}
+          and status = 'DISPUTED'
+    </update>
+
+    <update id="markDisputeReleasePending">
+        update market_order
+        set status = 'DISPUTE_RELEASE_PENDING',
+            update_time = current_timestamp
+        where order_id = #{orderId, jdbcType=BINARY}
+          and status = 'DISPUTED'
+    </update>
+
+    <update id="markDisputeRefundSucceeded">
+        update market_order
+        set status = 'REFUNDED',
+            refund_txn_id = #{refundTxnId, jdbcType=BINARY},
+            update_time = current_timestamp
+        where order_id = #{orderId, jdbcType=BINARY}
+          and status = 'DISPUTE_REFUND_PENDING'
+    </update>
+
     <update id="markCompleted">
         update market_order
         set status = 'COMPLETED',

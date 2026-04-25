@@ -60,7 +60,7 @@ create table if not exists market_order (
   total_amount bigint not null,
   delivery_mode_snapshot varchar(16) default null,
   listing_title_snapshot varchar(128) not null,
-  status varchar(16) not null,
+  status varchar(32) not null,
   escrow_txn_id binary(16) default null,
   release_txn_id binary(16) default null,
   refund_txn_id binary(16) default null,

@@ -556,12 +556,27 @@ class AnalyticsIngestServiceTest {
     void shouldFailOpenWhenAnalyticsWriteThrows() {
         AnalyticsService analyticsService = mock(AnalyticsService.class);
         AnalyticsUserOrdinalRepository ordinalRepository = mock(AnalyticsUserOrdinalRepository.class);
+        UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        when(ordinalRepository.resolveOrdinal(userId)).thenReturn(9);
         doThrow(new RuntimeException("redis down")).when(analyticsService).recordUv(LocalDate.of(2026, 4, 26), "1.1.1.1");
         AnalyticsIngestService service = new AnalyticsIngestService(analyticsService, ordinalRepository, enabledProperties(), clock);
 
-        service.recordRequest("1.1.1.1", null);
+        service.recordRequest("1.1.1.1", userId);
 
-        verifyNoInteractions(ordinalRepository);
+        verify(analyticsService).recordDau(LocalDate.of(2026, 4, 26), 9);
+    }
+
+    @Test
+    void shouldFailOpenWhenDauWriteThrows() {
+        AnalyticsService analyticsService = mock(AnalyticsService.class);
+        AnalyticsUserOrdinalRepository ordinalRepository = mock(AnalyticsUserOrdinalRepository.class);
+        UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        doThrow(new RuntimeException("redis down")).when(ordinalRepository).resolveOrdinal(userId);
+        AnalyticsIngestService service = new AnalyticsIngestService(analyticsService, ordinalRepository, enabledProperties(), clock);
+
+        service.recordRequest("1.1.1.1", userId);
+
+        verify(analyticsService).recordUv(LocalDate.of(2026, 4, 26), "1.1.1.1");
     }
 
     @Test
@@ -622,12 +637,14 @@ import com.nowcoder.community.analytics.repo.AnalyticsUserOrdinalRepository;
 import com.nowcoder.community.analytics.service.AnalyticsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class AnalyticsIngestService {
@@ -638,7 +655,10 @@ public class AnalyticsIngestService {
     private final AnalyticsUserOrdinalRepository ordinalRepository;
     private final AnalyticsIngestProperties properties;
     private final Clock clock;
+    private final AtomicLong uvFailureCount = new AtomicLong();
+    private final AtomicLong dauFailureCount = new AtomicLong();
 
+    @Autowired
     public AnalyticsIngestService(
             AnalyticsService analyticsService,
             AnalyticsUserOrdinalRepository ordinalRepository,
@@ -686,7 +706,7 @@ public class AnalyticsIngestService {
         try {
             analyticsService.recordUv(date, ip);
         } catch (RuntimeException e) {
-            log.warn("[analytics][ingest] record UV failed: date={}, ip={}", date, ip, e);
+            logFailure("UV", date, uvFailureCount, e);
         }
     }
 
@@ -698,8 +718,22 @@ public class AnalyticsIngestService {
             int ordinal = ordinalRepository.resolveOrdinal(userId);
             analyticsService.recordDau(date, ordinal);
         } catch (RuntimeException e) {
-            log.warn("[analytics][ingest] record DAU failed: date={}, userId={}", date, userId, e);
+            logFailure("DAU", date, dauFailureCount, e);
         }
+    }
+
+    private void logFailure(String metric, LocalDate date, AtomicLong failureCount, RuntimeException e) {
+        long count = failureCount.incrementAndGet();
+        if (count <= 3 || isPowerOfTwo(count)) {
+            log.warn("[analytics][ingest] record {} failed: date={}, failures={}, error={}", metric, date, count, e.toString());
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("[analytics][ingest] record {} failed: date={}, failures={}", metric, date, count, e);
+        }
+    }
+
+    private boolean isPowerOfTwo(long value) {
+        return value > 0 && (value & (value - 1)) == 0;
     }
 }
 ```
@@ -712,7 +746,7 @@ Run:
 mvn -f backend/pom.xml -pl community-app -am -Dtest=AnalyticsIngestServiceTest test
 ```
 
-Expected: `Tests run: 4, Failures: 0, Errors: 0`.
+Expected: `Tests run: 5, Failures: 0, Errors: 0`.
 
 - [ ] **Step 5: Commit Task 3**
 

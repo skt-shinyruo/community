@@ -29,6 +29,6 @@ class RedisAnalyticsUserOrdinalRepositoryTest {
         assertThat(ordinal).isEqualTo(7);
         ArgumentCaptor<List<String>> keys = ArgumentCaptor.forClass(List.class);
         verify(redisTemplate).execute(any(RedisScript.class), keys.capture(), eq("11111111-1111-1111-1111-111111111111"));
-        assertThat(keys.getValue()).containsExactly("analytics:user-ordinal:map", "analytics:user-ordinal:seq");
+        assertThat(keys.getValue()).containsExactly("{analytics:user-ordinal}:map", "{analytics:user-ordinal}:seq");
     }
 }

@@ -3,11 +3,11 @@ package com.nowcoder.community.market.service;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.market.dto.AddMarketInventoryBatchRequest;
-import com.nowcoder.community.market.dto.MarketInventoryUnitResponse;
 import com.nowcoder.community.market.entity.MarketInventoryUnit;
 import com.nowcoder.community.market.entity.MarketListing;
 import com.nowcoder.community.market.mapper.MarketInventoryUnitMapper;
 import com.nowcoder.community.market.mapper.MarketListingMapper;
+import com.nowcoder.community.market.model.MarketInventoryUnitView;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,10 +71,10 @@ public class MarketInventoryService {
         marketListingMapper.adjustStock(listingId, sellerUserId, delta, delta, nextStatus);
     }
 
-    public List<MarketInventoryUnitResponse> listInventory(UUID listingId, UUID sellerUserId) {
+    public List<MarketInventoryUnitView> listInventory(UUID listingId, UUID sellerUserId) {
         requireOwnedListing(listingId, sellerUserId);
         return marketInventoryUnitMapper.selectByListingId(listingId).stream()
-                .map(MarketInventoryUnitResponse::from)
+                .map(MarketInventoryUnitView::from)
                 .toList();
     }
 

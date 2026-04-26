@@ -1,6 +1,6 @@
 package com.nowcoder.community.market.dto;
 
-import com.nowcoder.community.market.entity.MarketInventoryUnit;
+import com.nowcoder.community.market.model.MarketInventoryUnitView;
 
 import java.util.Date;
 import java.util.UUID;
@@ -17,17 +17,17 @@ public record MarketInventoryUnitResponse(
         Date createTime
 ) {
 
-    public static MarketInventoryUnitResponse from(MarketInventoryUnit unit) {
+    public static MarketInventoryUnitResponse from(MarketInventoryUnitView unit) {
         return new MarketInventoryUnitResponse(
-                unit.getInventoryUnitId(),
-                unit.getListingId(),
-                unit.getSellerUserId(),
-                unit.getPayloadType(),
-                unit.getPayloadContent(),
-                unit.getStatus(),
-                unit.getReservedOrderId(),
-                unit.getDeliveredAt(),
-                unit.getCreateTime()
+                unit.inventoryUnitId(),
+                unit.listingId(),
+                unit.sellerUserId(),
+                unit.payloadType(),
+                unit.payloadContent(),
+                unit.status(),
+                unit.reservedOrderId(),
+                unit.deliveredAt(),
+                unit.createTime()
         );
     }
 }

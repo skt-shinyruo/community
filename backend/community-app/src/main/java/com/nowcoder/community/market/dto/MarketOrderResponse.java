@@ -1,6 +1,6 @@
 package com.nowcoder.community.market.dto;
 
-import com.nowcoder.community.market.entity.MarketOrder;
+import com.nowcoder.community.market.model.MarketOrderResult;
 
 import java.util.Date;
 import java.util.UUID;
@@ -26,26 +26,26 @@ public record MarketOrderResponse(
         Date updateTime
 ) {
 
-    public static MarketOrderResponse from(MarketOrder order) {
+    public static MarketOrderResponse from(MarketOrderResult order) {
         return new MarketOrderResponse(
-                order.getOrderId(),
-                order.getRequestId(),
-                order.getListingId(),
-                order.getGoodsType(),
-                order.getSellerUserId(),
-                order.getBuyerUserId(),
-                order.getQuantity(),
-                order.getUnitPriceSnapshot(),
-                order.getTotalAmount(),
-                order.getDeliveryModeSnapshot(),
-                order.getListingTitleSnapshot(),
-                order.getStatus(),
-                order.getEscrowTxnId(),
-                order.getReleaseTxnId(),
-                order.getRefundTxnId(),
-                order.getAutoConfirmAt(),
-                order.getCreateTime(),
-                order.getUpdateTime()
+                order.orderId(),
+                order.requestId(),
+                order.listingId(),
+                order.goodsType(),
+                order.sellerUserId(),
+                order.buyerUserId(),
+                order.quantity(),
+                order.unitPriceSnapshot(),
+                order.totalAmount(),
+                order.deliveryModeSnapshot(),
+                order.listingTitleSnapshot(),
+                order.status(),
+                order.escrowTxnId(),
+                order.releaseTxnId(),
+                order.refundTxnId(),
+                order.autoConfirmAt(),
+                order.createTime(),
+                order.updateTime()
         );
     }
 }

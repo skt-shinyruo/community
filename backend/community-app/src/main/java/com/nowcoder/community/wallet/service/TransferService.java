@@ -2,10 +2,10 @@ package com.nowcoder.community.wallet.service;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.wallet.dto.CreateTransferResponse;
 import com.nowcoder.community.wallet.entity.TransferOrder;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.mapper.TransferOrderMapper;
+import com.nowcoder.community.wallet.model.TransferOrderResult;
 import com.nowcoder.community.wallet.model.WalletPosting;
 import com.nowcoder.community.wallet.model.WalletTxnType;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,7 +42,7 @@ public class TransferService {
     }
 
     @Transactional
-    public CreateTransferResponse create(String requestId, UUID fromUserId, UUID toUserId, long amount) {
+    public TransferOrderResult create(String requestId, UUID fromUserId, UUID toUserId, long amount) {
         validate(requestId, amount);
         requireValidUsers(fromUserId, toUserId);
         if (fromUserId.equals(toUserId)) {
@@ -52,7 +52,7 @@ public class TransferService {
         TransferOrder existing = transferOrderMapper.selectByRequestId(requestId);
         if (existing != null) {
             ensureReplayMatches(existing, fromUserId, toUserId, amount);
-            return CreateTransferResponse.from(existing);
+            return TransferOrderResult.from(existing);
         }
 
         accountService.requireUserWalletActive(fromUserId);
@@ -68,7 +68,7 @@ public class TransferService {
 
         TransferOrder order = createOrLoad(requestId, fromUserId, toUserId, amount);
         ensureReplayMatches(order, fromUserId, toUserId, amount);
-        return CreateTransferResponse.from(order);
+        return TransferOrderResult.from(order);
     }
 
     private void validate(String requestId, long amount) {

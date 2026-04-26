@@ -3,10 +3,10 @@ package com.nowcoder.community.market.service;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.market.dto.CreateMarketAddressRequest;
-import com.nowcoder.community.market.dto.MarketAddressResponse;
 import com.nowcoder.community.market.dto.UpdateMarketAddressRequest;
 import com.nowcoder.community.market.entity.MarketAddress;
 import com.nowcoder.community.market.mapper.MarketAddressMapper;
+import com.nowcoder.community.market.model.MarketAddressView;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,7 +38,7 @@ public class MarketAddressService {
     }
 
     @Transactional
-    public MarketAddressResponse createAddress(UUID userId, CreateMarketAddressRequest request) {
+    public MarketAddressView createAddress(UUID userId, CreateMarketAddressRequest request) {
         validateUserId(userId);
         validateCreateRequest(request);
         if (request.isDefault()) {
@@ -58,18 +58,18 @@ public class MarketAddressService {
         address.setDefault(request.isDefault());
         address.setStatus(STATUS_ACTIVE);
         marketAddressMapper.insert(address);
-        return MarketAddressResponse.from(marketAddressMapper.selectById(address.getAddressId()));
+        return MarketAddressView.from(marketAddressMapper.selectById(address.getAddressId()));
     }
 
-    public List<MarketAddressResponse> listAddresses(UUID userId) {
+    public List<MarketAddressView> listAddresses(UUID userId) {
         validateUserId(userId);
         return marketAddressMapper.selectByUserId(userId).stream()
-                .map(MarketAddressResponse::from)
+                .map(MarketAddressView::from)
                 .toList();
     }
 
     @Transactional
-    public MarketAddressResponse updateAddress(UUID userId, UUID addressId, UpdateMarketAddressRequest request) {
+    public MarketAddressView updateAddress(UUID userId, UUID addressId, UpdateMarketAddressRequest request) {
         validateUserId(userId);
         validateUpdateRequest(request);
         requireOwnedAddress(addressId, userId);
@@ -92,7 +92,7 @@ public class MarketAddressService {
         if (marketAddressMapper.update(address) != 1) {
             throw new BusinessException(INVALID_ARGUMENT, "market address update failed: addressId=" + addressId);
         }
-        return MarketAddressResponse.from(requireOwnedAddress(addressId, userId));
+        return MarketAddressView.from(requireOwnedAddress(addressId, userId));
     }
 
     @Transactional

@@ -39,18 +39,18 @@ public class WalletController {
     @PostMapping("/recharges")
     public Result<CreateRechargeResponse> recharge(Authentication authentication, @RequestBody @Valid CreateRechargeRequest request) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(walletApplicationService.recharge(userId, request));
+        return Result.ok(CreateRechargeResponse.from(walletApplicationService.recharge(userId, request)));
     }
 
     @PostMapping("/withdrawals")
     public Result<CreateWithdrawResponse> withdraw(Authentication authentication, @RequestBody @Valid CreateWithdrawRequest request) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(walletApplicationService.withdraw(userId, request));
+        return Result.ok(CreateWithdrawResponse.from(walletApplicationService.withdraw(userId, request)));
     }
 
     @PostMapping("/transfers")
     public Result<CreateTransferResponse> transfer(Authentication authentication, @RequestBody @Valid CreateTransferRequest request) {
         UUID fromUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(walletApplicationService.transfer(fromUserId, request));
+        return Result.ok(CreateTransferResponse.from(walletApplicationService.transfer(fromUserId, request)));
     }
 }

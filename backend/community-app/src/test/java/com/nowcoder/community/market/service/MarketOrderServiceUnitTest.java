@@ -1,7 +1,6 @@
 package com.nowcoder.community.market.service;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
-import com.nowcoder.community.market.dto.MarketOrderResponse;
 import com.nowcoder.community.market.entity.MarketListing;
 import com.nowcoder.community.market.entity.MarketOrder;
 import com.nowcoder.community.market.mapper.MarketAddressMapper;
@@ -10,6 +9,7 @@ import com.nowcoder.community.market.mapper.MarketInventoryUnitMapper;
 import com.nowcoder.community.market.mapper.MarketListingMapper;
 import com.nowcoder.community.market.mapper.MarketOrderMapper;
 import com.nowcoder.community.market.mapper.MarketShipmentMapper;
+import com.nowcoder.community.market.model.MarketOrderResult;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -77,7 +77,7 @@ class MarketOrderServiceUnitTest {
         when(marketListingMapper.selectByIdForUpdate(listingId)).thenReturn(soldOutListing(listingId));
         when(marketOrderMapper.selectByRequestIdForUpdate(requestId)).thenReturn(existingOrder(requestId, listingId, buyerUserId, 1));
 
-        MarketOrderResponse response = service.createOrder(requestId, buyerUserId, listingId, 1, null);
+        MarketOrderResult response = service.createOrder(requestId, buyerUserId, listingId, 1, null);
 
         assertThat(response.requestId()).isEqualTo(requestId);
         assertThat(response.listingId()).isEqualTo(listingId);
@@ -109,7 +109,7 @@ class MarketOrderServiceUnitTest {
         when(marketOrderMapper.insert(any(MarketOrder.class)))
                 .thenThrow(new DataIntegrityViolationException("duplicate requestId"));
 
-        MarketOrderResponse response = service.createOrder(requestId, buyerUserId, listingId, 1, null);
+        MarketOrderResult response = service.createOrder(requestId, buyerUserId, listingId, 1, null);
 
         assertThat(response.orderId()).isEqualTo(duplicated.getOrderId());
         assertThat(response.requestId()).isEqualTo(requestId);

@@ -1,10 +1,9 @@
 package com.nowcoder.community.content.dto;
 
-import com.nowcoder.community.content.entity.Comment;
+import com.nowcoder.community.content.api.model.RecentUserCommentView;
 
 import java.util.Date;
 import java.util.UUID;
-import java.util.function.Function;
 
 public class UserRecentCommentResponse {
 
@@ -18,25 +17,20 @@ public class UserRecentCommentResponse {
     private String content;
     private Date createTime;
 
-    public static UserRecentCommentResponse from(Comment comment, UUID postId, String postTitle) {
-        return from(comment, postId, postTitle, null);
-    }
-
-    public static UserRecentCommentResponse from(Comment comment, UUID postId, String postTitle, Function<String, String> contentDecoder) {
-        if (comment == null) {
+    public static UserRecentCommentResponse from(RecentUserCommentView view) {
+        if (view == null) {
             return null;
         }
         UserRecentCommentResponse response = new UserRecentCommentResponse();
-        response.setId(comment.getId());
-        response.setUserId(comment.getUserId());
-        response.setEntityType(comment.getEntityType());
-        response.setEntityId(comment.getEntityId());
-        response.setTargetId(comment.getTargetId());
-        response.setPostId(postId);
-        response.setPostTitle(postTitle);
-        String raw = comment.getContent();
-        response.setContent(contentDecoder == null ? raw : contentDecoder.apply(raw));
-        response.setCreateTime(comment.getCreateTime());
+        response.setId(view.id());
+        response.setUserId(view.userId());
+        response.setEntityType(view.entityType());
+        response.setEntityId(view.entityId());
+        response.setTargetId(view.targetId());
+        response.setPostId(view.postId());
+        response.setPostTitle(view.postTitle());
+        response.setContent(view.content());
+        response.setCreateTime(view.createTime());
         return response;
     }
 

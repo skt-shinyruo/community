@@ -70,17 +70,7 @@ public class PostHttpResponseAssembler {
     }
 
     public CommentResponse toCommentResponse(CommentView view) {
-        CommentResponse response = new CommentResponse();
-        response.setId(view.id());
-        response.setUserId(view.userId());
-        response.setEntityType(view.entityType());
-        response.setEntityId(view.entityId());
-        response.setTargetId(view.targetId());
-        response.setContent(view.content());
-        response.setCreateTime(view.createTime());
-        response.setUpdateTime(view.updateTime());
-        response.setEditCount(view.editCount());
-        return response;
+        return CommentResponse.from(view);
     }
 
     public CreatePostResponse toCreatePostResponse(PostCreateResult result) {

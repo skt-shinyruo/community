@@ -3,7 +3,7 @@ package com.nowcoder.community.market.service;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.dto.CreateMarketListingRequest;
-import com.nowcoder.community.market.dto.MarketListingResponse;
+import com.nowcoder.community.market.model.MarketListingResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,7 +56,7 @@ class MarketListingServiceTest {
         request.setMinPurchaseQuantity(1);
         request.setMaxPurchaseQuantity(1);
 
-        MarketListingResponse response = marketListingService.createListing(sellerUserId, request, null);
+        MarketListingResult response = marketListingService.createListing(sellerUserId, request, null);
 
         assertThat(response.goodsType()).isEqualTo("PHYSICAL");
         assertThat(response.deliveryMode()).isNull();
@@ -80,7 +80,7 @@ class MarketListingServiceTest {
         marketListingService.createListing(secondSellerId, request, null);
 
         assertThat(marketQueryService.listSellerListings(firstSellerId))
-                .extracting(MarketListingResponse::sellerUserId)
+                .extracting(MarketListingResult::sellerUserId)
                 .containsExactly(firstSellerId);
     }
 }

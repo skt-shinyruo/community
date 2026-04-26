@@ -5,6 +5,7 @@ import com.nowcoder.community.content.entity.ModerationAction;
 import com.nowcoder.community.content.entity.Report;
 import com.nowcoder.community.content.service.ModerationService;
 import com.nowcoder.community.content.service.ReportService;
+import com.nowcoder.community.user.api.action.UserModerationActionApi;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -24,7 +25,7 @@ public class TakeModerationActionUseCase {
     private final ModerationTargetResolver moderationTargetResolver;
     private final ContentModerationApplier contentModerationApplier;
     private final ModerationNoticePublisher moderationNoticePublisher;
-    private final UserModerationCommandPublisher userModerationCommandPublisher;
+    private final UserModerationActionApi userModerationActionApi;
 
     public TakeModerationActionUseCase(
             ReportService reportService,
@@ -32,14 +33,14 @@ public class TakeModerationActionUseCase {
             ModerationTargetResolver moderationTargetResolver,
             ContentModerationApplier contentModerationApplier,
             ModerationNoticePublisher moderationNoticePublisher,
-            UserModerationCommandPublisher userModerationCommandPublisher
+            UserModerationActionApi userModerationActionApi
     ) {
         this.reportService = reportService;
         this.moderationAuditWriter = moderationAuditWriter;
         this.moderationTargetResolver = moderationTargetResolver;
         this.contentModerationApplier = contentModerationApplier;
         this.moderationNoticePublisher = moderationNoticePublisher;
-        this.userModerationCommandPublisher = userModerationCommandPublisher;
+        this.userModerationActionApi = userModerationActionApi;
     }
 
     @Transactional
@@ -93,7 +94,7 @@ public class TakeModerationActionUseCase {
         }
 
         if (ModerationService.ACTION_MUTE.equals(normalizedAction) || ModerationService.ACTION_BAN.equals(normalizedAction)) {
-            userModerationCommandPublisher.publishModerationCommand(actorId, reportId, target.targetUserId(), normalizedAction, resolvedDuration, normalizedReason);
+            userModerationActionApi.applyModeration(target.targetUserId(), normalizedAction, resolvedDuration);
             reportService.markStatus(reportId, ReportService.STATUS_PROCESSED);
             moderationNoticePublisher.publish(report, actionRow, target, "to_target", target.targetUserId());
             moderationNoticePublisher.publish(report, actionRow, target, "to_reporter", report.getReporterId());

@@ -4,6 +4,7 @@ import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.market.dto.AdminResolveMarketDisputeRequest;
 import com.nowcoder.community.market.dto.MarketDisputeResponse;
+import com.nowcoder.community.market.model.MarketDisputeResult;
 import com.nowcoder.community.market.service.AdminMarketApplicationService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
@@ -27,10 +28,16 @@ public class AdminMarketController {
         this.adminMarketApplicationService = adminMarketApplicationService;
     }
 
+    private static List<MarketDisputeResponse> toDisputeResponses(List<MarketDisputeResult> disputes) {
+        return disputes.stream()
+                .map(MarketDisputeResponse::from)
+                .toList();
+    }
+
     @GetMapping
     public Result<List<MarketDisputeResponse>> list(Authentication authentication) {
         CurrentUser.requireUserUuid(authentication);
-        return Result.ok(adminMarketApplicationService.listOpenDisputes());
+        return Result.ok(toDisputeResponses(adminMarketApplicationService.listOpenDisputes()));
     }
 
     @PostMapping("/{disputeId}/resolve-refund")
@@ -38,7 +45,7 @@ public class AdminMarketController {
                                                        @PathVariable UUID disputeId,
                                                        @RequestBody @Valid AdminResolveMarketDisputeRequest request) {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(adminMarketApplicationService.resolveRefund(disputeId, actorUserId, request.getNote()));
+        return Result.ok(MarketDisputeResponse.from(adminMarketApplicationService.resolveRefund(disputeId, actorUserId, request.getNote())));
     }
 
     @PostMapping("/{disputeId}/resolve-release")
@@ -46,6 +53,6 @@ public class AdminMarketController {
                                                         @PathVariable UUID disputeId,
                                                         @RequestBody @Valid AdminResolveMarketDisputeRequest request) {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(adminMarketApplicationService.resolveRelease(disputeId, actorUserId, request.getNote()));
+        return Result.ok(MarketDisputeResponse.from(adminMarketApplicationService.resolveRelease(disputeId, actorUserId, request.getNote())));
     }
 }

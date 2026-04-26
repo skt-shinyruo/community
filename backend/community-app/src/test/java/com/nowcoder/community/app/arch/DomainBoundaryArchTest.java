@@ -40,19 +40,6 @@ class DomainBoundaryArchTest {
     private static final Pattern SERVICE_PACKAGE =
             Pattern.compile("com\\.nowcoder\\.community\\.[^.]+\\.service(\\..*)?");
 
-    private static final Set<String> BUSINESS_OR_ADAPTER_DOMAINS = Set.of(
-            "auth",
-            "user",
-            "content",
-            "social",
-            "message",
-            "notice",
-            "search",
-            "analytics",
-            "growth",
-            "ops",
-            "im"
-    );
     private static final Set<String> LEGACY_FOREIGN_ENTITY_CALLERS = Set.of();
     private static final Set<String> LEGACY_FOREIGN_MAPPER_CALLERS = Set.of();
     private static final Set<String> LEGACY_FOREIGN_SERVICE_CALLERS = Set.of();
@@ -74,13 +61,41 @@ class DomainBoundaryArchTest {
     );
 
     @Test
-    void coreDomainModelShouldTreatNoticeAsFirstClassDomain() {
-        assertThat(ArchitectureRulesSupport.CORE_DOMAINS).contains("notice");
+    void coreDomainModelShouldCoverDocumentedMainSiteDomains() {
+        assertThat(ArchitectureRulesSupport.CORE_DOMAINS)
+                .contains(
+                        "auth",
+                        "user",
+                        "content",
+                        "social",
+                        "message",
+                        "notice",
+                        "search",
+                        "analytics",
+                        "growth",
+                        "market",
+                        "wallet"
+                );
     }
 
     @Test
-    void commonDomainGuardShouldIncludeNoticeDomain() {
-        assertThat(BUSINESS_OR_ADAPTER_DOMAINS).contains("notice");
+    void commonDomainGuardShouldCoverDocumentedBusinessAndAdapterDomains() {
+        assertThat(ArchitectureRulesSupport.BUSINESS_OR_ADAPTER_DOMAINS)
+                .contains(
+                        "auth",
+                        "user",
+                        "content",
+                        "social",
+                        "message",
+                        "notice",
+                        "search",
+                        "analytics",
+                        "growth",
+                        "market",
+                        "wallet",
+                        "ops",
+                        "im"
+                );
     }
 
     @Test
@@ -110,7 +125,7 @@ class DomainBoundaryArchTest {
             classes()
                     .should(ArchitectureRulesSupport.notDependOnDomainsFromCoreOrigins(
                             "not depend on ops or im adapter packages",
-                            Set.of("ops", "im"),
+                            ArchitectureRulesSupport.ADAPTER_DOMAINS,
                             Set.of()
                     ));
 
@@ -130,7 +145,7 @@ class DomainBoundaryArchTest {
                     .that().resideInAnyPackage("com.nowcoder.community.common..")
                     .should(ArchitectureRulesSupport.notDependOnDomains(
                             "not depend on business or adapter domains",
-                            BUSINESS_OR_ADAPTER_DOMAINS,
+                            ArchitectureRulesSupport.BUSINESS_OR_ADAPTER_DOMAINS,
                             Set.of()
                     ));
 

@@ -1,7 +1,6 @@
 package com.nowcoder.community.content.dto;
 
-import com.nowcoder.community.content.entity.Comment;
-import com.nowcoder.community.content.entity.DiscussPost;
+import com.nowcoder.community.content.api.model.RecentUserCommentView;
 import org.junit.jupiter.api.Test;
 
 import java.util.Date;
@@ -19,20 +18,19 @@ class UserRecentCommentResponseTest {
         UUID entityId = uuid(5);
         UUID targetId = uuid(9);
         UUID postId = uuid(101);
-        Comment comment = new Comment();
-        comment.setId(commentId);
-        comment.setUserId(userId);
-        comment.setEntityType(2);
-        comment.setEntityId(entityId);
-        comment.setTargetId(targetId);
-        comment.setContent("<reply>");
-        comment.setCreateTime(new Date());
+        RecentUserCommentView view = new RecentUserCommentView(
+                commentId,
+                userId,
+                2,
+                entityId,
+                targetId,
+                postId,
+                "<title>",
+                "<reply>",
+                new Date()
+        );
 
-        DiscussPost post = new DiscussPost();
-        post.setId(postId);
-        post.setTitle("<title>");
-
-        UserRecentCommentResponse response = UserRecentCommentResponse.from(comment, postId, "<title>");
+        UserRecentCommentResponse response = UserRecentCommentResponse.from(view);
 
         assertThat(response.getId()).isEqualTo(commentId);
         assertThat(response.getUserId()).isEqualTo(userId);

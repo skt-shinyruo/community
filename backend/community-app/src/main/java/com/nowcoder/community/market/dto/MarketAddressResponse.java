@@ -1,6 +1,6 @@
 package com.nowcoder.community.market.dto;
 
-import com.nowcoder.community.market.entity.MarketAddress;
+import com.nowcoder.community.market.model.MarketAddressView;
 
 import java.util.Date;
 import java.util.UUID;
@@ -21,21 +21,21 @@ public record MarketAddressResponse(
         Date updateTime
 ) {
 
-    public static MarketAddressResponse from(MarketAddress address) {
+    public static MarketAddressResponse from(MarketAddressView address) {
         return new MarketAddressResponse(
-                address.getAddressId(),
-                address.getUserId(),
-                address.getReceiverName(),
-                address.getReceiverPhone(),
-                address.getProvince(),
-                address.getCity(),
-                address.getDistrict(),
-                address.getDetailAddress(),
-                address.getPostalCode(),
+                address.addressId(),
+                address.userId(),
+                address.receiverName(),
+                address.receiverPhone(),
+                address.province(),
+                address.city(),
+                address.district(),
+                address.detailAddress(),
+                address.postalCode(),
                 address.isDefault(),
-                address.getStatus(),
-                address.getCreateTime(),
-                address.getUpdateTime()
+                address.status(),
+                address.createTime(),
+                address.updateTime()
         );
     }
 }

@@ -1,10 +1,6 @@
 package com.nowcoder.community.market.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.market.dto.MarketListingDetailResponse;
-import com.nowcoder.community.market.dto.MarketListingResponse;
-import com.nowcoder.community.market.dto.MarketOrderDetailResponse;
-import com.nowcoder.community.market.dto.MarketOrderResponse;
 import com.nowcoder.community.market.entity.MarketDelivery;
 import com.nowcoder.community.market.entity.MarketInventoryUnit;
 import com.nowcoder.community.market.entity.MarketListing;
@@ -14,6 +10,10 @@ import com.nowcoder.community.market.mapper.MarketInventoryUnitMapper;
 import com.nowcoder.community.market.mapper.MarketListingMapper;
 import com.nowcoder.community.market.mapper.MarketOrderMapper;
 import com.nowcoder.community.market.mapper.MarketShipmentMapper;
+import com.nowcoder.community.market.model.MarketListingDetailView;
+import com.nowcoder.community.market.model.MarketListingResult;
+import com.nowcoder.community.market.model.MarketOrderDetailView;
+import com.nowcoder.community.market.model.MarketOrderResult;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -44,39 +44,39 @@ public class MarketQueryService {
         this.marketShipmentMapper = marketShipmentMapper;
     }
 
-    public List<MarketListingResponse> listPublicListings() {
+    public List<MarketListingResult> listPublicListings() {
         return marketListingMapper.selectPublicListings().stream()
-                .map(MarketListingResponse::from)
+                .map(MarketListingResult::from)
                 .toList();
     }
 
-    public MarketListingDetailResponse getListingDetail(UUID listingId) {
+    public MarketListingDetailView getListingDetail(UUID listingId) {
         MarketListing listing = marketListingMapper.selectById(listingId);
         if (listing == null) {
             throw new BusinessException(NOT_FOUND, "market listing not found: listingId=" + listingId);
         }
-        return MarketListingDetailResponse.from(listing);
+        return MarketListingDetailView.from(listing);
     }
 
-    public List<MarketListingResponse> listSellerListings(UUID sellerUserId) {
+    public List<MarketListingResult> listSellerListings(UUID sellerUserId) {
         return marketListingMapper.selectBySellerUserId(sellerUserId).stream()
-                .map(MarketListingResponse::from)
+                .map(MarketListingResult::from)
                 .toList();
     }
 
-    public List<MarketOrderResponse> listBuyingOrders(UUID buyerUserId) {
+    public List<MarketOrderResult> listBuyingOrders(UUID buyerUserId) {
         return marketOrderMapper.selectByBuyerUserId(buyerUserId).stream()
-                .map(MarketOrderResponse::from)
+                .map(MarketOrderResult::from)
                 .toList();
     }
 
-    public List<MarketOrderResponse> listSellingOrders(UUID sellerUserId) {
+    public List<MarketOrderResult> listSellingOrders(UUID sellerUserId) {
         return marketOrderMapper.selectBySellerUserId(sellerUserId).stream()
-                .map(MarketOrderResponse::from)
+                .map(MarketOrderResult::from)
                 .toList();
     }
 
-    public MarketOrderDetailResponse getOrderDetail(UUID orderId, UUID actorUserId) {
+    public MarketOrderDetailView getOrderDetail(UUID orderId, UUID actorUserId) {
         MarketOrder order = marketOrderMapper.selectById(orderId);
         if (order == null) {
             throw new BusinessException(NOT_FOUND, "market order not found: orderId=" + orderId);
@@ -85,7 +85,7 @@ public class MarketQueryService {
             throw new BusinessException(FORBIDDEN, "market order does not belong to actor: orderId=" + orderId);
         }
         List<String> deliveryContents = loadDeliveryContents(orderId, order.getGoodsType());
-        return MarketOrderDetailResponse.from(order, deliveryContents, marketShipmentMapper.selectByOrderId(orderId));
+        return MarketOrderDetailView.from(order, deliveryContents, marketShipmentMapper.selectByOrderId(orderId));
     }
 
     private List<String> loadDeliveryContents(UUID orderId, String goodsType) {

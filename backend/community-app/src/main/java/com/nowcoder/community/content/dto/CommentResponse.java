@@ -1,10 +1,9 @@
 package com.nowcoder.community.content.dto;
 
-import com.nowcoder.community.content.entity.Comment;
+import com.nowcoder.community.content.api.model.CommentView;
 
 import java.util.Date;
 import java.util.UUID;
-import java.util.function.Function;
 
 /**
  * 评论/回复公共响应 DTO（字段白名单）。
@@ -23,26 +22,21 @@ public class CommentResponse {
     private Date updateTime;
     private int editCount;
 
-    public static CommentResponse from(Comment c) {
-        return from(c, null);
-    }
-
-    public static CommentResponse from(Comment c, Function<String, String> contentDecoder) {
-        if (c == null) {
+    public static CommentResponse from(CommentView view) {
+        if (view == null) {
             return null;
         }
-        CommentResponse r = new CommentResponse();
-        r.id = c.getId();
-        r.userId = c.getUserId();
-        r.entityType = c.getEntityType();
-        r.entityId = c.getEntityId();
-        r.targetId = c.getTargetId();
-        String raw = c.getContent();
-        r.content = contentDecoder == null ? raw : contentDecoder.apply(raw);
-        r.createTime = c.getCreateTime();
-        r.updateTime = c.getUpdateTime();
-        r.editCount = c.getEditCount();
-        return r;
+        CommentResponse response = new CommentResponse();
+        response.id = view.id();
+        response.userId = view.userId();
+        response.entityType = view.entityType();
+        response.entityId = view.entityId();
+        response.targetId = view.targetId();
+        response.content = view.content();
+        response.createTime = view.createTime();
+        response.updateTime = view.updateTime();
+        response.editCount = view.editCount();
+        return response;
     }
 
     public UUID getId() {

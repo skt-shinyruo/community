@@ -3,7 +3,7 @@ package com.nowcoder.community.market.service;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.dto.CreateMarketAddressRequest;
-import com.nowcoder.community.market.dto.MarketAddressResponse;
+import com.nowcoder.community.market.model.MarketAddressView;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -68,10 +68,10 @@ class MarketAddressServiceTest {
         marketAddressService.createAddress(userId, second);
 
         assertThat(marketAddressService.listAddresses(userId))
-                .filteredOn(MarketAddressResponse::isDefault)
+                .filteredOn(MarketAddressView::isDefault)
                 .hasSize(1)
                 .first()
-                .extracting(MarketAddressResponse::receiverName)
+                .extracting(MarketAddressView::receiverName)
                 .isEqualTo("李四");
     }
 }

@@ -1,5 +1,6 @@
 package com.nowcoder.community.auth.service;
 
+import com.nowcoder.community.analytics.ingest.AnalyticsIngestService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.auth.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.BusinessException;
@@ -29,6 +30,7 @@ public class AuthService {
     private final LoginRateLimitService loginRateLimitService;
     private final CaptchaService captchaService;
     private final ClientIpResolver clientIpResolver;
+    private final AnalyticsIngestService analyticsIngestService;
 
     public AuthService(
             UserCredentialQueryApi userCredentialQueryApi,
@@ -36,7 +38,8 @@ public class AuthService {
             RefreshTokenService refreshTokenService,
             LoginRateLimitService loginRateLimitService,
             CaptchaService captchaService,
-            ClientIpResolver clientIpResolver
+            ClientIpResolver clientIpResolver,
+            AnalyticsIngestService analyticsIngestService
     ) {
         this.userCredentialQueryApi = userCredentialQueryApi;
         this.jwtTokenService = jwtTokenService;
@@ -44,6 +47,7 @@ public class AuthService {
         this.loginRateLimitService = loginRateLimitService;
         this.captchaService = captchaService;
         this.clientIpResolver = clientIpResolver;
+        this.analyticsIngestService = analyticsIngestService;
     }
 
     public LoginResult login(String username, String password, String captchaId, String captchaCode, HttpServletRequest request) {
@@ -115,6 +119,7 @@ public class AuthService {
                 "username", user.username(),
                 "source.ip", ip,
                 "ip.source", ipSource);
+        analyticsIngestService.recordLoginSuccess(user.userId());
         return loginResult;
     }
 

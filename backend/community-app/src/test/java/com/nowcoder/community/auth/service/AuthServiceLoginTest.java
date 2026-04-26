@@ -2,6 +2,7 @@ package com.nowcoder.community.auth.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.analytics.ingest.AnalyticsIngestService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
@@ -30,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -47,6 +49,7 @@ class AuthServiceLoginTest {
     private final LoginRateLimitService loginRateLimitService = mock(LoginRateLimitService.class);
     private final CaptchaService captchaService = mock(CaptchaService.class);
     private final ClientIpResolver clientIpResolver = mock(ClientIpResolver.class);
+    private final AnalyticsIngestService analyticsIngestService = mock(AnalyticsIngestService.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final LoggingSystem loggingSystem = LoggingSystem.get(getClass().getClassLoader());
 
@@ -60,7 +63,8 @@ class AuthServiceLoginTest {
                 refreshTokenService,
                 loginRateLimitService,
                 captchaService,
-                clientIpResolver
+                clientIpResolver,
+                analyticsIngestService
         );
         when(clientIpResolver.resolve(any())).thenReturn(new ClientIpResolver.ResolvedClientIp("127.0.0.1", ClientIpResolver.SOURCE_REMOTE));
     }
@@ -80,7 +84,8 @@ class AuthServiceLoginTest {
                         RefreshTokenService.class,
                         LoginRateLimitService.class,
                         CaptchaService.class,
-                        ClientIpResolver.class
+                        ClientIpResolver.class,
+                        AnalyticsIngestService.class
                 ));
     }
 
@@ -167,6 +172,22 @@ class AuthServiceLoginTest {
                 .contains("source.ip=127.0.0.1")
                 .doesNotContain("secret")
                 .doesNotContain("access-token");
+    }
+
+    @Test
+    void loginShouldRecordDauSupplementAfterSuccessfulAuthentication() {
+        UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, null);
+        when(userCredentialQueryApi.authenticate("alice", "pw"))
+                .thenReturn(UserAuthenticationResultView.authenticated(user));
+        when(userCredentialQueryApi.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
+        when(jwtTokenService.createAccessToken(eq(userId), eq("alice"), anyList())).thenReturn("access-token");
+        when(refreshTokenService.issue(userId)).thenReturn(new RefreshTokenService.IssuedRefreshToken("refresh-token", ResponseCookie.from("refresh_token", "refresh-token").build()));
+        when(clientIpResolver.resolve(any())).thenReturn(new ClientIpResolver.ResolvedClientIp("1.1.1.1", ClientIpResolver.SOURCE_REMOTE));
+
+        authService.login("alice", "pw", null, null, new MockHttpServletRequest());
+
+        verify(analyticsIngestService).recordLoginSuccess(userId);
     }
 
     @Test

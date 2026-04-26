@@ -913,12 +913,14 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Component
 @Order(Ordered.LOWEST_PRECEDENCE - 20)
 public class AnalyticsRequestCaptureFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(AnalyticsRequestCaptureFilter.class);
+    private final AtomicLong captureFailureCount = new AtomicLong();
 
     private final AnalyticsRequestClassifier classifier;
     private final ClientIpResolver clientIpResolver;
@@ -955,11 +957,21 @@ public class AnalyticsRequestCaptureFilter extends OncePerRequestFilter {
         try {
             recordIfEligible(request, response);
         } catch (RuntimeException e) {
-            log.warn("[analytics][ingest] request capture failed: method={}, path={}, status={}",
+            logCaptureFailure(request, response, e);
+        }
+    }
+
+    private void logCaptureFailure(HttpServletRequest request, HttpServletResponse response, RuntimeException e) {
+        long count = captureFailureCount.incrementAndGet();
+        if (count <= 3 || (count & (count - 1)) == 0) {
+            log.warn("[analytics][ingest] request capture failed: method={}, status={}, count={}, error={}",
                     request == null ? null : request.getMethod(),
-                    request == null ? null : request.getRequestURI(),
                     response == null ? null : response.getStatus(),
-                    e);
+                    count,
+                    e.toString());
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("[analytics][ingest] request capture failed with stack trace", e);
         }
     }
 

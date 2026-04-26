@@ -4,12 +4,14 @@ import com.nowcoder.community.analytics.repo.AnalyticsUserOrdinalRepository;
 import com.nowcoder.community.analytics.service.AnalyticsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class AnalyticsIngestService {
@@ -20,7 +22,10 @@ public class AnalyticsIngestService {
     private final AnalyticsUserOrdinalRepository ordinalRepository;
     private final AnalyticsIngestProperties properties;
     private final Clock clock;
+    private final AtomicLong uvFailureCount = new AtomicLong();
+    private final AtomicLong dauFailureCount = new AtomicLong();
 
+    @Autowired
     public AnalyticsIngestService(
             AnalyticsService analyticsService,
             AnalyticsUserOrdinalRepository ordinalRepository,
@@ -68,7 +73,7 @@ public class AnalyticsIngestService {
         try {
             analyticsService.recordUv(date, ip);
         } catch (RuntimeException e) {
-            log.warn("[analytics][ingest] record UV failed: date={}, ip={}", date, ip, e);
+            logFailure("UV", date, uvFailureCount, e);
         }
     }
 
@@ -80,7 +85,21 @@ public class AnalyticsIngestService {
             int ordinal = ordinalRepository.resolveOrdinal(userId);
             analyticsService.recordDau(date, ordinal);
         } catch (RuntimeException e) {
-            log.warn("[analytics][ingest] record DAU failed: date={}, userId={}", date, userId, e);
+            logFailure("DAU", date, dauFailureCount, e);
         }
+    }
+
+    private void logFailure(String metric, LocalDate date, AtomicLong failureCount, RuntimeException e) {
+        long count = failureCount.incrementAndGet();
+        if (count <= 3 || isPowerOfTwo(count)) {
+            log.warn("[analytics][ingest] record {} failed: date={}, failures={}, error={}", metric, date, count, e.toString());
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("[analytics][ingest] record {} failed: date={}, failures={}", metric, date, count, e);
+        }
+    }
+
+    private boolean isPowerOfTwo(long value) {
+        return value > 0 && (value & (value - 1)) == 0;
     }
 }

@@ -37,12 +37,27 @@ class AnalyticsIngestServiceTest {
     void shouldFailOpenWhenAnalyticsWriteThrows() {
         AnalyticsService analyticsService = mock(AnalyticsService.class);
         AnalyticsUserOrdinalRepository ordinalRepository = mock(AnalyticsUserOrdinalRepository.class);
+        UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        when(ordinalRepository.resolveOrdinal(userId)).thenReturn(9);
         doThrow(new RuntimeException("redis down")).when(analyticsService).recordUv(LocalDate.of(2026, 4, 26), "1.1.1.1");
         AnalyticsIngestService service = new AnalyticsIngestService(analyticsService, ordinalRepository, enabledProperties(), clock);
 
-        service.recordRequest("1.1.1.1", null);
+        service.recordRequest("1.1.1.1", userId);
 
-        verifyNoInteractions(ordinalRepository);
+        verify(analyticsService).recordDau(LocalDate.of(2026, 4, 26), 9);
+    }
+
+    @Test
+    void shouldFailOpenWhenDauWriteThrows() {
+        AnalyticsService analyticsService = mock(AnalyticsService.class);
+        AnalyticsUserOrdinalRepository ordinalRepository = mock(AnalyticsUserOrdinalRepository.class);
+        UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        doThrow(new RuntimeException("redis down")).when(ordinalRepository).resolveOrdinal(userId);
+        AnalyticsIngestService service = new AnalyticsIngestService(analyticsService, ordinalRepository, enabledProperties(), clock);
+
+        service.recordRequest("1.1.1.1", userId);
+
+        verify(analyticsService).recordUv(LocalDate.of(2026, 4, 26), "1.1.1.1");
     }
 
     @Test

@@ -48,7 +48,7 @@ Modify:
 - `backend/community-app/src/main/resources/application.yml`
   Adds production ingest configuration with `enabled: false`.
 - `backend/community-app/src/test/resources/application.yml`
-  Adds test ingest configuration with `enabled: true`.
+  Adds shared test ingest configuration with `enabled: false`; ingest-specific integration tests should opt in with test-specific properties or mocks to avoid incidental Redis-only analytics writes in unrelated Spring / MockMvc tests.
 - `backend/community-app/src/test/java/com/nowcoder/community/auth/service/RefreshTokenServiceTest.java`
   Updates direct `AuthService` construction to pass the analytics ingest mock.
 - `docs/business-logic/analytics-ingest-flow.md`
@@ -1209,7 +1209,7 @@ In `backend/community-app/src/test/resources/application.yml`, add:
 analytics:
   max-days-range: 31
   ingest:
-    enabled: true
+    enabled: false
     record-uv: true
     record-dau: true
     include-paths:
@@ -1226,6 +1226,8 @@ analytics:
       - /internal/**
       - /files/**
 ```
+
+Keep the shared test default disabled even though the binding rules are present. Many existing full Spring / MockMvc tests hit included paths, and analytics storage is Redis-only; ingest-specific integration tests can enable `analytics.ingest.enabled=true` inline when they own the Redis/mocking setup.
 
 - [ ] **Step 2: Update analytics ingest docs**
 
@@ -1345,7 +1347,7 @@ git commit -m "feat: capture analytics uv dau traffic"
 
 - Spec coverage: This plan covers Phase 1 only. Phase 2-5 remain future implementation plans.
 - DAU UUID gap: The plan resolves the current UUID JWT subject vs. integer DAU bitmap mismatch through a Redis-backed analytics user ordinal map.
-- Configuration coverage: `analytics.ingest.enabled`, `record-uv`, and `record-dau` are enforced in `AnalyticsIngestService`, so both request capture and login supplementation stay disabled until explicitly enabled.
+- Configuration coverage: `analytics.ingest.enabled`, `record-uv`, and `record-dau` are enforced in `AnalyticsIngestService`, so both request capture and login supplementation stay disabled until explicitly enabled. Production and shared test resources both default ingest to disabled; focused ingest tests should opt in inline to avoid Redis-only analytics writes during unrelated full-context tests.
 - Trusted proxy scope: The plan reuses the existing `ClientIpResolver` and `gateway.trusted-proxy.*` safety model instead of adding a second analytics-specific proxy switch.
 - Redis key scope: Phase 1 continues to use the existing `AnalyticsService` UV/DAU Redis keys; the versioned key migration from the spec remains a separate migration plan. The analytics user ordinal map and sequence keys use the shared `{analytics:user-ordinal}` hash tag so the Lua script remains Redis Cluster-safe.
 - Placeholder scan: This plan contains concrete implementation and verification steps without unresolved markers.

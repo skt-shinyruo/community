@@ -89,7 +89,7 @@ search:
 analytics:
   max-days-range: 31
   ingest:
-    enabled: true
+    enabled: false
     record-uv: true
     record-dau: true
     include-paths:

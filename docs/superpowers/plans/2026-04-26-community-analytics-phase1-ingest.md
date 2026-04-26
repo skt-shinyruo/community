@@ -39,7 +39,7 @@ Create:
 - `backend/community-app/src/main/java/com/nowcoder/community/analytics/repo/AnalyticsUserOrdinalRepository.java`
   Repository contract for stable analytics-only UUID-to-int DAU offsets.
 - `backend/community-app/src/main/java/com/nowcoder/community/analytics/repo/RedisAnalyticsUserOrdinalRepository.java`
-  Redis implementation for the ordinal mapping.
+  Redis implementation for the ordinal mapping. Its Lua script keys use the shared `{analytics:user-ordinal}` hash tag so map and sequence keys stay in one Redis Cluster slot.
 
 Modify:
 
@@ -48,7 +48,7 @@ Modify:
 - `backend/community-app/src/main/resources/application.yml`
   Adds production ingest configuration with `enabled: false`.
 - `backend/community-app/src/test/resources/application.yml`
-  Adds test ingest configuration with `enabled: true`.
+  Adds shared test ingest configuration with `enabled: false`; ingest-specific integration tests should opt in with test-specific properties or mocks to avoid incidental Redis-only analytics writes in unrelated Spring / MockMvc tests.
 - `backend/community-app/src/test/java/com/nowcoder/community/auth/service/RefreshTokenServiceTest.java`
   Updates direct `AuthService` construction to pass the analytics ingest mock.
 - `docs/business-logic/analytics-ingest-flow.md`
@@ -379,7 +379,7 @@ class RedisAnalyticsUserOrdinalRepositoryTest {
         assertThat(ordinal).isEqualTo(7);
         ArgumentCaptor<List<String>> keys = ArgumentCaptor.forClass(List.class);
         verify(redisTemplate).execute(any(RedisScript.class), keys.capture(), eq("11111111-1111-1111-1111-111111111111"));
-        assertThat(keys.getValue()).containsExactly("analytics:user-ordinal:map", "analytics:user-ordinal:seq");
+        assertThat(keys.getValue()).containsExactly("{analytics:user-ordinal}:map", "{analytics:user-ordinal}:seq");
     }
 }
 ```
@@ -444,8 +444,8 @@ import java.util.UUID;
 @Repository
 public class RedisAnalyticsUserOrdinalRepository implements AnalyticsUserOrdinalRepository {
 
-    private static final String USER_ORDINAL_MAP_KEY = "analytics:user-ordinal:map";
-    private static final String USER_ORDINAL_SEQ_KEY = "analytics:user-ordinal:seq";
+    private static final String USER_ORDINAL_MAP_KEY = "{analytics:user-ordinal}:map";
+    private static final String USER_ORDINAL_SEQ_KEY = "{analytics:user-ordinal}:seq";
     private static final DefaultRedisScript<Long> RESOLVE_ORDINAL_SCRIPT = new DefaultRedisScript<>();
 
     static {
@@ -556,12 +556,41 @@ class AnalyticsIngestServiceTest {
     void shouldFailOpenWhenAnalyticsWriteThrows() {
         AnalyticsService analyticsService = mock(AnalyticsService.class);
         AnalyticsUserOrdinalRepository ordinalRepository = mock(AnalyticsUserOrdinalRepository.class);
+        UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        when(ordinalRepository.resolveOrdinal(userId)).thenReturn(9);
         doThrow(new RuntimeException("redis down")).when(analyticsService).recordUv(LocalDate.of(2026, 4, 26), "1.1.1.1");
         AnalyticsIngestService service = new AnalyticsIngestService(analyticsService, ordinalRepository, enabledProperties(), clock);
 
-        service.recordRequest("1.1.1.1", null);
+        service.recordRequest("1.1.1.1", userId);
 
-        verifyNoInteractions(ordinalRepository);
+        verify(analyticsService).recordDau(LocalDate.of(2026, 4, 26), 9);
+    }
+
+    @Test
+    void shouldFailOpenWhenOrdinalResolutionThrows() {
+        AnalyticsService analyticsService = mock(AnalyticsService.class);
+        AnalyticsUserOrdinalRepository ordinalRepository = mock(AnalyticsUserOrdinalRepository.class);
+        UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        doThrow(new RuntimeException("redis down")).when(ordinalRepository).resolveOrdinal(userId);
+        AnalyticsIngestService service = new AnalyticsIngestService(analyticsService, ordinalRepository, enabledProperties(), clock);
+
+        service.recordRequest("1.1.1.1", userId);
+
+        verify(analyticsService).recordUv(LocalDate.of(2026, 4, 26), "1.1.1.1");
+    }
+
+    @Test
+    void shouldFailOpenWhenDauWriteThrows() {
+        AnalyticsService analyticsService = mock(AnalyticsService.class);
+        AnalyticsUserOrdinalRepository ordinalRepository = mock(AnalyticsUserOrdinalRepository.class);
+        UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        when(ordinalRepository.resolveOrdinal(userId)).thenReturn(9);
+        doThrow(new RuntimeException("redis down")).when(analyticsService).recordDau(LocalDate.of(2026, 4, 26), 9);
+        AnalyticsIngestService service = new AnalyticsIngestService(analyticsService, ordinalRepository, enabledProperties(), clock);
+
+        service.recordRequest("1.1.1.1", userId);
+
+        verify(analyticsService).recordUv(LocalDate.of(2026, 4, 26), "1.1.1.1");
     }
 
     @Test
@@ -622,12 +651,14 @@ import com.nowcoder.community.analytics.repo.AnalyticsUserOrdinalRepository;
 import com.nowcoder.community.analytics.service.AnalyticsService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class AnalyticsIngestService {
@@ -638,7 +669,10 @@ public class AnalyticsIngestService {
     private final AnalyticsUserOrdinalRepository ordinalRepository;
     private final AnalyticsIngestProperties properties;
     private final Clock clock;
+    private final AtomicLong uvFailureCount = new AtomicLong();
+    private final AtomicLong dauFailureCount = new AtomicLong();
 
+    @Autowired
     public AnalyticsIngestService(
             AnalyticsService analyticsService,
             AnalyticsUserOrdinalRepository ordinalRepository,
@@ -686,7 +720,7 @@ public class AnalyticsIngestService {
         try {
             analyticsService.recordUv(date, ip);
         } catch (RuntimeException e) {
-            log.warn("[analytics][ingest] record UV failed: date={}, ip={}", date, ip, e);
+            logFailure("UV", date, uvFailureCount, e);
         }
     }
 
@@ -698,8 +732,22 @@ public class AnalyticsIngestService {
             int ordinal = ordinalRepository.resolveOrdinal(userId);
             analyticsService.recordDau(date, ordinal);
         } catch (RuntimeException e) {
-            log.warn("[analytics][ingest] record DAU failed: date={}, userId={}", date, userId, e);
+            logFailure("DAU", date, dauFailureCount, e);
         }
+    }
+
+    private void logFailure(String metric, LocalDate date, AtomicLong failureCount, RuntimeException e) {
+        long count = failureCount.incrementAndGet();
+        if (count <= 3 || isPowerOfTwo(count)) {
+            log.warn("[analytics][ingest] record {} failed: date={}, failures={}, error={}", metric, date, count, e.toString());
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("[analytics][ingest] record {} failed: date={}, failures={}", metric, date, count, e);
+        }
+    }
+
+    private boolean isPowerOfTwo(long value) {
+        return value > 0 && (value & (value - 1)) == 0;
     }
 }
 ```
@@ -712,7 +760,7 @@ Run:
 mvn -f backend/pom.xml -pl community-app -am -Dtest=AnalyticsIngestServiceTest test
 ```
 
-Expected: `Tests run: 4, Failures: 0, Errors: 0`.
+Expected: `Tests run: 6, Failures: 0, Errors: 0`.
 
 - [ ] **Step 5: Commit Task 3**
 
@@ -1161,7 +1209,7 @@ In `backend/community-app/src/test/resources/application.yml`, add:
 analytics:
   max-days-range: 31
   ingest:
-    enabled: true
+    enabled: false
     record-uv: true
     record-dau: true
     include-paths:
@@ -1178,6 +1226,8 @@ analytics:
       - /internal/**
       - /files/**
 ```
+
+Keep the shared test default disabled even though the binding rules are present. Many existing full Spring / MockMvc tests hit included paths, and analytics storage is Redis-only; ingest-specific integration tests can enable `analytics.ingest.enabled=true` inline when they own the Redis/mocking setup.
 
 - [ ] **Step 2: Update analytics ingest docs**
 
@@ -1297,8 +1347,8 @@ git commit -m "feat: capture analytics uv dau traffic"
 
 - Spec coverage: This plan covers Phase 1 only. Phase 2-5 remain future implementation plans.
 - DAU UUID gap: The plan resolves the current UUID JWT subject vs. integer DAU bitmap mismatch through a Redis-backed analytics user ordinal map.
-- Configuration coverage: `analytics.ingest.enabled`, `record-uv`, and `record-dau` are enforced in `AnalyticsIngestService`, so both request capture and login supplementation stay disabled until explicitly enabled.
+- Configuration coverage: `analytics.ingest.enabled`, `record-uv`, and `record-dau` are enforced in `AnalyticsIngestService`, so both request capture and login supplementation stay disabled until explicitly enabled. Production and shared test resources both default ingest to disabled; focused ingest tests should opt in inline to avoid Redis-only analytics writes during unrelated full-context tests.
 - Trusted proxy scope: The plan reuses the existing `ClientIpResolver` and `gateway.trusted-proxy.*` safety model instead of adding a second analytics-specific proxy switch.
-- Redis key scope: Phase 1 continues to use the existing `AnalyticsService` UV/DAU Redis keys; the versioned key migration from the spec remains a separate migration plan.
+- Redis key scope: Phase 1 continues to use the existing `AnalyticsService` UV/DAU Redis keys; the versioned key migration from the spec remains a separate migration plan. The analytics user ordinal map and sequence keys use the shared `{analytics:user-ordinal}` hash tag so the Lua script remains Redis Cluster-safe.
 - Placeholder scan: This plan contains concrete implementation and verification steps without unresolved markers.
 - Type consistency: Request capture uses UUID user identity until the ingest service maps it to an integer ordinal; the existing `AnalyticsService.recordDau(LocalDate, int)` remains unchanged.

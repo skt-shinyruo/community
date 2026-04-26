@@ -180,6 +180,23 @@ search:
 
 analytics:
   max-days-range: 31
+  ingest:
+    enabled: false
+    record-uv: true
+    record-dau: true
+    include-paths:
+      - /api/posts/**
+      - /api/search/**
+      - /api/messages/**
+      - /api/notices/**
+      - /api/im-governance/**
+    exclude-paths:
+      - /api/analytics/**
+      - /api/auth/**
+      - /api/ops/**
+      - /actuator/**
+      - /internal/**
+      - /files/**
 
 r2:
   endpoint: ${R2_ENDPOINT:}

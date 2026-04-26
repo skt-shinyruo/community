@@ -39,7 +39,7 @@ Create:
 - `backend/community-app/src/main/java/com/nowcoder/community/analytics/repo/AnalyticsUserOrdinalRepository.java`
   Repository contract for stable analytics-only UUID-to-int DAU offsets.
 - `backend/community-app/src/main/java/com/nowcoder/community/analytics/repo/RedisAnalyticsUserOrdinalRepository.java`
-  Redis implementation for the ordinal mapping.
+  Redis implementation for the ordinal mapping. Its Lua script keys use the shared `{analytics:user-ordinal}` hash tag so map and sequence keys stay in one Redis Cluster slot.
 
 Modify:
 
@@ -379,7 +379,7 @@ class RedisAnalyticsUserOrdinalRepositoryTest {
         assertThat(ordinal).isEqualTo(7);
         ArgumentCaptor<List<String>> keys = ArgumentCaptor.forClass(List.class);
         verify(redisTemplate).execute(any(RedisScript.class), keys.capture(), eq("11111111-1111-1111-1111-111111111111"));
-        assertThat(keys.getValue()).containsExactly("analytics:user-ordinal:map", "analytics:user-ordinal:seq");
+        assertThat(keys.getValue()).containsExactly("{analytics:user-ordinal}:map", "{analytics:user-ordinal}:seq");
     }
 }
 ```
@@ -444,8 +444,8 @@ import java.util.UUID;
 @Repository
 public class RedisAnalyticsUserOrdinalRepository implements AnalyticsUserOrdinalRepository {
 
-    private static final String USER_ORDINAL_MAP_KEY = "analytics:user-ordinal:map";
-    private static final String USER_ORDINAL_SEQ_KEY = "analytics:user-ordinal:seq";
+    private static final String USER_ORDINAL_MAP_KEY = "{analytics:user-ordinal}:map";
+    private static final String USER_ORDINAL_SEQ_KEY = "{analytics:user-ordinal}:seq";
     private static final DefaultRedisScript<Long> RESOLVE_ORDINAL_SCRIPT = new DefaultRedisScript<>();
 
     static {
@@ -1287,6 +1287,6 @@ git commit -m "feat: capture analytics uv dau traffic"
 - DAU UUID gap: The plan resolves the current UUID JWT subject vs. integer DAU bitmap mismatch through a Redis-backed analytics user ordinal map.
 - Configuration coverage: `analytics.ingest.enabled`, `record-uv`, and `record-dau` are enforced in `AnalyticsIngestService`, so both request capture and login supplementation stay disabled until explicitly enabled.
 - Trusted proxy scope: The plan reuses the existing `ClientIpResolver` and `gateway.trusted-proxy.*` safety model instead of adding a second analytics-specific proxy switch.
-- Redis key scope: Phase 1 continues to use the existing `AnalyticsService` UV/DAU Redis keys; the versioned key migration from the spec remains a separate migration plan.
+- Redis key scope: Phase 1 continues to use the existing `AnalyticsService` UV/DAU Redis keys; the versioned key migration from the spec remains a separate migration plan. The analytics user ordinal map and sequence keys use the shared `{analytics:user-ordinal}` hash tag so the Lua script remains Redis Cluster-safe.
 - Placeholder scan: This plan contains concrete implementation and verification steps without unresolved markers.
 - Type consistency: Request capture uses UUID user identity until the ingest service maps it to an integer ordinal; the existing `AnalyticsService.recordDau(LocalDate, int)` remains unchanged.

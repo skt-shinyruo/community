@@ -10,8 +10,8 @@ import java.util.UUID;
 @Repository
 public class RedisAnalyticsUserOrdinalRepository implements AnalyticsUserOrdinalRepository {
 
-    private static final String USER_ORDINAL_MAP_KEY = "analytics:user-ordinal:map";
-    private static final String USER_ORDINAL_SEQ_KEY = "analytics:user-ordinal:seq";
+    private static final String USER_ORDINAL_MAP_KEY = "{analytics:user-ordinal}:map";
+    private static final String USER_ORDINAL_SEQ_KEY = "{analytics:user-ordinal}:seq";
     private static final DefaultRedisScript<Long> RESOLVE_ORDINAL_SCRIPT = new DefaultRedisScript<>();
 
     static {

@@ -2,6 +2,7 @@ package com.nowcoder.community.market.controller;
 
 import com.nowcoder.community.app.security.CommunitySecurityConfig;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.market.model.MarketAddressView;
@@ -31,10 +32,14 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -75,11 +80,21 @@ class MarketControllerTest {
     private MarketAddressService marketAddressService;
 
     @MockBean
+    private IdempotencyGuard idempotencyGuard;
+
+    @MockBean
     private JwtDecoder jwtDecoder;
 
     @SpringBootConfiguration
     @EnableAutoConfiguration
     static class TestApplication {
+    }
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUpIdempotencyGuard() {
+        doAnswer(invocation -> ((Supplier<?>) invocation.getArgument(6)).get())
+                .when(idempotencyGuard)
+                .executeRequired(anyString(), any(UUID.class), anyString(), anyString(), any(), any(), any());
     }
 
     @Test
@@ -292,6 +307,71 @@ class MarketControllerTest {
                         .with(jwt().jwt(jwt -> jwt.subject(actorUserId.toString()).claim("username", "user8"))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    void createOrderApiShouldAcceptIdempotencyKeyHeaderWithoutBodyRequestId() throws Exception {
+        Date now = new Date();
+        UUID buyerUserId = uuid(9);
+        UUID sellerUserId = uuid(7);
+        UUID listingId = UUID.fromString("00000000-0000-7000-8000-000000000011");
+        UUID orderId = UUID.fromString("00000000-0000-7000-8000-000000000051");
+        UUID escrowTxnId = UUID.fromString("00000000-0000-7000-8000-000000000701");
+
+        when(marketOrderService.createOrder("market:header-api-1", buyerUserId, listingId, 1, null))
+                .thenReturn(new MarketOrderResult(
+                        orderId,
+                        "market:header-api-1",
+                        listingId,
+                        "VIRTUAL",
+                        sellerUserId,
+                        buyerUserId,
+                        1,
+                        1200L,
+                        1200L,
+                        "MANUAL",
+                        "邀请码",
+                        "ESCROWED",
+                        escrowTxnId,
+                        null,
+                        null,
+                        null,
+                        now,
+                        now
+                ));
+
+        mockMvc.perform(post("/api/market/orders")
+                        .with(jwt().jwt(jwt -> jwt.subject(buyerUserId.toString()).claim("username", "buyer9")))
+                        .header(IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, "market:header-api-1")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "listingId": "%s",
+                                  "quantity": 1
+                                }
+                                """.formatted(listingId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.requestId").value("market:header-api-1"));
+    }
+
+    @Test
+    void createOrderApiShouldRejectDifferentHeaderAndBodyRequestId() throws Exception {
+        UUID buyerUserId = uuid(9);
+        UUID listingId = UUID.fromString("00000000-0000-7000-8000-000000000011");
+
+        mockMvc.perform(post("/api/market/orders")
+                        .with(jwt().jwt(jwt -> jwt.subject(buyerUserId.toString()).claim("username", "buyer9")))
+                        .header(IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, "market:header")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "requestId": "market:body",
+                                  "listingId": "%s",
+                                  "quantity": 1
+                                }
+                                """.formatted(listingId)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
     }
 
     @Test

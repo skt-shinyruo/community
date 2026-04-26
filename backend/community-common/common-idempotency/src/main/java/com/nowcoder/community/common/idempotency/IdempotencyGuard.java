@@ -3,6 +3,7 @@ package com.nowcoder.community.common.idempotency;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.common.exception.ErrorCode;
 import com.nowcoder.community.common.exception.SimpleErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -49,10 +50,31 @@ public class IdempotencyGuard {
     }
 
     public <T> T executeRequired(String operation, UUID userId, String idempotencyKey, Class<T> type, Supplier<T> supplier) {
-        return execute(operation, userId, idempotencyKey, type, supplier, true);
+        return execute(operation, userId, idempotencyKey, null, null, type, supplier, true);
+    }
+
+    public <T> T executeRequired(String operation,
+                                 UUID userId,
+                                 String idempotencyKey,
+                                 String requestHash,
+                                 ErrorCode replayConflictCode,
+                                 Class<T> type,
+                                 Supplier<T> supplier) {
+        return execute(operation, userId, idempotencyKey, requestHash, replayConflictCode, type, supplier, true);
     }
 
     public <T> T execute(String operation, UUID userId, String idempotencyKey, Class<T> type, Supplier<T> supplier, boolean failClosedOnStoreError) {
+        return execute(operation, userId, idempotencyKey, null, null, type, supplier, failClosedOnStoreError);
+    }
+
+    private <T> T execute(String operation,
+                          UUID userId,
+                          String idempotencyKey,
+                          String requestHash,
+                          ErrorCode replayConflictCode,
+                          Class<T> type,
+                          Supplier<T> supplier,
+                          boolean failClosedOnStoreError) {
         if (userId == null) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "userId 非法");
         }
@@ -78,10 +100,13 @@ public class IdempotencyGuard {
         Duration processingTtl = safeDuration(properties == null ? null : properties.getProcessingTtl(), Duration.ofSeconds(30));
         Duration successTtl = safeDuration(properties == null ? null : properties.getSuccessTtl(), Duration.ofHours(24));
         String op = operation.trim().toLowerCase(Locale.ROOT);
+        String hash = normalizeRequestHash(requestHash);
 
         boolean acquired;
         try {
-            acquired = store.tryAcquireProcessing(op, userId, key, processingTtl);
+            acquired = hash == null
+                    ? store.tryAcquireProcessing(op, userId, key, processingTtl)
+                    : store.tryAcquireProcessing(op, userId, key, hash, processingTtl);
         } catch (RuntimeException e) {
             record(operation, "store_error");
             if (failClosedOnStoreError) {
@@ -110,7 +135,11 @@ public class IdempotencyGuard {
                 json = "null";
             }
             try {
-                store.saveSuccess(op, userId, key, json, successTtl);
+                if (hash == null) {
+                    store.saveSuccess(op, userId, key, json, successTtl);
+                } else {
+                    store.saveSuccess(op, userId, key, hash, json, successTtl);
+                }
             } catch (RuntimeException e) {
                 record(operation, "store_error");
                 safeExtendProcessing(op, userId, key, successTtl);
@@ -135,6 +164,10 @@ public class IdempotencyGuard {
             record(operation, "race_miss");
             throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE, "幂等状态读取失败");
         }
+        if (hash != null && !hash.equals(existing.requestHash())) {
+            record(operation, "replay_conflict");
+            throw replayConflict(replayConflictCode);
+        }
         if (existing.status() == IdempotencyStore.Status.SUCCESS) {
             record(operation, "duplicate");
             return fromJson(existing.successJson(), type);
@@ -150,6 +183,17 @@ public class IdempotencyGuard {
 
     private String normalizeKey(String key) {
         return key.trim();
+    }
+
+    private String normalizeRequestHash(String requestHash) {
+        if (!StringUtils.hasText(requestHash)) {
+            return null;
+        }
+        String hash = requestHash.trim();
+        if (hash.length() > 128) {
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "requestHash 过长");
+        }
+        return hash;
     }
 
     private String toJson(Object value) {
@@ -206,6 +250,13 @@ public class IdempotencyGuard {
 
     private BusinessException pendingConfirmation() {
         return new BusinessException(new SimpleErrorCode(409, "请求结果确认中，请稍后重试", 409));
+    }
+
+    private BusinessException replayConflict(ErrorCode replayConflictCode) {
+        ErrorCode code = replayConflictCode == null
+                ? new SimpleErrorCode(409, "请求参数与已有幂等请求不一致", 409)
+                : replayConflictCode;
+        return new BusinessException(code);
     }
 
     private void record(String operation, String outcome) {

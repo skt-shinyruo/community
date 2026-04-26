@@ -44,4 +44,20 @@ class JdbcIdempotencyStoreTest {
         UUID id = BinaryUuidCodec.fromBytes((byte[]) args[0]);
         assertThat(id.version()).isEqualTo(7);
     }
+
+    @Test
+    void tryAcquireProcessingShouldPersistRequestHashWhenProvided() {
+        JdbcIdempotencyStore store = new JdbcIdempotencyStore(jdbcTemplate);
+        when(jdbcTemplate.update(any(String.class), any(Object[].class))).thenReturn(1);
+
+        boolean acquired = store.tryAcquireProcessing("wallet:recharge", USER_ID, "idem-1", "hash-a", Duration.ofSeconds(30));
+
+        assertThat(acquired).isTrue();
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> argsCaptor = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbcTemplate).update(sqlCaptor.capture(), argsCaptor.capture());
+
+        assertThat(sqlCaptor.getValue()).contains("request_hash");
+        assertThat(argsCaptor.getValue()).contains("hash-a");
+    }
 }

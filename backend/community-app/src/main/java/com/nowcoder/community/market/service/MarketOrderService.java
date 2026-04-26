@@ -108,14 +108,14 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
     @Transactional
     public MarketOrderResult createOrder(String requestId, UUID buyerUserId, UUID listingId, int quantity, UUID addressId) {
         validateCreateOrderRequest(requestId, buyerUserId, listingId, quantity);
-        MarketOrder existing = marketOrderMapper.selectByRequestId(requestId);
+        MarketOrder existing = marketOrderMapper.selectByBuyerUserIdAndRequestId(buyerUserId, requestId);
         if (existing != null) {
             ensureReplayMatches(existing, buyerUserId, listingId, quantity, addressId);
             return MarketOrderResult.from(existing);
         }
 
         MarketListing listing = requireListingForUpdate(listingId);
-        existing = marketOrderMapper.selectByRequestIdForUpdate(requestId);
+        existing = marketOrderMapper.selectByBuyerUserIdAndRequestIdForUpdate(buyerUserId, requestId);
         if (existing != null) {
             ensureReplayMatches(existing, buyerUserId, listingId, quantity, addressId);
             return MarketOrderResult.from(existing);
@@ -150,7 +150,7 @@ public class MarketOrderService implements MarketOrderAutoConfirmActionApi {
         try {
             marketOrderMapper.insert(order);
         } catch (DataIntegrityViolationException ex) {
-            MarketOrder duplicated = marketOrderMapper.selectByRequestIdForUpdate(requestId);
+            MarketOrder duplicated = marketOrderMapper.selectByBuyerUserIdAndRequestIdForUpdate(buyerUserId, requestId);
             if (duplicated != null) {
                 ensureReplayMatches(duplicated, buyerUserId, listingId, quantity, addressId);
                 return MarketOrderResult.from(duplicated);

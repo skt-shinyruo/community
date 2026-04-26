@@ -1,5 +1,6 @@
 package com.nowcoder.community.market.controller;
 
+import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.market.dto.AddMarketInventoryBatchRequest;
@@ -33,6 +34,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -174,9 +176,10 @@ public class MarketController {
 
     @PostMapping("/orders")
     public Result<MarketOrderResponse> createOrder(Authentication authentication,
+                                                   @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
                                                    @RequestBody @Valid CreateMarketOrderRequest request) {
         UUID buyerUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(MarketOrderResponse.from(marketApplicationService.createOrder(buyerUserId, request)));
+        return Result.ok(MarketOrderResponse.from(marketApplicationService.createOrder(buyerUserId, request, idempotencyKey)));
     }
 
     @GetMapping("/orders/buying")

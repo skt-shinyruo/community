@@ -145,6 +145,7 @@ IM 说明：
 为避免浏览器重复点击/网络重试导致的重复副作用，本项目对部分 **HTTP 写接口** 启用幂等保护：
 - header：`Idempotency-Key: <unique-key>`
 - 幂等维度：`userId + operation + Idempotency-Key`
+- 钱包充值/提现/转账和市场下单兼容旧 body `requestId`，但仅在 header 缺失时使用；header/body 不一致返回 `400`
 - 行为：
   - 首次请求：执行业务副作用并缓存响应
   - 重复请求：直接复用缓存响应（避免重复写入/重复通知等副作用）
@@ -155,6 +156,10 @@ IM 说明：
 当前仓库已对以下写接口接入 `IdempotencyGuard`：
 - 发帖：`POST /api/posts`
 - 发表评论：`POST /api/posts/{postId}/comments`
+- 钱包充值：`POST /api/wallet/recharges`
+- 钱包提现：`POST /api/wallet/withdrawals`
+- 钱包转账：`POST /api/wallet/transfers`
+- 市场下单：`POST /api/market/orders`
 
 说明：
 - 这里的 `operation` 由服务端内部定义，例如 `content:create_post`、`content:create_comment`。
@@ -177,6 +182,7 @@ IM 说明：
 幂等保护的返回语义如下：
 - 第一次请求成功：返回真实业务结果，并把成功结果写入幂等存储。
 - 同 key 重试且前一次已成功：直接复用上一次成功结果，不再重复执行业务副作用。
+- 同 key 但请求语义指纹不同：返回业务域 replay-conflict 错误码，例如钱包/市场的请求号重放冲突。
 - 同 key 并发请求且前一次仍在处理中：返回 `409`，提示请求处理中，调用方应稍后重试。
 - 如果业务副作用已成功，但成功结果落库失败：继续保留 processing 锁并返回 `409`，提示“请求结果确认中，请稍后重试”，避免客户端立刻重试放大重复副作用。
 - 对“必须幂等”的入口，如果幂等存储不可用：返回 `503`，避免绕过幂等保护继续写入。

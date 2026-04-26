@@ -2,6 +2,7 @@ package com.nowcoder.community.wallet.controller;
 
 import com.nowcoder.community.app.security.CommunitySecurityConfig;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.wallet.dto.WalletSummaryResponse;
@@ -25,9 +26,13 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -61,11 +66,21 @@ class WalletControllerTest {
     private TransferService transferService;
 
     @MockBean
+    private IdempotencyGuard idempotencyGuard;
+
+    @MockBean
     private JwtDecoder jwtDecoder;
 
     @SpringBootConfiguration
     @EnableAutoConfiguration
     static class TestApplication {
+    }
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUpIdempotencyGuard() {
+        doAnswer(invocation -> ((Supplier<?>) invocation.getArgument(6)).get())
+                .when(idempotencyGuard)
+                .executeRequired(anyString(), any(UUID.class), anyString(), anyString(), any(), any(), any());
     }
 
     @Test
@@ -149,6 +164,26 @@ class WalletControllerTest {
     }
 
     @Test
+    void rechargeEndpointShouldAcceptIdempotencyKeyHeaderWithoutBodyRequestId() throws Exception {
+        UUID userId = uuid(1);
+        UUID orderId = UUID.fromString("00000000-0000-7000-8000-000000000623");
+        when(rechargeService.complete(eq("recharge:header-api-1"), eq(userId), eq(1200L)))
+                .thenReturn(new RechargeOrderResult(orderId, "recharge:header-api-1", userId, 1200L, "PAID"));
+
+        mockMvc.perform(post("/api/wallet/recharges")
+                        .with(jwt().jwt(jwt -> jwt.subject(userId.toString()).claim("username", "u1")))
+                        .header(IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, "recharge:header-api-1")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "amount": 1200
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.requestId").value("recharge:header-api-1"));
+    }
+
+    @Test
     void withdrawEndpointShouldReturnWithdrawResultForAuthenticatedUser() throws Exception {
         UUID userId = uuid(1);
         UUID orderId = UUID.fromString("00000000-0000-7000-8000-000000000624");
@@ -171,6 +206,26 @@ class WalletControllerTest {
                 .andExpect(jsonPath("$.data.userId").value(userId.toString()))
                 .andExpect(jsonPath("$.data.amount").value(500))
                 .andExpect(jsonPath("$.data.status").value("SUCCEEDED"));
+    }
+
+    @Test
+    void withdrawEndpointShouldAcceptIdempotencyKeyHeaderWithoutBodyRequestId() throws Exception {
+        UUID userId = uuid(1);
+        UUID orderId = UUID.fromString("00000000-0000-7000-8000-000000000624");
+        when(withdrawService.request(eq("withdraw:header-api-1"), eq(userId), eq(500L)))
+                .thenReturn(new WithdrawOrderResult(orderId, "withdraw:header-api-1", userId, 500L, "SUCCEEDED"));
+
+        mockMvc.perform(post("/api/wallet/withdrawals")
+                        .with(jwt().jwt(jwt -> jwt.subject(userId.toString()).claim("username", "u1")))
+                        .header(IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, "withdraw:header-api-1")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "amount": 500
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.requestId").value("withdraw:header-api-1"));
     }
 
     @Test
@@ -199,6 +254,46 @@ class WalletControllerTest {
                 .andExpect(jsonPath("$.data.toUserId").value(toUserId.toString()))
                 .andExpect(jsonPath("$.data.amount").value(300))
                 .andExpect(jsonPath("$.data.status").value("SUCCEEDED"));
+    }
+
+    @Test
+    void transferEndpointShouldAcceptIdempotencyKeyHeaderWithoutBodyRequestId() throws Exception {
+        UUID fromUserId = uuid(1);
+        UUID toUserId = uuid(2);
+        UUID orderId = UUID.fromString("00000000-0000-7000-8000-000000000625");
+        when(transferService.create(eq("transfer:header-api-1"), eq(fromUserId), eq(toUserId), eq(300L)))
+                .thenReturn(transferResponse(orderId, "transfer:header-api-1", fromUserId, toUserId, 300L, "SUCCEEDED"));
+
+        mockMvc.perform(post("/api/wallet/transfers")
+                        .with(jwt().jwt(jwt -> jwt.subject(fromUserId.toString()).claim("username", "u1")))
+                        .header(IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, "transfer:header-api-1")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "toUserId": "%s",
+                                  "amount": 300
+                                }
+                                """.formatted(toUserId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.requestId").value("transfer:header-api-1"));
+    }
+
+    @Test
+    void rechargeEndpointShouldRejectDifferentHeaderAndBodyRequestId() throws Exception {
+        UUID userId = uuid(1);
+
+        mockMvc.perform(post("/api/wallet/recharges")
+                        .with(jwt().jwt(jwt -> jwt.subject(userId.toString()).claim("username", "u1")))
+                        .header(IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, "recharge:header")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "requestId": "recharge:body",
+                                  "amount": 1200
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
     }
 
     @Test

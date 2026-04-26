@@ -1,5 +1,9 @@
 package com.nowcoder.community.market.service;
 
+import com.nowcoder.community.common.idempotency.IdempotencyGuard;
+import com.nowcoder.community.infra.idempotency.EffectiveIdempotencyKey;
+import com.nowcoder.community.infra.idempotency.IdempotencyKeyResolver;
+import com.nowcoder.community.infra.idempotency.RequestFingerprint;
 import com.nowcoder.community.market.dto.AddMarketInventoryBatchRequest;
 import com.nowcoder.community.market.dto.CreateMarketAddressRequest;
 import com.nowcoder.community.market.dto.CreateMarketDisputeRequest;
@@ -10,6 +14,7 @@ import com.nowcoder.community.market.dto.SellerDisputeDecisionRequest;
 import com.nowcoder.community.market.dto.ShipMarketOrderRequest;
 import com.nowcoder.community.market.dto.UpdateMarketAddressRequest;
 import com.nowcoder.community.market.dto.UpdateMarketListingRequest;
+import com.nowcoder.community.market.exception.MarketErrorCode;
 import com.nowcoder.community.market.model.MarketAddressView;
 import com.nowcoder.community.market.model.MarketDisputeResult;
 import com.nowcoder.community.market.model.MarketInventoryUnitView;
@@ -31,6 +36,7 @@ public class MarketApplicationService {
     private final MarketOrderService marketOrderService;
     private final MarketDisputeService marketDisputeService;
     private final MarketAddressService marketAddressService;
+    private final IdempotencyGuard idempotencyGuard;
 
     public MarketApplicationService(
             MarketListingService marketListingService,
@@ -38,7 +44,8 @@ public class MarketApplicationService {
             MarketQueryService marketQueryService,
             MarketOrderService marketOrderService,
             MarketDisputeService marketDisputeService,
-            MarketAddressService marketAddressService
+            MarketAddressService marketAddressService,
+            IdempotencyGuard idempotencyGuard
     ) {
         this.marketListingService = marketListingService;
         this.marketInventoryService = marketInventoryService;
@@ -46,6 +53,7 @@ public class MarketApplicationService {
         this.marketOrderService = marketOrderService;
         this.marketDisputeService = marketDisputeService;
         this.marketAddressService = marketAddressService;
+        this.idempotencyGuard = idempotencyGuard;
     }
 
     public List<MarketListingResult> listPublicListings() {
@@ -109,12 +117,30 @@ public class MarketApplicationService {
     }
 
     public MarketOrderResult createOrder(UUID buyerUserId, CreateMarketOrderRequest request) {
-        return marketOrderService.createOrder(
-                request.getRequestId(),
+        return createOrder(buyerUserId, request, null);
+    }
+
+    public MarketOrderResult createOrder(UUID buyerUserId, CreateMarketOrderRequest request, String idempotencyKey) {
+        EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(idempotencyKey, request.getRequestId());
+        String requestHash = RequestFingerprint.sha256(
+                "market:create_order|listingId=" + request.getListingId()
+                        + "|quantity=" + request.getQuantity()
+                        + "|addressId=" + (request.getAddressId() == null ? "" : request.getAddressId())
+        );
+        return idempotencyGuard.executeRequired(
+                "market:create_order",
                 buyerUserId,
-                request.getListingId(),
-                request.getQuantity(),
-                request.getAddressId()
+                effective.value(),
+                requestHash,
+                MarketErrorCode.REQUEST_REPLAY_CONFLICT,
+                MarketOrderResult.class,
+                () -> marketOrderService.createOrder(
+                        effective.value(),
+                        buyerUserId,
+                        request.getListingId(),
+                        request.getQuantity(),
+                        request.getAddressId()
+                )
         );
     }
 

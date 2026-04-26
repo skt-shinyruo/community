@@ -11,6 +11,13 @@
         where request_id = #{requestId}
     </select>
 
+    <select id="selectByUserIdAndRequestId" resultType="com.nowcoder.community.wallet.entity.RechargeOrder">
+        select order_id, request_id, user_id, amount, status, channel, channel_order_id, remark, create_time, update_time
+        from recharge_order
+        where user_id = #{userId, jdbcType=BINARY}
+          and request_id = #{requestId}
+    </select>
+
     <insert id="insert" parameterType="com.nowcoder.community.wallet.entity.RechargeOrder">
         insert into recharge_order(order_id, request_id, user_id, amount, status, channel, channel_order_id, remark)
         values(#{orderId, jdbcType=BINARY}, #{requestId}, #{userId, jdbcType=BINARY}, #{amount}, #{status}, #{channel}, #{channelOrderId}, #{remark})
@@ -20,7 +27,8 @@
         update recharge_order
         set status = #{toStatus},
             update_time = current_timestamp
-        where request_id = #{requestId}
+        where user_id = #{userId, jdbcType=BINARY}
+          and request_id = #{requestId}
           and status = #{fromStatus}
     </update>
 

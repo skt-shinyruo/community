@@ -99,7 +99,7 @@ create table if not exists recharge_order (
   remark varchar(255) default null,
   create_time timestamp null default current_timestamp,
   update_time timestamp null default current_timestamp on update current_timestamp,
-  constraint uk_recharge_order_request unique (request_id)
+  constraint uk_recharge_order_user_request unique (user_id, request_id)
 );
 
 create index if not exists idx_recharge_order_user_time on recharge_order(user_id, create_time);
@@ -114,7 +114,7 @@ create table if not exists withdraw_order (
   failure_reason varchar(255) default null,
   create_time timestamp null default current_timestamp,
   update_time timestamp null default current_timestamp on update current_timestamp,
-  constraint uk_withdraw_order_request unique (request_id)
+  constraint uk_withdraw_order_user_request unique (user_id, request_id)
 );
 
 create index if not exists idx_withdraw_order_user_time on withdraw_order(user_id, create_time);
@@ -129,7 +129,7 @@ create table if not exists transfer_order (
   remark varchar(255) default null,
   create_time timestamp null default current_timestamp,
   update_time timestamp null default current_timestamp on update current_timestamp,
-  constraint uk_transfer_order_request unique (request_id)
+  constraint uk_transfer_order_from_request unique (from_user_id, request_id)
 );
 
 create index if not exists idx_transfer_order_from_user_time on transfer_order(from_user_id, create_time);
@@ -223,7 +223,7 @@ create table if not exists market_order (
   postal_code_snapshot varchar(16) default null,
   create_time timestamp null default current_timestamp,
   update_time timestamp null default current_timestamp on update current_timestamp,
-  constraint uk_market_order_request unique (request_id)
+  constraint uk_market_order_buyer_request unique (buyer_user_id, request_id)
 );
 
 create index if not exists idx_market_order_buyer_time on market_order(buyer_user_id, create_time);
@@ -526,6 +526,7 @@ create table if not exists http_idempotency (
   operation varchar(64) not null,
   user_id binary(16) not null,
   idem_key varchar(128) not null,
+  request_hash varchar(64),
   status varchar(16) not null,
   response_json mediumtext,
   processing_expires_at timestamp,

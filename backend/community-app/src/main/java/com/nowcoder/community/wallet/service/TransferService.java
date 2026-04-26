@@ -6,6 +6,7 @@ import com.nowcoder.community.wallet.entity.TransferOrder;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.mapper.TransferOrderMapper;
 import com.nowcoder.community.wallet.model.TransferOrderResult;
+import com.nowcoder.community.wallet.model.WalletLedgerCommand;
 import com.nowcoder.community.wallet.model.WalletPosting;
 import com.nowcoder.community.wallet.model.WalletTxnType;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,7 +50,7 @@ public class TransferService {
             throw new BusinessException(WalletErrorCode.INVALID_TRANSFER, "cannot transfer to self");
         }
 
-        TransferOrder existing = transferOrderMapper.selectByRequestId(requestId);
+        TransferOrder existing = transferOrderMapper.selectByFromUserIdAndRequestId(fromUserId, requestId);
         if (existing != null) {
             ensureReplayMatches(existing, fromUserId, toUserId, amount);
             return TransferOrderResult.from(existing);
@@ -57,18 +58,22 @@ public class TransferService {
 
         accountService.requireUserWalletActive(fromUserId);
 
-        ledgerService.post(
-                requestId,
-                WalletTxnType.TRANSFER,
-                List.of(
-                        WalletPosting.debit(accountService.ensureUserWallet(fromUserId), amount),
-                        WalletPosting.credit(accountService.ensureUserWallet(toUserId), amount)
-                )
-        );
-
         TransferOrder order = createOrLoad(requestId, fromUserId, toUserId, amount);
         ensureReplayMatches(order, fromUserId, toUserId, amount);
-        return TransferOrderResult.from(order);
+        if (!"SUCCEEDED".equals(order.getStatus())) {
+            ledgerService.post(new WalletLedgerCommand(
+                    "wallet:transfer:" + order.getOrderId(),
+                    WalletTxnType.TRANSFER,
+                    WalletTxnType.TRANSFER.name(),
+                    order.getOrderId().toString(),
+                    List.of(
+                            WalletPosting.debit(accountService.ensureUserWallet(fromUserId), amount),
+                            WalletPosting.credit(accountService.ensureUserWallet(toUserId), amount)
+                    )
+            ));
+            transferOrderMapper.updateStatus(fromUserId, requestId, "CREATED", "SUCCEEDED");
+        }
+        return TransferOrderResult.from(requireOrder(fromUserId, requestId));
     }
 
     private void validate(String requestId, long amount) {
@@ -93,17 +98,25 @@ public class TransferService {
         order.setFromUserId(fromUserId);
         order.setToUserId(toUserId);
         order.setAmount(amount);
-        order.setStatus("SUCCEEDED");
+        order.setStatus("CREATED");
         try {
             transferOrderMapper.insert(order);
             return order;
         } catch (DataIntegrityViolationException ex) {
-            TransferOrder duplicated = transferOrderMapper.selectByRequestId(requestId);
+            TransferOrder duplicated = transferOrderMapper.selectByFromUserIdAndRequestId(fromUserId, requestId);
             if (duplicated != null) {
                 return duplicated;
             }
             throw ex;
         }
+    }
+
+    private TransferOrder requireOrder(UUID fromUserId, String requestId) {
+        TransferOrder order = transferOrderMapper.selectByFromUserIdAndRequestId(fromUserId, requestId);
+        if (order == null) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "transfer order not found: requestId=" + requestId);
+        }
+        return order;
     }
 
     private void ensureReplayMatches(TransferOrder order, UUID fromUserId, UUID toUserId, long amount) {

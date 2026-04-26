@@ -5,6 +5,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.wallet.entity.WithdrawOrder;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.mapper.WithdrawOrderMapper;
+import com.nowcoder.community.wallet.model.WalletLedgerCommand;
 import com.nowcoder.community.wallet.model.WalletPosting;
 import com.nowcoder.community.wallet.model.WalletTxnType;
 import com.nowcoder.community.wallet.model.WithdrawOrderResult;
@@ -44,7 +45,7 @@ public class WithdrawService {
     @Transactional
     public WithdrawOrderResult request(String requestId, UUID userId, long amount) {
         validate(requestId, amount);
-        WithdrawOrder order = withdrawOrderMapper.selectByRequestId(requestId);
+        WithdrawOrder order = withdrawOrderMapper.selectByUserIdAndRequestId(userId, requestId);
         if (order != null) {
             ensureReplayMatches(order, userId, amount);
             if ("SUCCEEDED".equals(order.getStatus())) {
@@ -55,7 +56,7 @@ public class WithdrawService {
         accountService.requireUserWalletActive(userId);
 
         if (order == null && accountService.balanceOfSystem("PLATFORM_CASH") < amount) {
-            order = withdrawOrderMapper.selectByRequestId(requestId);
+            order = withdrawOrderMapper.selectByUserIdAndRequestId(userId, requestId);
             if (order == null) {
                 throw new BusinessException(WalletErrorCode.PLATFORM_CASH_INSUFFICIENT, "platform cash insufficient");
             }
@@ -68,30 +69,34 @@ public class WithdrawService {
         }
 
         if ("REQUESTED".equals(order.getStatus())) {
-            ledgerService.post(
-                    requestId + ":request",
+            ledgerService.post(new WalletLedgerCommand(
+                    "wallet:withdraw:" + order.getOrderId() + ":request",
                     WalletTxnType.WITHDRAW,
+                    WalletTxnType.WITHDRAW.name(),
+                    order.getOrderId().toString(),
                     List.of(
                             WalletPosting.debit(accountService.ensureUserWallet(userId), amount),
                             WalletPosting.credit(accountService.ensureSystemAccount("WITHDRAW_PENDING"), amount)
                     )
-            );
-            withdrawOrderMapper.updateStatus(requestId, "REQUESTED", "PROCESSING");
-            order = requireOrder(requestId);
+            ));
+            withdrawOrderMapper.updateStatus(userId, requestId, "REQUESTED", "PROCESSING");
+            order = requireOrder(userId, requestId);
         }
 
         if ("PROCESSING".equals(order.getStatus())) {
-            ledgerService.post(
-                    requestId + ":settle",
+            ledgerService.post(new WalletLedgerCommand(
+                    "wallet:withdraw:" + order.getOrderId() + ":settle",
                     WalletTxnType.WITHDRAW,
+                    WalletTxnType.WITHDRAW.name(),
+                    order.getOrderId().toString(),
                     List.of(
                             WalletPosting.debit(accountService.ensureSystemAccount("WITHDRAW_PENDING"), amount),
                             WalletPosting.credit(accountService.ensureSystemAccount("PLATFORM_CASH"), amount)
                     )
-            );
-            withdrawOrderMapper.updateStatus(requestId, "PROCESSING", "SUCCEEDED");
+            ));
+            withdrawOrderMapper.updateStatus(userId, requestId, "PROCESSING", "SUCCEEDED");
         }
-        return WithdrawOrderResult.from(requireOrder(requestId));
+        return WithdrawOrderResult.from(requireOrder(userId, requestId));
     }
 
     private void validate(String requestId, long amount) {
@@ -114,7 +119,7 @@ public class WithdrawService {
             withdrawOrderMapper.insert(order);
             return order;
         } catch (DataIntegrityViolationException ex) {
-            WithdrawOrder duplicated = withdrawOrderMapper.selectByRequestId(requestId);
+            WithdrawOrder duplicated = withdrawOrderMapper.selectByUserIdAndRequestId(userId, requestId);
             if (duplicated != null) {
                 return duplicated;
             }
@@ -122,8 +127,8 @@ public class WithdrawService {
         }
     }
 
-    private WithdrawOrder requireOrder(String requestId) {
-        WithdrawOrder order = withdrawOrderMapper.selectByRequestId(requestId);
+    private WithdrawOrder requireOrder(UUID userId, String requestId) {
+        WithdrawOrder order = withdrawOrderMapper.selectByUserIdAndRequestId(userId, requestId);
         if (order == null) {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "withdraw order not found: requestId=" + requestId);
         }

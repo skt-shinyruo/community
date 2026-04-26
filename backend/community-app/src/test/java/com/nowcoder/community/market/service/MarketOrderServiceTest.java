@@ -262,7 +262,7 @@ class MarketOrderServiceTest {
     }
 
     @Test
-    void createOrderShouldRejectReplayWhenBuyerDoesNotMatchExistingOrder() {
+    void createOrderShouldAllowSameRequestIdForDifferentBuyers() {
         UUID sellerUserId = uuid(7);
         UUID firstBuyerUserId = uuid(9);
         UUID secondBuyerUserId = uuid(10);
@@ -270,12 +270,15 @@ class MarketOrderServiceTest {
         seedBuyerBalance(firstBuyerUserId, 20_000L);
         seedBuyerBalance(secondBuyerUserId, 20_000L);
 
-        marketOrderService.createOrder("virtual:req-buyer-mismatch", firstBuyerUserId, listingId, 1, null);
+        MarketOrderResult first = marketOrderService.createOrder("virtual:req-shared-by-buyers", firstBuyerUserId, listingId, 1, null);
+        MarketOrderResult second = marketOrderService.createOrder("virtual:req-shared-by-buyers", secondBuyerUserId, listingId, 1, null);
 
-        assertThatThrownBy(() -> marketOrderService.createOrder("virtual:req-buyer-mismatch", secondBuyerUserId, listingId, 1, null))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode().getHttpStatus()).isEqualTo(409))
-                .hasMessageContaining("requestId");
+        assertThat(second.orderId()).isNotEqualTo(first.orderId());
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from market_order where request_id = ?",
+                Integer.class,
+                "virtual:req-shared-by-buyers"
+        )).isEqualTo(2);
     }
 
     @Test

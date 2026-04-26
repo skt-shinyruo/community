@@ -129,21 +129,23 @@
 
 关键步骤：
 
-1. 按 `requestId` 查重，已有订单直接返回
-2. 锁定 listing，要求必须 `ACTIVE`
-3. 校验：
+1. controller 读取 `Idempotency-Key`；旧 body `requestId` 仅在 header 缺失时 fallback，header/body 不一致返回 `400`
+2. `IdempotencyGuard` 按 `buyerUserId + operation + key + requestHash` 包裹下单，同 key 不同 payload 返回 replay conflict
+3. 按 `(buyer_user_id, request_id)` 查重，已有订单且语义一致直接返回
+4. 锁定 listing，要求必须 `ACTIVE`
+5. 校验：
    - 买家不能买自己的 listing
    - 数量必须落在 `min/max purchase quantity`
    - 有限库存必须足够
-4. 如果是预置虚拟商品：
+6. 如果是预置虚拟商品：
    - 预留足够数量的 `AVAILABLE` inventory unit，状态变为 `RESERVED`
-5. 计算 `totalAmount`
-6. 写入 `market_order(status=ESCROW_PENDING)`
-7. 对有限库存执行扣减
-8. 写入 `market_wallet_action(action_type=ESCROW, status=PENDING)`
-9. 后台 processor 调 `WalletMarketApplicationService.escrowOrder(...)`
-10. 钱包成功后由 `MarketOrderSagaService` 推进到 `ESCROWED`
-11. 如果是预置虚拟商品：
+7. 生成 `orderId`，计算 `totalAmount`
+8. 写入 `market_order(status=ESCROW_PENDING, request_id=<effective idempotency key>)`
+9. 对有限库存执行扣减
+10. 写入 `market_wallet_action(action_type=ESCROW, status=PENDING, request_id=market-order:<orderId>:escrow)`
+11. 后台 processor 调 `WalletMarketApplicationService.escrowOrder(...)`
+12. 钱包成功后由 `MarketOrderSagaService` 推进到 `ESCROWED`
+13. 如果是预置虚拟商品：
     - escrow 成功后把预留库存交付给买家
     - 订单进入 `DELIVERED`
     - 同时写入 `autoConfirmAt = now + 24h`
@@ -151,6 +153,7 @@
 关键点：
 
 - 市场订单不直接改余额
+- 对外幂等 key 与钱包账本 request id 解耦；钱包侧使用 `market-order:<orderId>:<action>` 这类服务端派生 id
 - 资金动作不再在 `MarketOrderService` / `MarketDisputeService` 的同步事务内直接落钱包账本。
 - 市场先写 `market_wallet_action`，订单进入 `ESCROW_PENDING`、`RELEASE_PENDING`、`REFUND_PENDING`
   或争议 pending 状态；后台 processor 调钱包并回写最终状态。

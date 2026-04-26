@@ -23,6 +23,12 @@ public interface MarketOrderMapper {
 
     MarketOrder selectByRequestIdForUpdate(@Param("requestId") String requestId);
 
+    MarketOrder selectByBuyerUserIdAndRequestId(@Param("buyerUserId") UUID buyerUserId,
+                                                @Param("requestId") String requestId);
+
+    MarketOrder selectByBuyerUserIdAndRequestIdForUpdate(@Param("buyerUserId") UUID buyerUserId,
+                                                         @Param("requestId") String requestId);
+
     List<MarketOrder> selectByBuyerUserId(@Param("buyerUserId") UUID buyerUserId);
 
     List<MarketOrder> selectBySellerUserId(@Param("sellerUserId") UUID sellerUserId);

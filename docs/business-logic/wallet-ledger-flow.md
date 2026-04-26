@@ -92,6 +92,13 @@
 - 一笔 `wallet_txn`
 - 多条 `wallet_entry`
 
+新写入优先使用 `WalletLedgerCommand`，字段包括：
+
+- `requestId`：总账幂等键，保持全局唯一
+- `txnType`：交易类型
+- `bizType` / `bizId`：业务域语义，重放时必须一致
+- `postings`：借贷分录
+
 当前交易类型：
 
 - `REWARD_ISSUE`
@@ -141,10 +148,10 @@
 
 它的关键步骤是：
 
-1. 校验 `requestId`、`txnType`、`postings`
+1. 校验 `requestId`、`txnType`、`bizType`、`bizId`、`postings`
 2. 校验借贷平衡：`debitTotal == creditTotal`
 3. 先按 `requestId` 查重：
-   - 已存在则校验交易类型、业务 id、金额和账本分录语义一致，再返回已有 `txnId + status`
+   - 已存在则校验交易类型、业务类型、业务 id、金额和账本分录语义一致，再返回已有 `txnId + status`
    - 不一致则抛 `REQUEST_REPLAY_CONFLICT`
 4. 新建 `wallet_txn(status=PENDING)`
 5. 对每条 posting：
@@ -160,7 +167,7 @@
 - 请求重放按 `requestId` 去重，但不是简单返回旧交易
 - 余额更新不是“直接 set 值”，而是“锁定账户后按 delta 更新”
 
-钱包 `requestId` 重放不是简单返回旧交易。重放必须匹配交易类型、业务 id、金额和账本分录语义；
+钱包 `requestId` 重放不是简单返回旧交易。重放必须匹配交易类型、业务类型、业务 id、金额和账本分录语义；
 不匹配时返回 `REQUEST_REPLAY_CONFLICT`，避免错误复用幂等键。
 
 ### 5.2 账户的借贷方向不是统一的
@@ -188,19 +195,22 @@
 
 主链路：
 
-1. `RechargeService.complete(requestId, userId, amount)`
-2. 校验 `requestId` 和金额
-3. 先按 `requestId` 查 `recharge_order`
-4. 若无则创建 `status=CREATED`
-5. 通过总账写入：
+1. controller 读取 `Idempotency-Key`；旧 body `requestId` 仅在 header 缺失时 fallback
+2. `IdempotencyGuard` 按 `userId + operation + key + requestHash` 包裹充值
+3. `RechargeService.complete(requestId, userId, amount)`
+4. 校验 `requestId` 和金额
+5. 先按 `(user_id, request_id)` 查 `recharge_order`
+6. 若无则创建 `status=CREATED`
+7. 通过总账写入，账本 request id 为 `wallet:recharge:<orderId>`：
    - `PLATFORM_CASH -> USER_WALLET`
-6. 成功后把订单状态改为 `PAID`
+8. 成功后把订单状态改为 `PAID`
 
 重放语义：
 
-- 同一个 `requestId` 再次请求
+- 同一用户同一个 `requestId` 再次请求
   - 参数相同：复用已有结果
   - 参数不同：抛 `REQUEST_REPLAY_CONFLICT`
+- 不同用户可以复用同一个对外 `requestId`，业务唯一键作用域是 `(user_id, request_id)`
 
 ### 6.2 提现
 
@@ -210,15 +220,17 @@
 
 主链路：
 
-1. `WithdrawService.request(...)`
-2. 校验 `requestId` 和金额
-3. 要求用户钱包必须 `ACTIVE`
-4. 如果平台 `PLATFORM_CASH` 余额不足，会拒绝新提现
-5. 若无旧单则创建 `withdraw_order(status=REQUESTED)`
-6. 第一段记账：
+1. controller / `IdempotencyGuard` 先按对外 `Idempotency-Key` 做 HTTP 幂等保护
+2. `WithdrawService.request(...)`
+3. 校验 `requestId` 和金额
+4. 先按 `(user_id, request_id)` 查 `withdraw_order`
+5. 要求用户钱包必须 `ACTIVE`
+6. 如果平台 `PLATFORM_CASH` 余额不足，会拒绝新提现
+7. 若无旧单则创建 `withdraw_order(status=REQUESTED)`
+8. 第一段记账，账本 request id 为 `wallet:withdraw:<orderId>:request`：
    - `USER_WALLET -> WITHDRAW_PENDING`
    - 订单状态：`REQUESTED -> PROCESSING`
-7. 第二段记账：
+9. 第二段记账，账本 request id 为 `wallet:withdraw:<orderId>:settle`：
    - `WITHDRAW_PENDING -> PLATFORM_CASH`
    - 订单状态：`PROCESSING -> SUCCEEDED`
 
@@ -232,17 +244,20 @@
 
 主链路：
 
-1. `TransferService.create(...)`
-2. 校验 `requestId`、用户 id、金额
-3. 禁止给自己转账
-4. 要求转出方钱包必须 `ACTIVE`
-5. 通过总账写入：
+1. controller / `IdempotencyGuard` 先按对外 `Idempotency-Key` 做 HTTP 幂等保护
+2. `TransferService.create(...)`
+3. 校验 `requestId`、用户 id、金额
+4. 禁止给自己转账
+5. 先按 `(from_user_id, request_id)` 查 `transfer_order`
+6. 要求转出方钱包必须 `ACTIVE`
+7. 若无旧单则先创建 `transfer_order(status=CREATED)`
+8. 通过总账写入，账本 request id 为 `wallet:transfer:<orderId>`：
    - `USER_WALLET:from -> USER_WALLET:to`
-6. 之后落一条 `transfer_order(status=SUCCEEDED)`
+9. 成功后把订单状态改为 `SUCCEEDED`
 
 关键特点：
 
-- 转账本身没有多阶段状态机
+- 转账本身对外仍表现为一次性成功，内部用 `CREATED -> SUCCEEDED` 避免客户端 key 直接进入总账 request id
 - 主事实仍是总账，`transfer_order` 更像一张业务索引表
 
 ---
@@ -326,15 +341,29 @@
 
 ## 9. 失败语义与一致性
 
-### 9.1 `requestId` 是钱包链路的稳定幂等键
+### 9.1 对外幂等 key 与总账 request id 已解耦
 
-当前钱包链路没有接入 `IdempotencyGuard`，而是直接把业务 `requestId` 作为总账与业务订单的幂等键。
+钱包充值、提现、转账对外统一使用 `Idempotency-Key`。旧 body `requestId` 仍兼容，但只在 header 缺失时作为 fallback；
+header/body 同时存在且不一致会返回 `400`。
+
+业务订单表保存的是 effective public key：
+
+- `recharge_order`：唯一键 `(user_id, request_id)`
+- `withdraw_order`：唯一键 `(user_id, request_id)`
+- `transfer_order`：唯一键 `(from_user_id, request_id)`
+
+总账 `wallet_txn.request_id` 仍保持全局唯一，但由服务端订单 ID 派生，例如：
+
+- `wallet:recharge:<orderId>`
+- `wallet:withdraw:<orderId>:request`
+- `wallet:withdraw:<orderId>:settle`
+- `wallet:transfer:<orderId>`
 
 统一语义是：
 
-- `requestId` 首次出现：真正执行
-- `requestId` 重放且参数一致：复用结果
-- `requestId` 重放但参数不同：冲突
+- 对外 key 首次出现：真正执行
+- 对外 key 重放且请求指纹一致：复用 HTTP 幂等结果
+- 对外 key 重放但请求指纹或业务参数不同：冲突
 
 ### 9.2 余额不足 / 账户冻结 / 乐观锁冲突
 

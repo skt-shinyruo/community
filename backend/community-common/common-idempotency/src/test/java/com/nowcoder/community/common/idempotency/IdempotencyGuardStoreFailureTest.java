@@ -2,6 +2,7 @@ package com.nowcoder.community.common.idempotency;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.SimpleErrorCode;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -51,5 +52,58 @@ class IdempotencyGuardStoreFailureTest {
         assertThat(supplierCalls).hasValue(1);
         verify(store).extendProcessing(eq("op"), eq(USER_ID), eq("k1"), eq(Duration.ofMinutes(10)));
         verify(store, never()).delete(anyString(), any(), anyString());
+    }
+
+    @Test
+    void executeRequiredShouldRejectReplayWhenRequestHashDiffers() {
+        IdempotencyStore store = mock(IdempotencyStore.class);
+        when(store.tryAcquireProcessing(anyString(), any(), anyString(), eq("hash-b"), any(Duration.class))).thenReturn(false);
+        when(store.get("wallet:recharge", USER_ID, "k1"))
+                .thenReturn(new IdempotencyStore.Entry(IdempotencyStore.Status.SUCCESS, "\"OK\"", "hash-a"));
+
+        IdempotencyGuard guard = new IdempotencyGuard(new ObjectMapper(), store, null, new IdempotencyProperties());
+        AtomicInteger supplierCalls = new AtomicInteger();
+
+        assertThatThrownBy(() -> guard.executeRequired(
+                "wallet:recharge",
+                USER_ID,
+                "k1",
+                "hash-b",
+                new SimpleErrorCode(17007, "请求号与已有钱包请求不一致", 409),
+                String.class,
+                () -> {
+                    supplierCalls.incrementAndGet();
+                    return "NEW";
+                }))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> {
+                    BusinessException error = (BusinessException) ex;
+                    assertThat(error.getErrorCode().getCode()).isEqualTo(17007);
+                    assertThat(error.getErrorCode().getHttpStatus()).isEqualTo(409);
+                });
+
+        assertThat(supplierCalls).hasValue(0);
+    }
+
+    @Test
+    void executeRequiredShouldReplaySuccessWhenRequestHashMatches() {
+        IdempotencyStore store = mock(IdempotencyStore.class);
+        when(store.tryAcquireProcessing(anyString(), any(), anyString(), eq("hash-a"), any(Duration.class))).thenReturn(false);
+        when(store.get("wallet:recharge", USER_ID, "k1"))
+                .thenReturn(new IdempotencyStore.Entry(IdempotencyStore.Status.SUCCESS, "\"OK\"", "hash-a"));
+
+        IdempotencyGuard guard = new IdempotencyGuard(new ObjectMapper(), store, null, new IdempotencyProperties());
+
+        String result = guard.executeRequired(
+                "wallet:recharge",
+                USER_ID,
+                "k1",
+                "hash-a",
+                new SimpleErrorCode(17007, "请求号与已有钱包请求不一致", 409),
+                String.class,
+                () -> "NEW"
+        );
+
+        assertThat(result).isEqualTo("OK");
     }
 }

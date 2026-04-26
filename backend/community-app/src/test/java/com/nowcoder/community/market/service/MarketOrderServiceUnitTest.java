@@ -73,9 +73,10 @@ class MarketOrderServiceUnitTest {
         UUID listingId = UUID.fromString("00000000-0000-7000-8000-000000000007");
         String requestId = "market:req-replay-after-lock";
 
-        when(marketOrderMapper.selectByRequestId(requestId)).thenReturn(null);
+        when(marketOrderMapper.selectByBuyerUserIdAndRequestId(buyerUserId, requestId)).thenReturn(null);
         when(marketListingMapper.selectByIdForUpdate(listingId)).thenReturn(soldOutListing(listingId));
-        when(marketOrderMapper.selectByRequestIdForUpdate(requestId)).thenReturn(existingOrder(requestId, listingId, buyerUserId, 1));
+        when(marketOrderMapper.selectByBuyerUserIdAndRequestIdForUpdate(buyerUserId, requestId))
+                .thenReturn(existingOrder(requestId, listingId, buyerUserId, 1));
 
         MarketOrderResult response = service.createOrder(requestId, buyerUserId, listingId, 1, null);
 
@@ -103,9 +104,9 @@ class MarketOrderServiceUnitTest {
         String requestId = "market:req-duplicate-insert";
         MarketOrder duplicated = existingOrder(requestId, listingId, buyerUserId, 1);
 
-        when(marketOrderMapper.selectByRequestId(requestId)).thenReturn(null);
+        when(marketOrderMapper.selectByBuyerUserIdAndRequestId(buyerUserId, requestId)).thenReturn(null);
         when(marketListingMapper.selectByIdForUpdate(listingId)).thenReturn(activeListing(listingId));
-        when(marketOrderMapper.selectByRequestIdForUpdate(requestId)).thenReturn(null, duplicated);
+        when(marketOrderMapper.selectByBuyerUserIdAndRequestIdForUpdate(buyerUserId, requestId)).thenReturn(null, duplicated);
         when(marketOrderMapper.insert(any(MarketOrder.class)))
                 .thenThrow(new DataIntegrityViolationException("duplicate requestId"));
 

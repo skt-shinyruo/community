@@ -8,7 +8,7 @@ import com.nowcoder.community.wallet.entity.RechargeOrder;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.mapper.RechargeOrderMapper;
 import com.nowcoder.community.wallet.model.RechargeOrderResult;
-import com.nowcoder.community.wallet.model.WalletTxnType;
+import com.nowcoder.community.wallet.model.WalletLedgerCommand;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,8 +24,6 @@ import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -57,6 +55,7 @@ class RechargeServiceTest {
         jdbcTemplate.update("delete from wallet_txn");
         jdbcTemplate.update("delete from recharge_order");
         jdbcTemplate.update("delete from withdraw_order");
+        jdbcTemplate.update("delete from transfer_order");
         jdbcTemplate.update("delete from wallet_account");
     }
 
@@ -77,6 +76,11 @@ class RechargeServiceTest {
         );
         assertThat(storedOrderId).hasSize(16);
         assertThat(BinaryUuidCodec.fromBytes(storedOrderId)).isEqualTo(parsedOrderId);
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from wallet_txn where request_id = ?",
+                Integer.class,
+                "wallet:recharge:" + result.orderId()
+        )).isEqualTo(1);
     }
 
     @Test
@@ -95,13 +99,16 @@ class RechargeServiceTest {
     }
 
     @Test
-    void completeRechargeShouldRejectReplayWhenUserIdDoesNotMatchExistingOrder() {
-        rechargeService.complete("recharge:req-user-mismatch", uuid(101), 1200);
+    void completeRechargeShouldAllowSameRequestIdForDifferentUsers() {
+        RechargeOrderResult first = rechargeService.complete("recharge:req-shared-users", uuid(101), 1200);
+        RechargeOrderResult second = rechargeService.complete("recharge:req-shared-users", uuid(202), 1200);
 
-        assertThatThrownBy(() -> rechargeService.complete("recharge:req-user-mismatch", uuid(202), 1200))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.REQUEST_REPLAY_CONFLICT))
-                .hasMessageContaining("requestId");
+        assertThat(second.orderId()).isNotEqualTo(first.orderId());
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from recharge_order where request_id = ?",
+                Integer.class,
+                "recharge:req-shared-users"
+        )).isEqualTo(2);
     }
 
     @Test
@@ -126,7 +133,7 @@ class RechargeServiceTest {
         RechargeOrder createdOrder = order(orderId, "recharge:req-race", userId, 1200, "CREATED");
         RechargeOrder paidOrder = order(orderId, "recharge:req-race", userId, 1200, "PAID");
 
-        when(mapper.selectByRequestId("recharge:req-race"))
+        when(mapper.selectByUserIdAndRequestId(userId, "recharge:req-race"))
                 .thenReturn(null, createdOrder, paidOrder);
         when(mockedAccountService.ensureSystemAccount("PLATFORM_CASH"))
                 .thenReturn(UUID.fromString("00000000-0000-7000-8000-000000000623"));
@@ -139,8 +146,12 @@ class RechargeServiceTest {
 
         assertThat(result.orderId()).isEqualTo(orderId);
         assertThat(result.status()).isEqualTo("PAID");
-        verify(mockedLedgerService).post(eq("recharge:req-race"), eq(WalletTxnType.RECHARGE), anyList());
-        verify(mapper).updateStatus("recharge:req-race", "CREATED", "PAID");
+        org.mockito.ArgumentCaptor<WalletLedgerCommand> commandCaptor =
+                org.mockito.ArgumentCaptor.forClass(WalletLedgerCommand.class);
+        verify(mockedLedgerService).post(commandCaptor.capture());
+        assertThat(commandCaptor.getValue().requestId()).isEqualTo("wallet:recharge:" + orderId);
+        assertThat(commandCaptor.getValue().bizId()).isEqualTo(orderId.toString());
+        verify(mapper).updateStatus(userId, "recharge:req-race", "CREATED", "PAID");
     }
 
     private RechargeOrder order(UUID orderId, String requestId, UUID userId, long amount, String status) {

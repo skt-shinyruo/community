@@ -4,6 +4,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.wallet.api.action.WalletMarketActionApi;
 import com.nowcoder.community.wallet.api.model.WalletMarketTxnView;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
+import com.nowcoder.community.wallet.model.WalletLedgerCommand;
 import com.nowcoder.community.wallet.model.WalletPosting;
 import com.nowcoder.community.wallet.model.WalletTxnResult;
 import com.nowcoder.community.wallet.model.WalletTxnType;
@@ -33,15 +34,16 @@ public class WalletMarketApplicationService implements WalletMarketActionApi {
     public WalletMarketTxnView escrowOrder(String requestId, UUID buyerUserId, long amount, String bizId) {
         validateRequest(requestId, buyerUserId, amount, bizId);
         walletAccountService.requireUserWalletActive(buyerUserId);
-        WalletTxnResult result = walletLedgerService.post(
+        WalletTxnResult result = walletLedgerService.post(new WalletLedgerCommand(
                 requestId,
                 WalletTxnType.ORDER_ESCROW,
+                WalletTxnType.ORDER_ESCROW.name(),
                 bizId,
                 List.of(
                         WalletPosting.debit(walletAccountService.ensureUserWallet(buyerUserId), amount),
                         WalletPosting.credit(walletAccountService.ensureSystemAccount(ESCROW_ACCOUNT_TYPE), amount)
                 )
-        );
+        ));
         return new WalletMarketTxnView(result.txnId(), WalletTxnType.ORDER_ESCROW.name(), result.status(), amount, bizId);
     }
 
@@ -50,15 +52,16 @@ public class WalletMarketApplicationService implements WalletMarketActionApi {
     public WalletMarketTxnView releaseOrder(String requestId, UUID sellerUserId, long amount, String bizId) {
         validateRequest(requestId, sellerUserId, amount, bizId);
         walletAccountService.requireUserWalletActive(sellerUserId);
-        WalletTxnResult result = walletLedgerService.post(
+        WalletTxnResult result = walletLedgerService.post(new WalletLedgerCommand(
                 requestId,
                 WalletTxnType.ORDER_RELEASE,
+                WalletTxnType.ORDER_RELEASE.name(),
                 bizId,
                 List.of(
                         WalletPosting.debit(walletAccountService.ensureSystemAccount(ESCROW_ACCOUNT_TYPE), amount),
                         WalletPosting.credit(walletAccountService.ensureUserWallet(sellerUserId), amount)
                 )
-        );
+        ));
         return new WalletMarketTxnView(result.txnId(), WalletTxnType.ORDER_RELEASE.name(), result.status(), amount, bizId);
     }
 
@@ -67,15 +70,16 @@ public class WalletMarketApplicationService implements WalletMarketActionApi {
     public WalletMarketTxnView refundOrder(String requestId, UUID buyerUserId, long amount, String bizId) {
         validateRequest(requestId, buyerUserId, amount, bizId);
         walletAccountService.requireUserWalletActive(buyerUserId);
-        WalletTxnResult result = walletLedgerService.post(
+        WalletTxnResult result = walletLedgerService.post(new WalletLedgerCommand(
                 requestId,
                 WalletTxnType.ORDER_REFUND,
+                WalletTxnType.ORDER_REFUND.name(),
                 bizId,
                 List.of(
                         WalletPosting.debit(walletAccountService.ensureSystemAccount(ESCROW_ACCOUNT_TYPE), amount),
                         WalletPosting.credit(walletAccountService.ensureUserWallet(buyerUserId), amount)
                 )
-        );
+        ));
         return new WalletMarketTxnView(result.txnId(), WalletTxnType.ORDER_REFUND.name(), result.status(), amount, bizId);
     }
 

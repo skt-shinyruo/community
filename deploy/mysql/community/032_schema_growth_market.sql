@@ -75,7 +75,7 @@ create table if not exists market_order (
   postal_code_snapshot varchar(16) default null,
   create_time timestamp null default current_timestamp,
   update_time timestamp null default current_timestamp on update current_timestamp,
-  unique key uk_market_order_request (request_id),
+  unique key uk_market_order_buyer_request (buyer_user_id, request_id),
   key idx_market_order_buyer_time (buyer_user_id, create_time),
   key idx_market_order_seller_time (seller_user_id, create_time),
   key idx_market_order_listing_status (listing_id, status),
@@ -154,3 +154,27 @@ create table if not exists market_shipment (
   update_time timestamp null default current_timestamp on update current_timestamp,
   unique key uk_market_shipment_order (order_id)
 );
+
+set @has_market_order_global_request_uk := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'market_order'
+    and index_name = 'uk_market_order_request'
+);
+set @sql := if(@has_market_order_global_request_uk > 0, 'alter table market_order drop index uk_market_order_request', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
+set @has_market_order_buyer_request_uk := (
+  select count(*)
+  from information_schema.statistics
+  where table_schema = database()
+    and table_name = 'market_order'
+    and index_name = 'uk_market_order_buyer_request'
+);
+set @sql := if(@has_market_order_buyer_request_uk = 0, 'alter table market_order add unique key uk_market_order_buyer_request (buyer_user_id, request_id)', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;

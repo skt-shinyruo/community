@@ -11,9 +11,25 @@
         where request_id = #{requestId}
     </select>
 
+    <select id="selectByFromUserIdAndRequestId" resultType="com.nowcoder.community.wallet.entity.TransferOrder">
+        select order_id, request_id, from_user_id, to_user_id, amount, status, remark, create_time, update_time
+        from transfer_order
+        where from_user_id = #{fromUserId, jdbcType=BINARY}
+          and request_id = #{requestId}
+    </select>
+
     <insert id="insert" parameterType="com.nowcoder.community.wallet.entity.TransferOrder">
         insert into transfer_order(order_id, request_id, from_user_id, to_user_id, amount, status, remark)
         values(#{orderId, jdbcType=BINARY}, #{requestId}, #{fromUserId, jdbcType=BINARY}, #{toUserId, jdbcType=BINARY}, #{amount}, #{status}, #{remark})
     </insert>
+
+    <update id="updateStatus">
+        update transfer_order
+        set status = #{toStatus},
+            update_time = current_timestamp
+        where from_user_id = #{fromUserId, jdbcType=BINARY}
+          and request_id = #{requestId}
+          and status = #{fromStatus}
+    </update>
 
 </mapper>

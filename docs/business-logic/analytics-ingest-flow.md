@@ -8,7 +8,7 @@
 
 - 当前代码里有完整的统计查询与 Redis 存储实现
 - Phase 1 已经加入自动 UV / DAU 采集入口，并由 `analytics.ingest.enabled` 控制是否启用
-- 生产主配置默认 `analytics.ingest.enabled=false`，测试配置默认启用
+- 生产主配置和共享测试配置默认 `analytics.ingest.enabled=false`
 
 也就是说，analytics 现在是一个“会算、会查、可自动采集”的模块；生产是否采集取决于配置开关。
 
@@ -47,7 +47,7 @@
 - `analytics.ingest.include-paths = /api/posts/**, /api/search/**, /api/messages/**, /api/notices/**, /api/im-governance/**`
 - `analytics.ingest.exclude-paths = /api/analytics/**, /api/auth/**, /api/ops/**, /actuator/**, /internal/**, /files/**`
 
-测试配置保持同一组采集规则，但 `analytics.ingest.enabled = true`，用于覆盖 Phase 1 自动采集链路。
+共享测试配置保持同一组采集规则，但 `analytics.ingest.enabled = false`，避免无关 Spring / MockMvc 测试访问 included paths 时触发 Redis-only analytics 写入。后续 ingest-specific 集成测试应通过 test-specific properties 或 mock 显式设置 `analytics.ingest.enabled=true`。
 
 analytics 存储实现固定为 Redis repository，不再提供 `analytics.storage` 切换项。Redis 仍然是当前唯一的 analytics 存储实现。
 
@@ -131,9 +131,9 @@ Phase 1 在 service 写入 API 之上新增了自动采集层：
 - 查统计走 `/api/analytics/**`
 - 自动采集走请求 filter 和登录成功补记
 - 生产默认不启用自动采集
-- 测试默认启用自动采集
+- 共享测试配置默认不启用自动采集
 
-如果线上部署后仍保持主配置默认值，那么 UV / DAU 不会因为普通业务请求自动增长；需要显式开启 `analytics.ingest.enabled=true`。
+如果线上部署后仍保持主配置默认值，或者测试仍使用共享测试配置默认值，那么 UV / DAU 不会因为普通业务请求自动增长；需要显式开启 `analytics.ingest.enabled=true`。
 
 ## 5. UV 写入口径
 

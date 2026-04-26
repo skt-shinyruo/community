@@ -1,5 +1,6 @@
 package com.nowcoder.community.auth.service;
 
+import com.nowcoder.community.analytics.ingest.AnalyticsIngestService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
@@ -42,7 +43,8 @@ class RefreshTokenServiceTest {
                         RefreshTokenService.class,
                         LoginRateLimitService.class,
                         CaptchaService.class,
-                        ClientIpResolver.class
+                        ClientIpResolver.class,
+                        AnalyticsIngestService.class
                 ));
     }
 
@@ -174,7 +176,8 @@ class RefreshTokenServiceTest {
                 refreshTokenService,
                 loginRateLimitService,
                 captchaService,
-                clientIpResolver
+                clientIpResolver,
+                mock(AnalyticsIngestService.class)
         );
     }
 

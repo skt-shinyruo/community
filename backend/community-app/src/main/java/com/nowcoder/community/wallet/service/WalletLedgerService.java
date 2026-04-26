@@ -8,6 +8,7 @@ import com.nowcoder.community.wallet.entity.WalletTxn;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.mapper.WalletEntryMapper;
 import com.nowcoder.community.wallet.mapper.WalletTxnMapper;
+import com.nowcoder.community.wallet.model.WalletLedgerCommand;
 import com.nowcoder.community.wallet.model.WalletPosting;
 import com.nowcoder.community.wallet.model.WalletTxnResult;
 import com.nowcoder.community.wallet.model.WalletTxnType;
@@ -70,18 +71,27 @@ public class WalletLedgerService {
 
     @Transactional
     public WalletTxnResult post(String requestId, WalletTxnType txnType, List<WalletPosting> postings) {
-        return post(requestId, txnType, requestId, postings);
+        return post(new WalletLedgerCommand(requestId, txnType, defaultBizType(txnType), requestId, postings));
     }
 
     @Transactional
     public WalletTxnResult post(String requestId, WalletTxnType txnType, String bizId, List<WalletPosting> postings) {
-        validateRequest(requestId, txnType, postings);
-        String normalizedBizId = validateBizId(bizId);
+        return post(new WalletLedgerCommand(requestId, txnType, defaultBizType(txnType), bizId, postings));
+    }
+
+    @Transactional
+    public WalletTxnResult post(WalletLedgerCommand command) {
+        validateRequest(command);
+        String requestId = command.requestId();
+        WalletTxnType txnType = command.txnType();
+        String normalizedBizType = validateText(command.bizType(), "bizType");
+        String normalizedBizId = validateText(command.bizId(), "bizId");
+        List<WalletPosting> postings = command.postings();
         requireBalanced(requestId, postings);
 
         WalletTxn existing = walletTxnMapper.selectByRequestId(requestId);
         if (existing != null) {
-            ensureReplayMatches(existing, txnType, normalizedBizId, postings);
+            ensureReplayMatches(existing, txnType, normalizedBizType, normalizedBizId, postings);
             return new WalletTxnResult(existing.getTxnId(), existing.getStatus());
         }
 
@@ -89,7 +99,7 @@ public class WalletLedgerService {
         txn.setTxnId(idGenerator.next());
         txn.setRequestId(requestId);
         txn.setTxnType(txnType.name());
-        txn.setBizType(txnType.name());
+        txn.setBizType(normalizedBizType);
         txn.setBizId(normalizedBizId);
         txn.setStatus(TXN_STATUS_PENDING);
         txn.setAmount(amountOf(postings));
@@ -98,7 +108,7 @@ public class WalletLedgerService {
         } catch (DataIntegrityViolationException ex) {
             WalletTxn duplicated = walletTxnMapper.selectByRequestId(requestId);
             if (duplicated != null) {
-                ensureReplayMatches(duplicated, txnType, normalizedBizId, postings);
+                ensureReplayMatches(duplicated, txnType, normalizedBizType, normalizedBizId, postings);
                 return new WalletTxnResult(duplicated.getTxnId(), duplicated.getStatus());
             }
             throw ex;
@@ -126,18 +136,24 @@ public class WalletLedgerService {
         return postings.stream().mapToLong(WalletPosting::amount).sum() / 2;
     }
 
-    private String validateBizId(String bizId) {
-        if (bizId == null || bizId.isBlank()) {
-            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "bizId must not be blank");
+    private String defaultBizType(WalletTxnType txnType) {
+        return txnType == null ? null : txnType.name();
+    }
+
+    private String validateText(String value, String fieldName) {
+        if (value == null || value.isBlank()) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, fieldName + " must not be blank");
         }
-        return bizId.trim();
+        return value.trim();
     }
 
     private void ensureReplayMatches(WalletTxn existing,
                                      WalletTxnType txnType,
+                                     String bizType,
                                      String bizId,
                                      List<WalletPosting> postings) {
         boolean matches = Objects.equals(existing.getTxnType(), txnType.name())
+                && Objects.equals(existing.getBizType(), bizType)
                 && Objects.equals(existing.getBizId(), bizId)
                 && existing.getAmount() == amountOf(postings)
                 && postingFingerprintMatches(existing.getTxnId(), postings);
@@ -169,14 +185,17 @@ public class WalletLedgerService {
         return fingerprint;
     }
 
-    private void validateRequest(String requestId, WalletTxnType txnType, List<WalletPosting> postings) {
-        if (requestId == null || requestId.isBlank()) {
+    private void validateRequest(WalletLedgerCommand command) {
+        if (command == null) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "wallet ledger command must not be null");
+        }
+        if (command.requestId() == null || command.requestId().isBlank()) {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "requestId must not be blank");
         }
-        if (txnType == null) {
+        if (command.txnType() == null) {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "txnType must not be null");
         }
-        if (postings == null || postings.size() < 2) {
+        if (command.postings() == null || command.postings().size() < 2) {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "postings must contain at least two entries");
         }
     }

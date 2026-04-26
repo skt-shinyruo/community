@@ -6,6 +6,7 @@ import com.nowcoder.community.wallet.entity.RechargeOrder;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.mapper.RechargeOrderMapper;
 import com.nowcoder.community.wallet.model.RechargeOrderResult;
+import com.nowcoder.community.wallet.model.WalletLedgerCommand;
 import com.nowcoder.community.wallet.model.WalletPosting;
 import com.nowcoder.community.wallet.model.WalletTxnType;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,7 +46,7 @@ public class RechargeService {
     public RechargeOrderResult complete(String requestId, UUID userId, long amount) {
         validate(requestId, amount);
 
-        RechargeOrder existing = rechargeOrderMapper.selectByRequestId(requestId);
+        RechargeOrder existing = rechargeOrderMapper.selectByUserIdAndRequestId(userId, requestId);
         if (existing != null) {
             ensureReplayMatches(existing, userId, amount);
             if ("PAID".equals(existing.getStatus())) {
@@ -59,16 +60,18 @@ public class RechargeService {
             return RechargeOrderResult.from(order);
         }
 
-        ledgerService.post(
-                requestId,
+        ledgerService.post(new WalletLedgerCommand(
+                "wallet:recharge:" + order.getOrderId(),
                 WalletTxnType.RECHARGE,
+                WalletTxnType.RECHARGE.name(),
+                order.getOrderId().toString(),
                 List.of(
                         WalletPosting.debit(accountService.ensureSystemAccount("PLATFORM_CASH"), amount),
                         WalletPosting.credit(accountService.ensureUserWallet(userId), amount)
                 )
-        );
-        rechargeOrderMapper.updateStatus(requestId, "CREATED", "PAID");
-        return RechargeOrderResult.from(requireOrder(requestId));
+        ));
+        rechargeOrderMapper.updateStatus(userId, requestId, "CREATED", "PAID");
+        return RechargeOrderResult.from(requireOrder(userId, requestId));
     }
 
     private void validate(String requestId, long amount) {
@@ -91,7 +94,7 @@ public class RechargeService {
             rechargeOrderMapper.insert(order);
             return order;
         } catch (DataIntegrityViolationException ex) {
-            RechargeOrder duplicated = rechargeOrderMapper.selectByRequestId(requestId);
+            RechargeOrder duplicated = rechargeOrderMapper.selectByUserIdAndRequestId(userId, requestId);
             if (duplicated != null) {
                 return duplicated;
             }
@@ -99,8 +102,8 @@ public class RechargeService {
         }
     }
 
-    private RechargeOrder requireOrder(String requestId) {
-        RechargeOrder order = rechargeOrderMapper.selectByRequestId(requestId);
+    private RechargeOrder requireOrder(UUID userId, String requestId) {
+        RechargeOrder order = rechargeOrderMapper.selectByUserIdAndRequestId(userId, requestId);
         if (order == null) {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "recharge order not found: requestId=" + requestId);
         }

@@ -39,6 +39,21 @@
         for update
     </select>
 
+    <select id="selectByBuyerUserIdAndRequestId" resultType="com.nowcoder.community.market.entity.MarketOrder">
+        select <include refid="BaseColumns"/>
+        from market_order
+        where buyer_user_id = #{buyerUserId, jdbcType=BINARY}
+          and request_id = #{requestId}
+    </select>
+
+    <select id="selectByBuyerUserIdAndRequestIdForUpdate" resultType="com.nowcoder.community.market.entity.MarketOrder">
+        select <include refid="BaseColumns"/>
+        from market_order
+        where buyer_user_id = #{buyerUserId, jdbcType=BINARY}
+          and request_id = #{requestId}
+        for update
+    </select>
+
     <select id="selectByBuyerUserId" resultType="com.nowcoder.community.market.entity.MarketOrder">
         select <include refid="BaseColumns"/>
         from market_order

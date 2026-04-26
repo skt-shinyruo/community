@@ -11,6 +11,13 @@
         where request_id = #{requestId}
     </select>
 
+    <select id="selectByUserIdAndRequestId" resultType="com.nowcoder.community.wallet.entity.WithdrawOrder">
+        select order_id, request_id, user_id, amount, status, payee_account, failure_reason, create_time, update_time
+        from withdraw_order
+        where user_id = #{userId, jdbcType=BINARY}
+          and request_id = #{requestId}
+    </select>
+
     <insert id="insert" parameterType="com.nowcoder.community.wallet.entity.WithdrawOrder">
         insert into withdraw_order(order_id, request_id, user_id, amount, status, payee_account, failure_reason)
         values(#{orderId, jdbcType=BINARY}, #{requestId}, #{userId, jdbcType=BINARY}, #{amount}, #{status}, #{payeeAccount}, #{failureReason})
@@ -20,7 +27,8 @@
         update withdraw_order
         set status = #{toStatus},
             update_time = current_timestamp
-        where request_id = #{requestId}
+        where user_id = #{userId, jdbcType=BINARY}
+          and request_id = #{requestId}
           and status = #{fromStatus}
     </update>
 

@@ -1,6 +1,7 @@
 package com.nowcoder.community.wallet.controller;
 
 import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.wallet.dto.CreateRechargeRequest;
 import com.nowcoder.community.wallet.dto.CreateRechargeResponse;
@@ -15,6 +16,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -37,20 +39,32 @@ public class WalletController {
     }
 
     @PostMapping("/recharges")
-    public Result<CreateRechargeResponse> recharge(Authentication authentication, @RequestBody @Valid CreateRechargeRequest request) {
+    public Result<CreateRechargeResponse> recharge(
+            Authentication authentication,
+            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
+            @RequestBody @Valid CreateRechargeRequest request
+    ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(CreateRechargeResponse.from(walletApplicationService.recharge(userId, request)));
+        return Result.ok(CreateRechargeResponse.from(walletApplicationService.recharge(userId, request, idempotencyKey)));
     }
 
     @PostMapping("/withdrawals")
-    public Result<CreateWithdrawResponse> withdraw(Authentication authentication, @RequestBody @Valid CreateWithdrawRequest request) {
+    public Result<CreateWithdrawResponse> withdraw(
+            Authentication authentication,
+            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
+            @RequestBody @Valid CreateWithdrawRequest request
+    ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(CreateWithdrawResponse.from(walletApplicationService.withdraw(userId, request)));
+        return Result.ok(CreateWithdrawResponse.from(walletApplicationService.withdraw(userId, request, idempotencyKey)));
     }
 
     @PostMapping("/transfers")
-    public Result<CreateTransferResponse> transfer(Authentication authentication, @RequestBody @Valid CreateTransferRequest request) {
+    public Result<CreateTransferResponse> transfer(
+            Authentication authentication,
+            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
+            @RequestBody @Valid CreateTransferRequest request
+    ) {
         UUID fromUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(CreateTransferResponse.from(walletApplicationService.transfer(fromUserId, request)));
+        return Result.ok(CreateTransferResponse.from(walletApplicationService.transfer(fromUserId, request, idempotencyKey)));
     }
 }

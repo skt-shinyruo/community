@@ -17,9 +17,17 @@ public interface IdempotencyStore {
      */
     boolean tryAcquireProcessing(String operation, UUID userId, String key, Duration ttl);
 
+    default boolean tryAcquireProcessing(String operation, UUID userId, String key, String requestHash, Duration ttl) {
+        return tryAcquireProcessing(operation, userId, key, ttl);
+    }
+
     Entry get(String operation, UUID userId, String key);
 
     void saveSuccess(String operation, UUID userId, String key, String successJson, Duration ttl);
+
+    default void saveSuccess(String operation, UUID userId, String key, String requestHash, String successJson, Duration ttl) {
+        saveSuccess(operation, userId, key, successJson, ttl);
+    }
 
     void extendProcessing(String operation, UUID userId, String key, Duration ttl);
 
@@ -35,6 +43,10 @@ public interface IdempotencyStore {
      * - PROCESSING：处理中（并发互斥/提示稍后重试）
      * - SUCCESS：已成功（直接复用响应 JSON）
      */
-    record Entry(Status status, String successJson) {
+    record Entry(Status status, String successJson, String requestHash) {
+
+        public Entry(Status status, String successJson) {
+            this(status, successJson, null);
+        }
     }
 }

@@ -8,7 +8,6 @@ import com.nowcoder.community.wallet.entity.TransferOrder;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.mapper.TransferOrderMapper;
 import com.nowcoder.community.wallet.model.TransferOrderResult;
-import com.nowcoder.community.wallet.model.WalletTxnType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,9 +24,8 @@ import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -90,6 +88,11 @@ class TransferServiceTest {
         );
         assertThat(storedOrderId).hasSize(16);
         assertThat(BinaryUuidCodec.fromBytes(storedOrderId)).isEqualTo(parsedOrderId);
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from wallet_txn where request_id = ?",
+                Integer.class,
+                "wallet:transfer:" + parsedOrderId
+        )).isEqualTo(1);
     }
 
     @Test
@@ -119,6 +122,25 @@ class TransferServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.REQUEST_REPLAY_CONFLICT))
                 .hasMessageContaining("requestId");
+    }
+
+    @Test
+    void transferShouldAllowSameRequestIdForDifferentSenders() {
+        UUID firstFromUserId = uuid(101);
+        UUID secondFromUserId = uuid(102);
+        UUID toUserId = uuid(202);
+        seedUserBalance(firstFromUserId, 900);
+        seedUserBalance(secondFromUserId, 900);
+
+        TransferOrderResult first = transferService.create("transfer:req-shared-senders", firstFromUserId, toUserId, 300);
+        TransferOrderResult second = transferService.create("transfer:req-shared-senders", secondFromUserId, toUserId, 300);
+
+        assertThat(second.orderId()).isNotEqualTo(first.orderId());
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from transfer_order where request_id = ?",
+                Integer.class,
+                "transfer:req-shared-senders"
+        )).isEqualTo(2);
     }
 
     @Test
@@ -157,7 +179,7 @@ class TransferServiceTest {
         UUID orderId = UUID.fromString("00000000-0000-7000-8000-000000000642");
         TransferOrder succeededOrder = order(orderId, "transfer:req-race", fromUserId, toUserId, 300, "SUCCEEDED");
 
-        when(mapper.selectByRequestId("transfer:req-race"))
+        when(mapper.selectByFromUserIdAndRequestId(fromUserId, "transfer:req-race"))
                 .thenReturn(null, succeededOrder);
         when(mockedAccountService.ensureUserWallet(fromUserId))
                 .thenReturn(UUID.fromString("00000000-0000-7000-8000-000000000643"));
@@ -170,7 +192,7 @@ class TransferServiceTest {
 
         assertThat(readOrderId(result)).isEqualTo(orderId);
         assertThat(result.status()).isEqualTo("SUCCEEDED");
-        verify(mockedLedgerService).post(eq("transfer:req-race"), eq(WalletTxnType.TRANSFER), anyList());
+        verify(mockedLedgerService, never()).post(any());
     }
 
     private void seedUserBalance(UUID userId, long balance) {

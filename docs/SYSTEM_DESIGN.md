@@ -131,10 +131,12 @@ controller 应用边界冻结规则：
 为避免浏览器重复点击/网络重试导致的重复副作用，本项目对部分 **HTTP 写接口** 启用幂等保护：
 - header：`Idempotency-Key: <unique-key>`
 - 幂等维度：`userId + operation + Idempotency-Key`
+- 钱包和市场下单接口兼容旧 body `requestId`，但仅在 header 缺失时作为 fallback；header 与 body 同时存在但不一致返回 `400`
 - 行为：
   - 首次请求：执行业务副作用并缓存响应
   - 重复请求：直接复用缓存响应（避免重复写入/重复通知等副作用）
   - 并发同 key：返回 `409`（提示“处理中，可重试”）
+  - 同 key 但请求语义指纹不同：返回对应业务域的 replay-conflict 错误码
 
 配置（SSOT）：`backend/community-app/src/main/resources/application.yml` 的 `http.idempotency.*`
 示例：当前仓库暂无脚本；可直接在 HTTP 客户端里设置 header `Idempotency-Key`。
@@ -194,7 +196,7 @@ controller 应用边界冻结规则：
 
 DB 方案特点：
 - 依赖表 `http_idempotency`
-- 唯一键为 `(operation, user_id, idem_key)`
+- 唯一键为 `(operation, user_id, idem_key)`，并保存可选 `request_hash` 用于校验同 key 重放语义
 - 通过 insert-first + 唯一约束实现“谁先占到 key，谁先执行”
 - 表内同时保存 `status`、`response_json`、`processing_expires_at`、`success_expires_at`
 
@@ -208,11 +210,15 @@ Redis 方案特点：
 当前仓库已在以下业务链路接入 `IdempotencyGuard`：
 - 发帖：`POST /api/posts`
 - 发表评论：`POST /api/posts/{postId}/comments`
+- 钱包充值：`POST /api/wallet/recharges`
+- 钱包提现：`POST /api/wallet/withdrawals`
+- 钱包转账：`POST /api/wallet/transfers`
+- 市场下单：`POST /api/market/orders`
 
 这些链路的共同特点是：
 - 都属于 HTTP 写接口
 - 都存在浏览器重复点击、超时重试、网关重试导致重复副作用的风险
-- 都缺少一个天然稳定且对业务方透明的“唯一业务单号”
+- 对外幂等 key 与内部业务单号解耦，业务侧会使用服务端生成的订单 ID 派生钱包总账 request id
 
 因此这里选择 `Idempotency-Key` 比“单纯依赖请求体去重”更合理，也比把幂等逻辑散落进各业务 service 更易治理。
 

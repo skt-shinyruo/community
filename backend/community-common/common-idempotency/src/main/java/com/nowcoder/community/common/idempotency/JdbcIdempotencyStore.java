@@ -40,8 +40,14 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
 
     @Override
     public boolean tryAcquireProcessing(String operation, UUID userId, String key, Duration ttl) {
+        return tryAcquireProcessing(operation, userId, key, null, ttl);
+    }
+
+    @Override
+    public boolean tryAcquireProcessing(String operation, UUID userId, String key, String requestHash, Duration ttl) {
         String op = normalizeOp(operation);
         String k = normalizeKey(key);
+        String hash = normalizeHash(requestHash);
         if (userId == null) {
             throw new IllegalArgumentException("userId is invalid");
         }
@@ -52,13 +58,14 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
         try {
             int inserted = jdbcTemplate.update(
                     """
-                            insert into http_idempotency(id, operation, user_id, idem_key, status, processing_expires_at)
-                            values (?, ?, ?, ?, ?, ?)
+                            insert into http_idempotency(id, operation, user_id, idem_key, request_hash, status, processing_expires_at)
+                            values (?, ?, ?, ?, ?, ?, ?)
                             """,
                     BinaryUuidCodec.toBytes(idGenerator.next()),
                     op,
                     BinaryUuidCodec.toBytes(userId),
                     k,
+                    hash,
                     STATUS_PROCESSING,
                     processingExpiresAt
             );
@@ -69,6 +76,7 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
                     """
                             update http_idempotency
                             set status = ?,
+                                request_hash = ?,
                                 processing_expires_at = ?,
                                 success_expires_at = null,
                                 response_json = null,
@@ -83,6 +91,7 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
                               )
                             """,
                     STATUS_PROCESSING,
+                    hash,
                     processingExpiresAt,
                     op,
                     BinaryUuidCodec.toBytes(userId),
@@ -107,7 +116,7 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
         Instant now = Instant.now();
         return jdbcTemplate.query(
                 """
-                        select status, response_json, processing_expires_at, success_expires_at
+                        select status, request_hash, response_json, processing_expires_at, success_expires_at
                         from http_idempotency
                         where operation = ?
                           and user_id = ?
@@ -122,8 +131,14 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
 
     @Override
     public void saveSuccess(String operation, UUID userId, String key, String successJson, Duration ttl) {
+        saveSuccess(operation, userId, key, null, successJson, ttl);
+    }
+
+    @Override
+    public void saveSuccess(String operation, UUID userId, String key, String requestHash, String successJson, Duration ttl) {
         String op = normalizeOp(operation);
         String k = normalizeKey(key);
+        String hash = normalizeHash(requestHash);
         if (userId == null) {
             throw new IllegalArgumentException("userId is invalid");
         }
@@ -136,11 +151,12 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
                 """
                         insert into http_idempotency(
                           id, operation, user_id, idem_key, status,
-                          response_json, success_expires_at, processing_expires_at
+                          request_hash, response_json, success_expires_at, processing_expires_at
                         )
-                        values (?, ?, ?, ?, ?, ?, ?, null)
+                        values (?, ?, ?, ?, ?, ?, ?, ?, null)
                         on duplicate key update
                           status = values(status),
+                          request_hash = values(request_hash),
                           response_json = values(response_json),
                           success_expires_at = values(success_expires_at),
                           processing_expires_at = null,
@@ -151,6 +167,7 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
                 BinaryUuidCodec.toBytes(userId),
                 k,
                 STATUS_SUCCESS,
+                hash,
                 json,
                 successExpiresAt
         );
@@ -208,6 +225,7 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
             return null;
         }
         String status = rs.getString("status");
+        String requestHash = rs.getString("request_hash");
         Timestamp processingExpiresAt = rs.getTimestamp("processing_expires_at");
         Timestamp successExpiresAt = rs.getTimestamp("success_expires_at");
         String responseJson = rs.getString("response_json");
@@ -217,14 +235,14 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
                 delete(op, userId, key);
                 return null;
             }
-            return new Entry(Status.PROCESSING, null);
+            return new Entry(Status.PROCESSING, null, requestHash);
         }
         if (STATUS_SUCCESS.equals(status)) {
             if (successExpiresAt == null || now.isAfter(successExpiresAt.toInstant())) {
                 delete(op, userId, key);
                 return null;
             }
-            return new Entry(Status.SUCCESS, responseJson == null ? "null" : responseJson);
+            return new Entry(Status.SUCCESS, responseJson == null ? "null" : responseJson, requestHash);
         }
         throw new IllegalStateException("unknown idempotency state");
     }
@@ -241,5 +259,9 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
             throw new IllegalArgumentException("key is blank");
         }
         return key.trim();
+    }
+
+    private String normalizeHash(String requestHash) {
+        return StringUtils.hasText(requestHash) ? requestHash.trim() : null;
     }
 }

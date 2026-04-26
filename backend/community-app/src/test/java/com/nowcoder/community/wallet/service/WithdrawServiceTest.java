@@ -7,10 +7,12 @@ import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.wallet.entity.WithdrawOrder;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.mapper.WithdrawOrderMapper;
+import com.nowcoder.community.wallet.model.WalletLedgerCommand;
 import com.nowcoder.community.wallet.model.WalletTxnType;
 import com.nowcoder.community.wallet.model.WithdrawOrderResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -18,14 +20,13 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.List;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -57,6 +58,7 @@ class WithdrawServiceTest {
         jdbcTemplate.update("delete from wallet_txn");
         jdbcTemplate.update("delete from recharge_order");
         jdbcTemplate.update("delete from withdraw_order");
+        jdbcTemplate.update("delete from transfer_order");
         jdbcTemplate.update("delete from wallet_account");
     }
 
@@ -96,6 +98,11 @@ class WithdrawServiceTest {
         );
         assertThat(storedOrderId).hasSize(16);
         assertThat(BinaryUuidCodec.fromBytes(storedOrderId)).isEqualTo(parsedOrderId);
+        assertThat(walletTxnRequestIds(WalletTxnType.WITHDRAW))
+                .containsExactlyInAnyOrder(
+                        "wallet:withdraw:" + parsedOrderId + ":request",
+                        "wallet:withdraw:" + parsedOrderId + ":settle"
+                );
     }
 
     @Test
@@ -120,16 +127,26 @@ class WithdrawServiceTest {
     }
 
     @Test
-    void requestWithdrawShouldRejectReplayWhenUserIdDoesNotMatchExistingOrder() {
-        UUID userId = uuid(101);
-        seedUserBalance(userId, 2000);
-        seedSystemBalance("PLATFORM_CASH", 800);
-        withdrawService.request("withdraw:req-user-mismatch", userId, 500);
+    void requestWithdrawShouldAllowSameRequestIdForDifferentUsers() {
+        UUID firstUserId = uuid(101);
+        UUID secondUserId = uuid(202);
+        seedUserBalance(firstUserId, 2000);
+        seedUserBalance(secondUserId, 3000);
+        seedSystemBalance("PLATFORM_CASH", 2000);
 
-        assertThatThrownBy(() -> withdrawService.request("withdraw:req-user-mismatch", uuid(202), 500))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.REQUEST_REPLAY_CONFLICT))
-                .hasMessageContaining("requestId");
+        WithdrawOrderResult first = withdrawService.request("withdraw:req-shared", firstUserId, 500);
+        WithdrawOrderResult second = withdrawService.request("withdraw:req-shared", secondUserId, 700);
+
+        assertThat(second.orderId()).isNotEqualTo(first.orderId());
+        assertThat(countRows("withdraw_order")).isEqualTo(2);
+        assertThat(countRows("wallet_txn")).isEqualTo(4);
+        assertThat(walletTxnRequestIds(WalletTxnType.WITHDRAW))
+                .containsExactlyInAnyOrder(
+                        "wallet:withdraw:" + first.orderId() + ":request",
+                        "wallet:withdraw:" + first.orderId() + ":settle",
+                        "wallet:withdraw:" + second.orderId() + ":request",
+                        "wallet:withdraw:" + second.orderId() + ":settle"
+                );
     }
 
     @Test
@@ -158,7 +175,7 @@ class WithdrawServiceTest {
         WithdrawOrder processingOrder = order(orderId, "withdraw:req-race", userId, 500, "PROCESSING");
         WithdrawOrder succeededOrder = order(orderId, "withdraw:req-race", userId, 500, "SUCCEEDED");
 
-        when(mapper.selectByRequestId("withdraw:req-race"))
+        when(mapper.selectByUserIdAndRequestId(userId, "withdraw:req-race"))
                 .thenReturn(null, requestedOrder, processingOrder, succeededOrder);
         when(mockedAccountService.balanceOfSystem("PLATFORM_CASH")).thenReturn(800L);
         when(mockedAccountService.ensureUserWallet(userId))
@@ -174,10 +191,19 @@ class WithdrawServiceTest {
 
         assertThat(result.orderId()).isEqualTo(orderId);
         assertThat(result.status()).isEqualTo("SUCCEEDED");
-        verify(mockedLedgerService).post(eq("withdraw:req-race:request"), eq(WalletTxnType.WITHDRAW), anyList());
-        verify(mockedLedgerService).post(eq("withdraw:req-race:settle"), eq(WalletTxnType.WITHDRAW), anyList());
-        verify(mapper).updateStatus("withdraw:req-race", "REQUESTED", "PROCESSING");
-        verify(mapper).updateStatus("withdraw:req-race", "PROCESSING", "SUCCEEDED");
+        ArgumentCaptor<WalletLedgerCommand> commandCaptor = ArgumentCaptor.forClass(WalletLedgerCommand.class);
+        verify(mockedLedgerService, org.mockito.Mockito.times(2)).post(commandCaptor.capture());
+        assertThat(commandCaptor.getAllValues())
+                .extracting(WalletLedgerCommand::requestId)
+                .containsExactly(
+                        "wallet:withdraw:" + orderId + ":request",
+                        "wallet:withdraw:" + orderId + ":settle"
+                );
+        assertThat(commandCaptor.getAllValues())
+                .extracting(WalletLedgerCommand::bizId)
+                .containsOnly(orderId.toString());
+        verify(mapper).updateStatus(userId, "withdraw:req-race", "REQUESTED", "PROCESSING");
+        verify(mapper).updateStatus(userId, "withdraw:req-race", "PROCESSING", "SUCCEEDED");
     }
 
     @Test
@@ -191,7 +217,7 @@ class WithdrawServiceTest {
         UUID orderId = UUID.fromString("00000000-0000-7000-8000-000000000633");
         WithdrawOrder succeededOrder = order(orderId, "withdraw:req-race-cash", userId, 500, "SUCCEEDED");
 
-        when(mapper.selectByRequestId("withdraw:req-race-cash"))
+        when(mapper.selectByUserIdAndRequestId(userId, "withdraw:req-race-cash"))
                 .thenReturn(null, succeededOrder);
         when(mockedAccountService.balanceOfSystem("PLATFORM_CASH")).thenReturn(0L);
 
@@ -234,5 +260,13 @@ class WithdrawServiceTest {
     private int countRows(String tableName) {
         Integer count = jdbcTemplate.queryForObject("select count(*) from " + tableName, Integer.class);
         return count == null ? 0 : count;
+    }
+
+    private List<String> walletTxnRequestIds(WalletTxnType txnType) {
+        return jdbcTemplate.queryForList(
+                "select request_id from wallet_txn where txn_type = ? order by request_id",
+                String.class,
+                txnType.name()
+        );
     }
 }

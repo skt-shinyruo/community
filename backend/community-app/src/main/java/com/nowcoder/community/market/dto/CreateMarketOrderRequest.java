@@ -1,14 +1,12 @@
 package com.nowcoder.community.market.dto;
 
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 import java.util.UUID;
 
 public class CreateMarketOrderRequest {
 
-    @NotBlank
     private String requestId;
 
     @NotNull

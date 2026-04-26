@@ -6,6 +6,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
 
@@ -41,5 +42,35 @@ class RedisIdempotencyStoreTest {
         DefaultRedisScript<?> script = (DefaultRedisScript<?>) scriptCaptor.getValue();
         assertThat(script.getScriptAsString()).contains("redis.call('get', KEYS[1]) == 'P'");
         assertThat(script.getScriptAsString()).contains("redis.call('pexpire'");
+    }
+
+    @Test
+    void tryAcquireProcessingShouldStoreRequestHashWhenProvided() {
+        RedisIdempotencyStore store = new RedisIdempotencyStore(redisTemplate);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOps = (ValueOperations<String, String>) org.mockito.Mockito.mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.setIfAbsent("idem:wallet:recharge:" + USER_ID + ":k1", "P\nhash-a", Duration.ofSeconds(30)))
+                .thenReturn(Boolean.TRUE);
+
+        boolean acquired = store.tryAcquireProcessing("wallet:recharge", USER_ID, "k1", "hash-a", Duration.ofSeconds(30));
+
+        assertThat(acquired).isTrue();
+        verify(valueOps).setIfAbsent("idem:wallet:recharge:" + USER_ID + ":k1", "P\nhash-a", Duration.ofSeconds(30));
+    }
+
+    @Test
+    void getShouldDecodeRequestHashFromSuccessfulValue() {
+        RedisIdempotencyStore store = new RedisIdempotencyStore(redisTemplate);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOps = (ValueOperations<String, String>) org.mockito.Mockito.mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("idem:wallet:recharge:" + USER_ID + ":k1")).thenReturn("S\nhash-a\n\"OK\"");
+
+        IdempotencyStore.Entry entry = store.get("wallet:recharge", USER_ID, "k1");
+
+        assertThat(entry.status()).isEqualTo(IdempotencyStore.Status.SUCCESS);
+        assertThat(entry.requestHash()).isEqualTo("hash-a");
+        assertThat(entry.successJson()).isEqualTo("\"OK\"");
     }
 }

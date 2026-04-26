@@ -5,12 +5,16 @@ import com.nowcoder.community.content.score.PostScoreQueue;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
 
 @Service
 public class SocialInteractionProjectionApplicationService {
+
+    private static final Logger log = LoggerFactory.getLogger(SocialInteractionProjectionApplicationService.class);
 
     private final PostScoreQueue postScoreQueue;
 
@@ -26,7 +30,12 @@ public class SocialInteractionProjectionApplicationService {
         }
         UUID postId = payload.getPostId() != null ? payload.getPostId() : payload.getEntityId();
         if (postId != null) {
-            postScoreQueue.add(postId);
+            try {
+                postScoreQueue.add(postId);
+            } catch (RuntimeException e) {
+                log.warn("[post-score] projection failed after commit (eventId={}, type={}, postId={}): {}",
+                        event.eventId(), event.type(), postId, e.toString());
+            }
         }
     }
 }

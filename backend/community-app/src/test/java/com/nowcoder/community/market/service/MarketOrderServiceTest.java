@@ -6,8 +6,8 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.dto.CreateMarketAddressRequest;
 import com.nowcoder.community.market.dto.CreateMarketListingRequest;
-import com.nowcoder.community.market.dto.MarketOrderDetailResponse;
-import com.nowcoder.community.market.dto.MarketOrderResponse;
+import com.nowcoder.community.market.model.MarketOrderDetailView;
+import com.nowcoder.community.market.model.MarketOrderResult;
 import com.nowcoder.community.wallet.service.WalletAccountService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -93,7 +93,7 @@ class MarketOrderServiceTest {
         UUID addressId = seedAddress(buyerUserId, true);
         seedBuyerBalance(buyerUserId, 20_000L);
 
-        MarketOrderResponse response = marketOrderService.createOrder("physical:req-1", buyerUserId, listingId, 1, addressId);
+        MarketOrderResult response = marketOrderService.createOrder("physical:req-1", buyerUserId, listingId, 1, addressId);
 
         assertThat(response.goodsType()).isEqualTo("PHYSICAL");
         assertThat(response.status()).isEqualTo("ESCROW_PENDING");
@@ -102,7 +102,7 @@ class MarketOrderServiceTest {
 
         marketWalletActionProcessor.processDue(10);
 
-        MarketOrderDetailResponse detail = marketQueryService.getOrderDetail(response.orderId(), buyerUserId);
+        MarketOrderDetailView detail = marketQueryService.getOrderDetail(response.orderId(), buyerUserId);
         assertThat(detail.status()).isEqualTo("ESCROWED");
         assertThat(detail.receiverNameSnapshot()).isEqualTo("张三");
         assertThat(detail.shipment()).isNull();
@@ -116,14 +116,14 @@ class MarketOrderServiceTest {
         UUID addressId = seedAddress(buyerUserId, true);
         seedBuyerBalance(buyerUserId, 20_000L);
 
-        MarketOrderResponse created = marketOrderService.createOrder("physical:req-pending", buyerUserId, listingId, 1, addressId);
+        MarketOrderResult created = marketOrderService.createOrder("physical:req-pending", buyerUserId, listingId, 1, addressId);
 
         assertThat(created.status()).isEqualTo("ESCROW_PENDING");
         assertThat(countRows("wallet_txn")).isZero();
 
         marketWalletActionProcessor.processDue(10);
 
-        MarketOrderDetailResponse detail = marketQueryService.getOrderDetail(created.orderId(), buyerUserId);
+        MarketOrderDetailView detail = marketQueryService.getOrderDetail(created.orderId(), buyerUserId);
         assertThat(detail.status()).isEqualTo("ESCROWED");
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from wallet_txn where request_id = ?",
@@ -142,10 +142,10 @@ class MarketOrderServiceTest {
         UUID physicalOrderId = seedEscrowedPhysicalOrder(secondSellerUserId, buyerUserId);
 
         assertThat(marketQueryService.listBuyingOrders(buyerUserId))
-                .extracting(MarketOrderResponse::goodsType)
+                .extracting(MarketOrderResult::goodsType)
                 .contains("VIRTUAL", "PHYSICAL");
         assertThat(marketQueryService.listSellingOrders(secondSellerUserId))
-                .extracting(MarketOrderResponse::orderId)
+                .extracting(MarketOrderResult::orderId)
                 .contains(physicalOrderId);
         assertThat(marketQueryService.getOrderDetail(virtualOrderId, buyerUserId).deliveryContents())
                 .containsExactly("CODE-001");
@@ -158,7 +158,7 @@ class MarketOrderServiceTest {
         seedBuyerBalance(buyerUserId, 20_000L);
         UUID orderId = seedEscrowedVirtualOrder(sellerUserId, buyerUserId);
 
-        MarketOrderResponse delivered = marketOrderService.deliverVirtualOrder(orderId, sellerUserId, "CODE-001");
+        MarketOrderResult delivered = marketOrderService.deliverVirtualOrder(orderId, sellerUserId, "CODE-001");
 
         assertThat(delivered.status()).isEqualTo("DELIVERED");
         assertThat(delivered.autoConfirmAt()).isNotNull();
@@ -173,7 +173,7 @@ class MarketOrderServiceTest {
         UUID orderId = seedEscrowedVirtualOrder(sellerUserId, buyerUserId);
         marketOrderService.deliverVirtualOrder(orderId, sellerUserId, "CODE-001");
 
-        MarketOrderResponse confirmed = marketOrderService.confirmOrder(orderId, buyerUserId);
+        MarketOrderResult confirmed = marketOrderService.confirmOrder(orderId, buyerUserId);
 
         assertThat(confirmed.status()).isEqualTo("RELEASE_PENDING");
         assertThat(jdbcTemplate.queryForObject(
@@ -200,7 +200,7 @@ class MarketOrderServiceTest {
         seedBuyerBalance(buyerUserId, 20_000L);
         UUID orderId = seedEscrowedPhysicalOrder(sellerUserId, buyerUserId);
 
-        MarketOrderResponse shipped =
+        MarketOrderResult shipped =
                 marketOrderService.shipPhysicalOrder(orderId, sellerUserId, "顺丰", "SF1234567890", "工作日派送");
 
         assertThat(shipped.status()).isEqualTo("SHIPPED");
@@ -215,7 +215,7 @@ class MarketOrderServiceTest {
         seedBuyerBalance(buyerUserId, 20_000L);
         UUID orderId = seedEscrowedPhysicalOrder(sellerUserId, buyerUserId);
 
-        MarketOrderResponse cancelled = marketOrderService.cancelOrder(orderId, buyerUserId);
+        MarketOrderResult cancelled = marketOrderService.cancelOrder(orderId, buyerUserId);
 
         assertThat(cancelled.status()).isEqualTo("REFUND_PENDING");
         marketWalletActionProcessor.processDue(10);
@@ -233,7 +233,7 @@ class MarketOrderServiceTest {
         seedBuyerBalance(buyerUserId, 20_000L);
         UUID orderId = marketOrderService.createOrder("cancel:pending", buyerUserId, listingId, 1, addressId).orderId();
 
-        MarketOrderResponse cancelled = marketOrderService.cancelOrder(orderId, buyerUserId);
+        MarketOrderResult cancelled = marketOrderService.cancelOrder(orderId, buyerUserId);
         marketWalletActionProcessor.processDue(10);
 
         assertThat(cancelled.status()).isEqualTo("CANCELLED");
@@ -250,8 +250,8 @@ class MarketOrderServiceTest {
         UUID addressId = seedAddress(buyerUserId, true);
         seedBuyerBalance(buyerUserId, 20_000L);
 
-        MarketOrderResponse first = marketOrderService.createOrder("physical:req-replay-ok", buyerUserId, listingId, 1, addressId);
-        MarketOrderResponse second = marketOrderService.createOrder("physical:req-replay-ok", buyerUserId, listingId, 1, addressId);
+        MarketOrderResult first = marketOrderService.createOrder("physical:req-replay-ok", buyerUserId, listingId, 1, addressId);
+        MarketOrderResult second = marketOrderService.createOrder("physical:req-replay-ok", buyerUserId, listingId, 1, addressId);
 
         assertThat(second.orderId()).isEqualTo(first.orderId());
         assertThat(second.status()).isEqualTo("ESCROW_PENDING");
@@ -329,19 +329,19 @@ class MarketOrderServiceTest {
             lockStatement.setBytes(1, BinaryUuidCodec.toBytes(listingId));
             lockStatement.executeQuery();
 
-            Future<MarketOrderResponse> firstAttempt =
+            Future<MarketOrderResult> firstAttempt =
                     executor.submit(() -> marketOrderService.createOrder(requestId, buyerUserId, listingId, 1, addressId));
             TimeUnit.MILLISECONDS.sleep(200);
             assertThat(firstAttempt.isDone()).isFalse();
 
-            Future<MarketOrderResponse> replayAttempt =
+            Future<MarketOrderResult> replayAttempt =
                     executor.submit(() -> marketOrderService.createOrder(requestId, buyerUserId, listingId, 1, addressId));
             TimeUnit.MILLISECONDS.sleep(200);
             assertThat(replayAttempt.isDone()).isFalse();
 
             lockConnection.commit();
-            MarketOrderResponse firstOrder = firstAttempt.get(5, TimeUnit.SECONDS);
-            MarketOrderResponse replayOrder = replayAttempt.get(5, TimeUnit.SECONDS);
+            MarketOrderResult firstOrder = firstAttempt.get(5, TimeUnit.SECONDS);
+            MarketOrderResult replayOrder = replayAttempt.get(5, TimeUnit.SECONDS);
 
             assertThat(replayOrder.orderId()).isEqualTo(firstOrder.orderId());
             assertThat(replayOrder.status()).isEqualTo(firstOrder.status());
@@ -372,7 +372,7 @@ class MarketOrderServiceTest {
         inventory.setPayloads(List.of("CODE-001"));
 
         UUID listingId = marketListingService.createListing(sellerUserId, request, inventory).listingId();
-        MarketOrderResponse created = marketOrderService.createOrder("virtual:req-1", buyerUserId, listingId, 1, null);
+        MarketOrderResult created = marketOrderService.createOrder("virtual:req-1", buyerUserId, listingId, 1, null);
         marketWalletActionProcessor.processDue(10);
         return created.orderId();
     }
@@ -390,7 +390,7 @@ class MarketOrderServiceTest {
         request.setMaxPurchaseQuantity(2);
 
         UUID listingId = marketListingService.createListing(sellerUserId, request, null).listingId();
-        MarketOrderResponse created = marketOrderService.createOrder("virtual:manual:req-1", buyerUserId, listingId, 1, null);
+        MarketOrderResult created = marketOrderService.createOrder("virtual:manual:req-1", buyerUserId, listingId, 1, null);
         marketWalletActionProcessor.processDue(10);
         return created.orderId();
     }
@@ -412,7 +412,7 @@ class MarketOrderServiceTest {
     private UUID seedEscrowedPhysicalOrder(UUID sellerUserId, UUID buyerUserId) {
         UUID listingId = seedPhysicalListing(sellerUserId);
         UUID addressId = seedAddress(buyerUserId, true);
-        MarketOrderResponse created = marketOrderService.createOrder("physical:req-2", buyerUserId, listingId, 1, addressId);
+        MarketOrderResult created = marketOrderService.createOrder("physical:req-2", buyerUserId, listingId, 1, addressId);
         marketWalletActionProcessor.processDue(10);
         return created.orderId();
     }

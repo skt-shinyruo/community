@@ -1,6 +1,7 @@
 package com.nowcoder.community.content.event;
 
 import com.nowcoder.community.common.constants.EntityTypes;
+import com.nowcoder.community.common.event.BestEffortLocalEventListener;
 import com.nowcoder.community.content.service.SocialInteractionProjectionApplicationService;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
@@ -12,6 +13,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import java.util.UUID;
 
 @Component
+@BestEffortLocalEventListener(reason = "Post score refresh is a derived ranking hint and can be recovered by scheduled recomputation.")
 public class SocialInteractionProjectionListener {
 
     private final SocialInteractionProjectionApplicationService socialInteractionProjectionApplicationService;

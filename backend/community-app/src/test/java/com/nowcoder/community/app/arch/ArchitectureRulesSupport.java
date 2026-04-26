@@ -8,6 +8,8 @@ import com.tngtech.archunit.lang.SimpleConditionEvent;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 final class ArchitectureRulesSupport {
 
@@ -20,8 +22,20 @@ final class ArchitectureRulesSupport {
             "notice",
             "search",
             "analytics",
-            "growth"
+            "growth",
+            "market",
+            "wallet"
     );
+
+    static final Set<String> ADAPTER_DOMAINS = Set.of(
+            "ops",
+            "im"
+    );
+
+    static final Set<String> BUSINESS_OR_ADAPTER_DOMAINS = Stream.concat(
+            CORE_DOMAINS.stream(),
+            ADAPTER_DOMAINS.stream()
+    ).collect(Collectors.toUnmodifiableSet());
 
     static final Map<String, Set<String>> TEMPORARY_SHARED_MESSAGE_TYPES_BY_ORIGIN = Map.of();
 

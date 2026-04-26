@@ -4,12 +4,12 @@ import com.nowcoder.community.app.security.CommunitySecurityConfig;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
-import com.nowcoder.community.market.dto.MarketAddressResponse;
-import com.nowcoder.community.market.dto.MarketListingDetailResponse;
-import com.nowcoder.community.market.dto.MarketListingResponse;
-import com.nowcoder.community.market.dto.MarketOrderDetailResponse;
-import com.nowcoder.community.market.dto.MarketOrderResponse;
+import com.nowcoder.community.market.model.MarketAddressView;
+import com.nowcoder.community.market.model.MarketListingDetailView;
+import com.nowcoder.community.market.model.MarketListingResult;
 import com.nowcoder.community.market.exception.MarketErrorCode;
+import com.nowcoder.community.market.model.MarketOrderDetailView;
+import com.nowcoder.community.market.model.MarketOrderResult;
 import com.nowcoder.community.market.security.MarketSecurityRules;
 import com.nowcoder.community.market.service.MarketApplicationService;
 import com.nowcoder.community.market.service.MarketAddressService;
@@ -86,7 +86,7 @@ class MarketControllerTest {
     void publicListingApiShouldExposeUnifiedListingsWithoutAuthentication() throws Exception {
         UUID listingId = UUID.fromString("00000000-0000-7000-8000-000000000011");
         UUID sellerUserId = uuid(7);
-        MarketListingResponse listing = new MarketListingResponse(
+        MarketListingResult listing = new MarketListingResult(
                 listingId,
                 sellerUserId,
                 "VIRTUAL",
@@ -102,7 +102,7 @@ class MarketControllerTest {
                 "ACTIVE"
         );
         when(marketQueryService.listPublicListings()).thenReturn(List.of(listing));
-        when(marketQueryService.getListingDetail(listingId)).thenReturn(new MarketListingDetailResponse(
+        when(marketQueryService.getListingDetail(listingId)).thenReturn(new MarketListingDetailView(
                 listingId,
                 sellerUserId,
                 "VIRTUAL",
@@ -146,7 +146,7 @@ class MarketControllerTest {
         UUID sellerUserId = uuid(7);
         UUID buyerUserId = uuid(9);
         UUID anotherBuyerUserId = uuid(10);
-        MarketListingResponse sellerListing = new MarketListingResponse(
+        MarketListingResult sellerListing = new MarketListingResult(
                 sellerListingId,
                 sellerUserId,
                 "PHYSICAL",
@@ -161,7 +161,7 @@ class MarketControllerTest {
                 1,
                 "ACTIVE"
         );
-        MarketOrderResponse buyingOrder = new MarketOrderResponse(
+        MarketOrderResult buyingOrder = new MarketOrderResult(
                 buyingOrderId,
                 "buying:req-1",
                 buyingListingId,
@@ -181,7 +181,7 @@ class MarketControllerTest {
                 now,
                 now
         );
-        MarketOrderResponse sellingOrder = new MarketOrderResponse(
+        MarketOrderResult sellingOrder = new MarketOrderResult(
                 sellingOrderId,
                 "selling:req-1",
                 sellingListingId,
@@ -201,7 +201,7 @@ class MarketControllerTest {
                 now,
                 now
         );
-        MarketOrderDetailResponse detail = new MarketOrderDetailResponse(
+        MarketOrderDetailView detail = new MarketOrderDetailView(
                 buyingOrderId,
                 "buying:req-1",
                 buyingListingId,
@@ -230,7 +230,7 @@ class MarketControllerTest {
                 now,
                 now
         );
-        MarketAddressResponse address = new MarketAddressResponse(
+        MarketAddressView address = new MarketAddressView(
                 addressId,
                 buyerUserId,
                 "张三",

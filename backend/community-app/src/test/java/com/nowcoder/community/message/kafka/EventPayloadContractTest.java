@@ -3,7 +3,6 @@ package com.nowcoder.community.message.kafka;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
-import com.nowcoder.community.content.contracts.event.ModerationCommandPayload;
 import com.nowcoder.community.content.contracts.event.ModerationPayload;
 import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.social.contracts.event.BlockPayload;
@@ -46,7 +45,6 @@ class EventPayloadContractTest {
         assertRoundTrip(PostPayload.class, samplePostPayload());
         assertRoundTrip(CommentPayload.class, sampleCommentPayload());
         assertRoundTrip(ModerationPayload.class, sampleModerationPayload());
-        assertRoundTrip(ModerationCommandPayload.class, sampleModerationCommandPayload());
 
         assertRoundTrip(LikePayload.class, sampleLikePayload());
         assertRoundTrip(FollowPayload.class, sampleFollowPayload());
@@ -138,17 +136,6 @@ class EventPayloadContractTest {
         p.setReason("r");
         p.setDurationSeconds(60);
         p.setCreateTime(Instant.now());
-        return p;
-    }
-
-    private ModerationCommandPayload sampleModerationCommandPayload() {
-        ModerationCommandPayload p = new ModerationCommandPayload();
-        p.setUserId(UUID.fromString("00000000-0000-7000-8000-00000000030c"));
-        p.setAction("ban");
-        p.setDurationSeconds(3600);
-        p.setActorUserId(UUID.fromString("00000000-0000-7000-8000-00000000030d"));
-        p.setReportId(UUID.fromString("00000000-0000-7000-8000-00000000030e"));
-        p.setReason("r");
         return p;
     }
 

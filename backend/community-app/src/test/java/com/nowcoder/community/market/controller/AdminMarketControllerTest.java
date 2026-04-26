@@ -3,7 +3,7 @@ package com.nowcoder.community.market.controller;
 import com.nowcoder.community.app.security.CommunitySecurityConfig;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
-import com.nowcoder.community.market.dto.MarketDisputeResponse;
+import com.nowcoder.community.market.model.MarketDisputeResult;
 import com.nowcoder.community.market.security.MarketSecurityRules;
 import com.nowcoder.community.market.service.AdminMarketApplicationService;
 import com.nowcoder.community.market.service.MarketDisputeService;
@@ -72,7 +72,7 @@ class AdminMarketControllerTest {
         UUID buyerUserId = uuid(9);
         UUID sellerUserId = uuid(7);
         UUID adminUserId = uuid(99);
-        MarketDisputeResponse dispute = new MarketDisputeResponse(
+        MarketDisputeResult dispute = new MarketDisputeResult(
                 disputeId,
                 orderId,
                 "PHYSICAL",
@@ -90,7 +90,7 @@ class AdminMarketControllerTest {
         );
         when(marketDisputeService.listOpenDisputes()).thenReturn(List.of(dispute));
         when(marketDisputeService.adminResolveRefund(disputeId, adminUserId, "refund")).thenReturn(dispute);
-        when(marketDisputeService.adminResolveRelease(disputeId, adminUserId, "release")).thenReturn(new MarketDisputeResponse(
+        when(marketDisputeService.adminResolveRelease(disputeId, adminUserId, "release")).thenReturn(new MarketDisputeResult(
                 disputeId,
                 orderId,
                 "PHYSICAL",

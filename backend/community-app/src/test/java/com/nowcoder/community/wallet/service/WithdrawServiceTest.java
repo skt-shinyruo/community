@@ -4,11 +4,11 @@ import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
-import com.nowcoder.community.wallet.dto.CreateWithdrawResponse;
 import com.nowcoder.community.wallet.entity.WithdrawOrder;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.mapper.WithdrawOrderMapper;
 import com.nowcoder.community.wallet.model.WalletTxnType;
+import com.nowcoder.community.wallet.model.WithdrawOrderResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -76,7 +76,7 @@ class WithdrawServiceTest {
         seedUserBalance(userId, 2000);
         seedSystemBalance("PLATFORM_CASH", 800);
 
-        CreateWithdrawResponse result = withdrawService.request("withdraw:req-success", userId, 500);
+        WithdrawOrderResult result = withdrawService.request("withdraw:req-success", userId, 500);
 
         assertThat(result.status()).isEqualTo("SUCCEEDED");
         assertThat(accountService.balanceOfUser(userId)).isEqualTo(1500);
@@ -104,10 +104,10 @@ class WithdrawServiceTest {
         seedUserBalance(userId, 2000);
         seedSystemBalance("PLATFORM_CASH", 800);
 
-        CreateWithdrawResponse first = withdrawService.request("withdraw:req-replay", userId, 500);
+        WithdrawOrderResult first = withdrawService.request("withdraw:req-replay", userId, 500);
         seedSystemBalance("PLATFORM_CASH", 0);
 
-        CreateWithdrawResponse second = withdrawService.request("withdraw:req-replay", userId, 500);
+        WithdrawOrderResult second = withdrawService.request("withdraw:req-replay", userId, 500);
 
         assertThat(second.orderId()).isEqualTo(first.orderId());
         assertThat(second.status()).isEqualTo("SUCCEEDED");
@@ -170,7 +170,7 @@ class WithdrawServiceTest {
         org.mockito.Mockito.doThrow(new DuplicateKeyException("duplicate request"))
                 .when(mapper).insert(any(WithdrawOrder.class));
 
-        CreateWithdrawResponse result = service.request("withdraw:req-race", userId, 500);
+        WithdrawOrderResult result = service.request("withdraw:req-race", userId, 500);
 
         assertThat(result.orderId()).isEqualTo(orderId);
         assertThat(result.status()).isEqualTo("SUCCEEDED");
@@ -195,7 +195,7 @@ class WithdrawServiceTest {
                 .thenReturn(null, succeededOrder);
         when(mockedAccountService.balanceOfSystem("PLATFORM_CASH")).thenReturn(0L);
 
-        CreateWithdrawResponse result = service.request("withdraw:req-race-cash", userId, 500);
+        WithdrawOrderResult result = service.request("withdraw:req-race-cash", userId, 500);
 
         assertThat(result.orderId()).isEqualTo(orderId);
         assertThat(result.status()).isEqualTo("SUCCEEDED");

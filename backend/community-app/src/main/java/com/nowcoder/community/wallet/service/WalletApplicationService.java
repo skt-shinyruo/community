@@ -1,12 +1,12 @@
 package com.nowcoder.community.wallet.service;
 
 import com.nowcoder.community.wallet.dto.CreateRechargeRequest;
-import com.nowcoder.community.wallet.dto.CreateRechargeResponse;
 import com.nowcoder.community.wallet.dto.CreateTransferRequest;
-import com.nowcoder.community.wallet.dto.CreateTransferResponse;
 import com.nowcoder.community.wallet.dto.CreateWithdrawRequest;
-import com.nowcoder.community.wallet.dto.CreateWithdrawResponse;
 import com.nowcoder.community.wallet.dto.WalletSummaryResponse;
+import com.nowcoder.community.wallet.model.RechargeOrderResult;
+import com.nowcoder.community.wallet.model.TransferOrderResult;
+import com.nowcoder.community.wallet.model.WithdrawOrderResult;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
@@ -35,15 +35,15 @@ public class WalletApplicationService {
         return walletQueryService.summary(userId);
     }
 
-    public CreateRechargeResponse recharge(UUID userId, CreateRechargeRequest request) {
+    public RechargeOrderResult recharge(UUID userId, CreateRechargeRequest request) {
         return rechargeService.complete(request.getRequestId(), userId, request.getAmount());
     }
 
-    public CreateWithdrawResponse withdraw(UUID userId, CreateWithdrawRequest request) {
+    public WithdrawOrderResult withdraw(UUID userId, CreateWithdrawRequest request) {
         return withdrawService.request(request.getRequestId(), userId, request.getAmount());
     }
 
-    public CreateTransferResponse transfer(UUID fromUserId, CreateTransferRequest request) {
+    public TransferOrderResult transfer(UUID fromUserId, CreateTransferRequest request) {
         return transferService.create(
                 request.getRequestId(),
                 fromUserId,

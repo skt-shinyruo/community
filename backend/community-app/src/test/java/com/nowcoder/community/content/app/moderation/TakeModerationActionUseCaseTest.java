@@ -3,6 +3,7 @@ package com.nowcoder.community.content.app.moderation;
 import com.nowcoder.community.content.entity.ModerationAction;
 import com.nowcoder.community.content.entity.Report;
 import com.nowcoder.community.content.service.ReportService;
+import com.nowcoder.community.user.api.action.UserModerationActionApi;
 import org.junit.jupiter.api.Test;
 
 import java.util.Date;
@@ -26,14 +27,14 @@ class TakeModerationActionUseCaseTest {
         ModerationTargetResolver moderationTargetResolver = mock(ModerationTargetResolver.class);
         ContentModerationApplier contentModerationApplier = mock(ContentModerationApplier.class);
         ModerationNoticePublisher moderationNoticePublisher = mock(ModerationNoticePublisher.class);
-        UserModerationCommandPublisher userModerationCommandPublisher = mock(UserModerationCommandPublisher.class);
+        UserModerationActionApi userModerationActionApi = mock(UserModerationActionApi.class);
         TakeModerationActionUseCase useCase = new TakeModerationActionUseCase(
                 reportService,
                 moderationAuditWriter,
                 moderationTargetResolver,
                 contentModerationApplier,
                 moderationNoticePublisher,
-                userModerationCommandPublisher
+                userModerationActionApi
         );
 
         UUID actorId = uuid(42);
@@ -58,20 +59,20 @@ class TakeModerationActionUseCaseTest {
     }
 
     @Test
-    void banShouldDelegateToModerationCommandPublisherAndNotices() {
+    void banShouldApplyUserModerationBeforeMarkingReportProcessedAndPublishingNotices() {
         ReportService reportService = mock(ReportService.class);
         ModerationAuditWriter moderationAuditWriter = mock(ModerationAuditWriter.class);
         ModerationTargetResolver moderationTargetResolver = mock(ModerationTargetResolver.class);
         ContentModerationApplier contentModerationApplier = mock(ContentModerationApplier.class);
         ModerationNoticePublisher moderationNoticePublisher = mock(ModerationNoticePublisher.class);
-        UserModerationCommandPublisher userModerationCommandPublisher = mock(UserModerationCommandPublisher.class);
+        UserModerationActionApi userModerationActionApi = mock(UserModerationActionApi.class);
         TakeModerationActionUseCase useCase = new TakeModerationActionUseCase(
                 reportService,
                 moderationAuditWriter,
                 moderationTargetResolver,
                 contentModerationApplier,
                 moderationNoticePublisher,
-                userModerationCommandPublisher
+                userModerationActionApi
         );
 
         UUID actorId = uuid(42);
@@ -88,7 +89,7 @@ class TakeModerationActionUseCaseTest {
         UUID actionId = useCase.takeAction(actorId, REPORT_ID, "ban", "abuse", 3600);
 
         assertThat(actionId).isEqualTo(action.getId());
-        verify(userModerationCommandPublisher).publishModerationCommand(actorId, REPORT_ID, targetId, "ban", 3600, "abuse");
+        verify(userModerationActionApi).applyModeration(targetId, "ban", 3600);
         verify(reportService).markStatus(REPORT_ID, ReportService.STATUS_PROCESSED);
         verify(moderationNoticePublisher).publish(report, action, target, "to_target", targetId);
         verify(moderationNoticePublisher).publish(report, action, target, "to_reporter", reporterId);

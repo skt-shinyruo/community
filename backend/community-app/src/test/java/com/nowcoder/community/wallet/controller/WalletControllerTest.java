@@ -4,11 +4,11 @@ import com.nowcoder.community.app.security.CommunitySecurityConfig;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
-import com.nowcoder.community.wallet.dto.CreateRechargeResponse;
-import com.nowcoder.community.wallet.dto.CreateTransferResponse;
-import com.nowcoder.community.wallet.dto.CreateWithdrawResponse;
 import com.nowcoder.community.wallet.dto.WalletSummaryResponse;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
+import com.nowcoder.community.wallet.model.RechargeOrderResult;
+import com.nowcoder.community.wallet.model.TransferOrderResult;
+import com.nowcoder.community.wallet.model.WithdrawOrderResult;
 import com.nowcoder.community.wallet.service.WalletApplicationService;
 import com.nowcoder.community.wallet.service.RechargeService;
 import com.nowcoder.community.wallet.service.TransferService;
@@ -128,7 +128,7 @@ class WalletControllerTest {
         UUID userId = uuid(1);
         UUID orderId = UUID.fromString("00000000-0000-7000-8000-000000000623");
         when(rechargeService.complete(eq("recharge:req-api-1"), eq(userId), eq(1200L)))
-                .thenReturn(new CreateRechargeResponse(orderId, "recharge:req-api-1", userId, 1200L, "PAID"));
+                .thenReturn(new RechargeOrderResult(orderId, "recharge:req-api-1", userId, 1200L, "PAID"));
 
         mockMvc.perform(post("/api/wallet/recharges")
                         .with(jwt().jwt(jwt -> jwt.subject(userId.toString()).claim("username", "u1")))
@@ -153,7 +153,7 @@ class WalletControllerTest {
         UUID userId = uuid(1);
         UUID orderId = UUID.fromString("00000000-0000-7000-8000-000000000624");
         when(withdrawService.request(eq("withdraw:req-api-1"), eq(userId), eq(500L)))
-                .thenReturn(new CreateWithdrawResponse(orderId, "withdraw:req-api-1", userId, 500L, "SUCCEEDED"));
+                .thenReturn(new WithdrawOrderResult(orderId, "withdraw:req-api-1", userId, 500L, "SUCCEEDED"));
 
         mockMvc.perform(post("/api/wallet/withdrawals")
                         .with(jwt().jwt(jwt -> jwt.subject(userId.toString()).claim("username", "u1")))
@@ -260,12 +260,12 @@ class WalletControllerTest {
                 .andExpect(jsonPath("$.code").value(WalletErrorCode.REQUEST_REPLAY_CONFLICT.getCode()));
     }
 
-    private CreateTransferResponse transferResponse(UUID orderId,
-                                                    String requestId,
-                                                    UUID fromUserId,
-                                                    UUID toUserId,
-                                                    long amount,
-                                                    String status) {
-        return new CreateTransferResponse(orderId, requestId, fromUserId, toUserId, amount, status);
+    private TransferOrderResult transferResponse(UUID orderId,
+                                                 String requestId,
+                                                 UUID fromUserId,
+                                                 UUID toUserId,
+                                                 long amount,
+                                                 String status) {
+        return new TransferOrderResult(orderId, requestId, fromUserId, toUserId, amount, status);
     }
 }

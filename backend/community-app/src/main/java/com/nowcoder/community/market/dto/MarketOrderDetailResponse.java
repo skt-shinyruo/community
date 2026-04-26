@@ -1,7 +1,7 @@
 package com.nowcoder.community.market.dto;
 
-import com.nowcoder.community.market.entity.MarketOrder;
-import com.nowcoder.community.market.entity.MarketShipment;
+import com.nowcoder.community.market.model.MarketOrderDetailView;
+import com.nowcoder.community.market.model.MarketShipmentView;
 
 import java.util.Date;
 import java.util.List;
@@ -37,37 +37,35 @@ public record MarketOrderDetailResponse(
         Date updateTime
 ) {
 
-    public static MarketOrderDetailResponse from(MarketOrder order,
-                                                 List<String> deliveryContents,
-                                                 MarketShipment shipment) {
+    public static MarketOrderDetailResponse from(MarketOrderDetailView order) {
         return new MarketOrderDetailResponse(
-                order.getOrderId(),
-                order.getRequestId(),
-                order.getListingId(),
-                order.getGoodsType(),
-                order.getSellerUserId(),
-                order.getBuyerUserId(),
-                order.getQuantity(),
-                order.getUnitPriceSnapshot(),
-                order.getTotalAmount(),
-                order.getDeliveryModeSnapshot(),
-                order.getListingTitleSnapshot(),
-                order.getStatus(),
-                order.getEscrowTxnId(),
-                order.getReleaseTxnId(),
-                order.getRefundTxnId(),
-                order.getAutoConfirmAt(),
-                order.getReceiverNameSnapshot(),
-                order.getReceiverPhoneSnapshot(),
-                order.getProvinceSnapshot(),
-                order.getCitySnapshot(),
-                order.getDistrictSnapshot(),
-                order.getDetailAddressSnapshot(),
-                order.getPostalCodeSnapshot(),
-                deliveryContents == null ? List.of() : List.copyOf(deliveryContents),
-                ShipmentView.from(shipment),
-                order.getCreateTime(),
-                order.getUpdateTime()
+                order.orderId(),
+                order.requestId(),
+                order.listingId(),
+                order.goodsType(),
+                order.sellerUserId(),
+                order.buyerUserId(),
+                order.quantity(),
+                order.unitPriceSnapshot(),
+                order.totalAmount(),
+                order.deliveryModeSnapshot(),
+                order.listingTitleSnapshot(),
+                order.status(),
+                order.escrowTxnId(),
+                order.releaseTxnId(),
+                order.refundTxnId(),
+                order.autoConfirmAt(),
+                order.receiverNameSnapshot(),
+                order.receiverPhoneSnapshot(),
+                order.provinceSnapshot(),
+                order.citySnapshot(),
+                order.districtSnapshot(),
+                order.detailAddressSnapshot(),
+                order.postalCodeSnapshot(),
+                order.deliveryContents(),
+                ShipmentView.from(order.shipment()),
+                order.createTime(),
+                order.updateTime()
         );
     }
 
@@ -83,20 +81,20 @@ public record MarketOrderDetailResponse(
             Date updateTime
     ) {
 
-        public static ShipmentView from(MarketShipment shipment) {
+        public static ShipmentView from(MarketShipmentView shipment) {
             if (shipment == null) {
                 return null;
             }
             return new ShipmentView(
-                    shipment.getShipmentId(),
-                    shipment.getOrderId(),
-                    shipment.getSellerUserId(),
-                    shipment.getCarrierName(),
-                    shipment.getTrackingNo(),
-                    shipment.getShippingRemark(),
-                    shipment.getShippedAt(),
-                    shipment.getCreateTime(),
-                    shipment.getUpdateTime()
+                    shipment.shipmentId(),
+                    shipment.orderId(),
+                    shipment.sellerUserId(),
+                    shipment.carrierName(),
+                    shipment.trackingNo(),
+                    shipment.shippingRemark(),
+                    shipment.shippedAt(),
+                    shipment.createTime(),
+                    shipment.updateTime()
             );
         }
     }

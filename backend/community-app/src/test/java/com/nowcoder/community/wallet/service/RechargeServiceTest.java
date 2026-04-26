@@ -4,10 +4,10 @@ import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
-import com.nowcoder.community.wallet.dto.CreateRechargeResponse;
 import com.nowcoder.community.wallet.entity.RechargeOrder;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.mapper.RechargeOrderMapper;
+import com.nowcoder.community.wallet.model.RechargeOrderResult;
 import com.nowcoder.community.wallet.model.WalletTxnType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -63,7 +63,7 @@ class RechargeServiceTest {
     @Test
     void completeRechargeShouldCreditUserWalletOnceAndPersistUuidv7OrderId() {
         UUID userId = uuid(101);
-        CreateRechargeResponse result = rechargeService.complete("recharge:req-1", userId, 1200);
+        RechargeOrderResult result = rechargeService.complete("recharge:req-1", userId, 1200);
 
         assertThat(result.status()).isEqualTo("PAID");
         assertThat(accountService.balanceOfUser(userId)).isEqualTo(1200);
@@ -82,9 +82,9 @@ class RechargeServiceTest {
     @Test
     void completeRechargeShouldReturnExistingOrderForSameRequestIdAndPayload() {
         UUID userId = uuid(101);
-        CreateRechargeResponse first = rechargeService.complete("recharge:req-replay", userId, 1200);
+        RechargeOrderResult first = rechargeService.complete("recharge:req-replay", userId, 1200);
 
-        CreateRechargeResponse second = rechargeService.complete("recharge:req-replay", userId, 1200);
+        RechargeOrderResult second = rechargeService.complete("recharge:req-replay", userId, 1200);
 
         assertThat(second.orderId()).isEqualTo(first.orderId());
         assertThat(second.status()).isEqualTo("PAID");
@@ -135,7 +135,7 @@ class RechargeServiceTest {
         org.mockito.Mockito.doThrow(new DuplicateKeyException("duplicate request"))
                 .when(mapper).insert(any(RechargeOrder.class));
 
-        CreateRechargeResponse result = service.complete("recharge:req-race", userId, 1200);
+        RechargeOrderResult result = service.complete("recharge:req-race", userId, 1200);
 
         assertThat(result.orderId()).isEqualTo(orderId);
         assertThat(result.status()).isEqualTo("PAID");

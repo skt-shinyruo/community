@@ -1,7 +1,6 @@
 package com.nowcoder.community.content.event;
 
 import com.nowcoder.community.content.contracts.event.CommentPayload;
-import com.nowcoder.community.content.contracts.event.ModerationCommandPayload;
 import com.nowcoder.community.content.contracts.event.ModerationPayload;
 import com.nowcoder.community.content.contracts.event.PostPayload;
 
@@ -18,6 +17,4 @@ public interface ContentEventPublisher {
     void publishCommentDeleted(CommentPayload payload);
 
     void publishModerationActionApplied(ModerationPayload payload);
-
-    void publishModerationCommandRequested(ModerationCommandPayload payload);
 }

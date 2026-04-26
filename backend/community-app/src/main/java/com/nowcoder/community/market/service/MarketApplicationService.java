@@ -6,17 +6,17 @@ import com.nowcoder.community.market.dto.CreateMarketDisputeRequest;
 import com.nowcoder.community.market.dto.CreateMarketListingRequest;
 import com.nowcoder.community.market.dto.CreateMarketOrderRequest;
 import com.nowcoder.community.market.dto.DeliverMarketOrderRequest;
-import com.nowcoder.community.market.dto.MarketAddressResponse;
-import com.nowcoder.community.market.dto.MarketDisputeResponse;
-import com.nowcoder.community.market.dto.MarketInventoryUnitResponse;
-import com.nowcoder.community.market.dto.MarketListingDetailResponse;
-import com.nowcoder.community.market.dto.MarketListingResponse;
-import com.nowcoder.community.market.dto.MarketOrderDetailResponse;
-import com.nowcoder.community.market.dto.MarketOrderResponse;
 import com.nowcoder.community.market.dto.SellerDisputeDecisionRequest;
 import com.nowcoder.community.market.dto.ShipMarketOrderRequest;
 import com.nowcoder.community.market.dto.UpdateMarketAddressRequest;
 import com.nowcoder.community.market.dto.UpdateMarketListingRequest;
+import com.nowcoder.community.market.model.MarketAddressView;
+import com.nowcoder.community.market.model.MarketDisputeResult;
+import com.nowcoder.community.market.model.MarketInventoryUnitView;
+import com.nowcoder.community.market.model.MarketListingDetailView;
+import com.nowcoder.community.market.model.MarketListingResult;
+import com.nowcoder.community.market.model.MarketOrderDetailView;
+import com.nowcoder.community.market.model.MarketOrderResult;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -48,39 +48,39 @@ public class MarketApplicationService {
         this.marketAddressService = marketAddressService;
     }
 
-    public List<MarketListingResponse> listPublicListings() {
+    public List<MarketListingResult> listPublicListings() {
         return marketQueryService.listPublicListings();
     }
 
-    public MarketListingDetailResponse getListingDetail(UUID listingId) {
+    public MarketListingDetailView getListingDetail(UUID listingId) {
         return marketQueryService.getListingDetail(listingId);
     }
 
-    public List<MarketListingResponse> listSellerListings(UUID sellerUserId) {
+    public List<MarketListingResult> listSellerListings(UUID sellerUserId) {
         return marketQueryService.listSellerListings(sellerUserId);
     }
 
-    public MarketListingResponse createListing(UUID sellerUserId, CreateMarketListingRequest request) {
+    public MarketListingResult createListing(UUID sellerUserId, CreateMarketListingRequest request) {
         return marketListingService.createListing(sellerUserId, request, request.getInventory());
     }
 
-    public MarketListingResponse updateListing(UUID sellerUserId, UUID listingId, UpdateMarketListingRequest request) {
+    public MarketListingResult updateListing(UUID sellerUserId, UUID listingId, UpdateMarketListingRequest request) {
         return marketListingService.updateListing(sellerUserId, listingId, request);
     }
 
-    public MarketListingResponse pauseListing(UUID sellerUserId, UUID listingId) {
+    public MarketListingResult pauseListing(UUID sellerUserId, UUID listingId) {
         return marketListingService.pauseListing(sellerUserId, listingId);
     }
 
-    public MarketListingResponse resumeListing(UUID sellerUserId, UUID listingId) {
+    public MarketListingResult resumeListing(UUID sellerUserId, UUID listingId) {
         return marketListingService.resumeListing(sellerUserId, listingId);
     }
 
-    public MarketListingResponse closeListing(UUID sellerUserId, UUID listingId) {
+    public MarketListingResult closeListing(UUID sellerUserId, UUID listingId) {
         return marketListingService.closeListing(sellerUserId, listingId);
     }
 
-    public List<MarketInventoryUnitResponse> listInventory(UUID listingId, UUID sellerUserId) {
+    public List<MarketInventoryUnitView> listInventory(UUID listingId, UUID sellerUserId) {
         return marketInventoryService.listInventory(listingId, sellerUserId);
     }
 
@@ -92,15 +92,15 @@ public class MarketApplicationService {
         marketInventoryService.invalidateInventory(inventoryUnitId, sellerUserId);
     }
 
-    public List<MarketAddressResponse> listAddresses(UUID userId) {
+    public List<MarketAddressView> listAddresses(UUID userId) {
         return marketAddressService.listAddresses(userId);
     }
 
-    public MarketAddressResponse createAddress(UUID userId, CreateMarketAddressRequest request) {
+    public MarketAddressView createAddress(UUID userId, CreateMarketAddressRequest request) {
         return marketAddressService.createAddress(userId, request);
     }
 
-    public MarketAddressResponse updateAddress(UUID userId, UUID addressId, UpdateMarketAddressRequest request) {
+    public MarketAddressView updateAddress(UUID userId, UUID addressId, UpdateMarketAddressRequest request) {
         return marketAddressService.updateAddress(userId, addressId, request);
     }
 
@@ -108,7 +108,7 @@ public class MarketApplicationService {
         marketAddressService.deleteAddress(userId, addressId);
     }
 
-    public MarketOrderResponse createOrder(UUID buyerUserId, CreateMarketOrderRequest request) {
+    public MarketOrderResult createOrder(UUID buyerUserId, CreateMarketOrderRequest request) {
         return marketOrderService.createOrder(
                 request.getRequestId(),
                 buyerUserId,
@@ -118,23 +118,23 @@ public class MarketApplicationService {
         );
     }
 
-    public List<MarketOrderResponse> listBuyingOrders(UUID buyerUserId) {
+    public List<MarketOrderResult> listBuyingOrders(UUID buyerUserId) {
         return marketQueryService.listBuyingOrders(buyerUserId);
     }
 
-    public List<MarketOrderResponse> listSellingOrders(UUID sellerUserId) {
+    public List<MarketOrderResult> listSellingOrders(UUID sellerUserId) {
         return marketQueryService.listSellingOrders(sellerUserId);
     }
 
-    public MarketOrderDetailResponse getOrderDetail(UUID orderId, UUID actorUserId) {
+    public MarketOrderDetailView getOrderDetail(UUID orderId, UUID actorUserId) {
         return marketQueryService.getOrderDetail(orderId, actorUserId);
     }
 
-    public MarketOrderResponse deliverOrder(UUID orderId, UUID sellerUserId, DeliverMarketOrderRequest request) {
+    public MarketOrderResult deliverOrder(UUID orderId, UUID sellerUserId, DeliverMarketOrderRequest request) {
         return marketOrderService.deliverVirtualOrder(orderId, sellerUserId, request.getDeliveryContent());
     }
 
-    public MarketOrderResponse shipOrder(UUID orderId, UUID sellerUserId, ShipMarketOrderRequest request) {
+    public MarketOrderResult shipOrder(UUID orderId, UUID sellerUserId, ShipMarketOrderRequest request) {
         return marketOrderService.shipPhysicalOrder(
                 orderId,
                 sellerUserId,
@@ -144,23 +144,23 @@ public class MarketApplicationService {
         );
     }
 
-    public MarketOrderResponse confirmOrder(UUID orderId, UUID buyerUserId) {
+    public MarketOrderResult confirmOrder(UUID orderId, UUID buyerUserId) {
         return marketOrderService.confirmOrder(orderId, buyerUserId);
     }
 
-    public MarketOrderResponse cancelOrder(UUID orderId, UUID buyerUserId) {
+    public MarketOrderResult cancelOrder(UUID orderId, UUID buyerUserId) {
         return marketOrderService.cancelOrder(orderId, buyerUserId);
     }
 
-    public MarketDisputeResponse openDispute(UUID orderId, UUID buyerUserId, CreateMarketDisputeRequest request) {
+    public MarketDisputeResult openDispute(UUID orderId, UUID buyerUserId, CreateMarketDisputeRequest request) {
         return marketDisputeService.openDispute(orderId, buyerUserId, request.getReason(), request.getBuyerNote());
     }
 
-    public MarketDisputeResponse sellerAccept(UUID disputeId, UUID sellerUserId, SellerDisputeDecisionRequest request) {
+    public MarketDisputeResult sellerAccept(UUID disputeId, UUID sellerUserId, SellerDisputeDecisionRequest request) {
         return marketDisputeService.sellerAcceptRefund(disputeId, sellerUserId, request.getNote());
     }
 
-    public MarketDisputeResponse sellerReject(UUID disputeId, UUID sellerUserId, SellerDisputeDecisionRequest request) {
+    public MarketDisputeResult sellerReject(UUID disputeId, UUID sellerUserId, SellerDisputeDecisionRequest request) {
         return marketDisputeService.sellerRejectRefund(disputeId, sellerUserId, request.getNote());
     }
 }

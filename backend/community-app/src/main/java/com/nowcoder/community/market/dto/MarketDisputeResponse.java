@@ -1,6 +1,6 @@
 package com.nowcoder.community.market.dto;
 
-import com.nowcoder.community.market.entity.MarketDispute;
+import com.nowcoder.community.market.model.MarketDisputeResult;
 
 import java.util.Date;
 import java.util.UUID;
@@ -22,22 +22,22 @@ public record MarketDisputeResponse(
         Date updateTime
 ) {
 
-    public static MarketDisputeResponse from(MarketDispute dispute) {
+    public static MarketDisputeResponse from(MarketDisputeResult dispute) {
         return new MarketDisputeResponse(
-                dispute.getDisputeId(),
-                dispute.getOrderId(),
-                dispute.getGoodsType(),
-                dispute.getBuyerUserId(),
-                dispute.getSellerUserId(),
-                dispute.getStatus(),
-                dispute.getReason(),
-                dispute.getBuyerNote(),
-                dispute.getSellerNote(),
-                dispute.getResolutionType(),
-                dispute.getResolvedBy(),
-                dispute.getResolvedAt(),
-                dispute.getCreateTime(),
-                dispute.getUpdateTime()
+                dispute.disputeId(),
+                dispute.orderId(),
+                dispute.goodsType(),
+                dispute.buyerUserId(),
+                dispute.sellerUserId(),
+                dispute.status(),
+                dispute.reason(),
+                dispute.buyerNote(),
+                dispute.sellerNote(),
+                dispute.resolutionType(),
+                dispute.resolvedBy(),
+                dispute.resolvedAt(),
+                dispute.createTime(),
+                dispute.updateTime()
         );
     }
 }

@@ -4,10 +4,10 @@ import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.market.dto.AddMarketInventoryBatchRequest;
 import com.nowcoder.community.market.dto.CreateMarketListingRequest;
-import com.nowcoder.community.market.dto.MarketListingResponse;
 import com.nowcoder.community.market.dto.UpdateMarketListingRequest;
 import com.nowcoder.community.market.entity.MarketListing;
 import com.nowcoder.community.market.mapper.MarketListingMapper;
+import com.nowcoder.community.market.model.MarketListingResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,9 +54,9 @@ public class MarketListingService {
     }
 
     @Transactional
-    public MarketListingResponse createListing(UUID sellerUserId,
-                                               CreateMarketListingRequest request,
-                                               AddMarketInventoryBatchRequest inventoryRequest) {
+    public MarketListingResult createListing(UUID sellerUserId,
+                                             CreateMarketListingRequest request,
+                                             AddMarketInventoryBatchRequest inventoryRequest) {
         validateSellerUserId(sellerUserId);
         validateCreateRequest(request, inventoryRequest);
 
@@ -80,11 +80,11 @@ public class MarketListingService {
             marketInventoryService.appendInventory(listing.getListingId(), sellerUserId, inventoryRequest);
         }
 
-        return MarketListingResponse.from(requireOwnedListing(listing.getListingId(), sellerUserId));
+        return MarketListingResult.from(requireOwnedListing(listing.getListingId(), sellerUserId));
     }
 
     @Transactional
-    public MarketListingResponse updateListing(UUID sellerUserId, UUID listingId, UpdateMarketListingRequest request) {
+    public MarketListingResult updateListing(UUID sellerUserId, UUID listingId, UpdateMarketListingRequest request) {
         validateSellerUserId(sellerUserId);
         validateUpdateRequest(request);
         MarketListing listing = requireOwnedListing(listingId, sellerUserId);
@@ -94,34 +94,34 @@ public class MarketListingService {
         listing.setMinPurchaseQuantity(request.getMinPurchaseQuantity());
         listing.setMaxPurchaseQuantity(request.getMaxPurchaseQuantity());
         marketListingMapper.updateEditable(listing);
-        return MarketListingResponse.from(requireOwnedListing(listingId, sellerUserId));
+        return MarketListingResult.from(requireOwnedListing(listingId, sellerUserId));
     }
 
     @Transactional
-    public MarketListingResponse pauseListing(UUID sellerUserId, UUID listingId) {
+    public MarketListingResult pauseListing(UUID sellerUserId, UUID listingId) {
         return transitionStatus(sellerUserId, listingId, STATUS_PAUSED);
     }
 
     @Transactional
-    public MarketListingResponse resumeListing(UUID sellerUserId, UUID listingId) {
+    public MarketListingResult resumeListing(UUID sellerUserId, UUID listingId) {
         MarketListing listing = requireOwnedListing(listingId, sellerUserId);
         String nextStatus = STOCK_MODE_FINITE.equals(listing.getStockMode()) && listing.getStockAvailable() <= 0
                 ? STATUS_SOLD_OUT
                 : STATUS_ACTIVE;
         marketListingMapper.updateStatus(listingId, sellerUserId, nextStatus);
-        return MarketListingResponse.from(requireOwnedListing(listingId, sellerUserId));
+        return MarketListingResult.from(requireOwnedListing(listingId, sellerUserId));
     }
 
     @Transactional
-    public MarketListingResponse closeListing(UUID sellerUserId, UUID listingId) {
+    public MarketListingResult closeListing(UUID sellerUserId, UUID listingId) {
         return transitionStatus(sellerUserId, listingId, STATUS_CLOSED);
     }
 
-    private MarketListingResponse transitionStatus(UUID sellerUserId, UUID listingId, String nextStatus) {
+    private MarketListingResult transitionStatus(UUID sellerUserId, UUID listingId, String nextStatus) {
         validateSellerUserId(sellerUserId);
         requireOwnedListing(listingId, sellerUserId);
         marketListingMapper.updateStatus(listingId, sellerUserId, nextStatus);
-        return MarketListingResponse.from(requireOwnedListing(listingId, sellerUserId));
+        return MarketListingResult.from(requireOwnedListing(listingId, sellerUserId));
     }
 
     private void validateCreateRequest(CreateMarketListingRequest request, AddMarketInventoryBatchRequest inventoryRequest) {

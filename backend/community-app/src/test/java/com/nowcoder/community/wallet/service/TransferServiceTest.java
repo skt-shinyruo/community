@@ -4,10 +4,10 @@ import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
-import com.nowcoder.community.wallet.dto.CreateTransferResponse;
 import com.nowcoder.community.wallet.entity.TransferOrder;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.mapper.TransferOrderMapper;
+import com.nowcoder.community.wallet.model.TransferOrderResult;
 import com.nowcoder.community.wallet.model.WalletTxnType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -68,7 +68,7 @@ class TransferServiceTest {
         UUID toUserId = uuid(202);
         seedUserBalance(fromUserId, 900);
 
-        CreateTransferResponse result = transferService.create("transfer:req-1", fromUserId, toUserId, 300);
+        TransferOrderResult result = transferService.create("transfer:req-1", fromUserId, toUserId, 300);
 
         assertThat(result.status()).isEqualTo("SUCCEEDED");
         assertThat(accountService.balanceOfUser(fromUserId)).isEqualTo(600);
@@ -77,7 +77,7 @@ class TransferServiceTest {
         assertThat(countRows("wallet_txn")).isEqualTo(1);
         assertThat(countRows("wallet_entry")).isEqualTo(2);
 
-        Method orderIdGetter = CreateTransferResponse.class.getMethod("orderId");
+        Method orderIdGetter = TransferOrderResult.class.getMethod("orderId");
         Object orderId = orderIdGetter.invoke(result);
         assertThat(orderId).isInstanceOf(UUID.class);
         UUID parsedOrderId = (UUID) orderId;
@@ -98,8 +98,8 @@ class TransferServiceTest {
         UUID toUserId = uuid(202);
         seedUserBalance(fromUserId, 900);
 
-        CreateTransferResponse first = transferService.create("transfer:req-1", fromUserId, toUserId, 300);
-        CreateTransferResponse second = transferService.create("transfer:req-1", fromUserId, toUserId, 300);
+        TransferOrderResult first = transferService.create("transfer:req-1", fromUserId, toUserId, 300);
+        TransferOrderResult second = transferService.create("transfer:req-1", fromUserId, toUserId, 300);
 
         assertThat(second.orderId()).isEqualTo(first.orderId());
         assertThat(accountService.balanceOfUser(fromUserId)).isEqualTo(600);
@@ -166,7 +166,7 @@ class TransferServiceTest {
         org.mockito.Mockito.doThrow(new DuplicateKeyException("duplicate request"))
                 .when(mapper).insert(any(TransferOrder.class));
 
-        CreateTransferResponse result = service.create("transfer:req-race", fromUserId, toUserId, 300);
+        TransferOrderResult result = service.create("transfer:req-race", fromUserId, toUserId, 300);
 
         assertThat(readOrderId(result)).isEqualTo(orderId);
         assertThat(result.status()).isEqualTo("SUCCEEDED");
@@ -198,9 +198,9 @@ class TransferServiceTest {
         return order;
     }
 
-    private UUID readOrderId(CreateTransferResponse response) {
+    private UUID readOrderId(TransferOrderResult response) {
         try {
-            return (UUID) CreateTransferResponse.class.getMethod("orderId").invoke(response);
+            return (UUID) TransferOrderResult.class.getMethod("orderId").invoke(response);
         } catch (ReflectiveOperationException ex) {
             throw new AssertionError(ex);
         }

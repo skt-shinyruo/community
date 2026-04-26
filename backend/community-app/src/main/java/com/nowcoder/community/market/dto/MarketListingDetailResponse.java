@@ -1,6 +1,6 @@
 package com.nowcoder.community.market.dto;
 
-import com.nowcoder.community.market.entity.MarketListing;
+import com.nowcoder.community.market.model.MarketListingDetailView;
 
 import java.util.Date;
 import java.util.UUID;
@@ -23,23 +23,23 @@ public record MarketListingDetailResponse(
         Date updateTime
 ) {
 
-    public static MarketListingDetailResponse from(MarketListing listing) {
+    public static MarketListingDetailResponse from(MarketListingDetailView listing) {
         return new MarketListingDetailResponse(
-                listing.getListingId(),
-                listing.getSellerUserId(),
-                listing.getGoodsType(),
-                listing.getTitle(),
-                listing.getDescription(),
-                listing.getUnitPrice(),
-                listing.getDeliveryMode(),
-                listing.getStockMode(),
-                listing.getStockTotal(),
-                listing.getStockAvailable(),
-                listing.getMinPurchaseQuantity(),
-                listing.getMaxPurchaseQuantity(),
-                listing.getStatus(),
-                listing.getCreateTime(),
-                listing.getUpdateTime()
+                listing.listingId(),
+                listing.sellerUserId(),
+                listing.goodsType(),
+                listing.title(),
+                listing.description(),
+                listing.unitPrice(),
+                listing.deliveryMode(),
+                listing.stockMode(),
+                listing.stockTotal(),
+                listing.stockAvailable(),
+                listing.minPurchaseQuantity(),
+                listing.maxPurchaseQuantity(),
+                listing.status(),
+                listing.createTime(),
+                listing.updateTime()
         );
     }
 }

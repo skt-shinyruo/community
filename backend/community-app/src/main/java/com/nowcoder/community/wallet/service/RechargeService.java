@@ -2,10 +2,10 @@ package com.nowcoder.community.wallet.service;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.wallet.dto.CreateRechargeResponse;
 import com.nowcoder.community.wallet.entity.RechargeOrder;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.mapper.RechargeOrderMapper;
+import com.nowcoder.community.wallet.model.RechargeOrderResult;
 import com.nowcoder.community.wallet.model.WalletPosting;
 import com.nowcoder.community.wallet.model.WalletTxnType;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,21 +42,21 @@ public class RechargeService {
     }
 
     @Transactional
-    public CreateRechargeResponse complete(String requestId, UUID userId, long amount) {
+    public RechargeOrderResult complete(String requestId, UUID userId, long amount) {
         validate(requestId, amount);
 
         RechargeOrder existing = rechargeOrderMapper.selectByRequestId(requestId);
         if (existing != null) {
             ensureReplayMatches(existing, userId, amount);
             if ("PAID".equals(existing.getStatus())) {
-                return CreateRechargeResponse.from(existing);
+                return RechargeOrderResult.from(existing);
             }
         }
 
         RechargeOrder order = existing == null ? createOrLoad(requestId, userId, amount) : existing;
         ensureReplayMatches(order, userId, amount);
         if ("PAID".equals(order.getStatus())) {
-            return CreateRechargeResponse.from(order);
+            return RechargeOrderResult.from(order);
         }
 
         ledgerService.post(
@@ -68,7 +68,7 @@ public class RechargeService {
                 )
         );
         rechargeOrderMapper.updateStatus(requestId, "CREATED", "PAID");
-        return CreateRechargeResponse.from(requireOrder(requestId));
+        return RechargeOrderResult.from(requireOrder(requestId));
     }
 
     private void validate(String requestId, long amount) {

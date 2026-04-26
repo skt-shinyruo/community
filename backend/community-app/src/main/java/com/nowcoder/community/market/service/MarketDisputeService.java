@@ -2,11 +2,11 @@ package com.nowcoder.community.market.service;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.market.dto.MarketDisputeResponse;
 import com.nowcoder.community.market.entity.MarketDispute;
 import com.nowcoder.community.market.entity.MarketOrder;
 import com.nowcoder.community.market.mapper.MarketDisputeMapper;
 import com.nowcoder.community.market.mapper.MarketOrderMapper;
+import com.nowcoder.community.market.model.MarketDisputeResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -57,7 +57,7 @@ public class MarketDisputeService {
     }
 
     @Transactional
-    public MarketDisputeResponse openDispute(UUID orderId, UUID buyerUserId, String reason, String buyerNote) {
+    public MarketDisputeResult openDispute(UUID orderId, UUID buyerUserId, String reason, String buyerNote) {
         validateText(reason, "reason");
         validateText(buyerNote, "buyerNote");
         MarketOrder order = requireOrderForUpdate(orderId);
@@ -83,11 +83,11 @@ public class MarketDisputeService {
         dispute.setBuyerNote(buyerNote.trim());
         marketDisputeMapper.insert(dispute);
         marketOrderMapper.markDisputed(orderId);
-        return MarketDisputeResponse.from(reloadDispute(dispute.getDisputeId()));
+        return MarketDisputeResult.from(reloadDispute(dispute.getDisputeId()));
     }
 
     @Transactional
-    public MarketDisputeResponse sellerAcceptRefund(UUID disputeId, UUID sellerUserId, String sellerNote) {
+    public MarketDisputeResult sellerAcceptRefund(UUID disputeId, UUID sellerUserId, String sellerNote) {
         validateText(sellerNote, "sellerNote");
         MarketDispute dispute = requireOpenDisputeForSeller(disputeId, sellerUserId);
         MarketOrder order = requireDisputedOrderForUpdate(dispute.getOrderId());
@@ -105,21 +105,21 @@ public class MarketDisputeService {
                 order.getSellerUserId(),
                 order.getTotalAmount()
         );
-        return MarketDisputeResponse.from(reloadDispute(disputeId));
+        return MarketDisputeResult.from(reloadDispute(disputeId));
     }
 
     @Transactional
-    public MarketDisputeResponse sellerRejectRefund(UUID disputeId, UUID sellerUserId, String sellerNote) {
+    public MarketDisputeResult sellerRejectRefund(UUID disputeId, UUID sellerUserId, String sellerNote) {
         validateText(sellerNote, "sellerNote");
         MarketDispute dispute = requireOpenDisputeForSeller(disputeId, sellerUserId);
         dispute.setStatus(DISPUTE_STATUS_SELLER_REJECTED);
         dispute.setSellerNote(sellerNote.trim());
         marketDisputeMapper.update(dispute);
-        return MarketDisputeResponse.from(reloadDispute(disputeId));
+        return MarketDisputeResult.from(reloadDispute(disputeId));
     }
 
     @Transactional
-    public MarketDisputeResponse adminResolveRefund(UUID disputeId, UUID adminUserId, String note) {
+    public MarketDisputeResult adminResolveRefund(UUID disputeId, UUID adminUserId, String note) {
         validateActor(adminUserId);
         validateText(note, "note");
         MarketDispute dispute = requireAdminResolvableDispute(disputeId);
@@ -139,11 +139,11 @@ public class MarketDisputeService {
                 order.getSellerUserId(),
                 order.getTotalAmount()
         );
-        return MarketDisputeResponse.from(reloadDispute(disputeId));
+        return MarketDisputeResult.from(reloadDispute(disputeId));
     }
 
     @Transactional
-    public MarketDisputeResponse adminResolveRelease(UUID disputeId, UUID adminUserId, String note) {
+    public MarketDisputeResult adminResolveRelease(UUID disputeId, UUID adminUserId, String note) {
         validateActor(adminUserId);
         validateText(note, "note");
         MarketDispute dispute = requireAdminResolvableDispute(disputeId);
@@ -163,12 +163,12 @@ public class MarketDisputeService {
                 order.getBuyerUserId(),
                 order.getTotalAmount()
         );
-        return MarketDisputeResponse.from(reloadDispute(disputeId));
+        return MarketDisputeResult.from(reloadDispute(disputeId));
     }
 
-    public List<MarketDisputeResponse> listOpenDisputes() {
+    public List<MarketDisputeResult> listOpenDisputes() {
         return marketDisputeMapper.selectOpenDisputes().stream()
-                .map(MarketDisputeResponse::from)
+                .map(MarketDisputeResult::from)
                 .toList();
     }
 

@@ -2,12 +2,12 @@ package com.nowcoder.community.wallet.service;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.wallet.dto.CreateWithdrawResponse;
 import com.nowcoder.community.wallet.entity.WithdrawOrder;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.mapper.WithdrawOrderMapper;
 import com.nowcoder.community.wallet.model.WalletPosting;
 import com.nowcoder.community.wallet.model.WalletTxnType;
+import com.nowcoder.community.wallet.model.WithdrawOrderResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -42,13 +42,13 @@ public class WithdrawService {
     }
 
     @Transactional
-    public CreateWithdrawResponse request(String requestId, UUID userId, long amount) {
+    public WithdrawOrderResult request(String requestId, UUID userId, long amount) {
         validate(requestId, amount);
         WithdrawOrder order = withdrawOrderMapper.selectByRequestId(requestId);
         if (order != null) {
             ensureReplayMatches(order, userId, amount);
             if ("SUCCEEDED".equals(order.getStatus())) {
-                return CreateWithdrawResponse.from(order);
+                return WithdrawOrderResult.from(order);
             }
         }
 
@@ -64,7 +64,7 @@ public class WithdrawService {
         order = order == null ? createOrLoad(requestId, userId, amount) : order;
         ensureReplayMatches(order, userId, amount);
         if ("SUCCEEDED".equals(order.getStatus())) {
-            return CreateWithdrawResponse.from(order);
+            return WithdrawOrderResult.from(order);
         }
 
         if ("REQUESTED".equals(order.getStatus())) {
@@ -91,7 +91,7 @@ public class WithdrawService {
             );
             withdrawOrderMapper.updateStatus(requestId, "PROCESSING", "SUCCEEDED");
         }
-        return CreateWithdrawResponse.from(requireOrder(requestId));
+        return WithdrawOrderResult.from(requireOrder(requestId));
     }
 
     private void validate(String requestId, long amount) {

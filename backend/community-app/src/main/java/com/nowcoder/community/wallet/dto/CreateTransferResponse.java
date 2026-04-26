@@ -1,6 +1,6 @@
 package com.nowcoder.community.wallet.dto;
 
-import com.nowcoder.community.wallet.entity.TransferOrder;
+import com.nowcoder.community.wallet.model.TransferOrderResult;
 
 import java.util.UUID;
 
@@ -11,14 +11,14 @@ public record CreateTransferResponse(UUID orderId,
                                      long amount,
                                      String status) {
 
-    public static CreateTransferResponse from(TransferOrder order) {
+    public static CreateTransferResponse from(TransferOrderResult result) {
         return new CreateTransferResponse(
-                order.getOrderId(),
-                order.getRequestId(),
-                order.getFromUserId(),
-                order.getToUserId(),
-                order.getAmount(),
-                order.getStatus()
+                result.orderId(),
+                result.requestId(),
+                result.fromUserId(),
+                result.toUserId(),
+                result.amount(),
+                result.status()
         );
     }
 }

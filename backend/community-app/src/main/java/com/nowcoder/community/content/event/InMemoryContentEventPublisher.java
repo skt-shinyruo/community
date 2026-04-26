@@ -2,7 +2,6 @@ package com.nowcoder.community.content.event;
 
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
-import com.nowcoder.community.content.contracts.event.ModerationCommandPayload;
 import com.nowcoder.community.content.contracts.event.ModerationPayload;
 import com.nowcoder.community.content.contracts.event.PostPayload;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -45,11 +44,6 @@ public class InMemoryContentEventPublisher implements ContentEventPublisher {
 
     @Override
     public void publishModerationActionApplied(ModerationPayload payload) {
-        AfterCommitExecutor.runAfterCommit(() -> events.add(payload));
-    }
-
-    @Override
-    public void publishModerationCommandRequested(ModerationCommandPayload payload) {
         AfterCommitExecutor.runAfterCommit(() -> events.add(payload));
     }
 

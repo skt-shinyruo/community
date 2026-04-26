@@ -4,7 +4,7 @@ import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.dto.CreateMarketAddressRequest;
 import com.nowcoder.community.market.dto.CreateMarketListingRequest;
-import com.nowcoder.community.market.dto.MarketDisputeResponse;
+import com.nowcoder.community.market.model.MarketDisputeResult;
 import com.nowcoder.community.wallet.service.WalletAccountService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -81,8 +81,8 @@ class MarketDisputeServiceTest {
         seedBuyerBalance(buyerUserId, 20_000L);
         UUID orderId = seedShippedPhysicalOrder(sellerUserId, buyerUserId);
 
-        MarketDisputeResponse dispute = marketDisputeService.openDispute(orderId, buyerUserId, "货不对板", "和描述不一致");
-        MarketDisputeResponse resolved = marketDisputeService.sellerAcceptRefund(dispute.disputeId(), sellerUserId, "同意退款");
+        MarketDisputeResult dispute = marketDisputeService.openDispute(orderId, buyerUserId, "货不对板", "和描述不一致");
+        MarketDisputeResult resolved = marketDisputeService.sellerAcceptRefund(dispute.disputeId(), sellerUserId, "同意退款");
 
         assertThat(resolved.status()).isEqualTo("SELLER_ACCEPTED");
         assertThat(marketQueryService.getOrderDetail(orderId, buyerUserId).status()).isEqualTo("DISPUTE_REFUND_PENDING");
@@ -100,8 +100,8 @@ class MarketDisputeServiceTest {
         seedBuyerBalance(buyerUserId, 20_000L);
         UUID orderId = seedShippedPhysicalOrder(sellerUserId, buyerUserId);
 
-        MarketDisputeResponse dispute = marketDisputeService.openDispute(orderId, buyerUserId, "货不对板", "和描述不一致");
-        MarketDisputeResponse resolved = marketDisputeService.adminResolveRelease(dispute.disputeId(), adminUserId, "证据支持卖家");
+        MarketDisputeResult dispute = marketDisputeService.openDispute(orderId, buyerUserId, "货不对板", "和描述不一致");
+        MarketDisputeResult resolved = marketDisputeService.adminResolveRelease(dispute.disputeId(), adminUserId, "证据支持卖家");
 
         assertThat(resolved.status()).isEqualTo("ADMIN_RESOLVED");
         assertThat(resolved.resolutionType()).isEqualTo("RELEASE");

@@ -22,7 +22,8 @@
 
 - `backend/community-app/src/main/java/com/nowcoder/community/analytics/repo/AnalyticsRepository.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/analytics/repo/RedisAnalyticsRepository.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/analytics/repo/InMemoryAnalyticsRepository.java`
+
+当前只保留 Redis 实现。analytics 不再提供本机内存 repository，因为该实现只在单个 JVM 进程内有效，不能作为全局统计存储。
 
 ## 2. 对外接口做了什么
 
@@ -310,4 +311,3 @@ Bitmap 只记录用户当天是否出现过，重复访问不会重复计数。
 - `backend/community-app/src/main/java/com/nowcoder/community/analytics/service/AnalyticsService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/analytics/repo/AnalyticsRepository.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/analytics/repo/RedisAnalyticsRepository.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/analytics/repo/InMemoryAnalyticsRepository.java`

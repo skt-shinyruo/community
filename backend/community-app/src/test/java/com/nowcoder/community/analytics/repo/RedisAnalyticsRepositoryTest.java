@@ -5,6 +5,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.data.redis.core.HyperLogLogOperations;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
 
@@ -25,6 +26,34 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class RedisAnalyticsRepositoryTest {
+
+    @Test
+    void recordUv_shouldAddIpToDailyHyperLogLogKey() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        HyperLogLogOperations<String, String> hyperOps = (HyperLogLogOperations<String, String>) mock(HyperLogLogOperations.class);
+        when(redisTemplate.opsForHyperLogLog()).thenReturn(hyperOps);
+
+        RedisAnalyticsRepository repo = new RedisAnalyticsRepository(redisTemplate);
+
+        repo.recordUv(LocalDate.of(2026, 1, 1), "1.1.1.1");
+
+        verify(hyperOps).add("uv:2026-01-01", "1.1.1.1");
+    }
+
+    @Test
+    void recordDau_shouldSetUserBitOnDailyBitmapKey() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOps = (ValueOperations<String, String>) mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+
+        RedisAnalyticsRepository repo = new RedisAnalyticsRepository(redisTemplate);
+
+        repo.recordDau(LocalDate.of(2026, 1, 1), 123);
+
+        verify(valueOps).setBit("dau:2026-01-01", 123, true);
+    }
 
     @Test
     void calculateUv_shouldUseTemporaryUnionKey_andCleanup() {

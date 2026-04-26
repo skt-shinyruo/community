@@ -179,7 +179,6 @@ search:
     page-size: 500
 
 analytics:
-  storage: redis
   max-days-range: 31
 
 r2:

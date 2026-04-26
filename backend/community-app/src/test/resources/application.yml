@@ -87,7 +87,6 @@ search:
     retention-days: 1
 
 analytics:
-  storage: memory
   max-days-range: 31
 
 message:

@@ -1,6 +1,5 @@
 package com.nowcoder.community.analytics.repo;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -15,7 +14,6 @@ import java.util.List;
 import java.util.UUID;
 
 @Repository
-@ConditionalOnProperty(name = "analytics.storage", havingValue = "redis", matchIfMissing = true)
 public class RedisAnalyticsRepository implements AnalyticsRepository {
 
     private static final String PREFIX_UV = "uv:";

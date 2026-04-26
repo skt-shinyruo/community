@@ -37,8 +37,9 @@
 
 `community-app` 当前主配置里，analytics 相关默认值是：
 
-- `analytics.storage = redis`
 - `analytics.max-days-range = 31`
+
+analytics 存储实现固定为 Redis repository，不再提供 `analytics.storage` 切换项。
 
 ### 1.3 访问权限是后台权限，不是埋点权限
 
@@ -90,7 +91,6 @@
 - `AnalyticsService`
 - `AnalyticsRepository`
 - `RedisAnalyticsRepository`
-- `InMemoryAnalyticsRepository`
 
 没有任何生产代码调用：
 
@@ -104,15 +104,16 @@
 当前能看到的真实调用点来自测试：
 
 - `backend/community-app/src/test/java/com/nowcoder/community/analytics/service/AnalyticsServiceTest.java`
+- `backend/community-app/src/test/java/com/nowcoder/community/analytics/repo/RedisAnalyticsRepositoryTest.java`
 
-测试里会手动调用：
+测试里会覆盖：
 
-- `service.recordUv(d1, "1.1.1.1")`
-- `service.recordDau(d1, 1)`
+- `AnalyticsService` 把写入调用委托给 repository
+- `RedisAnalyticsRepository` 把 UV 写入 Redis HyperLogLog，把 DAU 写入 Redis bitmap
 
 这说明：
 
-- 存储和聚合逻辑是被测试覆盖的
+- Redis 存储和聚合逻辑是被测试覆盖的
 - 但线上接入路径没有在当前仓库里落地
 
 ## 4. 这意味着什么
@@ -321,6 +322,5 @@ analytics 当前的边界非常克制：
 - `backend/community-app/src/main/java/com/nowcoder/community/analytics/service/AnalyticsService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/analytics/repo/AnalyticsRepository.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/analytics/repo/RedisAnalyticsRepository.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/analytics/repo/InMemoryAnalyticsRepository.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/analytics/security/AnalyticsSecurityRules.java`
 - `backend/community-app/src/test/java/com/nowcoder/community/analytics/service/AnalyticsServiceTest.java`

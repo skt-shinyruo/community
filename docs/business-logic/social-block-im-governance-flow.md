@@ -17,8 +17,9 @@
 ## 1. 参与组件
 
 - `BlockController`：拉黑入口
-- `BlockService`：拉黑主服务
-- `BlockRepository`：`db / redis / memory` 三种后端
+- `BlockApplicationService`：拉黑用例编排、事务边界、领域事件发布
+- `BlockDomainService`：拉黑领域规则
+- `BlockRepository`：domain repository interface，`db / redis / memory` 三种后端由 infrastructure 实现
 - `CommentService`：内容互动里检查拉黑关系
 - `ImGovernanceController`：IM 治理 HTTP 入口
 - `PrivateMessageGovernanceService`：私信治理编排
@@ -49,7 +50,7 @@ IM 私信治理对外接口：
 
 ### 3.1 拉黑
 
-`POST /api/blocks` -> `BlockService.block(userId, targetUserId)`
+`POST /api/blocks` -> `BlockController` -> `BlockApplicationService.block(BlockCommand)`
 
 关键步骤：
 
@@ -57,7 +58,7 @@ IM 私信治理对外接口：
 2. 禁止拉黑自己
 3. 通过 repository 落状态
 4. 注册 rollback 钩子
-5. 发布 `BlockPayload(blocked=true)`
+5. 发布 `BlockRelationChangedDomainEvent(blocked=true)`，由 `LocalSocialDomainEventPublisher` 映射为 `BlockPayload`
 
 这里有一个重要实现细节：
 
@@ -65,13 +66,13 @@ IM 私信治理对外接口：
 
 ### 3.2 取消拉黑
 
-`DELETE /api/blocks` -> `BlockService.unblock(...)`
+`DELETE /api/blocks` -> `BlockController` -> `BlockApplicationService.unblock(UnblockCommand)`
 
 逻辑和拉黑对称：
 
 1. 删除关系
 2. 注册 rollback 钩子
-3. 发布 `BlockPayload(blocked=false)`
+3. 发布 `BlockRelationChangedDomainEvent(blocked=false)`，由 infrastructure event adapter 映射为 `BlockPayload`
 
 ### 3.3 当前默认存储
 
@@ -81,7 +82,7 @@ IM 私信治理对外接口：
 
 所以当前默认使用：
 
-- `DbBlockRepository`
+- `MyBatisBlockRepository`
 
 其语义是：
 

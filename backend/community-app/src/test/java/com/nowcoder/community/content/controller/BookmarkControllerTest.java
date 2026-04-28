@@ -1,8 +1,9 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.content.dto.PostSummaryResponse;
-import com.nowcoder.community.content.service.BookmarkApplicationService;
+import com.nowcoder.community.content.application.result.PostSummaryResult;
+import com.nowcoder.community.content.controller.dto.PostSummaryResponse;
+import com.nowcoder.community.content.application.BookmarkApplicationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,22 +43,23 @@ class BookmarkControllerTest {
         UUID lastReplyUserId = uuid(8);
         Date createTime = new Date();
         Date lastReplyTime = new Date(createTime.getTime() + 1_000);
-        PostSummaryResponse dto = new PostSummaryResponse();
-        dto.setId(postId);
-        dto.setUserId(userId);
-        dto.setTitle("decoded title");
-        dto.setType(0);
-        dto.setStatus(0);
-        dto.setCreateTime(createTime);
-        dto.setCommentCount(3);
-        dto.setScore(9.5);
-        dto.setCategoryId(categoryId);
-        dto.setTags(List.of("spring"));
-        dto.setLastReplyUserId(lastReplyUserId);
-        dto.setLastReplyTime(lastReplyTime);
-        dto.setLastActivityTime(lastReplyTime);
-        dto.setLastReplyPreview("latest reply");
-        when(bookmarkApplicationService.listBookmarkedPostSummaryResponses(userId, 0, 10)).thenReturn(List.of(dto));
+        PostSummaryResult view = new PostSummaryResult(
+                postId,
+                userId,
+                "decoded title",
+                0,
+                0,
+                createTime,
+                3,
+                9.5,
+                categoryId,
+                List.of("spring"),
+                lastReplyUserId,
+                lastReplyTime,
+                lastReplyTime,
+                "latest reply"
+        );
+        when(bookmarkApplicationService.listBookmarkedPostSummaries(userId, 0, 10)).thenReturn(List.of(view));
 
         Result<List<PostSummaryResponse>> result = controller.list(authentication(userId), null, null);
 
@@ -68,7 +70,7 @@ class BookmarkControllerTest {
             assertThat(response.getTags()).containsExactly("spring");
             assertThat(response.getLastReplyPreview()).isEqualTo("latest reply");
         });
-        verify(bookmarkApplicationService).listBookmarkedPostSummaryResponses(userId, 0, 10);
+        verify(bookmarkApplicationService).listBookmarkedPostSummaries(userId, 0, 10);
     }
 
     @Test

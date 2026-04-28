@@ -1,16 +1,18 @@
 package com.nowcoder.community.user.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.user.dto.UserProfilePageView;
-import com.nowcoder.community.user.service.UserAvatarApplicationService;
-import com.nowcoder.community.user.service.UserProfileApplicationService;
-import com.nowcoder.community.user.dto.BatchUserSummaryRequest;
-import com.nowcoder.community.user.dto.UserProfilePostSummaryResponse;
-import com.nowcoder.community.user.dto.UserProfileResponse;
-import com.nowcoder.community.user.dto.UserRecentCommentItemResponse;
-import com.nowcoder.community.user.dto.UserResolveResponse;
-import com.nowcoder.community.user.dto.UserSummaryResponse;
-import com.nowcoder.community.user.service.UserReadApplicationService;
+import com.nowcoder.community.user.application.UserAvatarApplicationService;
+import com.nowcoder.community.user.application.UserProfileApplicationService;
+import com.nowcoder.community.user.application.UserReadApplicationService;
+import com.nowcoder.community.user.application.result.UserProfilePageResult;
+import com.nowcoder.community.user.application.result.UserResolveResult;
+import com.nowcoder.community.user.application.result.UserSummaryResult;
+import com.nowcoder.community.user.controller.dto.BatchUserSummaryRequest;
+import com.nowcoder.community.user.controller.dto.UserProfilePostSummaryResponse;
+import com.nowcoder.community.user.controller.dto.UserProfileResponse;
+import com.nowcoder.community.user.controller.dto.UserRecentCommentItemResponse;
+import com.nowcoder.community.user.controller.dto.UserResolveResponse;
+import com.nowcoder.community.user.controller.dto.UserSummaryResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -59,8 +61,8 @@ class UserControllerUnitTest {
         UUID userId = uuid(7);
         Authentication authentication = authentication(actorUserId);
         Date createTime = new Date();
-        when(userProfileApplicationService.get(authentication, userId))
-                .thenReturn(new UserProfilePageView(userId, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE", true, 2, 13, 12, 5, 8, true, false));
+        when(userProfileApplicationService.get(actorUserId, userId))
+                .thenReturn(new UserProfilePageResult(userId, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE", true, 2, 13, 12, 5, 8, true, false));
 
         Result<UserProfileResponse> result = controller.getUser(authentication, userId);
 
@@ -84,7 +86,7 @@ class UserControllerUnitTest {
         assertThat(result.getData().getFollowerCount()).isEqualTo(8);
         assertThat(result.getData().getHasFollowed()).isTrue();
         assertThat(result.getData().isSocialDegraded()).isFalse();
-        verify(userProfileApplicationService).get(authentication, userId);
+        verify(userProfileApplicationService).get(actorUserId, userId);
     }
 
     @Test
@@ -93,8 +95,8 @@ class UserControllerUnitTest {
         UUID userId = uuid(8);
         Authentication authentication = authentication(actorUserId);
         Date createTime = new Date();
-        when(userProfileApplicationService.get(authentication, userId))
-                .thenReturn(new UserProfilePageView(userId, "bob", "h8", 1, 0, createTime, 99, 2, 0L, "ACTIVE", false, null, null, 3, 4, 5, false, false));
+        when(userProfileApplicationService.get(actorUserId, userId))
+                .thenReturn(new UserProfilePageResult(userId, "bob", "h8", 1, 0, createTime, 99, 2, 0L, "ACTIVE", false, null, null, 3, 4, 5, false, false));
 
         Result<UserProfileResponse> result = controller.getUser(authentication, userId);
 
@@ -107,7 +109,7 @@ class UserControllerUnitTest {
         assertThat(result.getData().getScore()).isEqualTo(99);
         assertThat(result.getData().getWalletBalance()).isZero();
         assertThat(result.getData().getWalletStatus()).isEqualTo("ACTIVE");
-        verify(userProfileApplicationService).get(authentication, userId);
+        verify(userProfileApplicationService).get(actorUserId, userId);
     }
 
     @Test
@@ -120,7 +122,7 @@ class UserControllerUnitTest {
         Date lastReplyTime = new Date(createTime.getTime() + 1_000);
         Date lastActivityTime = new Date(createTime.getTime() + 2_000);
         when(userProfileApplicationService.listRecentPosts(userId, 1, 5))
-                .thenReturn(List.of(new UserProfilePageView.RecentPostSummaryView(
+                .thenReturn(List.of(new UserProfilePageResult.RecentPostSummaryResult(
                         postId,
                         userId,
                         "first post",
@@ -168,7 +170,7 @@ class UserControllerUnitTest {
         UUID postId = uuid(201);
         Date createTime = new Date();
         when(userProfileApplicationService.listRecentComments(userId, 2, 10))
-                .thenReturn(List.of(new UserProfilePageView.RecentCommentItemView(
+                .thenReturn(List.of(new UserProfilePageResult.RecentCommentItemResult(
                         commentId,
                         userId,
                         1,
@@ -200,11 +202,8 @@ class UserControllerUnitTest {
     @Test
     void resolveByUsernameShouldUseControllerFacingApplicationServiceResponse() {
         UUID userId = uuid(7);
-        UserResolveResponse response = new UserResolveResponse();
-        response.setId(userId);
-        response.setUsername("alice");
-        response.setHeaderUrl("h7");
-        when(userReadApplicationService.resolveByUsername("alice")).thenReturn(response);
+        when(userReadApplicationService.resolveByUsername("alice"))
+                .thenReturn(new UserResolveResult(userId, "alice", "h7"));
 
         Result<UserResolveResponse> result = controller.resolveByUsername("alice");
 
@@ -222,25 +221,18 @@ class UserControllerUnitTest {
         UUID bobId = uuid(9);
         BatchUserSummaryRequest request = new BatchUserSummaryRequest();
         request.setUserIds(Arrays.asList(aliceId, bobId, aliceId, null));
-        UserSummaryResponse alice = new UserSummaryResponse();
-        alice.setId(aliceId);
-        alice.setUsername("alice");
-        alice.setHeaderUrl("h7");
-        alice.setType(1);
-        UserSummaryResponse bob = new UserSummaryResponse();
-        bob.setId(bobId);
-        bob.setUsername("bob");
-        bob.setHeaderUrl("h9");
-        bob.setType(2);
-        when(userReadApplicationService.listSummaryResponsesByIds(Arrays.asList(aliceId, bobId, aliceId, null)))
-                .thenReturn(List.of(alice, bob));
+        when(userReadApplicationService.listSummaryResultsByIds(Arrays.asList(aliceId, bobId, aliceId, null)))
+                .thenReturn(List.of(
+                        new UserSummaryResult(aliceId, "alice", "h7", 1),
+                        new UserSummaryResult(bobId, "bob", "h9", 2)
+                ));
 
         Result<List<UserSummaryResponse>> result = controller.batchSummary(request);
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).extracting(UserSummaryResponse::getId).containsExactly(aliceId, bobId);
         assertThat(result.getData()).extracting(UserSummaryResponse::getUsername).containsExactly("alice", "bob");
-        verify(userReadApplicationService).listSummaryResponsesByIds(Arrays.asList(aliceId, bobId, aliceId, null));
+        verify(userReadApplicationService).listSummaryResultsByIds(Arrays.asList(aliceId, bobId, aliceId, null));
     }
 
     private Authentication authentication(UUID userId) {

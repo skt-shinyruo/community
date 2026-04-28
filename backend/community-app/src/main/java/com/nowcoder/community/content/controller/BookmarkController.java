@@ -2,8 +2,9 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.content.dto.PostSummaryResponse;
-import com.nowcoder.community.content.service.BookmarkApplicationService;
+import com.nowcoder.community.content.application.result.PostSummaryResult;
+import com.nowcoder.community.content.controller.dto.PostSummaryResponse;
+import com.nowcoder.community.content.application.BookmarkApplicationService;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -50,6 +51,7 @@ public class BookmarkController {
         UUID userId = CurrentUser.requireUserUuid(authentication);
         int p = page == null ? 0 : Math.max(0, page);
         int s = size == null ? 10 : Math.min(50, Math.max(1, size));
-        return Result.ok(bookmarkApplicationService.listBookmarkedPostSummaryResponses(userId, p, s));
+        List<PostSummaryResult> posts = bookmarkApplicationService.listBookmarkedPostSummaries(userId, p, s);
+        return Result.ok(posts == null ? List.of() : posts.stream().map(PostSummaryResponse::from).toList());
     }
 }

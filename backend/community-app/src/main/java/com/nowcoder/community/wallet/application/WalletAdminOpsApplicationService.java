@@ -1,0 +1,246 @@
+package com.nowcoder.community.wallet.application;
+
+import com.nowcoder.community.common.id.UuidV7Generator;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.wallet.domain.model.RechargeOrder;
+import com.nowcoder.community.wallet.domain.model.TransferOrder;
+import com.nowcoder.community.wallet.domain.model.WalletAdminAction;
+import com.nowcoder.community.wallet.domain.model.WalletEntry;
+import com.nowcoder.community.wallet.domain.model.WalletPosting;
+import com.nowcoder.community.wallet.domain.model.WalletTxn;
+import com.nowcoder.community.wallet.domain.model.WalletTxnType;
+import com.nowcoder.community.wallet.domain.repository.RechargeOrderRepository;
+import com.nowcoder.community.wallet.domain.repository.TransferOrderRepository;
+import com.nowcoder.community.wallet.domain.repository.WalletAdminActionRepository;
+import com.nowcoder.community.wallet.domain.repository.WalletLedgerRepository;
+import com.nowcoder.community.wallet.domain.service.WalletAccountDomainService;
+import com.nowcoder.community.wallet.domain.service.WalletAdminDomainService;
+import com.nowcoder.community.wallet.exception.WalletErrorCode;
+import org.apache.ibatis.exceptions.TooManyResultsException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+
+@Service
+public class WalletAdminOpsApplicationService {
+
+    private static final String ACTION_FREEZE_WALLET = "FREEZE_WALLET";
+    private static final String ACTION_REVERSE_TXN = "REVERSE_TXN";
+    private static final Set<String> REVERSIBLE_TXN_TYPES = Set.of(
+            WalletTxnType.TRANSFER.name(),
+            WalletTxnType.ORDER_RELEASE.name(),
+            WalletTxnType.REWARD_ISSUE.name()
+    );
+
+    private final WalletAccountApplicationService accountService;
+    private final WalletLedgerApplicationService ledgerService;
+    private final WalletLedgerRepository walletLedgerRepository;
+    private final WalletAdminActionRepository walletAdminActionRepository;
+    private final TransferOrderRepository transferOrderRepository;
+    private final RechargeOrderRepository rechargeOrderRepository;
+    private final WalletAdminDomainService adminDomainService;
+    private final UuidV7Generator idGenerator;
+
+    @Autowired
+    public WalletAdminOpsApplicationService(WalletAccountApplicationService accountService,
+                                            WalletLedgerApplicationService ledgerService,
+                                            WalletLedgerRepository walletLedgerRepository,
+                                            WalletAdminActionRepository walletAdminActionRepository,
+                                            TransferOrderRepository transferOrderRepository,
+                                            RechargeOrderRepository rechargeOrderRepository) {
+        this(
+                accountService,
+                ledgerService,
+                walletLedgerRepository,
+                walletAdminActionRepository,
+                transferOrderRepository,
+                rechargeOrderRepository,
+                new WalletAdminDomainService(),
+                new UuidV7Generator()
+        );
+    }
+
+    WalletAdminOpsApplicationService(WalletAccountApplicationService accountService,
+                                     WalletLedgerApplicationService ledgerService,
+                                     WalletLedgerRepository walletLedgerRepository,
+                                     WalletAdminActionRepository walletAdminActionRepository,
+                                     TransferOrderRepository transferOrderRepository,
+                                     RechargeOrderRepository rechargeOrderRepository,
+                                     WalletAdminDomainService adminDomainService,
+                                     UuidV7Generator idGenerator) {
+        this.accountService = accountService;
+        this.ledgerService = ledgerService;
+        this.walletLedgerRepository = walletLedgerRepository;
+        this.walletAdminActionRepository = walletAdminActionRepository;
+        this.transferOrderRepository = transferOrderRepository;
+        this.rechargeOrderRepository = rechargeOrderRepository;
+        this.adminDomainService = adminDomainService;
+        this.idGenerator = idGenerator;
+    }
+
+    @Transactional
+    public void freezeWallet(UUID actorUserId, UUID targetUserId, String reason) {
+        String normalizedReason = adminDomainService.validateAdminAction(actorUserId, reason);
+        validateTargetUser(targetUserId);
+
+        var account = accountService.loadUserWallet(targetUserId);
+        accountService.setStatus(account.getAccountId(), WalletAccountDomainService.STATUS_FROZEN);
+        insertAudit("wallet-admin:freeze:" + UUID.randomUUID(), actorUserId, account.getAccountId(), ACTION_FREEZE_WALLET, 0L, normalizedReason);
+    }
+
+    @Transactional
+    public void reverseTxn(UUID actorUserId, String txnRef, String reason) {
+        String normalizedReason = adminDomainService.validateAdminAction(actorUserId, reason);
+        if (txnRef == null || txnRef.isBlank()) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "txnRef must not be blank");
+        }
+
+        WalletTxn txn = requireTxn(txnRef);
+        if (!REVERSIBLE_TXN_TYPES.contains(txn.getTxnType())) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "wallet txn is not reversible: txnRef=" + txnRef);
+        }
+
+        List<WalletEntry> entries = walletLedgerRepository.findEntriesByTxnId(txn.getTxnId());
+        if (entries.isEmpty()) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "wallet txn has no entries: txnRef=" + txnRef);
+        }
+
+        String reversalRequestId = reversalRequestId(txn.getRequestId());
+        if (walletLedgerRepository.findTxnByRequestId(reversalRequestId) != null) {
+            insertReverseAuditIfAbsent(actorUserId, txn, normalizedReason);
+            return;
+        }
+
+        List<WalletPosting> reversal = entries.stream()
+                .map(this::reverseOf)
+                .toList();
+        ensureReversalCanBeApplied(txnRef, reversal);
+        ledgerService.post(reversalRequestId, WalletTxnType.REVERSAL, reversal);
+        insertReverseAuditIfAbsent(actorUserId, txn, normalizedReason);
+    }
+
+    private WalletTxn requireTxn(String txnRef) {
+        WalletTxn txn = walletLedgerRepository.findTxnByRequestId(txnRef);
+        if (txn != null) {
+            return txn;
+        }
+
+        WalletTxn transferTxn = resolveTransferTxn(txnRef);
+        if (transferTxn != null) {
+            return transferTxn;
+        }
+
+        WalletTxn rechargeTxn = resolveRechargeTxn(txnRef);
+        if (rechargeTxn != null) {
+            return rechargeTxn;
+        }
+
+        throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "wallet txn not found: txnRef=" + txnRef);
+    }
+
+    private WalletTxn resolveTransferTxn(String txnRef) {
+        TransferOrder order = selectTransferOrderByRequestId(txnRef);
+        if (order == null) {
+            return null;
+        }
+        return walletLedgerRepository.findTxnByRequestId("wallet:transfer:" + order.getOrderId());
+    }
+
+    private WalletTxn resolveRechargeTxn(String txnRef) {
+        RechargeOrder order = selectRechargeOrderByRequestId(txnRef);
+        if (order == null) {
+            return null;
+        }
+        return walletLedgerRepository.findTxnByRequestId("wallet:recharge:" + order.getOrderId());
+    }
+
+    private TransferOrder selectTransferOrderByRequestId(String txnRef) {
+        try {
+            return transferOrderRepository.findByRequestId(txnRef);
+        } catch (TooManyResultsException ex) {
+            throw ambiguousTxnRef(txnRef, ex);
+        }
+    }
+
+    private RechargeOrder selectRechargeOrderByRequestId(String txnRef) {
+        try {
+            return rechargeOrderRepository.findByRequestId(txnRef);
+        } catch (TooManyResultsException ex) {
+            throw ambiguousTxnRef(txnRef, ex);
+        }
+    }
+
+    private BusinessException ambiguousTxnRef(String txnRef, RuntimeException cause) {
+        return new BusinessException(
+                WalletErrorCode.INVALID_REQUEST,
+                "wallet txnRef is ambiguous; use wallet txn requestId: txnRef=" + txnRef,
+                cause
+        );
+    }
+
+    private WalletPosting reverseOf(WalletEntry entry) {
+        if ("DEBIT".equals(entry.getDirection())) {
+            return WalletPosting.credit(entry.getAccountId(), entry.getAmount());
+        }
+        return WalletPosting.debit(entry.getAccountId(), entry.getAmount());
+    }
+
+    private void ensureReversalCanBeApplied(String txnRef, List<WalletPosting> reversal) {
+        for (WalletPosting posting : reversal) {
+            var account = accountService.lock(posting.accountId());
+            long delta = accountService.deltaOf(account, posting);
+            if (delta < 0 && account.getBalance() + delta < 0) {
+                throw new BusinessException(
+                        WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT,
+                        "reversal rejected: txnRef=" + txnRef + ", accountId=" + account.getAccountId() + ", availableBalance=" + account.getBalance()
+                );
+            }
+        }
+    }
+
+    private void insertReverseAuditIfAbsent(UUID actorUserId, WalletTxn txn, String reason) {
+        String requestId = reverseAuditRequestId(txn.getRequestId());
+        if (walletAdminActionRepository.findByRequestId(requestId) != null) {
+            return;
+        }
+        try {
+            insertAudit(requestId, actorUserId, txn.getTxnId(), ACTION_REVERSE_TXN, txn.getAmount(), reason);
+        } catch (DataIntegrityViolationException ex) {
+            if (walletAdminActionRepository.findByRequestId(requestId) != null) {
+                return;
+            }
+            throw ex;
+        }
+    }
+
+    private void insertAudit(String requestId, UUID actorUserId, UUID targetAccountId, String actionType, long amount, String reason) {
+        WalletAdminAction action = new WalletAdminAction();
+        action.setActionId(idGenerator.next());
+        action.setRequestId(requestId);
+        action.setActorUserId(actorUserId);
+        action.setTargetAccountId(targetAccountId);
+        action.setActionType(actionType);
+        action.setAmount(amount);
+        action.setRemark(reason);
+        walletAdminActionRepository.insert(action);
+    }
+
+    private String reverseAuditRequestId(String txnRef) {
+        return "wallet-admin:reverse:" + txnRef;
+    }
+
+    private String reversalRequestId(String txnRef) {
+        return "reversal:" + txnRef;
+    }
+
+    private void validateTargetUser(UUID targetUserId) {
+        if (targetUserId == null) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "targetUserId must not be null");
+        }
+    }
+}

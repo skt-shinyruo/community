@@ -7,10 +7,11 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.nowcoder.community.app.CommunityAppApplication;
-import com.nowcoder.community.social.block.BlockService;
-import com.nowcoder.community.user.entity.User;
-import com.nowcoder.community.user.mapper.UserMapper;
-import com.nowcoder.community.user.service.UserModerationService;
+import com.nowcoder.community.social.application.BlockApplicationService;
+import com.nowcoder.community.social.application.command.BlockCommand;
+import com.nowcoder.community.user.api.action.UserModerationActionApi;
+import com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject;
+import com.nowcoder.community.user.infrastructure.persistence.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -46,10 +47,10 @@ class ImPolicySnapshotControllerTest {
     private ObjectMapper objectMapper;
 
     @Autowired
-    private UserModerationService userModerationService;
+    private UserModerationActionApi userModerationActionApi;
 
     @Autowired
-    private BlockService blockService;
+    private BlockApplicationService blockApplicationService;
 
     @Autowired
     private UserMapper userMapper;
@@ -84,8 +85,8 @@ class ImPolicySnapshotControllerTest {
         UUID bannedUserId = uuid(8);
         insertUser(mutedUserId, "u7");
         insertUser(bannedUserId, "u8");
-        userModerationService.applyModeration(mutedUserId, "mute", 300);
-        userModerationService.applyModeration(bannedUserId, "ban", 300);
+        userModerationActionApi.applyModeration(mutedUserId, "mute", 300);
+        userModerationActionApi.applyModeration(bannedUserId, "ban", 300);
 
         mockMvc.perform(get("/internal/im/realtime/projections/user-policies")
                         .header("Authorization", internalBearer(mutedUserId))
@@ -108,9 +109,9 @@ class ImPolicySnapshotControllerTest {
 
     @Test
     void userBlockRelationSnapshotShouldPageBlockPairs() throws Exception {
-        blockService.block(uuid(1), uuid(2));
-        blockService.block(uuid(1), uuid(3));
-        blockService.block(uuid(2), uuid(1));
+        blockApplicationService.block(new BlockCommand(uuid(1), uuid(2)));
+        blockApplicationService.block(new BlockCommand(uuid(1), uuid(3)));
+        blockApplicationService.block(new BlockCommand(uuid(2), uuid(1)));
 
         mockMvc.perform(get("/internal/im/realtime/projections/block-relations")
                         .header("Authorization", internalBearer(uuid(7)))
@@ -143,7 +144,7 @@ class ImPolicySnapshotControllerTest {
     }
 
     private void insertUser(UUID userId, String username) {
-        User user = new User();
+        UserDataObject user = new UserDataObject();
         user.setId(userId);
         user.setUsername(username);
         user.setPassword("encoded");

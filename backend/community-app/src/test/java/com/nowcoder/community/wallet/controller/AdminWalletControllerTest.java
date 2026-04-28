@@ -3,9 +3,9 @@ package com.nowcoder.community.wallet.controller;
 import com.nowcoder.community.app.security.CommunitySecurityConfig;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
+import com.nowcoder.community.wallet.application.AdminWalletApplicationService;
+import com.nowcoder.community.wallet.application.WalletAdminOpsApplicationService;
 import com.nowcoder.community.wallet.security.WalletSecurityRules;
-import com.nowcoder.community.wallet.service.AdminWalletApplicationService;
-import com.nowcoder.community.wallet.service.AdminWalletOpsService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
@@ -41,7 +41,7 @@ class AdminWalletControllerTest {
     private MockMvc mockMvc;
 
     @MockBean
-    private AdminWalletOpsService adminWalletOpsService;
+    private WalletAdminOpsApplicationService adminWalletOpsService;
 
     @MockBean
     private JwtDecoder jwtDecoder;

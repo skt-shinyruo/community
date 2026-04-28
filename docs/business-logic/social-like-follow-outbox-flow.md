@@ -44,12 +44,14 @@
 - `community-app`：
   - `LikeController`：点赞写接口与读接口入口
   - `FollowController`：关注写接口与读接口入口
-  - `LikeService`：点赞业务规则、实体解析、状态变更、社交事件发布
-  - `FollowService`：关注业务规则、状态变更、社交事件发布
-  - `ContentEntityResolver`：点赞帖子 / 评论时回源 `content` 模块，解析 `entityUserId` 与 `postId`
-  - `LocalSocialEventPublisher`：把 `LikePayload` / `FollowPayload` 封装成 `SocialContractEvent`
+  - `LikeApplicationService`：点赞用例编排、事务边界、实体解析、状态变更、积分/任务同步协作、领域事件发布
+  - `FollowApplicationService`：关注用例编排、事务边界、状态变更、领域事件发布
+  - `LikeDomainService` / `FollowDomainService`：点赞、关注领域规则
+  - `ContentEntityResolver`：application 层可信查询 helper，点赞帖子 / 评论时回源 `content` 模块解析 `entityUserId` 与 `postId`
+  - `SocialDomainEventPublisher`：application 发布 social 领域事件的端口
+  - `LocalSocialDomainEventPublisher`：infrastructure adapter，把 social 领域事件映射成 `SocialContractEvent`
 - 社交存储：
-  - `DbLikeRepository` / `DbFollowRepository`
+  - `MyBatisLikeRepository` / `MyBatisFollowRepository`
   - `RedisLikeRepository` / `RedisFollowRepository`
   - `InMemoryLikeRepository` / `InMemoryFollowRepository`
 - 下游副作用消费者：
@@ -108,10 +110,10 @@
 sequenceDiagram
     participant U as User
     participant API as LikeController
-    participant SVC as LikeService
+    participant SVC as LikeApplicationService
     participant RES as ContentEntityResolver
     participant REPO as LikeRepository
-    participant PUB as LocalSocialEventPublisher
+    participant PUB as LocalSocialDomainEventPublisher
     participant EVT as SocialContractEvent
     participant N as NoticeOutboxEnqueuer
     participant P as PointsOutboxEnqueuer
@@ -120,21 +122,21 @@ sequenceDiagram
     participant OUTBOX as outbox_event + worker
 
     U->>API: POST /api/likes
-    API->>SVC: setLike(userId, request)
+    API->>SVC: setLike(SetLikeCommand)
     SVC->>REPO: isLiked(actorUserId, entityType, entityId)
     alt 创建点赞且对象为帖子/评论
         SVC->>RES: resolve(entityType, entityId)
         RES-->>SVC: entityUserId + postId
     end
-    SVC->>REPO: addLike/removeLike/setLike(...)
-    SVC->>PUB: publishLikeCreated / publishLikeRemoved
+    SVC->>REPO: setLike(...)
+    SVC->>PUB: publishLikeChanged(LikeChangedDomainEvent)
     PUB->>EVT: SocialContractEvent(eventId, type, payload)
     EVT->>N: BEFORE_COMMIT 写通知 outbox
     EVT->>P: BEFORE_COMMIT 写积分 outbox
     EVT->>T: BEFORE_COMMIT 写任务进度 outbox
     EVT->>SCORE: AFTER_COMMIT 刷帖子热度队列
     OUTBOX-->>OUTBOX: worker 轮询并调用各 handler
-    SVC-->>API: LikeResponse(liked, likeCount)
+    SVC-->>API: LikeResult(liked, likeCount)
 ```
 
 ### 4.2 请求语义
@@ -155,7 +157,7 @@ sequenceDiagram
 
 ### 4.3 详细步骤
 
-`LikeService.setLike(...)` 的处理顺序如下：
+`LikeApplicationService.setLike(...)` 的处理顺序如下：
 
 1. 校验 `actorUserId`
 2. 校验 `entityType` 与 `entityId`
@@ -167,13 +169,13 @@ sequenceDiagram
    - 条件是 `!existed && liked`
    - 如果对象是帖子或评论，先回源内容模块解析目标归属用户
    - 若双方存在拉黑关系，则拒绝本次创建点赞
-6. 根据当前配置选择持久化路径：
-   - 非 Redis 路径（DB / InMemory）：走 `handleSetLikeForNonRedisStorage(...)`
-   - Redis 路径：走 `handleSetLikeForRedisStorage(...)`
-7. 若状态确实发生变化，则构造 `LikePayload` 并发布：
+6. 通过 `LikeRepository.setLike(...)` 写入目标状态；DB、Redis、InMemory 的差异由 infrastructure repository 实现承接
+7. 若状态确实发生变化，则构造 `LikeChangedDomainEvent`
+8. application 先按需要调用 foreign owner-domain `UserPointsAwardActionApi` 与 `GrowthTaskProgressActionApi`
+9. application 再通过 `SocialDomainEventPublisher.publishLikeChanged(...)` 发布领域事件，由 `LocalSocialDomainEventPublisher` 映射成：
    - `LikeCreated`
    - `LikeRemoved`
-8. 最后重新查询并返回：
+10. 最后重新查询并返回：
    - 当前是否已点赞
    - 当前实体点赞数
 
@@ -182,7 +184,7 @@ sequenceDiagram
 点赞对象的可信元信息来自 `ContentEntityResolver`：
 
 - 如果 `entityType == USER`，服务端直接把 `entityId` 当作 `entityUserId`
-- 如果 `entityType == POST` 或 `COMMENT`，则通过 `ContentEntityService` 回源解析：
+- 如果 `entityType == POST` 或 `COMMENT`，则通过 `ContentEntityQueryApi` 回源解析：
   - `entityUserId`：被点赞实体的归属用户
   - `postId`：所属帖子
 
@@ -212,7 +214,7 @@ sequenceDiagram
   - 实体点赞集合
   - 被赞用户获赞计数
 - repository 会声明自己需要显式补偿；
-- `LikeService` 只依赖 repository 抽象，在 repository 声明“需要补偿”时才注册事务回滚补偿并在事件发布失败时执行反向回滚。
+- `LikeApplicationService` 只依赖 repository 抽象，在 repository 声明“需要补偿”时才注册事务回滚补偿并在同步副作用或事件发布失败时执行反向回滚。
 
 这说明当前 Redis 路径的复杂度主要集中在 storage adapter 的写语义上，而不是 outbox 本身。
 
@@ -246,7 +248,7 @@ sequenceDiagram
 
 ### 5.2 详细步骤
 
-`FollowService.follow(...)` 的处理顺序如下：
+`FollowApplicationService.follow(...)` 的处理顺序如下：
 
 1. 校验 `actorUserId`
 2. 校验 `entityType` 与 `entityId`
@@ -281,6 +283,7 @@ sequenceDiagram
   - `follower:<entityType>:<entityId>`
 - 如果脚本发现一侧存在、一侧缺失，还会尝试修复历史双写不一致
 - 与点赞类似，repository 会把“需要显式补偿”作为能力暴露出来，service 只按 repository 能力决定是否注册事务回滚补偿和事件失败补偿。
+- 与点赞类似，repository 会把“需要显式补偿”作为能力暴露出来，application service 只按 repository 能力决定是否注册事务回滚补偿和事件失败补偿。
 
 ### 5.5 关注事件 payload 语义
 
@@ -358,7 +361,7 @@ sequenceDiagram
 
 如果 `events.outbox.enabled = false`，社交事件的典型处理方式是：
 
-- `LikeService` / `FollowService` 发布 `SocialContractEvent`
+- `LikeApplicationService` / `FollowApplicationService` 发布 social 领域事件，`LocalSocialDomainEventPublisher` 映射并发布 `SocialContractEvent`
 - `NoticeProjectionListener`、`PointsProjectionListener`、`TaskProgressProjectionListener`
   使用 `@TransactionalEventListener(phase = AFTER_COMMIT)` 直接处理副作用
 
@@ -373,7 +376,7 @@ sequenceDiagram
 
 如果 `events.outbox.enabled = true`，当前主配置会启用以下模式：
 
-1. `LikeService` / `FollowService` 仍先发布 `SocialContractEvent`
+1. `LikeApplicationService` / `FollowApplicationService` 先发布 social 领域事件，infrastructure adapter 再发布 `SocialContractEvent`
 2. `BEFORE_COMMIT` enqueuer 在同一个 DB 事务里写 `outbox_event`
 3. 主事务提交成功后，`OutboxWorkerScheduler` 周期性轮询 `outbox_event`
 4. 对应 `OutboxHandler` 异步处理副作用
@@ -399,15 +402,17 @@ sequenceDiagram
 
 ### 7.3 当前代码里“怎么使用 outbox”
 
-在当前项目里，“使用 outbox”并不是让 `LikeService` / `FollowService` 直接操作 `JdbcOutboxEventStore`，而是遵循下面这条链路：
+在当前项目里，“使用 outbox”并不是让 social application service 直接操作 `JdbcOutboxEventStore`，而是遵循下面这条链路：
 
-1. 业务 service 先发布一个稳定的 `SocialContractEvent`
-2. 可靠副作用的生产方监听这个事件，并在 `BEFORE_COMMIT` 阶段写入 `outbox_event`
-3. worker 再按 topic 调用对应 handler
+1. social application service 发布 social 领域事件
+2. `LocalSocialDomainEventPublisher` 把领域事件映射为稳定的 `SocialContractEvent`
+3. 可靠副作用的生产方监听这个事件，并在 `BEFORE_COMMIT` 阶段写入 `outbox_event`
+4. worker 再按 topic 调用对应 handler
 
 这意味着：
 
-- 点赞 / 关注 service 不应该直接调用通知、积分、任务服务
+- social domain service 不应该调用通知、积分、任务服务
+- application service 可以在确实需要同步跨域协作时调用 foreign owner-domain `api.action`
 - 新增一个“必须最终达成”的社交副作用时，优先新增：
   - 一个 `BEFORE_COMMIT` enqueuer
   - 一个 `OutboxHandler`
@@ -464,7 +469,7 @@ sequenceDiagram
 
 因此当前 Redis 路径里仍然存在：
 
-- service 层手工回滚补偿
+- application 层手工回滚补偿
 - 事务回滚时的同步注册
 - 发布失败时的反向写
 
@@ -508,24 +513,24 @@ sequenceDiagram
 推荐做法：
 
 - 使用 `@TransactionalEventListener(phase = AFTER_COMMIT)`
-- 不要把它们直接塞回 `LikeService` / `FollowService`
+- 不要把它们直接塞回 domain service；优先监听 `contracts.event`
 
 ### 9.3 不推荐的接入方式
 
-当前不推荐在 `LikeService` / `FollowService` 中直接写：
+当前不推荐在 social domain service 中直接写：
 
 - 下游服务调用
 - 手工序列化下游 payload
 - 下游重试逻辑
 - 面向具体消费者的存储策略分支
 
-service 更适合只负责：
+social domain service 更适合只负责：
 
 - 业务规则
 - 主状态变更
-- 事件发布
+- 领域规则与领域事件构造
 
-而不是直接承担下游投影编排。
+下游投影编排应留在 application service、foreign `api.action` 或事件消费者中。
 
 ---
 
@@ -533,31 +538,34 @@ service 更适合只负责：
 
 ### 10.1 写接口与请求对象
 
-- `backend/community-app/src/main/java/com/nowcoder/community/social/like/LikeController.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/social/follow/FollowController.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/social/like/dto/LikeRequest.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/social/follow/dto/FollowRequest.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/social/controller/LikeController.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/social/controller/FollowController.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/social/controller/dto/LikeRequest.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/social/controller/dto/FollowRequest.java`
 
 ### 10.2 主业务服务
 
-- `backend/community-app/src/main/java/com/nowcoder/community/social/like/LikeService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/social/follow/FollowService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/social/service/ContentEntityResolver.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/social/application/LikeApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/social/application/FollowApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/social/application/ContentEntityResolver.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/social/domain/service/LikeDomainService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/social/domain/service/FollowDomainService.java`
 
 ### 10.3 社交主存储
 
-- `backend/community-app/src/main/java/com/nowcoder/community/social/like/LikeRepository.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/social/like/DbLikeRepository.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/social/like/RedisLikeRepository.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/social/follow/FollowRepository.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/social/follow/DbFollowRepository.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/social/follow/RedisFollowRepository.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/social/domain/repository/LikeRepository.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/social/infrastructure/persistence/MyBatisLikeRepository.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/social/infrastructure/persistence/RedisLikeRepository.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/social/domain/repository/FollowRepository.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/social/infrastructure/persistence/MyBatisFollowRepository.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/social/infrastructure/persistence/RedisFollowRepository.java`
 
 ### 10.4 社交事件与 payload
 
 - `backend/community-app/src/main/java/com/nowcoder/community/social/contracts/event/SocialEventTypes.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/social/contracts/event/SocialContractEvent.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/social/event/LocalSocialEventPublisher.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/social/domain/event/SocialDomainEventPublisher.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/social/infrastructure/event/LocalSocialDomainEventPublisher.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/social/contracts/event/LikePayload.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/social/contracts/event/FollowPayload.java`
 

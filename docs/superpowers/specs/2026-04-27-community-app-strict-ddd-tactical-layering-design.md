@@ -1,7 +1,7 @@
 # Community App Strict DDD Tactical Layering Design
 
 **Date:** 2026-04-27
-**Status:** Approved
+**Status:** Approved and implemented in `backend/community-app`
 **Owner:** Codex
 
 ---
@@ -53,7 +53,7 @@ com.nowcoder.community.<domain>
     event
 ```
 
-`service`, `entity`, `mapper`, and `app` packages that already exist are legacy migration surfaces. They may remain temporarily, but touched code should move toward the required package shape instead of extending those packages as the long-term style.
+Root `service`, `entity`, `mapper`, `event`, and `app` business packages are retired migration surfaces in `backend/community-app`. Do not add new code there; use the required package shape below each owner domain instead.
 
 ---
 
@@ -123,6 +123,8 @@ Infrastructure may depend on domain contracts to implement them. Domain must not
 
 Same-domain callers must use same-domain `ApplicationService`, not same-domain `api.*`.
 
+Owner API implementations belong in infrastructure adapters, for example `content.infrastructure.api.PostReadQueryApiAdapter`. Same-domain controllers and jobs should consume `application.result.*`, not `api.model.*`.
+
 ---
 
 ## 4. Naming Rules
@@ -161,7 +163,7 @@ When touching a domain:
 4. Introduce `domain.repository` interfaces when persistence is part of the use case.
 5. Move MyBatis mapper/dataobject usage behind `infrastructure.persistence`.
 6. Keep foreign-domain collaboration on owner-domain `api.*` or `contracts.event`.
-7. Delete or shrink legacy `UseCase`, raw `Service`, `app`, `entity`, and `mapper` surfaces as the touched slice converges.
+7. Keep legacy `UseCase`, raw `Service`, `app`, `entity`, `mapper`, and root `event` surfaces retired as the touched slice evolves.
 
 Do not add new legacy-style code just because adjacent legacy code still exists.
 
@@ -178,3 +180,4 @@ Architecture docs must stay aligned:
 
 ArchUnit tests under `backend/community-app/src/test/java/com/nowcoder/community/app/arch` should be expanded as the migration proceeds so these rules become executable guardrails.
 
+The current executable guardrails include `DddLayeringArchTest`, `ControllerBoundaryArchTest`, and `DtoBoundaryArchTest`. They protect retired root legacy packages, same-domain controller boundaries, and DTO leakage.

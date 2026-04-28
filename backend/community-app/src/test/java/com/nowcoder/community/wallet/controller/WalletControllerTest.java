@@ -5,16 +5,15 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
-import com.nowcoder.community.wallet.dto.WalletSummaryResponse;
+import com.nowcoder.community.wallet.application.WalletAccountApplicationService;
+import com.nowcoder.community.wallet.application.WalletApplicationService;
+import com.nowcoder.community.wallet.application.WalletRechargeApplicationService;
+import com.nowcoder.community.wallet.application.WalletTransferApplicationService;
+import com.nowcoder.community.wallet.application.WalletWithdrawApplicationService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
-import com.nowcoder.community.wallet.model.RechargeOrderResult;
-import com.nowcoder.community.wallet.model.TransferOrderResult;
-import com.nowcoder.community.wallet.model.WithdrawOrderResult;
-import com.nowcoder.community.wallet.service.WalletApplicationService;
-import com.nowcoder.community.wallet.service.RechargeService;
-import com.nowcoder.community.wallet.service.TransferService;
-import com.nowcoder.community.wallet.service.WalletQueryService;
-import com.nowcoder.community.wallet.service.WithdrawService;
+import com.nowcoder.community.wallet.application.result.RechargeOrderResult;
+import com.nowcoder.community.wallet.application.result.TransferOrderResult;
+import com.nowcoder.community.wallet.application.result.WithdrawOrderResult;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
@@ -54,16 +53,16 @@ class WalletControllerTest {
     private MockMvc mockMvc;
 
     @MockBean
-    private WalletQueryService walletQueryService;
+    private WalletAccountApplicationService accountService;
 
     @MockBean
-    private RechargeService rechargeService;
+    private WalletRechargeApplicationService rechargeService;
 
     @MockBean
-    private WithdrawService withdrawService;
+    private WalletWithdrawApplicationService withdrawService;
 
     @MockBean
-    private TransferService transferService;
+    private WalletTransferApplicationService transferService;
 
     @MockBean
     private IdempotencyGuard idempotencyGuard;
@@ -127,7 +126,8 @@ class WalletControllerTest {
     @Test
     void walletSummaryShouldReturnCurrentBalanceForAuthenticatedUser() throws Exception {
         UUID userId = uuid(1);
-        when(walletQueryService.summary(userId)).thenReturn(new WalletSummaryResponse(userId, 2300, "ACTIVE"));
+        when(accountService.balanceOfUser(userId)).thenReturn(2300L);
+        when(accountService.statusOfUser(userId)).thenReturn("ACTIVE");
 
         mockMvc.perform(get("/api/wallet/summary")
                         .with(jwt().jwt(jwt -> jwt.subject(userId.toString()).claim("username", "u1"))))

@@ -1,18 +1,16 @@
 package com.nowcoder.community.app.security;
 
-import com.nowcoder.community.content.api.model.PostSummaryView;
-import com.nowcoder.community.content.service.BookmarkApplicationService;
-import com.nowcoder.community.content.service.CommentApplicationService;
-import com.nowcoder.community.content.service.CommentReadApplicationService;
-import com.nowcoder.community.content.service.PostModerationApplicationService;
-import com.nowcoder.community.content.service.PostPublishingApplicationService;
-import com.nowcoder.community.content.service.PostReadApplicationService;
-import com.nowcoder.community.user.api.model.UserProfileView;
-import com.nowcoder.community.user.service.AvatarService;
-import com.nowcoder.community.user.service.UserProfileApplicationService;
-import com.nowcoder.community.user.dto.UserProfilePageView;
-import com.nowcoder.community.user.service.UserReadApplicationService;
-import com.nowcoder.community.user.service.UserSocialProfileService;
+import com.nowcoder.community.content.application.result.PostSummaryResult;
+import com.nowcoder.community.content.application.PostPublishingApplicationService;
+import com.nowcoder.community.content.application.PostModerationApplicationService;
+import com.nowcoder.community.content.application.BookmarkApplicationService;
+import com.nowcoder.community.content.application.CommentApplicationService;
+import com.nowcoder.community.content.application.CommentReadApplicationService;
+import com.nowcoder.community.content.application.PostReadApplicationService;
+import com.nowcoder.community.user.application.UserProfileApplicationService;
+import com.nowcoder.community.user.application.UserReadApplicationService;
+import com.nowcoder.community.user.application.result.UserProfilePageResult;
+import com.nowcoder.community.user.infrastructure.avatar.AvatarService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -77,12 +75,9 @@ class PublicReadEndpointSecurityTest {
     @MockBean
     private AvatarService avatarService;
 
-    @MockBean
-    private UserSocialProfileService userSocialProfileService;
-
     @Test
     void unauthenticatedBatchPostSummaryShouldBeAllowed() throws Exception {
-        when(postReadApplicationService.listPostsByIds(anyList())).thenReturn(List.<PostSummaryView>of());
+        when(postReadApplicationService.listPostsByIds(anyList())).thenReturn(List.<PostSummaryResult>of());
 
         mockMvc.perform(post("/api/posts/batch-summary")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -96,12 +91,10 @@ class PublicReadEndpointSecurityTest {
 
     @Test
     void unauthenticatedRecentActivityEndpointsShouldBeAllowed() throws Exception {
-        when(userReadApplicationService.getProfile(USER_ID))
-                .thenReturn(new UserProfileView(USER_ID, "u42", "h42", 0, 0, new Date(), 0, 1, 0L, "UNKNOWN"));
         when(userProfileApplicationService.listRecentPosts(eq(USER_ID), any(), any()))
-                .thenReturn(List.<UserProfilePageView.RecentPostSummaryView>of());
+                .thenReturn(List.<UserProfilePageResult.RecentPostSummaryResult>of());
         when(userProfileApplicationService.listRecentComments(eq(USER_ID), any(), any()))
-                .thenReturn(List.<UserProfilePageView.RecentCommentItemView>of());
+                .thenReturn(List.<UserProfilePageResult.RecentCommentItemResult>of());
 
         mockMvc.perform(get("/api/users/" + USER_ID + "/recent-posts"))
                 .andExpect(status().isOk());
@@ -113,7 +106,7 @@ class PublicReadEndpointSecurityTest {
     @Test
     void unauthenticatedUserProfileShouldBeAllowed() throws Exception {
         when(userProfileApplicationService.get(any(), eq(USER_ID)))
-                .thenReturn(new UserProfilePageView(
+                .thenReturn(new UserProfilePageResult(
                         USER_ID,
                         "u42",
                         "h42",
@@ -141,7 +134,7 @@ class PublicReadEndpointSecurityTest {
     @Test
     void directCommunityAppReadEndpointShouldNotEmitCorsHeaders() throws Exception {
         when(userProfileApplicationService.listRecentPosts(eq(USER_ID), any(), any()))
-                .thenReturn(List.<UserProfilePageView.RecentPostSummaryView>of());
+                .thenReturn(List.<UserProfilePageResult.RecentPostSummaryResult>of());
 
         mockMvc.perform(get("/api/users/" + USER_ID + "/recent-posts").header("Origin", "http://localhost:12881"))
                 .andExpect(status().isOk())
@@ -152,7 +145,7 @@ class PublicReadEndpointSecurityTest {
     @Test
     void directUserProfileReadEndpointShouldNotEmitCorsHeaders() throws Exception {
         when(userProfileApplicationService.get(any(), eq(USER_ID)))
-                .thenReturn(new UserProfilePageView(
+                .thenReturn(new UserProfilePageResult(
                         USER_ID,
                         "u42",
                         "h42",

@@ -1,24 +1,23 @@
 package com.nowcoder.community.content.controller;
 
-import com.nowcoder.community.content.api.model.CommentView;
-import com.nowcoder.community.content.api.model.PostCreateResult;
-import com.nowcoder.community.content.api.model.PostDetailView;
-import com.nowcoder.community.content.api.model.PostSummaryView;
-import com.nowcoder.community.content.assembler.PostHttpResponseAssembler;
-import com.nowcoder.community.content.dto.CommentResponse;
-import com.nowcoder.community.content.dto.BatchPostSummaryRequest;
-import com.nowcoder.community.content.dto.CreateCommentRequest;
-import com.nowcoder.community.content.dto.CreatePostRequest;
-import com.nowcoder.community.content.dto.CreatePostResponse;
-import com.nowcoder.community.content.dto.PostDetailResponse;
-import com.nowcoder.community.content.dto.PostSummaryResponse;
-import com.nowcoder.community.content.dto.UpdateCommentRequest;
-import com.nowcoder.community.content.dto.UpdatePostRequest;
-import com.nowcoder.community.content.service.CommentApplicationService;
-import com.nowcoder.community.content.service.CommentReadApplicationService;
-import com.nowcoder.community.content.service.PostModerationApplicationService;
-import com.nowcoder.community.content.service.PostPublishingApplicationService;
-import com.nowcoder.community.content.service.PostReadApplicationService;
+import com.nowcoder.community.content.application.PostPublishingApplicationService;
+import com.nowcoder.community.content.application.result.CommentResult;
+import com.nowcoder.community.content.application.result.PostCreateResult;
+import com.nowcoder.community.content.application.result.PostDetailResult;
+import com.nowcoder.community.content.application.result.PostSummaryResult;
+import com.nowcoder.community.content.controller.dto.CommentResponse;
+import com.nowcoder.community.content.controller.dto.BatchPostSummaryRequest;
+import com.nowcoder.community.content.controller.dto.CreateCommentRequest;
+import com.nowcoder.community.content.controller.dto.CreatePostRequest;
+import com.nowcoder.community.content.controller.dto.CreatePostResponse;
+import com.nowcoder.community.content.controller.dto.PostDetailResponse;
+import com.nowcoder.community.content.controller.dto.PostSummaryResponse;
+import com.nowcoder.community.content.controller.dto.UpdateCommentRequest;
+import com.nowcoder.community.content.controller.dto.UpdatePostRequest;
+import com.nowcoder.community.content.application.CommentApplicationService;
+import com.nowcoder.community.content.application.CommentReadApplicationService;
+import com.nowcoder.community.content.application.PostModerationApplicationService;
+import com.nowcoder.community.content.application.PostReadApplicationService;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
@@ -47,22 +46,19 @@ public class PostController {
     private final PostPublishingApplicationService postPublishingApplicationService;
     private final PostModerationApplicationService postModerationApplicationService;
     private final CommentApplicationService commentApplicationService;
-    private final PostHttpResponseAssembler responseAssembler;
 
     public PostController(
             PostReadApplicationService postReadApplicationService,
             CommentReadApplicationService commentReadApplicationService,
             PostPublishingApplicationService postPublishingApplicationService,
             PostModerationApplicationService postModerationApplicationService,
-            CommentApplicationService commentApplicationService,
-            PostHttpResponseAssembler responseAssembler
+            CommentApplicationService commentApplicationService
     ) {
         this.postReadApplicationService = postReadApplicationService;
         this.commentReadApplicationService = commentReadApplicationService;
         this.postPublishingApplicationService = postPublishingApplicationService;
         this.postModerationApplicationService = postModerationApplicationService;
         this.commentApplicationService = commentApplicationService;
-        this.responseAssembler = responseAssembler;
     }
 
     @GetMapping
@@ -76,8 +72,8 @@ public class PostController {
             @RequestParam(required = false) Integer size
     ) {
         UUID currentUserId = CurrentUser.tryUserUuid(authentication);
-        List<PostSummaryView> posts = postReadApplicationService.listPosts(currentUserId, order, categoryId, tag, subscribed, page, size);
-        return Result.ok(responseAssembler.toPostSummaryResponses(posts));
+        List<PostSummaryResult> posts = postReadApplicationService.listPosts(currentUserId, order, categoryId, tag, subscribed, page, size);
+        return Result.ok(toPostSummaryResponses(posts));
     }
 
     @PostMapping
@@ -95,21 +91,21 @@ public class PostController {
                 request.getCategoryId(),
                 request.getTags()
         );
-        return Result.ok(responseAssembler.toCreatePostResponse(createResult));
+        return Result.ok(CreatePostResponse.from(createResult));
     }
 
     @PostMapping("/batch-summary")
     public Result<List<PostSummaryResponse>> batchSummary(@Valid @RequestBody BatchPostSummaryRequest request) {
         List<UUID> postIds = request == null ? List.of() : request.getPostIds();
-        List<PostSummaryView> posts = postReadApplicationService.listPostsByIds(postIds);
-        return Result.ok(responseAssembler.toPostSummaryResponses(posts));
+        List<PostSummaryResult> posts = postReadApplicationService.listPostsByIds(postIds);
+        return Result.ok(toPostSummaryResponses(posts));
     }
 
     @GetMapping("/{postId}")
     public Result<PostDetailResponse> detail(Authentication authentication, @PathVariable UUID postId) {
         UUID currentUserId = CurrentUser.tryUserUuid(authentication);
-        PostDetailView detail = postReadApplicationService.getPostDetail(currentUserId, postId);
-        return Result.ok(responseAssembler.toPostDetailResponse(detail));
+        PostDetailResult detail = postReadApplicationService.getPostDetail(currentUserId, postId);
+        return Result.ok(PostDetailResponse.from(detail));
     }
 
     @GetMapping("/{postId}/comments")
@@ -118,8 +114,8 @@ public class PostController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        List<CommentView> comments = commentReadApplicationService.comments(postId, page, size);
-        return Result.ok(responseAssembler.toCommentResponses(comments));
+        List<CommentResult> comments = commentReadApplicationService.comments(postId, page, size);
+        return Result.ok(toCommentResponses(comments));
     }
 
     @PostMapping("/{postId}/comments")
@@ -174,8 +170,8 @@ public class PostController {
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        List<CommentView> replies = commentReadApplicationService.replies(postId, commentId, page, size);
-        return Result.ok(responseAssembler.toCommentResponses(replies));
+        List<CommentResult> replies = commentReadApplicationService.replies(postId, commentId, page, size);
+        return Result.ok(toCommentResponses(replies));
     }
 
     @PostMapping("/{postId}/top")
@@ -197,5 +193,19 @@ public class PostController {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
         postModerationApplicationService.delete(actorUserId, postId);
         return Result.ok();
+    }
+
+    private static List<PostSummaryResponse> toPostSummaryResponses(List<PostSummaryResult> views) {
+        if (views == null || views.isEmpty()) {
+            return List.of();
+        }
+        return views.stream().map(PostSummaryResponse::from).toList();
+    }
+
+    private static List<CommentResponse> toCommentResponses(List<CommentResult> views) {
+        if (views == null || views.isEmpty()) {
+            return List.of();
+        }
+        return views.stream().map(CommentResponse::from).toList();
     }
 }

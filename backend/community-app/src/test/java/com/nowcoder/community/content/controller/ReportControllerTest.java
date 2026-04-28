@@ -1,9 +1,9 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.content.dto.CreateReportRequest;
-import com.nowcoder.community.content.dto.CreateReportResponse;
-import com.nowcoder.community.content.service.ReportApplicationService;
+import com.nowcoder.community.content.controller.dto.CreateReportRequest;
+import com.nowcoder.community.content.controller.dto.CreateReportResponse;
+import com.nowcoder.community.content.application.ReportApplicationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

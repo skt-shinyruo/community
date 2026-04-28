@@ -1,6 +1,7 @@
 package com.nowcoder.community.analytics.controller;
 
-import com.nowcoder.community.analytics.service.AnalyticsApplicationService;
+import com.nowcoder.community.analytics.application.AnalyticsApplicationService;
+import com.nowcoder.community.analytics.application.command.AnalyticsRangeQuery;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import jakarta.validation.constraints.NotNull;
@@ -28,7 +29,7 @@ public class AnalyticsController {
             @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
             @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end
     ) {
-        return Result.ok(analyticsApplicationService.calculateUv(start, end));
+        return Result.ok(analyticsApplicationService.calculateUv(new AnalyticsRangeQuery(start, end)));
     }
 
     @GetMapping("/dau")
@@ -36,7 +37,7 @@ public class AnalyticsController {
             @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
             @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end
     ) {
-        return Result.ok(analyticsApplicationService.calculateDau(start, end));
+        return Result.ok(analyticsApplicationService.calculateDau(new AnalyticsRangeQuery(start, end)));
     }
 
     @GetMapping("/me")

@@ -1,11 +1,13 @@
 package com.nowcoder.community.user.controller;
 
-import com.nowcoder.community.user.dto.AvatarUploadTokenResponse;
+import com.nowcoder.community.user.application.result.AvatarUploadTokenResult;
 import com.nowcoder.community.user.config.AvatarStorageProperties;
-import com.nowcoder.community.user.service.AvatarStorageProvider;
-import com.nowcoder.community.user.service.AvatarStorageRouter;
-import com.nowcoder.community.user.service.StoredAvatar;
-import com.nowcoder.community.user.service.UserFileApplicationService;
+import com.nowcoder.community.user.application.UserFileApplicationService;
+import com.nowcoder.community.user.infrastructure.avatar.AvatarService;
+import com.nowcoder.community.user.infrastructure.avatar.AvatarStorageProvider;
+import com.nowcoder.community.user.infrastructure.avatar.AvatarStorageRouter;
+import com.nowcoder.community.user.infrastructure.avatar.StoredAvatar;
+import com.nowcoder.community.user.infrastructure.avatar.UserAvatarStorageAdapter;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
@@ -37,7 +39,7 @@ class FilesControllerStorageRoutingTest {
             }
 
             @Override
-            public AvatarUploadTokenResponse createUploadToken(UUID userId, String fileName) {
+            public AvatarUploadTokenResult createUploadToken(UUID userId, String fileName) {
                 return null;
             }
 
@@ -58,7 +60,8 @@ class FilesControllerStorageRoutingTest {
         };
 
         AvatarStorageRouter router = new AvatarStorageRouter(props, List.of(stub));
-        FilesController controller = new FilesController(new UserFileApplicationService(router));
+        UserAvatarStorageAdapter adapter = new UserAvatarStorageAdapter(mock(AvatarService.class), router);
+        FilesController controller = new FilesController(new UserFileApplicationService(adapter));
 
         HttpServletRequest req = mock(HttpServletRequest.class);
         when(req.getRequestURI()).thenReturn("/files/avatar/" + userId + "/0123456789abcdef0123456789abcdef");

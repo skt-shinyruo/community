@@ -1,8 +1,8 @@
 package com.nowcoder.community.event;
 
 import com.nowcoder.community.common.event.BestEffortLocalEventListener;
-import com.nowcoder.community.content.event.SocialInteractionProjectionListener;
-import com.nowcoder.community.notice.event.NoticeProjectionListener;
+import com.nowcoder.community.content.infrastructure.event.SocialInteractionProjectionListener;
+import com.nowcoder.community.notice.infrastructure.event.NoticeProjectionListener;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;

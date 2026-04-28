@@ -1,8 +1,13 @@
 # Community App 应用层单一风格收敛设计稿
 
 **Date:** 2026-04-23
-**Status:** Approved for planning
+**Status:** Superseded
 **Owner:** Codex
+
+> Superseded by `docs/superpowers/specs/2026-04-27-community-app-strict-ddd-tactical-layering-design.md`.
+> Future backend business code in `backend/community-app` must follow strict DDD Tactical Layering:
+> `controller -> application -> domain -> infrastructure`.
+> This older document is retained only as migration history for the previous lightweight ApplicationService convergence.
 
 ---
 

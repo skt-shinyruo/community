@@ -1,4 +1,4 @@
-package com.nowcoder.community.content.util;
+package com.nowcoder.community.content.infrastructure.text;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;

@@ -17,11 +17,11 @@ class LegacyVirtualMarketRetirementTest {
 
     @Test
     void legacyVirtualMarketClassesShouldNotRemainOnClasspath() {
-        assertClassIsRetired("com.nowcoder.community.market.service.VirtualOrderService");
-        assertClassIsRetired("com.nowcoder.community.market.service.VirtualDisputeService");
-        assertClassIsRetired("com.nowcoder.community.market.service.VirtualListingService");
-        assertClassIsRetired("com.nowcoder.community.market.service.VirtualInventoryService");
-        assertClassIsRetired("com.nowcoder.community.market.service.VirtualMarketQueryService");
+        assertClassIsRetired("com.nowcoder.community.market.application.VirtualOrderService");
+        assertClassIsRetired("com.nowcoder.community.market.application.VirtualDisputeService");
+        assertClassIsRetired("com.nowcoder.community.market.application.VirtualListingService");
+        assertClassIsRetired("com.nowcoder.community.market.application.VirtualInventoryService");
+        assertClassIsRetired("com.nowcoder.community.market.application.VirtualMarketQueryService");
         assertClassIsRetired("com.nowcoder.community.infra.job.handlers.VirtualOrderAutoReleaseHandler");
         assertClassIsRetired("com.nowcoder.community.market.api.action.VirtualOrderAutoReleaseActionApi");
         assertClassIsRetired("com.nowcoder.community.market.api.model.VirtualOrderAutoReleaseResult");

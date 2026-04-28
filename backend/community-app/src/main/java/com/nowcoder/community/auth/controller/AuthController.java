@@ -1,24 +1,44 @@
 package com.nowcoder.community.auth.controller;
 
-import com.nowcoder.community.auth.dto.LoginRequest;
-import com.nowcoder.community.auth.dto.LoginResponse;
-import com.nowcoder.community.auth.dto.MeResponse;
-import com.nowcoder.community.auth.dto.CaptchaVerifyRequest;
-import com.nowcoder.community.auth.dto.CaptchaIssueResponse;
-import com.nowcoder.community.auth.dto.RegisterCodeResendRequest;
-import com.nowcoder.community.auth.dto.RegisterCodeResendResponse;
-import com.nowcoder.community.auth.dto.RegisterCodeVerifyRequest;
-import com.nowcoder.community.auth.dto.RegisterRequest;
-import com.nowcoder.community.auth.dto.RegisterResponse;
-import com.nowcoder.community.auth.dto.PasswordResetConfirmRequest;
-import com.nowcoder.community.auth.dto.PasswordResetRequestRequest;
-import com.nowcoder.community.auth.dto.PasswordResetRequestResponse;
-import com.nowcoder.community.auth.service.AuthApplicationService;
+import com.nowcoder.community.auth.application.AuthApplicationService;
+import com.nowcoder.community.auth.application.command.ConfirmPasswordResetCommand;
+import com.nowcoder.community.auth.application.command.IssueCaptchaCommand;
+import com.nowcoder.community.auth.application.command.LoginCommand;
+import com.nowcoder.community.auth.application.command.LogoutCommand;
+import com.nowcoder.community.auth.application.command.RefreshCommand;
+import com.nowcoder.community.auth.application.command.RegisterCommand;
+import com.nowcoder.community.auth.application.command.RequestPasswordResetCommand;
+import com.nowcoder.community.auth.application.command.ResendRegisterCodeCommand;
+import com.nowcoder.community.auth.application.command.VerifyCaptchaCommand;
+import com.nowcoder.community.auth.application.command.VerifyRegisterCodeCommand;
+import com.nowcoder.community.auth.application.result.CaptchaIssueResult;
+import com.nowcoder.community.auth.application.result.LoginResult;
+import com.nowcoder.community.auth.application.result.PasswordResetRequestResult;
+import com.nowcoder.community.auth.application.result.RefreshResult;
+import com.nowcoder.community.auth.application.result.RegisterCodeResendResult;
+import com.nowcoder.community.auth.application.result.RegisterResult;
+import com.nowcoder.community.auth.controller.dto.CaptchaIssueResponse;
+import com.nowcoder.community.auth.controller.dto.CaptchaVerifyRequest;
+import com.nowcoder.community.auth.controller.dto.LoginRequest;
+import com.nowcoder.community.auth.controller.dto.LoginResponse;
+import com.nowcoder.community.auth.controller.dto.MeResponse;
+import com.nowcoder.community.auth.controller.dto.RegisterCodeResendRequest;
+import com.nowcoder.community.auth.controller.dto.RegisterCodeResendResponse;
+import com.nowcoder.community.auth.controller.dto.RegisterCodeVerifyRequest;
+import com.nowcoder.community.auth.controller.dto.RegisterRequest;
+import com.nowcoder.community.auth.controller.dto.RegisterResponse;
+import com.nowcoder.community.auth.controller.dto.PasswordResetConfirmRequest;
+import com.nowcoder.community.auth.controller.dto.PasswordResetRequestRequest;
+import com.nowcoder.community.auth.controller.dto.PasswordResetRequestResponse;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -34,24 +54,46 @@ import java.util.UUID;
 public class AuthController {
 
     private final AuthApplicationService authApplicationService;
+    private final ClientIpResolver clientIpResolver;
 
-    public AuthController(AuthApplicationService authApplicationService) {
+    public AuthController(AuthApplicationService authApplicationService, ClientIpResolver clientIpResolver) {
         this.authApplicationService = authApplicationService;
+        this.clientIpResolver = clientIpResolver;
     }
 
     @PostMapping("/login")
     public Result<LoginResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse response) {
-        return Result.ok(authApplicationService.login(request, httpRequest, response));
+        ClientIpResolver.ResolvedClientIp resolvedIp = clientIpResolver.resolve(httpRequest);
+        LoginResult result = authApplicationService.login(new LoginCommand(
+                request.getUsername(),
+                request.getPassword(),
+                request.getCaptchaId(),
+                request.getCaptchaCode(),
+                resolvedIp == null ? null : resolvedIp.ip(),
+                resolvedIp == null ? null : resolvedIp.source()
+        ));
+        response.addHeader(HttpHeaders.SET_COOKIE, result.refreshCookie().toString());
+        return Result.ok(new LoginResponse(result.accessToken()));
     }
 
     @PostMapping("/refresh")
     public Result<LoginResponse> refresh(HttpServletRequest request, HttpServletResponse response) {
-        return Result.ok(authApplicationService.refresh(request, response));
+        try {
+            RefreshResult result = authApplicationService.refresh(new RefreshCommand(readRefreshToken(request)));
+            response.addHeader(HttpHeaders.SET_COOKIE, result.refreshCookie().toString());
+            return Result.ok(new LoginResponse(result.accessToken()));
+        } catch (BusinessException ex) {
+            if (authApplicationService.shouldClearRefreshCookie(ex)) {
+                response.addHeader(HttpHeaders.SET_COOKIE, authApplicationService.clearRefreshCookie().toString());
+            }
+            throw ex;
+        }
     }
 
     @PostMapping("/logout")
-    public Result<Void> logout(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
-        authApplicationService.logout(request, response);
+    public Result<Void> logout(HttpServletRequest request, HttpServletResponse response) {
+        authApplicationService.logout(new LogoutCommand(readRefreshToken(request)));
+        response.addHeader(HttpHeaders.SET_COOKIE, authApplicationService.clearRefreshCookie().toString());
         return Result.ok();
     }
 
@@ -68,36 +110,99 @@ public class AuthController {
 
     @PostMapping("/register")
     public Result<RegisterResponse> register(@Valid @RequestBody RegisterRequest request, HttpServletRequest httpRequest) {
-        return Result.ok(authApplicationService.register(request, httpRequest));
+        return Result.ok(toResponse(authApplicationService.register(new RegisterCommand(
+                request.getUsername(),
+                request.getPassword(),
+                request.getEmail(),
+                request.getCaptchaId(),
+                request.getCaptchaCode()
+        ))));
     }
 
     @PostMapping("/register/code/resend")
     public Result<RegisterCodeResendResponse> resendRegisterCode(@Valid @RequestBody RegisterCodeResendRequest request) {
-        return Result.ok(authApplicationService.resendRegisterCode(request));
+        return Result.ok(toResponse(authApplicationService.resendRegisterCode(new ResendRegisterCodeCommand(
+                request.getRegistrationToken(),
+                request.getCaptchaId(),
+                request.getCaptchaCode()
+        ))));
     }
 
     @PostMapping("/register/code/verify")
     public Result<LoginResponse> verifyRegisterCode(@Valid @RequestBody RegisterCodeVerifyRequest request, HttpServletResponse response) {
-        return Result.ok(authApplicationService.verifyRegisterCode(request, response));
+        LoginResult result = authApplicationService.verifyRegisterCode(new VerifyRegisterCodeCommand(
+                request.getRegistrationToken(),
+                request.getCode()
+        ));
+        response.addHeader(HttpHeaders.SET_COOKIE, result.refreshCookie().toString());
+        return Result.ok(new LoginResponse(result.accessToken()));
     }
 
     @GetMapping("/captcha")
     public Result<CaptchaIssueResponse> captcha(HttpServletResponse response) {
-        return Result.ok(authApplicationService.captcha(response));
+        CaptchaIssueResult result = authApplicationService.captcha(new IssueCaptchaCommand());
+        response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0");
+        response.setHeader(HttpHeaders.PRAGMA, "no-cache");
+        return Result.ok(new CaptchaIssueResponse(result.captchaId(), result.imageBase64(), result.ttlSeconds()));
     }
 
     @PostMapping("/captcha/verify")
     public Result<Boolean> verifyCaptcha(@Valid @RequestBody CaptchaVerifyRequest request) {
-        return Result.ok(authApplicationService.verifyCaptcha(request));
+        return Result.ok(authApplicationService.verifyCaptcha(new VerifyCaptchaCommand(request.getCaptchaId(), request.getCode())));
     }
 
     @PostMapping("/password/reset/request")
     public Result<PasswordResetRequestResponse> requestPasswordReset(@Valid @RequestBody PasswordResetRequestRequest request) {
-        return Result.ok(authApplicationService.requestPasswordReset(request));
+        PasswordResetRequestResult result = authApplicationService.requestPasswordReset(new RequestPasswordResetCommand(
+                request.getEmail(),
+                request.getCaptchaId(),
+                request.getCaptchaCode()
+        ));
+        return Result.ok(new PasswordResetRequestResponse(result.issued(), result.resetLink()));
     }
 
     @PostMapping("/password/reset/confirm")
     public Result<Boolean> confirmPasswordReset(@Valid @RequestBody PasswordResetConfirmRequest request) {
-        return Result.ok(authApplicationService.confirmPasswordReset(request));
+        return Result.ok(authApplicationService.confirmPasswordReset(new ConfirmPasswordResetCommand(
+                request.getResetToken(),
+                request.getNewPassword(),
+                request.getCaptchaId(),
+                request.getCaptchaCode()
+        )));
+    }
+
+    private String readRefreshToken(HttpServletRequest request) {
+        return readCookie(request, authApplicationService.refreshCookieName());
+    }
+
+    private String readCookie(HttpServletRequest request, String name) {
+        Cookie[] cookies = request == null ? null : request.getCookies();
+        if (cookies == null) {
+            return null;
+        }
+        for (Cookie cookie : cookies) {
+            if (cookie != null && name.equals(cookie.getName())) {
+                return cookie.getValue();
+            }
+        }
+        return null;
+    }
+
+    private RegisterResponse toResponse(RegisterResult result) {
+        RegisterResponse response = new RegisterResponse();
+        response.setUserId(result.userId());
+        response.setRegistrationToken(result.registrationToken());
+        response.setEmailCodeIssued(result.emailCodeIssued());
+        response.setMaskedEmail(result.maskedEmail());
+        response.setDebugEmailCode(result.debugEmailCode());
+        return response;
+    }
+
+    private RegisterCodeResendResponse toResponse(RegisterCodeResendResult result) {
+        RegisterCodeResendResponse response = new RegisterCodeResendResponse();
+        response.setIssued(result.issued());
+        response.setMaskedEmail(result.maskedEmail());
+        response.setDebugEmailCode(result.debugEmailCode());
+        return response;
     }
 }

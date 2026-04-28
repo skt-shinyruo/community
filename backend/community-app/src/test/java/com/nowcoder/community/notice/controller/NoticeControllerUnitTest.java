@@ -1,8 +1,10 @@
 package com.nowcoder.community.notice.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.notice.dto.NoticeItemResponse;
-import com.nowcoder.community.notice.service.NoticeApplicationService;
+import com.nowcoder.community.notice.application.NoticeApplicationService;
+import com.nowcoder.community.notice.application.command.ListNoticeItemsCommand;
+import com.nowcoder.community.notice.application.result.NoticeItemResult;
+import com.nowcoder.community.notice.controller.dto.NoticeItemResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,16 +40,17 @@ class NoticeControllerUnitTest {
     @Test
     void listShouldDelegateToNoticeOwnedDtoReturningServiceMethod() {
         UUID userId = uuid(7);
-        NoticeItemResponse item = new NoticeItemResponse();
-        item.setId(NOTICE_ID);
-        item.setTopic("comment");
-        when(noticeApplicationService.listNoticeItems(userId, "comment", null, null)).thenReturn(List.of(item));
+        NoticeItemResult item = new NoticeItemResult(NOTICE_ID, uuid(0), userId, "comment", "{}", 0, null);
+        when(noticeApplicationService.listNoticeItems(new ListNoticeItemsCommand(userId, "comment", null, null))).thenReturn(List.of(item));
 
         Result<List<NoticeItemResponse>> result = controller.list(authentication(userId), "comment", null, null);
 
         assertThat(result.getCode()).isEqualTo(0);
-        assertThat(result.getData()).containsExactly(item);
-        verify(noticeApplicationService).listNoticeItems(userId, "comment", null, null);
+        assertThat(result.getData()).singleElement().satisfies(response -> {
+            assertThat(response.getId()).isEqualTo(NOTICE_ID);
+            assertThat(response.getTopic()).isEqualTo("comment");
+        });
+        verify(noticeApplicationService).listNoticeItems(new ListNoticeItemsCommand(userId, "comment", null, null));
     }
 
     private Authentication authentication(UUID userId) {

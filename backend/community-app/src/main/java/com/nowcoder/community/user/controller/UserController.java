@@ -1,21 +1,23 @@
 package com.nowcoder.community.user.controller;
 
 import com.nowcoder.community.common.logging.SecurityEventLogger;
-import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
-import com.nowcoder.community.user.dto.AvatarUploadTokenResponse;
-import com.nowcoder.community.user.dto.BatchUserSummaryRequest;
-import com.nowcoder.community.user.dto.UpdateAvatarRequest;
-import com.nowcoder.community.user.dto.UserProfilePostSummaryResponse;
-import com.nowcoder.community.user.dto.UserProfileResponse;
-import com.nowcoder.community.user.dto.UserRecentCommentItemResponse;
-import com.nowcoder.community.user.dto.UserResolveResponse;
-import com.nowcoder.community.user.dto.UserSummaryResponse;
-import com.nowcoder.community.user.dto.UserProfilePageView;
-import com.nowcoder.community.user.service.UserAvatarApplicationService;
-import com.nowcoder.community.user.service.UserProfileApplicationService;
-import com.nowcoder.community.user.service.UserReadApplicationService;
+import com.nowcoder.community.user.application.UserAvatarApplicationService;
+import com.nowcoder.community.user.application.UserProfileApplicationService;
+import com.nowcoder.community.user.application.UserReadApplicationService;
+import com.nowcoder.community.user.application.result.AvatarUploadTokenResult;
+import com.nowcoder.community.user.application.result.UserProfilePageResult;
+import com.nowcoder.community.user.application.result.UserResolveResult;
+import com.nowcoder.community.user.application.result.UserSummaryResult;
+import com.nowcoder.community.user.controller.dto.AvatarUploadTokenResponse;
+import com.nowcoder.community.user.controller.dto.BatchUserSummaryRequest;
+import com.nowcoder.community.user.controller.dto.UpdateAvatarRequest;
+import com.nowcoder.community.user.controller.dto.UserProfilePostSummaryResponse;
+import com.nowcoder.community.user.controller.dto.UserProfileResponse;
+import com.nowcoder.community.user.controller.dto.UserRecentCommentItemResponse;
+import com.nowcoder.community.user.controller.dto.UserResolveResponse;
+import com.nowcoder.community.user.controller.dto.UserSummaryResponse;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,8 +35,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
-
-import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 
 @RestController
 @RequestMapping("/api/users")
@@ -56,7 +56,8 @@ public class UserController {
 
     @GetMapping("/{userId}")
     public Result<UserProfileResponse> getUser(Authentication authentication, @PathVariable UUID userId) {
-        UserProfilePageView user = userProfileApplicationService.get(authentication, userId);
+        UUID viewerId = CurrentUser.tryUserUuid(authentication);
+        UserProfilePageResult user = userProfileApplicationService.get(viewerId, userId);
         UserProfileResponse resp = new UserProfileResponse();
         resp.setId(user.userId());
         resp.setUsername(user.username());
@@ -99,22 +100,21 @@ public class UserController {
 
     @GetMapping("/resolve")
     public Result<UserResolveResponse> resolveByUsername(@RequestParam String username) {
-        return Result.ok(userReadApplicationService.resolveByUsername(username));
+        return Result.ok(toUserResolveResponse(userReadApplicationService.resolveByUsername(username)));
     }
 
     @PostMapping("/batch-summary")
     public Result<List<UserSummaryResponse>> batchSummary(@Valid @RequestBody BatchUserSummaryRequest request) {
         List<UUID> raw = request == null ? null : request.getUserIds();
-        return Result.ok(userReadApplicationService.listSummaryResponsesByIds(raw));
+        return Result.ok(userReadApplicationService.listSummaryResultsByIds(raw).stream()
+                .map(UserController::toUserSummaryResponse)
+                .toList());
     }
 
     @GetMapping("/{userId}/avatar/upload-token")
     public Result<AvatarUploadTokenResponse> uploadToken(Authentication authentication, @PathVariable UUID userId) {
         UUID currentUserId = CurrentUser.requireUserUuid(authentication);
-        if (!userId.equals(currentUserId)) {
-            throw new BusinessException(FORBIDDEN, "只能操作自己的头像");
-        }
-        AvatarUploadTokenResponse response = userAvatarApplicationService.createUploadToken(currentUserId, userId);
+        AvatarUploadTokenResponse response = toAvatarUploadTokenResponse(userAvatarApplicationService.createUploadToken(currentUserId, userId));
         SecurityEventLogger.info(
                 log,
                 "avatar_upload_token",
@@ -131,9 +131,6 @@ public class UserController {
     @PostMapping(value = "/{userId}/avatar/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Result<Void> uploadAvatar(Authentication authentication, @PathVariable UUID userId, @RequestParam("file") MultipartFile file, @RequestParam("fileName") String fileName) {
         UUID currentUserId = CurrentUser.requireUserUuid(authentication);
-        if (!userId.equals(currentUserId)) {
-            throw new BusinessException(FORBIDDEN, "只能操作自己的头像");
-        }
         userAvatarApplicationService.upload(currentUserId, userId, fileName, file);
         SecurityEventLogger.info(
                 log,
@@ -152,9 +149,6 @@ public class UserController {
     @PutMapping("/{userId}/avatar")
     public Result<Void> updateAvatar(Authentication authentication, @PathVariable UUID userId, @Valid @RequestBody UpdateAvatarRequest request) {
         UUID currentUserId = CurrentUser.requireUserUuid(authentication);
-        if (!userId.equals(currentUserId)) {
-            throw new BusinessException(FORBIDDEN, "只能操作自己的头像");
-        }
         userAvatarApplicationService.updateAvatar(currentUserId, userId, request.getFileName());
         SecurityEventLogger.info(
                 log,
@@ -168,7 +162,40 @@ public class UserController {
         return Result.ok();
     }
 
-    private static UserProfilePostSummaryResponse toUserProfilePostSummaryResponse(UserProfilePageView.RecentPostSummaryView view) {
+    private static AvatarUploadTokenResponse toAvatarUploadTokenResponse(AvatarUploadTokenResult token) {
+        if (token == null) {
+            return null;
+        }
+        AvatarUploadTokenResponse response = new AvatarUploadTokenResponse();
+        response.setProvider(token.provider());
+        response.setUploadToken(token.uploadToken());
+        response.setFileName(token.fileName());
+        response.setBucketUrl(token.bucketUrl());
+        response.setUploadUrl(token.uploadUrl());
+        response.setUploadMethod(token.uploadMethod());
+        response.setMaxBytes(token.maxBytes());
+        response.setMimeLimit(token.mimeLimit());
+        return response;
+    }
+
+    private static UserResolveResponse toUserResolveResponse(UserResolveResult user) {
+        UserResolveResponse response = new UserResolveResponse();
+        response.setId(user.id());
+        response.setUsername(user.username());
+        response.setHeaderUrl(user.headerUrl());
+        return response;
+    }
+
+    private static UserSummaryResponse toUserSummaryResponse(UserSummaryResult user) {
+        UserSummaryResponse response = new UserSummaryResponse();
+        response.setId(user.id());
+        response.setUsername(user.username());
+        response.setHeaderUrl(user.headerUrl());
+        response.setType(user.type());
+        return response;
+    }
+
+    private static UserProfilePostSummaryResponse toUserProfilePostSummaryResponse(UserProfilePageResult.RecentPostSummaryResult view) {
         UserProfilePostSummaryResponse response = new UserProfilePostSummaryResponse();
         response.setId(view.id());
         response.setUserId(view.userId());
@@ -187,7 +214,7 @@ public class UserController {
         return response;
     }
 
-    private static UserRecentCommentItemResponse toUserRecentCommentItemResponse(UserProfilePageView.RecentCommentItemView view) {
+    private static UserRecentCommentItemResponse toUserRecentCommentItemResponse(UserProfilePageResult.RecentCommentItemResult view) {
         UserRecentCommentItemResponse response = new UserRecentCommentItemResponse();
         response.setId(view.id());
         response.setUserId(view.userId());

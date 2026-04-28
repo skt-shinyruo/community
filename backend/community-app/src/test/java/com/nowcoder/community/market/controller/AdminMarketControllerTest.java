@@ -3,10 +3,10 @@ package com.nowcoder.community.market.controller;
 import com.nowcoder.community.app.security.CommunitySecurityConfig;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
-import com.nowcoder.community.market.model.MarketDisputeResult;
+import com.nowcoder.community.market.application.result.MarketDisputeResult;
 import com.nowcoder.community.market.security.MarketSecurityRules;
-import com.nowcoder.community.market.service.AdminMarketApplicationService;
-import com.nowcoder.community.market.service.MarketDisputeService;
+import com.nowcoder.community.market.application.AdminMarketApplicationService;
+import com.nowcoder.community.market.application.MarketDisputeApplicationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
@@ -45,7 +45,7 @@ class AdminMarketControllerTest {
     private MockMvc mockMvc;
 
     @MockBean
-    private MarketDisputeService marketDisputeService;
+    private MarketDisputeApplicationService marketDisputeService;
 
     @MockBean
     private JwtDecoder jwtDecoder;

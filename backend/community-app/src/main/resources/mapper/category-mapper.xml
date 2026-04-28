@@ -2,13 +2,13 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.nowcoder.community.content.mapper.CategoryMapper">
+<mapper namespace="com.nowcoder.community.content.infrastructure.persistence.mapper.CategoryMapper">
 
     <sql id="selectFields">
         id, name, description, position, create_time
     </sql>
 
-    <select id="selectCategories" resultType="com.nowcoder.community.content.entity.Category">
+    <select id="selectCategories" resultType="com.nowcoder.community.content.domain.model.Category">
         select
             c.id as id,
             c.name as name,
@@ -27,7 +27,7 @@
         order by c.position asc, c.id asc
     </select>
 
-    <select id="selectCategoryById" resultType="com.nowcoder.community.content.entity.Category">
+    <select id="selectCategoryById" resultType="com.nowcoder.community.content.domain.model.Category">
         select <include refid="selectFields"></include>
         from category
         where id = #{id, jdbcType=BINARY}

@@ -2,7 +2,7 @@ package com.nowcoder.community.im.projection;
 
 import com.nowcoder.community.im.common.projection.UserBlockRelationSnapshot;
 import com.nowcoder.community.im.common.projection.UserMessagingPolicySnapshot;
-import com.nowcoder.community.im.service.ImPolicySnapshotApplicationService;
+import com.nowcoder.community.im.application.ImPolicySnapshotApplicationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;

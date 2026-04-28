@@ -2,10 +2,14 @@ package com.nowcoder.community.notice.controller;
 
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
-import com.nowcoder.community.notice.dto.MarkNoticeReadRequest;
-import com.nowcoder.community.notice.dto.NoticeItemResponse;
-import com.nowcoder.community.notice.dto.NoticeTopicSummaryResponse;
-import com.nowcoder.community.notice.service.NoticeApplicationService;
+import com.nowcoder.community.notice.application.NoticeApplicationService;
+import com.nowcoder.community.notice.application.command.ListNoticeItemsCommand;
+import com.nowcoder.community.notice.application.command.MarkNoticeReadCommand;
+import com.nowcoder.community.notice.application.result.NoticeItemResult;
+import com.nowcoder.community.notice.application.result.NoticeTopicSummaryResult;
+import com.nowcoder.community.notice.controller.dto.MarkNoticeReadRequest;
+import com.nowcoder.community.notice.controller.dto.NoticeItemResponse;
+import com.nowcoder.community.notice.controller.dto.NoticeTopicSummaryResponse;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,7 +40,10 @@ public class NoticeController {
             @RequestParam(required = false) Integer size
     ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(noticeApplicationService.listNoticeItems(userId, topic, page, size));
+        return Result.ok(noticeApplicationService.listNoticeItems(new ListNoticeItemsCommand(userId, topic, page, size))
+                .stream()
+                .map(this::toResponse)
+                .toList());
     }
 
     @GetMapping("/unread-count")
@@ -48,13 +55,34 @@ public class NoticeController {
     @GetMapping("/summary")
     public Result<List<NoticeTopicSummaryResponse>> summary(Authentication authentication) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(noticeApplicationService.topicSummary(userId));
+        return Result.ok(noticeApplicationService.topicSummary(userId).stream().map(this::toResponse).toList());
     }
 
     @PutMapping("/read")
     public Result<Void> markRead(Authentication authentication, @Valid @RequestBody MarkNoticeReadRequest request) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        noticeApplicationService.markRead(userId, request.getIds());
+        noticeApplicationService.markRead(new MarkNoticeReadCommand(userId, request.getIds()));
         return Result.ok();
+    }
+
+    private NoticeItemResponse toResponse(NoticeItemResult result) {
+        NoticeItemResponse response = new NoticeItemResponse();
+        response.setId(result.id());
+        response.setSenderUserId(result.senderUserId());
+        response.setRecipientUserId(result.recipientUserId());
+        response.setTopic(result.topic());
+        response.setContent(result.content());
+        response.setStatus(result.status());
+        response.setCreateTime(result.createTime());
+        return response;
+    }
+
+    private NoticeTopicSummaryResponse toResponse(NoticeTopicSummaryResult result) {
+        NoticeTopicSummaryResponse response = new NoticeTopicSummaryResponse();
+        response.setTopic(result.topic());
+        response.setLatest(result.latest() == null ? null : toResponse(result.latest()));
+        response.setNoticeCount(result.noticeCount());
+        response.setUnreadCount(result.unreadCount());
+        return response;
     }
 }

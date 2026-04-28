@@ -3,9 +3,9 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="com.nowcoder.community.growth.mapper.UserLevelRuleConfigMapper">
+<mapper namespace="com.nowcoder.community.growth.infrastructure.persistence.mapper.UserLevelRuleConfigMapper">
 
-    <resultMap id="UserLevelRuleConfigResultMap" type="com.nowcoder.community.growth.entity.UserLevelRuleConfig">
+    <resultMap id="UserLevelRuleConfigResultMap" type="com.nowcoder.community.growth.infrastructure.persistence.dataobject.UserLevelRuleConfigDataObject">
         <id property="id" column="id" jdbcType="BINARY" typeHandler="com.nowcoder.community.infra.persistence.mybatis.UuidBinaryTypeHandler"/>
         <result property="windowDays" column="window_days"/>
         <result property="lv2SignInDays" column="lv2_sign_in_days"/>

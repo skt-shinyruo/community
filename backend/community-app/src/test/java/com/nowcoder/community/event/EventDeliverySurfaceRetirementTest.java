@@ -18,7 +18,6 @@ class EventDeliverySurfaceRetirementTest {
         assertClassRetired("com.nowcoder.community.notice.event.NoticeOutboxHandler");
         assertClassRetired("com.nowcoder.community.search.event.PostProjectionListener");
         assertClassRetired("com.nowcoder.community.user.event.ModerationCommandListener");
-        assertClassRetired("com.nowcoder.community.content.app.moderation.UserModerationCommandPublisher");
         assertClassRetired("com.nowcoder.community.content.contracts.event.ModerationCommandPayload");
         assertClassRetired("com.nowcoder.community.growth.event.GrowthEventPublisher");
         assertClassRetired("com.nowcoder.community.growth.event.LocalGrowthEventPublisher");

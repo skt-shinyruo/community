@@ -2,7 +2,7 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.nowcoder.community.content.mapper.DiscussPostMapper">
+<mapper namespace="com.nowcoder.community.content.infrastructure.persistence.mapper.DiscussPostMapper">
 
     <sql id="selectFields">
         id, user_id, category_id, title, content, type, status, create_time, update_time, edit_count, deleted_by, deleted_reason, deleted_time, comment_count, score
@@ -12,7 +12,7 @@
         id, user_id, category_id, title, content, type, status, create_time, comment_count, score
     </sql>
 
-    <select id="selectDiscussPosts" resultType="com.nowcoder.community.content.entity.DiscussPost">
+    <select id="selectDiscussPosts" resultType="com.nowcoder.community.content.domain.model.DiscussPost">
         select <include refid="selectFields"></include>
         from discuss_post
         where status != 2
@@ -46,7 +46,7 @@
         limit #{offset}, #{limit}
     </select>
 
-    <select id="selectDiscussPostsAfterId" resultType="com.nowcoder.community.content.entity.DiscussPost">
+    <select id="selectDiscussPostsAfterId" resultType="com.nowcoder.community.content.domain.model.DiscussPost">
         select <include refid="selectFields"></include>
         from discuss_post
         where status != 2
@@ -57,7 +57,7 @@
         limit #{limit}
     </select>
 
-    <select id="selectDiscussPostsByIds" resultType="com.nowcoder.community.content.entity.DiscussPost">
+    <select id="selectDiscussPostsByIds" resultType="com.nowcoder.community.content.domain.model.DiscussPost">
         select <include refid="selectFields"></include>
         from discuss_post
         where status != 2
@@ -76,12 +76,12 @@
         </if>
     </select>
 
-    <insert id="insertDiscussPost" parameterType="com.nowcoder.community.content.entity.DiscussPost">
+    <insert id="insertDiscussPost" parameterType="com.nowcoder.community.content.domain.model.DiscussPost">
         insert into discuss_post(<include refid="insertFields"></include>)
         values(#{id, jdbcType=BINARY},#{userId, jdbcType=BINARY},#{categoryId, jdbcType=BINARY},#{title},#{content},#{type},#{status},#{createTime},#{commentCount},#{score})
     </insert>
 
-    <select id="selectDiscussPostById" resultType="com.nowcoder.community.content.entity.DiscussPost">
+    <select id="selectDiscussPostById" resultType="com.nowcoder.community.content.domain.model.DiscussPost">
         select <include refid="selectFields"></include>
         from discuss_post
         where id = #{id, jdbcType=BINARY}

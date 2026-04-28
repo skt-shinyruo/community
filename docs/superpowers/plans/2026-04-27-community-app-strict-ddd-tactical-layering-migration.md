@@ -4,6 +4,8 @@
 
 **Goal:** Convert `backend/community-app` from mixed Spring service/use-case layering to strict DDD Tactical Layering.
 
+**Status:** Completed in the current worktree. All backend business domains in `backend/community-app` now use `controller/listener/job -> application -> domain -> infrastructure`, and root legacy business packages are protected by ArchUnit retirement rules.
+
 **Architecture:** Each domain converges to `controller -> application -> domain -> infrastructure`. `ApplicationService` is the only same-domain use-case entry, `domain` contains business rules and repository interfaces, `infrastructure` contains MyBatis/Redis/outbox/Spring event details, and owner-domain `api.*` remains only for foreign-domain synchronous collaboration.
 
 **Tech Stack:** Java 17, Spring Boot 3, MyBatis, ArchUnit, JUnit 5, Maven.
@@ -45,10 +47,10 @@
   MyBatis-backed category repository implementation.
 - `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/persistence/MyBatisPostTagRepository.java`
   MyBatis-backed post tag repository implementation.
-- `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostPublishingApplicationService.java`
-  Temporary compatibility shim or deletion target after callers migrate to `content.application`.
-- `backend/community-app/src/main/java/com/nowcoder/community/content/app/post/CreatePostUseCase.java`
-  Deletion target after create-post orchestration is owned by `content.application.PostPublishingApplicationService`.
+- `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/api/PostReadQueryApiAdapter.java`
+  Owner API adapter for foreign-domain post reads; same-domain controllers use `content.application.result.*` directly.
+- `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/api/CommentReadQueryApiAdapter.java`
+  Owner API adapter for foreign-domain comment reads; same-domain controllers use `content.application.result.*` directly.
 
 ### Follow-Up Domain Slices
 
@@ -67,7 +69,7 @@
 - Create: `backend/community-app/src/test/java/com/nowcoder/community/app/arch/DddLayeringArchTest.java`
 - Modify: `backend/community-app/src/test/java/com/nowcoder/community/app/arch/ArchitectureRulesSupport.java`
 
-- [ ] **Step 1: Write failing architecture tests for strict DDD packages**
+- [x] **Step 1: Write failing architecture tests for strict DDD packages**
 
 Create `DddLayeringArchTest` with these rules:
 
@@ -126,7 +128,7 @@ class DddLayeringArchTest {
 }
 ```
 
-- [ ] **Step 2: Run the architecture test and confirm current drift**
+- [x] **Step 2: Run the architecture test and confirm current drift**
 
 Run:
 
@@ -137,7 +139,7 @@ mvn -pl community-app -Dtest=DddLayeringArchTest test
 
 Expected: RED until existing `content.domain` bridge/assembler placement and legacy controllers are migrated or baselined.
 
-- [ ] **Step 3: Adjust the rule scope for executable migration**
+- [x] **Step 3: Adjust the rule scope for executable migration**
 
 If the first run shows existing legacy packages that cannot move in the same task, narrow the rule to new strict packages first:
 
@@ -147,7 +149,7 @@ If the first run shows existing legacy packages that cannot move in the same tas
 
 Expected: the guardrail protects all new DDD packages without forcing unrelated legacy packages in the same commit.
 
-- [ ] **Step 4: Re-run the architecture test**
+- [x] **Step 4: Re-run the architecture test**
 
 Run:
 
@@ -174,12 +176,12 @@ Expected: PASS after scope is aligned with the first migration stage.
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/persistence/MyBatisPostRepository.java`
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/persistence/MyBatisCategoryRepository.java`
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/persistence/MyBatisPostTagRepository.java`
-- Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostPublishingApplicationService.java`
-- Test: `backend/community-app/src/test/java/com/nowcoder/community/content/service/PostPublishingApplicationServiceTest.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/application/PostPublishingApplicationService.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/content/application/PostPublishingApplicationServiceTest.java`
 
-- [ ] **Step 1: Write a failing application-layer test**
+- [x] **Step 1: Write a failing application-layer test**
 
-The new test should prove create-post orchestration lives in `content.application.PostPublishingApplicationService` and depends on domain repositories, not `CreatePostUseCase`.
+The new test proves create-post orchestration lives in `content.application.PostPublishingApplicationService` and depends on domain repositories, not a parallel `UseCase` entry.
 
 Run:
 
@@ -190,7 +192,7 @@ mvn -pl community-app -Dtest=com.nowcoder.community.content.application.PostPubl
 
 Expected: compile failure until the new application package exists.
 
-- [ ] **Step 2: Implement the domain command/result/model/repository interfaces**
+- [x] **Step 2: Implement the domain command/result/model/repository interfaces**
 
 Implement only the create-post types needed by the test:
 
@@ -203,7 +205,7 @@ CategoryRepository.assertExists(UUID)
 PostTagRepository.bindTagsToPost(UUID, List<String>)
 ```
 
-- [ ] **Step 3: Implement the new application service**
+- [x] **Step 3: Implement the new application service**
 
 `content.application.PostPublishingApplicationService.create(...)` should:
 
@@ -217,15 +219,15 @@ PostTagRepository.bindTagsToPost(UUID, List<String>)
 8. schedule score refresh after commit
 9. return `content.application.result.PostCreateResult`
 
-- [ ] **Step 4: Add infrastructure repository implementations**
+- [x] **Step 4: Add infrastructure repository implementations**
 
 Wrap existing MyBatis mappers directly. Do not route new DDD code through legacy raw services.
 
-- [ ] **Step 5: Keep temporary compatibility for existing callers**
+- [x] **Step 5: Remove temporary compatibility after callers move**
 
-Until all controllers and API adapters are moved, keep the legacy `content.service.PostPublishingApplicationService` as a thin shim delegating to `content.application.PostPublishingApplicationService`.
+All controllers and API adapters now call the strict-layering entry points. The legacy `content.service` compatibility surface is retired.
 
-- [ ] **Step 6: Run focused tests**
+- [x] **Step 6: Run focused tests**
 
 Run:
 
@@ -249,10 +251,10 @@ Expected: PASS.
 - Migrate: `content/app/moderation/TakeModerationActionUseCase.java`
 - Delete legacy tests after replacement.
 
-- [ ] Move each write use case into `content.application` methods and `content.domain` services.
-- [ ] Add repository methods to `PostRepository` as each write behavior is migrated.
-- [ ] Delete `content.app` after all production references are gone.
-- [ ] Run `mvn -pl community-app -Dtest=PostPublishingApplicationServiceTest,PostModerationApplicationServiceTest,TakeModerationActionUseCaseTest,DddLayeringArchTest test`.
+- [x] Move each write use case into `content.application` methods and `content.domain` services.
+- [x] Add repository methods to `PostRepository` as each write behavior is migrated.
+- [x] Delete `content.app` after all production references are gone.
+- [x] Run focused replacement coverage and the full `mvn -f backend/pom.xml -pl community-app -am test` suite.
 
 ---
 
@@ -260,19 +262,15 @@ Expected: PASS.
 
 Implement each domain in the same pattern: application entry, domain model/service/repository, infrastructure repository implementation, then delete or shrink legacy service/mapper/entity exposure.
 
-Priority:
+Completed detailed plans:
 
-1. `content`
-2. `user`
-3. `social`
-4. `wallet`
-5. `market`
-6. `growth`
-7. `notice`
-8. `search`
-9. `analytics`
-10. `auth`
-11. `ops`
+1. `content` - execute `docs/superpowers/plans/2026-04-27-content-write-usecases-ddd-migration.md`
+2. `user` - execute `docs/superpowers/plans/2026-04-27-user-domain-ddd-tactical-layering-migration.md`
+3. `social` - execute `docs/superpowers/plans/2026-04-28-social-domain-ddd-tactical-layering-migration.md`
+4. `wallet` + `market` - execute `docs/superpowers/plans/2026-04-28-wallet-market-ddd-tactical-layering-migration.md`
+5. `growth` + `notice` - execute `docs/superpowers/plans/2026-04-28-growth-notice-ddd-tactical-layering-migration.md`
+6. `search` + `analytics` - execute `docs/superpowers/plans/2026-04-28-search-analytics-ddd-tactical-layering-migration.md`
+7. `auth` + `ops` - execute `docs/superpowers/plans/2026-04-28-auth-ops-ddd-tactical-layering-migration.md`
 
 Each slice must end with:
 
@@ -281,7 +279,7 @@ cd /home/feng/code/project/community/backend
 mvn -pl community-app -Dtest=DomainBoundaryArchTest,ControllerBoundaryArchTest,ListenerBoundaryArchTest,DddLayeringArchTest test
 ```
 
-Expected: PASS for architecture guardrails and the focused domain tests named in that slice.
+Expected: PASS for architecture guardrails and the focused domain tests named in that slice. As of 2026-04-28, the strict DDD architecture suite passes with `DddLayeringArchTest`, `DtoBoundaryArchTest`, and `ControllerBoundaryArchTest`.
 
 ---
 
@@ -297,9 +295,8 @@ Expected: PASS for architecture guardrails and the focused domain tests named in
 
 ### Placeholder Scan
 
-This plan intentionally fully details Task 1 and Task 2, then lists follow-up domains as repeated migration slices. A separate task-level plan should be written for each follow-up domain before implementation because the whole backend conversion is too large for a single safe patch.
+This plan now links to the completed domain-level migration plans. No remaining backend domain slice is intentionally left on the old root `service`, `entity`, `mapper`, `event`, or `app` business package shape.
 
 ### Type Consistency
 
 The first executable slice consistently uses `content.application`, `content.domain`, and `content.infrastructure` packages.
-

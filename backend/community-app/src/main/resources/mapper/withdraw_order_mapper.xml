@@ -3,22 +3,22 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="com.nowcoder.community.wallet.mapper.WithdrawOrderMapper">
+<mapper namespace="com.nowcoder.community.wallet.infrastructure.persistence.mapper.WithdrawOrderMapper">
 
-    <select id="selectByRequestId" resultType="com.nowcoder.community.wallet.entity.WithdrawOrder">
+    <select id="selectByRequestId" resultType="com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WithdrawOrderDataObject">
         select order_id, request_id, user_id, amount, status, payee_account, failure_reason, create_time, update_time
         from withdraw_order
         where request_id = #{requestId}
     </select>
 
-    <select id="selectByUserIdAndRequestId" resultType="com.nowcoder.community.wallet.entity.WithdrawOrder">
+    <select id="selectByUserIdAndRequestId" resultType="com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WithdrawOrderDataObject">
         select order_id, request_id, user_id, amount, status, payee_account, failure_reason, create_time, update_time
         from withdraw_order
         where user_id = #{userId, jdbcType=BINARY}
           and request_id = #{requestId}
     </select>
 
-    <insert id="insert" parameterType="com.nowcoder.community.wallet.entity.WithdrawOrder">
+    <insert id="insert" parameterType="com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WithdrawOrderDataObject">
         insert into withdraw_order(order_id, request_id, user_id, amount, status, payee_account, failure_reason)
         values(#{orderId, jdbcType=BINARY}, #{requestId}, #{userId, jdbcType=BINARY}, #{amount}, #{status}, #{payeeAccount}, #{failureReason})
     </insert>

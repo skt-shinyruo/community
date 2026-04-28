@@ -3,16 +3,16 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="com.nowcoder.community.market.mapper.MarketDisputeMapper">
+<mapper namespace="com.nowcoder.community.market.infrastructure.persistence.mapper.MarketDisputeMapper">
 
-    <select id="selectById" resultType="com.nowcoder.community.market.entity.MarketDispute">
+    <select id="selectById" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketDisputeDataObject">
         select dispute_id, order_id, goods_type, buyer_user_id, seller_user_id, status, reason, buyer_note, seller_note,
                resolution_type, resolved_by, resolved_at, create_time, update_time
         from market_dispute
         where dispute_id = #{disputeId, jdbcType=BINARY}
     </select>
 
-    <select id="selectByOrderId" resultType="com.nowcoder.community.market.entity.MarketDispute">
+    <select id="selectByOrderId" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketDisputeDataObject">
         select dispute_id, order_id, goods_type, buyer_user_id, seller_user_id, status, reason, buyer_note, seller_note,
                resolution_type, resolved_by, resolved_at, create_time, update_time
         from market_dispute
@@ -20,7 +20,7 @@
         order by create_time desc, dispute_id desc
     </select>
 
-    <select id="selectOpenDisputes" resultType="com.nowcoder.community.market.entity.MarketDispute">
+    <select id="selectOpenDisputes" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketDisputeDataObject">
         select dispute_id, order_id, goods_type, buyer_user_id, seller_user_id, status, reason, buyer_note, seller_note,
                resolution_type, resolved_by, resolved_at, create_time, update_time
         from market_dispute
@@ -28,7 +28,7 @@
         order by create_time desc, dispute_id desc
     </select>
 
-    <insert id="insert" parameterType="com.nowcoder.community.market.entity.MarketDispute">
+    <insert id="insert" parameterType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketDisputeDataObject">
         insert into market_dispute(
             dispute_id, order_id, goods_type, buyer_user_id, seller_user_id, status, reason, buyer_note, seller_note,
             resolution_type, resolved_by, resolved_at
@@ -39,7 +39,7 @@
         )
     </insert>
 
-    <update id="update" parameterType="com.nowcoder.community.market.entity.MarketDispute">
+    <update id="update" parameterType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketDisputeDataObject">
         update market_dispute
         set status = #{status},
             reason = #{reason},

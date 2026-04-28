@@ -1,7 +1,5 @@
 package com.nowcoder.community.app.arch;
 
-import com.nowcoder.community.social.follow.FollowService;
-import com.nowcoder.community.social.like.LikeService;
 import com.tngtech.archunit.core.domain.Dependency;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ImportOption;
@@ -96,12 +94,6 @@ class DomainBoundaryArchTest {
                         "ops",
                         "im"
                 );
-    }
-
-    @Test
-    void socialWriteServicesShouldNotReadStoragePropertyDirectly() {
-        assertThat(hasValueInjection(LikeService.class, "social.storage")).isFalse();
-        assertThat(hasValueInjection(FollowService.class, "social.storage")).isFalse();
     }
 
     @Test

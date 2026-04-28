@@ -152,33 +152,43 @@ IM 不是 `community-app` 里的普通一个包，而是一个单独的子系统
 1. `community-gateway` 决定请求该进哪个服务
 2. `community-app` 的 `CommunitySecurityConfig` 决定这条路径是否允许访问
 3. controller 负责协议适配，不做重业务编排
-4. action/query API 进入 owner-domain 的应用服务或 use case
-5. 领域服务写 MyBatis mapper，只有少数多后端场景才抽 repository
-6. 事务内发布领域事件
-7. 事件桥接成 `contracts.event`
-8. 本地编排、`AFTER_COMMIT` listener、outbox projection 按各自语义把变化扩散到搜索、通知、积分等下游
+4. action/query API 进入 owner-domain 的 `application.*ApplicationService`
+5. `ApplicationService` 调用 domain model / domain service / repository interface
+6. infrastructure repository 写 MyBatis mapper / Redis adapter；MyBatis 行对象放在 `infrastructure.persistence.dataobject`
+7. 事务内发布领域事件
+8. 事件桥接成 `contracts.event`
+9. 本地编排、`AFTER_COMMIT` listener、outbox projection 按各自语义把变化扩散到搜索、通知、积分等下游
 
 关键代码锚点：
 
 - 统一安全边界：
   - `backend/community-app/src/main/java/com/nowcoder/community/app/security/CommunitySecurityConfig.java`
-  - `backend/community-app/src/main/java/com/nowcoder/community/auth/web/AuthOriginGuardFilter.java`
+  - `backend/community-app/src/main/java/com/nowcoder/community/auth/infrastructure/web/AuthOriginGuardFilter.java`
+- auth 登录/刷新/注册编排：
+  - `backend/community-app/src/main/java/com/nowcoder/community/auth/controller/AuthController.java`
+  - `backend/community-app/src/main/java/com/nowcoder/community/auth/application/AuthApplicationService.java`
+  - `backend/community-app/src/main/java/com/nowcoder/community/auth/domain/repository/RefreshTokenRepository.java`
+  - `backend/community-app/src/main/java/com/nowcoder/community/auth/infrastructure/persistence/DbRefreshTokenRepository.java`
+- ops 运维入口：
+  - `backend/community-app/src/main/java/com/nowcoder/community/ops/controller/OpsController.java`
+  - `backend/community-app/src/main/java/com/nowcoder/community/ops/application/OpsApplicationService.java`
 - controller 薄层：
   - `backend/community-app/src/main/java/com/nowcoder/community/content/controller/PostController.java`
 - 写路径编排：
-  - `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostPublishingApplicationService.java`
-  - `backend/community-app/src/main/java/com/nowcoder/community/content/app/post/CreatePostUseCase.java`
-- 典型“直接 Mapper”领域：
-  - `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostService.java`
-- 典型“抽 Repository”领域：
-  - `backend/community-app/src/main/java/com/nowcoder/community/social/block/BlockService.java`
+  - `backend/community-app/src/main/java/com/nowcoder/community/content/application/PostPublishingApplicationService.java`
+  - `backend/community-app/src/main/java/com/nowcoder/community/social/application/LikeApplicationService.java`
+- domain repository interface：
+  - `backend/community-app/src/main/java/com/nowcoder/community/social/domain/repository/BlockRepository.java`
+- infrastructure persistence adapter：
+  - `backend/community-app/src/main/java/com/nowcoder/community/social/infrastructure/persistence/MyBatisBlockRepository.java`
 
 这里有个很重要的实现取舍：
 
-- `content`、`user`、`notice` 这类单一持久化后端的领域，通常是 `Service -> Mapper`
-- `social` 因为支持 `db / redis / memory` 多实现，所以是 `Service -> Repository`
+- `ApplicationService` 不直接操作 mapper / dataobject
+- `auth`、`wallet` 和 `market` 的旧 `service` 包已经退休或只保留 foreign API adapter，业务入口看 `application.*ApplicationService`
+- `auth` 和 `social` 因为支持 `db / redis / memory` 多实现，所以 `domain.repository` 由 `infrastructure.persistence` 的 MyBatis / Redis / InMemory adapter 实现
 
-也就是说，这个项目并没有机械地要求每个领域都必须有 repository。
+也就是说，业务入口统一收敛为 `ApplicationService`，持久化细节统一隔离在 infrastructure。
 
 ---
 
@@ -195,7 +205,7 @@ IM 不是 `community-app` 里的普通一个包，而是一个单独的子系统
 3. `CommunitySecurityConfig` 完成 JWT 资源服务器鉴权和路径授权
 4. `PostController.create(...)` 提取当前用户和 `Idempotency-Key`
 5. `PostPublishingApplicationService.create(...)` 做文本清洗，并调用 `IdempotencyGuard.executeRequired(...)`
-6. `CreatePostUseCase.createPost(...)` 在事务内完成：
+6. `PostPublishingApplicationService` 在事务内通过 content domain service / repository 完成：
    - 用户发言资格校验
    - 分类存在性校验
    - `DiscussPost` 落库
@@ -208,10 +218,10 @@ IM 不是 `community-app` 里的普通一个包，而是一个单独的子系统
 关键文件：
 
 - `backend/community-app/src/main/java/com/nowcoder/community/content/controller/PostController.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostPublishingApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/application/PostPublishingApplicationService.java`
 - `backend/community-common/common-idempotency/src/main/java/com/nowcoder/community/common/idempotency/IdempotencyGuard.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/content/app/post/CreatePostUseCase.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/domain/repository/PostRepository.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/persistence/MyBatisPostRepository.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/user/api/action/UserPointsAwardActionApi.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/api/action/GrowthTaskProgressActionApi.java`
 
@@ -222,14 +232,14 @@ IM 不是 `community-app` 里的普通一个包，而是一个单独的子系统
 
 ### 4.2 从领域事件到事件契约
 
-`CreatePostUseCase` 不会直接去调搜索或通知服务。积分和任务进度已经属于发帖写用例内的本地同步编排；需要异步扩散的帖子状态变化，则通过领域事件继续对外发布。
+`PostPublishingApplicationService` 不会直接去调搜索或通知服务。积分和任务进度已经属于发帖写用例内的本地同步编排；需要异步扩散的帖子状态变化，则通过领域事件继续对外发布。
 
 关键文件：
 
 - `backend/community-app/src/main/java/com/nowcoder/community/content/domain/event/PostDomainEventPublisher.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/content/domain/event/PostDomainEventBridge.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/content/domain/assembler/PostPayloadAssembler.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/content/event/LocalContentEventPublisher.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event/PostDomainEventBridge.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event/PostPayloadAssembler.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event/LocalContentEventPublisher.java`
 
 真实分层是这样的：
 
@@ -252,12 +262,12 @@ IM 不是 `community-app` 里的普通一个包，而是一个单独的子系统
 关键文件：
 
 - 入箱：
-  - `backend/community-app/src/main/java/com/nowcoder/community/search/event/PostOutboxEnqueuer.java`
+  - `backend/community-app/src/main/java/com/nowcoder/community/search/infrastructure/event/PostOutboxEnqueuer.java`
 - 调度与分发：
   - `backend/community-common/common-outbox/src/main/java/com/nowcoder/community/common/outbox/OutboxWorkerScheduler.java`
   - `backend/community-common/common-outbox/src/main/java/com/nowcoder/community/common/outbox/OutboxWorker.java`
 - 真正消费：
-  - `backend/community-app/src/main/java/com/nowcoder/community/search/event/PostOutboxHandler.java`
+  - `backend/community-app/src/main/java/com/nowcoder/community/search/infrastructure/event/PostOutboxHandler.java`
 
 要点不是“用了 outbox 很高级”，而是：
 
@@ -273,7 +283,7 @@ IM 不是 `community-app` 里的普通一个包，而是一个单独的子系统
 
 通知仍由本地事务事件监听器处理：
 
-- `backend/community-app/src/main/java/com/nowcoder/community/notice/event/NoticeProjectionListener.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/notice/infrastructure/event/NoticeProjectionListener.java`
 
 它在 `AFTER_COMMIT` 阶段投影通知，异常只记录 warn，不会回滚主事务，也没有 outbox 重试。
 
@@ -431,11 +441,11 @@ IM 子系统最容易读乱，因为它同时有 HTTP、WebSocket、Kafka、MySQ
    - 理解主站的统一安全边界
 5. `backend/community-app/src/main/java/com/nowcoder/community/content/controller/PostController.java`
    - 从一个最典型的 HTTP controller 进入
-6. `backend/community-app/src/main/java/com/nowcoder/community/content/service/PostPublishingApplicationService.java`
+6. `backend/community-app/src/main/java/com/nowcoder/community/content/application/PostPublishingApplicationService.java`
    - 看清同域应用入口、幂等包装和文本清洗的位置
-7. `backend/community-app/src/main/java/com/nowcoder/community/content/app/post/CreatePostUseCase.java`
-   - 看清事务内真正做了什么
-8. `backend/community-app/src/main/java/com/nowcoder/community/content/domain/event/PostDomainEventBridge.java`
+7. `backend/community-app/src/main/java/com/nowcoder/community/content/domain/repository/PostRepository.java`
+   - 看清写路径的领域持久化契约
+8. `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event/PostDomainEventBridge.java`
    - 看清领域事件如何变成跨域事件契约
 9. `backend/community-common/common-outbox/src/main/java/com/nowcoder/community/common/outbox/OutboxWorker.java`
    - 看清默认异步投影模型

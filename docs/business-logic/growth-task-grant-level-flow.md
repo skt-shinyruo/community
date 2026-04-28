@@ -21,11 +21,16 @@
 ### 2.1 任务进度 owner 应用入口
 
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/api/action/GrowthTaskProgressActionApi.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/TaskProgressApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/GrowthTaskProgressActionApiAdapter.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/application/TaskProgressApplicationService.java`
 
 ### 2.2 任务状态推进核心
 
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/TaskProgressService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/domain/service/TaskProgressDomainService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/domain/service/RewardGrantDomainService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/domain/repository/TaskTemplateRepository.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/domain/repository/UserTaskProgressRepository.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/domain/repository/UserTaskEventLogRepository.java`
 
 ### 2.3 积分投影与钱包奖励入口
 
@@ -34,8 +39,10 @@
 
 ### 2.4 用户等级查询与配置核心
 
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/UserLevelService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/api/query/UserLevelQueryApi.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/UserLevelQueryApiAdapter.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/application/UserLevelApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/domain/service/UserLevelDomainService.java`
 
 ## 3. 上游事件如何进入成长域
 
@@ -82,24 +89,24 @@
 
 1. `CreatePostUseCase` 调用 `GrowthTaskProgressActionApi.triggerPostPublished(...)`
 2. `CommentService` 调用 `GrowthTaskProgressActionApi.triggerCommentCreated(...)`
-3. `LikeService` 调用 `GrowthTaskProgressActionApi.triggerLikeCreated(...)`
+3. `LikeApplicationService` 调用 `GrowthTaskProgressActionApi.triggerLikeCreated(...)`
 4. `TaskProgressApplicationService` 负责：
    - 生成 `sourceEventId`
    - 计算 `bizDate`
    - 过滤无效输入和 self-like
-5. 然后统一调用 `TaskProgressService.processEvent(...)`
+5. 然后统一调用 `TaskProgressApplicationService.recordProgress(...)`
 
 这意味着：
 
 - foreign domain 只知道 `GrowthTaskProgressActionApi`
 - `TaskProgressApplicationService` 是 owner-domain 唯一应用入口
-- 真正的幂等和状态推进仍然完全由 `TaskProgressService` 内部负责
+- 真正的幂等和状态推进由 application 调用 domain service 与 repository 协作完成，MyBatis mapper 不暴露给应用入口之外的代码
 
 ## 5. 任务进度状态机如何工作
 
 核心方法在：
 
-- `TaskProgressService.processEvent(UUID userId, String triggerEventType, String sourceEventId, LocalDate bizDate)`
+- `TaskProgressApplicationService.recordProgress(RecordTaskProgressCommand command)`
 
 ### 5.1 第一步：按事件类型找激活中的任务模板
 
@@ -112,7 +119,7 @@
 
 随后查：
 
-- `taskTemplateMapper.selectActiveByTriggerEventType(triggerEventType.trim())`
+- `TaskTemplateRepository.findActiveByTriggerEventType(triggerEventType.trim())`
 
 也就是说，成长任务不是写死在 Java 代码里，而是由任务模板表决定：
 
@@ -144,7 +151,7 @@
 
 先插入：
 
-- `userTaskEventLogMapper.insert(id, userId, taskCode, periodKey, sourceEventId)`
+- `UserTaskEventLogRepository.insert(id, userId, taskCode, periodKey, sourceEventId)`
 
 如果唯一键冲突，捕获 `DataIntegrityViolationException` 并返回 `false`。
 
@@ -161,7 +168,7 @@
 
 调用：
 
-- `userTaskProgressMapper.insert(...)`
+- `UserTaskProgressRepository.insert(...)`
 
 若并发下别人先插入成功，也只是吞掉冲突，继续走后面的 `select ... for update`。
 
@@ -181,7 +188,7 @@
 
 ### 5.3 任务状态只有三种
 
-`TaskProgressService` 里定义了三种状态：
+`TaskProgressApplicationService` 里推进三种状态：
 
 - `IN_PROGRESS`
 - `CLAIMABLE`
@@ -283,7 +290,8 @@
 
 核心类：
 
-- `UserLevelService`
+- `UserLevelApplicationService`
+- `UserLevelDomainService`
 
 它实现了只读查询接口：
 
@@ -311,7 +319,7 @@
 
 1. 读取当前启用配置
 2. 计算窗口起点 `bizDate - windowDays + 1`
-3. 调 `userTaskProgressMapper.countByUserTaskAndPeriodKeyRange(...)`
+3. 调 `UserTaskProgressRepository.countByUserTaskAndPeriodKeyRange(...)`
 4. 统计用户在窗口内完成了多少个 `DAILY_CHECK_IN`
 5. 用阈值判定 `LV1/LV2/LV3`
 
@@ -418,9 +426,12 @@ listener、outbox、重放只是触发方式，去重仍然发生在服务内部
 ## 11. 关键代码定位
 
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/api/action/GrowthTaskProgressActionApi.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/TaskProgressApplicationService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/TaskProgressService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/GrowthTaskProgressActionApiAdapter.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/application/TaskProgressApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/domain/service/TaskProgressDomainService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/domain/service/RewardGrantDomainService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/user/service/PointsProjectionService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/UserLevelService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/application/UserLevelApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/domain/service/UserLevelDomainService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/wallet/api/action/WalletRewardActionApi.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/api/query/UserLevelQueryApi.java`

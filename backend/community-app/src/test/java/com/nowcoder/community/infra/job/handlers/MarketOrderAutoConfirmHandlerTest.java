@@ -4,13 +4,14 @@ import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.api.action.MarketOrderAutoConfirmActionApi;
 import com.nowcoder.community.market.api.model.MarketOrderAutoConfirmResult;
-import com.nowcoder.community.market.dto.CreateMarketAddressRequest;
-import com.nowcoder.community.market.dto.CreateMarketListingRequest;
-import com.nowcoder.community.market.service.MarketAddressService;
-import com.nowcoder.community.market.service.MarketListingService;
-import com.nowcoder.community.market.service.MarketWalletActionProcessor;
-import com.nowcoder.community.market.service.MarketOrderService;
-import com.nowcoder.community.wallet.service.WalletAccountService;
+import com.nowcoder.community.market.controller.dto.CreateMarketAddressRequest;
+import com.nowcoder.community.market.controller.dto.CreateMarketListingRequest;
+import com.nowcoder.community.market.application.MarketAddressApplicationService;
+import com.nowcoder.community.market.application.MarketListingApplicationService;
+import com.nowcoder.community.market.application.MarketTestCommands;
+import com.nowcoder.community.market.application.MarketWalletActionProcessorApplicationService;
+import com.nowcoder.community.market.application.MarketOrderApplicationService;
+import com.nowcoder.community.wallet.application.WalletAccountApplicationService;
 import com.xxl.job.core.context.XxlJobContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,16 +38,16 @@ class MarketOrderAutoConfirmHandlerTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
-    private MarketListingService marketListingService;
+    private MarketListingApplicationService marketListingService;
 
     @Autowired
-    private MarketAddressService marketAddressService;
+    private MarketAddressApplicationService marketAddressService;
 
     @Autowired
-    private MarketOrderService marketOrderService;
+    private MarketOrderApplicationService marketOrderService;
 
     @Autowired
-    private MarketWalletActionProcessor marketWalletActionProcessor;
+    private MarketWalletActionProcessorApplicationService marketWalletActionProcessor;
 
     @Autowired
     private MarketOrderAutoConfirmActionApi marketOrderAutoConfirmActionApi;
@@ -55,7 +56,7 @@ class MarketOrderAutoConfirmHandlerTest {
     private MarketOrderAutoConfirmHandler handler;
 
     @Autowired
-    private WalletAccountService walletAccountService;
+    private WalletAccountApplicationService walletAccountService;
 
     @MockBean
     private ClientIpResolver clientIpResolver;
@@ -138,7 +139,7 @@ class MarketOrderAutoConfirmHandlerTest {
         request.setStockTotal(2);
         request.setMinPurchaseQuantity(1);
         request.setMaxPurchaseQuantity(2);
-        UUID listingId = marketListingService.createListing(sellerUserId, request, null).listingId();
+        UUID listingId = marketListingService.createListing(MarketTestCommands.listingCommand(sellerUserId, request, null)).listingId();
         UUID orderId = marketOrderService.createOrder("auto-confirm:virtual:req-1", buyerUserId, listingId, 1, null).orderId();
         marketWalletActionProcessor.processDue(10);
         marketOrderService.deliverVirtualOrder(orderId, sellerUserId, "邀请码-A");
@@ -158,7 +159,7 @@ class MarketOrderAutoConfirmHandlerTest {
         request.setStockTotal(1);
         request.setMinPurchaseQuantity(1);
         request.setMaxPurchaseQuantity(1);
-        UUID listingId = marketListingService.createListing(sellerUserId, request, null).listingId();
+        UUID listingId = marketListingService.createListing(MarketTestCommands.listingCommand(sellerUserId, request, null)).listingId();
 
         CreateMarketAddressRequest addressRequest = new CreateMarketAddressRequest();
         addressRequest.setReceiverName("张三");
@@ -169,7 +170,7 @@ class MarketOrderAutoConfirmHandlerTest {
         addressRequest.setDetailAddress("世纪大道 100 号");
         addressRequest.setPostalCode("200120");
         addressRequest.setDefault(true);
-        UUID addressId = marketAddressService.createAddress(buyerUserId, addressRequest).addressId();
+        UUID addressId = marketAddressService.createAddress(MarketTestCommands.addressCommand(buyerUserId, addressRequest)).addressId();
 
         UUID orderId = marketOrderService.createOrder("auto-confirm:physical:req-1", buyerUserId, listingId, 1, addressId).orderId();
         marketWalletActionProcessor.processDue(10);

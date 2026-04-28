@@ -1,13 +1,14 @@
 package com.nowcoder.community.user.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.user.dto.AvatarUploadTokenResponse;
-import com.nowcoder.community.user.dto.UpdateAvatarRequest;
-import com.nowcoder.community.user.service.AvatarService;
-import com.nowcoder.community.user.service.UserAvatarApplicationService;
-import com.nowcoder.community.user.service.UserProfileApplicationService;
-import com.nowcoder.community.user.service.UserReadApplicationService;
-import com.nowcoder.community.user.service.UserService;
+import com.nowcoder.community.user.application.UserAvatarApplicationService;
+import com.nowcoder.community.user.application.UserProfileApplicationService;
+import com.nowcoder.community.user.application.UserReadApplicationService;
+import com.nowcoder.community.user.application.port.AvatarStoragePort;
+import com.nowcoder.community.user.application.result.AvatarUploadTokenResult;
+import com.nowcoder.community.user.domain.repository.UserRepository;
+import com.nowcoder.community.user.controller.dto.AvatarUploadTokenResponse;
+import com.nowcoder.community.user.controller.dto.UpdateAvatarRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,18 +29,18 @@ import static org.mockito.Mockito.when;
 @ExtendWith(OutputCaptureExtension.class)
 class UserControllerLoggingTest {
 
-    private AvatarService avatarService;
-    private UserService userService;
+    private AvatarStoragePort avatarStoragePort;
+    private UserRepository userRepository;
     private UserController controller;
 
     @BeforeEach
     void setUp() {
-        userService = mock(UserService.class);
-        avatarService = mock(AvatarService.class);
+        userRepository = mock(UserRepository.class);
+        avatarStoragePort = mock(AvatarStoragePort.class);
         controller = new UserController(
                 mock(UserReadApplicationService.class),
                 mock(UserProfileApplicationService.class),
-                new UserAvatarApplicationService(avatarService, userService)
+                new UserAvatarApplicationService(avatarStoragePort, userRepository)
         );
     }
 
@@ -47,16 +48,24 @@ class UserControllerLoggingTest {
     void uploadTokenShouldLogSecurityEventWithoutUploadTokenMaterial(CapturedOutput output) {
         UUID userId = uuid(42);
         String fileName = "avatar/" + userId + "/0123456789abcdef0123456789abcdef";
-        AvatarUploadTokenResponse response = new AvatarUploadTokenResponse();
-        response.setProvider("r2");
-        response.setFileName(fileName);
-        response.setUploadToken("secret-upload-token");
-        when(avatarService.createUploadToken(userId)).thenReturn(response);
+        when(avatarStoragePort.createUploadToken(userId))
+                .thenReturn(new AvatarUploadTokenResult(
+                        "r2",
+                        "secret-upload-token",
+                        fileName,
+                        null,
+                        "/api/users/" + userId + "/avatar/upload",
+                        "POST",
+                        2_097_152L,
+                        "image/png;image/jpeg"
+                ));
 
         Result<AvatarUploadTokenResponse> result = controller.uploadToken(authentication(userId), userId);
 
         assertThat(result.getCode()).isEqualTo(0);
-        assertThat(result.getData()).isSameAs(response);
+        assertThat(result.getData()).isNotNull();
+        assertThat(result.getData().getProvider()).isEqualTo("r2");
+        assertThat(result.getData().getFileName()).isEqualTo(fileName);
         assertThat(output.getAll())
                 .contains("community.category=security")
                 .contains("community.action=avatar_upload_token")
@@ -82,7 +91,7 @@ class UserControllerLoggingTest {
         Result<Void> result = controller.uploadAvatar(authentication(userId), userId, file, fileName);
 
         assertThat(result.getCode()).isEqualTo(0);
-        verify(avatarService).upload(userId, fileName, file);
+        verify(avatarStoragePort).upload(userId, fileName, file);
         assertThat(output.getAll())
                 .contains("community.category=security")
                 .contains("community.action=avatar_upload")
@@ -102,13 +111,13 @@ class UserControllerLoggingTest {
         String fileName = "avatar/" + userId + "/0123456789abcdef0123456789abcdef";
         UpdateAvatarRequest request = new UpdateAvatarRequest();
         request.setFileName(fileName);
-        when(avatarService.buildAvatarUrl(fileName)).thenReturn("https://cdn.example.com/" + fileName);
+        when(avatarStoragePort.buildAvatarUrl(fileName)).thenReturn("https://cdn.example.com/" + fileName);
 
         Result<Void> result = controller.updateAvatar(authentication(userId), userId, request);
 
         assertThat(result.getCode()).isEqualTo(0);
-        verify(avatarService).assertAndConsumeUploadTicket(userId, fileName);
-        verify(userService).updateHeaderUrl(userId, "https://cdn.example.com/" + fileName);
+        verify(avatarStoragePort).assertAndConsumeUploadTicket(userId, fileName);
+        verify(userRepository).updateHeaderUrl(userId, "https://cdn.example.com/" + fileName);
         assertThat(output.getAll())
                 .contains("community.category=security")
                 .contains("community.action=avatar_update")

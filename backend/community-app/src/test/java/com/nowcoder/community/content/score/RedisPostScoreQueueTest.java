@@ -1,4 +1,4 @@
-package com.nowcoder.community.content.score;
+package com.nowcoder.community.content.infrastructure.persistence;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

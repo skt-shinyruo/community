@@ -13,14 +13,16 @@
 - `community-app` 仍是主业务 owner，承接主站 `/api/**`、`/files/**`、`/api/ops/**`
 - `community-gateway` 负责入口级路由、CORS、traceId、HTTP/WS 边缘策略
 - `community-app` 负责业务鉴权矩阵、OriginGuard、审计、统一错误协议
-- same-domain HTTP 入口默认经 owner `*ApplicationService` 编排；本地 listener / 本地持续型 worker 也默认经 owner `*ApplicationService` 进入业务编排
-- `@RestController` 不再作为 `..app..` use case 或 raw `service` 的直接拼装层
+- same-domain HTTP 入口默认经 owner `application.*ApplicationService` 编排；本地 listener / 本地持续型 worker 也默认经 owner `application.*ApplicationService` 进入业务编排
+- `community-app` 业务代码必须使用 DDD Tactical Layering：`controller -> application -> domain -> infrastructure`
+- `@RestController` 不再作为 `..app..` use case、raw `service`、domain 或 infrastructure 的直接拼装层
+- `wallet` / `market` / `search` / `analytics` 已收敛到该分层：HTTP/job/listener/filter 入口只进入同域 ApplicationService；MyBatis/Redis/Elasticsearch 与 `*DataObject` 只位于 `infrastructure`；旧 `service` 包只发布 foreign API adapter
 
-controller 应用边界冻结规则：
-- 所有 `@RestController` 不直接依赖 same-domain `..app..`
-- 所有 `@RestController` 不直接依赖 same-domain raw `*Service` / projection service 等非 `ApplicationService` 类型
-- 所有 `..event..` 下的 `*Listener` 不直接依赖 same-domain `..app..`
-- 所有 `..event..` 下的 `*Listener` 不直接依赖 same-domain raw `*Service` / projection service 等非 `ApplicationService` 类型
+DDD Tactical Layering 冻结规则：
+- 所有 `@RestController` 不直接依赖 same-domain `..app..`、`..domain..`、`..infrastructure..`
+- 所有 `@RestController` 不直接依赖 same-domain raw `*Service` / projection service / `UseCase` 等非 `ApplicationService` 类型
+- 所有 `..event..` 下的 `*Listener` 不直接依赖 same-domain `..app..`、`..domain..`、`..infrastructure..`
+- 所有 `..event..` 下的 `*Listener` 不直接依赖 same-domain raw `*Service` / projection service / `UseCase` 等非 `ApplicationService` 类型
 - foreign-domain 调用仍继续使用 owner-domain `api.query` / `api.action`
 - 当前 controller / listener application boundary baseline 已清空，后续不允许重新引入 legacy 例外
 
@@ -30,7 +32,7 @@ controller 应用边界冻结规则：
 - Ops（对外运维）：`/api/ops/**`（ADMIN-only）
 - Internal（跨模块同步调用）：**统一通过 owner-domain `api.query` / `api.action` / `api.model` 协作**
   - 约束：尽量避免跨模块 JOIN；跨模块数据聚合优先走 owner-domain API + 批量/缓存
-  - 边界：`service`、`entity`、`mapper` 仅作为 owner 域内部实现细节，不再作为默认跨域入口
+  - 边界：`domain`、`infrastructure`、旧 `service`、旧 `entity`、旧 `mapper` 仅作为 owner 域内部实现细节，不再作为默认跨域入口
 - Async Internal（跨模块异步协作）：**统一通过 owner-domain `contracts.event` 协作**
   - 当前 contract 形态：`content.contracts.event.*`、`social.contracts.event.*`
   - 边界：producer 域的 `event` 包负责发布与 transport adapter，consumer 不再直接依赖 foreign `event.payload` 或 foreign local-event wrapper
@@ -40,14 +42,17 @@ controller 应用边界冻结规则：
 - user 模块（SSOT）：身份域数据与会话状态（`user`、`auth_refresh_token`）归 user 模块（MySQL）管理
   - `auth.refresh.store=db` 时，refresh token 仅存 `token_hash`，便于撤销/旋转（familyId 族）
   - auth ↔ user 的同步协作已收敛为 user owner-domain API（如 `user.api.query.UserCredentialQueryApi`、`user.api.action.UserRegistrationActionApi` 等），不再直接依赖 `user.service` / `user.entity`
+  - HTTP 入口只调用 `auth.application.AuthApplicationService`；本地 cleanup job 位于 `auth.infrastructure.job`，也只回到 auth application service 编排；JWT、邮件、Redis/DB 存储实现均位于 `auth.infrastructure`
 
 ### 1.3 业务域模块（示例）
 - content：帖子/评论/回复（写主存储并发布事件）
 - social：点赞/关注/拉黑（写主存储并发布事件）
 - notice：站内通知（消费内容/社交事件写通知）
 - community-im：私信实时入口、Kafka backplane、历史查询与未读状态
-- search：搜索投影（消费事件写 ES 索引；提供 reindex）
-- analytics：统计（Redis，按日/区间查询）
+- search：搜索投影（消费 outbox 写 ES 索引；提供 reindex；入口收敛到 `search.application.*ApplicationService`）
+- analytics：统计（Redis，按日/区间查询；请求采集入口收敛到 `analytics.application.*ApplicationService`）
+- market：交易市场、订单、争议与钱包 action saga；同步资金协作只调用 `wallet.api.action.WalletMarketActionApi`
+- wallet：资金事实 owner；充值、提现、转账、奖励、市场托管/放款/退款统一进入钱包 ApplicationService 和总账 domain 规则
 
 ### 1.4 配置中心与 profile（fail-closed）
 
@@ -179,9 +184,10 @@ IM 链路：使用 Kafka 作为 backplane（topic 常量见 `backend/community-i
 - user points：`PointsProjectionService`
 - growth task progress：`TaskProgressApplicationService`
 
+当前 `backend/community-app` 后端业务域已迁入严格 DDD Tactical Layering：HTTP controller、本地 listener/job 与 foreign API adapter 只能进入 owner `application.*ApplicationService`；应用层通过 domain model/service/repository 编排规则与持久化契约，MyBatis/Redis/ES mapper 或 adapter 与 dataobject 只允许留在 `infrastructure`。
+
 下一阶段目标：
-- 继续缩小 ArchUnit migration baseline，把剩余 foreign `service` / `exception` / `session` 依赖迁回 owner-domain API
-- 剩余 wider rollout 已不再包含 `ops`；growth reward/account legacy runtime 已在当前 worktree 退休，`reward_account` / `reward_ledger` / `reward_grant_record` 仅保留为历史表，不再参与在线 runtime
+- 继续缩小 ArchUnit migration baseline，把非协作面的历史例外迁回 owner-domain API 或 owner `contracts.event`
 - 在语义稳定后，再把 `api` / `contracts` / `impl` 进一步拆成独立 Maven artifact，避免继续依赖“包结构自律”
 
 ### 3.4 典型消费方（最终一致）
@@ -207,21 +213,21 @@ IM 链路：使用 Kafka 作为 backplane（topic 常量见 `backend/community-i
 
 phase 1 的运行边界是：
 - `community-app` 是唯一 XXL executor
-- `pendingRegistrationUserCleanup` 与 `searchReindex` 通过 XXL handler 进入业务 service
+- `pendingRegistrationUserCleanup` 与 `searchReindex` 通过 XXL handler 进入 owner `ApplicationService` 或 owner action API；本地 auth cleanup job 也只回到 auth application service
 - `PendingRegistrationUserCleanupJob` 仅在无 admin 的本地开发环境里保留兜底；这份 compose 栈作为 XXL-enabled 路径会显式关闭本地 scheduler，避免双跑
 - `PostScoreRefresher` 与 `OutboxWorkerScheduler` 明确保留本地调度，不迁入 XXL；其中 `PostScoreRefresher` 只保留调度壳层，刷新编排已收敛到 `PostScoreRefreshApplicationService`
 
 ---
 
-## 4. 同进程内部回源（去投影，直接 service 协作）
+## 4. 同进程内部回源（去投影，owner-domain API 协作）
 
-按当前需求取舍：仓库已移除跨域本地投影（`*_projection` 表、Redis 投影、投影消费者与 backfill 入口），统一改为 **同进程直接 service 实时回源 SSOT**。这里列出的 direct service 协作仍属于 migration baseline，不是最终目标边界；后续仍应优先收敛为 owner-domain `api.*`。
+按当前需求取舍：仓库已移除跨域本地投影（`*_projection` 表、Redis 投影、投影消费者与 backfill 入口），统一改为 **同进程 owner-domain API 实时回源 SSOT**。同域 controller/listener/job 不走 same-domain `api.*`，跨域调用才使用 owner-domain `api.query` / `api.action` / `api.model`。
 
 典型场景（均为进程内调用，非网络调用）：
 - `community-app` 已不再拥有私信写路径；真实私信发送入口是 `community-gateway` 暴露的 `/ws/im`，由 `im-realtime` 接入并在投递 Kafka 前调用 `POST /api/im-governance/private-messages/validate`
 - `community-app` 内部的 IM 治理判定不再走 legacy `message` 写 service，而是通过 `user` / `social` owner-domain query 接口回源拿用户存在性、处罚状态与拉黑关系（默认 fail-closed）
-- social 写路径可信解析（entity resolve）：直接回源 `content` 的 `ContentEntityService`（默认 fail-closed）
-- user 读路径聚合展示（主页点赞/关注/粉丝）：直接调 `social` 的 `LikeService`/`FollowService` 同步组装结果，当前不提供配置驱动的 fail-open 降级开关，异常按调用链直接返回
+- social 写路径可信解析（entity resolve）：`social.application.ContentEntityResolver` 通过 `content.api.query.ContentEntityQueryApi` 回源（默认 fail-closed）
+- user 读路径聚合展示（主页点赞/关注/粉丝）：通过 `social.api.query.SocialLikeQueryApi` / `SocialFollowQueryApi` 回源，当前不提供配置驱动的 fail-open 降级开关，异常按调用链直接返回
 
 风险与约束：
 - 同步依赖链会让“模块边界”更显性；因此需要强约束编译期依赖图（禁止环）

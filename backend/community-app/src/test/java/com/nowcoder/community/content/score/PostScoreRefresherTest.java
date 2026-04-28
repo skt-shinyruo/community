@@ -1,6 +1,6 @@
-package com.nowcoder.community.content.score;
+package com.nowcoder.community.content.infrastructure.job;
 
-import com.nowcoder.community.content.service.PostScoreRefreshApplicationService;
+import com.nowcoder.community.content.application.PostScoreRefreshApplicationService;
 import org.junit.jupiter.api.Test;
 
 import static org.mockito.Mockito.mock;

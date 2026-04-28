@@ -1,30 +1,32 @@
 package com.nowcoder.community.infra.pagination;
 
-import com.nowcoder.community.content.mapper.BookmarkMapper;
-import com.nowcoder.community.content.mapper.CommentMapper;
-import com.nowcoder.community.content.mapper.DiscussPostMapper;
-import com.nowcoder.community.content.mapper.ModerationActionMapper;
-import com.nowcoder.community.content.mapper.ReportMapper;
-import com.nowcoder.community.content.service.BookmarkService;
-import com.nowcoder.community.content.service.CommentService;
-import com.nowcoder.community.content.service.ModerationService;
-import com.nowcoder.community.content.service.PostService;
-import com.nowcoder.community.content.service.ReportService;
-import com.nowcoder.community.content.service.TagService;
-import com.nowcoder.community.content.service.UserModerationGuard;
+import com.nowcoder.community.content.infrastructure.persistence.mapper.BookmarkMapper;
+import com.nowcoder.community.content.infrastructure.persistence.mapper.CommentMapper;
+import com.nowcoder.community.content.infrastructure.persistence.mapper.DiscussPostMapper;
+import com.nowcoder.community.content.infrastructure.persistence.mapper.ModerationActionMapper;
+import com.nowcoder.community.content.infrastructure.persistence.mapper.ReportMapper;
+import com.nowcoder.community.content.infrastructure.persistence.BookmarkService;
+import com.nowcoder.community.content.infrastructure.persistence.CommentService;
+import com.nowcoder.community.content.infrastructure.persistence.ModerationService;
+import com.nowcoder.community.content.infrastructure.persistence.PostService;
+import com.nowcoder.community.content.infrastructure.persistence.ReportService;
+import com.nowcoder.community.content.infrastructure.persistence.TagService;
+import com.nowcoder.community.content.application.UserModerationGuard;
 import com.nowcoder.community.content.config.ContentRenderProperties;
-import com.nowcoder.community.content.event.ContentEventPublisher;
-import com.nowcoder.community.content.score.PostScoreQueue;
-import com.nowcoder.community.content.text.ContentTextCodec;
-import com.nowcoder.community.content.util.SensitiveFilter;
-import com.nowcoder.community.content.assembler.PostSummaryAssembler;
-import com.nowcoder.community.notice.mapper.NoticeMapper;
-import com.nowcoder.community.notice.service.NoticeService;
+import com.nowcoder.community.content.infrastructure.event.ContentEventPublisher;
+import com.nowcoder.community.content.application.port.PostScoreQueuePort;
+import com.nowcoder.community.content.application.ContentTextCodec;
+import com.nowcoder.community.content.application.port.ContentSanitizer;
+import com.nowcoder.community.content.application.assembler.PostSummaryAssembler;
+import com.nowcoder.community.notice.application.NoticeApplicationService;
+import com.nowcoder.community.notice.domain.repository.NoticeRepository;
+import com.nowcoder.community.social.application.FollowApplicationService;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
-import com.nowcoder.community.social.block.BlockService;
-import com.nowcoder.community.social.event.SocialEventPublisher;
-import com.nowcoder.community.social.follow.FollowRepository;
-import com.nowcoder.community.social.follow.FollowService;
+import com.nowcoder.community.social.domain.event.SocialDomainEventPublisher;
+import com.nowcoder.community.social.domain.repository.BlockRepository;
+import com.nowcoder.community.social.domain.repository.FollowRepository;
+import com.nowcoder.community.social.domain.service.BlockDomainService;
+import com.nowcoder.community.social.domain.service.FollowDomainService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -66,8 +68,8 @@ class PaginationOffsetOverflowTest {
         CommentService service = new CommentService(
                 commentMapper,
                 mock(PostService.class),
-                mock(SensitiveFilter.class),
-                mock(PostScoreQueue.class),
+                mock(ContentSanitizer.class),
+                mock(PostScoreQueuePort.class),
                 mock(ContentEventPublisher.class),
                 mock(SocialBlockQueryApi.class),
                 mock(UserModerationGuard.class),
@@ -87,10 +89,12 @@ class PaginationOffsetOverflowTest {
         when(followRepository.listFollowers(anyInt(), any(), anyInt(), anyInt())).thenReturn(List.of());
         UUID userId = uuid(2);
 
-        FollowService service = new FollowService(
+        FollowApplicationService service = new FollowApplicationService(
                 followRepository,
-                mock(SocialEventPublisher.class),
-                mock(BlockService.class)
+                mock(BlockRepository.class),
+                new FollowDomainService(),
+                new BlockDomainService(),
+                mock(SocialDomainEventPublisher.class)
         );
 
         service.listFollowers(USER, userId, Integer.MAX_VALUE, 50);
@@ -102,15 +106,15 @@ class PaginationOffsetOverflowTest {
 
     @Test
     void noticeServiceShouldNotPassNegativeOffsetWhenPageIsHuge() {
-        NoticeMapper noticeMapper = mock(NoticeMapper.class);
-        when(noticeMapper.selectNotices(any(), any(), anyInt(), anyInt())).thenReturn(List.of());
+        NoticeRepository noticeRepository = mock(NoticeRepository.class);
+        when(noticeRepository.findByUserAndTopic(any(), any(), anyInt(), anyInt())).thenReturn(List.of());
         UUID userId = uuid(1);
 
-        NoticeService service = new NoticeService(noticeMapper);
+        NoticeApplicationService service = new NoticeApplicationService(noticeRepository);
         service.listNotices(userId, "comment", Integer.MAX_VALUE, 50);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
-        verify(noticeMapper).selectNotices(eq(userId), eq("comment"), offsetCaptor.capture(), eq(50));
+        verify(noticeRepository).findByUserAndTopic(eq(userId), eq("comment"), offsetCaptor.capture(), eq(50));
         assertThat(offsetCaptor.getValue()).isGreaterThanOrEqualTo(0);
     }
 

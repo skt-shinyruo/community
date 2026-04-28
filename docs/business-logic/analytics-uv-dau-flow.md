@@ -14,14 +14,19 @@
 - `GET /api/analytics/dau`
 - `GET /api/analytics/me`
 
-### 1.2 核心服务
+### 1.2 应用入口与领域规则
 
-- `backend/community-app/src/main/java/com/nowcoder/community/analytics/service/AnalyticsService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/analytics/application/AnalyticsApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/analytics/application/AnalyticsIngestApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/analytics/domain/service/AnalyticsDomainService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/analytics/domain/service/AnalyticsIngestDomainService.java`
 
 ### 1.3 存储抽象与 Redis 实现
 
-- `backend/community-app/src/main/java/com/nowcoder/community/analytics/repo/AnalyticsRepository.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/analytics/repo/RedisAnalyticsRepository.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/analytics/domain/repository/AnalyticsRepository.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/analytics/infrastructure/persistence/RedisAnalyticsRepository.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/analytics/domain/repository/AnalyticsUserOrdinalRepository.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/analytics/infrastructure/persistence/RedisAnalyticsUserOrdinalRepository.java`
 
 当前只保留 Redis 实现。analytics 不再提供本机内存 repository，因为该实现只在单个 JVM 进程内有效，不能作为全局统计存储。
 
@@ -35,7 +40,7 @@
 
 controller 只负责把参数解析成 `LocalDate`，再调用：
 
-- `analyticsService.calculateUv(start, end)`
+- `AnalyticsApplicationService.calculateUv(new AnalyticsRangeQuery(start, end))`
 
 返回值是一个 `Long`。
 
@@ -47,7 +52,7 @@ controller 只负责把参数解析成 `LocalDate`，再调用：
 
 同样只是把请求转给：
 
-- `analyticsService.calculateDau(start, end)`
+- `AnalyticsApplicationService.calculateDau(new AnalyticsRangeQuery(start, end))`
 
 ### 2.3 `/me` 的作用
 
@@ -57,16 +62,14 @@ controller 只负责把参数解析成 `LocalDate`，再调用：
 
 它本身不是统计逻辑，而更像一个调试/校验接口，用来确认当前拿到的认证主体是谁。
 
-## 3. 统计服务层做了什么保护
+## 3. 统计应用层和领域层做了什么保护
 
-`AnalyticsService` 同时提供：
+`AnalyticsApplicationService` 提供查询入口：
 
-- `recordUv(date, ip)`
-- `recordDau(date, userId)`
 - `calculateUv(start, end)`
 - `calculateDau(start, end)`
 
-其中查询前都会先跑 `validateRange(start, end)`。
+其中查询前都会构造 `AnalyticsRange`，并由 `AnalyticsDomainService.validateRange(...)` 校验。
 
 ### 3.1 区间不能为空
 
@@ -156,16 +159,16 @@ controller 只负责把参数解析成 `LocalDate`，再调用：
 
 ### 5.1 每天一个 Bitmap key
 
-`recordDau(date, userId)` 直接执行：
+`RedisAnalyticsRepository.recordDau(date, ordinal)` 直接执行：
 
 - `setBit("dau:" + date, userId, true)`
 
 所以 DAU 的存储模型是：
 
 - 每天一个 Bitmap
-- bit offset 就是 `userId`
+- bit offset 是 analytics-only 整数 ordinal
 
-哪个用户当天活跃，就把当天位图里对应位置为 `1`。
+哪个用户当天活跃，就先由 `AnalyticsUserOrdinalRepository` 取得稳定 ordinal，再把当天位图里对应位置为 `1`。
 
 ### 5.2 查询区间 DAU 时怎么合并
 
@@ -210,12 +213,15 @@ controller 只负责把参数解析成 `LocalDate`，再调用：
 
 ### 7.1 记录路径
 
-服务层提供：
+请求采集写入口由 `AnalyticsIngestApplicationService` 提供：
 
-- `recordUv(date, ip)`
-- `recordDau(date, userId)`
+- `recordRequest(RecordRequestCommand command)`
+- `recordLoginSuccess(RecordLoginSuccessCommand command)`
 
-它们负责把“今天访问过”这个事实写进 Redis。
+它负责把“今天访问过”这个事实转换为 repository 写入：
+
+- UV：按客户端 IP 写 Redis HyperLogLog
+- DAU：先通过 `AnalyticsUserOrdinalRepository` 把 UUID 用户映射为整数 ordinal，再写 Redis Bitmap
 
 当前对外 controller 没有暴露记录接口，说明记录动作通常发生在别处，比如：
 
@@ -230,8 +236,9 @@ controller 只负责把参数解析成 `LocalDate`，再调用：
 查询路径非常纯：
 
 1. controller 接收日期
-2. service 校验范围
-3. repository 合并并返回结果
+2. application service 组装 range
+3. domain service 校验范围
+4. repository 合并并返回结果
 
 这条路径没有副作用，不会回写数据库或 Redis 主事实。
 
@@ -287,7 +294,7 @@ Bitmap 只记录用户当天是否出现过，重复访问不会重复计数。
 
 ### 9.4 统计模块本身不保证埋点来源完整
 
-它只负责存和算，不负责证明“所有应该记录的访问都已经被调用 recordUv/recordDau”。
+它只负责存和算，不负责证明“所有应该记录的访问都已经进入采集入口”。
 
 如果线上数据不对，除了看这里，也要回头查记录调用点是否漏接。
 
@@ -295,11 +302,11 @@ Bitmap 只记录用户当天是否出现过，重复访问不会重复计数。
 
 ### 10.1 与认证/登录的关系
 
-如果系统把登录用户记作活跃用户，那么登录成功或带身份访问时会成为 `recordDau(...)` 的潜在调用点。
+如果系统把登录用户记作活跃用户，那么登录成功或带身份访问时会成为 DAU 采集的潜在调用点。
 
 ### 10.2 与访客访问链路的关系
 
-如果系统要统计 UV，页面访问或请求入口通常会成为 `recordUv(...)` 的潜在调用点。
+如果系统要统计 UV，页面访问或请求入口通常会成为 UV 采集的潜在调用点。
 
 ### 10.3 与后台权限的关系
 
@@ -308,6 +315,8 @@ Bitmap 只记录用户当天是否出现过，重复访问不会重复计数。
 ## 11. 关键代码定位
 
 - `backend/community-app/src/main/java/com/nowcoder/community/analytics/controller/AnalyticsController.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/analytics/service/AnalyticsService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/analytics/repo/AnalyticsRepository.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/analytics/repo/RedisAnalyticsRepository.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/analytics/application/AnalyticsApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/analytics/application/AnalyticsIngestApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/analytics/domain/service/AnalyticsDomainService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/analytics/domain/repository/AnalyticsRepository.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/analytics/infrastructure/persistence/RedisAnalyticsRepository.java`

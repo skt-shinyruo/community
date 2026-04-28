@@ -2,25 +2,25 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.nowcoder.community.content.mapper.TagMapper">
+<mapper namespace="com.nowcoder.community.content.infrastructure.persistence.mapper.TagMapper">
 
     <sql id="selectFields">
         id, name, create_time
     </sql>
 
-    <select id="selectTagByName" resultType="com.nowcoder.community.content.entity.Tag">
+    <select id="selectTagByName" resultType="com.nowcoder.community.content.domain.model.Tag">
         select <include refid="selectFields"></include>
         from tag
         where name = #{name}
         limit 1
     </select>
 
-    <insert id="insertTag" parameterType="com.nowcoder.community.content.entity.Tag">
+    <insert id="insertTag" parameterType="com.nowcoder.community.content.domain.model.Tag">
         insert into tag(id, name, create_time)
         values(#{id, jdbcType=BINARY}, #{name}, #{createTime})
     </insert>
 
-    <select id="selectHotTags" resultType="com.nowcoder.community.content.entity.HotTag">
+    <select id="selectHotTags" resultType="com.nowcoder.community.content.domain.model.HotTag">
         select
             t.name as name,
             count(*) as use_count
@@ -31,7 +31,7 @@
         limit #{limit}
     </select>
 
-    <select id="selectSuggestTags" resultType="com.nowcoder.community.content.entity.HotTag">
+    <select id="selectSuggestTags" resultType="com.nowcoder.community.content.domain.model.HotTag">
         select
             t.name as name,
             coalesce(cnt.use_count, 0) as use_count

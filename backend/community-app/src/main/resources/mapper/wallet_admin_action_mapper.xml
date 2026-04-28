@@ -3,20 +3,20 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="com.nowcoder.community.wallet.mapper.WalletAdminActionMapper">
+<mapper namespace="com.nowcoder.community.wallet.infrastructure.persistence.mapper.WalletAdminActionMapper">
 
-    <insert id="insert" parameterType="com.nowcoder.community.wallet.entity.WalletAdminAction">
+    <insert id="insert" parameterType="com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletAdminActionDataObject">
         insert into wallet_admin_action(action_id, request_id, actor_user_id, target_account_id, action_type, amount, remark)
         values(#{actionId, jdbcType=BINARY}, #{requestId}, #{actorUserId, jdbcType=BINARY}, #{targetAccountId, jdbcType=BINARY}, #{actionType}, #{amount}, #{remark})
     </insert>
 
-    <select id="selectByRequestId" resultType="com.nowcoder.community.wallet.entity.WalletAdminAction">
+    <select id="selectByRequestId" resultType="com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletAdminActionDataObject">
         select action_id, request_id, actor_user_id, target_account_id, action_type, amount, remark, create_time
         from wallet_admin_action
         where request_id = #{requestId}
     </select>
 
-    <select id="selectRecentByTargetAccountId" resultType="com.nowcoder.community.wallet.entity.WalletAdminAction">
+    <select id="selectRecentByTargetAccountId" resultType="com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletAdminActionDataObject">
         select action_id, request_id, actor_user_id, target_account_id, action_type, amount, remark, create_time
         from wallet_admin_action
         where target_account_id = #{targetAccountId, jdbcType=BINARY}

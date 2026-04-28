@@ -2,7 +2,7 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.nowcoder.community.content.mapper.BookmarkMapper">
+<mapper namespace="com.nowcoder.community.content.infrastructure.persistence.mapper.BookmarkMapper">
 
     <insert id="insertBookmark">
         insert ignore into post_bookmark(user_id, post_id, create_time)
@@ -22,7 +22,7 @@
           and post_id = #{postId, jdbcType=BINARY}
     </select>
 
-    <select id="selectBookmarkedPosts" resultType="com.nowcoder.community.content.entity.DiscussPost">
+    <select id="selectBookmarkedPosts" resultType="com.nowcoder.community.content.domain.model.DiscussPost">
         select
             p.id as id,
             p.user_id as user_id,

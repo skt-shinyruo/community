@@ -1,9 +1,11 @@
 package com.nowcoder.community.user.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.user.dto.AdminUserResponse;
-import com.nowcoder.community.user.dto.UpdateUserRoleRequest;
-import com.nowcoder.community.user.service.AdminUserApplicationService;
+import com.nowcoder.community.user.application.AdminUserApplicationService;
+import com.nowcoder.community.user.application.command.UpdateUserRoleCommand;
+import com.nowcoder.community.user.application.result.AdminUserResult;
+import com.nowcoder.community.user.controller.dto.AdminUserResponse;
+import com.nowcoder.community.user.controller.dto.UpdateUserRoleRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,17 +35,21 @@ class AdminUserControllerUnitTest {
     }
 
     @Test
-    void searchShouldDelegateToAdminUserService() {
+    void searchShouldDelegateToAdminUserApplicationService() {
         UUID userId = uuid(7);
-        AdminUserResponse response = new AdminUserResponse();
-        response.setId(userId);
-        response.setUsername("alice");
-        when(adminUserApplicationService.search(userId, null, null)).thenReturn(response);
+        when(adminUserApplicationService.search(userId, null, null))
+                .thenReturn(new AdminUserResult(userId, "alice", "alice@example.com", 2, 0, "h7", null));
 
         Result<AdminUserResponse> result = controller.search(userId, null, null);
 
         assertThat(result.getCode()).isEqualTo(0);
-        assertThat(result.getData()).isSameAs(response);
+        assertThat(result.getData()).isNotNull();
+        assertThat(result.getData().getId()).isEqualTo(userId);
+        assertThat(result.getData().getUsername()).isEqualTo("alice");
+        assertThat(result.getData().getEmail()).isEqualTo("alice@example.com");
+        assertThat(result.getData().getType()).isEqualTo(2);
+        assertThat(result.getData().getStatus()).isEqualTo(0);
+        assertThat(result.getData().getHeaderUrl()).isEqualTo("h7");
         verify(adminUserApplicationService).search(userId, null, null);
     }
 
@@ -60,7 +66,13 @@ class AdminUserControllerUnitTest {
         Result<Void> result = controller.updateRole(authentication(actorUserId), request);
 
         assertThat(result.getCode()).isEqualTo(0);
-        verify(adminUserApplicationService).updateRole(actorUserId, request);
+        verify(adminUserApplicationService).updateRole(new UpdateUserRoleCommand(
+                actorUserId,
+                targetUserId,
+                2,
+                "delegate moderation",
+                true
+        ));
     }
 
     private Authentication authentication(UUID userId) {

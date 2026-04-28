@@ -3,7 +3,7 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="com.nowcoder.community.market.mapper.MarketWalletActionMapper">
+<mapper namespace="com.nowcoder.community.market.infrastructure.persistence.mapper.MarketWalletActionMapper">
 
     <sql id="BaseColumns">
         action_id, order_id, dispute_id, action_type, request_id, wallet_biz_id, actor_user_id,
@@ -11,7 +11,7 @@
         retry_count, next_retry_at, processing_lease_until, create_time, update_time
     </sql>
 
-    <insert id="insert" parameterType="com.nowcoder.community.market.entity.MarketWalletAction">
+    <insert id="insert" parameterType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject">
         insert into market_wallet_action(
             action_id, order_id, dispute_id, action_type, request_id, wallet_biz_id, actor_user_id,
             counterparty_user_id, amount, status, result_type, wallet_txn_id, failure_code, last_error,
@@ -26,19 +26,19 @@
         )
     </insert>
 
-    <select id="selectById" resultType="com.nowcoder.community.market.entity.MarketWalletAction">
+    <select id="selectById" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject">
         select <include refid="BaseColumns"/>
         from market_wallet_action
         where action_id = #{actionId, jdbcType=BINARY}
     </select>
 
-    <select id="selectByRequestId" resultType="com.nowcoder.community.market.entity.MarketWalletAction">
+    <select id="selectByRequestId" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject">
         select <include refid="BaseColumns"/>
         from market_wallet_action
         where request_id = #{requestId}
     </select>
 
-    <select id="selectByOrderAndType" resultType="com.nowcoder.community.market.entity.MarketWalletAction">
+    <select id="selectByOrderAndType" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject">
         select <include refid="BaseColumns"/>
         from market_wallet_action
         where order_id = #{orderId, jdbcType=BINARY}
@@ -47,7 +47,7 @@
         limit 1
     </select>
 
-    <select id="selectDue" resultType="com.nowcoder.community.market.entity.MarketWalletAction">
+    <select id="selectDue" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject">
         select <include refid="BaseColumns"/>
         from market_wallet_action
         where status in ('PENDING', 'RETRYING')
@@ -56,7 +56,7 @@
         limit #{limit}
     </select>
 
-    <select id="selectUnfinishedWithWalletTxn" resultType="com.nowcoder.community.market.entity.MarketWalletAction">
+    <select id="selectUnfinishedWithWalletTxn" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject">
         select <include refid="BaseColumns"/>
         from market_wallet_action
         where wallet_txn_id is not null

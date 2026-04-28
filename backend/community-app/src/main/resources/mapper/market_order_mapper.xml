@@ -3,7 +3,7 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="com.nowcoder.community.market.mapper.MarketOrderMapper">
+<mapper namespace="com.nowcoder.community.market.infrastructure.persistence.mapper.MarketOrderMapper">
 
     <sql id="BaseColumns">
         order_id, request_id, listing_id, goods_type, seller_user_id, buyer_user_id, quantity, unit_price_snapshot,
@@ -13,40 +13,40 @@
         create_time, update_time
     </sql>
 
-    <select id="selectById" resultType="com.nowcoder.community.market.entity.MarketOrder">
+    <select id="selectById" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject">
         select <include refid="BaseColumns"/>
         from market_order
         where order_id = #{orderId, jdbcType=BINARY}
     </select>
 
-    <select id="selectByIdForUpdate" resultType="com.nowcoder.community.market.entity.MarketOrder">
+    <select id="selectByIdForUpdate" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject">
         select <include refid="BaseColumns"/>
         from market_order
         where order_id = #{orderId, jdbcType=BINARY}
         for update
     </select>
 
-    <select id="selectByRequestId" resultType="com.nowcoder.community.market.entity.MarketOrder">
+    <select id="selectByRequestId" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject">
         select <include refid="BaseColumns"/>
         from market_order
         where request_id = #{requestId}
     </select>
 
-    <select id="selectByRequestIdForUpdate" resultType="com.nowcoder.community.market.entity.MarketOrder">
+    <select id="selectByRequestIdForUpdate" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject">
         select <include refid="BaseColumns"/>
         from market_order
         where request_id = #{requestId}
         for update
     </select>
 
-    <select id="selectByBuyerUserIdAndRequestId" resultType="com.nowcoder.community.market.entity.MarketOrder">
+    <select id="selectByBuyerUserIdAndRequestId" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject">
         select <include refid="BaseColumns"/>
         from market_order
         where buyer_user_id = #{buyerUserId, jdbcType=BINARY}
           and request_id = #{requestId}
     </select>
 
-    <select id="selectByBuyerUserIdAndRequestIdForUpdate" resultType="com.nowcoder.community.market.entity.MarketOrder">
+    <select id="selectByBuyerUserIdAndRequestIdForUpdate" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject">
         select <include refid="BaseColumns"/>
         from market_order
         where buyer_user_id = #{buyerUserId, jdbcType=BINARY}
@@ -54,21 +54,21 @@
         for update
     </select>
 
-    <select id="selectByBuyerUserId" resultType="com.nowcoder.community.market.entity.MarketOrder">
+    <select id="selectByBuyerUserId" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject">
         select <include refid="BaseColumns"/>
         from market_order
         where buyer_user_id = #{buyerUserId, jdbcType=BINARY}
         order by create_time desc, order_id desc
     </select>
 
-    <select id="selectBySellerUserId" resultType="com.nowcoder.community.market.entity.MarketOrder">
+    <select id="selectBySellerUserId" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject">
         select <include refid="BaseColumns"/>
         from market_order
         where seller_user_id = #{sellerUserId, jdbcType=BINARY}
         order by create_time desc, order_id desc
     </select>
 
-    <insert id="insert" parameterType="com.nowcoder.community.market.entity.MarketOrder">
+    <insert id="insert" parameterType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject">
         insert into market_order(
             order_id, request_id, listing_id, goods_type, seller_user_id, buyer_user_id, quantity, unit_price_snapshot, total_amount,
             delivery_mode_snapshot, listing_title_snapshot, status, escrow_txn_id, release_txn_id, refund_txn_id,
@@ -239,7 +239,7 @@
         where order_id = #{orderId, jdbcType=BINARY}
     </update>
 
-    <select id="selectDueForAutoConfirm" resultType="com.nowcoder.community.market.entity.MarketOrder">
+    <select id="selectDueForAutoConfirm" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject">
         select <include refid="BaseColumns"/>
         from market_order
         where status in ('DELIVERED', 'SHIPPED')
@@ -248,7 +248,7 @@
         order by auto_confirm_at asc, order_id asc
     </select>
 
-    <select id="selectWalletPendingOrders" resultType="com.nowcoder.community.market.entity.MarketOrder">
+    <select id="selectWalletPendingOrders" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject">
         select <include refid="BaseColumns"/>
         from market_order
         where status in (

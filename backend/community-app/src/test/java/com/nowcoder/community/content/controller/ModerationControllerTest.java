@@ -1,10 +1,13 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.content.dto.ModerationActionResponse;
-import com.nowcoder.community.content.dto.ModerationActionRequest;
-import com.nowcoder.community.content.dto.ReportResponse;
-import com.nowcoder.community.content.service.ModerationApplicationService;
+import com.nowcoder.community.content.application.ModerationApplicationService;
+import com.nowcoder.community.content.application.command.TakeModerationActionCommand;
+import com.nowcoder.community.content.application.result.ModerationActionResult;
+import com.nowcoder.community.content.application.result.ReportModerationResult;
+import com.nowcoder.community.content.controller.dto.ModerationActionResponse;
+import com.nowcoder.community.content.controller.dto.ModerationActionRequest;
+import com.nowcoder.community.content.controller.dto.ReportResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,32 +45,28 @@ class ModerationControllerTest {
     @Test
     void reportsShouldReturnApplicationServiceProjectedResponses() {
         UUID reporterId = uuid(7);
-        ReportResponse response = new ReportResponse();
-        response.setId(REPORT_ID);
-        response.setReason("spam");
-        response.setCreateTime(new Date());
+        ReportModerationResult response = new ReportModerationResult(REPORT_ID, reporterId, 1, uuid(88), "spam", "detail", 0, new Date());
         when(moderationApplicationService.listReports(0, 1, reporterId, null, null)).thenReturn(List.of(response));
 
         Result<List<ReportResponse>> result = controller.reports(0, 1, reporterId, null, null);
 
         assertThat(result.getCode()).isEqualTo(0);
-        assertThat(result.getData()).containsExactly(response);
+        assertThat(result.getData()).extracting(ReportResponse::getId).containsExactly(REPORT_ID);
+        assertThat(result.getData()).extracting(ReportResponse::getReason).containsExactly("spam");
         verify(moderationApplicationService).listReports(0, 1, reporterId, null, null);
     }
 
     @Test
     void actionsShouldReturnApplicationServiceProjectedResponses() {
         UUID actorId = uuid(99);
-        ModerationActionResponse response = new ModerationActionResponse();
-        response.setId(ACTION_ID);
-        response.setAction("ban");
-        response.setCreateTime(new Date());
+        ModerationActionResult response = new ModerationActionResult(ACTION_ID, REPORT_ID, actorId, "ban", "abuse", 3600, new Date());
         when(moderationApplicationService.listActions(actorId, null, null)).thenReturn(List.of(response));
 
         Result<List<ModerationActionResponse>> result = controller.actions(actorId, null, null);
 
         assertThat(result.getCode()).isEqualTo(0);
-        assertThat(result.getData()).containsExactly(response);
+        assertThat(result.getData()).extracting(ModerationActionResponse::getId).containsExactly(ACTION_ID);
+        assertThat(result.getData()).extracting(ModerationActionResponse::getAction).containsExactly("ban");
         verify(moderationApplicationService).listActions(actorId, null, null);
     }
 
@@ -80,13 +79,14 @@ class ModerationControllerTest {
         request.setAction("ban");
         request.setReason("abuse");
         request.setDurationSeconds(3600);
-        when(moderationApplicationService.takeAction(actorId, request)).thenReturn(ACTION_ID);
+        TakeModerationActionCommand command = new TakeModerationActionCommand(actorId, REPORT_ID, "ban", "abuse", 3600);
+        when(moderationApplicationService.takeAction(command)).thenReturn(ACTION_ID);
 
         Result<UUID> result = controller.action(authentication, request);
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).isEqualTo(ACTION_ID);
-        verify(moderationApplicationService).takeAction(actorId, request);
+        verify(moderationApplicationService).takeAction(command);
     }
 
     private Authentication authentication(UUID userId) {

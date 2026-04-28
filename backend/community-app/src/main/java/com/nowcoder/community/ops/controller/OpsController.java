@@ -4,9 +4,10 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.ErrorCode;
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.ops.dto.SearchReindexResponse;
-import com.nowcoder.community.search.api.action.SearchReindexActionApi;
-import com.nowcoder.community.search.api.model.SearchReindexResult;
+import com.nowcoder.community.ops.application.OpsApplicationService;
+import com.nowcoder.community.ops.application.command.ReindexSearchCommand;
+import com.nowcoder.community.ops.application.result.SearchReindexResult;
+import com.nowcoder.community.ops.controller.dto.SearchReindexResponse;
 import com.nowcoder.community.search.exception.SearchErrorCode;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,16 +27,16 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/ops")
 public class OpsController {
 
-    private final SearchReindexActionApi searchReindexActionApi;
+    private final OpsApplicationService opsApplicationService;
 
-    public OpsController(SearchReindexActionApi searchReindexActionApi) {
-        this.searchReindexActionApi = searchReindexActionApi;
+    public OpsController(OpsApplicationService opsApplicationService) {
+        this.opsApplicationService = opsApplicationService;
     }
 
     @PostMapping("/search/reindex")
     public ResponseEntity<Result<SearchReindexResponse>> reindex() {
         try {
-            SearchReindexResult result = searchReindexActionApi.reindex();
+            SearchReindexResult result = opsApplicationService.reindexSearch(new ReindexSearchCommand());
             if (result.skipped()) {
                 throw reindexRunning(result);
             }

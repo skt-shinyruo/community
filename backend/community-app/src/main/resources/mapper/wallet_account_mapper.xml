@@ -3,15 +3,15 @@
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
-<mapper namespace="com.nowcoder.community.wallet.mapper.WalletAccountMapper">
+<mapper namespace="com.nowcoder.community.wallet.infrastructure.persistence.mapper.WalletAccountMapper">
 
-    <select id="selectByAccountId" resultType="com.nowcoder.community.wallet.entity.WalletAccount">
+    <select id="selectByAccountId" resultType="com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletAccountDataObject">
         select account_id, owner_type, owner_id, account_type, balance, status, version, create_time, update_time
         from wallet_account
         where account_id = #{accountId, jdbcType=BINARY}
     </select>
 
-    <select id="selectByOwner" resultType="com.nowcoder.community.wallet.entity.WalletAccount">
+    <select id="selectByOwner" resultType="com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletAccountDataObject">
         select account_id, owner_type, owner_id, account_type, balance, status, version, create_time, update_time
         from wallet_account
         where owner_type = #{ownerType}
@@ -19,7 +19,7 @@
           and account_type = #{accountType}
     </select>
 
-    <insert id="insert" parameterType="com.nowcoder.community.wallet.entity.WalletAccount">
+    <insert id="insert" parameterType="com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletAccountDataObject">
         insert into wallet_account(account_id, owner_type, owner_id, account_type, balance, status, version)
         values(#{accountId, jdbcType=BINARY}, #{ownerType}, #{ownerId, jdbcType=BINARY}, #{accountType}, #{balance}, #{status}, #{version})
     </insert>

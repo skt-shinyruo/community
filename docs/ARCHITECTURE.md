@@ -70,7 +70,7 @@ flowchart TD
 - **独立入口层**：浏览器 / 客户端先到本地 `NGINX`，再进入 `community-gateway` 副本池；`community-gateway` 负责 HTTP / WS 路由与边缘策略。
 - **服务发现**：`community-gateway`、`community-app`、`im-core`、`im-realtime-worker` 都向三节点 `Nacos` 集群注册；HTTP 平面使用 Spring Cloud Gateway `lb://serviceId`，WS 平面使用 discovery metadata 生成 worker URI。
 - **独立 IM 聚合**：顶层模块 `community-im` 负责组织 `im-common`、`im-core`、`im-realtime` 三个 IM 子模块。
-- **包级边界**：领域仍按 `com.nowcoder.community.auth`、`content`、`social`、`notice`、`search`、`analytics`、`growth`、`market`、`wallet` 等顶层包组织；域内默认按 Spring Boot 分层思路组织（controller/service/dto/entity/mapper 或 repo），安全/事件/错误码也按职责落在各自域包内。
+- **包级边界**：领域仍按 `com.nowcoder.community.auth`、`content`、`social`、`notice`、`search`、`analytics`、`growth`、`market`、`wallet` 等顶层包组织；后端业务代码统一采用 DDD Tactical Layering：`controller / job / listener -> application -> domain -> infrastructure`。同步跨域协作走 owner-domain `api.query` / `api.action`，异步跨域协作走 `contracts.event`。旧 `service` 包只能保留 foreign API adapter，旧 `entity` / `mapper` / `model` 不再作为业务扩展入口。
 
 ---
 
@@ -101,46 +101,64 @@ flowchart TD
 ### 2.3 领域包（以包为边界）
 
 `community-app` 内的主站领域能力位于 `backend/community-app/` 包树下；IM owner 则保留在独立 `community-im` 模块（`im-realtime`、`im-core`、`im-common`），不再由 `community-app` 的 message 包承担：
-- `com.nowcoder.community.auth`：登录/刷新/登出、验证码、注册/激活、找回密码、登录风控
+- `com.nowcoder.community.auth`：登录/刷新/登出、验证码、注册/激活、找回密码、登录风控；controller 进入 `auth.application.AuthApplicationService`，用例编排在 `auth.application.*ApplicationService`，规则和仓储契约在 `auth.domain`，JWT / mail / Redis / DB / cleanup job / OriginGuard 等技术细节在 `auth.infrastructure`
 - `com.nowcoder.community.user`：用户资料、角色管理、头像上传与文件服务
 - `com.nowcoder.community.content`：帖子/评论/回复、审核、举报、内容分数刷新
 - `com.nowcoder.community.social`：点赞、关注、拉黑
-- `com.nowcoder.community.notice`：站内通知对外 API、通知投影与已读语义；`notice` owns its DTO / entity / mapper / service types，并临时复用 `message` 表作为存储
+- `com.nowcoder.community.notice`：站内通知对外 API、通知投影与已读语义；controller 进入 `notice.application.*ApplicationService`，规则在 `notice.domain.service`，MyBatis 行对象在 `notice.infrastructure.persistence.dataobject`，本地事件适配器在 `notice.infrastructure.event`
 - `com.nowcoder.community.im`：IM 治理校验入口（`/api/im-governance/private-messages/validate`）
-- `com.nowcoder.community.search`：搜索投影（ES）
-- `com.nowcoder.community.analytics`：统计/分析
-- `com.nowcoder.community.growth`：积分、任务进度、奖励等投影/记账能力；task-progress 写入口已收敛到 owner `TaskProgressApplicationService`，legacy reward/account runtime 已退休，`reward_account` / `reward_ledger` / `reward_grant_record` 仅保留为历史数据，在线余额事实来源统一落在 `wallet`
-- `com.nowcoder.community.market`：交易市场、地址簿、订单、争议处理
-- `com.nowcoder.community.wallet`：钱包账户汇总、充值/提现/转账与管理员冻结/冲正
-- `com.nowcoder.community.ops`：运维平面（`/api/ops/**`）
+- `com.nowcoder.community.search`：搜索投影（ES）；controller / outbox handler / XXL reindex 入口进入 `search.application.*ApplicationService`，搜索规则在 `search.domain.service`，ES 与 outbox 适配器在 `search.infrastructure`
+- `com.nowcoder.community.analytics`：统计/分析；controller 与请求采集 filter 进入 `analytics.application.*ApplicationService`，统计规则在 `analytics.domain.service`，Redis 与 Web filter 细节在 `analytics.infrastructure`
+- `com.nowcoder.community.growth`：积分、任务进度、奖励等投影/记账能力；foreign domain 只通过 `growth.api.*` 协作，owner 编排在 `growth.application.*ApplicationService`，任务/等级规则在 `growth.domain.service`，MyBatis 细节在 `growth.infrastructure.persistence`
+- `com.nowcoder.community.market`：交易市场、地址簿、订单、争议处理；controller/job 进入 `market.application.*ApplicationService`，规则在 `market.domain.service`，MyBatis 行对象在 `market.infrastructure.persistence.dataobject`
+- `com.nowcoder.community.wallet`：钱包账户汇总、充值/提现/转账与管理员冻结/冲正；controller 进入 `wallet.application.*ApplicationService`，资金规则在 `wallet.domain.service`，MyBatis 行对象在 `wallet.infrastructure.persistence.dataobject`
+- `com.nowcoder.community.ops`：运维平面（`/api/ops/**`）；controller 进入 `ops.application.OpsApplicationService`，由应用层同步调用 owner-domain `search.api.action.SearchReindexActionApi`
 
-跨域同步协作统一通过 owner-domain 暴露的 `api.query`、`api.action`、`api.model` 完成；跨域异步协作统一通过 owner-domain 暴露的 `contracts.event` 完成。`service`、`entity`、`mapper` 以及 producer 域的 `event` 实现包均视为域内实现细节，不再作为默认跨域入口。当前分支上的 `DomainBoundaryArchTest`、`ControllerBoundaryArchTest` 与 `ListenerBoundaryArchTest` 已默认绿色；notice/message 临时共享类型白名单已删除，其中同步边界采用 allowlist 规则，遗留的非协作面依赖通过精确类名 migration baseline 冻结，后续只允许收缩不允许扩散。
+跨域同步协作统一通过 owner-domain 暴露的 `api.query`、`api.action`、`api.model` 完成；跨域异步协作统一通过 owner-domain 暴露的 `contracts.event` 完成。`domain`、`infrastructure`、旧 root `service`、旧 root `entity`、旧 root `mapper` 以及 producer 域的 root `event` 实现包均视为域内实现细节，不作为跨域入口。当前分支上的 `DddLayeringArchTest`、`DomainBoundaryArchTest`、`ControllerBoundaryArchTest` 与 `ListenerBoundaryArchTest` 已作为默认守卫；notice/message 临时共享类型白名单已删除，同步边界采用 allowlist 规则，遗留的非协作面依赖通过精确类名 migration baseline 冻结，后续只允许收缩不允许扩散。
 
-需要明确的是：`community-app` 仍然是“靠包边界治理的单 deployable”，还不是靠 Maven 子模块强制执行的 modular monolith。当前阶段先稳定 use-case owner、projection owner 和 event contracts；下一阶段才考虑把 `api` / `contracts` / `impl` 拆成独立 artifact，并收紧 Spring 装配范围。
+需要明确的是：`community-app` 仍然是“靠包边界治理的单 deployable”，还不是靠 Maven 子模块强制执行的 modular monolith。当前阶段必须先稳定 DDD Tactical Layering：`ApplicationService` 是同域用例入口，`domain` 承载业务规则和仓储接口，`infrastructure` 承载 MyBatis / Redis / outbox / event adapter 等技术实现。下一阶段才考虑把 `api` / `contracts` / implementation 拆成独立 artifact，并收紧 Spring 装配范围。
 
-### 2.3.1 域内数据访问策略
+### 2.3.1 DDD Tactical Layering
 
-`community-app` 对“跨域协作边界”和“域内持久化方式”采用两层规则：
+`community-app` 后端业务代码必须采用 DDD Tactical Layering。标准包形态如下：
+
+```text
+com.nowcoder.community.<domain>
+  controller
+  application
+    command
+    result
+  domain
+    model
+    service
+    repository
+    event
+  infrastructure
+    persistence
+      mapper
+      dataobject
+    event
+  api
+    query
+    action
+    model
+  contracts
+    event
+```
+
+强制规则：
 
 - 跨域协作一律通过 owner-domain `api.query` / `api.action` / `api.model` / `contracts`；
-- 域内持久化默认允许 owner-domain service 直接依赖本域 MyBatis mapper。
-- 同域同步入口统一走 owner `*ApplicationService`；`@RestController`、本地 `*Listener`、本地持续型 worker 默认都不再把 same-domain `api.query` / `api.action` / `api.model` 当入口。
-- 应用边界已全局冻结：所有 `@RestController` 与 `..event..` 下的 `*Listener` 不直接依赖 same-domain `..app..`，也不直接依赖 same-domain raw service / projection service 等非 `ApplicationService` 类型。
+- 同域同步入口统一走 owner `application.*ApplicationService`；`@RestController`、本地 `*Listener`、本地持续型 worker 默认都不再把 same-domain `api.query` / `api.action` / `api.model` 当入口；
+- `ApplicationService` 是用例入口，负责事务、幂等、actor/viewer 转换、命令/结果装配、领域调用、领域事件发布和 foreign-domain `api.*` 调用；
+- `domain` 只表达业务模型、领域规则、领域服务、策略、仓储接口和领域事件，不依赖 controller / application / infrastructure / mapper / dataobject / HTTP DTO / owner-domain `api.*`；
+- `infrastructure` 承载 MyBatis mapper、dataobject、repository 实现、Redis、outbox、Spring event publisher 等技术细节；
+- 应用边界已全局冻结：所有 `@RestController` 与 `..event..` 下的 `*Listener` 不直接依赖 same-domain `..app..`，也不直接依赖 same-domain raw service / projection service 等非 `ApplicationService` 类型；
 - 当前 controller / listener 应用边界 baseline 为空；后续不允许重新引入 legacy 例外。
 - `api.query` / `api.action` / `api.model` 的职责固定为跨域同步协作边界，不是域内 service locator。
-- `..app.query..` 属于历史迁移期结构，当前不应继续保留，也不允许新增。
+- `..app.query..`、`..app.command..`、新的 `*UseCase`、`*CommandService`、`*ActionService`、`*FacadeService` 都不再允许作为新增应用入口。
 
-Repository / port 不是默认必选层，只有在下面场景才引入：
-
-- 同一领域存在多套后端实现，需要按配置切换；
-- 写路径存在后端特有的原子性、补偿或一致性语义；
-- 测试需要可替换的内存实现，覆盖真实业务行为而不是只 mock mapper。
-
-当前代码按这个规则解释如下：
-
-- `content` / `user` / `growth` / `notice` 以单一 MyBatis SSOT 为主，`Service -> Mapper` 是合法默认路径；
-- `social` 写侧存在 `DB / Redis / InMemory` 三套实现，因此保留 `Service -> Repository -> Adapter`；
-- 一旦引入 repository，存储选择与补偿策略必须停留在 repository / adapter 抽象内，不再泄漏到 service 通过读取 `*.storage` 配置做分支判断。
+旧 root `service` / `entity` / `mapper` / `event` / `app` 包已经作为生产业务表面退休。触碰相关代码时，应继续把业务规则放在 `domain`，把 MyBatis 细节放在 `infrastructure.persistence`，把同域入口放在 `application.*ApplicationService`，把 owner API 实现放在 `infrastructure.api`。
 
 ### 2.4 共享基础设施
 - `backend/community-common/common-core`、`common-web`、`common-webflux`、`common-security`、`common-idempotency`、`common-outbox`：共享错误协议、trace、Web 基础设施、JWT、安全、HTTP 幂等、DB outbox 等横切能力
@@ -195,15 +213,15 @@ Repository / port 不是默认必选层，只有在下面场景才引入：
 1. 前端 `POST http://localhost:12880/api/posts`
 2. `community-gateway` 将请求转发到 `community-app`
 3. `content.controller.PostController` 通过同域 `PostPublishingApplicationService` 进入写路径，负责参数清洗、幂等包装与命令编排
-4. `CreatePostUseCase` 等内部 use case 在事务内写主存储并发布帖子领域事件，读路径通过同域 `PostReadApplicationService` 和跨域 `content.api.query.*` 提供
+4. `PostPublishingApplicationService` 在事务内调用 `domain` 模型 / 领域服务 / 仓储接口完成主存储写入并发布帖子领域事件；MyBatis mapper / dataobject 只能出现在 `infrastructure.persistence`
 5. 帖子领域事件继续驱动搜索、通知、积分等本地投影；跨域同步协作模型统一落在 `content.api.model` / `user.api.model` 等 owner-domain API 包下，跨域异步协作模型统一落在 `content.contracts.event` / `social.contracts.event`
-6. 通知、积分、任务进度等投影的业务判定统一由 owner-domain 应用入口负责（如 `NoticeProjectionApplicationService`、`PointsProjectionService`、`TaskProgressApplicationService`）；`@TransactionalEventListener` 与 outbox adapter 只负责订阅、序列化和重试，避免本地监听与 outbox 双路径重复维护
+6. 通知、积分、任务进度等投影的业务判定统一由 owner-domain 应用入口负责；`@TransactionalEventListener` 与 outbox adapter 只负责订阅、序列化和重试，避免本地监听与 outbox 双路径重复维护
 
 ### 4.3 典型后台运维路径：XXL-JOB 调度
 1. 运维人员访问 `http://localhost:12887/xxl-job-admin`
 2. `xxl-job-admin` 基于 `xxl_job` schema 管理任务定义、执行记录与调度状态
 3. `community-app` 作为 phase 1 唯一 executor，注册 `pendingRegistrationUserCleanup` 与 `searchReindex`
-4. 清理类/运维类离散任务通过 XXL handler 进入业务 service
+4. 清理类/运维类离散任务通过 XXL handler 进入 owner `ApplicationService` 或 owner action API
 5. 高频/持续 worker 仍保留在应用内：
    - `PendingRegistrationUserCleanupJob` 仅作为无 admin 的本地兜底
    - `PostScoreRefresher` 继续本地 `@Scheduled`，但调度壳层只负责批次触发，实际刷新编排收敛到 `PostScoreRefreshApplicationService`

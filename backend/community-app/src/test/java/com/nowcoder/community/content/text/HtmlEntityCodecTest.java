@@ -1,4 +1,4 @@
-package com.nowcoder.community.content.text;
+package com.nowcoder.community.content.application;
 
 import org.junit.jupiter.api.Test;
 

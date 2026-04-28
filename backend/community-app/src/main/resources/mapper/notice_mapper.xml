@@ -2,18 +2,18 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.nowcoder.community.notice.mapper.NoticeMapper">
+<mapper namespace="com.nowcoder.community.notice.infrastructure.persistence.mapper.NoticeMapper">
 
     <sql id="noticePredicate">
         conversation_id in ('comment', 'like', 'follow', 'moderation')
     </sql>
 
-    <insert id="insertNotice" parameterType="com.nowcoder.community.notice.entity.NoticeRecord">
+    <insert id="insertNotice" parameterType="com.nowcoder.community.notice.infrastructure.persistence.dataobject.NoticeRecordDataObject">
         insert into message(id, from_id, to_id, conversation_id, content, status, create_time)
         values(#{id, jdbcType=BINARY}, #{senderUserId, jdbcType=BINARY}, #{recipientUserId, jdbcType=BINARY}, #{topic}, #{content}, #{status}, #{createTime})
     </insert>
 
-    <select id="selectNotices" resultType="com.nowcoder.community.notice.entity.NoticeRecord">
+    <select id="selectNotices" resultType="com.nowcoder.community.notice.infrastructure.persistence.dataobject.NoticeRecordDataObject">
         select id,
                from_id as senderUserId,
                to_id as recipientUserId,

@@ -18,15 +18,17 @@
 
 - `MarketController`：市场主入口
 - `AdminMarketController`：管理员争议裁决入口
-- `MarketListingService`：上架 / 编辑 / 暂停 / 恢复 / 关闭
-- `MarketInventoryService`：预置库存追加 / 作废
-- `MarketOrderService`：下单、虚拟交付、实物发货、确认、取消、自动确认
-- `MarketDisputeService`：开争议、卖家接受 / 拒绝、管理员裁决
-- `MarketQueryService`：公开 listing、我的 listing、买单 / 卖单、订单详情
-- `MarketWalletActionService`：写入 `market_wallet_action` 钱包命令
-- `MarketWalletActionProcessor`：异步调用钱包托管、放款、退款并推进订单 saga
-- `MarketWalletActionRecoveryService`：恢复过期处理租约、对账未完成的钱包命令
-- `WalletMarketApplicationService`：钱包域内执行托管、放款、退款落账
+- `MarketApplicationService` / `AdminMarketApplicationService`：HTTP 入口的同域应用服务
+- `MarketListingApplicationService`：上架 / 编辑 / 暂停 / 恢复 / 关闭
+- `MarketInventoryApplicationService`：预置库存追加 / 作废
+- `MarketOrderApplicationService`：下单、虚拟交付、实物发货、确认、取消
+- `MarketOrderAutoConfirmApplicationService`：自动确认到期订单
+- `MarketDisputeApplicationService`：开争议、卖家接受 / 拒绝、管理员裁决
+- `MarketQueryApplicationService`：公开 listing、我的 listing、买单 / 卖单、订单详情
+- `MarketWalletActionApplicationService`：写入 `market_wallet_action` 钱包命令
+- `MarketWalletActionProcessorApplicationService`：异步调用钱包托管、放款、退款并推进订单 saga
+- `MarketWalletActionRecoveryApplicationService`：恢复过期处理租约、对账未完成的钱包命令
+- `WalletMarketActionApi`：market 跨域进入 wallet 的同步 action contract，由 wallet adapter 委托 `WalletMarketApplicationService` 落账
 - XXL Job：
   - `MarketOrderAutoConfirmHandler`
   - `MarketWalletActionProcessorHandler`
@@ -81,7 +83,7 @@
 - `SOLD_OUT`
 - `CLOSED`
 
-`MarketListingService` 负责这些状态切换。
+`MarketListingApplicationService` 负责这些状态切换。
 
 ### 3.2 虚拟与实物的创建差异
 
@@ -107,7 +109,7 @@
 
 ### 3.3 预置库存
 
-`MarketInventoryService.appendInventory(...)` 只服务于：
+`MarketInventoryApplicationService.appendInventory(...)` 只服务于：
 
 - `goodsType=VIRTUAL`
 - `deliveryMode=PRELOADED`
@@ -125,7 +127,7 @@
 
 ### 4.1 下单主链路
 
-`POST /api/market/orders` -> `MarketOrderService.createOrder(...)`
+`POST /api/market/orders` -> `MarketApplicationService.createOrder(...)` -> `MarketOrderApplicationService.createOrder(...)`
 
 关键步骤：
 
@@ -143,8 +145,8 @@
 8. 写入 `market_order(status=ESCROW_PENDING, request_id=<effective idempotency key>)`
 9. 对有限库存执行扣减
 10. 写入 `market_wallet_action(action_type=ESCROW, status=PENDING, request_id=market-order:<orderId>:escrow)`
-11. 后台 processor 调 `WalletMarketApplicationService.escrowOrder(...)`
-12. 钱包成功后由 `MarketOrderSagaService` 推进到 `ESCROWED`
+11. 后台 processor 调 `WalletMarketActionApi.escrowOrder(...)`
+12. 钱包成功后由 `MarketOrderSagaApplicationService` 推进到 `ESCROWED`
 13. 如果是预置虚拟商品：
     - escrow 成功后把预留库存交付给买家
     - 订单进入 `DELIVERED`
@@ -154,7 +156,7 @@
 
 - 市场订单不直接改余额
 - 对外幂等 key 与钱包账本 request id 解耦；钱包侧使用 `market-order:<orderId>:<action>` 这类服务端派生 id
-- 资金动作不再在 `MarketOrderService` / `MarketDisputeService` 的同步事务内直接落钱包账本。
+- 资金动作不再在 `MarketOrderApplicationService` / `MarketDisputeApplicationService` 的同步事务内直接落钱包账本。
 - 市场先写 `market_wallet_action`，订单进入 `ESCROW_PENDING`、`RELEASE_PENDING`、`REFUND_PENDING`
   或争议 pending 状态；后台 processor 调钱包并回写最终状态。
 
@@ -329,7 +331,7 @@
 
 ## 7. 自动确认
 
-`MarketOrderService` 还实现了：
+自动确认对外 action contract 由 `MarketOrderAutoConfirmActionApiAdapter` 实现：
 
 - `MarketOrderAutoConfirmActionApi.autoConfirmDueOrders()`
 
@@ -352,7 +354,7 @@
 
 ## 8. 查询侧
 
-`MarketQueryService` 负责：
+`MarketQueryApplicationService` 负责：
 
 - 公共 listing 列表
 - listing 详情

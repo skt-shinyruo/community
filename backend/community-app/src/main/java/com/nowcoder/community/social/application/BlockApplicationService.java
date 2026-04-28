@@ -1,0 +1,137 @@
+package com.nowcoder.community.social.application;
+
+import com.nowcoder.community.social.application.command.BlockCommand;
+import com.nowcoder.community.social.application.command.UnblockCommand;
+import com.nowcoder.community.social.application.result.BlockRelationResult;
+import com.nowcoder.community.social.domain.event.BlockRelationChangedDomainEvent;
+import com.nowcoder.community.social.domain.event.SocialDomainEventPublisher;
+import com.nowcoder.community.social.domain.model.BlockRelation;
+import com.nowcoder.community.social.domain.repository.BlockRepository;
+import com.nowcoder.community.social.domain.service.BlockDomainService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+import java.util.List;
+import java.util.UUID;
+
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
+
+@Service("socialBlockApplicationService")
+public class BlockApplicationService {
+
+    private static final Logger log = LoggerFactory.getLogger(BlockApplicationService.class);
+
+    private final BlockRepository blockRepository;
+    private final BlockDomainService blockDomainService;
+    private final SocialDomainEventPublisher eventPublisher;
+
+    public BlockApplicationService(
+            BlockRepository blockRepository,
+            BlockDomainService blockDomainService,
+            SocialDomainEventPublisher eventPublisher
+    ) {
+        this.blockRepository = blockRepository;
+        this.blockDomainService = blockDomainService;
+        this.eventPublisher = eventPublisher;
+    }
+
+    @Transactional
+    public void block(BlockCommand command) {
+        blockDomainService.validateBlock(command.actorUserId(), command.targetUserId());
+        boolean changed = blockRepository.block(command.actorUserId(), command.targetUserId());
+        if (!changed) {
+            return;
+        }
+        publishChangedWithCompensation(
+                blockDomainService.blockChangedEvent(command.actorUserId(), command.targetUserId(), true),
+                () -> blockRepository.unblock(command.actorUserId(), command.targetUserId())
+        );
+    }
+
+    @Transactional
+    public void unblock(UnblockCommand command) {
+        blockDomainService.validateUnblock(command.actorUserId(), command.targetUserId());
+        boolean changed = blockRepository.unblock(command.actorUserId(), command.targetUserId());
+        if (!changed) {
+            return;
+        }
+        publishChangedWithCompensation(
+                blockDomainService.blockChangedEvent(command.actorUserId(), command.targetUserId(), false),
+                () -> blockRepository.block(command.actorUserId(), command.targetUserId())
+        );
+    }
+
+    public boolean hasBlocked(UUID userId, UUID targetUserId) {
+        if (userId == null || targetUserId == null) {
+            return false;
+        }
+        return blockRepository.hasBlocked(userId, targetUserId);
+    }
+
+    public boolean isEitherBlocked(UUID userIdA, UUID userIdB) {
+        return blockDomainService.isEitherBlocked(userIdA, userIdB, blockRepository);
+    }
+
+    public List<UUID> listBlockedUserIds(UUID userId) {
+        if (userId == null) {
+            throw new com.nowcoder.community.common.exception.BusinessException(INVALID_ARGUMENT, "userId 非法");
+        }
+        return blockRepository.listBlockedUserIds(userId);
+    }
+
+    public List<BlockRelationResult> scanBlockRelationsAfter(UUID afterBlockerUserId, UUID afterBlockedUserId, int limit) {
+        if ((afterBlockerUserId == null) != (afterBlockedUserId == null)) {
+            throw new IllegalArgumentException("afterBlockerUserId and afterBlockedUserId must be provided together");
+        }
+        return blockRepository.scanBlocksAfter(afterBlockerUserId, afterBlockedUserId, limit)
+                .stream()
+                .map(this::toResult)
+                .toList();
+    }
+
+    private void publishChangedWithCompensation(BlockRelationChangedDomainEvent event, Runnable rollback) {
+        boolean needsExplicitCompensation = blockRepository.requiresExplicitCompensation();
+        if (needsExplicitCompensation) {
+            registerRollbackIfTxRolledBack(rollback);
+        }
+        try {
+            eventPublisher.publishBlockRelationChanged(event);
+        } catch (RuntimeException ex) {
+            if (needsExplicitCompensation) {
+                compensate(rollback);
+            }
+            throw ex;
+        }
+    }
+
+    private BlockRelationResult toResult(BlockRelation relation) {
+        return new BlockRelationResult(relation.blockerUserId(), relation.blockedUserId());
+    }
+
+    private void registerRollbackIfTxRolledBack(Runnable rollback) {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_COMMITTED) {
+                    return;
+                }
+                compensate(rollback);
+            }
+        });
+    }
+
+    private void compensate(Runnable rollback) {
+        try {
+            rollback.run();
+        } catch (RuntimeException ex) {
+            log.warn("[block] rollback failed: {}", ex.toString());
+        }
+    }
+}

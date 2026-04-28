@@ -54,12 +54,7 @@ class ControllerBoundaryArchTest {
     static final ArchRule controllers_must_not_depend_on_other_controllers =
             classes()
                     .that().areAnnotatedWith(RestController.class)
-                    .should(ArchitectureRulesSupport.notDependOnLayers(
-                            "not depend on controller packages",
-                            Set.of("controller"),
-                            false,
-                            Set.of()
-                    ));
+                    .should(notDependOnControllerPackagesExceptDto());
 
     @ArchTest
     static final ArchRule controllers_must_not_depend_on_mappers_or_daos =
@@ -154,6 +149,27 @@ class ControllerBoundaryArchTest {
                             && !originDomain.equals(domainOf(target))) {
                         events.add(SimpleConditionEvent.violated(item, dependency.getDescription()));
                     }
+                }
+            }
+        };
+    }
+
+    private static ArchCondition<JavaClass> notDependOnControllerPackagesExceptDto() {
+        return new ArchCondition<>("not depend on controller packages except controller DTOs") {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                for (Dependency dependency : item.getDirectDependenciesFromSelf()) {
+                    JavaClass target = dependency.getTargetClass();
+                    if (ArchitectureRulesSupport.sharesTopLevelOwner(item, target)) {
+                        continue;
+                    }
+                    if (!ArchitectureRulesSupport.residesInLayer(target, Set.of("controller"))) {
+                        continue;
+                    }
+                    if (ArchitectureRulesSupport.residesInPackagePrefixes(target, Set.of("controller.dto"))) {
+                        continue;
+                    }
+                    events.add(SimpleConditionEvent.violated(item, dependency.getDescription()));
                 }
             }
         };

@@ -21,13 +21,15 @@
 
 - `WalletController`：用户钱包对外入口
 - `AdminWalletController`：管理员冻结 / 冲正入口
-- `WalletQueryService`：钱包摘要读模型
-- `WalletAccountService`：账户创建、查询、加锁、余额 / 状态更新
-- `WalletLedgerService`：统一总账记账入口
-- `RechargeService` / `WithdrawService` / `TransferService`：三条用户资金链路
-- `AdminWalletOpsService`：管理员冻结与冲正
-- `WalletRewardService`：奖励 / 积分投影写入钱包
+- `WalletApplicationService`：用户钱包 HTTP 入口应用服务，负责摘要、充值、提现、转账编排
+- `AdminWalletApplicationService`：管理员冻结 / 冲正 HTTP 入口应用服务
+- `WalletAccountApplicationService`：账户创建、查询、加锁、余额 / 状态更新
+- `WalletLedgerApplicationService`：统一总账记账入口
+- `WalletRechargeApplicationService` / `WalletWithdrawApplicationService` / `WalletTransferApplicationService`：三条用户资金链路
+- `WalletAdminOpsApplicationService`：管理员冻结与冲正
+- `WalletRewardApplicationService`：奖励 / 积分投影写入钱包
 - `WalletMarketApplicationService`：市场托管、放款、退款写入钱包
+- `wallet.service.*ApiAdapter`：只作为 foreign-domain API adapter，不作为同域业务入口
 - MySQL：
   - `wallet_account`
   - `wallet_txn`
@@ -41,7 +43,7 @@
 
 - `backend/community-app/src/main/java/com/nowcoder/community/wallet/controller/WalletController.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/wallet/controller/AdminWalletController.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/wallet/service/WalletLedgerService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/wallet/application/WalletLedgerApplicationService.java`
 
 ---
 
@@ -62,7 +64,7 @@
 
 ### 3.1 账户
 
-`WalletAccountService` 区分两类 owner：
+`WalletAccountApplicationService` 区分两类 owner，账户借贷方向等规则由 `WalletAccountDomainService` 承担：
 
 - `USER`
 - `SYSTEM`
@@ -87,7 +89,7 @@
 
 ### 3.2 交易与分录
 
-`WalletLedgerService.post(...)` 的主模型是：
+`WalletLedgerApplicationService.post(...)` 的主模型是：
 
 - 一笔 `wallet_txn`
 - 多条 `wallet_entry`
@@ -124,9 +126,9 @@
 `GET /api/wallet/summary` 的链路很薄：
 
 1. `WalletController.summary(...)`
-2. `WalletQueryService.summary(userId)`
-3. `WalletAccountService.balanceOfUser(userId)`
-4. `WalletAccountService.statusOfUser(userId)`
+2. `WalletApplicationService.summary(userId)`
+3. `WalletAccountApplicationService.balanceOfUser(userId)`
+4. `WalletAccountApplicationService.statusOfUser(userId)`
 
 返回的是：
 
@@ -136,15 +138,15 @@
 
 关键代码：
 
-- `backend/community-app/src/main/java/com/nowcoder/community/wallet/service/WalletQueryService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/wallet/application/WalletApplicationService.java`
 
 ---
 
 ## 5. 总账记账：所有资金动作共用一条主线
 
-### 5.1 `WalletLedgerService.post(...)`
+### 5.1 `WalletLedgerApplicationService.post(...)`
 
-无论是充值、提现、转账、奖励，还是市场托管 / 放款 / 退款，最终都通过 `WalletLedgerService.post(...)` 落账。
+无论是充值、提现、转账、奖励，还是市场托管 / 放款 / 退款，最终都通过 `WalletLedgerApplicationService.post(...)` 落账。
 
 它的关键步骤是：
 
@@ -172,7 +174,7 @@
 
 ### 5.2 账户的借贷方向不是统一的
 
-`WalletAccountService.normalDirectionOf(...)` 定义了不同账户的自然方向：
+`WalletAccountDomainService.normalDirectionOf(...)` 定义了不同账户的自然方向：
 
 - `PLATFORM_CASH`、`PLATFORM_REWARD_EXPENSE`、`MIGRATION_HOLD`：自然方向是 `DEBIT`
 - `USER_WALLET`、`WITHDRAW_PENDING`、`ORDER_ESCROW`、`RISK_FROZEN`：自然方向是 `CREDIT`
@@ -312,18 +314,18 @@
 
 ### 8.1 奖励 / 积分投影
 
-`WalletRewardService` 是成长 / 积分体系进入钱包的边界：
+`WalletRewardActionApiAdapter` 是成长 / 积分体系进入钱包的 foreign API 入口，内部委托 `WalletRewardApplicationService`：
 
 - 正向发放：
   - `PLATFORM_REWARD_EXPENSE -> USER_WALLET`
 - 负向撤销：
   - `USER_WALLET -> PLATFORM_REWARD_EXPENSE`
 
-它被 `PointsProjectionService` 等上游投影调用。
+它被 `PointsProjectionService` 等上游投影调用；wallet 域内部不通过 `wallet.service` 自调用。
 
 ### 8.2 市场托管 / 放款 / 退款
 
-`WalletMarketApplicationService` 是 `market` 域进入钱包的边界：
+`WalletMarketActionApiAdapter` 是 `market` 域进入钱包的 foreign API 入口，内部委托 `WalletMarketApplicationService`：
 
 - 托管：
   - `USER_WALLET:buyer -> ORDER_ESCROW`
@@ -392,15 +394,15 @@ header/body 同时存在且不一致会返回 `400`。
 ## 10. 建议源码阅读顺序
 
 1. `backend/community-app/src/main/java/com/nowcoder/community/wallet/controller/WalletController.java`
-2. `backend/community-app/src/main/java/com/nowcoder/community/wallet/service/WalletQueryService.java`
-3. `backend/community-app/src/main/java/com/nowcoder/community/wallet/service/WalletAccountService.java`
-4. `backend/community-app/src/main/java/com/nowcoder/community/wallet/service/WalletLedgerService.java`
-5. `backend/community-app/src/main/java/com/nowcoder/community/wallet/service/RechargeService.java`
-6. `backend/community-app/src/main/java/com/nowcoder/community/wallet/service/WithdrawService.java`
-7. `backend/community-app/src/main/java/com/nowcoder/community/wallet/service/TransferService.java`
-8. `backend/community-app/src/main/java/com/nowcoder/community/wallet/service/AdminWalletOpsService.java`
-9. `backend/community-app/src/main/java/com/nowcoder/community/wallet/service/WalletRewardService.java`
-10. `backend/community-app/src/main/java/com/nowcoder/community/wallet/service/WalletMarketApplicationService.java`
+2. `backend/community-app/src/main/java/com/nowcoder/community/wallet/application/WalletApplicationService.java`
+3. `backend/community-app/src/main/java/com/nowcoder/community/wallet/application/WalletAccountApplicationService.java`
+4. `backend/community-app/src/main/java/com/nowcoder/community/wallet/application/WalletLedgerApplicationService.java`
+5. `backend/community-app/src/main/java/com/nowcoder/community/wallet/application/WalletRechargeApplicationService.java`
+6. `backend/community-app/src/main/java/com/nowcoder/community/wallet/application/WalletWithdrawApplicationService.java`
+7. `backend/community-app/src/main/java/com/nowcoder/community/wallet/application/WalletTransferApplicationService.java`
+8. `backend/community-app/src/main/java/com/nowcoder/community/wallet/application/WalletAdminOpsApplicationService.java`
+9. `backend/community-app/src/main/java/com/nowcoder/community/wallet/application/WalletRewardApplicationService.java`
+10. `backend/community-app/src/main/java/com/nowcoder/community/wallet/application/WalletMarketApplicationService.java`
 
 ---
 
@@ -409,7 +411,7 @@ header/body 同时存在且不一致会返回 `400`。
 当前钱包实现的核心思路是：
 
 - 账户、交易、分录三层建模
-- 所有资金动作统一走 `WalletLedgerService.post(...)`
+- 所有资金动作统一走 `WalletLedgerApplicationService.post(...)`
 - 业务侧用 `requestId` 保证重放安全
 - 冻结改状态，冲正走反向交易
 - 奖励和市场都只能通过钱包域提供的 action API 进入资金主事实

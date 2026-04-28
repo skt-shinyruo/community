@@ -1,0 +1,123 @@
+package com.nowcoder.community.wallet.application;
+
+import com.nowcoder.community.common.id.UuidV7Generator;
+import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.wallet.domain.model.RechargeOrder;
+import com.nowcoder.community.wallet.application.result.RechargeOrderResult;
+import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
+import com.nowcoder.community.wallet.domain.model.WalletPosting;
+import com.nowcoder.community.wallet.domain.model.WalletTxnType;
+import com.nowcoder.community.wallet.domain.repository.RechargeOrderRepository;
+import com.nowcoder.community.wallet.domain.service.WalletOrderDomainService;
+import com.nowcoder.community.wallet.exception.WalletErrorCode;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.UUID;
+
+@Service
+public class WalletRechargeApplicationService {
+
+    private final RechargeOrderRepository rechargeOrderRepository;
+    private final WalletAccountApplicationService accountService;
+    private final WalletLedgerApplicationService ledgerService;
+    private final WalletOrderDomainService orderDomainService;
+    private final UuidV7Generator idGenerator;
+
+    @Autowired
+    public WalletRechargeApplicationService(RechargeOrderRepository rechargeOrderRepository,
+                                            WalletAccountApplicationService accountService,
+                                            WalletLedgerApplicationService ledgerService) {
+        this(rechargeOrderRepository, accountService, ledgerService, new WalletOrderDomainService(), new UuidV7Generator());
+    }
+
+    WalletRechargeApplicationService(RechargeOrderRepository rechargeOrderRepository,
+                                     WalletAccountApplicationService accountService,
+                                     WalletLedgerApplicationService ledgerService,
+                                     WalletOrderDomainService orderDomainService,
+                                     UuidV7Generator idGenerator) {
+        this.rechargeOrderRepository = rechargeOrderRepository;
+        this.accountService = accountService;
+        this.ledgerService = ledgerService;
+        this.orderDomainService = orderDomainService;
+        this.idGenerator = idGenerator;
+    }
+
+    @Transactional
+    public RechargeOrderResult complete(String requestId, UUID userId, long amount) {
+        validate(requestId, amount);
+
+        RechargeOrder existing = rechargeOrderRepository.findByUserIdAndRequestId(userId, requestId);
+        if (existing != null) {
+            ensureReplayMatches(existing, userId, amount);
+            if ("PAID".equals(existing.getStatus())) {
+                return RechargeOrderResult.from(existing);
+            }
+        }
+
+        RechargeOrder order = existing == null ? createOrLoad(requestId, userId, amount) : existing;
+        ensureReplayMatches(order, userId, amount);
+        if ("PAID".equals(order.getStatus())) {
+            return RechargeOrderResult.from(order);
+        }
+
+        ledgerService.post(new WalletLedgerCommand(
+                "wallet:recharge:" + order.getOrderId(),
+                WalletTxnType.RECHARGE,
+                WalletTxnType.RECHARGE.name(),
+                order.getOrderId().toString(),
+                List.of(
+                        WalletPosting.debit(accountService.ensureSystemAccount("PLATFORM_CASH"), amount),
+                        WalletPosting.credit(accountService.ensureUserWallet(userId), amount)
+                )
+        ));
+        rechargeOrderRepository.updateStatus(userId, requestId, "CREATED", "PAID");
+        return RechargeOrderResult.from(requireOrder(userId, requestId));
+    }
+
+    private void validate(String requestId, long amount) {
+        if (requestId == null || requestId.isBlank()) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "requestId must not be blank");
+        }
+        orderDomainService.validatePositiveAmount(amount);
+    }
+
+    private RechargeOrder createOrLoad(String requestId, UUID userId, long amount) {
+        RechargeOrder order = new RechargeOrder();
+        order.setOrderId(idGenerator.next());
+        order.setRequestId(requestId);
+        order.setUserId(userId);
+        order.setAmount(amount);
+        order.setStatus("CREATED");
+        try {
+            rechargeOrderRepository.insert(order);
+            return order;
+        } catch (DataIntegrityViolationException ex) {
+            RechargeOrder duplicated = rechargeOrderRepository.findByUserIdAndRequestId(userId, requestId);
+            if (duplicated != null) {
+                return duplicated;
+            }
+            throw ex;
+        }
+    }
+
+    private RechargeOrder requireOrder(UUID userId, String requestId) {
+        RechargeOrder order = rechargeOrderRepository.findByUserIdAndRequestId(userId, requestId);
+        if (order == null) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "recharge order not found: requestId=" + requestId);
+        }
+        return order;
+    }
+
+    private void ensureReplayMatches(RechargeOrder order, UUID userId, long amount) {
+        if (!userId.equals(order.getUserId()) || order.getAmount() != amount) {
+            throw new BusinessException(
+                    WalletErrorCode.REQUEST_REPLAY_CONFLICT,
+                    "requestId replay conflict: requestId=" + order.getRequestId()
+            );
+        }
+    }
+}

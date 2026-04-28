@@ -2,10 +2,10 @@ package com.nowcoder.community.market.controller;
 
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
-import com.nowcoder.community.market.dto.AdminResolveMarketDisputeRequest;
-import com.nowcoder.community.market.dto.MarketDisputeResponse;
-import com.nowcoder.community.market.model.MarketDisputeResult;
-import com.nowcoder.community.market.service.AdminMarketApplicationService;
+import com.nowcoder.community.market.controller.dto.AdminResolveMarketDisputeRequest;
+import com.nowcoder.community.market.controller.dto.MarketDisputeResponse;
+import com.nowcoder.community.market.application.result.MarketDisputeResult;
+import com.nowcoder.community.market.application.AdminMarketApplicationService;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;

@@ -1,8 +1,9 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.content.dto.CategoryResponse;
-import com.nowcoder.community.content.service.CategoryApplicationService;
+import com.nowcoder.community.content.application.result.CategoryResult;
+import com.nowcoder.community.content.controller.dto.CategoryResponse;
+import com.nowcoder.community.content.application.CategoryApplicationService;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -17,20 +18,21 @@ class CategoryControllerTest {
     @Test
     void listShouldKeepCategoryFieldsAsReturnedByService() {
         CategoryApplicationService categoryApplicationService = mock(CategoryApplicationService.class);
-        CategoryResponse category = new CategoryResponse();
-        category.setId(uuid(1));
-        category.setName("公告");
-        category.setDescription("官方公告/规则");
-        category.setPosition(0);
-        category.setPostCount(0);
+        CategoryResult category = new CategoryResult(uuid(1), "公告", "官方公告/规则", 0, 0);
 
-        when(categoryApplicationService.listCategoryResponses()).thenReturn(List.of(category));
+        when(categoryApplicationService.listCategories()).thenReturn(List.of(category));
 
         CategoryController controller = new CategoryController(categoryApplicationService);
 
         Result<List<CategoryResponse>> result = controller.list();
 
         assertThat(result.getCode()).isEqualTo(0);
-        assertThat(result.getData()).containsExactly(category);
+        assertThat(result.getData()).singleElement().satisfies(response -> {
+            assertThat(response.getId()).isEqualTo(category.id());
+            assertThat(response.getName()).isEqualTo(category.name());
+            assertThat(response.getDescription()).isEqualTo(category.description());
+            assertThat(response.getPosition()).isEqualTo(category.position());
+            assertThat(response.getPostCount()).isEqualTo(category.postCount());
+        });
     }
 }

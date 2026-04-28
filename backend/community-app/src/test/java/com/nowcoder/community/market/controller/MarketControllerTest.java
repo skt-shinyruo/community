@@ -5,20 +5,20 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
-import com.nowcoder.community.market.model.MarketAddressView;
-import com.nowcoder.community.market.model.MarketListingDetailView;
-import com.nowcoder.community.market.model.MarketListingResult;
+import com.nowcoder.community.market.application.result.MarketAddressResult;
+import com.nowcoder.community.market.application.result.MarketListingDetailResult;
+import com.nowcoder.community.market.application.result.MarketListingResult;
 import com.nowcoder.community.market.exception.MarketErrorCode;
-import com.nowcoder.community.market.model.MarketOrderDetailView;
-import com.nowcoder.community.market.model.MarketOrderResult;
+import com.nowcoder.community.market.application.result.MarketOrderDetailResult;
+import com.nowcoder.community.market.application.result.MarketOrderResult;
 import com.nowcoder.community.market.security.MarketSecurityRules;
-import com.nowcoder.community.market.service.MarketApplicationService;
-import com.nowcoder.community.market.service.MarketAddressService;
-import com.nowcoder.community.market.service.MarketDisputeService;
-import com.nowcoder.community.market.service.MarketInventoryService;
-import com.nowcoder.community.market.service.MarketListingService;
-import com.nowcoder.community.market.service.MarketOrderService;
-import com.nowcoder.community.market.service.MarketQueryService;
+import com.nowcoder.community.market.application.MarketApplicationService;
+import com.nowcoder.community.market.application.MarketAddressApplicationService;
+import com.nowcoder.community.market.application.MarketDisputeApplicationService;
+import com.nowcoder.community.market.application.MarketInventoryApplicationService;
+import com.nowcoder.community.market.application.MarketListingApplicationService;
+import com.nowcoder.community.market.application.MarketOrderApplicationService;
+import com.nowcoder.community.market.application.MarketQueryApplicationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
@@ -62,22 +62,22 @@ class MarketControllerTest {
     private MockMvc mockMvc;
 
     @MockBean
-    private MarketListingService marketListingService;
+    private MarketListingApplicationService marketListingService;
 
     @MockBean
-    private MarketInventoryService marketInventoryService;
+    private MarketInventoryApplicationService marketInventoryService;
 
     @MockBean
-    private MarketQueryService marketQueryService;
+    private MarketQueryApplicationService marketQueryService;
 
     @MockBean
-    private MarketOrderService marketOrderService;
+    private MarketOrderApplicationService marketOrderService;
 
     @MockBean
-    private MarketDisputeService marketDisputeService;
+    private MarketDisputeApplicationService marketDisputeService;
 
     @MockBean
-    private MarketAddressService marketAddressService;
+    private MarketAddressApplicationService marketAddressService;
 
     @MockBean
     private IdempotencyGuard idempotencyGuard;
@@ -117,7 +117,7 @@ class MarketControllerTest {
                 "ACTIVE"
         );
         when(marketQueryService.listPublicListings()).thenReturn(List.of(listing));
-        when(marketQueryService.getListingDetail(listingId)).thenReturn(new MarketListingDetailView(
+        when(marketQueryService.getListingDetail(listingId)).thenReturn(new MarketListingDetailResult(
                 listingId,
                 sellerUserId,
                 "VIRTUAL",
@@ -216,7 +216,7 @@ class MarketControllerTest {
                 now,
                 now
         );
-        MarketOrderDetailView detail = new MarketOrderDetailView(
+        MarketOrderDetailResult detail = new MarketOrderDetailResult(
                 buyingOrderId,
                 "buying:req-1",
                 buyingListingId,
@@ -245,7 +245,7 @@ class MarketControllerTest {
                 now,
                 now
         );
-        MarketAddressView address = new MarketAddressView(
+        MarketAddressResult address = new MarketAddressResult(
                 addressId,
                 buyerUserId,
                 "张三",

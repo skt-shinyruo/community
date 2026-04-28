@@ -3,6 +3,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.frontend
+    mem_limit: ${FRONTEND_MEM_LIMIT:-256m}
     environment:
     - VITE_PREVIEW_PROXY_TARGET=http://nginx:8080
     - GATEWAY_PUBLIC_BASE_URL=${GATEWAY_PUBLIC_BASE_URL:?GATEWAY_PUBLIC_BASE_URL is required}
@@ -13,6 +14,7 @@ services:
         condition: service_started
   nginx:
     image: nginx:1.27-alpine
+    mem_limit: ${NGINX_MEM_LIMIT:-128m}
     depends_on:
       community-gateway:
         condition: service_started

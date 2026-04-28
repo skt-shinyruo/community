@@ -1,6 +1,7 @@
 services:
   redis:
     image: redis:7-alpine
+    mem_limit: ${REDIS_MEM_LIMIT:-192m}
     command:
     - redis-server
     - --appendonly

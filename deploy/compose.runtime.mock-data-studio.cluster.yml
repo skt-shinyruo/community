@@ -3,6 +3,7 @@ services:
     build:
       context: ..
       dockerfile: tools/mock-data-studio/Dockerfile
+    mem_limit: ${MOCK_DATA_STUDIO_MEM_LIMIT:-384m}
     ports:
     - 127.0.0.1:${MOCK_DATA_STUDIO_HOST_PORT:-12890}:${MOCK_DATA_STUDIO_PORT:-12888}
     environment:

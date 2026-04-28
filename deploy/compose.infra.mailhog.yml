@@ -1,5 +1,6 @@
 services:
   mailhog:
     image: mailhog/mailhog:v1.0.1
+    mem_limit: ${MAILHOG_MEM_LIMIT:-128m}
     ports:
     - 127.0.0.1:8025:8025

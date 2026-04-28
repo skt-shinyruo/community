@@ -22,6 +22,7 @@ services:
         - elasticsearch-1
   es-init:
     image: curlimages/curl:8.6.0
+    mem_limit: ${ES_INIT_MEM_LIMIT:-64m}
     depends_on:
       elasticsearch:
         condition: service_started

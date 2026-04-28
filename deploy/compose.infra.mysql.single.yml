@@ -1,6 +1,7 @@
 services:
   mysql:
     image: mysql:8.0
+    mem_limit: ${MYSQL_MEM_LIMIT:-512m}
     environment:
     - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
     - MYSQL_ROOT_HOST=%

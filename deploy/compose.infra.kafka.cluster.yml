@@ -1,7 +1,7 @@
 services:
   kafka-1:
     image: confluentinc/cp-kafka:7.6.1
-    mem_limit: ${KAFKA_MEM_LIMIT:-1g}
+    mem_limit: ${KAFKA_MEM_LIMIT:-768m}
     restart: on-failure
     healthcheck:
       test:
@@ -29,12 +29,12 @@ services:
     - KAFKA_DEFAULT_REPLICATION_FACTOR=3
     - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
     - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
-    - KAFKA_HEAP_OPTS=${KAFKA_HEAP_OPTS:--Xms512M -Xmx512M}
+    - KAFKA_HEAP_OPTS=${KAFKA_HEAP_OPTS:--Xms384M -Xmx384M}
     volumes:
     - kafka_1_data:/var/lib/kafka/data
   kafka-2:
     image: confluentinc/cp-kafka:7.6.1
-    mem_limit: ${KAFKA_MEM_LIMIT:-1g}
+    mem_limit: ${KAFKA_MEM_LIMIT:-768m}
     restart: on-failure
     healthcheck:
       test:
@@ -62,12 +62,12 @@ services:
     - KAFKA_DEFAULT_REPLICATION_FACTOR=3
     - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
     - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
-    - KAFKA_HEAP_OPTS=${KAFKA_HEAP_OPTS:--Xms512M -Xmx512M}
+    - KAFKA_HEAP_OPTS=${KAFKA_HEAP_OPTS:--Xms384M -Xmx384M}
     volumes:
     - kafka_2_data:/var/lib/kafka/data
   kafka-3:
     image: confluentinc/cp-kafka:7.6.1
-    mem_limit: ${KAFKA_MEM_LIMIT:-1g}
+    mem_limit: ${KAFKA_MEM_LIMIT:-768m}
     restart: on-failure
     healthcheck:
       test:
@@ -95,11 +95,12 @@ services:
     - KAFKA_DEFAULT_REPLICATION_FACTOR=3
     - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
     - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
-    - KAFKA_HEAP_OPTS=${KAFKA_HEAP_OPTS:--Xms512M -Xmx512M}
+    - KAFKA_HEAP_OPTS=${KAFKA_HEAP_OPTS:--Xms384M -Xmx384M}
     volumes:
     - kafka_3_data:/var/lib/kafka/data
   kafka-init:
     image: confluentinc/cp-kafka:7.6.1
+    mem_limit: ${KAFKA_INIT_MEM_LIMIT:-384m}
     depends_on:
       kafka-1:
         condition: service_healthy
@@ -112,6 +113,7 @@ services:
     - /bootstrap-kafka-topics.sh
     environment:
     - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS:-kafka-1:9092,kafka-2:9092,kafka-3:9092}
+    - KAFKA_HEAP_OPTS=${KAFKA_INIT_HEAP_OPTS:--Xms128M -Xmx256M}
     volumes:
     - ./scripts/bootstrap-kafka-topics.sh:/bootstrap-kafka-topics.sh:ro
     restart: 'no'

@@ -1,6 +1,7 @@
 services:
   mock-data-studio-db-bootstrap:
     image: mysql:8.0
+    mem_limit: ${MYSQL_BOOTSTRAP_MEM_LIMIT:-256m}
     entrypoint:
     - /bin/bash
     - -lc

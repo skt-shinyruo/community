@@ -49,6 +49,12 @@ class DddLayeringArchTest {
                     .allowEmptyShould(true);
 
     @ArchTest
+    static final ArchRule production_code_must_not_use_use_case_naming =
+            noClasses()
+                    .should().haveSimpleNameEndingWith("UseCase")
+                    .because("ApplicationService is the use-case entry; do not add a parallel UseCase layer");
+
+    @ArchTest
     static final ArchRule controllers_must_not_depend_on_domain_or_infrastructure =
             noClasses()
                     .that().resideInAnyPackage("..controller..")

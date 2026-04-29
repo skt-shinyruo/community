@@ -121,6 +121,8 @@ Infrastructure may depend on domain contracts to implement them. Domain must not
 
 `contracts.event` is the published asynchronous collaboration contract for foreign domains.
 
+Synchronous API packages must not depend on asynchronous event contracts. `api.query`, `api.action`, and `api.model` may use owner-domain API models and JDK/shared kernel types, but they must not import or expose `contracts.event` payloads or envelopes. If a sync use case and an async event need the same fields, define separate public models and map between them at the adapter/listener boundary.
+
 Same-domain callers must use same-domain `ApplicationService`, not same-domain `api.*`.
 
 Owner API implementations belong in infrastructure adapters, for example `content.infrastructure.api.PostReadQueryApiAdapter`. Same-domain controllers and jobs should consume `application.result.*`, not `api.model.*`.

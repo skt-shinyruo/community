@@ -1,12 +1,12 @@
 package com.nowcoder.community.growth.infrastructure.api;
 
-import com.nowcoder.community.content.contracts.event.CommentPayload;
+import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
+import com.nowcoder.community.growth.api.model.GrowthCommentTaskProgressRequest;
+import com.nowcoder.community.growth.api.model.GrowthLikeTaskProgressRequest;
 import com.nowcoder.community.growth.application.TaskProgressApplicationService;
 import com.nowcoder.community.growth.application.command.TriggerCommentCreatedCommand;
 import com.nowcoder.community.growth.application.command.TriggerLikeCreatedCommand;
 import com.nowcoder.community.growth.application.command.TriggerPostPublishedCommand;
-import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
-import com.nowcoder.community.social.contracts.event.LikePayload;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -31,34 +31,34 @@ public class GrowthTaskProgressActionApiAdapter implements GrowthTaskProgressAct
     }
 
     @Override
-    public void triggerCommentCreated(CommentPayload payload) {
-        if (payload == null
-                || payload.getCommentId() == null
-                || payload.getUserId() == null
-                || payload.getCreateTime() == null) {
+    public void triggerCommentCreated(GrowthCommentTaskProgressRequest request) {
+        if (request == null
+                || request.commentId() == null
+                || request.userId() == null
+                || request.createTime() == null) {
             return;
         }
         applicationService.triggerCommentCreated(new TriggerCommentCreatedCommand(
-                payload.getCommentId(),
-                payload.getUserId(),
-                payload.getCreateTime()
+                request.commentId(),
+                request.userId(),
+                request.createTime()
         ));
     }
 
     @Override
-    public void triggerLikeCreated(String sourceEventId, LikePayload payload) {
-        if (!StringUtils.hasText(sourceEventId) || payload == null || payload.getCreateTime() == null) {
+    public void triggerLikeCreated(GrowthLikeTaskProgressRequest request) {
+        if (request == null || !StringUtils.hasText(request.sourceEventId()) || request.createTime() == null) {
             return;
         }
-        UUID toUserId = payload.getEntityUserId();
-        if (toUserId == null || toUserId.equals(payload.getActorUserId())) {
+        UUID toUserId = request.entityUserId();
+        if (toUserId == null || toUserId.equals(request.actorUserId())) {
             return;
         }
         applicationService.triggerLikeCreated(new TriggerLikeCreatedCommand(
-                sourceEventId.trim(),
-                payload.getActorUserId(),
+                request.sourceEventId().trim(),
+                request.actorUserId(),
                 toUserId,
-                payload.getCreateTime()
+                request.createTime()
         ));
     }
 }

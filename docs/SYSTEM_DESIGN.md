@@ -31,9 +31,12 @@ DDD Tactical Layering 冻结规则：
 - Files（静态文件）：`/files/**`
 - Ops（对外运维）：`/api/ops/**`（ADMIN-only）
 - Internal（跨模块同步调用）：**统一通过 owner-domain `api.query` / `api.action` / `api.model` 协作**
+  - 同步 API 不 import、不返回、不接收 `contracts.event` 类型；同步入参/出参由 owner-domain `api.model` 表达。
+  - 如果同步 API 与异步事件需要相同字段，保留两个契约模型，并在 adapter / listener 边界映射。
   - 约束：尽量避免跨模块 JOIN；跨模块数据聚合优先走 owner-domain API + 批量/缓存
   - 边界：`domain`、`infrastructure`、旧 `service`、旧 `entity`、旧 `mapper` 仅作为 owner 域内部实现细节，不再作为默认跨域入口
 - Async Internal（跨模块异步协作）：**统一通过 owner-domain `contracts.event` 协作**
+  - `contracts.event` payload 只作为异步事件契约，不作为 `api.action` 方法参数复用。
   - 当前 contract 形态：`content.contracts.event.*`、`social.contracts.event.*`
   - 边界：producer 域的 `event` 包负责发布与 transport adapter，consumer 不再直接依赖 foreign `event.payload` 或 foreign local-event wrapper
 
@@ -165,6 +168,8 @@ IM 链路：使用 Kafka 作为 backplane（topic 常量见 `backend/community-i
 当前 `community-app` 内部跨域事件 contract 由 owner-domain 显式暴露：
 - `content.contracts.event.ContentContractEvent` + `content.contracts.event.*`
 - `social.contracts.event.SocialContractEvent` + `social.contracts.event.*`
+
+`contracts.event` 与 `api.model` 是两套 public contract。它们可以包含相同字段，但不能互相复用类型：同步 API 由 owner-domain `api.model` 表达，异步投影由 producer-domain `contracts.event` 表达。
 
 这些 contract 由 producer 域拥有并版本化，consumer 只理解 contract，不再直接 import producer 的 `event.payload` 或本地 `event` 实现包。
 

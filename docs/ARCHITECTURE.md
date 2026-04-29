@@ -114,7 +114,7 @@ flowchart TD
 - `com.nowcoder.community.wallet`：钱包账户汇总、充值/提现/转账与管理员冻结/冲正；controller 进入 `wallet.application.*ApplicationService`，资金规则在 `wallet.domain.service`，MyBatis 行对象在 `wallet.infrastructure.persistence.dataobject`
 - `com.nowcoder.community.ops`：运维平面（`/api/ops/**`）；controller 进入 `ops.application.OpsApplicationService`，由应用层同步调用 owner-domain `search.api.action.SearchReindexActionApi`
 
-跨域同步协作统一通过 owner-domain 暴露的 `api.query`、`api.action`、`api.model` 完成；跨域异步协作统一通过 owner-domain 暴露的 `contracts.event` 完成。`domain`、`infrastructure`、旧 root `service`、旧 root `entity`、旧 root `mapper` 以及 producer 域的 root `event` 实现包均视为域内实现细节，不作为跨域入口。当前分支上的 `DddLayeringArchTest`、`DomainBoundaryArchTest`、`ControllerBoundaryArchTest` 与 `ListenerBoundaryArchTest` 已作为默认守卫；notice/message 临时共享类型白名单已删除，同步边界采用 allowlist 规则，遗留的非协作面依赖通过精确类名 migration baseline 冻结，后续只允许收缩不允许扩散。
+跨域同步协作统一通过 owner-domain 暴露的 `api.query`、`api.action`、`api.model` 完成；跨域异步协作统一通过 owner-domain 暴露的 `contracts.event` 完成。同步 API 边界（`api.query` / `api.action` / `api.model`）不得 import 或暴露 `contracts.event` 类型；如果同步链路与异步链路需要相同字段，也必须分别定义 owner-domain `api.model` 与 producer-domain `contracts.event` payload，并在 adapter / listener 边界显式映射。`domain`、`infrastructure`、旧 root `service`、旧 root `entity`、旧 root `mapper` 以及 producer 域的 root `event` 实现包均视为域内实现细节，不作为跨域入口。当前分支上的 `DddLayeringArchTest`、`DomainBoundaryArchTest`、`ControllerBoundaryArchTest` 与 `ListenerBoundaryArchTest` 已作为默认守卫；notice/message 临时共享类型白名单已删除，同步边界采用 allowlist 规则，遗留的非协作面依赖通过精确类名 migration baseline 冻结，后续只允许收缩不允许扩散。
 
 需要明确的是：`community-app` 仍然是“靠包边界治理的单 deployable”，还不是靠 Maven 子模块强制执行的 modular monolith。当前阶段必须先稳定 DDD Tactical Layering：`ApplicationService` 是同域用例入口，`domain` 承载业务规则和仓储接口，`infrastructure` 承载 MyBatis / Redis / outbox / event adapter 等技术实现。下一阶段才考虑把 `api` / `contracts` / implementation 拆成独立 artifact，并收紧 Spring 装配范围。
 
@@ -149,6 +149,7 @@ com.nowcoder.community.<domain>
 强制规则：
 
 - 跨域协作一律通过 owner-domain `api.query` / `api.action` / `api.model` / `contracts`；
+- `api.query` / `api.action` / `api.model` 是跨域同步协作契约，不能依赖或暴露 `contracts.event` 异步事件 payload；同步与异步模型字段相同也不复用同一个 public type。
 - 同域同步入口统一走 owner `application.*ApplicationService`；`@RestController`、本地 `*Listener`、本地持续型 worker 默认都不再把 same-domain `api.query` / `api.action` / `api.model` 当入口；
 - `ApplicationService` 是用例入口，负责事务、幂等、actor/viewer 转换、命令/结果装配、领域调用、领域事件发布和 foreign-domain `api.*` 调用；
 - `domain` 只表达业务模型、领域规则、领域服务、策略、仓储接口和领域事件，不依赖 controller / application / infrastructure / mapper / dataobject / HTTP DTO / owner-domain `api.*`；

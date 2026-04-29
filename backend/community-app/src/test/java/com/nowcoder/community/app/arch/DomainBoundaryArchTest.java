@@ -173,6 +173,13 @@ class DomainBoundaryArchTest {
             classes().should(notUseLegacyEntryServiceNaming());
 
     @ArchTest
+    static final ArchRule owner_api_must_not_depend_on_async_event_contracts =
+            noClasses()
+                    .that().resideInAnyPackage("..api..")
+                    .should().dependOnClassesThat().resideInAnyPackage("..contracts.event..")
+                    .because("api.* is the synchronous collaboration boundary and must not leak async event contracts");
+
+    @ArchTest
     static final ArchRule content_api_must_not_depend_on_content_legacy_transport_or_event_payloads =
             noClasses()
                     .that().resideInAnyPackage("..content.api..")

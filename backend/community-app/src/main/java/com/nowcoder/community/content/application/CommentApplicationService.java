@@ -8,7 +8,6 @@ import com.nowcoder.community.content.application.command.UpdateCommentCommand;
 import com.nowcoder.community.content.application.port.ContentSanitizer;
 import com.nowcoder.community.content.application.port.PostContentPort;
 import com.nowcoder.community.content.application.result.CommentCreateResult;
-import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.domain.event.CommentCreatedDomainEvent;
 import com.nowcoder.community.content.domain.event.CommentDomainEventPublisher;
 import com.nowcoder.community.content.domain.model.CommentDraft;
@@ -17,8 +16,10 @@ import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.CommentRepository;
 import com.nowcoder.community.content.domain.service.CommentDomainService;
 import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
+import com.nowcoder.community.growth.api.model.GrowthCommentTaskProgressRequest;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
+import com.nowcoder.community.user.api.model.UserCommentPointsAwardRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -26,7 +27,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
 
@@ -184,15 +184,7 @@ public class CommentApplicationService {
         postContentPort.incrementCommentCount(postId, 1);
 
         String decodedContent = textCodec.decodeOnRead(safeContent);
-        Instant createdAt = createTime.toInstant();
-        CommentPayload payload = commentPayload(
-                commentId,
-                postId,
-                userId,
-                target,
-                decodedContent,
-                createdAt
-        );
+        var createdAt = createTime.toInstant();
         CommentCreatedDomainEvent event = new CommentCreatedDomainEvent(
                 commentId,
                 postId,
@@ -204,8 +196,8 @@ public class CommentApplicationService {
                 createdAt
         );
 
-        pointsAwardService.awardCommentCreated(payload);
-        taskProgressTriggerService.triggerCommentCreated(payload);
+        pointsAwardService.awardCommentCreated(new UserCommentPointsAwardRequest(commentId, userId));
+        taskProgressTriggerService.triggerCommentCreated(new GrowthCommentTaskProgressRequest(commentId, userId, createdAt));
         domainEventPublisher.commentCreated(event);
         postWriteSideEffectScheduler.schedulePostScoreRefresh(postId);
         return commentId;
@@ -214,25 +206,5 @@ public class CommentApplicationService {
     private String sanitize(String content) {
         String safe = textCodec.escapeOnWrite(content == null ? "" : content.trim());
         return sensitiveFilter.filter(safe);
-    }
-
-    private static CommentPayload commentPayload(
-            UUID commentId,
-            UUID postId,
-            UUID userId,
-            CommentDomainService.CreateTarget target,
-            String content,
-            Instant createTime
-    ) {
-        CommentPayload payload = new CommentPayload();
-        payload.setCommentId(commentId);
-        payload.setPostId(postId);
-        payload.setUserId(userId);
-        payload.setEntityType(target.entityType());
-        payload.setEntityId(target.entityId());
-        payload.setTargetUserId(target.targetUserId());
-        payload.setContent(content);
-        payload.setCreateTime(createTime);
-        return payload;
     }
 }

@@ -1,19 +1,18 @@
 package com.nowcoder.community.user.application;
 
-import com.nowcoder.community.content.contracts.event.CommentPayload;
-import com.nowcoder.community.content.contracts.event.ContentContractEvent;
-import com.nowcoder.community.content.contracts.event.ContentEventTypes;
-import com.nowcoder.community.content.contracts.event.PostPayload;
-import com.nowcoder.community.social.contracts.event.LikePayload;
-import com.nowcoder.community.social.contracts.event.SocialContractEvent;
-import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import com.nowcoder.community.wallet.api.action.WalletRewardActionApi;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.UUID;
 
 @Service
 public class UserPointsApplicationService {
+
+    private static final String TYPE_POST_PUBLISHED = "PostPublished";
+    private static final String TYPE_COMMENT_CREATED = "CommentCreated";
+    private static final String TYPE_LIKE_CREATED = "LikeCreated";
+    private static final String TYPE_LIKE_REMOVED = "LikeRemoved";
 
     private final WalletRewardActionApi walletRewardActionApi;
 
@@ -21,38 +20,47 @@ public class UserPointsApplicationService {
         this.walletRewardActionApi = walletRewardActionApi;
     }
 
-    public PointsProjectionCommand commandForContentEvent(ContentContractEvent event) {
-        if (event == null) {
+    public PointsProjectionCommand commandForPostPublished(UUID postId, UUID userId) {
+        if (postId == null || userId == null) {
             return null;
         }
-        if (ContentEventTypes.POST_PUBLISHED.equals(event.type()) && event.payload() instanceof PostPayload payload) {
-            return new PointsProjectionCommand(payload.getUserId(), 10, event.eventId(), event.type());
-        }
-        if (ContentEventTypes.COMMENT_CREATED.equals(event.type()) && event.payload() instanceof CommentPayload payload) {
-            return new PointsProjectionCommand(payload.getUserId(), 2, event.eventId(), event.type());
-        }
-        return null;
+        return new PointsProjectionCommand(userId, 10, "post-published:" + postId, TYPE_POST_PUBLISHED);
     }
 
-    public PointsProjectionCommand commandForSocialEvent(SocialContractEvent event) {
-        if (event == null || !(event.payload() instanceof LikePayload payload)) {
+    public PointsProjectionCommand commandForCommentCreated(UUID commentId, UUID userId) {
+        if (commentId == null || userId == null) {
             return null;
         }
-        UUID toUserId = payload.getEntityUserId();
-        if (toUserId == null || toUserId.equals(payload.getActorUserId())) {
+        return new PointsProjectionCommand(userId, 2, "comment-created:" + commentId, TYPE_COMMENT_CREATED);
+    }
+
+    public PointsProjectionCommand commandForLikeCreated(String sourceEventId, UUID actorUserId, UUID entityUserId) {
+        return commandForLike(sourceEventId, actorUserId, entityUserId, 1, TYPE_LIKE_CREATED);
+    }
+
+    public PointsProjectionCommand commandForLikeRemoved(String sourceEventId, UUID actorUserId, UUID entityUserId) {
+        return commandForLike(sourceEventId, actorUserId, entityUserId, -1, TYPE_LIKE_REMOVED);
+    }
+
+    private PointsProjectionCommand commandForLike(
+            String sourceEventId,
+            UUID actorUserId,
+            UUID entityUserId,
+            int delta,
+            String sourceEventType
+    ) {
+        if (!StringUtils.hasText(sourceEventId) || entityUserId == null || entityUserId.equals(actorUserId)) {
             return null;
         }
-        if (SocialEventTypes.LIKE_CREATED.equals(event.type())) {
-            return new PointsProjectionCommand(toUserId, 1, event.eventId(), event.type());
-        }
-        if (SocialEventTypes.LIKE_REMOVED.equals(event.type())) {
-            return new PointsProjectionCommand(toUserId, -1, event.eventId(), event.type());
-        }
-        return null;
+        return new PointsProjectionCommand(entityUserId, delta, sourceEventId.trim(), sourceEventType);
     }
 
     public void project(PointsProjectionCommand command) {
-        if (command == null || command.userId() == null || command.delta() == 0) {
+        if (command == null
+                || command.userId() == null
+                || command.delta() == 0
+                || !StringUtils.hasText(command.sourceEventId())
+                || !StringUtils.hasText(command.sourceEventType())) {
             return;
         }
         walletRewardActionApi.applyDelta(

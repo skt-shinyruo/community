@@ -1,13 +1,8 @@
 package com.nowcoder.community.user.infrastructure.api;
 
-import com.nowcoder.community.content.contracts.event.CommentPayload;
-import com.nowcoder.community.content.contracts.event.ContentContractEvent;
-import com.nowcoder.community.content.contracts.event.ContentEventTypes;
-import com.nowcoder.community.content.contracts.event.PostPayload;
-import com.nowcoder.community.social.contracts.event.LikePayload;
-import com.nowcoder.community.social.contracts.event.SocialContractEvent;
-import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
+import com.nowcoder.community.user.api.model.UserCommentPointsAwardRequest;
+import com.nowcoder.community.user.api.model.UserLikePointsAwardRequest;
 import com.nowcoder.community.user.application.UserPointsApplicationService;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -25,44 +20,41 @@ public class UserPointsAwardApiAdapter implements UserPointsAwardActionApi {
 
     @Override
     public void awardPostPublished(UUID postId, UUID userId) {
-        if (postId == null || userId == null) {
+        userPointsApplicationService.project(userPointsApplicationService.commandForPostPublished(postId, userId));
+    }
+
+    @Override
+    public void awardCommentCreated(UserCommentPointsAwardRequest request) {
+        if (request == null) {
             return;
         }
-        PostPayload payload = new PostPayload();
-        payload.setPostId(postId);
-        payload.setUserId(userId);
-        userPointsApplicationService.project(userPointsApplicationService.commandForContentEvent(
-                new ContentContractEvent("post-published:" + postId, ContentEventTypes.POST_PUBLISHED, payload)
+        userPointsApplicationService.project(userPointsApplicationService.commandForCommentCreated(
+                request.commentId(),
+                request.userId()
         ));
     }
 
     @Override
-    public void awardCommentCreated(CommentPayload payload) {
-        if (payload == null || payload.getCommentId() == null) {
+    public void awardLikeCreated(UserLikePointsAwardRequest request) {
+        if (request == null || !StringUtils.hasText(request.sourceEventId())) {
             return;
         }
-        userPointsApplicationService.project(userPointsApplicationService.commandForContentEvent(
-                new ContentContractEvent("comment-created:" + payload.getCommentId(), ContentEventTypes.COMMENT_CREATED, payload)
+        userPointsApplicationService.project(userPointsApplicationService.commandForLikeCreated(
+                request.sourceEventId(),
+                request.actorUserId(),
+                request.entityUserId()
         ));
     }
 
     @Override
-    public void awardLikeCreated(String sourceEventId, LikePayload payload) {
-        if (!StringUtils.hasText(sourceEventId) || payload == null) {
+    public void awardLikeRemoved(UserLikePointsAwardRequest request) {
+        if (request == null || !StringUtils.hasText(request.sourceEventId())) {
             return;
         }
-        userPointsApplicationService.project(userPointsApplicationService.commandForSocialEvent(
-                new SocialContractEvent(sourceEventId, SocialEventTypes.LIKE_CREATED, payload)
-        ));
-    }
-
-    @Override
-    public void awardLikeRemoved(String sourceEventId, LikePayload payload) {
-        if (!StringUtils.hasText(sourceEventId) || payload == null) {
-            return;
-        }
-        userPointsApplicationService.project(userPointsApplicationService.commandForSocialEvent(
-                new SocialContractEvent(sourceEventId, SocialEventTypes.LIKE_REMOVED, payload)
+        userPointsApplicationService.project(userPointsApplicationService.commandForLikeRemoved(
+                request.sourceEventId(),
+                request.actorUserId(),
+                request.entityUserId()
         ));
     }
 }

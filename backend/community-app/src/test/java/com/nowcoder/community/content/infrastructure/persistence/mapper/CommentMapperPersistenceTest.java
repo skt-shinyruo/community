@@ -79,4 +79,26 @@ class CommentMapperPersistenceTest {
         assertThat(persisted.getEntityId()).isEqualTo(POST_ID);
         assertThat(persisted.getTargetId()).isNull();
     }
+
+    @Test
+    void updateCommentContentShouldNotModifyInactiveComment() {
+        Comment comment = new Comment();
+        comment.setId(COMMENT_ID);
+        comment.setUserId(USER_ID);
+        comment.setEntityType(1);
+        comment.setEntityId(POST_ID);
+        comment.setTargetId(null);
+        comment.setContent("deleted");
+        comment.setStatus(2);
+        comment.setCreateTime(new Date());
+        commentMapper.insertComment(comment);
+
+        int updated = commentMapper.updateCommentContent(COMMENT_ID, "updated", new Date());
+
+        assertThat(updated).isZero();
+        Comment persisted = commentMapper.selectCommentById(COMMENT_ID);
+        assertThat(persisted.getContent()).isEqualTo("deleted");
+        assertThat(persisted.getStatus()).isEqualTo(2);
+        assertThat(persisted.getEditCount()).isZero();
+    }
 }

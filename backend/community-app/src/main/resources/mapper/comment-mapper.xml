@@ -144,6 +144,7 @@
             update_time = #{updateTime},
             edit_count = edit_count + 1
         where id = #{id, jdbcType=BINARY}
+          and status = 0
     </update>
 
     <update id="updateModerationDeleteMeta">

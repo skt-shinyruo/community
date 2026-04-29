@@ -4,8 +4,10 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
+import org.springframework.transaction.annotation.Transactional;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noMethods;
 
 @AnalyzeClasses(
         packages = "com.nowcoder.community",
@@ -46,6 +48,30 @@ class DddLayeringArchTest {
                             "..entity..",
                             "..dto.."
                     )
+                    .allowEmptyShould(true);
+
+    @ArchTest
+    static final ArchRule content_infrastructure_persistence_must_not_own_transactions =
+            noMethods()
+                    .that().areDeclaredInClassesThat().resideInAnyPackage("..content.infrastructure.persistence..")
+                    .should().beAnnotatedWith(Transactional.class)
+                    .because("content write transaction boundaries belong in application services")
+                    .allowEmptyShould(true);
+
+    @ArchTest
+    static final ArchRule content_infrastructure_persistence_must_not_call_foreign_owner_apis =
+            noClasses()
+                    .that().resideInAnyPackage("..content.infrastructure.persistence..")
+                    .should().dependOnClassesThat().resideInAnyPackage("..api.query..", "..api.action..")
+                    .because("foreign synchronous collaboration belongs in application services")
+                    .allowEmptyShould(true);
+
+    @ArchTest
+    static final ArchRule content_infrastructure_persistence_must_not_publish_content_events =
+            noClasses()
+                    .that().resideInAnyPackage("..content.infrastructure.persistence..")
+                    .should().dependOnClassesThat().haveSimpleName("ContentEventPublisher")
+                    .because("business event publication belongs in application or event adapters")
                     .allowEmptyShould(true);
 
     @ArchTest

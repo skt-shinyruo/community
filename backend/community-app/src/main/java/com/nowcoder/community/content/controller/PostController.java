@@ -126,7 +126,7 @@ public class PostController {
             @Valid @RequestBody CreateCommentRequest request
     ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(commentApplicationService.addComment(
+        return Result.ok(commentApplicationService.create(
                 userId,
                 idempotencyKey,
                 postId,
@@ -134,7 +134,7 @@ public class PostController {
                 request.getEntityId(),
                 request.getTargetId(),
                 request.getContent()
-        ));
+        ).commentId());
     }
 
     @PutMapping("/{postId}")

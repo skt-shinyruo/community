@@ -52,7 +52,7 @@
           <section class="wallet-action-card">
             <h2>转账</h2>
             <p>直接把积分转给另一位成员。</p>
-            <UiInput v-model.number="transferForm.toUserId" type="number" placeholder="目标用户 ID" />
+            <UiInput v-model.trim="transferForm.toUserId" placeholder="目标用户 ID" />
             <UiInput v-model.number="transferForm.amount" type="number" placeholder="输入转账金额" />
             <UiButton :disabled="submittingKey !== ''" @click="submitTransfer">
               {{ submittingKey === 'transfer' ? '转账中…' : '发起转账' }}
@@ -102,6 +102,7 @@ import UiCard from '../components/ui/UiCard.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
+import { normalizeOpaqueId } from '../utils/opaqueId'
 import { buildWalletState } from './walletState'
 
 const loading = ref(false)
@@ -223,10 +224,10 @@ async function submitWithdrawal() {
 }
 
 async function submitTransfer() {
-  const toUserId = Number(transferForm.value.toUserId || 0)
+  const toUserId = normalizeOpaqueId(transferForm.value.toUserId)
   let amount = 0
   try {
-    if (!Number.isFinite(toUserId) || toUserId <= 0) {
+    if (!toUserId) {
       throw new Error('请输入有效的目标用户 ID')
     }
     amount = requirePositiveAmount(transferForm.value.amount, '请输入有效的转账金额')

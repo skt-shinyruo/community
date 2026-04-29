@@ -5,10 +5,10 @@ import { reactive } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const routeState = reactive({
-  params: { listingId: '21' },
+  params: { listingId: '22222222-2222-7222-8222-222222222222' },
   name: 'marketDetail',
-  path: '/market/listings/21',
-  fullPath: '/market/listings/21'
+  path: '/market/listings/22222222-2222-7222-8222-222222222222',
+  fullPath: '/market/listings/22222222-2222-7222-8222-222222222222'
 })
 
 vi.mock('vue-router', async () => {
@@ -81,10 +81,10 @@ function mountOptions() {
 
 describe('Unified market views', () => {
   beforeEach(() => {
-    routeState.params = { listingId: '21' }
+    routeState.params = { listingId: '22222222-2222-7222-8222-222222222222' }
     routeState.name = 'marketDetail'
-    routeState.path = '/market/listings/21'
-    routeState.fullPath = '/market/listings/21'
+    routeState.path = '/market/listings/22222222-2222-7222-8222-222222222222'
+    routeState.fullPath = '/market/listings/22222222-2222-7222-8222-222222222222'
     vi.clearAllMocks()
     listMarketListings.mockResolvedValue({ data: [], traceId: 'trace-market-list' })
     getMarketListingDetail.mockResolvedValue({ data: {}, traceId: 'trace-market-detail' })
@@ -109,7 +109,7 @@ describe('Unified market views', () => {
           status: 'ACTIVE'
         },
         {
-          listingId: 21,
+          listingId: '22222222-2222-7222-8222-222222222222',
           goodsType: 'PHYSICAL',
           title: '二手键盘',
           description: '顺手出',
@@ -146,7 +146,7 @@ describe('Unified market views', () => {
     listMarketAddresses.mockResolvedValue({
       data: [
         {
-          addressId: 41,
+          addressId: '33333333-3333-7333-8333-333333333333',
           receiverName: '张三',
           city: '上海市',
           detailAddress: '世纪大道 100 号',
@@ -159,19 +159,19 @@ describe('Unified market views', () => {
     const wrapper = mount(MarketDetailView, mountOptions())
     await flushPromises()
 
-    expect(getMarketListingDetail).toHaveBeenCalledWith('21')
+    expect(getMarketListingDetail).toHaveBeenCalledWith('22222222-2222-7222-8222-222222222222')
     expect(listMarketAddresses).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('实物商品')
 
-    await wrapper.find('select').setValue('41')
+    await wrapper.find('select').setValue('33333333-3333-7333-8333-333333333333')
     await wrapper.find('button').trigger('click')
     await flushPromises()
 
     expect(createMarketOrder).toHaveBeenCalledTimes(1)
     expect(createMarketOrder.mock.calls[0][0]).toMatchObject({
-      listingId: 21,
+      listingId: '22222222-2222-7222-8222-222222222222',
       quantity: 1,
-      addressId: 41
+      addressId: '33333333-3333-7333-8333-333333333333'
     })
   })
 

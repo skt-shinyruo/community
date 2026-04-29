@@ -54,9 +54,9 @@ describe('api/services/marketService', () => {
     mock.onPost('/api/market/orders').reply((config) => {
       expect(JSON.parse(config.data)).toEqual({
         requestId: 'market:req-1',
-        listingId: 21,
+        listingId: '22222222-2222-7222-8222-222222222222',
         quantity: 1,
-        addressId: 41
+        addressId: '33333333-3333-7333-8333-333333333333'
       })
       return [200, {
         code: 0,
@@ -74,9 +74,9 @@ describe('api/services/marketService', () => {
 
     const resp = await marketService.createMarketOrder({
       requestId: 'market:req-1',
-      listingId: 21,
+      listingId: '22222222-2222-7222-8222-222222222222',
       quantity: 1,
-      addressId: 41
+      addressId: '33333333-3333-7333-8333-333333333333'
     })
 
     expect(resp.traceId).toBe('trace-create-order')

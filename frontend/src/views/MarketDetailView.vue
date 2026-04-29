@@ -78,6 +78,7 @@ import {
   getMarketListingDetail,
   listMarketAddresses
 } from '../api/services/marketService'
+import { normalizeOpaqueId } from '../utils/opaqueId'
 import { buildMarketState } from './marketState'
 
 const route = useRoute()
@@ -120,7 +121,13 @@ async function loadDetail() {
 }
 
 async function submitOrder() {
-  if (detail.value.goodsType === 'PHYSICAL' && !selectedAddressId.value) {
+  const listingId = normalizeOpaqueId(route.params.listingId)
+  const addressId = detail.value.goodsType === 'PHYSICAL' ? normalizeOpaqueId(selectedAddressId.value) : undefined
+  if (!listingId) {
+    error.value = '商品 ID 无效'
+    return
+  }
+  if (detail.value.goodsType === 'PHYSICAL' && !addressId) {
     error.value = '请选择收货地址'
     return
   }
@@ -129,9 +136,9 @@ async function submitOrder() {
   try {
     await createMarketOrder({
       requestId: buildRequestId(),
-      listingId: Number(route.params.listingId),
+      listingId,
       quantity: Math.max(1, Number(quantity.value || 1)),
-      addressId: detail.value.goodsType === 'PHYSICAL' ? Number(selectedAddressId.value) : undefined
+      addressId
     })
     await loadDetail()
   } catch (e) {

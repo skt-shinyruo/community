@@ -2,12 +2,14 @@
 
 import http from '../http'
 import { unwrapResultBody } from '../result'
+import { normalizeOpaqueId, requireOpaqueId } from '../../utils/opaqueId'
 
 export async function listReports({ status, targetType, reporterId, page = 0, size = 20 } = {}) {
   const params = { page, size }
   if (status != null && String(status).trim()) params.status = Number(status)
   if (targetType != null && String(targetType).trim()) params.targetType = Number(targetType)
-  if (reporterId != null && String(reporterId).trim()) params.reporterId = Number(reporterId)
+  const rid = normalizeOpaqueId(reporterId)
+  if (rid) params.reporterId = rid
   const resp = await http.get('/api/moderation/reports', { params })
   const { data, traceId } = unwrapResultBody(resp.data, '查询举报队列')
   return { data: Array.isArray(data) ? data : [], traceId }
@@ -15,7 +17,7 @@ export async function listReports({ status, targetType, reporterId, page = 0, si
 
 export async function takeAction({ reportId, action, reason, durationSeconds } = {}) {
   const payload = {
-    reportId: Number(reportId || 0),
+    reportId: requireOpaqueId(reportId, 'reportId'),
     action: String(action || '').trim(),
     reason: String(reason || '').trim()
   }
@@ -28,9 +30,9 @@ export async function takeAction({ reportId, action, reason, durationSeconds } =
 
 export async function listActions({ actorId, page = 0, size = 20 } = {}) {
   const params = { page, size }
-  if (actorId != null && Number(actorId) > 0) params.actorId = Number(actorId)
+  const aid = normalizeOpaqueId(actorId)
+  if (aid) params.actorId = aid
   const resp = await http.get('/api/moderation/actions', { params })
   const { data, traceId } = unwrapResultBody(resp.data, '查询审计记录')
   return { data: Array.isArray(data) ? data : [], traceId }
 }
-

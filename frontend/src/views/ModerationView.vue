@@ -172,6 +172,7 @@ import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiSelect from '../components/ui/UiSelect.vue'
 import UiTextarea from '../components/ui/UiTextarea.vue'
+import { normalizeOpaqueId } from '../utils/opaqueId'
 import { formatTime } from '../utils/time'
 import { listActions, listReports, takeAction } from '../api/services/moderationService'
 
@@ -333,7 +334,7 @@ function resolveDurationSeconds() {
 
 async function submitAction() {
   actionError.value = ''
-  const reportId = Number(selectedReport.value?.id || 0)
+  const reportId = normalizeOpaqueId(selectedReport.value?.id)
   if (!reportId) return
   const reason = String(actionForm.value.reason || '').trim()
   if (!reason) {

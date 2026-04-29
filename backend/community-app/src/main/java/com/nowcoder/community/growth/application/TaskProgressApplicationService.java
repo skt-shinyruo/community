@@ -82,8 +82,7 @@ public class TaskProgressApplicationService {
         this.idGenerator = idGenerator;
     }
 
-    @Transactional
-    public void recordProgress(RecordTaskProgressCommand command) {
+    private void recordProgress(RecordTaskProgressCommand command) {
         if (command == null || !taskProgressDomainService.isProcessableEvent(command.userId(), command.triggerEventType(), command.sourceEventId(), command.bizDate())) {
             return;
         }
@@ -98,10 +97,12 @@ public class TaskProgressApplicationService {
         }
     }
 
+    @Transactional
     public void processEvent(UUID userId, String triggerEventType, String sourceEventId, LocalDate bizDate) {
         recordProgress(new RecordTaskProgressCommand(userId, triggerEventType, sourceEventId, bizDate));
     }
 
+    @Transactional
     public void triggerPostPublished(TriggerPostPublishedCommand command) {
         if (command == null || command.postId() == null || command.userId() == null || command.createTime() == null) {
             return;
@@ -109,6 +110,7 @@ public class TaskProgressApplicationService {
         process(command.userId(), ContentEventTypes.POST_PUBLISHED, "post-published:" + command.postId(), command.createTime());
     }
 
+    @Transactional
     public void triggerCommentCreated(TriggerCommentCreatedCommand command) {
         if (command == null || command.commentId() == null || command.userId() == null || command.createTime() == null) {
             return;
@@ -116,6 +118,7 @@ public class TaskProgressApplicationService {
         process(command.userId(), ContentEventTypes.COMMENT_CREATED, "comment-created:" + command.commentId(), command.createTime());
     }
 
+    @Transactional
     public void triggerLikeCreated(TriggerLikeCreatedCommand command) {
         if (command == null || !StringUtils.hasText(command.sourceEventId()) || command.createTime() == null) {
             return;

@@ -1,9 +1,12 @@
 package com.nowcoder.community.content.application;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
+import com.nowcoder.community.common.idempotency.IdempotencyProperties;
+import com.nowcoder.community.common.idempotency.IdempotencyStore;
 import com.nowcoder.community.content.application.command.CreateCommentCommand;
 import com.nowcoder.community.content.application.command.UpdateCommentCommand;
 import com.nowcoder.community.content.application.port.ContentSanitizer;
@@ -24,7 +27,11 @@ import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 
+import java.time.Duration;
 import java.util.Date;
 import java.util.Optional;
 import java.util.UUID;
@@ -54,6 +61,7 @@ class CommentApplicationServiceTest {
     private GrowthTaskProgressActionApi taskProgressTriggerService;
     private CommentDomainEventPublisher domainEventPublisher;
     private PostWriteSideEffectScheduler postWriteSideEffectScheduler;
+    private PlatformTransactionManager transactionManager;
     private CommentApplicationService service;
 
     @BeforeEach
@@ -68,6 +76,8 @@ class CommentApplicationServiceTest {
         taskProgressTriggerService = mock(GrowthTaskProgressActionApi.class);
         domainEventPublisher = mock(CommentDomainEventPublisher.class);
         postWriteSideEffectScheduler = mock(PostWriteSideEffectScheduler.class);
+        transactionManager = mock(PlatformTransactionManager.class);
+        when(transactionManager.getTransaction(any(TransactionDefinition.class))).thenReturn(new SimpleTransactionStatus());
         service = new CommentApplicationService(
                 sensitiveFilter,
                 idempotencyGuard,
@@ -80,7 +90,8 @@ class CommentApplicationServiceTest {
                 pointsAwardService,
                 taskProgressTriggerService,
                 domainEventPublisher,
-                postWriteSideEffectScheduler
+                postWriteSideEffectScheduler,
+                transactionManager
         );
     }
 
@@ -92,8 +103,8 @@ class CommentApplicationServiceTest {
         UUID commentId = uuid(200);
         DiscussPost post = post(postId, postAuthorId);
 
-        when(idempotencyGuard.executeRequired(eq("content:create_comment"), eq(userId), anyString(), eq(CommentCreateResult.class), any()))
-                .thenAnswer(invocation -> invocation.<Supplier<CommentCreateResult>>getArgument(4).get());
+        when(idempotencyGuard.executeRequired(eq("content:create_comment"), eq(userId), anyString(), eq(UUID.class), any()))
+                .thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(4).get());
         when(postContentPort.getById(postId)).thenReturn(post);
         when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(false);
         when(sensitiveFilter.filter("hello &amp; world")).thenReturn("clean &amp; body");
@@ -109,7 +120,7 @@ class CommentApplicationServiceTest {
                 eq("content:create_comment"),
                 eq(userId),
                 eq("idem-1"),
-                eq(CommentCreateResult.class),
+                eq(UUID.class),
                 any()
         );
 
@@ -172,8 +183,8 @@ class CommentApplicationServiceTest {
         UUID postAuthorId = uuid(2);
         UUID commentId = uuid(200);
 
-        when(idempotencyGuard.executeRequired(eq("content:create_comment"), eq(userId), anyString(), eq(CommentCreateResult.class), any()))
-                .thenAnswer(invocation -> invocation.<Supplier<CommentCreateResult>>getArgument(4).get());
+        when(idempotencyGuard.executeRequired(eq("content:create_comment"), eq(userId), anyString(), eq(UUID.class), any()))
+                .thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(4).get());
         when(postContentPort.getById(postId)).thenReturn(post(postId, postAuthorId));
         when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(false);
         when(sensitiveFilter.filter("hi")).thenReturn("hi");
@@ -186,9 +197,63 @@ class CommentApplicationServiceTest {
                 eq("content:create_comment"),
                 eq(userId),
                 eq("idem-legacy"),
-                eq(CommentCreateResult.class),
+                eq(UUID.class),
                 any()
         );
+    }
+
+    @Test
+    void createShouldCommitCommentTransactionBeforeSavingUuidIdempotencySuccess() {
+        UUID userId = uuid(1);
+        UUID postId = uuid(100);
+        UUID postAuthorId = uuid(2);
+        UUID commentId = uuid(200);
+        IdempotencyStore store = mock(IdempotencyStore.class);
+        IdempotencyGuard realGuard = new IdempotencyGuard(new ObjectMapper(), store, null, new IdempotencyProperties());
+        PlatformTransactionManager realTransactionManager = mock(PlatformTransactionManager.class);
+        SimpleTransactionStatus transactionStatus = new SimpleTransactionStatus();
+        when(realTransactionManager.getTransaction(any(TransactionDefinition.class))).thenReturn(transactionStatus);
+        when(store.tryAcquireProcessing(eq("content:create_comment"), eq(userId), eq("idem-transaction"), any(Duration.class)))
+                .thenReturn(true);
+        when(postContentPort.getById(postId)).thenReturn(post(postId, postAuthorId));
+        when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(false);
+        when(sensitiveFilter.filter("hi")).thenReturn("hi");
+        when(commentRepository.create(any(CommentDraft.class))).thenReturn(commentId);
+        service = new CommentApplicationService(
+                sensitiveFilter,
+                realGuard,
+                new ContentTextCodec(new ContentRenderProperties()),
+                moderationGuard,
+                new CommentDomainService(),
+                commentRepository,
+                postContentPort,
+                blockQueryApi,
+                pointsAwardService,
+                taskProgressTriggerService,
+                domainEventPublisher,
+                postWriteSideEffectScheduler,
+                realTransactionManager
+        );
+
+        CommentCreateResult result = service.create(
+                "idem-transaction",
+                new CreateCommentCommand(userId, postId, EntityTypes.POST, null, null, "hi")
+        );
+
+        assertThat(result.commentId()).isEqualTo(commentId);
+        var inOrder = inOrder(commentRepository, realTransactionManager, store);
+        inOrder.verify(realTransactionManager).getTransaction(any(TransactionDefinition.class));
+        inOrder.verify(commentRepository).create(any(CommentDraft.class));
+        inOrder.verify(realTransactionManager).commit(transactionStatus);
+        ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
+        inOrder.verify(store).saveSuccess(
+                eq("content:create_comment"),
+                eq(userId),
+                eq("idem-transaction"),
+                jsonCaptor.capture(),
+                any(Duration.class)
+        );
+        assertThat(jsonCaptor.getValue()).isEqualTo("\"" + commentId + "\"");
     }
 
     @Test
@@ -200,8 +265,8 @@ class CommentApplicationServiceTest {
         UUID targetCommentId = uuid(200);
         CommentSnapshot targetComment = activeComment(targetCommentId, postAuthorId, EntityTypes.POST, otherPostId);
 
-        when(idempotencyGuard.executeRequired(eq("content:create_comment"), eq(userId), anyString(), eq(CommentCreateResult.class), any()))
-                .thenAnswer(invocation -> invocation.<Supplier<CommentCreateResult>>getArgument(4).get());
+        when(idempotencyGuard.executeRequired(eq("content:create_comment"), eq(userId), anyString(), eq(UUID.class), any()))
+                .thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(4).get());
         when(postContentPort.getById(postId)).thenReturn(post(postId, postAuthorId));
         when(commentRepository.findActiveSnapshot(targetCommentId)).thenReturn(Optional.of(targetComment));
 
@@ -226,8 +291,8 @@ class CommentApplicationServiceTest {
         UUID postId = uuid(100);
         UUID postAuthorId = uuid(2);
 
-        when(idempotencyGuard.executeRequired(eq("content:create_comment"), eq(userId), anyString(), eq(CommentCreateResult.class), any()))
-                .thenAnswer(invocation -> invocation.<Supplier<CommentCreateResult>>getArgument(4).get());
+        when(idempotencyGuard.executeRequired(eq("content:create_comment"), eq(userId), anyString(), eq(UUID.class), any()))
+                .thenAnswer(invocation -> invocation.<Supplier<UUID>>getArgument(4).get());
         when(postContentPort.getById(postId)).thenReturn(post(postId, postAuthorId));
         when(blockQueryApi.isEitherBlocked(userId, postAuthorId)).thenReturn(true);
 

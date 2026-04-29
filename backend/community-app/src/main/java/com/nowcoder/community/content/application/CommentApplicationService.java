@@ -20,7 +20,11 @@ import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.util.Date;
@@ -46,6 +50,7 @@ public class CommentApplicationService {
     private final GrowthTaskProgressActionApi taskProgressTriggerService;
     private final CommentDomainEventPublisher domainEventPublisher;
     private final PostWriteSideEffectScheduler postWriteSideEffectScheduler;
+    private final TransactionTemplate commentWriteTransactionTemplate;
 
     public CommentApplicationService(
             ContentSanitizer sensitiveFilter,
@@ -59,7 +64,8 @@ public class CommentApplicationService {
             UserPointsAwardActionApi pointsAwardService,
             GrowthTaskProgressActionApi taskProgressTriggerService,
             CommentDomainEventPublisher domainEventPublisher,
-            PostWriteSideEffectScheduler postWriteSideEffectScheduler
+            PostWriteSideEffectScheduler postWriteSideEffectScheduler,
+            PlatformTransactionManager transactionManager
     ) {
         this.sensitiveFilter = sensitiveFilter;
         this.idempotencyGuard = idempotencyGuard;
@@ -73,9 +79,11 @@ public class CommentApplicationService {
         this.taskProgressTriggerService = taskProgressTriggerService;
         this.domainEventPublisher = domainEventPublisher;
         this.postWriteSideEffectScheduler = postWriteSideEffectScheduler;
+        this.commentWriteTransactionTemplate = new TransactionTemplate(transactionManager);
+        this.commentWriteTransactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public CommentCreateResult create(
             UUID userId,
             String idempotencyKey,
@@ -88,7 +96,7 @@ public class CommentApplicationService {
         return create(idempotencyKey, new CreateCommentCommand(userId, postId, entityType, entityId, targetId, content));
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public CommentCreateResult create(String idempotencyKey, CreateCommentCommand command) {
         if (command == null) {
             throw new IllegalArgumentException("command must not be null");
@@ -98,16 +106,17 @@ public class CommentApplicationService {
         if (userId == null || postId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId/postId 非法");
         }
-        return idempotencyGuard.executeRequired(
+        UUID commentId = idempotencyGuard.executeRequired(
                 CREATE_COMMENT_IDEMPOTENCY_SCOPE,
                 userId,
                 idempotencyKey,
-                CommentCreateResult.class,
-                () -> createInsideIdempotency(command)
+                UUID.class,
+                () -> commentWriteTransactionTemplate.execute(status -> createInsideTransaction(command))
         );
+        return new CommentCreateResult(commentId);
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public UUID addComment(UUID userId, String idempotencyKey, UUID postId, Integer entityType, UUID entityId, UUID targetId, String content) {
         return create(userId, idempotencyKey, postId, entityType, entityId, targetId, content).commentId();
     }
@@ -140,7 +149,7 @@ public class CommentApplicationService {
         commentRepository.updateContent(commentId, sanitize(command.content()), now);
     }
 
-    private CommentCreateResult createInsideIdempotency(CreateCommentCommand command) {
+    private UUID createInsideTransaction(CreateCommentCommand command) {
         UUID userId = command.userId();
         UUID postId = command.postId();
 
@@ -199,7 +208,7 @@ public class CommentApplicationService {
         taskProgressTriggerService.triggerCommentCreated(payload);
         domainEventPublisher.commentCreated(event);
         postWriteSideEffectScheduler.schedulePostScoreRefresh(postId);
-        return new CommentCreateResult(commentId);
+        return commentId;
     }
 
     private String sanitize(String content) {

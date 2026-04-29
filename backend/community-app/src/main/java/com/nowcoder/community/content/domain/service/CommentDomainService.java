@@ -27,6 +27,9 @@ public class CommentDomainService {
             UUID postAuthorUserId,
             CommentSnapshot targetComment
     ) {
+        if (postId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "postId 非法");
+        }
         int entityType = rawEntityType == null ? EntityTypes.POST : rawEntityType;
         if (entityType == EntityTypes.POST) {
             return new CreateTarget(EntityTypes.POST, postId, null, postAuthorUserId);
@@ -40,7 +43,9 @@ public class CommentDomainService {
         if (targetComment == null || !targetComment.active()) {
             throw new BusinessException(NOT_FOUND, "资源不存在");
         }
-        if (targetComment.entityType() != EntityTypes.POST || !postId.equals(targetComment.entityId())) {
+        if (!rawEntityId.equals(targetComment.id())
+                || targetComment.entityType() != EntityTypes.POST
+                || !postId.equals(targetComment.entityId())) {
             throw new BusinessException(NOT_FOUND, "资源不存在");
         }
         UUID targetUserId = targetComment.userId();
@@ -95,7 +100,11 @@ public class CommentDomainService {
             return;
         }
         if (comment.entityType() == EntityTypes.COMMENT) {
-            if (parentComment == null || parentComment.entityType() != EntityTypes.POST || !postId.equals(parentComment.entityId())) {
+            if (parentComment == null
+                    || comment.entityId() == null
+                    || !comment.entityId().equals(parentComment.id())
+                    || parentComment.entityType() != EntityTypes.POST
+                    || !postId.equals(parentComment.entityId())) {
                 throw new BusinessException(INVALID_ARGUMENT, "commentId 不属于该帖子");
             }
             return;

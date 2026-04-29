@@ -65,6 +65,48 @@ class CommentDomainServiceTest {
     }
 
     @Test
+    void resolveCreateTargetShouldRejectNullPostId() {
+        assertThatThrownBy(() -> service.resolveCreateTarget(
+                null,
+                null,
+                null,
+                null,
+                uuid(200),
+                null
+        ))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(CommonErrorCode.INVALID_ARGUMENT);
+    }
+
+    @Test
+    void resolveCreateTargetShouldRejectMismatchedTargetSnapshot() {
+        UUID postId = uuid(100);
+        UUID targetCommentId = uuid(300);
+        CommentSnapshot targetComment = snapshot(
+                uuid(301),
+                uuid(302),
+                EntityTypes.POST,
+                postId,
+                null,
+                0,
+                new Date()
+        );
+
+        assertThatThrownBy(() -> service.resolveCreateTarget(
+                postId,
+                EntityTypes.COMMENT,
+                targetCommentId,
+                null,
+                uuid(200),
+                targetComment
+        ))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(CommonErrorCode.NOT_FOUND);
+    }
+
+    @Test
     void assertEditableByAuthorShouldRejectEditsAfterFifteenMinutes() {
         Date createTime = new Date(1_000_000L);
         Date afterEditWindow = new Date(createTime.getTime() + 15L * 60 * 1000 + 1);
@@ -84,6 +126,37 @@ class CommentDomainServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(CommonErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    void assertEditableByAuthorShouldRejectMismatchedParentSnapshot() {
+        Date createTime = new Date(1_000_000L);
+        UUID userId = uuid(100);
+        UUID postId = uuid(200);
+        UUID parentCommentId = uuid(300);
+        CommentSnapshot reply = snapshot(
+                uuid(400),
+                userId,
+                EntityTypes.COMMENT,
+                parentCommentId,
+                uuid(500),
+                0,
+                createTime
+        );
+        CommentSnapshot differentParent = snapshot(
+                uuid(301),
+                uuid(600),
+                EntityTypes.POST,
+                postId,
+                null,
+                0,
+                createTime
+        );
+
+        assertThatThrownBy(() -> service.assertEditableByAuthor(reply, userId, postId, createTime, differentParent))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(CommonErrorCode.INVALID_ARGUMENT);
     }
 
     private static CommentSnapshot snapshot(

@@ -1,6 +1,7 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.content.application.result.CommentCreateResult;
 import com.nowcoder.community.content.application.result.CommentResult;
 import com.nowcoder.community.content.application.result.PostDetailResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
@@ -186,8 +187,8 @@ class PostControllerUnitTest {
         updatePostRequest.setTags(List.of("spring"));
         UpdateCommentRequest updateCommentRequest = new UpdateCommentRequest();
         updateCommentRequest.setContent("edited");
-        when(commentApplicationService.addComment(userId, "idem-2", postId, 1, postId, createCommentRequest.getTargetId(), "reply"))
-                .thenReturn(createdCommentId);
+        when(commentApplicationService.create(userId, "idem-2", postId, 1, postId, createCommentRequest.getTargetId(), "reply"))
+                .thenReturn(new CommentCreateResult(createdCommentId));
 
         Result<UUID> addCommentResult = controller.addComment(authentication(userId), "idem-2", postId, createCommentRequest);
         Result<Void> updatePostResult = controller.updatePost(authentication(userId), postId, updatePostRequest);
@@ -204,7 +205,7 @@ class PostControllerUnitTest {
         assertThat(topResult.getCode()).isEqualTo(0);
         assertThat(wonderfulResult.getCode()).isEqualTo(0);
         assertThat(deleteResult.getCode()).isEqualTo(0);
-        verify(commentApplicationService).addComment(userId, "idem-2", postId, 1, postId, createCommentRequest.getTargetId(), "reply");
+        verify(commentApplicationService).create(userId, "idem-2", postId, 1, postId, createCommentRequest.getTargetId(), "reply");
         verify(postPublishingApplicationService).updatePost(userId, postId, "updated", "body", categoryId, List.of("spring"));
         verify(postPublishingApplicationService).deleteByAuthor(userId, postId);
         verify(commentApplicationService).updateComment(userId, postId, commentId, "edited");

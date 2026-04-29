@@ -59,18 +59,37 @@ class DddLayeringArchTest {
                     .allowEmptyShould(true);
 
     @ArchTest
+    static final ArchRule content_infrastructure_persistence_classes_must_not_own_transactions =
+            noClasses()
+                    .that().resideInAnyPackage("..content.infrastructure.persistence..")
+                    .should().beAnnotatedWith(Transactional.class)
+                    .because("content write transaction boundaries belong in application services")
+                    .allowEmptyShould(true);
+
+    @ArchTest
     static final ArchRule content_infrastructure_persistence_must_not_call_foreign_owner_apis =
             noClasses()
                     .that().resideInAnyPackage("..content.infrastructure.persistence..")
-                    .should().dependOnClassesThat().resideInAnyPackage("..api.query..", "..api.action..")
+                    .should().dependOnClassesThat().resideInAnyPackage("..api.query..", "..api.action..", "..api.model..")
                     .because("foreign synchronous collaboration belongs in application services")
                     .allowEmptyShould(true);
 
     @ArchTest
-    static final ArchRule content_infrastructure_persistence_must_not_publish_content_events =
+    static final ArchRule content_infrastructure_persistence_must_not_depend_on_content_event_adapters =
             noClasses()
                     .that().resideInAnyPackage("..content.infrastructure.persistence..")
-                    .should().dependOnClassesThat().haveSimpleName("ContentEventPublisher")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "..content.infrastructure.event..",
+                            "..content.contracts.event.."
+                    )
+                    .because("business event publication belongs in application or event adapters")
+                    .allowEmptyShould(true);
+
+    @ArchTest
+    static final ArchRule content_infrastructure_persistence_must_not_use_spring_event_publisher =
+            noClasses()
+                    .that().resideInAnyPackage("..content.infrastructure.persistence..")
+                    .should().dependOnClassesThat().haveSimpleName("ApplicationEventPublisher")
                     .because("business event publication belongs in application or event adapters")
                     .allowEmptyShould(true);
 

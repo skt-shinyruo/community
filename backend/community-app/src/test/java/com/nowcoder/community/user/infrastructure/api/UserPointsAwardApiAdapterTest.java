@@ -1,9 +1,7 @@
 package com.nowcoder.community.user.infrastructure.api;
 
-import com.nowcoder.community.content.contracts.event.CommentPayload;
-import com.nowcoder.community.content.contracts.event.ContentEventTypes;
-import com.nowcoder.community.social.contracts.event.LikePayload;
-import com.nowcoder.community.social.contracts.event.SocialEventTypes;
+import com.nowcoder.community.user.api.model.UserCommentPointsAwardRequest;
+import com.nowcoder.community.user.api.model.UserLikePointsAwardRequest;
 import com.nowcoder.community.user.application.UserPointsApplicationService;
 import com.nowcoder.community.wallet.api.action.WalletRewardActionApi;
 import org.junit.jupiter.api.Test;
@@ -13,6 +11,7 @@ import java.util.UUID;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class UserPointsAwardApiAdapterTest {
 
@@ -29,7 +28,7 @@ class UserPointsAwardApiAdapterTest {
                 "wallet-reward:post-published:" + postId,
                 userId,
                 10,
-                ContentEventTypes.POST_PUBLISHED
+                "PostPublished"
         );
     }
 
@@ -40,17 +39,13 @@ class UserPointsAwardApiAdapterTest {
         UUID commentId = uuid(200);
         UUID userId = uuid(3);
 
-        CommentPayload payload = new CommentPayload();
-        payload.setCommentId(commentId);
-        payload.setUserId(userId);
-
-        service.awardCommentCreated(payload);
+        service.awardCommentCreated(new UserCommentPointsAwardRequest(commentId, userId));
 
         verify(walletRewardActionApi).applyDelta(
                 "wallet-reward:comment-created:" + commentId,
                 userId,
                 2,
-                ContentEventTypes.COMMENT_CREATED
+                "CommentCreated"
         );
     }
 
@@ -61,24 +56,31 @@ class UserPointsAwardApiAdapterTest {
         UUID actorUserId = uuid(1);
         UUID entityUserId = uuid(2);
 
-        LikePayload payload = new LikePayload();
-        payload.setActorUserId(actorUserId);
-        payload.setEntityUserId(entityUserId);
-
-        service.awardLikeCreated("like-created-event", payload);
-        service.awardLikeRemoved("like-removed-event", payload);
+        service.awardLikeCreated(new UserLikePointsAwardRequest("like-created-event", actorUserId, entityUserId));
+        service.awardLikeRemoved(new UserLikePointsAwardRequest("like-removed-event", actorUserId, entityUserId));
 
         verify(walletRewardActionApi).applyDelta(
                 "wallet-reward:like-created-event",
                 entityUserId,
                 1,
-                SocialEventTypes.LIKE_CREATED
+                "LikeCreated"
         );
         verify(walletRewardActionApi).applyDelta(
                 "wallet-reward:like-removed-event",
                 entityUserId,
                 -1,
-                SocialEventTypes.LIKE_REMOVED
+                "LikeRemoved"
         );
+    }
+
+    @Test
+    void selfLikeShouldRemainNoOp() {
+        WalletRewardActionApi walletRewardActionApi = mock(WalletRewardActionApi.class);
+        UserPointsAwardApiAdapter service = new UserPointsAwardApiAdapter(new UserPointsApplicationService(walletRewardActionApi));
+        UUID userId = uuid(9);
+
+        service.awardLikeCreated(new UserLikePointsAwardRequest("like-created-event", userId, userId));
+
+        verifyNoInteractions(walletRewardActionApi);
     }
 }

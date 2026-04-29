@@ -1,7 +1,6 @@
 package com.nowcoder.community.growth.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
-import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.growth.application.command.RecordTaskProgressCommand;
 import com.nowcoder.community.growth.application.command.TriggerCommentCreatedCommand;
 import com.nowcoder.community.growth.application.command.TriggerLikeCreatedCommand;
@@ -13,7 +12,6 @@ import com.nowcoder.community.growth.domain.repository.UserTaskEventLogRepositor
 import com.nowcoder.community.growth.domain.repository.UserTaskProgressRepository;
 import com.nowcoder.community.growth.domain.service.RewardGrantDomainService;
 import com.nowcoder.community.growth.domain.service.TaskProgressDomainService;
-import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import com.nowcoder.community.wallet.api.action.WalletRewardActionApi;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -33,6 +31,9 @@ public class TaskProgressApplicationService {
     private static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
     private static final String STATUS_CLAIMABLE = "CLAIMABLE";
     private static final String STATUS_CLAIMED = "CLAIMED";
+    private static final String TRIGGER_POST_PUBLISHED = "PostPublished";
+    private static final String TRIGGER_COMMENT_CREATED = "CommentCreated";
+    private static final String TRIGGER_LIKE_CREATED = "LikeCreated";
     private final TaskTemplateRepository taskTemplateRepository;
     private final UserTaskProgressRepository userTaskProgressRepository;
     private final UserTaskEventLogRepository userTaskEventLogRepository;
@@ -107,7 +108,7 @@ public class TaskProgressApplicationService {
         if (command == null || command.postId() == null || command.userId() == null || command.createTime() == null) {
             return;
         }
-        process(command.userId(), ContentEventTypes.POST_PUBLISHED, "post-published:" + command.postId(), command.createTime());
+        process(command.userId(), TRIGGER_POST_PUBLISHED, "post-published:" + command.postId(), command.createTime());
     }
 
     @Transactional
@@ -115,7 +116,7 @@ public class TaskProgressApplicationService {
         if (command == null || command.commentId() == null || command.userId() == null || command.createTime() == null) {
             return;
         }
-        process(command.userId(), ContentEventTypes.COMMENT_CREATED, "comment-created:" + command.commentId(), command.createTime());
+        process(command.userId(), TRIGGER_COMMENT_CREATED, "comment-created:" + command.commentId(), command.createTime());
     }
 
     @Transactional
@@ -127,7 +128,7 @@ public class TaskProgressApplicationService {
         if (toUserId == null || toUserId.equals(command.actorUserId())) {
             return;
         }
-        process(toUserId, SocialEventTypes.LIKE_CREATED, command.sourceEventId().trim(), command.createTime());
+        process(toUserId, TRIGGER_LIKE_CREATED, command.sourceEventId().trim(), command.createTime());
     }
 
     private void process(UUID userId, String triggerEventType, String sourceEventId, Instant occurredAt) {

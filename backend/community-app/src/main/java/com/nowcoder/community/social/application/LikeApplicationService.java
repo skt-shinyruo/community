@@ -2,9 +2,9 @@ package com.nowcoder.community.social.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
+import com.nowcoder.community.growth.api.model.GrowthLikeTaskProgressRequest;
 import com.nowcoder.community.social.application.command.SetLikeCommand;
 import com.nowcoder.community.social.application.result.LikeResult;
-import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
 import com.nowcoder.community.social.domain.event.SocialDomainEventPublisher;
 import com.nowcoder.community.social.domain.model.ResolvedSocialEntity;
@@ -13,6 +13,7 @@ import com.nowcoder.community.social.domain.repository.LikeRepository;
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.LikeDomainService;
 import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
+import com.nowcoder.community.user.api.model.UserLikePointsAwardRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -170,34 +171,35 @@ public class LikeApplicationService {
     }
 
     private void publishSideEffects(LikeChangedDomainEvent event) {
-        LikePayload payload = toLikePayload(event);
         String sideEffectEventId = null;
         if (event.liked()) {
             if (pointsAwardActionApi != null) {
                 sideEffectEventId = ensureSideEffectEventId(sideEffectEventId, "like-created");
-                pointsAwardActionApi.awardLikeCreated(sideEffectEventId, payload);
+                pointsAwardActionApi.awardLikeCreated(new UserLikePointsAwardRequest(
+                        sideEffectEventId,
+                        event.actorUserId(),
+                        event.entityUserId()
+                ));
             }
             if (taskProgressActionApi != null) {
                 sideEffectEventId = ensureSideEffectEventId(sideEffectEventId, "like-created");
-                taskProgressActionApi.triggerLikeCreated(sideEffectEventId, payload);
+                taskProgressActionApi.triggerLikeCreated(new GrowthLikeTaskProgressRequest(
+                        sideEffectEventId,
+                        event.actorUserId(),
+                        event.entityUserId(),
+                        event.createTime()
+                ));
             }
             return;
         }
         if (pointsAwardActionApi != null) {
             sideEffectEventId = ensureSideEffectEventId(sideEffectEventId, "like-removed");
-            pointsAwardActionApi.awardLikeRemoved(sideEffectEventId, payload);
+            pointsAwardActionApi.awardLikeRemoved(new UserLikePointsAwardRequest(
+                    sideEffectEventId,
+                    event.actorUserId(),
+                    event.entityUserId()
+            ));
         }
-    }
-
-    private LikePayload toLikePayload(LikeChangedDomainEvent event) {
-        LikePayload payload = new LikePayload();
-        payload.setActorUserId(event.actorUserId());
-        payload.setEntityType(event.entityType());
-        payload.setEntityId(event.entityId());
-        payload.setEntityUserId(event.entityUserId());
-        payload.setPostId(event.postId());
-        payload.setCreateTime(event.createTime());
-        return payload;
     }
 
     private String ensureSideEffectEventId(String currentEventId, String prefix) {

@@ -1,7 +1,7 @@
 package com.nowcoder.community.growth.api.action;
 
-import com.nowcoder.community.content.contracts.event.CommentPayload;
-import com.nowcoder.community.social.contracts.event.LikePayload;
+import com.nowcoder.community.growth.api.model.GrowthCommentTaskProgressRequest;
+import com.nowcoder.community.growth.api.model.GrowthLikeTaskProgressRequest;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -10,7 +10,7 @@ public interface GrowthTaskProgressActionApi {
 
     void triggerPostPublished(UUID postId, UUID userId, Instant createTime);
 
-    void triggerCommentCreated(CommentPayload payload);
+    void triggerCommentCreated(GrowthCommentTaskProgressRequest request);
 
-    void triggerLikeCreated(String sourceEventId, LikePayload payload);
+    void triggerLikeCreated(GrowthLikeTaskProgressRequest request);
 }

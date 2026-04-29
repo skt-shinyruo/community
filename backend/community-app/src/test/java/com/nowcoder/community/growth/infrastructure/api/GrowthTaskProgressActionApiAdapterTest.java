@@ -1,11 +1,11 @@
 package com.nowcoder.community.growth.infrastructure.api;
 
-import com.nowcoder.community.content.contracts.event.CommentPayload;
+import com.nowcoder.community.growth.api.model.GrowthCommentTaskProgressRequest;
+import com.nowcoder.community.growth.api.model.GrowthLikeTaskProgressRequest;
 import com.nowcoder.community.growth.application.TaskProgressApplicationService;
 import com.nowcoder.community.growth.application.command.TriggerCommentCreatedCommand;
 import com.nowcoder.community.growth.application.command.TriggerLikeCreatedCommand;
 import com.nowcoder.community.growth.application.command.TriggerPostPublishedCommand;
-import com.nowcoder.community.social.contracts.event.LikePayload;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -34,12 +34,7 @@ class GrowthTaskProgressActionApiAdapterTest {
         GrowthTaskProgressActionApiAdapter service = new GrowthTaskProgressActionApiAdapter(applicationService);
         Instant createTime = Instant.parse("2026-03-22T09:00:00Z");
 
-        CommentPayload payload = new CommentPayload();
-        payload.setCommentId(uuid(200));
-        payload.setUserId(uuid(3));
-        payload.setCreateTime(createTime);
-
-        service.triggerCommentCreated(payload);
+        service.triggerCommentCreated(new GrowthCommentTaskProgressRequest(uuid(200), uuid(3), createTime));
 
         verify(applicationService).triggerCommentCreated(new TriggerCommentCreatedCommand(uuid(200), uuid(3), createTime));
     }
@@ -50,12 +45,7 @@ class GrowthTaskProgressActionApiAdapterTest {
         GrowthTaskProgressActionApiAdapter service = new GrowthTaskProgressActionApiAdapter(applicationService);
         Instant createTime = Instant.parse("2026-03-22T10:30:00Z");
 
-        LikePayload payload = new LikePayload();
-        payload.setActorUserId(uuid(1));
-        payload.setEntityUserId(uuid(2));
-        payload.setCreateTime(createTime);
-
-        service.triggerLikeCreated("like-created-event", payload);
+        service.triggerLikeCreated(new GrowthLikeTaskProgressRequest("like-created-event", uuid(1), uuid(2), createTime));
 
         verify(applicationService).triggerLikeCreated(new TriggerLikeCreatedCommand("like-created-event", uuid(1), uuid(2), createTime));
     }
@@ -65,12 +55,12 @@ class GrowthTaskProgressActionApiAdapterTest {
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
         GrowthTaskProgressActionApiAdapter service = new GrowthTaskProgressActionApiAdapter(applicationService);
 
-        LikePayload payload = new LikePayload();
-        payload.setActorUserId(uuid(9));
-        payload.setEntityUserId(uuid(9));
-        payload.setCreateTime(Instant.parse("2026-03-22T10:30:00Z"));
-
-        service.triggerLikeCreated("like-created-event", payload);
+        service.triggerLikeCreated(new GrowthLikeTaskProgressRequest(
+                "like-created-event",
+                uuid(9),
+                uuid(9),
+                Instant.parse("2026-03-22T10:30:00Z")
+        ));
 
         verifyNoInteractions(applicationService);
     }

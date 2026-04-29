@@ -4,6 +4,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.domain.model.CommentDraft;
+import com.nowcoder.community.content.domain.model.CommentSnapshot;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.CommentMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -12,6 +13,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Date;
+import java.util.Optional;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -71,6 +73,67 @@ class MyBatisCommentRepositoryTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(COMMENT_NOT_FOUND);
+    }
+
+    @Test
+    void getRequiredSnapshotShouldMapAllFieldsFromActiveComment() {
+        CommentMapper commentMapper = mock(CommentMapper.class);
+        MyBatisCommentRepository repository = new MyBatisCommentRepository(
+                commentMapper,
+                new UuidV7Generator(Clock.fixed(Instant.parse("2026-04-29T01:02:03Z"), ZoneOffset.UTC))
+        );
+        UUID commentId = uuid(202);
+        Comment active = comment(commentId, 0);
+        when(commentMapper.selectCommentById(commentId)).thenReturn(active);
+
+        CommentSnapshot snapshot = repository.getRequiredSnapshot(commentId);
+
+        assertThat(snapshot).isEqualTo(new CommentSnapshot(
+                active.getId(),
+                active.getUserId(),
+                active.getEntityType(),
+                active.getEntityId(),
+                active.getTargetId(),
+                active.getContent(),
+                active.getStatus(),
+                active.getCreateTime(),
+                active.getUpdateTime(),
+                active.getEditCount()
+        ));
+    }
+
+    @Test
+    void findSnapshotShouldReturnSnapshotForInactiveComment() {
+        CommentMapper commentMapper = mock(CommentMapper.class);
+        MyBatisCommentRepository repository = new MyBatisCommentRepository(
+                commentMapper,
+                new UuidV7Generator(Clock.fixed(Instant.parse("2026-04-29T01:02:03Z"), ZoneOffset.UTC))
+        );
+        UUID commentId = uuid(203);
+        Comment inactive = comment(commentId, 2);
+        when(commentMapper.selectCommentById(commentId)).thenReturn(inactive);
+
+        Optional<CommentSnapshot> snapshot = repository.findSnapshot(commentId);
+
+        assertThat(snapshot).isPresent();
+        assertThat(snapshot.orElseThrow().status()).isEqualTo(2);
+        assertThat(snapshot.orElseThrow().id()).isEqualTo(commentId);
+    }
+
+    @Test
+    void findActiveSnapshotShouldReturnEmptyForInactiveComment() {
+        CommentMapper commentMapper = mock(CommentMapper.class);
+        MyBatisCommentRepository repository = new MyBatisCommentRepository(
+                commentMapper,
+                new UuidV7Generator(Clock.fixed(Instant.parse("2026-04-29T01:02:03Z"), ZoneOffset.UTC))
+        );
+        UUID commentId = uuid(204);
+        Comment inactive = comment(commentId, 2);
+        when(commentMapper.selectCommentById(commentId)).thenReturn(inactive);
+
+        Optional<CommentSnapshot> snapshot = repository.findActiveSnapshot(commentId);
+
+        assertThat(snapshot).isEmpty();
     }
 
     @Test

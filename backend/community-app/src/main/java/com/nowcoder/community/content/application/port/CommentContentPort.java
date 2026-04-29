@@ -22,8 +22,4 @@ public interface CommentContentPort {
     void assertCommentBelongsToPost(UUID postId, UUID commentId);
 
     Map<UUID, Comment> getLatestPostActivitiesByPostIds(List<UUID> postIds);
-
-    UUID addComment(UUID actorUserId, UUID postId, Integer entityType, UUID entityId, UUID targetId, String content);
-
-    void updateComment(UUID actorUserId, UUID postId, UUID commentId, String content);
 }

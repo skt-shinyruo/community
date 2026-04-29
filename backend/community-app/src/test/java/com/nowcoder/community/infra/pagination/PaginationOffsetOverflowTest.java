@@ -11,17 +11,12 @@ import com.nowcoder.community.content.infrastructure.persistence.ModerationServi
 import com.nowcoder.community.content.infrastructure.persistence.PostService;
 import com.nowcoder.community.content.infrastructure.persistence.ReportService;
 import com.nowcoder.community.content.infrastructure.persistence.TagService;
-import com.nowcoder.community.content.application.UserModerationGuard;
-import com.nowcoder.community.content.config.ContentRenderProperties;
-import com.nowcoder.community.content.infrastructure.event.ContentEventPublisher;
-import com.nowcoder.community.content.application.port.PostScoreQueuePort;
 import com.nowcoder.community.content.application.ContentTextCodec;
-import com.nowcoder.community.content.application.port.ContentSanitizer;
+import com.nowcoder.community.content.application.port.PostContentPort;
 import com.nowcoder.community.content.application.assembler.PostSummaryAssembler;
 import com.nowcoder.community.notice.application.NoticeApplicationService;
 import com.nowcoder.community.notice.domain.repository.NoticeRepository;
 import com.nowcoder.community.social.application.FollowApplicationService;
-import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import com.nowcoder.community.social.domain.event.SocialDomainEventPublisher;
 import com.nowcoder.community.social.domain.repository.BlockRepository;
 import com.nowcoder.community.social.domain.repository.FollowRepository;
@@ -65,16 +60,7 @@ class PaginationOffsetOverflowTest {
         when(commentMapper.selectCommentsByEntity(anyInt(), any(), anyInt(), anyInt())).thenReturn(List.of());
         UUID postId = uuid(1);
 
-        CommentService service = new CommentService(
-                commentMapper,
-                mock(PostService.class),
-                mock(ContentSanitizer.class),
-                mock(PostScoreQueuePort.class),
-                mock(ContentEventPublisher.class),
-                mock(SocialBlockQueryApi.class),
-                mock(UserModerationGuard.class),
-                new ContentTextCodec(new ContentRenderProperties())
-        );
+        CommentService service = new CommentService(commentMapper, mock(PostContentPort.class));
 
         service.listByPost(postId, Integer.MAX_VALUE, 50);
 

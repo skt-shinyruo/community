@@ -2,7 +2,6 @@ package com.nowcoder.community.social.domain.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.social.domain.event.FollowCreatedDomainEvent;
-import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -11,7 +10,6 @@ import static com.nowcoder.community.common.constants.EntityTypes.USER;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.social.exception.SocialErrorCode.CANNOT_FOLLOW_SELF;
 
-@Service
 public class FollowDomainService {
 
     public void validateFollow(UUID actorUserId, int entityType, UUID entityId) {

@@ -1,9 +1,7 @@
 package com.nowcoder.community.analytics.domain.service;
 
 import com.nowcoder.community.analytics.domain.model.AnalyticsRequestEvent;
-import org.springframework.stereotype.Service;
 
-@Service
 public class AnalyticsIngestDomainService {
 
     public boolean shouldRecordUv(AnalyticsRequestEvent event) {

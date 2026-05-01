@@ -2,14 +2,11 @@ package com.nowcoder.community.auth.domain.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
-@Service
 public class RegistrationDomainService {
 
     public void requireRegisterFields(String username, String password, String email) {
-        if (!StringUtils.hasText(username) || !StringUtils.hasText(password) || !StringUtils.hasText(email)) {
+        if (!hasText(username) || !hasText(password) || !hasText(email)) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "用户名/密码/邮箱不能为空");
         }
     }
@@ -29,5 +26,9 @@ public class RegistrationDomainService {
             return local.charAt(0) + "*" + domain;
         }
         return local.charAt(0) + "***" + local.charAt(local.length() - 1) + domain;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

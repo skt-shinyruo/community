@@ -3,11 +3,9 @@ package com.nowcoder.community.analytics.domain.service;
 import com.nowcoder.community.analytics.domain.model.AnalyticsRange;
 import com.nowcoder.community.analytics.exception.AnalyticsErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
-import org.springframework.stereotype.Service;
 
 import java.time.temporal.ChronoUnit;
 
-@Service
 public class AnalyticsDomainService {
 
     public void validateRange(AnalyticsRange range, int maxDaysRange) {

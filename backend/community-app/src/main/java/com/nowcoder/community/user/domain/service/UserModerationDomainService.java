@@ -2,22 +2,19 @@ package com.nowcoder.community.user.domain.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.domain.model.UserModerationStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.Locale;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
-@Service
 public class UserModerationDomainService {
 
     private static final int MAX_DURATION_SECONDS = 365 * 24 * 3600;
 
     public String requireNonBlankAction(String action) {
         String value = action == null ? "" : action.trim().toLowerCase(Locale.ROOT);
-        if (!StringUtils.hasText(value)) {
+        if (!hasText(value)) {
             throw new BusinessException(INVALID_ARGUMENT, "action 不能为空");
         }
         return value;
@@ -55,5 +52,9 @@ public class UserModerationDomainService {
 
     private int clampDurationSeconds(int seconds) {
         return Math.min(MAX_DURATION_SECONDS, Math.max(0, seconds));
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

@@ -4,7 +4,6 @@ import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.domain.model.CommentDraft;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
-import org.springframework.stereotype.Service;
 
 import java.util.Date;
 import java.util.UUID;
@@ -14,7 +13,6 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 import static com.nowcoder.community.content.exception.ContentErrorCode.COMMENT_NOT_FOUND;
 
-@Service
 public class CommentDomainService {
 
     private static final long EDIT_WINDOW_MILLIS = 15L * 60 * 1000;

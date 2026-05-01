@@ -2,15 +2,12 @@ package com.nowcoder.community.user.domain.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.domain.model.UserAccount;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
-@Service
 public class UserRoleDomainService {
 
     public String requireValidCommand(boolean commandPresent, UUID targetUserId, int type, String reason, boolean confirm) {
@@ -20,8 +17,8 @@ public class UserRoleDomainService {
         if (!confirm) {
             throw new BusinessException(INVALID_ARGUMENT, "需要二次确认（confirm=true）");
         }
-        String normalizedReason = StringUtils.hasText(reason) ? reason.trim() : "";
-        if (!StringUtils.hasText(normalizedReason)) {
+        String normalizedReason = hasText(reason) ? reason.trim() : "";
+        if (!hasText(normalizedReason)) {
             throw new BusinessException(INVALID_ARGUMENT, "reason 不能为空");
         }
         if (targetUserId == null) {
@@ -37,5 +34,9 @@ public class UserRoleDomainService {
         if (targetUserId != null && targetUserId.equals(actorUserId) && toType != 1) {
             throw new BusinessException(FORBIDDEN, "不允许降级自己的管理员权限");
         }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

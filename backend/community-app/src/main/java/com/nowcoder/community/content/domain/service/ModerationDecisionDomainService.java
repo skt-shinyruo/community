@@ -2,14 +2,12 @@ package com.nowcoder.community.content.domain.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.domain.model.ModerationDecision;
-import org.springframework.stereotype.Service;
 
 import java.util.Locale;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
-@Service
 public class ModerationDecisionDomainService {
 
     private static final int DEFAULT_MUTE_SECONDS = 24 * 3600;

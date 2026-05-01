@@ -1,14 +1,11 @@
 package com.nowcoder.community.user.domain.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
-@Service
 public class UserReadDomainService {
 
     private static final int LEVEL_SCORE_STEP = 100;
@@ -21,7 +18,7 @@ public class UserReadDomainService {
 
     public String normalizeUsername(String username) {
         String value = safeTrim(username);
-        if (!StringUtils.hasText(value)) {
+        if (!hasText(value)) {
             throw new BusinessException(INVALID_ARGUMENT, "username 不能为空");
         }
         return value;
@@ -29,7 +26,7 @@ public class UserReadDomainService {
 
     public String normalizeEmail(String email) {
         String value = safeTrim(email);
-        if (!StringUtils.hasText(value)) {
+        if (!hasText(value)) {
             throw new BusinessException(INVALID_ARGUMENT, "email 不能为空");
         }
         return value;
@@ -42,5 +39,9 @@ public class UserReadDomainService {
 
     private String safeTrim(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

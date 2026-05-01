@@ -1,8 +1,5 @@
 package com.nowcoder.community.search.domain.service;
 
-import org.springframework.stereotype.Service;
-
-@Service
 public class SearchReindexDomainService {
 
     public int normalizeScanPageSize(int pageSize) {

@@ -1,11 +1,9 @@
 package com.nowcoder.community.search.domain.service;
 
 import com.nowcoder.community.search.domain.model.PostSearchQuery;
-import org.springframework.stereotype.Service;
 
 import java.util.UUID;
 
-@Service
 public class PostSearchDomainService {
 
     private static final int DELETED_STATUS = 2;

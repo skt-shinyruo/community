@@ -70,6 +70,7 @@ class FilesControllerStorageRoutingTest {
 
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(resp.getHeaders().getContentType()).isEqualTo(MediaType.TEXT_PLAIN);
+        assertThat(resp.getHeaders().getContentLength()).isEqualTo(2);
         assertThat(resp.getBody()).isNotNull();
         assertThat(resp.getBody().getInputStream().readAllBytes()).isEqualTo("ok".getBytes(StandardCharsets.UTF_8));
         assertThat(resp.getHeaders().getFirst("X-Content-Type-Options")).isEqualTo("nosniff");

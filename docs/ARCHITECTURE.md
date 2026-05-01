@@ -152,7 +152,8 @@ com.nowcoder.community.<domain>
 - `api.query` / `api.action` / `api.model` 是跨域同步协作契约，不能依赖或暴露 `contracts.event` 异步事件 payload；同步与异步模型字段相同也不复用同一个 public type。
 - 同域同步入口统一走 owner `application.*ApplicationService`；`@RestController`、本地 `*Listener`、本地持续型 worker 默认都不再把 same-domain `api.query` / `api.action` / `api.model` 当入口；
 - `ApplicationService` 是用例入口，负责事务、幂等、actor/viewer 转换、命令/结果装配、领域调用、领域事件发布和 foreign-domain `api.*` 调用；
-- `domain` 只表达业务模型、领域规则、领域服务、策略、仓储接口和领域事件，不依赖 controller / application / infrastructure / mapper / dataobject / HTTP DTO / owner-domain `api.*`；
+- `application.command` / `application.result` 只表达应用层命令和结果，不暴露 `ResponseCookie`、`ResponseEntity`、`MediaType`、`Resource`、Servlet request/response 等 HTTP transport 类型；cookie、header、content type、file response 等表达属于 controller 或 web adapter；
+- `domain` 只表达业务模型、领域规则、领域服务、策略、仓储接口和领域事件，不依赖 Spring framework、controller / application / infrastructure / mapper / dataobject / HTTP DTO / owner-domain `api.*`；
 - `infrastructure` 承载 MyBatis mapper、dataobject、repository 实现、Redis、outbox、Spring event publisher 等技术细节；
 - 应用边界已全局冻结：所有 `@RestController` 与 `..event..` 下的 `*Listener` 不直接依赖 same-domain `..app..`，也不直接依赖 same-domain raw service / projection service 等非 `ApplicationService` 类型；
 - 当前 controller / listener 应用边界 baseline 为空；后续不允许重新引入 legacy 例外。

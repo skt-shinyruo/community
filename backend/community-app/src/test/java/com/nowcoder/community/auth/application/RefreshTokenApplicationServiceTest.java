@@ -3,6 +3,7 @@ package com.nowcoder.community.auth.application;
 import com.nowcoder.community.analytics.api.action.AnalyticsIngestActionApi;
 import com.nowcoder.community.auth.application.command.RefreshCommand;
 import com.nowcoder.community.auth.application.port.AuthTokenPort;
+import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
 import com.nowcoder.community.auth.application.result.RefreshResult;
 import com.nowcoder.community.auth.domain.repository.RefreshTokenRepository;
 import com.nowcoder.community.auth.domain.service.AuthDomainService;
@@ -113,13 +114,31 @@ class RefreshTokenApplicationServiceTest {
         RefreshTokenApplicationService.IssuedRefreshToken issued = refreshTokenService.issue(USER_ID);
         assertThat(issued.cookie().name()).isEqualTo("refresh_token");
         assertThat(issued.cookie().value()).isEqualTo(issued.refreshToken());
+        assertThat(issued.cookie().httpOnly()).isTrue();
+        assertThat(issued.cookie().secure()).isFalse();
         assertThat(issued.cookie().path()).isEqualTo("/api/auth");
+        assertThat(issued.cookie().sameSite()).isEqualTo("Lax");
         assertThat(issued.cookie().maxAgeSeconds()).isEqualTo(600);
         LoginApplicationService authService = authService(refreshTokenService, new UserCredentialView(USER_ID, "alice", 1, 2, "h1"));
 
         RefreshResult result = authService.refresh(new RefreshCommand(issued.refreshToken()));
 
         assertThat(result.accessToken()).isEqualTo("access-token");
+    }
+
+    @Test
+    void clearCookieShouldPreserveRefreshCookieAttributesWithZeroMaxAge() {
+        RefreshTokenApplicationService refreshTokenService = refreshTokenService(new InMemoryRefreshTokenRepository());
+
+        RefreshCookieSpec cookie = refreshTokenService.clearCookie();
+
+        assertThat(cookie.name()).isEqualTo("refresh_token");
+        assertThat(cookie.value()).isEmpty();
+        assertThat(cookie.httpOnly()).isTrue();
+        assertThat(cookie.secure()).isFalse();
+        assertThat(cookie.path()).isEqualTo("/api/auth");
+        assertThat(cookie.sameSite()).isEqualTo("Lax");
+        assertThat(cookie.maxAgeSeconds()).isZero();
     }
 
     @Test

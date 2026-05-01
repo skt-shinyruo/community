@@ -74,7 +74,7 @@ class AuthControllerUnitTest {
         req.setUsername("u");
         req.setPassword("p");
 
-        RefreshCookieSpec refreshCookie = issuedCookie("rt");
+        RefreshCookieSpec refreshCookie = issuedCookie("rt", true);
 
         when(authApplicationService.login(any(LoginCommand.class)))
                 .thenReturn(new LoginResult("at", refreshCookie));
@@ -88,8 +88,7 @@ class AuthControllerUnitTest {
         assertThat(resp.getData().getAccessToken()).isEqualTo("at");
 
         String setCookie = httpResponse.getHeader(HttpHeaders.SET_COOKIE);
-        assertThat(setCookie).isNotBlank();
-        assertThat(setCookie).contains("refresh_token=rt");
+        assertIssuedRefreshCookie(setCookie, "rt", true);
         verify(authApplicationService).login(new LoginCommand("u", "p", null, null, "127.0.0.1", ClientIpResolver.SOURCE_REMOTE));
     }
 
@@ -110,8 +109,7 @@ class AuthControllerUnitTest {
         assertThat(resp.getData().getAccessToken()).isEqualTo("at2");
 
         String setCookie = httpResponse.getHeader(HttpHeaders.SET_COOKIE);
-        assertThat(setCookie).isNotBlank();
-        assertThat(setCookie).contains("refresh_token=rt2");
+        assertIssuedRefreshCookie(setCookie, "rt2", false);
         verify(authApplicationService).refresh(new RefreshCommand("presented-token"));
     }
 
@@ -131,7 +129,7 @@ class AuthControllerUnitTest {
 
         assertThat(thrown).isInstanceOf(BusinessException.class);
         verify(authApplicationService).clearRefreshCookie();
-        assertThat(httpResponse.getHeader(HttpHeaders.SET_COOKIE)).contains("refresh_token=");
+        assertClearedRefreshCookie(httpResponse.getHeader(HttpHeaders.SET_COOKIE));
     }
 
     @Test
@@ -150,7 +148,7 @@ class AuthControllerUnitTest {
 
         assertThat(thrown).isInstanceOf(BusinessException.class);
         verify(authApplicationService).clearRefreshCookie();
-        assertThat(httpResponse.getHeader(HttpHeaders.SET_COOKIE)).contains("refresh_token=");
+        assertClearedRefreshCookie(httpResponse.getHeader(HttpHeaders.SET_COOKIE));
     }
 
     @Test
@@ -166,7 +164,7 @@ class AuthControllerUnitTest {
         controller.logout(httpRequest, httpResponse);
 
         verify(authApplicationService).logout(new LogoutCommand("logout-token"));
-        assertThat(httpResponse.getHeader(HttpHeaders.SET_COOKIE)).contains("refresh_token=");
+        assertClearedRefreshCookie(httpResponse.getHeader(HttpHeaders.SET_COOKIE));
     }
 
     @Test
@@ -271,15 +269,19 @@ class AuthControllerUnitTest {
         assertThat(response.getCode()).isEqualTo(0);
         assertThat(response.getData()).isNotNull();
         assertThat(response.getData().getAccessToken()).isEqualTo("at3");
-        assertThat(httpResponse.getHeader(HttpHeaders.SET_COOKIE)).contains("refresh_token=rt3");
+        assertIssuedRefreshCookie(httpResponse.getHeader(HttpHeaders.SET_COOKIE), "rt3", false);
     }
 
     private static RefreshCookieSpec issuedCookie(String value) {
+        return issuedCookie(value, false);
+    }
+
+    private static RefreshCookieSpec issuedCookie(String value, boolean secure) {
         return new RefreshCookieSpec(
                 "refresh_token",
                 value,
                 true,
-                false,
+                secure,
                 "/api/auth",
                 "Lax",
                 600
@@ -296,5 +298,33 @@ class AuthControllerUnitTest {
                 "Lax",
                 0
         );
+    }
+
+    private static void assertIssuedRefreshCookie(String setCookie, String value, boolean secure) {
+        assertThat(setCookie).isNotBlank();
+        assertThat(setCookie).contains(
+                "refresh_token=" + value,
+                "Path=/api/auth",
+                "Max-Age=600",
+                "HttpOnly",
+                "SameSite=Lax"
+        );
+        if (secure) {
+            assertThat(setCookie).contains("Secure");
+        } else {
+            assertThat(setCookie).doesNotContain("Secure");
+        }
+    }
+
+    private static void assertClearedRefreshCookie(String setCookie) {
+        assertThat(setCookie).isNotBlank();
+        assertThat(setCookie).contains(
+                "refresh_token=",
+                "Path=/api/auth",
+                "Max-Age=0",
+                "HttpOnly",
+                "SameSite=Lax"
+        );
+        assertThat(setCookie).doesNotContain("Secure");
     }
 }

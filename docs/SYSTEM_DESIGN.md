@@ -23,6 +23,8 @@ DDD Tactical Layering 冻结规则：
 - 所有 `@RestController` 不直接依赖 same-domain raw `*Service` / projection service / `UseCase` 等非 `ApplicationService` 类型
 - 所有 `..event..` 下的 `*Listener` 不直接依赖 same-domain `..app..`、`..domain..`、`..infrastructure..`
 - 所有 `..event..` 下的 `*Listener` 不直接依赖 same-domain raw `*Service` / projection service / `UseCase` 等非 `ApplicationService` 类型
+- `domain.model` / `domain.service` / `domain.repository` / `domain.event` 保持 plain Java，不依赖 Spring framework
+- `application.command` / `application.result` 不暴露 HTTP transport 类型；`ResponseCookie`、`ResponseEntity`、`MediaType`、`Resource`、Servlet request/response 等只在 controller 或 web adapter 边界表达
 - foreign-domain 调用仍继续使用 owner-domain `api.query` / `api.action`
 - 当前 controller / listener application boundary baseline 已清空，后续不允许重新引入 legacy 例外
 
@@ -189,7 +191,7 @@ IM 链路：使用 Kafka 作为 backplane（topic 常量见 `backend/community-i
 - user points：`PointsProjectionService`
 - growth task progress：`TaskProgressApplicationService`
 
-当前 `backend/community-app` 后端业务域已迁入严格 DDD Tactical Layering：HTTP controller、本地 listener/job 与 foreign API adapter 只能进入 owner `application.*ApplicationService`；应用层通过 domain model/service/repository 编排规则与持久化契约，MyBatis/Redis/ES mapper 或 adapter 与 dataobject 只允许留在 `infrastructure`。
+当前 `backend/community-app` 后端业务域已迁入严格 DDD Tactical Layering：HTTP controller、本地 listener/job 与 foreign API adapter 只能进入 owner `application.*ApplicationService`；应用层通过 domain model/service/repository 编排规则与持久化契约，应用结果保持 transport-neutral；MyBatis/Redis/ES mapper 或 adapter 与 dataobject 只允许留在 `infrastructure`，domain service 保持 plain Java。
 
 下一阶段目标：
 - 继续缩小 ArchUnit migration baseline，把非协作面的历史例外迁回 owner-domain API 或 owner `contracts.event`

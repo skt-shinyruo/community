@@ -13,6 +13,7 @@ import com.nowcoder.community.auth.application.command.VerifyCaptchaCommand;
 import com.nowcoder.community.auth.application.command.VerifyRegisterCodeCommand;
 import com.nowcoder.community.auth.application.result.CaptchaIssueResult;
 import com.nowcoder.community.auth.application.result.LoginResult;
+import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
 import com.nowcoder.community.auth.application.result.PasswordResetRequestResult;
 import com.nowcoder.community.auth.application.result.RefreshResult;
 import com.nowcoder.community.auth.application.result.RegisterCodeResendResult;
@@ -39,7 +40,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -72,7 +75,7 @@ public class AuthController {
                 resolvedIp == null ? null : resolvedIp.ip(),
                 resolvedIp == null ? null : resolvedIp.source()
         ));
-        response.addHeader(HttpHeaders.SET_COOKIE, result.refreshCookie().toString());
+        addRefreshCookie(response, result.refreshCookie());
         return Result.ok(new LoginResponse(result.accessToken()));
     }
 
@@ -80,11 +83,11 @@ public class AuthController {
     public Result<LoginResponse> refresh(HttpServletRequest request, HttpServletResponse response) {
         try {
             RefreshResult result = authApplicationService.refresh(new RefreshCommand(readRefreshToken(request)));
-            response.addHeader(HttpHeaders.SET_COOKIE, result.refreshCookie().toString());
+            addRefreshCookie(response, result.refreshCookie());
             return Result.ok(new LoginResponse(result.accessToken()));
         } catch (BusinessException ex) {
             if (authApplicationService.shouldClearRefreshCookie(ex)) {
-                response.addHeader(HttpHeaders.SET_COOKIE, authApplicationService.clearRefreshCookie().toString());
+                addRefreshCookie(response, authApplicationService.clearRefreshCookie());
             }
             throw ex;
         }
@@ -93,7 +96,7 @@ public class AuthController {
     @PostMapping("/logout")
     public Result<Void> logout(HttpServletRequest request, HttpServletResponse response) {
         authApplicationService.logout(new LogoutCommand(readRefreshToken(request)));
-        response.addHeader(HttpHeaders.SET_COOKIE, authApplicationService.clearRefreshCookie().toString());
+        addRefreshCookie(response, authApplicationService.clearRefreshCookie());
         return Result.ok();
     }
 
@@ -134,7 +137,7 @@ public class AuthController {
                 request.getRegistrationToken(),
                 request.getCode()
         ));
-        response.addHeader(HttpHeaders.SET_COOKIE, result.refreshCookie().toString());
+        addRefreshCookie(response, result.refreshCookie());
         return Result.ok(new LoginResponse(result.accessToken()));
     }
 
@@ -173,6 +176,25 @@ public class AuthController {
 
     private String readRefreshToken(HttpServletRequest request) {
         return readCookie(request, authApplicationService.refreshCookieName());
+    }
+
+    private void addRefreshCookie(HttpServletResponse response, RefreshCookieSpec spec) {
+        if (response == null || spec == null) {
+            return;
+        }
+        response.addHeader(HttpHeaders.SET_COOKIE, toResponseCookie(spec).toString());
+    }
+
+    private ResponseCookie toResponseCookie(RefreshCookieSpec spec) {
+        ResponseCookie.ResponseCookieBuilder builder = ResponseCookie.from(spec.name(), spec.value())
+                .httpOnly(spec.httpOnly())
+                .secure(spec.secure())
+                .path(spec.path())
+                .maxAge(spec.maxAgeSeconds());
+        if (StringUtils.hasText(spec.sameSite())) {
+            builder.sameSite(spec.sameSite());
+        }
+        return builder.build();
     }
 
     private String readCookie(HttpServletRequest request, String name) {

@@ -6,6 +6,7 @@ import com.nowcoder.community.analytics.api.action.AnalyticsIngestActionApi;
 import com.nowcoder.community.auth.application.command.LoginCommand;
 import com.nowcoder.community.auth.application.port.AuthTokenPort;
 import com.nowcoder.community.auth.application.result.LoginResult;
+import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
 import com.nowcoder.community.auth.domain.service.AuthDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
@@ -21,7 +22,6 @@ import org.springframework.boot.logging.LoggingInitializationContext;
 import org.springframework.boot.logging.LoggingSystem;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
-import org.springframework.http.ResponseCookie;
 import org.springframework.mock.env.MockEnvironment;
 
 import java.io.IOException;
@@ -153,7 +153,7 @@ class LoginApplicationServiceTest {
         UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, "h1");
         when(userCredentialQueryApi.authenticate("alice", "secret")).thenReturn(UserAuthenticationResultView.authenticated(user));
 
-        ResponseCookie cookie = ResponseCookie.from("refresh_token", "rt").path("/api/auth").httpOnly(true).build();
+        RefreshCookieSpec cookie = issuedCookie("rt");
         when(userCredentialQueryApi.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
         when(authTokenPort.createAccessToken(eq(userId), eq("alice"), eq(List.of("ROLE_USER")))).thenReturn("access-token");
         when(refreshTokenService.issue(userId)).thenReturn(new RefreshTokenApplicationService.IssuedRefreshToken("rt", cookie));
@@ -162,6 +162,7 @@ class LoginApplicationServiceTest {
 
         assertThat(result.accessToken()).isEqualTo("access-token");
         assertThat(result.refreshCookie()).isEqualTo(cookie);
+        assertThat(result.refreshCookie().value()).isEqualTo("rt");
         verify(loginRateLimitService).reset("alice", "127.0.0.1");
         verify(loginRateLimitService, never()).recordFailure(any(), any(), any());
         assertThat(output.getAll())
@@ -183,7 +184,7 @@ class LoginApplicationServiceTest {
                 .thenReturn(UserAuthenticationResultView.authenticated(user));
         when(userCredentialQueryApi.authoritiesOf(user)).thenReturn(List.of("ROLE_USER"));
         when(authTokenPort.createAccessToken(eq(userId), eq("alice"), anyList())).thenReturn("access-token");
-        when(refreshTokenService.issue(userId)).thenReturn(new RefreshTokenApplicationService.IssuedRefreshToken("refresh-token", ResponseCookie.from("refresh_token", "refresh-token").build()));
+        when(refreshTokenService.issue(userId)).thenReturn(new RefreshTokenApplicationService.IssuedRefreshToken("refresh-token", issuedCookie("refresh-token")));
 
         authService.login(new LoginCommand("alice", "pw", null, null, "1.1.1.1", ClientIpResolver.SOURCE_REMOTE));
 
@@ -316,6 +317,18 @@ class LoginApplicationServiceTest {
 
     private static LoginCommand loginCommand(String username, String password, String captchaId, String captchaCode) {
         return new LoginCommand(username, password, captchaId, captchaCode, "127.0.0.1", ClientIpResolver.SOURCE_REMOTE);
+    }
+
+    private static RefreshCookieSpec issuedCookie(String value) {
+        return new RefreshCookieSpec(
+                "refresh_token",
+                value,
+                true,
+                false,
+                "/api/auth",
+                "Lax",
+                600
+        );
     }
 
     private static UUID uuid(long suffix) {

@@ -4,6 +4,7 @@ import com.nowcoder.community.auth.application.command.ResendRegisterCodeCommand
 import com.nowcoder.community.auth.application.command.VerifyRegisterCodeCommand;
 import com.nowcoder.community.auth.application.port.MailPort;
 import com.nowcoder.community.auth.application.result.LoginResult;
+import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
 import com.nowcoder.community.auth.application.result.RegisterCodeResendResult;
 import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.auth.domain.repository.RegistrationCodeRepository;
@@ -22,7 +23,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
-import org.springframework.http.ResponseCookie;
 
 import java.time.Duration;
 import java.util.UUID;
@@ -127,7 +127,7 @@ class RegistrationVerificationApplicationServiceTest {
         PendingRegistrationUserView user = new PendingRegistrationUserView(userId, "alice", "alice@example.com", 0, 0, null);
         UserCredentialView activatedUser = new UserCredentialView(userId, "alice", 1, 0, null);
 
-        ResponseCookie cookie = ResponseCookie.from("refresh_token", "rt").path("/api/auth").build();
+        RefreshCookieSpec cookie = issuedCookie("rt");
 
         when(registrationSessionStore.findUserId("token")).thenReturn(userId);
         when(userPendingRegistrationQueryApi.getPendingUser(userId, Duration.ofMinutes(30))).thenReturn(user);
@@ -200,5 +200,17 @@ class RegistrationVerificationApplicationServiceTest {
 
     private static UUID uuid(long suffix) {
         return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
+    }
+
+    private static RefreshCookieSpec issuedCookie(String value) {
+        return new RefreshCookieSpec(
+                "refresh_token",
+                value,
+                true,
+                false,
+                "/api/auth",
+                "Lax",
+                600
+        );
     }
 }

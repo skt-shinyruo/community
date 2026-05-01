@@ -111,6 +111,10 @@ class RefreshTokenApplicationServiceTest {
     void refreshShouldBuildAccessTokenFromCredentialLookupOnly() {
         RefreshTokenApplicationService refreshTokenService = refreshTokenService(new InMemoryRefreshTokenRepository());
         RefreshTokenApplicationService.IssuedRefreshToken issued = refreshTokenService.issue(USER_ID);
+        assertThat(issued.cookie().name()).isEqualTo("refresh_token");
+        assertThat(issued.cookie().value()).isEqualTo(issued.refreshToken());
+        assertThat(issued.cookie().path()).isEqualTo("/api/auth");
+        assertThat(issued.cookie().maxAgeSeconds()).isEqualTo(600);
         LoginApplicationService authService = authService(refreshTokenService, new UserCredentialView(USER_ID, "alice", 1, 2, "h1"));
 
         RefreshResult result = authService.refresh(new RefreshCommand(issued.refreshToken()));

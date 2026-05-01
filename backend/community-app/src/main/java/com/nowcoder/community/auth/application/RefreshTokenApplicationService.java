@@ -1,10 +1,10 @@
 package com.nowcoder.community.auth.application;
 
+import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
 import com.nowcoder.community.auth.domain.repository.RefreshTokenRepository;
 import com.nowcoder.community.auth.domain.service.RefreshTokenDomainService;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.user.api.action.UserRefreshTokenSessionActionApi;
-import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -74,24 +74,28 @@ public class RefreshTokenApplicationService {
         }
     }
 
-    public ResponseCookie buildCookie(String refreshToken) {
-        return ResponseCookie.from(jwtProperties.getRefreshCookieName(), refreshToken)
-                .httpOnly(true)
-                .secure(jwtProperties.isRefreshCookieSecure())
-                .path(jwtProperties.getRefreshCookiePath())
-                .sameSite(jwtProperties.getRefreshCookieSameSite())
-                .maxAge(jwtProperties.getRefreshTokenTtlSeconds())
-                .build();
+    public RefreshCookieSpec buildCookie(String refreshToken) {
+        return new RefreshCookieSpec(
+                jwtProperties.getRefreshCookieName(),
+                refreshToken,
+                true,
+                jwtProperties.isRefreshCookieSecure(),
+                jwtProperties.getRefreshCookiePath(),
+                jwtProperties.getRefreshCookieSameSite(),
+                jwtProperties.getRefreshTokenTtlSeconds()
+        );
     }
 
-    public ResponseCookie clearCookie() {
-        return ResponseCookie.from(jwtProperties.getRefreshCookieName(), "")
-                .httpOnly(true)
-                .secure(jwtProperties.isRefreshCookieSecure())
-                .path(jwtProperties.getRefreshCookiePath())
-                .sameSite(jwtProperties.getRefreshCookieSameSite())
-                .maxAge(0)
-                .build();
+    public RefreshCookieSpec clearCookie() {
+        return new RefreshCookieSpec(
+                jwtProperties.getRefreshCookieName(),
+                "",
+                true,
+                jwtProperties.isRefreshCookieSecure(),
+                jwtProperties.getRefreshCookiePath(),
+                jwtProperties.getRefreshCookieSameSite(),
+                0
+        );
     }
 
     public String refreshCookieName() {
@@ -109,6 +113,6 @@ public class RefreshTokenApplicationService {
         return new IssuedRefreshToken(tokenValue, buildCookie(tokenValue));
     }
 
-    public record IssuedRefreshToken(String refreshToken, ResponseCookie cookie) {
+    public record IssuedRefreshToken(String refreshToken, RefreshCookieSpec cookie) {
     }
 }

@@ -13,12 +13,12 @@ import com.nowcoder.community.auth.application.command.VerifyRegisterCodeCommand
 import com.nowcoder.community.auth.application.result.CaptchaIssueResult;
 import com.nowcoder.community.auth.application.result.LoginResult;
 import com.nowcoder.community.auth.application.result.PasswordResetRequestResult;
+import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
 import com.nowcoder.community.auth.application.result.RefreshResult;
 import com.nowcoder.community.auth.application.result.RegisterCodeResendResult;
 import com.nowcoder.community.auth.application.result.RegisterResult;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
-import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -88,7 +88,7 @@ public class AuthApplicationService {
         return loginApplicationService.refreshCookieName();
     }
 
-    public ResponseCookie clearRefreshCookie() {
+    public RefreshCookieSpec clearRefreshCookie() {
         return loginApplicationService.clearRefreshCookie();
     }
 

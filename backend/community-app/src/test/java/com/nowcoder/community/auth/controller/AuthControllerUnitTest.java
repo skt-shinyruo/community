@@ -11,6 +11,7 @@ import com.nowcoder.community.auth.application.command.VerifyRegisterCodeCommand
 import com.nowcoder.community.auth.application.result.CaptchaIssueResult;
 import com.nowcoder.community.auth.application.result.LoginResult;
 import com.nowcoder.community.auth.application.result.RefreshResult;
+import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
 import com.nowcoder.community.auth.application.result.RegisterCodeResendResult;
 import com.nowcoder.community.auth.application.result.RegisterResult;
 import com.nowcoder.community.auth.controller.dto.LoginRequest;
@@ -31,7 +32,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseCookie;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.Authentication;
@@ -74,10 +74,7 @@ class AuthControllerUnitTest {
         req.setUsername("u");
         req.setPassword("p");
 
-        ResponseCookie refreshCookie = ResponseCookie.from("refresh_token", "rt")
-                .httpOnly(true)
-                .path("/api/auth")
-                .build();
+        RefreshCookieSpec refreshCookie = issuedCookie("rt");
 
         when(authApplicationService.login(any(LoginCommand.class)))
                 .thenReturn(new LoginResult("at", refreshCookie));
@@ -98,10 +95,7 @@ class AuthControllerUnitTest {
 
     @Test
     void refreshShouldSetRefreshCookieAndReturnAccessToken() {
-        ResponseCookie refreshCookie = ResponseCookie.from("refresh_token", "rt2")
-                .httpOnly(true)
-                .path("/api/auth")
-                .build();
+        RefreshCookieSpec refreshCookie = issuedCookie("rt2");
 
         when(authApplicationService.refresh(any(RefreshCommand.class)))
                 .thenReturn(new RefreshResult("at2", refreshCookie));
@@ -123,11 +117,7 @@ class AuthControllerUnitTest {
 
     @Test
     void refreshShouldClearRefreshCookieWhenTokenIsInvalid() {
-        ResponseCookie clearCookie = ResponseCookie.from("refresh_token", "")
-                .httpOnly(true)
-                .path("/api/auth")
-                .maxAge(0)
-                .build();
+        RefreshCookieSpec clearCookie = clearedCookie();
 
         when(authApplicationService.refresh(any(RefreshCommand.class)))
                 .thenThrow(new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID));
@@ -146,11 +136,7 @@ class AuthControllerUnitTest {
 
     @Test
     void refreshShouldClearRefreshCookieWhenUserIsDisabled() {
-        ResponseCookie clearCookie = ResponseCookie.from("refresh_token", "")
-                .httpOnly(true)
-                .path("/api/auth")
-                .maxAge(0)
-                .build();
+        RefreshCookieSpec clearCookie = clearedCookie();
 
         when(authApplicationService.refresh(any(RefreshCommand.class)))
                 .thenThrow(new BusinessException(AuthErrorCode.USER_DISABLED));
@@ -169,11 +155,7 @@ class AuthControllerUnitTest {
 
     @Test
     void logoutShouldClearRefreshCookie() {
-        ResponseCookie clearCookie = ResponseCookie.from("refresh_token", "")
-                .httpOnly(true)
-                .path("/api/auth")
-                .maxAge(0)
-                .build();
+        RefreshCookieSpec clearCookie = clearedCookie();
 
         when(authApplicationService.clearRefreshCookie()).thenReturn(clearCookie);
 
@@ -278,10 +260,7 @@ class AuthControllerUnitTest {
         request.setRegistrationToken("token");
         request.setCode("123456");
 
-        ResponseCookie refreshCookie = ResponseCookie.from("refresh_token", "rt3")
-                .httpOnly(true)
-                .path("/api/auth")
-                .build();
+        RefreshCookieSpec refreshCookie = issuedCookie("rt3");
 
         when(authApplicationService.verifyRegisterCode(any(VerifyRegisterCodeCommand.class)))
                 .thenReturn(new LoginResult("at3", refreshCookie));
@@ -293,5 +272,29 @@ class AuthControllerUnitTest {
         assertThat(response.getData()).isNotNull();
         assertThat(response.getData().getAccessToken()).isEqualTo("at3");
         assertThat(httpResponse.getHeader(HttpHeaders.SET_COOKIE)).contains("refresh_token=rt3");
+    }
+
+    private static RefreshCookieSpec issuedCookie(String value) {
+        return new RefreshCookieSpec(
+                "refresh_token",
+                value,
+                true,
+                false,
+                "/api/auth",
+                "Lax",
+                600
+        );
+    }
+
+    private static RefreshCookieSpec clearedCookie() {
+        return new RefreshCookieSpec(
+                "refresh_token",
+                "",
+                true,
+                false,
+                "/api/auth",
+                "Lax",
+                0
+        );
     }
 }

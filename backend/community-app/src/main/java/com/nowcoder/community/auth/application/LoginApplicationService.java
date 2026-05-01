@@ -5,6 +5,7 @@ import com.nowcoder.community.auth.application.command.LoginCommand;
 import com.nowcoder.community.auth.application.command.LogoutCommand;
 import com.nowcoder.community.auth.application.command.RefreshCommand;
 import com.nowcoder.community.auth.application.result.LoginResult;
+import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
 import com.nowcoder.community.auth.application.result.RefreshResult;
 import com.nowcoder.community.auth.application.port.AuthTokenPort;
 import com.nowcoder.community.auth.domain.repository.RefreshTokenRepository;
@@ -17,7 +18,6 @@ import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.query.UserCredentialQueryApi;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -176,7 +176,7 @@ public class LoginApplicationService {
         }
     }
 
-    public ResponseCookie clearRefreshCookie() {
+    public RefreshCookieSpec clearRefreshCookie() {
         return refreshTokenService.clearCookie();
     }
 

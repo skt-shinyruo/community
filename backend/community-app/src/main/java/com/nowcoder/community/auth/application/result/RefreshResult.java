@@ -1,6 +1,4 @@
 package com.nowcoder.community.auth.application.result;
 
-import org.springframework.http.ResponseCookie;
-
-public record RefreshResult(String accessToken, ResponseCookie refreshCookie) {
+public record RefreshResult(String accessToken, RefreshCookieSpec refreshCookie) {
 }

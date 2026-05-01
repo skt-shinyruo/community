@@ -1,11 +1,20 @@
 package com.nowcoder.community.app.arch;
 
+import com.tngtech.archunit.core.domain.JavaClass;
+import com.tngtech.archunit.core.domain.JavaMethod;
+import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
+import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
+import com.tngtech.archunit.lang.ConditionEvents;
+import com.tngtech.archunit.lang.SimpleConditionEvent;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Set;
+
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noMethods;
 
@@ -36,6 +45,18 @@ class DddLayeringArchTest {
                     .allowEmptyShould(true);
 
     @ArchTest
+    static final ArchRule domain_must_not_depend_on_spring_framework =
+            noClasses()
+                    .that().resideInAnyPackage(
+                            "..domain.model..",
+                            "..domain.service..",
+                            "..domain.repository..",
+                            "..domain.event.."
+                    )
+                    .should().dependOnClassesThat().resideInAnyPackage("org.springframework..")
+                    .because("domain code must remain plain Java and must not depend on Spring");
+
+    @ArchTest
     static final ArchRule application_must_not_depend_on_transport_or_infrastructure =
             noClasses()
                     .that().resideInAnyPackage("..application..")
@@ -49,6 +70,24 @@ class DddLayeringArchTest {
                             "..dto.."
                     )
                     .allowEmptyShould(true);
+
+    @ArchTest
+    static final ArchRule application_must_not_depend_on_web_transport_types =
+            noClasses()
+                    .that().resideInAnyPackage("..application..")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "org.springframework.http..",
+                            "org.springframework.core.io..",
+                            "jakarta.servlet.."
+                    )
+                    .because("HTTP transport details belong in controllers or web adapters");
+
+    @ArchTest
+    static final ArchRule application_services_must_not_return_web_transport_types =
+            classes()
+                    .that().resideInAnyPackage("..application..")
+                    .and().haveSimpleNameEndingWith("ApplicationService")
+                    .should(notReturnWebTransportTypes());
 
     @ArchTest
     static final ArchRule content_infrastructure_persistence_must_not_own_transactions =
@@ -408,4 +447,32 @@ class DddLayeringArchTest {
                             "..analytics.domain.."
                     )
                     .allowEmptyShould(true);
+
+    private static ArchCondition<JavaClass> notReturnWebTransportTypes() {
+        Set<String> forbiddenTypeNames = Set.of(
+                "org.springframework.http.ResponseCookie",
+                "org.springframework.http.ResponseEntity",
+                "org.springframework.http.MediaType",
+                "org.springframework.core.io.Resource",
+                "jakarta.servlet.http.HttpServletRequest",
+                "jakarta.servlet.http.HttpServletResponse"
+        );
+        return new ArchCondition<>("not return HTTP transport types from public application service methods") {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                for (JavaMethod method : item.getMethods()) {
+                    if (!method.getModifiers().contains(JavaModifier.PUBLIC)) {
+                        continue;
+                    }
+                    JavaClass returnType = method.getRawReturnType();
+                    if (forbiddenTypeNames.contains(returnType.getName())) {
+                        events.add(SimpleConditionEvent.violated(
+                                item,
+                                method.getFullName() + " returns " + returnType.getName()
+                        ));
+                    }
+                }
+            }
+        };
+    }
 }

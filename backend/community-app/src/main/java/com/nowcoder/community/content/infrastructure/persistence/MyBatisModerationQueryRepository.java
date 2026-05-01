@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
-public class ModerationService {
+public class MyBatisModerationQueryRepository {
 
     public static final String ACTION_REJECT = "reject";
     public static final String ACTION_HIDE = "hide";
@@ -20,11 +20,11 @@ public class ModerationService {
     public static final String ACTION_MUTE = "mute";
     public static final String ACTION_BAN = "ban";
 
-    private final ReportService reportService;
+    private final MyBatisReportContentRepository reportService;
     private final ModerationActionMapper actionMapper;
 
-    public ModerationService(
-            ReportService reportService,
+    public MyBatisModerationQueryRepository(
+            MyBatisReportContentRepository reportService,
             ModerationActionMapper actionMapper
     ) {
         this.reportService = reportService;

@@ -1,4 +1,4 @@
-package com.nowcoder.community.content.application.port;
+package com.nowcoder.community.content.domain.repository;
 
 import com.nowcoder.community.content.domain.model.DiscussPost;
 
@@ -6,7 +6,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
-public interface PostContentPort {
+public interface PostContentRepository {
 
     int ORDER_LATEST = 0;
     int ORDER_HOT = 1;

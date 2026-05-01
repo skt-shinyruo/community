@@ -1,9 +1,9 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.content.application.port.PostContentPort;
-import com.nowcoder.community.content.application.port.LikeQueryPort;
-import com.nowcoder.community.content.application.port.PostScoreQueuePort;
+import com.nowcoder.community.content.domain.repository.PostContentRepository;
+import com.nowcoder.community.content.application.LikeQueryPort;
+import com.nowcoder.community.content.application.PostScoreQueue;
 import com.nowcoder.community.content.application.PostScoreUpdateApplicationService;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
@@ -22,7 +22,7 @@ class PostScoreRefreshApplicationServiceTest {
     @Test
     void refreshBatchShouldReenqueueOnUnexpectedException() {
         CapturingQueue queue = new CapturingQueue();
-        PostContentPort postService = Mockito.mock(PostContentPort.class);
+        PostContentRepository postService = Mockito.mock(PostContentRepository.class);
         LikeQueryPort likeQueryService = Mockito.mock(LikeQueryPort.class);
         PostScoreUpdateApplicationService scoreUpdateService = Mockito.mock(PostScoreUpdateApplicationService.class);
         UUID postId = uuid(100);
@@ -45,7 +45,7 @@ class PostScoreRefreshApplicationServiceTest {
     @Test
     void refreshBatchShouldDropWhenNotFound() {
         CapturingQueue queue = new CapturingQueue();
-        PostContentPort postService = Mockito.mock(PostContentPort.class);
+        PostContentRepository postService = Mockito.mock(PostContentRepository.class);
         LikeQueryPort likeQueryService = Mockito.mock(LikeQueryPort.class);
         PostScoreUpdateApplicationService scoreUpdateService = Mockito.mock(PostScoreUpdateApplicationService.class);
         UUID postId = uuid(100);
@@ -65,7 +65,7 @@ class PostScoreRefreshApplicationServiceTest {
         assertThat(queue.reenqueued).isEmpty();
     }
 
-    private static class CapturingQueue implements PostScoreQueuePort {
+    private static class CapturingQueue implements PostScoreQueue {
         private final List<UUID> toPop = new ArrayList<>();
         private final List<UUID> reenqueued = new ArrayList<>();
 

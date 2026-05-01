@@ -5,8 +5,8 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.content.application.command.CreateCommentCommand;
 import com.nowcoder.community.content.application.command.UpdateCommentCommand;
-import com.nowcoder.community.content.application.port.ContentSanitizer;
-import com.nowcoder.community.content.application.port.PostContentPort;
+import com.nowcoder.community.content.application.ContentSanitizer;
+import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.application.result.CommentCreateResult;
 import com.nowcoder.community.content.domain.event.CommentCreatedDomainEvent;
 import com.nowcoder.community.content.domain.event.CommentDomainEventPublisher;
@@ -44,7 +44,7 @@ public class CommentApplicationService {
     private final UserModerationGuard moderationGuard;
     private final CommentDomainService domainService;
     private final CommentRepository commentRepository;
-    private final PostContentPort postContentPort;
+    private final PostContentRepository postContentPort;
     private final SocialBlockQueryApi blockQueryApi;
     private final UserPointsAwardActionApi pointsAwardService;
     private final GrowthTaskProgressActionApi taskProgressTriggerService;
@@ -59,7 +59,7 @@ public class CommentApplicationService {
             UserModerationGuard moderationGuard,
             CommentDomainService domainService,
             CommentRepository commentRepository,
-            PostContentPort postContentPort,
+            PostContentRepository postContentPort,
             SocialBlockQueryApi blockQueryApi,
             UserPointsAwardActionApi pointsAwardService,
             GrowthTaskProgressActionApi taskProgressTriggerService,

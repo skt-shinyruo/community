@@ -9,8 +9,8 @@ import com.nowcoder.community.common.idempotency.IdempotencyProperties;
 import com.nowcoder.community.common.idempotency.IdempotencyStore;
 import com.nowcoder.community.content.application.command.CreateCommentCommand;
 import com.nowcoder.community.content.application.command.UpdateCommentCommand;
-import com.nowcoder.community.content.application.port.ContentSanitizer;
-import com.nowcoder.community.content.application.port.PostContentPort;
+import com.nowcoder.community.content.application.ContentSanitizer;
+import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.application.result.CommentCreateResult;
 import com.nowcoder.community.content.config.ContentRenderProperties;
 import com.nowcoder.community.content.domain.event.CommentCreatedDomainEvent;
@@ -56,7 +56,7 @@ class CommentApplicationServiceTest {
     private IdempotencyGuard idempotencyGuard;
     private UserModerationGuard moderationGuard;
     private CommentRepository commentRepository;
-    private PostContentPort postContentPort;
+    private PostContentRepository postContentPort;
     private SocialBlockQueryApi blockQueryApi;
     private UserPointsAwardActionApi pointsAwardService;
     private GrowthTaskProgressActionApi taskProgressTriggerService;
@@ -71,7 +71,7 @@ class CommentApplicationServiceTest {
         idempotencyGuard = mock(IdempotencyGuard.class);
         moderationGuard = mock(UserModerationGuard.class);
         commentRepository = mock(CommentRepository.class);
-        postContentPort = mock(PostContentPort.class);
+        postContentPort = mock(PostContentRepository.class);
         blockQueryApi = mock(SocialBlockQueryApi.class);
         pointsAwardService = mock(UserPointsAwardActionApi.class);
         taskProgressTriggerService = mock(GrowthTaskProgressActionApi.class);

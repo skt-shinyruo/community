@@ -4,19 +4,19 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.application.result.PostDetailResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.application.result.RecentUserCommentResult;
-import com.nowcoder.community.content.application.port.BookmarkContentPort;
-import com.nowcoder.community.content.application.port.CommentContentPort;
-import com.nowcoder.community.content.application.port.PostContentPort;
-import com.nowcoder.community.content.application.port.SubscriptionContentPort;
-import com.nowcoder.community.content.application.port.TagContentPort;
-import com.nowcoder.community.content.application.assembler.PostDetailAssembler;
-import com.nowcoder.community.content.application.assembler.PostSummaryAssembler;
-import com.nowcoder.community.content.application.assembler.RecentUserCommentAssembler;
+import com.nowcoder.community.content.domain.repository.BookmarkRepository;
+import com.nowcoder.community.content.domain.repository.CommentContentRepository;
+import com.nowcoder.community.content.domain.repository.PostContentRepository;
+import com.nowcoder.community.content.domain.repository.SubscriptionRepository;
+import com.nowcoder.community.content.domain.repository.TagContentRepository;
+import com.nowcoder.community.content.application.PostDetailAssembler;
+import com.nowcoder.community.content.application.PostSummaryAssembler;
+import com.nowcoder.community.content.application.RecentUserCommentAssembler;
 import com.nowcoder.community.content.config.ContentRenderProperties;
 import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.exception.ContentErrorCode;
-import com.nowcoder.community.content.application.port.LikeQueryPort;
+import com.nowcoder.community.content.application.LikeQueryPort;
 import com.nowcoder.community.content.application.ContentTextCodec;
 import org.junit.jupiter.api.Test;
 
@@ -34,12 +34,12 @@ class PostReadApplicationServiceTest {
 
     @Test
     void listPostsShouldAssemblePostSummariesWithoutHttpDtoProjection() {
-        PostContentPort postService = mock(PostContentPort.class);
-        CommentContentPort commentService = mock(CommentContentPort.class);
+        PostContentRepository postService = mock(PostContentRepository.class);
+        CommentContentRepository commentService = mock(CommentContentRepository.class);
         LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
-        TagContentPort tagService = mock(TagContentPort.class);
-        BookmarkContentPort bookmarkService = mock(BookmarkContentPort.class);
-        SubscriptionContentPort subscriptionService = mock(SubscriptionContentPort.class);
+        TagContentRepository tagService = mock(TagContentRepository.class);
+        BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
+        SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
         UUID postId = uuid(10);
         UUID authorUserId = uuid(2);
         UUID lastReplyUserId = uuid(3);
@@ -56,7 +56,7 @@ class PostReadApplicationServiceTest {
         lastActivity.setCreateTime(new Date(2_000));
         lastActivity.setContent("&lt;latest reply&gt;");
 
-        when(postService.listPosts(0, 10, PostContentPort.ORDER_LATEST, null, null)).thenReturn(List.of(post));
+        when(postService.listPosts(0, 10, PostContentRepository.ORDER_LATEST, null, null)).thenReturn(List.of(post));
         when(commentService.getLatestPostActivitiesByPostIds(List.of(postId))).thenReturn(Map.of(postId, lastActivity));
         when(tagService.getTagsByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of("java")));
 
@@ -84,12 +84,12 @@ class PostReadApplicationServiceTest {
 
     @Test
     void getPostDetailShouldAssembleTagsLikesAndBookmarkStateWithoutHttpDtoProjection() {
-        PostContentPort postService = mock(PostContentPort.class);
-        CommentContentPort commentService = mock(CommentContentPort.class);
+        PostContentRepository postService = mock(PostContentRepository.class);
+        CommentContentRepository commentService = mock(CommentContentRepository.class);
         LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
-        TagContentPort tagService = mock(TagContentPort.class);
-        BookmarkContentPort bookmarkService = mock(BookmarkContentPort.class);
-        SubscriptionContentPort subscriptionService = mock(SubscriptionContentPort.class);
+        TagContentRepository tagService = mock(TagContentRepository.class);
+        BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
+        SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
         UUID currentUserId = uuid(7);
         UUID postId = uuid(10);
         UUID authorUserId = uuid(8);
@@ -140,12 +140,12 @@ class PostReadApplicationServiceTest {
 
     @Test
     void listPostsByUserShouldAssembleRecentSummaries() {
-        PostContentPort postService = mock(PostContentPort.class);
-        CommentContentPort commentService = mock(CommentContentPort.class);
+        PostContentRepository postService = mock(PostContentRepository.class);
+        CommentContentRepository commentService = mock(CommentContentRepository.class);
         LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
-        TagContentPort tagService = mock(TagContentPort.class);
-        BookmarkContentPort bookmarkService = mock(BookmarkContentPort.class);
-        SubscriptionContentPort subscriptionService = mock(SubscriptionContentPort.class);
+        TagContentRepository tagService = mock(TagContentRepository.class);
+        BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
+        SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
         UUID userId = uuid(7);
         UUID firstPostId = uuid(21);
         UUID secondPostId = uuid(22);
@@ -197,12 +197,12 @@ class PostReadApplicationServiceTest {
 
     @Test
     void listRecentCommentsByUserShouldResolveDirectCommentsAndReplies() {
-        PostContentPort postService = mock(PostContentPort.class);
-        CommentContentPort commentService = mock(CommentContentPort.class);
+        PostContentRepository postService = mock(PostContentRepository.class);
+        CommentContentRepository commentService = mock(CommentContentRepository.class);
         LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
-        TagContentPort tagService = mock(TagContentPort.class);
-        BookmarkContentPort bookmarkService = mock(BookmarkContentPort.class);
-        SubscriptionContentPort subscriptionService = mock(SubscriptionContentPort.class);
+        TagContentRepository tagService = mock(TagContentRepository.class);
+        BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
+        SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
         UUID userId = uuid(7);
         UUID directCommentId = uuid(31);
         UUID replyCommentId = uuid(32);
@@ -213,7 +213,7 @@ class PostReadApplicationServiceTest {
         Comment direct = new Comment();
         direct.setId(directCommentId);
         direct.setUserId(userId);
-        direct.setEntityType(CommentContentPort.ENTITY_TYPE_POST);
+        direct.setEntityType(CommentContentRepository.ENTITY_TYPE_POST);
         direct.setEntityId(firstPostId);
         direct.setContent("&lt;direct&gt;");
         direct.setCreateTime(new Date(2_000));
@@ -221,14 +221,14 @@ class PostReadApplicationServiceTest {
         Comment reply = new Comment();
         reply.setId(replyCommentId);
         reply.setUserId(userId);
-        reply.setEntityType(CommentContentPort.ENTITY_TYPE_COMMENT);
+        reply.setEntityType(CommentContentRepository.ENTITY_TYPE_COMMENT);
         reply.setEntityId(parentCommentId);
         reply.setContent("&lt;reply&gt;");
         reply.setCreateTime(new Date(3_000));
 
         Comment parent = new Comment();
         parent.setId(parentCommentId);
-        parent.setEntityType(CommentContentPort.ENTITY_TYPE_POST);
+        parent.setEntityType(CommentContentRepository.ENTITY_TYPE_POST);
         parent.setEntityId(secondPostId);
 
         DiscussPost firstPost = new DiscussPost();
@@ -268,12 +268,12 @@ class PostReadApplicationServiceTest {
 
     @Test
     void listRecentCommentsByUserShouldSkipBrokenReplyTargetsInsteadOfFailingWholeFeed() {
-        PostContentPort postService = mock(PostContentPort.class);
-        CommentContentPort commentService = mock(CommentContentPort.class);
+        PostContentRepository postService = mock(PostContentRepository.class);
+        CommentContentRepository commentService = mock(CommentContentRepository.class);
         LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
-        TagContentPort tagService = mock(TagContentPort.class);
-        BookmarkContentPort bookmarkService = mock(BookmarkContentPort.class);
-        SubscriptionContentPort subscriptionService = mock(SubscriptionContentPort.class);
+        TagContentRepository tagService = mock(TagContentRepository.class);
+        BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
+        SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
         UUID userId = uuid(7);
         UUID brokenReplyId = uuid(41);
         UUID directCommentId = uuid(42);
@@ -283,7 +283,7 @@ class PostReadApplicationServiceTest {
         Comment brokenReply = new Comment();
         brokenReply.setId(brokenReplyId);
         brokenReply.setUserId(userId);
-        brokenReply.setEntityType(CommentContentPort.ENTITY_TYPE_COMMENT);
+        brokenReply.setEntityType(CommentContentRepository.ENTITY_TYPE_COMMENT);
         brokenReply.setEntityId(missingParentCommentId);
         brokenReply.setContent("&lt;reply&gt;");
         brokenReply.setCreateTime(new Date(3_000));
@@ -291,7 +291,7 @@ class PostReadApplicationServiceTest {
         Comment direct = new Comment();
         direct.setId(directCommentId);
         direct.setUserId(userId);
-        direct.setEntityType(CommentContentPort.ENTITY_TYPE_POST);
+        direct.setEntityType(CommentContentRepository.ENTITY_TYPE_POST);
         direct.setEntityId(postId);
         direct.setContent("&lt;direct&gt;");
         direct.setCreateTime(new Date(2_000));
@@ -325,12 +325,12 @@ class PostReadApplicationServiceTest {
 
     @Test
     void listPostsByIdsShouldPreserveRequestedOrderWithoutHttpDtoProjection() {
-        PostContentPort postService = mock(PostContentPort.class);
-        CommentContentPort commentService = mock(CommentContentPort.class);
+        PostContentRepository postService = mock(PostContentRepository.class);
+        CommentContentRepository commentService = mock(CommentContentRepository.class);
         LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
-        TagContentPort tagService = mock(TagContentPort.class);
-        BookmarkContentPort bookmarkService = mock(BookmarkContentPort.class);
-        SubscriptionContentPort subscriptionService = mock(SubscriptionContentPort.class);
+        TagContentRepository tagService = mock(TagContentRepository.class);
+        BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
+        SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
         UUID firstPostId = uuid(12);
         UUID secondPostId = uuid(9);
         UUID firstAuthorId = uuid(2);

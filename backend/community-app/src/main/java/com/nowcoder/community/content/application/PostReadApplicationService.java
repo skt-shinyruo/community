@@ -1,20 +1,20 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.content.application.port.BookmarkContentPort;
-import com.nowcoder.community.content.application.port.CommentContentPort;
-import com.nowcoder.community.content.application.port.PostContentPort;
-import com.nowcoder.community.content.application.port.SubscriptionContentPort;
-import com.nowcoder.community.content.application.port.TagContentPort;
-import com.nowcoder.community.content.application.assembler.PostDetailAssembler;
-import com.nowcoder.community.content.application.assembler.PostSummaryAssembler;
-import com.nowcoder.community.content.application.assembler.RecentUserCommentAssembler;
+import com.nowcoder.community.content.domain.repository.BookmarkRepository;
+import com.nowcoder.community.content.domain.repository.CommentContentRepository;
+import com.nowcoder.community.content.domain.repository.PostContentRepository;
+import com.nowcoder.community.content.domain.repository.SubscriptionRepository;
+import com.nowcoder.community.content.domain.repository.TagContentRepository;
+import com.nowcoder.community.content.application.PostDetailAssembler;
+import com.nowcoder.community.content.application.PostSummaryAssembler;
+import com.nowcoder.community.content.application.RecentUserCommentAssembler;
 import com.nowcoder.community.content.application.result.PostDetailResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.application.result.RecentUserCommentResult;
 import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.domain.model.DiscussPost;
-import com.nowcoder.community.content.application.port.LikeQueryPort;
+import com.nowcoder.community.content.application.LikeQueryPort;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -26,23 +26,23 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.UNAUTHORIZ
 @Service
 public class PostReadApplicationService {
 
-    private final PostContentPort postContentPort;
-    private final CommentContentPort commentContentPort;
+    private final PostContentRepository postContentPort;
+    private final CommentContentRepository commentContentPort;
     private final LikeQueryPort likeQueryService;
-    private final TagContentPort tagContentPort;
-    private final BookmarkContentPort bookmarkContentPort;
-    private final SubscriptionContentPort subscriptionContentPort;
+    private final TagContentRepository tagContentPort;
+    private final BookmarkRepository bookmarkContentPort;
+    private final SubscriptionRepository subscriptionContentPort;
     private final PostSummaryAssembler postSummaryAssembler;
     private final PostDetailAssembler postDetailAssembler;
     private final RecentUserCommentAssembler recentUserCommentAssembler;
 
     public PostReadApplicationService(
-            PostContentPort postContentPort,
-            CommentContentPort commentContentPort,
+            PostContentRepository postContentPort,
+            CommentContentRepository commentContentPort,
             LikeQueryPort likeQueryService,
-            TagContentPort tagContentPort,
-            BookmarkContentPort bookmarkContentPort,
-            SubscriptionContentPort subscriptionContentPort,
+            TagContentRepository tagContentPort,
+            BookmarkRepository bookmarkContentPort,
+            SubscriptionRepository subscriptionContentPort,
             PostSummaryAssembler postSummaryAssembler,
             PostDetailAssembler postDetailAssembler,
             RecentUserCommentAssembler recentUserCommentAssembler
@@ -61,7 +61,7 @@ public class PostReadApplicationService {
     public List<PostSummaryResult> listPosts(UUID currentUserId, String order, UUID categoryId, String tag, Boolean subscribed, Integer page, Integer size) {
         int p = page == null ? 0 : page;
         int s = size == null ? 10 : size;
-        int orderMode = "hot".equalsIgnoreCase(order) ? PostContentPort.ORDER_HOT : PostContentPort.ORDER_LATEST;
+        int orderMode = "hot".equalsIgnoreCase(order) ? PostContentRepository.ORDER_HOT : PostContentRepository.ORDER_LATEST;
 
         List<DiscussPost> posts;
         if (Boolean.TRUE.equals(subscribed)) {
@@ -127,11 +127,11 @@ public class PostReadApplicationService {
         }
         try {
             UUID postId;
-            if (comment.getEntityType() == CommentContentPort.ENTITY_TYPE_POST) {
+            if (comment.getEntityType() == CommentContentRepository.ENTITY_TYPE_POST) {
                 postId = comment.getEntityId();
-            } else if (comment.getEntityType() == CommentContentPort.ENTITY_TYPE_COMMENT) {
+            } else if (comment.getEntityType() == CommentContentRepository.ENTITY_TYPE_COMMENT) {
                 Comment parent = commentContentPort.getById(comment.getEntityId());
-                if (parent.getEntityType() != CommentContentPort.ENTITY_TYPE_POST || parent.getEntityId() == null) {
+                if (parent.getEntityType() != CommentContentRepository.ENTITY_TYPE_POST || parent.getEntityId() == null) {
                     return null;
                 }
                 postId = parent.getEntityId();

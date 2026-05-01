@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.infrastructure.api;
 
 import com.nowcoder.community.common.constants.EntityTypes;
-import com.nowcoder.community.content.application.port.LikeQueryPort;
+import com.nowcoder.community.content.application.LikeQueryPort;
 import com.nowcoder.community.social.api.query.SocialLikeQueryApi;
 import org.springframework.stereotype.Component;
 

@@ -1,12 +1,11 @@
-package com.nowcoder.community.content.application.port;
+package com.nowcoder.community.content.domain.repository;
 
-import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 
 import java.util.List;
 import java.util.UUID;
 
-public interface BookmarkContentPort {
+public interface BookmarkRepository {
 
     void add(UUID userId, UUID postId);
 
@@ -15,6 +14,4 @@ public interface BookmarkContentPort {
     boolean hasBookmarked(UUID userId, UUID postId);
 
     List<DiscussPost> listBookmarkedPosts(UUID userId, int page, int size);
-
-    List<PostSummaryResult> listBookmarkedPostSummaries(UUID userId, int page, int size);
 }

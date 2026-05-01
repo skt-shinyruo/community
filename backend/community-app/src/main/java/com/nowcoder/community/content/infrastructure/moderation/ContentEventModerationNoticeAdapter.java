@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.infrastructure.moderation;
 
-import com.nowcoder.community.content.application.port.ModerationNoticePort;
+import com.nowcoder.community.content.application.ModerationNoticePublisher;
 import com.nowcoder.community.content.contracts.event.ModerationPayload;
 import com.nowcoder.community.content.domain.model.ModerationActionRecord;
 import com.nowcoder.community.content.domain.model.ModerationTarget;
@@ -12,7 +12,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Component
-public class ContentEventModerationNoticeAdapter implements ModerationNoticePort {
+public class ContentEventModerationNoticeAdapter implements ModerationNoticePublisher {
 
     private final ContentEventPublisher contentEventPublisher;
 

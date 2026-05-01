@@ -2,7 +2,7 @@ package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.content.application.port.TagContentPort;
+import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import com.nowcoder.community.content.domain.model.HotTag;
 import com.nowcoder.community.content.domain.model.PostTagName;
 import com.nowcoder.community.content.domain.model.Tag;
@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
-public class TagService implements TagContentPort {
+public class MyBatisTagContentRepository implements TagContentRepository {
 
     private static final int DEFAULT_HOT_TAG_LIMIT = 8;
     private static final int MAX_HOT_TAG_LIMIT = 20;
@@ -40,11 +40,11 @@ public class TagService implements TagContentPort {
     private final UuidV7Generator idGenerator;
 
     @Autowired
-    public TagService(TagMapper tagMapper, PostTagMapper postTagMapper) {
+    public MyBatisTagContentRepository(TagMapper tagMapper, PostTagMapper postTagMapper) {
         this(tagMapper, postTagMapper, new UuidV7Generator());
     }
 
-    TagService(TagMapper tagMapper, PostTagMapper postTagMapper, UuidV7Generator idGenerator) {
+    MyBatisTagContentRepository(TagMapper tagMapper, PostTagMapper postTagMapper, UuidV7Generator idGenerator) {
         this.tagMapper = tagMapper;
         this.postTagMapper = postTagMapper;
         this.idGenerator = idGenerator;

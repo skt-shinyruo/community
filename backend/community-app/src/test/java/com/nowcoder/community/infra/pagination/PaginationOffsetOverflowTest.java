@@ -5,15 +5,12 @@ import com.nowcoder.community.content.infrastructure.persistence.mapper.CommentM
 import com.nowcoder.community.content.infrastructure.persistence.mapper.DiscussPostMapper;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.ModerationActionMapper;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.ReportMapper;
-import com.nowcoder.community.content.infrastructure.persistence.BookmarkService;
-import com.nowcoder.community.content.infrastructure.persistence.CommentService;
-import com.nowcoder.community.content.infrastructure.persistence.ModerationService;
-import com.nowcoder.community.content.infrastructure.persistence.PostService;
-import com.nowcoder.community.content.infrastructure.persistence.ReportService;
-import com.nowcoder.community.content.infrastructure.persistence.TagService;
-import com.nowcoder.community.content.application.ContentTextCodec;
-import com.nowcoder.community.content.application.port.PostContentPort;
-import com.nowcoder.community.content.application.assembler.PostSummaryAssembler;
+import com.nowcoder.community.content.infrastructure.persistence.MyBatisBookmarkRepository;
+import com.nowcoder.community.content.infrastructure.persistence.MyBatisCommentContentRepository;
+import com.nowcoder.community.content.infrastructure.persistence.MyBatisModerationQueryRepository;
+import com.nowcoder.community.content.infrastructure.persistence.MyBatisPostContentRepository;
+import com.nowcoder.community.content.infrastructure.persistence.MyBatisReportContentRepository;
+import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.notice.application.NoticeApplicationService;
 import com.nowcoder.community.notice.domain.repository.NoticeRepository;
 import com.nowcoder.community.social.application.FollowApplicationService;
@@ -46,8 +43,8 @@ class PaginationOffsetOverflowTest {
         when(discussPostMapper.selectDiscussPosts(any(), any(), any(), any(), anyInt(), anyInt(), anyInt()))
                 .thenReturn(List.of());
 
-        PostService service = new PostService(discussPostMapper);
-        service.listPosts(Integer.MAX_VALUE, 50, PostService.ORDER_LATEST, null, null);
+        MyBatisPostContentRepository service = new MyBatisPostContentRepository(discussPostMapper);
+        service.listPosts(Integer.MAX_VALUE, 50, MyBatisPostContentRepository.ORDER_LATEST, null, null);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
         verify(discussPostMapper).selectDiscussPosts(eq((UUID) null), any(), any(), any(), offsetCaptor.capture(), anyInt(), anyInt());
@@ -60,12 +57,12 @@ class PaginationOffsetOverflowTest {
         when(commentMapper.selectCommentsByEntity(anyInt(), any(), anyInt(), anyInt())).thenReturn(List.of());
         UUID postId = uuid(1);
 
-        CommentService service = new CommentService(commentMapper, mock(PostContentPort.class));
+        MyBatisCommentContentRepository service = new MyBatisCommentContentRepository(commentMapper, mock(PostContentRepository.class));
 
         service.listByPost(postId, Integer.MAX_VALUE, 50);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
-        verify(commentMapper).selectCommentsByEntity(eq(CommentService.ENTITY_TYPE_POST), eq(postId), offsetCaptor.capture(), eq(50));
+        verify(commentMapper).selectCommentsByEntity(eq(MyBatisCommentContentRepository.ENTITY_TYPE_POST), eq(postId), offsetCaptor.capture(), eq(50));
         assertThat(offsetCaptor.getValue()).isGreaterThanOrEqualTo(0);
     }
 
@@ -110,12 +107,9 @@ class PaginationOffsetOverflowTest {
         when(bookmarkMapper.selectBookmarkedPosts(any(), anyInt(), anyInt())).thenReturn(List.of());
         UUID userId = uuid(1);
 
-        BookmarkService service = new BookmarkService(
+        MyBatisBookmarkRepository service = new MyBatisBookmarkRepository(
                 bookmarkMapper,
-                mock(PostService.class),
-                mock(CommentService.class),
-                mock(TagService.class),
-                new PostSummaryAssembler(mock(ContentTextCodec.class))
+                mock(MyBatisPostContentRepository.class)
         );
         service.listBookmarkedPosts(userId, Integer.MAX_VALUE, 50);
 
@@ -129,7 +123,7 @@ class PaginationOffsetOverflowTest {
         ReportMapper reportMapper = mock(ReportMapper.class);
         when(reportMapper.selectReports(any(), any(), any(), anyInt(), anyInt())).thenReturn(List.of());
 
-        ReportService service = new ReportService(reportMapper, mock(PostService.class), mock(CommentMapper.class));
+        MyBatisReportContentRepository service = new MyBatisReportContentRepository(reportMapper, mock(MyBatisPostContentRepository.class), mock(CommentMapper.class));
         service.listReports(null, null, null, Integer.MAX_VALUE, 100);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
@@ -142,8 +136,8 @@ class PaginationOffsetOverflowTest {
         ModerationActionMapper actionMapper = mock(ModerationActionMapper.class);
         when(actionMapper.selectActions(any(), anyInt(), anyInt())).thenReturn(List.of());
 
-        ModerationService service = new ModerationService(
-                mock(ReportService.class),
+        MyBatisModerationQueryRepository service = new MyBatisModerationQueryRepository(
+                mock(MyBatisReportContentRepository.class),
                 actionMapper
         );
 

@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.content.application.port.PostScoreQueuePort;
+import com.nowcoder.community.content.application.PostScoreQueue;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,9 +13,9 @@ public class PostWriteSideEffectScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(PostWriteSideEffectScheduler.class);
 
-    private final PostScoreQueuePort postScoreQueue;
+    private final PostScoreQueue postScoreQueue;
 
-    public PostWriteSideEffectScheduler(PostScoreQueuePort postScoreQueue) {
+    public PostWriteSideEffectScheduler(PostScoreQueue postScoreQueue) {
         this.postScoreQueue = postScoreQueue;
     }
 

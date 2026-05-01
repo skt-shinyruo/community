@@ -4,8 +4,8 @@ package com.nowcoder.community.content.infrastructure.persistence;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.constants.EntityTypes;
-import com.nowcoder.community.content.application.port.PostContentPort;
-import com.nowcoder.community.content.application.port.ReportContentPort;
+import com.nowcoder.community.content.domain.repository.PostContentRepository;
+import com.nowcoder.community.content.domain.repository.ReportContentRepository;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.CommentMapper;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.ReportMapper;
 import com.nowcoder.community.content.domain.model.Comment;
@@ -26,7 +26,7 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 
 @Service
-public class ReportService implements ReportContentPort {
+public class MyBatisReportContentRepository implements ReportContentRepository {
 
     public static final int TARGET_TYPE_POST = EntityTypes.POST;
     public static final int TARGET_TYPE_COMMENT = EntityTypes.COMMENT;
@@ -40,16 +40,16 @@ public class ReportService implements ReportContentPort {
     private static final int MAX_DETAIL_LEN = 512;
 
     private final ReportMapper reportMapper;
-    private final PostContentPort postContentPort;
+    private final PostContentRepository postContentPort;
     private final CommentMapper commentMapper;
     private final UuidV7Generator idGenerator;
 
     @Autowired
-    public ReportService(ReportMapper reportMapper, PostContentPort postContentPort, CommentMapper commentMapper) {
+    public MyBatisReportContentRepository(ReportMapper reportMapper, PostContentRepository postContentPort, CommentMapper commentMapper) {
         this(reportMapper, postContentPort, commentMapper, new UuidV7Generator());
     }
 
-    ReportService(ReportMapper reportMapper, PostContentPort postContentPort, CommentMapper commentMapper, UuidV7Generator idGenerator) {
+    MyBatisReportContentRepository(ReportMapper reportMapper, PostContentRepository postContentPort, CommentMapper commentMapper, UuidV7Generator idGenerator) {
         this.reportMapper = reportMapper;
         this.postContentPort = postContentPort;
         this.commentMapper = commentMapper;

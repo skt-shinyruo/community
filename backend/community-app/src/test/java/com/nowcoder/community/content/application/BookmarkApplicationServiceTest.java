@@ -1,11 +1,16 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.content.application.result.PostSummaryResult;
-import com.nowcoder.community.content.application.port.BookmarkContentPort;
+import com.nowcoder.community.content.domain.model.Comment;
+import com.nowcoder.community.content.domain.model.DiscussPost;
+import com.nowcoder.community.content.domain.repository.BookmarkRepository;
+import com.nowcoder.community.content.domain.repository.CommentContentRepository;
+import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import org.junit.jupiter.api.Test;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -17,15 +22,34 @@ import static org.mockito.Mockito.when;
 class BookmarkApplicationServiceTest {
 
     @Test
-    void listBookmarkedPostSummariesShouldDelegate() {
-        BookmarkContentPort bookmarkContentPort = mock(BookmarkContentPort.class);
-        BookmarkApplicationService service = new BookmarkApplicationService(bookmarkContentPort);
+    void listBookmarkedPostSummariesShouldAssembleViewsWithActivityAndTags() {
+        BookmarkRepository bookmarkRepository = mock(BookmarkRepository.class);
+        CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
+        TagContentRepository tagContentRepository = mock(TagContentRepository.class);
+        PostSummaryAssembler postSummaryAssembler = mock(PostSummaryAssembler.class);
+        BookmarkApplicationService service = new BookmarkApplicationService(
+                bookmarkRepository,
+                commentContentRepository,
+                tagContentRepository,
+                postSummaryAssembler
+        );
         UUID userId = uuid(7);
         UUID postId = uuid(11);
         UUID categoryId = uuid(2);
         UUID lastReplyUserId = uuid(8);
         Date createTime = new Date();
         Date lastActivityTime = new Date(createTime.getTime() + 2_000);
+
+        DiscussPost post = new DiscussPost();
+        post.setId(postId);
+        post.setUserId(userId);
+        post.setCreateTime(createTime);
+        post.setCategoryId(categoryId);
+        Comment lastActivity = new Comment();
+        lastActivity.setEntityId(postId);
+        lastActivity.setUserId(lastReplyUserId);
+        lastActivity.setCreateTime(lastActivityTime);
+
         PostSummaryResult view = new PostSummaryResult(
                 postId,
                 userId,
@@ -42,7 +66,10 @@ class BookmarkApplicationServiceTest {
                 lastActivityTime,
                 "latest reply"
         );
-        when(bookmarkContentPort.listBookmarkedPostSummaries(userId, 0, 10)).thenReturn(List.of(view));
+        when(bookmarkRepository.listBookmarkedPosts(userId, 0, 10)).thenReturn(List.of(post));
+        when(commentContentRepository.getLatestPostActivitiesByPostIds(List.of(postId))).thenReturn(Map.of(postId, lastActivity));
+        when(tagContentRepository.getTagsByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of("spring")));
+        when(postSummaryAssembler.assemble(post, lastActivity, List.of("spring"))).thenReturn(view);
 
         List<PostSummaryResult> result = service.listBookmarkedPostSummaries(userId, 0, 10);
 
@@ -54,6 +81,7 @@ class BookmarkApplicationServiceTest {
             assertThat(summary.lastReplyPreview()).isEqualTo("latest reply");
             assertThat(summary.lastActivityTime()).isEqualTo(lastActivityTime);
         });
-        verify(bookmarkContentPort).listBookmarkedPostSummaries(userId, 0, 10);
+        verify(bookmarkRepository).listBookmarkedPosts(userId, 0, 10);
+        verify(postSummaryAssembler).assemble(post, lastActivity, List.of("spring"));
     }
 }

@@ -19,7 +19,7 @@
 - Move/rename classes under `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/persistence/*Service.java`
 - Update content application, infrastructure, controller, and tests that import the moved types.
 
-- [ ] **Step 1: Add RED guardrails**
+- [x] **Step 1: Add RED guardrails**
 
 Add rules to `DddLayeringArchTest`:
 
@@ -56,7 +56,7 @@ mvn -pl community-app -Dtest=DddLayeringArchTest test
 
 Expected: FAIL while old content `application.port`, `application.assembler`, and `infrastructure.persistence.*Service` classes still exist.
 
-- [ ] **Step 2: Move content persistence contracts**
+- [x] **Step 2: Move content persistence contracts**
 
 Move these persistence-oriented interfaces to `content.domain.repository` and rename imports/usages:
 
@@ -89,7 +89,7 @@ ContentModerationPort  -> content.application.ContentModerationGateway
 ModerationNoticePort   -> content.application.ModerationNoticePublisher
 ```
 
-- [ ] **Step 3: Move content assemblers**
+- [x] **Step 3: Move content assemblers**
 
 Move these classes from `content.application.assembler` to `content.application` and update package/imports:
 
@@ -99,7 +99,7 @@ PostDetailAssembler
 RecentUserCommentAssembler
 ```
 
-- [ ] **Step 4: Rename content persistence services**
+- [x] **Step 4: Rename content persistence services**
 
 Rename implementation classes and update constructor/test imports:
 
@@ -116,7 +116,7 @@ ModerationService    -> MyBatisModerationQueryRepository
 
 `MyBatisBookmarkRepository` must not assemble `PostSummaryResult`. `BookmarkApplicationService` owns that result assembly by injecting `CommentContentRepository`, `TagContentRepository`, and `PostSummaryAssembler`.
 
-- [ ] **Step 5: Verify content phase**
+- [x] **Step 5: Verify content phase**
 
 Run:
 

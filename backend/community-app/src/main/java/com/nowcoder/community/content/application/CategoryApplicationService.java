@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.content.application.port.CategoryContentPort;
+import com.nowcoder.community.content.domain.repository.CategoryContentRepository;
 import com.nowcoder.community.content.application.result.CategoryResult;
 import com.nowcoder.community.content.domain.model.Category;
 import org.springframework.stereotype.Service;
@@ -10,9 +10,9 @@ import java.util.List;
 @Service
 public class CategoryApplicationService {
 
-    private final CategoryContentPort categoryContentPort;
+    private final CategoryContentRepository categoryContentPort;
 
-    public CategoryApplicationService(CategoryContentPort categoryContentPort) {
+    public CategoryApplicationService(CategoryContentRepository categoryContentPort) {
         this.categoryContentPort = categoryContentPort;
     }
 

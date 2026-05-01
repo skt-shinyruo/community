@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.content.application.port.CommentContentPort;
+import com.nowcoder.community.content.domain.repository.CommentContentRepository;
 import com.nowcoder.community.content.application.result.CommentResult;
 import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.application.ContentTextCodec;
@@ -12,10 +12,10 @@ import java.util.UUID;
 @Service
 public class CommentReadApplicationService {
 
-    private final CommentContentPort commentContentPort;
+    private final CommentContentRepository commentContentPort;
     private final ContentTextCodec textCodec;
 
-    public CommentReadApplicationService(CommentContentPort commentContentPort, ContentTextCodec textCodec) {
+    public CommentReadApplicationService(CommentContentRepository commentContentPort, ContentTextCodec textCodec) {
         this.commentContentPort = commentContentPort;
         this.textCodec = textCodec;
     }

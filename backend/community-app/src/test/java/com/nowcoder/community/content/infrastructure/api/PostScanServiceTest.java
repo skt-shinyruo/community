@@ -2,7 +2,7 @@ package com.nowcoder.community.content.infrastructure.api;
 
 import com.nowcoder.community.content.api.model.PostScanView;
 import com.nowcoder.community.content.api.query.PostScanQueryApi;
-import com.nowcoder.community.content.application.port.TagContentPort;
+import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import com.nowcoder.community.content.config.ContentRenderProperties;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.DiscussPostMapper;
@@ -23,7 +23,7 @@ class PostScanServiceTest {
     @Test
     void scanPostsShouldBuildProjectionViewsAndCursor() {
         DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
-        TagContentPort tagService = mock(TagContentPort.class);
+        TagContentRepository tagService = mock(TagContentRepository.class);
         ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
         UUID postId = uuid(10);
         UUID userId = uuid(2);
@@ -58,7 +58,7 @@ class PostScanServiceTest {
     @Test
     void getPostProjectionAllowDeletedShouldReturnProjectionView() {
         DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
-        TagContentPort tagService = mock(TagContentPort.class);
+        TagContentRepository tagService = mock(TagContentRepository.class);
         ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
         UUID postId = uuid(11);
         UUID userId = uuid(3);

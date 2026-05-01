@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.content.application.port.PostScoreQueuePort;
+import com.nowcoder.community.content.application.PostScoreQueue;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -14,7 +14,7 @@ class PostWriteSideEffectSchedulerTest {
 
     @Test
     void schedulePostScoreRefreshShouldRunImmediatelyWhenNoTransaction() {
-        PostScoreQueuePort postScoreQueue = mock(PostScoreQueuePort.class);
+        PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
         PostWriteSideEffectScheduler scheduler = new PostWriteSideEffectScheduler(postScoreQueue);
         var postId = uuid(101);
 
@@ -25,7 +25,7 @@ class PostWriteSideEffectSchedulerTest {
 
     @Test
     void schedulePostScoreRefreshShouldRunAfterCommitWhenTransactionActive() {
-        PostScoreQueuePort postScoreQueue = mock(PostScoreQueuePort.class);
+        PostScoreQueue postScoreQueue = mock(PostScoreQueue.class);
         PostWriteSideEffectScheduler scheduler = new PostWriteSideEffectScheduler(postScoreQueue);
         var postId = uuid(101);
 

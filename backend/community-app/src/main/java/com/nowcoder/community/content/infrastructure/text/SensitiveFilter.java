@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.infrastructure.text;
 
-import com.nowcoder.community.content.application.port.ContentSanitizer;
+import com.nowcoder.community.content.application.ContentSanitizer;
 import jakarta.annotation.PostConstruct;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Component;

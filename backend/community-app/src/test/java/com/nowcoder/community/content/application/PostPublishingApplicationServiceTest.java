@@ -12,7 +12,7 @@ import com.nowcoder.community.content.domain.repository.PostRepository;
 import com.nowcoder.community.content.domain.repository.PostTagRepository;
 import com.nowcoder.community.content.domain.service.PostPublishingDomainService;
 import com.nowcoder.community.content.application.ContentTextCodec;
-import com.nowcoder.community.content.application.port.ContentSanitizer;
+import com.nowcoder.community.content.application.ContentSanitizer;
 import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
 import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
 import org.junit.jupiter.api.BeforeEach;

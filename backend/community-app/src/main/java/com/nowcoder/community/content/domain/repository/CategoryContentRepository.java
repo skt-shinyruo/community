@@ -1,11 +1,11 @@
-package com.nowcoder.community.content.application.port;
+package com.nowcoder.community.content.domain.repository;
 
 import com.nowcoder.community.content.domain.model.Category;
 
 import java.util.List;
 import java.util.UUID;
 
-public interface CategoryContentPort {
+public interface CategoryContentRepository {
 
     List<Category> listCategories();
 

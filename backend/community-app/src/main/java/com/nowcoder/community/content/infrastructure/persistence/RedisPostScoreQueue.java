@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.infrastructure.persistence;
 
-import com.nowcoder.community.content.application.port.PostScoreQueuePort;
+import com.nowcoder.community.content.application.PostScoreQueue;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -15,7 +15,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 @Component
 @ConditionalOnProperty(name = "content.storage", havingValue = "redis", matchIfMissing = true)
-public class RedisPostScoreQueue implements PostScoreQueuePort {
+public class RedisPostScoreQueue implements PostScoreQueue {
 
     private static final DefaultRedisScript<Long> RETRY_ATTEMPT_SCRIPT = new DefaultRedisScript<>();
 

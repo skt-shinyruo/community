@@ -1,4 +1,4 @@
-package com.nowcoder.community.content.application.port;
+package com.nowcoder.community.content.application;
 
 public interface ContentSanitizer {
 

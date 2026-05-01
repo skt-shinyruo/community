@@ -1,8 +1,8 @@
-package com.nowcoder.community.content.application.port;
+package com.nowcoder.community.content.application;
 
 import java.util.UUID;
 
-public interface PostScoreQueuePort {
+public interface PostScoreQueue {
 
     void add(UUID postId);
 

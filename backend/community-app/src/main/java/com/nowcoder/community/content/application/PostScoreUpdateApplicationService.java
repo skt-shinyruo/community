@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.content.application.port.PostContentPort;
+import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.event.PostDomainEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,10 +17,10 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 @Service
 public class PostScoreUpdateApplicationService {
 
-    private final PostContentPort postContentPort;
+    private final PostContentRepository postContentPort;
     private final PostDomainEventPublisher domainEventPublisher;
 
-    public PostScoreUpdateApplicationService(PostContentPort postContentPort, PostDomainEventPublisher domainEventPublisher) {
+    public PostScoreUpdateApplicationService(PostContentRepository postContentPort, PostDomainEventPublisher domainEventPublisher) {
         this.postContentPort = postContentPort;
         this.domainEventPublisher = domainEventPublisher;
     }

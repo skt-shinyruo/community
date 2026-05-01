@@ -2,7 +2,7 @@ package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.content.application.command.CreatePostCommand;
-import com.nowcoder.community.content.application.port.ContentSanitizer;
+import com.nowcoder.community.content.application.ContentSanitizer;
 import com.nowcoder.community.content.application.result.PostCreateResult;
 import com.nowcoder.community.content.domain.event.PostDomainEventPublisher;
 import com.nowcoder.community.content.domain.model.PostDraft;

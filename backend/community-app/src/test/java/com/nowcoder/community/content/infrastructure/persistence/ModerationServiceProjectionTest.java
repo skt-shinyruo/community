@@ -24,7 +24,7 @@ class ModerationServiceProjectionTest {
 
     @Test
     void listReportsShouldReturnReportModels() {
-        ReportService reportService = mock(ReportService.class);
+        MyBatisReportContentRepository reportService = mock(MyBatisReportContentRepository.class);
         ModerationActionMapper actionMapper = mock(ModerationActionMapper.class);
         Report report = new Report();
         report.setId(REPORT_ID);
@@ -37,7 +37,7 @@ class ModerationServiceProjectionTest {
         report.setCreateTime(new Date());
         when(reportService.listReports(0, 1, REPORTER_ID, 0, 20)).thenReturn(List.of(report));
 
-        ModerationService service = new ModerationService(reportService, actionMapper);
+        MyBatisModerationQueryRepository service = new MyBatisModerationQueryRepository(reportService, actionMapper);
 
         Report response = service.listReports(0, 1, REPORTER_ID, 0, 20).get(0);
 
@@ -52,7 +52,7 @@ class ModerationServiceProjectionTest {
 
     @Test
     void listActionsShouldReturnModerationActionModels() {
-        ReportService reportService = mock(ReportService.class);
+        MyBatisReportContentRepository reportService = mock(MyBatisReportContentRepository.class);
         ModerationActionMapper actionMapper = mock(ModerationActionMapper.class);
         ModerationAction action = new ModerationAction();
         action.setId(ACTION_ID);
@@ -64,7 +64,7 @@ class ModerationServiceProjectionTest {
         action.setCreateTime(new Date());
         when(actionMapper.selectActions(ACTOR_ID, 0, 20)).thenReturn(List.of(action));
 
-        ModerationService service = new ModerationService(reportService, actionMapper);
+        MyBatisModerationQueryRepository service = new MyBatisModerationQueryRepository(reportService, actionMapper);
 
         ModerationAction response = service.listActions(ACTOR_ID, 0, 20).get(0);
 

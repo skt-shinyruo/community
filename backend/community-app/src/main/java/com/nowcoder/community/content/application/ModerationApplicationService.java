@@ -2,8 +2,8 @@ package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.application.command.TakeModerationActionCommand;
-import com.nowcoder.community.content.application.port.ContentModerationPort;
-import com.nowcoder.community.content.application.port.ModerationNoticePort;
+import com.nowcoder.community.content.application.ContentModerationGateway;
+import com.nowcoder.community.content.application.ModerationNoticePublisher;
 import com.nowcoder.community.content.application.result.ModerationActionResult;
 import com.nowcoder.community.content.application.result.ReportModerationResult;
 import com.nowcoder.community.content.domain.model.ModerationActionRecord;
@@ -31,8 +31,8 @@ public class ModerationApplicationService {
     private final ReportRepository reportRepository;
     private final ModerationActionRepository moderationActionRepository;
     private final ModerationTargetRepository moderationTargetRepository;
-    private final ContentModerationPort contentModerationPort;
-    private final ModerationNoticePort moderationNoticePort;
+    private final ContentModerationGateway contentModerationPort;
+    private final ModerationNoticePublisher moderationNoticePort;
     private final UserModerationActionApi userModerationActionApi;
     private final ModerationDecisionDomainService decisionDomainService;
 
@@ -40,8 +40,8 @@ public class ModerationApplicationService {
             ReportRepository reportRepository,
             ModerationActionRepository moderationActionRepository,
             ModerationTargetRepository moderationTargetRepository,
-            ContentModerationPort contentModerationPort,
-            ModerationNoticePort moderationNoticePort,
+            ContentModerationGateway contentModerationPort,
+            ModerationNoticePublisher moderationNoticePort,
             UserModerationActionApi userModerationActionApi,
             ModerationDecisionDomainService decisionDomainService
     ) {

@@ -2,7 +2,7 @@ package com.nowcoder.community.content.infrastructure.moderation;
 
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.content.application.port.ContentModerationPort;
+import com.nowcoder.community.content.application.ContentModerationGateway;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.content.domain.model.ModerationTarget;
@@ -21,7 +21,7 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Component
-public class MyBatisContentModerationAdapter implements ContentModerationPort {
+public class MyBatisContentModerationAdapter implements ContentModerationGateway {
 
     private final DiscussPostMapper discussPostMapper;
     private final CommentMapper commentMapper;

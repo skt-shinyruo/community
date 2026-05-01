@@ -24,7 +24,7 @@ class CategoryServiceTest {
         category.setPostCount(7);
         when(categoryMapper.selectCategories()).thenReturn(List.of(category));
 
-        CategoryService service = new CategoryService(categoryMapper);
+        MyBatisCategoryContentRepository service = new MyBatisCategoryContentRepository(categoryMapper);
 
         List<Category> responses = service.listCategories();
 

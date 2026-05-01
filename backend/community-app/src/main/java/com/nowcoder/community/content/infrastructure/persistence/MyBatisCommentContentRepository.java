@@ -2,8 +2,8 @@ package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.content.application.port.CommentContentPort;
-import com.nowcoder.community.content.application.port.PostContentPort;
+import com.nowcoder.community.content.domain.repository.CommentContentRepository;
+import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.CommentMapper;
 import com.nowcoder.community.infra.pagination.Pagination;
@@ -19,15 +19,15 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 import static com.nowcoder.community.content.exception.ContentErrorCode.COMMENT_NOT_FOUND;
 
 @Service
-public class CommentService implements CommentContentPort {
+public class MyBatisCommentContentRepository implements CommentContentRepository {
 
     public static final int ENTITY_TYPE_POST = EntityTypes.POST;
     public static final int ENTITY_TYPE_COMMENT = EntityTypes.COMMENT;
 
     private final CommentMapper commentMapper;
-    private final PostContentPort postContentPort;
+    private final PostContentRepository postContentPort;
 
-    public CommentService(CommentMapper commentMapper, PostContentPort postContentPort) {
+    public MyBatisCommentContentRepository(CommentMapper commentMapper, PostContentRepository postContentPort) {
         this.commentMapper = commentMapper;
         this.postContentPort = postContentPort;
     }

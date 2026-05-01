@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.content.application.port.SubscriptionContentPort;
+import com.nowcoder.community.content.domain.repository.SubscriptionRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -9,9 +9,9 @@ import java.util.UUID;
 @Service
 public class SubscriptionApplicationService {
 
-    private final SubscriptionContentPort subscriptionContentPort;
+    private final SubscriptionRepository subscriptionContentPort;
 
-    public SubscriptionApplicationService(SubscriptionContentPort subscriptionContentPort) {
+    public SubscriptionApplicationService(SubscriptionRepository subscriptionContentPort) {
         this.subscriptionContentPort = subscriptionContentPort;
     }
 

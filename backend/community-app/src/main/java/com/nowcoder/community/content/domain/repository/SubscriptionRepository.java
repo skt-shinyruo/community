@@ -1,9 +1,9 @@
-package com.nowcoder.community.content.application.port;
+package com.nowcoder.community.content.domain.repository;
 
 import java.util.List;
 import java.util.UUID;
 
-public interface SubscriptionContentPort {
+public interface SubscriptionRepository {
 
     void subscribeCategory(UUID userId, UUID categoryId);
 

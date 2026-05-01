@@ -2,8 +2,8 @@
 package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.content.application.port.CategoryContentPort;
-import com.nowcoder.community.content.application.port.SubscriptionContentPort;
+import com.nowcoder.community.content.domain.repository.CategoryContentRepository;
+import com.nowcoder.community.content.domain.repository.SubscriptionRepository;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.SubscriptionCategoryMapper;
 import org.springframework.stereotype.Service;
 
@@ -14,12 +14,12 @@ import java.util.UUID;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
-public class SubscriptionService implements SubscriptionContentPort {
+public class MyBatisSubscriptionRepository implements SubscriptionRepository {
 
     private final SubscriptionCategoryMapper categoryMapper;
-    private final CategoryContentPort categoryContentPort;
+    private final CategoryContentRepository categoryContentPort;
 
-    public SubscriptionService(SubscriptionCategoryMapper categoryMapper, CategoryContentPort categoryContentPort) {
+    public MyBatisSubscriptionRepository(SubscriptionCategoryMapper categoryMapper, CategoryContentRepository categoryContentPort) {
         this.categoryMapper = categoryMapper;
         this.categoryContentPort = categoryContentPort;
     }

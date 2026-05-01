@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.infrastructure.persistence;
 
-import com.nowcoder.community.content.application.port.PostScoreQueuePort;
+import com.nowcoder.community.content.application.PostScoreQueue;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 @Component
 @ConditionalOnProperty(name = "content.storage", havingValue = "memory")
-public class InMemoryPostScoreQueue implements PostScoreQueuePort {
+public class InMemoryPostScoreQueue implements PostScoreQueue {
 
     private final Queue<UUID> queue = new ConcurrentLinkedQueue<>();
 

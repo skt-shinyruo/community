@@ -3,7 +3,7 @@ package com.nowcoder.community.content.infrastructure.persistence;
 // 帖子领域服务：封装帖子查询与状态/计数更新等操作。
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
-import com.nowcoder.community.content.application.port.PostContentPort;
+import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.DiscussPostMapper;
 import com.nowcoder.community.infra.pagination.Pagination;
@@ -19,7 +19,7 @@ import java.util.UUID;
 import static com.nowcoder.community.content.exception.ContentErrorCode.POST_NOT_FOUND;
 
 @Service
-public class PostService implements PostContentPort {
+public class MyBatisPostContentRepository implements PostContentRepository {
 
     public static final int ORDER_LATEST = 0;
     public static final int ORDER_HOT = 1;
@@ -28,11 +28,11 @@ public class PostService implements PostContentPort {
     private final UuidV7Generator idGenerator;
 
     @Autowired
-    public PostService(DiscussPostMapper discussPostMapper) {
+    public MyBatisPostContentRepository(DiscussPostMapper discussPostMapper) {
         this(discussPostMapper, new UuidV7Generator());
     }
 
-    PostService(DiscussPostMapper discussPostMapper, UuidV7Generator idGenerator) {
+    MyBatisPostContentRepository(DiscussPostMapper discussPostMapper, UuidV7Generator idGenerator) {
         this.discussPostMapper = discussPostMapper;
         this.idGenerator = idGenerator;
     }

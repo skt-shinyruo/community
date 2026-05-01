@@ -133,6 +133,28 @@ class DddLayeringArchTest {
                     .allowEmptyShould(true);
 
     @ArchTest
+    static final ArchRule content_application_port_package_must_stay_retired =
+            noClasses()
+                    .should().resideInAnyPackage("..content.application.port..")
+                    .because("content persistence contracts belong in domain.repository and technical ports belong in application root")
+                    .allowEmptyShould(true);
+
+    @ArchTest
+    static final ArchRule content_application_assembler_package_must_stay_retired =
+            noClasses()
+                    .should().resideInAnyPackage("..content.application.assembler..")
+                    .because("content application assemblers live in the application root or controller boundary")
+                    .allowEmptyShould(true);
+
+    @ArchTest
+    static final ArchRule content_infrastructure_persistence_services_must_stay_retired =
+            noClasses()
+                    .that().resideInAnyPackage("..content.infrastructure.persistence..")
+                    .should().haveSimpleNameEndingWith("Service")
+                    .because("content persistence implementations use MyBatis*Repository or explicit adapter names")
+                    .allowEmptyShould(true);
+
+    @ArchTest
     static final ArchRule production_code_must_not_use_use_case_naming =
             noClasses()
                     .should().haveSimpleNameEndingWith("UseCase")

@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.content.application.port.PostContentPort;
+import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.CommentMapper;
 import org.junit.jupiter.api.Test;
@@ -25,8 +25,8 @@ class CommentServiceTest {
     @Test
     void listRecentCommentsByUserShouldDelegateWithSafePagination() {
         CommentMapper commentMapper = mock(CommentMapper.class);
-        PostContentPort postContentPort = mock(PostContentPort.class);
-        CommentService service = new CommentService(commentMapper, postContentPort);
+        PostContentRepository postContentPort = mock(PostContentRepository.class);
+        MyBatisCommentContentRepository service = new MyBatisCommentContentRepository(commentMapper, postContentPort);
         UUID userId = uuid(7);
         Comment comment = new Comment();
         comment.setId(uuid(11));
@@ -41,8 +41,8 @@ class CommentServiceTest {
     @Test
     void listByPostShouldRejectDeletedPostBeforeLoadingComments() {
         CommentMapper commentMapper = mock(CommentMapper.class);
-        PostContentPort postContentPort = mock(PostContentPort.class);
-        CommentService service = new CommentService(commentMapper, postContentPort);
+        PostContentRepository postContentPort = mock(PostContentRepository.class);
+        MyBatisCommentContentRepository service = new MyBatisCommentContentRepository(commentMapper, postContentPort);
         UUID postId = uuid(101);
         when(postContentPort.getById(postId)).thenThrow(new BusinessException(POST_NOT_FOUND));
 
@@ -50,6 +50,6 @@ class CommentServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode()).isEqualTo(POST_NOT_FOUND));
 
-        verify(commentMapper, never()).selectCommentsByEntity(eq(CommentService.ENTITY_TYPE_POST), eq(postId), anyInt(), anyInt());
+        verify(commentMapper, never()).selectCommentsByEntity(eq(MyBatisCommentContentRepository.ENTITY_TYPE_POST), eq(postId), anyInt(), anyInt());
     }
 }

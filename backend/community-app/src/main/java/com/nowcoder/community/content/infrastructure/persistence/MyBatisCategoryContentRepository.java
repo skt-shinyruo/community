@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.content.application.port.CategoryContentPort;
+import com.nowcoder.community.content.domain.repository.CategoryContentRepository;
 import com.nowcoder.community.content.domain.model.Category;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.CategoryMapper;
 import org.springframework.stereotype.Service;
@@ -13,11 +13,11 @@ import static com.nowcoder.community.content.exception.ContentErrorCode.CATEGORY
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
-public class CategoryService implements CategoryContentPort {
+public class MyBatisCategoryContentRepository implements CategoryContentRepository {
 
     private final CategoryMapper categoryMapper;
 
-    public CategoryService(CategoryMapper categoryMapper) {
+    public MyBatisCategoryContentRepository(CategoryMapper categoryMapper) {
         this.categoryMapper = categoryMapper;
     }
 

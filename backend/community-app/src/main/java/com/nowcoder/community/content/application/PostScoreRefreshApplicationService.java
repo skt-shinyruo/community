@@ -2,10 +2,10 @@ package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.ErrorCode;
-import com.nowcoder.community.content.application.port.PostContentPort;
+import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.model.DiscussPost;
-import com.nowcoder.community.content.application.port.LikeQueryPort;
-import com.nowcoder.community.content.application.port.PostScoreQueuePort;
+import com.nowcoder.community.content.application.LikeQueryPort;
+import com.nowcoder.community.content.application.PostScoreQueue;
 import com.nowcoder.community.content.application.PostScoreUpdateApplicationService;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
@@ -23,15 +23,15 @@ public class PostScoreRefreshApplicationService {
     private static final Logger log = LoggerFactory.getLogger(PostScoreRefreshApplicationService.class);
     private static final LocalDateTime EPOCH = LocalDateTime.of(2014, 8, 1, 0, 0);
 
-    private final PostScoreQueuePort scoreQueue;
-    private final PostContentPort postContentPort;
+    private final PostScoreQueue scoreQueue;
+    private final PostContentRepository postContentPort;
     private final LikeQueryPort likeQueryService;
     private final PostScoreUpdateApplicationService scoreUpdateService;
     private final MeterRegistry meterRegistry;
 
     public PostScoreRefreshApplicationService(
-            PostScoreQueuePort scoreQueue,
-            PostContentPort postContentPort,
+            PostScoreQueue scoreQueue,
+            PostContentRepository postContentPort,
             LikeQueryPort likeQueryService,
             PostScoreUpdateApplicationService scoreUpdateService,
             MeterRegistry meterRegistry

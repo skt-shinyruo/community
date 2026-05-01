@@ -1,8 +1,8 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.content.application.command.TakeModerationActionCommand;
-import com.nowcoder.community.content.application.port.ContentModerationPort;
-import com.nowcoder.community.content.application.port.ModerationNoticePort;
+import com.nowcoder.community.content.application.ContentModerationGateway;
+import com.nowcoder.community.content.application.ModerationNoticePublisher;
 import com.nowcoder.community.content.domain.model.ModerationActionRecord;
 import com.nowcoder.community.content.domain.model.ModerationTarget;
 import com.nowcoder.community.content.domain.model.ReportSnapshot;
@@ -35,8 +35,8 @@ class ModerationApplicationServiceTest {
     private ReportRepository reportRepository;
     private ModerationActionRepository moderationActionRepository;
     private ModerationTargetRepository moderationTargetRepository;
-    private ContentModerationPort contentModerationPort;
-    private ModerationNoticePort moderationNoticePort;
+    private ContentModerationGateway contentModerationPort;
+    private ModerationNoticePublisher moderationNoticePort;
     private UserModerationActionApi userModerationActionApi;
     private ModerationApplicationService service;
 
@@ -45,8 +45,8 @@ class ModerationApplicationServiceTest {
         reportRepository = mock(ReportRepository.class);
         moderationActionRepository = mock(ModerationActionRepository.class);
         moderationTargetRepository = mock(ModerationTargetRepository.class);
-        contentModerationPort = mock(ContentModerationPort.class);
-        moderationNoticePort = mock(ModerationNoticePort.class);
+        contentModerationPort = mock(ContentModerationGateway.class);
+        moderationNoticePort = mock(ModerationNoticePublisher.class);
         userModerationActionApi = mock(UserModerationActionApi.class);
         service = new ModerationApplicationService(
                 reportRepository,

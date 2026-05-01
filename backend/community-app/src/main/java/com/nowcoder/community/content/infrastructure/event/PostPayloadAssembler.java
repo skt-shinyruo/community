@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.infrastructure.event;
 
-import com.nowcoder.community.content.application.port.PostContentPort;
-import com.nowcoder.community.content.application.port.TagContentPort;
+import com.nowcoder.community.content.domain.repository.PostContentRepository;
+import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.application.ContentTextCodec;
@@ -16,11 +16,11 @@ import java.util.UUID;
 @Component
 public class PostPayloadAssembler {
 
-    private final PostContentPort postContentPort;
-    private final TagContentPort tagContentPort;
+    private final PostContentRepository postContentPort;
+    private final TagContentRepository tagContentPort;
     private final ContentTextCodec textCodec;
 
-    public PostPayloadAssembler(PostContentPort postContentPort, TagContentPort tagContentPort, ContentTextCodec textCodec) {
+    public PostPayloadAssembler(PostContentRepository postContentPort, TagContentRepository tagContentPort, ContentTextCodec textCodec) {
         this.postContentPort = postContentPort;
         this.tagContentPort = tagContentPort;
         this.textCodec = textCodec;

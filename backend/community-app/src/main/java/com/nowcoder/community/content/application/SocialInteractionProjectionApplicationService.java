@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.constants.EntityTypes;
-import com.nowcoder.community.content.application.port.PostScoreQueuePort;
+import com.nowcoder.community.content.application.PostScoreQueue;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
@@ -16,9 +16,9 @@ public class SocialInteractionProjectionApplicationService {
 
     private static final Logger log = LoggerFactory.getLogger(SocialInteractionProjectionApplicationService.class);
 
-    private final PostScoreQueuePort postScoreQueue;
+    private final PostScoreQueue postScoreQueue;
 
-    public SocialInteractionProjectionApplicationService(PostScoreQueuePort postScoreQueue) {
+    public SocialInteractionProjectionApplicationService(PostScoreQueue postScoreQueue) {
         this.postScoreQueue = postScoreQueue;
     }
 

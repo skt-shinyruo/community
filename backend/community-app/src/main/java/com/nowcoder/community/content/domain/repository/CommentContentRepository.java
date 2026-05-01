@@ -1,4 +1,4 @@
-package com.nowcoder.community.content.application.port;
+package com.nowcoder.community.content.domain.repository;
 
 import com.nowcoder.community.content.domain.model.Comment;
 
@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-public interface CommentContentPort {
+public interface CommentContentRepository {
 
     int ENTITY_TYPE_POST = 1;
     int ENTITY_TYPE_COMMENT = 2;

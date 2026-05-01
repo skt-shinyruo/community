@@ -2,7 +2,7 @@ package com.nowcoder.community.content.infrastructure.api;
 
 import com.nowcoder.community.content.api.model.PostScanView;
 import com.nowcoder.community.content.api.query.PostScanQueryApi;
-import com.nowcoder.community.content.application.port.TagContentPort;
+import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.DiscussPostMapper;
 import com.nowcoder.community.content.application.ContentTextCodec;
@@ -16,10 +16,10 @@ import java.util.UUID;
 public class PostScanService implements PostScanQueryApi {
 
     private final DiscussPostMapper discussPostMapper;
-    private final TagContentPort tagContentPort;
+    private final TagContentRepository tagContentPort;
     private final ContentTextCodec textCodec;
 
-    public PostScanService(DiscussPostMapper discussPostMapper, TagContentPort tagContentPort, ContentTextCodec textCodec) {
+    public PostScanService(DiscussPostMapper discussPostMapper, TagContentRepository tagContentPort, ContentTextCodec textCodec) {
         this.discussPostMapper = discussPostMapper;
         this.tagContentPort = tagContentPort;
         this.textCodec = textCodec;

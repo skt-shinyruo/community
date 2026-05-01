@@ -1,4 +1,4 @@
-package com.nowcoder.community.content.application.port;
+package com.nowcoder.community.content.domain.repository;
 
 import com.nowcoder.community.content.domain.model.HotTag;
 
@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-public interface TagContentPort {
+public interface TagContentRepository {
 
     List<HotTag> listHotTags(Integer limit);
 

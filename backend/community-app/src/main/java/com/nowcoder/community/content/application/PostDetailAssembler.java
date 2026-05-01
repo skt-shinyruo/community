@@ -1,4 +1,4 @@
-package com.nowcoder.community.content.application.assembler;
+package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.content.application.result.PostDetailResult;
 import com.nowcoder.community.content.domain.model.DiscussPost;

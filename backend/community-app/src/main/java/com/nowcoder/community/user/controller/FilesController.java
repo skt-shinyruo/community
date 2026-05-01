@@ -3,6 +3,7 @@ package com.nowcoder.community.user.controller;
 import com.nowcoder.community.user.application.UserFileApplicationService;
 import com.nowcoder.community.user.application.result.AvatarFileResult;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
@@ -33,12 +34,16 @@ public class FilesController {
             return ResponseEntity.notFound().build();
         }
 
-        MediaType mediaType = stored.mediaType();
+        MediaType mediaType = MediaType.parseMediaType(stored.contentType());
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(mediaType);
         headers.setCacheControl(CacheControl.maxAge(Duration.ofDays(1)).cachePublic());
         headers.set("X-Content-Type-Options", "nosniff");
 
-        return ResponseEntity.ok().headers(headers).body(stored.resource());
+        ResponseEntity.BodyBuilder builder = ResponseEntity.ok().headers(headers);
+        if (stored.contentLength() >= 0) {
+            builder.contentLength(stored.contentLength());
+        }
+        return builder.body(new InputStreamResource(stored.content()));
     }
 }

@@ -7,9 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.core.io.ByteArrayResource;
-import org.springframework.http.MediaType;
 
+import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
@@ -32,8 +31,9 @@ class UserFileApplicationServiceTest {
         UUID userId = uuid(7);
         String key = "avatar/" + userId + "/0123456789abcdef0123456789abcdef";
         AvatarFileResult file = new AvatarFileResult(
-                new ByteArrayResource("ok".getBytes(StandardCharsets.UTF_8)),
-                MediaType.TEXT_PLAIN
+                new ByteArrayInputStream("ok".getBytes(StandardCharsets.UTF_8)),
+                "text/plain",
+                2
         );
         when(avatarStoragePort.loadAvatarOrNull(key)).thenReturn(file);
 

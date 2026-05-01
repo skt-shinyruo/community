@@ -27,7 +27,7 @@ import static org.mockito.Mockito.when;
 class FilesControllerStorageRoutingTest {
 
     @Test
-    void shouldServeAvatarFilesViaCurrentProviderWhenStorageIsNotLocal() {
+    void shouldServeAvatarFilesViaCurrentProviderWhenStorageIsNotLocal() throws Exception {
         UUID userId = uuid(1);
         AvatarStorageProperties props = new AvatarStorageProperties();
         props.setStorage("r2");
@@ -71,6 +71,8 @@ class FilesControllerStorageRoutingTest {
         assertThat(resp.getStatusCode().value()).isEqualTo(200);
         assertThat(resp.getHeaders().getContentType()).isEqualTo(MediaType.TEXT_PLAIN);
         assertThat(resp.getBody()).isNotNull();
+        assertThat(resp.getBody().getInputStream().readAllBytes()).isEqualTo("ok".getBytes(StandardCharsets.UTF_8));
+        assertThat(resp.getHeaders().getFirst("X-Content-Type-Options")).isEqualTo("nosniff");
     }
 
     private static UUID uuid(long suffix) {

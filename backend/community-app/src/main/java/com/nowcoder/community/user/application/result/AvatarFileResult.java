@@ -1,14 +1,13 @@
 package com.nowcoder.community.user.application.result;
 
-import org.springframework.core.io.Resource;
-import org.springframework.http.MediaType;
-
+import java.io.InputStream;
 import java.util.Objects;
 
-public record AvatarFileResult(Resource resource, MediaType mediaType) {
+public record AvatarFileResult(InputStream content, String contentType, long contentLength) {
 
     public AvatarFileResult {
-        Objects.requireNonNull(resource, "resource");
-        Objects.requireNonNull(mediaType, "mediaType");
+        Objects.requireNonNull(content, "content");
+        contentType = contentType == null || contentType.isBlank() ? "application/octet-stream" : contentType;
+        contentLength = Math.max(-1, contentLength);
     }
 }

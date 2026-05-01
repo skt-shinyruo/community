@@ -25,29 +25,29 @@ public class MarketOrderSagaApplicationService {
     private static final String STATUS_ESCROW_CANCEL_PENDING = "ESCROW_CANCEL_PENDING";
     private static final String DELIVERY_MODE_PRELOADED = "PRELOADED";
 
-    private final MarketOrderRepository marketOrderMapper;
-    private final MarketListingRepository marketListingMapper;
-    private final MarketInventoryRepository marketInventoryUnitMapper;
+    private final MarketOrderRepository marketOrderRepository;
+    private final MarketListingRepository marketListingRepository;
+    private final MarketInventoryRepository marketInventoryRepository;
 
     @Autowired
-    public MarketOrderSagaApplicationService(MarketOrderRepository marketOrderMapper,
-                                  MarketListingRepository marketListingMapper,
-                                  MarketInventoryRepository marketInventoryUnitMapper) {
-        this.marketOrderMapper = marketOrderMapper;
-        this.marketListingMapper = marketListingMapper;
-        this.marketInventoryUnitMapper = marketInventoryUnitMapper;
+    public MarketOrderSagaApplicationService(MarketOrderRepository marketOrderRepository,
+                                  MarketListingRepository marketListingRepository,
+                                  MarketInventoryRepository marketInventoryRepository) {
+        this.marketOrderRepository = marketOrderRepository;
+        this.marketListingRepository = marketListingRepository;
+        this.marketInventoryRepository = marketInventoryRepository;
     }
 
     @Transactional(readOnly = true)
     public boolean canApplyEscrow(UUID orderId) {
-        MarketOrder order = marketOrderMapper.selectById(orderId);
+        MarketOrder order = marketOrderRepository.findById(orderId);
         return order != null && STATUS_ESCROW_PENDING.equals(order.getStatus());
     }
 
     @Transactional
     public void completeEscrowNoop(UUID orderId) {
-        MarketOrder order = marketOrderMapper.selectByIdForUpdate(orderId);
-        int updated = marketOrderMapper.markCancelledNoRefund(orderId);
+        MarketOrder order = marketOrderRepository.lockById(orderId);
+        int updated = marketOrderRepository.markCancelledNoRefund(orderId);
         if (updated == 1) {
             restoreMarketSideCompensation(order);
         }
@@ -55,29 +55,29 @@ public class MarketOrderSagaApplicationService {
 
     @Transactional
     public boolean markEscrowSucceeded(UUID orderId, UUID escrowTxnId) {
-        int updated = marketOrderMapper.markEscrowSucceeded(orderId, escrowTxnId);
+        int updated = marketOrderRepository.markEscrowSucceeded(orderId, escrowTxnId);
         if (updated != 1) {
             return false;
         }
-        MarketOrder order = marketOrderMapper.selectByIdForUpdate(orderId);
+        MarketOrder order = marketOrderRepository.lockById(orderId);
         deliverPreloadedInventoryIfNeeded(order);
         return true;
     }
 
     @Transactional
     public boolean markEscrowCancelRefundPending(UUID orderId, UUID escrowTxnId) {
-        return marketOrderMapper.markEscrowCancelRefundPending(orderId, escrowTxnId) == 1;
+        return marketOrderRepository.markEscrowCancelRefundPending(orderId, escrowTxnId) == 1;
     }
 
     @Transactional
     public void markEscrowTerminalFailed(UUID orderId, String reason) {
-        MarketOrder order = marketOrderMapper.selectByIdForUpdate(orderId);
+        MarketOrder order = marketOrderRepository.lockById(orderId);
         if (order == null) {
             return;
         }
-        int updated = marketOrderMapper.markEscrowFailed(orderId);
+        int updated = marketOrderRepository.markEscrowFailed(orderId);
         if (updated != 1 && STATUS_ESCROW_CANCEL_PENDING.equals(order.getStatus())) {
-            updated = marketOrderMapper.markCancelledNoRefund(orderId);
+            updated = marketOrderRepository.markCancelledNoRefund(orderId);
         }
         if (updated == 1) {
             restoreMarketSideCompensation(order);
@@ -86,18 +86,18 @@ public class MarketOrderSagaApplicationService {
 
     @Transactional
     public boolean markReleaseSucceeded(UUID orderId, UUID releaseTxnId) {
-        return marketOrderMapper.markReleaseSucceeded(orderId, releaseTxnId) == 1;
+        return marketOrderRepository.markReleaseSucceeded(orderId, releaseTxnId) == 1;
     }
 
     @Transactional
     public boolean markRefundSucceeded(UUID orderId, UUID refundTxnId) {
-        MarketOrder order = marketOrderMapper.selectByIdForUpdate(orderId);
+        MarketOrder order = marketOrderRepository.lockById(orderId);
         if (order == null) {
             return false;
         }
-        int updated = marketOrderMapper.markCancelledWithRefund(orderId, refundTxnId);
+        int updated = marketOrderRepository.markCancelledWithRefund(orderId, refundTxnId);
         if (updated != 1) {
-            updated = marketOrderMapper.markDisputeRefundSucceeded(orderId, refundTxnId);
+            updated = marketOrderRepository.markDisputeRefundSucceeded(orderId, refundTxnId);
         }
         if (updated == 1) {
             restoreMarketSideCompensation(order);
@@ -111,21 +111,21 @@ public class MarketOrderSagaApplicationService {
             return;
         }
         Date deliveredAt = new Date();
-        marketInventoryUnitMapper.markDeliveredByOrderIfReserved(order.getOrderId(), deliveredAt);
-        marketOrderMapper.markDelivered(order.getOrderId(), Date.from(Instant.now().plus(24, ChronoUnit.HOURS)));
+        marketInventoryRepository.markDeliveredByOrderIfReserved(order.getOrderId(), deliveredAt);
+        marketOrderRepository.markDelivered(order.getOrderId(), Date.from(Instant.now().plus(24, ChronoUnit.HOURS)));
     }
 
     private void restoreMarketSideCompensation(MarketOrder order) {
         if (order == null) {
             return;
         }
-        MarketListing listing = marketListingMapper.selectByIdForUpdate(order.getListingId());
+        MarketListing listing = marketListingRepository.lockById(order.getListingId());
         if (listing != null && isFiniteStock(listing)) {
             int nextAvailable = listing.getStockAvailable() + order.getQuantity();
             String nextStatus = STATUS_SOLD_OUT.equals(listing.getStatus()) && nextAvailable > 0
                     ? STATUS_ACTIVE
                     : listing.getStatus();
-            marketListingMapper.adjustStock(
+            marketListingRepository.adjustStock(
                     listing.getListingId(),
                     listing.getSellerUserId(),
                     0,
@@ -134,7 +134,7 @@ public class MarketOrderSagaApplicationService {
             );
         }
         if (DELIVERY_MODE_PRELOADED.equals(order.getDeliveryModeSnapshot())) {
-            marketInventoryUnitMapper.releaseReservedByOrderIfNeeded(order.getOrderId());
+            marketInventoryRepository.releaseReservedByOrderIfNeeded(order.getOrderId());
         }
     }
 

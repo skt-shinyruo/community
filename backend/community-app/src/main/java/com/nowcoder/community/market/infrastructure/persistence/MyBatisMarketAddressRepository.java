@@ -19,22 +19,22 @@ public class MyBatisMarketAddressRepository implements MarketAddressRepository {
     }
 
     @Override
-    public int insert(MarketAddress address) {
+    public int save(MarketAddress address) {
         return mapper.insert(MarketAddressDataObject.from(address));
     }
 
     @Override
-    public MarketAddress selectById(UUID addressId) {
+    public MarketAddress findById(UUID addressId) {
         return mapper.selectById(addressId);
     }
 
     @Override
-    public List<MarketAddress> selectByUserId(UUID userId) {
+    public List<MarketAddress> findByUserId(UUID userId) {
         return DomainRowAdapter.asDomainList(mapper.selectByUserId(userId));
     }
 
     @Override
-    public int update(MarketAddress address) {
+    public int saveChanges(MarketAddress address) {
         return mapper.update(MarketAddressDataObject.from(address));
     }
 

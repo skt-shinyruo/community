@@ -20,17 +20,17 @@ import java.util.UUID;
 @Service
 public class MarketWalletActionApplicationService {
 
-    private final MarketWalletActionRepository mapper;
+    private final MarketWalletActionRepository walletActionRepository;
     private final UuidV7Generator idGenerator;
     private final MarketWalletActionDomainService walletActionDomainService = new MarketWalletActionDomainService();
 
     @Autowired
-    public MarketWalletActionApplicationService(MarketWalletActionRepository mapper) {
-        this(mapper, new UuidV7Generator());
+    public MarketWalletActionApplicationService(MarketWalletActionRepository walletActionRepository) {
+        this(walletActionRepository, new UuidV7Generator());
     }
 
-    MarketWalletActionApplicationService(MarketWalletActionRepository mapper, UuidV7Generator idGenerator) {
-        this.mapper = mapper;
+    MarketWalletActionApplicationService(MarketWalletActionRepository walletActionRepository, UuidV7Generator idGenerator) {
+        this.walletActionRepository = walletActionRepository;
         this.idGenerator = idGenerator;
     }
 
@@ -69,7 +69,7 @@ public class MarketWalletActionApplicationService {
 
     @Transactional
     public boolean cancelPendingEscrowIfPossible(UUID orderId) {
-        return mapper.cancelPendingEscrow(
+        return walletActionRepository.cancelPendingEscrow(
                 requestId(orderId, MarketWalletActionType.ESCROW),
                 MarketWalletActionResultType.NOOP
         ) == 1;
@@ -82,7 +82,7 @@ public class MarketWalletActionApplicationService {
                                        UUID counterpartyUserId,
                                        long amount) {
         String requestId = requestId(orderId, actionType);
-        MarketWalletAction existing = mapper.selectByRequestId(requestId);
+        MarketWalletAction existing = walletActionRepository.findByRequestId(requestId);
         if (existing != null) {
             ensureReplayMatches(existing, orderId, disputeId, actionType, actorUserId, counterpartyUserId, amount);
             return existing;
@@ -100,10 +100,10 @@ public class MarketWalletActionApplicationService {
         action.setAmount(amount);
         action.setStatus(MarketWalletActionStatus.PENDING);
         try {
-            mapper.insert(action);
+            walletActionRepository.save(action);
             return action;
         } catch (DataIntegrityViolationException ex) {
-            MarketWalletAction duplicated = mapper.selectByRequestId(requestId);
+            MarketWalletAction duplicated = walletActionRepository.findByRequestId(requestId);
             if (duplicated != null) {
                 ensureReplayMatches(duplicated, orderId, disputeId, actionType, actorUserId, counterpartyUserId, amount);
                 return duplicated;

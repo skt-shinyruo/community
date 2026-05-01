@@ -6,7 +6,7 @@ import java.util.UUID;
 
 public interface MarketShipmentRepository {
 
-    int insert(MarketShipment shipment);
+    int save(MarketShipment shipment);
 
-    MarketShipment selectByOrderId(UUID orderId);
+    MarketShipment findByOrderId(UUID orderId);
 }

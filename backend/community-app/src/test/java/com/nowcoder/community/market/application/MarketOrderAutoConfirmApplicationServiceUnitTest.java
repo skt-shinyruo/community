@@ -33,7 +33,7 @@ class MarketOrderAutoConfirmApplicationServiceUnitTest {
     void autoConfirmDueOrdersShouldDelegateEachDueOrderToSingleOrderService() {
         UUID completedOrderId = uuid(1);
         UUID skippedOrderId = uuid(2);
-        when(marketOrderRepository.selectDueForAutoConfirm(any(Date.class)))
+        when(marketOrderRepository.findDueForAutoConfirm(any(Date.class)))
                 .thenReturn(List.of(order(completedOrderId), order(skippedOrderId)));
         when(singleOrderApplicationService.confirmOneDueOrder(eq(completedOrderId), any(Date.class))).thenReturn(true);
         when(singleOrderApplicationService.confirmOneDueOrder(eq(skippedOrderId), any(Date.class))).thenReturn(false);

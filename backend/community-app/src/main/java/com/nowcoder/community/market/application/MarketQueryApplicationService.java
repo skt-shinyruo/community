@@ -26,32 +26,32 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 @Service
 public class MarketQueryApplicationService {
 
-    private final MarketListingRepository marketListingMapper;
-    private final MarketOrderRepository marketOrderMapper;
-    private final MarketInventoryRepository marketInventoryUnitMapper;
-    private final MarketDeliveryRepository marketDeliveryMapper;
-    private final MarketShipmentRepository marketShipmentMapper;
+    private final MarketListingRepository marketListingRepository;
+    private final MarketOrderRepository marketOrderRepository;
+    private final MarketInventoryRepository marketInventoryRepository;
+    private final MarketDeliveryRepository marketDeliveryRepository;
+    private final MarketShipmentRepository marketShipmentRepository;
 
-    public MarketQueryApplicationService(MarketListingRepository marketListingMapper,
-                              MarketOrderRepository marketOrderMapper,
-                              MarketInventoryRepository marketInventoryUnitMapper,
-                              MarketDeliveryRepository marketDeliveryMapper,
-                              MarketShipmentRepository marketShipmentMapper) {
-        this.marketListingMapper = marketListingMapper;
-        this.marketOrderMapper = marketOrderMapper;
-        this.marketInventoryUnitMapper = marketInventoryUnitMapper;
-        this.marketDeliveryMapper = marketDeliveryMapper;
-        this.marketShipmentMapper = marketShipmentMapper;
+    public MarketQueryApplicationService(MarketListingRepository marketListingRepository,
+                              MarketOrderRepository marketOrderRepository,
+                              MarketInventoryRepository marketInventoryRepository,
+                              MarketDeliveryRepository marketDeliveryRepository,
+                              MarketShipmentRepository marketShipmentRepository) {
+        this.marketListingRepository = marketListingRepository;
+        this.marketOrderRepository = marketOrderRepository;
+        this.marketInventoryRepository = marketInventoryRepository;
+        this.marketDeliveryRepository = marketDeliveryRepository;
+        this.marketShipmentRepository = marketShipmentRepository;
     }
 
     public List<MarketListingResult> listPublicListings() {
-        return marketListingMapper.selectPublicListings().stream()
+        return marketListingRepository.findPublicListings().stream()
                 .map(MarketListingResult::from)
                 .toList();
     }
 
     public MarketListingDetailResult getListingDetail(UUID listingId) {
-        MarketListing listing = marketListingMapper.selectById(listingId);
+        MarketListing listing = marketListingRepository.findById(listingId);
         if (listing == null) {
             throw new BusinessException(NOT_FOUND, "market listing not found: listingId=" + listingId);
         }
@@ -59,25 +59,25 @@ public class MarketQueryApplicationService {
     }
 
     public List<MarketListingResult> listSellerListings(UUID sellerUserId) {
-        return marketListingMapper.selectBySellerUserId(sellerUserId).stream()
+        return marketListingRepository.findBySellerUserId(sellerUserId).stream()
                 .map(MarketListingResult::from)
                 .toList();
     }
 
     public List<MarketOrderResult> listBuyingOrders(UUID buyerUserId) {
-        return marketOrderMapper.selectByBuyerUserId(buyerUserId).stream()
+        return marketOrderRepository.findByBuyerUserId(buyerUserId).stream()
                 .map(MarketOrderResult::from)
                 .toList();
     }
 
     public List<MarketOrderResult> listSellingOrders(UUID sellerUserId) {
-        return marketOrderMapper.selectBySellerUserId(sellerUserId).stream()
+        return marketOrderRepository.findBySellerUserId(sellerUserId).stream()
                 .map(MarketOrderResult::from)
                 .toList();
     }
 
     public MarketOrderDetailResult getOrderDetail(UUID orderId, UUID actorUserId) {
-        MarketOrder order = marketOrderMapper.selectById(orderId);
+        MarketOrder order = marketOrderRepository.findById(orderId);
         if (order == null) {
             throw new BusinessException(NOT_FOUND, "market order not found: orderId=" + orderId);
         }
@@ -85,21 +85,21 @@ public class MarketQueryApplicationService {
             throw new BusinessException(FORBIDDEN, "market order does not belong to actor: orderId=" + orderId);
         }
         List<String> deliveryContents = loadDeliveryContents(orderId, order.getGoodsType());
-        return MarketOrderDetailResult.from(order, deliveryContents, marketShipmentMapper.selectByOrderId(orderId));
+        return MarketOrderDetailResult.from(order, deliveryContents, marketShipmentRepository.findByOrderId(orderId));
     }
 
     private List<String> loadDeliveryContents(UUID orderId, String goodsType) {
         if (!"VIRTUAL".equals(goodsType)) {
             return List.of();
         }
-        List<String> manualDeliveries = marketDeliveryMapper.selectByOrderId(orderId).stream()
+        List<String> manualDeliveries = marketDeliveryRepository.findByOrderId(orderId).stream()
                 .filter(delivery -> "DELIVERED".equals(delivery.getStatus()))
                 .map(MarketDelivery::getDeliveryContent)
                 .toList();
         if (!manualDeliveries.isEmpty()) {
             return manualDeliveries;
         }
-        return marketInventoryUnitMapper.selectByReservedOrderId(orderId).stream()
+        return marketInventoryRepository.findByReservedOrderId(orderId).stream()
                 .filter(unit -> "DELIVERED".equals(unit.getStatus()))
                 .map(MarketInventoryUnit::getPayloadContent)
                 .toList();

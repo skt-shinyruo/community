@@ -18,12 +18,12 @@ public class MyBatisMarketShipmentRepository implements MarketShipmentRepository
     }
 
     @Override
-    public int insert(MarketShipment shipment) {
+    public int save(MarketShipment shipment) {
         return mapper.insert(MarketShipmentDataObject.from(shipment));
     }
 
     @Override
-    public MarketShipment selectByOrderId(UUID orderId) {
+    public MarketShipment findByOrderId(UUID orderId) {
         return mapper.selectByOrderId(orderId);
     }
 }

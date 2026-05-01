@@ -19,37 +19,37 @@ public class MyBatisMarketListingRepository implements MarketListingRepository {
     }
 
     @Override
-    public int insert(MarketListing listing) {
+    public int save(MarketListing listing) {
         return mapper.insert(MarketListingDataObject.from(listing));
     }
 
     @Override
-    public MarketListing selectById(UUID listingId) {
+    public MarketListing findById(UUID listingId) {
         return mapper.selectById(listingId);
     }
 
     @Override
-    public MarketListing selectByIdForUpdate(UUID listingId) {
+    public MarketListing lockById(UUID listingId) {
         return mapper.selectByIdForUpdate(listingId);
     }
 
     @Override
-    public List<MarketListing> selectBySellerUserId(UUID sellerUserId) {
+    public List<MarketListing> findBySellerUserId(UUID sellerUserId) {
         return DomainRowAdapter.asDomainList(mapper.selectBySellerUserId(sellerUserId));
     }
 
     @Override
-    public List<MarketListing> selectPublicListings() {
+    public List<MarketListing> findPublicListings() {
         return DomainRowAdapter.asDomainList(mapper.selectPublicListings());
     }
 
     @Override
-    public int updateEditable(MarketListing listing) {
+    public int saveEditable(MarketListing listing) {
         return mapper.updateEditable(MarketListingDataObject.from(listing));
     }
 
     @Override
-    public int updateStatus(UUID listingId, UUID sellerUserId, String status) {
+    public int changeStatus(UUID listingId, UUID sellerUserId, String status) {
         return mapper.updateStatus(listingId, sellerUserId, status);
     }
 

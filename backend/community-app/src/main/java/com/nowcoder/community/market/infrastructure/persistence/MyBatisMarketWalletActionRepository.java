@@ -20,32 +20,32 @@ public class MyBatisMarketWalletActionRepository implements MarketWalletActionRe
     }
 
     @Override
-    public int insert(MarketWalletAction action) {
+    public int save(MarketWalletAction action) {
         return mapper.insert(MarketWalletActionDataObject.from(action));
     }
 
     @Override
-    public MarketWalletAction selectById(UUID actionId) {
+    public MarketWalletAction findById(UUID actionId) {
         return mapper.selectById(actionId);
     }
 
     @Override
-    public MarketWalletAction selectByRequestId(String requestId) {
+    public MarketWalletAction findByRequestId(String requestId) {
         return mapper.selectByRequestId(requestId);
     }
 
     @Override
-    public MarketWalletAction selectByOrderAndType(UUID orderId, String actionType) {
+    public MarketWalletAction findByOrderAndType(UUID orderId, String actionType) {
         return mapper.selectByOrderAndType(orderId, actionType);
     }
 
     @Override
-    public List<MarketWalletAction> selectDue(Date asOf, int limit) {
+    public List<MarketWalletAction> findDue(Date asOf, int limit) {
         return DomainRowAdapter.asDomainList(mapper.selectDue(asOf, limit));
     }
 
     @Override
-    public List<MarketWalletAction> selectUnfinishedWithWalletTxn(int limit) {
+    public List<MarketWalletAction> findUnfinishedWithWalletTxn(int limit) {
         return DomainRowAdapter.asDomainList(mapper.selectUnfinishedWithWalletTxn(limit));
     }
 

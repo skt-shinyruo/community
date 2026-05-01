@@ -35,25 +35,25 @@ public class MarketDisputeApplicationService {
     private static final String RESOLUTION_REFUND = "REFUND";
     private static final String RESOLUTION_RELEASE = "RELEASE";
 
-    private final MarketDisputeRepository marketDisputeMapper;
-    private final MarketOrderRepository marketOrderMapper;
+    private final MarketDisputeRepository marketDisputeRepository;
+    private final MarketOrderRepository marketOrderRepository;
     private final MarketWalletActionApplicationService marketWalletActionService;
     private final UuidV7Generator idGenerator;
     private final MarketDisputeDomainService disputeDomainService = new MarketDisputeDomainService();
 
     @Autowired
-    public MarketDisputeApplicationService(MarketDisputeRepository marketDisputeMapper,
-                                MarketOrderRepository marketOrderMapper,
+    public MarketDisputeApplicationService(MarketDisputeRepository marketDisputeRepository,
+                                MarketOrderRepository marketOrderRepository,
                                 MarketWalletActionApplicationService marketWalletActionService) {
-        this(marketDisputeMapper, marketOrderMapper, marketWalletActionService, new UuidV7Generator());
+        this(marketDisputeRepository, marketOrderRepository, marketWalletActionService, new UuidV7Generator());
     }
 
-    MarketDisputeApplicationService(MarketDisputeRepository marketDisputeMapper,
-                         MarketOrderRepository marketOrderMapper,
+    MarketDisputeApplicationService(MarketDisputeRepository marketDisputeRepository,
+                         MarketOrderRepository marketOrderRepository,
                          MarketWalletActionApplicationService marketWalletActionService,
                          UuidV7Generator idGenerator) {
-        this.marketDisputeMapper = marketDisputeMapper;
-        this.marketOrderMapper = marketOrderMapper;
+        this.marketDisputeRepository = marketDisputeRepository;
+        this.marketOrderRepository = marketOrderRepository;
         this.marketWalletActionService = marketWalletActionService;
         this.idGenerator = idGenerator;
     }
@@ -67,7 +67,7 @@ public class MarketDisputeApplicationService {
         if (!Set.of(ORDER_STATUS_DELIVERED, ORDER_STATUS_SHIPPED).contains(order.getStatus())) {
             throw new BusinessException(INVALID_ARGUMENT, "order is not disputable: orderId=" + orderId);
         }
-        boolean activeExists = marketDisputeMapper.selectByOrderId(orderId).stream().anyMatch(this::isActiveDispute);
+        boolean activeExists = marketDisputeRepository.findByOrderId(orderId).stream().anyMatch(this::isActiveDispute);
         if (activeExists) {
             throw new BusinessException(INVALID_ARGUMENT, "order already has active dispute: orderId=" + orderId);
         }
@@ -81,8 +81,8 @@ public class MarketDisputeApplicationService {
         dispute.setStatus(DISPUTE_STATUS_OPEN);
         dispute.setReason(reason.trim());
         dispute.setBuyerNote(buyerNote.trim());
-        marketDisputeMapper.insert(dispute);
-        marketOrderMapper.markDisputed(orderId);
+        marketDisputeRepository.save(dispute);
+        marketOrderRepository.markDisputed(orderId);
         return MarketDisputeResult.from(reloadDispute(dispute.getDisputeId()));
     }
 
@@ -96,8 +96,8 @@ public class MarketDisputeApplicationService {
         dispute.setSellerNote(sellerNote.trim());
         dispute.setResolutionType(RESOLUTION_REFUND);
         dispute.setResolvedAt(new Date());
-        marketDisputeMapper.update(dispute);
-        marketOrderMapper.markDisputeRefundPending(order.getOrderId());
+        marketDisputeRepository.saveChanges(dispute);
+        marketOrderRepository.markDisputeRefundPending(order.getOrderId());
         marketWalletActionService.enqueueDisputeRefund(
                 order.getOrderId(),
                 disputeId,
@@ -114,7 +114,7 @@ public class MarketDisputeApplicationService {
         MarketDispute dispute = requireOpenDisputeForSeller(disputeId, sellerUserId);
         dispute.setStatus(DISPUTE_STATUS_SELLER_REJECTED);
         dispute.setSellerNote(sellerNote.trim());
-        marketDisputeMapper.update(dispute);
+        marketDisputeRepository.saveChanges(dispute);
         return MarketDisputeResult.from(reloadDispute(disputeId));
     }
 
@@ -130,8 +130,8 @@ public class MarketDisputeApplicationService {
         dispute.setResolutionType(RESOLUTION_REFUND);
         dispute.setResolvedBy(adminUserId);
         dispute.setResolvedAt(new Date());
-        marketDisputeMapper.update(dispute);
-        marketOrderMapper.markDisputeRefundPending(order.getOrderId());
+        marketDisputeRepository.saveChanges(dispute);
+        marketOrderRepository.markDisputeRefundPending(order.getOrderId());
         marketWalletActionService.enqueueDisputeRefund(
                 order.getOrderId(),
                 disputeId,
@@ -154,8 +154,8 @@ public class MarketDisputeApplicationService {
         dispute.setResolutionType(RESOLUTION_RELEASE);
         dispute.setResolvedBy(adminUserId);
         dispute.setResolvedAt(new Date());
-        marketDisputeMapper.update(dispute);
-        marketOrderMapper.markDisputeReleasePending(order.getOrderId());
+        marketDisputeRepository.saveChanges(dispute);
+        marketOrderRepository.markDisputeReleasePending(order.getOrderId());
         marketWalletActionService.enqueueDisputeRelease(
                 order.getOrderId(),
                 disputeId,
@@ -167,7 +167,7 @@ public class MarketDisputeApplicationService {
     }
 
     public List<MarketDisputeResult> listOpenDisputes() {
-        return marketDisputeMapper.selectOpenDisputes().stream()
+        return marketDisputeRepository.findOpenDisputes().stream()
                 .map(MarketDisputeResult::from)
                 .toList();
     }
@@ -198,7 +198,7 @@ public class MarketDisputeApplicationService {
     }
 
     private MarketOrder requireOrderForUpdate(UUID orderId) {
-        MarketOrder order = marketOrderMapper.selectByIdForUpdate(orderId);
+        MarketOrder order = marketOrderRepository.lockById(orderId);
         if (order == null) {
             throw new BusinessException(NOT_FOUND, "market order not found: orderId=" + orderId);
         }
@@ -206,7 +206,7 @@ public class MarketDisputeApplicationService {
     }
 
     private MarketDispute reloadDispute(UUID disputeId) {
-        MarketDispute dispute = marketDisputeMapper.selectById(disputeId);
+        MarketDispute dispute = marketDisputeRepository.findById(disputeId);
         if (dispute == null) {
             throw new BusinessException(NOT_FOUND, "market dispute not found: disputeId=" + disputeId);
         }

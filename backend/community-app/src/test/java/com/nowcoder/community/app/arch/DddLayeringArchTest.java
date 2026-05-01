@@ -371,6 +371,18 @@ class DddLayeringArchTest {
                     .allowEmptyShould(true);
 
     @ArchTest
+    static final ArchRule market_domain_repositories_must_use_domain_method_names =
+            classes()
+                    .that().resideInAnyPackage("..market.domain.repository..")
+                    .should(notDeclareMethodsStartingWith("select", "insert", "update"));
+
+    @ArchTest
+    static final ArchRule market_applications_must_not_name_repositories_as_mappers =
+            classes()
+                    .that().resideInAnyPackage("..market.application..")
+                    .should(notDeclareFieldsEndingWith("Mapper"));
+
+    @ArchTest
     static final ArchRule market_controllers_and_jobs_must_not_depend_on_legacy_market_surfaces =
             noClasses()
                     .that().resideInAnyPackage("..market.controller..", "..market.infrastructure.job..")
@@ -494,6 +506,43 @@ class DddLayeringArchTest {
                         ));
                     }
                 }
+            }
+        };
+    }
+
+    private static ArchCondition<JavaClass> notDeclareMethodsStartingWith(String... forbiddenPrefixes) {
+        return new ArchCondition<>("not declare methods starting with mapper-style prefixes") {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                for (JavaMethod method : item.getMethods()) {
+                    if (!method.getModifiers().contains(JavaModifier.PUBLIC)) {
+                        continue;
+                    }
+                    for (String prefix : forbiddenPrefixes) {
+                        if (method.getName().startsWith(prefix)) {
+                            events.add(SimpleConditionEvent.violated(
+                                    item,
+                                    method.getFullName() + " starts with " + prefix
+                            ));
+                        }
+                    }
+                }
+            }
+        };
+    }
+
+    private static ArchCondition<JavaClass> notDeclareFieldsEndingWith(String forbiddenSuffix) {
+        return new ArchCondition<>("not declare fields ending with " + forbiddenSuffix) {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                item.getFields().forEach(field -> {
+                    if (field.getName().endsWith(forbiddenSuffix)) {
+                        events.add(SimpleConditionEvent.violated(
+                                item,
+                                field.getFullName() + " ends with " + forbiddenSuffix
+                        ));
+                    }
+                });
             }
         };
     }

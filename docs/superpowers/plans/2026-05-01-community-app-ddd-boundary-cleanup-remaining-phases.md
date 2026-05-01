@@ -144,7 +144,7 @@ git commit -m "refactor: converge content package shape"
 - Modify: `backend/community-app/src/main/java/com/nowcoder/community/market/infrastructure/persistence/MyBatisMarket*Repository.java`
 - Update affected market tests.
 
-- [ ] **Step 1: Add RED guardrails**
+- [x] **Step 1: Add RED guardrails**
 
 Add a rule that checks public methods in `..market.domain.repository..` do not start with mapper verbs:
 
@@ -216,7 +216,7 @@ mvn -pl community-app -Dtest=DddLayeringArchTest test
 
 Expected: FAIL on existing market repository method names and application fields.
 
-- [ ] **Step 2: Rename repository method semantics**
+- [x] **Step 2: Rename repository method semantics**
 
 Apply these naming mappings only to domain repositories, application callers, and MyBatis repository implementations. Do not rename MyBatis mapper method names.
 
@@ -246,7 +246,7 @@ updateStatus                   -> changeStatus
 
 Keep domain-specific `mark*`, `adjustStock`, `clearDefaultByUserId`, and `releaseReservedByOrderIfNeeded` names.
 
-- [ ] **Step 3: Rename application fields**
+- [x] **Step 3: Rename application fields**
 
 Rename fields such as:
 
@@ -260,7 +260,7 @@ marketShipmentMapper       -> marketShipmentRepository
 marketDisputeMapper        -> marketDisputeRepository
 ```
 
-- [ ] **Step 4: Verify market phase**
+- [x] **Step 4: Verify market phase**
 
 Run:
 

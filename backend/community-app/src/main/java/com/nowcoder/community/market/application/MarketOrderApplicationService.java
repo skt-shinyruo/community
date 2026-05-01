@@ -49,52 +49,52 @@ public class MarketOrderApplicationService {
     private static final String DELIVERY_TYPE_MANUAL_TEXT = "MANUAL_TEXT";
     private static final String DELIVERY_STATUS_DELIVERED = "DELIVERED";
 
-    private final MarketListingRepository marketListingMapper;
-    private final MarketInventoryRepository marketInventoryUnitMapper;
-    private final MarketOrderRepository marketOrderMapper;
-    private final MarketAddressRepository marketAddressMapper;
-    private final MarketDeliveryRepository marketDeliveryMapper;
-    private final MarketShipmentRepository marketShipmentMapper;
+    private final MarketListingRepository marketListingRepository;
+    private final MarketInventoryRepository marketInventoryRepository;
+    private final MarketOrderRepository marketOrderRepository;
+    private final MarketAddressRepository marketAddressRepository;
+    private final MarketDeliveryRepository marketDeliveryRepository;
+    private final MarketShipmentRepository marketShipmentRepository;
     private final MarketWalletActionApplicationService marketWalletActionService;
     private final MarketOrderSagaApplicationService marketOrderSagaService;
     private final UuidV7Generator idGenerator;
     private final MarketOrderDomainService orderDomainService = new MarketOrderDomainService();
 
     @Autowired
-    public MarketOrderApplicationService(MarketListingRepository marketListingMapper,
-                              MarketInventoryRepository marketInventoryUnitMapper,
-                              MarketOrderRepository marketOrderMapper,
-                              MarketAddressRepository marketAddressMapper,
-                              MarketDeliveryRepository marketDeliveryMapper,
-                              MarketShipmentRepository marketShipmentMapper,
+    public MarketOrderApplicationService(MarketListingRepository marketListingRepository,
+                              MarketInventoryRepository marketInventoryRepository,
+                              MarketOrderRepository marketOrderRepository,
+                              MarketAddressRepository marketAddressRepository,
+                              MarketDeliveryRepository marketDeliveryRepository,
+                              MarketShipmentRepository marketShipmentRepository,
                               MarketWalletActionApplicationService marketWalletActionService,
                               MarketOrderSagaApplicationService marketOrderSagaService) {
-        this(marketListingMapper,
-                marketInventoryUnitMapper,
-                marketOrderMapper,
-                marketAddressMapper,
-                marketDeliveryMapper,
-                marketShipmentMapper,
+        this(marketListingRepository,
+                marketInventoryRepository,
+                marketOrderRepository,
+                marketAddressRepository,
+                marketDeliveryRepository,
+                marketShipmentRepository,
                 marketWalletActionService,
                 marketOrderSagaService,
                 new UuidV7Generator());
     }
 
-    MarketOrderApplicationService(MarketListingRepository marketListingMapper,
-                       MarketInventoryRepository marketInventoryUnitMapper,
-                       MarketOrderRepository marketOrderMapper,
-                       MarketAddressRepository marketAddressMapper,
-                       MarketDeliveryRepository marketDeliveryMapper,
-                       MarketShipmentRepository marketShipmentMapper,
+    MarketOrderApplicationService(MarketListingRepository marketListingRepository,
+                       MarketInventoryRepository marketInventoryRepository,
+                       MarketOrderRepository marketOrderRepository,
+                       MarketAddressRepository marketAddressRepository,
+                       MarketDeliveryRepository marketDeliveryRepository,
+                       MarketShipmentRepository marketShipmentRepository,
                        MarketWalletActionApplicationService marketWalletActionService,
                        MarketOrderSagaApplicationService marketOrderSagaService,
                        UuidV7Generator idGenerator) {
-        this.marketListingMapper = marketListingMapper;
-        this.marketInventoryUnitMapper = marketInventoryUnitMapper;
-        this.marketOrderMapper = marketOrderMapper;
-        this.marketAddressMapper = marketAddressMapper;
-        this.marketDeliveryMapper = marketDeliveryMapper;
-        this.marketShipmentMapper = marketShipmentMapper;
+        this.marketListingRepository = marketListingRepository;
+        this.marketInventoryRepository = marketInventoryRepository;
+        this.marketOrderRepository = marketOrderRepository;
+        this.marketAddressRepository = marketAddressRepository;
+        this.marketDeliveryRepository = marketDeliveryRepository;
+        this.marketShipmentRepository = marketShipmentRepository;
         this.marketWalletActionService = marketWalletActionService;
         this.marketOrderSagaService = marketOrderSagaService;
         this.idGenerator = idGenerator;
@@ -103,14 +103,14 @@ public class MarketOrderApplicationService {
     @Transactional
     public MarketOrderResult createOrder(String requestId, UUID buyerUserId, UUID listingId, int quantity, UUID addressId) {
         validateCreateOrderRequest(requestId, buyerUserId, listingId, quantity);
-        MarketOrder existing = marketOrderMapper.selectByBuyerUserIdAndRequestId(buyerUserId, requestId);
+        MarketOrder existing = marketOrderRepository.findByBuyerUserIdAndRequestId(buyerUserId, requestId);
         if (existing != null) {
             ensureReplayMatches(existing, buyerUserId, listingId, quantity, addressId);
             return MarketOrderResult.from(existing);
         }
 
         MarketListing listing = requireListingForUpdate(listingId);
-        existing = marketOrderMapper.selectByBuyerUserIdAndRequestIdForUpdate(buyerUserId, requestId);
+        existing = marketOrderRepository.lockByBuyerUserIdAndRequestId(buyerUserId, requestId);
         if (existing != null) {
             ensureReplayMatches(existing, buyerUserId, listingId, quantity, addressId);
             return MarketOrderResult.from(existing);
@@ -143,9 +143,9 @@ public class MarketOrderApplicationService {
             snapshotAddress(order, address);
         }
         try {
-            marketOrderMapper.insert(order);
+            marketOrderRepository.save(order);
         } catch (DataIntegrityViolationException ex) {
-            MarketOrder duplicated = marketOrderMapper.selectByBuyerUserIdAndRequestIdForUpdate(buyerUserId, requestId);
+            MarketOrder duplicated = marketOrderRepository.lockByBuyerUserIdAndRequestId(buyerUserId, requestId);
             if (duplicated != null) {
                 ensureReplayMatches(duplicated, buyerUserId, listingId, quantity, addressId);
                 return MarketOrderResult.from(duplicated);
@@ -188,9 +188,9 @@ public class MarketOrderApplicationService {
         delivery.setDeliveryContent(deliveryContent.trim());
         delivery.setStatus(DELIVERY_STATUS_DELIVERED);
         delivery.setDeliveredAt(new Date());
-        marketDeliveryMapper.insert(delivery);
+        marketDeliveryRepository.save(delivery);
 
-        marketOrderMapper.markDelivered(orderId, Date.from(Instant.now().plus(24, ChronoUnit.HOURS)));
+        marketOrderRepository.markDelivered(orderId, Date.from(Instant.now().plus(24, ChronoUnit.HOURS)));
         return MarketOrderResult.from(reloadOrder(orderId));
     }
 
@@ -202,7 +202,7 @@ public class MarketOrderApplicationService {
             throw new BusinessException(INVALID_ARGUMENT, "order is not confirmable: orderId=" + orderId);
         }
 
-        int updated = marketOrderMapper.markReleasePending(orderId);
+        int updated = marketOrderRepository.markReleasePending(orderId);
         if (updated == 1) {
             marketWalletActionService.enqueueRelease(
                     orderId,
@@ -236,9 +236,9 @@ public class MarketOrderApplicationService {
         shipment.setTrackingNo(trackingNo.trim());
         shipment.setShippingRemark(StringUtils.hasText(remark) ? remark.trim() : null);
         shipment.setShippedAt(new Date());
-        marketShipmentMapper.insert(shipment);
+        marketShipmentRepository.save(shipment);
 
-        marketOrderMapper.markShipped(orderId, Date.from(Instant.now().plus(7, ChronoUnit.DAYS)));
+        marketOrderRepository.markShipped(orderId, Date.from(Instant.now().plus(7, ChronoUnit.DAYS)));
         return MarketOrderResult.from(reloadOrder(orderId));
     }
 
@@ -247,14 +247,14 @@ public class MarketOrderApplicationService {
         MarketOrder order = requireOrderForUpdate(orderId);
         requireBuyer(order, buyerUserId);
         if (STATUS_ESCROWED.equals(order.getStatus())) {
-            int updated = marketOrderMapper.markRefundPending(orderId);
+            int updated = marketOrderRepository.markRefundPending(orderId);
             if (updated == 1) {
                 marketWalletActionService.enqueueRefund(orderId, buyerUserId, order.getSellerUserId(), order.getTotalAmount());
             }
             return MarketOrderResult.from(reloadOrder(orderId));
         }
         if (STATUS_ESCROW_PENDING.equals(order.getStatus())) {
-            int updated = marketOrderMapper.markEscrowCancelPending(orderId);
+            int updated = marketOrderRepository.markEscrowCancelPending(orderId);
             if (updated == 1 && marketWalletActionService.cancelPendingEscrowIfPossible(orderId)) {
                 marketOrderSagaService.completeEscrowNoop(orderId);
             }
@@ -279,7 +279,7 @@ public class MarketOrderApplicationService {
     }
 
     private MarketListing requireListingForUpdate(UUID listingId) {
-        MarketListing listing = marketListingMapper.selectByIdForUpdate(listingId);
+        MarketListing listing = marketListingRepository.lockById(listingId);
         if (listing == null) {
             throw new BusinessException(NOT_FOUND, "market listing not found: listingId=" + listingId);
         }
@@ -311,7 +311,7 @@ public class MarketOrderApplicationService {
         if (!GOODS_TYPE_VIRTUAL.equals(listing.getGoodsType()) || !DELIVERY_MODE_PRELOADED.equals(listing.getDeliveryMode())) {
             return List.of();
         }
-        List<MarketInventoryUnit> units = marketInventoryUnitMapper.selectAvailableForUpdate(listing.getListingId(), quantity);
+        List<MarketInventoryUnit> units = marketInventoryRepository.lockAvailable(listing.getListingId(), quantity);
         if (units.size() != quantity) {
             throw new BusinessException(INVALID_ARGUMENT, "preloaded inventory is insufficient: listingId=" + listing.getListingId());
         }
@@ -325,12 +325,12 @@ public class MarketOrderApplicationService {
         }
         int nextAvailable = listing.getStockAvailable() - quantity;
         String nextStatus = nextAvailable <= 0 ? STATUS_SOLD_OUT : listing.getStatus();
-        marketListingMapper.adjustStock(listing.getListingId(), listing.getSellerUserId(), 0, -quantity, nextStatus);
+        marketListingRepository.adjustStock(listing.getListingId(), listing.getSellerUserId(), 0, -quantity, nextStatus);
     }
 
     private void reserveUnitsForOrder(UUID orderId, List<MarketInventoryUnit> units) {
         for (MarketInventoryUnit unit : units) {
-            int updated = marketInventoryUnitMapper.reserveForOrder(unit.getInventoryUnitId(), orderId);
+            int updated = marketInventoryRepository.reserveForOrder(unit.getInventoryUnitId(), orderId);
             if (updated != 1) {
                 throw new BusinessException(INVALID_ARGUMENT, "inventory reservation failed: inventoryUnitId=" + unit.getInventoryUnitId());
             }
@@ -341,7 +341,7 @@ public class MarketOrderApplicationService {
         if (addressId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "addressId must not be null for physical order");
         }
-        MarketAddress address = marketAddressMapper.selectById(addressId);
+        MarketAddress address = marketAddressRepository.findById(addressId);
         if (address == null || !"ACTIVE".equals(address.getStatus())) {
             throw new BusinessException(NOT_FOUND, "market address not found: addressId=" + addressId);
         }
@@ -373,7 +373,7 @@ public class MarketOrderApplicationService {
         if (addressId == null) {
             return false;
         }
-        MarketAddress address = marketAddressMapper.selectById(addressId);
+        MarketAddress address = marketAddressRepository.findById(addressId);
         return address != null
                 && Objects.equals(address.getUserId(), buyerUserId)
                 && Objects.equals(address.getReceiverName(), order.getReceiverNameSnapshot())
@@ -396,7 +396,7 @@ public class MarketOrderApplicationService {
     }
 
     private MarketOrder reloadOrder(UUID orderId) {
-        MarketOrder order = marketOrderMapper.selectById(orderId);
+        MarketOrder order = marketOrderRepository.findById(orderId);
         if (order == null) {
             throw new BusinessException(NOT_FOUND, "market order not found after write: orderId=" + orderId);
         }
@@ -404,7 +404,7 @@ public class MarketOrderApplicationService {
     }
 
     private MarketOrder requireOrderForUpdate(UUID orderId) {
-        MarketOrder order = marketOrderMapper.selectByIdForUpdate(orderId);
+        MarketOrder order = marketOrderRepository.lockById(orderId);
         if (order == null) {
             throw new BusinessException(NOT_FOUND, "market order not found: orderId=" + orderId);
         }

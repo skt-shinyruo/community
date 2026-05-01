@@ -33,7 +33,7 @@ class MarketOrderAutoConfirmSingleOrderApplicationServiceUnitTest {
         Date now = new Date();
         MarketOrder order = order(orderId, sellerUserId, buyerUserId, "DELIVERED", new Date(now.getTime() - 1_000L));
         order.setTotalAmount(1200L);
-        when(marketOrderRepository.selectByIdForUpdate(orderId)).thenReturn(order);
+        when(marketOrderRepository.lockById(orderId)).thenReturn(order);
         when(marketOrderRepository.markReleasePending(orderId)).thenReturn(1);
 
         boolean confirmed = new MarketOrderAutoConfirmSingleOrderApplicationService(
@@ -42,7 +42,7 @@ class MarketOrderAutoConfirmSingleOrderApplicationServiceUnitTest {
         ).confirmOneDueOrder(orderId, now);
 
         assertThat(confirmed).isTrue();
-        verify(marketOrderRepository).selectByIdForUpdate(orderId);
+        verify(marketOrderRepository).lockById(orderId);
         verify(marketOrderRepository).markReleasePending(orderId);
         verify(marketWalletActionService).enqueueRelease(orderId, sellerUserId, buyerUserId, 1200L);
     }
@@ -52,7 +52,7 @@ class MarketOrderAutoConfirmSingleOrderApplicationServiceUnitTest {
         UUID orderId = uuid(1);
         Date now = new Date();
         MarketOrder order = order(orderId, uuid(2), uuid(3), "COMPLETED", new Date(now.getTime() - 1_000L));
-        when(marketOrderRepository.selectByIdForUpdate(orderId)).thenReturn(order);
+        when(marketOrderRepository.lockById(orderId)).thenReturn(order);
 
         boolean confirmed = new MarketOrderAutoConfirmSingleOrderApplicationService(
                 marketOrderRepository,

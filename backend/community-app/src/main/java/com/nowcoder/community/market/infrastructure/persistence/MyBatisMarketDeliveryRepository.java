@@ -19,12 +19,12 @@ public class MyBatisMarketDeliveryRepository implements MarketDeliveryRepository
     }
 
     @Override
-    public int insert(MarketDelivery delivery) {
+    public int save(MarketDelivery delivery) {
         return mapper.insert(MarketDeliveryDataObject.from(delivery));
     }
 
     @Override
-    public List<MarketDelivery> selectByOrderId(UUID orderId) {
+    public List<MarketDelivery> findByOrderId(UUID orderId) {
         return DomainRowAdapter.asDomainList(mapper.selectByOrderId(orderId));
     }
 }

@@ -8,17 +8,17 @@ import java.util.UUID;
 
 public interface MarketInventoryRepository {
 
-    int insert(MarketInventoryUnit unit);
+    int save(MarketInventoryUnit unit);
 
     int countAvailableByListingId(UUID listingId);
 
-    List<MarketInventoryUnit> selectAvailableForUpdate(UUID listingId, int limit);
+    List<MarketInventoryUnit> lockAvailable(UUID listingId, int limit);
 
-    List<MarketInventoryUnit> selectByReservedOrderId(UUID reservedOrderId);
+    List<MarketInventoryUnit> findByReservedOrderId(UUID reservedOrderId);
 
-    List<MarketInventoryUnit> selectByListingId(UUID listingId);
+    List<MarketInventoryUnit> findByListingId(UUID listingId);
 
-    MarketInventoryUnit selectById(UUID inventoryUnitId);
+    MarketInventoryUnit findById(UUID inventoryUnitId);
 
     int invalidateAvailable(UUID inventoryUnitId, UUID sellerUserId);
 

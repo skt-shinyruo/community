@@ -7,13 +7,13 @@ import java.util.UUID;
 
 public interface MarketDisputeRepository {
 
-    int insert(MarketDispute dispute);
+    int save(MarketDispute dispute);
 
-    MarketDispute selectById(UUID disputeId);
+    MarketDispute findById(UUID disputeId);
 
-    List<MarketDispute> selectByOrderId(UUID orderId);
+    List<MarketDispute> findByOrderId(UUID orderId);
 
-    List<MarketDispute> selectOpenDisputes();
+    List<MarketDispute> findOpenDisputes();
 
-    int update(MarketDispute dispute);
+    int saveChanges(MarketDispute dispute);
 }

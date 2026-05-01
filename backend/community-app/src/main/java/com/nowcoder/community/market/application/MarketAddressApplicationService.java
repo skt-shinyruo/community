@@ -24,16 +24,16 @@ public class MarketAddressApplicationService {
 
     private static final String STATUS_ACTIVE = "ACTIVE";
 
-    private final MarketAddressRepository marketAddressMapper;
+    private final MarketAddressRepository marketAddressRepository;
     private final UuidV7Generator idGenerator;
 
     @Autowired
-    public MarketAddressApplicationService(MarketAddressRepository marketAddressMapper) {
-        this(marketAddressMapper, new UuidV7Generator());
+    public MarketAddressApplicationService(MarketAddressRepository marketAddressRepository) {
+        this(marketAddressRepository, new UuidV7Generator());
     }
 
-    MarketAddressApplicationService(MarketAddressRepository marketAddressMapper, UuidV7Generator idGenerator) {
-        this.marketAddressMapper = marketAddressMapper;
+    MarketAddressApplicationService(MarketAddressRepository marketAddressRepository, UuidV7Generator idGenerator) {
+        this.marketAddressRepository = marketAddressRepository;
         this.idGenerator = idGenerator;
     }
 
@@ -42,7 +42,7 @@ public class MarketAddressApplicationService {
         validateUserId(command.userId());
         validateCreateRequest(command);
         if (command.defaultAddress()) {
-            marketAddressMapper.clearDefaultByUserId(command.userId());
+            marketAddressRepository.clearDefaultByUserId(command.userId());
         }
 
         MarketAddress address = new MarketAddress();
@@ -57,13 +57,13 @@ public class MarketAddressApplicationService {
         address.setPostalCode(StringUtils.hasText(command.postalCode()) ? command.postalCode().trim() : null);
         address.setDefault(command.defaultAddress());
         address.setStatus(STATUS_ACTIVE);
-        marketAddressMapper.insert(address);
-        return MarketAddressResult.from(marketAddressMapper.selectById(address.getAddressId()));
+        marketAddressRepository.save(address);
+        return MarketAddressResult.from(marketAddressRepository.findById(address.getAddressId()));
     }
 
     public List<MarketAddressResult> listAddresses(UUID userId) {
         validateUserId(userId);
-        return marketAddressMapper.selectByUserId(userId).stream()
+        return marketAddressRepository.findByUserId(userId).stream()
                 .map(MarketAddressResult::from)
                 .toList();
     }
@@ -74,7 +74,7 @@ public class MarketAddressApplicationService {
         validateUpdateRequest(command);
         requireOwnedAddress(command.addressId(), command.userId());
         if (command.defaultAddress()) {
-            marketAddressMapper.clearDefaultByUserId(command.userId());
+            marketAddressRepository.clearDefaultByUserId(command.userId());
         }
 
         MarketAddress address = new MarketAddress();
@@ -89,7 +89,7 @@ public class MarketAddressApplicationService {
         address.setPostalCode(StringUtils.hasText(command.postalCode()) ? command.postalCode().trim() : null);
         address.setDefault(command.defaultAddress());
         address.setStatus(STATUS_ACTIVE);
-        if (marketAddressMapper.update(address) != 1) {
+        if (marketAddressRepository.saveChanges(address) != 1) {
             throw new BusinessException(INVALID_ARGUMENT, "market address update failed: addressId=" + command.addressId());
         }
         return MarketAddressResult.from(requireOwnedAddress(command.addressId(), command.userId()));
@@ -99,7 +99,7 @@ public class MarketAddressApplicationService {
     public void deleteAddress(UUID userId, UUID addressId) {
         validateUserId(userId);
         requireOwnedAddress(addressId, userId);
-        if (marketAddressMapper.softDelete(addressId, userId) != 1) {
+        if (marketAddressRepository.softDelete(addressId, userId) != 1) {
             throw new BusinessException(INVALID_ARGUMENT, "market address delete failed: addressId=" + addressId);
         }
     }
@@ -142,7 +142,7 @@ public class MarketAddressApplicationService {
     }
 
     private MarketAddress requireOwnedAddress(UUID addressId, UUID userId) {
-        MarketAddress address = marketAddressMapper.selectById(addressId);
+        MarketAddress address = marketAddressRepository.findById(addressId);
         if (address == null || !STATUS_ACTIVE.equals(address.getStatus())) {
             throw new BusinessException(NOT_FOUND, "market address not found: addressId=" + addressId);
         }

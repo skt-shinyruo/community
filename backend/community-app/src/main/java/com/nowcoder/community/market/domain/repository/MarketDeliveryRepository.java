@@ -7,7 +7,7 @@ import java.util.UUID;
 
 public interface MarketDeliveryRepository {
 
-    int insert(MarketDelivery delivery);
+    int save(MarketDelivery delivery);
 
-    List<MarketDelivery> selectByOrderId(UUID orderId);
+    List<MarketDelivery> findByOrderId(UUID orderId);
 }

@@ -25,7 +25,7 @@ public class MarketOrderAutoConfirmApplicationService {
         int completed = 0;
         int skipped = 0;
         Date now = new Date();
-        for (MarketOrder dueOrder : marketOrderRepository.selectDueForAutoConfirm(now)) {
+        for (MarketOrder dueOrder : marketOrderRepository.findDueForAutoConfirm(now)) {
             try {
                 if (singleOrderApplicationService.confirmOneDueOrder(dueOrder.getOrderId(), now)) {
                     completed++;

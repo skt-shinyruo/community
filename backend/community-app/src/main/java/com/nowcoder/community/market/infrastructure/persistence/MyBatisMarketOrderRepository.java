@@ -20,47 +20,47 @@ public class MyBatisMarketOrderRepository implements MarketOrderRepository {
     }
 
     @Override
-    public int insert(MarketOrder order) {
+    public int save(MarketOrder order) {
         return mapper.insert(MarketOrderDataObject.from(order));
     }
 
     @Override
-    public MarketOrder selectById(UUID orderId) {
+    public MarketOrder findById(UUID orderId) {
         return mapper.selectById(orderId);
     }
 
     @Override
-    public MarketOrder selectByIdForUpdate(UUID orderId) {
+    public MarketOrder lockById(UUID orderId) {
         return mapper.selectByIdForUpdate(orderId);
     }
 
     @Override
-    public MarketOrder selectByRequestId(String requestId) {
+    public MarketOrder findByRequestId(String requestId) {
         return mapper.selectByRequestId(requestId);
     }
 
     @Override
-    public MarketOrder selectByRequestIdForUpdate(String requestId) {
+    public MarketOrder lockByRequestId(String requestId) {
         return mapper.selectByRequestIdForUpdate(requestId);
     }
 
     @Override
-    public MarketOrder selectByBuyerUserIdAndRequestId(UUID buyerUserId, String requestId) {
+    public MarketOrder findByBuyerUserIdAndRequestId(UUID buyerUserId, String requestId) {
         return mapper.selectByBuyerUserIdAndRequestId(buyerUserId, requestId);
     }
 
     @Override
-    public MarketOrder selectByBuyerUserIdAndRequestIdForUpdate(UUID buyerUserId, String requestId) {
+    public MarketOrder lockByBuyerUserIdAndRequestId(UUID buyerUserId, String requestId) {
         return mapper.selectByBuyerUserIdAndRequestIdForUpdate(buyerUserId, requestId);
     }
 
     @Override
-    public List<MarketOrder> selectByBuyerUserId(UUID buyerUserId) {
+    public List<MarketOrder> findByBuyerUserId(UUID buyerUserId) {
         return DomainRowAdapter.asDomainList(mapper.selectByBuyerUserId(buyerUserId));
     }
 
     @Override
-    public List<MarketOrder> selectBySellerUserId(UUID sellerUserId) {
+    public List<MarketOrder> findBySellerUserId(UUID sellerUserId) {
         return DomainRowAdapter.asDomainList(mapper.selectBySellerUserId(sellerUserId));
     }
 
@@ -155,17 +155,17 @@ public class MyBatisMarketOrderRepository implements MarketOrderRepository {
     }
 
     @Override
-    public int updateStatus(UUID orderId, String status) {
+    public int changeStatus(UUID orderId, String status) {
         return mapper.updateStatus(orderId, status);
     }
 
     @Override
-    public List<MarketOrder> selectDueForAutoConfirm(Date asOf) {
+    public List<MarketOrder> findDueForAutoConfirm(Date asOf) {
         return DomainRowAdapter.asDomainList(mapper.selectDueForAutoConfirm(asOf));
     }
 
     @Override
-    public List<MarketOrder> selectWalletPendingOrders(int limit) {
+    public List<MarketOrder> findWalletPendingOrders(int limit) {
         return DomainRowAdapter.asDomainList(mapper.selectWalletPendingOrders(limit));
     }
 }

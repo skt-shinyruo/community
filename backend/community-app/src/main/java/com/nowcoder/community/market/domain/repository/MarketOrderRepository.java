@@ -8,23 +8,23 @@ import java.util.UUID;
 
 public interface MarketOrderRepository {
 
-    int insert(MarketOrder order);
+    int save(MarketOrder order);
 
-    MarketOrder selectById(UUID orderId);
+    MarketOrder findById(UUID orderId);
 
-    MarketOrder selectByIdForUpdate(UUID orderId);
+    MarketOrder lockById(UUID orderId);
 
-    MarketOrder selectByRequestId(String requestId);
+    MarketOrder findByRequestId(String requestId);
 
-    MarketOrder selectByRequestIdForUpdate(String requestId);
+    MarketOrder lockByRequestId(String requestId);
 
-    MarketOrder selectByBuyerUserIdAndRequestId(UUID buyerUserId, String requestId);
+    MarketOrder findByBuyerUserIdAndRequestId(UUID buyerUserId, String requestId);
 
-    MarketOrder selectByBuyerUserIdAndRequestIdForUpdate(UUID buyerUserId, String requestId);
+    MarketOrder lockByBuyerUserIdAndRequestId(UUID buyerUserId, String requestId);
 
-    List<MarketOrder> selectByBuyerUserId(UUID buyerUserId);
+    List<MarketOrder> findByBuyerUserId(UUID buyerUserId);
 
-    List<MarketOrder> selectBySellerUserId(UUID sellerUserId);
+    List<MarketOrder> findBySellerUserId(UUID sellerUserId);
 
     int markDelivered(UUID orderId, Date autoConfirmAt);
 
@@ -62,9 +62,9 @@ public interface MarketOrderRepository {
 
     int markRefunded(UUID orderId, UUID refundTxnId);
 
-    int updateStatus(UUID orderId, String status);
+    int changeStatus(UUID orderId, String status);
 
-    List<MarketOrder> selectDueForAutoConfirm(Date asOf);
+    List<MarketOrder> findDueForAutoConfirm(Date asOf);
 
-    List<MarketOrder> selectWalletPendingOrders(int limit);
+    List<MarketOrder> findWalletPendingOrders(int limit);
 }

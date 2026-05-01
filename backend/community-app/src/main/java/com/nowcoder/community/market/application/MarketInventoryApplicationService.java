@@ -31,21 +31,21 @@ public class MarketInventoryApplicationService {
     private static final String INVENTORY_STATUS_AVAILABLE = "AVAILABLE";
     private static final String INVENTORY_STATUS_INVALID = "INVALID";
 
-    private final MarketListingRepository marketListingMapper;
-    private final MarketInventoryRepository marketInventoryUnitMapper;
+    private final MarketListingRepository marketListingRepository;
+    private final MarketInventoryRepository marketInventoryRepository;
     private final UuidV7Generator idGenerator;
 
     @Autowired
-    public MarketInventoryApplicationService(MarketListingRepository marketListingMapper,
-                                  MarketInventoryRepository marketInventoryUnitMapper) {
-        this(marketListingMapper, marketInventoryUnitMapper, new UuidV7Generator());
+    public MarketInventoryApplicationService(MarketListingRepository marketListingRepository,
+                                  MarketInventoryRepository marketInventoryRepository) {
+        this(marketListingRepository, marketInventoryRepository, new UuidV7Generator());
     }
 
-    MarketInventoryApplicationService(MarketListingRepository marketListingMapper,
-                           MarketInventoryRepository marketInventoryUnitMapper,
+    MarketInventoryApplicationService(MarketListingRepository marketListingRepository,
+                           MarketInventoryRepository marketInventoryRepository,
                            UuidV7Generator idGenerator) {
-        this.marketListingMapper = marketListingMapper;
-        this.marketInventoryUnitMapper = marketInventoryUnitMapper;
+        this.marketListingRepository = marketListingRepository;
+        this.marketInventoryRepository = marketInventoryRepository;
         this.idGenerator = idGenerator;
     }
 
@@ -63,24 +63,24 @@ public class MarketInventoryApplicationService {
             unit.setPayloadType(command.payloadType().trim());
             unit.setPayloadContent(payload.trim());
             unit.setStatus(INVENTORY_STATUS_AVAILABLE);
-            marketInventoryUnitMapper.insert(unit);
+            marketInventoryRepository.save(unit);
         }
 
         String nextStatus = STATUS_SOLD_OUT.equals(listing.getStatus()) ? STATUS_ACTIVE : listing.getStatus();
         int delta = command.payloads().size();
-        marketListingMapper.adjustStock(command.listingId(), command.sellerUserId(), delta, delta, nextStatus);
+        marketListingRepository.adjustStock(command.listingId(), command.sellerUserId(), delta, delta, nextStatus);
     }
 
     public List<MarketInventoryUnitResult> listInventory(UUID listingId, UUID sellerUserId) {
         requireOwnedListing(listingId, sellerUserId);
-        return marketInventoryUnitMapper.selectByListingId(listingId).stream()
+        return marketInventoryRepository.findByListingId(listingId).stream()
                 .map(MarketInventoryUnitResult::from)
                 .toList();
     }
 
     @Transactional
     public void invalidateInventory(UUID inventoryUnitId, UUID sellerUserId) {
-        MarketInventoryUnit unit = marketInventoryUnitMapper.selectById(inventoryUnitId);
+        MarketInventoryUnit unit = marketInventoryRepository.findById(inventoryUnitId);
         if (unit == null) {
             throw new BusinessException(NOT_FOUND, "market inventory not found: inventoryUnitId=" + inventoryUnitId);
         }
@@ -92,12 +92,12 @@ public class MarketInventoryApplicationService {
         }
 
         MarketListing listing = requireOwnedListingForUpdate(unit.getListingId(), sellerUserId);
-        if (marketInventoryUnitMapper.invalidateAvailable(inventoryUnitId, sellerUserId) != 1) {
+        if (marketInventoryRepository.invalidateAvailable(inventoryUnitId, sellerUserId) != 1) {
             throw new BusinessException(INVALID_ARGUMENT, "market inventory invalidation failed: inventoryUnitId=" + inventoryUnitId);
         }
 
         String nextStatus = listing.getStockAvailable() - 1 <= 0 ? STATUS_SOLD_OUT : listing.getStatus();
-        marketListingMapper.adjustStock(listing.getListingId(), sellerUserId, -1, -1, nextStatus);
+        marketListingRepository.adjustStock(listing.getListingId(), sellerUserId, -1, -1, nextStatus);
     }
 
     private void validateInventoryRequest(AddMarketInventoryBatchCommand command) {
@@ -117,7 +117,7 @@ public class MarketInventoryApplicationService {
     }
 
     private MarketListing requireOwnedListing(UUID listingId, UUID sellerUserId) {
-        MarketListing listing = marketListingMapper.selectById(listingId);
+        MarketListing listing = marketListingRepository.findById(listingId);
         if (listing == null) {
             throw new BusinessException(NOT_FOUND, "market listing not found: listingId=" + listingId);
         }
@@ -128,7 +128,7 @@ public class MarketInventoryApplicationService {
     }
 
     private MarketListing requireOwnedListingForUpdate(UUID listingId, UUID sellerUserId) {
-        MarketListing listing = marketListingMapper.selectByIdForUpdate(listingId);
+        MarketListing listing = marketListingRepository.lockById(listingId);
         if (listing == null) {
             throw new BusinessException(NOT_FOUND, "market listing not found: listingId=" + listingId);
         }

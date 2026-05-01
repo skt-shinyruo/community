@@ -28,27 +28,27 @@ public class MarketWalletActionRecoveryApplicationService {
     private static final String STATUS_DISPUTE_RELEASE_PENDING = "DISPUTE_RELEASE_PENDING";
     private static final String STATUS_DISPUTE_REFUND_PENDING = "DISPUTE_REFUND_PENDING";
 
-    private final MarketWalletActionRepository actionMapper;
-    private final MarketOrderRepository orderMapper;
+    private final MarketWalletActionRepository walletActionRepository;
+    private final MarketOrderRepository orderRepository;
     private final MarketOrderSagaApplicationService sagaService;
     private final MarketWalletActionApplicationService actionService;
     private final Clock clock;
 
     @Autowired
-    public MarketWalletActionRecoveryApplicationService(MarketWalletActionRepository actionMapper,
-                                             MarketOrderRepository orderMapper,
+    public MarketWalletActionRecoveryApplicationService(MarketWalletActionRepository walletActionRepository,
+                                             MarketOrderRepository orderRepository,
                                              MarketOrderSagaApplicationService sagaService,
                                              MarketWalletActionApplicationService actionService) {
-        this(actionMapper, orderMapper, sagaService, actionService, Clock.systemUTC());
+        this(walletActionRepository, orderRepository, sagaService, actionService, Clock.systemUTC());
     }
 
-    MarketWalletActionRecoveryApplicationService(MarketWalletActionRepository actionMapper,
-                                      MarketOrderRepository orderMapper,
+    MarketWalletActionRecoveryApplicationService(MarketWalletActionRepository walletActionRepository,
+                                      MarketOrderRepository orderRepository,
                                       MarketOrderSagaApplicationService sagaService,
                                       MarketWalletActionApplicationService actionService,
                                       Clock clock) {
-        this.actionMapper = actionMapper;
-        this.orderMapper = orderMapper;
+        this.walletActionRepository = walletActionRepository;
+        this.orderRepository = orderRepository;
         this.sagaService = sagaService;
         this.actionService = actionService;
         this.clock = clock;
@@ -63,7 +63,7 @@ public class MarketWalletActionRecoveryApplicationService {
         int reconciled = 0;
         int skipped = 0;
 
-        for (MarketWalletAction action : actionMapper.selectUnfinishedWithWalletTxn(limit)) {
+        for (MarketWalletAction action : walletActionRepository.findUnfinishedWithWalletTxn(limit)) {
             if (reconcileWalletTxnAction(action)) {
                 reconciled++;
             } else {
@@ -73,7 +73,7 @@ public class MarketWalletActionRecoveryApplicationService {
 
         int remaining = limit - reconciled - skipped;
         if (remaining > 0) {
-            for (MarketOrder order : orderMapper.selectWalletPendingOrders(remaining)) {
+            for (MarketOrder order : orderRepository.findWalletPendingOrders(remaining)) {
                 if (reconcilePendingOrder(order)) {
                     reconciled++;
                 } else {
@@ -88,7 +88,7 @@ public class MarketWalletActionRecoveryApplicationService {
     @Transactional
     public int recoverExpiredProcessing(Instant asOf) {
         Objects.requireNonNull(asOf, "asOf must not be null");
-        return actionMapper.recoverExpiredProcessing(Date.from(asOf));
+        return walletActionRepository.recoverExpiredProcessing(Date.from(asOf));
     }
 
     private boolean reconcileWalletTxnAction(MarketWalletAction action) {
@@ -96,7 +96,7 @@ public class MarketWalletActionRecoveryApplicationService {
             return false;
         }
         if (applyWalletTxnToSaga(action) || sagaAlreadyHasTxn(action)) {
-            actionMapper.markSucceeded(
+            walletActionRepository.markSucceeded(
                     action.getActionId(),
                     action.getWalletTxnId(),
                     MarketWalletActionResultType.APPLIED
@@ -112,7 +112,7 @@ public class MarketWalletActionRecoveryApplicationService {
             return false;
         }
 
-        MarketWalletAction action = actionMapper.selectByOrderAndType(order.getOrderId(), actionType);
+        MarketWalletAction action = walletActionRepository.findByOrderAndType(order.getOrderId(), actionType);
         if (action == null) {
             return enqueueMissingAction(order, actionType);
         }
@@ -155,7 +155,7 @@ public class MarketWalletActionRecoveryApplicationService {
     }
 
     private boolean sagaAlreadyHasTxn(MarketWalletAction action) {
-        MarketOrder order = orderMapper.selectById(action.getOrderId());
+        MarketOrder order = orderRepository.findById(action.getOrderId());
         if (order == null) {
             return false;
         }

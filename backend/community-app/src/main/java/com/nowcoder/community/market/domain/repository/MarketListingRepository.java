@@ -7,19 +7,19 @@ import java.util.UUID;
 
 public interface MarketListingRepository {
 
-    int insert(MarketListing listing);
+    int save(MarketListing listing);
 
-    MarketListing selectById(UUID listingId);
+    MarketListing findById(UUID listingId);
 
-    MarketListing selectByIdForUpdate(UUID listingId);
+    MarketListing lockById(UUID listingId);
 
-    List<MarketListing> selectBySellerUserId(UUID sellerUserId);
+    List<MarketListing> findBySellerUserId(UUID sellerUserId);
 
-    List<MarketListing> selectPublicListings();
+    List<MarketListing> findPublicListings();
 
-    int updateEditable(MarketListing listing);
+    int saveEditable(MarketListing listing);
 
-    int updateStatus(UUID listingId, UUID sellerUserId, String status);
+    int changeStatus(UUID listingId, UUID sellerUserId, String status);
 
     int adjustStock(UUID listingId, UUID sellerUserId, int deltaTotal, int deltaAvailable, String nextStatus);
 }

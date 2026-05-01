@@ -7,13 +7,13 @@ import java.util.UUID;
 
 public interface MarketAddressRepository {
 
-    int insert(MarketAddress address);
+    int save(MarketAddress address);
 
-    MarketAddress selectById(UUID addressId);
+    MarketAddress findById(UUID addressId);
 
-    List<MarketAddress> selectByUserId(UUID userId);
+    List<MarketAddress> findByUserId(UUID userId);
 
-    int update(MarketAddress address);
+    int saveChanges(MarketAddress address);
 
     int clearDefaultByUserId(UUID userId);
 

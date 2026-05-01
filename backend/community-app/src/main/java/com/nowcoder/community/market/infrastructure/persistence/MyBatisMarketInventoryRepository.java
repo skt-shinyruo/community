@@ -20,7 +20,7 @@ public class MyBatisMarketInventoryRepository implements MarketInventoryReposito
     }
 
     @Override
-    public int insert(MarketInventoryUnit unit) {
+    public int save(MarketInventoryUnit unit) {
         return mapper.insert(MarketInventoryUnitDataObject.from(unit));
     }
 
@@ -30,22 +30,22 @@ public class MyBatisMarketInventoryRepository implements MarketInventoryReposito
     }
 
     @Override
-    public List<MarketInventoryUnit> selectAvailableForUpdate(UUID listingId, int limit) {
+    public List<MarketInventoryUnit> lockAvailable(UUID listingId, int limit) {
         return DomainRowAdapter.asDomainList(mapper.selectAvailableForUpdate(listingId, limit));
     }
 
     @Override
-    public List<MarketInventoryUnit> selectByReservedOrderId(UUID reservedOrderId) {
+    public List<MarketInventoryUnit> findByReservedOrderId(UUID reservedOrderId) {
         return DomainRowAdapter.asDomainList(mapper.selectByReservedOrderId(reservedOrderId));
     }
 
     @Override
-    public List<MarketInventoryUnit> selectByListingId(UUID listingId) {
+    public List<MarketInventoryUnit> findByListingId(UUID listingId) {
         return DomainRowAdapter.asDomainList(mapper.selectByListingId(listingId));
     }
 
     @Override
-    public MarketInventoryUnit selectById(UUID inventoryUnitId) {
+    public MarketInventoryUnit findById(UUID inventoryUnitId) {
         return mapper.selectById(inventoryUnitId);
     }
 

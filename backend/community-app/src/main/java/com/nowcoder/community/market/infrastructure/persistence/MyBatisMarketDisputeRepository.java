@@ -19,27 +19,27 @@ public class MyBatisMarketDisputeRepository implements MarketDisputeRepository {
     }
 
     @Override
-    public int insert(MarketDispute dispute) {
+    public int save(MarketDispute dispute) {
         return mapper.insert(MarketDisputeDataObject.from(dispute));
     }
 
     @Override
-    public MarketDispute selectById(UUID disputeId) {
+    public MarketDispute findById(UUID disputeId) {
         return mapper.selectById(disputeId);
     }
 
     @Override
-    public List<MarketDispute> selectByOrderId(UUID orderId) {
+    public List<MarketDispute> findByOrderId(UUID orderId) {
         return DomainRowAdapter.asDomainList(mapper.selectByOrderId(orderId));
     }
 
     @Override
-    public List<MarketDispute> selectOpenDisputes() {
+    public List<MarketDispute> findOpenDisputes() {
         return DomainRowAdapter.asDomainList(mapper.selectOpenDisputes());
     }
 
     @Override
-    public int update(MarketDispute dispute) {
+    public int saveChanges(MarketDispute dispute) {
         return mapper.update(MarketDisputeDataObject.from(dispute));
     }
 }

@@ -36,21 +36,21 @@ public class MarketListingApplicationService {
     private static final String STATUS_SOLD_OUT = "SOLD_OUT";
     private static final String STATUS_CLOSED = "CLOSED";
 
-    private final MarketListingRepository marketListingMapper;
+    private final MarketListingRepository marketListingRepository;
     private final MarketInventoryApplicationService marketInventoryService;
     private final UuidV7Generator idGenerator;
     private final MarketListingDomainService listingDomainService = new MarketListingDomainService();
 
     @Autowired
-    public MarketListingApplicationService(MarketListingRepository marketListingMapper,
+    public MarketListingApplicationService(MarketListingRepository marketListingRepository,
                                 MarketInventoryApplicationService marketInventoryService) {
-        this(marketListingMapper, marketInventoryService, new UuidV7Generator());
+        this(marketListingRepository, marketInventoryService, new UuidV7Generator());
     }
 
-    MarketListingApplicationService(MarketListingRepository marketListingMapper,
+    MarketListingApplicationService(MarketListingRepository marketListingRepository,
                          MarketInventoryApplicationService marketInventoryService,
                          UuidV7Generator idGenerator) {
-        this.marketListingMapper = marketListingMapper;
+        this.marketListingRepository = marketListingRepository;
         this.marketInventoryService = marketInventoryService;
         this.idGenerator = idGenerator;
     }
@@ -74,7 +74,7 @@ public class MarketListingApplicationService {
         listing.setMinPurchaseQuantity(command.minPurchaseQuantity());
         listing.setMaxPurchaseQuantity(command.maxPurchaseQuantity());
         listing.setStatus(initialStatus(command));
-        marketListingMapper.insert(listing);
+        marketListingRepository.save(listing);
 
         if (GOODS_TYPE_VIRTUAL.equals(listing.getGoodsType()) && DELIVERY_MODE_PRELOADED.equals(listing.getDeliveryMode())) {
             AddMarketInventoryBatchCommand inventory = command.inventory();
@@ -99,7 +99,7 @@ public class MarketListingApplicationService {
         listing.setUnitPrice(command.unitPrice());
         listing.setMinPurchaseQuantity(command.minPurchaseQuantity());
         listing.setMaxPurchaseQuantity(command.maxPurchaseQuantity());
-        marketListingMapper.updateEditable(listing);
+        marketListingRepository.saveEditable(listing);
         return MarketListingResult.from(requireOwnedListing(command.listingId(), command.sellerUserId()));
     }
 
@@ -114,7 +114,7 @@ public class MarketListingApplicationService {
         String nextStatus = STOCK_MODE_FINITE.equals(listing.getStockMode()) && listing.getStockAvailable() <= 0
                 ? STATUS_SOLD_OUT
                 : STATUS_ACTIVE;
-        marketListingMapper.updateStatus(listingId, sellerUserId, nextStatus);
+        marketListingRepository.changeStatus(listingId, sellerUserId, nextStatus);
         return MarketListingResult.from(requireOwnedListing(listingId, sellerUserId));
     }
 
@@ -126,7 +126,7 @@ public class MarketListingApplicationService {
     private MarketListingResult transitionStatus(UUID sellerUserId, UUID listingId, String nextStatus) {
         validateSellerUserId(sellerUserId);
         requireOwnedListing(listingId, sellerUserId);
-        marketListingMapper.updateStatus(listingId, sellerUserId, nextStatus);
+        marketListingRepository.changeStatus(listingId, sellerUserId, nextStatus);
         return MarketListingResult.from(requireOwnedListing(listingId, sellerUserId));
     }
 
@@ -251,7 +251,7 @@ public class MarketListingApplicationService {
     }
 
     private MarketListing requireOwnedListing(UUID listingId, UUID sellerUserId) {
-        MarketListing listing = marketListingMapper.selectById(listingId);
+        MarketListing listing = marketListingRepository.findById(listingId);
         if (listing == null) {
             throw new BusinessException(NOT_FOUND, "market listing not found: listingId=" + listingId);
         }

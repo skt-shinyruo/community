@@ -28,7 +28,7 @@ public class MarketOrderAutoConfirmSingleOrderApplicationService {
 
     @Transactional
     public boolean confirmOneDueOrder(UUID orderId, Date now) {
-        MarketOrder locked = marketOrderRepository.selectByIdForUpdate(orderId);
+        MarketOrder locked = marketOrderRepository.lockById(orderId);
         if (locked == null
                 || !Set.of(STATUS_DELIVERED, STATUS_SHIPPED).contains(locked.getStatus())
                 || locked.getAutoConfirmAt() == null

@@ -8,17 +8,17 @@ import java.util.UUID;
 
 public interface MarketWalletActionRepository {
 
-    int insert(MarketWalletAction action);
+    int save(MarketWalletAction action);
 
-    MarketWalletAction selectById(UUID actionId);
+    MarketWalletAction findById(UUID actionId);
 
-    MarketWalletAction selectByRequestId(String requestId);
+    MarketWalletAction findByRequestId(String requestId);
 
-    MarketWalletAction selectByOrderAndType(UUID orderId, String actionType);
+    MarketWalletAction findByOrderAndType(UUID orderId, String actionType);
 
-    List<MarketWalletAction> selectDue(Date asOf, int limit);
+    List<MarketWalletAction> findDue(Date asOf, int limit);
 
-    List<MarketWalletAction> selectUnfinishedWithWalletTxn(int limit);
+    List<MarketWalletAction> findUnfinishedWithWalletTxn(int limit);
 
     int claimProcessing(UUID actionId, Date leaseUntil);
 

@@ -10,7 +10,7 @@
 
 相关文档：
 
-- `docs/business-logic/wallet-ledger-flow.md`
+- `docs/handbook/business-logic/wallet-ledger-flow.md`
 
 ---
 

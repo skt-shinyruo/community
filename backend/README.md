@@ -36,8 +36,8 @@
 - 文档：`../docs/`
 
 ## 文档
-- `../docs/DEPLOYMENT.md`
+- `../docs/handbook/DEPLOYMENT.md`
 - `../deploy/README.md`
-- `../docs/SECURITY.md`
-- `../docs/DATA_MODEL.md`
-- `../docs/OBSERVABILITY.md`
+- `../docs/handbook/SECURITY.md`
+- `../docs/handbook/DATA_MODEL.md`
+- `../docs/handbook/OBSERVABILITY.md`

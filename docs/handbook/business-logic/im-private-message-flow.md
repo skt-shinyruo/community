@@ -10,9 +10,9 @@
 
 相关总览文档：
 
-- `docs/ARCHITECTURE.md`
-- `docs/SYSTEM_DESIGN.md`
-- `docs/LOAD_TESTING.md`
+- `docs/handbook/ARCHITECTURE.md`
+- `docs/handbook/SYSTEM_DESIGN.md`
+- `docs/handbook/LOAD_TESTING.md`
 
 ---
 
@@ -21,14 +21,14 @@
 私信主链路涉及以下组件：
 
 - 前端或 IM 客户端：对外私信入口固定为 `ws://localhost:12880/ws/im` 与 `http://localhost:12880/api/im/**`；这两类 client-facing entrypoint 由 `community-gateway` 暴露
-- `im-realtime`：WebSocket 接入、鉴权、协议解析、治理校验、Kafka command 生产、在线推送
-- `community-app`：仅提供发送治理校验接口，不提供消息读写 API
+- `im-realtime`：WebSocket 接入、鉴权、协议解析、本地 policy 判定、Kafka command 生产、在线推送
+- `community-app`：仅提供 IM policy snapshot 与 policy change outbox，不提供消息读写 API
 - Kafka：承担 `command` 与 `event` 的跨服务 backplane
 - `im-core`：消息持久化、顺序号分配、幂等、历史查询、未读状态
 - MySQL（`im_core` schema）：保存私信会话、消息和 read state
 
 需要明确的角色拆分：
-- `community-app` 只负责治理判定（`POST /api/im-governance/private-messages/validate`）以及站内通知等主站语义，不再暴露 legacy message HTTP 读写入口
+- `community-app` 只负责提供 `/internal/im/realtime/projections/**` policy 快照，并把用户处罚 / 拉黑变化通过 IM policy outbox 发给 `im-realtime`；不再暴露 legacy message HTTP 读写入口，也不提供逐条私信 validate HTTP 面
 - `community-im` 才是私信 owner：`im-realtime` 负责实时入口与在线推送，`im-core` 负责权威写路径和 `/api/im/**` HTTP 查询接口
 核心 topic 常量定义在：
 
@@ -58,8 +58,9 @@ sequenceDiagram
 
     S->>RT: sendPrivateText(toUserId, content, clientMsgId)
     RT->>RT: 参数校验
-    RT->>GOV: 校验是否允许发私信
-    GOV-->>RT: allow / deny
+    RT->>GOV: 启动/重连时拉取 policy snapshot
+    GOV-->>RT: user policy + block relations
+    RT->>RT: 本地 PolicyProjectionService 判定 allow / deny
 
     alt allow
         RT->>RT: 生成 conversationId + requestId
@@ -141,37 +142,52 @@ gateway 会把这个 WebSocket 路径转发到 `im-realtime` 的 WebSocket handl
 
 ---
 
-### 3.3 私信治理校验
+### 3.3 私信 policy 判定
 
-本仓库的发送链路还要经过 `community-app` 的治理校验接口；这是 `community-app` 在该链路中的唯一职责。
+本仓库的发送链路不再逐条调用 `community-app` validate 接口，而是由 `im-realtime` 维护一份本地 policy projection。
 
-调用方：
+快照调用方：
 
-- `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/client/CommunityGovernanceClient.java`
+- `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/projection/PolicySnapshotClient.java`
 
-接口路径：
+快照接口：
 
-- `POST /api/im-governance/private-messages/validate`
+- `GET /internal/im/realtime/projections/user-policies`
+- `GET /internal/im/realtime/projections/block-relations`
 
-`im-realtime` 会把用户 JWT 转发给 `community-app`，由社区主站判断当前请求是否允许发送消息，例如：
+`PolicySnapshotClient` 使用内部 scope JWT 访问 `community-app`；`community-app` 端入口是：
 
-- 用户是否已登录且 token 有效
-- 是否触发禁言、拉黑、目标用户不存在等治理规则
+- `backend/community-app/src/main/java/com/nowcoder/community/im/projection/ImPolicySnapshotController.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/im/application/ImPolicySnapshotApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/im/projection/ImPolicySnapshotService.java`
 
-治理校验失败时，`im-realtime` 不会投递 Kafka command，而是立即给发送方返回 `sendError(...)`。
+运行期增量变化由 `community-app` 的 `ImPolicyOutboxEnqueuer` / `ImPolicyKafkaOutboxHandler` 发布到 IM policy Kafka topic，`im-realtime` 消费后更新本地 projection。
+
+发送私信时，`ImWebSocketHandler` 调用：
+
+- `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/projection/PolicyProjectionService.java`
+
+判定内容包括：
+
+- 发送方 / 接收方是否存在
+- 发送方是否禁言或封禁
+- 接收方是否允许私信
+- 双方是否存在拉黑关系
+
+policy 判定失败时，`im-realtime` 不会投递 Kafka command，而是立即给发送方返回 `sendReject(...)`。
 
 这里的设计重点是：
 
-- 治理规则收口在业务主站
-- WS 入口在投递 Kafka 之前前置校验
-- `community-app` 不承担消息读写，只返回 allow / deny 的治理结论
+- 用户处罚和拉黑 SSOT 仍在 `community-app` 的 `user` / `social` owner domain
+- WS 入口在投递 Kafka 之前用本地 projection 前置判定
+- `community-app` 不承担消息读写，也不承担逐条私信同步 validate
 - 不把治理责任下放给 `im-core` 的持久化层
 
 ---
 
 ### 3.4 组装 command 并写入 Kafka
 
-治理校验通过后，`im-realtime` 会组装：
+policy 判定通过后，`im-realtime` 会组装：
 
 - `SendPrivateTextCommandV1`
 
@@ -197,7 +213,7 @@ command 中包含的关键字段有：
 
 这里需要特别注意：
 
-- `sendAccepted` 的语义是“消息已通过入口校验并成功进入处理队列”
+- `sendAccepted` 的语义是“消息已通过入口校验与本地 policy 判定，并成功进入处理队列”
 - `sendAccepted` 不代表消息已经落库
 - 后续会再收到 `sendCommitted` 或 `sendRejected`
 
@@ -246,7 +262,8 @@ command 中包含的关键字段有：
 
 发布组件：
 
-- `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/EventProducer.java`
+- `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/outbox/ImMessageOutboxEnqueuer.java`
+- `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/outbox/ImKafkaOutboxHandler.java`
 
 这样做的意义是：
 
@@ -419,8 +436,9 @@ sequenceDiagram
 
 - WebSocket 入口：
   - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/ws/ImWebSocketHandler.java`
-- 私信治理校验 client：
-  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/client/CommunityGovernanceClient.java`
+- 私信 policy projection：
+  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/projection/PolicyProjectionService.java`
+  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/projection/PolicySnapshotClient.java`
 - 向 Kafka 写 command：
   - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/CommandProducer.java`
 - 消费 persisted event：
@@ -437,7 +455,8 @@ sequenceDiagram
 - 私信持久化主服务：
   - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/service/PrivateMessageService.java`
 - 发布 persisted event：
-  - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/EventProducer.java`
+  - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/outbox/ImMessageOutboxEnqueuer.java`
+  - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/outbox/ImKafkaOutboxHandler.java`
 - 会话列表 / 历史 / markRead：
   - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/controller/ConversationController.java`
 - 未读汇总：

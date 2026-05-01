@@ -1,13 +1,13 @@
 # 项目核心逻辑导读（给初学者）
 
-这篇文档不是替代 `docs/ARCHITECTURE.md` 或 `docs/SYSTEM_DESIGN.md`，而是给第一次读这个仓库的人建立一套稳定的理解框架：
+这篇文档不是替代 `docs/handbook/ARCHITECTURE.md` 或 `docs/handbook/SYSTEM_DESIGN.md`，而是给第一次读这个仓库的人建立一套稳定的理解框架：
 
 - 这个项目到底是什么形态
 - 请求通常是怎么流动的
 - 为什么主站和 IM 要这样拆
 - 读源码时应该先抓哪些文件，后抓哪些文件
 
-如果你只想先抓住主线，建议先读这篇，再回到 `docs/ARCHITECTURE.md` 和 `docs/business-logic/` 的专项文档。
+如果你只想先抓住主线，建议先读这篇，再回到 `docs/handbook/ARCHITECTURE.md` 和 `docs/handbook/business-logic/` 的专项文档。
 
 ---
 
@@ -91,13 +91,13 @@
 也就是说：
 
 - controller 对外暴露 HTTP
-- 同域内部通常直接进 `app/use-case/service`
+- 同域内部直接进 owner `application.*ApplicationService`
 - 跨领域同步调用时，优先走 owner 域暴露的 `api.query` / `api.action` / `api.model`
 
 例如：
 
 - `content.controller.PostController` 依赖同域 `PostPublishingApplicationService`、`PostReadApplicationService`
-- `im.governance.PrivateMessageGovernanceService` 跨域依赖 `UserLookupQueryApi`、`SocialBlockQueryApi`
+- `im.projection.ImPolicySnapshotService` 通过 `UserModerationQueryApi`、`SocialBlockQueryApi` 构造供 `im-realtime` bootstrap 的策略快照
 
 不要把 `api.*` 理解成“多此一举的一层”；在这个项目里，它的职责是保护领域边界。
 
@@ -152,7 +152,7 @@ IM 不是 `community-app` 里的普通一个包，而是一个单独的子系统
 1. `community-gateway` 决定请求该进哪个服务
 2. `community-app` 的 `CommunitySecurityConfig` 决定这条路径是否允许访问
 3. controller 负责协议适配，不做重业务编排
-4. action/query API 进入 owner-domain 的 `application.*ApplicationService`
+4. same-domain controller / listener / job 进入 owner `application.*ApplicationService`；foreign-domain 协作才先进入 owner `api.query` / `api.action` adapter，再委托 owner application service
 5. `ApplicationService` 调用 domain model / domain service / repository interface
 6. infrastructure repository 写 MyBatis mapper / Redis adapter；MyBatis 行对象放在 `infrastructure.persistence.dataobject`
 7. 事务内发布领域事件
@@ -185,7 +185,7 @@ IM 不是 `community-app` 里的普通一个包，而是一个单独的子系统
 这里有个很重要的实现取舍：
 
 - `ApplicationService` 不直接操作 mapper / dataobject
-- `auth`、`wallet` 和 `market` 的旧 `service` 包已经退休或只保留 foreign API adapter，业务入口看 `application.*ApplicationService`
+- 旧 root `service` 包已经作为业务入口退休；owner API 实现放在 `infrastructure.api`，业务入口看 `application.*ApplicationService`
 - `auth` 和 `social` 因为支持 `db / redis / memory` 多实现，所以 `domain.repository` 由 `infrastructure.persistence` 的 MyBatis / Redis / InMemory adapter 实现
 
 也就是说，业务入口统一收敛为 `ApplicationService`，持久化细节统一隔离在 infrastructure。
@@ -319,9 +319,10 @@ IM 子系统最容易读乱，因为它同时有 HTTP、WebSocket、Kafka、MySQ
 - WebSocket 接入：
   - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/ws/ImWebSocketHandler.java`
 - 治理校验：
-  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/client/CommunityGovernanceClient.java`
-  - `backend/community-app/src/main/java/com/nowcoder/community/im/controller/ImGovernanceController.java`
-  - `backend/community-app/src/main/java/com/nowcoder/community/im/governance/PrivateMessageGovernanceService.java`
+  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/projection/PolicyProjectionService.java`
+  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/projection/PolicySnapshotClient.java`
+  - `backend/community-app/src/main/java/com/nowcoder/community/im/projection/ImPolicySnapshotController.java`
+  - `backend/community-app/src/main/java/com/nowcoder/community/im/application/ImPolicySnapshotApplicationService.java`
 - Kafka command：
   - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/CommandProducer.java`
   - `backend/community-im/im-common/src/main/java/com/nowcoder/community/im/common/ImTopics.java`
@@ -336,19 +337,20 @@ IM 子系统最容易读乱，因为它同时有 HTTP、WebSocket、Kafka、MySQ
 
 1. 客户端连到 `/ws/im`
 2. `im-realtime` 在 `ImWebSocketHandler` 里要求第一帧先发 `auth`
-3. 收到 `sendPrivateText` 后，先调 `community-app` 的治理接口校验“能不能发”
-4. 校验通过后，`im-realtime` 只负责把 `SendPrivateTextCommandV1` 写进 Kafka
-5. `im-core` 消费 command，调用 `PrivateMessageService.persist(...)`
-6. `PrivateMessageService` 负责：
+3. `im-realtime` 启动时先通过 `PolicySnapshotClient` 从 `community-app` 的 `/internal/im/realtime/projections/**` 拉取用户处罚和拉黑快照，运行期再消费 IM policy Kafka 事件增量更新
+4. 收到 `sendPrivateText` 后，先用本地 `PolicyProjectionService` 判定“能不能发”
+5. 校验通过后，`im-realtime` 只负责把 `SendPrivateTextCommandV1` 写进 Kafka
+6. `im-core` 消费 command，调用 `PrivateMessageService.persist(...)`
+7. `PrivateMessageService` 负责：
    - 校验 `conversationId`
    - 保证会话存在
    - 通过 `clientMsgId` 做幂等
    - 分配 `seq` 和 `messageId`
    - 写消息
    - 更新发送者自己的已读水位
-7. 持久化成功后，`im-core` 再发 persisted event
-8. `im-realtime` 消费 persisted event，推给在线连接
-9. 历史消息和未读状态则始终从 `im-core` 的 HTTP API 回源
+8. 持久化成功后，`im-core` 再发 persisted event
+9. `im-realtime` 消费 persisted event，推给在线连接
+10. 历史消息和未读状态则始终从 `im-core` 的 HTTP API 回源
 
 最关键的语义区别是：
 
@@ -365,8 +367,9 @@ IM 子系统最容易读乱，因为它同时有 HTTP、WebSocket、Kafka、MySQ
 - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/service/RoomMessageService.java`
 - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/controller/RoomController.java`
 - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/EventConsumers.java`
-- `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/controller/InternalRealtimeBootstrapController.java`
-- `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/client/ImCoreClient.java`
+- `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/controller/InternalRealtimeProjectionController.java`
+- `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/projection/MembershipSnapshotClient.java`
+- `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/projection/MembershipProjectionService.java`
 
 群聊的核心逻辑是：
 
@@ -375,7 +378,7 @@ IM 子系统最容易读乱，因为它同时有 HTTP、WebSocket、Kafka、MySQ
 3. 持久化完成后发 `EVENT_ROOM_PERSISTED_V1`
 4. `im-realtime` 收到事件后，不一定直接广播完整消息，而是标记房间“有更新”
 5. 客户端收到更新后，再通过 `RoomController` 提供的 HTTP API 拉取历史和推进 `lastReadSeq`
-6. 用户连接建立后，`im-realtime` 还会通过 `ImCoreClient` 调 `InternalRealtimeBootstrapController` 补齐当前用户加入过的房间，用于本地在线索引
+6. 用户连接建立后，`im-realtime` 还会通过 `MembershipSnapshotClient` 调 `InternalRealtimeProjectionController` 补齐房间成员投影，用于本地在线索引
 
 这说明群聊的真实设计目标不是“把所有状态都放在 WebSocket 连接里”，而是：
 
@@ -458,11 +461,11 @@ IM 子系统最容易读乱，因为它同时有 HTTP、WebSocket、Kafka、MySQ
 
 读完这 12 个锚点，再去读下面这些专项文档，理解会快很多：
 
-- `docs/ARCHITECTURE.md`
-- `docs/SYSTEM_DESIGN.md`
-- `docs/business-logic/im-private-message-flow.md`
-- `docs/business-logic/im-room-message-flow.md`
-- `docs/business-logic/social-like-follow-outbox-flow.md`
+- `docs/handbook/ARCHITECTURE.md`
+- `docs/handbook/SYSTEM_DESIGN.md`
+- `docs/handbook/business-logic/im-private-message-flow.md`
+- `docs/handbook/business-logic/im-room-message-flow.md`
+- `docs/handbook/business-logic/social-like-follow-outbox-flow.md`
 
 ---
 

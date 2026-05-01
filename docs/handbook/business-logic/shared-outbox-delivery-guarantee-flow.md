@@ -4,8 +4,8 @@
 
 如果你关心：
 
-- 点赞为什么能可靠驱动通知 / 积分 / 任务
 - 搜索投影为什么可以重试
+- IM policy 变化为什么可以可靠投递到 realtime worker
 - 某个副作用为什么会反复执行直到死信
 
 你真正要看的不是具体业务 service，而是这套共享 outbox。
@@ -50,10 +50,8 @@
 
 当前接到共享 outbox 的业务 enqueuer / handler 主要有：
 
-- `PointsOutboxEnqueuer` / `PointsOutboxHandler`
-- `NoticeOutboxEnqueuer` / `NoticeOutboxHandler`
-- `PostOutboxEnqueuer` / `PostOutboxHandler`
-- `TaskProgressOutboxEnqueuer` / `TaskProgressOutboxHandler`
+- `search.infrastructure.event.PostOutboxEnqueuer` / `PostOutboxHandler`
+- `im.projection.ImPolicyOutboxEnqueuer` / `ImPolicyKafkaOutboxHandler`
 
 也就是说：
 
@@ -174,16 +172,14 @@
 
 ## 6.2 为什么 enqueuer 都是 `BEFORE_COMMIT`
 
-当前几个业务 enqueuer 都使用：
+当前需要与源事务同提交的业务 enqueuer 使用：
 
 - `@TransactionalEventListener(phase = BEFORE_COMMIT)`
 
 例如：
 
-- `PointsOutboxEnqueuer`
-- `NoticeOutboxEnqueuer`
 - `PostOutboxEnqueuer`
-- `TaskProgressOutboxEnqueuer`
+- `ImPolicyOutboxEnqueuer`
 
 这非常关键，因为它保证了：
 
@@ -385,41 +381,7 @@ worker 处理事件时只做一件事：
 
 ## 10. 当前几条业务 outbox 是怎么落幂等的
 
-### 10.1 积分投影
-
-链路：
-
-- `PointsOutboxEnqueuer`
-- `PointsOutboxHandler`
-
-其真正幂等落点是：
-
-- `reward_grant_record`
-
-也就是同一个 source event 的积分奖励只会成功一次。
-
-### 10.2 growth 任务进度
-
-链路：
-
-- `TaskProgressOutboxEnqueuer`
-- `TaskProgressOutboxHandler`
-
-其真正幂等落点是：
-
-- `user_task_event_log`
-- 已领奖进度行短路
-
-### 10.3 通知投影
-
-链路：
-
-- `NoticeOutboxEnqueuer`
-- `NoticeOutboxHandler`
-
-通知去重与投影幂等由 notice 域自己的命令构造和存储约束承担。
-
-### 10.4 搜索帖子投影
+### 10.1 搜索帖子投影
 
 链路：
 
@@ -432,29 +394,30 @@ worker 处理事件时只做一件事：
 
 不是做不可逆累计。
 
+### 10.2 IM policy 投影
+
+链路：
+
+- `ImPolicyOutboxEnqueuer`
+- `ImPolicyKafkaOutboxHandler`
+
+这条链路把用户处罚与拉黑关系变化投递到 IM policy Kafka topic，供 `im-realtime` 本地 projection 更新。
+
+幂等边界在消费侧按事件内容覆盖本地 policy 状态；同一用户处罚或同一拉黑关系重复投递不会产生累计副作用。
+
 ## 11. 当前业务 topic 生产方式
 
-几个典型 enqueuer 的 event id / topic 约定：
+当前 enqueuer 的 event id / topic 约定：
 
-### 11.1 Points
-
-- topic：`projection.points`
-- 事件 id：`<sourceEventId>:points`
-
-### 11.2 Notice
-
-- topic：`projection.notice`
-- 事件 id：`<sourceEventId>:notice`
-
-### 11.3 Task progress
-
-- topic：`projection.task-progress`
-- 事件 id：`<sourceEventId>:task-progress`
-
-### 11.4 Search post
+### 11.1 Search post
 
 - topic：`projection.search.post`
 - 事件 id：`<sourceEventId>:search_post`
+
+### 11.2 IM policy
+
+- topic：`projection.im.policy`
+- 事件 id：`im-policy:<kind>:<uuidv7>`
 
 这说明当前 outbox topic 命名不是纯业务名，而是偏“投影用途 + 对象类型”的风格。
 
@@ -464,11 +427,7 @@ worker 处理事件时只做一件事：
 
 ### 12.1 主事务不被异步副作用拖垮
 
-例如点赞成功后，不需要在请求线程里同步完成：
-
-- 通知
-- 积分
-- 任务进度
+例如帖子写成功后，不需要在请求线程里同步完成搜索索引更新；用户处罚或拉黑变化提交后，也不需要在源事务里同步完成 IM realtime policy Kafka 发布。
 
 ### 12.2 失败后仍可自动追平
 
@@ -536,11 +495,7 @@ worker 处理事件时只做一件事：
 - `backend/community-common/common-outbox/src/main/java/com/nowcoder/community/common/outbox/OutboxWorkerScheduler.java`
 - `backend/community-common/common-outbox/src/main/java/com/nowcoder/community/common/outbox/OutboxProperties.java`
 - `backend/community-common/common-outbox/src/main/java/com/nowcoder/community/common/outbox/autoconfig/OutboxAutoConfiguration.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/user/event/PointsOutboxEnqueuer.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/user/event/PointsOutboxHandler.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/notice/event/NoticeOutboxEnqueuer.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/notice/event/NoticeOutboxHandler.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/search/event/PostOutboxEnqueuer.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/search/event/PostOutboxHandler.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/event/TaskProgressOutboxEnqueuer.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/event/TaskProgressOutboxHandler.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/search/infrastructure/event/PostOutboxEnqueuer.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/search/infrastructure/event/PostOutboxHandler.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/im/projection/ImPolicyOutboxEnqueuer.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/im/projection/ImPolicyKafkaOutboxHandler.java`

@@ -16,9 +16,9 @@
 
 相关文档：
 
-- `docs/business-logic/content-post-comment-bookmark-subscription-flow.md`
-- `docs/CORE_LOGIC.md`
-- `docs/SYSTEM_DESIGN.md`
+- `docs/handbook/business-logic/content-post-comment-bookmark-subscription-flow.md`
+- `docs/handbook/CORE_LOGIC.md`
+- `docs/handbook/SYSTEM_DESIGN.md`
 
 ---
 
@@ -30,16 +30,16 @@
 - `community-app`：
   - `ReportController`：举报入口
   - `ModerationController`：治理后台入口
-  - `ReportService`：举报写入、去重、查询、状态更新
-  - `TakeModerationActionUseCase`：治理动作编排中心
-  - `ModerationAuditWriter`：写入治理审计记录
-  - `ModerationTargetResolver`：把举报目标解析为真实对象与目标用户
-  - `ContentModerationApplier`：对帖子 / 评论执行下线动作
-  - `UserModerationCommandPublisher`：对用户处罚发布 moderation command
+  - `ReportApplicationService`：举报写入入口
+  - `ModerationApplicationService`：举报队列读取、治理动作编排、审计、通知和状态更新
+  - `ModerationDecisionDomainService`：治理动作、原因、处罚时长等领域规则
+  - `ModerationTargetRepository`：把举报目标解析为真实对象与目标用户
+  - `ContentModerationGateway` / `MyBatisContentModerationAdapter`：对帖子 / 评论执行下线动作
+  - `UserModerationActionApi`：跨域同步调用 user owner 落地 mute / ban
   - `ModerationNoticePublisher`：向被处置人、举报人发布治理通知
 - `user` 域：
-  - `ModerationCommandListener`：消费用户处罚命令
-  - `UserModerationService`：更新 `muteUntil` / `banUntil`
+  - `UserModerationApiAdapter`：user owner action/query API 适配器
+  - `UserModerationApplicationService`：更新 `muteUntil` / `banUntil` 并发布 user policy changed 事件
 - MySQL（`community` schema）：
   - `report`
   - `moderation_action`
@@ -51,8 +51,8 @@
 
 - `backend/community-app/src/main/java/com/nowcoder/community/content/controller/ReportController.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/content/controller/ModerationController.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/content/service/ReportService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/content/app/moderation/TakeModerationActionUseCase.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/application/ReportApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/application/ModerationApplicationService.java`
 
 ---
 
@@ -87,7 +87,7 @@
 sequenceDiagram
     participant FE as Frontend
     participant CTRL as ReportController
-    participant SVC as ReportService
+    participant SVC as ReportApplicationService
     participant DB as MySQL
 
     FE->>CTRL: POST /api/reports
@@ -112,11 +112,11 @@ sequenceDiagram
 - `comment` / `评论` / `2`
 - `user` / `用户` / `3`
 
-解析完成后，真正的写入由 `ReportService.createReport(...)` 负责。
+解析完成后，真正的写入由 `ReportApplicationService.create(...)` 负责。
 
 ### 3.3 举报写入规则
 
-`ReportService.createReport(...)` 当前做了这些约束：
+`ReportApplicationService.create(...)` / `ReportContentRepository.createReport(...)` 当前做了这些约束：
 
 1. `reporterId`、`targetId` 必须合法
 2. `targetType` 只能是帖子 / 评论 / 用户
@@ -140,8 +140,10 @@ sequenceDiagram
 
 关键代码：
 
-- `backend/community-app/src/main/java/com/nowcoder/community/content/service/ReportService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/content/mapper/ReportMapper.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/application/ReportApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/domain/repository/ReportContentRepository.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/persistence/MyBatisReportContentRepository.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/persistence/mapper/ReportMapper.java`
 
 ---
 
@@ -161,13 +163,13 @@ sequenceDiagram
 读路径比较薄：
 
 - `ModerationController`
-- `ModerationService`
-- `ReportService` / `ModerationActionMapper`
+- `ModerationApplicationService`
+- `ReportRepository` / `ModerationActionRepository`
 
 这里要注意：
 
-- `ModerationService` 主要负责读模型转换
-- 真正的治理动作编排不在 `ModerationService`，而在 `TakeModerationActionUseCase`
+- controller 只做 HTTP 适配与 DTO 转换
+- 读模型与治理动作编排都收敛在 `ModerationApplicationService`
 
 ---
 
@@ -178,14 +180,14 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant MOD as ModerationController
-    participant UC as TakeModerationActionUseCase
-    participant REP as ReportService
-    participant AUDIT as ModerationAuditWriter
-    participant RESOLVE as ModerationTargetResolver
-    participant CONTENT as ContentModerationApplier
-    participant USERCMD as UserModerationCommandPublisher
+    participant UC as ModerationApplicationService
+    participant REP as ReportRepository
+    participant AUDIT as ModerationActionRepository
+    participant RESOLVE as ModerationTargetRepository
+    participant CONTENT as ContentModerationGateway
+    participant USERAPI as UserModerationActionApi
     participant NOTICE as ModerationNoticePublisher
-    participant USER as UserModerationService
+    participant USER as UserModerationApplicationService
 
     MOD->>UC: takeAction(actorId, reportId, action, reason, duration)
     UC->>REP: getById(reportId)
@@ -202,18 +204,18 @@ sequenceDiagram
         UC->>REP: markStatus(PROCESSED)
         UC->>NOTICE: notify target + reporter
     else mute/ban
-        UC->>USERCMD: publishModerationCommand(...)
+        UC->>USERAPI: applyModeration(...)
         UC->>REP: markStatus(PROCESSED)
         UC->>NOTICE: notify target + reporter
-        USERCMD->>USER: after-commit applyModeration(...)
+        USERAPI->>USER: applyModeration(...)
     end
 ```
 
-### 5.2 编排中心：`TakeModerationActionUseCase`
+### 5.2 编排中心：`ModerationApplicationService`
 
 所有治理动作都收敛在：
 
-- `backend/community-app/src/main/java/com/nowcoder/community/content/app/moderation/TakeModerationActionUseCase.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/application/ModerationApplicationService.java`
 
 它负责：
 
@@ -244,7 +246,7 @@ sequenceDiagram
 
 ### 6.2 `hide` / `delete`
 
-这两个动作都会进入 `ContentModerationApplier.applyContentAction(...)`。
+这两个动作都会进入 `ContentModerationGateway.applyContentAction(...)`，当前实现是 `MyBatisContentModerationAdapter`。
 
 #### 对帖子
 
@@ -278,7 +280,8 @@ sequenceDiagram
 
 关键代码：
 
-- `backend/community-app/src/main/java/com/nowcoder/community/content/app/moderation/ContentModerationApplier.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/application/ContentModerationGateway.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/moderation/MyBatisContentModerationAdapter.java`
 
 ### 6.3 `warn`
 
@@ -292,20 +295,19 @@ sequenceDiagram
 
 ### 6.4 `mute` / `ban`
 
-这两个动作不会直接在 `TakeModerationActionUseCase` 里操作 `user` 表，而是通过事件把处罚命令发给 `user` 域。
+这两个动作不会直接在 content 域操作 `user` 表，而是通过 `UserModerationActionApi` 同步调用 user owner。
 
 流程如下：
 
-1. `UserModerationCommandPublisher.publishModerationCommand(...)`
-2. 发布 `MODERATION_COMMAND_REQUESTED`
-3. `ModerationCommandListener` 在 `AFTER_COMMIT` 阶段监听该事件
-4. 调用 `UserModerationService.applyModeration(...)`
-5. 更新 `user.mute_until` / `user.ban_until`
+1. `ModerationApplicationService` 调 `UserModerationActionApi.applyModeration(...)`
+2. `UserModerationApiAdapter` 委托 `UserModerationApplicationService.applyModeration(...)`
+3. `UserModerationApplicationService` 更新 `user.mute_until` / `user.ban_until`
+4. user 域发布 `UserPolicyChanged` 事件，供 IM policy outbox 投影
 
 这意味着：
 
 - 内容域负责“决定要处罚谁、处罚多久”
-- 用户域负责“真正更新处罚状态”
+- 用户域负责“真正更新处罚状态”；当前是同步 owner API 协作，不是 after-commit command listener
 
 完成后：
 
@@ -314,9 +316,9 @@ sequenceDiagram
 
 关键代码：
 
-- `backend/community-app/src/main/java/com/nowcoder/community/content/app/moderation/UserModerationCommandPublisher.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/user/event/ModerationCommandListener.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/user/service/UserModerationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/api/action/UserModerationActionApi.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/infrastructure/api/UserModerationApiAdapter.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/application/UserModerationApplicationService.java`
 
 ---
 
@@ -388,7 +390,7 @@ sequenceDiagram
 
 一条举报一旦不再是 `PENDING`，再次处置会被拒绝：
 
-- `TakeModerationActionUseCase` 会直接报“该举报已处理”
+- `ModerationApplicationService` 会直接报“该举报已处理”
 
 ---
 
@@ -412,18 +414,19 @@ sequenceDiagram
 - 帖子已被删
 - 评论已被删
 
-这时 `ModerationTargetResolver` 会报 `POST_NOT_FOUND` 或 `COMMENT_NOT_FOUND`，整条治理动作回滚。
+这时 `ModerationTargetRepository.resolveTarget(...)` 会报 `POST_NOT_FOUND` 或 `COMMENT_NOT_FOUND`，整条治理动作回滚。
 
-### 9.3 用户处罚是 after-commit 执行
+### 9.3 用户处罚是同步 owner API 执行
 
-`mute/ban` 的用户状态更新不是在同一个分支里直接完成，而是通过 `AFTER_COMMIT` 事件监听执行。
+`mute/ban` 的用户状态更新通过 `UserModerationActionApi` 同步回到 user owner application service。
 
 这意味着：
 
-- 举报状态和治理审计可以先提交成功
-- 用户处罚状态可能稍后才追平
+- content 域不直接操作 `user` 表
+- 用户处罚状态由 user 域在自己的 application service 中落地
+- user policy changed 事件会继续驱动 IM policy outbox 投影
 
-它和搜索 / 通知 / 积分这类异步追平模式是一致的。
+它和 notice / search 这类异步读模型不同：处罚状态本身不是 after-commit 追平。
 
 ### 9.4 内容下线和用户处罚为什么拆开
 
@@ -441,15 +444,15 @@ sequenceDiagram
 建议按下面顺序读这条链路：
 
 1. `backend/community-app/src/main/java/com/nowcoder/community/content/controller/ReportController.java`
-2. `backend/community-app/src/main/java/com/nowcoder/community/content/service/ReportService.java`
+2. `backend/community-app/src/main/java/com/nowcoder/community/content/application/ReportApplicationService.java`
 3. `backend/community-app/src/main/java/com/nowcoder/community/content/controller/ModerationController.java`
-4. `backend/community-app/src/main/java/com/nowcoder/community/content/app/moderation/TakeModerationActionUseCase.java`
-5. `backend/community-app/src/main/java/com/nowcoder/community/content/app/moderation/ModerationTargetResolver.java`
-6. `backend/community-app/src/main/java/com/nowcoder/community/content/app/moderation/ContentModerationApplier.java`
-7. `backend/community-app/src/main/java/com/nowcoder/community/content/app/moderation/ModerationNoticePublisher.java`
-8. `backend/community-app/src/main/java/com/nowcoder/community/content/app/moderation/UserModerationCommandPublisher.java`
-9. `backend/community-app/src/main/java/com/nowcoder/community/user/event/ModerationCommandListener.java`
-10. `backend/community-app/src/main/java/com/nowcoder/community/user/service/UserModerationService.java`
+4. `backend/community-app/src/main/java/com/nowcoder/community/content/application/ModerationApplicationService.java`
+5. `backend/community-app/src/main/java/com/nowcoder/community/content/domain/service/ModerationDecisionDomainService.java`
+6. `backend/community-app/src/main/java/com/nowcoder/community/content/domain/repository/ModerationTargetRepository.java`
+7. `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/moderation/MyBatisContentModerationAdapter.java`
+8. `backend/community-app/src/main/java/com/nowcoder/community/content/application/ModerationNoticePublisher.java`
+9. `backend/community-app/src/main/java/com/nowcoder/community/user/infrastructure/api/UserModerationApiAdapter.java`
+10. `backend/community-app/src/main/java/com/nowcoder/community/user/application/UserModerationApplicationService.java`
 
 ---
 
@@ -458,7 +461,7 @@ sequenceDiagram
 当前举报与治理链路的核心实现思路是：
 
 - 举报先作为独立主事实写入 `report`
-- 处置动作统一收敛在 `TakeModerationActionUseCase`
+- 处置动作统一收敛在 `ModerationApplicationService`
 - 内容下线直接改 `content` 主表并发布删除事件
-- 用户禁言 / 封禁通过 moderation command 交给 `user` 域 after-commit 消费
+- 用户禁言 / 封禁通过 `UserModerationActionApi` 同步交给 `user` 域
 - 举报状态、治理审计和治理通知共同构成这条链路的收敛结果

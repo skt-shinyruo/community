@@ -21,7 +21,7 @@
 ### 2.1 任务进度 owner 应用入口
 
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/api/action/GrowthTaskProgressActionApi.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/GrowthTaskProgressActionApiAdapter.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/infrastructure/api/GrowthTaskProgressActionApiAdapter.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/application/TaskProgressApplicationService.java`
 
 ### 2.2 任务状态推进核心
@@ -34,13 +34,14 @@
 
 ### 2.3 积分投影与钱包奖励入口
 
-- `backend/community-app/src/main/java/com/nowcoder/community/user/service/PointsProjectionService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/application/UserPointsApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/infrastructure/api/UserPointsAwardApiAdapter.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/wallet/api/action/WalletRewardActionApi.java`
 
 ### 2.4 用户等级查询与配置核心
 
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/api/query/UserLevelQueryApi.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/UserLevelQueryApiAdapter.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/infrastructure/api/UserLevelQueryApiAdapter.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/application/UserLevelApplicationService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/domain/service/UserLevelDomainService.java`
 
@@ -87,8 +88,8 @@
 
 当前实现不再通过成长域本地 listener / outbox 入口转一圈，而是直接由上游写路径调用 owner-domain contract：
 
-1. `CreatePostUseCase` 调用 `GrowthTaskProgressActionApi.triggerPostPublished(...)`
-2. `CommentService` 调用 `GrowthTaskProgressActionApi.triggerCommentCreated(...)`
+1. `PostPublishingApplicationService` 调用 `GrowthTaskProgressActionApi.triggerPostPublished(...)`
+2. `CommentApplicationService` 调用 `GrowthTaskProgressActionApi.triggerCommentCreated(...)`
 3. `LikeApplicationService` 调用 `GrowthTaskProgressActionApi.triggerLikeCreated(...)`
 4. `TaskProgressApplicationService` 负责：
    - 生成 `sourceEventId`
@@ -245,7 +246,9 @@
 
 这部分核心在：
 
-- `PointsProjectionService`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/api/action/UserPointsAwardActionApi.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/infrastructure/api/UserPointsAwardApiAdapter.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/application/UserPointsApplicationService.java`
 
 它会先把内容域、社交域的事实翻译成：
 
@@ -257,7 +260,7 @@
 
 ### 6.1 先把上游事实翻成统一命令
 
-`PointsProjectionService` 当前支持两类输入：
+`UserPointsApplicationService` 当前支持两类输入：
 
 - 内容域：发帖、评论
 - 社交域：收到他人点赞
@@ -426,11 +429,11 @@ listener、outbox、重放只是触发方式，去重仍然发生在服务内部
 ## 11. 关键代码定位
 
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/api/action/GrowthTaskProgressActionApi.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/GrowthTaskProgressActionApiAdapter.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/infrastructure/api/GrowthTaskProgressActionApiAdapter.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/application/TaskProgressApplicationService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/domain/service/TaskProgressDomainService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/domain/service/RewardGrantDomainService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/user/service/PointsProjectionService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/application/UserPointsApplicationService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/application/UserLevelApplicationService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/growth/domain/service/UserLevelDomainService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/wallet/api/action/WalletRewardActionApi.java`

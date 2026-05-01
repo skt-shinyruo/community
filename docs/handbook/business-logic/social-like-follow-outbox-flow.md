@@ -1,4 +1,4 @@
-# 点赞 / 关注链路与 Outbox 实现说明
+# 点赞 / 关注链路与下游副作用实现说明
 
 本文档说明当前仓库中点赞、关注及其下游事件链路的实际实现路径，聚焦以下问题：
 
@@ -7,14 +7,13 @@
 - 点赞 / 关注在 DB 与 Redis 模式下分别如何落状态
 - `entityUserId`、`postId` 等事件字段从哪里来
 - 社交事件会驱动哪些下游副作用
-- 当前项目如何使用 `AFTER_COMMIT`、`BEFORE_COMMIT` 与 DB outbox
+- 当前项目如何使用同步 owner API 与 `AFTER_COMMIT` 本地监听
 
 相关总览文档：
 
-- `docs/ARCHITECTURE.md`
-- `docs/SYSTEM_DESIGN.md`
-- `docs/DATA_MODEL.md`
-- `docs/superpowers/plans/2026-03-14-community-outbox-notice-points-search.md`
+- `docs/handbook/ARCHITECTURE.md`
+- `docs/handbook/SYSTEM_DESIGN.md`
+- `docs/handbook/DATA_MODEL.md`
 
 ---
 
@@ -30,7 +29,8 @@
 
 - 社交主写路径默认以 MySQL 为 SSOT
 - 点赞 / 关注成功后先发布本地 `SocialContractEvent`
-- 通知、积分、成长任务进度这类“必须最终达成”的副作用默认通过 DB outbox 投递
+- 点赞积分和成长任务进度在 `LikeApplicationService` 内同步调用 owner-domain `api.action`
+- 通知由 `NoticeProjectionListener` 在 `AFTER_COMMIT` 阶段 best-effort 投影
 - 帖子热度刷新这类“尽力而为”的本地副作用仍使用 `AFTER_COMMIT`
 
 如果切换到 `social.storage: redis`，当前代码仍可运行，但生产端一致性语义会明显复杂化，原因见本文第 8 节。
@@ -55,15 +55,12 @@
   - `RedisLikeRepository` / `RedisFollowRepository`
   - `InMemoryLikeRepository` / `InMemoryFollowRepository`
 - 下游副作用消费者：
-  - `NoticeOutboxEnqueuer` / `NoticeOutboxHandler`
-  - `PointsOutboxEnqueuer` / `PointsOutboxHandler`
-  - `TaskProgressOutboxEnqueuer` / `TaskProgressOutboxHandler`
+  - `NoticeProjectionListener` / `NoticeProjectionApplicationService`
+  - `UserPointsAwardActionApiAdapter` / `UserPointsApplicationService`
+  - `GrowthTaskProgressActionApiAdapter` / `TaskProgressApplicationService`
   - `SocialInteractionProjectionListener`
-- 基础设施：
-  - `JdbcOutboxEventStore`
-  - `OutboxWorkerScheduler`
 - 数据存储：
-  - MySQL：点赞关系、关注关系、用户获赞计数、`outbox_event`
+  - MySQL：点赞关系、关注关系、用户获赞计数
   - Redis：可选社交主存储或读加速层
 
 ---
@@ -104,7 +101,7 @@
 
 ## 4. 点赞主链路
 
-### 4.1 主时序图（默认配置：DB + local publisher + outbox enabled）
+### 4.1 主时序图（默认配置：DB + local publisher）
 
 ```mermaid
 sequenceDiagram
@@ -115,11 +112,10 @@ sequenceDiagram
     participant REPO as LikeRepository
     participant PUB as LocalSocialDomainEventPublisher
     participant EVT as SocialContractEvent
-    participant N as NoticeOutboxEnqueuer
-    participant P as PointsOutboxEnqueuer
-    participant T as TaskProgressOutboxEnqueuer
+    participant N as NoticeProjectionListener
+    participant P as UserPointsAwardActionApi
+    participant T as GrowthTaskProgressActionApi
     participant SCORE as SocialInteractionProjectionListener
-    participant OUTBOX as outbox_event + worker
 
     U->>API: POST /api/likes
     API->>SVC: setLike(SetLikeCommand)
@@ -129,13 +125,12 @@ sequenceDiagram
         RES-->>SVC: entityUserId + postId
     end
     SVC->>REPO: setLike(...)
+    SVC->>P: 同步积分协作
+    SVC->>T: 同步任务进度协作
     SVC->>PUB: publishLikeChanged(LikeChangedDomainEvent)
     PUB->>EVT: SocialContractEvent(eventId, type, payload)
-    EVT->>N: BEFORE_COMMIT 写通知 outbox
-    EVT->>P: BEFORE_COMMIT 写积分 outbox
-    EVT->>T: BEFORE_COMMIT 写任务进度 outbox
+    EVT->>N: AFTER_COMMIT best-effort 写通知
     EVT->>SCORE: AFTER_COMMIT 刷帖子热度队列
-    OUTBOX-->>OUTBOX: worker 轮询并调用各 handler
     SVC-->>API: LikeResult(liked, likeCount)
 ```
 
@@ -204,7 +199,7 @@ sequenceDiagram
 - 这两类写操作位于同一个 Spring 事务内
 - 状态变更成功后再发布 `LikeCreated` / `LikeRemoved`
 
-这一模式下，主业务写入和下游 outbox 入库都在同一个 DB 事务域中。
+这一模式下，社交主业务写入在同一个 DB 事务域中；积分 / 任务进度同步 owner API 与事件发布失败会让当前用例回滚。
 
 ### 4.6 Redis 模式下的状态变更
 
@@ -305,14 +300,12 @@ sequenceDiagram
 
 | 事件 | 下游能力 | 作用对象 | 当前默认模式 |
 | --- | --- | --- | --- |
-| `LikeCreated` | 通知 | 被点赞用户 | outbox |
-| `LikeCreated` | 积分 +1 | 被点赞用户 | outbox |
-| `LikeRemoved` | 积分 -1 | 被点赞用户 | outbox |
-| `LikeCreated` | 成长任务进度 | 被点赞用户 | outbox |
+| `LikeCreated` | 通知 | 被点赞用户 | `AFTER_COMMIT` best-effort |
+| `LikeCreated` | 积分 +1 | 被点赞用户 | 同步 owner API |
+| `LikeRemoved` | 积分 -1 | 被点赞用户 | 同步 owner API |
+| `LikeCreated` | 成长任务进度 | 被点赞用户 | 同步 owner API |
 | `LikeCreated` / `LikeRemoved` | 帖子热度刷新 | 帖子 | `AFTER_COMMIT` |
-| `FollowCreated` | 通知 | 被关注用户 | outbox |
-
-如果 `events.outbox.enabled = false`，通知 / 积分 / 任务进度会退回 `AFTER_COMMIT` 直接处理。
+| `FollowCreated` | 通知 | 被关注用户 | `AFTER_COMMIT` best-effort |
 
 ### 6.1 通知
 
@@ -355,70 +348,24 @@ sequenceDiagram
 
 ---
 
-## 7. 当前项目中 Outbox 的工作方式
+## 7. 当前项目中社交下游副作用的工作方式
 
-### 7.1 当 outbox 关闭时
+在当前项目里，点赞 / 关注不再通过 notice / points / task-progress outbox 扇出，而是按语义分成两类：
 
-如果 `events.outbox.enabled = false`，社交事件的典型处理方式是：
-
-- `LikeApplicationService` / `FollowApplicationService` 发布 social 领域事件，`LocalSocialDomainEventPublisher` 映射并发布 `SocialContractEvent`
-- `NoticeProjectionListener`、`PointsProjectionListener`、`TaskProgressProjectionListener`
-  使用 `@TransactionalEventListener(phase = AFTER_COMMIT)` 直接处理副作用
-
-特点：
-
-- 简单
-- 主事务提交后立即执行
-- 监听器异常不会回滚主事务
-- 失败通常只能记日志，可靠重试能力弱
-
-### 7.2 当 outbox 开启时
-
-如果 `events.outbox.enabled = true`，当前主配置会启用以下模式：
-
-1. `LikeApplicationService` / `FollowApplicationService` 先发布 social 领域事件，infrastructure adapter 再发布 `SocialContractEvent`
-2. `BEFORE_COMMIT` enqueuer 在同一个 DB 事务里写 `outbox_event`
-3. 主事务提交成功后，`OutboxWorkerScheduler` 周期性轮询 `outbox_event`
-4. 对应 `OutboxHandler` 异步处理副作用
-5. 失败时按 outbox 规则重试 / 延迟 / dead-letter
-
-当前点赞 / 关注相关的 outbox topic 包括：
-
-- `projection.notice`
-- `projection.points`
-- `projection.task-progress`
-
-各 enqueuer 的 `event_id` 约定为：
-
-- `<socialEventId>:notice`
-- `<socialEventId>:points`
-- `<socialEventId>:task-progress`
-
-`event_key` 则按消费对象选择，例如：
-
-- 通知：`toUserId`
-- 积分：`userId`
-- 任务进度：`userId`
-
-### 7.3 当前代码里“怎么使用 outbox”
-
-在当前项目里，“使用 outbox”并不是让 social application service 直接操作 `JdbcOutboxEventStore`，而是遵循下面这条链路：
-
-1. social application service 发布 social 领域事件
-2. `LocalSocialDomainEventPublisher` 把领域事件映射为稳定的 `SocialContractEvent`
-3. 可靠副作用的生产方监听这个事件，并在 `BEFORE_COMMIT` 阶段写入 `outbox_event`
-4. worker 再按 topic 调用对应 handler
+1. 需要在当前用例内同步完成的 owner-domain 协作：
+   - `UserPointsAwardActionApi`
+   - `GrowthTaskProgressActionApi`
+2. 主事务提交后 best-effort 追平的读模型 / 本地刷新：
+   - `NoticeProjectionListener`
+   - `SocialInteractionProjectionListener`
 
 这意味着：
 
 - social domain service 不应该调用通知、积分、任务服务
-- application service 可以在确实需要同步跨域协作时调用 foreign owner-domain `api.action`
-- 新增一个“必须最终达成”的社交副作用时，优先新增：
-  - 一个 `BEFORE_COMMIT` enqueuer
-  - 一个 `OutboxHandler`
+- social application service 可以在确实需要同步跨域协作时调用 foreign owner-domain `api.action`
 - 如果副作用只是本地刷新、丢一次可接受，则优先考虑 `AFTER_COMMIT`
 
-### 7.4 为什么点赞 / 关注天然适合 outbox
+### 7.1 为什么点赞 / 关注要拆副作用语义
 
 点赞 / 关注不是“只改一条主状态”的命令，它们通常会同时触发多类副作用：
 
@@ -427,22 +374,16 @@ sequenceDiagram
 - 成长任务进度
 - 热度刷新
 
-这些副作用具备三个典型特征：
-
-- 数量多
-- 对主 HTTP 响应并非强同步依赖
-- 其中一部分失败后需要重试，不能简单丢掉
-
-因此它们天然适合“主命令写成功后，再以事件方式可靠投递下游”的模型。
+其中积分 / 任务进度属于用例内强协作；通知和热度刷新属于可稍后追平的读模型或本地刷新。当前代码选择让积分 / 任务进度同步落在 owner API，通知和热度刷新走 `AFTER_COMMIT`。
 
 ---
 
 ## 8. 当前边界与限制
 
-当前 outbox 方案要分两层理解：
+当前社交链路要分两层理解：
 
-- 对下游消费者而言，outbox 已经承担了“可靠异步投递”的职责
-- 对生产端而言，outbox 是否能和主写入放在同一个事务域，取决于社交主存储是不是 DB
+- 社交主事实仍由 `LikeRepository` / `FollowRepository` owns
+- 下游副作用不再统一进入 outbox；是否同步由 use case 语义决定
 
 ### 8.1 在默认配置下
 
@@ -454,18 +395,20 @@ sequenceDiagram
 
 则：
 
-- 社交主写入和 outbox 入库都在同一个 DB 事务内
-- `LikeCreated` / `LikeRemoved` / `FollowCreated` 能稳定驱动可靠副作用
-- 这是当前最清晰、最稳定的组合
+- 社交主写入在 DB 事务内完成
+- 点赞积分和任务进度同步调用 owner API
+- 通知和热度刷新在 `AFTER_COMMIT` 执行，失败不回滚社交主事务
+- `events.outbox.enabled` 不会启用旧的 points / notice / task-progress social outbox adapter
 
 ### 8.2 在 Redis 主存储下
 
-如果切到 `social.storage = redis`，当前 JDBC outbox 仍然可以保证“消费者侧重试”，但不能天然保证：
+如果切到 `social.storage = redis`，当前代码仍然可以运行，但不能天然保证：
 
 - Redis 主写入
-- DB outbox 入库
+- 同步 owner API 副作用
+- 后续领域事件发布
 
-这两者的原子一致性。
+这些动作的原子一致性。
 
 因此当前 Redis 路径里仍然存在：
 
@@ -475,8 +418,7 @@ sequenceDiagram
 
 换句话说：
 
-- outbox 当前已经很好地解决了“社交事件 -> 下游副作用”的可靠投递问题
-- 但它没有自动消除 Redis 主写入路径中的生产端一致性复杂度
+- 当前同步 owner API 与 after-commit 副作用没有自动消除 Redis 主写入路径中的生产端一致性复杂度
 
 这也是为什么当前主配置选择 `social.storage = db`。
 
@@ -486,21 +428,18 @@ sequenceDiagram
 
 如果未来要在点赞 / 关注后新增一个副作用，当前仓库更推荐按下面的边界接入：
 
-### 9.1 需要“必须最终达成”的副作用
+### 9.1 需要用例内强协作的副作用
 
 例如：
 
-- 新的通知投影
 - 新的积分 / 成长 / 奖励投影
-- 对外部系统的可靠同步
+- 写接口响应前必须完成的 owner 状态更新
 
 推荐做法：
 
-1. 先复用现有 `SocialContractEvent`
-2. 新增 `BEFORE_COMMIT` enqueuer
-3. 写入独立 topic 的 outbox 记录
-4. 新增 `OutboxHandler` 处理该 topic
-5. 让 handler 自身具备幂等或可重试能力
+1. 定义 owner-domain `api.action` / `api.model`
+2. 在 social application service 中调用该 owner API
+3. 让 owner application service 自己负责事务、幂等和领域规则
 
 ### 9.2 只是本地、可丢失的副作用
 
@@ -569,20 +508,16 @@ social domain service 更适合只负责：
 - `backend/community-app/src/main/java/com/nowcoder/community/social/contracts/event/LikePayload.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/social/contracts/event/FollowPayload.java`
 
-### 10.5 Outbox 生产与消费
+### 10.5 同步 owner API 与本地监听
 
-- `backend/community-app/src/main/java/com/nowcoder/community/notice/event/NoticeOutboxEnqueuer.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/notice/event/NoticeOutboxHandler.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/user/event/PointsOutboxEnqueuer.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/user/event/PointsOutboxHandler.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/event/TaskProgressOutboxEnqueuer.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/event/TaskProgressOutboxHandler.java`
-- `backend/community-common/common-outbox/src/main/java/com/nowcoder/community/common/outbox/JdbcOutboxEventStore.java`
-- `backend/community-common/common-outbox/src/main/java/com/nowcoder/community/common/outbox/OutboxWorkerScheduler.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/api/action/UserPointsAwardActionApi.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/infrastructure/api/UserPointsAwardApiAdapter.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/application/UserPointsApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/api/action/GrowthTaskProgressActionApi.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/infrastructure/api/GrowthTaskProgressActionApiAdapter.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/application/TaskProgressApplicationService.java`
 
-### 10.6 非 outbox 的本地副作用与关闭 outbox 时的监听器
+### 10.6 After-commit 本地副作用
 
-- `backend/community-app/src/main/java/com/nowcoder/community/content/event/SocialInteractionProjectionListener.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/notice/event/NoticeProjectionListener.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/user/event/PointsProjectionListener.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/event/TaskProgressProjectionListener.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event/SocialInteractionProjectionListener.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/notice/infrastructure/event/NoticeProjectionListener.java`

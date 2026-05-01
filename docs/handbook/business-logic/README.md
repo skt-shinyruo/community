@@ -2,7 +2,7 @@
 
 本目录用于沉淀“业务功能在当前代码里是如何落地实现的”。
 
-和 `docs/ARCHITECTURE.md`、`docs/SYSTEM_DESIGN.md` 这类偏架构/设计文档不同，这里的文档更关注：
+和 `docs/handbook/ARCHITECTURE.md`、`docs/handbook/SYSTEM_DESIGN.md` 这类偏架构/设计文档不同，这里的文档更关注：
 
 - 某个业务能力的入口在哪里
 - 核心链路经过哪些模块、服务、topic、表或状态

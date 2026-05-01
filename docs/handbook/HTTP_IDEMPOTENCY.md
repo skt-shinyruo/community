@@ -413,8 +413,8 @@ return idempotencyGuard.executeRequired(
 
 ## 17. 相关文档
 
-- `docs/SECURITY.md`：安全边界下的幂等摘要。
-- `docs/SYSTEM_DESIGN.md`：系统设计层面的同步写路径与失败处理。
-- `docs/DATA_MODEL.md`：`community.http_idempotency` 表在数据模型中的位置。
+- `docs/handbook/SECURITY.md`：安全边界下的幂等摘要。
+- `docs/handbook/SYSTEM_DESIGN.md`：系统设计层面的同步写路径与失败处理。
+- `docs/handbook/DATA_MODEL.md`：`community.http_idempotency` 表在数据模型中的位置。
 - `deploy/mysql/community/010_schema_shared.sql`：DB 表结构。
 - `docs/superpowers/specs/2026-04-25-community-app-idempotency-unification-design.md`：钱包/市场幂等统一的历史设计记录。

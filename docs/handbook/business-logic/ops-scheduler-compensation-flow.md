@@ -47,7 +47,7 @@
 代表类：
 
 - `SingleFlightTaskGuard`
-- `ReindexJobService`
+- `ReindexJobApplicationService`
 
 特点：
 
@@ -72,7 +72,7 @@
 
 核心类：
 
-- `backend/community-app/src/main/java/com/nowcoder/community/auth/service/RefreshTokenCleanupJob.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/auth/infrastructure/job/RefreshTokenCleanupJob.java`
 
 配置类：
 
@@ -100,7 +100,7 @@
 
 底层实现是：
 
-- `RefreshTokenSessionService.deleteExpiredBefore(...)`
+- `UserRefreshTokenSessionActionApi` 的 infrastructure adapter，再进入 user owner application service / repository
 
 也就是删除所有已过期 refresh token 会话。
 
@@ -125,7 +125,7 @@
 
 核心类：
 
-- `backend/community-app/src/main/java/com/nowcoder/community/auth/service/PendingRegistrationUserCleanupJob.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/auth/infrastructure/job/PendingRegistrationUserCleanupJob.java`
 
 配置类：
 
@@ -155,7 +155,7 @@
 
 底层实现是：
 
-- `UserRegistrationService.cleanupExpiredPendingUsers(...)`
+- `UserRegistrationApplicationService.cleanupExpiredPendingUsers(...)`
 
 它会删除：
 
@@ -182,12 +182,12 @@
 
 核心类：
 
-- `backend/community-app/src/main/java/com/nowcoder/community/content/score/PostScoreRefresher.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/job/PostScoreRefresher.java`
 
 队列实现：
 
-- `backend/community-app/src/main/java/com/nowcoder/community/content/score/RedisPostScoreQueue.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/content/score/PostScoreQueue.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/persistence/RedisPostScoreQueue.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/application/PostScoreQueue.java`
 
 ### 2.3.1 触发频率
 
@@ -213,10 +213,10 @@
 每次批量循环里：
 
 1. `scoreQueue.pop()` 取一个待刷新帖子
-2. `postService.getById(postId)` 读取帖子
+2. `PostScoreRefreshApplicationService` 通过 `PostContentRepository.getById(postId)` 读取帖子
 3. 查点赞数与评论数
 4. 按热度公式重算 score
-5. `scoreUpdateService.updateScore(postId, score)`
+5. `PostScoreUpdateApplicationService.updateScore(postId, score)`
 6. `scoreQueue.onSuccess(postId)` 清掉重试计数
 
 ### 2.3.4 失败路径
@@ -337,10 +337,8 @@ worker 每次 `pollOnce()` 会：
 
 因为 BEFORE_COMMIT enqueuer 会在主事务里先写一条 outbox 行，之后真正的：
 
-- 通知投影
-- 积分投影
 - 搜索投影
-- growth 任务投影
+- IM policy 投影
 
 都可以在后台重放。
 
@@ -353,17 +351,15 @@ worker 每次 `pollOnce()` 会：
 
 当前几个典型 enqueuer / handler 是：
 
-- `PointsOutboxEnqueuer` / `PointsOutboxHandler`
-- `NoticeOutboxEnqueuer` / `NoticeOutboxHandler`
 - `PostOutboxEnqueuer` / `PostOutboxHandler`
-- `TaskProgressOutboxEnqueuer` / `TaskProgressOutboxHandler`
+- `ImPolicyOutboxEnqueuer` / `ImPolicyKafkaOutboxHandler`
 
 它们的共同模式都是：
 
 1. `@TransactionalEventListener(BEFORE_COMMIT)` 写 outbox
 2. worker 异步取出
 3. topic handler 反序列化 payload
-4. 调对应 projection service
+4. 调对应 owner application service / infrastructure handler
 
 也就是说，outbox 是这几个业务投影链路共同的后台补偿底座。
 
@@ -483,12 +479,12 @@ XXL-Job 在当前项目不是硬依赖，而是可选调度平面。
 
 核心类：
 
-- `backend/community-app/src/main/java/com/nowcoder/community/search/service/ReindexJobService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/search/service/SearchReindexExecutionService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/search/application/ReindexJobApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/search/application/SearchReindexApplicationService.java`
 
 ### 5.2.1 启动阶段
 
-`ReindexJobService.tryStart()` 会尝试抢：
+`ReindexJobApplicationService.tryStart()` 会尝试抢：
 
 - `sf:task:search:reindex`
 
@@ -514,7 +510,7 @@ XXL-Job 在当前项目不是硬依赖，而是可选调度平面。
 
 无论成功失败，`finally` 都会：
 
-- `reindexJobService.finish(job)`
+- `reindexJobApplicationService.finish(job)`
 
 释放锁。
 
@@ -607,17 +603,17 @@ XXL-Job 在当前项目不是硬依赖，而是可选调度平面。
 
 ## 9. 关键代码定位
 
-- `backend/community-app/src/main/java/com/nowcoder/community/auth/service/RefreshTokenCleanupJob.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/auth/service/PendingRegistrationUserCleanupJob.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/content/score/PostScoreRefresher.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/content/score/RedisPostScoreQueue.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/auth/infrastructure/job/RefreshTokenCleanupJob.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/auth/infrastructure/job/PendingRegistrationUserCleanupJob.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/job/PostScoreRefresher.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/persistence/RedisPostScoreQueue.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/infra/job/handlers/PendingRegistrationUserCleanupHandler.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/infra/job/handlers/SearchReindexHandler.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/infra/job/handlers/MarketOrderAutoConfirmHandler.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/infra/job/XxlJobAutoConfiguration.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/infra/scheduler/SingleFlightTaskGuard.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/search/service/ReindexJobService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/search/service/SearchReindexExecutionService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/search/application/ReindexJobApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/search/application/SearchReindexApplicationService.java`
 - `backend/community-common/common-outbox/src/main/java/com/nowcoder/community/common/outbox/JdbcOutboxEventStore.java`
 - `backend/community-common/common-outbox/src/main/java/com/nowcoder/community/common/outbox/OutboxWorker.java`
 - `backend/community-common/common-outbox/src/main/java/com/nowcoder/community/common/outbox/OutboxWorkerScheduler.java`

@@ -9,19 +9,19 @@
 
 相关文档：
 
-- `docs/business-logic/report-moderation-flow.md`
-- `docs/business-logic/social-block-im-governance-flow.md`
+- `docs/handbook/business-logic/report-moderation-flow.md`
+- `docs/handbook/business-logic/social-block-im-governance-flow.md`
 
 ---
 
 ## 1. 参与组件
 
-- `UserModerationService`：用户处罚状态 owner
-- `ModerationCommandListener`：消费来自内容治理的处罚命令
+- `UserModerationApplicationService`：用户处罚状态 owner application service
+- `UserModerationApiAdapter`：发布 `UserModerationActionApi` / `UserModerationQueryApi`
 - `content.UserModerationGuard`：内容侧发言守卫
-- `im.governance.UserModerationGuard`：私信发送守卫
-- `PrivateMessageGovernanceService`：IM 发送前治理编排
-- `TakeModerationActionUseCase`：处罚命令的上游发起者
+- `ImPolicySnapshotService`：为 `im-realtime` policy projection 提供处罚状态快照
+- `PolicyProjectionService`：`im-realtime` 本地私信发送判定
+- `ModerationApplicationService`：处罚命令的上游发起者
 - MySQL：
   - `user.mute_until`
   - `user.ban_until`
@@ -57,13 +57,12 @@
 
 也就是：
 
-1. `TakeModerationActionUseCase`
-2. `UserModerationCommandPublisher.publishModerationCommand(...)`
-3. 发布 `MODERATION_COMMAND_REQUESTED`
-4. `ModerationCommandListener`
-5. `UserModerationService.applyModeration(...)`
+1. `ModerationApplicationService`
+2. `UserModerationActionApi.applyModeration(...)`
+3. `UserModerationApiAdapter`
+4. `UserModerationApplicationService.applyModeration(...)`
 
-### 3.2 `UserModerationService.applyModeration(...)`
+### 3.2 `UserModerationApplicationService.applyModeration(...)`
 
 它支持这些动作：
 
@@ -92,7 +91,7 @@
 
 内容侧守卫在：
 
-- `backend/community-app/src/main/java/com/nowcoder/community/content/service/UserModerationGuard.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/content/application/UserModerationGuard.java`
 
 入口方法：
 
@@ -108,10 +107,10 @@
 
 这条守卫被以下主链路调用：
 
-- `CreatePostUseCase.createPost(...)`
-- `UpdatePostUseCase.updatePost(...)`
-- `CommentService.addComment(...)`
-- `CommentService.updateComment(...)`
+- `PostPublishingApplicationService.create(...)`
+- `PostPublishingApplicationService.updatePost(...)`
+- `CommentApplicationService.create(...)`
+- `CommentApplicationService.update(...)`
 
 所以在当前代码里，“发帖”和“评论 / 编辑评论”都会受禁言 / 封禁影响。
 
@@ -119,41 +118,49 @@
 
 ## 5. IM 侧如何使用处罚状态
 
-IM 侧守卫在：
+IM 侧不再由 `community-app` 提供逐条私信守卫，而是由 `im-realtime` 本地 policy projection 判定。
 
-- `backend/community-app/src/main/java/com/nowcoder/community/im/governance/UserModerationGuard.java`
+快照与本地判定相关代码：
+
+- `backend/community-app/src/main/java/com/nowcoder/community/im/projection/ImPolicySnapshotService.java`
+- `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/projection/PolicySnapshotClient.java`
+- `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/projection/PolicyProjectionService.java`
 
 入口方法：
 
-- `assertCanSendMessage(UUID userId)`
+- `PolicyProjectionService.canSendPrivateMessage(UUID fromUserId, UUID toUserId)`
 
-它的判定逻辑与内容侧几乎完全一致，只是报错文案变成：
+它会根据 `community-app` 提供的 user policy snapshot 和后续 Kafka policy change 事件判定：
 
-- 封禁：`账号已被封禁，无法发送私信`
-- 禁言：`你已被禁言，暂时无法发送私信`
+- 发送方 / 接收方是否存在
+- 发送方是否禁言或封禁
+- 接收方是否允许私信
 
-这条守卫被：
+这条本地判定被：
 
-- `PrivateMessageGovernanceService.validateCanSendPrivateMessage(...)`
+- `ImWebSocketHandler.handleSendPrivate(...)`
 
 调用。
 
-所以 IM 私信发送前也会同步回源检查处罚状态。
+所以 IM 私信发送前会检查处罚状态，但不是每次发送都同步回源 `community-app`。
 
 ---
 
 ## 6. 当前能力边界
 
-### 6.1 同步回源，不做本地投影缓存
+### 6.1 内容同步回源，IM 本地投影
 
-两个 guard 的注释都明确说明了：
+内容侧 guard 的注释明确说明了：
 
 - 已移除本地投影
-- 写路径同步依赖 `user` 模块的实时可用性
+- 内容写路径同步依赖 `user` 模块的实时可用性
 
-也就是说，当前不是“把处罚状态同步一份到 content / im 再本地判断”，而是：
+IM 侧则相反：`im-realtime` 本地持有 policy projection，`community-app` 提供 bootstrap snapshot 和 policy change outbox。
 
-- 每次写路径前同步向 `user` 域回源
+也就是说：
+
+- 内容写路径每次同步向 `user` 域回源
+- IM 发送路径每次查询 `im-realtime` 本地 projection
 
 ### 6.2 只覆盖“能不能说话 / 发消息”
 
@@ -167,12 +174,11 @@ IM 侧守卫在：
 
 ### 6.3 数字 userId 旧接口已废弃
 
-两个 guard 都保留了一个：
+内容侧 guard 还保留了一个：
 
 - `assertCanSpeak(int userId)`
-- `assertCanSendMessage(int userId)`
 
-但当前实现都是直接报错：
+但当前实现直接报错：
 
 - `numeric userId 已不再受支持`
 
@@ -199,5 +205,5 @@ IM 侧守卫在：
 
 - 状态统一 owned by `user` 域
 - 处罚命令主要由举报治理链路触发
-- 内容和 IM 在写入前同步回源检查 `muteUntil / banUntil`
+- 内容在写入前同步回源检查 `muteUntil / banUntil`，IM 在 `im-realtime` 本地 policy projection 中检查
 - 服务层已经支持 `unmute / unban`，但当前公开业务入口主要还是处罚而不是解除处罚

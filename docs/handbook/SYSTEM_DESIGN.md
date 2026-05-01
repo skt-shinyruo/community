@@ -16,7 +16,7 @@
 - same-domain HTTP 入口默认经 owner `application.*ApplicationService` 编排；本地 listener / 本地持续型 worker 也默认经 owner `application.*ApplicationService` 进入业务编排
 - `community-app` 业务代码必须使用 DDD Tactical Layering：`controller -> application -> domain -> infrastructure`
 - `@RestController` 不再作为 `..app..` use case、raw `service`、domain 或 infrastructure 的直接拼装层
-- `wallet` / `market` / `search` / `analytics` 已收敛到该分层：HTTP/job/listener/filter 入口只进入同域 ApplicationService；MyBatis/Redis/Elasticsearch 与 `*DataObject` 只位于 `infrastructure`；旧 `service` 包只发布 foreign API adapter
+- `auth` / `user` / `content` / `social` / `notice` / `search` / `analytics` / `growth` / `market` / `wallet` 已收敛到该分层：HTTP/job/listener/filter 入口只进入同域 ApplicationService；MyBatis/Redis/Elasticsearch 与 `*DataObject` 只位于 `infrastructure`；owner API adapter 位于 `infrastructure.api`
 
 DDD Tactical Layering 冻结规则：
 - 所有 `@RestController` 不直接依赖 same-domain `..app..`、`..domain..`、`..infrastructure..`
@@ -123,7 +123,7 @@ DDD Tactical Layering 冻结规则：
   - OriginGuard allowlist 必须配置且在 prod 下 allowlist 为空时 **fail-closed**
   - CORS：必须 `allowCredentials=true` 且 `allowedOrigins` 精确匹配（禁止 `*`）
 
-详细说明见：`docs/SECURITY.md`。
+详细说明见：`docs/handbook/SECURITY.md`。
 
 ### 2.5 API DTO 与契约测试（字段白名单）
 
@@ -148,7 +148,7 @@ DDD Tactical Layering 冻结规则：
   - 并发同 key：返回 `409`（提示“处理中，可重试”）
   - 同 key 但请求语义指纹不同：返回对应业务域的 replay-conflict 错误码
 
-幂等能力的核心组件是 `IdempotencyGuard` 和 `IdempotencyStore`。当前 `community-app` 默认启用 DB 方案，基于 `http_idempotency` 表和唯一键 `(operation, user_id, idem_key)` 维护共享状态。完整的公共契约、执行流程、DB/Redis 存储模型、指标、接入步骤和边界权衡见 `docs/HTTP_IDEMPOTENCY.md`。
+幂等能力的核心组件是 `IdempotencyGuard` 和 `IdempotencyStore`。当前 `community-app` 默认启用 DB 方案，基于 `http_idempotency` 表和唯一键 `(operation, user_id, idem_key)` 维护共享状态。完整的公共契约、执行流程、DB/Redis 存储模型、指标、接入步骤和边界权衡见 `docs/handbook/HTTP_IDEMPOTENCY.md`。
 
 ---
 
@@ -162,8 +162,8 @@ IM 链路：使用 Kafka 作为 backplane（topic 常量见 `backend/community-i
 私信写路径的实际入口已收敛为：
 1. 客户端通过 WebSocket `sendPrivateText` 向 `community-gateway` 暴露的 `/ws/im` 发起请求
 2. `community-gateway` 将连接转发到 `im-realtime`
-3. `im-realtime` 先调用 `community-app` 的 `POST /api/im-governance/private-messages/validate` 做治理校验
-4. 治理通过后，`im-realtime` 把 command 写入 Kafka
+3. `im-realtime` 启动时通过 `community-app` 的 `/internal/im/realtime/projections/user-policies` 与 `/internal/im/realtime/projections/block-relations` 拉取策略快照，并持续消费 IM policy Kafka 事件更新本地 projection
+4. 发送私信时，`im-realtime` 先用本地 `PolicyProjectionService` 判定发送方/接收方是否存在、是否禁言/封禁、双方是否拉黑；通过后再把 command 写入 Kafka
 5. `im-core` 消费 Kafka command 并完成私信持久化；历史查询、会话列表与未读状态则通过 `/api/im/**` 暴露
 
 ### 3.2 事件契约：Owner-Domain Contracts（SSOT）
@@ -177,19 +177,20 @@ IM 链路：使用 Kafka 作为 backplane（topic 常量见 `backend/community-i
 
 `common.event.EventEnvelope` 仍保留为通用 envelope 能力，但它不是当前包级单体内部投影协作的默认 contract 入口；本地投影路径以 owner-domain `contracts.event` 为准。
 
-### 3.3 事务后本地监听
+### 3.3 事务事件、outbox 与同步 owner API
 当前实现采用：
-1. 写模块在 DB 事务内发布 owner-domain contract event（例如 `ContentContractEvent`、`SocialContractEvent`）
-2. owner-domain projection service 先统一完成“该事件是否需要投影、投影目标是什么”的业务判定
-3. 对“必须最终达成”的投影（通知/积分/搜索）使用 `@TransactionalEventListener(phase = BEFORE_COMMIT)` 写入 `community.outbox_event`（同事务提交）
-4. 本地 `@Scheduled` outbox worker 轮询并执行投影 handler（失败自动重试，最终一致）
-5. 若关闭 outbox，本地 `AFTER_COMMIT` listener 仍走同一个 owner `ApplicationService`；监听器本身不拥有业务分支，避免双路径同构逻辑长期漂移
-6. 对“尽力而为”的本地副作用（如热度队列）仍使用 after-commit 执行，并在监听方做兜底（不影响主链路）
+1. 写模块在 DB 事务内发布 owner-domain contract event（例如 `ContentContractEvent`、`SocialContractEvent`、`UserContractEvent`）
+2. 搜索投影使用 `search.infrastructure.event.PostOutboxEnqueuer` 在 `BEFORE_COMMIT` 写入 `community.outbox_event`，再由 `PostOutboxHandler` 幂等 upsert/delete ES 文档
+3. IM policy 投影使用 `im.projection.ImPolicyOutboxEnqueuer` 把 user policy / block 变化写入 outbox，再由 `ImPolicyKafkaOutboxHandler` 发布到 IM Kafka policy topic，供 `im-realtime` 刷新本地 policy projection
+4. notice 读模型不走 outbox：`NoticeProjectionListener` 在 `AFTER_COMMIT` 调 `NoticeProjectionApplicationService`，失败只记录日志，不回滚源事务
+5. user points 与 growth task progress 不走本地 listener/outbox：内容/社交 application service 在当前用例中同步调用 owner-domain `UserPointsAwardActionApi` 与 `GrowthTaskProgressActionApi`
+6. 对“尽力而为”的本地副作用（如热度队列）仍使用 after-commit 或本地队列执行，并在监听方做兜底（不影响主链路）
 
-当前已经显式收口到 shared projection application entry 的链路包括：
+当前已经显式收口到 owner application entry 的链路包括：
 - notice projection：`NoticeProjectionApplicationService`
-- user points：`PointsProjectionService`
+- user points：`UserPointsApplicationService`
 - growth task progress：`TaskProgressApplicationService`
+- search reindex/projection：`SearchApplicationService` / `SearchReindexApplicationService`
 
 当前 `backend/community-app` 后端业务域已迁入严格 DDD Tactical Layering：HTTP controller、本地 listener/job 与 foreign API adapter 只能进入 owner `application.*ApplicationService`；应用层通过 domain model/service/repository 编排规则与持久化契约，应用结果保持 transport-neutral；MyBatis/Redis/ES mapper 或 adapter 与 dataobject 只允许留在 `infrastructure`，domain service 保持 plain Java。
 
@@ -198,10 +199,11 @@ IM 链路：使用 Kafka 作为 backplane（topic 常量见 `backend/community-i
 - 在语义稳定后，再把 `api` / `contracts` / `impl` 进一步拆成独立 Maven artifact，避免继续依赖“包结构自律”
 
 ### 3.4 典型消费方（最终一致）
-- notice：消费评论/社交事件，生成通知
-- search：消费帖子/评论等事件，更新 ES 索引
+- notice：after-commit 消费评论/社交/治理事件，best-effort 生成通知
+- search：通过 outbox 消费帖子事件，更新 ES 索引
+- IM policy：通过 outbox 将用户处罚与拉黑变化发布给 IM realtime policy projection
 
-说明：这里的“消费”指单体内的事务事件 + outbox handler，并非通过 Kafka 订阅 `community.event.*`。
+说明：除 IM policy 向 `community-im` Kafka topic 发布外，这里的“消费”指单体内的事务事件 + outbox handler，并非通过 Kafka 订阅 `community.event.*`。
 
 补充：搜索属于“事件驱动投影”，因此天然最终一致：
 - 写成功后到可搜索存在短暂延迟（事务提交 + 本地监听 + ES refresh）
@@ -231,8 +233,8 @@ phase 1 的运行边界是：
 按当前需求取舍：仓库已移除跨域本地投影（`*_projection` 表、Redis 投影、投影消费者与 backfill 入口），统一改为 **同进程 owner-domain API 实时回源 SSOT**。同域 controller/listener/job 不走 same-domain `api.*`，跨域调用才使用 owner-domain `api.query` / `api.action` / `api.model`。
 
 典型场景（均为进程内调用，非网络调用）：
-- `community-app` 已不再拥有私信写路径；真实私信发送入口是 `community-gateway` 暴露的 `/ws/im`，由 `im-realtime` 接入并在投递 Kafka 前调用 `POST /api/im-governance/private-messages/validate`
-- `community-app` 内部的 IM 治理判定不再走 legacy `message` 写 service，而是通过 `user` / `social` owner-domain query 接口回源拿用户存在性、处罚状态与拉黑关系（默认 fail-closed）
+- `community-app` 已不再拥有私信写路径；真实私信发送入口是 `community-gateway` 暴露的 `/ws/im`，由 `im-realtime` 接入并在投递 Kafka 前使用本地 `PolicyProjectionService` 判定用户存在性、处罚状态与拉黑关系
+- `community-app` 对 IM 只提供 `/internal/im/realtime/projections/**` 快照面；快照由 `ImPolicySnapshotApplicationService -> ImPolicySnapshotService` 通过 `user` / `social` owner-domain query 接口回源构造，访问需 `SCOPE_im.realtime.internal`
 - social 写路径可信解析（entity resolve）：`social.application.ContentEntityResolver` 通过 `content.api.query.ContentEntityQueryApi` 回源（默认 fail-closed）
 - user 读路径聚合展示（主页点赞/关注/粉丝）：通过 `social.api.query.SocialLikeQueryApi` / `SocialFollowQueryApi` 回源，当前不提供配置驱动的 fail-open 降级开关，异常按调用链直接返回
 

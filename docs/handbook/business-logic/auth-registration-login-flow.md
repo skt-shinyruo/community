@@ -22,16 +22,18 @@
 - 前端：注册页、登录页、Pinia auth store、Axios 拦截器、路由守卫
 - `community-app`：
   - `AuthController`：公开认证接口入口
-  - `RegistrationService`：注册与验证码签发
-  - `RegistrationVerificationService`：验证码重发、验证、激活并自动登录
-  - `AuthService`：密码登录、refresh、logout、统一签发登录态
+  - `AuthApplicationService`：同域认证统一应用入口，委托注册、验证码、登录、refresh、logout 子用例
+  - `RegistrationApplicationService`：注册与验证码签发
+  - `RegistrationVerificationApplicationService`：验证码重发、验证、激活并自动登录
+  - `LoginApplicationService`：密码登录、refresh、logout、统一签发登录态
   - `AuthOriginGuardFilter`：浏览器直连认证入口时的 OriginGuard
-  - `UserRegistrationService`：用户创建、待激活用户读取、激活、过期待激活用户清理
-  - `UserCredentialService`：密码校验、密码升级、角色映射
-  - `JwtTokenService` / `RefreshTokenService`：access token 签发与 refresh token 轮换
-  - `DbRefreshTokenStore`：refresh token 的 DB 持久化适配层
-  - `RegistrationSessionStore`：`registrationToken -> userId` 的服务端映射
-  - `LoginRateLimitService`：登录失败计数、拦截与验证码触发
+  - `UserRegistrationActionApi` / `UserCredentialQueryApi`：auth 跨域调用 user owner 的 published API
+  - `UserRegistrationApplicationService`：用户创建、待激活用户读取、激活、过期待激活用户清理
+  - `UserCredentialApplicationService`：密码校验、密码升级、角色映射
+  - `JwtTokenService` / `RefreshTokenApplicationService`：access token 签发与 refresh token 轮换
+  - `DbRefreshTokenRepository`：refresh token 的 DB 持久化适配层
+  - `RegistrationSessionRepository`：`registrationToken -> userId` 的服务端映射
+  - `LoginRateLimitApplicationService`：登录失败计数、拦截与验证码触发
   - `RefreshTokenCleanupJob`：过期 refresh token 清理
   - `PendingRegistrationUserCleanupJob`：过期待激活用户清理
   - `AuthStartupValidator`：prod 下认证相关 fail-closed 校验
@@ -123,11 +125,11 @@ sequenceDiagram
     participant U as User
     participant FE as RegisterView
     participant API as AuthController
-    participant REG as RegistrationService
-    participant USER as UserRegistrationService
-    participant SESS as RegistrationSessionStore
-    participant CODE as RegistrationCodeStore
-    participant MAIL as MailService
+    participant REG as RegistrationApplicationService
+    participant USER as UserRegistrationActionApi
+    participant SESS as RegistrationSessionRepository
+    participant CODE as RegistrationCodeRepository
+    participant MAIL as MailPort
     participant DB as MySQL
 
     U->>FE: 填写 username/email/password/captcha
@@ -150,13 +152,13 @@ sequenceDiagram
 
 后端处理顺序如下：
 
-1. `RegistrationService.register()` 校验请求体不能为空
+1. `RegistrationApplicationService.register()` 校验请求体不能为空
 2. 强制要求 `captchaId` 与 `captchaCode`
-3. `CaptchaService.verify(...)` 校验图形验证码；成功后立即一次性消费
-4. `UserRegistrationService.register(...)` 创建用户
+3. `CaptchaApplicationService.verify(...)` 校验图形验证码；成功后立即一次性消费
+4. `UserRegistrationActionApi.registerPendingUser(...)` 进入 user owner 创建待激活用户
 5. 生成 6 位数字邮箱验证码
-6. 通过 `RegistrationCodeStore.issue(...)` 写入验证码
-7. 通过 `MailService.sendRegistrationCodeMail(...)` 发信
+6. 通过 `RegistrationCodeRepository.issue(...)` 写入验证码
+7. 通过 `MailPort.sendRegistrationCodeMail(...)` 发信
 8. 创建并返回注册上下文：
    - 响应中包含 `userId`（调试/展示用）
    - **响应中包含 `registrationToken`（后续重发/验证使用）**
@@ -165,7 +167,7 @@ sequenceDiagram
 
 ### 3.3 用户创建细节
 
-`UserRegistrationService.register(...)` 会先做 pending user 冲突清理：
+`UserRegistrationApplicationService.registerPendingUser(...)` 会先做 pending user 冲突清理：
 
 - 如果同用户名或同邮箱下存在已过期、且 `status=0` 的未激活用户，会先删除
 - 之后再重新检查用户名与邮箱唯一性
@@ -198,7 +200,7 @@ sequenceDiagram
 
 当前默认实现是：
 
-- `RegistrationSessionStore = RedisRegistrationSessionStore`
+- `RegistrationSessionRepository = RedisRegistrationSessionRepository`
 - token key 前缀：`auth:regsession:`
 
 它负责把：
@@ -232,7 +234,7 @@ sequenceDiagram
 - 只允许对仍处于 pending 状态的用户重发
 - 服务端有 resend cooldown，默认 `60` 秒
 - 新验证码签发后，仅最后一次发送的验证码有效
-- `registrationToken` 会在服务端解析为 `userId`（存储在 `RegistrationSessionStore`，TTL 与 pending user TTL 一致）
+- `registrationToken` 会在服务端解析为 `userId`（存储在 `RegistrationSessionRepository`，TTL 与 pending user TTL 一致）
 
 ### 4.2 验证验证码并自动登录
 
@@ -245,12 +247,12 @@ sequenceDiagram
 
 后端处理顺序：
 
-1. `RegistrationVerificationService.verifyAndLogin(...)` 校验参数
+1. `RegistrationVerificationApplicationService.verifyAndLogin(...)` 校验参数
 2. `registrationToken -> userId`（缺失/过期视为注册上下文失效）
 3. 确认该用户仍然是未激活 pending user
-4. `RegistrationCodeStore.verifyAndConsume(...)` 执行原子比对与消费
-5. 成功后调用 `UserRegistrationService.activateUser(userId)`，把 `status` 更新为 `1`
-6. 调用 `AuthService.issueLoginResult(user)` 签发登录态
+4. `RegistrationCodeRepository.verifyAndConsume(...)` 执行原子比对与消费
+5. 成功后调用 `UserRegistrationActionApi.activatePendingUser(userId)`，把 `status` 更新为 `1`
+6. 调用 `LoginApplicationService.issueLoginResult(user)` 签发登录态
 7. 响应体返回 `accessToken`，并通过 `Set-Cookie` 写入 refresh cookie
 8. best-effort 删除注册上下文（避免 token 被复用）
 
@@ -284,10 +286,10 @@ sequenceDiagram
     participant U as User
     participant FE as LoginView
     participant API as AuthController
-    participant AUTH as AuthService
-    participant LIMIT as LoginRateLimitService
-    participant CAP as CaptchaService
-    participant USER as UserCredentialService
+    participant AUTH as LoginApplicationService
+    participant LIMIT as LoginRateLimitApplicationService
+    participant CAP as CaptchaApplicationService
+    participant USER as UserCredentialQueryApi
 
     U->>FE: 输入 username/password
     FE->>API: POST /api/auth/login
@@ -305,10 +307,10 @@ sequenceDiagram
 
 ### 5.2 登录前置保护
 
-`AuthService.login()` 在真正校验密码前，会先执行以下保护：
+`LoginApplicationService.login()` 在真正校验密码前，会先执行以下保护：
 
 1. 解析客户端 IP
-2. 用 `LoginRateLimitService.assertNotBlocked(...)` 做限流拦截
+2. 用 `LoginRateLimitApplicationService.assertNotBlocked(...)` 做限流拦截
 3. 根据失败计数决定当前是否要求图形验证码
 4. 如果需要验证码但未提供，返回 `CAPTCHA_REQUIRED`
 5. 如果验证码错误，返回 `CAPTCHA_INVALID`
@@ -323,7 +325,7 @@ sequenceDiagram
 
 ### 5.3 用户名密码校验
 
-`UserCredentialService.authenticate(...)` 承担用户名密码校验：
+`UserCredentialQueryApi.authenticate(...)` 进入 user owner 的 `UserCredentialApplicationService` 承担用户名密码校验：
 
 - 根据 `username` 查用户
 - 用户不存在则返回 `INVALID_CREDENTIALS`
@@ -350,7 +352,7 @@ sequenceDiagram
 
 ### 6.1 access token
 
-`AuthService.issueLoginResult(user)` 会统一签发 access token。
+`LoginApplicationService.issueLoginResult(user)` 会统一签发 access token。
 
 当前 access token 的特点：
 

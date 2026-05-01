@@ -10,9 +10,9 @@
 
 相关文档：
 
-- `docs/business-logic/wallet-ledger-flow.md`
-- `docs/business-logic/social-like-follow-outbox-flow.md`
-- `docs/business-logic/content-post-comment-bookmark-subscription-flow.md`
+- `docs/handbook/business-logic/wallet-ledger-flow.md`
+- `docs/handbook/business-logic/social-like-follow-outbox-flow.md`
+- `docs/handbook/business-logic/content-post-comment-bookmark-subscription-flow.md`
 
 ---
 
@@ -25,12 +25,14 @@
 - `UserSocialProfileService`：点赞数 / 关注数 / 粉丝数 / 是否已关注
 - `PostReadQueryApi`：跨域读取最近帖子 / 最近评论
 - `UserLevelQueryApi`：跨域读取用户等级摘要
-- `AvatarService`：上传 token、上传校验、确认消费
+- `UserAvatarApplicationService`：头像 token、上传、确认的 owner application 入口
+- `AvatarStoragePort` / `UserAvatarStorageAdapter`：application 到头像存储基础设施的端口与适配器
+- `AvatarService`：基础设施内部的上传 ticket、上传校验、确认消费实现
 - `AvatarStorageRouter`：存储策略路由
 - `LocalAvatarStorageProvider`：本地文件存储
 - `R2AvatarStorageProvider`：R2 对象存储
 - `FilesController`：头像文件读取入口
-- `UserService`：最终写回 `headerUrl`
+- `UserRepository` / `MyBatisUserRepository`：最终写回 `headerUrl`
 
 ---
 
@@ -184,7 +186,7 @@
 主链路：
 
 1. 只能给自己申请
-2. `AvatarService.createUploadToken(userId)`
+2. `UserAvatarApplicationService.createUploadToken(actorUserId, userId)`
 3. 服务端生成安全文件名：
    - `avatar/{userId}/{uuid}`
 4. 当前 provider 生成上传参数
@@ -206,7 +208,7 @@
 主链路：
 
 1. 只能给自己上传
-2. `AvatarService.assertUploadTicketOwner(...)` 校验 ticket 归属
+2. `UserAvatarApplicationService.upload(...)` 通过 `AvatarStoragePort` 校验 ticket 归属
 3. 当前 provider 真正存文件
 
 provider 侧的共同约束：
@@ -223,10 +225,10 @@ provider 侧的共同约束：
 主链路：
 
 1. 只能操作自己的头像
-2. `AvatarService.assertAndConsumeUploadTicket(...)`
+2. `UserAvatarApplicationService.updateAvatar(...)` 通过 `AvatarStoragePort.assertAndConsumeUploadTicket(...)`
    - 成功后 Redis ticket 会被消费删除
-3. `AvatarService.buildAvatarUrl(fileName)` 生成公开 URL
-4. `UserService.updateHeaderUrl(userId, url)` 写回用户表
+3. `AvatarStoragePort.buildAvatarUrl(fileName)` 生成公开 URL
+4. `UserRepository.updateHeaderUrl(userId, url)` 写回用户表
 
 这说明上传成功和头像生效不是同一个步骤。
 

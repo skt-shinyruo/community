@@ -73,16 +73,16 @@
 - `reward_grant_record`（保留为历史表，不再作为在线 runtime 发奖入口）
 - `user_level_rule_config`
 
-对应 mapper / entity 也都还在：
+对应 domain model / repository / infrastructure mapper 也都还在：
 
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/entity/TaskTemplate.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/entity/UserTaskProgress.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/entity/RewardGrantRecord.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/entity/UserLevelRuleConfig.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/mapper/TaskTemplateMapper.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/mapper/UserTaskProgressMapper.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/mapper/UserTaskEventLogMapper.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/mapper/UserLevelRuleConfigMapper.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/domain/model/TaskTemplate.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/domain/model/UserTaskProgress.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/domain/model/RewardGrantRecord.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/domain/model/UserLevelRuleConfig.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/infrastructure/persistence/mapper/TaskTemplateMapper.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/infrastructure/persistence/mapper/UserTaskProgressMapper.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/infrastructure/persistence/mapper/UserTaskEventLogMapper.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/infrastructure/persistence/mapper/UserLevelRuleConfigMapper.java`
 
 ### 3.2 任务模板种子
 
@@ -109,31 +109,24 @@
 
 ## 4. 签到写路径现在是什么状态
 
-### 4.1 growth 事件接口仍然存在
+### 4.1 growth 仍保留签到事件类型常量
 
 当前仍有：
 
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/event/GrowthEventPublisher.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/event/LocalGrowthEventPublisher.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/event/payload/CheckInPayload.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/contracts/event/GrowthEventTypes.java`
 
-`LocalGrowthEventPublisher.publishCheckInCompleted(...)` 会发布：
-
-- `GrowthLocalEvent`
-- `type = GrowthEventTypes.CHECK_IN_COMPLETED`
-
-而 `GrowthEventTypes.CHECK_IN_COMPLETED` 当前常量值是：
+`GrowthEventTypes.CHECK_IN_COMPLETED` 当前常量值是：
 
 - `DailyCheckIn`
 
-也就是说，growth 域仍然保留了“签到完成事件”的标准输入格式。
+也就是说，growth 域仍然保留了“签到完成事件”的类型命名，但旧的本地事件 publisher / payload 表面已经不存在。
 
 ### 4.2 但当前仓库没有真实生产者
 
 全仓库搜索结果表明：
 
-- `publishCheckInCompleted(...)` 没有任何生产代码调用点
-- 只剩接口定义、发布器实现、测试和旧计划文档
+- `DailyCheckIn` 没有任何生产代码调用点
+- 只剩事件类型常量、任务模板种子、测试和旧计划文档
 
 这很关键。
 
@@ -200,7 +193,7 @@
 
 ### 6.1 任务推进内核还在
 
-`TaskProgressService.processEvent(...)` 仍然会：
+`TaskProgressApplicationService` 仍然会：
 
 1. 按 `triggerEventType` 找激活模板
 2. 用 `user_task_event_log` 做去重
@@ -252,7 +245,7 @@
 
 ### 7.1 等级计算服务仍然存在
 
-`UserLevelService` 仍然实现了：
+`UserLevelApplicationService` 仍然通过 owner query API 实现：
 
 - `UserLevelQueryApi.evaluateLevel(UUID userId)`
 
@@ -271,7 +264,7 @@
 - `enabled == true`：返回 `userLevel` 与 `signInDaysInWindow`
 - `enabled == false` 或结果为空：`userLevelEnabled=false`，等级展示字段为空
 
-这表示等级底座和用户页读模型已经接通；是否展示由 `UserLevelService` 的评估结果决定。
+这表示等级底座和用户页读模型已经接通；是否展示由 `UserLevelApplicationService` 的评估结果决定。
 
 ### 7.3 这条接入行为被测试固定住了
 
@@ -352,12 +345,9 @@
 ## 12. 关键代码定位
 
 - `backend/community-app/src/test/java/com/nowcoder/community/growth/LegacyGrowthSurfaceRetirementTest.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/event/GrowthEventPublisher.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/event/LocalGrowthEventPublisher.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/event/GrowthEventTypes.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/TaskProgressService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/TaskProgressApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/contracts/event/GrowthEventTypes.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/application/TaskProgressApplicationService.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/wallet/api/action/WalletRewardActionApi.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/growth/service/UserLevelService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/user/service/UserProfileApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/growth/application/UserLevelApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/application/UserProfileApplicationService.java`
 - `backend/community-app/src/test/resources/schema.sql`

@@ -26,7 +26,7 @@
 | 社交域（social） | `community-app`：`/api/likes/**`、`/api/follows/**`、`/api/blocks/**` | `social` 模块（MySQL/Redis，见 `social.storage`） | `community-app` SecurityFilterChain（部分 GET 允许匿名） |
 | 通知域（notice） | `community-app`：`/api/notices/**` | `community-app` notice owner；复用 `community.message` 表承载站内通知语义（不再承载 IM 私信 SSOT） | `community-app` SecurityFilterChain |
 | IM 私信域（private message） | `community-im`：`/api/im/**`、`/ws/im` | `community-im` / `im-core`（MySQL `im_core` schema） | `im-realtime`/`im-core` 各自 Security 配置；浏览器入口仍经 `community-gateway` |
-| IM 治理（private message governance） | `community-app`：`/api/im-governance/private-messages/validate` | `community-app` 治理规则（用户、拉黑、处罚等业务判定） | `community-app` SecurityFilterChain |
+| IM 策略投影（private message policy projection） | `community-app`：`/internal/im/realtime/projections/user-policies`、`/internal/im/realtime/projections/block-relations` | `user` / `social` owner SSOT；`community-app` 只提供供 `im-realtime` bootstrap 的快照面 | `community-app` SecurityFilterChain（`SCOPE_im.realtime.internal`） |
 | 搜索域（search） | `community-app`：`/api/search/**` | `search` 模块（Elasticsearch alias/index；本地 compose 首次引导 legacy `community_posts`，运行时读写 alias `community_posts_alias`） | `community-app` SecurityFilterChain（读 permitAll；reindex 走 `/api/ops/**`） |
 | 分析域（analytics） | `community-app`：`/api/analytics/**` | `analytics` 模块（Redis） | `community-app` SecurityFilterChain（ADMIN/MODERATOR） |
 | 交易域（market） | `community-app`：`/api/market/**`、`/api/admin/market/**` | `market` 模块（MySQL） | `community-app` SecurityFilterChain（公开 listing GET permitAll，其余 `/api/market/**` 需登录，`/api/admin/market/**` 需 ADMIN） |
@@ -106,7 +106,7 @@ flowchart TD
 - `com.nowcoder.community.content`：帖子/评论/回复、审核、举报、内容分数刷新
 - `com.nowcoder.community.social`：点赞、关注、拉黑
 - `com.nowcoder.community.notice`：站内通知对外 API、通知投影与已读语义；controller 进入 `notice.application.*ApplicationService`，规则在 `notice.domain.service`，MyBatis 行对象在 `notice.infrastructure.persistence.dataobject`，本地事件适配器在 `notice.infrastructure.event`
-- `com.nowcoder.community.im`：IM 治理校验入口（`/api/im-governance/private-messages/validate`）
+- `com.nowcoder.community.im`：IM 策略投影快照入口（`/internal/im/realtime/projections/**`）；controller 在 `im.projection`，快照编排入口是 `im.application.ImPolicySnapshotApplicationService`，实时发送判定在 `im-realtime` 的本地 policy projection 中完成
 - `com.nowcoder.community.search`：搜索投影（ES）；controller / outbox handler / XXL reindex 入口进入 `search.application.*ApplicationService`，搜索规则在 `search.domain.service`，ES 与 outbox 适配器在 `search.infrastructure`
 - `com.nowcoder.community.analytics`：统计/分析；controller 与请求采集 filter 进入 `analytics.application.*ApplicationService`，统计规则在 `analytics.domain.service`，Redis 与 Web filter 细节在 `analytics.infrastructure`
 - `com.nowcoder.community.growth`：积分、任务进度、奖励等投影/记账能力；foreign domain 只通过 `growth.api.*` 协作，owner 编排在 `growth.application.*ApplicationService`，任务/等级规则在 `growth.domain.service`，MyBatis 细节在 `growth.infrastructure.persistence`
@@ -216,8 +216,8 @@ com.nowcoder.community.<domain>
 2. `community-gateway` 将请求转发到 `community-app`
 3. `content.controller.PostController` 通过同域 `PostPublishingApplicationService` 进入写路径，负责参数清洗、幂等包装与命令编排
 4. `PostPublishingApplicationService` 在事务内调用 `domain` 模型 / 领域服务 / 仓储接口完成主存储写入并发布帖子领域事件；MyBatis mapper / dataobject 只能出现在 `infrastructure.persistence`
-5. 帖子领域事件继续驱动搜索、通知、积分等本地投影；跨域同步协作模型统一落在 `content.api.model` / `user.api.model` 等 owner-domain API 包下，跨域异步协作模型统一落在 `content.contracts.event` / `social.contracts.event`
-6. 通知、积分、任务进度等投影的业务判定统一由 owner-domain 应用入口负责；`@TransactionalEventListener` 与 outbox adapter 只负责订阅、序列化和重试，避免本地监听与 outbox 双路径重复维护
+5. 帖子领域事件继续驱动搜索投影与通知读模型；积分和任务进度属于发帖用例内的同步 owner-domain API 协作。跨域同步协作模型统一落在 `content.api.model` / `user.api.model` 等 owner-domain API 包下，跨域异步协作模型统一落在 `content.contracts.event` / `social.contracts.event`
+6. 搜索投影通过 shared outbox 可靠追平；通知读模型由 `NoticeProjectionListener` 做 best-effort after-commit 投影；积分和任务进度由 owner-domain `api.action` 进入 `UserPointsApplicationService` / `TaskProgressApplicationService`
 
 ### 4.3 典型后台运维路径：XXL-JOB 调度
 1. 运维人员访问 `http://localhost:12887/xxl-job-admin`

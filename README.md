@@ -31,6 +31,6 @@ cp deploy/.env.single.example deploy/.env.single
 
 - 后端工程：`backend/README.md`
 - 本地部署：`deploy/README.md`
-- 部署细节：`docs/DEPLOYMENT.md`
-- 可观测性：`docs/OBSERVABILITY.md`
-- 架构文档：`docs/README.md`
+- 部署细节：`docs/handbook/DEPLOYMENT.md`
+- 可观测性：`docs/handbook/OBSERVABILITY.md`
+- 架构文档：`docs/handbook/README.md`

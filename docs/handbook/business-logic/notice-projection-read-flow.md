@@ -9,10 +9,10 @@
 
 相关文档：
 
-- `docs/business-logic/content-post-comment-bookmark-subscription-flow.md`
-- `docs/business-logic/report-moderation-flow.md`
-- `docs/business-logic/social-like-follow-outbox-flow.md`
-- `docs/SYSTEM_DESIGN.md`
+- `docs/handbook/business-logic/content-post-comment-bookmark-subscription-flow.md`
+- `docs/handbook/business-logic/report-moderation-flow.md`
+- `docs/handbook/business-logic/social-like-follow-outbox-flow.md`
+- `docs/handbook/SYSTEM_DESIGN.md`
 
 ---
 
@@ -297,8 +297,8 @@ notice 不是内容、社交或治理的主事实，而是从这些事件派生�
 6. `backend/community-app/src/main/java/com/nowcoder/community/notice/domain/repository/NoticeRepository.java`
 7. `backend/community-app/src/main/java/com/nowcoder/community/notice/infrastructure/persistence/MyBatisNoticeRepository.java`
 8. `backend/community-app/src/main/java/com/nowcoder/community/notice/infrastructure/event/NoticeProjectionListener.java`
-9. `backend/community-app/src/main/java/com/nowcoder/community/content/service/CommentService.java`
-10. `backend/community-app/src/main/java/com/nowcoder/community/content/app/moderation/ModerationNoticePublisher.java`
+9. `backend/community-app/src/main/java/com/nowcoder/community/content/application/CommentApplicationService.java`
+10. `backend/community-app/src/main/java/com/nowcoder/community/content/application/ModerationNoticePublisher.java`
 11. `backend/community-app/src/main/java/com/nowcoder/community/social/infrastructure/event/LocalSocialDomainEventPublisher.java`
 
 ---

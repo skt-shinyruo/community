@@ -13,14 +13,16 @@
 - `GET /api/users/admin/search`
 - `POST /api/users/admin/role`
 
-### 1.2 核心服务
+### 1.2 核心应用服务与领域规则
 
-- `backend/community-app/src/main/java/com/nowcoder/community/user/service/AdminUserService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/application/AdminUserApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/domain/service/UserRoleDomainService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/domain/repository/UserRepository.java`
 
 ### 1.3 相关 DTO
 
-- `backend/community-app/src/main/java/com/nowcoder/community/user/dto/AdminUserResponse.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/user/dto/UpdateUserRoleRequest.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/controller/dto/AdminUserResponse.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/controller/dto/UpdateUserRoleRequest.java`
 
 ## 2. 搜索链路怎么工作
 
@@ -36,7 +38,7 @@
 
 ### 2.2 解析优先级
 
-`AdminUserService.resolveSearchTarget(...)` 的优先级是固定的：
+`AdminUserApplicationService.resolveSearchTarget(...)` 的优先级是固定的：
 
 1. 如果传了 `userId`，按 `userId` 查
 2. 否则如果传了 `username`，按用户名查
@@ -70,9 +72,9 @@
 `POST /api/users/admin/role` 的 controller 很薄，只负责：
 
 1. 从 `Authentication` 中取当前操作人 `actorUserId`
-2. 把请求交给 `adminUserService.updateRole(...)`
+2. 把请求交给 `AdminUserApplicationService.updateRole(...)`
 
-真正的业务保护都在 service 里。
+真正的业务保护都在 application service 和 `UserRoleDomainService` 里。
 
 ### 3.2 输入校验
 
@@ -111,9 +113,9 @@
 
 ### 3.3 目标用户校验
 
-服务会用：
+服务会用 owner repository：
 
-- `userMapper.selectById(targetUserId)`
+- `UserRepository.findById(targetUserId)`
 
 查目标用户。
 
@@ -151,7 +153,7 @@
 
 实际更新调用：
 
-- `userMapper.updateType(targetUserId, toType)`
+- `UserRepository.updateRole(targetUserId, toType)`
 
 如果更新行数 `<= 0`，抛：
 
@@ -265,8 +267,11 @@
 ## 7. 关键代码定位
 
 - `backend/community-app/src/main/java/com/nowcoder/community/user/controller/AdminUserController.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/user/service/AdminUserService.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/user/dto/AdminUserResponse.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/user/dto/UpdateUserRoleRequest.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/user/entity/User.java`
-- `backend/community-app/src/main/java/com/nowcoder/community/user/mapper/UserMapper.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/application/AdminUserApplicationService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/domain/service/UserRoleDomainService.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/domain/repository/UserRepository.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/infrastructure/persistence/MyBatisUserRepository.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/infrastructure/persistence/dataobject/UserDataObject.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/infrastructure/persistence/mapper/UserMapper.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/controller/dto/AdminUserResponse.java`
+- `backend/community-app/src/main/java/com/nowcoder/community/user/controller/dto/UpdateUserRoleRequest.java`

@@ -46,7 +46,7 @@
 - `AUTH_EXPOSE_RESET_LINK=true`
 
 生产约束（SSOT）：
-- 生产环境（`SPRING_PROFILES_ACTIVE=prod`）下禁止回传注册验证码/`resetLink`，并要求启用 SMTP（见 `docs/SECURITY.md` 与 `deploy/README.md`）。
+- 生产环境（`SPRING_PROFILES_ACTIVE=prod`）下禁止回传注册验证码/`resetLink`，并要求启用 SMTP（见 `docs/handbook/SECURITY.md` 与 `deploy/README.md`）。
 
 ---
 

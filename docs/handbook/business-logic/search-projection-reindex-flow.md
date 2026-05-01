@@ -10,8 +10,8 @@
 
 相关文档：
 
-- `docs/business-logic/content-post-comment-bookmark-subscription-flow.md`
-- `docs/business-logic/notice-projection-read-flow.md`
+- `docs/handbook/business-logic/content-post-comment-bookmark-subscription-flow.md`
+- `docs/handbook/business-logic/notice-projection-read-flow.md`
 
 ---
 

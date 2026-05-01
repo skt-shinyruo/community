@@ -117,12 +117,13 @@
 
 ## 6. 内部接口（/internal/**）
 
-开发阶段（当前实现）：
-- 本项目已移除 HTTP `/internal/**` 运维入口（避免 internal HTTP 与 ops 面并存导致长期“半迁移”治理债务）。
-- 对外运维入口统一走 `/api/ops/**`（例如 `POST /api/ops/search/reindex` 仅管理员可访问）。
+当前实现：
+- 对外运维入口统一走 `/api/ops/**`（例如 `POST /api/ops/search/reindex` 仅管理员可访问），不再把运维动作放在 `/internal/**`。
+- `community-app` 保留 IM realtime policy bootstrap 面：`/internal/im/realtime/projections/user-policies` 与 `/internal/im/realtime/projections/block-relations`，只允许具备 `SCOPE_im.realtime.internal` 的内部 JWT 访问。
 
 IM 说明：
-- IM 保留独立服务形态（`im-core`/`im-realtime`），其中 `im-core` 仍暴露少量 `/internal/**` 供 `im-realtime` bootstrap 使用（见 `backend/community-im/im-core/.../InternalRealtimeBootstrapController`）。
+- IM 保留独立服务形态（`im-core`/`im-realtime`），其中 `im-core` 通过 `InternalRealtimeProjectionController` 暴露 `/internal/im/realtime/projections/room-memberships`，供 `im-realtime` bootstrap 房间成员 projection 使用。
+- `im-realtime` 的 `MembershipSnapshotClient` / `PolicySnapshotClient` 会用内部 scope JWT 分别调用 `im-core` 房间成员 snapshot 与 `community-app` policy snapshot；浏览器业务流量不应直接访问这些 internal projection 入口。
 
 生产建议（后续迭代方向）：
 - 仍需确保下游服务端口不对外暴露（避免旁路绕过网关与运维入口治理）。
@@ -134,8 +135,9 @@ IM 说明：
 
 - 发送链路不再走 legacy message HTTP 写入口；外部发送入口是 `community-gateway` 暴露的 `/ws/im`。
 - 客户端在 WebSocket 里发送 `sendPrivateText` 后，请求会先进入 `im-realtime`。
-- `im-realtime` 会携带用户 JWT 调用 `community-app` 的 `POST /api/im-governance/private-messages/validate`，先完成拉黑、处罚、目标用户存在性等治理判定。
-- 只有治理校验通过后，`im-realtime` 才会把 Kafka private-message command 视为可接受并写入 backplane；因此 Kafka accepted 的前提是治理已经放行。
+- `im-realtime` 启动时会通过内部 JWT 调用 `community-app` 的 `/internal/im/realtime/projections/**` 拉取用户处罚与拉黑快照，并通过 IM policy Kafka 事件持续刷新本地 projection。
+- 客户端发送 `sendPrivateText` 时，`im-realtime` 用本地 `PolicyProjectionService` 完成拉黑、处罚、目标用户存在性等判定。
+- 只有本地 policy 判定通过后，`im-realtime` 才会把 Kafka private-message command 视为可接受并写入 backplane；因此 Kafka accepted 的前提是 policy projection 已放行。
 - 私信历史查询、会话列表、已读与未读状态由 IM HTTP 接口 `/api/im/**` 提供，不由 `community-app` 暴露对应消息读写 API。
 
 ---
@@ -151,7 +153,7 @@ IM 说明：
   - 重复请求：直接复用缓存响应（避免重复写入/重复通知等副作用）
   - 并发同 key：返回 `409`（提示“处理中，可重试”）
 
-完整说明见 `docs/HTTP_IDEMPOTENCY.md`，其中包括当前覆盖接口、客户端约定、返回语义、TTL、DB/Redis 存储、指标、接入新写接口的步骤和 exactly-once 边界。
+完整说明见 `docs/handbook/HTTP_IDEMPOTENCY.md`，其中包括当前覆盖接口、客户端约定、返回语义、TTL、DB/Redis 存储、指标、接入新写接口的步骤和 exactly-once 边界。
 
 ---
 

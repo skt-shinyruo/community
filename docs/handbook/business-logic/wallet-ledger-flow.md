@@ -11,9 +11,9 @@
 
 相关文档：
 
-- `docs/business-logic/market-order-dispute-flow.md`
-- `docs/business-logic/content-post-comment-bookmark-subscription-flow.md`
-- `docs/business-logic/report-moderation-flow.md`
+- `docs/handbook/business-logic/market-order-dispute-flow.md`
+- `docs/handbook/business-logic/content-post-comment-bookmark-subscription-flow.md`
+- `docs/handbook/business-logic/report-moderation-flow.md`
 
 ---
 
@@ -321,7 +321,7 @@
 - 负向撤销：
   - `USER_WALLET -> PLATFORM_REWARD_EXPENSE`
 
-它被 `PointsProjectionService` 等上游投影调用；wallet 域内部不通过 `wallet.service` 自调用。
+它被 `UserPointsApplicationService`、成长任务奖励等上游 owner-domain API adapter 调用；wallet 域内部不通过 `wallet.service` 自调用。
 
 ### 8.2 市场托管 / 放款 / 退款
 

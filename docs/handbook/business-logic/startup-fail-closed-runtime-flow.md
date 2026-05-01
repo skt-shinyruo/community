@@ -430,7 +430,7 @@
 - `security-authz-boundary-flow.md`
 - `shared-outbox-delivery-guarantee-flow.md`
 - `ops-scheduler-compensation-flow.md`
-- `docs/SECURITY.md`
+- `docs/handbook/SECURITY.md`
 
 这篇文档的目标不是解释业务状态机，而是解释：
 

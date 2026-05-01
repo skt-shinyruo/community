@@ -85,7 +85,7 @@ public class IdempotencyGuard {
             record(operation, "missing_key");
             throw new BusinessException(
                     CommonErrorCode.INVALID_ARGUMENT,
-                    HEADER_IDEMPOTENCY_KEY + " 不能为空（写请求必须携带幂等键；可参考 docs/SECURITY.md）"
+                    HEADER_IDEMPOTENCY_KEY + " 不能为空（写请求必须携带幂等键；可参考 docs/handbook/SECURITY.md）"
             );
         }
         String key = normalizeKey(idempotencyKey);

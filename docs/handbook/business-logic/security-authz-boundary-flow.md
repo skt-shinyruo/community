@@ -4,7 +4,7 @@
 
 如果你想看更广义的整体安全模型，可以同时参考：
 
-- `docs/SECURITY.md`
+- `docs/handbook/SECURITY.md`
 
 本文关注的是三个更贴近代码的问题：
 
@@ -434,11 +434,12 @@
 
 典型例子：
 
-- `/api/im-governance/**`
 - `/api/likes/**` 的写接口
 - `/api/follows/**` 的写接口
 - `/api/users/{userId}/avatar/**`
 - `/api/posts` 的创建接口
+
+`/internal/im/realtime/projections/**` 是单独的 internal 面，由 `CommunitySecurityConfig` 明确要求 `SCOPE_im.realtime.internal`。
 
 这类接口很多都不是在 security rules 里单独声明“authenticated”，而是靠默认兜底生效。
 
@@ -508,7 +509,7 @@
 
 请继续看：
 
-- `docs/SECURITY.md`
+- `docs/handbook/SECURITY.md`
 
 本文只解释 `community-app` 进程内部“接口最终怎么被放行或拒绝”。
 

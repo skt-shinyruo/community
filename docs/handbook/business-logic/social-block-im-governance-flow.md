@@ -4,13 +4,13 @@
 
 - 用户如何拉黑、取消拉黑、查看拉黑状态
 - 评论 / 回复为什么会受拉黑关系影响
-- IM 私信发送前如何做治理校验
+- IM 私信发送前如何通过本地 policy projection 做治理判定
 - 拉黑、禁言、封禁在私信治理里如何共同生效
 
 相关文档：
 
-- `docs/business-logic/report-moderation-flow.md`
-- `docs/business-logic/im-private-message-flow.md`
+- `docs/handbook/business-logic/report-moderation-flow.md`
+- `docs/handbook/business-logic/im-private-message-flow.md`
 
 ---
 
@@ -20,12 +20,13 @@
 - `BlockApplicationService`：拉黑用例编排、事务边界、领域事件发布
 - `BlockDomainService`：拉黑领域规则
 - `BlockRepository`：domain repository interface，`db / redis / memory` 三种后端由 infrastructure 实现
-- `CommentService`：内容互动里检查拉黑关系
-- `ImGovernanceController`：IM 治理 HTTP 入口
-- `PrivateMessageGovernanceService`：私信治理编排
+- `CommentApplicationService`：内容互动里检查拉黑关系
+- `ImPolicySnapshotController`：供 `im-realtime` bootstrap 的 internal policy 快照入口
+- `ImPolicySnapshotApplicationService` / `ImPolicySnapshotService`：通过 `user` / `social` owner API 构造 policy 快照
+- `PolicyProjectionService`：`im-realtime` 本地私信发送判定
+- `ImPolicyOutboxEnqueuer` / `ImPolicyKafkaOutboxHandler`：把拉黑与用户处罚变化发布到 IM policy Kafka topic
 - `content.UserModerationGuard`：内容侧禁言 / 封禁守卫
-- `im.governance.UserModerationGuard`：IM 侧禁言 / 封禁守卫
-- `UserLookupQueryApi`：确认用户存在
+- `UserModerationQueryApi`：读取用户处罚状态
 
 ---
 
@@ -38,11 +39,12 @@
 - `GET /api/blocks`
 - `GET /api/blocks/status?userId=...`
 
-IM 私信治理对外接口：
+IM policy internal 快照接口：
 
-- `POST /api/im-governance/private-messages/validate`
+- `GET /internal/im/realtime/projections/user-policies`
+- `GET /internal/im/realtime/projections/block-relations`
 
-这个接口不是给浏览器页面直接发消息用的，而是给 `im-realtime` 转发用户 JWT 后调用。
+这些接口不是给浏览器页面直接发消息用的，而是给 `im-realtime` 使用内部 scope JWT 拉取 bootstrap 快照。
 
 ---
 
@@ -93,7 +95,7 @@ IM 私信治理对外接口：
 
 ## 4. 拉黑如何影响内容互动
 
-`CommentService.addComment(...)` 在真正写评论前，会做一条反骚扰校验：
+`CommentApplicationService.createInsideTransaction(...)` 在真正写评论前，会做一条反骚扰校验：
 
 - 如果评论目标用户与当前用户存在任意一侧拉黑关系
 - 直接拒绝评论 / 回复
@@ -113,28 +115,31 @@ IM 私信治理对外接口：
 
 ## 5. 拉黑如何影响 IM 私信
 
-### 5.1 IM 治理入口
+### 5.1 IM policy 快照与增量入口
 
-私信发送前，`im-realtime` 会调用：
+`im-realtime` 启动或重连时会调用：
 
-- `POST /api/im-governance/private-messages/validate`
+- `GET /internal/im/realtime/projections/user-policies`
+- `GET /internal/im/realtime/projections/block-relations`
 
 控制器：
 
-- `ImGovernanceController`
+- `ImPolicySnapshotController`
 
-它只信任 JWT 里的 `fromUserId`，不信任请求体里的发送者字段。
+这些接口只接受带 `SCOPE_im.realtime.internal` 的内部 JWT，不是浏览器业务 API。快照服务通过 `UserModerationQueryApi.scanModerationStatesAfterId(...)` 与 `SocialBlockQueryApi.scanBlockRelationsAfter(...)` 回源读取 owner SSOT。
 
-### 5.2 私信治理编排
+拉黑或用户处罚状态变化后，`ImPolicyOutboxEnqueuer` 在 `BEFORE_COMMIT` 写入 `projection.im.policy` outbox，`ImPolicyKafkaOutboxHandler` 再发布到 IM policy Kafka topic，供 `im-realtime` 增量更新本地 projection。
 
-`PrivateMessageGovernanceService.validateCanSendPrivateMessage(...)` 当前按这个顺序执行：
+### 5.2 私信本地判定
+
+`PolicyProjectionService.canSendPrivateMessage(fromUserId, toUserId)` 当前按这个顺序执行：
 
 1. 校验 `fromUserId`、`toUserId`
-2. 禁止给自己发私信
-3. 用 `UserLookupQueryApi` 确认发送者存在
-4. 用 `im.governance.UserModerationGuard` 校验发送者未被禁言 / 封禁
-5. 用 `UserLookupQueryApi` 确认接收者存在
-6. 用 `SocialBlockQueryApi.isEitherBlocked(fromUserId, toUserId)` 校验双方不存在拉黑关系
+2. 确认发送者存在
+3. 确认接收者存在
+4. 校验发送者未被禁言 / 封禁
+5. 校验接收者允许私信
+6. 校验双方不存在任意方向拉黑关系
 
 只要任何一步失败，就直接拒绝受理私信。
 
@@ -172,7 +177,7 @@ IM 私信治理对外接口：
 对应结果是：
 
 - 在内容侧，评论 / 回复直接抛业务异常
-- 在 IM 侧，治理接口返回失败，`im-realtime` 最终给客户端回 `sendError`
+- 在 IM 侧，本地 policy 判定失败，`im-realtime` 最终给客户端回 `sendReject`
 
 ---
 

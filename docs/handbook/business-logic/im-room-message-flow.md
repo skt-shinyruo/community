@@ -11,9 +11,9 @@
 
 相关总览文档：
 
-- `docs/ARCHITECTURE.md`
-- `docs/SYSTEM_DESIGN.md`
-- `docs/LOAD_TESTING.md`
+- `docs/handbook/ARCHITECTURE.md`
+- `docs/handbook/SYSTEM_DESIGN.md`
+- `docs/handbook/LOAD_TESTING.md`
 
 ---
 
@@ -99,11 +99,12 @@ sequenceDiagram
 
 对应调用 client：
 
-- `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/client/ImCoreClient.java`
+- `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/projection/MembershipSnapshotClient.java`
+- `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/projection/MembershipProjectionService.java`
 
 对应 internal API：
 
-- `GET /internal/im/realtime/users/{userId}/rooms`
+- `GET /internal/im/realtime/projections/room-memberships`
 
 拉到 `roomIds` 之后，`im-realtime` 会把这些房间写入本地索引：
 
@@ -479,7 +480,8 @@ sequenceDiagram
 - WebSocket 入口：
   - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/ws/ImWebSocketHandler.java`
 - `im-core` 房间 bootstrap client：
-  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/client/ImCoreClient.java`
+  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/projection/MembershipSnapshotClient.java`
+  - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/projection/MembershipProjectionService.java`
 - 向 Kafka 写 room command：
   - `backend/community-im/im-realtime/src/main/java/com/nowcoder/community/im/realtime/kafka/CommandProducer.java`
 - 消费 room persisted / member changed event：
@@ -504,11 +506,12 @@ sequenceDiagram
 - 房间成员管理：
   - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/service/RoomMembershipService.java`
 - 发布 room persisted / member changed event：
-  - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/kafka/EventProducer.java`
+  - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/outbox/ImMessageOutboxEnqueuer.java`
+  - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/outbox/ImKafkaOutboxHandler.java`
 - 房间创建 / join / leave / 历史 / markRead：
   - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/controller/RoomController.java`
 - realtime bootstrap internal API：
-  - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/controller/InternalRealtimeBootstrapController.java`
+  - `backend/community-im/im-core/src/main/java/com/nowcoder/community/im/core/controller/InternalRealtimeProjectionController.java`
 
 ### 前端
 

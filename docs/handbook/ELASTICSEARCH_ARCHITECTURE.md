@@ -185,7 +185,7 @@ public void upsert(PostPayload post) {
 2. 通过 Redis-backed `SingleFlightTaskGuard` 获取 single-flight 执行权，保证集群内单实例运行
 3. 生成新版本索引名称 community_posts_vYYYYMMDDHHmmss `PostIndexManager.java:57`
 4. 创建新索引并应用最新Mapping
-5. 启动后台心跳线程自动续期锁 `ReindexJobService.java:78`
+5. 启动后台心跳线程自动续期锁 `ReindexJobApplicationService.java:54`
 6. 全量扫描数据库帖子表（游标分页避免深翻页）
 7. 批量写入新版本索引（不影响当前服务）
 8. ✅ 原子操作：将别名从旧索引切换到新索引
@@ -196,8 +196,8 @@ public void upsert(PostPayload post) {
 ### 4.2 关键特点
 - ✅ 对外服务零中断：切换别名是原子操作，毫秒级完成
 - ✅ 重建过程中旧索引继续正常服务
-- ✅ **Redis-backed single-flight guard**：通过 `SingleFlightTaskGuard` 保证同一时间只允许一个重建任务运行 `ReindexJobService.java:44`
-- ✅ **自动心跳续期**：重建任务启动后台线程自动续期锁，防止长任务超时导致锁丢失 `ReindexJobService.java:62`
+- ✅ **Redis-backed single-flight guard**：通过 `SingleFlightTaskGuard` 保证同一时间只允许一个重建任务运行 `ReindexJobApplicationService.java:44`
+- ✅ **自动心跳续期**：重建任务启动后台线程自动续期锁，防止长任务超时导致锁丢失 `ReindexJobApplicationService.java:54`
 - ✅ 失败安全：重建失败不会影响现有服务
 - ✅ 支持手动触发与定时调度
 

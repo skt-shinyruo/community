@@ -77,10 +77,19 @@ Existing legacy packages such as `service`, `entity`, `mapper`, and `app` are mi
 
 ## Documentation And Guardrails
 
+Project-related documentation MUST live under:
+
+- `docs/handbook`
+
+Specs and implementation plans MUST live under:
+
+- `docs/superpowers/specs`
+- `docs/superpowers/plans`
+
 Architecture documentation must stay aligned with this file:
 
-- `docs/ARCHITECTURE.md`
-- `docs/SYSTEM_DESIGN.md`
+- `docs/handbook/ARCHITECTURE.md`
+- `docs/handbook/SYSTEM_DESIGN.md`
 - `docs/superpowers/specs/2026-04-27-community-app-strict-ddd-tactical-layering-design.md`
 
 When adding or changing backend architecture rules, update or add ArchUnit tests under:

@@ -296,7 +296,7 @@ git commit -m "refactor: use domain names for market repositories"
 - Create: `frontend/src/views/posts/PostComposerPanel.vue`
 - Modify/add Vitest tests under `frontend/src/views`.
 
-- [ ] **Step 1: Add RED complexity test**
+- [x] **Step 1: Add RED complexity test**
 
 Create `frontend/src/views/viewComplexity.test.js`:
 
@@ -326,7 +326,7 @@ npm test -- PostDetailView PostsView postDetailState postsViewState postsFeedSta
 
 Expected: FAIL before the split.
 
-- [ ] **Step 2: Split PostDetailView**
+- [x] **Step 2: Split PostDetailView**
 
 Move post detail workflows into smaller modules/components while preserving DOM-visible behavior:
 
@@ -339,7 +339,7 @@ post-detail/PostDetailComments.vue
 post-detail/PostDetailActions.vue
 ```
 
-- [ ] **Step 3: Split PostsView**
+- [x] **Step 3: Split PostsView**
 
 Move feed workflows into smaller modules/components while preserving DOM-visible behavior:
 
@@ -350,7 +350,7 @@ posts/PostsFeedList.vue
 posts/PostComposerPanel.vue
 ```
 
-- [ ] **Step 4: Verify frontend phase**
+- [x] **Step 4: Verify frontend phase**
 
 Run:
 

@@ -1,7 +1,7 @@
 # Community App DDD Boundary Cleanup Design
 
 **Date:** 2026-05-01
-**Status:** Approved for planning
+**Status:** Implemented for Phase One
 **Owner:** Codex
 
 ---
@@ -389,7 +389,35 @@ mvn -pl community-app -Dtest=DddLayeringArchTest,ControllerBoundaryArchTest,Doma
 
 ---
 
-## 11. Recommended Conclusion
+## 11. Implementation Record
+
+第一阶段已完成，实施提交如下：
+
+- `0a2d560b` `test: expose ddd boundary leaks`
+  - 新增 `DddLayeringArchTest` 守护：domain 禁 Spring、application 禁 HTTP transport 类型、public `*ApplicationService` 禁返回 Spring Web transport 类型。
+- `0d52dabb` `refactor: keep domain services framework-free`
+  - 移除 domain service 中的 Spring stereotype / Spring util 依赖，并通过外层 `DomainServiceConfig` 完成 Spring 装配。
+- `914c41e2` `refactor: keep avatar file transport at controller`
+  - 将 `AvatarFileResult` 改为 application-neutral 结果，由 `FilesController` 负责 `MediaType`、`Resource`、`ResponseEntity` 和 header 表达。
+- `75dd897b` `refactor: keep auth cookies at web boundary`
+  - 将 `LoginResult` / `RefreshResult` 的 refresh cookie 结果改为 `RefreshCookieSpec`，由 `AuthController` 转换为 `ResponseCookie`。
+- `467c84d9` `test: lock down ddd boundary response attributes`
+  - 补齐 refresh cookie 属性断言、avatar `Content-Length` 断言，并同步 `docs/ARCHITECTURE.md`、`docs/SYSTEM_DESIGN.md` 与严格 DDD 设计文档。
+
+第一阶段验收结果：
+
+- `domain` 生产代码无 `org.springframework..` / `@Service` / `StringUtils` / `DigestUtils` 残留；
+- `application.result` 生产代码无 HTTP / servlet / Spring Web transport 类型残留；
+- `DddLayeringArchTest`、`ControllerBoundaryArchTest`、`DomainBoundaryArchTest`、`DtoBoundaryArchTest` 通过；
+- focused auth/user tests 通过；
+- `mvn -f backend/pom.xml -pl community-app -am test` 通过，`community-app` 719 tests passed；
+- `docs/ARCHITECTURE.md`、`docs/SYSTEM_DESIGN.md`、`docs/superpowers/specs/2026-04-27-community-app-strict-ddd-tactical-layering-design.md` 已同步新增边界规则。
+
+Phase Two、Phase Three、Phase Four 仍按本设计原文保持为后续独立设计和实施项，不属于本轮 Phase One 验收范围。
+
+---
+
+## 12. Recommended Conclusion
 
 本轮修正符合 DDD Tactical Layering：它不是把 HTTP 类型机械地从一个类挪到另一个类，而是重新确认职责边界。
 

@@ -90,6 +90,7 @@ com.nowcoder.community.<domain>
 ### Controller / Listener / Job
 
 - 只处理 HTTP / message / job 入口绑定、认证信息提取、基础参数转换、DTO 转换和 validation handoff。
+- Inbound adapters include controllers, local event listeners, outbox handlers, event bridges, enqueuers, and scheduled jobs. They adapt input and call same-domain application services; they must not perform foreign owner `api.*` collaboration before entering the same-domain application layer.
 - same-domain 调用只能进入同域 `*ApplicationService`。
 - 不直接调用 raw service、repository、mapper、domain service、infrastructure adapter。
 - 不把 same-domain `api.*` 当内部入口使用。
@@ -98,7 +99,7 @@ com.nowcoder.community.<domain>
 
 - 是同域 use case 入口，命名为 `*ApplicationService`。
 - 负责事务边界、幂等、actor/viewer 转换、command/result 装配、领域调用、领域事件发布和 foreign-domain `api.*` 调用。
-- `application.command` / `application.result` 只表达应用层命令和结果，不暴露 `ResponseEntity`、`ResponseCookie`、`Resource`、`MediaType`、Servlet request/response 等 HTTP transport 类型。
+- `application.command` / `application.result` / application-owned ports only express application semantics. They must not expose HTTP transport types such as `ResponseEntity`, `ResponseCookie`, `Resource`, `MediaType`, Servlet request/response types, or Spring Web upload types such as `MultipartFile`.
 - 不直接依赖 MyBatis mapper 或 dataobject；持久化只通过 domain repository interface 或明确的 infrastructure port。
 
 ### Domain

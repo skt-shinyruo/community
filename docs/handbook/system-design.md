@@ -189,8 +189,8 @@ IM 独立于 `community-app`：
 搜索是最终一致读模型：
 
 - 查询入口：`GET /api/search/posts`。
-- 投影入口：content 事件 -> search outbox -> `PostOutboxHandler`。
-- handler 不信任事件内的旧快照，而是回源 content owner 当前状态，再 upsert/delete ES，避免乱序事件把已删除内容复活。
+- 投影入口：content 事件 -> search outbox -> `PostOutboxHandler` -> search application。
+- `PostOutboxHandler` 只负责 outbox payload 适配；search application 回源 content owner 当前状态，再 upsert/delete ES，避免乱序事件把已删除内容复活。
 - reindex 入口：`POST /api/ops/search/reindex` 或 XXL `searchReindex`。
 - reindex 使用 Redis-backed single-flight，长任务带心跳续期。
 - ES 使用固定 alias `community_posts_alias`，真实索引使用 `community_posts_vYYYYMMDDHHmmss[_n]`，切换 alias 是原子操作。

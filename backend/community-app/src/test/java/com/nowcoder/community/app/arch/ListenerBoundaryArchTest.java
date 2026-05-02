@@ -18,18 +18,41 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ListenerBoundaryArchTest {
 
     private static final Set<String> LEGACY_LISTENER_APPLICATION_BOUNDARY = Set.of();
+    private static final Set<String> LEGACY_INBOUND_FOREIGN_API_BOUNDARY = Set.of();
 
     @Test
     void listenerApplicationBoundaryShouldNotRequireLegacyExceptions() {
         assertThat(LEGACY_LISTENER_APPLICATION_BOUNDARY).isEmpty();
     }
 
+    @Test
+    void inboundForeignApiBoundaryShouldNotRequireLegacyExceptions() {
+        assertThat(LEGACY_INBOUND_FOREIGN_API_BOUNDARY).isEmpty();
+    }
+
     @ArchTest
     static final ArchRule listeners_must_not_depend_on_same_domain_non_application_entry_points =
             classes()
-                    .that().resideInAnyPackage("..event..")
-                    .and().haveSimpleNameEndingWith("Listener")
+                    .that().resideInAnyPackage(
+                            "..infrastructure.event..",
+                            "..infrastructure.job..",
+                            "..infra.job.handlers.."
+                    )
+                    .and().haveNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
                     .should(ArchitectureRulesSupport.notDependOnSameDomainServicesExceptApplicationServices(
                             LEGACY_LISTENER_APPLICATION_BOUNDARY
+                    ));
+
+    @ArchTest
+    static final ArchRule inbound_adapters_must_not_depend_on_foreign_owner_apis =
+            classes()
+                    .that().resideInAnyPackage(
+                            "..infrastructure.event..",
+                            "..infrastructure.job..",
+                            "..infra.job.handlers.."
+                    )
+                    .and().haveNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
+                    .should(ArchitectureRulesSupport.notDependOnForeignOwnerApiPackages(
+                            LEGACY_INBOUND_FOREIGN_API_BOUNDARY
                     ));
 }

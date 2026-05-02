@@ -78,6 +78,8 @@ class DddLayeringArchTest {
                     .should().dependOnClassesThat().resideInAnyPackage(
                             "org.springframework.http..",
                             "org.springframework.core.io..",
+                            "org.springframework.web..",
+                            "org.springframework.web.multipart..",
                             "jakarta.servlet.."
                     )
                     .because("HTTP transport details belong in controllers or web adapters");

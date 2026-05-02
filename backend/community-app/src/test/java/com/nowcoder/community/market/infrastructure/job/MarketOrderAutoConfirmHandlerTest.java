@@ -120,12 +120,27 @@ class MarketOrderAutoConfirmHandlerTest {
     void handlerShouldMarkJobSuccessAfterCompletingDueOrders() {
         UUID buyerUserId = uuid(9);
         seedBuyerBalance(buyerUserId, 50_000L);
-        seedDueDeliveredVirtualOrder(uuid(7), buyerUserId);
-        seedDueShippedPhysicalOrder(uuid(8), buyerUserId);
+        UUID virtualOrderId = seedDueDeliveredVirtualOrder(uuid(7), buyerUserId);
+        UUID physicalOrderId = seedDueShippedPhysicalOrder(uuid(8), buyerUserId);
 
         handler.autoConfirm();
 
         assertThat(XxlJobContext.getXxlJobContext().getHandleCode()).isEqualTo(XxlJobContext.HANDLE_CODE_SUCCESS);
+        assertThat(orderStatus(virtualOrderId)).isEqualTo("RELEASE_PENDING");
+        assertThat(orderStatus(physicalOrderId)).isEqualTo("RELEASE_PENDING");
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from market_wallet_action where action_type = 'RELEASE'",
+                Integer.class
+        )).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from wallet_txn where txn_type = 'ORDER_RELEASE'",
+                Integer.class
+        )).isZero();
+
+        marketWalletActionProcessor.processDue(10);
+
+        assertThat(orderStatus(virtualOrderId)).isEqualTo("COMPLETED");
+        assertThat(orderStatus(physicalOrderId)).isEqualTo("COMPLETED");
     }
 
     private UUID seedDueDeliveredVirtualOrder(UUID sellerUserId, UUID buyerUserId) {

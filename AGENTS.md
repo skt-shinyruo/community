@@ -7,7 +7,7 @@ These instructions apply to the whole repository.
 All backend business code in `backend/community-app` MUST use strict DDD Tactical Layering:
 
 ```text
-Controller / Listener / Job
+Controller / Listener / Handler / Bridge / Enqueuer / Job
   -> ApplicationService
       -> Domain model / DomainService / Repository interface / Domain event
       -> foreign owner-domain api.query / api.action / api.model when cross-domain synchronous collaboration is required
@@ -44,7 +44,8 @@ com.nowcoder.community.<domain>
 ## Layer Rules
 
 - `controller` only handles HTTP binding, authentication extraction, validation handoff, and DTO conversion.
-- `controller`, local listeners, and local jobs MUST call same-domain `*ApplicationService` only.
+- Inbound adapters include controllers, local event listeners, outbox handlers, event bridges, enqueuers, and scheduled jobs.
+- Inbound adapters MUST call same-domain `*ApplicationService` only and MUST NOT perform foreign owner-domain `api.*` collaboration before entering that same-domain application boundary.
 - `application` owns use-case orchestration, transaction boundaries, idempotency, actor/viewer conversion, command/result assembly, domain calls, domain event publication, and foreign-domain `api.*` calls.
 - `domain` owns business concepts and rules. It MUST NOT depend on `controller`, `application`, `infrastructure`, MyBatis mapper/dataobject types, HTTP DTOs, or owner-domain `api.*`.
 - `infrastructure` owns technical implementation details such as MyBatis mapper calls, Redis adapters, outbox adapters, and Spring event publishers.

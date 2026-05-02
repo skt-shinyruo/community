@@ -87,10 +87,10 @@ com.nowcoder.community.<domain>
 
 ## 层规则
 
-### Controller / Listener / Job
+### Controller / Listener / Handler / Bridge / Enqueuer / Job
 
 - 只处理 HTTP / message / job 入口绑定、认证信息提取、基础参数转换、DTO 转换和 validation handoff。
-- Inbound adapters include controllers, local event listeners, outbox handlers, event bridges, enqueuers, and scheduled jobs. They adapt input and call same-domain application services; they must not perform foreign owner `api.*` collaboration before entering the same-domain application layer.
+- Inbound adapters include controllers, local event listeners, outbox handlers, event bridges, enqueuers, and scheduled jobs. They adapt input and call same-domain application services; they must not perform foreign owner `api.*`, foreign `application.*`, same-domain application helper/port, domain model/service/repository, or persistence collaboration before entering the same-domain application layer.
 - same-domain 调用只能进入同域 `*ApplicationService`。
 - 不直接调用 raw service、repository、mapper、domain service、infrastructure adapter。
 - 不把 same-domain `api.*` 当内部入口使用。
@@ -208,9 +208,12 @@ owner domain event
 后端架构规则由 ArchUnit 测试守卫：
 
 - `DddLayeringArchTest`
-- `DomainBoundaryArchTest`
 - `ControllerBoundaryArchTest`
+- `DomainBoundaryArchTest`
+- `DtoBoundaryArchTest`
+- `InfraBoundaryArchTest`
 - `ListenerBoundaryArchTest`
+- `TransactionBoundaryArchTest`
 
 路径：
 
@@ -218,4 +221,4 @@ owner domain event
 backend/community-app/src/test/java/com/nowcoder/community/app/arch
 ```
 
-当前 controller / listener 应用边界 baseline 应保持为空；遗留的非协作面依赖只能收缩，不允许扩散。新增或修改架构规则时，必须同步更新本文件、[system-design.md](system-design.md)、严格 DDD 设计 spec 和对应 ArchUnit 测试。
+当前 controller / listener / handler / bridge / enqueuer / job 应用边界 baseline 应保持为空；遗留的非协作面依赖只能收缩，不允许扩散。新增或修改架构规则时，必须同步更新本文件、[system-design.md](system-design.md)、严格 DDD 设计 spec 和对应 ArchUnit 测试。

@@ -1,6 +1,7 @@
 package com.nowcoder.community.user.controller;
 
 import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.user.application.AvatarUploadContent;
 import com.nowcoder.community.user.application.UserAvatarApplicationService;
 import com.nowcoder.community.user.application.UserProfileApplicationService;
 import com.nowcoder.community.user.application.UserReadApplicationService;
@@ -12,6 +13,7 @@ import com.nowcoder.community.user.controller.dto.UpdateAvatarRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.mock.web.MockMultipartFile;
@@ -22,6 +24,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -78,7 +81,7 @@ class UserControllerLoggingTest {
     }
 
     @Test
-    void uploadAvatarShouldLogSecurityEventWithoutFileContent(CapturedOutput output) {
+    void uploadAvatarShouldLogSecurityEventWithoutFileContent(CapturedOutput output) throws Exception {
         UUID userId = uuid(42);
         String fileName = "avatar/" + userId + "/0123456789abcdef0123456789abcdef";
         MockMultipartFile file = new MockMultipartFile(
@@ -91,7 +94,13 @@ class UserControllerLoggingTest {
         Result<Void> result = controller.uploadAvatar(authentication(userId), userId, file, fileName);
 
         assertThat(result.getCode()).isEqualTo(0);
-        verify(avatarStoragePort).upload(userId, fileName, file);
+        ArgumentCaptor<AvatarUploadContent> contentCaptor = ArgumentCaptor.forClass(AvatarUploadContent.class);
+        verify(avatarStoragePort).upload(eq(userId), eq(fileName), contentCaptor.capture());
+        AvatarUploadContent content = contentCaptor.getValue();
+        assertThat(content.contentType()).isEqualTo("image/png");
+        assertThat(content.size()).isEqualTo(16);
+        assertThat(content.empty()).isFalse();
+        assertThat(content.openStream().readAllBytes()).isEqualTo("fake-image-bytes".getBytes());
         assertThat(output.getAll())
                 .contains("community.category=security")
                 .contains("community.action=avatar_upload")

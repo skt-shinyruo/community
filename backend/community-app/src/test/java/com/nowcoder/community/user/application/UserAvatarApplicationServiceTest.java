@@ -9,8 +9,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
@@ -29,9 +30,6 @@ class UserAvatarApplicationServiceTest {
 
     @Mock
     private UserRepository userRepository;
-
-    @Mock
-    private MultipartFile file;
 
     @Test
     void createUploadTokenShouldRejectNonSelfActor() {
@@ -76,13 +74,14 @@ class UserAvatarApplicationServiceTest {
         UUID actorUserId = uuid(1);
         UUID targetUserId = uuid(2);
         String fileName = "avatar/" + targetUserId + "/0123456789abcdef0123456789abcdef";
+        AvatarUploadContent content = uploadContent();
 
-        Throwable thrown = catchThrowable(() -> service.upload(actorUserId, targetUserId, fileName, file));
+        Throwable thrown = catchThrowable(() -> service.upload(actorUserId, targetUserId, fileName, content));
 
         assertThat(thrown).isInstanceOf(BusinessException.class)
                 .hasMessage("只能操作自己的头像");
         assertThat(((BusinessException) thrown).getErrorCode()).isEqualTo(FORBIDDEN);
-        verifyNoInteractions(avatarStoragePort, userRepository, file);
+        verifyNoInteractions(avatarStoragePort, userRepository);
     }
 
     @Test
@@ -90,10 +89,11 @@ class UserAvatarApplicationServiceTest {
         UserAvatarApplicationService service = new UserAvatarApplicationService(avatarStoragePort, userRepository);
         UUID userId = uuid(7);
         String fileName = "avatar/" + userId + "/0123456789abcdef0123456789abcdef";
+        AvatarUploadContent content = uploadContent();
 
-        service.upload(userId, userId, fileName, file);
+        service.upload(userId, userId, fileName, content);
 
-        verify(avatarStoragePort).upload(userId, fileName, file);
+        verify(avatarStoragePort).upload(userId, fileName, content);
         verifyNoInteractions(userRepository);
     }
 
@@ -111,6 +111,15 @@ class UserAvatarApplicationServiceTest {
         inOrder.verify(avatarStoragePort).assertAndConsumeUploadTicket(userId, fileName);
         inOrder.verify(avatarStoragePort).buildAvatarUrl(fileName);
         inOrder.verify(userRepository).updateHeaderUrl(userId, headerUrl);
+    }
+
+    private static AvatarUploadContent uploadContent() {
+        return new AvatarUploadContent(
+                () -> new ByteArrayInputStream("avatar".getBytes(StandardCharsets.UTF_8)),
+                "image/png",
+                6,
+                false
+        );
     }
 
     private static UUID uuid(long suffix) {

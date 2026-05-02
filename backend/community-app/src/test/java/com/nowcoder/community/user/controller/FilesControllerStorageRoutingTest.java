@@ -1,5 +1,6 @@
 package com.nowcoder.community.user.controller;
 
+import com.nowcoder.community.user.application.AvatarUploadContent;
 import com.nowcoder.community.user.application.result.AvatarUploadTokenResult;
 import com.nowcoder.community.user.config.AvatarStorageProperties;
 import com.nowcoder.community.user.application.UserFileApplicationService;
@@ -14,7 +15,6 @@ import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -44,7 +44,7 @@ class FilesControllerStorageRoutingTest {
             }
 
             @Override
-            public void upload(UUID userId, String fileName, MultipartFile file) {
+            public void upload(UUID userId, String fileName, AvatarUploadContent content) {
                 throw new UnsupportedOperationException("upload not needed");
             }
 

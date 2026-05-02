@@ -1,6 +1,7 @@
 package com.nowcoder.community.user.infrastructure.avatar;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.application.AvatarUploadContent;
 import com.nowcoder.community.user.application.result.AvatarUploadTokenResult;
 import com.nowcoder.community.user.config.AvatarStorageProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -8,7 +9,6 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.stereotype.Service;
 import org.springframework.http.MediaType;
 import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -49,17 +49,17 @@ public class LocalAvatarStorageProvider implements AvatarStorageProvider {
     }
 
     @Override
-    public void upload(UUID userId, String fileName, MultipartFile file) {
+    public void upload(UUID userId, String fileName, AvatarUploadContent content) {
         if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
-        if (file == null || file.isEmpty()) {
+        if (content == null || content.empty()) {
             throw new BusinessException(INVALID_ARGUMENT, "文件不能为空");
         }
-        if (file.getSize() > AvatarConstraints.MAX_AVATAR_BYTES) {
+        if (content.size() > AvatarConstraints.MAX_AVATAR_BYTES) {
             throw new BusinessException(INVALID_ARGUMENT, "头像文件过大（maxBytes=" + AvatarConstraints.MAX_AVATAR_BYTES + "）");
         }
-        String contentType = StringUtils.hasText(file.getContentType()) ? file.getContentType().trim().toLowerCase() : "";
+        String contentType = content.contentType();
         if (!AvatarConstraints.ALLOWED_MIME_TYPES.contains(contentType)) {
             throw new BusinessException(INVALID_ARGUMENT, "不支持的图片格式（mime=" + contentType + "）");
         }
@@ -89,7 +89,7 @@ public class LocalAvatarStorageProvider implements AvatarStorageProvider {
                 throw new BusinessException(INVALID_ARGUMENT, "文件已存在，请重试");
             }
 
-            try (InputStream in = file.getInputStream()) {
+            try (InputStream in = content.openStream()) {
                 Files.copy(in, target);
             }
         } catch (BusinessException e) {

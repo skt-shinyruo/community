@@ -1,14 +1,14 @@
 package com.nowcoder.community.user.infrastructure.avatar;
 
+import com.nowcoder.community.user.application.AvatarUploadContent;
 import com.nowcoder.community.user.application.result.AvatarUploadTokenResult;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
 /**
  * 头像存储 provider 抽象：
- * - local：服务端接收 multipart 并落盘（返回 uploadUrl/uploadMethod）。
- * - r2：服务端接收 multipart 并写入对象存储（Cloudflare R2），并通过 /files/** 统一对外提供访问。
+ * - local：服务端接收上传内容并落盘（返回 uploadUrl/uploadMethod）。
+ * - r2：服务端接收上传内容并写入对象存储（Cloudflare R2），并通过 /files/** 统一对外提供访问。
  */
 public interface AvatarStorageProvider {
 
@@ -27,7 +27,7 @@ public interface AvatarStorageProvider {
      *
      * <p>若当前 provider 不支持服务端上传，应抛出业务异常。</p>
      */
-    void upload(UUID userId, String fileName, MultipartFile file);
+    void upload(UUID userId, String fileName, AvatarUploadContent content);
 
     /**
      * 生成头像可访问 URL（用于写入用户 headerUrl）。

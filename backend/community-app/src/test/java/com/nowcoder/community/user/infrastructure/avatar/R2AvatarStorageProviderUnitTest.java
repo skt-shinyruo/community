@@ -1,14 +1,15 @@
 package com.nowcoder.community.user.infrastructure.avatar;
 
+import com.nowcoder.community.user.application.AvatarUploadContent;
 import com.nowcoder.community.user.config.AvatarStorageProperties;
 import com.nowcoder.community.user.config.R2Properties;
 import org.junit.jupiter.api.Test;
-import org.springframework.mock.web.MockMultipartFile;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import java.io.ByteArrayInputStream;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,9 +33,14 @@ class R2AvatarStorageProviderUnitTest {
         R2AvatarStorageProvider provider = new R2AvatarStorageProvider(r2, avatar, s3);
 
         String key = "avatar/" + userId + "/0123456789abcdef0123456789abcdef";
-        MockMultipartFile file = new MockMultipartFile("file", "a.png", "image/png", new byte[]{1, 2, 3});
+        AvatarUploadContent content = new AvatarUploadContent(
+                () -> new ByteArrayInputStream(new byte[]{1, 2, 3}),
+                "image/png",
+                3,
+                false
+        );
 
-        provider.upload(userId, key, file);
+        provider.upload(userId, key, content);
 
         var reqCaptor = org.mockito.ArgumentCaptor.forClass(PutObjectRequest.class);
         verify(s3).putObject(reqCaptor.capture(), any(software.amazon.awssdk.core.sync.RequestBody.class));

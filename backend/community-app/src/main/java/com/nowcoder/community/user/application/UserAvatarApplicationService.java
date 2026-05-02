@@ -6,7 +6,6 @@ import com.nowcoder.community.user.application.result.AvatarUploadTokenResult;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
@@ -28,9 +27,9 @@ public class UserAvatarApplicationService {
         return avatarStoragePort.createUploadToken(userId);
     }
 
-    public void upload(UUID actorUserId, UUID userId, String fileName, MultipartFile file) {
+    public void upload(UUID actorUserId, UUID userId, String fileName, AvatarUploadContent content) {
         requireSelf(actorUserId, userId);
-        avatarStoragePort.upload(userId, fileName, file);
+        avatarStoragePort.upload(userId, fileName, content);
     }
 
     @Transactional

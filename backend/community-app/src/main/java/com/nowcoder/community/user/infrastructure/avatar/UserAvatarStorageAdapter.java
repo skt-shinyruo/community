@@ -1,12 +1,12 @@
 package com.nowcoder.community.user.infrastructure.avatar;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.application.AvatarUploadContent;
 import com.nowcoder.community.user.application.port.AvatarStoragePort;
 import com.nowcoder.community.user.application.result.AvatarFileResult;
 import com.nowcoder.community.user.application.result.AvatarUploadTokenResult;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.UUID;
@@ -30,8 +30,8 @@ public class UserAvatarStorageAdapter implements AvatarStoragePort {
     }
 
     @Override
-    public void upload(UUID userId, String fileName, MultipartFile file) {
-        avatarService.upload(userId, fileName, file);
+    public void upload(UUID userId, String fileName, AvatarUploadContent content) {
+        avatarService.upload(userId, fileName, content);
     }
 
     @Override

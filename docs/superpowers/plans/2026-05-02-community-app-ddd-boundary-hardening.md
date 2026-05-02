@@ -21,7 +21,7 @@ Architecture guardrails:
 - Modify: `backend/community-app/src/test/java/com/nowcoder/community/app/arch/ListenerBoundaryArchTest.java`
   - Extend inbound adapter checks from `*Listener` to event/job/outbox `*Listener`, `*Handler`, `*Bridge`, `*Enqueuer`, and `*Job`.
 - Modify: `backend/community-app/src/test/java/com/nowcoder/community/app/arch/ArchitectureRulesSupport.java`
-  - Add a reusable condition that forbids foreign owner-domain `api.query`, `api.action`, and `api.model` before the same-domain application boundary.
+  - Add reusable conditions that forbid foreign owner-domain `api.query`, `api.action`, and `api.model`, foreign `application.*`, same-domain application helper/port, and same-domain domain/persistence bypasses before the same-domain application boundary.
 
 User avatar boundary:
 
@@ -88,6 +88,8 @@ Content event payload assembly:
   - Assembles `PostPayload` from domain repositories and `ContentTextCodec`.
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/content/application/PostContractEventApplicationService.java`
   - Publishes post contract events with application-owned payload assembly.
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/content/application/CommentContractEventApplicationService.java`
+  - Publishes comment contract events with application-owned payload assembly.
 - Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event/PostDomainEventBridge.java`
   - Delegate post domain event handling to `PostContractEventApplicationService`.
 - Delete: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event/PostPayloadAssembler.java`
@@ -99,9 +101,10 @@ Content event payload assembly:
 - Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event/InMemoryContentEventPublisher.java`
   - Implement `content.application.ContentEventPublisher`.
 - Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event/CommentDomainEventBridge.java`
-  - Import application-owned `ContentEventPublisher`.
+  - Delegate comment domain event handling to `CommentContractEventApplicationService`.
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/content/application/ContentPostPayloadAssemblerTest.java`
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/content/application/PostContractEventApplicationServiceTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/content/application/CommentContractEventApplicationServiceTest.java`
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/content/infrastructure/event/PostDomainEventBridgeTest.java`
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/content/infrastructure/event/CommentDomainEventBridgeTest.java`
 
@@ -236,6 +239,8 @@ class ListenerBoundaryArchTest {
                     ));
 }
 ```
+
+Final implementation also includes additional `ListenerBoundaryArchTest` rules that prevent inbound adapters from bypassing the same-domain `*ApplicationService` into same-domain application helper/port types, same-domain domain model/service/repository or persistence packages, and foreign `application.*` packages.
 
 - [x] **Step 4: Run architecture tests and verify RED**
 
@@ -1412,6 +1417,7 @@ git commit -m "refactor: route search outbox through application"
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/content/application/ContentEventPublisher.java`
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/content/application/ContentPostPayloadAssembler.java`
 - Create: `backend/community-app/src/main/java/com/nowcoder/community/content/application/PostContractEventApplicationService.java`
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/content/application/CommentContractEventApplicationService.java`
 - Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event/PostDomainEventBridge.java`
 - Delete: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event/PostPayloadAssembler.java`
 - Delete: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event/ContentEventPublisher.java`
@@ -1420,6 +1426,7 @@ git commit -m "refactor: route search outbox through application"
 - Modify: `backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event/CommentDomainEventBridge.java`
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/content/application/ContentPostPayloadAssemblerTest.java`
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/content/application/PostContractEventApplicationServiceTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/content/application/CommentContractEventApplicationServiceTest.java`
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/content/infrastructure/event/PostDomainEventBridgeTest.java`
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/content/infrastructure/event/CommentDomainEventBridgeTest.java`
 
@@ -1787,13 +1794,15 @@ public class PostDomainEventBridge {
 
 Delete `PostPayloadAssembler.java` from `content/infrastructure/event`.
 
-- [x] **Step 9: Update infrastructure event publisher imports**
+- [x] **Step 9: Update infrastructure event publisher imports and comment bridge delegation**
 
-In `LocalContentEventPublisher`, `InMemoryContentEventPublisher`, and `CommentDomainEventBridge`, add:
+In `LocalContentEventPublisher` and `InMemoryContentEventPublisher`, add:
 
 ```java
 import com.nowcoder.community.content.application.ContentEventPublisher;
 ```
+
+Create `CommentContractEventApplicationService` and make `CommentDomainEventBridge` delegate `CommentCreatedDomainEvent` to it instead of assembling `CommentPayload` or calling `ContentEventPublisher` directly.
 
 Remove any implicit dependency on `com.nowcoder.community.content.infrastructure.event.ContentEventPublisher` by deleting the old infrastructure interface file.
 
@@ -1802,7 +1811,7 @@ Remove any implicit dependency on `com.nowcoder.community.content.infrastructure
 Run:
 
 ```bash
-mvn -q -f backend/pom.xml -pl community-app -Dtest='ContentPostPayloadAssemblerTest,PostContractEventApplicationServiceTest,PostDomainEventBridgeTest,CommentDomainEventBridgeTest' test
+mvn -q -f backend/pom.xml -pl community-app -Dtest='ContentPostPayloadAssemblerTest,PostContractEventApplicationServiceTest,CommentContractEventApplicationServiceTest,PostDomainEventBridgeTest,CommentDomainEventBridgeTest' test
 mvn -q -f backend/pom.xml -pl community-app -Dtest='DddLayeringArchTest,ListenerBoundaryArchTest' test
 ```
 
@@ -1819,12 +1828,14 @@ Run:
 git add backend/community-app/src/main/java/com/nowcoder/community/content/application/ContentEventPublisher.java \
         backend/community-app/src/main/java/com/nowcoder/community/content/application/ContentPostPayloadAssembler.java \
         backend/community-app/src/main/java/com/nowcoder/community/content/application/PostContractEventApplicationService.java \
+        backend/community-app/src/main/java/com/nowcoder/community/content/application/CommentContractEventApplicationService.java \
         backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event/PostDomainEventBridge.java \
         backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event/LocalContentEventPublisher.java \
         backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event/InMemoryContentEventPublisher.java \
         backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event/CommentDomainEventBridge.java \
         backend/community-app/src/test/java/com/nowcoder/community/content/application/ContentPostPayloadAssemblerTest.java \
         backend/community-app/src/test/java/com/nowcoder/community/content/application/PostContractEventApplicationServiceTest.java \
+        backend/community-app/src/test/java/com/nowcoder/community/content/application/CommentContractEventApplicationServiceTest.java \
         backend/community-app/src/test/java/com/nowcoder/community/content/infrastructure/event/PostDomainEventBridgeTest.java \
         backend/community-app/src/test/java/com/nowcoder/community/content/infrastructure/event/CommentDomainEventBridgeTest.java
 git add -u backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event/ContentEventPublisher.java \
@@ -1850,7 +1861,7 @@ In `docs/handbook/architecture.md`, update the application layer bullet that alr
 - `application.command` / `application.result` / application-owned ports only express application semantics. They must not expose HTTP transport types such as `ResponseEntity`, `ResponseCookie`, `Resource`, `MediaType`, Servlet request/response types, or Spring Web upload types such as `MultipartFile`.
 ```
 
-Add this bullet to the Controller / Listener / Job section:
+Add this bullet to the Controller / Listener / Handler / Bridge / Enqueuer / Job section:
 
 ```markdown
 - Inbound adapters include controllers, local event listeners, outbox handlers, event bridges, enqueuers, and scheduled jobs. They adapt input and call same-domain application services; they must not perform foreign owner `api.*` collaboration before entering the same-domain application layer.
@@ -1876,7 +1887,7 @@ It must not depend directly on MyBatis mapper/dataobject types or HTTP DTOs. App
 Also update the executable guardrail sentence near the end so it mentions inbound handler coverage:
 
 ```markdown
-The current executable guardrails include `DddLayeringArchTest`, `ControllerBoundaryArchTest`, `ListenerBoundaryArchTest`, and `DtoBoundaryArchTest`. They protect retired root legacy packages, same-domain controller/listener/handler boundaries, domain Spring independence, application transport neutrality, and DTO leakage.
+The current executable guardrails include `DddLayeringArchTest`, `ControllerBoundaryArchTest`, `DomainBoundaryArchTest`, `DtoBoundaryArchTest`, `InfraBoundaryArchTest`, `ListenerBoundaryArchTest`, and `TransactionBoundaryArchTest`. They protect retired root legacy packages, same-domain controller/listener/handler/bridge/enqueuer/job boundaries, inbound foreign owner API/application boundaries, direct same-domain application helper/domain/persistence bypasses, domain Spring independence, application transport neutrality, DTO leakage, infrastructure dependencies, and transaction placement.
 ```
 
 - [x] **Step 4: Update hardening spec status**
@@ -1917,7 +1928,7 @@ git commit -m "docs: align ddd boundary hardening rules"
 Run:
 
 ```bash
-mvn -q -f backend/pom.xml -pl community-app -Dtest='UserAvatarApplicationServiceTest,UserFileApplicationServiceTest,FilesControllerStorageRoutingTest,UserControllerLoggingTest,R2AvatarStorageProviderUnitTest,MarketOrderAutoConfirmHandlerTest,PendingRegistrationUserCleanupHandlerTest,SearchReindexHandlerTest,MarketOrderAutoConfirmApplicationServiceUnitTest,PostOutboxHandlerTest,SearchPostProjectionApplicationServiceTest,SearchApplicationServiceTest,ContentPostPayloadAssemblerTest,PostContractEventApplicationServiceTest,PostDomainEventBridgeTest,CommentDomainEventBridgeTest' test
+mvn -q -f backend/pom.xml -pl community-app -Dtest='UserAvatarApplicationServiceTest,UserFileApplicationServiceTest,FilesControllerStorageRoutingTest,UserControllerLoggingTest,R2AvatarStorageProviderUnitTest,LocalAvatarStorageProviderUnitTest,MarketOrderAutoConfirmHandlerTest,PendingRegistrationUserCleanupHandlerTest,SearchReindexHandlerTest,MarketOrderAutoConfirmApplicationServiceUnitTest,PostOutboxHandlerTest,SearchPostProjectionApplicationServiceTest,SearchApplicationServiceTest,ContentPostPayloadAssemblerTest,PostContractEventApplicationServiceTest,CommentContractEventApplicationServiceTest,PostDomainEventBridgeTest,CommentDomainEventBridgeTest' test
 ```
 
 Expected: PASS.

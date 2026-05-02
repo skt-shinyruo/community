@@ -11,7 +11,7 @@
 `backend/community-app` MUST converge on strict DDD Tactical Layering:
 
 ```text
-Controller / Listener / Job
+Controller / Listener / Handler / Bridge / Enqueuer / Job
   -> ApplicationService
       -> Domain model / DomainService / Repository interface / Domain event
       -> foreign owner-domain api.query / api.action / api.model
@@ -59,17 +59,17 @@ Root `service`, `entity`, `mapper`, `event`, and `app` business packages are ret
 
 ## 3. Layer Responsibilities
 
-### 3.1 Controller / Listener / Job
+### 3.1 Controller / Listener / Handler / Bridge / Enqueuer / Job
 
 Inbound adapters only:
 
-- bind HTTP, scheduler, or local event input
+- bind HTTP, scheduler, local event, outbox, or job input
 - extract authentication context
 - map request DTOs into application commands
 - map application results into transport responses
 - call same-domain `*ApplicationService`
 
-They must not directly call same-domain domain objects, repositories, infrastructure, mapper/dataobject types, raw services, `UseCase`, or same-domain `api.*`.
+They must not directly call foreign owner `api.*`, foreign `application.*`, same-domain application helper/port types, domain objects, repositories, infrastructure persistence, mapper/dataobject types, raw services, `UseCase`, or same-domain `api.*`.
 
 ### 3.2 Application
 
@@ -177,9 +177,9 @@ The repository root `AGENTS.md` is the short operational rulebook for agents and
 
 Architecture docs must stay aligned:
 
-- `docs/ARCHITECTURE.md`
-- `docs/SYSTEM_DESIGN.md`
+- `docs/handbook/architecture.md`
+- `docs/handbook/system-design.md`
 
 ArchUnit tests under `backend/community-app/src/test/java/com/nowcoder/community/app/arch` should be expanded as the migration proceeds so these rules become executable guardrails.
 
-The current executable guardrails include `DddLayeringArchTest`, `ControllerBoundaryArchTest`, `ListenerBoundaryArchTest`, and `DtoBoundaryArchTest`. They protect retired root legacy packages, same-domain controller/listener/handler boundaries, domain Spring independence, application transport neutrality, and DTO leakage.
+The current executable guardrails include `DddLayeringArchTest`, `ControllerBoundaryArchTest`, `DomainBoundaryArchTest`, `DtoBoundaryArchTest`, `InfraBoundaryArchTest`, `ListenerBoundaryArchTest`, and `TransactionBoundaryArchTest`. They protect retired root legacy packages, same-domain controller/listener/handler/bridge/enqueuer/job boundaries, inbound foreign owner API/application boundaries, direct same-domain application helper/domain/persistence bypasses, domain Spring independence, application transport neutrality, DTO leakage, infrastructure dependencies, and transaction placement.

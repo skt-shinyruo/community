@@ -25,7 +25,7 @@
 本设计必须遵守仓库根目录 `AGENTS.md` 中的严格 DDD Tactical Layering：
 
 ```text
-Controller / Listener / Job
+Controller / Listener / Handler / Bridge / Enqueuer / Job
   -> ApplicationService
       -> Domain model / DomainService / Repository interface / Domain event
       -> foreign owner-domain api.query / api.action / api.model when cross-domain synchronous collaboration is required
@@ -48,6 +48,7 @@ Controller / Listener / Job
 - `backend/community-app/src/test/java/com/nowcoder/community/app/arch/DomainBoundaryArchTest.java`
 - `backend/community-app/src/test/java/com/nowcoder/community/app/arch/DtoBoundaryArchTest.java`
 - `backend/community-app/src/test/java/com/nowcoder/community/app/arch/InfraBoundaryArchTest.java`
+- `backend/community-app/src/test/java/com/nowcoder/community/app/arch/TransactionBoundaryArchTest.java`
 
 ---
 
@@ -119,7 +120,7 @@ The first implementation batch should cover only boundary hardening with low beh
 - remove Spring Web upload types from user application service and application port;
 - move `/files/**` key extraction out of application and into controller/web adapter;
 - make search outbox handler call only same-domain application service;
-- move content post contract payload assembly out of infrastructure event adapter into application-owned code;
+- move content post/comment contract payload assembly out of infrastructure event adapters into application-owned code;
 - update focused tests and handbook architecture docs.
 
 ### 4.2 First Batch Non-Goals
@@ -159,7 +160,8 @@ New or tightened rules:
   - `org.springframework.core.io..`
 - inbound adapters include `*Controller`, `*Listener`, `*Handler`, `*Bridge`, `*Enqueuer`, and `*Job` where they live under controller, event, job, or outbox-related infrastructure packages;
 - inbound adapters must not depend on foreign `api.query`, `api.action`, `api.model`;
-- inbound adapters must not depend directly on same-domain domain repositories or domain models except narrow event type inputs for Spring event listener bridges;
+- inbound adapters must not depend on foreign `application.*`;
+- inbound adapters must not depend directly on same-domain application helper/port types, domain repositories, domain services, domain models, or persistence packages except narrow domain event type inputs for Spring event listener bridges;
 - public same-domain controller/listener/job/handler entry points call same-domain `*ApplicationService` only;
 - `application.port` packages are either retired across all domains or explicitly limited to technical ports with no Spring/Web/HTTP types.
 
@@ -253,12 +255,22 @@ Target flow for post events:
 ```text
 PostPublishingApplicationService / PostModerationApplicationService / PostScoreUpdateApplicationService
   -> publishes or schedules domain/application event with enough business identity
-  -> ContentPostEventPayloadAssembler in application
+  -> ContentPostPayloadAssembler in application
       -> domain repositories
       -> ContentTextCodec
       -> contracts.event.PostPayload
   -> ContentEventPublisher port
       -> infrastructure event/outbox publisher
+```
+
+Target flow for comment events:
+
+```text
+CommentDomainEventBridge
+  -> CommentContractEventApplicationService
+      -> contracts.event.CommentPayload
+      -> ContentEventPublisher port
+          -> infrastructure event/outbox publisher
 ```
 
 Infrastructure should:
@@ -267,7 +279,7 @@ Infrastructure should:
 - write outbox/local event using already assembled contract payload;
 - avoid loading repositories to determine business event fields.
 
-If preserving `@TransactionalEventListener(BEFORE_COMMIT)` is necessary, the listener can call a same-domain application service that assembles and publishes the payload. The listener itself must not own repository reads and contract assembly.
+If preserving `@TransactionalEventListener(BEFORE_COMMIT)` is necessary, the listener can call a same-domain application service that assembles and publishes the payload. The listener itself must not own repository reads, application port calls, or contract assembly.
 
 Compatibility requirements:
 

@@ -323,6 +323,31 @@ final class ArchitectureRulesSupport {
         };
     }
 
+    static ArchCondition<JavaClass> notDependOnForeignApplicationPackages(Set<String> legacyOriginWhitelist) {
+        return new ArchCondition<>("not depend on foreign application packages before owner application boundary") {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                if (isWhitelisted(item, legacyOriginWhitelist)) {
+                    return;
+                }
+                String originDomain = domainOf(item);
+                if (originDomain.isEmpty()) {
+                    return;
+                }
+                for (Dependency dependency : item.getDirectDependenciesFromSelf()) {
+                    JavaClass target = dependency.getTargetClass();
+                    String targetDomain = domainOf(target);
+                    if (originDomain.equals(targetDomain) || !CORE_DOMAINS.contains(targetDomain)) {
+                        continue;
+                    }
+                    if (residesInLayer(target, Set.of("application"))) {
+                        events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));
+                    }
+                }
+            }
+        };
+    }
+
     static ArchCondition<JavaClass> notDependOnSameDomainOwnerApiPackages(Set<String> legacyOriginWhitelist) {
         return new ArchCondition<>("not depend on same-domain owner api packages") {
             @Override
@@ -369,6 +394,74 @@ final class ArchitectureRulesSupport {
                     boolean sameDomainUseCaseOrAppPackage = residesInLayer(target, Set.of("app"));
                     if (sameDomainRawService || sameDomainUseCaseOrAppPackage) {
                         events.add(SimpleConditionEvent.violated(item, dependency.getDescription()));
+                    }
+                }
+            }
+        };
+    }
+
+    static ArchCondition<JavaClass> notDependOnSameDomainApplicationHelpersBeforeApplicationService(
+            Set<String> legacyOriginWhitelist
+    ) {
+        return new ArchCondition<>("not depend on same-domain application helpers before ApplicationService boundary") {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                if (isWhitelisted(item, legacyOriginWhitelist)) {
+                    return;
+                }
+                String originDomain = domainOf(item);
+                if (originDomain.isEmpty()) {
+                    return;
+                }
+                for (Dependency dependency : item.getDirectDependenciesFromSelf()) {
+                    JavaClass target = dependency.getTargetClass();
+                    if (!originDomain.equals(domainOf(target))) {
+                        continue;
+                    }
+                    if (!residesInLayer(target, Set.of("application"))) {
+                        continue;
+                    }
+                    boolean applicationService = target.getSimpleName().endsWith("ApplicationService");
+                    boolean applicationBoundaryDto = residesInPackagePrefixes(target, Set.of(
+                            "application.command",
+                            "application.result"
+                    ));
+                    if (!applicationService && !applicationBoundaryDto) {
+                        events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));
+                    }
+                }
+            }
+        };
+    }
+
+    static ArchCondition<JavaClass> notDependOnSameDomainDomainOrPersistenceBeforeApplicationService(
+            Set<String> legacyOriginWhitelist
+    ) {
+        return new ArchCondition<>("not depend on same-domain domain implementation or persistence before ApplicationService boundary") {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                if (isWhitelisted(item, legacyOriginWhitelist)) {
+                    return;
+                }
+                String originDomain = domainOf(item);
+                if (originDomain.isEmpty()) {
+                    return;
+                }
+                for (Dependency dependency : item.getDirectDependenciesFromSelf()) {
+                    JavaClass target = dependency.getTargetClass();
+                    if (!originDomain.equals(domainOf(target))) {
+                        continue;
+                    }
+                    boolean domainImplementation = residesInPackagePrefixes(target, Set.of(
+                            "domain.model",
+                            "domain.repository",
+                            "domain.service"
+                    ));
+                    boolean persistenceImplementation = residesInPackagePrefixes(target, Set.of(
+                            "infrastructure.persistence"
+                    ));
+                    if (domainImplementation || persistenceImplementation) {
+                        events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));
                     }
                 }
             }

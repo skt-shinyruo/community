@@ -35,7 +35,7 @@ Client
 Client + Authorization + Idempotency-Key
   -> community-gateway
   -> community-app / im service
-  -> controller / handler
+  -> controller / listener / handler / bridge / enqueuer / job
   -> owner ApplicationService
   -> transaction
   -> domain rules
@@ -44,7 +44,7 @@ Client + Authorization + Idempotency-Key
   -> domain event / contract event / outbox
 ```
 
-同域 controller、listener、job 都只进入同域 `ApplicationService`。跨域同步协作发生在 application 层，通过 foreign owner-domain `api.query` / `api.action` 完成。
+同域 controller、listener、outbox handler、event bridge、enqueuer、job 都只进入同域 `ApplicationService`。跨域同步协作发生在 application 层，通过 foreign owner-domain `api.query` / `api.action` 完成；inbound adapter 不在 application 边界之前直接调用 foreign owner `api.*`、foreign `application.*`、same-domain application helper/port、domain model/service/repository 或 persistence 实现。
 
 ## 错误协议
 

@@ -44,6 +44,32 @@ class ListenerBoundaryArchTest {
                     ));
 
     @ArchTest
+    static final ArchRule inbound_adapters_must_enter_same_domain_application_service_before_helpers =
+            classes()
+                    .that().resideInAnyPackage(
+                            "..infrastructure.event..",
+                            "..infrastructure.job..",
+                            "..infra.job.handlers.."
+                    )
+                    .and().haveNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
+                    .should(ArchitectureRulesSupport.notDependOnSameDomainApplicationHelpersBeforeApplicationService(
+                            LEGACY_LISTENER_APPLICATION_BOUNDARY
+                    ));
+
+    @ArchTest
+    static final ArchRule inbound_adapters_must_not_bypass_application_service_to_same_domain_domain_or_persistence =
+            classes()
+                    .that().resideInAnyPackage(
+                            "..infrastructure.event..",
+                            "..infrastructure.job..",
+                            "..infra.job.handlers.."
+                    )
+                    .and().haveNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
+                    .should(ArchitectureRulesSupport.notDependOnSameDomainDomainOrPersistenceBeforeApplicationService(
+                            LEGACY_LISTENER_APPLICATION_BOUNDARY
+                    ));
+
+    @ArchTest
     static final ArchRule inbound_adapters_must_not_depend_on_foreign_owner_apis =
             classes()
                     .that().resideInAnyPackage(
@@ -53,6 +79,19 @@ class ListenerBoundaryArchTest {
                     )
                     .and().haveNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
                     .should(ArchitectureRulesSupport.notDependOnForeignOwnerApiPackages(
+                            LEGACY_INBOUND_FOREIGN_API_BOUNDARY
+                    ));
+
+    @ArchTest
+    static final ArchRule inbound_adapters_must_not_depend_on_foreign_application_packages =
+            classes()
+                    .that().resideInAnyPackage(
+                            "..infrastructure.event..",
+                            "..infrastructure.job..",
+                            "..infra.job.handlers.."
+                    )
+                    .and().haveNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
+                    .should(ArchitectureRulesSupport.notDependOnForeignApplicationPackages(
                             LEGACY_INBOUND_FOREIGN_API_BOUNDARY
                     ));
 }

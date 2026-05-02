@@ -131,4 +131,4 @@
 - Elasticsearch：`http://localhost:12888`
 - Kibana：`http://localhost:12889`
 
-更多说明见 `docs/handbook/OBSERVABILITY.md`。
+更多说明见 `docs/handbook/operations.md`。

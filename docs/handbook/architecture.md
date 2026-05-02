@@ -13,7 +13,7 @@
 - `backend/community-common/*`：共享 Web、安全、幂等、outbox、错误协议、trace 等横切能力。
 - `deploy/`：本地 single / cluster 拓扑和可选 observability overlay。
 
-默认对外业务入口为 `community-gateway`，本地通过 NGINX / gateway 暴露在 `12880`。对外 API 前缀稳定为 `/api/**`，静态文件前缀稳定为 `/files/**`，IM WebSocket 前缀稳定为 `/ws/im`。
+默认对外业务入口为 `community-gateway`，本地通过 NGINX / gateway 暴露在 `12880`。对外 API 前缀稳定为 `/api/**`，静态文件前缀稳定为 `/files/**`，IM WebSocket 前缀稳定为 `/ws/im`；当前 gateway worker-proxy 的具体 WebSocket 路径是 `/ws/im/workers/{workerId}`，由 `/api/im/sessions` 返回。
 
 ```mermaid
 flowchart TD
@@ -51,7 +51,7 @@ flowchart TD
 | growth | 当前无独立前台 HTTP 面 | `growth` 任务/等级底座 | owner API / event |
 | market | `/api/market/**`, `/api/admin/market/**` | `market` | `community-app` |
 | wallet | `/api/wallet/**`, `/api/wallet/admin/**` | `wallet` | `community-app` |
-| IM 私信/群聊 | `/ws/im`, `/api/im/**` | `im-realtime` + `im-core` | IM 服务各自配置 |
+| IM 私信/群聊 | `/api/im/sessions`, `/ws/im/workers/**`, `/api/im/**` | `im-realtime` + `im-core` | IM 服务各自配置 |
 | IM policy snapshot | `/internal/im/realtime/projections/**` | `user` / `social` SSOT，`community-app` 暴露 snapshot | internal scope JWT |
 | ops | `/api/ops/**` | 触发 owner action，例如 search reindex | ADMIN-only |
 

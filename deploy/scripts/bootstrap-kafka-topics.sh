@@ -12,13 +12,15 @@ for _ in $(seq 1 90); do
 done
 
 echo "[kafka-init] creating topics (if not exists)..."
-kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.command.private_text.v1 --replication-factor 3 --partitions 12
-kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.command.room_text.v1 --replication-factor 3 --partitions 12
-kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.event.private_persisted.v1 --replication-factor 3 --partitions 12
-kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.event.room_persisted.v1 --replication-factor 3 --partitions 12
-kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.event.private_rejected.v1 --replication-factor 3 --partitions 12
-kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.event.room_rejected.v1 --replication-factor 3 --partitions 12
-kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.event.room_member_changed.v1 --replication-factor 3 --partitions 3
-kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.command.private_text.v1.dlq --replication-factor 3 --partitions 12
-kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.command.room_text.v1.dlq --replication-factor 3 --partitions 12
+kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.command.private-text --replication-factor 3 --partitions 12
+kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.command.room-text --replication-factor 3 --partitions 12
+kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.event.private-persisted --replication-factor 3 --partitions 12
+kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.event.room-persisted --replication-factor 3 --partitions 12
+kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.event.private-rejected --replication-factor 3 --partitions 12
+kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.event.room-rejected --replication-factor 3 --partitions 12
+kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.event.room-member-changed --replication-factor 3 --partitions 3
+kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.event.user-messaging-policy-changed --replication-factor 3 --partitions 12
+kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.event.user-block-relation-changed --replication-factor 3 --partitions 12
+kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.command.private-text.dlq --replication-factor 3 --partitions 12
+kafka-topics --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --create --if-not-exists --topic im.command.room-text.dlq --replication-factor 3 --partitions 12
 echo "[kafka-init] done."

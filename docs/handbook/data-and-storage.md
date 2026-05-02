@@ -112,20 +112,22 @@ analytics 主要用 Redis HyperLogLog / Bitmap：
 
 IM 必需 topic：
 
-- `im.command.private_text.v1`
-- `im.command.room_text.v1`
-- `im.event.private_persisted.v1`
-- `im.event.room_persisted.v1`
-- `im.event.private_rejected.v1`
-- `im.event.room_rejected.v1`
-- `im.event.room_member_changed.v1`
+- `im.command.private-text`
+- `im.command.room-text`
+- `im.event.private-persisted`
+- `im.event.room-persisted`
+- `im.event.private-rejected`
+- `im.event.room-rejected`
+- `im.event.room-member-changed`
+- `im.event.user-messaging-policy-changed`
+- `im.event.user-block-relation-changed`
 
 DLQ：
 
-- `im.command.private_text.v1.dlq`
-- `im.command.room_text.v1.dlq`
+- `im.command.private-text.dlq`
+- `im.command.room-text.dlq`
 
-IM policy projection 还会通过主站 outbox 发布用户处罚 / 拉黑变化到 IM realtime 消费的 policy topic，topic 名以代码常量为准。
+IM policy projection 先在主站 outbox 使用内部 topic `projection.im.policy`，再由 outbox handler 发布到 `im.event.user-messaging-policy-changed` / `im.event.user-block-relation-changed` 供 `im-realtime` 消费。
 
 `community.event.*` 是历史遗留跨服务 topic，当前默认 compose 不创建、不使用；`community-app` 的主站投影/通知不依赖 Kafka，而是使用本地事务事件、DB outbox 或同步 owner API。
 

@@ -21,7 +21,8 @@
 
 - 前端：`http://localhost:12881`
 - API / files / WebSocket：`http://localhost:12880`
-- IM WebSocket：`ws://localhost:12880/ws/im`
+- IM session bootstrap：`POST http://localhost:12880/api/im/sessions`
+- IM WebSocket：使用 session response `wsUrl`；gateway worker-proxy 模式下路径形如 `ws://localhost:12880/ws/im/workers/{workerId}`
 - IM HTTP：`http://localhost:12880/api/im/**`
 
 ## 先记住的规则
@@ -34,8 +35,8 @@
 Browser / Client
   -> community-gateway
       -> community-app      (/api/**, /files/**, /api/ops/**)
-      -> im-core            (/api/im/**)
-      -> im-realtime        (/ws/im)
+      -> im-core            (/api/im/** history / read state)
+      -> im-realtime        (/api/im/sessions, /ws/im/workers/** WebSocket)
 ```
 
 如果调试接口行为，先确认请求落在哪个 deployable，再看对应服务的 controller / handler。
@@ -126,13 +127,13 @@ POST /api/posts + Authorization + Idempotency-Key
 ### IM 私信路径
 
 ```text
-WS /ws/im
+POST /api/im/sessions -> WS /ws/im/workers/{workerId}
   -> im-realtime auth
   -> sendPrivateText
   -> local policy projection 判断拉黑/处罚/目标用户
-  -> Kafka im.command.private_text.v1
+  -> Kafka im.command.private-text
   -> im-core 持久化、分配 seq、clientMsgId 幂等
-  -> Kafka im.event.private_persisted.v1
+  -> Kafka im.event.private-persisted
   -> im-realtime 在线推送
   -> client HTTP backfill /api/im/**
 ```
@@ -140,13 +141,13 @@ WS /ws/im
 ### IM 群聊路径
 
 ```text
-WS /ws/im
+POST /api/im/sessions -> WS /ws/im/workers/{workerId}
   -> im-realtime auth
   -> room membership bootstrap
   -> sendRoomText
-  -> Kafka im.command.room_text.v1
+  -> Kafka im.command.room-text
   -> im-core 校验房间与成员、分配 seq、clientMsgId 幂等
-  -> Kafka im.event.room_persisted.v1
+  -> Kafka im.event.room-persisted
   -> im-realtime 推送 roomUpdatedBatch
   -> client HTTP 拉取房间消息并推进 lastReadSeq
 ```

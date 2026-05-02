@@ -6,7 +6,7 @@
 
 当前系统优先保证这些性质：
 
-- 对外入口稳定：浏览器默认经 `community-gateway`，业务 API 保持 `/api/**`，文件保持 `/files/**`，IM WebSocket 保持 `/ws/im`。
+- 对外入口稳定：浏览器默认经 `community-gateway`，业务 API 保持 `/api/**`，文件保持 `/files/**`，IM WebSocket 前缀保持 `/ws/im`；当前 gateway worker-proxy 的具体路径是 `/ws/im/workers/{workerId}`，由 `/api/im/sessions` 返回。
 - owner 清晰：主业务由 `community-app` 按包 owner 治理，IM 消息权威状态由 `community-im` 承担。
 - 同步协作显式：跨域同步调用只走 owner-domain `api.query` / `api.action` / `api.model`。
 - 异步协作显式：跨域事件只走 owner-domain `contracts.event`。

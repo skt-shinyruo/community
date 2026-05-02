@@ -134,7 +134,8 @@ single / cluster 都可以叠加 observability：
 | --- | --- |
 | 前端 | `http://localhost:12881` |
 | API / files / WS 统一入口 | `http://localhost:12880` |
-| IM WebSocket | `ws://localhost:12880/ws/im` |
+| IM session bootstrap | `POST http://localhost:12880/api/im/sessions` |
+| IM WebSocket | session response `wsUrl`；gateway worker-proxy 模式下形如 `ws://localhost:12880/ws/im/workers/{workerId}` |
 | IM HTTP | `http://localhost:12880/api/im/**` |
 | Nacos | `http://localhost:18848/nacos` |
 | XXL-JOB Admin | `http://localhost:12887/xxl-job-admin` |

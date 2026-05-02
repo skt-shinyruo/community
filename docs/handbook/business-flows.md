@@ -24,8 +24,8 @@ Owner / SSOT：
 Entry：
 
 - `/api/auth/register`
-- `/api/auth/registration-code/resend`
-- `/api/auth/registration-code/verify`
+- `/api/auth/register/code/resend`
+- `/api/auth/register/code/verify`
 - `/api/auth/login`
 - `/api/auth/refresh`
 - `/api/auth/logout`
@@ -366,7 +366,7 @@ Key code：
 - `social.application.BlockApplicationService`
 - `im.projection.ImPolicyOutboxEnqueuer`
 - `im.projection.ImPolicyKafkaOutboxHandler`
-- `im.projection.InternalRealtimeProjectionController`
+- `im.projection.ImPolicySnapshotController`
 
 ## Notice Projection And Read Model
 
@@ -427,23 +427,26 @@ Owner / SSOT：
 
 Entry：
 
-- WebSocket：`ws://localhost:12880/ws/im`
+- Session bootstrap：`POST http://localhost:12880/api/im/sessions`
+- WebSocket：session response `wsUrl`，gateway worker-proxy 模式下形如 `ws://localhost:12880/ws/im/workers/{workerId}`
 - HTTP history：`http://localhost:12880/api/im/**`
 
 Main path：
 
-1. 客户端连接 `/ws/im`。
-2. `im-realtime` 完成 JWT 鉴权并注册连接。
-3. 首次鉴权后，`im-realtime` 也会从 `im-core` 拉取房间 membership snapshot，主要服务群聊索引。
-4. 客户端发送 `sendPrivateText`。
-5. `im-realtime` 确认连接已鉴权。
-6. 本地 `PolicyProjectionService` 判定拉黑、处罚、目标用户存在性。
-7. 判定通过后写 `im.command.private_text.v1`。
-8. `im-core` 消费 command，校验并按 `(conversationId, fromUserId, clientMsgId)` 幂等。
-9. `im-core` 分配 seq、落库、更新会话状态。
-10. `im-core` 发布 `im.event.private_persisted.v1`。
-11. `im-realtime` 消费 persisted event 并在线推送。
-12. 客户端断线或错过推送时，通过 HTTP history API 补拉。
+1. 客户端带 bearer token 调 `POST /api/im/sessions`。
+2. `im-realtime` 校验 token，生成 session ticket，并返回 `wsUrl`。
+3. 客户端连接返回的 `wsUrl`，gateway worker-proxy 模式下路径为 `/ws/im/workers/{workerId}`。
+4. WebSocket 建连后客户端发送 `connect` frame 和 ticket，`im-realtime` 完成鉴权并注册连接。
+5. 首次鉴权后，`im-realtime` 也会从 `im-core` 拉取房间 membership snapshot，主要服务群聊索引。
+6. 客户端发送 `sendPrivateText`。
+7. `im-realtime` 确认连接已鉴权。
+8. 本地 `PolicyProjectionService` 判定拉黑、处罚、目标用户存在性。
+9. 判定通过后写 `im.command.private-text`。
+10. `im-core` 消费 command，校验并按 `(conversationId, fromUserId, clientMsgId)` 幂等。
+11. `im-core` 分配 seq、落库、更新会话状态。
+12. `im-core` 发布 `im.event.private-persisted`。
+13. `im-realtime` 消费 persisted event 并在线推送。
+14. 客户端断线或错过推送时，通过 HTTP history API 补拉。
 
 Semantics：
 
@@ -467,26 +470,28 @@ Owner / SSOT：
 
 Entry：
 
-- WebSocket：`ws://localhost:12880/ws/im`
+- Session bootstrap：`POST http://localhost:12880/api/im/sessions`
+- WebSocket：session response `wsUrl`，gateway worker-proxy 模式下形如 `ws://localhost:12880/ws/im/workers/{workerId}`
 - HTTP room history：`http://localhost:12880/api/im/**`
 
 Main path：
 
-1. 客户端连接并完成 WebSocket 鉴权。
-2. `im-realtime` 调 `im-core` internal membership snapshot，拉取当前用户所在房间。
-3. `im-realtime` 建立本机在线房间索引。
-4. 客户端发送 `sendRoomText`。
-5. `im-realtime` 写 `im.command.room_text.v1`。
-6. `im-core` 消费 command，校验房间存在、发送者是成员。
-7. `im-core` 按 `(roomId, fromUserId, clientMsgId)` 做幂等。
-8. `im-core` 分配 room seq，持久化消息。
-9. `im-core` 发布 `im.event.room_persisted.v1`。
-10. `im-realtime` 收到 event 后，不一定广播完整消息，而是推送 `roomUpdatedBatch`。
-11. 客户端收到更新后，通过 HTTP 拉取群消息并推进 `lastReadSeq`。
+1. 客户端带 bearer token 调 `POST /api/im/sessions`。
+2. 客户端连接返回的 `wsUrl`，发送 `connect` frame 和 ticket 完成 WebSocket 鉴权。
+3. `im-realtime` 调 `im-core` internal membership snapshot，拉取当前用户所在房间。
+4. `im-realtime` 建立本机在线房间索引。
+5. 客户端发送 `sendRoomText`。
+6. `im-realtime` 写 `im.command.room-text`。
+7. `im-core` 消费 command，校验房间存在、发送者是成员。
+8. `im-core` 按 `(roomId, fromUserId, clientMsgId)` 做幂等。
+9. `im-core` 分配 room seq，持久化消息。
+10. `im-core` 发布 `im.event.room-persisted`。
+11. `im-realtime` 收到 event 后，不一定广播完整消息，而是推送 `roomUpdatedBatch`。
+12. 客户端收到更新后，通过 HTTP 拉取群消息并推进 `lastReadSeq`。
 
 Membership changes：
 
-- `im.event.room_member_changed.v1` 驱动 realtime 更新本地房间索引。
+- `im.event.room-member-changed` 驱动 realtime 更新本地房间索引。
 - `JOINED`：把用户当前在线连接加入房间索引。
 - `LEFT`：把用户当前在线连接从房间索引移除。
 - 用户重连后会重新从 `im-core` 拉取所属房间，重建本地索引。
@@ -566,7 +571,7 @@ Key code：
 - `search.infrastructure.persistence.InMemoryPostSearchRepository`
 - `search.infrastructure.event.PostOutboxEnqueuer`
 - `search.infrastructure.event.PostOutboxHandler`
-- `search.infrastructure.index.PostIndexManager`
+- `search.infrastructure.persistence.PostIndexManager`
 
 ## Analytics
 

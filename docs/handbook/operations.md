@@ -63,7 +63,8 @@ deploy/observability/kibana/README.md
 
 IM 的正确性设计是 “WebSocket best-effort 推送 + HTTP 断线补拉”。压测流量推荐统一通过 gateway：
 
-- WebSocket：`ws://localhost:12880/ws/im`
+- Session bootstrap：`POST http://localhost:12880/api/im/sessions`
+- WebSocket：使用 session response `wsUrl`；gateway worker-proxy 模式下路径形如 `ws://localhost:12880/ws/im/workers/{workerId}`
 - HTTP：`http://localhost:12880/api/im/**`
 
 工具：

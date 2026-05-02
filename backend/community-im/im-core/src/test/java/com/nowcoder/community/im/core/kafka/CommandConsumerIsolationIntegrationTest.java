@@ -41,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         partitions = 1,
         topics = {
                 ImTopics.COMMAND_ROOM_TEXT,
-                "im.command.room_text.v1.dlq",
+                ImTopics.COMMAND_ROOM_TEXT + ".dlq",
                 ImTopics.EVENT_ROOM_PERSISTED,
                 ImTopics.EVENT_ROOM_REJECTED
         }

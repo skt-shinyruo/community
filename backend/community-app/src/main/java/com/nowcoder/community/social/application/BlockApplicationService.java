@@ -7,6 +7,7 @@ import com.nowcoder.community.social.domain.event.BlockRelationChangedDomainEven
 import com.nowcoder.community.social.domain.event.SocialDomainEventPublisher;
 import com.nowcoder.community.social.domain.model.BlockRelation;
 import com.nowcoder.community.social.domain.repository.BlockRepository;
+import com.nowcoder.community.social.domain.repository.FollowRepository;
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,6 +19,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.util.List;
 import java.util.UUID;
 
+import static com.nowcoder.community.common.constants.EntityTypes.USER;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service("socialBlockApplicationService")
@@ -26,15 +28,18 @@ public class BlockApplicationService {
     private static final Logger log = LoggerFactory.getLogger(BlockApplicationService.class);
 
     private final BlockRepository blockRepository;
+    private final FollowRepository followRepository;
     private final BlockDomainService blockDomainService;
     private final SocialDomainEventPublisher eventPublisher;
 
     public BlockApplicationService(
             BlockRepository blockRepository,
+            FollowRepository followRepository,
             BlockDomainService blockDomainService,
             SocialDomainEventPublisher eventPublisher
     ) {
         this.blockRepository = blockRepository;
+        this.followRepository = followRepository;
         this.blockDomainService = blockDomainService;
         this.eventPublisher = eventPublisher;
     }
@@ -43,12 +48,24 @@ public class BlockApplicationService {
     public void block(BlockCommand command) {
         blockDomainService.validateBlock(command.actorUserId(), command.targetUserId());
         boolean changed = blockRepository.block(command.actorUserId(), command.targetUserId());
+        boolean removedForwardFollow = followRepository.unfollow(command.actorUserId(), USER, command.targetUserId());
+        boolean removedReverseFollow = followRepository.unfollow(command.targetUserId(), USER, command.actorUserId());
         if (!changed) {
             return;
         }
+        Runnable rollback = () -> {
+            blockRepository.unblock(command.actorUserId(), command.targetUserId());
+            long now = System.currentTimeMillis();
+            if (removedForwardFollow) {
+                followRepository.follow(command.actorUserId(), USER, command.targetUserId(), now);
+            }
+            if (removedReverseFollow) {
+                followRepository.follow(command.targetUserId(), USER, command.actorUserId(), now);
+            }
+        };
         publishChangedWithCompensation(
                 blockDomainService.blockChangedEvent(command.actorUserId(), command.targetUserId(), true),
-                () -> blockRepository.unblock(command.actorUserId(), command.targetUserId())
+                rollback
         );
     }
 
@@ -94,7 +111,8 @@ public class BlockApplicationService {
     }
 
     private void publishChangedWithCompensation(BlockRelationChangedDomainEvent event, Runnable rollback) {
-        boolean needsExplicitCompensation = blockRepository.requiresExplicitCompensation();
+        boolean needsExplicitCompensation = blockRepository.requiresExplicitCompensation()
+                || followRepository.requiresExplicitCompensation();
         if (needsExplicitCompensation) {
             registerRollbackIfTxRolledBack(rollback);
         }

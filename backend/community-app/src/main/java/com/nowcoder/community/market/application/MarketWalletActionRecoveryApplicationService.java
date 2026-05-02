@@ -8,6 +8,7 @@ import com.nowcoder.community.market.domain.repository.MarketWalletActionReposit
 import com.nowcoder.community.market.domain.model.MarketWalletActionResultType;
 import com.nowcoder.community.market.domain.model.MarketWalletActionStatus;
 import com.nowcoder.community.market.domain.model.MarketWalletActionType;
+import com.nowcoder.community.wallet.api.model.WalletErrorCodes;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +17,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Date;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -27,6 +29,10 @@ public class MarketWalletActionRecoveryApplicationService {
     private static final String STATUS_REFUND_PENDING = "REFUND_PENDING";
     private static final String STATUS_DISPUTE_RELEASE_PENDING = "DISPUTE_RELEASE_PENDING";
     private static final String STATUS_DISPUTE_REFUND_PENDING = "DISPUTE_REFUND_PENDING";
+    private static final Set<String> RECOVERABLE_RELEASE_REFUND_FAILURE_CODES = Set.of(
+            String.valueOf(WalletErrorCodes.ACCOUNT_UPDATE_CONFLICT),
+            String.valueOf(WalletErrorCodes.ACCOUNT_BALANCE_INSUFFICIENT)
+    );
 
     private final MarketWalletActionRepository walletActionRepository;
     private final MarketOrderRepository orderRepository;
@@ -119,6 +125,14 @@ public class MarketWalletActionRecoveryApplicationService {
         if (action.getWalletTxnId() != null && !MarketWalletActionStatus.SUCCEEDED.equals(action.getStatus())) {
             return reconcileWalletTxnAction(action);
         }
+        if (isFailedActionRepairable(action, actionType)) {
+            walletActionRepository.markRetrying(
+                    action.getActionId(),
+                    Date.from(clock.instant()),
+                    action.getLastError()
+            );
+            return true;
+        }
         if (STATUS_ESCROW_CANCEL_PENDING.equals(order.getStatus())
                 && MarketWalletActionType.ESCROW.equals(action.getActionType())
                 && MarketWalletActionStatus.CANCELLED.equals(action.getStatus())
@@ -127,6 +141,16 @@ public class MarketWalletActionRecoveryApplicationService {
             return true;
         }
         return false;
+    }
+
+    private boolean isFailedActionRepairable(MarketWalletAction action, String expectedActionType) {
+        return action != null
+                && action.getWalletTxnId() == null
+                && MarketWalletActionStatus.FAILED.equals(action.getStatus())
+                && RECOVERABLE_RELEASE_REFUND_FAILURE_CODES.contains(action.getFailureCode())
+                && expectedActionType.equals(action.getActionType())
+                && (MarketWalletActionType.RELEASE.equals(action.getActionType())
+                || MarketWalletActionType.REFUND.equals(action.getActionType()));
     }
 
     private boolean applyWalletTxnToSaga(MarketWalletAction action) {

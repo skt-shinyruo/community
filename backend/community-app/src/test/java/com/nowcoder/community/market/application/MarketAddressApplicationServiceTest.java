@@ -52,7 +52,7 @@ class MarketAddressApplicationServiceTest {
         first.setDistrict("浦东新区");
         first.setDetailAddress("世纪大道 100 号");
         first.setPostalCode("200120");
-        first.setDefault(true);
+        first.setDefaultAddress(true);
 
         CreateMarketAddressRequest second = new CreateMarketAddressRequest();
         second.setReceiverName("李四");
@@ -62,7 +62,7 @@ class MarketAddressApplicationServiceTest {
         second.setDistrict("海淀区");
         second.setDetailAddress("中关村大街 1 号");
         second.setPostalCode("100080");
-        second.setDefault(true);
+        second.setDefaultAddress(true);
 
         marketAddressService.createAddress(MarketTestCommands.addressCommand(userId, first));
         marketAddressService.createAddress(MarketTestCommands.addressCommand(userId, second));

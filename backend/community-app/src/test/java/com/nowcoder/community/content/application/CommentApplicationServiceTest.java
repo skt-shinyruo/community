@@ -14,14 +14,17 @@ import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.application.result.CommentCreateResult;
 import com.nowcoder.community.content.config.ContentRenderProperties;
 import com.nowcoder.community.content.domain.event.CommentCreatedDomainEvent;
+import com.nowcoder.community.content.domain.event.CommentDeletedDomainEvent;
 import com.nowcoder.community.content.domain.event.CommentDomainEventPublisher;
 import com.nowcoder.community.content.domain.model.CommentDraft;
+import com.nowcoder.community.content.domain.model.CommentDeletionResult;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.CommentRepository;
 import com.nowcoder.community.content.domain.service.CommentDomainService;
 import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
 import com.nowcoder.community.growth.api.model.GrowthCommentTaskProgressRequest;
+import com.nowcoder.community.social.api.action.SocialLikeCleanupActionApi;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
 import com.nowcoder.community.user.api.model.UserCommentPointsAwardRequest;
@@ -30,9 +33,12 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Date;
 import java.util.Optional;
 import java.util.UUID;
@@ -48,6 +54,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 class CommentApplicationServiceTest {
@@ -60,6 +67,7 @@ class CommentApplicationServiceTest {
     private SocialBlockQueryApi blockQueryApi;
     private UserPointsAwardActionApi pointsAwardService;
     private GrowthTaskProgressActionApi taskProgressTriggerService;
+    private SocialLikeCleanupActionApi socialLikeCleanupActionApi;
     private CommentDomainEventPublisher domainEventPublisher;
     private PostWriteSideEffectScheduler postWriteSideEffectScheduler;
     private PlatformTransactionManager transactionManager;
@@ -75,6 +83,7 @@ class CommentApplicationServiceTest {
         blockQueryApi = mock(SocialBlockQueryApi.class);
         pointsAwardService = mock(UserPointsAwardActionApi.class);
         taskProgressTriggerService = mock(GrowthTaskProgressActionApi.class);
+        socialLikeCleanupActionApi = mock(SocialLikeCleanupActionApi.class);
         domainEventPublisher = mock(CommentDomainEventPublisher.class);
         postWriteSideEffectScheduler = mock(PostWriteSideEffectScheduler.class);
         transactionManager = mock(PlatformTransactionManager.class);
@@ -90,6 +99,7 @@ class CommentApplicationServiceTest {
                 blockQueryApi,
                 pointsAwardService,
                 taskProgressTriggerService,
+                socialLikeCleanupActionApi,
                 domainEventPublisher,
                 postWriteSideEffectScheduler,
                 transactionManager
@@ -231,6 +241,7 @@ class CommentApplicationServiceTest {
                 blockQueryApi,
                 pointsAwardService,
                 taskProgressTriggerService,
+                socialLikeCleanupActionApi,
                 domainEventPublisher,
                 postWriteSideEffectScheduler,
                 realTransactionManager
@@ -330,6 +341,162 @@ class CommentApplicationServiceTest {
         inOrder.verify(postContentPort).getById(postId);
         inOrder.verify(commentRepository).getRequiredSnapshot(commentId);
         inOrder.verify(commentRepository).updateContent(eq(commentId), eq("clean"), any(Date.class));
+    }
+
+    @Test
+    void deleteByAuthorShouldDeleteActiveCommentThreadAndApplySideEffects() {
+        UUID userId = uuid(1);
+        UUID postId = uuid(100);
+        UUID commentId = uuid(200);
+        UUID replyId = uuid(201);
+        UUID nestedReplyId = uuid(202);
+        CommentSnapshot existing = activeComment(commentId, userId, EntityTypes.POST, postId);
+        when(commentRepository.getRequiredSnapshot(commentId)).thenReturn(existing);
+        when(commentRepository.markActiveThreadDeleted(eq(commentId), eq(userId), eq("author_delete"), any(Date.class)))
+                .thenReturn(new CommentDeletionResult(List.of(
+                        activeComment(commentId, userId, EntityTypes.POST, postId),
+                        activeComment(replyId, userId, EntityTypes.COMMENT, commentId),
+                        activeComment(nestedReplyId, userId, EntityTypes.COMMENT, replyId)
+                )));
+
+        service.deleteByAuthor(userId, postId, commentId);
+
+        var inOrder = inOrder(commentRepository, postContentPort, socialLikeCleanupActionApi, postWriteSideEffectScheduler);
+        inOrder.verify(commentRepository).getRequiredSnapshot(commentId);
+        inOrder.verify(commentRepository).markActiveThreadDeleted(eq(commentId), eq(userId), eq("author_delete"), any(Date.class));
+        inOrder.verify(postContentPort).incrementCommentCount(postId, -3);
+        inOrder.verify(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.COMMENT, commentId);
+        inOrder.verify(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.COMMENT, replyId);
+        inOrder.verify(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.COMMENT, nestedReplyId);
+        inOrder.verify(postWriteSideEffectScheduler).schedulePostScoreRefresh(postId);
+    }
+
+    @Test
+    void deleteByAuthorShouldPublishDeleteEventForEveryActuallyDeletedComment() {
+        UUID userId = uuid(1);
+        UUID postId = uuid(100);
+        UUID commentId = uuid(200);
+        UUID replyId = uuid(201);
+        UUID nestedReplyId = uuid(202);
+        CommentSnapshot existing = activeComment(commentId, userId, EntityTypes.POST, postId);
+        when(commentRepository.getRequiredSnapshot(commentId)).thenReturn(existing);
+        UUID replyAuthorId = uuid(2);
+        UUID nestedReplyAuthorId = uuid(3);
+        when(commentRepository.markActiveThreadDeleted(eq(commentId), eq(userId), eq("author_delete"), any(Date.class)))
+                .thenReturn(new CommentDeletionResult(List.of(
+                        activeComment(commentId, userId, EntityTypes.POST, postId),
+                        activeComment(replyId, replyAuthorId, EntityTypes.COMMENT, commentId),
+                        activeComment(nestedReplyId, nestedReplyAuthorId, EntityTypes.COMMENT, replyId)
+                )));
+
+        service.deleteByAuthor(userId, postId, commentId);
+
+        ArgumentCaptor<CommentDeletedDomainEvent> eventCaptor = ArgumentCaptor.forClass(CommentDeletedDomainEvent.class);
+        verify(domainEventPublisher, times(3)).commentDeleted(eventCaptor.capture());
+        assertThat(eventCaptor.getAllValues())
+                .extracting(CommentDeletedDomainEvent::commentId)
+                .containsExactly(commentId, replyId, nestedReplyId);
+        assertThat(eventCaptor.getAllValues()).extracting(CommentDeletedDomainEvent::postId)
+                .containsExactly(postId, postId, postId);
+        assertThat(eventCaptor.getAllValues()).extracting(CommentDeletedDomainEvent::userId)
+                .containsExactly(userId, replyAuthorId, nestedReplyAuthorId);
+        assertThat(eventCaptor.getAllValues()).extracting(CommentDeletedDomainEvent::entityType)
+                .containsExactly(EntityTypes.POST, EntityTypes.COMMENT, EntityTypes.COMMENT);
+        assertThat(eventCaptor.getAllValues()).extracting(CommentDeletedDomainEvent::entityId)
+                .containsExactly(postId, commentId, replyId);
+        assertThat(eventCaptor.getAllValues()).allSatisfy(event -> assertThat(event.createTime()).isNotNull());
+    }
+
+    @Test
+    void deleteByAuthorShouldRejectNestedReplyWhenRoutePostDoesNotMatchRootPost() {
+        UUID userId = uuid(1);
+        UUID actualPostId = uuid(100);
+        UUID routePostId = uuid(101);
+        UUID parentCommentId = uuid(200);
+        UUID replyId = uuid(201);
+        CommentSnapshot parent = activeComment(parentCommentId, uuid(2), EntityTypes.POST, actualPostId);
+        CommentSnapshot reply = activeComment(replyId, userId, EntityTypes.COMMENT, parentCommentId);
+        when(commentRepository.getRequiredSnapshot(replyId)).thenReturn(reply);
+        when(commentRepository.getRequiredSnapshot(parentCommentId)).thenReturn(parent);
+        when(commentRepository.markActiveThreadDeleted(eq(replyId), eq(userId), eq("author_delete"), any(Date.class)))
+                .thenReturn(new CommentDeletionResult(List.of(reply)));
+
+        assertThatThrownBy(() -> service.deleteByAuthor(userId, routePostId, replyId))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(error -> assertThat(((BusinessException) error).getErrorCode()).isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
+
+        verify(commentRepository, never()).markActiveThreadDeleted(any(UUID.class), any(UUID.class), anyString(), any(Date.class));
+        verify(postContentPort, never()).incrementCommentCount(any(UUID.class), any(Integer.class));
+        verify(socialLikeCleanupActionApi, never()).cleanupEntityLikes(any(Integer.class), any(UUID.class));
+    }
+
+    @Test
+    void deleteByAuthorShouldRunSocialCleanupAfterCommitWhenTransactionActive() {
+        UUID userId = uuid(1);
+        UUID postId = uuid(100);
+        UUID commentId = uuid(200);
+        CommentSnapshot existing = activeComment(commentId, userId, EntityTypes.POST, postId);
+        when(commentRepository.getRequiredSnapshot(commentId)).thenReturn(existing);
+        when(commentRepository.markActiveThreadDeleted(eq(commentId), eq(userId), eq("author_delete"), any(Date.class)))
+                .thenReturn(new CommentDeletionResult(List.of(existing)));
+
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            service.deleteByAuthor(userId, postId, commentId);
+
+            verify(socialLikeCleanupActionApi, never()).cleanupEntityLikes(any(Integer.class), any(UUID.class));
+            for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+                synchronization.afterCommit();
+            }
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+        }
+
+        verify(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.COMMENT, commentId);
+    }
+
+    @Test
+    void deleteByAuthorShouldUseActuallyDeletedCommentsForCountAndCleanup() {
+        UUID userId = uuid(1);
+        UUID postId = uuid(100);
+        UUID commentId = uuid(200);
+        UUID replyId = uuid(201);
+        UUID nestedReplyId = uuid(202);
+        CommentSnapshot existing = activeComment(commentId, userId, EntityTypes.POST, postId);
+        when(commentRepository.getRequiredSnapshot(commentId)).thenReturn(existing);
+        when(commentRepository.markActiveThreadDeleted(eq(commentId), eq(userId), eq("author_delete"), any(Date.class)))
+                .thenReturn(new CommentDeletionResult(List.of(
+                        activeComment(commentId, userId, EntityTypes.POST, postId),
+                        activeComment(nestedReplyId, userId, EntityTypes.COMMENT, replyId)
+                )));
+
+        service.deleteByAuthor(userId, postId, commentId);
+
+        verify(postContentPort).incrementCommentCount(postId, -2);
+        verify(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.COMMENT, commentId);
+        verify(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.COMMENT, nestedReplyId);
+        verify(socialLikeCleanupActionApi, never()).cleanupEntityLikes(EntityTypes.COMMENT, replyId);
+        verify(postWriteSideEffectScheduler).schedulePostScoreRefresh(postId);
+    }
+
+    @Test
+    void deleteByAuthorShouldSkipSideEffectsWhenNoCommentsChanged() {
+        UUID userId = uuid(1);
+        UUID postId = uuid(100);
+        UUID commentId = uuid(200);
+        CommentSnapshot existing = activeComment(commentId, userId, EntityTypes.POST, postId);
+        when(commentRepository.getRequiredSnapshot(commentId)).thenReturn(existing);
+        when(commentRepository.markActiveThreadDeleted(eq(commentId), eq(userId), eq("author_delete"), any(Date.class)))
+                .thenReturn(new CommentDeletionResult(List.of()));
+
+        service.deleteByAuthor(userId, postId, commentId);
+
+        verify(postContentPort, never()).incrementCommentCount(any(UUID.class), any(Integer.class));
+        verify(socialLikeCleanupActionApi, never()).cleanupEntityLikes(any(Integer.class), any(UUID.class));
+        verify(domainEventPublisher, never()).commentDeleted(any());
+        verify(postWriteSideEffectScheduler, never()).schedulePostScoreRefresh(any(UUID.class));
     }
 
     private static DiscussPost post(UUID postId, UUID authorId) {

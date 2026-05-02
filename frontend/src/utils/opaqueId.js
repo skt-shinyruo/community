@@ -36,6 +36,11 @@ export function normalizeOpaqueIds(values, { max = 200 } = {}) {
   return out
 }
 
+export function isUuid(value) {
+  const id = normalizeOpaqueId(value)
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+}
+
 export function requireOpaqueId(value, label = 'id') {
   const id = normalizeOpaqueId(value)
   if (!id) {

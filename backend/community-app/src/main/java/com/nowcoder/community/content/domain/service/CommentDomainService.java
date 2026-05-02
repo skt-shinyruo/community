@@ -110,6 +110,22 @@ public class CommentDomainService {
         throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
     }
 
+    public void assertDeletableByAuthor(CommentSnapshot comment, UUID actorUserId, UUID routePostId, UUID actualPostId) {
+        if (actorUserId == null || routePostId == null || actualPostId == null || comment == null || comment.id() == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "actorUserId/postId/commentId 非法");
+        }
+        if (!comment.active()) {
+            throw new BusinessException(COMMENT_NOT_FOUND);
+        }
+        if (!actorUserId.equals(comment.userId())) {
+            throw new BusinessException(FORBIDDEN, "只能删除自己的评论");
+        }
+        if (routePostId.equals(actualPostId)) {
+            return;
+        }
+        throw new BusinessException(INVALID_ARGUMENT, "commentId 不属于该帖子");
+    }
+
     public record CreateTarget(int entityType, UUID entityId, UUID targetId, UUID targetUserId) {
     }
 }

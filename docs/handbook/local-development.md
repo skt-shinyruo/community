@@ -226,10 +226,9 @@ deploy/mysql/community/090_seed_identity.sql
 ```text
 AUTH_MAIL_ENABLED=false
 AUTH_REGISTRATION_EXPOSE_CODE=true
-AUTH_EXPOSE_RESET_LINK=true
 ```
 
-prod 下禁止回传注册验证码或 `resetLink`，并要求启用 SMTP。
+prod 下禁止回传注册验证码，并要求启用 SMTP。
 
 ## Mock Data Studio
 

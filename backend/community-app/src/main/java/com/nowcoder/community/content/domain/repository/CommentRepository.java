@@ -1,6 +1,7 @@
 package com.nowcoder.community.content.domain.repository;
 
 import com.nowcoder.community.content.domain.model.CommentDraft;
+import com.nowcoder.community.content.domain.model.CommentDeletionResult;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
 
 import java.util.Date;
@@ -18,4 +19,6 @@ public interface CommentRepository {
     Optional<CommentSnapshot> findActiveSnapshot(UUID commentId);
 
     void updateContent(UUID commentId, String content, Date updateTime);
+
+    CommentDeletionResult markActiveThreadDeleted(UUID commentId, UUID deletedBy, String deletedReason, Date deletedTime);
 }

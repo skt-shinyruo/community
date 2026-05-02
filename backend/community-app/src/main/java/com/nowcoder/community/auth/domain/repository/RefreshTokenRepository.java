@@ -11,10 +11,15 @@ public interface RefreshTokenRepository {
 
     StoredRefreshToken consume(String refreshToken);
 
+    RevokedRefreshToken findRevoked(String refreshToken);
+
     void revoke(String refreshToken);
 
     void revokeFamily(String familyId);
 
     record StoredRefreshToken(String refreshToken, UUID userId, String familyId, Instant expiresAt) {
+    }
+
+    record RevokedRefreshToken(String refreshToken, UUID userId, String familyId, Instant expiresAt, Instant revokedAt) {
     }
 }

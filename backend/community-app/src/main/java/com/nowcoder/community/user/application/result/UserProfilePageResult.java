@@ -13,8 +13,6 @@ public record UserProfilePageResult(
         Date createTime,
         int score,
         int level,
-        long walletBalance,
-        String walletStatus,
         boolean userLevelEnabled,
         Integer userLevel,
         Integer signInDaysInWindow,

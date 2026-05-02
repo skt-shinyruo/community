@@ -1,12 +1,14 @@
 package com.nowcoder.community.social.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.ErrorCode;
 import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
 import com.nowcoder.community.growth.api.model.GrowthLikeTaskProgressRequest;
 import com.nowcoder.community.social.application.command.SetLikeCommand;
 import com.nowcoder.community.social.application.result.LikeResult;
 import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
 import com.nowcoder.community.social.domain.event.SocialDomainEventPublisher;
+import com.nowcoder.community.social.domain.model.LikeRelation;
 import com.nowcoder.community.social.domain.model.ResolvedSocialEntity;
 import com.nowcoder.community.social.domain.repository.BlockRepository;
 import com.nowcoder.community.social.domain.repository.LikeRepository;
@@ -31,6 +33,7 @@ import static com.nowcoder.community.common.constants.EntityTypes.POST;
 import static com.nowcoder.community.common.constants.EntityTypes.USER;
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 
 @Service("socialLikeApplicationService")
 public class LikeApplicationService {
@@ -88,7 +91,9 @@ public class LikeApplicationService {
             }
         }
 
-        ResolvedSocialEntity resolved = resolvedForCreate == null ? resolveEntity(entityType, entityId) : resolvedForCreate;
+        ResolvedSocialEntity resolved = resolvedForCreate == null
+                ? resolveEntityForExistingRelation(actorUserId, entityType, entityId, liked)
+                : resolvedForCreate;
         boolean changed = likeRepository.setLike(actorUserId, entityType, entityId, resolved.entityUserId(), liked);
         if (!changed) {
             return buildResult(actorUserId, entityType, entityId);
@@ -135,6 +140,14 @@ public class LikeApplicationService {
         return likeRepository.countEntityLikes(entityType, entityId);
     }
 
+    @Transactional
+    public long cleanupEntityLikes(int entityType, UUID entityId) {
+        if (entityType <= 0 || entityId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "参数错误");
+        }
+        return likeRepository.deleteLikesByEntity(entityType, entityId);
+    }
+
     public Map<UUID, Long> counts(int entityType, List<UUID> entityIds) {
         if (entityType <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "entityType 非法");
@@ -174,7 +187,7 @@ public class LikeApplicationService {
         String sideEffectEventId = null;
         if (event.liked()) {
             if (pointsAwardActionApi != null) {
-                sideEffectEventId = ensureSideEffectEventId(sideEffectEventId, "like-created");
+                sideEffectEventId = ensureSideEffectEventId(sideEffectEventId, event, "like-created-points", false);
                 pointsAwardActionApi.awardLikeCreated(new UserLikePointsAwardRequest(
                         sideEffectEventId,
                         event.actorUserId(),
@@ -182,9 +195,9 @@ public class LikeApplicationService {
                 ));
             }
             if (taskProgressActionApi != null) {
-                sideEffectEventId = ensureSideEffectEventId(sideEffectEventId, "like-created");
+                String growthEventId = ensureSideEffectEventId(null, event, "like-created", true);
                 taskProgressActionApi.triggerLikeCreated(new GrowthLikeTaskProgressRequest(
-                        sideEffectEventId,
+                        growthEventId,
                         event.actorUserId(),
                         event.entityUserId(),
                         event.createTime()
@@ -193,7 +206,7 @@ public class LikeApplicationService {
             return;
         }
         if (pointsAwardActionApi != null) {
-            sideEffectEventId = ensureSideEffectEventId(sideEffectEventId, "like-removed");
+            sideEffectEventId = ensureSideEffectEventId(sideEffectEventId, event, "like-removed-points", false);
             pointsAwardActionApi.awardLikeRemoved(new UserLikePointsAwardRequest(
                     sideEffectEventId,
                     event.actorUserId(),
@@ -202,8 +215,32 @@ public class LikeApplicationService {
         }
     }
 
-    private String ensureSideEffectEventId(String currentEventId, String prefix) {
-        return currentEventId == null ? prefix + ":" + UUID.randomUUID() : currentEventId;
+    private ResolvedSocialEntity resolveEntityForExistingRelation(UUID actorUserId, int entityType, UUID entityId, boolean liked) {
+        try {
+            return resolveEntity(entityType, entityId);
+        } catch (BusinessException ex) {
+            if (!liked && isContentNotFound(ex.getErrorCode())) {
+                UUID storedOwnerId = likeRepository.findLike(actorUserId, entityType, entityId)
+                        .map(LikeRelation::entityUserId)
+                        .orElse(null);
+                return new ResolvedSocialEntity(storedOwnerId, null);
+            }
+            throw ex;
+        }
+    }
+
+    private boolean isContentNotFound(ErrorCode errorCode) {
+        return errorCode == NOT_FOUND || (errorCode != null && errorCode.getHttpStatus() == 404);
+    }
+
+    private String ensureSideEffectEventId(String currentEventId, LikeChangedDomainEvent event, String prefix, boolean deterministic) {
+        if (currentEventId != null) {
+            return currentEventId;
+        }
+        if (!deterministic) {
+            return prefix + ":" + UUID.randomUUID();
+        }
+        return prefix + ":" + event.actorUserId() + ":" + event.entityType() + ":" + event.entityId();
     }
 
     private LikeResult buildResult(UUID actorUserId, int entityType, UUID entityId) {

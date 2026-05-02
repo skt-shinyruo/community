@@ -45,4 +45,13 @@ public interface CommentMapper {
             @Param("deletedReason") String deletedReason,
             @Param("deletedTime") java.util.Date deletedTime
     );
+
+    List<UUID> selectActiveReplyIds(@Param("id") UUID id);
+
+    int updateActiveCommentDeleted(
+            @Param("id") UUID id,
+            @Param("deletedBy") UUID deletedBy,
+            @Param("deletedReason") String deletedReason,
+            @Param("deletedTime") java.util.Date deletedTime
+    );
 }

@@ -67,8 +67,6 @@ class UserProfileApplicationServiceTest {
         assertThat(page).extracting(
                 UserProfilePageResult::userId,
                 UserProfilePageResult::username,
-                UserProfilePageResult::walletBalance,
-                UserProfilePageResult::walletStatus,
                 UserProfilePageResult::userLevelEnabled,
                 UserProfilePageResult::userLevel,
                 UserProfilePageResult::signInDaysInWindow,
@@ -77,7 +75,7 @@ class UserProfileApplicationServiceTest {
                 UserProfilePageResult::followerCount,
                 UserProfilePageResult::hasFollowed,
                 UserProfilePageResult::socialDegraded
-        ).containsExactly(userId, "alice", 900L, "ACTIVE", true, 4, 13, 12L, 5L, 8L, true, false);
+        ).containsExactly(userId, "alice", true, 4, 13, 12L, 5L, 8L, true, false);
     }
 
     @Test

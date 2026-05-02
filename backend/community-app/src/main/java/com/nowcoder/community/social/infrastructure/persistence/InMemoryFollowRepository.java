@@ -1,6 +1,7 @@
 package com.nowcoder.community.social.infrastructure.persistence;
 
 import com.nowcoder.community.social.domain.model.FollowRelation;
+import com.nowcoder.community.social.domain.repository.BlockRepository;
 import com.nowcoder.community.social.domain.repository.FollowRepository;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Repository;
@@ -63,6 +64,18 @@ public class InMemoryFollowRepository implements FollowRepository {
     }
 
     @Override
+    public long countFolloweesExcludingBlocked(UUID userId, int entityType, BlockRepository blockRepository) {
+        Map<UUID, Long> map = followees.get(followeeKey(userId, entityType));
+        return filtered(map, userId, blockRepository).size();
+    }
+
+    @Override
+    public long countFollowersExcludingBlocked(int entityType, UUID entityId, BlockRepository blockRepository) {
+        Map<UUID, Long> map = followers.get(followerKey(entityType, entityId));
+        return filtered(map, entityId, blockRepository).size();
+    }
+
+    @Override
     public List<FollowRelation> listFollowees(UUID userId, int entityType, int offset, int limit) {
         Map<UUID, Long> map = followees.get(followeeKey(userId, entityType));
         return list(map, offset, limit);
@@ -72,6 +85,30 @@ public class InMemoryFollowRepository implements FollowRepository {
     public List<FollowRelation> listFollowers(int entityType, UUID entityId, int offset, int limit) {
         Map<UUID, Long> map = followers.get(followerKey(entityType, entityId));
         return list(map, offset, limit);
+    }
+
+    @Override
+    public List<FollowRelation> listFolloweesExcludingBlocked(
+            UUID userId,
+            int entityType,
+            BlockRepository blockRepository,
+            int offset,
+            int limit
+    ) {
+        Map<UUID, Long> map = followees.get(followeeKey(userId, entityType));
+        return list(filtered(map, userId, blockRepository), offset, limit);
+    }
+
+    @Override
+    public List<FollowRelation> listFollowersExcludingBlocked(
+            int entityType,
+            UUID entityId,
+            BlockRepository blockRepository,
+            int offset,
+            int limit
+    ) {
+        Map<UUID, Long> map = followers.get(followerKey(entityType, entityId));
+        return list(filtered(map, entityId, blockRepository), offset, limit);
     }
 
     @Override
@@ -92,6 +129,27 @@ public class InMemoryFollowRepository implements FollowRepository {
             items.add(new FollowRelation(e.getKey(), Instant.ofEpochMilli(e.getValue())));
         }
         return items;
+    }
+
+    private Map<UUID, Long> filtered(Map<UUID, Long> map, UUID viewerUserId, BlockRepository blockRepository) {
+        if (map == null || map.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, Long> out = new ConcurrentHashMap<>();
+        for (Map.Entry<UUID, Long> entry : map.entrySet()) {
+            UUID targetId = entry.getKey();
+            if (!isEitherBlocked(viewerUserId, targetId, blockRepository)) {
+                out.put(targetId, entry.getValue());
+            }
+        }
+        return out;
+    }
+
+    private boolean isEitherBlocked(UUID userIdA, UUID userIdB, BlockRepository blockRepository) {
+        if (userIdA == null || userIdB == null || userIdA.equals(userIdB) || blockRepository == null) {
+            return false;
+        }
+        return blockRepository.hasBlocked(userIdA, userIdB) || blockRepository.hasBlocked(userIdB, userIdA);
     }
 
     private String followeeKey(UUID userId, int entityType) {

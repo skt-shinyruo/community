@@ -250,6 +250,31 @@ class WalletLedgerApplicationServiceTest {
         assertThat(entryCount()).isZero();
     }
 
+    @Test
+    void postShouldRejectPostingAmountSumOverflowAsInvalidRequest() {
+        UUID firstDebitAccountId = service.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
+        UUID secondDebitAccountId = service.ensureSystemAccount("PLATFORM_CASH");
+        UUID firstCreditAccountId = service.ensureUserWallet(uuid(101));
+        UUID secondCreditAccountId = service.ensureUserWallet(uuid(202));
+
+        assertThatThrownBy(() -> service.post(
+                "wallet:overflow:amount",
+                WalletTxnType.REWARD_ISSUE,
+                List.of(
+                        WalletPosting.debit(firstDebitAccountId, Long.MAX_VALUE),
+                        WalletPosting.debit(secondDebitAccountId, Long.MAX_VALUE),
+                        WalletPosting.credit(firstCreditAccountId, Long.MAX_VALUE),
+                        WalletPosting.credit(secondCreditAccountId, Long.MAX_VALUE)
+                )
+        ))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.INVALID_REQUEST))
+                .hasMessageContaining("amount");
+
+        assertThat(txnCount()).isZero();
+        assertThat(entryCount()).isZero();
+    }
+
     private int txnCount() {
         Integer count = jdbcTemplate.queryForObject("select count(*) from wallet_txn", Integer.class);
         return count == null ? 0 : count;

@@ -389,6 +389,11 @@ create table if not exists auth_refresh_token (
   created_at timestamp default current_timestamp
 );
 
+create table if not exists auth_refresh_token_family_revocation (
+  family_id varchar(64) primary key,
+  revoked_at timestamp not null default current_timestamp
+);
+
 create table if not exists discuss_post (
   id binary(16) primary key,
   user_id binary(16),
@@ -484,6 +489,7 @@ create table if not exists social_like (
   user_id binary(16) not null,
   entity_type int not null,
   entity_id binary(16) not null,
+  entity_user_id binary(16),
   created_at timestamp null default current_timestamp,
   primary key (user_id, entity_type, entity_id)
 );
@@ -561,6 +567,7 @@ delete from reward_grant_record;
 delete from reward_account;
 delete from user_task_progress;
 delete from user_consumed_event;
+delete from auth_refresh_token_family_revocation;
 delete from auth_refresh_token;
 delete from comment;
 delete from post_tag;

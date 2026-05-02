@@ -5,6 +5,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
+import com.nowcoder.community.market.application.command.CreateMarketAddressCommand;
 import com.nowcoder.community.market.application.result.MarketAddressResult;
 import com.nowcoder.community.market.application.result.MarketListingDetailResult;
 import com.nowcoder.community.market.application.result.MarketListingResult;
@@ -36,10 +37,13 @@ import java.util.function.Supplier;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -352,6 +356,50 @@ class MarketControllerTest {
                                 """.formatted(listingId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.requestId").value("market:header-api-1"));
+    }
+
+    @Test
+    void createAddressApiShouldBindDefaultAddressPayload() throws Exception {
+        UUID buyerUserId = uuid(9);
+        UUID addressId = UUID.fromString("00000000-0000-7000-8000-000000000041");
+        when(marketAddressService.createAddress(any(CreateMarketAddressCommand.class)))
+                .thenReturn(new MarketAddressResult(
+                        addressId,
+                        buyerUserId,
+                        "李四",
+                        "13900000000",
+                        "北京市",
+                        "北京市",
+                        "海淀区",
+                        "中关村 1 号",
+                        "100080",
+                        true,
+                        "ACTIVE",
+                        new Date(),
+                        new Date()
+                ));
+
+        mockMvc.perform(post("/api/market/addresses")
+                        .with(jwt().jwt(jwt -> jwt.subject(buyerUserId.toString()).claim("username", "buyer9")))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "receiverName": "李四",
+                                  "receiverPhone": "13900000000",
+                                  "province": "北京市",
+                                  "city": "北京市",
+                                  "district": "海淀区",
+                                  "detailAddress": "中关村 1 号",
+                                  "postalCode": "100080",
+                                  "defaultAddress": true
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.defaultAddress").value(true));
+
+        var commandCaptor = forClass(CreateMarketAddressCommand.class);
+        verify(marketAddressService).createAddress(commandCaptor.capture());
+        assertTrue(commandCaptor.getValue().defaultAddress());
     }
 
     @Test

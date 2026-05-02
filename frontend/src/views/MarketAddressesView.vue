@@ -108,7 +108,7 @@ const form = ref({
   district: '',
   detailAddress: '',
   postalCode: '',
-  isDefault: true
+  defaultAddress: true
 })
 
 const state = computed(() => buildMarketState({ addresses: addresses.value }))
@@ -122,7 +122,7 @@ function buildPayload(source) {
     district: source.district,
     detailAddress: source.detailAddress,
     postalCode: source.postalCode,
-    isDefault: !!source.isDefault
+    defaultAddress: !!source.defaultAddress
   }
 }
 
@@ -135,7 +135,7 @@ function resetForm() {
     district: '',
     detailAddress: '',
     postalCode: '',
-    isDefault: true
+    defaultAddress: true
   }
 }
 

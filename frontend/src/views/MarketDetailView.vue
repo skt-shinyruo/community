@@ -107,7 +107,7 @@ async function loadDetail() {
     if (String(data?.goodsType || '').trim().toUpperCase() === 'PHYSICAL') {
       const addressResp = await listMarketAddresses()
       addresses.value = Array.isArray(addressResp.data) ? addressResp.data : []
-      const defaultAddress = addresses.value.find((item) => item?.isDefault) || addresses.value[0] || null
+      const defaultAddress = addresses.value.find((item) => item?.defaultAddress) || addresses.value[0] || null
       selectedAddressId.value = defaultAddress ? String(defaultAddress.addressId) : ''
     } else {
       addresses.value = []

@@ -48,6 +48,7 @@ public class MarketOrderApplicationService {
     private static final String DELIVERY_MODE_PRELOADED = "PRELOADED";
     private static final String DELIVERY_TYPE_MANUAL_TEXT = "MANUAL_TEXT";
     private static final String DELIVERY_STATUS_DELIVERED = "DELIVERED";
+    private static final long MAX_ORDER_TOTAL_AMOUNT = 100_000_000L;
 
     private final MarketListingRepository marketListingRepository;
     private final MarketInventoryRepository marketInventoryRepository;
@@ -118,9 +119,9 @@ public class MarketOrderApplicationService {
 
         requireActiveListing(listing);
         validateBuyerAndQuantity(buyerUserId, listing, quantity);
+        long totalAmount = calculateTotalAmount(listing, quantity);
         List<MarketInventoryUnit> reservedUnits = reserveInventoryIfNeeded(listing, quantity);
 
-        long totalAmount = listing.getUnitPrice() * quantity;
         UUID orderId = idGenerator.next();
 
         MarketOrder order = new MarketOrder();
@@ -316,6 +317,19 @@ public class MarketOrderApplicationService {
             throw new BusinessException(INVALID_ARGUMENT, "preloaded inventory is insufficient: listingId=" + listing.getListingId());
         }
         return units;
+    }
+
+    private long calculateTotalAmount(MarketListing listing, int quantity) {
+        long totalAmount;
+        try {
+            totalAmount = Math.multiplyExact(listing.getUnitPrice(), (long) quantity);
+        } catch (ArithmeticException ex) {
+            throw new BusinessException(INVALID_ARGUMENT, "market order total amount overflow: listingId=" + listing.getListingId());
+        }
+        if (totalAmount > MAX_ORDER_TOTAL_AMOUNT) {
+            throw new BusinessException(INVALID_ARGUMENT, "market order total amount exceeds maximum: listingId=" + listing.getListingId());
+        }
+        return totalAmount;
     }
 
     private void adjustFiniteStockAfterOrder(MarketListing listing, int quantity) {

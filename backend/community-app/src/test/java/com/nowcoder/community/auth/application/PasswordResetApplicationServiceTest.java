@@ -9,6 +9,7 @@ import com.nowcoder.community.auth.domain.repository.PasswordResetTokenRepositor
 import com.nowcoder.community.auth.domain.service.PasswordResetDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.user.api.action.UserCredentialActionApi;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.query.UserCredentialQueryApi;
@@ -29,8 +30,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
@@ -59,7 +62,6 @@ class PasswordResetApplicationServiceTest {
         properties = new PasswordResetProperties();
         properties.setResetBaseUrl("https://community.example");
         properties.setTtlSeconds(600);
-        properties.setExposeResetLink(false);
         service = new PasswordResetApplicationService(
                 properties,
                 tokenStore,
@@ -126,7 +128,7 @@ class PasswordResetApplicationServiceTest {
         boolean result = service.confirmReset(new ConfirmPasswordResetCommand(" token-123 ", " new-password ", "cid", "1234"));
 
         assertThat(result).isTrue();
-        verify(userCredentialActionApi).updatePassword(userId, "new-password");
+        verify(userCredentialActionApi).resetPasswordAndRevokeRefreshSessions(userId, "new-password");
         assertThat(output.getAll())
                 .contains("community.category=security")
                 .contains("community.action=password_reset_confirm")
@@ -135,6 +137,41 @@ class PasswordResetApplicationServiceTest {
                 .doesNotContain("token-123")
                 .doesNotContain("new-password")
                 .doesNotContain("1234");
+    }
+
+    @Test
+    void confirmResetShouldRestoreConsumedTokenWhenUserResetFailsSoRetryCanSucceed() {
+        UUID userId = uuid(7);
+        RuntimeException resetFailure = new IllegalStateException("reset failed");
+        when(captchaService.verify("cid", "1234")).thenReturn(true);
+        when(tokenStore.consume("token-123")).thenReturn(userId, userId);
+        doThrow(resetFailure)
+                .doNothing()
+                .when(userCredentialActionApi).resetPasswordAndRevokeRefreshSessions(userId, "new-password");
+
+        ConfirmPasswordResetCommand command = new ConfirmPasswordResetCommand(" token-123 ", " new-password ", "cid", "1234");
+        assertThatThrownBy(() -> service.confirmReset(command)).isSameAs(resetFailure);
+
+        verify(tokenStore).store("token-123", userId, Duration.ofSeconds(600));
+
+        boolean retried = service.confirmReset(command);
+
+        assertThat(retried).isTrue();
+    }
+
+    @Test
+    void confirmResetShouldValidatePasswordBeforeConsumingToken() {
+        BusinessException weakPassword = new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "weak password");
+        when(captchaService.verify("cid", "1234")).thenReturn(true);
+        doThrow(weakPassword).when(userCredentialActionApi).validatePasswordPolicy("weakpass");
+
+        assertThatThrownBy(() -> service.confirmReset(new ConfirmPasswordResetCommand(" token-123 ", " weakpass ", "cid", "1234")))
+                .isSameAs(weakPassword);
+
+        verify(userCredentialActionApi).validatePasswordPolicy("weakpass");
+        verify(tokenStore, never()).consume(anyString());
+        verify(tokenStore, never()).store(anyString(), any(UUID.class), any(Duration.class));
+        verifyNoMoreInteractions(userCredentialActionApi);
     }
 
     @Test

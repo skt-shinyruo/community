@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildCanonicalConversationId,
   findLatestConversationSeq,
   mapConversationMessage,
   mergeConversationMessages,
@@ -14,6 +15,26 @@ describe('conversationDetailState', () => {
 
     expect(parseConversationTargetId(`${me}_${other}`, me)).toBe(other)
     expect(parseConversationTargetId(`${other}_${me}`, me)).toBe(other)
+  })
+
+  it('builds a stable canonical UUID conversation id independent of input order', () => {
+    const lower = '11111111-1111-7111-8111-111111111111'
+    const higher = '33333333-3333-7333-8333-333333333333'
+
+    expect(buildCanonicalConversationId(higher, lower)).toBe(`${lower}_${higher}`)
+    expect(buildCanonicalConversationId(lower, higher)).toBe(`${lower}_${higher}`)
+  })
+
+  it('orders canonical UUID conversation ids with Java signed UUID compare semantics', () => {
+    const positiveMostSigBits = '00000000-0000-0000-0000-000000000000'
+    const negativeMostSigBits = '80000000-0000-0000-0000-000000000000'
+    const positiveLeastSigBits = '00000000-0000-0000-0000-000000000000'
+    const negativeLeastSigBits = '00000000-0000-0000-8000-000000000000'
+
+    expect(buildCanonicalConversationId(positiveMostSigBits, negativeMostSigBits))
+      .toBe(`${negativeMostSigBits}_${positiveMostSigBits}`)
+    expect(buildCanonicalConversationId(positiveLeastSigBits, negativeLeastSigBits))
+      .toBe(`${negativeLeastSigBits}_${positiveLeastSigBits}`)
   })
 
   it('maps conversation messages with UUID sender and receiver ids', () => {

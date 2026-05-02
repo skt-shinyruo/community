@@ -1,5 +1,6 @@
 package com.nowcoder.community.content.infrastructure.event;
 
+import com.nowcoder.community.content.domain.event.CommentDeletedDomainEvent;
 import com.nowcoder.community.content.domain.event.CommentCreatedDomainEvent;
 import com.nowcoder.community.content.domain.event.CommentDomainEventPublisher;
 import org.springframework.context.ApplicationEventPublisher;
@@ -19,6 +20,14 @@ public class SpringCommentDomainEventPublisher implements CommentDomainEventPubl
     public void commentCreated(CommentCreatedDomainEvent event) {
         if (!TransactionSynchronizationManager.isActualTransactionActive()) {
             throw new IllegalStateException("发布领域事件失败：当前不在事务中（CommentCreated, commentId=" + event.commentId() + "）");
+        }
+        publisher.publishEvent(event);
+    }
+
+    @Override
+    public void commentDeleted(CommentDeletedDomainEvent event) {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException("发布领域事件失败：当前不在事务中（CommentDeleted, commentId=" + event.commentId() + "）");
         }
         publisher.publishEvent(event);
     }

@@ -1,9 +1,8 @@
 package com.nowcoder.community.content.application;
 
+import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.application.command.TakeModerationActionCommand;
-import com.nowcoder.community.content.application.ContentModerationGateway;
-import com.nowcoder.community.content.application.ModerationNoticePublisher;
 import com.nowcoder.community.content.application.result.ModerationActionResult;
 import com.nowcoder.community.content.application.result.ReportModerationResult;
 import com.nowcoder.community.content.domain.model.ModerationActionRecord;
@@ -23,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 
+import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
@@ -31,7 +31,8 @@ public class ModerationApplicationService {
     private final ReportRepository reportRepository;
     private final ModerationActionRepository moderationActionRepository;
     private final ModerationTargetRepository moderationTargetRepository;
-    private final ContentModerationGateway contentModerationPort;
+    private final PostModerationApplicationService postModerationApplicationService;
+    private final CommentApplicationService commentApplicationService;
     private final ModerationNoticePublisher moderationNoticePort;
     private final UserModerationActionApi userModerationActionApi;
     private final ModerationDecisionDomainService decisionDomainService;
@@ -40,7 +41,8 @@ public class ModerationApplicationService {
             ReportRepository reportRepository,
             ModerationActionRepository moderationActionRepository,
             ModerationTargetRepository moderationTargetRepository,
-            ContentModerationGateway contentModerationPort,
+            PostModerationApplicationService postModerationApplicationService,
+            CommentApplicationService commentApplicationService,
             ModerationNoticePublisher moderationNoticePort,
             UserModerationActionApi userModerationActionApi,
             ModerationDecisionDomainService decisionDomainService
@@ -48,7 +50,8 @@ public class ModerationApplicationService {
         this.reportRepository = reportRepository;
         this.moderationActionRepository = moderationActionRepository;
         this.moderationTargetRepository = moderationTargetRepository;
-        this.contentModerationPort = contentModerationPort;
+        this.postModerationApplicationService = postModerationApplicationService;
+        this.commentApplicationService = commentApplicationService;
         this.moderationNoticePort = moderationNoticePort;
         this.userModerationActionApi = userModerationActionApi;
         this.decisionDomainService = decisionDomainService;
@@ -92,7 +95,7 @@ public class ModerationApplicationService {
             return action.id();
         }
         if (decision.isContentAction()) {
-            contentModerationPort.applyContentAction(decision.actorId(), target, decision.normalizedAction(), decision.normalizedReason());
+            applyContentModeration(decision.actorId(), target, decision.normalizedAction(), decision.normalizedReason());
             markProcessedAndNotify(report, action, target);
             return action.id();
         }
@@ -121,6 +124,30 @@ public class ModerationApplicationService {
         reportRepository.markStatus(report.id(), ReportStatuses.PROCESSED);
         moderationNoticePort.publish(report, action, target, "to_target", target.targetUserId());
         moderationNoticePort.publish(report, action, target, "to_reporter", report.reporterId());
+    }
+
+    private void applyContentModeration(UUID actorId, ModerationTarget target, String action, String reason) {
+        if (target.targetType() == EntityTypes.POST) {
+            postModerationApplicationService.deleteByModeration(actorId, target.targetId());
+            return;
+        }
+        if (target.targetType() == EntityTypes.COMMENT) {
+            commentApplicationService.deleteByModeration(actorId, target.targetId(), buildDeletedReason(action, reason));
+            return;
+        }
+        throw new BusinessException(FORBIDDEN, "该目标类型不支持此处置动作");
+    }
+
+    private String buildDeletedReason(String action, String reason) {
+        String normalizedAction = action == null ? "" : action.trim().toLowerCase();
+        String normalizedReason = reason == null ? "" : reason.trim();
+        if (normalizedReason.isEmpty()) {
+            return normalizedAction;
+        }
+        if (normalizedReason.length() > 180) {
+            normalizedReason = normalizedReason.substring(0, 180);
+        }
+        return normalizedAction + ": " + normalizedReason;
     }
 
     private ReportModerationResult toReportResult(ReportSnapshot report) {

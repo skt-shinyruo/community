@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class InMemoryRefreshTokenRepository implements RefreshTokenRepository {
 
     private final Map<String, StoredRefreshToken> tokens = new ConcurrentHashMap<>();
+    private final Map<String, RevokedRefreshToken> revokedTokens = new ConcurrentHashMap<>();
 
     @Override
     public void store(String refreshToken, UUID userId, String familyId, Instant expiresAt) {
@@ -27,12 +28,36 @@ public class InMemoryRefreshTokenRepository implements RefreshTokenRepository {
 
     @Override
     public StoredRefreshToken consume(String refreshToken) {
-        return tokens.remove(refreshToken);
+        StoredRefreshToken token = tokens.remove(refreshToken);
+        if (token != null) {
+            revokedTokens.put(refreshToken, new RevokedRefreshToken(
+                    refreshToken,
+                    token.userId(),
+                    token.familyId(),
+                    token.expiresAt(),
+                    Instant.now()
+            ));
+        }
+        return token;
+    }
+
+    @Override
+    public RevokedRefreshToken findRevoked(String refreshToken) {
+        return revokedTokens.get(refreshToken);
     }
 
     @Override
     public void revoke(String refreshToken) {
-        tokens.remove(refreshToken);
+        StoredRefreshToken token = tokens.remove(refreshToken);
+        if (token != null) {
+            revokedTokens.put(refreshToken, new RevokedRefreshToken(
+                    refreshToken,
+                    token.userId(),
+                    token.familyId(),
+                    token.expiresAt(),
+                    Instant.now()
+            ));
+        }
     }
 
     @Override

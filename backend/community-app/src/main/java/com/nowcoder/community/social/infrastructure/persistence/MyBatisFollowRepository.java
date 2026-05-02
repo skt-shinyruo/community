@@ -1,6 +1,7 @@
 package com.nowcoder.community.social.infrastructure.persistence;
 
 import com.nowcoder.community.social.domain.model.FollowRelation;
+import com.nowcoder.community.social.domain.repository.BlockRepository;
 import com.nowcoder.community.social.domain.repository.FollowRepository;
 import com.nowcoder.community.social.infrastructure.persistence.dataobject.FollowRelationDataObject;
 import com.nowcoder.community.social.infrastructure.persistence.mapper.FollowMapper;
@@ -59,6 +60,16 @@ public class MyBatisFollowRepository implements FollowRepository {
     }
 
     @Override
+    public long countFolloweesExcludingBlocked(UUID userId, int entityType, BlockRepository blockRepository) {
+        return mapper.countFolloweesExcludingBlocked(userId, entityType);
+    }
+
+    @Override
+    public long countFollowersExcludingBlocked(int entityType, UUID entityId, BlockRepository blockRepository) {
+        return mapper.countFollowersExcludingBlocked(entityType, entityId);
+    }
+
+    @Override
     public List<FollowRelation> listFollowees(UUID userId, int entityType, int offset, int limit) {
         return mapRows(mapper.listFollowees(userId, entityType, offset, limit));
     }
@@ -66,6 +77,28 @@ public class MyBatisFollowRepository implements FollowRepository {
     @Override
     public List<FollowRelation> listFollowers(int entityType, UUID entityId, int offset, int limit) {
         return mapRows(mapper.listFollowers(entityType, entityId, offset, limit));
+    }
+
+    @Override
+    public List<FollowRelation> listFolloweesExcludingBlocked(
+            UUID userId,
+            int entityType,
+            BlockRepository blockRepository,
+            int offset,
+            int limit
+    ) {
+        return mapRows(mapper.listFolloweesExcludingBlocked(userId, entityType, offset, limit));
+    }
+
+    @Override
+    public List<FollowRelation> listFollowersExcludingBlocked(
+            int entityType,
+            UUID entityId,
+            BlockRepository blockRepository,
+            int offset,
+            int limit
+    ) {
+        return mapRows(mapper.listFollowersExcludingBlocked(entityType, entityId, offset, limit));
     }
 
     private List<FollowRelation> mapRows(List<FollowRelationDataObject> rows) {

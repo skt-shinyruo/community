@@ -315,6 +315,40 @@ class MarketOrderApplicationServiceTest {
     }
 
     @Test
+    void createOrderShouldRejectTotalAmountOverflowBeforeOrderAndStockWrites() {
+        UUID sellerUserId = uuid(7);
+        UUID buyerUserId = uuid(9);
+        UUID listingId = seedPhysicalListing(sellerUserId, 2, Long.MAX_VALUE, 2);
+        UUID addressId = seedAddress(buyerUserId, true);
+        seedBuyerBalance(buyerUserId, Long.MAX_VALUE);
+
+        assertThatThrownBy(() -> marketOrderService.createOrder("physical:req-overflow", buyerUserId, listingId, 2, addressId))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("total amount");
+
+        assertThat(countRows("market_order")).isZero();
+        assertThat(countRows("market_wallet_action")).isZero();
+        assertThat(stockAvailable(listingId)).isEqualTo(2);
+    }
+
+    @Test
+    void createOrderShouldRejectTotalAmountAboveMaximumBeforeOrderAndStockWrites() {
+        UUID sellerUserId = uuid(7);
+        UUID buyerUserId = uuid(9);
+        UUID listingId = seedPhysicalListing(sellerUserId, 2, 100_000_001L, 1);
+        UUID addressId = seedAddress(buyerUserId, true);
+        seedBuyerBalance(buyerUserId, 200_000_000L);
+
+        assertThatThrownBy(() -> marketOrderService.createOrder("physical:req-too-large", buyerUserId, listingId, 1, addressId))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("total amount");
+
+        assertThat(countRows("market_order")).isZero();
+        assertThat(countRows("market_wallet_action")).isZero();
+        assertThat(stockAvailable(listingId)).isEqualTo(2);
+    }
+
+    @Test
     void concurrentReplayShouldReturnCommittedOrderEvenIfListingTurnsSoldOutBeforeRetryContinues() throws Exception {
         UUID sellerUserId = uuid(7);
         UUID buyerUserId = uuid(9);
@@ -425,14 +459,18 @@ class MarketOrderApplicationServiceTest {
     }
 
     private UUID seedPhysicalListing(UUID sellerUserId, int stockTotal) {
+        return seedPhysicalListing(sellerUserId, stockTotal, 12_900L, 1);
+    }
+
+    private UUID seedPhysicalListing(UUID sellerUserId, int stockTotal, long unitPrice, int maxPurchaseQuantity) {
         CreateMarketListingRequest request = new CreateMarketListingRequest();
         request.setGoodsType("PHYSICAL");
         request.setTitle("二手键盘");
         request.setDescription("九成新");
-        request.setUnitPrice(12_900L);
+        request.setUnitPrice(unitPrice);
         request.setStockTotal(stockTotal);
         request.setMinPurchaseQuantity(1);
-        request.setMaxPurchaseQuantity(1);
+        request.setMaxPurchaseQuantity(maxPurchaseQuantity);
         return marketListingService.createListing(MarketTestCommands.listingCommand(sellerUserId, request, null)).listingId();
     }
 
@@ -445,7 +483,7 @@ class MarketOrderApplicationServiceTest {
         request.setDistrict("浦东新区");
         request.setDetailAddress("世纪大道 100 号");
         request.setPostalCode("200120");
-        request.setDefault(isDefault);
+        request.setDefaultAddress(isDefault);
         return marketAddressService.createAddress(MarketTestCommands.addressCommand(userId, request)).addressId();
     }
 
@@ -465,5 +503,14 @@ class MarketOrderApplicationServiceTest {
     private int countRows(String tableName) {
         Integer count = jdbcTemplate.queryForObject("select count(*) from " + tableName, Integer.class);
         return count == null ? 0 : count;
+    }
+
+    private int stockAvailable(UUID listingId) {
+        Integer stockAvailable = jdbcTemplate.queryForObject(
+                "select stock_available from market_listing where listing_id = ?",
+                Integer.class,
+                listingId
+        );
+        return stockAvailable == null ? 0 : stockAvailable;
     }
 }

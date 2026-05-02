@@ -22,6 +22,7 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
     private static final DefaultRedisScript<Long> STORE_SCRIPT = new DefaultRedisScript<>();
 
     private static final String KEY_PREFIX_TOKEN = "auth:refresh:";
+    private static final String KEY_PREFIX_TOKEN_REVOKED = "auth:refresh:revoked:";
     private static final String KEY_PREFIX_FAMILY = "auth:refresh:family:";
     private static final String KEY_PREFIX_FAMILY_REVOKED = "auth:refresh:family:revoked:";
 
@@ -103,6 +104,7 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
         String json = redisTemplate.opsForValue().getAndDelete(KEY_PREFIX_TOKEN + token);
         StoredRefreshToken found = readRecord(json);
         if (found != null) {
+            writeTombstone(found, Instant.now());
             String member = StringUtils.hasText(found.refreshToken()) ? found.refreshToken().trim() : token;
             if (!member.isEmpty()) {
                 try {
@@ -112,6 +114,46 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
             }
         }
         return found;
+    }
+
+    @Override
+    public RevokedRefreshToken findRevoked(String refreshToken) {
+        if (!StringUtils.hasText(refreshToken)) {
+            return null;
+        }
+        String token = refreshToken.trim();
+        if (token.isEmpty()) {
+            return null;
+        }
+        return readTombstone(token, redisTemplate.opsForValue().get(KEY_PREFIX_TOKEN_REVOKED + token));
+    }
+
+    private void writeTombstone(StoredRefreshToken record, Instant revokedAt) {
+        if (record == null || !StringUtils.hasText(record.refreshToken()) || !StringUtils.hasText(record.familyId()) || record.expiresAt() == null) {
+            return;
+        }
+        Instant now = Instant.now();
+        if (!record.expiresAt().isAfter(now)) {
+            return;
+        }
+        try {
+            String json = objectMapper.writeValueAsString(new Tombstone(record.userId(), record.familyId(), record.expiresAt(), revokedAt));
+            long ttlSeconds = Math.max(1, record.expiresAt().getEpochSecond() - now.getEpochSecond());
+            redisTemplate.opsForValue().set(KEY_PREFIX_TOKEN_REVOKED + record.refreshToken().trim(), json, ttlSeconds, TimeUnit.SECONDS);
+        } catch (JsonProcessingException ignored) {
+        }
+    }
+
+    private RevokedRefreshToken readTombstone(String refreshToken, String json) {
+        if (json == null) {
+            return null;
+        }
+        try {
+            Tombstone tombstone = objectMapper.readValue(json, Tombstone.class);
+            return new RevokedRefreshToken(refreshToken, tombstone.userId(), tombstone.familyId(), tombstone.expiresAt(), tombstone.revokedAt());
+        } catch (JsonProcessingException e) {
+            return null;
+        }
     }
 
     private StoredRefreshToken readRecord(String json) {
@@ -137,6 +179,7 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
         StoredRefreshToken found = find(token);
         redisTemplate.delete(KEY_PREFIX_TOKEN + token);
         if (found != null) {
+            writeTombstone(found, Instant.now());
             String member = StringUtils.hasText(found.refreshToken()) ? found.refreshToken().trim() : token;
             if (!member.isEmpty()) {
                 try {
@@ -180,9 +223,14 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
                 if (!StringUtils.hasText(token)) {
                     continue;
                 }
-                redisTemplate.delete(KEY_PREFIX_TOKEN + token.trim());
+                String member = token.trim();
+                writeTombstone(readRecord(redisTemplate.opsForValue().get(KEY_PREFIX_TOKEN + member)), Instant.now());
+                redisTemplate.delete(KEY_PREFIX_TOKEN + member);
             }
         }
         redisTemplate.delete(familyKey);
+    }
+
+    private record Tombstone(UUID userId, String familyId, Instant expiresAt, Instant revokedAt) {
     }
 }

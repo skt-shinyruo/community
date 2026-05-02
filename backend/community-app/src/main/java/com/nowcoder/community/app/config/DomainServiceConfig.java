@@ -18,6 +18,7 @@ import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.FollowDomainService;
 import com.nowcoder.community.social.domain.service.LikeDomainService;
 import com.nowcoder.community.user.domain.service.UserCredentialDomainService;
+import com.nowcoder.community.user.domain.service.PasswordPolicyDomainService;
 import com.nowcoder.community.user.domain.service.UserModerationDomainService;
 import com.nowcoder.community.user.domain.service.UserReadDomainService;
 import com.nowcoder.community.user.domain.service.UserRegistrationDomainService;
@@ -111,6 +112,11 @@ public class DomainServiceConfig {
     @Bean
     LikeDomainService likeDomainService() {
         return new LikeDomainService();
+    }
+
+    @Bean
+    PasswordPolicyDomainService passwordPolicyDomainService() {
+        return new PasswordPolicyDomainService();
     }
 
     @Bean

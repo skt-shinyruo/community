@@ -7,9 +7,9 @@ import {
 } from './userProfileSurface'
 
 describe('userProfileSurface', () => {
-  it('builds a self-view summary from wallet balance instead of legacy score compatibility', () => {
+  it('builds a self-view summary that points wallet assets to the wallet page', () => {
     const signals = buildCommunitySignals({
-      profile: { username: 'Mara', likeCount: 12, followerCount: 8, followeeCount: 5, score: 320, walletBalance: 28 },
+      profile: { username: 'Mara', likeCount: 12, followerCount: 8, followeeCount: 5, score: 320 },
       joinedYear: '2024',
       socialDegraded: false,
       followStatus: null,
@@ -23,7 +23,7 @@ describe('userProfileSurface', () => {
     })
     expect(signals[1]).toMatchObject({
       label: '钱包资产',
-      value: '28 积分'
+      value: '钱包页为准'
     })
     expect(signals[1].text).not.toContain('兼容切换中')
     expect(signals[2].value).toContain('8')
@@ -57,12 +57,13 @@ describe('userProfileSurface', () => {
     expect(nextSteps.map((item) => item.label)).toEqual(['去讨论区看看', '查看关注', '查看粉丝'])
   })
 
-  it('uses walletBalance for self-view and stops exposing legacy score snapshots', () => {
-    expect(buildProfileWalletAsset({ profile: { score: 999, walletBalance: 28 }, authed: true, isSelf: true })).toMatchObject({
-      valueText: '28 积分'
+  it('does not derive self-view wallet copy from profile snapshots', () => {
+    expect(buildProfileWalletAsset({ profile: { score: 999 }, authed: true, isSelf: true })).toMatchObject({
+      valueText: '钱包页为准',
+      chipText: '钱包页为准'
     })
 
-    expect(buildProfileWalletAsset({ profile: { score: 28, walletBalance: 0 }, authed: false, isSelf: false })).toMatchObject({
+    expect(buildProfileWalletAsset({ profile: { score: 28 }, authed: false, isSelf: false })).toMatchObject({
       valueText: '暂未公开'
     })
   })

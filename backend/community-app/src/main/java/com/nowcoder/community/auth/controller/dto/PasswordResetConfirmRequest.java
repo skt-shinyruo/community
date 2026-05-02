@@ -1,6 +1,8 @@
 package com.nowcoder.community.auth.controller.dto;
 
+import com.nowcoder.community.common.constants.ValidationLimits;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public class PasswordResetConfirmRequest {
 
@@ -8,6 +10,7 @@ public class PasswordResetConfirmRequest {
     private String resetToken;
 
     @NotBlank
+    @Size(min = 8, max = ValidationLimits.PASSWORD_MAX)
     private String newPassword;
 
     private String captchaId;

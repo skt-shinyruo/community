@@ -156,4 +156,22 @@
         where id = #{id, jdbcType=BINARY}
     </update>
 
+    <select id="selectActiveReplyIds" resultType="java.util.UUID">
+        select id
+        from comment
+        where status = 0
+          and entity_type = 2
+          and entity_id = #{id, jdbcType=BINARY}
+    </select>
+
+    <update id="updateActiveCommentDeleted">
+        update comment
+        set status = 1,
+            deleted_by = #{deletedBy, jdbcType=BINARY},
+            deleted_reason = #{deletedReason},
+            deleted_time = #{deletedTime}
+        where status = 0
+          and id = #{id, jdbcType=BINARY}
+    </update>
+
 </mapper>

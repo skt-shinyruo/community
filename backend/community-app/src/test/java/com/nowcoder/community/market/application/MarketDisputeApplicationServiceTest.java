@@ -131,7 +131,7 @@ class MarketDisputeApplicationServiceTest {
         addressRequest.setDistrict("浦东新区");
         addressRequest.setDetailAddress("世纪大道 100 号");
         addressRequest.setPostalCode("200120");
-        addressRequest.setDefault(true);
+        addressRequest.setDefaultAddress(true);
         UUID addressId = marketAddressService.createAddress(MarketTestCommands.addressCommand(buyerUserId, addressRequest)).addressId();
 
         UUID orderId = marketOrderService.createOrder("dispute:physical:req-1", buyerUserId, listingId, 1, addressId).orderId();

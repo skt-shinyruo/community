@@ -42,7 +42,6 @@ auth:
     reset-base-url: http://localhost:8080
     store: memory
     ttl-seconds: 600
-    expose-reset-link: true
   registration:
     pending-user:
       ttl-seconds: 1800

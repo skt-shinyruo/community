@@ -72,4 +72,18 @@ describe('WalletView', () => {
       amount: 25
     })
   })
+
+  it('validates transfer target as UUID before calling the API', async () => {
+    const wrapper = mountWalletView()
+    await flushPromises()
+
+    const inputs = wrapper.findAll('input')
+    await inputs[2].setValue('not-a-uuid')
+    await inputs[3].setValue('25')
+    await wrapper.findAll('button').find((button) => button.text() === '发起转账').trigger('click')
+    await flushPromises()
+
+    expect(createTransfer).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('请输入有效的目标用户 ID')
+  })
 })

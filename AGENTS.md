@@ -88,8 +88,8 @@ Specs and implementation plans MUST live under:
 
 Architecture documentation must stay aligned with this file:
 
-- `docs/handbook/ARCHITECTURE.md`
-- `docs/handbook/SYSTEM_DESIGN.md`
+- `docs/handbook/architecture.md`
+- `docs/handbook/system-design.md`
 - `docs/superpowers/specs/2026-04-27-community-app-strict-ddd-tactical-layering-design.md`
 
 When adding or changing backend architecture rules, update or add ArchUnit tests under:

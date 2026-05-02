@@ -1,6 +1,7 @@
 package com.nowcoder.community.user.infrastructure.avatar;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.application.AvatarUploadContent;
 import com.nowcoder.community.user.application.result.AvatarUploadTokenResult;
 import com.nowcoder.community.user.config.AvatarStorageProperties;
 import com.nowcoder.community.user.config.R2Properties;
@@ -10,7 +11,6 @@ import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -65,17 +65,17 @@ public class R2AvatarStorageProvider implements AvatarStorageProvider {
     }
 
     @Override
-    public void upload(UUID userId, String fileName, MultipartFile file) {
+    public void upload(UUID userId, String fileName, AvatarUploadContent content) {
         if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
-        if (file == null || file.isEmpty()) {
+        if (content == null || content.empty()) {
             throw new BusinessException(INVALID_ARGUMENT, "文件不能为空");
         }
-        if (file.getSize() > AvatarConstraints.MAX_AVATAR_BYTES) {
+        if (content.size() > AvatarConstraints.MAX_AVATAR_BYTES) {
             throw new BusinessException(INVALID_ARGUMENT, "头像文件过大（maxBytes=" + AvatarConstraints.MAX_AVATAR_BYTES + "）");
         }
-        String contentType = StringUtils.hasText(file.getContentType()) ? file.getContentType().trim().toLowerCase() : "";
+        String contentType = content.contentType();
         if (!AvatarConstraints.ALLOWED_MIME_TYPES.contains(contentType)) {
             throw new BusinessException(INVALID_ARGUMENT, "不支持的图片格式（mime=" + contentType + "）");
         }
@@ -85,13 +85,15 @@ public class R2AvatarStorageProvider implements AvatarStorageProvider {
 
         String bucket = requireBucketName();
         String key = fileName.trim();
-        try (InputStream in = file.getInputStream()) {
+        try (InputStream in = content.openStream()) {
             PutObjectRequest req = PutObjectRequest.builder()
                     .bucket(bucket)
                     .key(key)
                     .contentType(contentType)
                     .build();
-            s3Client.putObject(req, RequestBody.fromInputStream(in, file.getSize()));
+            s3Client.putObject(req, RequestBody.fromInputStream(in, content.size()));
+        } catch (BusinessException e) {
+            throw e;
         } catch (S3Exception e) {
             throw new BusinessException(INTERNAL_ERROR, "上传头像失败", e);
         } catch (java.io.IOException | RuntimeException e) {

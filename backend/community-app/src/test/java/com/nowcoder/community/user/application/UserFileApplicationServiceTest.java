@@ -37,7 +37,7 @@ class UserFileApplicationServiceTest {
         );
         when(avatarStoragePort.loadAvatarOrNull(key)).thenReturn(file);
 
-        AvatarFileResult result = service.loadAvatarOrNull("/files/" + key);
+        AvatarFileResult result = service.loadAvatarOrNull(key);
 
         assertThat(result).isEqualTo(file);
         verify(avatarStoragePort).loadAvatarOrNull(key);
@@ -50,7 +50,7 @@ class UserFileApplicationServiceTest {
         String key = "avatar/" + userId + "/0123456789abcdef0123456789abcdef";
         when(avatarStoragePort.loadAvatarOrNull(key)).thenReturn(null);
 
-        AvatarFileResult result = service.loadAvatarOrNull("/files/" + key);
+        AvatarFileResult result = service.loadAvatarOrNull(key);
 
         assertThat(result).isNull();
         verify(avatarStoragePort).loadAvatarOrNull(key);
@@ -60,7 +60,7 @@ class UserFileApplicationServiceTest {
     void loadAvatarOrNullShouldRejectInvalidFileKey() {
         UserFileApplicationService service = new UserFileApplicationService(avatarStoragePort);
 
-        Throwable thrown = catchThrowable(() -> service.loadAvatarOrNull("/files/avatar/../secret"));
+        Throwable thrown = catchThrowable(() -> service.loadAvatarOrNull("avatar/../secret"));
 
         assertThat(thrown).isInstanceOf(BusinessException.class)
                 .hasMessage("fileKey 非法");

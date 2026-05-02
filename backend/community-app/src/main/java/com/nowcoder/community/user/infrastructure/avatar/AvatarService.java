@@ -1,11 +1,11 @@
 package com.nowcoder.community.user.infrastructure.avatar;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.application.AvatarUploadContent;
 import com.nowcoder.community.user.application.result.AvatarUploadTokenResult;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.concurrent.TimeUnit;
 import java.util.UUID;
@@ -50,9 +50,9 @@ public class AvatarService {
         );
     }
 
-    public void upload(UUID userId, String fileName, MultipartFile file) {
+    public void upload(UUID userId, String fileName, AvatarUploadContent content) {
         assertUploadTicketOwner(userId, fileName);
-        currentProvider().upload(userId, fileName.trim(), file);
+        currentProvider().upload(userId, fileName.trim(), content);
     }
 
     public void assertAndConsumeUploadTicket(UUID userId, String fileName) {

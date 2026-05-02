@@ -1,8 +1,10 @@
 package com.nowcoder.community.user.controller;
 
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.logging.SecurityEventLogger;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
+import com.nowcoder.community.user.application.AvatarUploadContent;
 import com.nowcoder.community.user.application.UserAvatarApplicationService;
 import com.nowcoder.community.user.application.UserProfileApplicationService;
 import com.nowcoder.community.user.application.UserReadApplicationService;
@@ -33,8 +35,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
+
+import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
 
 @RestController
 @RequestMapping("/api/users")
@@ -131,7 +136,7 @@ public class UserController {
     @PostMapping(value = "/{userId}/avatar/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Result<Void> uploadAvatar(Authentication authentication, @PathVariable UUID userId, @RequestParam("file") MultipartFile file, @RequestParam("fileName") String fileName) {
         UUID currentUserId = CurrentUser.requireUserUuid(authentication);
-        userAvatarApplicationService.upload(currentUserId, userId, fileName, file);
+        userAvatarApplicationService.upload(currentUserId, userId, fileName, toAvatarUploadContent(file));
         SecurityEventLogger.info(
                 log,
                 "avatar_upload",
@@ -176,6 +181,24 @@ public class UserController {
         response.setMaxBytes(token.maxBytes());
         response.setMimeLimit(token.mimeLimit());
         return response;
+    }
+
+    private static AvatarUploadContent toAvatarUploadContent(MultipartFile file) {
+        return new AvatarUploadContent(
+                () -> {
+                    if (file == null) {
+                        return java.io.InputStream.nullInputStream();
+                    }
+                    try {
+                        return file.getInputStream();
+                    } catch (IOException e) {
+                        throw new BusinessException(INTERNAL_ERROR, "读取头像失败", e);
+                    }
+                },
+                file == null ? "" : file.getContentType(),
+                file == null ? 0 : file.getSize(),
+                file == null || file.isEmpty()
+        );
     }
 
     private static UserResolveResponse toUserResolveResponse(UserResolveResult user) {

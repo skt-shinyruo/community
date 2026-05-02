@@ -1,5 +1,6 @@
 package com.nowcoder.community.content.infrastructure.event;
 
+import com.nowcoder.community.content.application.ContentEventPublisher;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.domain.event.CommentCreatedDomainEvent;
 import org.springframework.stereotype.Component;

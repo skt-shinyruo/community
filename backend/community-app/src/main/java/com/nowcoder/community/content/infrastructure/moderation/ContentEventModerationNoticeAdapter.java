@@ -1,11 +1,11 @@
 package com.nowcoder.community.content.infrastructure.moderation;
 
+import com.nowcoder.community.content.application.ContentEventPublisher;
 import com.nowcoder.community.content.application.ModerationNoticePublisher;
 import com.nowcoder.community.content.contracts.event.ModerationPayload;
 import com.nowcoder.community.content.domain.model.ModerationActionRecord;
 import com.nowcoder.community.content.domain.model.ModerationTarget;
 import com.nowcoder.community.content.domain.model.ReportSnapshot;
-import com.nowcoder.community.content.infrastructure.event.ContentEventPublisher;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;

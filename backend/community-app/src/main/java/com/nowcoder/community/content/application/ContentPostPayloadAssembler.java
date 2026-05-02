@@ -1,10 +1,9 @@
-package com.nowcoder.community.content.infrastructure.event;
+package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.content.domain.repository.PostContentRepository;
-import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.content.domain.model.DiscussPost;
-import com.nowcoder.community.content.application.ContentTextCodec;
+import com.nowcoder.community.content.domain.repository.PostContentRepository;
+import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -14,13 +13,17 @@ import java.util.UUID;
  * PostPayload 组装器（SSOT）：统一从权威数据源构造对外事件 payload，避免多处拼装导致字段漂移。
  */
 @Component
-public class PostPayloadAssembler {
+public class ContentPostPayloadAssembler {
 
     private final PostContentRepository postContentPort;
     private final TagContentRepository tagContentPort;
     private final ContentTextCodec textCodec;
 
-    public PostPayloadAssembler(PostContentRepository postContentPort, TagContentRepository tagContentPort, ContentTextCodec textCodec) {
+    public ContentPostPayloadAssembler(
+            PostContentRepository postContentPort,
+            TagContentRepository tagContentPort,
+            ContentTextCodec textCodec
+    ) {
         this.postContentPort = postContentPort;
         this.tagContentPort = tagContentPort;
         this.textCodec = textCodec;

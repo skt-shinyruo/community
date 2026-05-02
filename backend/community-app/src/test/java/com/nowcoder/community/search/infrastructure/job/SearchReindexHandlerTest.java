@@ -1,7 +1,8 @@
-package com.nowcoder.community.infra.job.handlers;
+package com.nowcoder.community.search.infrastructure.job;
 
-import com.nowcoder.community.search.api.action.SearchReindexActionApi;
-import com.nowcoder.community.search.api.model.SearchReindexResult;
+import com.nowcoder.community.search.application.SearchReindexApplicationService;
+import com.nowcoder.community.search.application.command.ReindexPostsCommand;
+import com.nowcoder.community.search.application.result.SearchReindexResult;
 import com.xxl.job.core.context.XxlJobContext;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import org.junit.jupiter.api.AfterEach;
@@ -25,18 +26,19 @@ class SearchReindexHandlerTest {
 
     @Test
     void reindexShouldReportSuccessWhenExecutionRuns() {
-        SearchReindexActionApi searchReindexActionApi = mock(SearchReindexActionApi.class);
-        when(searchReindexActionApi.reindex())
+        SearchReindexApplicationService searchReindexApplicationService =
+                mock(SearchReindexApplicationService.class);
+        when(searchReindexApplicationService.reindex(new ReindexPostsCommand()))
                 .thenReturn(new SearchReindexResult("job-1", 42, false, null));
 
-        SearchReindexHandler handler = new SearchReindexHandler(searchReindexActionApi);
+        SearchReindexHandler handler = new SearchReindexHandler(searchReindexApplicationService);
         XxlJobContext context = new XxlJobContext(1L, "", 2L, System.currentTimeMillis(), "", 0, 1);
         XxlJobContext.setXxlJobContext(context);
 
         handler.reindex();
 
-        verify(searchReindexActionApi, times(1)).reindex();
-        verifyNoMoreInteractions(searchReindexActionApi);
+        verify(searchReindexApplicationService, times(1)).reindex(new ReindexPostsCommand());
+        verifyNoMoreInteractions(searchReindexApplicationService);
         assertThat(context.getHandleCode()).isEqualTo(XxlJobContext.HANDLE_CODE_SUCCESS);
         assertThat(context.getHandleMsg()).contains("job-1");
         assertThat(context.getHandleMsg()).contains("42");
@@ -44,19 +46,20 @@ class SearchReindexHandlerTest {
 
     @Test
     void reindexShouldTreatSkippedConflictAsSuccess() {
-        SearchReindexActionApi searchReindexActionApi = mock(SearchReindexActionApi.class);
-        when(searchReindexActionApi.reindex()).thenReturn(
+        SearchReindexApplicationService searchReindexApplicationService =
+                mock(SearchReindexApplicationService.class);
+        when(searchReindexApplicationService.reindex(new ReindexPostsCommand())).thenReturn(
                 new SearchReindexResult("job-1", 0, true, "reindex 任务正在执行 (jobId=job-1)")
         );
 
-        SearchReindexHandler handler = new SearchReindexHandler(searchReindexActionApi);
+        SearchReindexHandler handler = new SearchReindexHandler(searchReindexApplicationService);
         XxlJobContext context = new XxlJobContext(1L, "", 2L, System.currentTimeMillis(), "", 0, 1);
         XxlJobContext.setXxlJobContext(context);
 
         handler.reindex();
 
-        verify(searchReindexActionApi, times(1)).reindex();
-        verifyNoMoreInteractions(searchReindexActionApi);
+        verify(searchReindexApplicationService, times(1)).reindex(new ReindexPostsCommand());
+        verifyNoMoreInteractions(searchReindexApplicationService);
         assertThat(context.getHandleCode()).isEqualTo(XxlJobContext.HANDLE_CODE_SUCCESS);
         assertThat(context.getHandleMsg()).contains("skipped");
         assertThat(context.getHandleMsg()).contains("job-1");
@@ -74,17 +77,18 @@ class SearchReindexHandlerTest {
 
     @Test
     void reindexShouldMarkFailureWithoutThrowingWhenExecutionFails() {
-        SearchReindexActionApi searchReindexActionApi = mock(SearchReindexActionApi.class);
-        when(searchReindexActionApi.reindex()).thenThrow(new RuntimeException("boom"));
+        SearchReindexApplicationService searchReindexApplicationService =
+                mock(SearchReindexApplicationService.class);
+        when(searchReindexApplicationService.reindex(new ReindexPostsCommand())).thenThrow(new RuntimeException("boom"));
 
-        SearchReindexHandler handler = new SearchReindexHandler(searchReindexActionApi);
+        SearchReindexHandler handler = new SearchReindexHandler(searchReindexApplicationService);
         XxlJobContext context = new XxlJobContext(1L, "", 2L, System.currentTimeMillis(), "", 0, 1);
         XxlJobContext.setXxlJobContext(context);
 
         handler.reindex();
 
-        verify(searchReindexActionApi, times(1)).reindex();
-        verifyNoMoreInteractions(searchReindexActionApi);
+        verify(searchReindexApplicationService, times(1)).reindex(new ReindexPostsCommand());
+        verifyNoMoreInteractions(searchReindexApplicationService);
         assertThat(context.getHandleCode()).isEqualTo(XxlJobContext.HANDLE_CODE_FAIL);
         assertThat(context.getHandleMsg()).contains("boom");
     }

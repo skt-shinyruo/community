@@ -1,9 +1,9 @@
-package com.nowcoder.community.infra.job.handlers;
+package com.nowcoder.community.market.infrastructure.job;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
-import com.nowcoder.community.market.api.action.MarketOrderAutoConfirmActionApi;
-import com.nowcoder.community.market.api.model.MarketOrderAutoConfirmResult;
+import com.nowcoder.community.market.application.MarketOrderAutoConfirmApplicationService;
+import com.nowcoder.community.market.application.result.MarketOrderAutoConfirmResult;
 import com.nowcoder.community.market.controller.dto.CreateMarketAddressRequest;
 import com.nowcoder.community.market.controller.dto.CreateMarketListingRequest;
 import com.nowcoder.community.market.application.MarketAddressApplicationService;
@@ -50,7 +50,7 @@ class MarketOrderAutoConfirmHandlerTest {
     private MarketWalletActionProcessorApplicationService marketWalletActionProcessor;
 
     @Autowired
-    private MarketOrderAutoConfirmActionApi marketOrderAutoConfirmActionApi;
+    private MarketOrderAutoConfirmApplicationService marketOrderAutoConfirmApplicationService;
 
     @Autowired
     private MarketOrderAutoConfirmHandler handler;
@@ -95,7 +95,7 @@ class MarketOrderAutoConfirmHandlerTest {
         UUID virtualOrderId = seedDueDeliveredVirtualOrder(uuid(7), buyerUserId);
         UUID physicalOrderId = seedDueShippedPhysicalOrder(uuid(8), buyerUserId);
 
-        MarketOrderAutoConfirmResult result = marketOrderAutoConfirmActionApi.autoConfirmDueOrders();
+        MarketOrderAutoConfirmResult result = marketOrderAutoConfirmApplicationService.autoConfirmDueOrders();
 
         assertThat(result.completedCount()).isEqualTo(2);
         assertThat(result.skippedCount()).isEqualTo(0);

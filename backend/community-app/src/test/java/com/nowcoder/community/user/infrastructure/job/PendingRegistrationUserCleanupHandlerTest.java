@@ -1,6 +1,6 @@
-package com.nowcoder.community.infra.job.handlers;
+package com.nowcoder.community.user.infrastructure.job;
 
-import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
+import com.nowcoder.community.user.application.UserRegistrationApplicationService;
 import com.xxl.job.core.context.XxlJobContext;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import org.junit.jupiter.api.AfterEach;
@@ -25,18 +25,19 @@ class PendingRegistrationUserCleanupHandlerTest {
 
     @Test
     void cleanupShouldDelegateToUserRegistrationServiceWithConfiguredTtlAndReportDeletedCount() {
-        UserRegistrationActionApi userRegistrationActionApi = mock(UserRegistrationActionApi.class);
-        when(userRegistrationActionApi.cleanupExpiredPendingUsers(Duration.ofMinutes(30))).thenReturn(500, 2, 0);
+        UserRegistrationApplicationService userRegistrationApplicationService =
+                mock(UserRegistrationApplicationService.class);
+        when(userRegistrationApplicationService.cleanupExpiredPendingUsers(Duration.ofMinutes(30))).thenReturn(500, 2, 0);
 
         PendingRegistrationUserCleanupHandler handler =
-                new PendingRegistrationUserCleanupHandler(userRegistrationActionApi, 1800);
+                new PendingRegistrationUserCleanupHandler(userRegistrationApplicationService, 1800);
         XxlJobContext context = new XxlJobContext(1L, "", 2L, System.currentTimeMillis(), "", 0, 1);
         XxlJobContext.setXxlJobContext(context);
 
         handler.cleanup();
 
-        verify(userRegistrationActionApi, times(3)).cleanupExpiredPendingUsers(Duration.ofMinutes(30));
-        verifyNoMoreInteractions(userRegistrationActionApi);
+        verify(userRegistrationApplicationService, times(3)).cleanupExpiredPendingUsers(Duration.ofMinutes(30));
+        verifyNoMoreInteractions(userRegistrationApplicationService);
         assertThat(context.getHandleCode()).isEqualTo(XxlJobContext.HANDLE_CODE_SUCCESS);
         assertThat(context.getHandleMsg()).contains("502");
     }
@@ -53,37 +54,39 @@ class PendingRegistrationUserCleanupHandlerTest {
 
     @Test
     void cleanupShouldMarkFailureWithoutThrowingWhenCleanupFails() {
-        UserRegistrationActionApi userRegistrationActionApi = mock(UserRegistrationActionApi.class);
-        when(userRegistrationActionApi.cleanupExpiredPendingUsers(Duration.ofMinutes(30)))
+        UserRegistrationApplicationService userRegistrationApplicationService =
+                mock(UserRegistrationApplicationService.class);
+        when(userRegistrationApplicationService.cleanupExpiredPendingUsers(Duration.ofMinutes(30)))
                 .thenThrow(new RuntimeException("boom"));
 
         PendingRegistrationUserCleanupHandler handler =
-                new PendingRegistrationUserCleanupHandler(userRegistrationActionApi, 1800);
+                new PendingRegistrationUserCleanupHandler(userRegistrationApplicationService, 1800);
         XxlJobContext context = new XxlJobContext(1L, "", 2L, System.currentTimeMillis(), "", 0, 1);
         XxlJobContext.setXxlJobContext(context);
 
         handler.cleanup();
 
-        verify(userRegistrationActionApi, times(1)).cleanupExpiredPendingUsers(Duration.ofMinutes(30));
-        verifyNoMoreInteractions(userRegistrationActionApi);
+        verify(userRegistrationApplicationService, times(1)).cleanupExpiredPendingUsers(Duration.ofMinutes(30));
+        verifyNoMoreInteractions(userRegistrationApplicationService);
         assertThat(context.getHandleCode()).isEqualTo(XxlJobContext.HANDLE_CODE_FAIL);
         assertThat(context.getHandleMsg()).contains("boom");
     }
 
     @Test
     void cleanupShouldClampConfiguredTtlToMinimumOneMinute() {
-        UserRegistrationActionApi userRegistrationActionApi = mock(UserRegistrationActionApi.class);
-        when(userRegistrationActionApi.cleanupExpiredPendingUsers(Duration.ofMinutes(1))).thenReturn(0);
+        UserRegistrationApplicationService userRegistrationApplicationService =
+                mock(UserRegistrationApplicationService.class);
+        when(userRegistrationApplicationService.cleanupExpiredPendingUsers(Duration.ofMinutes(1))).thenReturn(0);
 
         PendingRegistrationUserCleanupHandler handler =
-                new PendingRegistrationUserCleanupHandler(userRegistrationActionApi, 1);
+                new PendingRegistrationUserCleanupHandler(userRegistrationApplicationService, 1);
         XxlJobContext context = new XxlJobContext(1L, "", 2L, System.currentTimeMillis(), "", 0, 1);
         XxlJobContext.setXxlJobContext(context);
 
         handler.cleanup();
 
-        verify(userRegistrationActionApi, times(1)).cleanupExpiredPendingUsers(Duration.ofMinutes(1));
-        verifyNoMoreInteractions(userRegistrationActionApi);
+        verify(userRegistrationApplicationService, times(1)).cleanupExpiredPendingUsers(Duration.ofMinutes(1));
+        verifyNoMoreInteractions(userRegistrationApplicationService);
         assertThat(context.getHandleCode()).isEqualTo(XxlJobContext.HANDLE_CODE_SUCCESS);
     }
 }

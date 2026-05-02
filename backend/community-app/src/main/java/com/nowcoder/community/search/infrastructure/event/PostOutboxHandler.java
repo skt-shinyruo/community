@@ -1,13 +1,10 @@
 package com.nowcoder.community.search.infrastructure.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.content.api.model.PostScanView;
-import com.nowcoder.community.content.api.query.PostScanQueryApi;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxHandler;
-import com.nowcoder.community.search.application.PostSearchPayloadMapper;
-import com.nowcoder.community.search.application.SearchApplicationService;
-import com.nowcoder.community.search.application.command.DeleteIndexedPostCommand;
+import com.nowcoder.community.search.application.SearchPostProjectionApplicationService;
+import com.nowcoder.community.search.application.command.ProjectPostOutboxCommand;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -26,17 +23,14 @@ public class PostOutboxHandler implements OutboxHandler {
     public static final String TOPIC = "projection.search.post";
 
     private final ObjectMapper objectMapper;
-    private final PostScanQueryApi postScanQueryApi;
-    private final SearchApplicationService searchApplicationService;
+    private final SearchPostProjectionApplicationService projectionApplicationService;
 
     public PostOutboxHandler(
             ObjectMapper objectMapper,
-            PostScanQueryApi postScanQueryApi,
-            SearchApplicationService searchApplicationService
+            SearchPostProjectionApplicationService projectionApplicationService
     ) {
         this.objectMapper = objectMapper;
-        this.postScanQueryApi = postScanQueryApi;
-        this.searchApplicationService = searchApplicationService;
+        this.projectionApplicationService = projectionApplicationService;
     }
 
     @Override
@@ -56,18 +50,14 @@ public class PostOutboxHandler implements OutboxHandler {
             throw new IllegalStateException("search outbox payload 反序列化失败", e);
         }
 
-        UUID postId = payload.getPostId();
-        if (postId == null) {
+        if (payload.getPostId() == null) {
             return;
         }
-
-        PostScanView.PostProjectionView projection = postScanQueryApi.getPostProjectionAllowDeleted(postId);
-        if (projection == null || projection.postId() == null) {
-            searchApplicationService.deletePost(new DeleteIndexedPostCommand(postId));
-            return;
-        }
-
-        searchApplicationService.syncPostProjection(PostSearchPayloadMapper.toSyncCommand(projection));
+        projectionApplicationService.projectPostFromOutbox(new ProjectPostOutboxCommand(
+                payload.getPostId(),
+                payload.getSourceEventId(),
+                payload.getSourceEventType()
+        ));
     }
 
     public static class PostOutboxPayload {

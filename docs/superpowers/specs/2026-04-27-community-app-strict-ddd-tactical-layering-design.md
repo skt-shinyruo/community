@@ -87,7 +87,7 @@ It owns:
 - domain event publication
 - foreign-domain synchronous calls through owner-domain `api.*`
 
-It must not depend directly on MyBatis mapper/dataobject types or HTTP DTOs. Application command/result types must also stay transport-neutral: they must not expose HTTP response/cookie/header/file abstractions such as `ResponseCookie`, `ResponseEntity`, `MediaType`, `Resource`, or Servlet request/response types.
+It must not depend directly on MyBatis mapper/dataobject types or HTTP DTOs. Application command/result types and application-owned ports must also stay transport-neutral: they must not expose HTTP response/cookie/header/file abstractions such as `ResponseCookie`, `ResponseEntity`, `MediaType`, `Resource`, Servlet request/response types, or Spring Web upload types such as `MultipartFile`.
 
 ### 3.3 Domain
 
@@ -182,4 +182,4 @@ Architecture docs must stay aligned:
 
 ArchUnit tests under `backend/community-app/src/test/java/com/nowcoder/community/app/arch` should be expanded as the migration proceeds so these rules become executable guardrails.
 
-The current executable guardrails include `DddLayeringArchTest`, `ControllerBoundaryArchTest`, and `DtoBoundaryArchTest`. They protect retired root legacy packages, same-domain controller boundaries, domain Spring independence, application transport neutrality, and DTO leakage.
+The current executable guardrails include `DddLayeringArchTest`, `ControllerBoundaryArchTest`, `ListenerBoundaryArchTest`, and `DtoBoundaryArchTest`. They protect retired root legacy packages, same-domain controller/listener/handler boundaries, domain Spring independence, application transport neutrality, and DTO leakage.

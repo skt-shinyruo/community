@@ -1,7 +1,7 @@
 # Community App DDD Boundary Hardening Design
 
 **Date:** 2026-05-02
-**Status:** Draft for review
+**Status:** Approved for first-batch implementation
 **Owner:** Codex
 
 ---

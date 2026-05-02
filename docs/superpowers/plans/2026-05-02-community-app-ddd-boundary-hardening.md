@@ -48,6 +48,24 @@ User avatar boundary:
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/user/application/UserAvatarApplicationServiceTest.java`
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/user/application/UserFileApplicationServiceTest.java`
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/user/controller/FilesControllerStorageRoutingTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/user/controller/UserControllerLoggingTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/user/infrastructure/avatar/R2AvatarStorageProviderUnitTest.java`
+
+Job handler boundary:
+
+- Move: `backend/community-app/src/main/java/com/nowcoder/community/infra/job/handlers/MarketOrderAutoConfirmHandler.java` -> `backend/community-app/src/main/java/com/nowcoder/community/market/infrastructure/job/MarketOrderAutoConfirmHandler.java`
+  - Owner-domain XXL job adapter that calls `MarketOrderAutoConfirmApplicationService`.
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/market/application/result/MarketOrderAutoConfirmResult.java`
+  - Application result for auto-confirm counts.
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/market/application/MarketOrderAutoConfirmApplicationService.java`
+  - Return application result, not published `api.model`.
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/market/infrastructure/api/MarketOrderAutoConfirmActionApiAdapter.java`
+  - Map application result to published `api.model`.
+- Move: `backend/community-app/src/main/java/com/nowcoder/community/infra/job/handlers/PendingRegistrationUserCleanupHandler.java` -> `backend/community-app/src/main/java/com/nowcoder/community/user/infrastructure/job/PendingRegistrationUserCleanupHandler.java`
+  - Owner-domain XXL job adapter that calls `UserRegistrationApplicationService`.
+- Move: `backend/community-app/src/main/java/com/nowcoder/community/infra/job/handlers/SearchReindexHandler.java` -> `backend/community-app/src/main/java/com/nowcoder/community/search/infrastructure/job/SearchReindexHandler.java`
+  - Owner-domain XXL job adapter that calls `SearchReindexApplicationService`.
+- Move/update tests for the three handlers under owner-domain infrastructure job test packages.
 
 Search outbox boundary:
 
@@ -736,8 +754,294 @@ git add backend/community-app/src/main/java/com/nowcoder/community/user/applicat
         backend/community-app/src/main/java/com/nowcoder/community/user/infrastructure/avatar/R2AvatarStorageProvider.java \
         backend/community-app/src/test/java/com/nowcoder/community/user/application/UserAvatarApplicationServiceTest.java \
         backend/community-app/src/test/java/com/nowcoder/community/user/application/UserFileApplicationServiceTest.java \
-        backend/community-app/src/test/java/com/nowcoder/community/user/controller/FilesControllerStorageRoutingTest.java
+        backend/community-app/src/test/java/com/nowcoder/community/user/controller/FilesControllerStorageRoutingTest.java \
+        backend/community-app/src/test/java/com/nowcoder/community/user/controller/UserControllerLoggingTest.java \
+        backend/community-app/src/test/java/com/nowcoder/community/user/infrastructure/avatar/R2AvatarStorageProviderUnitTest.java
 git commit -m "refactor: keep avatar upload application neutral"
+```
+
+---
+
+### Task 2.5: Route Job Handlers Through Owner Application Services
+
+**Files:**
+- Move: `backend/community-app/src/main/java/com/nowcoder/community/infra/job/handlers/MarketOrderAutoConfirmHandler.java` -> `backend/community-app/src/main/java/com/nowcoder/community/market/infrastructure/job/MarketOrderAutoConfirmHandler.java`
+- Create: `backend/community-app/src/main/java/com/nowcoder/community/market/application/result/MarketOrderAutoConfirmResult.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/market/application/MarketOrderAutoConfirmApplicationService.java`
+- Modify: `backend/community-app/src/main/java/com/nowcoder/community/market/infrastructure/api/MarketOrderAutoConfirmActionApiAdapter.java`
+- Move: `backend/community-app/src/main/java/com/nowcoder/community/infra/job/handlers/PendingRegistrationUserCleanupHandler.java` -> `backend/community-app/src/main/java/com/nowcoder/community/user/infrastructure/job/PendingRegistrationUserCleanupHandler.java`
+- Move: `backend/community-app/src/main/java/com/nowcoder/community/infra/job/handlers/SearchReindexHandler.java` -> `backend/community-app/src/main/java/com/nowcoder/community/search/infrastructure/job/SearchReindexHandler.java`
+- Move/update: `backend/community-app/src/test/java/com/nowcoder/community/infra/job/handlers/MarketOrderAutoConfirmHandlerTest.java` -> `backend/community-app/src/test/java/com/nowcoder/community/market/infrastructure/job/MarketOrderAutoConfirmHandlerTest.java`
+- Move/update: `backend/community-app/src/test/java/com/nowcoder/community/infra/job/handlers/PendingRegistrationUserCleanupHandlerTest.java` -> `backend/community-app/src/test/java/com/nowcoder/community/user/infrastructure/job/PendingRegistrationUserCleanupHandlerTest.java`
+- Move/update: `backend/community-app/src/test/java/com/nowcoder/community/infra/job/handlers/SearchReindexHandlerTest.java` -> `backend/community-app/src/test/java/com/nowcoder/community/search/infrastructure/job/SearchReindexHandlerTest.java`
+- Test: `backend/community-app/src/test/java/com/nowcoder/community/market/application/MarketOrderAutoConfirmApplicationServiceUnitTest.java`
+
+- [ ] **Step 1: Move and rewrite market auto-confirm handler test**
+
+Move the test file with `git mv`, change its package to:
+
+```java
+package com.nowcoder.community.market.infrastructure.job;
+```
+
+Replace imports of `market.api.action.MarketOrderAutoConfirmActionApi` and `market.api.model.MarketOrderAutoConfirmResult` with:
+
+```java
+import com.nowcoder.community.market.application.MarketOrderAutoConfirmApplicationService;
+import com.nowcoder.community.market.application.result.MarketOrderAutoConfirmResult;
+```
+
+Replace the autowired API field with:
+
+```java
+    @Autowired
+    private MarketOrderAutoConfirmApplicationService marketOrderAutoConfirmApplicationService;
+```
+
+Replace the direct API call in `autoConfirmShouldQueueReleaseAndProcessorShouldCompleteDeliveredAndShippedOrders` with:
+
+```java
+        MarketOrderAutoConfirmResult result = marketOrderAutoConfirmApplicationService.autoConfirmDueOrders();
+```
+
+- [ ] **Step 2: Move and rewrite pending registration cleanup handler test**
+
+Move the test file with `git mv`, change its package to:
+
+```java
+package com.nowcoder.community.user.infrastructure.job;
+```
+
+Replace API imports with:
+
+```java
+import com.nowcoder.community.user.application.UserRegistrationApplicationService;
+```
+
+In each test, replace the mock and constructor usage:
+
+```java
+        UserRegistrationApplicationService userRegistrationApplicationService =
+                mock(UserRegistrationApplicationService.class);
+        when(userRegistrationApplicationService.cleanupExpiredPendingUsers(Duration.ofMinutes(30)))
+                .thenReturn(500, 2, 0);
+
+        PendingRegistrationUserCleanupHandler handler =
+                new PendingRegistrationUserCleanupHandler(userRegistrationApplicationService, 1800);
+```
+
+Update all verifications to use `userRegistrationApplicationService`.
+
+- [ ] **Step 3: Move and rewrite search reindex handler test**
+
+Move the test file with `git mv`, change its package to:
+
+```java
+package com.nowcoder.community.search.infrastructure.job;
+```
+
+Replace API imports with:
+
+```java
+import com.nowcoder.community.search.application.SearchReindexApplicationService;
+import com.nowcoder.community.search.application.command.ReindexPostsCommand;
+import com.nowcoder.community.search.application.result.SearchReindexResult;
+```
+
+In each test, replace API mock and constructor usage:
+
+```java
+        SearchReindexApplicationService searchReindexApplicationService =
+                mock(SearchReindexApplicationService.class);
+        when(searchReindexApplicationService.reindex(new ReindexPostsCommand()))
+                .thenReturn(new SearchReindexResult("job-1", 42, false, null));
+
+        SearchReindexHandler handler = new SearchReindexHandler(searchReindexApplicationService);
+```
+
+Update all verifications to:
+
+```java
+        verify(searchReindexApplicationService, times(1)).reindex(new ReindexPostsCommand());
+        verifyNoMoreInteractions(searchReindexApplicationService);
+```
+
+- [ ] **Step 4: Run moved handler tests and verify RED**
+
+Run:
+
+```bash
+mvn -q -f backend/pom.xml -pl community-app -Dtest='MarketOrderAutoConfirmHandlerTest,PendingRegistrationUserCleanupHandlerTest,SearchReindexHandlerTest,MarketOrderAutoConfirmApplicationServiceUnitTest' test
+```
+
+Expected: FAIL until production handlers and the market application result are updated.
+
+- [ ] **Step 5: Add market application result and update market application/API adapter**
+
+Create `backend/community-app/src/main/java/com/nowcoder/community/market/application/result/MarketOrderAutoConfirmResult.java`:
+
+```java
+package com.nowcoder.community.market.application.result;
+
+public record MarketOrderAutoConfirmResult(
+        int completedCount,
+        int skippedCount
+) {
+}
+```
+
+In `MarketOrderAutoConfirmApplicationService`, replace the import:
+
+```java
+import com.nowcoder.community.market.application.result.MarketOrderAutoConfirmResult;
+```
+
+In `MarketOrderAutoConfirmActionApiAdapter`, map application result to API result:
+
+```java
+    @Override
+    public MarketOrderAutoConfirmResult autoConfirmDueOrders() {
+        com.nowcoder.community.market.application.result.MarketOrderAutoConfirmResult result =
+                applicationService.autoConfirmDueOrders();
+        return new MarketOrderAutoConfirmResult(result.completedCount(), result.skippedCount());
+    }
+```
+
+- [ ] **Step 6: Move and update market handler**
+
+Move the handler with `git mv` and set the package:
+
+```java
+package com.nowcoder.community.market.infrastructure.job;
+```
+
+Replace API imports with:
+
+```java
+import com.nowcoder.community.market.application.MarketOrderAutoConfirmApplicationService;
+import com.nowcoder.community.market.application.result.MarketOrderAutoConfirmResult;
+```
+
+Replace field and constructor:
+
+```java
+    private final MarketOrderAutoConfirmApplicationService applicationService;
+
+    public MarketOrderAutoConfirmHandler(MarketOrderAutoConfirmApplicationService applicationService) {
+        this.applicationService = applicationService;
+    }
+```
+
+Replace the call:
+
+```java
+            MarketOrderAutoConfirmResult result = applicationService.autoConfirmDueOrders();
+```
+
+Keep `JOB_NAME`, `@XxlJob(JOB_NAME)`, logging, success, and failure behavior unchanged.
+
+- [ ] **Step 7: Move and update pending registration cleanup handler**
+
+Move the handler with `git mv` and set the package:
+
+```java
+package com.nowcoder.community.user.infrastructure.job;
+```
+
+Replace API import with:
+
+```java
+import com.nowcoder.community.user.application.UserRegistrationApplicationService;
+```
+
+Replace field and constructor:
+
+```java
+    private final UserRegistrationApplicationService applicationService;
+
+    public PendingRegistrationUserCleanupHandler(
+            UserRegistrationApplicationService applicationService,
+            @Value("${auth.registration.pending-user.ttl-seconds:1800}") long pendingUserTtlSeconds
+    ) {
+        this.applicationService = applicationService;
+        this.pendingUserTtlSeconds = pendingUserTtlSeconds;
+    }
+```
+
+Replace the cleanup call:
+
+```java
+                deleted = applicationService.cleanupExpiredPendingUsers(ttl);
+```
+
+Keep TTL clamping, loop behavior, `JOB_NAME`, `@XxlJob(JOB_NAME)`, logging, success, and failure behavior unchanged.
+
+- [ ] **Step 8: Move and update search reindex handler**
+
+Move the handler with `git mv` and set the package:
+
+```java
+package com.nowcoder.community.search.infrastructure.job;
+```
+
+Replace API imports with:
+
+```java
+import com.nowcoder.community.search.application.SearchReindexApplicationService;
+import com.nowcoder.community.search.application.command.ReindexPostsCommand;
+import com.nowcoder.community.search.application.result.SearchReindexResult;
+```
+
+Replace field and constructor:
+
+```java
+    private final SearchReindexApplicationService applicationService;
+
+    public SearchReindexHandler(SearchReindexApplicationService applicationService) {
+        this.applicationService = applicationService;
+    }
+```
+
+Replace the call:
+
+```java
+            SearchReindexResult result = applicationService.reindex(new ReindexPostsCommand());
+```
+
+Keep skip semantics, `JOB_NAME`, `@XxlJob(JOB_NAME)`, logging, success, and failure behavior unchanged.
+
+- [ ] **Step 9: Run focused job tests and architecture tests**
+
+Run:
+
+```bash
+mvn -q -f backend/pom.xml -pl community-app -Dtest='MarketOrderAutoConfirmHandlerTest,PendingRegistrationUserCleanupHandlerTest,SearchReindexHandlerTest,MarketOrderAutoConfirmApplicationServiceUnitTest' test
+mvn -q -f backend/pom.xml -pl community-app -Dtest='DddLayeringArchTest,ListenerBoundaryArchTest' test
+```
+
+Expected:
+
+- focused handler/application tests PASS;
+- architecture tests still FAIL only for remaining `PostOutboxHandler -> content.api.*` until Task 3 completes.
+
+- [ ] **Step 10: Commit job boundary cleanup**
+
+Run:
+
+```bash
+git add backend/community-app/src/main/java/com/nowcoder/community/market/application/result/MarketOrderAutoConfirmResult.java \
+        backend/community-app/src/main/java/com/nowcoder/community/market/application/MarketOrderAutoConfirmApplicationService.java \
+        backend/community-app/src/main/java/com/nowcoder/community/market/infrastructure/api/MarketOrderAutoConfirmActionApiAdapter.java \
+        backend/community-app/src/main/java/com/nowcoder/community/market/infrastructure/job/MarketOrderAutoConfirmHandler.java \
+        backend/community-app/src/main/java/com/nowcoder/community/user/infrastructure/job/PendingRegistrationUserCleanupHandler.java \
+        backend/community-app/src/main/java/com/nowcoder/community/search/infrastructure/job/SearchReindexHandler.java \
+        backend/community-app/src/test/java/com/nowcoder/community/market/infrastructure/job/MarketOrderAutoConfirmHandlerTest.java \
+        backend/community-app/src/test/java/com/nowcoder/community/user/infrastructure/job/PendingRegistrationUserCleanupHandlerTest.java \
+        backend/community-app/src/test/java/com/nowcoder/community/search/infrastructure/job/SearchReindexHandlerTest.java \
+        backend/community-app/src/test/java/com/nowcoder/community/market/application/MarketOrderAutoConfirmApplicationServiceUnitTest.java
+git add -u backend/community-app/src/main/java/com/nowcoder/community/infra/job/handlers \
+           backend/community-app/src/test/java/com/nowcoder/community/infra/job/handlers
+git commit -m "refactor: route jobs through owner application services"
 ```
 
 ---

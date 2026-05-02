@@ -297,6 +297,32 @@ final class ArchitectureRulesSupport {
         };
     }
 
+    static ArchCondition<JavaClass> notDependOnForeignOwnerApiPackages(Set<String> legacyOriginWhitelist) {
+        return new ArchCondition<>("not depend on foreign owner api packages before application boundary") {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                if (isWhitelisted(item, legacyOriginWhitelist)) {
+                    return;
+                }
+                String originDomain = domainOf(item);
+                if (originDomain.isEmpty()) {
+                    return;
+                }
+                for (Dependency dependency : item.getDirectDependenciesFromSelf()) {
+                    JavaClass target = dependency.getTargetClass();
+                    String targetDomain = domainOf(target);
+                    if (originDomain.equals(targetDomain) || !CORE_DOMAINS.contains(targetDomain)) {
+                        continue;
+                    }
+                    if (!residesInPackagePrefixes(target, Set.of("api.query", "api.action", "api.model"))) {
+                        continue;
+                    }
+                    events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));
+                }
+            }
+        };
+    }
+
     static ArchCondition<JavaClass> notDependOnSameDomainOwnerApiPackages(Set<String> legacyOriginWhitelist) {
         return new ArchCondition<>("not depend on same-domain owner api packages") {
             @Override

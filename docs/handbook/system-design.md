@@ -60,6 +60,8 @@ Client + Authorization + Idempotency-Key
 
 `Result.code` 表达业务细分错误码。Servlet / WebFlux 服务统一回写 `X-Trace-Id` / `traceparent`，便于 Kibana 按 trace 关联。
 
+客户端侧不能只依赖 HTTP 200 判断完整业务终态。资金、IM 和投影类链路还要看业务状态字段、IM event/history 或后台 action/outbox 状态。
+
 ## 同步跨域协作
 
 跨域同步调用只允许使用 owner-domain API：
@@ -75,7 +77,7 @@ caller ApplicationService
 
 - social 点赞/关注解析内容 owner：`content.api.query`。
 - content 发帖/评论同步推进 growth task 和 wallet / points 相关 owner action。
-- market 下单/退款/放款同步调用 `wallet.api.action`。
+- market 下单/退款/放款先写 `market_wallet_action` durable command，再由 market processor 调用 `wallet.api.action`。
 - ops search reindex 通过 `search.api.action` 进入 search owner。
 - user / social 为 IM policy snapshot 暴露同步查询面。
 
@@ -111,7 +113,8 @@ caller ApplicationService
 | IM policy projection | DB outbox -> Kafka | user punishment / social block 变化发布给 `im-realtime` |
 | notice projection | local after-commit listener | best-effort，失败只记录日志，不回滚主事务 |
 | growth task progress | 同步 owner API | 当前用例内推进，失败按用例语义回滚 |
-| wallet reward / market fund action | 同步 owner API | 资金事实 owner 同步落账 |
+| wallet reward | 同步 owner API | 资金事实 owner 同步落账 |
+| market fund action | `market_wallet_action` saga command -> wallet owner API | 市场事务先提交资金命令，后台 processor 调钱包并推进订单/争议状态 |
 | analytics | filter / application 写 Redis | 采集口径以当前配置和代码入口为准 |
 
 因此“HTTP 成功”不等于“所有投影完成”。业务读模型若可能延迟，应提供重扫、reindex、补偿或明确 best-effort 语义。
@@ -200,10 +203,17 @@ IM 独立于 `community-app`：
 当前后台任务分为：
 
 - 本地 `@Scheduled`：例如 outbox worker、帖子热度刷新等需要应用内持续执行的任务。
-- XXL-Job：例如 `pendingRegistrationUserCleanup`、`searchReindex` 这类可由控制面触发的离散任务。
+- XXL-Job：例如 `pendingRegistrationUserCleanup`、`searchReindex`、`marketOrderAutoConfirm`、`marketWalletActionProcessor`、`marketWalletActionRecovery` 这类可由控制面触发的离散任务。
 - `/api/ops/**`：管理员运维入口，例如手动触发 search reindex。
 
 调度入口不直接拼业务规则，仍然回到 owner `ApplicationService` 或 owner action API。
+
+任务语义按类别区分：
+
+- 清理型任务可以重复执行，目标是收敛过期或无效状态。
+- 追平型任务从持久状态机读取待处理项，例如 outbox 或 `market_wallet_action`。
+- 自动动作型任务只写 owner command，例如市场自动确认只写 release command，不在 job 中直接记账。
+- 长任务或集群互斥任务需要 single-flight、lease 或条件更新保护。
 
 ## Fail-closed 策略
 
@@ -215,6 +225,7 @@ IM 独立于 `community-app`：
 - OriginGuard allowlist 缺失时拒绝敏感 cookie 会话入口。
 - 必须幂等的写入口在幂等存储不可用时返回 `503`。
 - outbox handler 遇到未知/坏 payload 不 silent drop，应失败、重试或进入 DEAD。
+- 市场资金 action 不能因为钱包失败就把订单静默推进完成态；应保留 pending / retry / failed 状态，让 processor、recovery 或人工排查继续处理。
 
 ## 演进原则
 

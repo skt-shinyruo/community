@@ -13,6 +13,7 @@
 | handler 持续失败 | `DEAD` | 停止自动重试，留给人工处理 |
 | reindex 多入口触发 | Redis single-flight | 集群内同一时间只执行一个 |
 | 长任务锁过期 | heartbeat renew | 防止长任务中途丢锁 |
+| 市场到钱包资金动作 | `market_wallet_action` saga command | 钱包落账脱离 market 事务，可重试、可恢复、可排查 |
 | 清理/补偿任务 | 幂等任务设计 | 重跑不会产生错误副作用 |
 
 ## HTTP Idempotency-Key
@@ -62,6 +63,12 @@ operation + userId + Idempotency-Key
 - 两者都不存在：`400`。
 
 新客户端应优先使用 header，body `requestId` 只是兼容路径。
+
+当前仓库前端状态：
+
+- `frontend/src/api/http.js` 只自动为发帖和评论注入 header。
+- 钱包和市场页面仍生成 body `requestId`，依赖服务端兼容路径。
+- 修改前端重试策略时，必须保证同一次业务尝试复用同一个 key / requestId，不能在 axios retry 或按钮重复点击时生成新值。
 
 ## 请求指纹
 
@@ -294,13 +301,70 @@ Search reindex 模型：
 
 没有 single-flight 时，HTTP 手工触发和 XXL 触发可能并发重建整个索引。
 
+## Market Wallet Action Saga
+
+`market_wallet_action` 是 market owner 的 durable business command，用于 escrow、release 和 refund。它不是普通 outbox projection：订单/争议状态、钱包 requestId、wallet txn id、失败原因和可恢复状态都需要被业务查询和排障。
+
+生产端：
+
+```text
+MarketOrderApplicationService / MarketDisputeApplicationService
+  -> market local transaction
+  -> order / dispute / inventory state
+  -> market_wallet_action(PENDING)
+```
+
+消费端：
+
+```text
+MarketWalletActionProcessorHandler
+  -> MarketWalletActionProcessorApplicationService.processDue
+  -> claim PROCESSING with lease
+  -> WalletMarketActionApi
+  -> MarketOrderSagaApplicationService conditional transition
+  -> mark SUCCEEDED / RETRYING / FAILED / CANCELLED
+```
+
+状态：
+
+- `PENDING`：等待 processor 处理。
+- `PROCESSING`：已被 processor claim，带 `processing_lease_until`。
+- `RETRYING`：可恢复失败，等待 `next_retry_at`。
+- `SUCCEEDED`：wallet action 已应用或确认 no-op 完成。
+- `CANCELLED`：前置条件已取消，通常用于 escrow no-op。
+- `FAILED`：不可自动成功的业务失败，保留失败原因。
+- `DEAD`：预留给自动重试终点或人工处置。
+
+幂等点：
+
+- command 层：`market_wallet_action.request_id` 唯一，格式为 `market-order:<orderId>:<action>`。
+- wallet 层：`wallet_txn.request_id` 唯一。
+- market 状态层：订单 / 争议推进使用条件更新，只从期望状态前进。
+
+恢复语义：
+
+- processor 成功调用 wallet 后崩溃，恢复任务通过已有 `wallet_txn_id` 继续推进订单状态并标记 action succeeded。
+- 订单处于资金 pending 状态但缺少 command 时，恢复任务会补写对应 escrow / release / refund command。
+- escrow 还没落账就取消时，escrow action 可变成 `CANCELLED` + `NOOP`，订单无退款取消，并恢复 market 侧库存。
+- escrow 已落账但订单已接受取消时，saga 会把订单转成 refund pending 并补写 refund command。
+- release / refund 遇到可恢复钱包错误会回到 retrying；不会把订单静默推进为完成。
+
+可观察状态：
+
+- 订单资金状态长时间停在 pending 时，先查 `market_wallet_action` 是否存在对应 command。
+- command 处于 `PENDING` / `RETRYING` 时，检查 processor 是否 claim due action。
+- command 处于 `PROCESSING` 且 lease 已过期时，检查 recovery 是否恢复 lease。
+- command 已有 `wallet_txn_id` 但 market 未推进时，recovery 应用已有 wallet 结果继续推进，不重复记账。
+- command 处于 `FAILED` / `DEAD` 时，需要结合 `failure_code`、`last_error` 和订单状态人工判断是否重试、修数据或退款/放款补偿。
+
 ## Scheduler 补偿语义
 
 后台任务分三类：
 
 - 清理型：例如过期待激活用户清理，天然幂等。
 - 追平型：例如 outbox worker，按状态机重试。
-- 自动动作型：例如市场自动确认，需要 owner domain 判断状态和时间窗口。
+- 自动动作型：例如市场自动确认，需要 owner domain 判断状态和时间窗口，只写 release command。
+- 资金恢复型：例如 `marketWalletActionProcessor` / `marketWalletActionRecovery`，按 market wallet action saga 状态机处理。
 
 原则：
 
@@ -319,6 +383,8 @@ Search reindex 模型：
 - 搜索投影失败：不阻断主写路径，交给 outbox 重试。
 - 通知投影失败：best-effort，记录日志，不回滚主事务。
 - analytics 采集失败：应避免影响主业务响应，具体以当前实现为准。
+- 市场钱包 release / refund 失败：优先保留 pending / retryable 状态，不把订单静默完成。
+- 市场钱包 escrow 业务失败：订单进入失败或无退款取消路径，并恢复 market 侧库存 / 预加载库存。
 
 每个新增能力都要明确：依赖失败时是拒绝当前请求、异步重试，还是记录日志后继续。
 
@@ -343,3 +409,12 @@ Outbox 和 scheduler：
 
 - `backend/community-common/common-outbox/src/test/...`
 - `backend/community-app/src/test/...` 中 search / IM policy / scheduler 相关测试。
+
+Market wallet action saga：
+
+- `MarketWalletActionProcessorApplicationServiceTest`
+- `MarketWalletActionRecoveryApplicationServiceTest`
+- `MarketOrderApplicationServiceTest`
+- `MarketDisputeApplicationServiceTest`
+- `MarketOrderAutoConfirmSingleOrderApplicationServiceUnitTest`
+- `MarketWalletActionMapperPersistenceTest`

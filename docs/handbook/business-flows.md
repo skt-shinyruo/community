@@ -30,6 +30,8 @@ Entry：
 - `/api/auth/refresh`
 - `/api/auth/logout`
 - `/api/auth/me`
+- `/api/auth/password/reset/request`
+- `/api/auth/password/reset/confirm`
 
 Main path：
 
@@ -44,6 +46,16 @@ Main path：
 9. refresh token 旋转刷新，旧 token 失效；family reuse 可触发族撤销。
 10. logout 撤销 refresh token / family 并清 cookie。
 11. cleanup job 清理过期待激活用户和 session 状态。
+
+Password reset：
+
+1. 请求重置密码必须带邮箱和验证码。
+2. 服务端先校验 reset base URL 配置，避免签发 token 后才发现无法生成链接。
+3. 邮箱不存在、用户未激活或状态不可用时也返回“已受理”，但不签发 token，不发邮件，防止用户枚举。
+4. token 存储在 `auth:pwdreset:<token>`，通过邮件下发链接，HTTP 响应体不返回 reset link。
+5. 确认重置时再次校验验证码、token 和密码策略。
+6. 密码策略由 user owner 校验：长度 8 到 `ValidationLimits.PASSWORD_MAX`，至少包含两类字符。
+7. 密码更新成功后撤销该用户 refresh sessions；若密码更新失败，会恢复 reset token TTL 以便用户重试。
 
 Security：
 
@@ -244,9 +256,25 @@ Main path: create comment：
 
 1. `PostController.addComment(...)` 读取用户和 `Idempotency-Key`。
 2. 应用层校验帖子 / 评论目标、用户发言资格、内容。
-3. 写 `comment`。
-4. 发布评论事件。
-5. notice / growth / score refresh 等下游按各自语义处理。
+3. 回复评论时，目标必须是该帖子下的 active 一级评论；服务端解析 target user。
+4. 若评论双方存在拉黑关系，写入会被拒绝。
+5. 文本在写入前做转义和敏感词过滤。
+6. 写 `comment` 并增加帖子 `comment_count`。
+7. 同步触发积分 / 任务进度 owner API。
+8. 发布评论事件。
+9. notice / growth / score refresh 等下游按各自语义处理。
+
+Main path: update / delete comment：
+
+- 作者只能编辑自己的 active 评论。
+- 编辑窗口为评论创建后 15 分钟内。
+- 编辑时重新做文本转义和敏感词过滤，并更新 `update_time` / `edit_count`。
+- 作者删除必须校验路由上的 `postId` 是该评论真实归属帖子。
+- 治理删除和作者删除走同一个删除线程能力。
+- 删除评论会软删除该评论及其 active descendant replies。
+- 帖子 `comment_count` 按本次从 visible 变为 deleted 的评论数递减。
+- 删除后发布每条被删评论的删除事件，并安排帖子热度刷新。
+- 删除后通过 social owner action 清理被删评论上的 like 关系。
 
 Bookmarks / subscription：
 
@@ -261,11 +289,14 @@ Failure / idempotency：
 - 搜索索引通过 outbox 最终追平。
 - 通知投影失败不回滚主写事务。
 - 删除 / 下线帖子后，search handler 回源 DB 当前状态并异步删除索引文档。
+- 评论删除后的 like 清理在事务提交后触发；清理失败不回滚已提交的评论删除。
 
 Key code：
 
 - `content.controller.PostController`
 - `content.application.PostPublishingApplicationService`
+- `content.application.CommentApplicationService`
+- `content.domain.service.CommentDomainService`
 - `content.domain.*`
 - `content.infrastructure.persistence.*`
 - `content.contracts.event.*`
@@ -344,11 +375,12 @@ Main path：
 
 1. `BlockApplicationService` 处理拉黑/取消拉黑。
 2. 重复拉黑返回 `false` 或等价幂等结果。
-3. block 关系变化发布领域事件。
-4. `ImPolicyOutboxEnqueuer` 在 `BEFORE_COMMIT` 写入 IM policy outbox。
-5. `ImPolicyKafkaOutboxHandler` 发布到 IM policy Kafka topic。
-6. `im-realtime` 消费事件，刷新本地 policy projection。
-7. `im-realtime` 发送私信前用本地 projection 判断拉黑、处罚、目标用户状态。
+3. 新增 block 关系时，同步移除 blocker -> blocked 和 blocked -> blocker 两个方向的 follow 关系。
+4. block 关系变化发布领域事件。
+5. `ImPolicyOutboxEnqueuer` 在 `BEFORE_COMMIT` 写入 IM policy outbox。
+6. `ImPolicyKafkaOutboxHandler` 发布到 IM policy Kafka topic。
+7. `im-realtime` 消费事件，刷新本地 policy projection。
+8. `im-realtime` 发送私信前用本地 projection 判断拉黑、处罚、目标用户状态。
 
 Snapshot：
 
@@ -358,7 +390,7 @@ Snapshot：
 
 Failure：
 
-- 如果发布 block 事件失败，当前实现会尝试回滚刚写入的 block 关系。
+- 如果发布 block 事件失败，当前实现会尝试回滚刚写入的 block 关系，并恢复本次自动移除的 follow 关系。
 - IM policy outbox 失败不应影响已提交主事实，会通过 outbox 重试。
 
 Key code：
@@ -386,7 +418,7 @@ Read path：
 - 通知列表。
 - 未读数。
 - 摘要。
-- 批量已读。
+- 批量已读，`ids` 是通知 UUID 列表，不能使用旧 numeric message id。
 
 Projection path：
 
@@ -702,27 +734,47 @@ Order path：
 1. controller 读取 `Idempotency-Key`；旧 body `requestId` 仅 header 缺失时 fallback。
 2. header/body 不一致返回 `400`。
 3. request fingerprint 包含 `listingId`、`quantity`、`addressId`。
-4. application 校验 listing、库存、买家、价格。
-5. 创建订单。
-6. 调 wallet market action 执行资金托管。
-7. 对外幂等 key 与钱包账本 requestId 解耦；钱包侧使用服务端派生 id，例如 `market-order:<orderId>:<action>`。
+4. application 校验 listing、库存、买家、价格和订单总额上限。
+5. 物理商品必须提供 active 收货地址，订单保存地址快照。
+6. 有限库存或实物商品创建订单时扣减 listing 可用库存。
+7. 预加载虚拟库存会先锁定库存单元并绑定订单。
+8. 创建订单，初始状态为 `ESCROW_PENDING`。
+9. 在 market 本地事务内写入 `market_wallet_action(ESCROW, PENDING)`，不在该事务里直接写 wallet ledger。
+10. 对外幂等 key 与钱包账本 requestId 解耦；钱包侧使用服务端派生 id，例如 `market-order:<orderId>:<action>`。
+
+Market wallet action saga：
+
+1. `MarketWalletActionApplicationService` 为 escrow / release / refund 写 durable command。
+2. `request_id` 固定为 `market-order:<orderId>:<action>`，重复 enqueue 必须语义一致，否则 replay conflict。
+3. `MarketWalletActionProcessorHandler` 触发 `MarketWalletActionProcessorApplicationService.processDue(...)`。
+4. processor claim due action，设置 `PROCESSING` 和短 lease。
+5. processor 在原 market 事务之外调用 `WalletMarketActionApi`。
+6. wallet 成功后，processor 记录 `wallet_txn_id` 并通过 `MarketOrderSagaApplicationService` 条件推进订单 / 争议状态。
+7. release / refund 的可恢复钱包错误进入 `RETRYING` 并带 backoff。
+8. escrow 的业务失败会进入失败路径并恢复 market 侧库存 / 预加载库存。
+9. `MarketWalletActionRecoveryHandler` 负责恢复过期 processing lease、补齐缺失 command、把已有 `wallet_txn_id` 重新应用到 saga 状态。
 
 Order states：
 
-- 下单 / 待交付。
+- `ESCROW_PENDING`：订单已创建，等待资金托管 command 处理。
+- `ESCROW_CANCEL_PENDING`：取消已接受，若 escrow 尚未落账则应 no-op；若 escrow 已落账则转 refund。
+- `ESCROWED`：资金已托管。
 - 已交付或已发货。
-- 买家确认。
+- `RELEASE_PENDING`：买家确认或自动确认已接受，等待放款 command。
 - 买家取消。
 - 争议中。
-- 退款。
+- `REFUND_PENDING`：取消退款已接受，等待退款 command。
+- `DISPUTE_REFUND_PENDING` / `DISPUTE_RELEASE_PENDING`：争议裁决已接受，等待退款或放款 command。
 - 完成。
+- `ESCROW_FAILED`：托管业务失败，需按失败原因处理或展示。
 
 Delivery / shipment：
 
 - 虚拟商品支持卖家手动交付。
+- 预加载虚拟商品在 escrow 成功后自动标记库存单元 delivered，并把订单置为 delivered。
 - 实物商品支持发货。
-- 买家确认后触发 wallet 放款。
-- 买家取消按状态和资金情况触发释放/退款。
+- 买家确认后只把订单置为 `RELEASE_PENDING` 并写 release command。
+- 买家取消按状态进入 `ESCROW_CANCEL_PENDING` 或 `REFUND_PENDING`，由 processor 决定 no-op 或 refund。
 
 Dispute：
 
@@ -736,14 +788,34 @@ Auto confirm：
 
 - 后台任务可自动确认满足条件的订单。
 - 必须由 market owner 判断状态和时间窗口。
+- 每个 due order 单独锁定并确认。
+- 自动确认只写 release command，不在批量任务里直接调用 wallet。
 - 任务重跑应幂等。
+
+Failure / recovery：
+
+- `market_wallet_action` 是市场到钱包资金动作的 durable business command，不是普通投影事件。
+- processor 成功调用 wallet 但未完成 market 状态推进时，恢复任务用同一个 wallet `requestId` / `wallet_txn_id` 继续推进，不重复记账。
+- refund / release 不能因为收款方钱包冻结而永久卡死；当前钱包侧允许系统入账类 release / refund / reward / admin adjustment 进入账户。
+- 取消早于 escrow 处理时，escrow action 可被标记 `CANCELLED/NOOP` 并恢复库存。
+- escrow 已经落账但订单已进入取消路径时，saga 会补 enqueue refund command。
+- processor 无法自动修复的失败会保留 action `FAILED` / pending order 状态，留给 recovery job 或人工排查。
 
 Key code：
 
 - `market.controller.*`
-- `market.application.*ApplicationService`
-- `market.domain.*`
+- `market.application.MarketOrderApplicationService`
+- `market.application.MarketDisputeApplicationService`
+- `market.application.MarketWalletActionApplicationService`
+- `market.application.MarketWalletActionProcessorApplicationService`
+- `market.application.MarketWalletActionRecoveryApplicationService`
+- `market.application.MarketOrderSagaApplicationService`
+- `market.application.MarketOrderAutoConfirmApplicationService`
+- `market.domain.model.MarketWalletAction`
+- `market.domain.service.MarketWalletActionDomainService`
 - `market.infrastructure.persistence.*`
+- `market.infrastructure.job.MarketWalletActionProcessorHandler`
+- `market.infrastructure.job.MarketWalletActionRecoveryHandler`
 - `wallet.api.action.WalletMarketActionApi`
 
 ## Wallet Ledger
@@ -765,6 +837,7 @@ Core concepts：
 - `wallet_txn`：交易事实。
 - `wallet_entry`：双分录明细。
 - `requestId`：总账幂等键，保持全局唯一。
+- `WalletAmountPolicy.MAX_AMOUNT = 100_000_000`：单次资金动作最大金额。
 
 HTTP writes：
 
@@ -775,21 +848,26 @@ HTTP writes：
 
 Ledger idempotency：
 
-- `requestId` 重放且语义一致：复用或返回等价结果。
+- `requestId` 重放且交易类型、业务类型、业务 id、金额和分录指纹一致：复用或返回等价结果。
 - `requestId` 重放但语义不一致：`REQUEST_REPLAY_CONFLICT`。
 - 资金动作必须通过总账规则保证双分录一致。
+- 总账分录必须借贷平衡，借方总额必须为正且不超过 `WalletAmountPolicy.MAX_AMOUNT`。
+- 金额累加使用 checked arithmetic，溢出会作为业务非法请求拒绝。
 
 Market / reward integration：
 
-- market 托管、放款、退款使用 wallet market action API。
+- market 托管、放款、退款由 market wallet action processor 调用 wallet market action API。
 - growth / reward 积分或奖励写入 wallet，由钱包 requestId 去重。
 - wallet 是在线余额事实 owner；历史 reward account / ledger 表不再作为在线余额运行面。
+- 冻结钱包不能发起用户主动转账、提现或市场购买。
+- 冻结钱包仍可接收系统必须完成的入账或补偿动作，例如退款、放款、奖励和管理员调整。
 
 Failure：
 
 - 资金类 HTTP 写入口幂等存储异常时 fail-closed。
 - 总账 requestId 冲突不会重复记账。
 - 冻结、冲正和转账必须保持账户与 entry 一致。
+- 钱包账户余额更新使用 version 条件更新；余额不足或并发冲突会转成明确业务错误。
 
 Key code：
 
@@ -818,7 +896,9 @@ Current tasks：
 - `searchReindex`
 - `OutboxWorkerScheduler`
 - 帖子热度刷新 / score refresh
-- market 自动确认等业务自动动作
+- `marketOrderAutoConfirm`
+- `marketWalletActionProcessor`
+- `marketWalletActionRecovery`
 
 Rules：
 

@@ -158,7 +158,7 @@ Outbox worker 是共享可靠投递底座，当前主要承担：
 后台任务分两类：
 
 - 本地 `@Scheduled`：应用内持续型任务，例如 outbox worker、帖子热度刷新。
-- XXL-Job：控制面触发的离散任务，例如 `pendingRegistrationUserCleanup`、`searchReindex`。
+- XXL-Job：控制面触发的离散任务，例如 `pendingRegistrationUserCleanup`、`searchReindex`、`marketOrderAutoConfirm`、`marketWalletActionProcessor`、`marketWalletActionRecovery`。
 
 约束：
 
@@ -166,6 +166,13 @@ Outbox worker 是共享可靠投递底座，当前主要承担：
 - 入口必须回到 owner `ApplicationService` 或 owner action API。
 - 需要集群单实例执行的任务使用 single-flight 或 owner 内部锁。
 - 清理/补偿任务必须尽量幂等。
+
+Market scheduler jobs：
+
+- `marketOrderAutoConfirm`：扫描到期订单，由 market owner 判断是否可自动确认，只写 release command。
+- `marketWalletActionProcessor`：批量 claim due `market_wallet_action`，调用 wallet owner API，并推进 market saga 状态。
+- `marketWalletActionRecovery`：恢复过期 processing lease，补齐缺失 action，并把已有 `wallet_txn_id` 重新应用到订单 / 争议状态。
+- 这些 job 都可以重跑；重复执行依赖 `market_wallet_action.request_id`、`wallet_txn.request_id` 和订单条件更新保证幂等。
 
 XXL-JOB Admin 本地入口：
 
@@ -245,3 +252,28 @@ curl -fsS "http://localhost:18848/nacos/v1/ns/instance/list?serviceName=im-realt
 - `PostOutboxHandler` 是否报错。
 - ES alias `community_posts_alias` 指向哪个真实索引。
 - 必要时触发 `POST /api/ops/search/reindex`。
+
+### 市场订单资金状态卡住
+
+检查：
+
+- `market_order.status` 是否处于 `ESCROW_PENDING`、`ESCROW_CANCEL_PENDING`、`RELEASE_PENDING`、`REFUND_PENDING`、`DISPUTE_RELEASE_PENDING` 或 `DISPUTE_REFUND_PENDING`。
+- `market_wallet_action` 是否存在对应 `order_id + action_type`。
+- action 是否长时间停在 `PENDING` / `RETRYING`；若是，检查 `marketWalletActionProcessor` XXL job 和应用日志。
+- action 是否长时间停在 `PROCESSING`；若是，检查 `processing_lease_until` 是否过期，并运行或排查 `marketWalletActionRecovery`。
+- action 是否已有 `wallet_txn_id` 但状态不是 `SUCCEEDED`；恢复 job 应尝试继续推进 market saga 状态。
+- action 为 `FAILED` 时，根据 `failure_code` / `last_error` 判断是业务失败、钱包余额/状态问题，还是需要人工修数据后重试。
+
+## 常用验证命令
+
+文档或代码改动后按影响面选择：
+
+```bash
+git diff --check -- docs/handbook
+cd backend && mvn test
+cd backend && mvn -q -DskipTests -pl :community-app -am package
+cd frontend && npm test
+cd frontend && npm run build
+```
+
+全栈联调仍优先走 [local-development.md](local-development.md) 的 `deployment.sh`。只改 handbook 时，至少运行 `git diff --check -- docs/handbook`。

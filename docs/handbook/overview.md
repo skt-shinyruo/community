@@ -75,6 +75,12 @@ HTTP write
 
 当前默认配置里，发帖相关真正走 outbox 可靠投递的是搜索投影；通知是本地 `AFTER_COMMIT` best-effort 投影；积分和任务进度已经收敛为当前用例内同步 owner-domain API 协作。
 
+### 资金写路径可能先进入 pending
+
+钱包充值、提现、转账是 wallet owner 的同步写能力；市场下单、确认、取消和争议裁决则先写 market 主事实和 `market_wallet_action` durable command，再由后台 processor 调 wallet owner API 完成 escrow / release / refund。
+
+这意味着市场订单返回成功时，可能只是“订单请求已接受并进入资金处理中”，例如 `ESCROW_PENDING`、`RELEASE_PENDING`、`REFUND_PENDING`。客户端和后台页面应把这些状态显示为处理中，不能把 HTTP 200 当成资金已经落账。
+
 ### IM 是双服务模型
 
 IM 不是 `community-app` 里的普通包，而是独立子系统：
@@ -170,6 +176,18 @@ POST /api/im/sessions -> WS /ws/im/workers/{workerId}
 - notice：after-commit best-effort，失败只记录日志。
 - IM policy：`community-app` snapshot + outbox -> Kafka 增量事件。
 - analytics：Redis HyperLogLog / Bitmap 写入，具体采集面以当前 filter 和配置为准。
+
+### Saga command 完成
+
+市场资金动作的 `market_wallet_action` 有自己的状态机。HTTP 成功只表示 command 已写入；真正完成要看 action 进入 `SUCCEEDED` / `CANCELLED`，以及订单或争议状态从 pending 状态被条件推进。
+
+## 前端和客户端口径
+
+- Vue3 SPA 默认通过 gateway 访问 `/api/**`、`/files/**` 和 IM `wsUrl`；本地 Vite / Nginx 场景会推断 `localhost:12880` 作为 API base。
+- access token 存在前端内存；refresh token 由 HttpOnly cookie 自动携带。普通业务请求 `401` 后，前端会调用 `/api/auth/refresh`，成功后重试原请求。
+- HTTP 返回统一 `Result<T>`；客户端要同时看 HTTP status 和 `Result.code` / `message`，排障时保留 `traceId`。
+- 高风险写接口应使用稳定的 `Idempotency-Key` 或兼容 body `requestId`，同一次业务尝试重试时复用同一个值。
+- IM 发送侧使用 `clientMsgId` 做消息级幂等；`ack` / `sendAccepted` 是接单语义，最终消息状态仍以 `im-core` history 为准。
 
 ## 推荐源码阅读顺序
 

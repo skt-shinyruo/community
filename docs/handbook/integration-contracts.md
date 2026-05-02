@@ -46,8 +46,17 @@ caller ApplicationService
 - social 解析内容实体：`content.api.query.ContentEntityQueryApi`。
 - content / social 推进成长任务：`growth.api.action.*`。
 - content / social 发放积分或奖励：wallet / growth owner action。
-- market 资金托管、放款、退款：`wallet.api.action.WalletMarketActionApi`。
+- market 资金托管、放款、退款：由 market wallet action processor 调用 `wallet.api.action.WalletMarketActionApi`。
 - ops 触发 search reindex：`search.api.action.SearchReindexActionApi`。
+
+Market wallet action API 语义：
+
+- market HTTP 下单、确认、取消和争议裁决不在原 market 事务内直接写 wallet ledger。
+- market 先写 `market_wallet_action`，由 processor 在事务外调用 `WalletMarketActionApi`。
+- wallet `requestId` 由 market 服务端派生，格式为 `market-order:<orderId>:<action>`。
+- wallet API 重放必须匹配交易类型、业务 id、金额和分录语义；不匹配返回 replay conflict。
+- `escrowOrder` 要求用户钱包 active，属于用户主动支出。
+- `releaseOrder` / `refundOrder` 是系统履约或补偿入账，不应因收款方钱包冻结而永久失败。
 
 ## 异步 Event Contract
 
@@ -163,7 +172,32 @@ Idempotency-Key: <unique-key>
 
 钱包和市场兼容旧 body `requestId`，但 header 优先；header/body 不一致返回 `400`。
 
+资金相关写接口补充：
+
+- 钱包充值、提现、转账和市场下单的 HTTP `Idempotency-Key` 只保护对外请求重放。
+- 钱包总账另有 `wallet_txn.request_id`，由应用层派生，例如 `wallet:transfer:<orderId>` 或 `market-order:<orderId>:<action>`。
+- 市场下单成功返回时，订单可能仍处于 `ESCROW_PENDING`，不表示 wallet escrow 已落账。
+- 市场确认、取消和争议裁决可能返回 pending money state；最终资金结果由 `market_wallet_action` processor / recovery 推进。
+- 客户端和后台页面应把 pending 状态展示为处理中，而不是按完成态处理。
+
 完整执行语义见 [reliability.md](reliability.md)。
+
+## 浏览器客户端契约
+
+当前 Vue3 SPA 的默认约定：
+
+- API base 优先读 runtime config，其次读 Vite env，最后在本地 `5173` / `12881` / `12890` / `12888` 场景推断 `localhost:12880`。
+- access token 只保存在内存；refresh token 由 HttpOnly cookie 承载。业务请求 `401` 后前端会调用 `/api/auth/refresh`，成功后重试原请求。
+- 全局错误展示优先使用后端 `Result.message` 和 `traceId`。
+- 当前前端通用 axios interceptor 只为发帖和评论自动附加 `Idempotency-Key`；钱包和市场页面仍通过 body `requestId` 走兼容路径。新客户端和后续前端改造应优先使用 header。
+
+字段约定：
+
+- notice 批量已读：`PUT /api/notices/read` 的 `ids` 是 UUID 字符串数组。
+- market 地址：创建/更新使用 `defaultAddress`，不使用 legacy alias。
+- market 订单：物理商品下单需要 active `addressId`，服务端保存地址快照；订单成功后可能处于资金 pending 状态。
+- wallet 转账：`toUserId` 是用户 UUID 字符串，不是 legacy 数字 id 或用户名。
+- IM WebSocket：客户端按 `/api/im/sessions` 返回的 `wsUrl` 建连，并为每条发送消息提供 `clientMsgId`。
 
 ## 对外 HTTP 错误契约
 

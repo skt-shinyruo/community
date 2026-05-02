@@ -85,6 +85,14 @@ com.nowcoder.community.<domain>
 
 允许有少量域特定 adapter 包，但职责必须能映射回上面的层次。例如 owner API adapter 可以位于 `infrastructure.api`，Spring event / outbox adapter 可以位于 `infrastructure.event`。
 
+## 非 business 代码边界
+
+- `frontend/` 不承载后端 owner 规则。前端可以做交互校验、表单规范化、pending 状态展示和 refresh retry，但不能把浏览器字段当作 owner 事实来源。
+- `community-gateway` 是入口和路由层，不承载主业务用例。新增浏览器入口、CORS、WebSocket proxy 或 trace 规则时，应保持 gateway-first，但业务授权和 owner 规则仍回到下游服务。
+- `community-im` 独立承担 IM 消息权威状态和 realtime 连接态，不把私信/群消息重新塞回 `community-app` 的 legacy `message` 表。
+- `community-common/*` 只能提供横切基础设施，不定义具体业务域 owner 语义。
+- `deploy/` 和本地控制面只能描述运行拓扑和 dev-only 能力，不能成为业务规则来源。
+
 ## 层规则
 
 ### Controller / Listener / Handler / Bridge / Enqueuer / Job
@@ -222,3 +230,14 @@ backend/community-app/src/test/java/com/nowcoder/community/app/arch
 ```
 
 当前 controller / listener / handler / bridge / enqueuer / job 应用边界 baseline 应保持为空；遗留的非协作面依赖只能收缩，不允许扩散。新增或修改架构规则时，必须同步更新本文件、[system-design.md](system-design.md)、严格 DDD 设计 spec 和对应 ArchUnit 测试。
+
+## 文档守卫
+
+架构规则变化必须同时更新 handbook 和守卫测试；业务实现变化不一定修改本文件，但只要改变了 owner、跨域协作入口、deployable 边界或禁止模式，就不能只改代码。
+
+普通业务文档更新按职责分流：
+
+- 链路和失败语义写到 [business-flows.md](business-flows.md)。
+- 协作协议写到 [integration-contracts.md](integration-contracts.md)。
+- 存储和 topic 写到 [data-and-storage.md](data-and-storage.md)。
+- 运行排障写到 [operations.md](operations.md)。

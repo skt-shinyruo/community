@@ -42,6 +42,19 @@ JWT 签发仍由 `community-app` 的 auth 模块负责。
 
 `GET /api/auth/me` 直接读取已验证 JWT claim，不实时查库；角色变化通常要等下一次 access token 重新签发后反映。
 
+## 找回密码和凭证变更
+
+找回密码链路的安全目标是防用户枚举、防 reset link 泄漏、防旧 session 继续可用：
+
+- 请求重置必须通过验证码。
+- 邮箱不存在、用户未激活或状态不可用时也返回受理结果，但不签发 token、不发送邮件。
+- reset link 只通过邮件下发，HTTP 响应体不返回链接或 token。
+- token 存储在 `auth:pwdreset:<token>`，带短 TTL，确认时一次性消费。
+- 确认重置也需要验证码。
+- 新密码由 user owner 的密码策略校验：长度 8 到 `ValidationLimits.PASSWORD_MAX`，至少包含两类字符。
+- 密码更新成功后撤销该用户 refresh sessions，避免旧 cookie 继续刷新 access token。
+- prod 下 `AuthStartupValidator` 要求找回密码基础配置可用，禁止 reset link 回传类 dev-only 行为。
+
 ## CORS 和 OriginGuard
 
 gateway-first 模式下，浏览器入口配置来自：
@@ -170,6 +183,13 @@ gateway 路径级限流：
 - 记录调用者、路径、状态、耗时、traceId 等信息。
 
 审计日志用于追踪“谁在什么时候调用了哪个写接口，结果如何”。
+
+## 响应数据最小暴露
+
+- 公共用户资料和内容作者摘要不返回钱包余额、钱包状态、refresh token、密码 hash、reset token 或内部处罚实现细节。
+- 钱包余额和交易只能通过 `/api/wallet/**` 的登录态接口读取；管理员钱包操作走 `/api/wallet/admin/**`。
+- notice、content、market 等响应只暴露展示所需快照。涉及资金、地址、治理原因时，返回字段要以 owner DTO 为准，不复用 persistence dataobject。
+- internal projection endpoint 只给服务间同步使用，不面向浏览器；浏览器需要的 IM 状态通过 `/api/im/**` 和 WebSocket frame 获得。
 
 ## 头像上传安全
 

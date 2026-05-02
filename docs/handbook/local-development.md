@@ -147,6 +147,40 @@ single / cluster 都可以叠加 observability：
 
 默认浏览器流量经 `community-gateway`。除 observability 和本地控制面外，内部依赖端口不应直接暴露给浏览器工作流。
 
+## 前端 API 解析
+
+本地前端通过 `frontend/src/config/endpointResolution.js` 解析 API 入口：
+
+- runtime config 优先。
+- 其次使用 Vite env，例如 `VITE_API_BASE_URL` / `VITE_IM_CORE_BASE_URL`。
+- 当页面来自 `localhost:5173`、`12881`、`12890` 或 `12888` 时，默认推断 gateway 为 `http://localhost:12880`。
+
+因此本地 Vite dev server、frontend-nginx、Mock Data Studio 和 observability 页面都应继续通过 gateway 访问业务 API，而不是直接连 `community-app` 或 IM 内部实例。
+
+## 本地构建和验证
+
+后端从 `backend/` 执行：
+
+```bash
+cd backend
+mvn test
+mvn -q -DskipTests -pl :community-app -am package
+```
+
+前端从 `frontend/` 执行：
+
+```bash
+cd frontend
+npm test
+npm run build
+```
+
+handbook 文档变更从仓库根目录执行：
+
+```bash
+git diff --check -- docs/handbook
+```
+
 ## Compose 文件分层
 
 - `deploy/compose.yml`：共享顶层元数据与 volume。

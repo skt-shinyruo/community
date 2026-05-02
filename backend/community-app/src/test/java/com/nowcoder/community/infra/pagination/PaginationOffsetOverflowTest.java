@@ -69,12 +69,13 @@ class PaginationOffsetOverflowTest {
     @Test
     void followServiceShouldNotPassNegativeOffsetWhenPageIsHuge() {
         FollowRepository followRepository = mock(FollowRepository.class);
-        when(followRepository.listFollowers(anyInt(), any(), anyInt(), anyInt())).thenReturn(List.of());
+        BlockRepository blockRepository = mock(BlockRepository.class);
+        when(followRepository.listFollowersExcludingBlocked(anyInt(), any(), any(), anyInt(), anyInt())).thenReturn(List.of());
         UUID userId = uuid(2);
 
         FollowApplicationService service = new FollowApplicationService(
                 followRepository,
-                mock(BlockRepository.class),
+                blockRepository,
                 new FollowDomainService(),
                 new BlockDomainService(),
                 mock(SocialDomainEventPublisher.class)
@@ -83,7 +84,7 @@ class PaginationOffsetOverflowTest {
         service.listFollowers(USER, userId, Integer.MAX_VALUE, 50);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
-        verify(followRepository).listFollowers(eq(USER), eq(userId), offsetCaptor.capture(), eq(50));
+        verify(followRepository).listFollowersExcludingBlocked(eq(USER), eq(userId), eq(blockRepository), offsetCaptor.capture(), eq(50));
         assertThat(offsetCaptor.getValue()).isGreaterThanOrEqualTo(0);
     }
 

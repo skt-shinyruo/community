@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.analytics.api.action.AnalyticsIngestActionApi;
 import com.nowcoder.community.auth.application.command.LoginCommand;
+import com.nowcoder.community.auth.application.command.RefreshCommand;
 import com.nowcoder.community.auth.application.port.AuthTokenPort;
 import com.nowcoder.community.auth.application.result.LoginResult;
 import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
@@ -248,6 +249,20 @@ class LoginApplicationServiceTest {
 
         assertThat(thrown).isInstanceOf(RuntimeException.class).hasMessage("issue failed");
         assertThat(output.getAll()).doesNotContain("community.category=security community.action=login community.outcome=success");
+    }
+
+    @Test
+    void refreshShouldLetRotateDecideInvalidTokenSoReplayDetectionCanRun() {
+        when(refreshTokenService.find("replayed-token")).thenReturn(null);
+        when(refreshTokenService.rotate("replayed-token")).thenReturn(null);
+
+        Throwable thrown = catchThrowable(() -> authService.refresh(new RefreshCommand("replayed-token")));
+
+        assertThat(thrown).isInstanceOf(BusinessException.class);
+        assertThat(((BusinessException) thrown).getErrorCode()).isEqualTo(AuthErrorCode.REFRESH_TOKEN_INVALID);
+        verify(refreshTokenService).rotate("replayed-token");
+        verify(refreshTokenService, never()).find("replayed-token");
+        verify(userCredentialQueryApi, never()).getByUserId(any());
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.domain.event.CommentCreatedDomainEvent;
+import com.nowcoder.community.content.domain.event.CommentDeletedDomainEvent;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -42,5 +43,31 @@ class CommentContractEventApplicationServiceTest {
         assertThat(payload.getTargetUserId()).isEqualTo(uuid(6));
         assertThat(payload.getContent()).isEqualTo("reply content");
         assertThat(payload.getCreateTime()).isEqualTo(createTime);
+    }
+
+    @Test
+    void publishCommentDeletedShouldCopyDeletedFieldsToCommentPayload() {
+        ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
+        CommentContractEventApplicationService service = new CommentContractEventApplicationService(eventPublisher);
+        Instant deletedTime = Instant.parse("2026-04-29T09:30:00Z");
+
+        service.publishCommentDeleted(new CommentDeletedDomainEvent(
+                uuid(1),
+                uuid(2),
+                uuid(3),
+                4,
+                uuid(5),
+                deletedTime
+        ));
+
+        ArgumentCaptor<CommentPayload> captor = ArgumentCaptor.forClass(CommentPayload.class);
+        verify(eventPublisher).publishCommentDeleted(captor.capture());
+        CommentPayload payload = captor.getValue();
+        assertThat(payload.getCommentId()).isEqualTo(uuid(1));
+        assertThat(payload.getPostId()).isEqualTo(uuid(2));
+        assertThat(payload.getUserId()).isEqualTo(uuid(3));
+        assertThat(payload.getEntityType()).isEqualTo(4);
+        assertThat(payload.getEntityId()).isEqualTo(uuid(5));
+        assertThat(payload.getCreateTime()).isEqualTo(deletedTime);
     }
 }

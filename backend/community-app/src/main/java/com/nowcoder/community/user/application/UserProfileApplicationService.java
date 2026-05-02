@@ -52,8 +52,6 @@ public class UserProfileApplicationService {
                 user.createTime(),
                 user.score(),
                 user.level(),
-                user.walletBalance(),
-                user.walletStatus(),
                 userLevelEnabled,
                 userLevelEnabled ? levelSummary.userLevel() : null,
                 userLevelEnabled ? levelSummary.signInDaysInWindow() : null,

@@ -38,6 +38,7 @@ public class RefreshTokenApplicationService {
     public IssuedRefreshToken rotate(String refreshToken) {
         RefreshTokenRepository.StoredRefreshToken consumed = refreshTokenStore.consume(refreshToken);
         if (consumed == null) {
+            maybeRevokeFamilyForReusedToken(refreshToken);
             return null;
         }
         if (refreshTokenDomainService.isExpired(consumed.expiresAt(), Instant.now())) {
@@ -111,6 +112,22 @@ public class RefreshTokenApplicationService {
         Instant expiresAt = Instant.now().plusSeconds(jwtProperties.getRefreshTokenTtlSeconds());
         refreshTokenStore.store(tokenValue, userId, familyId, expiresAt);
         return new IssuedRefreshToken(tokenValue, buildCookie(tokenValue));
+    }
+
+    private void maybeRevokeFamilyForReusedToken(String refreshToken) {
+        RefreshTokenRepository.RevokedRefreshToken revoked = refreshTokenStore.findRevoked(refreshToken);
+        if (revoked == null) {
+            return;
+        }
+        Instant now = Instant.now();
+        if (refreshTokenDomainService.shouldRevokeFamilyOnReuse(
+                revoked.revokedAt(),
+                revoked.expiresAt(),
+                now,
+                jwtProperties.getRefreshReuseGraceSeconds()
+        )) {
+            refreshTokenStore.revokeFamily(revoked.familyId());
+        }
     }
 
     public record IssuedRefreshToken(String refreshToken, RefreshCookieSpec cookie) {

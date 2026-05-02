@@ -14,18 +14,24 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 public class UserRegistrationDomainService {
 
     private final Clock clock;
+    private final PasswordPolicyDomainService passwordPolicyDomainService;
 
     public UserRegistrationDomainService() {
-        this(Clock.systemUTC());
+        this(Clock.systemUTC(), new PasswordPolicyDomainService());
     }
 
     public UserRegistrationDomainService(Clock clock) {
+        this(clock, new PasswordPolicyDomainService());
+    }
+
+    public UserRegistrationDomainService(Clock clock, PasswordPolicyDomainService passwordPolicyDomainService) {
         this.clock = clock;
+        this.passwordPolicyDomainService = passwordPolicyDomainService;
     }
 
     public RegistrationInput requireValidRegistration(String username, String password, String email) {
         String trimmedUsername = safeTrim(username);
-        String trimmedPassword = safeTrim(password);
+        String trimmedPassword = passwordPolicyDomainService.requireValidPassword(password);
         String trimmedEmail = safeTrim(email);
         if (!hasText(trimmedUsername)
                 || !hasText(trimmedPassword)

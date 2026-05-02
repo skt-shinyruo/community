@@ -12,17 +12,20 @@ import org.springframework.data.redis.core.script.RedisScript;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -120,6 +123,74 @@ class RedisRefreshTokenRepositoryTest {
         assertThat(found.familyId()).isEqualTo("f1");
         verify(valueOps).getAndDelete(eq("auth:refresh:t1"));
         verify(setOps).remove(eq("auth:refresh:family:f1"), eq("t1"));
+        verify(valueOps).set(eq("auth:refresh:revoked:t1"), anyString(), anyLong(), eq(TimeUnit.SECONDS));
+    }
+
+    @Test
+    void findRevokedShouldReturnConsumedTokenTombstoneMetadataAndStoreStillRejectsRevokedFamily() throws Exception {
+        UUID userId = UUID.fromString("00000000-0000-7000-8000-000000000007");
+        Instant expiresAt = Instant.now().plusSeconds(120);
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOps = mock(ValueOperations.class);
+        @SuppressWarnings("unchecked")
+        SetOperations<String, String> setOps = mock(SetOperations.class);
+
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(redisTemplate.opsForSet()).thenReturn(setOps);
+
+        ObjectMapper mapper = objectMapper();
+        String activeJson = mapper.writeValueAsString(
+                new RefreshTokenRepository.StoredRefreshToken("t1", userId, "f1", expiresAt)
+        );
+        String tombstoneJson = mapper.writeValueAsString(Map.of(
+                "userId", userId,
+                "familyId", "f1",
+                "expiresAt", expiresAt,
+                "revokedAt", Instant.now().minusSeconds(2)
+        ));
+        when(valueOps.getAndDelete(eq("auth:refresh:t1"))).thenReturn(activeJson, (String) null);
+        when(valueOps.get(eq("auth:refresh:revoked:t1"))).thenReturn(tombstoneJson);
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), anyString(), anyString(), anyString()))
+                .thenReturn(0L);
+
+        RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, mapper);
+
+        assertThat(store.consume("t1")).isNotNull();
+        assertThat(store.consume("t1")).isNull();
+        RefreshTokenRepository.RevokedRefreshToken revoked = store.findRevoked("t1");
+        assertThatThrownBy(() -> store.store("t3", userId, "f1", expiresAt))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("refresh token family");
+
+        assertThat(revoked).isNotNull();
+        assertThat(revoked.refreshToken()).isEqualTo("t1");
+        assertThat(revoked.userId()).isEqualTo(userId);
+        assertThat(revoked.familyId()).isEqualTo("f1");
+        verify(valueOps).set(eq("auth:refresh:revoked:t1"), anyString(), anyLong(), eq(TimeUnit.SECONDS));
+        verify(valueOps, never()).set(eq("auth:refresh:family:revoked:f1"), eq("1"), anyLong(), eq(TimeUnit.SECONDS));
+        verify(redisTemplate, never()).delete(eq("auth:refresh:family:f1"));
+    }
+
+    @Test
+    void consumeMissingTokenShouldNotReadTombstoneOrRevokeFamily() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOps = mock(ValueOperations.class);
+        @SuppressWarnings("unchecked")
+        SetOperations<String, String> setOps = mock(SetOperations.class);
+
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(redisTemplate.opsForSet()).thenReturn(setOps);
+        when(valueOps.getAndDelete(eq("auth:refresh:t1"))).thenReturn(null);
+
+        RedisRefreshTokenRepository store = new RedisRefreshTokenRepository(redisTemplate, objectMapper());
+
+        assertThat(store.consume("t1")).isNull();
+
+        verify(valueOps, never()).get(eq("auth:refresh:revoked:t1"));
+        verify(valueOps, never()).set(eq("auth:refresh:family:revoked:f1"), anyString(), anyLong(), eq(TimeUnit.SECONDS));
+        verify(redisTemplate, never()).delete(eq("auth:refresh:family:f1"));
     }
 
     @Test
@@ -144,5 +215,7 @@ class RedisRefreshTokenRepositoryTest {
 
         verify(redisTemplate).delete(eq("auth:refresh:t1"));
         verify(setOps).remove(eq("auth:refresh:family:f1"), eq("t1"));
+        verify(valueOps).set(eq("auth:refresh:revoked:t1"), anyString(), anyLong(), eq(TimeUnit.SECONDS));
     }
+
 }

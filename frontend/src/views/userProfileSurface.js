@@ -4,19 +4,9 @@ function toCount(value) {
 }
 
 export function buildProfileWalletAsset({ profile, authed, isSelf } = {}) {
-  const walletBalance = toCount(profile?.walletBalance)
-
-  if (authed && isSelf && walletBalance > 0) {
-    return {
-      valueText: `${walletBalance} 积分`,
-      chipText: `${walletBalance} 积分`,
-      description: '主页资产展示已切到钱包余额，当前展示的是你的真实钱包快照。'
-    }
-  }
-
   if (authed && isSelf) {
     return {
-      valueText: '以钱包页为准',
+      valueText: '钱包页为准',
       chipText: '钱包页为准',
       description: '当前主页还未接入真实钱包余额，请以钱包页里的最新余额为准。'
     }

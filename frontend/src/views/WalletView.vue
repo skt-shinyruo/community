@@ -102,7 +102,7 @@ import UiCard from '../components/ui/UiCard.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
-import { normalizeOpaqueId } from '../utils/opaqueId'
+import { isUuid, normalizeOpaqueId } from '../utils/opaqueId'
 import { buildWalletState } from './walletState'
 
 const loading = ref(false)
@@ -227,7 +227,7 @@ async function submitTransfer() {
   const toUserId = normalizeOpaqueId(transferForm.value.toUserId)
   let amount = 0
   try {
-    if (!toUserId) {
+    if (!isUuid(toUserId)) {
       throw new Error('请输入有效的目标用户 ID')
     }
     amount = requirePositiveAmount(transferForm.value.amount, '请输入有效的转账金额')

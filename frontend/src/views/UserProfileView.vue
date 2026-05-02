@@ -54,7 +54,7 @@
               {{ isBlocked ? '已屏蔽' : '屏蔽' }}
             </UiButton>
             <UiButton variant="secondary" :disabled="actionLoading" @click="reportOpen = true">举报</UiButton>
-            <RouterLink class="btn-icon profile-message-link" :to="`/messages`" title="发私信" aria-label="发私信">
+            <RouterLink class="btn-icon profile-message-link" :to="privateMessageTo" title="发私信" aria-label="发私信">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
             </RouterLink>
           </template>
@@ -217,6 +217,7 @@ import UiRoleBadge from '../components/ui/UiRoleBadge.vue'
 import ReportModal from '../components/modals/ReportModal.vue'
 import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
 import { buildCommunityNextSteps, buildCommunitySignals, buildProfileWalletAsset, describeFollowStatusText } from './userProfileSurface'
+import { buildCanonicalConversationId } from './conversationDetailState'
 import { buildProfileTimeline, collectTimelineUserIds } from './userProfileTimeline'
 
 const emit = defineEmits(['trace'])
@@ -256,6 +257,10 @@ const joinedYear = computed(() => {
   return Number.isFinite(y) ? String(y) : ''
 })
 const isSelfProfile = computed(() => sameOpaqueId(meUserId.value, userId.value))
+const privateMessageTo = computed(() => {
+  const conversationId = buildCanonicalConversationId(meUserId.value, userId.value)
+  return conversationId ? `/messages/${conversationId}` : '/messages'
+})
 const showUserLevel = computed(() => profile.value?.showUserLevel === true)
 const walletAsset = computed(() =>
   buildProfileWalletAsset({

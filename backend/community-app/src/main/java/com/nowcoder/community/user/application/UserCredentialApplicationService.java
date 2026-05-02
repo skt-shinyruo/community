@@ -4,10 +4,13 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.application.result.UserAuthenticationResult;
 import com.nowcoder.community.user.application.result.UserCredentialResult;
 import com.nowcoder.community.user.domain.model.UserAccount;
+import com.nowcoder.community.user.domain.repository.RefreshTokenSessionRepository;
 import com.nowcoder.community.user.domain.repository.UserRepository;
+import com.nowcoder.community.user.domain.service.PasswordPolicyDomainService;
 import com.nowcoder.community.user.domain.service.UserCredentialDomainService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
@@ -21,14 +24,20 @@ public class UserCredentialApplicationService {
 
     private final UserRepository userRepository;
     private final UserCredentialDomainService userCredentialDomainService;
+    private final PasswordPolicyDomainService passwordPolicyDomainService;
+    private final RefreshTokenSessionRepository refreshTokenSessionRepository;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     public UserCredentialApplicationService(
             UserRepository userRepository,
-            UserCredentialDomainService userCredentialDomainService
+            UserCredentialDomainService userCredentialDomainService,
+            PasswordPolicyDomainService passwordPolicyDomainService,
+            RefreshTokenSessionRepository refreshTokenSessionRepository
     ) {
         this.userRepository = userRepository;
         this.userCredentialDomainService = userCredentialDomainService;
+        this.passwordPolicyDomainService = passwordPolicyDomainService;
+        this.refreshTokenSessionRepository = refreshTokenSessionRepository;
     }
 
     public UserAuthenticationResult authenticate(String username, String password) {
@@ -72,13 +81,24 @@ public class UserCredentialApplicationService {
     }
 
     public void updatePassword(UUID userId, String newPassword) {
+        updatePasswordOnly(userId, newPassword);
+    }
+
+    public void validatePasswordPolicy(String newPassword) {
+        passwordPolicyDomainService.requireValidPassword(newPassword);
+    }
+
+    @Transactional
+    public void resetPasswordAndRevokeRefreshSessions(UUID userId, String newPassword) {
+        updatePasswordOnly(userId, newPassword);
+        refreshTokenSessionRepository.revokeByUserId(userId);
+    }
+
+    private void updatePasswordOnly(UUID userId, String newPassword) {
         if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
-        String trimmedPassword = userCredentialDomainService.trim(newPassword);
-        if (!StringUtils.hasText(trimmedPassword)) {
-            throw new BusinessException(INVALID_ARGUMENT, "newPassword 不能为空");
-        }
+        String trimmedPassword = passwordPolicyDomainService.requireValidPassword(newPassword);
         if (userRepository.findById(userId).isEmpty()) {
             throw new BusinessException(USER_NOT_FOUND);
         }

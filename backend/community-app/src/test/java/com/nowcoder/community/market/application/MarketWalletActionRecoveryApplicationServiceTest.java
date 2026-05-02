@@ -90,6 +90,52 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         assertThat(marketWalletActionMapper.selectByOrderAndType(orderId, "REFUND").getStatus()).isEqualTo("SUCCEEDED");
     }
 
+    @Test
+    void reconcileReleasePendingOrderShouldRepairFailedReleaseActionForRetry() {
+        seedReleasePendingOrder();
+        seedFailedActionWithoutWalletTxn("RELEASE");
+
+        MarketWalletActionRecoveryResult result = recoveryService.reconcileOnce(50);
+
+        assertThat(result.reconciledCount()).isEqualTo(1);
+        assertThat(marketOrderMapper.selectById(orderId).getStatus()).isEqualTo("RELEASE_PENDING");
+        MarketWalletAction action = marketWalletActionMapper.selectByOrderAndType(orderId, "RELEASE");
+        assertThat(action.getStatus()).isEqualTo("RETRYING");
+        assertThat(action.getWalletTxnId()).isNull();
+        assertThat(action.getNextRetryAt()).isNotNull();
+    }
+
+    @Test
+    void reconcileRefundPendingOrderShouldRepairFailedRefundActionForRetry() {
+        seedRefundPendingOrder();
+        seedFailedActionWithoutWalletTxn("REFUND");
+
+        MarketWalletActionRecoveryResult result = recoveryService.reconcileOnce(50);
+
+        assertThat(result.reconciledCount()).isEqualTo(1);
+        assertThat(marketOrderMapper.selectById(orderId).getStatus()).isEqualTo("REFUND_PENDING");
+        MarketWalletAction action = marketWalletActionMapper.selectByOrderAndType(orderId, "REFUND");
+        assertThat(action.getStatus()).isEqualTo("RETRYING");
+        assertThat(action.getWalletTxnId()).isNull();
+        assertThat(action.getNextRetryAt()).isNotNull();
+    }
+
+    @Test
+    void reconcileRefundPendingOrderShouldLeavePermanentFailedRefundVisible() {
+        seedRefundPendingOrder();
+        seedFailedActionWithoutWalletTxn("REFUND", "17001");
+
+        MarketWalletActionRecoveryResult result = recoveryService.reconcileOnce(50);
+
+        assertThat(result.reconciledCount()).isZero();
+        assertThat(result.skippedCount()).isEqualTo(1);
+        assertThat(marketOrderMapper.selectById(orderId).getStatus()).isEqualTo("REFUND_PENDING");
+        MarketWalletAction action = marketWalletActionMapper.selectByOrderAndType(orderId, "REFUND");
+        assertThat(action.getStatus()).isEqualTo("FAILED");
+        assertThat(action.getFailureCode()).isEqualTo("17001");
+        assertThat(action.getNextRetryAt()).isNull();
+    }
+
     private UUID seedProcessingActionWithExpiredLease(Instant expiredAt) {
         UUID actionId = uuid(301);
         UUID actionOrderId = uuid(302);
@@ -101,6 +147,14 @@ class MarketWalletActionRecoveryApplicationServiceTest {
     }
 
     private void seedRefundPendingOrder() {
+        seedWalletPendingOrder("REFUND_PENDING");
+    }
+
+    private void seedReleasePendingOrder() {
+        seedWalletPendingOrder("RELEASE_PENDING");
+    }
+
+    private void seedWalletPendingOrder(String status) {
         listingId = uuid(401);
         orderId = uuid(402);
 
@@ -131,7 +185,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         order.setTotalAmount(12_900L);
         order.setDeliveryModeSnapshot("MANUAL");
         order.setListingTitleSnapshot("二手键盘");
-        order.setStatus("REFUND_PENDING");
+        order.setStatus(status);
         marketOrderMapper.insert(MarketOrderDataObject.from(order));
     }
 
@@ -139,6 +193,18 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         MarketWalletAction action = action(uuid(403), orderId, "REFUND");
         action.setStatus("PROCESSING");
         action.setWalletTxnId(refundTxnId);
+        marketWalletActionMapper.insert(MarketWalletActionDataObject.from(action));
+    }
+
+    private void seedFailedActionWithoutWalletTxn(String actionType) {
+        seedFailedActionWithoutWalletTxn(actionType, "17004");
+    }
+
+    private void seedFailedActionWithoutWalletTxn(String actionType, String failureCode) {
+        MarketWalletAction action = action(uuid(404), orderId, actionType);
+        action.setStatus("FAILED");
+        action.setFailureCode(failureCode);
+        action.setLastError("escrow insufficient");
         marketWalletActionMapper.insert(MarketWalletActionDataObject.from(action));
     }
 

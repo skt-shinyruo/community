@@ -3,7 +3,8 @@ package com.nowcoder.community.user.infrastructure.api;
 import com.nowcoder.community.user.api.action.UserRefreshTokenSessionActionApi;
 import com.nowcoder.community.user.api.model.RefreshTokenSessionView;
 import com.nowcoder.community.user.api.query.UserRefreshTokenSessionQueryApi;
-import com.nowcoder.community.user.infrastructure.persistence.RefreshTokenSessionRepository;
+import com.nowcoder.community.user.application.RefreshTokenSessionApplicationService;
+import com.nowcoder.community.user.application.result.RefreshTokenSessionResult;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -16,10 +17,10 @@ import java.util.UUID;
 @Service
 public class RefreshTokenSessionApiAdapter implements UserRefreshTokenSessionQueryApi, UserRefreshTokenSessionActionApi {
 
-    private final RefreshTokenSessionRepository repository;
+    private final RefreshTokenSessionApplicationService applicationService;
 
-    public RefreshTokenSessionApiAdapter(RefreshTokenSessionRepository repository) {
-        this.repository = repository;
+    public RefreshTokenSessionApiAdapter(RefreshTokenSessionApplicationService applicationService) {
+        this.applicationService = applicationService;
     }
 
     @Override
@@ -27,7 +28,7 @@ public class RefreshTokenSessionApiAdapter implements UserRefreshTokenSessionQue
         if (!isValidTokenHash(tokenHash) || userId == null || !StringUtils.hasText(familyId) || expiresAt == null) {
             return;
         }
-        repository.store(tokenHash.trim(), userId, familyId.trim(), expiresAt);
+        applicationService.store(tokenHash.trim(), userId, familyId.trim(), expiresAt);
     }
 
     @Override
@@ -35,8 +36,7 @@ public class RefreshTokenSessionApiAdapter implements UserRefreshTokenSessionQue
         if (!isValidTokenHash(tokenHash)) {
             return null;
         }
-        RefreshTokenSessionRepository.RefreshTokenRecord record = repository.find(tokenHash.trim());
-        return toView(record);
+        return toView(applicationService.find(tokenHash.trim()));
     }
 
     @Override
@@ -44,8 +44,7 @@ public class RefreshTokenSessionApiAdapter implements UserRefreshTokenSessionQue
         if (!isValidTokenHash(tokenHash)) {
             return null;
         }
-        RefreshTokenSessionRepository.RefreshTokenRecord record = repository.consumeActive(tokenHash.trim(), Instant.now());
-        return toView(record);
+        return toView(applicationService.consume(tokenHash.trim()));
     }
 
     @Override
@@ -53,7 +52,7 @@ public class RefreshTokenSessionApiAdapter implements UserRefreshTokenSessionQue
         if (!isValidTokenHash(tokenHash)) {
             return;
         }
-        repository.revoke(tokenHash.trim());
+        applicationService.revoke(tokenHash.trim());
     }
 
     @Override
@@ -61,7 +60,15 @@ public class RefreshTokenSessionApiAdapter implements UserRefreshTokenSessionQue
         if (!StringUtils.hasText(familyId)) {
             return 0;
         }
-        return repository.revokeFamily(familyId.trim());
+        return applicationService.revokeFamily(familyId.trim());
+    }
+
+    @Override
+    public int revokeByUserId(UUID userId) {
+        if (userId == null) {
+            return 0;
+        }
+        return applicationService.revokeByUserId(userId);
     }
 
     @Override
@@ -69,19 +76,19 @@ public class RefreshTokenSessionApiAdapter implements UserRefreshTokenSessionQue
         if (cutoff == null) {
             return 0;
         }
-        return repository.deleteExpiredBefore(cutoff);
+        return applicationService.deleteExpiredBefore(cutoff);
     }
 
-    private RefreshTokenSessionView toView(RefreshTokenSessionRepository.RefreshTokenRecord record) {
-        if (record == null) {
+    private RefreshTokenSessionView toView(RefreshTokenSessionResult result) {
+        if (result == null) {
             return null;
         }
         return new RefreshTokenSessionView(
-                record.tokenHash(),
-                record.userId(),
-                record.familyId(),
-                record.expiresAt(),
-                record.revokedAt()
+                result.tokenHash(),
+                result.userId(),
+                result.familyId(),
+                result.expiresAt(),
+                result.revokedAt()
         );
     }
 

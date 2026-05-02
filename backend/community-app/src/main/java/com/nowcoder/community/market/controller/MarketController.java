@@ -206,7 +206,7 @@ public class MarketController {
                 request.getDistrict(),
                 request.getDetailAddress(),
                 request.getPostalCode(),
-                request.isDefault()
+                request.isDefaultAddress()
         ))));
     }
 
@@ -225,7 +225,7 @@ public class MarketController {
                 request.getDistrict(),
                 request.getDetailAddress(),
                 request.getPostalCode(),
-                request.isDefault()
+                request.isDefaultAddress()
         ))));
     }
 

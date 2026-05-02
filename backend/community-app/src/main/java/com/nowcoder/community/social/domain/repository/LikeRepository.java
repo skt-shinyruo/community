@@ -1,21 +1,44 @@
 package com.nowcoder.community.social.domain.repository;
 
+import com.nowcoder.community.social.domain.model.LikeRelation;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface LikeRepository {
 
     boolean addLike(UUID userId, int entityType, UUID entityId);
 
+    default boolean addLike(UUID userId, int entityType, UUID entityId, UUID entityUserId) {
+        return addLike(userId, entityType, entityId);
+    }
+
     boolean removeLike(UUID userId, int entityType, UUID entityId);
+
+    default Optional<LikeRelation> findLike(UUID userId, int entityType, UUID entityId) {
+        if (!isLiked(userId, entityType, entityId)) {
+            return Optional.empty();
+        }
+        return Optional.of(new LikeRelation(userId, entityType, entityId, null));
+    }
+
+    default long deleteLikesByEntity(int entityType, UUID entityId) {
+        return 0;
+    }
 
     boolean isLiked(UUID userId, int entityType, UUID entityId);
 
     long countEntityLikes(int entityType, UUID entityId);
 
     long incrementUserLikeCount(UUID userId, long delta);
+
+    default long resetUserLikeCount(UUID userId, long likeCount) {
+        long current = getUserLikeCount(userId);
+        return incrementUserLikeCount(userId, Math.max(0, likeCount) - current);
+    }
 
     long getUserLikeCount(UUID userId);
 
@@ -41,15 +64,21 @@ public interface LikeRepository {
      */
     default boolean setLike(UUID actorUserId, int entityType, UUID entityId, UUID entityUserId, boolean liked) {
         if (liked) {
-            boolean added = addLike(actorUserId, entityType, entityId);
+            boolean added = addLike(actorUserId, entityType, entityId, entityUserId);
             if (added && entityUserId != null) {
                 incrementUserLikeCount(entityUserId, 1);
             }
             return added;
         }
+        UUID ownerUserId = entityUserId;
+        if (ownerUserId == null) {
+            ownerUserId = findLike(actorUserId, entityType, entityId)
+                    .map(LikeRelation::entityUserId)
+                    .orElse(null);
+        }
         boolean removed = removeLike(actorUserId, entityType, entityId);
-        if (removed && entityUserId != null) {
-            incrementUserLikeCount(entityUserId, -1);
+        if (removed && ownerUserId != null) {
+            incrementUserLikeCount(ownerUserId, -1);
         }
         return removed;
     }

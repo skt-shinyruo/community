@@ -7,6 +7,7 @@ import com.nowcoder.community.wallet.application.result.WalletTxnResult;
 import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
 import com.nowcoder.community.wallet.domain.model.WalletTxnType;
+import com.nowcoder.community.wallet.domain.service.WalletAmountPolicy;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,7 +49,6 @@ public class WalletMarketApplicationService {
     @Transactional
     public WalletMarketTxnResult releaseOrder(WalletMarketTxnCommand command) {
         validateRequest(command.requestId(), command.userId(), command.amount(), command.bizId());
-        walletAccountService.requireUserWalletActive(command.userId());
         WalletTxnResult result = walletLedgerService.post(new WalletLedgerCommand(
                 command.requestId(),
                 WalletTxnType.ORDER_RELEASE,
@@ -65,7 +65,6 @@ public class WalletMarketApplicationService {
     @Transactional
     public WalletMarketTxnResult refundOrder(WalletMarketTxnCommand command) {
         validateRequest(command.requestId(), command.userId(), command.amount(), command.bizId());
-        walletAccountService.requireUserWalletActive(command.userId());
         WalletTxnResult result = walletLedgerService.post(new WalletLedgerCommand(
                 command.requestId(),
                 WalletTxnType.ORDER_REFUND,
@@ -89,6 +88,7 @@ public class WalletMarketApplicationService {
         if (amount <= 0) {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "amount must be positive");
         }
+        WalletAmountPolicy.validateAmount(amount);
         if (bizId == null || bizId.isBlank()) {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "bizId must not be blank");
         }

@@ -4,7 +4,9 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.application.result.UserAuthenticationResult;
 import com.nowcoder.community.user.application.result.UserCredentialResult;
 import com.nowcoder.community.user.domain.model.UserAccount;
+import com.nowcoder.community.user.domain.repository.RefreshTokenSessionRepository;
 import com.nowcoder.community.user.domain.repository.UserRepository;
+import com.nowcoder.community.user.domain.service.PasswordPolicyDomainService;
 import com.nowcoder.community.user.domain.service.UserCredentialDomainService;
 import com.nowcoder.community.user.exception.UserErrorCode;
 import org.junit.jupiter.api.Test;
@@ -35,6 +37,9 @@ class UserCredentialApplicationServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private RefreshTokenSessionRepository refreshTokenSessionRepository;
 
     @Test
     void authenticateShouldRejectBlankCredentials() {
@@ -116,7 +121,7 @@ class UserCredentialApplicationServiceTest {
         UUID userId = uuid(7);
         when(userRepository.findById(userId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.updatePassword(userId, "secret"))
+        assertThatThrownBy(() -> service.updatePassword(userId, "secret12"))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(UserErrorCode.USER_NOT_FOUND);
@@ -128,11 +133,25 @@ class UserCredentialApplicationServiceTest {
         UUID userId = uuid(7);
         when(userRepository.findById(userId)).thenReturn(Optional.of(activeUser(userId, "alice", "encoded", "")));
 
-        service.updatePassword(userId, "  secret  ");
+        service.updatePassword(userId, "  secret12  ");
 
         ArgumentCaptor<String> passwordCaptor = ArgumentCaptor.forClass(String.class);
         verify(userRepository).updatePassword(eq(userId), passwordCaptor.capture());
-        assertThat(new BCryptPasswordEncoder().matches("secret", passwordCaptor.getValue())).isTrue();
+        assertThat(new BCryptPasswordEncoder().matches("secret12", passwordCaptor.getValue())).isTrue();
+    }
+
+    @Test
+    void resetPasswordAndRevokeRefreshSessionsShouldPersistPasswordAndRevokeUserSessions() {
+        UserCredentialApplicationService service = service();
+        UUID userId = uuid(7);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(activeUser(userId, "alice", "encoded", "")));
+
+        service.resetPasswordAndRevokeRefreshSessions(userId, "  secret12  ");
+
+        ArgumentCaptor<String> passwordCaptor = ArgumentCaptor.forClass(String.class);
+        verify(userRepository).updatePassword(eq(userId), passwordCaptor.capture());
+        assertThat(new BCryptPasswordEncoder().matches("secret12", passwordCaptor.getValue())).isTrue();
+        verify(refreshTokenSessionRepository).revokeByUserId(userId);
     }
 
     @Test
@@ -154,15 +173,41 @@ class UserCredentialApplicationServiceTest {
 
         assertThatThrownBy(() -> service.updatePassword(uuid(7), "  "))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> {
-                    BusinessException businessException = (BusinessException) ex;
-                    assertThat(businessException.getErrorCode()).isEqualTo(INVALID_ARGUMENT);
-                    assertThat(businessException.getMessage()).isEqualTo("newPassword 不能为空");
-                });
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(INVALID_ARGUMENT);
+    }
+
+    @Test
+    void updatePasswordShouldRejectWeakPassword() {
+        UserCredentialApplicationService service = service();
+
+        assertThatThrownBy(() -> service.updatePassword(uuid(7), "aaaaaaaa"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(INVALID_ARGUMENT);
+
+        verifyNoInteractions(userRepository);
+    }
+
+    @Test
+    void validatePasswordPolicyShouldRejectWeakPasswordWithoutRepositoryAccess() {
+        UserCredentialApplicationService service = service();
+
+        assertThatThrownBy(() -> service.validatePasswordPolicy("aaaaaaaa"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(INVALID_ARGUMENT);
+
+        verifyNoInteractions(userRepository);
     }
 
     private UserCredentialApplicationService service() {
-        return new UserCredentialApplicationService(userRepository, new UserCredentialDomainService());
+        return new UserCredentialApplicationService(
+                userRepository,
+                new UserCredentialDomainService(),
+                new PasswordPolicyDomainService(),
+                refreshTokenSessionRepository
+        );
     }
 
     private UserAccount activeUser(UUID id, String username, String password, String salt) {

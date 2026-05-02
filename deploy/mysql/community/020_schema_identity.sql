@@ -37,6 +37,11 @@ create table if not exists auth_refresh_token (
   key idx_refresh_user (user_id, expires_at)
 );
 
+create table if not exists auth_refresh_token_family_revocation (
+  family_id varchar(64) primary key,
+  revoked_at timestamp not null default current_timestamp
+);
+
 -- Compatibility upgrade: add moderation columns for existing DBs (manual re-run scenario).
 set @has_mute_until := (
   select count(*)

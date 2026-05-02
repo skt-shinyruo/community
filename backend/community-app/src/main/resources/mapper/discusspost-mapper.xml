@@ -126,6 +126,7 @@
             deleted_reason = #{deletedReason},
             deleted_time = #{deletedTime}
         where id = #{id, jdbcType=BINARY}
+          and status != #{status}
     </update>
 
 </mapper>

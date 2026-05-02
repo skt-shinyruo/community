@@ -30,10 +30,9 @@ public class LogMailAdapter implements MailPort {
 
     @Override
     public void sendPasswordResetMail(String toEmail, String resetLink) {
-        log.info("[mail][password-reset][disabled] to={}, subject={}, link={}",
+        log.info("[mail][password-reset][disabled] to={}, subject={}",
                 toEmail,
-                "重置密码",
-                resetLink
+                "重置密码"
         );
     }
 }

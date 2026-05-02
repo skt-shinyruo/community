@@ -1,6 +1,7 @@
 package com.nowcoder.community.social.infrastructure.persistence;
 
 import com.nowcoder.community.social.domain.model.FollowRelation;
+import com.nowcoder.community.social.domain.repository.BlockRepository;
 import com.nowcoder.community.social.domain.repository.FollowRepository;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -72,6 +73,8 @@ public class RedisFollowRepository implements FollowRepository {
 
     private final StringRedisTemplate redisTemplate;
 
+    private static final int FILTER_SCAN_BATCH_SIZE = 100;
+
     public RedisFollowRepository(StringRedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
     }
@@ -142,6 +145,38 @@ public class RedisFollowRepository implements FollowRepository {
     }
 
     @Override
+    public long countFolloweesExcludingBlocked(UUID userId, int entityType, BlockRepository blockRepository) {
+        return countFiltered(followeeKey(userId, entityType), userId, blockRepository);
+    }
+
+    @Override
+    public long countFollowersExcludingBlocked(int entityType, UUID entityId, BlockRepository blockRepository) {
+        return countFiltered(followerKey(entityType, entityId), entityId, blockRepository);
+    }
+
+    @Override
+    public List<FollowRelation> listFolloweesExcludingBlocked(
+            UUID userId,
+            int entityType,
+            BlockRepository blockRepository,
+            int offset,
+            int limit
+    ) {
+        return listFiltered(followeeKey(userId, entityType), userId, blockRepository, offset, limit);
+    }
+
+    @Override
+    public List<FollowRelation> listFollowersExcludingBlocked(
+            int entityType,
+            UUID entityId,
+            BlockRepository blockRepository,
+            int offset,
+            int limit
+    ) {
+        return listFiltered(followerKey(entityType, entityId), entityId, blockRepository, offset, limit);
+    }
+
+    @Override
     public boolean requiresExplicitCompensation() {
         return true;
     }
@@ -162,6 +197,75 @@ public class RedisFollowRepository implements FollowRepository {
             ));
         }
         return items;
+    }
+
+    private long countFiltered(String key, UUID viewerUserId, BlockRepository blockRepository) {
+        long count = 0;
+        int cursor = 0;
+        while (true) {
+            Set<ZSetOperations.TypedTuple<String>> tuples = redisTemplate.opsForZSet().reverseRangeWithScores(
+                    key,
+                    cursor,
+                    (long) cursor + FILTER_SCAN_BATCH_SIZE - 1L
+            );
+            if (tuples == null || tuples.isEmpty()) {
+                break;
+            }
+            for (FollowRelation relation : toItems(tuples)) {
+                if (!isEitherBlocked(viewerUserId, relation.targetId(), blockRepository)) {
+                    count++;
+                }
+            }
+            if (tuples.size() < FILTER_SCAN_BATCH_SIZE) {
+                break;
+            }
+            cursor += FILTER_SCAN_BATCH_SIZE;
+        }
+        return count;
+    }
+
+    private List<FollowRelation> listFiltered(String key, UUID viewerUserId, BlockRepository blockRepository, int offset, int limit) {
+        int safeOffset = Math.max(0, offset);
+        int safeLimit = Math.max(0, limit);
+        if (safeLimit == 0) {
+            return List.of();
+        }
+        List<FollowRelation> result = new ArrayList<>(safeLimit);
+        int accepted = 0;
+        int cursor = 0;
+        while (result.size() < safeLimit) {
+            Set<ZSetOperations.TypedTuple<String>> tuples = redisTemplate.opsForZSet().reverseRangeWithScores(
+                    key,
+                    cursor,
+                    (long) cursor + FILTER_SCAN_BATCH_SIZE - 1L
+            );
+            if (tuples == null || tuples.isEmpty()) {
+                break;
+            }
+            for (FollowRelation relation : toItems(tuples)) {
+                if (!isEitherBlocked(viewerUserId, relation.targetId(), blockRepository)) {
+                    if (accepted >= safeOffset) {
+                        result.add(relation);
+                        if (result.size() >= safeLimit) {
+                            break;
+                        }
+                    }
+                    accepted++;
+                }
+            }
+            if (tuples.size() < FILTER_SCAN_BATCH_SIZE) {
+                break;
+            }
+            cursor += FILTER_SCAN_BATCH_SIZE;
+        }
+        return result;
+    }
+
+    private boolean isEitherBlocked(UUID userIdA, UUID userIdB, BlockRepository blockRepository) {
+        if (userIdA == null || userIdB == null || userIdA.equals(userIdB) || blockRepository == null) {
+            return false;
+        }
+        return blockRepository.hasBlocked(userIdA, userIdB) || blockRepository.hasBlocked(userIdB, userIdA);
     }
 
     private String followeeKey(UUID userId, int entityType) {

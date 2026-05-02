@@ -121,7 +121,7 @@ import { computed, onMounted, ref } from 'vue'
 import { listNotices, markRead } from '../api/services/noticeService'
 import { safeJsonParse } from '../utils/safeJson'
 import { formatTime } from '../utils/time'
-import { normalizeOpaqueId } from '../utils/opaqueId'
+import { normalizeOpaqueId, normalizeOpaqueIds } from '../utils/opaqueId'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -197,7 +197,7 @@ async function markAllRead() {
   error.value = ''
   loading.value = true
   try {
-    const ids = items.value.map((x) => x?.id).filter((x) => typeof x === 'number' && x > 0)
+    const ids = normalizeOpaqueIds(items.value.map((x) => x?.id))
     const { traceId } = await markRead(ids)
     emit('trace', traceId || '')
     await load()

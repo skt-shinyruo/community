@@ -3,13 +3,16 @@ package com.nowcoder.community.content.application;
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
+import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import com.nowcoder.community.content.application.command.CreateCommentCommand;
 import com.nowcoder.community.content.application.command.UpdateCommentCommand;
 import com.nowcoder.community.content.application.ContentSanitizer;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.application.result.CommentCreateResult;
 import com.nowcoder.community.content.domain.event.CommentCreatedDomainEvent;
+import com.nowcoder.community.content.domain.event.CommentDeletedDomainEvent;
 import com.nowcoder.community.content.domain.event.CommentDomainEventPublisher;
+import com.nowcoder.community.content.domain.model.CommentDeletionResult;
 import com.nowcoder.community.content.domain.model.CommentDraft;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
 import com.nowcoder.community.content.domain.model.DiscussPost;
@@ -17,6 +20,7 @@ import com.nowcoder.community.content.domain.repository.CommentRepository;
 import com.nowcoder.community.content.domain.service.CommentDomainService;
 import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
 import com.nowcoder.community.growth.api.model.GrowthCommentTaskProgressRequest;
+import com.nowcoder.community.social.api.action.SocialLikeCleanupActionApi;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
 import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
 import com.nowcoder.community.user.api.model.UserCommentPointsAwardRequest;
@@ -48,6 +52,7 @@ public class CommentApplicationService {
     private final SocialBlockQueryApi blockQueryApi;
     private final UserPointsAwardActionApi pointsAwardService;
     private final GrowthTaskProgressActionApi taskProgressTriggerService;
+    private final SocialLikeCleanupActionApi socialLikeCleanupActionApi;
     private final CommentDomainEventPublisher domainEventPublisher;
     private final PostWriteSideEffectScheduler postWriteSideEffectScheduler;
     private final TransactionTemplate commentWriteTransactionTemplate;
@@ -63,6 +68,7 @@ public class CommentApplicationService {
             SocialBlockQueryApi blockQueryApi,
             UserPointsAwardActionApi pointsAwardService,
             GrowthTaskProgressActionApi taskProgressTriggerService,
+            SocialLikeCleanupActionApi socialLikeCleanupActionApi,
             CommentDomainEventPublisher domainEventPublisher,
             PostWriteSideEffectScheduler postWriteSideEffectScheduler,
             PlatformTransactionManager transactionManager
@@ -77,6 +83,7 @@ public class CommentApplicationService {
         this.blockQueryApi = blockQueryApi;
         this.pointsAwardService = pointsAwardService;
         this.taskProgressTriggerService = taskProgressTriggerService;
+        this.socialLikeCleanupActionApi = socialLikeCleanupActionApi;
         this.domainEventPublisher = domainEventPublisher;
         this.postWriteSideEffectScheduler = postWriteSideEffectScheduler;
         this.commentWriteTransactionTemplate = new TransactionTemplate(transactionManager);
@@ -149,6 +156,20 @@ public class CommentApplicationService {
         commentRepository.updateContent(commentId, sanitize(command.content()), now);
     }
 
+    @Transactional
+    public void deleteByAuthor(UUID userId, UUID postId, UUID commentId) {
+        CommentSnapshot existing = commentRepository.getRequiredSnapshot(commentId);
+        UUID actualPostId = resolvePostId(existing);
+        domainService.assertDeletableByAuthor(existing, userId, postId, actualPostId);
+        deleteActiveThread(existing, actualPostId, userId, "author_delete");
+    }
+
+    @Transactional
+    public void deleteByModeration(UUID actorUserId, UUID commentId, String deletedReason) {
+        CommentSnapshot existing = commentRepository.getRequiredSnapshot(commentId);
+        deleteActiveThread(existing, resolvePostId(existing), actorUserId, deletedReason);
+    }
+
     private UUID createInsideTransaction(CreateCommentCommand command) {
         UUID userId = command.userId();
         UUID postId = command.postId();
@@ -201,6 +222,50 @@ public class CommentApplicationService {
         domainEventPublisher.commentCreated(event);
         postWriteSideEffectScheduler.schedulePostScoreRefresh(postId);
         return commentId;
+    }
+
+    private void deleteActiveThread(CommentSnapshot existing, UUID postId, UUID deletedBy, String deletedReason) {
+        Date deletedTime = new Date();
+        CommentDeletionResult deletion = commentRepository.markActiveThreadDeleted(
+                existing.id(),
+                deletedBy,
+                deletedReason,
+                deletedTime
+        );
+        if (!deletion.changed()) {
+            return;
+        }
+        postContentPort.incrementCommentCount(postId, -deletion.deletedCount());
+        AfterCommitExecutor.runAfterCommit(() -> {
+            for (UUID deletedCommentId : deletion.deletedCommentIds()) {
+                socialLikeCleanupActionApi.cleanupEntityLikes(EntityTypes.COMMENT, deletedCommentId);
+            }
+        });
+        for (CommentSnapshot deletedComment : deletion.deletedComments()) {
+            domainEventPublisher.commentDeleted(new CommentDeletedDomainEvent(
+                    deletedComment.id(),
+                    postId,
+                    deletedComment.userId(),
+                    deletedComment.entityType(),
+                    deletedComment.entityId(),
+                    deletedTime.toInstant()
+            ));
+        }
+        postWriteSideEffectScheduler.schedulePostScoreRefresh(postId);
+    }
+
+    private UUID resolvePostId(CommentSnapshot comment) {
+        CommentSnapshot current = comment;
+        for (int i = 0; i < 12; i++) {
+            if (current.entityType() == EntityTypes.POST) {
+                return current.entityId();
+            }
+            if (current.entityType() != EntityTypes.COMMENT || current.entityId() == null) {
+                throw new BusinessException(INVALID_ARGUMENT, "评论归属帖子非法");
+            }
+            current = commentRepository.getRequiredSnapshot(current.entityId());
+        }
+        throw new BusinessException(INVALID_ARGUMENT, "评论层级非法");
     }
 
     private String sanitize(String content) {

@@ -1,5 +1,7 @@
 package com.nowcoder.community.user.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.user.application.UserAvatarApplicationService;
 import com.nowcoder.community.user.application.UserProfileApplicationService;
@@ -8,11 +10,14 @@ import com.nowcoder.community.user.application.result.UserProfilePageResult;
 import com.nowcoder.community.user.application.result.UserResolveResult;
 import com.nowcoder.community.user.application.result.UserSummaryResult;
 import com.nowcoder.community.user.controller.dto.BatchUserSummaryRequest;
+import com.nowcoder.community.user.controller.dto.InternalUpdatePasswordRequest;
 import com.nowcoder.community.user.controller.dto.UserProfilePostSummaryResponse;
 import com.nowcoder.community.user.controller.dto.UserProfileResponse;
 import com.nowcoder.community.user.controller.dto.UserRecentCommentItemResponse;
 import com.nowcoder.community.user.controller.dto.UserResolveResponse;
 import com.nowcoder.community.user.controller.dto.UserSummaryResponse;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +49,8 @@ class UserControllerUnitTest {
     @Mock
     private UserAvatarApplicationService userAvatarApplicationService;
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     private UserController controller;
 
     @BeforeEach
@@ -56,13 +63,13 @@ class UserControllerUnitTest {
     }
 
     @Test
-    void getUserShouldDelegateProfileAssemblyToUserOwnedQuery() {
+    void getUserShouldDelegateProfileAssemblyToUserOwnedQuery() throws Exception {
         UUID actorUserId = uuid(42);
         UUID userId = uuid(7);
         Authentication authentication = authentication(actorUserId);
         Date createTime = new Date();
         when(userProfileApplicationService.get(actorUserId, userId))
-                .thenReturn(new UserProfilePageResult(userId, "alice", "h7", 2, 0, createTime, 250, 3, 900L, "ACTIVE", true, 2, 13, 12, 5, 8, true, false));
+                .thenReturn(new UserProfilePageResult(userId, "alice", "h7", 2, 0, createTime, 250, 3, true, 2, 13, 12, 5, 8, true, false));
 
         Result<UserProfileResponse> result = controller.getUser(authentication, userId);
 
@@ -79,8 +86,9 @@ class UserControllerUnitTest {
         assertThat(result.getData().isUserLevelEnabled()).isTrue();
         assertThat(result.getData()).extracting("userLevel", "signInDaysInWindow")
                 .containsExactly(2, 13);
-        assertThat(result.getData().getWalletBalance()).isEqualTo(900L);
-        assertThat(result.getData().getWalletStatus()).isEqualTo("ACTIVE");
+        JsonNode data = objectMapper.valueToTree(result).path("data");
+        assertThat(data.has("walletBalance")).isFalse();
+        assertThat(data.has("walletStatus")).isFalse();
         assertThat(result.getData().getLikeCount()).isEqualTo(12);
         assertThat(result.getData().getFolloweeCount()).isEqualTo(5);
         assertThat(result.getData().getFollowerCount()).isEqualTo(8);
@@ -90,13 +98,13 @@ class UserControllerUnitTest {
     }
 
     @Test
-    void getUserShouldHideNewUserLevelFieldsWhenFeatureDisabled() {
+    void getUserShouldHideNewUserLevelFieldsWhenFeatureDisabled() throws Exception {
         UUID actorUserId = uuid(42);
         UUID userId = uuid(8);
         Authentication authentication = authentication(actorUserId);
         Date createTime = new Date();
         when(userProfileApplicationService.get(actorUserId, userId))
-                .thenReturn(new UserProfilePageResult(userId, "bob", "h8", 1, 0, createTime, 99, 2, 0L, "ACTIVE", false, null, null, 3, 4, 5, false, false));
+                .thenReturn(new UserProfilePageResult(userId, "bob", "h8", 1, 0, createTime, 99, 2, false, null, null, 3, 4, 5, false, false));
 
         Result<UserProfileResponse> result = controller.getUser(authentication, userId);
 
@@ -107,8 +115,9 @@ class UserControllerUnitTest {
         assertThat(result.getData().getSignInDaysInWindow()).isNull();
         assertThat(result.getData().getLevel()).isEqualTo(2);
         assertThat(result.getData().getScore()).isEqualTo(99);
-        assertThat(result.getData().getWalletBalance()).isZero();
-        assertThat(result.getData().getWalletStatus()).isEqualTo("ACTIVE");
+        JsonNode data = objectMapper.valueToTree(result).path("data");
+        assertThat(data.has("walletBalance")).isFalse();
+        assertThat(data.has("walletStatus")).isFalse();
         verify(userProfileApplicationService).get(actorUserId, userId);
     }
 
@@ -233,6 +242,16 @@ class UserControllerUnitTest {
         assertThat(result.getData()).extracting(UserSummaryResponse::getId).containsExactly(aliceId, bobId);
         assertThat(result.getData()).extracting(UserSummaryResponse::getUsername).containsExactly("alice", "bob");
         verify(userReadApplicationService).listSummaryResultsByIds(Arrays.asList(aliceId, bobId, aliceId, null));
+    }
+
+    @Test
+    void internalUpdatePasswordRequestShouldRejectTooShortPassword() {
+        InternalUpdatePasswordRequest request = new InternalUpdatePasswordRequest();
+        request.setNewPassword("Abc123!");
+
+        Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+
+        assertThat(validator.validate(request)).isNotEmpty();
     }
 
     private Authentication authentication(UUID userId) {

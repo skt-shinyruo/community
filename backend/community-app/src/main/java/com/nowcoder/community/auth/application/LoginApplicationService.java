@@ -146,19 +146,18 @@ public class LoginApplicationService {
             throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
         }
 
-        RefreshTokenRepository.StoredRefreshToken stored = refreshTokenService.find(refreshToken);
-        if (stored == null) {
-            throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
-        }
-
-        UserCredentialView credentialView = getCredential(stored.userId());
-        if (credentialView == null || credentialView.status() == 0) {
-            throw new BusinessException(AuthErrorCode.USER_DISABLED);
-        }
-
         RefreshTokenApplicationService.IssuedRefreshToken rotated = refreshTokenService.rotate(refreshToken);
         if (rotated == null) {
             throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
+        }
+        RefreshTokenRepository.StoredRefreshToken rotatedToken = refreshTokenService.find(rotated.refreshToken());
+        if (rotatedToken == null) {
+            throw new BusinessException(AuthErrorCode.REFRESH_TOKEN_INVALID);
+        }
+
+        UserCredentialView credentialView = getCredential(rotatedToken.userId());
+        if (credentialView == null || credentialView.status() == 0) {
+            throw new BusinessException(AuthErrorCode.USER_DISABLED);
         }
         List<String> authorities = authoritiesOf(credentialView);
         String accessToken = authTokenPort.createAccessToken(

@@ -88,9 +88,6 @@ public class PasswordResetApplicationService {
                 "user.id", user.userId(),
                 "masked.email", maskEmail(normalizedEmail));
 
-        if (properties.isExposeResetLink()) {
-            return new PasswordResetRequestResult(true, resetLink);
-        }
         return new PasswordResetRequestResult(true, "");
     }
 
@@ -107,6 +104,8 @@ public class PasswordResetApplicationService {
             throw new BusinessException(AuthErrorCode.CAPTCHA_INVALID);
         }
 
+        String trimmedPassword = newPassword.trim();
+        userCredentialActionApi.validatePasswordPolicy(trimmedPassword);
         UUID userId = tokenStore.consume(resetToken.trim());
         if (userId == null) {
             SecurityEventLogger.info(log, "password_reset_confirm", "denied",
@@ -114,10 +113,20 @@ public class PasswordResetApplicationService {
             throw new BusinessException(AuthErrorCode.PASSWORD_RESET_INVALID);
         }
 
-        userCredentialActionApi.updatePassword(userId, newPassword.trim());
+        String normalizedToken = resetToken.trim();
+        try {
+            userCredentialActionApi.resetPasswordAndRevokeRefreshSessions(userId, trimmedPassword);
+        } catch (RuntimeException ex) {
+            tokenStore.store(normalizedToken, userId, restoreTtl());
+            throw ex;
+        }
         SecurityEventLogger.info(log, "password_reset_confirm", "success",
                 "user.id", userId);
         return true;
+    }
+
+    private Duration restoreTtl() {
+        return Duration.ofSeconds(Math.max(60, properties.getTtlSeconds()));
     }
 
     private String normalizeResetBaseUrlOrThrow() {

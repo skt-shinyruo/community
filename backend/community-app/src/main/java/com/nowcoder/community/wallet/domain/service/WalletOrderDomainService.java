@@ -8,9 +8,7 @@ import java.util.UUID;
 public final class WalletOrderDomainService {
 
     public void validatePositiveAmount(long amount) {
-        if (amount <= 0) {
-            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "amount must be positive");
-        }
+        WalletAmountPolicy.validateAmount(amount);
     }
 
     public void validateTransfer(UUID fromUserId, UUID toUserId, long amount) {

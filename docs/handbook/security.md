@@ -205,13 +205,12 @@ gateway 路径级限流：
 - 默认账号：`aaa/aaa`、`admin/aaa`。
 - 固定验证码：`auth.captcha.fixed-code`。
 - 注册验证码回传：`AUTH_REGISTRATION_EXPOSE_CODE=true`。
-- 重置链接回传：`AUTH_EXPOSE_RESET_LINK=true`。
 - Mock Data Studio 本地控制面。
 
 prod 下约束：
 
 - 禁止固定验证码。
-- 禁止回传注册验证码和 reset link。
+- 禁止回传注册验证码。
 - 必须启用 SMTP。
 - JWT secret 必须显式配置且长度满足要求。
 - 真实密钥必须通过 Secrets / 配置中心注入。

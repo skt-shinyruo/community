@@ -15,5 +15,7 @@ public interface UserRefreshTokenSessionActionApi {
 
     int revokeFamily(String familyId);
 
+    int revokeByUserId(UUID userId);
+
     int deleteExpiredBefore(Instant cutoff);
 }

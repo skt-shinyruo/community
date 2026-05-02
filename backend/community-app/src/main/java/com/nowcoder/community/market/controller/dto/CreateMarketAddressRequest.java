@@ -24,7 +24,7 @@ public class CreateMarketAddressRequest {
 
     private String postalCode;
 
-    private boolean isDefault;
+    private boolean defaultAddress;
 
     public String getReceiverName() {
         return receiverName;
@@ -82,11 +82,11 @@ public class CreateMarketAddressRequest {
         this.postalCode = postalCode;
     }
 
-    public boolean isDefault() {
-        return isDefault;
+    public boolean isDefaultAddress() {
+        return defaultAddress;
     }
 
-    public void setDefault(boolean aDefault) {
-        isDefault = aDefault;
+    public void setDefaultAddress(boolean defaultAddress) {
+        this.defaultAddress = defaultAddress;
     }
 }

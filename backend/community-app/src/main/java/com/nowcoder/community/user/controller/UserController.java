@@ -75,8 +75,6 @@ public class UserController {
         resp.setUserLevelEnabled(user.userLevelEnabled());
         resp.setUserLevel(user.userLevel());
         resp.setSignInDaysInWindow(user.signInDaysInWindow());
-        resp.setWalletBalance(user.walletBalance());
-        resp.setWalletStatus(user.walletStatus());
         resp.setLikeCount(user.likeCount());
         resp.setFolloweeCount(user.followeeCount());
         resp.setFollowerCount(user.followerCount());

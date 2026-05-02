@@ -1,6 +1,8 @@
 package com.nowcoder.community.content.application;
 
+import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
+import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import com.nowcoder.community.content.application.command.CreatePostCommand;
 import com.nowcoder.community.content.application.ContentSanitizer;
 import com.nowcoder.community.content.application.result.PostCreateResult;
@@ -12,6 +14,7 @@ import com.nowcoder.community.content.domain.repository.PostRepository;
 import com.nowcoder.community.content.domain.repository.PostTagRepository;
 import com.nowcoder.community.content.domain.service.PostPublishingDomainService;
 import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
+import com.nowcoder.community.social.api.action.SocialLikeCleanupActionApi;
 import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +39,7 @@ public class PostPublishingApplicationService {
     private final PostTagRepository postTagRepository;
     private final PostDomainEventPublisher domainEventPublisher;
     private final PostWriteSideEffectScheduler postWriteSideEffectScheduler;
+    private final SocialLikeCleanupActionApi socialLikeCleanupActionApi;
     private final UserPointsAwardActionApi pointsAwardService;
     private final GrowthTaskProgressActionApi taskProgressTriggerService;
 
@@ -51,6 +55,7 @@ public class PostPublishingApplicationService {
             PostTagRepository postTagRepository,
             PostDomainEventPublisher domainEventPublisher,
             PostWriteSideEffectScheduler postWriteSideEffectScheduler,
+            SocialLikeCleanupActionApi socialLikeCleanupActionApi,
             UserPointsAwardActionApi pointsAwardService,
             GrowthTaskProgressActionApi taskProgressTriggerService
     ) {
@@ -65,6 +70,7 @@ public class PostPublishingApplicationService {
         this.postTagRepository = postTagRepository;
         this.domainEventPublisher = domainEventPublisher;
         this.postWriteSideEffectScheduler = postWriteSideEffectScheduler;
+        this.socialLikeCleanupActionApi = socialLikeCleanupActionApi;
         this.pointsAwardService = pointsAwardService;
         this.taskProgressTriggerService = taskProgressTriggerService;
     }
@@ -113,8 +119,13 @@ public class PostPublishingApplicationService {
     public void deleteByAuthor(UUID userId, UUID postId) {
         PostSnapshot post = postRepository.getRequiredSnapshot(postId);
         domainService.assertDeletableByAuthor(post, userId);
-        postRepository.markDeletedByAuthor(postId, userId, new Date());
+        boolean changed = postRepository.markDeletedByAuthor(postId, userId, new Date());
+        if (!changed) {
+            return;
+        }
         domainEventPublisher.postDeleted(postId);
+        AfterCommitExecutor.runAfterCommit(() -> socialLikeCleanupActionApi.cleanupEntityLikes(EntityTypes.POST, postId));
+        postWriteSideEffectScheduler.schedulePostScoreRefresh(postId);
         postBusinessEventLogger.postDeleteByAuthor(userId, postId);
     }
 

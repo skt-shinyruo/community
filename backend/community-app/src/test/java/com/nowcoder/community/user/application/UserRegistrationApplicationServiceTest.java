@@ -7,6 +7,7 @@ import com.nowcoder.community.user.application.result.UserCredentialResult;
 import com.nowcoder.community.user.domain.event.UserPolicyEventPublisher;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.repository.UserRepository;
+import com.nowcoder.community.user.domain.service.PasswordPolicyDomainService;
 import com.nowcoder.community.user.domain.service.UserRegistrationDomainService;
 import com.nowcoder.community.user.exception.UserErrorCode;
 import org.junit.jupiter.api.Test;
@@ -27,6 +28,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -57,7 +59,7 @@ class UserRegistrationApplicationServiceTest {
 
         PendingRegistrationUserResult created = service.registerPendingUser(
                 "  alice  ",
-                "  secret  ",
+                "  secret12  ",
                 "  alice@example.com  ",
                 Duration.ofMinutes(30)
         );
@@ -71,7 +73,7 @@ class UserRegistrationApplicationServiceTest {
         assertThat(inserted.status()).isEqualTo(0);
         assertThat(inserted.type()).isEqualTo(0);
         assertThat(inserted.salt()).isEmpty();
-        assertThat(new BCryptPasswordEncoder().matches("secret", inserted.encodedPassword())).isTrue();
+        assertThat(new BCryptPasswordEncoder().matches("secret12", inserted.encodedPassword())).isTrue();
         verify(userPolicyEventPublisher).publishUserPolicyChanged(eq(inserted.id()), eq(true), any(Instant.class));
     }
 
@@ -81,7 +83,7 @@ class UserRegistrationApplicationServiceTest {
         when(userRepository.findByUsername("alice"))
                 .thenReturn(Optional.of(user(userId(1), "alice", "alice@example.com", 1, NOW)));
 
-        assertThatThrownBy(() -> service.registerPendingUser("alice", "pw", "alice2@example.com", Duration.ofMinutes(30)))
+        assertThatThrownBy(() -> service.registerPendingUser("alice", "secret12", "alice2@example.com", Duration.ofMinutes(30)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(UserErrorCode.USER_ALREADY_EXISTS);
@@ -96,7 +98,7 @@ class UserRegistrationApplicationServiceTest {
         when(userRepository.findByEmail("alice@example.com"))
                 .thenReturn(Optional.of(user(userId(2), "bob", "alice@example.com", 1, NOW)));
 
-        assertThatThrownBy(() -> service.registerPendingUser("alice", "pw", "alice@example.com", Duration.ofMinutes(30)))
+        assertThatThrownBy(() -> service.registerPendingUser("alice", "secret12", "alice@example.com", Duration.ofMinutes(30)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(UserErrorCode.EMAIL_ALREADY_EXISTS);
@@ -111,7 +113,7 @@ class UserRegistrationApplicationServiceTest {
         when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.empty());
         doThrow(new DuplicateKeyException("uk_user_username")).when(userRepository).insertPendingUser(any());
 
-        assertThatThrownBy(() -> service.registerPendingUser("alice", "pw", "alice@example.com", Duration.ofMinutes(30)))
+        assertThatThrownBy(() -> service.registerPendingUser("alice", "secret12", "alice@example.com", Duration.ofMinutes(30)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(UserErrorCode.USER_ALREADY_EXISTS);
@@ -125,7 +127,7 @@ class UserRegistrationApplicationServiceTest {
         when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(expired), Optional.empty());
         when(userRepository.deletePendingUserIfExpired(eq(expired.id()), eq(0), any(Instant.class))).thenReturn(1, 0);
 
-        PendingRegistrationUserResult created = service.registerPendingUser("alice", "pw", "alice@example.com", Duration.ofMinutes(30));
+        PendingRegistrationUserResult created = service.registerPendingUser("alice", "secret12", "alice@example.com", Duration.ofMinutes(30));
 
         assertThat(created.userId()).isNotNull();
         verify(userRepository, atLeastOnce()).deletePendingUserIfExpired(eq(expired.id()), eq(0), any(Instant.class));
@@ -204,10 +206,22 @@ class UserRegistrationApplicationServiceTest {
         verify(userPolicyEventPublisher).publishUserPolicyChanged(eq(userId), eq(false), any(Instant.class));
     }
 
+    @Test
+    void registerPendingUserShouldRejectWeakPassword() {
+        UserRegistrationApplicationService service = service();
+
+        assertThatThrownBy(() -> service.registerPendingUser("alice", "aaaaaaaa", "alice@example.com", Duration.ofMinutes(30)))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(INVALID_ARGUMENT);
+
+        verify(userRepository, never()).insertPendingUser(any());
+    }
+
     private UserRegistrationApplicationService service() {
         return new UserRegistrationApplicationService(
                 userRepository,
-                new UserRegistrationDomainService(Clock.fixed(NOW, ZoneOffset.UTC)),
+                new UserRegistrationDomainService(Clock.fixed(NOW, ZoneOffset.UTC), new PasswordPolicyDomainService()),
                 new UuidV7Generator(Clock.fixed(NOW, ZoneOffset.UTC)),
                 userPolicyEventPublisher
         );

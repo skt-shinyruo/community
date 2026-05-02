@@ -1,15 +1,20 @@
 package com.nowcoder.community.social.infrastructure.persistence;
 
+import com.nowcoder.community.social.domain.model.LikeRelation;
 import com.nowcoder.community.social.domain.repository.LikeRepository;
 import com.nowcoder.community.social.infrastructure.persistence.dataobject.EntityLikeCountDataObject;
+import com.nowcoder.community.social.infrastructure.persistence.dataobject.LikeOwnerCountDataObject;
+import com.nowcoder.community.social.infrastructure.persistence.dataobject.LikeScanDataObject;
 import com.nowcoder.community.social.infrastructure.persistence.mapper.LikeMapper;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -29,8 +34,13 @@ public class MyBatisLikeRepository implements LikeRepository {
 
     @Override
     public boolean addLike(UUID userId, int entityType, UUID entityId) {
+        return addLike(userId, entityType, entityId, null);
+    }
+
+    @Override
+    public boolean addLike(UUID userId, int entityType, UUID entityId, UUID entityUserId) {
         try {
-            return mapper.insertLike(userId, entityType, entityId) > 0;
+            return mapper.insertLike(userId, entityType, entityId, entityUserId) > 0;
         } catch (DuplicateKeyException ignored) {
             // 唯一约束冲突视为幂等重复
             return false;
@@ -40,6 +50,33 @@ public class MyBatisLikeRepository implements LikeRepository {
     @Override
     public boolean removeLike(UUID userId, int entityType, UUID entityId) {
         return mapper.deleteLike(userId, entityType, entityId) > 0;
+    }
+
+    @Override
+    public Optional<LikeRelation> findLike(UUID userId, int entityType, UUID entityId) {
+        LikeScanDataObject row = mapper.selectLike(userId, entityType, entityId);
+        if (row == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new LikeRelation(row.getUserId(), entityType, row.getEntityId(), row.getEntityUserId()));
+    }
+
+    @Override
+    @Transactional
+    public long deleteLikesByEntity(int entityType, UUID entityId) {
+        List<LikeOwnerCountDataObject> ownerCounts = mapper.countLikeOwnersByEntity(entityType, entityId);
+        int deleted = mapper.deleteLikesByEntity(entityType, entityId);
+        if (deleted <= 0 || ownerCounts == null || ownerCounts.isEmpty()) {
+            return deleted;
+        }
+        for (LikeOwnerCountDataObject ownerCount : ownerCounts) {
+            if (ownerCount == null || ownerCount.getEntityUserId() == null || ownerCount.getLikeCount() <= 0) {
+                continue;
+            }
+            long current = getUserLikeCount(ownerCount.getEntityUserId());
+            mapper.resetUserLikeCount(ownerCount.getEntityUserId(), Math.max(0, current - ownerCount.getLikeCount()));
+        }
+        return deleted;
     }
 
     @Override
@@ -58,6 +95,13 @@ public class MyBatisLikeRepository implements LikeRepository {
             return getUserLikeCount(userId);
         }
         mapper.incrementUserLikeCount(userId, delta);
+        return getUserLikeCount(userId);
+    }
+
+    @Override
+    public long resetUserLikeCount(UUID userId, long likeCount) {
+        long normalized = Math.max(0, likeCount);
+        mapper.resetUserLikeCount(userId, normalized);
         return getUserLikeCount(userId);
     }
 

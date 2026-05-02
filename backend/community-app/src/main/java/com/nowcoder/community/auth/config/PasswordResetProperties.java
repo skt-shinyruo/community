@@ -23,11 +23,6 @@ public class PasswordResetProperties {
      */
     private int ttlSeconds = 600;
 
-    /**
-     * 是否在响应中回传 resetLink（仅本地/测试联调建议开启）。
-     */
-    private boolean exposeResetLink = false;
-
     public String getResetBaseUrl() {
         return resetBaseUrl;
     }
@@ -50,13 +45,5 @@ public class PasswordResetProperties {
 
     public void setTtlSeconds(int ttlSeconds) {
         this.ttlSeconds = ttlSeconds;
-    }
-
-    public boolean isExposeResetLink() {
-        return exposeResetLink;
-    }
-
-    public void setExposeResetLink(boolean exposeResetLink) {
-        this.exposeResetLink = exposeResetLink;
     }
 }

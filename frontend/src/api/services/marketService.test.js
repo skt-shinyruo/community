@@ -108,4 +108,34 @@ describe('api/services/marketService', () => {
     expect(resp.data[0].addressId).toBe(41)
     expect(resp.data[0].receiverName).toBe('张三')
   })
+
+  it('createMarketAddress should send defaultAddress without legacy aliases', async () => {
+    mock = new MockAdapter(http)
+    mock.onPost('/api/market/addresses').reply((config) => {
+      expect(JSON.parse(config.data)).toEqual({
+        receiverName: '李四',
+        receiverPhone: '13900000000',
+        province: '北京市',
+        city: '北京市',
+        district: '海淀区',
+        detailAddress: '中关村 1 号',
+        postalCode: '100080',
+        defaultAddress: true
+      })
+      return [200, { code: 0, message: 'OK', data: { addressId: '33333333-3333-7333-8333-333333333333' }, traceId: 'trace-create-address' }]
+    })
+
+    const resp = await marketService.createMarketAddress({
+      receiverName: '李四',
+      receiverPhone: '13900000000',
+      province: '北京市',
+      city: '北京市',
+      district: '海淀区',
+      detailAddress: '中关村 1 号',
+      postalCode: '100080',
+      defaultAddress: true
+    })
+
+    expect(resp.traceId).toBe('trace-create-address')
+  })
 })

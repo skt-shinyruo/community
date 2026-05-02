@@ -7,6 +7,7 @@ import com.nowcoder.community.market.domain.repository.MarketWalletActionReposit
 import com.nowcoder.community.market.domain.model.MarketWalletActionResultType;
 import com.nowcoder.community.market.domain.model.MarketWalletActionType;
 import com.nowcoder.community.wallet.api.action.WalletMarketActionApi;
+import com.nowcoder.community.wallet.api.model.WalletErrorCodes;
 import com.nowcoder.community.wallet.api.model.WalletMarketTxnView;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -16,12 +17,17 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class MarketWalletActionProcessorApplicationService {
 
     private static final int PROCESSING_LEASE_SECONDS = 60;
     private static final int MAX_LAST_ERROR_LENGTH = 255;
+    private static final Set<Integer> RECOVERABLE_RELEASE_REFUND_WALLET_ERROR_CODES = Set.of(
+            WalletErrorCodes.ACCOUNT_UPDATE_CONFLICT,
+            WalletErrorCodes.ACCOUNT_BALANCE_INSUFFICIENT
+    );
 
     private final MarketWalletActionRepository walletActionRepository;
     private final WalletMarketActionApi walletApi;
@@ -73,8 +79,7 @@ public class MarketWalletActionProcessorApplicationService {
             route(action);
             return true;
         } catch (RuntimeException ex) {
-            handleFailure(action, ex);
-            return false;
+            return handleFailure(action, ex);
         }
     }
 
@@ -132,23 +137,32 @@ public class MarketWalletActionProcessorApplicationService {
         walletActionRepository.markSucceeded(action.getActionId(), result.txnId(), MarketWalletActionResultType.APPLIED);
     }
 
-    private void handleFailure(MarketWalletAction action, RuntimeException ex) {
-        if (isRetryable(ex)) {
+    private boolean handleFailure(MarketWalletAction action, RuntimeException ex) {
+        if (isRetryable(action, ex)) {
             walletActionRepository.markRetrying(
                     action.getActionId(),
                     Date.from(nextRetryAt(action)),
                     lastError(ex)
             );
-            return;
+            return false;
         }
         if (MarketWalletActionType.ESCROW.equals(action.getActionType())) {
             sagaService.markEscrowTerminalFailed(action.getOrderId(), ex.getMessage());
         }
         walletActionRepository.markFailed(action.getActionId(), failureCode(ex), lastError(ex));
+        return true;
     }
 
-    private boolean isRetryable(RuntimeException ex) {
-        return !(ex instanceof BusinessException);
+    private boolean isRetryable(MarketWalletAction action, RuntimeException ex) {
+        if (!(ex instanceof BusinessException businessException)) {
+            return true;
+        }
+        if (MarketWalletActionType.ESCROW.equals(action.getActionType())) {
+            return false;
+        }
+        ErrorCode errorCode = businessException.getErrorCode();
+        return errorCode != null
+                && RECOVERABLE_RELEASE_REFUND_WALLET_ERROR_CODES.contains(errorCode.getCode());
     }
 
     private Instant nextRetryAt(MarketWalletAction action) {

@@ -69,7 +69,7 @@ describe('MarketAddressesView', () => {
           city: '上海市',
           district: '浦东新区',
           detailAddress: '世纪大道 100 号',
-          isDefault: true
+          defaultAddress: true
         }
       ],
       traceId: 'trace-list'
@@ -95,7 +95,7 @@ describe('MarketAddressesView', () => {
           district: '浦东新区',
           detailAddress: '世纪大道 100 号',
           postalCode: '200120',
-          isDefault: true
+          defaultAddress: true
         }
       ],
       traceId: 'trace-list'
@@ -118,12 +118,15 @@ describe('MarketAddressesView', () => {
     expect(createMarketAddress).toHaveBeenCalledWith(expect.objectContaining({
       receiverName: '李四',
       receiverPhone: '13900000000',
-      city: '北京市'
+      city: '北京市',
+      defaultAddress: true
     }))
+    expect(createMarketAddress.mock.calls[0][0]).not.toHaveProperty('isDefault')
 
     await wrapper.findAll('button')[1].trigger('click')
     await flushPromises()
-    expect(updateMarketAddress).toHaveBeenCalledWith(41, expect.objectContaining({ receiverName: '张三' }))
+    expect(updateMarketAddress).toHaveBeenCalledWith(41, expect.objectContaining({ receiverName: '张三', defaultAddress: true }))
+    expect(updateMarketAddress.mock.calls[0][1]).not.toHaveProperty('isDefault')
 
     await wrapper.findAll('button')[2].trigger('click')
     await flushPromises()

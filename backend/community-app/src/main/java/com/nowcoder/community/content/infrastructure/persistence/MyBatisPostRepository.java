@@ -63,8 +63,8 @@ public class MyBatisPostRepository implements PostRepository {
     }
 
     @Override
-    public void markDeletedByAuthor(UUID postId, UUID authorUserId, Date deletedTime) {
-        discussPostMapper.updateModerationDeleteMeta(postId, 2, authorUserId, "author_delete", deletedTime);
+    public boolean markDeletedByAuthor(UUID postId, UUID authorUserId, Date deletedTime) {
+        return discussPostMapper.updateModerationDeleteMeta(postId, 2, authorUserId, "author_delete", deletedTime) > 0;
     }
 
     @Override
@@ -78,7 +78,7 @@ public class MyBatisPostRepository implements PostRepository {
     }
 
     @Override
-    public void markDeletedByAdmin(UUID postId, UUID actorUserId, Date deletedTime) {
-        discussPostMapper.updateModerationDeleteMeta(postId, 2, actorUserId, "admin_delete", deletedTime);
+    public boolean markDeletedByAdmin(UUID postId, UUID actorUserId, Date deletedTime) {
+        return discussPostMapper.updateModerationDeleteMeta(postId, 2, actorUserId, "admin_delete", deletedTime) > 0;
     }
 }

@@ -14,11 +14,11 @@ public interface PostRepository {
 
     void updateContent(UUID postId, String title, String content, UUID categoryId, Date updateTime);
 
-    void markDeletedByAuthor(UUID postId, UUID authorUserId, Date deletedTime);
+    boolean markDeletedByAuthor(UUID postId, UUID authorUserId, Date deletedTime);
 
     void markTop(UUID postId);
 
     void markWonderful(UUID postId);
 
-    void markDeletedByAdmin(UUID postId, UUID actorUserId, Date deletedTime);
+    boolean markDeletedByAdmin(UUID postId, UUID actorUserId, Date deletedTime);
 }

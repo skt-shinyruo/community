@@ -12,7 +12,7 @@ public class RegisterRequest {
     private String username;
 
     @NotBlank
-    @Size(max = ValidationLimits.PASSWORD_MAX)
+    @Size(min = 8, max = ValidationLimits.PASSWORD_MAX)
     private String password;
 
     @NotBlank

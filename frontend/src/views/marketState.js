@@ -131,7 +131,7 @@ export function buildMarketState({ listings, orders, disputes, addresses } = {})
       ...item,
       addressId: item?.addressId ?? index + 1,
       addressLine: addressLine(item),
-      defaultLabel: item?.isDefault ? '默认地址' : ''
+      defaultLabel: item?.defaultAddress ? '默认地址' : ''
     }))
   }
 }

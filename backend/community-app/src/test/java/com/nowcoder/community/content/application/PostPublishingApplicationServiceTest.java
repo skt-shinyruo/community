@@ -1,5 +1,6 @@
 package com.nowcoder.community.content.application;
 
+import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.content.application.command.CreatePostCommand;
 import com.nowcoder.community.content.application.result.PostCreateResult;
@@ -14,6 +15,7 @@ import com.nowcoder.community.content.domain.service.PostPublishingDomainService
 import com.nowcoder.community.content.application.ContentTextCodec;
 import com.nowcoder.community.content.application.ContentSanitizer;
 import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
+import com.nowcoder.community.social.api.action.SocialLikeCleanupActionApi;
 import com.nowcoder.community.user.api.action.UserPointsAwardActionApi;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,7 +36,9 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(OutputCaptureExtension.class)
@@ -49,6 +53,7 @@ class PostPublishingApplicationServiceTest {
     private PostTagRepository postTagRepository;
     private PostDomainEventPublisher domainEventPublisher;
     private PostWriteSideEffectScheduler postWriteSideEffectScheduler;
+    private SocialLikeCleanupActionApi socialLikeCleanupActionApi;
     private UserPointsAwardActionApi pointsAwardService;
     private GrowthTaskProgressActionApi taskProgressTriggerService;
     private PostPublishingApplicationService service;
@@ -64,6 +69,7 @@ class PostPublishingApplicationServiceTest {
         postTagRepository = mock(PostTagRepository.class);
         domainEventPublisher = mock(PostDomainEventPublisher.class);
         postWriteSideEffectScheduler = mock(PostWriteSideEffectScheduler.class);
+        socialLikeCleanupActionApi = mock(SocialLikeCleanupActionApi.class);
         pointsAwardService = mock(UserPointsAwardActionApi.class);
         taskProgressTriggerService = mock(GrowthTaskProgressActionApi.class);
         service = new PostPublishingApplicationService(
@@ -78,6 +84,7 @@ class PostPublishingApplicationServiceTest {
                 postTagRepository,
                 domainEventPublisher,
                 postWriteSideEffectScheduler,
+                socialLikeCleanupActionApi,
                 pointsAwardService,
                 taskProgressTriggerService
         );
@@ -141,6 +148,7 @@ class PostPublishingApplicationServiceTest {
         when(sensitiveFilter.filter("<title>")).thenReturn("title");
         when(sensitiveFilter.filter("<content>")).thenReturn("content");
         when(postRepository.getRequiredSnapshot(postId)).thenReturn(post);
+        when(postRepository.markDeletedByAuthor(eq(postId), eq(userId), any(Date.class))).thenReturn(true);
 
         service.updatePost(userId, postId, "<title>", "<content>", categoryId, List.of("spring"));
         service.deleteByAuthor(userId, postId);
@@ -151,15 +159,33 @@ class PostPublishingApplicationServiceTest {
         verify(postRepository).updateContent(eq(postId), eq("title"), eq("content"), eq(categoryId), any(Date.class));
         verify(postTagRepository).replaceTagsForPost(postId, List.of("spring"));
         verify(domainEventPublisher).postUpdated(postId);
-        verify(postWriteSideEffectScheduler).schedulePostScoreRefresh(postId);
+        verify(postWriteSideEffectScheduler, times(2)).schedulePostScoreRefresh(postId);
         verify(domainService).assertDeletableByAuthor(post, userId);
         verify(postRepository).markDeletedByAuthor(eq(postId), eq(userId), any(Date.class));
         verify(domainEventPublisher).postDeleted(postId);
+        verify(socialLikeCleanupActionApi).cleanupEntityLikes(EntityTypes.POST, postId);
         assertThat(output.getAll())
                 .contains("community.action=post_update")
                 .contains("community.post_category_id=" + categoryId)
                 .contains("community.action=post_delete")
                 .contains("community.reason_code=author_delete")
                 .contains("user.id=" + userId);
+    }
+
+    @Test
+    void deleteByAuthorShouldSkipSideEffectsWhenDeleteDidNotChangePostState(CapturedOutput output) {
+        UUID userId = uuid(7);
+        UUID postId = uuid(101);
+        PostSnapshot post = new PostSnapshot(postId, userId, 0, Date.from(Instant.parse("2026-04-27T08:00:00Z")));
+        when(postRepository.getRequiredSnapshot(postId)).thenReturn(post);
+        when(postRepository.markDeletedByAuthor(eq(postId), eq(userId), any(Date.class))).thenReturn(false);
+
+        service.deleteByAuthor(userId, postId);
+
+        verify(domainService).assertDeletableByAuthor(post, userId);
+        verify(domainEventPublisher, never()).postDeleted(postId);
+        verify(socialLikeCleanupActionApi, never()).cleanupEntityLikes(any(Integer.class), any(UUID.class));
+        verify(postWriteSideEffectScheduler, never()).schedulePostScoreRefresh(any(UUID.class));
+        assertThat(output.getAll()).doesNotContain("community.action=post_delete");
     }
 }

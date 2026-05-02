@@ -32,6 +32,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class RefreshTokenApplicationServiceTest {
@@ -160,6 +162,11 @@ class RefreshTokenApplicationServiceTest {
             }
 
             @Override
+            public RevokedRefreshToken findRevoked(String refreshToken) {
+                return null;
+            }
+
+            @Override
             public void revoke(String refreshToken) {
             }
 
@@ -170,6 +177,46 @@ class RefreshTokenApplicationServiceTest {
 
         assertThatCode(() -> assertThat(refreshTokenService.rotate("presented-token")).isNull())
                 .doesNotThrowAnyException();
+    }
+
+    @Test
+    void rotateShouldRevokeFamilyWhenRevokedTokenIsReusedOutsideGrace() {
+        RefreshTokenRepository repository = mock(RefreshTokenRepository.class);
+        JwtProperties properties = jwtProperties();
+        properties.setRefreshReuseGraceSeconds(10);
+        Instant now = Instant.now();
+        when(repository.findRevoked("presented-token")).thenReturn(new RefreshTokenRepository.RevokedRefreshToken(
+                "presented-token",
+                USER_ID,
+                "family-1",
+                now.plusSeconds(300),
+                now.minusSeconds(60)
+        ));
+        RefreshTokenApplicationService refreshTokenService = refreshTokenService(repository, properties);
+
+        assertThat(refreshTokenService.rotate("presented-token")).isNull();
+
+        verify(repository).revokeFamily("family-1");
+    }
+
+    @Test
+    void rotateShouldNotRevokeFamilyWhenRevokedTokenIsReusedWithinGrace() {
+        RefreshTokenRepository repository = mock(RefreshTokenRepository.class);
+        JwtProperties properties = jwtProperties();
+        properties.setRefreshReuseGraceSeconds(10);
+        Instant now = Instant.now();
+        when(repository.findRevoked("presented-token")).thenReturn(new RefreshTokenRepository.RevokedRefreshToken(
+                "presented-token",
+                USER_ID,
+                "family-1",
+                now.plusSeconds(300),
+                now.minusSeconds(3)
+        ));
+        RefreshTokenApplicationService refreshTokenService = refreshTokenService(repository, properties);
+
+        assertThat(refreshTokenService.rotate("presented-token")).isNull();
+
+        verify(repository, never()).revokeFamily("family-1");
     }
 
     private static LoginApplicationService authService(RefreshTokenApplicationService refreshTokenService) {
@@ -205,8 +252,12 @@ class RefreshTokenApplicationServiceTest {
     }
 
     private static RefreshTokenApplicationService refreshTokenService(RefreshTokenRepository repository) {
+        return refreshTokenService(repository, jwtProperties());
+    }
+
+    private static RefreshTokenApplicationService refreshTokenService(RefreshTokenRepository repository, JwtProperties properties) {
         return new RefreshTokenApplicationService(
-                jwtProperties(),
+                properties,
                 repository,
                 new RefreshTokenDomainService(),
                 mock(UserRefreshTokenSessionActionApi.class)
@@ -240,6 +291,7 @@ class RefreshTokenApplicationServiceTest {
     private static final class CoordinatedRefreshTokenStore implements RefreshTokenRepository {
 
         private final ConcurrentHashMap<String, StoredRefreshToken> tokens = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<String, RevokedRefreshToken> revokedTokens = new ConcurrentHashMap<>();
         private final String coordinatedToken;
         private final CyclicBarrier barrier = new CyclicBarrier(2);
 
@@ -264,7 +316,22 @@ class RefreshTokenApplicationServiceTest {
 
         @Override
         public StoredRefreshToken consume(String refreshToken) {
-            return tokens.remove(refreshToken);
+            StoredRefreshToken token = tokens.remove(refreshToken);
+            if (token != null) {
+                revokedTokens.put(refreshToken, new RevokedRefreshToken(
+                        refreshToken,
+                        token.userId(),
+                        token.familyId(),
+                        token.expiresAt(),
+                        Instant.now()
+                ));
+            }
+            return token;
+        }
+
+        @Override
+        public RevokedRefreshToken findRevoked(String refreshToken) {
+            return revokedTokens.get(refreshToken);
         }
 
         @Override
@@ -296,6 +363,7 @@ class RefreshTokenApplicationServiceTest {
     private static final class InMemoryRefreshTokenRepository implements RefreshTokenRepository {
 
         private final ConcurrentHashMap<String, StoredRefreshToken> tokens = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<String, RevokedRefreshToken> revokedTokens = new ConcurrentHashMap<>();
 
         @Override
         public void store(String refreshToken, UUID userId, String familyId, Instant expiresAt) {
@@ -309,7 +377,22 @@ class RefreshTokenApplicationServiceTest {
 
         @Override
         public StoredRefreshToken consume(String refreshToken) {
-            return tokens.remove(refreshToken);
+            StoredRefreshToken token = tokens.remove(refreshToken);
+            if (token != null) {
+                revokedTokens.put(refreshToken, new RevokedRefreshToken(
+                        refreshToken,
+                        token.userId(),
+                        token.familyId(),
+                        token.expiresAt(),
+                        Instant.now()
+                ));
+            }
+            return token;
+        }
+
+        @Override
+        public RevokedRefreshToken findRevoked(String refreshToken) {
+            return revokedTokens.get(refreshToken);
         }
 
         @Override

@@ -9,6 +9,7 @@ public class LikeScanDataObject {
 
     private UUID entityId;
     private UUID userId;
+    private UUID entityUserId;
 
     public UUID getEntityId() {
         return entityId;
@@ -24,5 +25,13 @@ public class LikeScanDataObject {
 
     public void setUserId(UUID userId) {
         this.userId = userId;
+    }
+
+    public UUID getEntityUserId() {
+        return entityUserId;
+    }
+
+    public void setEntityUserId(UUID entityUserId) {
+        this.entityUserId = entityUserId;
     }
 }

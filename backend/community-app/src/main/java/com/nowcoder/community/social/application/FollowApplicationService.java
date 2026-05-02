@@ -114,7 +114,7 @@ public class FollowApplicationService {
         if (entityType != USER) {
             return 0;
         }
-        return followRepository.countFollowees(userId, entityType);
+        return followRepository.countFolloweesExcludingBlocked(userId, entityType, blockRepository);
     }
 
     public long followerCount(int entityType, UUID entityId) {
@@ -124,7 +124,7 @@ public class FollowApplicationService {
         if (entityType != USER) {
             return 0;
         }
-        return followRepository.countFollowers(entityType, entityId);
+        return followRepository.countFollowersExcludingBlocked(entityType, entityId, blockRepository);
     }
 
     public List<FollowRelationResult> listFollowees(UUID userId, int entityType, int page, int size) {
@@ -133,7 +133,7 @@ public class FollowApplicationService {
         if (entityType != USER) {
             return List.of();
         }
-        return followRepository.listFollowees(userId, entityType, Pagination.safeOffset(p, s), s)
+        return followRepository.listFolloweesExcludingBlocked(userId, entityType, blockRepository, Pagination.safeOffset(p, s), s)
                 .stream()
                 .map(this::toResult)
                 .toList();
@@ -145,7 +145,7 @@ public class FollowApplicationService {
         if (entityType != USER) {
             return List.of();
         }
-        return followRepository.listFollowers(entityType, entityId, Pagination.safeOffset(p, s), s)
+        return followRepository.listFollowersExcludingBlocked(entityType, entityId, blockRepository, Pagination.safeOffset(p, s), s)
                 .stream()
                 .map(this::toResult)
                 .toList();

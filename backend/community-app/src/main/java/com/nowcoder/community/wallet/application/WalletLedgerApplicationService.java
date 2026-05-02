@@ -129,7 +129,7 @@ public class WalletLedgerApplicationService {
     }
 
     private long amountOf(List<WalletPosting> postings) {
-        return postings.stream().mapToLong(WalletPosting::amount).sum() / 2;
+        return domainService.balancedAmountOf(postings);
     }
 
     private String defaultBizType(WalletTxnType txnType) {

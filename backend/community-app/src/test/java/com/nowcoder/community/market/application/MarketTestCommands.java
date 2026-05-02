@@ -55,7 +55,7 @@ public final class MarketTestCommands {
                 request.getDistrict(),
                 request.getDetailAddress(),
                 request.getPostalCode(),
-                request.isDefault()
+                request.isDefaultAddress()
         );
     }
 }

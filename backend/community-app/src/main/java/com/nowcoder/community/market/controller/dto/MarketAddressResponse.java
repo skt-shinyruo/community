@@ -15,7 +15,7 @@ public record MarketAddressResponse(
         String district,
         String detailAddress,
         String postalCode,
-        boolean isDefault,
+        boolean defaultAddress,
         String status,
         Date createTime,
         Date updateTime

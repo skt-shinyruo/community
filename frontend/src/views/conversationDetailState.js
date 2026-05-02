@@ -1,5 +1,34 @@
 import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
 
+const SIGNED_64_MINIMUM = 1n << 63n
+const UNSIGNED_64_MODULUS = 1n << 64n
+
+function toSigned64(value) {
+  return value >= SIGNED_64_MINIMUM ? value - UNSIGNED_64_MODULUS : value
+}
+
+function uuidSignedParts(value) {
+  const hex = normalizeOpaqueId(value).replaceAll('-', '')
+  if (!/^[0-9a-f]{32}$/i.test(hex)) return null
+
+  return {
+    mostSignificantBits: toSigned64(BigInt(`0x${hex.slice(0, 16)}`)),
+    leastSignificantBits: toSigned64(BigInt(`0x${hex.slice(16)}`))
+  }
+}
+
+function compareJavaUuid(leftValue, rightValue) {
+  const left = uuidSignedParts(leftValue)
+  const right = uuidSignedParts(rightValue)
+  if (!left || !right) return String(leftValue || '').localeCompare(String(rightValue || ''))
+
+  if (left.mostSignificantBits < right.mostSignificantBits) return -1
+  if (left.mostSignificantBits > right.mostSignificantBits) return 1
+  if (left.leastSignificantBits < right.leastSignificantBits) return -1
+  if (left.leastSignificantBits > right.leastSignificantBits) return 1
+  return 0
+}
+
 export function parseConversationTargetId(conversationId, meUserId) {
   const cid = String(conversationId || '').trim()
   const me = normalizeOpaqueId(meUserId)
@@ -12,6 +41,14 @@ export function parseConversationTargetId(conversationId, meUserId) {
   if (sameOpaqueId(a, me)) return b
   if (sameOpaqueId(b, me)) return a
   return ''
+}
+
+export function buildCanonicalConversationId(leftUserId, rightUserId) {
+  const left = normalizeOpaqueId(leftUserId)
+  const right = normalizeOpaqueId(rightUserId)
+  if (!left || !right || sameOpaqueId(left, right)) return ''
+
+  return [left, right].sort(compareJavaUuid).join('_')
 }
 
 export function mapConversationMessage(raw) {

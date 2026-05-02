@@ -12,11 +12,19 @@ vi.mock('../api/http', () => ({
   }
 }))
 
-vi.mock('../stores/auth', () => ({
-  useAuthStore: () => ({
+const { authState } = vi.hoisted(() => ({
+  authState: {
     accessToken: '',
     userId: 0,
     authed: false
+  }
+}))
+
+vi.mock('../stores/auth', () => ({
+  useAuthStore: () => ({
+    accessToken: authState.accessToken,
+    userId: authState.userId,
+    authed: authState.authed
   })
 }))
 
@@ -77,6 +85,9 @@ describe('UserProfileView route contract', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    authState.accessToken = ''
+    authState.userId = 0
+    authState.authed = false
     http.get.mockImplementation((url) => {
       if (url === `/api/users/${userId}`) {
         return Promise.resolve(
@@ -131,5 +142,35 @@ describe('UserProfileView route contract', () => {
     expect(wrapper.text()).not.toContain('250 分')
     expect(wrapper.text()).not.toContain('LV 3')
     expect(wrapper.text()).not.toContain('NaN')
+  })
+
+  it('routes private messages to the canonical conversation id from current and profile UUIDs', async () => {
+    const profileUserId = '00000000-0000-0000-0000-000000000000'
+    const me = '80000000-0000-0000-0000-000000000000'
+    authState.accessToken = 'token'
+    authState.userId = me
+    authState.authed = true
+
+    const wrapper = mount(UserProfileView, {
+      props: {
+        userId: profileUserId
+      },
+      global: {
+        stubs: {
+          RouterLink: {
+            props: ['to'],
+            template: '<a :data-to="typeof to === \'string\' ? to : JSON.stringify(to)"><slot /></a>'
+          },
+          UiBreadcrumb: true,
+          ReportModal: true
+        }
+      }
+    })
+
+    await flushPromises()
+    await flushPromises()
+
+    const messageLink = wrapper.find('.profile-message-link')
+    expect(messageLink.attributes('data-to')).toBe(`/messages/${me}_${profileUserId}`)
   })
 })

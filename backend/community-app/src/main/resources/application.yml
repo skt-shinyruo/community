@@ -99,7 +99,6 @@ auth:
     reset-base-url: ${AUTH_PASSWORD_RESET_BASE_URL:}
     store: redis
     ttl-seconds: 600
-    expose-reset-link: ${AUTH_EXPOSE_RESET_LINK:true}
   login-rate-limit:
     enabled: true
     window-seconds: 60

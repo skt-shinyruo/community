@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.application;
 
+import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.content.application.command.TakeModerationActionCommand;
-import com.nowcoder.community.content.application.ContentModerationGateway;
 import com.nowcoder.community.content.application.ModerationNoticePublisher;
 import com.nowcoder.community.content.domain.model.ModerationActionRecord;
 import com.nowcoder.community.content.domain.model.ModerationTarget;
@@ -35,7 +35,8 @@ class ModerationApplicationServiceTest {
     private ReportRepository reportRepository;
     private ModerationActionRepository moderationActionRepository;
     private ModerationTargetRepository moderationTargetRepository;
-    private ContentModerationGateway contentModerationPort;
+    private PostModerationApplicationService postModerationApplicationService;
+    private CommentApplicationService commentApplicationService;
     private ModerationNoticePublisher moderationNoticePort;
     private UserModerationActionApi userModerationActionApi;
     private ModerationApplicationService service;
@@ -45,14 +46,16 @@ class ModerationApplicationServiceTest {
         reportRepository = mock(ReportRepository.class);
         moderationActionRepository = mock(ModerationActionRepository.class);
         moderationTargetRepository = mock(ModerationTargetRepository.class);
-        contentModerationPort = mock(ContentModerationGateway.class);
+        postModerationApplicationService = mock(PostModerationApplicationService.class);
+        commentApplicationService = mock(CommentApplicationService.class);
         moderationNoticePort = mock(ModerationNoticePublisher.class);
         userModerationActionApi = mock(UserModerationActionApi.class);
         service = new ModerationApplicationService(
                 reportRepository,
                 moderationActionRepository,
                 moderationTargetRepository,
-                contentModerationPort,
+                postModerationApplicationService,
+                commentApplicationService,
                 moderationNoticePort,
                 userModerationActionApi,
                 new ModerationDecisionDomainService()
@@ -60,14 +63,14 @@ class ModerationApplicationServiceTest {
     }
 
     @Test
-    void hideShouldDelegateToContentApplierAuditAndNoticePorts() {
+    void hidePostShouldApplyPostModerationAuditAndNoticePorts() {
         UUID actorId = uuid(42);
         UUID targetId = uuid(88);
         UUID targetUserId = uuid(9);
         UUID reporterId = uuid(7);
-        ReportSnapshot report = pendingReport(REPORT_ID, 1, targetId, reporterId);
+        ReportSnapshot report = pendingReport(REPORT_ID, EntityTypes.POST, targetId, reporterId);
         ModerationActionRecord action = moderationAction(actorId, REPORT_ID, "hide", "spam", 0);
-        ModerationTarget target = new ModerationTarget(1, targetId, targetUserId);
+        ModerationTarget target = new ModerationTarget(EntityTypes.POST, targetId, targetUserId);
         when(reportRepository.getRequired(REPORT_ID)).thenReturn(report);
         when(moderationActionRepository.writeAction(actorId, REPORT_ID, "hide", "spam", null)).thenReturn(action);
         when(moderationTargetRepository.resolveTarget(report)).thenReturn(target);
@@ -79,13 +82,40 @@ class ModerationApplicationServiceTest {
                 reportRepository,
                 moderationActionRepository,
                 moderationTargetRepository,
-                contentModerationPort,
+                postModerationApplicationService,
                 moderationNoticePort
         );
         inOrder.verify(reportRepository).getRequired(REPORT_ID);
         inOrder.verify(moderationActionRepository).writeAction(actorId, REPORT_ID, "hide", "spam", null);
         inOrder.verify(moderationTargetRepository).resolveTarget(report);
-        inOrder.verify(contentModerationPort).applyContentAction(actorId, target, "hide", "spam");
+        inOrder.verify(postModerationApplicationService).deleteByModeration(actorId, targetId);
+        inOrder.verify(reportRepository).markStatus(REPORT_ID, ReportStatuses.PROCESSED);
+        inOrder.verify(moderationNoticePort).publish(report, action, target, "to_target", targetUserId);
+        inOrder.verify(moderationNoticePort).publish(report, action, target, "to_reporter", reporterId);
+        verifyNoInteractions(userModerationActionApi);
+    }
+
+    @Test
+    void hideCommentShouldApplyCommentModerationAuditAndNoticePorts() {
+        UUID actorId = uuid(42);
+        UUID targetId = uuid(88);
+        UUID targetUserId = uuid(9);
+        UUID reporterId = uuid(7);
+        ReportSnapshot report = pendingReport(REPORT_ID, EntityTypes.COMMENT, targetId, reporterId);
+        ModerationActionRecord action = moderationAction(actorId, REPORT_ID, "hide", "spam", 0);
+        ModerationTarget target = new ModerationTarget(EntityTypes.COMMENT, targetId, targetUserId);
+        when(reportRepository.getRequired(REPORT_ID)).thenReturn(report);
+        when(moderationActionRepository.writeAction(actorId, REPORT_ID, "hide", "spam", null)).thenReturn(action);
+        when(moderationTargetRepository.resolveTarget(report)).thenReturn(target);
+
+        UUID actionId = service.takeAction(new TakeModerationActionCommand(actorId, REPORT_ID, "hide", "spam", null));
+
+        assertThat(actionId).isEqualTo(action.id());
+        InOrder inOrder = inOrder(reportRepository, moderationActionRepository, moderationTargetRepository, commentApplicationService, moderationNoticePort);
+        inOrder.verify(reportRepository).getRequired(REPORT_ID);
+        inOrder.verify(moderationActionRepository).writeAction(actorId, REPORT_ID, "hide", "spam", null);
+        inOrder.verify(moderationTargetRepository).resolveTarget(report);
+        inOrder.verify(commentApplicationService).deleteByModeration(actorId, targetId, "hide: spam");
         inOrder.verify(reportRepository).markStatus(REPORT_ID, ReportStatuses.PROCESSED);
         inOrder.verify(moderationNoticePort).publish(report, action, target, "to_target", targetUserId);
         inOrder.verify(moderationNoticePort).publish(report, action, target, "to_reporter", reporterId);
@@ -132,7 +162,7 @@ class ModerationApplicationServiceTest {
         assertThat(actionId).isEqualTo(action.id());
         verify(reportRepository).markStatus(REPORT_ID, ReportStatuses.REJECTED);
         verify(moderationNoticePort).publish(report, action, target, "to_reporter", reporterId);
-        verifyNoInteractions(contentModerationPort, userModerationActionApi);
+        verifyNoInteractions(postModerationApplicationService, commentApplicationService, userModerationActionApi);
     }
 
     private ReportSnapshot pendingReport(UUID reportId, int targetType, UUID targetId, UUID reporterId) {

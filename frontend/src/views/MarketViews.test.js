@@ -150,7 +150,7 @@ describe('Unified market views', () => {
           receiverName: '张三',
           city: '上海市',
           detailAddress: '世纪大道 100 号',
-          isDefault: true
+          defaultAddress: true
         }
       ],
       traceId: 'trace-addresses'

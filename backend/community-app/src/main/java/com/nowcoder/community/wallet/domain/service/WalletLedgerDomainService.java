@@ -16,17 +16,27 @@ public final class WalletLedgerDomainService {
     public static final String TXN_STATUS_SUCCEEDED = "SUCCEEDED";
 
     public void validateBalancedPostings(List<WalletPosting> postings) {
-        long debitTotal = postings.stream()
-                .filter(posting -> WalletAccountDomainService.DIRECTION_DEBIT.equals(posting.direction()))
-                .mapToLong(WalletPosting::amount)
-                .sum();
-        long creditTotal = postings.stream()
-                .filter(posting -> WalletAccountDomainService.DIRECTION_CREDIT.equals(posting.direction()))
-                .mapToLong(WalletPosting::amount)
-                .sum();
+        long debitTotal = totalOf(postings, WalletAccountDomainService.DIRECTION_DEBIT);
+        long creditTotal = totalOf(postings, WalletAccountDomainService.DIRECTION_CREDIT);
         if (debitTotal <= 0 || debitTotal != creditTotal) {
             throw new BusinessException(WalletErrorCode.TXN_NOT_BALANCED, "wallet txn is not balanced");
         }
+    }
+
+    public long balancedAmountOf(List<WalletPosting> postings) {
+        long debitTotal = totalOf(postings, WalletAccountDomainService.DIRECTION_DEBIT);
+        WalletAmountPolicy.validateAmount(debitTotal);
+        return debitTotal;
+    }
+
+    private long totalOf(List<WalletPosting> postings, String direction) {
+        long total = 0L;
+        for (WalletPosting posting : postings) {
+            if (direction.equals(posting.direction())) {
+                total = WalletAmountPolicy.checkedAdd(total, posting.amount());
+            }
+        }
+        return total;
     }
 
     public WalletTxn newTxn(UUID txnId,

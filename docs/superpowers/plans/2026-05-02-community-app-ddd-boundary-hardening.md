@@ -8,6 +8,8 @@
 
 **Tech Stack:** Java 17, Spring Boot 3, JUnit 5, Mockito, AssertJ, ArchUnit, Maven.
 
+**Execution Status:** Completed and verified on 2026-05-02. All checklist items below are marked complete because the corresponding code/docs changes were implemented, committed, and covered by the final verification commands in Task 6.
+
 ---
 
 ## File Structure
@@ -119,7 +121,7 @@ Documentation:
 - Modify: `backend/community-app/src/test/java/com/nowcoder/community/app/arch/ListenerBoundaryArchTest.java`
 - Modify: `backend/community-app/src/test/java/com/nowcoder/community/app/arch/ArchitectureRulesSupport.java`
 
-- [ ] **Step 1: Tighten application transport dependency rule**
+- [x] **Step 1: Tighten application transport dependency rule**
 
 In `DddLayeringArchTest`, update `application_must_not_depend_on_web_transport_types` to include Spring Web and multipart packages:
 
@@ -138,7 +140,7 @@ In `DddLayeringArchTest`, update `application_must_not_depend_on_web_transport_t
                     .because("HTTP transport details belong in controllers or web adapters");
 ```
 
-- [ ] **Step 2: Add foreign owner API condition helper**
+- [x] **Step 2: Add foreign owner API condition helper**
 
 In `ArchitectureRulesSupport`, add this method before `notDependOnSameDomainOwnerApiPackages`:
 
@@ -170,7 +172,7 @@ In `ArchitectureRulesSupport`, add this method before `notDependOnSameDomainOwne
     }
 ```
 
-- [ ] **Step 3: Add event/job adapter guardrails**
+- [x] **Step 3: Add event/job adapter guardrails**
 
 Replace `ListenerBoundaryArchTest` with:
 
@@ -235,7 +237,7 @@ class ListenerBoundaryArchTest {
 }
 ```
 
-- [ ] **Step 4: Run architecture tests and verify RED**
+- [x] **Step 4: Run architecture tests and verify RED**
 
 Run:
 
@@ -250,7 +252,7 @@ Expected: FAIL. The failure must include:
 - `UserAvatarApplicationService` or `AvatarStoragePort` depending on `org.springframework.web.multipart.MultipartFile`;
 - `PostOutboxHandler` depending on `content.api.query.PostScanQueryApi` or `content.api.model.PostScanView`.
 
-- [ ] **Step 5: Commit RED guardrails**
+- [x] **Step 5: Commit RED guardrails**
 
 Run:
 
@@ -281,7 +283,7 @@ git commit -m "test: harden ddd boundary guardrails"
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/user/application/UserFileApplicationServiceTest.java`
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/user/controller/FilesControllerStorageRoutingTest.java`
 
-- [ ] **Step 1: Update application tests to remove MultipartFile**
+- [x] **Step 1: Update application tests to remove MultipartFile**
 
 In `UserAvatarApplicationServiceTest`, remove:
 
@@ -353,7 +355,7 @@ Change `uploadShouldDelegateToAvatarStoragePort` to:
     }
 ```
 
-- [ ] **Step 2: Update file service test to pass file key**
+- [x] **Step 2: Update file service test to pass file key**
 
 In `UserFileApplicationServiceTest`, change calls from URI to key:
 
@@ -369,7 +371,7 @@ and:
 
 Keep the existing assertions for `fileKey 非法` and `INVALID_ARGUMENT`.
 
-- [ ] **Step 3: Run user application tests and verify RED**
+- [x] **Step 3: Run user application tests and verify RED**
 
 Run:
 
@@ -379,7 +381,7 @@ mvn -q -f backend/pom.xml -pl community-app -Dtest='UserAvatarApplicationService
 
 Expected: FAIL because `AvatarUploadContent` does not exist and `UserAvatarApplicationService.upload(...)` still accepts `MultipartFile`.
 
-- [ ] **Step 4: Add application-neutral upload content**
+- [x] **Step 4: Add application-neutral upload content**
 
 Create `AvatarUploadContent.java`:
 
@@ -414,7 +416,7 @@ public record AvatarUploadContent(
 }
 ```
 
-- [ ] **Step 5: Update application port and application services**
+- [x] **Step 5: Update application port and application services**
 
 In `AvatarStoragePort`, replace the file import and upload signature with:
 
@@ -462,7 +464,7 @@ In `UserFileApplicationService`, replace `loadAvatarOrNull` and remove `resolveK
     }
 ```
 
-- [ ] **Step 6: Update controller boundaries**
+- [x] **Step 6: Update controller boundaries**
 
 In `UserController`, add imports:
 
@@ -573,7 +575,7 @@ Add:
     }
 ```
 
-- [ ] **Step 7: Update avatar infrastructure to accept neutral content**
+- [x] **Step 7: Update avatar infrastructure to accept neutral content**
 
 In `UserAvatarStorageAdapter`, change upload to:
 
@@ -705,7 +707,7 @@ In `R2AvatarStorageProvider`, replace `MultipartFile` import with `AvatarUploadC
     }
 ```
 
-- [ ] **Step 8: Update controller storage routing test stub**
+- [x] **Step 8: Update controller storage routing test stub**
 
 In `FilesControllerStorageRoutingTest`, replace the `MultipartFile` import with:
 
@@ -722,7 +724,7 @@ Change the stub provider upload method to:
             }
 ```
 
-- [ ] **Step 9: Run user tests and architecture tests**
+- [x] **Step 9: Run user tests and architecture tests**
 
 Run:
 
@@ -736,7 +738,7 @@ Expected:
 - focused user tests PASS;
 - architecture tests still FAIL only for remaining search/content boundary issues.
 
-- [ ] **Step 10: Commit user boundary cleanup**
+- [x] **Step 10: Commit user boundary cleanup**
 
 Run:
 
@@ -776,7 +778,7 @@ git commit -m "refactor: keep avatar upload application neutral"
 - Move/update: `backend/community-app/src/test/java/com/nowcoder/community/infra/job/handlers/SearchReindexHandlerTest.java` -> `backend/community-app/src/test/java/com/nowcoder/community/search/infrastructure/job/SearchReindexHandlerTest.java`
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/market/application/MarketOrderAutoConfirmApplicationServiceUnitTest.java`
 
-- [ ] **Step 1: Move and rewrite market auto-confirm handler test**
+- [x] **Step 1: Move and rewrite market auto-confirm handler test**
 
 Move the test file with `git mv`, change its package to:
 
@@ -804,7 +806,7 @@ Replace the direct API call in `autoConfirmShouldQueueReleaseAndProcessorShouldC
         MarketOrderAutoConfirmResult result = marketOrderAutoConfirmApplicationService.autoConfirmDueOrders();
 ```
 
-- [ ] **Step 2: Move and rewrite pending registration cleanup handler test**
+- [x] **Step 2: Move and rewrite pending registration cleanup handler test**
 
 Move the test file with `git mv`, change its package to:
 
@@ -832,7 +834,7 @@ In each test, replace the mock and constructor usage:
 
 Update all verifications to use `userRegistrationApplicationService`.
 
-- [ ] **Step 3: Move and rewrite search reindex handler test**
+- [x] **Step 3: Move and rewrite search reindex handler test**
 
 Move the test file with `git mv`, change its package to:
 
@@ -866,7 +868,7 @@ Update all verifications to:
         verifyNoMoreInteractions(searchReindexApplicationService);
 ```
 
-- [ ] **Step 4: Run moved handler tests and verify RED**
+- [x] **Step 4: Run moved handler tests and verify RED**
 
 Run:
 
@@ -876,7 +878,7 @@ mvn -q -f backend/pom.xml -pl community-app -Dtest='MarketOrderAutoConfirmHandle
 
 Expected: FAIL until production handlers and the market application result are updated.
 
-- [ ] **Step 5: Add market application result and update market application/API adapter**
+- [x] **Step 5: Add market application result and update market application/API adapter**
 
 Create `backend/community-app/src/main/java/com/nowcoder/community/market/application/result/MarketOrderAutoConfirmResult.java`:
 
@@ -907,7 +909,7 @@ In `MarketOrderAutoConfirmActionApiAdapter`, map application result to API resul
     }
 ```
 
-- [ ] **Step 6: Move and update market handler**
+- [x] **Step 6: Move and update market handler**
 
 Move the handler with `git mv` and set the package:
 
@@ -940,7 +942,7 @@ Replace the call:
 
 Keep `JOB_NAME`, `@XxlJob(JOB_NAME)`, logging, success, and failure behavior unchanged.
 
-- [ ] **Step 7: Move and update pending registration cleanup handler**
+- [x] **Step 7: Move and update pending registration cleanup handler**
 
 Move the handler with `git mv` and set the package:
 
@@ -976,7 +978,7 @@ Replace the cleanup call:
 
 Keep TTL clamping, loop behavior, `JOB_NAME`, `@XxlJob(JOB_NAME)`, logging, success, and failure behavior unchanged.
 
-- [ ] **Step 8: Move and update search reindex handler**
+- [x] **Step 8: Move and update search reindex handler**
 
 Move the handler with `git mv` and set the package:
 
@@ -1010,7 +1012,7 @@ Replace the call:
 
 Keep skip semantics, `JOB_NAME`, `@XxlJob(JOB_NAME)`, logging, success, and failure behavior unchanged.
 
-- [ ] **Step 9: Run focused job tests and architecture tests**
+- [x] **Step 9: Run focused job tests and architecture tests**
 
 Run:
 
@@ -1024,7 +1026,7 @@ Expected:
 - focused handler/application tests PASS;
 - architecture tests still FAIL only for remaining `PostOutboxHandler -> content.api.*` until Task 3 completes.
 
-- [ ] **Step 10: Commit job boundary cleanup**
+- [x] **Step 10: Commit job boundary cleanup**
 
 Run:
 
@@ -1055,7 +1057,7 @@ git commit -m "refactor: route jobs through owner application services"
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/search/infrastructure/event/PostOutboxHandlerTest.java`
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/search/application/SearchPostProjectionApplicationServiceTest.java`
 
-- [ ] **Step 1: Replace handler tests with thin adapter expectations**
+- [x] **Step 1: Replace handler tests with thin adapter expectations**
 
 Replace `PostOutboxHandlerTest` with:
 
@@ -1169,7 +1171,7 @@ class PostOutboxHandlerTest {
 }
 ```
 
-- [ ] **Step 2: Add projection application service tests**
+- [x] **Step 2: Add projection application service tests**
 
 Create `SearchPostProjectionApplicationServiceTest.java`:
 
@@ -1261,7 +1263,7 @@ class SearchPostProjectionApplicationServiceTest {
 }
 ```
 
-- [ ] **Step 3: Run search tests and verify RED**
+- [x] **Step 3: Run search tests and verify RED**
 
 Run:
 
@@ -1271,7 +1273,7 @@ mvn -q -f backend/pom.xml -pl community-app -Dtest='PostOutboxHandlerTest,Search
 
 Expected: FAIL because `ProjectPostOutboxCommand` and `SearchPostProjectionApplicationService` do not exist and `PostOutboxHandler` has the old constructor.
 
-- [ ] **Step 4: Add search command and application service**
+- [x] **Step 4: Add search command and application service**
 
 Create `ProjectPostOutboxCommand.java`:
 
@@ -1327,7 +1329,7 @@ public class SearchPostProjectionApplicationService {
 }
 ```
 
-- [ ] **Step 5: Thin PostOutboxHandler**
+- [x] **Step 5: Thin PostOutboxHandler**
 
 In `PostOutboxHandler`, remove imports:
 
@@ -1374,7 +1376,7 @@ Replace the post-id processing block in `handle` with:
         ));
 ```
 
-- [ ] **Step 6: Run search tests and architecture tests**
+- [x] **Step 6: Run search tests and architecture tests**
 
 Run:
 
@@ -1389,7 +1391,7 @@ Expected:
 - architecture tests no longer report `PostOutboxHandler -> content.api.*`;
 - architecture tests may still fail for content event payload assembly until Task 4 completes.
 
-- [ ] **Step 7: Commit search boundary cleanup**
+- [x] **Step 7: Commit search boundary cleanup**
 
 Run:
 
@@ -1421,7 +1423,7 @@ git commit -m "refactor: route search outbox through application"
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/content/infrastructure/event/PostDomainEventBridgeTest.java`
 - Test: `backend/community-app/src/test/java/com/nowcoder/community/content/infrastructure/event/CommentDomainEventBridgeTest.java`
 
-- [ ] **Step 1: Add content application tests for post payload assembly**
+- [x] **Step 1: Add content application tests for post payload assembly**
 
 Create `ContentPostPayloadAssemblerTest.java`:
 
@@ -1484,7 +1486,7 @@ class ContentPostPayloadAssemblerTest {
 }
 ```
 
-- [ ] **Step 2: Add content application tests for post contract publication**
+- [x] **Step 2: Add content application tests for post contract publication**
 
 Create `PostContractEventApplicationServiceTest.java`:
 
@@ -1554,7 +1556,7 @@ class PostContractEventApplicationServiceTest {
 }
 ```
 
-- [ ] **Step 3: Add post bridge delegation test**
+- [x] **Step 3: Add post bridge delegation test**
 
 Create `PostDomainEventBridgeTest.java`:
 
@@ -1605,7 +1607,7 @@ class PostDomainEventBridgeTest {
 }
 ```
 
-- [ ] **Step 4: Run content tests and verify RED**
+- [x] **Step 4: Run content tests and verify RED**
 
 Run:
 
@@ -1615,7 +1617,7 @@ mvn -q -f backend/pom.xml -pl community-app -Dtest='ContentPostPayloadAssemblerT
 
 Expected: FAIL because application-owned `ContentEventPublisher`, `ContentPostPayloadAssembler`, and `PostContractEventApplicationService` do not exist.
 
-- [ ] **Step 5: Create application-owned content event publisher port**
+- [x] **Step 5: Create application-owned content event publisher port**
 
 Create `content/application/ContentEventPublisher.java`:
 
@@ -1644,7 +1646,7 @@ public interface ContentEventPublisher {
 
 Delete `content/infrastructure/event/ContentEventPublisher.java` after imports have been updated.
 
-- [ ] **Step 6: Create application-owned post payload assembler**
+- [x] **Step 6: Create application-owned post payload assembler**
 
 Create `ContentPostPayloadAssembler.java`:
 
@@ -1703,7 +1705,7 @@ public class ContentPostPayloadAssembler {
 }
 ```
 
-- [ ] **Step 7: Create post contract event application service**
+- [x] **Step 7: Create post contract event application service**
 
 Create `PostContractEventApplicationService.java`:
 
@@ -1742,7 +1744,7 @@ public class PostContractEventApplicationService {
 }
 ```
 
-- [ ] **Step 8: Thin post domain event bridge**
+- [x] **Step 8: Thin post domain event bridge**
 
 Replace `PostDomainEventBridge` with:
 
@@ -1785,7 +1787,7 @@ public class PostDomainEventBridge {
 
 Delete `PostPayloadAssembler.java` from `content/infrastructure/event`.
 
-- [ ] **Step 9: Update infrastructure event publisher imports**
+- [x] **Step 9: Update infrastructure event publisher imports**
 
 In `LocalContentEventPublisher`, `InMemoryContentEventPublisher`, and `CommentDomainEventBridge`, add:
 
@@ -1795,7 +1797,7 @@ import com.nowcoder.community.content.application.ContentEventPublisher;
 
 Remove any implicit dependency on `com.nowcoder.community.content.infrastructure.event.ContentEventPublisher` by deleting the old infrastructure interface file.
 
-- [ ] **Step 10: Run content tests and architecture tests**
+- [x] **Step 10: Run content tests and architecture tests**
 
 Run:
 
@@ -1809,7 +1811,7 @@ Expected:
 - focused content tests PASS;
 - architecture tests PASS unless a rule intentionally exposes another in-scope boundary leak.
 
-- [ ] **Step 11: Commit content event boundary cleanup**
+- [x] **Step 11: Commit content event boundary cleanup**
 
 Run:
 
@@ -1840,7 +1842,7 @@ git commit -m "refactor: move content post payload assembly to application"
 - Modify: `docs/superpowers/specs/2026-04-27-community-app-strict-ddd-tactical-layering-design.md`
 - Modify: `docs/superpowers/specs/2026-05-02-community-app-ddd-boundary-hardening-design.md`
 
-- [ ] **Step 1: Update architecture handbook**
+- [x] **Step 1: Update architecture handbook**
 
 In `docs/handbook/architecture.md`, update the application layer bullet that already mentions transport neutrality so it explicitly includes upload transport:
 
@@ -1854,7 +1856,7 @@ Add this bullet to the Controller / Listener / Job section:
 - Inbound adapters include controllers, local event listeners, outbox handlers, event bridges, enqueuers, and scheduled jobs. They adapt input and call same-domain application services; they must not perform foreign owner `api.*` collaboration before entering the same-domain application layer.
 ```
 
-- [ ] **Step 2: Update system design handbook**
+- [x] **Step 2: Update system design handbook**
 
 In `docs/handbook/system-design.md`, replace the search projection wording that says the handler returns to content current state with wording that places the decision in search application:
 
@@ -1863,7 +1865,7 @@ In `docs/handbook/system-design.md`, replace the search projection wording that 
 - `PostOutboxHandler` 只负责 outbox payload 适配；search application 回源 content owner 当前状态，再 upsert/delete ES，避免乱序事件把已删除内容复活。
 ```
 
-- [ ] **Step 3: Update strict DDD design spec**
+- [x] **Step 3: Update strict DDD design spec**
 
 In `docs/superpowers/specs/2026-04-27-community-app-strict-ddd-tactical-layering-design.md`, update the application neutrality sentence to include Spring Web upload types:
 
@@ -1877,7 +1879,7 @@ Also update the executable guardrail sentence near the end so it mentions inboun
 The current executable guardrails include `DddLayeringArchTest`, `ControllerBoundaryArchTest`, `ListenerBoundaryArchTest`, and `DtoBoundaryArchTest`. They protect retired root legacy packages, same-domain controller/listener/handler boundaries, domain Spring independence, application transport neutrality, and DTO leakage.
 ```
 
-- [ ] **Step 4: Update hardening spec status**
+- [x] **Step 4: Update hardening spec status**
 
 In `docs/superpowers/specs/2026-05-02-community-app-ddd-boundary-hardening-design.md`, change:
 
@@ -1888,10 +1890,10 @@ In `docs/superpowers/specs/2026-05-02-community-app-ddd-boundary-hardening-desig
 to:
 
 ```markdown
-**Status:** Approved for first-batch implementation
+**Status:** Completed and verified
 ```
 
-- [ ] **Step 5: Commit documentation alignment**
+- [x] **Step 5: Commit documentation alignment**
 
 Run:
 
@@ -1910,17 +1912,17 @@ git commit -m "docs: align ddd boundary hardening rules"
 **Files:**
 - Read: all files changed in Tasks 1-5.
 
-- [ ] **Step 1: Run focused boundary tests**
+- [x] **Step 1: Run focused boundary tests**
 
 Run:
 
 ```bash
-mvn -q -f backend/pom.xml -pl community-app -Dtest='UserAvatarApplicationServiceTest,UserFileApplicationServiceTest,FilesControllerStorageRoutingTest,PostOutboxHandlerTest,SearchPostProjectionApplicationServiceTest,SearchApplicationServiceTest,ContentPostPayloadAssemblerTest,PostContractEventApplicationServiceTest,PostDomainEventBridgeTest,CommentDomainEventBridgeTest' test
+mvn -q -f backend/pom.xml -pl community-app -Dtest='UserAvatarApplicationServiceTest,UserFileApplicationServiceTest,FilesControllerStorageRoutingTest,UserControllerLoggingTest,R2AvatarStorageProviderUnitTest,MarketOrderAutoConfirmHandlerTest,PendingRegistrationUserCleanupHandlerTest,SearchReindexHandlerTest,MarketOrderAutoConfirmApplicationServiceUnitTest,PostOutboxHandlerTest,SearchPostProjectionApplicationServiceTest,SearchApplicationServiceTest,ContentPostPayloadAssemblerTest,PostContractEventApplicationServiceTest,PostDomainEventBridgeTest,CommentDomainEventBridgeTest' test
 ```
 
 Expected: PASS.
 
-- [ ] **Step 2: Run architecture tests**
+- [x] **Step 2: Run architecture tests**
 
 Run:
 
@@ -1930,7 +1932,7 @@ mvn -q -f backend/pom.xml -pl community-app -Dtest='DddLayeringArchTest,Controll
 
 Expected: PASS.
 
-- [ ] **Step 3: Run community-app test suite**
+- [x] **Step 3: Run community-app test suite**
 
 Run:
 
@@ -1940,7 +1942,7 @@ mvn -q -f backend/pom.xml -pl community-app test
 
 Expected: PASS.
 
-- [ ] **Step 4: Inspect forbidden dependencies**
+- [x] **Step 4: Inspect forbidden dependencies**
 
 Run:
 
@@ -1948,6 +1950,7 @@ Run:
 rg -n "org\\.springframework\\.web\\.multipart|MultipartFile" backend/community-app/src/main/java/com/nowcoder/community/*/application
 rg -n "import com\\.nowcoder\\.community\\.content\\.api\\." backend/community-app/src/main/java/com/nowcoder/community/search/infrastructure/event/PostOutboxHandler.java
 rg -n "PostPayloadAssembler|PostContentRepository|TagContentRepository" backend/community-app/src/main/java/com/nowcoder/community/content/infrastructure/event
+rg -n "com\\.nowcoder\\.community\\.(market|user|search)\\.api\\." backend/community-app/src/main/java/com/nowcoder/community/market/infrastructure/job backend/community-app/src/main/java/com/nowcoder/community/user/infrastructure/job backend/community-app/src/main/java/com/nowcoder/community/search/infrastructure/job backend/community-app/src/main/java/com/nowcoder/community/infra/job/handlers
 ```
 
 Expected:
@@ -1955,8 +1958,9 @@ Expected:
 - first command prints no matches;
 - second command prints no matches;
 - third command prints no infrastructure event matches for `PostPayloadAssembler`, `PostContentRepository`, or `TagContentRepository`.
+- fourth command prints no owner `api.*` usage from job adapters.
 
-- [ ] **Step 5: Check worktree**
+- [x] **Step 5: Check worktree**
 
 Run:
 
@@ -1964,7 +1968,7 @@ Run:
 git status --short
 ```
 
-Expected: no output.
+Expected for this plan: no tracked or untracked files related to DDD boundary hardening remain outside intentional commits. Unrelated pre-existing worktree files may still be listed and must be inspected rather than reverted.
 
 If output exists, inspect it. Commit only intentional changes:
 

@@ -1,4 +1,4 @@
-package com.nowcoder.community.content.infrastructure.event;
+package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ModerationPayload;

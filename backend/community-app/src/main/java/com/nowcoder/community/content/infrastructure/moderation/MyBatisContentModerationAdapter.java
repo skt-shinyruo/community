@@ -2,13 +2,13 @@ package com.nowcoder.community.content.infrastructure.moderation;
 
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.content.application.ContentEventPublisher;
 import com.nowcoder.community.content.application.ContentModerationGateway;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.content.domain.model.ModerationTarget;
 import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.domain.model.DiscussPost;
-import com.nowcoder.community.content.infrastructure.event.ContentEventPublisher;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.CommentMapper;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.DiscussPostMapper;
 import org.springframework.stereotype.Component;

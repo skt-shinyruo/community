@@ -16,6 +16,8 @@ public class MarketOrderAutoConfirmActionApiAdapter implements MarketOrderAutoCo
 
     @Override
     public MarketOrderAutoConfirmResult autoConfirmDueOrders() {
-        return applicationService.autoConfirmDueOrders();
+        com.nowcoder.community.market.application.result.MarketOrderAutoConfirmResult result =
+                applicationService.autoConfirmDueOrders();
+        return new MarketOrderAutoConfirmResult(result.completedCount(), result.skippedCount());
     }
 }

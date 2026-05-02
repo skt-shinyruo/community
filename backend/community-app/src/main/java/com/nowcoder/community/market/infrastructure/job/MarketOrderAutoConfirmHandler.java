@@ -1,7 +1,7 @@
-package com.nowcoder.community.infra.job.handlers;
+package com.nowcoder.community.market.infrastructure.job;
 
-import com.nowcoder.community.market.api.action.MarketOrderAutoConfirmActionApi;
-import com.nowcoder.community.market.api.model.MarketOrderAutoConfirmResult;
+import com.nowcoder.community.market.application.MarketOrderAutoConfirmApplicationService;
+import com.nowcoder.community.market.application.result.MarketOrderAutoConfirmResult;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import org.slf4j.Logger;
@@ -15,16 +15,16 @@ public class MarketOrderAutoConfirmHandler {
 
     private static final Logger log = LoggerFactory.getLogger(MarketOrderAutoConfirmHandler.class);
 
-    private final MarketOrderAutoConfirmActionApi marketOrderAutoConfirmActionApi;
+    private final MarketOrderAutoConfirmApplicationService applicationService;
 
-    public MarketOrderAutoConfirmHandler(MarketOrderAutoConfirmActionApi marketOrderAutoConfirmActionApi) {
-        this.marketOrderAutoConfirmActionApi = marketOrderAutoConfirmActionApi;
+    public MarketOrderAutoConfirmHandler(MarketOrderAutoConfirmApplicationService applicationService) {
+        this.applicationService = applicationService;
     }
 
     @XxlJob(JOB_NAME)
     public void autoConfirm() {
         try {
-            MarketOrderAutoConfirmResult result = marketOrderAutoConfirmActionApi.autoConfirmDueOrders();
+            MarketOrderAutoConfirmResult result = applicationService.autoConfirmDueOrders();
             String message = "[market] auto-confirm completed=" + result.completedCount() + " skipped=" + result.skippedCount();
             XxlJobHelper.log(message);
             XxlJobHelper.handleSuccess(message);

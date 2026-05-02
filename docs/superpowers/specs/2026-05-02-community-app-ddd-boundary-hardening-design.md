@@ -332,8 +332,10 @@ Repository interfaces should move away from broad `markXxx` and `changeStatus` s
 Run focused architecture tests:
 
 ```bash
-mvn -q -f backend/pom.xml -pl community-app -Dtest='com.nowcoder.community.app.arch.*' test
+mvn -q -f backend/pom.xml -pl community-app -Dtest='DddLayeringArchTest,ListenerBoundaryArchTest' test
 ```
+
+Do not use a package-style Surefire selector such as `-Dtest='com.nowcoder.community.app.arch.*'`; in this module it can exit successfully without executing the intended ArchUnit classes.
 
 Expected after first batch:
 

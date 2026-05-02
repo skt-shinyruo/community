@@ -197,7 +197,7 @@ class ListenerBoundaryArchTest {
                             "..infrastructure.job..",
                             "..infra.job.handlers.."
                     )
-                    .and().haveSimpleNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
+                    .and().haveNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
                     .should(ArchitectureRulesSupport.notDependOnSameDomainServicesExceptApplicationServices(
                             LEGACY_LISTENER_APPLICATION_BOUNDARY
                     ));
@@ -210,7 +210,7 @@ class ListenerBoundaryArchTest {
                             "..infrastructure.job..",
                             "..infra.job.handlers.."
                     )
-                    .and().haveSimpleNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
+                    .and().haveNameMatching(".*(Listener|Handler|Bridge|Enqueuer|Job)$")
                     .should(ArchitectureRulesSupport.notDependOnForeignOwnerApiPackages(
                             LEGACY_INBOUND_FOREIGN_API_BOUNDARY
                     ));
@@ -222,8 +222,10 @@ class ListenerBoundaryArchTest {
 Run:
 
 ```bash
-mvn -q -f backend/pom.xml -pl community-app -Dtest='com.nowcoder.community.app.arch.*' test
+mvn -q -f backend/pom.xml -pl community-app -Dtest='DddLayeringArchTest,ListenerBoundaryArchTest' test
 ```
+
+Do not use a package-style Surefire selector such as `-Dtest='com.nowcoder.community.app.arch.*'`; with this module's Surefire settings it can exit successfully without running the intended ArchUnit classes.
 
 Expected: FAIL. The failure must include:
 
@@ -708,7 +710,7 @@ Run:
 
 ```bash
 mvn -q -f backend/pom.xml -pl community-app -Dtest='UserAvatarApplicationServiceTest,UserFileApplicationServiceTest,FilesControllerStorageRoutingTest' test
-mvn -q -f backend/pom.xml -pl community-app -Dtest='com.nowcoder.community.app.arch.*' test
+mvn -q -f backend/pom.xml -pl community-app -Dtest='DddLayeringArchTest,ListenerBoundaryArchTest' test
 ```
 
 Expected:
@@ -1074,7 +1076,7 @@ Run:
 
 ```bash
 mvn -q -f backend/pom.xml -pl community-app -Dtest='PostOutboxHandlerTest,SearchPostProjectionApplicationServiceTest,SearchApplicationServiceTest' test
-mvn -q -f backend/pom.xml -pl community-app -Dtest='com.nowcoder.community.app.arch.*' test
+mvn -q -f backend/pom.xml -pl community-app -Dtest='DddLayeringArchTest,ListenerBoundaryArchTest' test
 ```
 
 Expected:
@@ -1495,7 +1497,7 @@ Run:
 
 ```bash
 mvn -q -f backend/pom.xml -pl community-app -Dtest='ContentPostPayloadAssemblerTest,PostContractEventApplicationServiceTest,PostDomainEventBridgeTest,CommentDomainEventBridgeTest' test
-mvn -q -f backend/pom.xml -pl community-app -Dtest='com.nowcoder.community.app.arch.*' test
+mvn -q -f backend/pom.xml -pl community-app -Dtest='DddLayeringArchTest,ListenerBoundaryArchTest' test
 ```
 
 Expected:
@@ -1619,7 +1621,7 @@ Expected: PASS.
 Run:
 
 ```bash
-mvn -q -f backend/pom.xml -pl community-app -Dtest='com.nowcoder.community.app.arch.*' test
+mvn -q -f backend/pom.xml -pl community-app -Dtest='DddLayeringArchTest,ControllerBoundaryArchTest,DomainBoundaryArchTest,DtoBoundaryArchTest,InfraBoundaryArchTest,ListenerBoundaryArchTest,TransactionBoundaryArchTest' test
 ```
 
 Expected: PASS.

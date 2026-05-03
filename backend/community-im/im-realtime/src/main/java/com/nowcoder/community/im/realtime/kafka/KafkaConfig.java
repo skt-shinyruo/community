@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.realtime.kafka;
 
+import com.nowcoder.community.common.kafka.trace.TraceRecordInterceptor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.kafka.ConcurrentKafkaListenerContainerFactoryConfigurer;
 import org.springframework.context.annotation.Bean;
@@ -19,7 +20,7 @@ public class KafkaConfig {
     ) {
         ConcurrentKafkaListenerContainerFactory<Object, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
         configurer.configure(factory, consumerFactory);
+        factory.setRecordInterceptor(new TraceRecordInterceptor());
         return factory;
     }
 }
-

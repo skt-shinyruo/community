@@ -1,6 +1,7 @@
 package com.nowcoder.community.im.core.outbox;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.kafka.trace.TraceKafkaSender;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxHandler;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -44,7 +45,7 @@ public class ImKafkaOutboxHandler<T> implements OutboxHandler {
             throw new IllegalStateException("IM outbox payload deserialization failed: " + topic, e);
         }
         try {
-            kafkaTemplate.send(topic, event.eventKey(), payload).join();
+            TraceKafkaSender.send(kafkaTemplate, topic, event.eventKey(), payload).join();
         } catch (CompletionException e) {
             Throwable cause = e.getCause() == null ? e : e.getCause();
             throw new IllegalStateException("IM outbox kafka publish failed: " + topic, cause);

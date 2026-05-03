@@ -35,8 +35,9 @@ backend structured JSON file appender
 traces / metrics：
 
 - 继续通过 OTLP -> EDOT collector -> Elastic。
-- 默认 `OTEL_ENABLED=false`。
-- 需要应用 traces / metrics 时，在对应 env 文件显式打开 `OTEL_ENABLED=true`。
+- 普通启动默认 `OTEL_ENABLED=false`。
+- 使用 `--observability` 时，`deployment.sh` 默认设置 `OTEL_ENABLED=true`，后端服务会加载 OTel Java agent。
+- 如需在 observability overlay 下临时关闭 tracing，使用 `OTEL_ENABLED=false ./deploy/deployment.sh up --topology single --observability`。
 
 Kibana saved objects：
 
@@ -56,6 +57,12 @@ deploy/observability/kibana/README.md
 - `community.category`：区分 auth、content、search、outbox、scheduler、im 等类别。
 - `community.action`：定位具体动作，例如 reindex、pollOnce、persistPrivateMessage。
 - `community.outcome`：区分 success、failed、skipped、retry、dead。
+
+链路排障时：
+
+- `trace.id` / `trace_id` 用于技术链路串联。
+- `requestId`、事件 id、幂等 key 用于业务重放和消息确认，不作为 trace parent。
+- 对 outbox 或 job 发起的链路，如果没有上游请求，系统会生成 job/outbox 处理 trace。
 
 对外 HTTP 响应会回写 `X-Trace-Id` / `traceparent`，前端或 curl 拿到 trace 后优先在 Kibana 里按 trace 查。
 

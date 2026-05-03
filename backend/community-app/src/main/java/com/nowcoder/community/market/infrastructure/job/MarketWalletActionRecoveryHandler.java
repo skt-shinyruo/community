@@ -1,5 +1,6 @@
 package com.nowcoder.community.market.infrastructure.job;
 
+import com.nowcoder.community.common.trace.TraceJobRunner;
 import com.nowcoder.community.market.application.MarketWalletActionRecoveryApplicationService;
 import com.nowcoder.community.market.application.result.MarketWalletActionRecoveryResult;
 import com.xxl.job.core.context.XxlJobHelper;
@@ -23,19 +24,21 @@ public class MarketWalletActionRecoveryHandler {
 
     @XxlJob(JOB_NAME)
     public void recover() {
-        try {
-            MarketWalletActionRecoveryResult result = recoveryService.reconcileOnce(100);
-            String message = "[market-wallet-action] recoveredLeases=" + result.recoveredLeases()
-                    + " reconciled=" + result.reconciledCount()
-                    + " skipped=" + result.skippedCount();
-            XxlJobHelper.log(message);
-            XxlJobHelper.handleSuccess(message);
-            log.info(message);
-        } catch (RuntimeException e) {
-            String message = "[market-wallet-action] recovery failed: " + e;
-            XxlJobHelper.log(e);
-            XxlJobHelper.handleFail(message);
-            log.warn(message);
-        }
+        TraceJobRunner.run(JOB_NAME, () -> {
+            try {
+                MarketWalletActionRecoveryResult result = recoveryService.reconcileOnce(100);
+                String message = "[market-wallet-action] recoveredLeases=" + result.recoveredLeases()
+                        + " reconciled=" + result.reconciledCount()
+                        + " skipped=" + result.skippedCount();
+                XxlJobHelper.log(message);
+                XxlJobHelper.handleSuccess(message);
+                log.info(message);
+            } catch (RuntimeException e) {
+                String message = "[market-wallet-action] recovery failed: " + e;
+                XxlJobHelper.log(e);
+                XxlJobHelper.handleFail(message);
+                log.warn(message);
+            }
+        });
     }
 }

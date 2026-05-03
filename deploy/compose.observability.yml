@@ -11,8 +11,8 @@ services:
     - --to
     - elasticsearch:9200
     depends_on:
-      elasticsearch-1:
-        condition: service_started
+      es-init:
+        condition: service_completed_successfully
     ports:
     - 127.0.0.1:${ELASTICSEARCH_PORT:-12888}:9200
   kibana:
@@ -24,8 +24,8 @@ services:
     environment:
     - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
     depends_on:
-      elasticsearch-1:
-        condition: service_started
+      es-init:
+        condition: service_completed_successfully
   observability-gateway-edot-collector:
     image: docker.elastic.co/elastic-agent/elastic-otel-collector:9.3.2
     mem_limit: ${OTEL_COLLECTOR_MEM_LIMIT:-768m}
@@ -37,6 +37,6 @@ services:
     - ./observability/edot-collector.yml:/etc/otelcol/config.yaml:ro
     - observability_logs:/var/log/community:ro
     depends_on:
-      elasticsearch-1:
-        condition: service_started
+      es-init:
+        condition: service_completed_successfully
     restart: unless-stopped

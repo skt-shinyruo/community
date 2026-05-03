@@ -163,19 +163,19 @@ npm --prefix tools/mock-data-studio test -- \
 
 ## IM 压测工具验证
 
-`tools/im-load` 主要是压测工具，不是业务测试套件。修改参数解析、JWT 生成或连接行为后，至少做小流量冒烟：
+`tools/im-load` 主要是旧协议压测工具，不是业务测试套件。修改参数解析、JWT 生成或连接行为后，只在旧协议兼容环境做小流量冒烟：
 
 ```bash
 cd tools/im-load
 npm install
 node src/index.mjs connect-only \
-  --wsUrl ws://localhost:12880/ws/im \
+  --wsUrl ws://legacy-im-edge.example/ws/im \
   --connections 2 \
   --startUserId 1 \
   --durationSec 10
 ```
 
-注意：`tools/im-load` 当前仍使用旧直连 `/ws/im` + `auth` 消息协议，不覆盖当前浏览器客户端的 `/api/im/sessions` ticket bootstrap。真实容量压测当前 IM 语义前，应先升级工具或使用支持 session-bootstrap 的脚本。
+注意：`tools/im-load` 当前仍使用旧 `auth` 首帧协议，直接连接传入的 `--wsUrl`，不覆盖当前浏览器客户端的 `/api/im/sessions` ticket bootstrap。真实容量压测当前 IM 语义前，应先升级工具或使用支持 session-bootstrap 的脚本。
 
 ## 文档验证
 

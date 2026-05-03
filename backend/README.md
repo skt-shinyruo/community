@@ -29,6 +29,7 @@
 ## 目录结构（后端）
 - `community-app/`：主业务单体与 deployable
 - `community-gateway/`：统一 HTTP / WS edge
+- `community-im-gateway/`：IM session bootstrap 与稳定 `/ws/im` WebSocket edge
 - `community-im/`：IM 聚合模块（下含 `im-common`、`im-core`、`im-realtime`）
 
 ## 仓库级入口

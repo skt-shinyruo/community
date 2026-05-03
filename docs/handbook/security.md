@@ -4,7 +4,7 @@
 
 ## 总体边界
 
-- 浏览器默认只访问 `community-gateway` 暴露的 `/api/**`、`/files/**` 和 IM WebSocket 前缀 `/ws/im`；当前 gateway worker-proxy 的具体 WebSocket 路径是 `/ws/im/workers/{workerId}`，由 `/api/im/sessions` 返回。
+- 浏览器默认只访问 `community-gateway` 暴露的 `/api/**`、`/files/**` 和 IM WebSocket 前缀 `/ws/im`；`/api/im/sessions` 由 `community-im-gateway` 返回稳定的 `/ws/im`，worker 选择和内部桥接不对浏览器暴露。
 - `community-gateway` 负责 HTTP / WebSocket 路由、浏览器 CORS、trace 和入口级策略。
 - `community-app` 负责主站业务授权矩阵、OriginGuard、审计日志、统一错误语义。
 - `im-core` 和 `im-realtime` 各自执行 IM HTTP / WebSocket 的安全配置。

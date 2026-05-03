@@ -463,32 +463,34 @@ Key code：
 
 Owner / SSOT：
 
-- `im-realtime` owns WebSocket 连接态和在线推送。
+- `community-im-gateway` owns session bootstrap 和外部 `/ws/im` 入口桥接。
+- `im-realtime` owns 内部 worker WebSocket 连接态和在线推送。
 - `im-core` owns 私信会话、消息、顺序号、幂等、历史、未读。
 - `community-app` owns 用户处罚和拉黑 SSOT，并提供 policy snapshot。
 
 Entry：
 
 - Session bootstrap：`POST http://localhost:12880/api/im/sessions`
-- WebSocket：session response `wsUrl`，gateway worker-proxy 模式下形如 `ws://localhost:12880/ws/im/workers/{workerId}`
+- WebSocket：session response `wsUrl`，稳定为 `ws://localhost:12880/ws/im`
 - HTTP history：`http://localhost:12880/api/im/**`
 
 Main path：
 
 1. 客户端带 bearer token 调 `POST /api/im/sessions`。
-2. `im-realtime` 校验 token，生成 session ticket，并返回 `wsUrl`。
-3. 客户端连接返回的 `wsUrl`，gateway worker-proxy 模式下路径为 `/ws/im/workers/{workerId}`。
-4. WebSocket 建连后客户端发送 `connect` frame 和 ticket，`im-realtime` 完成鉴权并注册连接。
-5. 首次鉴权后，`im-realtime` 也会从 `im-core` 拉取房间 membership snapshot，主要服务群聊索引。
-6. 客户端发送 `sendPrivateText`。
-7. `im-realtime` 确认连接已鉴权。
-8. 本地 `PolicyProjectionService` 判定拉黑、处罚、目标用户存在性。
-9. 判定通过后写 `im.command.private-text`。
-10. `im-core` 消费 command，校验并按 `(conversationId, fromUserId, clientMsgId)` 幂等。
-11. `im-core` 分配 seq、落库、更新会话状态。
-12. `im-core` 发布 `im.event.private-persisted`。
-13. `im-realtime` 消费 persisted event 并在线推送。
-14. 客户端断线或错过推送时，通过 HTTP history API 补拉。
+2. `community-im-gateway` 校验 token，选择 worker，生成 session ticket，并返回稳定的 `wsUrl`。
+3. 客户端连接返回的 `wsUrl`，即 `/ws/im`。
+4. `community-im-gateway` 接收首帧 `connect` 和 ticket，桥接到选定的 `im-realtime` worker。
+5. `im-realtime` 完成鉴权并注册连接。
+6. 首次鉴权后，`im-realtime` 也会从 `im-core` 拉取房间 membership snapshot，主要服务群聊索引。
+7. 客户端发送 `sendPrivateText`。
+8. `im-realtime` 确认连接已鉴权。
+9. 本地 `PolicyProjectionService` 判定拉黑、处罚、目标用户存在性。
+10. 判定通过后写 `im.command.private-text`。
+11. `im-core` 消费 command，校验并按 `(conversationId, fromUserId, clientMsgId)` 幂等。
+12. `im-core` 分配 seq、落库、更新会话状态。
+13. `im-core` 发布 `im.event.private-persisted`。
+14. `im-realtime` 消费 persisted event 并在线推送。
+15. 客户端断线或错过推送时，通过 HTTP history API 补拉。
 
 Semantics：
 
@@ -507,29 +509,32 @@ Key code：
 
 Owner / SSOT：
 
+- `community-im-gateway` owns session bootstrap 和外部 `/ws/im` 入口桥接。
 - `im-core` owns 房间、成员、群消息、seq、read state。
 - `im-realtime` owns 在线房间索引和更新通知扇出。
 
 Entry：
 
 - Session bootstrap：`POST http://localhost:12880/api/im/sessions`
-- WebSocket：session response `wsUrl`，gateway worker-proxy 模式下形如 `ws://localhost:12880/ws/im/workers/{workerId}`
+- WebSocket：session response `wsUrl`，稳定为 `ws://localhost:12880/ws/im`
 - HTTP room history：`http://localhost:12880/api/im/**`
 
 Main path：
 
 1. 客户端带 bearer token 调 `POST /api/im/sessions`。
-2. 客户端连接返回的 `wsUrl`，发送 `connect` frame 和 ticket 完成 WebSocket 鉴权。
-3. `im-realtime` 调 `im-core` internal membership snapshot，拉取当前用户所在房间。
-4. `im-realtime` 建立本机在线房间索引。
-5. 客户端发送 `sendRoomText`。
-6. `im-realtime` 写 `im.command.room-text`。
-7. `im-core` 消费 command，校验房间存在、发送者是成员。
-8. `im-core` 按 `(roomId, fromUserId, clientMsgId)` 做幂等。
-9. `im-core` 分配 room seq，持久化消息。
-10. `im-core` 发布 `im.event.room-persisted`。
-11. `im-realtime` 收到 event 后，不一定广播完整消息，而是推送 `roomUpdatedBatch`。
-12. 客户端收到更新后，通过 HTTP 拉取群消息并推进 `lastReadSeq`。
+2. `community-im-gateway` 选择 worker、生成 ticket，并返回稳定的 `wsUrl`。
+3. 客户端连接返回的 `wsUrl`，发送 `connect` frame 和 ticket 完成 WebSocket 鉴权。
+4. `community-im-gateway` 把首帧桥接到选定的 `im-realtime` worker。
+5. `im-realtime` 调 `im-core` internal membership snapshot，拉取当前用户所在房间。
+6. `im-realtime` 建立本机在线房间索引。
+7. 客户端发送 `sendRoomText`。
+8. `im-realtime` 写 `im.command.room-text`。
+9. `im-core` 消费 command，校验房间存在、发送者是成员。
+10. `im-core` 按 `(roomId, fromUserId, clientMsgId)` 做幂等。
+11. `im-core` 分配 room seq，持久化消息。
+12. `im-core` 发布 `im.event.room-persisted`。
+13. `im-realtime` 收到 event 后，不一定广播完整消息，而是推送 `roomUpdatedBatch`。
+14. 客户端收到更新后，通过 HTTP 拉取群消息并推进 `lastReadSeq`。
 
 Membership changes：
 

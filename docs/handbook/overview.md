@@ -21,8 +21,8 @@
 
 - 前端：`http://localhost:12881`
 - API / files / WebSocket：`http://localhost:12880`
-- IM session bootstrap：`POST http://localhost:12880/api/im/sessions`
-- IM WebSocket：使用 session response `wsUrl`；gateway worker-proxy 模式下路径形如 `ws://localhost:12880/ws/im/workers/{workerId}`
+- IM session bootstrap：`POST http://localhost:12880/api/im/sessions`，由 `community-im-gateway` 处理
+- IM WebSocket：使用 session response `wsUrl`，稳定为 `ws://localhost:12880/ws/im`
 - IM HTTP：`http://localhost:12880/api/im/**`
 
 ## 先记住的规则
@@ -36,7 +36,7 @@ Browser / Client
   -> community-gateway
       -> community-app      (/api/**, /files/**, /api/ops/**)
       -> im-core            (/api/im/** history / read state)
-      -> im-realtime        (/api/im/sessions, /ws/im/workers/** WebSocket)
+      -> community-im-gateway (/api/im/sessions, /ws/im)
 ```
 
 如果调试接口行为，先确认请求落在哪个 deployable，再看对应服务的 controller / handler。
@@ -133,7 +133,8 @@ POST /api/posts + Authorization + Idempotency-Key
 ### IM 私信路径
 
 ```text
-POST /api/im/sessions -> WS /ws/im/workers/{workerId}
+POST /api/im/sessions -> WS /ws/im
+  -> community-im-gateway selects worker
   -> im-realtime auth
   -> sendPrivateText
   -> local policy projection 判断拉黑/处罚/目标用户
@@ -147,7 +148,8 @@ POST /api/im/sessions -> WS /ws/im/workers/{workerId}
 ### IM 群聊路径
 
 ```text
-POST /api/im/sessions -> WS /ws/im/workers/{workerId}
+POST /api/im/sessions -> WS /ws/im
+  -> community-im-gateway selects worker
   -> im-realtime auth
   -> room membership bootstrap
   -> sendRoomText

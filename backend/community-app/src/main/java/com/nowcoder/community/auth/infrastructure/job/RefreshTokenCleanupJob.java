@@ -2,6 +2,7 @@ package com.nowcoder.community.auth.infrastructure.job;
 
 import com.nowcoder.community.auth.application.RefreshTokenApplicationService;
 import com.nowcoder.community.auth.config.RefreshTokenCleanupProperties;
+import com.nowcoder.community.common.trace.TraceJobRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -27,16 +28,18 @@ public class RefreshTokenCleanupJob {
 
     @Scheduled(fixedDelayString = "${auth.refresh.cleanup.interval-ms:3600000}")
     public void cleanup() {
-        if (!properties.isEnabled()) {
-            return;
-        }
-        try {
-            int deleted = refreshTokenApplicationService.cleanupExpiredBefore(Instant.now());
-            if (deleted > 0) {
-                log.info("[auth] cleaned up expired refresh tokens count={}", deleted);
+        TraceJobRunner.run("refresh-token-cleanup", () -> {
+            if (!properties.isEnabled()) {
+                return;
             }
-        } catch (RuntimeException e) {
-            log.warn("[auth] refresh-token cleanup failed: {}", e.toString());
-        }
+            try {
+                int deleted = refreshTokenApplicationService.cleanupExpiredBefore(Instant.now());
+                if (deleted > 0) {
+                    log.info("[auth] cleaned up expired refresh tokens count={}", deleted);
+                }
+            } catch (RuntimeException e) {
+                log.warn("[auth] refresh-token cleanup failed: {}", e.toString());
+            }
+        });
     }
 }

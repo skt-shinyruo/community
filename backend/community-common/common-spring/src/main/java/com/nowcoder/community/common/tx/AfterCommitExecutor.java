@@ -1,5 +1,6 @@
 package com.nowcoder.community.common.tx;
 
+import com.nowcoder.community.common.trace.TraceContextSnapshot;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -21,17 +22,19 @@ public final class AfterCommitExecutor {
             return;
         }
 
+        Runnable tracedAction = TraceContextSnapshot.currentOrNew().wrap(action);
+
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    action.run();
+                    tracedAction.run();
                 }
             });
             return;
         }
 
         // 当前没有事务：直接执行（调用方自行保证幂等与可重试策略）
-        action.run();
+        tracedAction.run();
     }
 }

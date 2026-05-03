@@ -1,10 +1,13 @@
 package com.nowcoder.community.common.tx;
 
+import com.nowcoder.community.common.trace.TraceContext;
+import com.nowcoder.community.common.trace.TraceId;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -38,5 +41,29 @@ class AfterCommitExecutorTest {
         }
 
         assertThat(ran.get()).isTrue();
+    }
+
+    @Test
+    void runAfterCommit_shouldCaptureTraceAtRegistrationAndRestorePreviousAfterCallback() {
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            TraceContext.set("11111111111111111111111111111111");
+            AtomicReference<String> seen = new AtomicReference<>();
+
+            AfterCommitExecutor.runAfterCommit(() -> seen.set(TraceId.get()));
+
+            TraceContext.set("22222222222222222222222222222222");
+            for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+                synchronization.afterCommit();
+            }
+
+            assertThat(seen.get()).isEqualTo("11111111111111111111111111111111");
+            assertThat(TraceId.get()).isEqualTo("22222222222222222222222222222222");
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+            TraceContext.clear();
+        }
     }
 }

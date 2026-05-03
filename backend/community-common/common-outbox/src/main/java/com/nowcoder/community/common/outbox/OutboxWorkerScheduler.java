@@ -1,5 +1,6 @@
 package com.nowcoder.community.common.outbox;
 
+import com.nowcoder.community.common.trace.TraceJobRunner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -49,24 +50,26 @@ public class OutboxWorkerScheduler {
 
     @Scheduled(fixedDelayString = "${events.outbox.worker-fixed-delay-ms:1000}")
     public void poll() {
-        try {
-            int processed = worker.pollOnce();
-            if (processed > 0) {
-                infoEvent(
+        TraceJobRunner.run("outbox-worker", () -> {
+            try {
+                int processed = worker.pollOnce();
+                if (processed > 0) {
+                    infoEvent(
+                            "outbox_poll",
+                            "success",
+                            "community.batch_size", properties.getBatchSize(),
+                            "community.processed_count", processed
+                    );
+                }
+            } catch (RuntimeException e) {
+                warnEvent(
                         "outbox_poll",
-                        "success",
-                        "community.batch_size", properties.getBatchSize(),
-                        "community.processed_count", processed
+                        "failure",
+                        e,
+                        "community.reason_code", "poll_failed"
                 );
             }
-        } catch (RuntimeException e) {
-            warnEvent(
-                    "outbox_poll",
-                    "failure",
-                    e,
-                    "community.reason_code", "poll_failed"
-            );
-        }
+        });
     }
 
     private void infoEvent(String action, String outcome, Object... keyValues) {

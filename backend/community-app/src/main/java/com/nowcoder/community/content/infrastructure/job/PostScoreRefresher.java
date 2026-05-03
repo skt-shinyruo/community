@@ -1,5 +1,6 @@
 package com.nowcoder.community.content.infrastructure.job;
 
+import com.nowcoder.community.common.trace.TraceJobRunner;
 import com.nowcoder.community.content.application.PostScoreRefreshApplicationService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -24,9 +25,11 @@ public class PostScoreRefresher {
 
     @Scheduled(fixedDelayString = "${content.score.refresh.delay-ms:30000}")
     public void refreshBatch() {
-        if (!enabled) {
-            return;
-        }
-        refreshApplicationService.refreshBatch(batchSize);
+        TraceJobRunner.run("post-score-refresher", () -> {
+            if (!enabled) {
+                return;
+            }
+            refreshApplicationService.refreshBatch(batchSize);
+        });
     }
 }

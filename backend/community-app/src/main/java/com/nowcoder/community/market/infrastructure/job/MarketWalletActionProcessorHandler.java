@@ -1,5 +1,6 @@
 package com.nowcoder.community.market.infrastructure.job;
 
+import com.nowcoder.community.common.trace.TraceJobRunner;
 import com.nowcoder.community.market.application.MarketWalletActionProcessorApplicationService;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
@@ -22,17 +23,19 @@ public class MarketWalletActionProcessorHandler {
 
     @XxlJob(JOB_NAME)
     public void process() {
-        try {
-            int processed = processor.processDue(50);
-            String message = "[market-wallet-action] processed=" + processed;
-            XxlJobHelper.log(message);
-            XxlJobHelper.handleSuccess(message);
-            log.info(message);
-        } catch (RuntimeException e) {
-            String message = "[market-wallet-action] process failed: " + e;
-            XxlJobHelper.log(e);
-            XxlJobHelper.handleFail(message);
-            log.warn(message);
-        }
+        TraceJobRunner.run(JOB_NAME, () -> {
+            try {
+                int processed = processor.processDue(50);
+                String message = "[market-wallet-action] processed=" + processed;
+                XxlJobHelper.log(message);
+                XxlJobHelper.handleSuccess(message);
+                log.info(message);
+            } catch (RuntimeException e) {
+                String message = "[market-wallet-action] process failed: " + e;
+                XxlJobHelper.log(e);
+                XxlJobHelper.handleFail(message);
+                log.warn(message);
+            }
+        });
     }
 }

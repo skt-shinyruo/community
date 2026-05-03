@@ -272,6 +272,10 @@ if [ "${ELASTIC}" -eq 1 ]; then
   COMPOSE_FILES+=(deploy/compose.observability.yml)
 fi
 
+if [ "${ELASTIC}" -eq 1 ] && [ -z "${OTEL_ENABLED+x}" ]; then
+  export OTEL_ENABLED=true
+fi
+
 COMPOSE_CMD=(docker compose --env-file "${ENV_FILE}" -p "${PROJECT_NAME}")
 for compose_file in "${COMPOSE_FILES[@]}"; do
   COMPOSE_CMD+=(-f "${compose_file}")

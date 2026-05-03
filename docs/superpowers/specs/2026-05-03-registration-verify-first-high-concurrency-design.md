@@ -117,7 +117,7 @@ If a concurrent verified registration already claimed the same username or email
 
 ### 5.1 Registration Draft
 
-Add an auth-domain repository contract, replacing the current token-to-user-id-only session semantics:
+Add an auth-domain repository contract, replacing and removing the current token-to-user-id-only `RegistrationSessionRepository` semantics:
 
 ```java
 public interface RegistrationDraftRepository {
@@ -146,6 +146,8 @@ auth:regdraft:{registrationToken} -> prepared draft JSON
 ```
 
 The in-memory implementation mirrors the same semantics for tests and local development.
+
+The old `RegistrationSessionRepository`, `RedisRegistrationSessionRepository`, and `InMemoryRegistrationSessionRepository` are deleted in this migration. No production code should keep resolving `registrationToken -> userId`; the token must resolve to the complete prepared registration draft.
 
 ### 5.2 Registration Code
 
@@ -263,11 +265,12 @@ Mail sending should be queue-backed or rate-limited behind `MailPort`. The HTTP 
 2. Add auth registration draft repository with Redis and in-memory implementations.
 3. Change register to create draft + code instead of pending user.
 4. Change resend and verify to read draft instead of pending user.
-5. Keep user unique-key duplicate translation on final creation.
-6. Stop publishing user policy events for unverified registration.
-7. Disable pending-user creation and mark old pending APIs as migration-only.
-8. Keep old cleanup temporarily for already-created `status=0` rows.
-9. Remove old pending APIs and cleanup jobs after compatibility window.
+5. Delete the old registration session repository interface and implementations in the same migration; do not keep a compatibility token-to-user-id session store.
+6. Keep user unique-key duplicate translation on final creation.
+7. Stop publishing user policy events for unverified registration.
+8. Disable pending-user creation and mark old pending APIs as migration-only.
+9. Keep old cleanup temporarily for already-created `status=0` rows.
+10. Remove old pending APIs and cleanup jobs after compatibility window.
 
 ---
 
@@ -288,6 +291,7 @@ Infrastructure tests:
 - Redis draft repository stores JSON with TTL and resolves malformed/missing values safely;
 - in-memory draft repository expires values;
 - Redis code repository remains atomic for issue and consume.
+- no main or test code references `RegistrationSessionRepository` or `auth:regsession`.
 
 Architecture tests:
 

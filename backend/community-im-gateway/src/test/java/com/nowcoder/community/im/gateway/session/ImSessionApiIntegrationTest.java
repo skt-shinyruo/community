@@ -6,6 +6,7 @@ import com.nowcoder.community.im.gateway.CommunityImGatewayApplication;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
@@ -28,12 +29,14 @@ class ImSessionApiIntegrationTest {
     @Autowired
     WebTestClient webTestClient;
 
+    @LocalServerPort
+    int localPort;
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("security.jwt.hmac-secret", () -> SECRET);
         registry.add("security.jwt.issuer", () -> "community-auth");
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
-        registry.add("im.gateway.public-ws-url", () -> "wss://community.example/ws/im");
         registry.add("im.gateway.ws.path", () -> "/custom/ws/im");
         registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].uri",
                 () -> "http://127.0.0.1:18081");
@@ -46,7 +49,7 @@ class ImSessionApiIntegrationTest {
     }
 
     @Test
-    void shouldReturnStableWsUrlAndTicket() {
+    void shouldReturnMappedWsUrlAndTicketWhenPublicWsPathIsNotConfigured() {
         webTestClient.post()
                 .uri("/api/im/sessions")
                 .header("Authorization", "Bearer " + accessToken())
@@ -54,7 +57,7 @@ class ImSessionApiIntegrationTest {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.data.workerId").isEqualTo("worker-a")
-                .jsonPath("$.data.wsUrl").isEqualTo("wss://community.example/ws/im")
+                .jsonPath("$.data.wsUrl").isEqualTo("ws://localhost:" + localPort + "/custom/ws/im")
                 .jsonPath("$.data.ticket").isNotEmpty();
     }
 

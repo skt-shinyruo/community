@@ -16,7 +16,7 @@
 - 集群全栈：`./deploy/deployment.sh up --topology cluster`
 - 查看状态：`./deploy/deployment.sh ps --topology single`
 - 查看日志：`./deploy/deployment.sh logs --topology cluster community-gateway-1`
-- 渲染配置：`./deploy/deployment.sh config --topology single`
+- 渲染配置：`./deploy/deployment.sh config --topology single --env-file deploy/.env.single.example`
 - 追加观测层：`./deploy/deployment.sh up --topology cluster --observability`
 
 默认 compose project name：
@@ -47,7 +47,7 @@
 - `compose.infra.mock-data-studio-bootstrap.cluster.yml`
   拓扑专属 MySQL bootstrap sidecar
 - `compose.runtime.services.single.yml`
-  单机 `community-app` / `community-gateway` / `im-core` / `im-realtime`
+  单机 `community-app` / `community-gateway` / `community-im-gateway` / `im-core` / `im-realtime`
 - `compose.runtime.services.cluster.yml`
   多副本 runtime 服务
 - `compose.runtime.frontend-nginx.single.yml`
@@ -77,6 +77,8 @@
 
 - 前端：`http://localhost:12881`
 - 统一入口：`http://localhost:12880`
+- IM session bootstrap：`POST http://localhost:12880/api/im/sessions`
+- IM WebSocket：session `wsUrl` 默认 `ws://localhost:12880/ws/im`
 - Nacos：`http://localhost:18848/nacos`
 - XXL-JOB：`http://localhost:12887/xxl-job-admin`
 - MailHog：`http://localhost:8025`
@@ -100,7 +102,7 @@
 - Elasticsearch：`elasticsearch`
 - Nacos：`nacos`
 - XXL-JOB：`xxl-job-admin`
-- Runtime：`community-app` / `community-gateway` / `im-core` / `im-realtime`
+- Runtime：`community-app` / `community-gateway` / `community-im-gateway` / `im-core` / `im-realtime`
 
 ### `cluster`
 
@@ -110,7 +112,7 @@
 - Elasticsearch：`elasticsearch-1..3` + `es-init`
 - Nacos：`nacos-1..3` + `nacos-db-bootstrap`
 - XXL-JOB：`xxl-job-admin-1/2`
-- Runtime：`community-app-1..3` / `community-gateway-1..3` / `im-core-1..3` / `im-realtime-1..3`
+- Runtime：`community-app-1..3` / `community-gateway-1..3` / `community-im-gateway-1..3` / `im-core-1..3` / `im-realtime-1..3`
 
 ## 停止与清理
 

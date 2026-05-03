@@ -18,7 +18,7 @@
 ./deploy/deployment.sh up --topology cluster
 ./deploy/deployment.sh ps --topology cluster
 ./deploy/deployment.sh logs --topology cluster community-gateway-1
-./deploy/deployment.sh config --topology single
+./deploy/deployment.sh config --topology single --env-file deploy/.env.single.example
 ```
 
 默认值：
@@ -50,6 +50,7 @@ cp deploy/.env.cluster.example deploy/.env.cluster
 - `xxl-job-admin`
 - `community-app`
 - `community-gateway`
+- `community-im-gateway`
 - `im-core`
 - `im-realtime`
 - `frontend-nginx`
@@ -82,6 +83,7 @@ cp deploy/.env.single.example deploy/.env.single
 - `xxl-job-admin-1/2`
 - `community-app-1..3`
 - `community-gateway-1..3`
+- `community-im-gateway-1..3`
 - `im-core-1..3`
 - `im-realtime-1..3`
 
@@ -107,7 +109,7 @@ cp deploy/.env.cluster.example deploy/.env.cluster
 渲染最终 compose：
 
 ```bash
-./deploy/deployment.sh config --topology cluster
+./deploy/deployment.sh config --topology cluster --env-file deploy/.env.cluster.example
 ```
 
 ## Observability Overlay
@@ -134,8 +136,8 @@ single / cluster 都可以叠加 observability：
 | --- | --- |
 | 前端 | `http://localhost:12881` |
 | API / files / WS 统一入口 | `http://localhost:12880` |
-| IM session bootstrap | `POST http://localhost:12880/api/im/sessions` |
-| IM WebSocket | session response `wsUrl`；gateway worker-proxy 模式下形如 `ws://localhost:12880/ws/im/workers/{workerId}` |
+| IM session bootstrap | gateway：`POST http://localhost:12880/api/im/sessions` |
+| IM WebSocket | session response `wsUrl` 默认 `ws://localhost:12880/ws/im`；`/ws/im/workers/{workerId}` 仅作 gateway rollback |
 | IM HTTP | `http://localhost:12880/api/im/**` |
 | Nacos | `http://localhost:18848/nacos` |
 | XXL-JOB Admin | `http://localhost:12887/xxl-job-admin` |
@@ -145,7 +147,7 @@ single / cluster 都可以叠加 observability：
 | Elasticsearch observability 入口 | `http://localhost:12888` |
 | Kibana | `http://localhost:12889` |
 
-默认浏览器流量经 `community-gateway`。除 observability 和本地控制面外，内部依赖端口不应直接暴露给浏览器工作流。
+默认浏览器流量经 `community-gateway`。IM WebSocket 经 NGINX 到 gateway，再转到 `community-im-gateway`；`im-realtime` 保持 internal worker，不直接暴露给浏览器工作流。除 observability 和本地控制面外，内部依赖端口不应直接暴露给浏览器工作流。
 
 ## 前端 API 解析
 
@@ -229,7 +231,7 @@ curl -fsS "http://localhost:18848/nacos/v1/ns/instance/list?serviceName=im-realt
 ./deploy/deployment.sh logs --topology cluster im-realtime-1
 ```
 
-停止单个服务演练建议优先用 `deployment.sh` 或渲染后的 compose 配置。旧文档里的完整 `docker compose -f ... stop community-gateway-1` 命令本质上等价于 cluster compose 文件列表展开，当前更推荐通过 `./deploy/deployment.sh config --topology cluster` 确认最终配置。
+停止单个服务演练建议优先用 `deployment.sh` 或渲染后的 compose 配置。旧文档里的完整 `docker compose -f ... stop community-gateway-1` 命令本质上等价于 cluster compose 文件列表展开，当前更推荐通过 `./deploy/deployment.sh config --topology cluster --env-file deploy/.env.cluster.example` 确认最终配置。
 
 ## Dev-only 账号和开关
 

@@ -189,8 +189,7 @@ class JsonContractsTest {
     void shouldRoundTripOpenImSessionResponse() throws Exception {
         OpenImSessionResponse response = new OpenImSessionResponse(
                 "sess-1",
-                "worker-a",
-                "wss://community.example/ws/im/workers/worker-a",
+                "wss://community.example/ws/im",
                 "ticket-1",
                 1_712_345_678_901L
         );
@@ -198,8 +197,7 @@ class JsonContractsTest {
         OpenImSessionResponse back = roundTrip(response, OpenImSessionResponse.class);
 
         assertEquals("sess-1", back.sessionId());
-        assertEquals("worker-a", back.workerId());
-        assertTrue(back.wsUrl().contains("/ws/im/workers/worker-a"));
+        assertEquals("wss://community.example/ws/im", back.wsUrl());
         assertEquals("ticket-1", back.ticket());
         assertEquals(1_712_345_678_901L, back.expiresAtEpochMillis());
     }

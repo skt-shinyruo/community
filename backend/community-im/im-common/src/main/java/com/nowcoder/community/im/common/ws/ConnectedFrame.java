@@ -2,8 +2,7 @@ package com.nowcoder.community.im.common.ws;
 
 public record ConnectedFrame(
         String type,
-        String sessionId,
-        String workerId
+        String sessionId
 ) {
 
     public ConnectedFrame {

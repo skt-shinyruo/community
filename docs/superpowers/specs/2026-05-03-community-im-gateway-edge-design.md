@@ -125,7 +125,6 @@ The response remains `OpenImSessionResponse`:
 ```json
 {
   "sessionId": "...",
-  "workerId": "im-realtime-1",
   "wsUrl": "ws://<public-host>/ws/im",
   "ticket": "...",
   "expiresAtEpochMillis": 1770000000000
@@ -144,7 +143,7 @@ The first WebSocket frame is still:
 {"type":"connect","ticket":"..."}
 ```
 
-The client no longer receives `/ws/im/workers/{workerId}` as the primary `wsUrl`. The `workerId` remains in the response for observability and diagnostics, but not for URL construction.
+The client no longer receives `/ws/im/workers/{workerId}` as the primary `wsUrl`, and the selected worker id is not part of the external session or WebSocket success payload. The `workerId` remains internal to the signed ticket, metrics, and logs.
 
 ---
 
@@ -160,7 +159,7 @@ Client
       -> select worker by rendezvous hash(userId, workerId)
       -> create sessionId and expiry
       -> sign ticket(sessionId, userId, workerId, exp)
-      -> return OpenImSessionResponse(wsUrl=/ws/im, ticket, workerId)
+      -> return OpenImSessionResponse(wsUrl=/ws/im, ticket)
 ```
 
 Worker discovery uses the same service and metadata shape as the current IM worker model:

@@ -1,6 +1,7 @@
 package com.nowcoder.community.common.outbox;
 
 import com.nowcoder.community.common.trace.TraceContextSnapshot;
+import com.nowcoder.community.common.trace.TraceId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -200,6 +201,7 @@ public class OutboxWorker {
         appendToken(message, MDC_CATEGORY, CATEGORY_ASYNC);
         appendToken(message, MDC_ACTION, action);
         appendToken(message, MDC_OUTCOME, outcome);
+        appendToken(message, "trace_id", TraceId.get());
         for (int i = 0; i < keyValues.length; i += 2) {
             appendToken(message, String.valueOf(keyValues[i]), keyValues[i + 1]);
         }

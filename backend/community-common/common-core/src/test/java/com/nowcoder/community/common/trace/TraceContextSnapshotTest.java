@@ -56,6 +56,30 @@ class TraceContextSnapshotTest {
     }
 
     @Test
+    void fromStoredShouldRecoverFromTraceparentWhenTraceIdIsMissingOrInvalid() {
+        String traceparent = "00-44444444444444444444444444444444-00f067aa0ba902b7-01";
+
+        TraceContextSnapshot missingTraceId = TraceContextSnapshot.fromStored(null, traceparent);
+        TraceContextSnapshot invalidTraceId = TraceContextSnapshot.fromStored("not-a-trace-id", traceparent);
+
+        assertThat(missingTraceId.traceId()).isEqualTo("44444444444444444444444444444444");
+        assertThat(missingTraceId.traceparent()).isEqualTo(traceparent);
+        assertThat(missingTraceId.recovered()).isFalse();
+        assertThat(invalidTraceId.traceId()).isEqualTo("44444444444444444444444444444444");
+        assertThat(invalidTraceId.traceparent()).isEqualTo(traceparent);
+        assertThat(invalidTraceId.recovered()).isFalse();
+    }
+
+    @Test
+    void fromStoredShouldGenerateRecoveredSnapshotWhenStoredTraceContextIsInvalid() {
+        TraceContextSnapshot snapshot = TraceContextSnapshot.fromStored("not-a-trace-id", "invalid-traceparent");
+
+        assertThat(snapshot.traceId()).matches("[0-9a-f]{32}");
+        assertThat(snapshot.traceparent()).startsWith("00-" + snapshot.traceId() + "-");
+        assertThat(snapshot.recovered()).isTrue();
+    }
+
+    @Test
     void openShouldRestorePreviousTraceAndMdc() {
         TraceContext.set("11111111111111111111111111111111");
         TraceContextSnapshot snapshot = TraceContextSnapshot.fromStored(

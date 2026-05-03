@@ -60,6 +60,8 @@ class ImPolicyKafkaOutboxHandlerTest {
                 "PENDING",
                 0,
                 null,
+                null,
+                null,
                 null
         ));
 
@@ -93,6 +95,8 @@ class ImPolicyKafkaOutboxHandlerTest {
                 "PENDING",
                 0,
                 null,
+                null,
+                null,
                 null
         ));
 
@@ -117,6 +121,8 @@ class ImPolicyKafkaOutboxHandlerTest {
                         + ",\"canSendPrivate\":true,\"occurredAtEpochMillis\":1712345678903}",
                 "PENDING",
                 0,
+                null,
+                null,
                 null,
                 null
         )))

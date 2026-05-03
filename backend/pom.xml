@@ -45,6 +45,7 @@
         <module>community-common</module>
         <module>community-im</module>
         <module>community-gateway</module>
+        <module>community-im-gateway</module>
         <module>community-app</module>
     </modules>
 

@@ -4,6 +4,8 @@ import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.im.gateway.CommunityImGatewayApplication;
 import com.nowcoder.community.im.gateway.session.SessionTicketCodec;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import org.junit.jupiter.api.AfterAll;
@@ -15,6 +17,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.reactive.socket.WebSocketMessage;
+import org.springframework.web.reactive.socket.WebSocketSession;
 import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClient;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
@@ -23,7 +26,9 @@ import reactor.core.publisher.Sinks;
 import reactor.netty.DisposableServer;
 import reactor.netty.http.server.HttpServer;
 
+import java.io.IOException;
 import java.net.URI;
+import java.net.ServerSocket;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
@@ -32,6 +37,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest(
         classes = CommunityImGatewayApplication.class,
@@ -42,6 +49,7 @@ class ImEdgeWebSocketBridgeIntegrationTest {
     private static final String SECRET = "im-gateway-ws-test-secret-please-change-123456";
     private static volatile DisposableServer workerServer;
     private static volatile DisposableServer binaryWorkerServer;
+    private static volatile Integer refusedWorkerPort;
     private static final LinkedBlockingQueue<Map<String, String>> WORKER_HANDSHAKES = new LinkedBlockingQueue<>();
 
     @LocalServerPort
@@ -49,6 +57,12 @@ class ImEdgeWebSocketBridgeIntegrationTest {
 
     @Autowired
     ReactorNettyWebSocketClient client;
+
+    @Autowired
+    ExternalImEdgeWebSocketHandler handler;
+
+    @Autowired
+    MeterRegistry meterRegistry;
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -72,6 +86,14 @@ class ImEdgeWebSocketBridgeIntegrationTest {
                 () -> "/internal/ws/im");
         registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[1].metadata.wsPort",
                 () -> String.valueOf(binaryWorkerPort()));
+        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[2].uri",
+                () -> "http://127.0.0.1:" + refusedWorkerPort());
+        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[2].metadata.workerId",
+                () -> "worker-refused");
+        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[2].metadata.wsPath",
+                () -> "/internal/ws/im");
+        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[2].metadata.wsPort",
+                () -> String.valueOf(refusedWorkerPort()));
     }
 
     @AfterAll
@@ -87,9 +109,22 @@ class ImEdgeWebSocketBridgeIntegrationTest {
     }
 
     @Test
+    void shouldNotRecordActiveConnectionBeforeHandlerMonoIsSubscribed() {
+        WebSocketSession session = mock(WebSocketSession.class);
+        when(session.receive()).thenReturn(Flux.never());
+        double activeBefore = gaugeValue("community.im.gateway.ws.active");
+
+        Mono<Void> result = handler.handle(session);
+
+        assertThat(result).isNotNull();
+        assertThat(gaugeValue("community.im.gateway.ws.active")).isEqualTo(activeBefore);
+    }
+
+    @Test
     void shouldBridgeStableWsPathToWorkerFromConnectTicket() throws Exception {
         LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
         Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
+        double bridgeOpenedBefore = counterValue("community.im.gateway.bridge.opened");
 
         Disposable handle = client.execute(externalUri(), session -> {
                     Mono<Void> send = session.send(outbound.asFlux().map(session::textMessage));
@@ -111,6 +146,7 @@ class ImEdgeWebSocketBridgeIntegrationTest {
 
             assertThat(received.poll(5, TimeUnit.SECONDS)).isEqualTo("worker-a:" + connect);
             assertThat(received.poll(5, TimeUnit.SECONDS)).isEqualTo("worker-a:" + ping);
+            assertThat(counterValue("community.im.gateway.bridge.opened")).isEqualTo(bridgeOpenedBefore + 1.0);
         } finally {
             handle.dispose();
         }
@@ -118,25 +154,72 @@ class ImEdgeWebSocketBridgeIntegrationTest {
 
     @Test
     void shouldRejectNonConnectFirstFrame() throws Exception {
+        double invalidFirstFrameBefore = counterValue("community.im.gateway.ws.invalid_first_frame");
         String reject = exchangeTextUntilReject("{\"type\":\"ping\"}");
 
         assertThat(reject).contains("\"reasonCode\":\"connect_required\"");
+        assertThat(counterValue("community.im.gateway.ws.invalid_first_frame"))
+                .isEqualTo(invalidFirstFrameBefore + 1.0);
     }
 
     @Test
     void shouldRejectInvalidTicket() throws Exception {
+        double invalidTicketBefore = counterValue("community.im.gateway.ticket.invalid");
         String reject = exchangeTextUntilReject("{\"type\":\"connect\",\"ticket\":\"not-a-ticket\"}");
 
         assertThat(reject).contains("\"reasonCode\":\"invalid_ticket\"");
+        assertThat(counterValue("community.im.gateway.ticket.invalid")).isEqualTo(invalidTicketBefore + 1.0);
     }
 
     @Test
     void shouldRejectUnavailableWorkerId() throws Exception {
+        double workerUnavailableBefore = counterValue("community.im.gateway.worker.unavailable");
+        double bridgeFailedBefore = counterValue("community.im.gateway.bridge.failed", "reason", "unknown");
         String reject = exchangeTextUntilReject(
                 "{\"type\":\"connect\",\"ticket\":\"" + ticket("worker-missing") + "\"}"
         );
 
         assertThat(reject).contains("\"reasonCode\":\"worker_unavailable\"");
+        assertThat(counterValue("community.im.gateway.worker.unavailable")).isEqualTo(workerUnavailableBefore + 1.0);
+        assertThat(counterValue("community.im.gateway.bridge.failed", "reason", "unknown"))
+                .isEqualTo(bridgeFailedBefore);
+    }
+
+    @Test
+    void shouldRecordBridgeFailureWithoutOpenedWhenWorkerConnectionIsRefused() throws Exception {
+        LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
+        Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
+        double bridgeOpenedBefore = counterValue("community.im.gateway.bridge.opened");
+        double bridgeFailedBefore = counterValue(
+                "community.im.gateway.bridge.failed",
+                "reason",
+                "internal_bridge_error"
+        );
+
+        Disposable handle = client.execute(externalUri(), session -> {
+                    Mono<Void> send = session.send(outbound.asFlux().map(session::textMessage));
+                    Mono<Void> receive = session.receive()
+                            .map(WebSocketMessage::getPayloadAsText)
+                            .doOnNext(received::offer)
+                            .then();
+                    return Mono.when(send, receive);
+                })
+                .subscribe();
+        try {
+            outbound.tryEmitNext("{\"type\":\"connect\",\"ticket\":\"" + ticket("worker-refused") + "\"}");
+            outbound.tryEmitComplete();
+
+            awaitCounterValue(
+                    "community.im.gateway.bridge.failed",
+                    bridgeFailedBefore + 1.0,
+                    "reason",
+                    "internal_bridge_error"
+            );
+            assertThat(counterValue("community.im.gateway.bridge.opened")).isEqualTo(bridgeOpenedBefore);
+            assertThat(received.poll(200, TimeUnit.MILLISECONDS)).isNull();
+        } finally {
+            handle.dispose();
+        }
     }
 
     @Test
@@ -160,9 +243,19 @@ class ImEdgeWebSocketBridgeIntegrationTest {
 
     @Test
     void shouldRejectBinaryFirstFrame() throws Exception {
+        double invalidFirstFrameBefore = counterValue("community.im.gateway.ws.invalid_first_frame");
+        double bridgeFailedBefore = counterValue(
+                "community.im.gateway.bridge.failed",
+                "reason",
+                "unsupported_frame_type"
+        );
         String reject = exchangeBinaryFirstFrameUntilReject();
 
         assertThat(reject).contains("\"reasonCode\":\"unsupported_frame_type\"");
+        assertThat(counterValue("community.im.gateway.ws.invalid_first_frame"))
+                .isEqualTo(invalidFirstFrameBefore + 1.0);
+        assertThat(counterValue("community.im.gateway.bridge.failed", "reason", "unsupported_frame_type"))
+                .isEqualTo(bridgeFailedBefore);
     }
 
     @Test
@@ -363,6 +456,17 @@ class ImEdgeWebSocketBridgeIntegrationTest {
         return binaryWorkerServer.port();
     }
 
+    private static synchronized int refusedWorkerPort() {
+        if (refusedWorkerPort == null) {
+            try (ServerSocket socket = new ServerSocket(0)) {
+                refusedWorkerPort = socket.getLocalPort();
+            } catch (IOException ex) {
+                throw new IllegalStateException("Failed to allocate refused worker port", ex);
+            }
+        }
+        return refusedWorkerPort;
+    }
+
     private static String normalizeHeader(String value) {
         return value == null ? "" : value;
     }
@@ -383,5 +487,25 @@ class ImEdgeWebSocketBridgeIntegrationTest {
         properties.setHmacSecret(SECRET);
         properties.setIssuer("community-auth");
         return properties;
+    }
+
+    private double counterValue(String name, String... tags) {
+        Counter counter = meterRegistry.find(name).tags(tags).counter();
+        return counter == null ? 0.0 : counter.count();
+    }
+
+    private double gaugeValue(String name) {
+        return meterRegistry.get(name).gauge().value();
+    }
+
+    private void awaitCounterValue(String name, double expected, String... tags) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            if (counterValue(name, tags) == expected) {
+                return;
+            }
+            TimeUnit.MILLISECONDS.sleep(25);
+        }
+        assertThat(counterValue(name, tags)).isEqualTo(expected);
     }
 }

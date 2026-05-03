@@ -1,6 +1,7 @@
 package com.nowcoder.community.im.gateway.session;
 
 import com.nowcoder.community.im.common.session.OpenImSessionResponse;
+import com.nowcoder.community.im.gateway.observability.ImGatewayMetrics;
 import com.nowcoder.community.im.gateway.security.JwtVerifier;
 import com.nowcoder.community.im.gateway.shard.RendezvousWorkerSelector;
 import com.nowcoder.community.im.gateway.shard.WorkerDescriptor;
@@ -21,42 +22,54 @@ public class ImSessionService {
     private final SessionTicketCodec sessionTicketCodec;
     private final ImGatewaySessionProperties properties;
     private final PublicWsUrlFactory publicWsUrlFactory;
+    private final ImGatewayMetrics metrics;
 
     public ImSessionService(
             JwtVerifier jwtVerifier,
             RendezvousWorkerSelector workerSelector,
             SessionTicketCodec sessionTicketCodec,
             ImGatewaySessionProperties properties,
-            PublicWsUrlFactory publicWsUrlFactory
+            PublicWsUrlFactory publicWsUrlFactory,
+            ImGatewayMetrics metrics
     ) {
         this.jwtVerifier = jwtVerifier;
         this.workerSelector = workerSelector;
         this.sessionTicketCodec = sessionTicketCodec;
         this.properties = properties;
         this.publicWsUrlFactory = publicWsUrlFactory;
+        this.metrics = metrics;
     }
 
     public OpenImSessionResponse openSession(String authorizationHeader, ServerHttpRequest request) {
-        String accessToken = extractBearerToken(authorizationHeader);
-        JwtVerifier.VerifiedJwt verified;
         try {
-            verified = jwtVerifier.verify(accessToken);
+            String accessToken = extractBearerToken(authorizationHeader);
+            JwtVerifier.VerifiedJwt verified;
+            try {
+                verified = jwtVerifier.verify(accessToken);
+            } catch (RuntimeException ex) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid bearer token", ex);
+            }
+
+            WorkerDescriptor worker = workerSelector.select(verified.userId());
+            String sessionId = UUID.randomUUID().toString();
+            Instant expiresAt = Instant.now().plus(properties.getSession().getTicketTtl());
+            String ticket = sessionTicketCodec.encode(sessionId, verified.userId(), worker.getId(), expiresAt);
+            OpenImSessionResponse response = new OpenImSessionResponse(
+                    sessionId,
+                    worker.getId(),
+                    publicWsUrlFactory.build(request),
+                    ticket,
+                    expiresAt.toEpochMilli()
+            );
+            metrics.sessionOpened();
+            return response;
+        } catch (ResponseStatusException ex) {
+            metrics.sessionFailed(sessionFailureReason(ex));
+            throw ex;
         } catch (RuntimeException ex) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid bearer token", ex);
+            metrics.sessionFailed("unexpected");
+            throw ex;
         }
-
-        WorkerDescriptor worker = workerSelector.select(verified.userId());
-        String sessionId = UUID.randomUUID().toString();
-        Instant expiresAt = Instant.now().plus(properties.getSession().getTicketTtl());
-        String ticket = sessionTicketCodec.encode(sessionId, verified.userId(), worker.getId(), expiresAt);
-
-        return new OpenImSessionResponse(
-                sessionId,
-                worker.getId(),
-                publicWsUrlFactory.build(request),
-                ticket,
-                expiresAt.toEpochMilli()
-        );
     }
 
     private static String extractBearerToken(String authorizationHeader) {
@@ -72,5 +85,15 @@ public class ImSessionService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "missing bearer token");
         }
         return token;
+    }
+
+    private static String sessionFailureReason(ResponseStatusException ex) {
+        if (HttpStatus.UNAUTHORIZED.equals(ex.getStatusCode())) {
+            return "invalid_token";
+        }
+        if (HttpStatus.SERVICE_UNAVAILABLE.equals(ex.getStatusCode())) {
+            return "no_workers";
+        }
+        return "unexpected";
     }
 }

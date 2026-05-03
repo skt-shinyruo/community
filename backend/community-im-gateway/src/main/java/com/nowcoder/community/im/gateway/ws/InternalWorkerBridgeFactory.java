@@ -35,9 +35,12 @@ public class InternalWorkerBridgeFactory {
     ) implements InternalWorkerBridge {
 
         @Override
-        public Mono<Void> bridge(WebSocketSession externalSession, Flux<String> outboundFrames) {
+        public Mono<Void> bridge(WebSocketSession externalSession, Flux<String> outboundFrames, Runnable onOpen) {
             HttpHeaders traceHeaders = buildTraceHeaders(externalSession);
             return client.execute(workerUri, traceHeaders, internal -> {
+                if (onOpen != null) {
+                    onOpen.run();
+                }
                 Mono<Void> clientToWorker = internal.send(outboundFrames.map(internal::textMessage));
                 Mono<Void> workerToClient = externalSession.send(
                         internal.receive()

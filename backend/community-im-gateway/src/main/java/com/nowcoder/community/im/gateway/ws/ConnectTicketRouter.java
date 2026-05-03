@@ -14,6 +14,10 @@ import java.net.URI;
 public class ConnectTicketRouter {
 
     private static final String TYPE_CONNECT = "connect";
+    static final String REASON_CONNECT_REQUIRED = "connect_required";
+    static final String REASON_MALFORMED_FRAME = "malformed_frame";
+    static final String REASON_INVALID_TICKET = "invalid_ticket";
+    static final String REASON_WORKER_UNAVAILABLE = "worker_unavailable";
 
     private final ImGatewayFrameCodec frameCodec;
     private final SessionTicketCodec sessionTicketCodec;
@@ -32,7 +36,7 @@ public class ConnectTicketRouter {
     public RoutingDecision route(String firstFrame) {
         JsonNode node = readFirstFrame(firstFrame);
         if (!TYPE_CONNECT.equals(node.path("type").asText(""))) {
-            throw new RoutingException(401, "connect_required", "connect required");
+            throw new RoutingException(401, REASON_CONNECT_REQUIRED, "connect required");
         }
         ConnectFrame frame = readConnectFrame(node);
         SessionTicketCodec.TicketClaims claims = decodeTicket(frame.ticket());
@@ -42,12 +46,12 @@ public class ConnectTicketRouter {
 
     private JsonNode readFirstFrame(String firstFrame) {
         if (!StringUtils.hasText(firstFrame)) {
-            throw new RoutingException(400, "malformed_frame", "malformed frame");
+            throw new RoutingException(400, REASON_MALFORMED_FRAME, "malformed frame");
         }
         try {
             return frameCodec.readTree(firstFrame);
         } catch (RuntimeException ex) {
-            throw new RoutingException(400, "malformed_frame", "malformed frame", ex);
+            throw new RoutingException(400, REASON_MALFORMED_FRAME, "malformed frame", ex);
         }
     }
 
@@ -70,16 +74,16 @@ public class ConnectTicketRouter {
     private WorkerDescriptor findWorker(String workerId) {
         try {
             return workerRegistry.find(workerId)
-                    .orElseThrow(() -> new RoutingException(503, "worker_unavailable", "worker unavailable"));
+                    .orElseThrow(() -> new RoutingException(503, REASON_WORKER_UNAVAILABLE, "worker unavailable"));
         } catch (RoutingException ex) {
             throw ex;
         } catch (RuntimeException ex) {
-            throw new RoutingException(503, "worker_unavailable", "worker unavailable", ex);
+            throw new RoutingException(503, REASON_WORKER_UNAVAILABLE, "worker unavailable", ex);
         }
     }
 
     private static RoutingException invalidTicket(RuntimeException cause) {
-        return new RoutingException(401, "invalid_ticket", "invalid ticket", cause);
+        return new RoutingException(401, REASON_INVALID_TICKET, "invalid ticket", cause);
     }
 
     public record RoutingDecision(String sessionId, String workerId, URI workerUri) {

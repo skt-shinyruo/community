@@ -1,0 +1,43 @@
+server:
+  port: ${SERVER_PORT:18083}
+
+spring:
+  application:
+    name: community-im-gateway
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR:${NACOS_SERVER_ADDR:localhost:8848}}
+
+community:
+  logging:
+    service-version: ${SERVICE_VERSION:@project.version@}
+
+security:
+  jwt:
+    hmac-secret: ${JWT_HMAC_SECRET:}
+    issuer: ${JWT_ISSUER:community-auth}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+im:
+  gateway:
+    cors:
+      allowed-origins: ${IM_GATEWAY_CORS_ALLOWED_ORIGINS:}
+    public-ws-path: ${IM_GATEWAY_PUBLIC_WS_PATH:/ws/im}
+    public-ws-url: ${IM_GATEWAY_PUBLIC_WS_URL:}
+    session:
+      ticket-ttl: ${IM_SESSION_TICKET_TTL:PT2M}
+    worker:
+      service-id: ${IM_REALTIME_WORKER_SERVICE_ID:im-realtime-worker}
+      worker-id-metadata-key: ${IM_SESSION_WORKER_ID_METADATA_KEY:workerId}
+      ws-path-metadata-key: ${IM_SESSION_WS_PATH_METADATA_KEY:wsPath}
+      ws-port-metadata-key: ${IM_SESSION_WS_PORT_METADATA_KEY:wsPort}
+    ws:
+      path: ${IM_GATEWAY_WS_PATH:/ws/im}
+      first-frame-timeout-ms: ${IM_GATEWAY_FIRST_FRAME_TIMEOUT_MS:5000}
+      max-inbound-chars: ${IM_GATEWAY_WS_MAX_INBOUND_CHARS:10000}

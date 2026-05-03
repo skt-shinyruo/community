@@ -4,15 +4,17 @@ import com.nowcoder.community.auth.application.command.RegisterCommand;
 import com.nowcoder.community.auth.application.port.MailPort;
 import com.nowcoder.community.auth.application.result.RegisterResult;
 import com.nowcoder.community.auth.config.RegistrationProperties;
+import com.nowcoder.community.auth.domain.model.PreparedRegistrationDraft;
 import com.nowcoder.community.auth.domain.repository.RegistrationCodeRepository;
-import com.nowcoder.community.auth.domain.repository.RegistrationSessionRepository;
+import com.nowcoder.community.auth.domain.repository.RegistrationDraftRepository;
 import com.nowcoder.community.auth.domain.service.RegistrationDomainService;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
-import com.nowcoder.community.user.api.model.PendingRegistrationUserView;
+import com.nowcoder.community.user.api.model.PreparedRegistrationUserView;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -34,6 +36,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class RegistrationApplicationServiceTest {
 
+    private static final String ENCODED_PASSWORD = "$2a$10$7EqJtq98hPqEX7fNZaFWoOHiE9VYh4Vh7H1w52x1x7YjQwlhbR1XK";
+    private static final String HEADER_URL = "https://example.com/header.png";
+
     @Mock
     private UserRegistrationActionApi userRegistrationActionApi;
 
@@ -47,7 +52,7 @@ class RegistrationApplicationServiceTest {
     private RegistrationCodeRepository registrationCodeStore;
 
     @Mock
-    private RegistrationSessionRepository registrationSessionStore;
+    private RegistrationDraftRepository registrationDraftRepository;
 
     private RegistrationProperties properties;
     private RegistrationApplicationService service;
@@ -63,7 +68,7 @@ class RegistrationApplicationServiceTest {
                 mailService,
                 captchaService,
                 registrationCodeStore,
-                registrationSessionStore,
+                registrationDraftRepository,
                 new RegistrationDomainService()
         );
     }
@@ -73,14 +78,14 @@ class RegistrationApplicationServiceTest {
         UUID userId = uuid(7);
         RegisterCommand command = registerCommand();
 
-        PendingRegistrationUserView created = new PendingRegistrationUserView(userId, "alice", "alice@example.com", 0, 0, null);
+        PreparedRegistrationUserView prepared = preparedUser(userId);
 
         when(captchaService.verify("cid", "abcd")).thenReturn(true);
-        when(userRegistrationActionApi.registerPendingUser("alice", "secret", "alice@example.com", Duration.ofMinutes(30))).thenReturn(created);
+        when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
+        when(registrationDraftRepository.issue(any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
+                .thenReturn("0123456789abcdef0123456789abcdef");
         when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
                 .thenReturn(RegistrationCodeRepository.IssueResult.ISSUED);
-        when(registrationSessionStore.issue(eq(userId), eq(Duration.ofMinutes(30))))
-                .thenReturn("0123456789abcdef0123456789abcdef");
 
         RegisterResult response = service.register(command);
 
@@ -89,9 +94,20 @@ class RegistrationApplicationServiceTest {
         assertThat(response.emailCodeIssued()).isTrue();
         assertThat(response.maskedEmail()).isNotBlank().contains("@").isNotEqualTo("alice@example.com");
         assertThat(response.debugEmailCode()).matches("\\d{6}");
-        verify(userRegistrationActionApi).registerPendingUser("alice", "secret", "alice@example.com", Duration.ofMinutes(30));
+        verify(userRegistrationActionApi).prepareRegistrationUser("alice", "secret", "alice@example.com");
+        verify(userRegistrationActionApi, never()).registerPendingUser(any(), any(), any(), any());
+        verify(userRegistrationActionApi, never()).deletePendingUser(any());
+        ArgumentCaptor<PreparedRegistrationDraft> draftCaptor = ArgumentCaptor.forClass(PreparedRegistrationDraft.class);
+        verify(registrationDraftRepository).issue(draftCaptor.capture(), eq(Duration.ofMinutes(30)));
+        PreparedRegistrationDraft draft = draftCaptor.getValue();
+        assertThat(draft.userId()).isEqualTo(userId);
+        assertThat(draft.username()).isEqualTo("alice");
+        assertThat(draft.email()).isEqualTo("alice@example.com");
+        assertThat(draft.encodedPassword()).isEqualTo(ENCODED_PASSWORD);
+        assertThat(draft.headerUrl()).isEqualTo(HEADER_URL);
+        assertThat(draft.issuedAt()).isNotNull();
+        assertThat(draft.expiresAt()).isEqualTo(draft.issuedAt().plus(Duration.ofMinutes(30)));
         verify(registrationCodeStore).issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)));
-        verify(registrationSessionStore).issue(eq(userId), eq(Duration.ofMinutes(30)));
         verify(mailService).sendRegistrationCodeMail(eq("alice@example.com"), matches("\\d{6}"));
         assertThat(output.getAll())
                 .contains("community.category=security")
@@ -107,15 +123,15 @@ class RegistrationApplicationServiceTest {
     }
 
     @Test
-    void registerShouldRollbackPendingUserAndArtifactsWhenMailSendingFails() {
+    void registerShouldRollbackDraftAndCodeWhenMailSendingFails() {
         UUID userId = uuid(8);
         RegisterCommand command = registerCommand();
 
-        PendingRegistrationUserView created = new PendingRegistrationUserView(userId, "alice", "alice@example.com", 0, 0, null);
+        PreparedRegistrationUserView prepared = preparedUser(userId);
 
         when(captchaService.verify("cid", "abcd")).thenReturn(true);
-        when(userRegistrationActionApi.registerPendingUser("alice", "secret", "alice@example.com", Duration.ofMinutes(30))).thenReturn(created);
-        when(registrationSessionStore.issue(eq(userId), eq(Duration.ofMinutes(30))))
+        when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
+        when(registrationDraftRepository.issue(any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
                 .thenReturn("0123456789abcdef0123456789abcdef");
         when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
                 .thenReturn(RegistrationCodeRepository.IssueResult.ISSUED);
@@ -126,34 +142,35 @@ class RegistrationApplicationServiceTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("mail down");
 
-        verify(registrationSessionStore).issue(eq(userId), eq(Duration.ofMinutes(30)));
+        verify(registrationDraftRepository).issue(any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30)));
         verify(registrationCodeStore).issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)));
-        verify(registrationSessionStore).delete("0123456789abcdef0123456789abcdef");
+        verify(registrationDraftRepository).delete("0123456789abcdef0123456789abcdef");
         verify(registrationCodeStore).delete(userId);
-        verify(userRegistrationActionApi).deletePendingUser(userId);
+        verify(userRegistrationActionApi, never()).deletePendingUser(any());
     }
 
     @Test
-    void registerShouldFailBeforeIssuingCodeWhenRegistrationSessionCreationFails() {
+    void registerShouldFailBeforeIssuingCodeWhenRegistrationDraftCreationFails() {
         UUID userId = uuid(9);
         RegisterCommand command = registerCommand();
 
-        PendingRegistrationUserView created = new PendingRegistrationUserView(userId, "alice", "alice@example.com", 0, 0, null);
+        PreparedRegistrationUserView prepared = preparedUser(userId);
 
         when(captchaService.verify("cid", "abcd")).thenReturn(true);
-        when(userRegistrationActionApi.registerPendingUser("alice", "secret", "alice@example.com", Duration.ofMinutes(30))).thenReturn(created);
-        when(registrationSessionStore.issue(eq(userId), eq(Duration.ofMinutes(30)))).thenReturn(null);
+        when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
+        when(registrationDraftRepository.issue(any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30)))).thenReturn(null);
 
         assertThatThrownBy(() -> service.register(command))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR);
 
-        verify(registrationSessionStore).issue(eq(userId), eq(Duration.ofMinutes(30)));
+        verify(registrationDraftRepository).issue(any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30)));
         verify(registrationCodeStore, never()).issue(any(), any(), any(), any());
         verify(mailService, never()).sendRegistrationCodeMail(any(), any());
         verify(registrationCodeStore).delete(userId);
-        verify(userRegistrationActionApi).deletePendingUser(userId);
+        verify(registrationDraftRepository, never()).delete(any());
+        verify(userRegistrationActionApi, never()).deletePendingUser(any());
     }
 
     private static UUID uuid(long suffix) {
@@ -162,5 +179,9 @@ class RegistrationApplicationServiceTest {
 
     private static RegisterCommand registerCommand() {
         return new RegisterCommand("alice", "secret", "alice@example.com", "cid", "abcd");
+    }
+
+    private static PreparedRegistrationUserView preparedUser(UUID userId) {
+        return new PreparedRegistrationUserView(userId, "alice", "alice@example.com", ENCODED_PASSWORD, HEADER_URL);
     }
 }

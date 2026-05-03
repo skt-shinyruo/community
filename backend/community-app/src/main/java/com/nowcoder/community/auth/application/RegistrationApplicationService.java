@@ -4,21 +4,23 @@ import com.nowcoder.community.auth.application.command.RegisterCommand;
 import com.nowcoder.community.auth.application.port.MailPort;
 import com.nowcoder.community.auth.application.result.RegisterResult;
 import com.nowcoder.community.auth.config.RegistrationProperties;
+import com.nowcoder.community.auth.domain.model.PreparedRegistrationDraft;
 import com.nowcoder.community.auth.domain.repository.RegistrationCodeRepository;
-import com.nowcoder.community.auth.domain.repository.RegistrationSessionRepository;
+import com.nowcoder.community.auth.domain.repository.RegistrationDraftRepository;
 import com.nowcoder.community.auth.domain.service.RegistrationDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.auth.logging.SecurityEventLogger;
-import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
-import com.nowcoder.community.user.api.model.PendingRegistrationUserView;
+import com.nowcoder.community.user.api.model.PreparedRegistrationUserView;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -32,7 +34,7 @@ public class RegistrationApplicationService {
     private final MailPort mailService;
     private final CaptchaApplicationService captchaService;
     private final RegistrationCodeRepository registrationCodeStore;
-    private final RegistrationSessionRepository registrationSessionStore;
+    private final RegistrationDraftRepository registrationDraftRepository;
     private final RegistrationDomainService registrationDomainService;
 
     public RegistrationApplicationService(
@@ -41,7 +43,7 @@ public class RegistrationApplicationService {
             MailPort mailService,
             CaptchaApplicationService captchaService,
             RegistrationCodeRepository registrationCodeStore,
-            RegistrationSessionRepository registrationSessionStore,
+            RegistrationDraftRepository registrationDraftRepository,
             RegistrationDomainService registrationDomainService
     ) {
         this.userRegistrationActionApi = userRegistrationActionApi;
@@ -49,7 +51,7 @@ public class RegistrationApplicationService {
         this.mailService = mailService;
         this.captchaService = captchaService;
         this.registrationCodeStore = registrationCodeStore;
-        this.registrationSessionStore = registrationSessionStore;
+        this.registrationDraftRepository = registrationDraftRepository;
         this.registrationDomainService = registrationDomainService;
     }
 
@@ -71,39 +73,51 @@ public class RegistrationApplicationService {
         registrationDomainService.requireRegisterFields(username, password, email);
 
         Duration pendingUserTtl = Duration.ofSeconds(Math.max(60, properties.getPendingUser().getTtlSeconds()));
-        PendingRegistrationUserView created = userRegistrationActionApi.registerPendingUser(username, password, email, pendingUserTtl);
-        if (created == null || created.userId() == null) {
-            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败");
+        PreparedRegistrationUserView prepared = userRegistrationActionApi.prepareRegistrationUser(username, password, email);
+        if (prepared == null || prepared.userId() == null) {
+            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "注册上下文创建失败");
         }
-        String targetEmail = StringUtils.hasText(created.email()) ? created.email() : email;
+        String targetEmail = StringUtils.hasText(prepared.email()) ? prepared.email() : email;
 
         String code = generateCode();
         Duration ttl = Duration.ofSeconds(Math.max(60, properties.getCode().getTtlSeconds()));
         Duration cooldown = Duration.ofSeconds(Math.max(0, properties.getCode().getResendCooldownSeconds()));
         String registrationToken = null;
         try {
-            registrationToken = registrationSessionStore == null ? null : registrationSessionStore.issue(created.userId(), pendingUserTtl);
+            Instant issuedAt = Instant.now();
+            registrationToken = registrationDraftRepository == null ? null : registrationDraftRepository.issue(
+                    new PreparedRegistrationDraft(
+                            prepared.userId(),
+                            prepared.username(),
+                            prepared.email(),
+                            prepared.encodedPassword(),
+                            prepared.headerUrl(),
+                            issuedAt,
+                            issuedAt.plus(pendingUserTtl)
+                    ),
+                    pendingUserTtl
+            );
             if (!StringUtils.hasText(registrationToken)) {
                 throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "注册上下文创建失败");
             }
 
-            RegistrationCodeRepository.IssueResult issueResult = registrationCodeStore.issue(created.userId(), code, ttl, cooldown);
+            RegistrationCodeRepository.IssueResult issueResult = registrationCodeStore.issue(prepared.userId(), code, ttl, cooldown);
             if (issueResult != RegistrationCodeRepository.IssueResult.ISSUED) {
                 throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "注册验证码签发失败");
             }
 
             mailService.sendRegistrationCodeMail(targetEmail, code);
         } catch (RuntimeException ex) {
-            rollbackFailedRegistration(created.userId(), registrationToken);
+            rollbackFailedRegistration(prepared.userId(), registrationToken);
             throw ex;
         }
 
         SecurityEventLogger.info(log, "registration_code_issue", "success",
-                "user.id", created.userId(),
+                "user.id", prepared.userId(),
                 "username", username,
                 "masked.email", registrationDomainService.maskEmail(targetEmail));
         return new RegisterResult(
-                created.userId(),
+                prepared.userId(),
                 registrationToken,
                 true,
                 registrationDomainService.maskEmail(targetEmail),
@@ -127,11 +141,11 @@ public class RegistrationApplicationService {
     }
 
     private void rollbackFailedRegistration(UUID userId, String registrationToken) {
-        if (StringUtils.hasText(registrationToken) && registrationSessionStore != null) {
+        if (StringUtils.hasText(registrationToken) && registrationDraftRepository != null) {
             try {
-                registrationSessionStore.delete(registrationToken);
+                registrationDraftRepository.delete(registrationToken);
             } catch (RuntimeException cleanupEx) {
-                log.warn("[registration] failed to cleanup session for userId={}: {}", userId, cleanupEx.toString());
+                log.warn("[registration] failed to cleanup draft for userId={}: {}", userId, cleanupEx.toString());
             }
         }
 
@@ -140,14 +154,6 @@ public class RegistrationApplicationService {
                 registrationCodeStore.delete(userId);
             } catch (RuntimeException cleanupEx) {
                 log.warn("[registration] failed to cleanup code for userId={}: {}", userId, cleanupEx.toString());
-            }
-        }
-
-        if (userId != null) {
-            try {
-                userRegistrationActionApi.deletePendingUser(userId);
-            } catch (RuntimeException cleanupEx) {
-                log.warn("[registration] failed to cleanup pending user userId={}: {}", userId, cleanupEx.toString());
             }
         }
     }

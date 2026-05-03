@@ -44,16 +44,14 @@ public class UserRegistrationApiAdapter implements UserRegistrationActionApi, Us
 
     @Override
     public UserCredentialView createVerifiedRegistrationUser(VerifiedRegistrationUserCommand command) {
-        if (command == null) {
-            return null;
-        }
-        return toCredentialView(applicationService.createVerifiedRegistrationUser(new CreateVerifiedRegistrationUserCommand(
+        CreateVerifiedRegistrationUserCommand applicationCommand = command == null ? null : new CreateVerifiedRegistrationUserCommand(
                 command.userId(),
                 command.username(),
                 command.encodedPassword(),
                 command.email(),
                 command.headerUrl()
-        )));
+        );
+        return toCredentialView(applicationService.createVerifiedRegistrationUser(applicationCommand));
     }
 
     @Override

@@ -8,10 +8,13 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 public class UserRegistrationDomainService {
+
+    private static final Pattern BCRYPT_PASSWORD_PATTERN = Pattern.compile("^\\$2[aby]\\$\\d{2}\\$[./A-Za-z0-9]{53}$");
 
     private final Clock clock;
     private final PasswordPolicyDomainService passwordPolicyDomainService;
@@ -39,6 +42,14 @@ public class UserRegistrationDomainService {
             throw new BusinessException(INVALID_ARGUMENT, "用户名/密码/邮箱不能为空");
         }
         return new RegistrationInput(trimmedUsername, trimmedPassword, trimmedEmail);
+    }
+
+    public String requireValidPreparedEncodedPassword(String encodedPassword) {
+        String trimmedEncodedPassword = safeTrim(encodedPassword);
+        if (!BCRYPT_PASSWORD_PATTERN.matcher(trimmedEncodedPassword).matches()) {
+            throw new BusinessException(INVALID_ARGUMENT, "密码格式非法");
+        }
+        return trimmedEncodedPassword;
     }
 
     public Instant pendingUserCutoff(Duration pendingTtl) {

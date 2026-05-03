@@ -104,11 +104,12 @@ class UserRegistrationApplicationServiceTest {
     void createVerifiedRegistrationUserShouldInsertActiveUserAndPublishExistenceEvent() {
         UserRegistrationApplicationService service = service();
         UUID userId = userId(21);
+        String encodedPassword = new BCryptPasswordEncoder().encode("secret12");
 
         UserCredentialResult result = service.createVerifiedRegistrationUser(new CreateVerifiedRegistrationUserCommand(
                 userId,
                 "alice",
-                "encoded-password",
+                encodedPassword,
                 "alice@example.com",
                 "http://images.nowcoder.com/head/1t.png"
         ));
@@ -119,7 +120,7 @@ class UserRegistrationApplicationServiceTest {
         assertThat(inserted.id()).isEqualTo(userId);
         assertThat(inserted.username()).isEqualTo("alice");
         assertThat(inserted.email()).isEqualTo("alice@example.com");
-        assertThat(inserted.encodedPassword()).isEqualTo("encoded-password");
+        assertThat(inserted.encodedPassword()).isEqualTo(encodedPassword);
         assertThat(inserted.status()).isEqualTo(1);
         assertThat(inserted.type()).isEqualTo(0);
         assertThat(result.userId()).isEqualTo(userId);
@@ -131,11 +132,12 @@ class UserRegistrationApplicationServiceTest {
     void createVerifiedRegistrationUserShouldTranslateDuplicateEmailRace() {
         UserRegistrationApplicationService service = service();
         doThrow(new DuplicateKeyException("uk_user_email")).when(userRepository).insertUser(any());
+        String encodedPassword = new BCryptPasswordEncoder().encode("secret12");
 
         assertThatThrownBy(() -> service.createVerifiedRegistrationUser(new CreateVerifiedRegistrationUserCommand(
                 userId(22),
                 "alice",
-                "encoded-password",
+                encodedPassword,
                 "alice@example.com",
                 "h"
         )))
@@ -143,6 +145,25 @@ class UserRegistrationApplicationServiceTest {
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(UserErrorCode.EMAIL_ALREADY_EXISTS);
 
+        verify(userPolicyEventPublisher, never()).publishUserPolicyChanged(any(UUID.class), anyBoolean(), any(Instant.class));
+    }
+
+    @Test
+    void createVerifiedRegistrationUserShouldRejectMalformedEncodedPassword() {
+        UserRegistrationApplicationService service = service();
+
+        assertThatThrownBy(() -> service.createVerifiedRegistrationUser(new CreateVerifiedRegistrationUserCommand(
+                userId(23),
+                "alice",
+                "secret12",
+                "alice@example.com",
+                "h"
+        )))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(INVALID_ARGUMENT);
+
+        verify(userRepository, never()).insertUser(any());
         verify(userPolicyEventPublisher, never()).publishUserPolicyChanged(any(UUID.class), anyBoolean(), any(Instant.class));
     }
 

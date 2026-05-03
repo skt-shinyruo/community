@@ -92,7 +92,7 @@ public class UserRegistrationApplicationService {
         try {
             userRepository.insertPendingUser(user);
         } catch (DataIntegrityViolationException ex) {
-            translateDuplicateInsert(input, ex);
+            translateDuplicateInsert(input.username(), input.email(), ex);
         }
         publishUserPolicyChanged(user.id(), true);
         return toPendingResult(user);
@@ -123,17 +123,18 @@ public class UserRegistrationApplicationService {
         if (!hasText(command.username()) || !hasText(command.email()) || !hasText(command.encodedPassword())) {
             throw new BusinessException(INVALID_ARGUMENT, "用户名/密码/邮箱不能为空");
         }
+        String encodedPassword = userRegistrationDomainService.requireValidPreparedEncodedPassword(command.encodedPassword());
         UserAccount user = userRegistrationDomainService.verifiedUser(
                 command.userId(),
                 command.username(),
-                command.encodedPassword(),
+                encodedPassword,
                 command.email(),
                 command.headerUrl()
         );
         try {
             userRepository.insertUser(user);
         } catch (DataIntegrityViolationException ex) {
-            translateDuplicateInsert(new RegistrationInput(user.username(), user.encodedPassword(), user.email()), ex);
+            translateDuplicateInsert(user.username(), user.email(), ex);
         }
         publishUserPolicyChanged(user.id(), true);
         return toCredentialResult(user, 1);
@@ -199,17 +200,17 @@ public class UserRegistrationApplicationService {
         }
     }
 
-    private void translateDuplicateInsert(RegistrationInput input, DataIntegrityViolationException ex) {
+    private void translateDuplicateInsert(String username, String email, DataIntegrityViolationException ex) {
         if (userRegistrationDomainService.causedByConstraint(ex, USERNAME_UNIQUE_CONSTRAINT)) {
             throw new BusinessException(USER_ALREADY_EXISTS, ex);
         }
         if (userRegistrationDomainService.causedByConstraint(ex, EMAIL_UNIQUE_CONSTRAINT)) {
             throw new BusinessException(EMAIL_ALREADY_EXISTS, ex);
         }
-        if (userRepository.findByUsername(input.username()).isPresent()) {
+        if (userRepository.findByUsername(username).isPresent()) {
             throw new BusinessException(USER_ALREADY_EXISTS, ex);
         }
-        if (userRepository.findByEmail(input.email()).isPresent()) {
+        if (userRepository.findByEmail(email).isPresent()) {
             throw new BusinessException(EMAIL_ALREADY_EXISTS, ex);
         }
         throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败", ex);

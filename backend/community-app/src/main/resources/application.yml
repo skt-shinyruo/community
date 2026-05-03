@@ -91,6 +91,8 @@ auth:
       max-failures: ${AUTH_REGISTRATION_CODE_MAX_FAILURES:3}
       resend-cooldown-seconds: ${AUTH_REGISTRATION_CODE_RESEND_COOLDOWN_SECONDS:60}
       expose-code: ${AUTH_REGISTRATION_EXPOSE_CODE:false}
+    draft:
+      store: ${AUTH_REGISTRATION_DRAFT_STORE:redis}
     mail:
       enabled: ${AUTH_MAIL_ENABLED:false}
       from: ${AUTH_MAIL_FROM:no-reply@community.local}

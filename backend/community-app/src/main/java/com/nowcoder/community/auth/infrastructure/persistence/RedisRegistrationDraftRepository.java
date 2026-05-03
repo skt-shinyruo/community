@@ -32,13 +32,20 @@ public class RedisRegistrationDraftRepository implements RegistrationDraftReposi
         if (draft == null || ttl == null || ttl.isNegative() || ttl.isZero()) {
             return null;
         }
-        String token = UUID.randomUUID().toString().replace("-", "");
+        String json;
         try {
-            redisTemplate.opsForValue().set(key(token), objectMapper.writeValueAsString(draft), ttl);
-            return token;
+            json = objectMapper.writeValueAsString(draft);
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("registration draft serialization failed", ex);
         }
+
+        for (int i = 0; i < 5; i++) {
+            String token = UUID.randomUUID().toString().replace("-", "");
+            if (Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key(token), json, ttl))) {
+                return token;
+            }
+        }
+        return null;
     }
 
     @Override
@@ -54,7 +61,7 @@ public class RedisRegistrationDraftRepository implements RegistrationDraftReposi
         try {
             return Optional.of(objectMapper.readValue(raw, PreparedRegistrationDraft.class));
         } catch (JsonProcessingException ex) {
-            redisTemplate.delete(key(token));
+            delete(token);
             return Optional.empty();
         }
     }

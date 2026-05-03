@@ -52,6 +52,8 @@ auth:
       max-failures: 3
       resend-cooldown-seconds: 60
       expose-code: true
+    draft:
+      store: memory
     mail:
       enabled: false
   login-rate-limit:

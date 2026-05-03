@@ -6,17 +6,17 @@ import com.nowcoder.community.auth.application.port.MailPort;
 import com.nowcoder.community.auth.application.result.LoginResult;
 import com.nowcoder.community.auth.application.result.RegisterCodeResendResult;
 import com.nowcoder.community.auth.config.RegistrationProperties;
+import com.nowcoder.community.auth.domain.model.PreparedRegistrationDraft;
 import com.nowcoder.community.auth.domain.repository.RegistrationCodeRepository;
-import com.nowcoder.community.auth.domain.repository.RegistrationSessionRepository;
+import com.nowcoder.community.auth.domain.repository.RegistrationDraftRepository;
 import com.nowcoder.community.auth.domain.service.RegistrationDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.auth.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
-import com.nowcoder.community.user.api.model.PendingRegistrationUserView;
 import com.nowcoder.community.user.api.model.UserCredentialView;
-import com.nowcoder.community.user.api.query.UserPendingRegistrationQueryApi;
+import com.nowcoder.community.user.api.model.VerifiedRegistrationUserCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -24,41 +24,37 @@ import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.UUID;
 
 @Service
 public class RegistrationVerificationApplicationService {
 
     private static final Logger log = LoggerFactory.getLogger(RegistrationVerificationApplicationService.class);
 
-    private final UserPendingRegistrationQueryApi userPendingRegistrationQueryApi;
     private final UserRegistrationActionApi userRegistrationActionApi;
     private final RegistrationProperties properties;
     private final RegistrationCodeRepository registrationCodeStore;
     private final MailPort mailService;
     private final CaptchaApplicationService captchaService;
-    private final RegistrationSessionRepository registrationSessionStore;
+    private final RegistrationDraftRepository registrationDraftRepository;
     private final LoginApplicationService authService;
     private final RegistrationDomainService registrationDomainService;
 
     public RegistrationVerificationApplicationService(
-            UserPendingRegistrationQueryApi userPendingRegistrationQueryApi,
             UserRegistrationActionApi userRegistrationActionApi,
             RegistrationProperties properties,
             RegistrationCodeRepository registrationCodeStore,
             MailPort mailService,
             CaptchaApplicationService captchaService,
-            RegistrationSessionRepository registrationSessionStore,
+            RegistrationDraftRepository registrationDraftRepository,
             LoginApplicationService authService,
             RegistrationDomainService registrationDomainService
     ) {
-        this.userPendingRegistrationQueryApi = userPendingRegistrationQueryApi;
         this.userRegistrationActionApi = userRegistrationActionApi;
         this.properties = properties;
         this.registrationCodeStore = registrationCodeStore;
         this.mailService = mailService;
         this.captchaService = captchaService;
-        this.registrationSessionStore = registrationSessionStore;
+        this.registrationDraftRepository = registrationDraftRepository;
         this.authService = authService;
         this.registrationDomainService = registrationDomainService;
     }
@@ -74,21 +70,20 @@ public class RegistrationVerificationApplicationService {
             throw new BusinessException(AuthErrorCode.CAPTCHA_INVALID);
         }
 
-        UUID userId = resolveUserIdOrThrow(registrationToken);
-        PendingRegistrationUserView user = requirePendingUser(userId);
+        PreparedRegistrationDraft draft = resolveDraftOrThrow(registrationToken);
 
         String code = generateCode();
         Duration ttl = Duration.ofSeconds(Math.max(60, properties.getCode().getTtlSeconds()));
         Duration cooldown = Duration.ofSeconds(Math.max(0, properties.getCode().getResendCooldownSeconds()));
-        RegistrationCodeRepository.IssueResult issueResult = registrationCodeStore.issue(user.userId(), code, ttl, cooldown);
+        RegistrationCodeRepository.IssueResult issueResult = registrationCodeStore.issue(draft.userId(), code, ttl, cooldown);
         if (issueResult == RegistrationCodeRepository.IssueResult.COOLDOWN_ACTIVE) {
             throw new BusinessException(AuthErrorCode.REGISTRATION_CODE_RESEND_COOLDOWN);
         }
-        mailService.sendRegistrationCodeMail(user.email(), code);
+        mailService.sendRegistrationCodeMail(draft.email(), code);
 
         return new RegisterCodeResendResult(
                 true,
-                registrationDomainService.maskEmail(user.email()),
+                registrationDomainService.maskEmail(draft.email()),
                 properties.getCode().isExposeCode() ? code : null
         );
     }
@@ -100,21 +95,28 @@ public class RegistrationVerificationApplicationService {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "registrationToken/code 不能为空");
         }
 
-        UUID userId = resolveUserIdOrThrow(registrationToken);
+        PreparedRegistrationDraft draft = resolveDraftOrThrow(registrationToken);
 
-        PendingRegistrationUserView user = requirePendingUser(userId);
-        RegistrationCodeRepository.VerifyResult result = registrationCodeStore.verifyAndConsume(userId, code.trim());
+        RegistrationCodeRepository.VerifyResult result = registrationCodeStore.verifyAndConsume(draft.userId(), code.trim());
         if (result == RegistrationCodeRepository.VerifyResult.SUCCESS) {
-            UserCredentialView activatedUser = userRegistrationActionApi.activatePendingUser(userId);
+            UserCredentialView activatedUser = userRegistrationActionApi.createVerifiedRegistrationUser(
+                    new VerifiedRegistrationUserCommand(
+                            draft.userId(),
+                            draft.username(),
+                            draft.email(),
+                            draft.encodedPassword(),
+                            draft.headerUrl()
+                    )
+            );
             if (activatedUser == null || activatedUser.userId() == null) {
-                throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "激活用户失败");
+                throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败");
             }
             LoginResult loginResult = authService.issueLoginResult(activatedUser);
             SecurityEventLogger.info(log, "registration_verify", "success",
                     "user.id", activatedUser.userId(),
                     "username", activatedUser.username());
             try {
-                registrationSessionStore.delete(registrationToken);
+                registrationDraftRepository.delete(registrationToken);
             } catch (RuntimeException ignored) {
                 // best-effort cleanup
             }
@@ -129,24 +131,15 @@ public class RegistrationVerificationApplicationService {
         throw new BusinessException(AuthErrorCode.REGISTRATION_CODE_INVALID);
     }
 
-    private UUID resolveUserIdOrThrow(String registrationToken) {
+    private PreparedRegistrationDraft resolveDraftOrThrow(String registrationToken) {
         if (!StringUtils.hasText(registrationToken)) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "registrationToken 不能为空");
         }
-        UUID userId = registrationSessionStore == null ? null : registrationSessionStore.findUserId(registrationToken.trim());
-        if (userId == null) {
+        if (registrationDraftRepository == null) {
             throw new BusinessException(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);
         }
-        return userId;
-    }
-
-    private PendingRegistrationUserView requirePendingUser(UUID userId) {
-        Duration pendingUserTtl = Duration.ofSeconds(Math.max(60, properties.getPendingUser().getTtlSeconds()));
-        PendingRegistrationUserView user = userPendingRegistrationQueryApi.getPendingUser(userId, pendingUserTtl);
-        if (user.status() != 0) {
-            throw new BusinessException(AuthErrorCode.USER_DISABLED, "账号已激活，请直接登录");
-        }
-        return user;
+        return registrationDraftRepository.find(registrationToken.trim())
+                .orElseThrow(() -> new BusinessException(AuthErrorCode.REGISTRATION_CONTEXT_INVALID));
     }
 
     private String generateCode() {

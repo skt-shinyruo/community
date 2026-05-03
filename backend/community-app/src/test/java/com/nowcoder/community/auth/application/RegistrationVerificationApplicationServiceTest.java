@@ -7,24 +7,27 @@ import com.nowcoder.community.auth.application.result.LoginResult;
 import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
 import com.nowcoder.community.auth.application.result.RegisterCodeResendResult;
 import com.nowcoder.community.auth.config.RegistrationProperties;
+import com.nowcoder.community.auth.domain.model.PreparedRegistrationDraft;
 import com.nowcoder.community.auth.domain.repository.RegistrationCodeRepository;
-import com.nowcoder.community.auth.domain.repository.RegistrationSessionRepository;
+import com.nowcoder.community.auth.domain.repository.RegistrationDraftRepository;
 import com.nowcoder.community.auth.domain.service.RegistrationDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
-import com.nowcoder.community.user.api.model.PendingRegistrationUserView;
 import com.nowcoder.community.user.api.model.UserCredentialView;
-import com.nowcoder.community.user.api.query.UserPendingRegistrationQueryApi;
+import com.nowcoder.community.user.api.model.VerifiedRegistrationUserCommand;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
+import java.time.Instant;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,8 +43,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class RegistrationVerificationApplicationServiceTest {
 
-    @Mock
-    private UserPendingRegistrationQueryApi userPendingRegistrationQueryApi;
+    private static final String ENCODED_PASSWORD = "$2a$10$7EqJtq98hPqEX7fNZaFWoOHiE9VYh4Vh7H1w52x1x7YjQwlhbR1XK";
 
     @Mock
     private UserRegistrationActionApi userRegistrationActionApi;
@@ -59,7 +61,7 @@ class RegistrationVerificationApplicationServiceTest {
     private LoginApplicationService authService;
 
     @Mock
-    private RegistrationSessionRepository registrationSessionStore;
+    private RegistrationDraftRepository registrationDraftRepository;
 
     private RegistrationProperties properties;
     private RegistrationVerificationApplicationService service;
@@ -70,13 +72,12 @@ class RegistrationVerificationApplicationServiceTest {
         properties.getCode().setExposeCode(true);
         properties.getCode().setTtlSeconds(600);
         service = new RegistrationVerificationApplicationService(
-                userPendingRegistrationQueryApi,
                 userRegistrationActionApi,
                 properties,
                 registrationCodeStore,
                 mailService,
                 captchaService,
-                registrationSessionStore,
+                registrationDraftRepository,
                 authService,
                 new RegistrationDomainService()
         );
@@ -85,11 +86,9 @@ class RegistrationVerificationApplicationServiceTest {
     @Test
     void resendCodeShouldRequireCaptchaAndReturnIssuedResponse() {
         UUID userId = uuid(7);
-        PendingRegistrationUserView user = new PendingRegistrationUserView(userId, "alice", "alice@example.com", 0, 0, null);
 
         when(captchaService.verify("cid", "abcd")).thenReturn(true);
-        when(registrationSessionStore.findUserId("token")).thenReturn(userId);
-        when(userPendingRegistrationQueryApi.getPendingUser(userId, Duration.ofMinutes(30))).thenReturn(user);
+        when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
         when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
                 .thenReturn(RegistrationCodeRepository.IssueResult.ISSUED);
 
@@ -100,16 +99,15 @@ class RegistrationVerificationApplicationServiceTest {
         assertThat(response.debugEmailCode()).matches("\\d{6}");
         verify(registrationCodeStore).issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)));
         verify(mailService).sendRegistrationCodeMail(eq("alice@example.com"), matches("\\d{6}"));
+        verify(userRegistrationActionApi, never()).createVerifiedRegistrationUser(any());
     }
 
     @Test
     void resendCodeShouldRejectWhenCooldownWindowIsStillActive() {
         UUID userId = uuid(7);
-        PendingRegistrationUserView user = new PendingRegistrationUserView(userId, "alice", "alice@example.com", 0, 0, null);
 
         when(captchaService.verify("cid", "abcd")).thenReturn(true);
-        when(registrationSessionStore.findUserId("token")).thenReturn(userId);
-        when(userPendingRegistrationQueryApi.getPendingUser(userId, Duration.ofMinutes(30))).thenReturn(user);
+        when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
         when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
                 .thenReturn(RegistrationCodeRepository.IssueResult.COOLDOWN_ACTIVE);
 
@@ -119,28 +117,35 @@ class RegistrationVerificationApplicationServiceTest {
                 .isEqualTo(AuthErrorCode.REGISTRATION_CODE_RESEND_COOLDOWN);
 
         verifyNoInteractions(mailService);
+        verify(userRegistrationActionApi, never()).createVerifiedRegistrationUser(any());
     }
 
     @Test
-    void verifyAndLoginShouldActivateInactiveUserAndReturnLoginResult(CapturedOutput output) {
+    void verifyAndLoginShouldCreateVerifiedUserAndReturnLoginResult(CapturedOutput output) {
         UUID userId = uuid(7);
-        PendingRegistrationUserView user = new PendingRegistrationUserView(userId, "alice", "alice@example.com", 0, 0, null);
         UserCredentialView activatedUser = new UserCredentialView(userId, "alice", 1, 0, null);
 
         RefreshCookieSpec cookie = issuedCookie("rt");
 
-        when(registrationSessionStore.findUserId("token")).thenReturn(userId);
-        when(userPendingRegistrationQueryApi.getPendingUser(userId, Duration.ofMinutes(30))).thenReturn(user);
+        when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
         when(registrationCodeStore.verifyAndConsume(userId, "222222")).thenReturn(RegistrationCodeRepository.VerifyResult.SUCCESS);
-        when(userRegistrationActionApi.activatePendingUser(userId)).thenReturn(activatedUser);
+        when(userRegistrationActionApi.createVerifiedRegistrationUser(any(VerifiedRegistrationUserCommand.class))).thenReturn(activatedUser);
         when(authService.issueLoginResult(activatedUser)).thenReturn(new LoginResult("access-token", cookie));
 
         LoginResult result = service.verifyAndLogin(new VerifyRegisterCodeCommand("token", "222222"));
 
         assertThat(result.accessToken()).isEqualTo("access-token");
         assertThat(result.refreshCookie()).isEqualTo(cookie);
-        verify(userRegistrationActionApi).activatePendingUser(userId);
-        verify(registrationSessionStore).delete("token");
+        ArgumentCaptor<VerifiedRegistrationUserCommand> commandCaptor =
+                ArgumentCaptor.forClass(VerifiedRegistrationUserCommand.class);
+        verify(userRegistrationActionApi).createVerifiedRegistrationUser(commandCaptor.capture());
+        VerifiedRegistrationUserCommand createCommand = commandCaptor.getValue();
+        assertThat(createCommand.userId()).isEqualTo(userId);
+        assertThat(createCommand.username()).isEqualTo("alice");
+        assertThat(createCommand.email()).isEqualTo("alice@example.com");
+        assertThat(createCommand.encodedPassword()).isEqualTo(ENCODED_PASSWORD);
+        assertThat(createCommand.headerUrl()).isEqualTo("h");
+        verify(registrationDraftRepository).delete("token");
         verify(authService).issueLoginResult(activatedUser);
         assertThat(output.getAll())
                 .contains("community.category=security")
@@ -155,10 +160,8 @@ class RegistrationVerificationApplicationServiceTest {
     @Test
     void verifyAndLoginShouldRejectInvalidCodeWithoutIssuingLogin() {
         UUID userId = uuid(7);
-        PendingRegistrationUserView user = new PendingRegistrationUserView(userId, "alice", "alice@example.com", 0, 0, null);
 
-        when(registrationSessionStore.findUserId("token")).thenReturn(userId);
-        when(userPendingRegistrationQueryApi.getPendingUser(userId, Duration.ofMinutes(30))).thenReturn(user);
+        when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
         when(registrationCodeStore.verifyAndConsume(userId, "111111")).thenReturn(RegistrationCodeRepository.VerifyResult.MISMATCH);
 
         assertThatThrownBy(() -> service.verifyAndLogin(new VerifyRegisterCodeCommand("token", "111111")))
@@ -167,17 +170,14 @@ class RegistrationVerificationApplicationServiceTest {
                 .isEqualTo(AuthErrorCode.REGISTRATION_CODE_INVALID);
 
         verify(authService, never()).issueLoginResult(any(UserCredentialView.class));
-        verify(userRegistrationActionApi, never()).activatePendingUser(any(UUID.class));
-        verify(registrationSessionStore, never()).delete(any());
+        verify(userRegistrationActionApi, never()).createVerifiedRegistrationUser(any());
+        verify(registrationDraftRepository, never()).delete(any());
     }
 
     @Test
-    void resendCodeShouldTreatExpiredPendingUserAsStaleContext() {
-        UUID userId = uuid(7);
+    void resendCodeShouldTreatMissingDraftAsStaleContext() {
         when(captchaService.verify("cid", "abcd")).thenReturn(true);
-        when(registrationSessionStore.findUserId("token")).thenReturn(userId);
-        when(userPendingRegistrationQueryApi.getPendingUser(userId, Duration.ofMinutes(30)))
-                .thenThrow(new BusinessException(AuthErrorCode.REGISTRATION_CONTEXT_INVALID));
+        when(registrationDraftRepository.find("token")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd")))
                 .isInstanceOf(BusinessException.class)
@@ -188,14 +188,14 @@ class RegistrationVerificationApplicationServiceTest {
     @Test
     void resendCodeShouldRejectWhenRegistrationTokenIsMissingOrExpired() {
         when(captchaService.verify("cid", "abcd")).thenReturn(true);
-        when(registrationSessionStore.findUserId("token")).thenReturn(null);
+        when(registrationDraftRepository.find("token")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd")))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);
 
-        verifyNoInteractions(userPendingRegistrationQueryApi, userRegistrationActionApi, registrationCodeStore, mailService);
+        verifyNoInteractions(userRegistrationActionApi, registrationCodeStore, mailService);
     }
 
     private static UUID uuid(long suffix) {
@@ -211,6 +211,18 @@ class RegistrationVerificationApplicationServiceTest {
                 "/api/auth",
                 "Lax",
                 600
+        );
+    }
+
+    private static PreparedRegistrationDraft draft(UUID userId) {
+        return new PreparedRegistrationDraft(
+                userId,
+                "alice",
+                "alice@example.com",
+                ENCODED_PASSWORD,
+                "h",
+                Instant.parse("2026-05-03T01:00:00Z"),
+                Instant.parse("2026-05-03T01:30:00Z")
         );
     }
 }

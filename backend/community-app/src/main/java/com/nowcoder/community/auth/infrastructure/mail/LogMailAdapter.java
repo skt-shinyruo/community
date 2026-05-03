@@ -21,18 +21,34 @@ public class LogMailAdapter implements MailPort {
 
     @Override
     public void sendRegistrationCodeMail(String toEmail, String code) {
-        log.info("[mail][registration-code][disabled] to={}, subject={}, code={}",
-                toEmail,
-                properties.getMail().getSubject(),
-                code
+        log.info("[mail][registration-code][disabled] to={}, subject={}",
+                maskEmail(toEmail),
+                properties.getMail().getSubject()
         );
     }
 
     @Override
     public void sendPasswordResetMail(String toEmail, String resetLink) {
         log.info("[mail][password-reset][disabled] to={}, subject={}",
-                toEmail,
+                maskEmail(toEmail),
                 "重置密码"
         );
+    }
+
+    private String maskEmail(String email) {
+        String normalized = email == null ? "" : email.trim();
+        int at = normalized.indexOf('@');
+        if (at <= 0) {
+            return normalized.isEmpty() ? "" : "***";
+        }
+        String local = normalized.substring(0, at);
+        String domain = normalized.substring(at);
+        if (local.length() <= 1) {
+            return "*" + domain;
+        }
+        if (local.length() == 2) {
+            return local.charAt(0) + "*" + domain;
+        }
+        return local.charAt(0) + "***" + local.charAt(local.length() - 1) + domain;
     }
 }

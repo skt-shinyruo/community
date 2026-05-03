@@ -12,6 +12,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 class LogMailAdapterTest {
 
     @Test
+    void sendRegistrationCodeMailShouldNotLogRawEmailOrCode(CapturedOutput output) {
+        LogMailAdapter adapter = new LogMailAdapter(new RegistrationProperties());
+
+        adapter.sendRegistrationCodeMail("alice@example.com", "123456");
+
+        assertThat(output.getAll())
+                .contains("[mail][registration-code][disabled]")
+                .contains("注册验证码")
+                .contains("a***e@example.com")
+                .doesNotContain("123456")
+                .doesNotContain("code=");
+    }
+
+    @Test
     void sendPasswordResetMailShouldNotLogResetLinkOrToken(CapturedOutput output) {
         LogMailAdapter adapter = new LogMailAdapter(new RegistrationProperties());
 
@@ -22,7 +36,7 @@ class LogMailAdapterTest {
 
         assertThat(output.getAll())
                 .contains("[mail][password-reset][disabled]")
-                .contains("alice@example.com")
+                .contains("a***e@example.com")
                 .contains("重置密码")
                 .doesNotContain("https://community.example")
                 .doesNotContain("/#/auth/password/reset")

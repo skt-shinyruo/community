@@ -149,8 +149,8 @@ class OutboxWorkerRetryTest {
                 0,
                 null,
                 null,
-                null,
-                null
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-00f067aa0ba902b7-01"
         );
         OutboxHandler handler = new OutboxHandler() {
             @Override
@@ -181,7 +181,8 @@ class OutboxWorkerRetryTest {
                 .contains("community.topic=projection.points")
                 .contains("community.retry_count=1")
                 .contains("community.error_class=java.lang.RuntimeException")
-                .contains("community.error_message=boom");
+                .contains("community.error_message=boom")
+                .contains("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
         assertThat(output.getAll()).doesNotContain("\tat ");
     }
 
@@ -202,7 +203,7 @@ class OutboxWorkerRetryTest {
                 null,
                 null,
                 null,
-                null
+                "00-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-00f067aa0ba902b7-01"
         );
 
         when(store.recoverExpiredLeases(now)).thenReturn(0);
@@ -221,7 +222,8 @@ class OutboxWorkerRetryTest {
                 .contains("community.outcome=degraded")
                 .contains("community.reason_code=no_handler")
                 .contains("community.event_id=e-missing:points")
-                .contains("community.topic=projection.points");
+                .contains("community.topic=projection.points")
+                .contains("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
     }
 
     @Test

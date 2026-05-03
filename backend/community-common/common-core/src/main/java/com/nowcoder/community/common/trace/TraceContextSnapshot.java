@@ -28,6 +28,9 @@ public record TraceContextSnapshot(String traceId, String traceparent, boolean r
 
     public static TraceContextSnapshot fromStored(String traceId, String traceparent) {
         String normalized = TraceIdCodec.normalizeTraceId(traceId);
+        if (normalized == null) {
+            normalized = TraceIdCodec.extractTraceIdFromTraceparent(traceparent);
+        }
         boolean recovered = normalized == null;
         return new TraceContextSnapshot(normalized, traceparent, recovered);
     }

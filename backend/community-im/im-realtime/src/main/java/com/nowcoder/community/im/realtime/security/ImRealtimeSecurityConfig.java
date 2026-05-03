@@ -32,7 +32,7 @@ public class ImRealtimeSecurityConfig {
                 normalizeWsPath(directPublicWsPath),
                 normalizeWsPath(internalWorkerWsPath)
         );
-        // WebSocket auth is handled at message-level (first 'auth' frame).
+        // WebSocket auth is handled at message-level (first 'connect' frame).
         return http
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
@@ -42,9 +42,8 @@ public class ImRealtimeSecurityConfig {
                         .accessDeniedHandler(accessDeniedHandler))
                 .authorizeExchange(ex -> ex
                         .pathMatchers("/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
-                        .pathMatchers("/api/im/sessions").permitAll()
                         .pathMatchers(wsPathValue).permitAll()
-                        // WebSocket connect auth remains inside the handler; session creation verifies bearer auth explicitly.
+                        // WebSocket connect auth remains inside the handler through signed session tickets.
                         .anyExchange().denyAll()
                 )
                 .build();

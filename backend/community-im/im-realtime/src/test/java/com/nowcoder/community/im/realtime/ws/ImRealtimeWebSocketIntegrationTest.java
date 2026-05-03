@@ -2,11 +2,6 @@ package com.nowcoder.community.im.realtime.ws;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.crypto.MACSigner;
-import com.nimbusds.jwt.JWTClaimsSet;
-import com.nimbusds.jwt.SignedJWT;
 import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
 import com.nowcoder.community.im.common.projection.RoomMembershipEntry;
@@ -16,6 +11,7 @@ import com.nowcoder.community.im.common.ws.ConnectFrame;
 import com.nowcoder.community.im.common.ws.SendPrivateTextFrame;
 import com.nowcoder.community.im.realtime.projection.PolicyProjectionService;
 import com.nowcoder.community.im.realtime.projection.ProjectionSyncCoordinator;
+import com.nowcoder.community.im.realtime.session.SessionTicketCodec;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.kafka.clients.consumer.Consumer;
@@ -27,9 +23,7 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.HttpHeaders;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -42,8 +36,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.web.reactive.server.WebTestClient;
-import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.client.ReactorNettyWebSocketClient;
 import reactor.core.Disposable;
@@ -55,10 +47,8 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -88,12 +78,16 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.cloud.nacos.discovery.enabled=false",
         "im.projection.bootstrap-on-startup=false",
         "im.session.worker-id=worker-a",
+        "im.edge.mode=internal-worker",
+        "im.ws.path=/internal/ws/im",
         "im.ws.kafka-send-timeout-ms=1000"
 })
 class ImRealtimeWebSocketIntegrationTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final int APP_PORT = findAvailablePort();
+    private static final String WORKER_ID = "worker-a";
+    private static final String WS_PATH = "/internal/ws/im";
 
     private static final AtomicReference<List<RoomMembershipEntry>> MEMBERSHIP_ENTRIES = new AtomicReference<>(List.of());
     private static final AtomicReference<List<UserMessagingPolicyEntry>> POLICY_ENTRIES = new AtomicReference<>(List.of());
@@ -120,11 +114,8 @@ class ImRealtimeWebSocketIntegrationTest {
     @Autowired
     private PolicyProjectionService policyProjectionService;
 
-    @Value("${security.jwt.hmac-secret}")
-    private String jwtSecret;
-
-    @Value("${security.jwt.issuer}")
-    private String jwtIssuer;
+    @Autowired
+    private SessionTicketCodec sessionTicketCodec;
 
     private Consumer<String, String> commandConsumer;
 
@@ -132,7 +123,6 @@ class ImRealtimeWebSocketIntegrationTest {
     static void registerDynamicProperties(DynamicPropertyRegistry registry) {
         ensureSnapshotServers();
         registry.add("server.port", () -> APP_PORT);
-        registry.add("im.session.ws-base-url", () -> "ws://127.0.0.1:" + APP_PORT + "/ws/im");
         registry.add("spring.cloud.discovery.client.simple.instances.im-core[0].uri",
                 () -> "http://127.0.0.1:" + imCoreServer.getAddress().getPort());
         registry.add("spring.cloud.discovery.client.simple.instances.community-app[0].uri",
@@ -153,7 +143,7 @@ class ImRealtimeWebSocketIntegrationTest {
     }
 
     @Test
-    void websocket_shouldOpenSession_connectWithTicket_andApplyLocalPrivatePolicyProjection() throws Exception {
+    void websocket_shouldAcceptGatewayIssuedTicketOnInternalWorkerPath_andApplyLocalPrivatePolicyProjection() throws Exception {
         UUID senderUserId = uuid(100);
         UUID allowedRecipientId = uuid(200);
         UUID deniedRecipientId = uuid(201);
@@ -172,7 +162,7 @@ class ImRealtimeWebSocketIntegrationTest {
         commandConsumer.subscribe(List.of(ImTopics.COMMAND_PRIVATE_TEXT));
         commandConsumer.poll(Duration.ofMillis(200));
 
-        OpenSessionData sessionData = openSession(senderUserId);
+        OpenSessionData sessionData = newSession(senderUserId, WORKER_ID);
         assertThat(sessionData.wsUrl()).isNotBlank();
         assertThat(sessionData.ticket()).isNotBlank();
         assertThat(sessionData.sessionId()).isNotBlank();
@@ -242,34 +232,38 @@ class ImRealtimeWebSocketIntegrationTest {
         }
     }
 
-    private OpenSessionData openSession(UUID userId) throws Exception {
-        JsonNode body = client()
-                .post()
-                .uri("/api/im/sessions")
-                .header(HttpHeaders.AUTHORIZATION, bearer(userId))
-                .exchange()
-                .expectStatus().isOk()
-                .expectBody(JsonNode.class)
-                .returnResult()
-                .getResponseBody();
-        assertThat(body).isNotNull();
-        assertThat(body.path("code").asInt(-1)).isEqualTo(0);
-        JsonNode data = body.path("data");
-        return new OpenSessionData(
-                data.path("sessionId").asText(""),
-                data.path("wsUrl").asText(""),
-                data.path("ticket").asText("")
-        );
-    }
+    @Test
+    void websocket_shouldRejectTicketIssuedForAnotherWorker() throws Exception {
+        UUID userId = uuid(300);
+        MEMBERSHIP_ENTRIES.set(List.of());
+        POLICY_ENTRIES.set(List.of(policy(userId, true)));
+        BLOCK_ENTRIES.set(List.of());
 
-    private WebTestClient client() {
-        return WebTestClient.bindToServer()
-                .baseUrl("http://127.0.0.1:" + APP_PORT)
-                .responseTimeout(Duration.ofSeconds(5))
-                .exchangeStrategies(ExchangeStrategies.builder()
-                        .codecs(cfg -> cfg.defaultCodecs().maxInMemorySize(256 * 1024))
-                        .build())
-                .build();
+        projectionSyncCoordinator.refreshNow().block(Duration.ofSeconds(5));
+
+        OpenSessionData sessionData = newSession(userId, "worker-b");
+        LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
+        Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
+        Sinks.Empty<Void> done = Sinks.empty();
+        CountDownLatch connected = new CountDownLatch(1);
+
+        Disposable websocket = openWebSocket(sessionData.wsUrl(), received, outbound, done, connected);
+        try {
+            assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
+
+            outbound.tryEmitNext(json(new ConnectFrame("connect", sessionData.ticket())));
+
+            JsonNode rejectFrame = awaitType(received, "reject", Duration.ofSeconds(5));
+            assertThat(rejectFrame.path("cmd").asText("")).isEqualTo("connect");
+            assertThat(rejectFrame.path("code").asInt()).isEqualTo(403);
+            assertThat(rejectFrame.path("reasonCode").asText("")).isEqualTo("wrong_worker");
+        } finally {
+            done.tryEmitEmpty();
+            outbound.tryEmitComplete();
+            if (websocket != null) {
+                websocket.dispose();
+            }
+        }
     }
 
     private Disposable openWebSocket(
@@ -377,10 +371,6 @@ class ImRealtimeWebSocketIntegrationTest {
         throw new AssertionError("Timed out waiting for record on topic " + topic);
     }
 
-    private String bearer(UUID userId) throws Exception {
-        return "Bearer " + signHs256(jwtSecret, jwtIssuer, userId.toString(), Instant.now().plusSeconds(120));
-    }
-
     private static String json(Object value) throws Exception {
         return JSON.writeValueAsString(value);
     }
@@ -452,21 +442,14 @@ class ImRealtimeWebSocketIntegrationTest {
         }
     }
 
-    private static String signHs256(String secret, String issuer, String sub, Instant exp) throws Exception {
-        JWTClaimsSet claims = new JWTClaimsSet.Builder()
-                .issuer(issuer)
-                .subject(sub)
-                .issueTime(new Date())
-                .expirationTime(Date.from(exp))
-                .build();
-
-        SignedJWT jwt = new SignedJWT(new JWSHeader(JWSAlgorithm.HS256), claims);
-        jwt.sign(new MACSigner(secret.getBytes(StandardCharsets.UTF_8)));
-        return jwt.serialize();
-    }
-
     private static UserMessagingPolicyEntry policy(UUID userId, boolean allowPrivateMessages) {
         return new UserMessagingPolicyEntry(userId, true, false, false, null, null, allowPrivateMessages);
+    }
+
+    private OpenSessionData newSession(UUID userId, String workerId) {
+        String sessionId = UUID.randomUUID().toString();
+        String ticket = sessionTicketCodec.encode(sessionId, userId, workerId, Instant.now().plusSeconds(120));
+        return new OpenSessionData(sessionId, "ws://127.0.0.1:" + APP_PORT + WS_PATH, ticket);
     }
 
     private static UUID uuid(long suffix) {

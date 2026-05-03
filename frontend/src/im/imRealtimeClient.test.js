@@ -88,7 +88,6 @@ describe('imRealtimeClient URL resolution', () => {
       data: {
         data: {
           sessionId: 'sess-1',
-          workerId: 'worker-a',
           wsUrl: 'wss://edge.example.com/ws/im',
           ticket: 'ticket-1'
         }
@@ -117,7 +116,6 @@ describe('imRealtimeClient URL resolution', () => {
       data: {
         data: {
           sessionId: 'sess-1',
-          workerId: 'worker-a',
           wsUrl: 'wss://edge.example.com/ws/im',
           ticket: 'ticket-1'
         }
@@ -140,8 +138,7 @@ describe('imRealtimeClient URL resolution', () => {
     ws.onmessage?.({
       data: JSON.stringify({
         type: 'connected',
-        sessionId: 'sess-1',
-        workerId: 'worker-a'
+        sessionId: 'sess-1'
       })
     })
 
@@ -167,7 +164,6 @@ describe('imRealtimeClient URL resolution', () => {
         data: {
           data: {
             sessionId: 'sess-1',
-            workerId: 'worker-a',
             wsUrl: 'wss://edge.example.com/ws/im',
             ticket: 'ticket-1'
           }
@@ -177,7 +173,6 @@ describe('imRealtimeClient URL resolution', () => {
         data: {
           data: {
             sessionId: 'sess-2',
-            workerId: 'worker-b',
             wsUrl: 'wss://edge.example.com/ws/im',
             ticket: 'ticket-2'
           }
@@ -187,7 +182,6 @@ describe('imRealtimeClient URL resolution', () => {
         data: {
           data: {
             sessionId: 'sess-3',
-            workerId: 'worker-c',
             wsUrl: 'wss://edge.example.com/ws/im',
             ticket: 'ticket-3'
           }

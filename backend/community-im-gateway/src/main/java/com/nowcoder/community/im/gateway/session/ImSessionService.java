@@ -56,7 +56,6 @@ public class ImSessionService {
             String ticket = sessionTicketCodec.encode(sessionId, verified.userId(), worker.getId(), expiresAt);
             OpenImSessionResponse response = new OpenImSessionResponse(
                     sessionId,
-                    worker.getId(),
                     publicWsUrlFactory.build(request),
                     ticket,
                     expiresAt.toEpochMilli()

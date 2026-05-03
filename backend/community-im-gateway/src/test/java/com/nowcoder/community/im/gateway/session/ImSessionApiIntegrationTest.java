@@ -65,7 +65,7 @@ class ImSessionApiIntegrationTest {
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.data.workerId").isEqualTo("worker-a")
+                .jsonPath("$.data.workerId").doesNotExist()
                 .jsonPath("$.data.wsUrl").isEqualTo("ws://localhost:" + localPort + "/custom/ws/im")
                 .jsonPath("$.data.ticket").isNotEmpty();
 

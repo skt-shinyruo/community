@@ -23,8 +23,7 @@ function createInitialState() {
     connected: false,
     authed: false,
     userId: '',
-    sessionId: '',
-    workerId: ''
+    sessionId: ''
   }
 }
 
@@ -188,7 +187,6 @@ class ImRealtimeClient {
       this.state.authed = false
       this.state.userId = ''
       this.state.sessionId = ''
-      this.state.workerId = ''
       this.reconnectAttempts = 0
       this._send({ type: 'connect', ticket })
     }
@@ -200,11 +198,9 @@ class ImRealtimeClient {
       if (type === 'connected') {
         this.state.authed = true
         this.state.sessionId = String(msg?.sessionId || '').trim()
-        this.state.workerId = String(msg?.workerId || '').trim()
       } else if (type === 'reject' && String(msg?.cmd || '') === 'connect') {
         this.state.authed = false
         this.state.sessionId = ''
-        this.state.workerId = ''
       }
       this.emitter.emit(type, msg)
     }
@@ -214,7 +210,6 @@ class ImRealtimeClient {
       this.state.authed = false
       this.state.userId = ''
       this.state.sessionId = ''
-      this.state.workerId = ''
       this.ws = null
       if (this.accessToken) this._scheduleReconnect()
     }

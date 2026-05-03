@@ -1,6 +1,7 @@
 package com.nowcoder.community.common.outbox;
 
 import com.nowcoder.community.common.id.BinaryUuidCodec;
+import com.nowcoder.community.common.trace.TraceContext;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
@@ -28,6 +29,7 @@ class JdbcOutboxEventStoreTest {
             JdbcOutboxEventStore store = new JdbcOutboxEventStore(jdbcTemplate);
 
             Instant now = Instant.parse("2026-03-14T00:00:00Z");
+            TraceContext.set("dddddddddddddddddddddddddddddddd");
 
             boolean inserted = store.enqueue(
                     "e-1:points",
@@ -46,6 +48,8 @@ class JdbcOutboxEventStoreTest {
             assertThat(ev.eventId()).isEqualTo("e-1:points");
             assertThat(ev.topic()).isEqualTo("projection.points");
             assertThat(ev.status()).isEqualTo(OutboxEventStatus.PENDING);
+            assertThat(ev.traceId()).isEqualTo("dddddddddddddddddddddddddddddddd");
+            assertThat(ev.traceparent()).startsWith("00-dddddddddddddddddddddddddddddddd-");
 
             Instant leaseUntil = now.plusSeconds(30);
             boolean claimed = store.tryClaimProcessing(ev.id(), leaseUntil, now);
@@ -75,6 +79,7 @@ class JdbcOutboxEventStoreTest {
             );
             assertThat(statusAfterRecover).isEqualTo(OutboxEventStatus.PENDING);
         } finally {
+            TraceContext.clear();
             db.shutdown();
         }
     }
@@ -91,6 +96,8 @@ class JdbcOutboxEventStoreTest {
                         "  retry_count int not null default 0,\n" +
                         "  next_retry_at timestamp,\n" +
                         "  last_error varchar(512),\n" +
+                        "  trace_id varchar(32) null,\n" +
+                        "  traceparent varchar(128) null,\n" +
                         "  created_at timestamp default current_timestamp,\n" +
                         "  updated_at timestamp default current_timestamp,\n" +
                         "  constraint uk_outbox_event_id unique (event_id)\n" +

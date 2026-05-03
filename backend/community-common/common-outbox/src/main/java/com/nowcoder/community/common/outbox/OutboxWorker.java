@@ -1,5 +1,6 @@
 package com.nowcoder.community.common.outbox;
 
+import com.nowcoder.community.common.trace.TraceContextSnapshot;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -88,28 +89,30 @@ public class OutboxWorker {
 
             processed++;
 
-            OutboxHandler handler = handlers.get(event.topic());
-            if (handler == null) {
-                Instant nextRetryAt = now.plus(Duration.ofSeconds(10));
-                store.markFailedAndScheduleRetry(event.id(), now, nextRetryAt, "no handler for topic=" + event.topic());
-                warnEvent(
-                        "outbox_dispatch",
-                        "degraded",
-                        null,
-                        "community.reason_code", "no_handler",
-                        "community.event_id", event.eventId(),
-                        "community.topic", event.topic(),
-                        "community.retry_count", Math.max(0, event.retryCount()) + 1,
-                        "community.next_retry_at", nextRetryAt
-                );
-                continue;
-            }
+            try (var ignored = TraceContextSnapshot.fromStored(event.traceId(), event.traceparent()).open()) {
+                OutboxHandler handler = handlers.get(event.topic());
+                if (handler == null) {
+                    Instant nextRetryAt = now.plus(Duration.ofSeconds(10));
+                    store.markFailedAndScheduleRetry(event.id(), now, nextRetryAt, "no handler for topic=" + event.topic());
+                    warnEvent(
+                            "outbox_dispatch",
+                            "degraded",
+                            null,
+                            "community.reason_code", "no_handler",
+                            "community.event_id", event.eventId(),
+                            "community.topic", event.topic(),
+                            "community.retry_count", Math.max(0, event.retryCount()) + 1,
+                            "community.next_retry_at", nextRetryAt
+                    );
+                    continue;
+                }
 
-            try {
-                handler.handle(event);
-                store.markSucceeded(event.id(), now);
-            } catch (RuntimeException e) {
-                handleFailure(event, now, e);
+                try {
+                    handler.handle(event);
+                    store.markSucceeded(event.id(), now);
+                } catch (RuntimeException e) {
+                    handleFailure(event, now, e);
+                }
             }
         }
 

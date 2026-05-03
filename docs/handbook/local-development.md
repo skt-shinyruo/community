@@ -159,6 +159,8 @@ single / cluster 都可以叠加 observability：
 
 ## 本地构建和验证
 
+完整测试策略见 [testing.md](testing.md)。常用命令如下。
+
 后端从 `backend/` 执行：
 
 ```bash

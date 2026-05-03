@@ -36,6 +36,12 @@
 - 文档：`../docs/`
 
 ## 文档
+- `../docs/handbook/readme.md`
+- `../docs/handbook/architecture.md`
+- `../docs/handbook/system-design.md`
+- `../docs/handbook/business-flows.md`
+- `../docs/handbook/reliability.md`
+- `../docs/handbook/testing.md`
 - `../docs/handbook/local-development.md`
 - `../deploy/README.md`
 - `../docs/handbook/security.md`

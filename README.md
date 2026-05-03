@@ -29,8 +29,12 @@ cp deploy/.env.single.example deploy/.env.single
 
 ## 文档入口
 
+- 文档手册：`docs/handbook/readme.md`
+- 前端工程：`frontend/README.md`
 - 后端工程：`backend/README.md`
 - 本地部署：`deploy/README.md`
+- 前端核心逻辑：`docs/handbook/frontend.md`
 - 本地开发：`docs/handbook/local-development.md`
+- 测试策略：`docs/handbook/testing.md`
 - 运行排障：`docs/handbook/operations.md`
-- 架构文档：`docs/handbook/readme.md`
+- 架构文档：`docs/handbook/architecture.md`

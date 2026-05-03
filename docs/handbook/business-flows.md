@@ -47,6 +47,15 @@ Main path：
 10. logout 撤销 refresh token / family 并清 cookie。
 11. cleanup job 清理过期待激活用户和 session 状态。
 
+Refresh session DB state：
+
+- `auth_refresh_token` 只保存 refresh token hash、用户、family、过期时间和撤销时间。
+- `RefreshTokenSessionApplicationService.store(...)` 在签发 refresh token 时写入 DB session 状态。
+- `/api/auth/refresh` 通过 `consume(...)` 消费当前 active token；找不到、已过期或已撤销都会视为不可刷新。
+- 刷新成功会旋转 refresh token，新 token 重新 `store(...)`，旧 token 不再保持 active。
+- `revoke(...)` 用于单 token 撤销；`revokeFamily(...)` 用于 family reuse 或整族撤销；`revokeByUserId(...)` 用于密码重置后撤销该用户会话。
+- `deleteExpiredBefore(...)` 由 cleanup job 调用，只清理已过期 refresh session，不影响已经签出的 access token。
+
 Password reset：
 
 1. 请求重置密码必须带邮箱和验证码。
@@ -68,6 +77,7 @@ Key code：
 
 - `auth.application.AuthApplicationService`
 - `auth.application.*ApplicationService`
+- `user.application.RefreshTokenSessionApplicationService`
 - `auth.infrastructure.web.AuthOriginGuardFilter`
 - `auth.config.AuthStartupValidator`
 - `auth.security.AuthSecurityRules`
@@ -621,9 +631,19 @@ Entry：
 Current state：
 
 - 当前 analytics 对外 HTTP 面主要是查询，不是任意客户端埋点写入。
+- `analytics.ingest.enabled` 默认为 `false`；未开启时 filter 直接跳过采集。
 - 默认采集路径包括 `/api/posts/**`、`/api/search/**`、`/api/messages/**`、`/api/notices/**`、历史 `/api/im-governance/**`。
 - `/api/im-governance/**` 是遗留采集配置；当前 IM governance 已迁到 realtime 本地 projection 和 `/internal/im/realtime/projections/**` snapshot。
-- `/internal/**` 默认被 exclude，不进入 analytics filter 采集。
+- 默认排除 `/api/analytics/**`、`/api/auth/**`、`/api/ops/**`、`/actuator/**`、`/internal/**`、`/files/**`。
+- `OPTIONS` 和 HTTP `5xx` 响应不采集。
+
+Ingest path：
+
+1. `AnalyticsRequestCaptureFilter` 在请求链路完成后执行采集判断。
+2. `AnalyticsRequestClassifier` 根据开关、method、path、status、include / exclude path 决定是否采集。
+3. filter 从 `ClientIpResolver` 解析 IP，从当前 `Authentication` 解析用户 UUID。
+4. `AnalyticsIngestApplicationService.recordRequest(...)` 按配置分别记录 UV / DAU。
+5. 登录成功可通过 `AnalyticsIngestActionApi.recordLoginSuccess(...)` 记录 DAU，但同样受 analytics ingest 开关和 `recordDau` 约束。
 
 UV：
 
@@ -640,13 +660,19 @@ DAU：
 Failure / limits：
 
 - analytics 是统计读模型，不应影响核心业务写路径。
+- filter 采集异常只记录日志，不改变业务 HTTP 响应。
+- Redis 写 UV / DAU 失败只记录日志；前 3 次和 2 的幂次数失败会 warn，debug 下保留堆栈。
 - 区间查询和 bitmap offset 要受实现限制约束。
 
 Key code：
 
-- `analytics.application.*ApplicationService`
-- `analytics.domain.service.*`
-- `analytics.infrastructure.*`
+- `analytics.application.AnalyticsApplicationService`
+- `analytics.application.AnalyticsIngestApplicationService`
+- `analytics.domain.service.AnalyticsDomainService`
+- `analytics.domain.service.AnalyticsIngestDomainService`
+- `analytics.infrastructure.web.AnalyticsRequestCaptureFilter`
+- `analytics.infrastructure.web.AnalyticsRequestClassifier`
+- `analytics.infrastructure.api.AnalyticsIngestActionApiAdapter`
 - `analytics.security.AnalyticsSecurityRules`
 
 ## Growth Task Reward Level And Retired Check In Surface
@@ -727,7 +753,22 @@ Listing / inventory：
 
 - listing 表达商品发布状态。
 - 虚拟商品和实物商品创建差异不同。
-- 预置库存用于虚拟或特定商品交付。
+- 预加载库存只允许 `goodsType=VIRTUAL` 且 `deliveryMode=PRELOADED` 的 listing 使用。
+- `POST /api/market/listings/{listingId}/inventory` 只允许 listing 卖家追加库存。
+- 每个 payload 会创建一个 `market_inventory_unit`，状态为 `AVAILABLE`，并增加 listing `stock_total` / `stock_available`。
+- 如果 listing 追加库存前是 `SOLD_OUT`，追加成功后恢复为 `ACTIVE`。
+- `POST /api/market/inventory/{inventoryUnitId}/invalidate` 只允许卖家把 `AVAILABLE` 库存置为 `INVALID`，并同步扣减 listing 库存；最后一件可用库存失效时 listing 转为 `SOLD_OUT`。
+- 库存 payload 必须非空，`payloadType` 必须非空；空批次或空 payload 是参数错误。
+
+Market query：
+
+- `GET /api/market/listings` 只返回公开 listing，口径由 `MarketListingRepository.findPublicListings()` 决定。
+- `GET /api/market/listings/{listingId}` 找不到 listing 返回 `404`。
+- `GET /api/market/my-listings` 按当前登录卖家列出自己的 listing。
+- 买家订单列表按 buyer 过滤，卖家订单列表按 seller 过滤。
+- 订单详情只允许买家或卖家查看，其他登录用户返回 `403`。
+- 虚拟订单详情优先读取已 `DELIVERED` 的手动交付记录；没有手动交付时，再读取已 `DELIVERED` 的预加载库存 payload。
+- 非虚拟商品订单详情不返回 delivery content。
 
 Order path：
 
@@ -805,6 +846,8 @@ Key code：
 
 - `market.controller.*`
 - `market.application.MarketOrderApplicationService`
+- `market.application.MarketInventoryApplicationService`
+- `market.application.MarketQueryApplicationService`
 - `market.application.MarketDisputeApplicationService`
 - `market.application.MarketWalletActionApplicationService`
 - `market.application.MarketWalletActionProcessorApplicationService`
@@ -845,6 +888,37 @@ HTTP writes：
 - 旧 body `requestId` 仅 header 缺失时 fallback。
 - header/body 不一致返回 `400`。
 - HTTP 幂等 key 与总账 requestId 解耦。
+- 充值请求指纹只包含 `amount`。
+- 提现请求指纹只包含 `amount`。
+- 转账请求指纹包含 `toUserId` 和 `amount`。
+
+Recharge：
+
+1. `POST /api/wallet/recharges` 进入 `WalletApplicationService.recharge(...)`。
+2. 应用层解析 effective idempotency key，包裹 `wallet:recharge` HTTP 幂等。
+3. `WalletRechargeApplicationService.complete(...)` 按 `userId + requestId` 查找或创建 `recharge_order`。
+4. 重放必须匹配 `userId` 和 `amount`，否则返回 `REQUEST_REPLAY_CONFLICT`。
+5. 未支付订单通过总账写入 `RECHARGE`：借记系统 `PLATFORM_CASH`，贷记用户钱包。
+6. 账本成功后订单从 `CREATED` 更新为 `PAID`。
+
+Withdraw：
+
+1. `POST /api/wallet/withdrawals` 进入 `WalletApplicationService.withdraw(...)`。
+2. 只有 active 用户钱包可主动提现。
+3. 按 `userId + requestId` 查找或创建 `withdraw_order`，重放必须匹配 `userId` 和 `amount`。
+4. 新请求会先检查系统 `PLATFORM_CASH` 余额，余额不足且没有既有订单时返回 `PLATFORM_CASH_INSUFFICIENT`。
+5. `REQUESTED` 阶段先写 `WITHDRAW` 账本：借记用户钱包，贷记系统 `WITHDRAW_PENDING`，订单转 `PROCESSING`。
+6. `PROCESSING` 阶段再写 settlement 账本：借记 `WITHDRAW_PENDING`，贷记 `PLATFORM_CASH`，订单转 `SUCCEEDED`。
+7. 两段账本都使用服务端派生 requestId，重跑会由总账幂等吸收。
+
+Transfer：
+
+1. `POST /api/wallet/transfers` 进入 `WalletApplicationService.transfer(...)`。
+2. 转出用户和转入用户必须合法，不能自转；金额必须为正。
+3. 只有 active 转出方钱包可主动转账。
+4. 按 `fromUserId + requestId` 查找或创建 `transfer_order`，重放必须匹配 `fromUserId`、`toUserId` 和 `amount`。
+5. 未成功订单写 `TRANSFER` 总账：借记转出用户钱包，贷记转入用户钱包。
+6. 账本成功后订单从 `CREATED` 更新为 `SUCCEEDED`。
 
 Ledger idempotency：
 
@@ -862,6 +936,16 @@ Market / reward integration：
 - 冻结钱包不能发起用户主动转账、提现或市场购买。
 - 冻结钱包仍可接收系统必须完成的入账或补偿动作，例如退款、放款、奖励和管理员调整。
 
+Admin operations：
+
+- `POST /api/wallet/admin/freeze` 校验管理员动作 actor 和 reason 后，把目标用户钱包状态置为 `FROZEN`，并写 `wallet_admin_action` 审计。
+- freeze 当前是单向治理动作；恢复 active 状态没有独立 HTTP 管理入口。
+- `POST /api/wallet/admin/reverse` 可按 wallet txn requestId 查交易，也兼容 transfer / recharge 公开 requestId；公开 requestId 不唯一时要求使用 wallet txn requestId。
+- 只有 `TRANSFER`、`ORDER_RELEASE`、`REWARD_ISSUE` 可冲正。
+- 冲正通过 `reversal:<originalRequestId>` 写一笔 `REVERSAL` 总账，不直接改旧交易或旧分录。
+- 冲正前会检查反向分录导致的扣款账户余额是否足够；余额不足时拒绝。
+- 同一原交易重复冲正时，总账 requestId 和 admin audit requestId 都是幂等的。
+
 Failure：
 
 - 资金类 HTTP 写入口幂等存储异常时 fail-closed。
@@ -872,8 +956,16 @@ Failure：
 Key code：
 
 - `wallet.controller.*`
-- `wallet.application.*ApplicationService`
-- `wallet.domain.*`
+- `wallet.application.WalletApplicationService`
+- `wallet.application.WalletRechargeApplicationService`
+- `wallet.application.WalletWithdrawApplicationService`
+- `wallet.application.WalletTransferApplicationService`
+- `wallet.application.WalletLedgerApplicationService`
+- `wallet.application.WalletAccountApplicationService`
+- `wallet.application.WalletAdminOpsApplicationService`
+- `wallet.domain.service.WalletLedgerDomainService`
+- `wallet.domain.service.WalletAccountDomainService`
+- `wallet.domain.service.WalletOrderDomainService`
 - `wallet.infrastructure.persistence.*`
 - `wallet.api.action.*`
 
@@ -899,6 +991,18 @@ Current tasks：
 - `marketOrderAutoConfirm`
 - `marketWalletActionProcessor`
 - `marketWalletActionRecovery`
+
+Task details：
+
+- `PendingRegistrationUserCleanupJob` 是本地 `@Scheduled` 清理，受 `auth.registration.pending-user.cleanup-interval-ms` 和 local scheduler 开关控制，调用 auth registration application 清理过期待激活用户。
+- `PendingRegistrationUserCleanupHandler` 是 XXL `pendingRegistrationUserCleanup`，按 `auth.registration.pending-user.ttl-seconds` 计算最小 60 秒 TTL，循环清理直到本轮没有更多过期用户。
+- `RefreshTokenCleanupJob` 是本地 `@Scheduled` 清理，受 `auth.refresh.cleanup.interval-ms` 和 `auth.refresh.cleanup.enabled` 控制，调用 refresh token application 删除过期 session。
+- `PostScoreRefresher` 是本地 `@Scheduled`，受 `content.score.refresh.enabled`、`content.score.refresh.delay-ms` 和 `content.score.refresh.batch-size` 控制，batch size 被限制在 1 到 2000。
+- `SearchReindexHandler` 是 XXL `searchReindex`，直接进入 `SearchReindexApplicationService`；被 single-flight 判定为 skipped 时仍按 XXL success 记录 skipped reason。
+- `MarketOrderAutoConfirmHandler` 是 XXL `marketOrderAutoConfirm`，进入 market owner 自动确认 due orders，只写 release command。
+- `MarketWalletActionProcessorHandler` 是 XXL `marketWalletActionProcessor`，每轮处理最多 50 条 due market wallet action。
+- `MarketWalletActionRecoveryHandler` 是 XXL `marketWalletActionRecovery`，每轮 reconcile 最多 100 条，恢复过期 lease、补齐命令和应用已有 wallet 结果。
+- `OutboxWorkerScheduler` 是 common-outbox 本地 `@Scheduled` worker，按配置轮询 outbox 表。
 
 Rules：
 
@@ -928,12 +1032,22 @@ Failure：
 - outbox 失败不打爆 HTTP 主写路径。
 - `DEAD` 事件需要人工排查。
 - single-flight lock 异常要看 Redis 和 heartbeat。
+- 本地 cleanup / score refresh job 捕获异常并记录日志，不回滚其他业务事务。
+- XXL handler 捕获异常后通过 `XxlJobHelper.handleFail(...)` 标记失败；成功或 skipped 会写 job log 并 `handleSuccess(...)`。
 - fail-open / fail-closed 由上层任务语义决定。
 
 Key code：
 
 - `ops.controller.OpsController`
 - `ops.application.OpsApplicationService`
+- `auth.infrastructure.job.RefreshTokenCleanupJob`
+- `auth.infrastructure.job.PendingRegistrationUserCleanupJob`
+- `user.infrastructure.job.PendingRegistrationUserCleanupHandler`
+- `content.infrastructure.job.PostScoreRefresher`
+- `search.infrastructure.job.SearchReindexHandler`
+- `market.infrastructure.job.MarketOrderAutoConfirmHandler`
+- `market.infrastructure.job.MarketWalletActionProcessorHandler`
+- `market.infrastructure.job.MarketWalletActionRecoveryHandler`
 - `search.application.ReindexJobApplicationService`
 - `search.application.SearchReindexApplicationService`
 - `common-outbox` 的 `OutboxWorker` / `OutboxWorkerScheduler`

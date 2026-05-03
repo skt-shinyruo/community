@@ -1,6 +1,6 @@
 # mock-data-studio
 
-本目录提供一个仅用于本地开发 / 演示环境的 `mock-data-studio` 服务骨架。
+本目录提供一个仅用于本地开发 / 演示环境的 `mock-data-studio` 服务骨架。它直接写 demo 数据，服务于本地启动、演示和批次删除验证；不要把这里的 seed 表清单当成当前线上业务 owner 或 API 能力清单。
 
 当前阶段包含：
 - `GET /` 最小操作台 UI（生成 / 运行态 / 历史 / 详情）
@@ -26,6 +26,11 @@
 - content-like 生成结果触发 search reindex completion hook
 - 环境变量解析与启动日志
 - `docker compose` 接线（端口仅绑定到宿主机 `127.0.0.1`）
+
+兼容性说明：
+- `growth_check_in`、`reward_account`、`reward_ledger`、`reward_grant_record`、`reward_item`、`reward_order` 是本地 demo / 历史数据面。当前主站在线 growth / wallet / market 语义以 `docs/handbook/business-flows.md`、`docs/handbook/reliability.md` 和 `docs/handbook/data-and-storage.md` 为准。
+- `message` 表写入用于本地旧社区私信 / notice 样例；当前 IM 主路径由 `im_core` schema、IM HTTP API、Kafka command/event 和 WebSocket session bootstrap 承载。
+- `mock-data-studio` 允许直接写表是为了快速构造本地数据，不代表生产写路径。生产和浏览器联调应优先通过 owner HTTP / owner API。
 
 ## 本地运行
 
@@ -57,7 +62,7 @@ MOCK_DATA_STUDIO_DB_PASSWORD='mockdatastudiopass' \
 npm --prefix tools/mock-data-studio start
 ```
 
-默认 bind host 为 `127.0.0.1`，默认进程监听端口为 `12888`。
+默认 bind host 为 `127.0.0.1`，默认进程监听端口为 `12888`。注意 observability overlay 也会把 Elasticsearch 映射到宿主机 `12888`；compose 推荐 operator path 是 `http://127.0.0.1:12890`。
 
 `docker compose` 路径下：
 - `MOCK_DATA_STUDIO_PORT` 表示容器内 studio 进程的监听端口（默认仍为 `12888`）
@@ -148,6 +153,8 @@ curl -X DELETE http://127.0.0.1:12890/api/batches/1
 - 默认优先使用 `MOCK_DATA_STUDIO_REINDEX_JWT_HMAC_SECRET`，未设置时回退 `JWT_HMAC_SECRET`
 
 ## 写入说明
+
+写入逻辑服务于本地 demo seed 和可删除批次，不重新定义业务 owner。当前业务事实请以 handbook 为准。
 
 - `write-community` 会先补齐社区 Phase 1，再根据当前 batch plan 追加社区 / moderation / growth / reward Phase 2 样例。
 - 评论语义与线上契约保持一致：

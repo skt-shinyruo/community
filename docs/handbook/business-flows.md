@@ -37,17 +37,32 @@ Main path：
 
 1. controller 只负责 HTTP binding、cookie/header 处理和 DTO 转换。
 2. 入口进入 `auth.application.*ApplicationService`。
-3. 注册创建待激活用户和 registration token。
+3. 注册采用 Verify-First：先生成 registration draft 和验证码，不插入 `user` row。
 4. 验证码通过邮件发送；本地默认用 MailHog。
-5. 验证注册验证码后激活用户，并可自动登录。
+5. 验证注册验证码后创建 active 用户，并可自动登录。
 6. 登录先经过登录风控、验证码要求和密码校验。
 7. 密码格式兼容历史 hash。
 8. 登录成功后签发 access token，并通过 HttpOnly cookie 下发 refresh token。
 9. refresh token 旋转刷新，旧 token 失效；family reuse 可触发族撤销。
 10. logout 撤销 refresh token / family 并清 cookie。
-11. cleanup job 清理过期待激活用户和 session 状态。
+11. cleanup job 清理过期 refresh session；pending-user cleanup 仅保留兼容旧流程。
 
 登录、刷新、退出和 JWT 鉴权的详细代码链路见 [auth-login-session-flow.md](auth-login-session-flow.md)。
+
+### Register And Verify Email
+
+The high-concurrency registration flow is Verify-First:
+
+1. `AuthController.register` calls `RegistrationApplicationService.register`.
+2. Auth validates captcha and request fields, then calls `user.api.action.UserRegistrationActionApi.prepareRegistrationUser`.
+3. User prepares normalized username/email, generated provisional user id, BCrypt password hash, and default avatar URL without inserting a `user` row.
+4. Auth stores `PreparedRegistrationDraft` behind an opaque `registrationToken` and issues a registration code.
+5. `AuthController.verifyRegisterCode` calls `RegistrationVerificationApplicationService.verifyAndLogin`.
+6. Auth resolves the draft, consumes the code, then calls `user.api.action.UserRegistrationActionApi.createVerifiedRegistrationUser`.
+7. User inserts one active `user` row with `status=1` and publishes `UserPolicyChanged(userExists=true)`.
+8. Auth issues login tokens and deletes the draft as best-effort cleanup.
+
+Abandoned registrations expire from the draft/code stores and do not create user rows or IM policy events.
 
 Refresh session DB state：
 

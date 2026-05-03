@@ -51,6 +51,7 @@ class UserRegistrationApiAdapterIntegrationTest {
                 .thenReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
     }
 
+    // Compatibility behavior for pending users created before Verify-First registration was deployed.
     @Test
     void expiredPendingLookupShouldCommitCleanupBeforeThrowingNotFound() {
         UUID userId = TestUuids.uuid(901);

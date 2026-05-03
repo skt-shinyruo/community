@@ -15,8 +15,8 @@
 | `auth.application.AuthApplicationService` | me / session 聚合入口 | [登录、刷新和会话流程](auth-login-session-flow.md) | Covered |
 | `auth.application.LoginApplicationService` | 登录、验证码要求、JWT / refresh token 签发 | [登录、刷新和会话流程](auth-login-session-flow.md) | Covered |
 | `auth.application.RefreshTokenApplicationService` | refresh / logout / refresh family reuse 处理 | [登录、刷新和会话流程](auth-login-session-flow.md) | Covered |
-| `auth.application.RegistrationApplicationService` | 注册待激活用户和验证码发送 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Covered |
-| `auth.application.RegistrationVerificationApplicationService` | 注册验证码验证和激活 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Covered |
+| `auth.application.RegistrationApplicationService` | Verify-First registration start; creates registration draft and code after user-domain preparation | [Register And Verify Email](business-flows.md#register-and-verify-email) | Covered |
+| `auth.application.RegistrationVerificationApplicationService` | resolves registration drafts, resends codes, consumes verification codes, and asks user domain to create the active user | [Register And Verify Email](business-flows.md#register-and-verify-email) | Covered |
 | `auth.application.PasswordResetApplicationService` | 找回密码 token、邮件、密码更新和 session 撤销 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Covered |
 | `auth.application.CaptchaApplicationService` | 验证码发放和校验 | [登录、刷新和会话流程](auth-login-session-flow.md) | Partial |
 | `auth.application.LoginRateLimitApplicationService` | 登录失败计数和验证码触发 | [登录、刷新和会话流程](auth-login-session-flow.md) | Partial |
@@ -25,16 +25,22 @@
 | `auth.domain.service.LoginRateLimitDomainService` | 登录风控规则 | [登录、刷新和会话流程](auth-login-session-flow.md) | Partial |
 | `auth.domain.service.PasswordResetDomainService` | reset token 和重置规则 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Partial |
 | `auth.domain.service.RefreshTokenDomainService` | refresh token 旋转 / family 规则 | [登录、刷新和会话流程](auth-login-session-flow.md) | Covered |
-| `auth.domain.service.RegistrationDomainService` | 注册输入和待激活用户规则 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Partial |
+| `auth.domain.service.RegistrationDomainService` | registration input and Verify-First draft/code rules | [Register And Verify Email](business-flows.md#register-and-verify-email) | Partial |
+| `auth.domain.repository.RegistrationDraftRepository` | opaque `registrationToken` to prepared registration draft store with TTL | [Register And Verify Email](business-flows.md#register-and-verify-email) | Covered |
 | `auth.infrastructure.job.RefreshTokenCleanupJob` | refresh session 清理 job | [Ops Scheduler And Compensation](business-flows.md#ops-scheduler-and-compensation) | Covered |
 | `auth.infrastructure.job.PendingRegistrationUserCleanupJob` | 待激活用户清理 job | [Ops Scheduler And Compensation](business-flows.md#ops-scheduler-and-compensation) | Covered |
+
+Registration migration note：
+
+- Removed legacy registration-token-to-user-id session repository: registration tokens no longer resolve to user ids; they resolve to full registration drafts.
 
 ## User
 
 | Core class | Role | Handbook section | Coverage |
 | --- | --- | --- | --- |
 | `user.application.RefreshTokenSessionApplicationService` | DB refresh token session 存储、消费、撤销和过期清理 | [登录、刷新和会话流程](auth-login-session-flow.md) | Covered |
-| `user.application.UserRegistrationApplicationService` | 用户注册事实和待激活用户 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Covered |
+| `user.application.UserRegistrationApplicationService#prepareRegistrationUser` | validates and prepares registration material without database writes or events | [Register And Verify Email](business-flows.md#register-and-verify-email) | Covered |
+| `user.application.UserRegistrationApplicationService#createVerifiedRegistrationUser` | inserts the active user and publishes user policy existence | [Register And Verify Email](business-flows.md#register-and-verify-email) | Covered |
 | `user.application.UserCredentialApplicationService` | 密码校验、密码策略和密码更新 | [登录、刷新和会话流程](auth-login-session-flow.md) | Covered |
 | `user.application.UserReadApplicationService` | 用户摘要、批量读取、跨域 user 查询 | [User Profile And Avatar](business-flows.md#user-profile-and-avatar) | Covered |
 | `user.application.UserProfileApplicationService` | 用户资料聚合、最近内容读取 | [User Profile And Avatar](business-flows.md#user-profile-and-avatar) | Covered |
@@ -47,7 +53,7 @@
 | `user.domain.service.UserCredentialDomainService` | 凭证校验和密码更新规则 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Covered |
 | `user.domain.service.UserModerationDomainService` | 用户处罚状态规则 | [User Moderation State](business-flows.md#user-moderation-state) | Covered |
 | `user.domain.service.UserReadDomainService` | 用户读取参数规范化 | [User Profile And Avatar](business-flows.md#user-profile-and-avatar) | Partial |
-| `user.domain.service.UserRegistrationDomainService` | 用户注册事实规则 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Covered |
+| `user.domain.service.UserRegistrationDomainService` | user registration fact rules | [Register And Verify Email](business-flows.md#register-and-verify-email) | Covered |
 | `user.domain.service.UserRoleDomainService` | 管理员角色修改规则 | [Admin User Role Management](business-flows.md#admin-user-role-management) | Covered |
 | `user.infrastructure.event.LocalUserEventPublisher` | user 本地事件发布 | [User Moderation State](business-flows.md#user-moderation-state) | Partial |
 | `user.infrastructure.event.LocalUserPolicyEventPublisher` | user policy 事件发布 | [User Moderation State](business-flows.md#user-moderation-state) | Covered |

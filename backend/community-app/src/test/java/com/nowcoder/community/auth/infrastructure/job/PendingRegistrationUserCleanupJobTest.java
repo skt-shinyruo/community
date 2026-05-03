@@ -4,6 +4,7 @@ import com.nowcoder.community.auth.application.RegistrationApplicationService;
 import com.nowcoder.community.auth.config.RegistrationProperties;
 import org.junit.jupiter.api.Test;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -25,6 +26,7 @@ class PendingRegistrationUserCleanupJobTest {
         verifyNoInteractions(registrationApplicationService);
     }
 
+    // Compatibility cleanup remains for rows created by the previous pending-user registration flow.
     @Test
     void cleanupShouldDelegateToUserRegistrationServiceWithConfiguredTtlWhenLocalSchedulerEnabled() {
         RegistrationApplicationService registrationApplicationService = mock(RegistrationApplicationService.class);
@@ -38,5 +40,6 @@ class PendingRegistrationUserCleanupJobTest {
 
         verify(registrationApplicationService, times(1)).cleanupExpiredPendingUsers();
         verifyNoMoreInteractions(registrationApplicationService);
+        assertThat(properties.getPendingUser().isLocalSchedulerEnabled()).isTrue();
     }
 }

@@ -6,5 +6,5 @@ import reactor.core.publisher.Mono;
 
 public interface InternalWorkerBridge {
 
-    Mono<Void> bridge(WebSocketSession externalSession, Flux<String> outboundFrames);
+    Mono<Void> bridge(WebSocketSession externalSession, Flux<String> outboundFrames, Runnable onOpen);
 }

@@ -3,6 +3,8 @@ package com.nowcoder.community.im.gateway.session;
 import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.im.gateway.CommunityImGatewayApplication;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,6 +20,8 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 
 import java.time.Instant;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 @SpringBootTest(
         classes = CommunityImGatewayApplication.class,
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT
@@ -28,6 +32,9 @@ class ImSessionApiIntegrationTest {
 
     @Autowired
     WebTestClient webTestClient;
+
+    @Autowired
+    MeterRegistry meterRegistry;
 
     @LocalServerPort
     int localPort;
@@ -50,6 +57,8 @@ class ImSessionApiIntegrationTest {
 
     @Test
     void shouldReturnMappedWsUrlAndTicketWhenPublicWsPathIsNotConfigured() {
+        double openedBefore = counterValue("community.im.gateway.session.opened");
+
         webTestClient.post()
                 .uri("/api/im/sessions")
                 .header("Authorization", "Bearer " + accessToken())
@@ -59,14 +68,21 @@ class ImSessionApiIntegrationTest {
                 .jsonPath("$.data.workerId").isEqualTo("worker-a")
                 .jsonPath("$.data.wsUrl").isEqualTo("ws://localhost:" + localPort + "/custom/ws/im")
                 .jsonPath("$.data.ticket").isNotEmpty();
+
+        assertThat(counterValue("community.im.gateway.session.opened")).isEqualTo(openedBefore + 1.0);
     }
 
     @Test
     void shouldRejectMissingBearerToken() {
+        double failedBefore = counterValue("community.im.gateway.session.failed", "reason", "invalid_token");
+
         webTestClient.post()
                 .uri("/api/im/sessions")
                 .exchange()
                 .expectStatus().isUnauthorized();
+
+        assertThat(counterValue("community.im.gateway.session.failed", "reason", "invalid_token"))
+                .isEqualTo(failedBefore + 1.0);
     }
 
     @Test
@@ -90,5 +106,10 @@ class ImSessionApiIntegrationTest {
                 .build();
         return encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
                 .getTokenValue();
+    }
+
+    private double counterValue(String name, String... tags) {
+        Counter counter = meterRegistry.find(name).tags(tags).counter();
+        return counter == null ? 0.0 : counter.count();
     }
 }

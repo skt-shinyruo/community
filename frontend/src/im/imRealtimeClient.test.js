@@ -51,6 +51,7 @@ describe('imRealtimeClient URL resolution', () => {
       }
     }))
     FakeWebSocket.instances = []
+    FakeWebSocket.prototype.send = function () {}
     currentClient = null
     vi.stubGlobal('WebSocket', FakeWebSocket)
     windowListeners = new Map()
@@ -88,7 +89,7 @@ describe('imRealtimeClient URL resolution', () => {
         data: {
           sessionId: 'sess-1',
           workerId: 'worker-a',
-          wsUrl: 'wss://edge.example.com/ws/im/workers/worker-a',
+          wsUrl: 'wss://edge.example.com/ws/im',
           ticket: 'ticket-1'
         }
       }
@@ -107,17 +108,17 @@ describe('imRealtimeClient URL resolution', () => {
       })
     )
     expect(FakeWebSocket.instances).toHaveLength(1)
-    expect(FakeWebSocket.instances[0].url).toBe('wss://edge.example.com/ws/im/workers/worker-a')
+    expect(FakeWebSocket.instances[0].url).toBe('wss://edge.example.com/ws/im')
   })
 
-  it('should send connect ticket and then allow private-message sends', async () => {
+  it('should use returned websocket URL directly and send connect ticket after open', async () => {
     const { imRealtimeClient, imCoreHttp } = await loadClient()
     imCoreHttp.post.mockResolvedValue({
       data: {
         data: {
           sessionId: 'sess-1',
           workerId: 'worker-a',
-          wsUrl: 'wss://edge.example.com/ws/im/workers/worker-a',
+          wsUrl: 'wss://edge.example.com/ws/im',
           ticket: 'ticket-1'
         }
       }
@@ -131,6 +132,9 @@ describe('imRealtimeClient URL resolution', () => {
     await flushMicrotasks()
 
     const ws = FakeWebSocket.instances[0]
+    expect(ws.url).toBe('wss://edge.example.com/ws/im')
+    expect(sent).toEqual([])
+
     ws.readyState = FakeWebSocket.OPEN
     ws.onopen?.()
     ws.onmessage?.({
@@ -164,7 +168,7 @@ describe('imRealtimeClient URL resolution', () => {
           data: {
             sessionId: 'sess-1',
             workerId: 'worker-a',
-            wsUrl: 'wss://edge.example.com/ws/im/workers/worker-a',
+            wsUrl: 'wss://edge.example.com/ws/im',
             ticket: 'ticket-1'
           }
         }
@@ -174,7 +178,7 @@ describe('imRealtimeClient URL resolution', () => {
           data: {
             sessionId: 'sess-2',
             workerId: 'worker-b',
-            wsUrl: 'wss://edge.example.com/ws/im/workers/worker-b',
+            wsUrl: 'wss://edge.example.com/ws/im',
             ticket: 'ticket-2'
           }
         }
@@ -184,15 +188,23 @@ describe('imRealtimeClient URL resolution', () => {
           data: {
             sessionId: 'sess-3',
             workerId: 'worker-c',
-            wsUrl: 'wss://edge.example.com/ws/im/workers/worker-c',
+            wsUrl: 'wss://edge.example.com/ws/im',
             ticket: 'ticket-3'
           }
         }
       })
+    const sent = []
+    FakeWebSocket.prototype.send = (payload) => {
+      sent.push(JSON.parse(payload))
+    }
 
     await imRealtimeClient.connect('token-1')
     await flushMicrotasks()
     expect(FakeWebSocket.instances).toHaveLength(1)
+    expect(FakeWebSocket.instances[0].url).toBe('wss://edge.example.com/ws/im')
+    FakeWebSocket.instances[0].readyState = FakeWebSocket.OPEN
+    FakeWebSocket.instances[0].onopen?.()
+    expect(sent[0]).toMatchObject({ type: 'connect', ticket: 'ticket-1' })
 
     FakeWebSocket.instances[0].readyState = 3
     imRealtimeClient.ws = null
@@ -200,7 +212,10 @@ describe('imRealtimeClient URL resolution', () => {
     windowListeners.get('online')?.()
     await flushMicrotasks()
     expect(FakeWebSocket.instances).toHaveLength(2)
-    expect(FakeWebSocket.instances[1].url).toBe('wss://edge.example.com/ws/im/workers/worker-b')
+    expect(FakeWebSocket.instances[1].url).toBe('wss://edge.example.com/ws/im')
+    FakeWebSocket.instances[1].readyState = FakeWebSocket.OPEN
+    FakeWebSocket.instances[1].onopen?.()
+    expect(sent[1]).toMatchObject({ type: 'connect', ticket: 'ticket-2' })
 
     FakeWebSocket.instances[1].readyState = 3
     imRealtimeClient.ws = null
@@ -209,7 +224,10 @@ describe('imRealtimeClient URL resolution', () => {
     documentListeners.get('visibilitychange')?.()
     await flushMicrotasks()
     expect(FakeWebSocket.instances).toHaveLength(3)
-    expect(FakeWebSocket.instances[2].url).toBe('wss://edge.example.com/ws/im/workers/worker-c')
+    expect(FakeWebSocket.instances[2].url).toBe('wss://edge.example.com/ws/im')
+    FakeWebSocket.instances[2].readyState = FakeWebSocket.OPEN
+    FakeWebSocket.instances[2].onopen?.()
+    expect(sent[2]).toMatchObject({ type: 'connect', ticket: 'ticket-3' })
     expect(imCoreHttp.post).toHaveBeenCalledTimes(3)
   })
 })

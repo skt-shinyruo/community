@@ -1,10 +1,14 @@
 package com.nowcoder.community.im.projection;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.kafka.trace.TraceKafkaHeaders;
 import com.nowcoder.community.common.outbox.OutboxEvent;
+import com.nowcoder.community.common.trace.TraceContextSnapshot;
+import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -19,7 +23,6 @@ import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -43,12 +46,12 @@ class ImPolicyKafkaOutboxHandlerTest {
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
         Instant muteUntil = Instant.parse("2026-04-24T09:15:30Z");
         Instant expiredBanUntil = Instant.parse("2026-04-22T09:15:30Z");
-        when(kafkaTemplate.send(eq(ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED), eq(uuid(7).toString()), any()))
+        when(kafkaTemplate.send(any(ProducerRecord.class)))
                 .thenReturn(completedSend());
 
         ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(objectMapper, kafkaTemplate);
 
-        handler.handle(new OutboxEvent(
+        OutboxEvent outboxEvent = new OutboxEvent(
                 UUID.randomUUID(),
                 "evt-policy-1",
                 ImPolicyKafkaOutboxHandler.TOPIC,
@@ -61,25 +64,37 @@ class ImPolicyKafkaOutboxHandlerTest {
                 0,
                 null,
                 null,
-                null,
-                null
-        ));
+                "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                "00-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-00f067aa0ba902b7-01"
+        );
 
-        ArgumentCaptor<UserMessagingPolicyChanged> policyCaptor = ArgumentCaptor.forClass(UserMessagingPolicyChanged.class);
-        verify(kafkaTemplate).send(eq(ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED), eq(uuid(7).toString()), policyCaptor.capture());
-        UserMessagingPolicyChanged published = policyCaptor.getValue();
+        try (var ignored = TraceContextSnapshot.fromStored(outboxEvent.traceId(), outboxEvent.traceparent()).open()) {
+            handler.handle(outboxEvent);
+        }
+
+        ArgumentCaptor<ProducerRecord<String, Object>> recordCaptor = ArgumentCaptor.forClass(ProducerRecord.class);
+        verify(kafkaTemplate).send(recordCaptor.capture());
+        ProducerRecord<String, Object> record = recordCaptor.getValue();
+        assertThat(record.topic()).isEqualTo(ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED);
+        assertThat(record.key()).isEqualTo(uuid(7).toString());
+        assertThat(record.value()).isInstanceOf(UserMessagingPolicyChanged.class);
+        UserMessagingPolicyChanged published = (UserMessagingPolicyChanged) record.value();
         assertThat(published.userId()).isEqualTo(uuid(7));
         assertThat(published.userExists()).isTrue();
         assertThat(published.muted()).isTrue();
         assertThat(published.suspended()).isFalse();
         assertThat(recordComponentValue(published, "muteUntil")).isEqualTo(muteUntil.toEpochMilli());
         assertThat(recordComponentValue(published, "banUntil")).isEqualTo(expiredBanUntil.toEpochMilli());
+        assertThat(TraceKafkaHeaders.headerValue(record.headers(), TraceHeaders.HEADER_TRACE_ID))
+                .isEqualTo("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+        assertThat(TraceKafkaHeaders.headerValue(record.headers(), TraceHeaders.HEADER_TRACEPARENT))
+                .startsWith("00-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-");
     }
 
     @Test
     void blockOutboxShouldPublishCurrentBlockState() {
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
-        when(kafkaTemplate.send(eq(ImTopics.EVENT_USER_BLOCK_RELATION_CHANGED), eq(uuid(7).toString()), any()))
+        when(kafkaTemplate.send(any(ProducerRecord.class)))
                 .thenReturn(completedSend());
 
         ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(objectMapper, kafkaTemplate);
@@ -100,13 +115,18 @@ class ImPolicyKafkaOutboxHandlerTest {
                 null
         ));
 
-        verify(kafkaTemplate).send(eq(ImTopics.EVENT_USER_BLOCK_RELATION_CHANGED), eq(uuid(7).toString()), any(UserBlockRelationChanged.class));
+        ArgumentCaptor<ProducerRecord<String, Object>> recordCaptor = ArgumentCaptor.forClass(ProducerRecord.class);
+        verify(kafkaTemplate).send(recordCaptor.capture());
+        ProducerRecord<String, Object> record = recordCaptor.getValue();
+        assertThat(record.topic()).isEqualTo(ImTopics.EVENT_USER_BLOCK_RELATION_CHANGED);
+        assertThat(record.key()).isEqualTo(uuid(7).toString());
+        assertThat(record.value()).isInstanceOf(UserBlockRelationChanged.class);
     }
 
     @Test
     void kafkaPublishFailureShouldFailOutboxHandlingForRetry() {
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
-        when(kafkaTemplate.send(eq(ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED), eq(uuid(7).toString()), any()))
+        when(kafkaTemplate.send(any(ProducerRecord.class)))
                 .thenReturn(failedSend());
 
         ImPolicyKafkaOutboxHandler handler = new ImPolicyKafkaOutboxHandler(objectMapper, kafkaTemplate);

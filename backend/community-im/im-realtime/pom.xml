@@ -31,6 +31,11 @@
             <artifactId>community-common-webflux</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.nowcoder.community</groupId>
+            <artifactId>community-common-kafka</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

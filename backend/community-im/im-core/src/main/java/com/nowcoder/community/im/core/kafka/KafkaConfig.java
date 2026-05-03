@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.core.kafka;
 
+import com.nowcoder.community.common.kafka.trace.TraceRecordInterceptor;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
@@ -37,6 +38,7 @@ public class KafkaConfig {
         ConcurrentKafkaListenerContainerFactory<Object, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
         configurer.configure(factory, consumerFactory);
         factory.setCommonErrorHandler(errorHandler);
+        factory.setRecordInterceptor(new TraceRecordInterceptor());
         return factory;
     }
 

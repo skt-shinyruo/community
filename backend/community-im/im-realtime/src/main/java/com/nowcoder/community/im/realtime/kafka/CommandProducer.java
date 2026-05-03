@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.realtime.kafka;
 
+import com.nowcoder.community.common.kafka.trace.TraceKafkaSender;
 import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
@@ -23,7 +24,7 @@ public class CommandProducer {
             return CompletableFuture.failedFuture(new IllegalArgumentException("command required"));
         }
         try {
-            return kafkaTemplate.send(ImTopics.COMMAND_PRIVATE_TEXT, cmd.conversationId(), cmd);
+            return TraceKafkaSender.send(kafkaTemplate, ImTopics.COMMAND_PRIVATE_TEXT, cmd.conversationId(), cmd);
         } catch (RuntimeException e) {
             return CompletableFuture.failedFuture(e);
         }
@@ -34,7 +35,7 @@ public class CommandProducer {
             return CompletableFuture.failedFuture(new IllegalArgumentException("command required"));
         }
         try {
-            return kafkaTemplate.send(ImTopics.COMMAND_ROOM_TEXT, String.valueOf(cmd.roomId()), cmd);
+            return TraceKafkaSender.send(kafkaTemplate, ImTopics.COMMAND_ROOM_TEXT, String.valueOf(cmd.roomId()), cmd);
         } catch (RuntimeException e) {
             return CompletableFuture.failedFuture(e);
         }

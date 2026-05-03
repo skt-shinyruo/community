@@ -71,7 +71,7 @@ deploy/observability/kibana/README.md
 IM 的正确性设计是 “WebSocket best-effort 推送 + HTTP 断线补拉”。压测流量推荐统一通过 gateway：
 
 - Session bootstrap：`POST http://localhost:12880/api/im/sessions`
-- WebSocket：使用 session response `wsUrl`；gateway worker-proxy 模式下路径形如 `ws://localhost:12880/ws/im/workers/{workerId}`
+- WebSocket：使用 session response `wsUrl`，稳定为 `ws://localhost:12880/ws/im`
 - HTTP：`http://localhost:12880/api/im/**`
 
 工具：
@@ -92,7 +92,7 @@ tools/im-load/
 3. 慢连接 / 回压：验证慢消费者不会拖垮整体，使用 `--slowConsumerPct`。
 4. 断线补拉：验证断线后通过 `im-core` history API 补齐，使用 `--reconnectEverySec`。
 
-注意：`tools/im-load` 当前仍是旧直连 `/ws/im` + `auth` 消息协议的压测 harness，不能代表当前浏览器客户端的 `/api/im/sessions` ticket bootstrap 行为。使用前先看 `tools/im-load/README.md` 的兼容性说明；如需压测当前生产语义，应先升级工具或另写 session-bootstrap 压测脚本。
+注意：`tools/im-load` 当前仍是旧 `auth` 首帧协议的压测 harness，直接连接传入的 `--wsUrl`，不能代表当前浏览器客户端的 `/api/im/sessions` ticket bootstrap 行为。使用前先看 `tools/im-load/README.md` 的兼容性说明；如需压测当前生产语义，应先升级工具或另写 session-bootstrap 压测脚本。
 
 ## Search Reindex
 

@@ -126,6 +126,8 @@ connect(accessToken)
   -> send { type: 'connect', ticket }
 ```
 
+当前 `wsUrl` 由 `community-im-gateway` 统一返回，浏览器不再依赖 worker 专属路径。
+
 连接行为：
 
 - `connected` 消息表示 worker 接受 ticket，客户端进入 authed 状态。

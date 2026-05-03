@@ -143,7 +143,7 @@ OTEL_ENABLED=false ./deploy/deployment.sh up --topology single --observability
 | 前端 | `http://localhost:12881` |
 | API / files / WS 统一入口 | `http://localhost:12880` |
 | IM session bootstrap | gateway：`POST http://localhost:12880/api/im/sessions` |
-| IM WebSocket | session response `wsUrl` 默认 `ws://localhost:12880/ws/im`；`/ws/im/workers/{workerId}` 仅作 gateway rollback |
+| IM WebSocket | session response `wsUrl` 默认 `ws://localhost:12880/ws/im` |
 | IM HTTP | `http://localhost:12880/api/im/**` |
 | Nacos | `http://localhost:18848/nacos` |
 | XXL-JOB Admin | `http://localhost:12887/xxl-job-admin` |
@@ -153,7 +153,7 @@ OTEL_ENABLED=false ./deploy/deployment.sh up --topology single --observability
 | Elasticsearch observability 入口 | `http://localhost:12888` |
 | Kibana | `http://localhost:12889` |
 
-默认浏览器流量经 `community-gateway`。IM WebSocket 经 NGINX 到 gateway，再转到 `community-im-gateway`；`im-realtime` 保持 internal worker，不直接暴露给浏览器工作流。除 observability 和本地控制面外，内部依赖端口不应直接暴露给浏览器工作流。
+默认浏览器流量经 `community-gateway`。IM WebSocket 经 NGINX 到 gateway，再转到 `community-im-gateway`；`community-im-gateway` 负责 session bootstrap 和稳定 `/ws/im`，`im-realtime` 保持 internal worker，不直接暴露给浏览器工作流。除 observability 和本地控制面外，内部依赖端口不应直接暴露给浏览器工作流。
 
 ## 前端 API 解析
 

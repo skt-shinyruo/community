@@ -6,7 +6,7 @@
 
 当前系统优先保证这些性质：
 
-- 对外入口稳定：浏览器默认经 `community-gateway`，业务 API 保持 `/api/**`，文件保持 `/files/**`，IM WebSocket 前缀保持 `/ws/im`；当前 gateway worker-proxy 的具体路径是 `/ws/im/workers/{workerId}`，由 `/api/im/sessions` 返回。
+- 对外入口稳定：浏览器默认经 `community-gateway`，业务 API 保持 `/api/**`，文件保持 `/files/**`，IM WebSocket 前缀保持 `/ws/im`；`/api/im/sessions` 由 `community-im-gateway` 返回稳定的 `/ws/im`，worker 选择和内部桥接对客户端透明。
 - owner 清晰：主业务由 `community-app` 按包 owner 治理，IM 消息权威状态由 `community-im` 承担。
 - 同步协作显式：跨域同步调用只走 owner-domain `api.query` / `api.action` / `api.model`。
 - 异步协作显式：跨域事件只走 owner-domain `contracts.event`。
@@ -172,9 +172,10 @@ operation + userId + Idempotency-Key
 
 ## IM 系统设计
 
-IM 独立于 `community-app`：
+IM 独立于 `community-app`，并拆成统一外部入口下的三层：
 
-- `im-realtime`：WebSocket 接入、JWT 鉴权、本地 policy projection、Kafka command 生产、在线连接和推送。
+- `community-im-gateway`：IM session bootstrap、稳定 `/ws/im` 对外桥接、worker 选择和内部转发。
+- `im-realtime`：内部 worker WebSocket、JWT 鉴权、本地 policy projection、Kafka command 生产、在线连接和推送。
 - `im-core`：消息权威状态、顺序号、幂等、历史查询、未读状态、房间与成员关系。
 - Kafka：command / event backplane。
 

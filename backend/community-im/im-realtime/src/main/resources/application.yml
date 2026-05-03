@@ -51,6 +51,8 @@ security:
 
 im:
   edge:
+    # Session bootstrap is owned by community-im-gateway. Runtime compose should run
+    # this service as an internal worker with IM_EDGE_MODE=internal-worker.
     mode: ${IM_EDGE_MODE:direct-public-edge}
     direct-public:
       ws-path: ${IM_DIRECT_PUBLIC_WS_PATH:/ws/im}
@@ -68,6 +70,8 @@ im:
   projection:
     bootstrap-on-startup: ${IM_PROJECTION_BOOTSTRAP_ON_STARTUP:true}
   session:
+    # Worker-local ticket and identity settings used to validate connect tickets.
+    # Public session bootstrap routing moved to community-im-gateway.
     worker-service-id: ${IM_REALTIME_WORKER_SERVICE_ID:im-realtime-worker}
     worker-id: ${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}
     ws-base-url: "${IM_SESSION_WS_BASE_URL:ws://127.0.0.1:${SERVER_PORT:18081}${IM_WS_PATH:${IM_DIRECT_PUBLIC_WS_PATH:/ws/im}}}"
@@ -79,8 +83,8 @@ im:
     event:
       concurrency: ${IM_REALTIME_KAFKA_EVENT_CONCURRENCY:3}
   ws:
-    # Single bind path for the current handler implementation. Public edge keeps /ws/im;
-    # internal worker mode should bind /internal/ws/im and let community-gateway stay public.
+    # Runtime compose should set IM_WS_PATH=/internal/ws/im with IM_EDGE_MODE=internal-worker.
+    # Direct public mode keeps /ws/im only for local compatibility.
     path: ${IM_WS_PATH:${IM_DIRECT_PUBLIC_WS_PATH:/ws/im}}
     outbound-buffer-size: ${IM_WS_OUTBOUND_BUFFER_SIZE:256}
     kafka-send-timeout-ms: ${IM_WS_KAFKA_SEND_TIMEOUT_MS:5000}

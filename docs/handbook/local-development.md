@@ -119,6 +119,12 @@ single / cluster 都可以叠加 observability：
 ./deploy/deployment.sh up --topology cluster --observability
 ```
 
+带 `--observability` 时，后端服务默认开启 OTel tracing。普通启动不启用 OTel。需要关闭观测 overlay 下的 tracing 时，在命令前显式设置：
+
+```bash
+OTEL_ENABLED=false ./deploy/deployment.sh up --topology single --observability
+```
+
 该 overlay 提供：
 
 - Elasticsearch localhost 入口

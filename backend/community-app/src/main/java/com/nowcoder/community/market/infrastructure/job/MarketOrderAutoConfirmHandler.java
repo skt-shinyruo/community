@@ -1,5 +1,6 @@
 package com.nowcoder.community.market.infrastructure.job;
 
+import com.nowcoder.community.common.trace.TraceJobRunner;
 import com.nowcoder.community.market.application.MarketOrderAutoConfirmApplicationService;
 import com.nowcoder.community.market.application.result.MarketOrderAutoConfirmResult;
 import com.xxl.job.core.context.XxlJobHelper;
@@ -23,17 +24,19 @@ public class MarketOrderAutoConfirmHandler {
 
     @XxlJob(JOB_NAME)
     public void autoConfirm() {
-        try {
-            MarketOrderAutoConfirmResult result = applicationService.autoConfirmDueOrders();
-            String message = "[market] auto-confirm completed=" + result.completedCount() + " skipped=" + result.skippedCount();
-            XxlJobHelper.log(message);
-            XxlJobHelper.handleSuccess(message);
-            log.info(message);
-        } catch (RuntimeException e) {
-            String message = "[market] auto-confirm failed: " + e;
-            XxlJobHelper.log(e);
-            XxlJobHelper.handleFail(message);
-            log.warn(message);
-        }
+        TraceJobRunner.run(JOB_NAME, () -> {
+            try {
+                MarketOrderAutoConfirmResult result = applicationService.autoConfirmDueOrders();
+                String message = "[market] auto-confirm completed=" + result.completedCount() + " skipped=" + result.skippedCount();
+                XxlJobHelper.log(message);
+                XxlJobHelper.handleSuccess(message);
+                log.info(message);
+            } catch (RuntimeException e) {
+                String message = "[market] auto-confirm failed: " + e;
+                XxlJobHelper.log(e);
+                XxlJobHelper.handleFail(message);
+                log.warn(message);
+            }
+        });
     }
 }

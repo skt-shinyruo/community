@@ -15,6 +15,8 @@ public record OutboxEvent(
         String status,
         int retryCount,
         Instant nextRetryAt,
-        String lastError
+        String lastError,
+        String traceId,
+        String traceparent
 ) {
 }

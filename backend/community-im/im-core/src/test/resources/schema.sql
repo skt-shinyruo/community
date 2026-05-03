@@ -76,6 +76,8 @@ create table if not exists outbox_event (
   retry_count int not null default 0,
   next_retry_at timestamp,
   last_error varchar(512),
+  trace_id varchar(32) null,
+  traceparent varchar(128) null,
   created_at timestamp default current_timestamp,
   updated_at timestamp default current_timestamp,
   constraint uk_outbox_event_id unique (event_id)

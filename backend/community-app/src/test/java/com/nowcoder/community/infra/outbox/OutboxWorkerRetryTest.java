@@ -18,6 +18,7 @@ import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -147,7 +148,9 @@ class OutboxWorkerRetryTest {
                 OutboxEventStatus.PENDING,
                 0,
                 null,
-                null
+                null,
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-00f067aa0ba902b7-01"
         );
         OutboxHandler handler = new OutboxHandler() {
             @Override
@@ -178,7 +181,8 @@ class OutboxWorkerRetryTest {
                 .contains("community.topic=projection.points")
                 .contains("community.retry_count=1")
                 .contains("community.error_class=java.lang.RuntimeException")
-                .contains("community.error_message=boom");
+                .contains("community.error_message=boom")
+                .contains("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
         assertThat(output.getAll()).doesNotContain("\tat ");
     }
 
@@ -197,7 +201,9 @@ class OutboxWorkerRetryTest {
                 OutboxEventStatus.PENDING,
                 0,
                 null,
-                null
+                null,
+                null,
+                "00-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-00f067aa0ba902b7-01"
         );
 
         when(store.recoverExpiredLeases(now)).thenReturn(0);
@@ -216,7 +222,54 @@ class OutboxWorkerRetryTest {
                 .contains("community.outcome=degraded")
                 .contains("community.reason_code=no_handler")
                 .contains("community.event_id=e-missing:points")
-                .contains("community.topic=projection.points");
+                .contains("community.topic=projection.points")
+                .contains("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+    }
+
+    @Test
+    void workerShouldRestoreOutboxTraceDuringHandlerAndClearAfterwards() {
+        Instant now = Instant.parse("2026-03-14T00:00:00Z");
+        JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
+        OutboxProperties properties = enabledProperties();
+        UUID outboxId = UUID.fromString("01965429-b34a-7000-8000-000000000003");
+        OutboxEvent event = new OutboxEvent(
+                outboxId,
+                "e-trace:points",
+                "projection.points",
+                "1",
+                "{}",
+                OutboxEventStatus.PENDING,
+                0,
+                null,
+                null,
+                "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                "00-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee-00f067aa0ba902b7-01"
+        );
+        AtomicReference<String> seenTrace = new AtomicReference<>();
+        OutboxHandler handler = new OutboxHandler() {
+            @Override
+            public String topic() {
+                return "projection.points";
+            }
+
+            @Override
+            public void handle(OutboxEvent ignored) {
+                seenTrace.set(com.nowcoder.community.common.trace.TraceId.get());
+            }
+        };
+
+        when(store.recoverExpiredLeases(now)).thenReturn(0);
+        when(store.findDuePending(properties.getBatchSize(), now)).thenReturn(java.util.List.of(event));
+        when(store.tryClaimProcessing(eq(outboxId), any(), eq(now))).thenReturn(true);
+
+        OutboxWorker worker = new OutboxWorker(store, Map.of(handler.topic(), handler), properties, Clock.fixed(now, ZoneOffset.UTC));
+
+        int processed = worker.pollOnce();
+
+        assertThat(processed).isEqualTo(1);
+        assertThat(seenTrace.get()).isEqualTo("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+        assertThat(com.nowcoder.community.common.trace.TraceId.get()).isNull();
+        verify(store).markSucceeded(outboxId, now);
     }
 
     private static OutboxProperties enabledProperties() {
@@ -250,6 +303,8 @@ class OutboxWorkerRetryTest {
                         "  retry_count int not null default 0,\n" +
                         "  next_retry_at timestamp,\n" +
                         "  last_error varchar(512),\n" +
+                        "  trace_id varchar(32) null,\n" +
+                        "  traceparent varchar(128) null,\n" +
                         "  created_at timestamp default current_timestamp,\n" +
                         "  updated_at timestamp default current_timestamp,\n" +
                         "  constraint uk_outbox_event_id unique (event_id)\n" +

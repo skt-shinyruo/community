@@ -1,5 +1,6 @@
 package com.nowcoder.community.user.infrastructure.job;
 
+import com.nowcoder.community.common.trace.TraceJobRunner;
 import com.nowcoder.community.user.application.UserRegistrationApplicationService;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
@@ -30,25 +31,27 @@ public class PendingRegistrationUserCleanupHandler {
 
     @XxlJob(JOB_NAME)
     public void cleanup() {
-        try {
-            Duration ttl = Duration.ofSeconds(Math.max(60L, pendingUserTtlSeconds));
-            int deleted;
-            int totalDeleted = 0;
-            do {
-                deleted = applicationService.cleanupExpiredPendingUsers(ttl);
-                totalDeleted += deleted;
-            } while (deleted > 0);
-            String result = "[registration] pending-user cleanup deleted-count=" + totalDeleted;
-            XxlJobHelper.log(result);
-            XxlJobHelper.handleSuccess(result);
-            if (totalDeleted > 0) {
-                log.info("[registration] cleaned up expired pending users count={}", totalDeleted);
+        TraceJobRunner.run(JOB_NAME, () -> {
+            try {
+                Duration ttl = Duration.ofSeconds(Math.max(60L, pendingUserTtlSeconds));
+                int deleted;
+                int totalDeleted = 0;
+                do {
+                    deleted = applicationService.cleanupExpiredPendingUsers(ttl);
+                    totalDeleted += deleted;
+                } while (deleted > 0);
+                String result = "[registration] pending-user cleanup deleted-count=" + totalDeleted;
+                XxlJobHelper.log(result);
+                XxlJobHelper.handleSuccess(result);
+                if (totalDeleted > 0) {
+                    log.info("[registration] cleaned up expired pending users count={}", totalDeleted);
+                }
+            } catch (RuntimeException e) {
+                String message = "[registration] pending-user cleanup failed: " + e;
+                XxlJobHelper.log(e);
+                XxlJobHelper.handleFail(message);
+                log.warn(message);
             }
-        } catch (RuntimeException e) {
-            String message = "[registration] pending-user cleanup failed: " + e;
-            XxlJobHelper.log(e);
-            XxlJobHelper.handleFail(message);
-            log.warn(message);
-        }
+        });
     }
 }

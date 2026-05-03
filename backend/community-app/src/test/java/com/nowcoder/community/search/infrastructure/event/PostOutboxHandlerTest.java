@@ -53,6 +53,8 @@ class PostOutboxHandlerTest {
                 "PENDING",
                 0,
                 null,
+                null,
+                null,
                 null
         ));
 
@@ -74,6 +76,8 @@ class PostOutboxHandlerTest {
                 "{",
                 "PENDING",
                 0,
+                null,
+                null,
                 null,
                 null
         )));
@@ -103,6 +107,8 @@ class PostOutboxHandlerTest {
                 payloadJson,
                 "PENDING",
                 0,
+                null,
+                null,
                 null,
                 null
         );

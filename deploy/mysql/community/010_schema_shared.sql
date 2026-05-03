@@ -21,11 +21,37 @@ create table if not exists outbox_event (
   retry_count int not null default 0,
   next_retry_at timestamp null default null,
   last_error varchar(255),
+  trace_id varchar(32) null,
+  traceparent varchar(128) null,
   created_at timestamp not null default current_timestamp,
   updated_at timestamp not null default current_timestamp on update current_timestamp,
   unique key uk_outbox_event_id (event_id),
   index idx_outbox_status_next (status, next_retry_at, id)
 );
+
+set @col_outbox_trace_id := (
+  select count(*)
+  from information_schema.columns
+  where table_schema = database()
+    and table_name = 'outbox_event'
+    and column_name = 'trace_id'
+);
+set @sql := if(@col_outbox_trace_id = 0, 'alter table outbox_event add column trace_id varchar(32) null after last_error', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
+
+set @col_outbox_traceparent := (
+  select count(*)
+  from information_schema.columns
+  where table_schema = database()
+    and table_name = 'outbox_event'
+    and column_name = 'traceparent'
+);
+set @sql := if(@col_outbox_traceparent = 0, 'alter table outbox_event add column traceparent varchar(128) null after trace_id', 'select 1');
+prepare stmt from @sql;
+execute stmt;
+deallocate prepare stmt;
 
 -- Outbox lease recover / cleanup indexes（idempotent）
 set @idx_outbox_status_updated := (

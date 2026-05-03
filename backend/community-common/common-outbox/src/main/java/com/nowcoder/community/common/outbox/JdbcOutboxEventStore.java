@@ -2,6 +2,7 @@ package com.nowcoder.community.common.outbox;
 
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.id.UuidV7Generator;
+import com.nowcoder.community.common.trace.TraceContextSnapshot;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -43,17 +44,20 @@ public class JdbcOutboxEventStore {
         String k = normalize(eventKey, "eventKey");
         String p = payload == null ? "" : payload;
         UUID id = idGenerator.next();
+        TraceContextSnapshot trace = TraceContextSnapshot.currentOrNew();
 
         try {
             jdbcTemplate.update(
-                    "insert into outbox_event(id, event_id, topic, event_key, payload, status, retry_count, next_retry_at, last_error) " +
-                            "values (?, ?, ?, ?, ?, ?, 0, null, null)",
+                    "insert into outbox_event(id, event_id, topic, event_key, payload, status, retry_count, next_retry_at, last_error, trace_id, traceparent) " +
+                            "values (?, ?, ?, ?, ?, ?, 0, null, null, ?, ?)",
                     BinaryUuidCodec.toBytes(id),
                     eid,
                     t,
                     k,
                     p,
-                    OutboxEventStatus.PENDING
+                    OutboxEventStatus.PENDING,
+                    trace.traceId(),
+                    trace.traceparent()
             );
             return true;
         } catch (DuplicateKeyException e) {
@@ -65,7 +69,7 @@ public class JdbcOutboxEventStore {
         int safeLimit = Math.min(500, Math.max(1, limit));
         Timestamp ts = Timestamp.from(now == null ? Instant.now() : now);
         return jdbcTemplate.query(
-                "select id, event_id, topic, event_key, payload, status, retry_count, next_retry_at, last_error " +
+                "select id, event_id, topic, event_key, payload, status, retry_count, next_retry_at, last_error, trace_id, traceparent " +
                         "from outbox_event " +
                         "where status = ? and (next_retry_at is null or next_retry_at <= ?) " +
                         "order by id asc " +
@@ -185,7 +189,9 @@ public class JdbcOutboxEventStore {
                         rs.getString("status"),
                         rs.getInt("retry_count"),
                         nextRetryAt == null ? null : nextRetryAt.toInstant(),
-                        rs.getString("last_error")
+                        rs.getString("last_error"),
+                        rs.getString("trace_id"),
+                        rs.getString("traceparent")
                 );
             }
         };

@@ -32,6 +32,10 @@ management:
 gateway:
   cors:
     allowed-origins: ${GATEWAY_CORS_ALLOWED_ORIGINS:}
+  im-edge:
+    service-id: ${GATEWAY_IM_EDGE_SERVICE_ID:community-im-gateway}
+    session-path: /api/im/sessions
+    ws-path: /ws/im
   http:
     routes:
       - id: bootstrap-api

@@ -23,10 +23,11 @@
 ### 改业务或查实现链路
 
 1. [business-flows.md](business-flows.md)：按业务域整理的实现链路，替代旧的 `business-logic/*.md` 碎片文档。
-2. [core-logic-index.md](core-logic-index.md)：核心类到 handbook 章节的覆盖矩阵。
-3. [integration-contracts.md](integration-contracts.md)：跨域同步 API、异步事件契约、IM Kafka contract、HTTP 写接口契约。
-4. [reliability.md](reliability.md)：Idempotency-Key、outbox、single-flight、重试、补偿、fail-open / fail-closed。
-5. [data-and-storage.md](data-and-storage.md)：MySQL 表、Redis key、Kafka topic、Elasticsearch alias/index。
+2. [auth-login-session-flow.md](auth-login-session-flow.md)：登录、refresh token 续期、logout 和 JWT 鉴权代码链路。
+3. [core-logic-index.md](core-logic-index.md)：核心类到 handbook 章节的覆盖矩阵。
+4. [integration-contracts.md](integration-contracts.md)：跨域同步 API、异步事件契约、IM Kafka contract、HTTP 写接口契约。
+5. [reliability.md](reliability.md)：Idempotency-Key、outbox、single-flight、重试、补偿、fail-open / fail-closed。
+6. [data-and-storage.md](data-and-storage.md)：MySQL 表、Redis key、Kafka topic、Elasticsearch alias/index。
 
 ## 文档职责边界
 
@@ -35,6 +36,7 @@
 - [security.md](security.md) 是安全模型 SSOT。路径鉴权、JWT、OriginGuard、internal scope、prod fail-closed 以这里为准。
 - [reliability.md](reliability.md) 是可靠性机制 SSOT。HTTP 幂等、outbox、重试、补偿和 single-flight 以这里为准。
 - [business-flows.md](business-flows.md) 只解释“当前业务能力如何落地”，不重新定义架构规则。
+- [auth-login-session-flow.md](auth-login-session-flow.md) 是登录 / refresh / logout 代码链路详解，不替代 [security.md](security.md) 的安全模型定义。
 - [core-logic-index.md](core-logic-index.md) 是核心类文档覆盖索引。新增或调整核心 `ApplicationService`、domain service、listener、handler、enqueuer 或 job 时同步。
 - [integration-contracts.md](integration-contracts.md) 是跨边界协议 SSOT。新增 owner API、HTTP 写契约、IM Kafka contract 和客户端语义以这里为准。
 - [frontend.md](frontend.md) 是浏览器客户端核心逻辑 SSOT。前端路由、session、endpoint、HTTP interceptor、IM realtime client、页面状态和 stores 以这里为准。

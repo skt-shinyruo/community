@@ -12,19 +12,19 @@
 
 | Core class | Role | Handbook section | Coverage |
 | --- | --- | --- | --- |
-| `auth.application.AuthApplicationService` | me / session 聚合入口 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Covered |
-| `auth.application.LoginApplicationService` | 登录、验证码要求、JWT / refresh token 签发 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Covered |
-| `auth.application.RefreshTokenApplicationService` | refresh / logout / refresh family reuse 处理 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Covered |
+| `auth.application.AuthApplicationService` | me / session 聚合入口 | [登录、刷新和会话流程](auth-login-session-flow.md) | Covered |
+| `auth.application.LoginApplicationService` | 登录、验证码要求、JWT / refresh token 签发 | [登录、刷新和会话流程](auth-login-session-flow.md) | Covered |
+| `auth.application.RefreshTokenApplicationService` | refresh / logout / refresh family reuse 处理 | [登录、刷新和会话流程](auth-login-session-flow.md) | Covered |
 | `auth.application.RegistrationApplicationService` | 注册待激活用户和验证码发送 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Covered |
 | `auth.application.RegistrationVerificationApplicationService` | 注册验证码验证和激活 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Covered |
 | `auth.application.PasswordResetApplicationService` | 找回密码 token、邮件、密码更新和 session 撤销 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Covered |
-| `auth.application.CaptchaApplicationService` | 验证码发放和校验 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Partial |
-| `auth.application.LoginRateLimitApplicationService` | 登录失败计数和验证码触发 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Partial |
-| `auth.domain.service.AuthDomainService` | token / credential 基础规则 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Partial |
-| `auth.domain.service.CaptchaDomainService` | 验证码规则 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Partial |
-| `auth.domain.service.LoginRateLimitDomainService` | 登录风控规则 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Partial |
+| `auth.application.CaptchaApplicationService` | 验证码发放和校验 | [登录、刷新和会话流程](auth-login-session-flow.md) | Partial |
+| `auth.application.LoginRateLimitApplicationService` | 登录失败计数和验证码触发 | [登录、刷新和会话流程](auth-login-session-flow.md) | Partial |
+| `auth.domain.service.AuthDomainService` | token / credential 基础规则 | [登录、刷新和会话流程](auth-login-session-flow.md) | Partial |
+| `auth.domain.service.CaptchaDomainService` | 验证码规则 | [登录、刷新和会话流程](auth-login-session-flow.md) | Partial |
+| `auth.domain.service.LoginRateLimitDomainService` | 登录风控规则 | [登录、刷新和会话流程](auth-login-session-flow.md) | Partial |
 | `auth.domain.service.PasswordResetDomainService` | reset token 和重置规则 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Partial |
-| `auth.domain.service.RefreshTokenDomainService` | refresh token 旋转 / family 规则 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Covered |
+| `auth.domain.service.RefreshTokenDomainService` | refresh token 旋转 / family 规则 | [登录、刷新和会话流程](auth-login-session-flow.md) | Covered |
 | `auth.domain.service.RegistrationDomainService` | 注册输入和待激活用户规则 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Partial |
 | `auth.infrastructure.job.RefreshTokenCleanupJob` | refresh session 清理 job | [Ops Scheduler And Compensation](business-flows.md#ops-scheduler-and-compensation) | Covered |
 | `auth.infrastructure.job.PendingRegistrationUserCleanupJob` | 待激活用户清理 job | [Ops Scheduler And Compensation](business-flows.md#ops-scheduler-and-compensation) | Covered |
@@ -33,9 +33,9 @@
 
 | Core class | Role | Handbook section | Coverage |
 | --- | --- | --- | --- |
-| `user.application.RefreshTokenSessionApplicationService` | DB refresh token session 存储、消费、撤销和过期清理 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Covered |
+| `user.application.RefreshTokenSessionApplicationService` | DB refresh token session 存储、消费、撤销和过期清理 | [登录、刷新和会话流程](auth-login-session-flow.md) | Covered |
 | `user.application.UserRegistrationApplicationService` | 用户注册事实和待激活用户 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Covered |
-| `user.application.UserCredentialApplicationService` | 密码校验、密码策略和密码更新 | [Auth Registration Login And Session](business-flows.md#auth-registration-login-and-session) | Covered |
+| `user.application.UserCredentialApplicationService` | 密码校验、密码策略和密码更新 | [登录、刷新和会话流程](auth-login-session-flow.md) | Covered |
 | `user.application.UserReadApplicationService` | 用户摘要、批量读取、跨域 user 查询 | [User Profile And Avatar](business-flows.md#user-profile-and-avatar) | Covered |
 | `user.application.UserProfileApplicationService` | 用户资料聚合、最近内容读取 | [User Profile And Avatar](business-flows.md#user-profile-and-avatar) | Covered |
 | `user.application.UserAvatarApplicationService` | 头像上传 token / confirm | [User Profile And Avatar](business-flows.md#user-profile-and-avatar) | Covered |

@@ -47,6 +47,8 @@ Main path：
 10. logout 撤销 refresh token / family 并清 cookie。
 11. cleanup job 清理过期待激活用户和 session 状态。
 
+登录、刷新、退出和 JWT 鉴权的详细代码链路见 [auth-login-session-flow.md](auth-login-session-flow.md)。
+
 Refresh session DB state：
 
 - `auth_refresh_token` 只保存 refresh token hash、用户、family、过期时间和撤销时间。

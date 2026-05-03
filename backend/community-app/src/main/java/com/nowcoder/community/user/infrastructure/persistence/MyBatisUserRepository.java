@@ -153,11 +153,16 @@ public class MyBatisUserRepository implements UserRepository {
     }
 
     @Override
-    public void insertPendingUser(UserAccount user) {
+    public void insertUser(UserAccount user) {
         int inserted = userMapper.insertUser(toDataObject(user));
         if (inserted <= 0) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败");
         }
+    }
+
+    @Override
+    public void insertPendingUser(UserAccount user) {
+        insertUser(user);
     }
 
     @Override

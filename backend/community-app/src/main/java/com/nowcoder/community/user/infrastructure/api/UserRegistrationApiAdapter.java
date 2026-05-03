@@ -2,10 +2,14 @@ package com.nowcoder.community.user.infrastructure.api;
 
 import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
 import com.nowcoder.community.user.api.model.PendingRegistrationUserView;
+import com.nowcoder.community.user.api.model.PreparedRegistrationUserView;
 import com.nowcoder.community.user.api.model.UserCredentialView;
+import com.nowcoder.community.user.api.model.VerifiedRegistrationUserCommand;
 import com.nowcoder.community.user.api.query.UserPendingRegistrationQueryApi;
 import com.nowcoder.community.user.application.UserRegistrationApplicationService;
+import com.nowcoder.community.user.application.command.CreateVerifiedRegistrationUserCommand;
 import com.nowcoder.community.user.application.result.PendingRegistrationUserResult;
+import com.nowcoder.community.user.application.result.PreparedRegistrationUserResult;
 import com.nowcoder.community.user.application.result.UserCredentialResult;
 import org.springframework.stereotype.Service;
 
@@ -24,6 +28,32 @@ public class UserRegistrationApiAdapter implements UserRegistrationActionApi, Us
     @Override
     public PendingRegistrationUserView registerPendingUser(String username, String password, String email, Duration pendingTtl) {
         return toPendingView(applicationService.registerPendingUser(username, password, email, pendingTtl));
+    }
+
+    @Override
+    public PreparedRegistrationUserView prepareRegistrationUser(String username, String password, String email) {
+        PreparedRegistrationUserResult result = applicationService.prepareRegistrationUser(username, password, email);
+        return new PreparedRegistrationUserView(
+                result.userId(),
+                result.username(),
+                result.email(),
+                result.encodedPassword(),
+                result.headerUrl()
+        );
+    }
+
+    @Override
+    public UserCredentialView createVerifiedRegistrationUser(VerifiedRegistrationUserCommand command) {
+        if (command == null) {
+            return null;
+        }
+        return toCredentialView(applicationService.createVerifiedRegistrationUser(new CreateVerifiedRegistrationUserCommand(
+                command.userId(),
+                command.username(),
+                command.encodedPassword(),
+                command.email(),
+                command.headerUrl()
+        )));
     }
 
     @Override

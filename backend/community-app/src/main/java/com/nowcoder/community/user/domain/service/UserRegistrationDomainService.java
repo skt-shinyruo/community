@@ -91,6 +91,29 @@ public class UserRegistrationDomainService {
         );
     }
 
+    public UserAccount verifiedUser(
+            java.util.UUID userId,
+            String username,
+            String encodedPassword,
+            String email,
+            String headerUrl
+    ) {
+        return new UserAccount(
+                userId,
+                safeTrim(username),
+                safeTrim(encodedPassword),
+                "",
+                safeTrim(email),
+                0,
+                1,
+                safeTrim(headerUrl),
+                Date.from(Instant.now(clock)),
+                0,
+                null,
+                null
+        );
+    }
+
     private String safeTrim(String value) {
         return value == null ? "" : value.trim();
     }

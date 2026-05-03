@@ -3,7 +3,9 @@ package com.nowcoder.community.user.application;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.id.UuidV7Generator;
+import com.nowcoder.community.user.application.command.CreateVerifiedRegistrationUserCommand;
 import com.nowcoder.community.user.application.result.PendingRegistrationUserResult;
+import com.nowcoder.community.user.application.result.PreparedRegistrationUserResult;
 import com.nowcoder.community.user.application.result.UserCredentialResult;
 import com.nowcoder.community.user.domain.event.UserPolicyEventPublisher;
 import com.nowcoder.community.user.domain.model.UserAccount;
@@ -94,6 +96,47 @@ public class UserRegistrationApplicationService {
         }
         publishUserPolicyChanged(user.id(), true);
         return toPendingResult(user);
+    }
+
+    public PreparedRegistrationUserResult prepareRegistrationUser(String username, String password, String email) {
+        RegistrationInput input = userRegistrationDomainService.requireValidRegistration(username, password, email);
+        UserAccount prepared = userRegistrationDomainService.pendingUser(
+                idGenerator.next(),
+                input,
+                passwordEncoder.encode(input.password()),
+                randomHeaderUrl()
+        );
+        return new PreparedRegistrationUserResult(
+                prepared.id(),
+                prepared.username(),
+                prepared.email(),
+                prepared.encodedPassword(),
+                prepared.headerUrl()
+        );
+    }
+
+    @Transactional
+    public UserCredentialResult createVerifiedRegistrationUser(CreateVerifiedRegistrationUserCommand command) {
+        if (command == null || command.userId() == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
+        }
+        if (!hasText(command.username()) || !hasText(command.email()) || !hasText(command.encodedPassword())) {
+            throw new BusinessException(INVALID_ARGUMENT, "用户名/密码/邮箱不能为空");
+        }
+        UserAccount user = userRegistrationDomainService.verifiedUser(
+                command.userId(),
+                command.username(),
+                command.encodedPassword(),
+                command.email(),
+                command.headerUrl()
+        );
+        try {
+            userRepository.insertUser(user);
+        } catch (DataIntegrityViolationException ex) {
+            translateDuplicateInsert(new RegistrationInput(user.username(), user.encodedPassword(), user.email()), ex);
+        }
+        publishUserPolicyChanged(user.id(), true);
+        return toCredentialResult(user, 1);
     }
 
     @Transactional(noRollbackFor = BusinessException.class)
@@ -197,6 +240,10 @@ public class UserRegistrationApplicationService {
         if (deleted > 0) {
             publishUserPolicyChanged(userId, false);
         }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private String randomHeaderUrl() {

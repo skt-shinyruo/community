@@ -47,7 +47,9 @@ public class PublicWsUrlFactory {
     }
 
     private String normalizedPublicWsPath() {
-        String path = properties.getPublicWsPath();
+        String path = properties.hasExplicitPublicWsPath()
+                ? properties.getPublicWsPath()
+                : properties.getWs().getPath();
         if (!StringUtils.hasText(path)) {
             return "/ws/im";
         }

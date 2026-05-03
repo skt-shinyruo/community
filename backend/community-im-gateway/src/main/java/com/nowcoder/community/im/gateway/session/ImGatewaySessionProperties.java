@@ -9,7 +9,7 @@ public class ImGatewaySessionProperties {
 
     private static final String DEFAULT_WS_PATH = "/ws/im";
 
-    private String publicWsPath = "/ws/im";
+    private String publicWsPath = "";
     private String publicWsUrl = "";
     private final Session session = new Session();
     private final Worker worker = new Worker();
@@ -21,6 +21,10 @@ public class ImGatewaySessionProperties {
 
     public void setPublicWsPath(String publicWsPath) {
         this.publicWsPath = publicWsPath;
+    }
+
+    public boolean hasExplicitPublicWsPath() {
+        return publicWsPath != null && !publicWsPath.trim().isEmpty();
     }
 
     public String getPublicWsUrl() {
@@ -106,6 +110,7 @@ public class ImGatewaySessionProperties {
 
     public static class Ws {
         private String path = DEFAULT_WS_PATH;
+        private long firstFrameTimeoutMs = 5000L;
 
         public String getPath() {
             return normalizePath(path);
@@ -113,6 +118,14 @@ public class ImGatewaySessionProperties {
 
         public void setPath(String path) {
             this.path = normalizePath(path);
+        }
+
+        public long getFirstFrameTimeoutMs() {
+            return firstFrameTimeoutMs;
+        }
+
+        public void setFirstFrameTimeoutMs(long firstFrameTimeoutMs) {
+            this.firstFrameTimeoutMs = firstFrameTimeoutMs <= 0 ? 5000L : firstFrameTimeoutMs;
         }
     }
 }

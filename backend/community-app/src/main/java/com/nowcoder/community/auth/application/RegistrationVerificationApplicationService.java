@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Service
@@ -111,16 +112,15 @@ public class RegistrationVerificationApplicationService {
             if (activatedUser == null || activatedUser.userId() == null) {
                 throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败");
             }
-            LoginResult loginResult = authService.issueLoginResult(activatedUser);
-            SecurityEventLogger.info(log, "registration_verify", "success",
-                    "user.id", activatedUser.userId(),
-                    "username", activatedUser.username());
             try {
-                registrationDraftRepository.delete(registrationToken);
-            } catch (RuntimeException ignored) {
-                // best-effort cleanup
+                LoginResult loginResult = authService.issueLoginResult(activatedUser);
+                SecurityEventLogger.info(log, "registration_verify", "success",
+                        "user.id", activatedUser.userId(),
+                        "username", activatedUser.username());
+                return loginResult;
+            } finally {
+                deleteDraftQuietly(registrationToken);
             }
-            return loginResult;
         }
         if (result == RegistrationCodeRepository.VerifyResult.EXPIRED) {
             throw new BusinessException(AuthErrorCode.REGISTRATION_CODE_EXPIRED);
@@ -138,8 +138,35 @@ public class RegistrationVerificationApplicationService {
         if (registrationDraftRepository == null) {
             throw new BusinessException(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);
         }
-        return registrationDraftRepository.find(registrationToken.trim())
+        String token = registrationToken.trim();
+        PreparedRegistrationDraft draft = registrationDraftRepository.find(token)
                 .orElseThrow(() -> new BusinessException(AuthErrorCode.REGISTRATION_CONTEXT_INVALID));
+        if (!isUsableDraft(draft)) {
+            deleteDraftQuietly(token);
+            throw new BusinessException(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);
+        }
+        return draft;
+    }
+
+    private boolean isUsableDraft(PreparedRegistrationDraft draft) {
+        return draft != null
+                && draft.userId() != null
+                && StringUtils.hasText(draft.username())
+                && StringUtils.hasText(draft.email())
+                && StringUtils.hasText(draft.encodedPassword())
+                && draft.expiresAt() != null
+                && Instant.now().isBefore(draft.expiresAt());
+    }
+
+    private void deleteDraftQuietly(String registrationToken) {
+        if (!StringUtils.hasText(registrationToken) || registrationDraftRepository == null) {
+            return;
+        }
+        try {
+            registrationDraftRepository.delete(registrationToken.trim());
+        } catch (RuntimeException ignored) {
+            // best-effort cleanup
+        }
     }
 
     private String generateCode() {

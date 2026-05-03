@@ -25,8 +25,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
-import java.time.Instant;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -147,6 +147,7 @@ class RegistrationVerificationApplicationServiceTest {
         assertThat(createCommand.headerUrl()).isEqualTo("h");
         verify(registrationDraftRepository).delete("token");
         verify(authService).issueLoginResult(activatedUser);
+        verify(userRegistrationActionApi, never()).activatePendingUser(any(UUID.class));
         assertThat(output.getAll())
                 .contains("community.category=security")
                 .contains("community.action=registration_verify")
@@ -155,6 +156,23 @@ class RegistrationVerificationApplicationServiceTest {
                 .contains("username=alice")
                 .doesNotContain("token")
                 .doesNotContain("222222");
+    }
+
+    @Test
+    void verifyAndLoginShouldDeleteDraftWhenLoginIssuanceFailsAfterUserCreation() {
+        UUID userId = uuid(7);
+        UserCredentialView activatedUser = new UserCredentialView(userId, "alice", 1, 0, null);
+
+        when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
+        when(registrationCodeStore.verifyAndConsume(userId, "222222")).thenReturn(RegistrationCodeRepository.VerifyResult.SUCCESS);
+        when(userRegistrationActionApi.createVerifiedRegistrationUser(any(VerifiedRegistrationUserCommand.class))).thenReturn(activatedUser);
+        when(authService.issueLoginResult(activatedUser)).thenThrow(new IllegalStateException("token down"));
+
+        assertThatThrownBy(() -> service.verifyAndLogin(new VerifyRegisterCodeCommand("token", "222222")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("token down");
+
+        verify(registrationDraftRepository).delete("token");
     }
 
     @Test
@@ -198,6 +216,49 @@ class RegistrationVerificationApplicationServiceTest {
         verifyNoInteractions(userRegistrationActionApi, registrationCodeStore, mailService);
     }
 
+    @Test
+    void resendCodeShouldRejectAndDeleteMalformedDraftBeforeIssuingCode() {
+        when(captchaService.verify("cid", "abcd")).thenReturn(true);
+        when(registrationDraftRepository.find("token")).thenReturn(Optional.of(new PreparedRegistrationDraft(
+                uuid(7),
+                "alice",
+                "",
+                ENCODED_PASSWORD,
+                "h",
+                Instant.parse("2026-05-03T01:00:00Z"),
+                Instant.now().plus(Duration.ofMinutes(30))
+        )));
+
+        assertThatThrownBy(() -> service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);
+
+        verify(registrationDraftRepository).delete("token");
+        verifyNoInteractions(userRegistrationActionApi, registrationCodeStore, mailService);
+    }
+
+    @Test
+    void verifyAndLoginShouldRejectAndDeleteExpiredDraftBeforeConsumingCode() {
+        when(registrationDraftRepository.find("token")).thenReturn(Optional.of(new PreparedRegistrationDraft(
+                uuid(7),
+                "alice",
+                "alice@example.com",
+                ENCODED_PASSWORD,
+                "h",
+                Instant.parse("2026-05-03T01:00:00Z"),
+                Instant.now().minus(Duration.ofSeconds(1))
+        )));
+
+        assertThatThrownBy(() -> service.verifyAndLogin(new VerifyRegisterCodeCommand("token", "222222")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);
+
+        verify(registrationDraftRepository).delete("token");
+        verifyNoInteractions(userRegistrationActionApi, registrationCodeStore, mailService, authService);
+    }
+
     private static UUID uuid(long suffix) {
         return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
     }
@@ -222,7 +283,7 @@ class RegistrationVerificationApplicationServiceTest {
                 ENCODED_PASSWORD,
                 "h",
                 Instant.parse("2026-05-03T01:00:00Z"),
-                Instant.parse("2026-05-03T01:30:00Z")
+                Instant.now().plus(Duration.ofMinutes(30))
         );
     }
 }

@@ -72,12 +72,16 @@ public class RegistrationApplicationService {
 
         registrationDomainService.requireRegisterFields(username, password, email);
 
-        Duration pendingUserTtl = Duration.ofSeconds(Math.max(60, properties.getPendingUser().getTtlSeconds()));
+        Duration registrationDraftTtl = Duration.ofSeconds(Math.max(60, properties.getPendingUser().getTtlSeconds()));
         PreparedRegistrationUserView prepared = userRegistrationActionApi.prepareRegistrationUser(username, password, email);
-        if (prepared == null || prepared.userId() == null) {
+        if (prepared == null
+                || prepared.userId() == null
+                || !StringUtils.hasText(prepared.username())
+                || !StringUtils.hasText(prepared.email())
+                || !StringUtils.hasText(prepared.encodedPassword())) {
             throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "注册上下文创建失败");
         }
-        String targetEmail = StringUtils.hasText(prepared.email()) ? prepared.email() : email;
+        String targetEmail = prepared.email();
 
         String code = generateCode();
         Duration ttl = Duration.ofSeconds(Math.max(60, properties.getCode().getTtlSeconds()));
@@ -93,9 +97,9 @@ public class RegistrationApplicationService {
                             prepared.encodedPassword(),
                             prepared.headerUrl(),
                             issuedAt,
-                            issuedAt.plus(pendingUserTtl)
+                            issuedAt.plus(registrationDraftTtl)
                     ),
-                    pendingUserTtl
+                    registrationDraftTtl
             );
             if (!StringUtils.hasText(registrationToken)) {
                 throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "注册上下文创建失败");

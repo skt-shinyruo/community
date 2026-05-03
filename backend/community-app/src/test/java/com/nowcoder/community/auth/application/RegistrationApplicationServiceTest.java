@@ -9,6 +9,7 @@ import com.nowcoder.community.auth.domain.repository.RegistrationCodeRepository;
 import com.nowcoder.community.auth.domain.repository.RegistrationDraftRepository;
 import com.nowcoder.community.auth.domain.service.RegistrationDomainService;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
 import com.nowcoder.community.user.api.model.PreparedRegistrationUserView;
 import org.junit.jupiter.api.BeforeEach;
@@ -163,13 +164,106 @@ class RegistrationApplicationServiceTest {
         assertThatThrownBy(() -> service.register(command))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
-                .isEqualTo(com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR);
+                .isEqualTo(CommonErrorCode.INTERNAL_ERROR);
 
         verify(registrationDraftRepository).issue(any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30)));
         verify(registrationCodeStore, never()).issue(any(), any(), any(), any());
         verify(mailService, never()).sendRegistrationCodeMail(any(), any());
         verify(registrationCodeStore).delete(userId);
         verify(registrationDraftRepository, never()).delete(any());
+        verify(userRegistrationActionApi, never()).deletePendingUser(any());
+    }
+
+    @Test
+    void registerShouldRollbackDraftAndCodeWhenCodeIssueReturnsNonIssued() {
+        UUID userId = uuid(10);
+        RegisterCommand command = registerCommand();
+
+        PreparedRegistrationUserView prepared = preparedUser(userId);
+
+        when(captchaService.verify("cid", "abcd")).thenReturn(true);
+        when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
+        when(registrationDraftRepository.issue(any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
+                .thenReturn("0123456789abcdef0123456789abcdef");
+        when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
+                .thenReturn(RegistrationCodeRepository.IssueResult.COOLDOWN_ACTIVE);
+
+        assertThatThrownBy(() -> service.register(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(CommonErrorCode.INTERNAL_ERROR);
+
+        verify(registrationDraftRepository).delete("0123456789abcdef0123456789abcdef");
+        verify(registrationCodeStore).delete(userId);
+        verify(mailService, never()).sendRegistrationCodeMail(any(), any());
+        verify(userRegistrationActionApi, never()).deletePendingUser(any());
+    }
+
+    @Test
+    void registerShouldRollbackDraftAndCodeWhenCodeIssueThrows() {
+        UUID userId = uuid(11);
+        RegisterCommand command = registerCommand();
+
+        PreparedRegistrationUserView prepared = preparedUser(userId);
+
+        when(captchaService.verify("cid", "abcd")).thenReturn(true);
+        when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
+        when(registrationDraftRepository.issue(any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
+                .thenReturn("0123456789abcdef0123456789abcdef");
+        when(registrationCodeStore.issue(eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60))))
+                .thenThrow(new IllegalStateException("redis down"));
+
+        assertThatThrownBy(() -> service.register(command))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("redis down");
+
+        verify(registrationDraftRepository).delete("0123456789abcdef0123456789abcdef");
+        verify(registrationCodeStore).delete(userId);
+        verify(mailService, never()).sendRegistrationCodeMail(any(), any());
+        verify(userRegistrationActionApi, never()).deletePendingUser(any());
+    }
+
+    @Test
+    void registerShouldCleanupCodeOnlyWhenRegistrationDraftCreationThrows() {
+        UUID userId = uuid(12);
+        RegisterCommand command = registerCommand();
+
+        PreparedRegistrationUserView prepared = preparedUser(userId);
+
+        when(captchaService.verify("cid", "abcd")).thenReturn(true);
+        when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
+        when(registrationDraftRepository.issue(any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
+                .thenThrow(new IllegalStateException("draft down"));
+
+        assertThatThrownBy(() -> service.register(command))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("draft down");
+
+        verify(registrationCodeStore, never()).issue(any(), any(), any(), any());
+        verify(mailService, never()).sendRegistrationCodeMail(any(), any());
+        verify(registrationCodeStore).delete(userId);
+        verify(registrationDraftRepository, never()).delete(any());
+        verify(userRegistrationActionApi, never()).deletePendingUser(any());
+    }
+
+    @Test
+    void registerShouldRejectInvalidPreparedMaterialBeforeIssuingDraftOrCode() {
+        UUID userId = uuid(13);
+        RegisterCommand command = registerCommand();
+
+        PreparedRegistrationUserView prepared = new PreparedRegistrationUserView(userId, "alice", " ", ENCODED_PASSWORD, HEADER_URL);
+
+        when(captchaService.verify("cid", "abcd")).thenReturn(true);
+        when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
+
+        assertThatThrownBy(() -> service.register(command))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(CommonErrorCode.INTERNAL_ERROR);
+
+        verify(registrationDraftRepository, never()).issue(any(), any());
+        verify(registrationCodeStore, never()).issue(any(), any(), any(), any());
+        verify(mailService, never()).sendRegistrationCodeMail(any(), any());
         verify(userRegistrationActionApi, never()).deletePendingUser(any());
     }
 

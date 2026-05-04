@@ -6,6 +6,8 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const srcRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
+const retiredAuthVerifyWrapper = ['verify', 'Captcha'].join('')
+const retiredAuthVerifyRoute = ['/api/auth/captcha', '/verify'].join('')
 
 function source(relativePath) {
   return readFileSync(resolve(srcRoot, relativePath), 'utf8')
@@ -23,8 +25,8 @@ describe('unused surface retirement', () => {
     const socialService = source('api/services/socialService.js')
     const searchService = source('api/services/searchService.js')
 
-    expect(authService).not.toContain('verifyCaptcha')
-    expect(authService).not.toContain('/api/auth/captcha/verify')
+    expect(authService).not.toContain(retiredAuthVerifyWrapper)
+    expect(authService).not.toContain(retiredAuthVerifyRoute)
 
     expect(blockService).not.toContain('getBlockStatus')
     expect(blockService).not.toContain('/api/blocks/status')

@@ -8,7 +8,6 @@ import com.nowcoder.community.auth.application.command.RefreshCommand;
 import com.nowcoder.community.auth.application.command.RegisterCommand;
 import com.nowcoder.community.auth.application.command.RequestPasswordResetCommand;
 import com.nowcoder.community.auth.application.command.ResendRegisterCodeCommand;
-import com.nowcoder.community.auth.application.command.VerifyCaptchaCommand;
 import com.nowcoder.community.auth.application.command.VerifyRegisterCodeCommand;
 import com.nowcoder.community.auth.application.result.CaptchaIssueResult;
 import com.nowcoder.community.auth.application.result.LoginResult;
@@ -70,10 +69,6 @@ public class AuthApplicationService {
 
     public CaptchaIssueResult captcha(IssueCaptchaCommand command) {
         return captchaApplicationService.issue(command);
-    }
-
-    public boolean verifyCaptcha(VerifyCaptchaCommand command) {
-        return captchaApplicationService.verify(command);
     }
 
     public PasswordResetRequestResult requestPasswordReset(RequestPasswordResetCommand command) {

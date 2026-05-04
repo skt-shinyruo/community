@@ -57,12 +57,6 @@ export async function issueCaptcha() {
   return { data, traceId }
 }
 
-export async function verifyCaptcha(captchaId, code) {
-  const resp = await http.post('/api/auth/captcha/verify', { captchaId, code })
-  const { data, traceId } = unwrapResultBody(resp.data, '验证码校验')
-  return { data: !!data, traceId }
-}
-
 export async function requestPasswordReset(email, { captchaId = '', captchaCode = '' } = {}) {
   const resp = await http.post('/api/auth/password/reset/request', { email, captchaId, captchaCode })
   const { data, traceId } = unwrapResultBody(resp.data, '找回密码')

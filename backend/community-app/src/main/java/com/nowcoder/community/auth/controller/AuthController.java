@@ -9,7 +9,6 @@ import com.nowcoder.community.auth.application.command.RefreshCommand;
 import com.nowcoder.community.auth.application.command.RegisterCommand;
 import com.nowcoder.community.auth.application.command.RequestPasswordResetCommand;
 import com.nowcoder.community.auth.application.command.ResendRegisterCodeCommand;
-import com.nowcoder.community.auth.application.command.VerifyCaptchaCommand;
 import com.nowcoder.community.auth.application.command.VerifyRegisterCodeCommand;
 import com.nowcoder.community.auth.application.result.CaptchaIssueResult;
 import com.nowcoder.community.auth.application.result.LoginResult;
@@ -19,7 +18,6 @@ import com.nowcoder.community.auth.application.result.RefreshResult;
 import com.nowcoder.community.auth.application.result.RegisterCodeResendResult;
 import com.nowcoder.community.auth.application.result.RegisterResult;
 import com.nowcoder.community.auth.controller.dto.CaptchaIssueResponse;
-import com.nowcoder.community.auth.controller.dto.CaptchaVerifyRequest;
 import com.nowcoder.community.auth.controller.dto.LoginRequest;
 import com.nowcoder.community.auth.controller.dto.LoginResponse;
 import com.nowcoder.community.auth.controller.dto.MeResponse;
@@ -147,11 +145,6 @@ public class AuthController {
         response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0");
         response.setHeader(HttpHeaders.PRAGMA, "no-cache");
         return Result.ok(new CaptchaIssueResponse(result.captchaId(), result.imageBase64(), result.ttlSeconds()));
-    }
-
-    @PostMapping("/captcha/verify")
-    public Result<Boolean> verifyCaptcha(@Valid @RequestBody CaptchaVerifyRequest request) {
-        return Result.ok(authApplicationService.verifyCaptcha(new VerifyCaptchaCommand(request.getCaptchaId(), request.getCode())));
     }
 
     @PostMapping("/password/reset/request")

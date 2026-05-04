@@ -10,7 +10,6 @@
 - `POST /api/auth/refresh`
 - `POST /api/auth/logout`
 - `GET /api/auth/captcha`
-- `POST /api/auth/captcha/verify`
 
 全局 API 安全配置在 `CommunitySecurityConfig`：`/api/**` 使用 stateless session，禁用 CSRF，并通过 Spring Security resource server 验证 Bearer JWT。除 `AuthSecurityRules` 显式放行的入口外，其余接口默认要求已认证。
 

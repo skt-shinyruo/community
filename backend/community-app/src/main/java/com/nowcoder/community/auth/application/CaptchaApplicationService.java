@@ -1,7 +1,6 @@
 package com.nowcoder.community.auth.application;
 
 import com.nowcoder.community.auth.application.command.IssueCaptchaCommand;
-import com.nowcoder.community.auth.application.command.VerifyCaptchaCommand;
 import com.nowcoder.community.auth.application.result.CaptchaIssueResult;
 import com.nowcoder.community.auth.config.CaptchaProperties;
 import com.nowcoder.community.auth.domain.repository.CaptchaRepository;
@@ -93,10 +92,6 @@ public class CaptchaApplicationService {
             throw captchaUnavailable(e);
         }
         return false;
-    }
-
-    public boolean verify(VerifyCaptchaCommand command) {
-        return command != null && verify(command.captchaId(), command.code());
     }
 
     private String randomCode(int length) {

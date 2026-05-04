@@ -15,7 +15,6 @@ public class AuthSecurityRules implements ApiSecurityRules {
         auth.requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll();
         auth.requestMatchers(HttpMethod.POST, "/api/auth/register/code/resend", "/api/auth/register/code/verify").permitAll();
         auth.requestMatchers(HttpMethod.GET, "/api/auth/captcha").permitAll();
-        auth.requestMatchers(HttpMethod.POST, "/api/auth/captcha/verify").permitAll();
         auth.requestMatchers(HttpMethod.POST, "/api/auth/password/reset/request", "/api/auth/password/reset/confirm").permitAll();
     }
 }

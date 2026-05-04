@@ -22,12 +22,13 @@
 
 ### 改业务或查实现链路
 
-1. [business-flows.md](business-flows.md)：按业务域整理的实现链路，替代旧的 `business-logic/*.md` 碎片文档。
-2. [auth-login-session-flow.md](auth-login-session-flow.md)：登录、refresh token 续期、logout 和 JWT 鉴权代码链路。
-3. [core-logic-index.md](core-logic-index.md)：核心类到 handbook 章节的覆盖矩阵。
-4. [integration-contracts.md](integration-contracts.md)：跨域同步 API、异步事件契约、IM Kafka contract、HTTP 写接口契约。
-5. [reliability.md](reliability.md)：Idempotency-Key、outbox、single-flight、重试、补偿、fail-open / fail-closed。
-6. [data-and-storage.md](data-and-storage.md)：MySQL 表、Redis key、Kafka topic、Elasticsearch alias/index。
+1. [business-flows.md](business-flows.md)：按业务域整理的实现链路总览。
+2. [business-logic/README.md](business-logic/README.md)：按业务域拆分的详细业务逻辑文档集，覆盖 owner、入口、状态、失败、幂等、跨域协作和关键代码。
+3. [auth-login-session-flow.md](auth-login-session-flow.md)：登录、refresh token 续期、logout 和 JWT 鉴权代码链路。
+4. [core-logic-index.md](core-logic-index.md)：核心类到 handbook 章节的覆盖矩阵。
+5. [integration-contracts.md](integration-contracts.md)：跨域同步 API、异步事件契约、IM Kafka contract、HTTP 写接口契约。
+6. [reliability.md](reliability.md)：Idempotency-Key、outbox、single-flight、重试、补偿、fail-open / fail-closed。
+7. [data-and-storage.md](data-and-storage.md)：MySQL 表、Redis key、Kafka topic、Elasticsearch alias/index。
 
 ## 文档职责边界
 
@@ -36,6 +37,7 @@
 - [security.md](security.md) 是安全模型 SSOT。路径鉴权、JWT、OriginGuard、internal scope、prod fail-closed 以这里为准。
 - [reliability.md](reliability.md) 是可靠性机制 SSOT。HTTP 幂等、outbox、重试、补偿和 single-flight 以这里为准。
 - [business-flows.md](business-flows.md) 只解释“当前业务能力如何落地”，不重新定义架构规则。
+- [business-logic/README.md](business-logic/README.md) 是详细业务逻辑文档集入口。新增或调整业务能力时，优先更新对应域文档，再按需要同步总览和索引。
 - [auth-login-session-flow.md](auth-login-session-flow.md) 是登录 / refresh / logout 代码链路详解，不替代 [security.md](security.md) 的安全模型定义。
 - [core-logic-index.md](core-logic-index.md) 是核心类文档覆盖索引。新增或调整核心 `ApplicationService`、domain service、listener、handler、enqueuer 或 job 时同步。
 - [integration-contracts.md](integration-contracts.md) 是跨边界协议 SSOT。新增 owner API、HTTP 写契约、IM Kafka contract 和客户端语义以这里为准。
@@ -51,7 +53,7 @@
 
 | 代码变化 | 必改文档 |
 | --- | --- |
-| 新增或调整业务链路 | [business-flows.md](business-flows.md)、[core-logic-index.md](core-logic-index.md) |
+| 新增或调整业务链路 | [business-logic/README.md](business-logic/README.md) 下对应域文档、[business-flows.md](business-flows.md)、[core-logic-index.md](core-logic-index.md) |
 | 新增 HTTP 接口、请求/响应字段、客户端语义 | [integration-contracts.md](integration-contracts.md)，必要时同步 [security.md](security.md) |
 | 新增跨域同步 API 或异步事件 | [architecture.md](architecture.md)、[system-design.md](system-design.md)、[integration-contracts.md](integration-contracts.md) |
 | 新增或调整前端路由、会话恢复、endpoint 解析、HTTP interceptor、IM realtime client、复杂页面状态 | [frontend.md](frontend.md)，必要时同步 [integration-contracts.md](integration-contracts.md)、[security.md](security.md) |
@@ -86,7 +88,7 @@
 | `DATA_MODEL.md` | [data-and-storage.md](data-and-storage.md) |
 | `HTTP_IDEMPOTENCY.md` | [reliability.md](reliability.md)、[integration-contracts.md](integration-contracts.md) |
 | `ELASTICSEARCH_ARCHITECTURE.md` | [data-and-storage.md](data-and-storage.md)、[business-flows.md](business-flows.md)、[operations.md](operations.md) |
-| `business-logic/README.md` | [business-flows.md](business-flows.md) |
+| 历史 `business-logic/README.md` | 当前路径已重新启用为 [business-logic/README.md](business-logic/README.md)，旧拆分流文档知识点合并到 [business-flows.md](business-flows.md) 和新业务域详解文档。 |
 | `business-logic/admin-user-role-management-flow.md` | [business-flows.md](business-flows.md#admin-user-role-management) |
 | `business-logic/analytics-ingest-flow.md` | [business-flows.md](business-flows.md#analytics) |
 | `business-logic/analytics-uv-dau-flow.md` | [business-flows.md](business-flows.md#analytics) |

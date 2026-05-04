@@ -1,6 +1,6 @@
 # 业务实现手册
 
-本文档替代旧的 `docs/handbook/business-logic/*.md`。每个业务域只保留当前代码真实存在的入口、owner、主流程、失败语义和关键代码定位。架构规则见 [architecture.md](architecture.md)，可靠性机制见 [reliability.md](reliability.md)。
+本文档是业务实现总览层，和 [business-logic/README.md](business-logic/README.md) 下的域级详细文档一起使用。这里保留每个业务域的入口、owner、主流程和关键代码定位，细节说明放到按域文档中。架构规则见 [architecture.md](architecture.md)，可靠性机制见 [reliability.md](reliability.md)。
 
 ## 阅读模板
 

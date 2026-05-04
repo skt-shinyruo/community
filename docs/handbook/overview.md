@@ -2,7 +2,7 @@
 
 这篇文档给第一次阅读仓库的人建立主线：项目是什么形态，请求通常怎么流动，为什么主站和 IM 分开，以及读源码时应该先抓哪些锚点。
 
-更严格的架构规则见 [architecture.md](architecture.md)，系统协作机制见 [system-design.md](system-design.md)，具体业务链路见 [business-flows.md](business-flows.md)。
+更严格的架构规则见 [architecture.md](architecture.md)，系统协作机制见 [system-design.md](system-design.md)，具体业务链路总览见 [business-flows.md](business-flows.md)，详细业务逻辑按域见 [business-logic/README.md](business-logic/README.md)。
 
 ## 一句话认识项目
 
@@ -197,9 +197,10 @@ POST /api/im/sessions -> WS /ws/im
 2. 主站安全边界：`CommunitySecurityConfig`、`ApiSecurityRules`、各域 `*SecurityRules`。
 3. DDD 守卫测试：`backend/community-app/src/test/java/com/nowcoder/community/app/arch`。
 4. 代表写链路：content 发帖或评论。
-5. 下游投影：search outbox、notice projection、growth task / wallet reward。
-6. IM 双服务：`im-realtime` 的 WebSocket handler 和 `im-core` 的消息持久化。
-7. 可靠性底座：`common-idempotency`、`common-outbox`、single-flight、scheduler。
-8. 运维入口：`ops`、XXL-Job handler、`/api/ops/**`。
+5. 业务域详解：[business-logic/README.md](business-logic/README.md) 下的 auth、user、content、social、growth、wallet、market、notice/search/analytics/ops、IM 文档。
+6. 下游投影：search outbox、notice projection、growth task / wallet reward。
+7. IM 双服务：`im-realtime` 的 WebSocket handler 和 `im-core` 的消息持久化。
+8. 可靠性底座：`common-idempotency`、`common-outbox`、single-flight、scheduler。
+9. 运维入口：`ops`、XXL-Job handler、`/api/ops/**`。
 
 不要一上来扫完整个 `controller/service/mapper`。这个项目更有效的读法是先确定入口和 owner，再顺着一条真实链路看同步段、事件段和失败语义。

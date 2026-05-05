@@ -38,6 +38,8 @@ build/
 
 ### Local dev secrets ###
 deploy/.env
+deploy/.env.single
+deploy/.env.cluster
 deploy/.local/
 deploy/backups/
 

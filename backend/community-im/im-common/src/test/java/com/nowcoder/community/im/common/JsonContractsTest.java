@@ -6,7 +6,6 @@ import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.RoomMemberChanged;
-import com.nowcoder.community.im.common.event.RoomMemberChangedEventV1;
 import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
@@ -17,7 +16,6 @@ import com.nowcoder.community.im.common.projection.UserBlockRelationEntry;
 import com.nowcoder.community.im.common.projection.UserBlockRelationSnapshot;
 import com.nowcoder.community.im.common.projection.UserMessagingPolicyEntry;
 import com.nowcoder.community.im.common.projection.UserMessagingPolicySnapshot;
-import com.nowcoder.community.im.common.session.OpenImSessionRequest;
 import com.nowcoder.community.im.common.session.OpenImSessionResponse;
 import com.nowcoder.community.im.common.ws.AckFrame;
 import com.nowcoder.community.im.common.ws.CommittedFrame;
@@ -120,20 +118,6 @@ class JsonContractsTest {
     }
 
     @Test
-    void event_roundtrip_roomMemberChanged() throws Exception {
-        RoomMemberChangedEventV1 event = new RoomMemberChangedEventV1(
-                "evt-3",
-                uuid(1001),
-                uuid(12),
-                "JOINED",
-                1700000003000L
-        );
-
-        RoomMemberChangedEventV1 back = roundTrip(event, RoomMemberChangedEventV1.class);
-        assertEquals(event, back);
-    }
-
-    @Test
     void event_roundtrip_privateRejected() throws Exception {
         UUID fromUserId = uuid(12);
         UUID toUserId = uuid(99);
@@ -170,19 +154,6 @@ class JsonContractsTest {
 
         RoomMessageRejectedEvent back = roundTrip(event, RoomMessageRejectedEvent.class);
         assertEquals(event, back);
-    }
-
-    @Test
-    void shouldRoundTripOpenImSessionRequest() throws Exception {
-        OpenImSessionRequest request = new OpenImSessionRequest(Map.of(
-                "deviceId", "ios-1",
-                "clientVersion", "1.0.0"
-        ));
-
-        OpenImSessionRequest back = roundTrip(request, OpenImSessionRequest.class);
-
-        assertEquals("ios-1", back.metadata().get("deviceId"));
-        assertEquals("1.0.0", back.metadata().get("clientVersion"));
     }
 
     @Test

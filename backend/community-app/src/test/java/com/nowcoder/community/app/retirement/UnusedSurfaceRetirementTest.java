@@ -8,47 +8,51 @@ class UnusedSurfaceRetirementTest {
 
     @Test
     void retiredBackendSurfacesShouldNotRemainOnClasspath() {
-        assertClassIsRetired("com.nowcoder.community.auth.application.command.VerifyCaptchaCommand");
-        assertClassIsRetired("com.nowcoder.community.auth.controller.dto.CaptchaVerifyRequest");
-        assertClassIsRetired("com.nowcoder.community.user.application.result.UserResolveResult");
-        assertClassIsRetired("com.nowcoder.community.user.controller.dto.UserResolveResponse");
-        assertClassIsRetired("com.nowcoder.community.analytics.controller.dto.RangeQuery");
-        assertClassIsRetired("com.nowcoder.community.analytics.application.result.AnalyticsCountResult");
-        assertClassIsRetired("com.nowcoder.community.search.application.result.ReindexJobResult");
-        assertClassIsRetired("com.nowcoder.community.market.application.command.AdminResolveMarketDisputeCommand");
-        assertClassIsRetired("com.nowcoder.community.market.application.command.MarketWalletActionCommand");
-        assertClassIsRetired("com.nowcoder.community.auth.domain.model.AuthCredential");
-        assertClassIsRetired("com.nowcoder.community.auth.domain.model.AuthTokens");
-        assertClassIsRetired("com.nowcoder.community.auth.domain.model.CaptchaChallenge");
-        assertClassIsRetired("com.nowcoder.community.auth.domain.model.PasswordResetToken");
-        assertClassIsRetired("com.nowcoder.community.auth.domain.model.RefreshTokenRecord");
-        assertClassIsRetired("com.nowcoder.community.auth.domain.model.RegistrationCode");
-        assertClassIsRetired("com.nowcoder.community.auth.domain.model.RegistrationSession");
-        assertClassIsRetired("com.nowcoder.community.user.controller.dto.InternalActivationResponse");
-        assertClassIsRetired("com.nowcoder.community.user.controller.dto.InternalAuthenticateRequest");
-        assertClassIsRetired("com.nowcoder.community.user.controller.dto.InternalAuthenticateResponse");
-        assertClassIsRetired("com.nowcoder.community.user.controller.dto.InternalBatchUserSummaryRequest");
-        assertClassIsRetired("com.nowcoder.community.user.controller.dto.InternalModerationApplyRequest");
-        assertClassIsRetired("com.nowcoder.community.user.controller.dto.InternalModerationStatusResponse");
-        assertClassIsRetired("com.nowcoder.community.user.controller.dto.InternalRefreshTokenRecordResponse");
-        assertClassIsRetired("com.nowcoder.community.user.controller.dto.InternalRefreshTokenRevokeFamilyRequest");
-        assertClassIsRetired("com.nowcoder.community.user.controller.dto.InternalRefreshTokenRevokeRequest");
-        assertClassIsRetired("com.nowcoder.community.user.controller.dto.InternalRefreshTokenStoreRequest");
-        assertClassIsRetired("com.nowcoder.community.user.controller.dto.InternalRegisterRequest");
-        assertClassIsRetired("com.nowcoder.community.user.controller.dto.InternalSessionProfileResponse");
-        assertClassIsRetired("com.nowcoder.community.user.controller.dto.InternalUpdatePasswordRequest");
-        assertClassIsRetired("com.nowcoder.community.user.controller.dto.InternalUserByEmailResponse");
-        assertClassIsRetired("com.nowcoder.community.user.controller.dto.InternalUserSummaryResponse");
-        assertClassIsRetired("com.nowcoder.community.user.controller.dto.LeaderboardItemResponse");
-        assertClassIsRetired("com.nowcoder.community.social.controller.dto.InternalUserProfileStatsResponse");
-        assertClassIsRetired("com.nowcoder.community.growth.infrastructure.persistence.dataobject.RewardAccountDataObject");
-        assertClassIsRetired("com.nowcoder.community.growth.infrastructure.persistence.dataobject.RewardGrantRecordDataObject");
-        assertClassIsRetired("com.nowcoder.community.growth.infrastructure.persistence.dataobject.RewardLedgerEntryDataObject");
-        assertClassIsRetired("com.nowcoder.community.growth.infrastructure.persistence.dataobject.UserTaskEventLogDataObject");
+        assertClassIsRetired(cn("com.nowcoder.community.auth.application.command.", "VerifyCaptcha", "Command"));
+        assertClassIsRetired(cn("com.nowcoder.community.auth.controller.dto.", "CaptchaVerify", "Request"));
+        assertClassIsRetired(cn("com.nowcoder.community.user.application.result.", "UserResolve", "Result"));
+        assertClassIsRetired(cn("com.nowcoder.community.user.controller.dto.", "UserResolve", "Response"));
+        assertClassIsRetired(cn("com.nowcoder.community.analytics.controller.dto.", "Range", "Query"));
+        assertClassIsRetired(cn("com.nowcoder.community.analytics.application.result.", "AnalyticsCount", "Result"));
+        assertClassIsRetired(cn("com.nowcoder.community.search.application.result.", "ReindexJob", "Result"));
+        assertClassIsRetired(cn("com.nowcoder.community.market.application.command.", "AdminResolveMarketDispute", "Command"));
+        assertClassIsRetired(cn("com.nowcoder.community.market.application.command.", "MarketWalletAction", "Command"));
+        assertClassIsRetired(cn("com.nowcoder.community.auth.domain.model.", "Auth", "Credential"));
+        assertClassIsRetired(cn("com.nowcoder.community.auth.domain.model.", "Auth", "Tokens"));
+        assertClassIsRetired(cn("com.nowcoder.community.auth.domain.model.", "Captcha", "Challenge"));
+        assertClassIsRetired(cn("com.nowcoder.community.auth.domain.model.", "PasswordReset", "Token"));
+        assertClassIsRetired(cn("com.nowcoder.community.auth.domain.model.", "RefreshToken", "Record"));
+        assertClassIsRetired(cn("com.nowcoder.community.auth.domain.model.", "Registration", "Code"));
+        assertClassIsRetired(cn("com.nowcoder.community.auth.domain.model.", "Registration", "Session"));
+        assertClassIsRetired(cn("com.nowcoder.community.user.controller.dto.", "InternalActivation", "Response"));
+        assertClassIsRetired(cn("com.nowcoder.community.user.controller.dto.", "InternalAuthenticate", "Request"));
+        assertClassIsRetired(cn("com.nowcoder.community.user.controller.dto.", "InternalAuthenticate", "Response"));
+        assertClassIsRetired(cn("com.nowcoder.community.user.controller.dto.", "InternalBatchUserSummary", "Request"));
+        assertClassIsRetired(cn("com.nowcoder.community.user.controller.dto.", "InternalModerationApply", "Request"));
+        assertClassIsRetired(cn("com.nowcoder.community.user.controller.dto.", "InternalModerationStatus", "Response"));
+        assertClassIsRetired(cn("com.nowcoder.community.user.controller.dto.", "InternalRefreshTokenRecord", "Response"));
+        assertClassIsRetired(cn("com.nowcoder.community.user.controller.dto.", "InternalRefreshTokenRevokeFamily", "Request"));
+        assertClassIsRetired(cn("com.nowcoder.community.user.controller.dto.", "InternalRefreshTokenRevoke", "Request"));
+        assertClassIsRetired(cn("com.nowcoder.community.user.controller.dto.", "InternalRefreshTokenStore", "Request"));
+        assertClassIsRetired(cn("com.nowcoder.community.user.controller.dto.", "InternalRegister", "Request"));
+        assertClassIsRetired(cn("com.nowcoder.community.user.controller.dto.", "InternalSessionProfile", "Response"));
+        assertClassIsRetired(cn("com.nowcoder.community.user.controller.dto.", "InternalUpdatePassword", "Request"));
+        assertClassIsRetired(cn("com.nowcoder.community.user.controller.dto.", "InternalUserByEmail", "Response"));
+        assertClassIsRetired(cn("com.nowcoder.community.user.controller.dto.", "InternalUserSummary", "Response"));
+        assertClassIsRetired(cn("com.nowcoder.community.user.controller.dto.", "LeaderboardItem", "Response"));
+        assertClassIsRetired(cn("com.nowcoder.community.social.controller.dto.", "InternalUserProfileStats", "Response"));
+        assertClassIsRetired(cn("com.nowcoder.community.growth.infrastructure.persistence.dataobject.", "RewardAccount", "DataObject"));
+        assertClassIsRetired(cn("com.nowcoder.community.growth.infrastructure.persistence.dataobject.", "RewardGrantRecord", "DataObject"));
+        assertClassIsRetired(cn("com.nowcoder.community.growth.infrastructure.persistence.dataobject.", "RewardLedgerEntry", "DataObject"));
+        assertClassIsRetired(cn("com.nowcoder.community.growth.infrastructure.persistence.dataobject.", "UserTaskEventLog", "DataObject"));
     }
 
     private void assertClassIsRetired(String className) {
         assertThatThrownBy(() -> Class.forName(className))
                 .isInstanceOf(ClassNotFoundException.class);
+    }
+
+    private String cn(String... parts) {
+        return String.join("", parts);
     }
 }

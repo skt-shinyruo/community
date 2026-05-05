@@ -8,8 +8,6 @@ const likeCountCache = new Map()
 const likeStatusCache = new Map()
 const followStatusCache = new Map()
 
-const likeCountInflight = new Map()
-const likeStatusInflight = new Map()
 const followStatusInflight = new Map()
 
 function likeKey(entityType, entityId) {
@@ -26,56 +24,6 @@ export async function setLike({ entityType, entityId, entityUserId, postId, like
     likeStatusCache.set(likeKey(entityType, entityId), data.liked)
   }
   return { data, traceId }
-}
-
-export async function getLikeCount(entityType, entityId, { force = false } = {}) {
-  const k = likeKey(entityType, entityId)
-  if (!force && likeCountCache.has(k)) {
-    return { data: Number(likeCountCache.get(k) || 0), traceId: '' }
-  }
-
-  if (likeCountInflight.has(k)) {
-    return likeCountInflight.get(k)
-  }
-
-  const p = (async () => {
-    const resp = await http.get('/api/likes/count', { params: { entityType, entityId } })
-    const { data, traceId } = unwrapResultBody(resp.data, '查询点赞数')
-    likeCountCache.set(k, Number(data || 0))
-    return { data: Number(data || 0), traceId }
-  })()
-
-  likeCountInflight.set(k, p)
-  try {
-    return await p
-  } finally {
-    if (likeCountInflight.get(k) === p) likeCountInflight.delete(k)
-  }
-}
-
-export async function getLikeStatus(entityType, entityId, { force = false } = {}) {
-  const k = likeKey(entityType, entityId)
-  if (!force && likeStatusCache.has(k)) {
-    return { data: !!likeStatusCache.get(k), traceId: '' }
-  }
-
-  if (likeStatusInflight.has(k)) {
-    return likeStatusInflight.get(k)
-  }
-
-  const p = (async () => {
-    const resp = await http.get('/api/likes/status', { params: { entityType, entityId } })
-    const { data, traceId } = unwrapResultBody(resp.data, '查询点赞状态')
-    likeStatusCache.set(k, !!data)
-    return { data: !!data, traceId }
-  })()
-
-  likeStatusInflight.set(k, p)
-  try {
-    return await p
-  } finally {
-    if (likeStatusInflight.get(k) === p) likeStatusInflight.delete(k)
-  }
 }
 
 export async function followUser(entityType, entityId, entityUserId) {

@@ -18,11 +18,6 @@ export function normalizePostsCategoryId(value) {
   return normalizeOpaqueId(value)
 }
 
-export function normalizePostsTag(value) {
-  const s = String(value || '').trim()
-  return s ? s : ''
-}
-
 export function normalizePostsOrder(value) {
   return value === POSTS_ORDER.HOT ? POSTS_ORDER.HOT : POSTS_ORDER.LATEST
 }

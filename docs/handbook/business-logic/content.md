@@ -29,8 +29,6 @@ HTTP：
 - `PUT /api/posts/{postId}/comments/{commentId}`
 - `GET /api/posts/{postId}/comments/{commentId}/replies`
 - `GET /api/categories`
-- `PUT /api/categories/{categoryId}/subscribe`
-- `DELETE /api/categories/{categoryId}/subscribe`
 - `GET /api/subscriptions/categories`
 - `GET /api/tags/hot`
 - `GET /api/tags/suggest`
@@ -168,10 +166,8 @@ HTTP：
 
 订阅：
 
-- `SubscriptionApplicationService.subscribeCategory(...)` 订阅分类。
-- `unsubscribeCategory(...)` 取消订阅。
 - `listSubscribedCategoryIds(...)` 返回用户订阅分类。
-- 订阅流要求登录态。
+- 订阅流要求登录态，当前运行面只保留订阅列表读取。
 
 ## 举报和审核
 

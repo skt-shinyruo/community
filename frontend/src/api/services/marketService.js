@@ -67,24 +67,6 @@ export async function getMarketOrderDetail(orderId) {
   return { data: data || {}, traceId }
 }
 
-export async function openMarketDispute(orderId, payload) {
-  const resp = await http.post(`/api/market/orders/${encodeURIComponent(orderId)}/disputes`, payload)
-  const { data, traceId } = unwrapResultBody(resp.data, '发起申诉')
-  return { data: data || {}, traceId }
-}
-
-export async function sellerAcceptMarketDispute(disputeId, payload) {
-  const resp = await http.post(`/api/market/disputes/${encodeURIComponent(disputeId)}/seller-accept`, payload)
-  const { data, traceId } = unwrapResultBody(resp.data, '卖家同意退款')
-  return { data: data || {}, traceId }
-}
-
-export async function sellerRejectMarketDispute(disputeId, payload) {
-  const resp = await http.post(`/api/market/disputes/${encodeURIComponent(disputeId)}/seller-reject`, payload)
-  const { data, traceId } = unwrapResultBody(resp.data, '卖家拒绝退款')
-  return { data: data || {}, traceId }
-}
-
 export async function listAdminMarketDisputes() {
   const resp = await http.get('/api/admin/market/disputes')
   const { data, traceId } = unwrapResultBody(resp.data, '查询争议列表')

@@ -3,7 +3,7 @@ import MockAdapter from 'axios-mock-adapter'
 import { createPinia, setActivePinia } from 'pinia'
 
 import http from '../http'
-import { subscribeCategory, unsubscribeCategory } from './subscriptionService'
+import { listSubscribedCategories } from './subscriptionService'
 
 describe('api/services/subscriptionService', () => {
   let mock
@@ -17,26 +17,21 @@ describe('api/services/subscriptionService', () => {
     mock = null
   })
 
-  it('subscribeCategory and unsubscribeCategory should preserve UUID category ids in the route path', async () => {
-    const categoryId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+  it('listSubscribedCategories should read the subscribed categories endpoint', async () => {
     mock = new MockAdapter(http)
-    mock.onPut(`/api/categories/${categoryId}/subscribe`).reply(200, {
+    mock.onGet('/api/subscriptions/categories').reply(200, {
       code: 0,
-      message: '',
-      data: null,
-      traceId: 'trace-subscribe-category'
-    })
-    mock.onDelete(`/api/categories/${categoryId}/subscribe`).reply(200, {
-      code: 0,
-      message: '',
-      data: null,
-      traceId: 'trace-unsubscribe-category'
+      message: 'OK',
+      data: [
+        '11111111-1111-7111-8111-111111111111',
+        '22222222-2222-7222-8222-222222222222'
+      ],
+      traceId: 'trace-subscribed-categories'
     })
 
-    const subscribed = await subscribeCategory(categoryId)
-    const unsubscribed = await unsubscribeCategory(categoryId)
+    const resp = await listSubscribedCategories()
 
-    expect(subscribed.traceId).toBe('trace-subscribe-category')
-    expect(unsubscribed.traceId).toBe('trace-unsubscribe-category')
+    expect(resp.traceId).toBe('trace-subscribed-categories')
+    expect(resp.data).toHaveLength(2)
   })
 })

@@ -1,8 +1,13 @@
 package com.nowcoder.community.app.retirement;
 
+import com.nowcoder.community.content.domain.repository.SubscriptionRepository;
+import com.nowcoder.community.content.infrastructure.persistence.MyBatisSubscriptionRepository;
+import com.nowcoder.community.growth.application.GrowthBusinessTimeService;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import java.util.UUID;
 
 class UnusedSurfaceRetirementTest {
 
@@ -45,6 +50,19 @@ class UnusedSurfaceRetirementTest {
         assertClassIsRetired(cn("com.nowcoder.community.growth.infrastructure.persistence.dataobject.", "RewardGrantRecord", "DataObject"));
         assertClassIsRetired(cn("com.nowcoder.community.growth.infrastructure.persistence.dataobject.", "RewardLedgerEntry", "DataObject"));
         assertClassIsRetired(cn("com.nowcoder.community.growth.infrastructure.persistence.dataobject.", "UserTaskEventLog", "DataObject"));
+        assertClassIsRetired(cn("com.nowcoder.community.content.controller.dto.", "InternalPostScan", "Response"));
+        assertClassIsRetired(cn("com.nowcoder.community.content.controller.dto.", "PostScan", "Result"));
+        assertClassIsRetired(cn("com.nowcoder.community.content.controller.dto.", "UserRecentComment", "Response"));
+        assertClassIsRetired(cn("com.nowcoder.community.growth.domain.model.", "RewardAccount"));
+        assertClassIsRetired(cn("com.nowcoder.community.growth.domain.model.", "RewardGrantRecord"));
+        assertClassIsRetired(cn("com.nowcoder.community.growth.domain.model.", "RewardLedgerEntry"));
+        assertClassIsRetired(cn("com.nowcoder.community.growth.contracts.event.", "GrowthEvent", "Types"));
+        assertThatThrownBy(() -> SubscriptionRepository.class.getDeclaredMethod("hasSubscribedCategory", UUID.class, UUID.class))
+                .isInstanceOf(NoSuchMethodException.class);
+        assertThatThrownBy(() -> MyBatisSubscriptionRepository.class.getDeclaredMethod("hasSubscribedCategory", UUID.class, UUID.class))
+                .isInstanceOf(NoSuchMethodException.class);
+        assertThatThrownBy(() -> GrowthBusinessTimeService.class.getDeclaredMethod("currentYearMonth"))
+                .isInstanceOf(NoSuchMethodException.class);
     }
 
     private void assertClassIsRetired(String className) {

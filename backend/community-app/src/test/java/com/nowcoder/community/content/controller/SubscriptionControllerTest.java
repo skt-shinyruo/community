@@ -33,20 +33,6 @@ class SubscriptionControllerTest {
     }
 
     @Test
-    void subscribeAndUnsubscribeShouldDelegateToSubscriptionApplicationService() {
-        UUID userId = uuid(7);
-        UUID categoryId = uuid(3);
-
-        Result<Void> subscribeResult = controller.subscribeCategory(authentication(userId), categoryId);
-        Result<Void> unsubscribeResult = controller.unsubscribeCategory(authentication(userId), categoryId);
-
-        assertThat(subscribeResult.getCode()).isEqualTo(0);
-        assertThat(unsubscribeResult.getCode()).isEqualTo(0);
-        verify(subscriptionApplicationService).subscribeCategory(userId, categoryId);
-        verify(subscriptionApplicationService).unsubscribeCategory(userId, categoryId);
-    }
-
-    @Test
     void myCategoriesShouldReturnApplicationServiceCategoryIds() {
         UUID userId = uuid(7);
         UUID categoryId = uuid(3);

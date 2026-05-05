@@ -18,8 +18,17 @@ const retiredFollowerCountWrapper = ['count', 'Followers'].join('')
 const retiredUserLikesRoutePrefix = ['/api/likes', '/users/'].join('')
 const retiredNavQueryToken = ['normalize', 'Posts', 'Query'].join('')
 const retiredNavBuildToken = ['build', 'Posts', 'Query'].join('')
+const retiredLikeCountToken = 'export async function getLikeCount('
+const retiredLikeStatusToken = 'export async function getLikeStatus('
+const retiredNormalizePostsTagToken = 'export function normalizePostsTag('
 const retiredGrowthViewOne = ['views/', 'Sign', 'In', 'Calendar', 'View.vue'].join('')
 const retiredGrowthViewTwo = ['views/', 'Task', 'Center', 'View.vue'].join('')
+const retiredMarketDisputeWrapper = ['open', 'Market', 'Dispute'].join('')
+const retiredMarketAcceptWrapper = ['seller', 'Accept', 'Market', 'Dispute'].join('')
+const retiredMarketRejectWrapper = ['seller', 'Reject', 'Market', 'Dispute'].join('')
+const retiredSubscriptionSubscribeWrapper = ['subscribe', 'Category'].join('')
+const retiredSubscriptionUnsubscribeWrapper = ['unsubscribe', 'Category'].join('')
+const retiredUiTagView = ['components/ui/', 'UiTag.vue'].join('')
 const retiredSearchReindexRoute = ['/api/search/internal', '/reindex'].join('')
 
 function source(relativePath) {
@@ -60,10 +69,31 @@ describe('unused surface retirement', () => {
 
     expect(navigation).not.toContain(retiredNavQueryToken)
     expect(navigation).not.toContain(retiredNavBuildToken)
+    expect(navigation).not.toContain(retiredNormalizePostsTagToken)
   })
 
   it('keeps retired growth views unmounted', () => {
     expect(exists(retiredGrowthViewOne)).toBe(false)
     expect(exists(retiredGrowthViewTwo)).toBe(false)
+  })
+
+  it('keeps retired market and subscription wrappers removed', () => {
+    const marketService = source('api/services/marketService.js')
+    const subscriptionService = source('api/services/subscriptionService.js')
+    const socialService = source('api/services/socialService.js')
+
+    expect(marketService).not.toContain(retiredMarketDisputeWrapper)
+    expect(marketService).not.toContain(retiredMarketAcceptWrapper)
+    expect(marketService).not.toContain(retiredMarketRejectWrapper)
+
+    expect(subscriptionService).not.toContain(retiredSubscriptionSubscribeWrapper)
+    expect(subscriptionService).not.toContain(retiredSubscriptionUnsubscribeWrapper)
+
+    expect(socialService).not.toContain(retiredLikeCountToken)
+    expect(socialService).not.toContain(retiredLikeStatusToken)
+  })
+
+  it('keeps retired UiTag component removed', () => {
+    expect(exists(retiredUiTagView)).toBe(false)
   })
 })

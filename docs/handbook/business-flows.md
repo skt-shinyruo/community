@@ -261,7 +261,6 @@ Entry：
 - `POST /api/posts/{postId}/comments`
 - `/api/bookmarks`
 - `/api/categories/**`
-- `/api/categories/{categoryId}/subscribe`
 - `/api/subscriptions/categories`
 - `/api/tags/**`
 

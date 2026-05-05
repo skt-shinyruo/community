@@ -15,14 +15,6 @@ public class SubscriptionApplicationService {
         this.subscriptionContentPort = subscriptionContentPort;
     }
 
-    public void subscribeCategory(UUID userId, UUID categoryId) {
-        subscriptionContentPort.subscribeCategory(userId, categoryId);
-    }
-
-    public void unsubscribeCategory(UUID userId, UUID categoryId) {
-        subscriptionContentPort.unsubscribeCategory(userId, categoryId);
-    }
-
     public List<UUID> listSubscribedCategoryIds(UUID userId) {
         return subscriptionContentPort.listSubscribedCategoryIds(userId);
     }

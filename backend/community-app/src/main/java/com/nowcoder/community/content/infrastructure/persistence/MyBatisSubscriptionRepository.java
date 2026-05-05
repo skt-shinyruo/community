@@ -1,13 +1,11 @@
-// 订阅服务：MVP 先支持订阅分类（category），用于“仅看订阅”筛选。
+// 订阅服务：查询用户订阅的分类列表。
 package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.content.domain.repository.CategoryContentRepository;
 import com.nowcoder.community.content.domain.repository.SubscriptionRepository;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.SubscriptionCategoryMapper;
 import org.springframework.stereotype.Service;
 
-import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -17,36 +15,9 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 public class MyBatisSubscriptionRepository implements SubscriptionRepository {
 
     private final SubscriptionCategoryMapper categoryMapper;
-    private final CategoryContentRepository categoryContentPort;
 
-    public MyBatisSubscriptionRepository(SubscriptionCategoryMapper categoryMapper, CategoryContentRepository categoryContentPort) {
+    public MyBatisSubscriptionRepository(SubscriptionCategoryMapper categoryMapper) {
         this.categoryMapper = categoryMapper;
-        this.categoryContentPort = categoryContentPort;
-    }
-
-    @Override
-    public void subscribeCategory(UUID userId, UUID categoryId) {
-        if (userId == null || categoryId == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "userId/categoryId 非法");
-        }
-        categoryContentPort.getById(categoryId);
-        categoryMapper.insertSubscription(userId, categoryId, new Date());
-    }
-
-    @Override
-    public void unsubscribeCategory(UUID userId, UUID categoryId) {
-        if (userId == null || categoryId == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "userId/categoryId 非法");
-        }
-        categoryMapper.deleteSubscription(userId, categoryId);
-    }
-
-    @Override
-    public boolean hasSubscribedCategory(UUID userId, UUID categoryId) {
-        if (userId == null || categoryId == null) {
-            return false;
-        }
-        return categoryMapper.existsSubscription(userId, categoryId) > 0;
     }
 
     @Override

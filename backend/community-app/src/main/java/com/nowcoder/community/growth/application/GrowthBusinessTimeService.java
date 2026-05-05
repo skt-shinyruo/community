@@ -7,7 +7,6 @@ import org.springframework.stereotype.Service;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.Date;
 
@@ -31,10 +30,6 @@ public class GrowthBusinessTimeService {
 
     public LocalDate today() {
         return LocalDate.now(clock);
-    }
-
-    public YearMonth currentYearMonth() {
-        return YearMonth.from(today());
     }
 
     public LocalDate dateOf(Instant instant) {

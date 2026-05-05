@@ -4,24 +4,6 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.nowcoder.community.content.infrastructure.persistence.mapper.SubscriptionCategoryMapper">
 
-    <insert id="insertSubscription">
-        insert ignore into user_subscription_category(user_id, category_id, create_time)
-        values(#{userId, jdbcType=BINARY}, #{categoryId, jdbcType=BINARY}, #{createTime})
-    </insert>
-
-    <delete id="deleteSubscription">
-        delete from user_subscription_category
-        where user_id = #{userId, jdbcType=BINARY}
-          and category_id = #{categoryId, jdbcType=BINARY}
-    </delete>
-
-    <select id="existsSubscription" resultType="int">
-        select count(*)
-        from user_subscription_category
-        where user_id = #{userId, jdbcType=BINARY}
-          and category_id = #{categoryId, jdbcType=BINARY}
-    </select>
-
     <select id="selectSubscribedCategoryIds" resultType="java.util.UUID">
         select category_id
         from user_subscription_category

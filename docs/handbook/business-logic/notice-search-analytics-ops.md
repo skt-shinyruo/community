@@ -118,7 +118,6 @@ HTTP：
 
 - `GET /api/analytics/uv`
 - `GET /api/analytics/dau`
-- `GET /api/analytics/me`
 
 采集：
 

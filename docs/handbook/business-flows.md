@@ -648,7 +648,6 @@ Entry：
 
 - `/api/analytics/**`：查询面，ADMIN / MODERATOR。
 - analytics 自动采集 filter / application 写入口，以当前配置和代码为准。
-- `/api/analytics/me`：鉴权联调接口，不是业务埋点主入口。
 
 Current state：
 

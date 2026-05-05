@@ -33,27 +33,27 @@ community:
 
 auth:
   refresh:
-    store: memory
+    store: db
   captcha:
-    store: memory
+    store: redis
     ttl-seconds: 60
     max-failures: 3
   password-reset:
     reset-base-url: http://localhost:8080
-    store: memory
+    store: redis
     ttl-seconds: 600
   registration:
     pending-user:
       ttl-seconds: 1800
       cleanup-interval-ms: 300000
     code:
-      store: memory
+      store: redis
       ttl-seconds: 600
       max-failures: 3
       resend-cooldown-seconds: 60
       expose-code: true
     draft:
-      store: memory
+      store: redis
     mail:
       enabled: false
   login-rate-limit:
@@ -61,7 +61,7 @@ auth:
     captcha-required-failures-per-user: 2
 
 content:
-  storage: memory
+  storage: redis
   events:
     publisher: local
   score:
@@ -72,17 +72,15 @@ events:
   outbox:
     enabled: true
 
-user:
-  events:
-    publisher: memory
-
 social:
-  storage: memory
+  storage: db
   events:
     publisher: local
 
 search:
-  storage: memory
+  storage: es
+  index:
+    initialize: false
   idempotency:
     cleanup-enabled: false
     retention-days: 1

@@ -35,7 +35,7 @@ JWT 签发仍由 `community-app` 的 auth 模块负责。
 - refresh token 通过 HttpOnly Cookie 下发，浏览器 JS 不可读取。
 - 前端开启 `withCredentials: true`，由浏览器自动携带 cookie。
 - 当业务请求返回 `401`，前端调用 `/api/auth/refresh` 获取新 access token 后重试原请求。
-- refresh token store 支持 `memory` / `redis` / `db`，当前默认 `db`。
+- refresh token store 支持 `redis` / `db`，当前默认 `db`；不提供进程内存实现。
 - DB store 使用 `community.auth_refresh_token`，仅保存 token hash。
 - refresh 支持 rotation：刷新时可颁发新 refresh token，并使旧 token 失效。
 - token family 支持族撤销，复用旧 token 可触发 family revoke。

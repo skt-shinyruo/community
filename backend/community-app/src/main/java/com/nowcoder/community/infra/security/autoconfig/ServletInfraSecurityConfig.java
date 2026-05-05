@@ -15,8 +15,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 
 import java.nio.charset.StandardCharsets;
@@ -40,12 +40,15 @@ public class ServletInfraSecurityConfig {
         if (password.getBytes(StandardCharsets.UTF_8).length < 12) {
             throw new IllegalArgumentException("community.metrics.basic-auth.password 长度不足（建议 >= 12 字节）");
         }
-        return new InMemoryUserDetailsManager(
-                User.withUsername(username)
-                        .password("{noop}" + password)
-                        .roles("PROMETHEUS")
-                        .build()
-        );
+        return requestedUsername -> {
+            if (!username.equals(requestedUsername)) {
+                throw new UsernameNotFoundException(requestedUsername);
+            }
+            return User.withUsername(username)
+                    .password("{noop}" + password)
+                    .roles("PROMETHEUS")
+                    .build();
+        };
     }
 
     @Bean

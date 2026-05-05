@@ -9,20 +9,24 @@ import com.nowcoder.community.social.domain.event.BlockRelationChangedDomainEven
 import com.nowcoder.community.social.domain.event.FollowCreatedDomainEvent;
 import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
 import com.nowcoder.community.social.domain.event.SocialDomainEventPublisher;
+import com.nowcoder.community.social.domain.model.BlockRelation;
 import com.nowcoder.community.social.domain.model.FollowRelation;
 import com.nowcoder.community.social.domain.repository.BlockRepository;
 import com.nowcoder.community.social.domain.repository.FollowRepository;
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.FollowDomainService;
 import com.nowcoder.community.social.exception.SocialErrorCode;
-import com.nowcoder.community.social.infrastructure.event.InMemorySocialDomainEventPublisher;
-import com.nowcoder.community.social.infrastructure.persistence.InMemoryBlockRepository;
-import com.nowcoder.community.social.infrastructure.persistence.InMemoryFollowRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static com.nowcoder.community.common.constants.EntityTypes.USER;
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -37,9 +41,9 @@ class FollowApplicationServiceTest {
 
     @Test
     void followShouldRejectSelfWhenUuidValuesMatchButInstancesDiffer() {
-        InMemoryFollowRepository repo = new InMemoryFollowRepository();
-        InMemorySocialDomainEventPublisher publisher = new InMemorySocialDomainEventPublisher();
-        FollowApplicationService service = newService(repo, new InMemoryBlockRepository(), publisher);
+        StatefulFollowRepository repo = new StatefulFollowRepository();
+        RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();
+        FollowApplicationService service = newService(repo, new StatefulBlockRepository(), publisher);
         UUID actorUserId = uuid(1);
         UUID targetUserId = UUID.fromString(actorUserId.toString());
 
@@ -57,9 +61,9 @@ class FollowApplicationServiceTest {
 
     @Test
     void followShouldBeForbiddenWhenEitherBlockedOnCreate() {
-        InMemoryFollowRepository repo = new InMemoryFollowRepository();
-        InMemorySocialDomainEventPublisher publisher = new InMemorySocialDomainEventPublisher();
-        InMemoryBlockRepository blockRepository = new InMemoryBlockRepository();
+        StatefulFollowRepository repo = new StatefulFollowRepository();
+        RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();
+        StatefulBlockRepository blockRepository = new StatefulBlockRepository();
         UUID actorUserId = uuid(1);
         UUID targetUserId = uuid(2);
         blockRepository.block(actorUserId, targetUserId);
@@ -76,9 +80,9 @@ class FollowApplicationServiceTest {
 
     @Test
     void followShouldBeIdempotentAndPublishOnce() {
-        InMemoryFollowRepository repo = new InMemoryFollowRepository();
-        InMemorySocialDomainEventPublisher publisher = new InMemorySocialDomainEventPublisher();
-        FollowApplicationService service = newService(repo, new InMemoryBlockRepository(), publisher);
+        StatefulFollowRepository repo = new StatefulFollowRepository();
+        RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();
+        FollowApplicationService service = newService(repo, new StatefulBlockRepository(), publisher);
         UUID actorUserId = uuid(1);
         UUID targetUserId = uuid(2);
 
@@ -104,9 +108,9 @@ class FollowApplicationServiceTest {
 
     @Test
     void followCountsAndListsShouldFilterRelationsBlockedByViewer() {
-        InMemoryFollowRepository repo = new InMemoryFollowRepository();
-        InMemoryBlockRepository blockRepository = new InMemoryBlockRepository();
-        FollowApplicationService service = newService(repo, blockRepository, new InMemorySocialDomainEventPublisher());
+        StatefulFollowRepository repo = new StatefulFollowRepository();
+        StatefulBlockRepository blockRepository = new StatefulBlockRepository();
+        FollowApplicationService service = newService(repo, blockRepository, new RecordingSocialDomainEventPublisher());
         UUID viewerUserId = uuid(1);
         UUID visibleUserId = uuid(2);
         UUID blockedUserId = uuid(3);
@@ -128,9 +132,9 @@ class FollowApplicationServiceTest {
 
     @Test
     void followCountsAndListsShouldFilterRelationsWhenViewerIsBlocked() {
-        InMemoryFollowRepository repo = new InMemoryFollowRepository();
-        InMemoryBlockRepository blockRepository = new InMemoryBlockRepository();
-        FollowApplicationService service = newService(repo, blockRepository, new InMemorySocialDomainEventPublisher());
+        StatefulFollowRepository repo = new StatefulFollowRepository();
+        StatefulBlockRepository blockRepository = new StatefulBlockRepository();
+        FollowApplicationService service = newService(repo, blockRepository, new RecordingSocialDomainEventPublisher());
         UUID viewerUserId = uuid(1);
         UUID visibleUserId = uuid(2);
         UUID blockerUserId = uuid(3);
@@ -189,8 +193,8 @@ class FollowApplicationServiceTest {
 
     @Test
     void followShouldRollbackStateWhenPublisherFailsForCompensatingRepository() {
-        InMemoryFollowRepository repo = new InMemoryFollowRepository();
-        FollowApplicationService service = newService(repo, new InMemoryBlockRepository(), new FailingSocialDomainEventPublisher());
+        StatefulFollowRepository repo = new StatefulFollowRepository();
+        FollowApplicationService service = newService(repo, new StatefulBlockRepository(), new FailingSocialDomainEventPublisher());
         UUID actorUserId = uuid(1);
         UUID targetUserId = uuid(2);
 
@@ -204,8 +208,8 @@ class FollowApplicationServiceTest {
     }
 
     private FollowApplicationService newService(
-            InMemoryFollowRepository followRepository,
-            InMemoryBlockRepository blockRepository,
+            FollowRepository followRepository,
+            BlockRepository blockRepository,
             SocialDomainEventPublisher publisher
     ) {
         return new FollowApplicationService(
@@ -215,6 +219,153 @@ class FollowApplicationServiceTest {
                 new BlockDomainService(),
                 publisher
         );
+    }
+
+    private static final class StatefulFollowRepository implements FollowRepository {
+
+        private final Map<String, Map<UUID, Long>> followees = new ConcurrentHashMap<>();
+        private final Map<String, Map<UUID, Long>> followers = new ConcurrentHashMap<>();
+
+        @Override
+        public boolean follow(UUID userId, int entityType, UUID entityId, long followTimeMillis) {
+            Map<UUID, Long> followeeMap = followees.computeIfAbsent(followeeKey(userId, entityType), ignored -> new ConcurrentHashMap<>());
+            Long existed = followeeMap.putIfAbsent(entityId, followTimeMillis);
+            if (existed != null) {
+                followers.computeIfAbsent(followerKey(entityType, entityId), ignored -> new ConcurrentHashMap<>()).putIfAbsent(userId, existed);
+                return false;
+            }
+            followers.computeIfAbsent(followerKey(entityType, entityId), ignored -> new ConcurrentHashMap<>()).put(userId, followTimeMillis);
+            return true;
+        }
+
+        @Override
+        public boolean unfollow(UUID userId, int entityType, UUID entityId) {
+            Map<UUID, Long> followeeMap = followees.get(followeeKey(userId, entityType));
+            boolean removed = followeeMap != null && followeeMap.remove(entityId) != null;
+            Map<UUID, Long> followerMap = followers.get(followerKey(entityType, entityId));
+            if (followerMap != null) {
+                followerMap.remove(userId);
+            }
+            return removed;
+        }
+
+        @Override
+        public boolean hasFollowed(UUID userId, int entityType, UUID entityId) {
+            Map<UUID, Long> followeeMap = followees.get(followeeKey(userId, entityType));
+            return followeeMap != null && followeeMap.containsKey(entityId);
+        }
+
+        @Override
+        public long countFollowees(UUID userId, int entityType) {
+            Map<UUID, Long> map = followees.get(followeeKey(userId, entityType));
+            return map == null ? 0 : map.size();
+        }
+
+        @Override
+        public long countFollowers(int entityType, UUID entityId) {
+            Map<UUID, Long> map = followers.get(followerKey(entityType, entityId));
+            return map == null ? 0 : map.size();
+        }
+
+        @Override
+        public List<FollowRelation> listFollowees(UUID userId, int entityType, int offset, int limit) {
+            return list(followees.get(followeeKey(userId, entityType)), offset, limit);
+        }
+
+        @Override
+        public List<FollowRelation> listFollowers(int entityType, UUID entityId, int offset, int limit) {
+            return list(followers.get(followerKey(entityType, entityId)), offset, limit);
+        }
+
+        @Override
+        public boolean requiresExplicitCompensation() {
+            return true;
+        }
+
+        private List<FollowRelation> list(Map<UUID, Long> map, int offset, int limit) {
+            if (map == null || map.isEmpty()) {
+                return List.of();
+            }
+            List<Map.Entry<UUID, Long>> entries = new ArrayList<>(map.entrySet());
+            entries.sort(Map.Entry.comparingByValue(Comparator.reverseOrder()));
+            int from = Math.max(0, offset);
+            int to = Math.min(entries.size(), from + Math.max(0, limit));
+            return entries.subList(from, to).stream()
+                    .map(entry -> new FollowRelation(entry.getKey(), Instant.ofEpochMilli(entry.getValue())))
+                    .toList();
+        }
+
+        private String followeeKey(UUID userId, int entityType) {
+            return "followee:" + userId + ":" + entityType;
+        }
+
+        private String followerKey(int entityType, UUID entityId) {
+            return "follower:" + entityType + ":" + entityId;
+        }
+    }
+
+    private static final class StatefulBlockRepository implements BlockRepository {
+
+        private final ConcurrentHashMap<UUID, Set<UUID>> blocks = new ConcurrentHashMap<>();
+
+        @Override
+        public boolean block(UUID userId, UUID targetUserId) {
+            return blocks.computeIfAbsent(userId, ignored -> ConcurrentHashMap.newKeySet()).add(targetUserId);
+        }
+
+        @Override
+        public boolean unblock(UUID userId, UUID targetUserId) {
+            Set<UUID> set = blocks.get(userId);
+            return set != null && set.remove(targetUserId);
+        }
+
+        @Override
+        public boolean hasBlocked(UUID userId, UUID targetUserId) {
+            Set<UUID> set = blocks.get(userId);
+            return set != null && set.contains(targetUserId);
+        }
+
+        @Override
+        public List<UUID> listBlockedUserIds(UUID userId) {
+            Set<UUID> set = blocks.get(userId);
+            return set == null ? List.of() : new ArrayList<>(set);
+        }
+
+        @Override
+        public List<BlockRelation> scanBlocksAfter(UUID afterUserId, UUID afterTargetUserId, int limit) {
+            return List.of();
+        }
+
+        @Override
+        public boolean requiresExplicitCompensation() {
+            return true;
+        }
+    }
+
+    private static final class RecordingSocialDomainEventPublisher implements SocialDomainEventPublisher {
+
+        private final List<Object> events = Collections.synchronizedList(new ArrayList<>());
+
+        @Override
+        public void publishLikeChanged(LikeChangedDomainEvent event) {
+            events.add(event);
+        }
+
+        @Override
+        public void publishFollowCreated(FollowCreatedDomainEvent event) {
+            events.add(event);
+        }
+
+        @Override
+        public void publishBlockRelationChanged(BlockRelationChangedDomainEvent event) {
+            events.add(event);
+        }
+
+        private List<Object> snapshot() {
+            synchronized (events) {
+                return List.copyOf(events);
+            }
+        }
     }
 
     private static class FailingSocialDomainEventPublisher implements SocialDomainEventPublisher {

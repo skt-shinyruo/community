@@ -632,7 +632,6 @@ Key code：
 - `search.application.SearchReindexApplicationService`
 - `search.domain.service.PostSearchDomainService`
 - `search.infrastructure.persistence.ElasticsearchPostSearchRepository`
-- `search.infrastructure.persistence.InMemoryPostSearchRepository`
 - `search.infrastructure.event.PostOutboxEnqueuer`
 - `search.infrastructure.event.PostOutboxHandler`
 - `search.infrastructure.persistence.PostIndexManager`

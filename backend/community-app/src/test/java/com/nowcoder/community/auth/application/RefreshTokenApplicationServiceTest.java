@@ -112,7 +112,7 @@ class RefreshTokenApplicationServiceTest {
 
     @Test
     void refreshShouldBuildAccessTokenFromCredentialLookupOnly() {
-        RefreshTokenApplicationService refreshTokenService = refreshTokenService(new InMemoryRefreshTokenRepository());
+        RefreshTokenApplicationService refreshTokenService = refreshTokenService(new CoordinatedRefreshTokenStore("unused-token"));
         RefreshTokenApplicationService.IssuedRefreshToken issued = refreshTokenService.issue(USER_ID);
         assertThat(issued.cookie().name()).isEqualTo("refresh_token");
         assertThat(issued.cookie().value()).isEqualTo(issued.refreshToken());
@@ -130,7 +130,7 @@ class RefreshTokenApplicationServiceTest {
 
     @Test
     void clearCookieShouldPreserveRefreshCookieAttributesWithZeroMaxAge() {
-        RefreshTokenApplicationService refreshTokenService = refreshTokenService(new InMemoryRefreshTokenRepository());
+        RefreshTokenApplicationService refreshTokenService = refreshTokenService(new CoordinatedRefreshTokenStore("unused-token"));
 
         RefreshCookieSpec cookie = refreshTokenService.clearCookie();
 
@@ -360,49 +360,4 @@ class RefreshTokenApplicationServiceTest {
         }
     }
 
-    private static final class InMemoryRefreshTokenRepository implements RefreshTokenRepository {
-
-        private final ConcurrentHashMap<String, StoredRefreshToken> tokens = new ConcurrentHashMap<>();
-        private final ConcurrentHashMap<String, RevokedRefreshToken> revokedTokens = new ConcurrentHashMap<>();
-
-        @Override
-        public void store(String refreshToken, UUID userId, String familyId, Instant expiresAt) {
-            tokens.put(refreshToken, new StoredRefreshToken(refreshToken, userId, familyId, expiresAt));
-        }
-
-        @Override
-        public StoredRefreshToken find(String refreshToken) {
-            return tokens.get(refreshToken);
-        }
-
-        @Override
-        public StoredRefreshToken consume(String refreshToken) {
-            StoredRefreshToken token = tokens.remove(refreshToken);
-            if (token != null) {
-                revokedTokens.put(refreshToken, new RevokedRefreshToken(
-                        refreshToken,
-                        token.userId(),
-                        token.familyId(),
-                        token.expiresAt(),
-                        Instant.now()
-                ));
-            }
-            return token;
-        }
-
-        @Override
-        public RevokedRefreshToken findRevoked(String refreshToken) {
-            return revokedTokens.get(refreshToken);
-        }
-
-        @Override
-        public void revoke(String refreshToken) {
-            tokens.remove(refreshToken);
-        }
-
-        @Override
-        public void revokeFamily(String familyId) {
-            tokens.entrySet().removeIf(entry -> familyId.equals(entry.getValue().familyId()));
-        }
-    }
 }

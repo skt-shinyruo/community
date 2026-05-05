@@ -1,4 +1,4 @@
-// 拉黑 API：登录用户对其他用户拉黑/解除拉黑，并查询拉黑列表与状态。
+// 拉黑 API：登录用户对其他用户拉黑/解除拉黑，并查询拉黑列表。
 package com.nowcoder.community.social.controller;
 
 import com.nowcoder.community.common.web.Result;
@@ -48,12 +48,6 @@ public class BlockController {
     public Result<List<UUID>> list(Authentication authentication) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(blockApplicationService.listBlockedUserIds(userId));
-    }
-
-    @GetMapping("/status")
-    public Result<Boolean> status(Authentication authentication, @RequestParam UUID userId) {
-        UUID actorId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(blockApplicationService.hasBlocked(actorId, userId));
     }
 
 }

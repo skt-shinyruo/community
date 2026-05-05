@@ -12,7 +12,6 @@ import com.nowcoder.community.social.controller.dto.LikeResponse;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -90,11 +89,6 @@ public class LikeController {
         }
         List<UUID> ids = parseEntityIds(entityIds, 200);
         return Result.ok(likeApplicationService.statuses(userId, entityType, ids));
-    }
-
-    @GetMapping("/users/{userId}/count")
-    public Result<Long> userLikeCount(@PathVariable UUID userId) {
-        return Result.ok(likeApplicationService.userLikeCount(userId));
     }
 
     private List<UUID> parseEntityIds(String raw, int limit) {

@@ -2,7 +2,6 @@ package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.application.result.UserProfileResult;
-import com.nowcoder.community.user.application.result.UserResolveResult;
 import com.nowcoder.community.user.application.result.UserSummaryResult;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.model.UserProfile;
@@ -22,7 +21,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.never;
@@ -66,26 +64,6 @@ class UserReadApplicationServiceTest {
                 UserProfileResult::walletBalance,
                 UserProfileResult::walletStatus
         ).containsExactly(userId, "alice", "h7", 2, 1, createTime, 250, 3, 900L, "ACTIVE");
-    }
-
-    @Test
-    void resolveByUsernameShouldMapSummaryAndRaiseWhenMissing() {
-        UserReadApplicationService service = new UserReadApplicationService(
-                userRepository,
-                new UserReadDomainService(),
-                walletAccountQueryApi
-        );
-        UUID userId = uuid(7);
-        when(userRepository.findByUsername("alice"))
-                .thenReturn(Optional.of(account(userId, "alice", "h7", 1)));
-        when(userRepository.findByUsername("ghost")).thenReturn(Optional.empty());
-
-        UserResolveResult result = service.resolveByUsername("alice");
-
-        assertThat(result).isEqualTo(new UserResolveResult(userId, "alice", "h7"));
-        assertThatThrownBy(() -> service.resolveByUsername("ghost"))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(USER_NOT_FOUND));
     }
 
     @Test

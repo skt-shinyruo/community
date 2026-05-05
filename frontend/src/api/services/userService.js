@@ -1,4 +1,4 @@
-// 用户相关 API：用户主页信息与按用户名解析用户。
+// 用户相关 API：用户主页信息与用户摘要。
 
 import http from '../http'
 import { unwrapResultBody } from '../result'
@@ -70,12 +70,6 @@ export async function listUserRecentComments(userId, { page = 0, size = 3 } = {}
   const resp = await http.get(`/api/users/${uid}/recent-comments`, { params: { page, size } })
   const { data, traceId } = unwrapResultBody(resp.data, '获取用户最近评论')
   return { data: Array.isArray(data) ? data : [], traceId }
-}
-
-export async function resolveUserByUsername(username) {
-  const resp = await http.get('/api/users/resolve', { params: { username } })
-  const { data, traceId } = unwrapResultBody(resp.data, '按用户名查询用户')
-  return { ...data, _traceId: traceId }
 }
 
 export async function batchUserSummary(userIds) {

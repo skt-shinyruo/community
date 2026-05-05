@@ -8,6 +8,14 @@ import { fileURLToPath } from 'node:url'
 const srcRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const retiredAuthVerifyWrapper = ['verify', 'Captcha'].join('')
 const retiredAuthVerifyRoute = ['/api/auth/captcha', '/verify'].join('')
+const retiredBlockStatusWrapper = ['get', 'Block', 'Status'].join('')
+const retiredBlockStatusRoute = ['/api/blocks', '/status'].join('')
+const retiredUserResolveWrapper = ['resolve', 'User', 'By', 'Username'].join('')
+const retiredUserResolveRoute = ['/api/users', '/resolve'].join('')
+const retiredUserLikesWrapper = ['get', 'User', 'Like', 'Count'].join('')
+const retiredFolloweeCountWrapper = ['count', 'Followees'].join('')
+const retiredFollowerCountWrapper = ['count', 'Followers'].join('')
+const retiredUserLikesRoutePrefix = ['/api/likes', '/users/'].join('')
 
 function source(relativePath) {
   return readFileSync(resolve(srcRoot, relativePath), 'utf8')
@@ -28,16 +36,16 @@ describe('unused surface retirement', () => {
     expect(authService).not.toContain(retiredAuthVerifyWrapper)
     expect(authService).not.toContain(retiredAuthVerifyRoute)
 
-    expect(blockService).not.toContain('getBlockStatus')
-    expect(blockService).not.toContain('/api/blocks/status')
+    expect(blockService).not.toContain(retiredBlockStatusWrapper)
+    expect(blockService).not.toContain(retiredBlockStatusRoute)
 
-    expect(userService).not.toContain('resolveUserByUsername')
-    expect(userService).not.toContain('/api/users/resolve')
+    expect(userService).not.toContain(retiredUserResolveWrapper)
+    expect(userService).not.toContain(retiredUserResolveRoute)
 
-    expect(socialService).not.toContain('getUserLikeCount')
-    expect(socialService).not.toContain('countFollowees')
-    expect(socialService).not.toContain('countFollowers')
-    expect(socialService).not.toContain('/api/likes/users/')
+    expect(socialService).not.toContain(retiredUserLikesWrapper)
+    expect(socialService).not.toContain(retiredFolloweeCountWrapper)
+    expect(socialService).not.toContain(retiredFollowerCountWrapper)
+    expect(socialService).not.toContain(retiredUserLikesRoutePrefix)
 
     expect(searchService).not.toContain('/api/search/internal/reindex')
   })

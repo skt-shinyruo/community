@@ -7,17 +7,12 @@ import com.nowcoder.community.user.application.UserAvatarApplicationService;
 import com.nowcoder.community.user.application.UserProfileApplicationService;
 import com.nowcoder.community.user.application.UserReadApplicationService;
 import com.nowcoder.community.user.application.result.UserProfilePageResult;
-import com.nowcoder.community.user.application.result.UserResolveResult;
 import com.nowcoder.community.user.application.result.UserSummaryResult;
 import com.nowcoder.community.user.controller.dto.BatchUserSummaryRequest;
-import com.nowcoder.community.user.controller.dto.InternalUpdatePasswordRequest;
 import com.nowcoder.community.user.controller.dto.UserProfilePostSummaryResponse;
 import com.nowcoder.community.user.controller.dto.UserProfileResponse;
 import com.nowcoder.community.user.controller.dto.UserRecentCommentItemResponse;
-import com.nowcoder.community.user.controller.dto.UserResolveResponse;
 import com.nowcoder.community.user.controller.dto.UserSummaryResponse;
-import jakarta.validation.Validation;
-import jakarta.validation.Validator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -209,22 +204,6 @@ class UserControllerUnitTest {
     }
 
     @Test
-    void resolveByUsernameShouldUseControllerFacingApplicationServiceResponse() {
-        UUID userId = uuid(7);
-        when(userReadApplicationService.resolveByUsername("alice"))
-                .thenReturn(new UserResolveResult(userId, "alice", "h7"));
-
-        Result<UserResolveResponse> result = controller.resolveByUsername("alice");
-
-        assertThat(result.getCode()).isEqualTo(0);
-        assertThat(result.getData()).isNotNull();
-        assertThat(result.getData().getId()).isEqualTo(userId);
-        assertThat(result.getData().getUsername()).isEqualTo("alice");
-        assertThat(result.getData().getHeaderUrl()).isEqualTo("h7");
-        verify(userReadApplicationService).resolveByUsername("alice");
-    }
-
-    @Test
     void batchSummaryShouldPreserveRequestOrderUsingApplicationServiceResponses() {
         UUID aliceId = uuid(7);
         UUID bobId = uuid(9);
@@ -242,16 +221,6 @@ class UserControllerUnitTest {
         assertThat(result.getData()).extracting(UserSummaryResponse::getId).containsExactly(aliceId, bobId);
         assertThat(result.getData()).extracting(UserSummaryResponse::getUsername).containsExactly("alice", "bob");
         verify(userReadApplicationService).listSummaryResultsByIds(Arrays.asList(aliceId, bobId, aliceId, null));
-    }
-
-    @Test
-    void internalUpdatePasswordRequestShouldRejectTooShortPassword() {
-        InternalUpdatePasswordRequest request = new InternalUpdatePasswordRequest();
-        request.setNewPassword("Abc123!");
-
-        Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
-
-        assertThat(validator.validate(request)).isNotEmpty();
     }
 
     private Authentication authentication(UUID userId) {

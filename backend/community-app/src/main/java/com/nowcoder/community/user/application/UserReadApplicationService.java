@@ -2,7 +2,6 @@ package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.application.result.UserProfileResult;
-import com.nowcoder.community.user.application.result.UserResolveResult;
 import com.nowcoder.community.user.application.result.UserSummaryResult;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.model.UserProfile;
@@ -96,14 +95,6 @@ public class UserReadApplicationService {
         if (userRepository.findById(userId).isEmpty()) {
             throw new BusinessException(USER_NOT_FOUND);
         }
-    }
-
-    public UserResolveResult resolveByUsername(String username) {
-        UserSummaryResult user = getSummaryByUsername(username);
-        if (user == null || user.id() == null) {
-            throw new BusinessException(USER_NOT_FOUND);
-        }
-        return new UserResolveResult(user.id(), user.username(), user.headerUrl());
     }
 
     private List<UUID> normalizeUserIds(List<UUID> rawUserIds) {

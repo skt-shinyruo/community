@@ -10,7 +10,6 @@ import com.nowcoder.community.user.application.UserProfileApplicationService;
 import com.nowcoder.community.user.application.UserReadApplicationService;
 import com.nowcoder.community.user.application.result.AvatarUploadTokenResult;
 import com.nowcoder.community.user.application.result.UserProfilePageResult;
-import com.nowcoder.community.user.application.result.UserResolveResult;
 import com.nowcoder.community.user.application.result.UserSummaryResult;
 import com.nowcoder.community.user.controller.dto.AvatarUploadTokenResponse;
 import com.nowcoder.community.user.controller.dto.BatchUserSummaryRequest;
@@ -18,7 +17,6 @@ import com.nowcoder.community.user.controller.dto.UpdateAvatarRequest;
 import com.nowcoder.community.user.controller.dto.UserProfilePostSummaryResponse;
 import com.nowcoder.community.user.controller.dto.UserProfileResponse;
 import com.nowcoder.community.user.controller.dto.UserRecentCommentItemResponse;
-import com.nowcoder.community.user.controller.dto.UserResolveResponse;
 import com.nowcoder.community.user.controller.dto.UserSummaryResponse;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -99,11 +97,6 @@ public class UserController {
         return Result.ok(userProfileApplicationService.listRecentComments(userId, page, size).stream()
                 .map(UserController::toUserRecentCommentItemResponse)
                 .toList());
-    }
-
-    @GetMapping("/resolve")
-    public Result<UserResolveResponse> resolveByUsername(@RequestParam String username) {
-        return Result.ok(toUserResolveResponse(userReadApplicationService.resolveByUsername(username)));
     }
 
     @PostMapping("/batch-summary")
@@ -197,14 +190,6 @@ public class UserController {
                 file == null ? 0 : file.getSize(),
                 file == null || file.isEmpty()
         );
-    }
-
-    private static UserResolveResponse toUserResolveResponse(UserResolveResult user) {
-        UserResolveResponse response = new UserResolveResponse();
-        response.setId(user.id());
-        response.setUsername(user.username());
-        response.setHeaderUrl(user.headerUrl());
-        return response;
     }
 
     private static UserSummaryResponse toUserSummaryResponse(UserSummaryResult user) {

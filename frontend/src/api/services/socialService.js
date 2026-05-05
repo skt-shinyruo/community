@@ -78,12 +78,6 @@ export async function getLikeStatus(entityType, entityId, { force = false } = {}
   }
 }
 
-export async function getUserLikeCount(userId) {
-  const resp = await http.get(`/api/likes/users/${userId}/count`)
-  const { data, traceId } = unwrapResultBody(resp.data, '查询用户获赞')
-  return { data: Number(data || 0), traceId }
-}
-
 export async function followUser(entityType, entityId, entityUserId) {
   const resp = await http.post('/api/follows', { entityType, entityId, entityUserId })
   const { traceId } = unwrapResultBody(resp.data, '关注')
@@ -133,18 +127,6 @@ export async function listFollowers(userId, { page = 0, size = 10, entityType = 
   const resp = await http.get(`/api/follows/${userId}/followers`, { params: { page, size, entityType } })
   const { data, traceId } = unwrapResultBody(resp.data, '查询粉丝列表')
   return { data: Array.isArray(data) ? data : [], traceId }
-}
-
-export async function countFollowees(userId, { entityType = 3 } = {}) {
-  const resp = await http.get(`/api/follows/${userId}/followees/count`, { params: { entityType } })
-  const { data, traceId } = unwrapResultBody(resp.data, '查询关注数')
-  return { data: Number(data || 0), traceId }
-}
-
-export async function countFollowers(userId, { entityType = 3 } = {}) {
-  const resp = await http.get(`/api/follows/${userId}/followers/count`, { params: { entityType } })
-  const { data, traceId } = unwrapResultBody(resp.data, '查询粉丝数')
-  return { data: Number(data || 0), traceId }
 }
 
 function normalizeEntityIds(entityIds, { max = 200 } = {}) {

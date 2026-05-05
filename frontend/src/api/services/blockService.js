@@ -1,4 +1,4 @@
-// 拉黑/屏蔽相关 API：拉黑/解除拉黑/列表/状态。
+// 拉黑/屏蔽相关 API：拉黑/解除拉黑/列表。
 
 import http from '../http'
 import { unwrapResultBody } from '../result'
@@ -22,11 +22,4 @@ export async function listBlockedUsers() {
   const resp = await http.get('/api/blocks')
   const { data, traceId } = unwrapResultBody(resp.data, '查询屏蔽列表')
   return { data: Array.isArray(data) ? data : [], traceId }
-}
-
-export async function getBlockStatus(userId) {
-  const uid = requireOpaqueId(userId, 'userId')
-  const resp = await http.get('/api/blocks/status', { params: { userId: uid } })
-  const { data, traceId } = unwrapResultBody(resp.data, '查询屏蔽状态')
-  return { data: !!data, traceId }
 }

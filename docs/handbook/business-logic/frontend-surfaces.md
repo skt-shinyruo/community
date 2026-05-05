@@ -51,7 +51,6 @@
 | `MarketBuyingOrdersView.vue`, `MarketSellingOrdersView.vue`, `MarketOrderDetailView.vue` | market 订单、交付、发货、确认、取消、纠纷。 |
 | `AdminMarketDisputesView.vue` | market 管理员纠纷裁决。 |
 | `ConversationsView.vue`, `ConversationDetailView.vue` | IM 会话、历史、WebSocket 发送、已读。 |
-| `SignInCalendarView.vue`, `TaskCenterView.vue` | growth 相关展示面；后端当前没有完整公开 growth controller。 |
 | `OpsConsoleView.vue` | ops 搜索重建。 |
 | `UserManagementView.vue` | user 管理员搜索和角色调整。 |
 

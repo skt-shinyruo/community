@@ -16,6 +16,11 @@ const retiredUserLikesWrapper = ['get', 'User', 'Like', 'Count'].join('')
 const retiredFolloweeCountWrapper = ['count', 'Followees'].join('')
 const retiredFollowerCountWrapper = ['count', 'Followers'].join('')
 const retiredUserLikesRoutePrefix = ['/api/likes', '/users/'].join('')
+const retiredNavQueryToken = ['normalize', 'Posts', 'Query'].join('')
+const retiredNavBuildToken = ['build', 'Posts', 'Query'].join('')
+const retiredGrowthViewOne = ['views/', 'Sign', 'In', 'Calendar', 'View.vue'].join('')
+const retiredGrowthViewTwo = ['views/', 'Task', 'Center', 'View.vue'].join('')
+const retiredSearchReindexRoute = ['/api/search/internal', '/reindex'].join('')
 
 function source(relativePath) {
   return readFileSync(resolve(srcRoot, relativePath), 'utf8')
@@ -47,18 +52,18 @@ describe('unused surface retirement', () => {
     expect(socialService).not.toContain(retiredFollowerCountWrapper)
     expect(socialService).not.toContain(retiredUserLikesRoutePrefix)
 
-    expect(searchService).not.toContain('/api/search/internal/reindex')
+    expect(searchService).not.toContain(retiredSearchReindexRoute)
   })
 
   it('keeps retired navigation helpers removed', () => {
     const navigation = source('router/navigation.js')
 
-    expect(navigation).not.toContain('normalizePostsQuery')
-    expect(navigation).not.toContain('buildPostsQuery')
+    expect(navigation).not.toContain(retiredNavQueryToken)
+    expect(navigation).not.toContain(retiredNavBuildToken)
   })
 
   it('keeps retired growth views unmounted', () => {
-    expect(exists('views/SignInCalendarView.vue')).toBe(false)
-    expect(exists('views/TaskCenterView.vue')).toBe(false)
+    expect(exists(retiredGrowthViewOne)).toBe(false)
+    expect(exists(retiredGrowthViewTwo)).toBe(false)
   })
 })

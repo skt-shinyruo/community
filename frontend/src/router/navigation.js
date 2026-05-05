@@ -40,34 +40,6 @@ export function normalizePostsSubscribed(value) {
   return s === '1' || s === 'true' || s === 'yes'
 }
 
-export function normalizePostsQuery(query) {
-  const q = query && typeof query === 'object' ? query : {}
-  return {
-    order: normalizePostsOrder(q.order),
-    filter: normalizePostsFilter(q.type),
-    categoryId: normalizePostsCategoryId(q.categoryId),
-    tag: normalizePostsTag(q.tag),
-    subscribed: normalizePostsSubscribed(q.subscribed)
-  }
-}
-
-export function buildPostsQuery({ order, filter, categoryId, tag, subscribed } = {}) {
-  const normalizedOrder = normalizePostsOrder(order)
-  const normalizedFilter = normalizePostsFilter(filter)
-  const normalizedCategoryId = normalizePostsCategoryId(categoryId)
-  const normalizedTag = normalizePostsTag(tag)
-  const normalizedSubscribed = normalizePostsSubscribed(subscribed)
-
-  const next = {}
-  // 默认值不写入 URL，减少噪音；由 normalizePostsQuery 兜底。
-  if (normalizedOrder !== POSTS_ORDER.LATEST) next.order = normalizedOrder
-  if (normalizedFilter) next.type = normalizedFilter
-  if (normalizedCategoryId) next.categoryId = String(normalizedCategoryId)
-  if (normalizedTag) next.tag = normalizedTag
-  if (normalizedSubscribed) next.subscribed = '1'
-  return next
-}
-
 function normalizeRoles(roles) {
   return Array.isArray(roles) ? roles.filter(Boolean).map(String) : []
 }

@@ -17,17 +17,7 @@ export async function searchPosts({ keyword = '', categoryId, tag, page = 0, siz
 }
 
 export async function reindex() {
-  try {
-    const resp = await http.post('/api/ops/search/reindex', null)
-    const { data, traceId } = unwrapResultBody(resp.data, '重建索引')
-    return { data, traceId }
-  } catch (e) {
-    // 兼容历史入口：保留短期回退，避免前后端发布顺序导致 404。
-    if (e && e.response && e.response.status === 404) {
-      const resp = await http.post('/api/search/internal/reindex', null)
-      const { data, traceId } = unwrapResultBody(resp.data, '重建索引')
-      return { data, traceId }
-    }
-    throw e
-  }
+  const resp = await http.post('/api/ops/search/reindex', null)
+  const { data, traceId } = unwrapResultBody(resp.data, '重建索引')
+  return { data, traceId }
 }

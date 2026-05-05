@@ -3,15 +3,13 @@ import { describe, expect, it } from 'vitest'
 import {
   POSTS_FILTER,
   POSTS_ORDER,
-  buildPostsQuery,
   canAccessNavItem,
   getMobileNavigation,
   getSidebarNavigation,
   isNavItemActive,
   normalizePostsCategoryId,
   normalizePostsFilter,
-  normalizePostsOrder,
-  normalizePostsQuery
+  normalizePostsOrder
 } from './navigation'
 
 describe('router/navigation', () => {
@@ -30,39 +28,10 @@ describe('router/navigation', () => {
     expect(normalizePostsFilter('unknown')).toBe(POSTS_FILTER.ALL)
   })
 
-  it('normalizePostsQuery should parse order/type from query', () => {
-    expect(normalizePostsQuery({ order: 'hot', type: 'top' })).toEqual({
-      order: POSTS_ORDER.HOT,
-      filter: POSTS_FILTER.TOP,
-      categoryId: '',
-      tag: '',
-      subscribed: false
-    })
-
-    expect(normalizePostsQuery({ order: 'unknown', type: 'unknown' })).toEqual({
-      order: POSTS_ORDER.LATEST,
-      filter: POSTS_FILTER.ALL,
-      categoryId: '',
-      tag: '',
-      subscribed: false
-    })
-  })
-
   it('normalizePostsCategoryId should preserve UUID category ids', () => {
     const categoryId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
     expect(normalizePostsCategoryId(categoryId)).toBe(categoryId)
     expect(normalizePostsCategoryId('')).toBe('')
-  })
-
-  it('buildPostsQuery should omit defaults', () => {
-    const categoryId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
-    expect(buildPostsQuery()).toEqual({})
-    expect(buildPostsQuery({ order: 'latest', filter: '' })).toEqual({})
-    expect(buildPostsQuery({ order: 'hot', filter: '' })).toEqual({ order: 'hot' })
-    expect(buildPostsQuery({ order: 'latest', filter: 'top' })).toEqual({ type: 'top' })
-    expect(buildPostsQuery({ order: 'hot', filter: 'wonderful' })).toEqual({ order: 'hot', type: 'wonderful' })
-    expect(buildPostsQuery({ subscribed: true })).toEqual({ subscribed: '1' })
-    expect(buildPostsQuery({ categoryId })).toEqual({ categoryId })
   })
 
   it('canAccessNavItem should enforce auth and roles', () => {

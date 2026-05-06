@@ -2,17 +2,14 @@
   <div class="page market-page">
     <UiBreadcrumb />
 
-    <section class="market-hero market-hero--compact">
-      <div>
-        <span class="market-kicker">我的出售</span>
-        <h1>把在售商品、库存入口和卖单动作放到一个工作面</h1>
-        <p>这里直接展示当前账号的商品状态；只有虚拟预存库存商品才需要继续进入库存页维护。</p>
-      </div>
-      <div class="market-hero-actions">
+    <UiPageHeader>
+      <template #title>我的出售</template>
+      <template #subtitle>把在售商品、库存入口和卖单动作放到一个工作面。这里直接展示当前账号的商品状态；只有虚拟预存库存商品才需要继续进入库存页维护。</template>
+      <template #actions>
         <RouterLink class="btn" :to="{ name: 'marketPublish' }">继续发布</RouterLink>
         <RouterLink class="btn secondary" :to="{ name: 'marketSellingOrders' }">查看卖单</RouterLink>
-      </div>
-    </section>
+      </template>
+    </UiPageHeader>
 
     <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
     <div v-else-if="loading" class="muted">正在加载我的出售商品…</div>
@@ -64,6 +61,7 @@
 import { computed, onMounted, ref } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { listMyMarketListings } from '../api/services/marketService'
 import { buildMarketState } from './marketState'
 

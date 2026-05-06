@@ -1,5 +1,10 @@
 <template>
   <div class="page posts-page">
+    <UiPageHeader>
+      <template #title>讨论</template>
+      <template #subtitle>按排序、筛选、订阅和分类整理时间线。发帖入口保留在顶部，不把整个首屏变成编辑器。</template>
+    </UiPageHeader>
+
     <section class="posts-toolbar-stage">
       <FeedToolbar
         :order="order"
@@ -35,7 +40,6 @@
     </section>
 
     <div class="posts-feed">
-      <PostComposerPanel>
       <UiButton
         v-if="authed && !isPublishFocused"
         variant="secondary"
@@ -122,10 +126,7 @@
         </div>
         </div>
       </UiCard>
-      </PostComposerPanel>
 
-      <PostsFeedList>
-      <!-- Skeletons Loading State -->
       <div v-if="loading && items.length === 0" class="posts-skeletons">
          <div v-for="i in 3" :key="i" class="posts-skeleton-card">
             <div class="posts-skeleton-meta">
@@ -139,7 +140,6 @@
          </div>
       </div>
 
-      <!-- Post List -->
       <UiEmpty v-if="error && items.length === 0" type="error">{{ error }}</UiEmpty>
       <div v-else-if="error" class="error">{{ error }}</div>
 
@@ -262,7 +262,6 @@
           </article>
         </template>
       </div>
-      </PostsFeedList>
     </div>
 
     <!-- Load More -->
@@ -287,9 +286,8 @@ import UiSelect from '../components/ui/UiSelect.vue'
 import UiTextarea from '../components/ui/UiTextarea.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiBadge from '../components/ui/UiBadge.vue'
+import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import FeedToolbar from '../components/posts/FeedToolbar.vue'
-import PostComposerPanel from './posts/PostComposerPanel.vue'
-import PostsFeedList from './posts/PostsFeedList.vue'
 import { usePostsFeed } from './posts/usePostsFeed'
 
 const emit = defineEmits(['trace'])

@@ -2,17 +2,14 @@
   <div class="page market-page">
     <UiBreadcrumb />
 
-    <section class="market-hero">
-      <div>
-        <span class="market-kicker">统一市场</span>
-        <h1>同一个入口，同时浏览虚拟商品和实物商品</h1>
-        <p>钱包托管仍然是统一结算底座，前台只按商品类型展示不同的履约语义。</p>
-      </div>
-      <div class="market-hero-actions">
+    <UiPageHeader>
+      <template #title>统一市场</template>
+      <template #subtitle>同一个入口，同时浏览虚拟商品和实物商品。钱包托管仍然是统一结算底座，前台只按商品类型展示不同的履约语义。</template>
+      <template #actions>
         <RouterLink class="btn" :to="{ name: 'marketPublish' }">发布商品</RouterLink>
         <RouterLink class="btn secondary" :to="{ name: 'marketBuyingOrders' }">我的购买</RouterLink>
-      </div>
-    </section>
+      </template>
+    </UiPageHeader>
 
     <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
     <div v-else-if="loading" class="muted">正在加载市场…</div>
@@ -59,6 +56,7 @@
 import { computed, onMounted, ref } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { listMarketListings } from '../api/services/marketService'
 import { buildMarketState } from './marketState'
 

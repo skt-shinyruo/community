@@ -11,13 +11,10 @@
     </UiCard>
 
     <UiCard v-else class="profile-card">
-        <div class="profile-cover">
-          <div class="profile-cover-sheet">
-            <div class="profile-cover-kicker">Member Snapshot</div>
-            <div class="profile-cover-title">{{ profile?.username || `成员 ${profile?.id}` }}</div>
-            <div class="profile-cover-subtitle">关注关系、钱包资产和公开信息会先汇总在这里，帮助你判断这个成员在社区里的参与状态。</div>
-          </div>
-        </div>
+      <UiPageHeader>
+        <template #title>{{ profile?.username || `成员 ${profile?.id}` }}</template>
+        <template #subtitle>关注关系、钱包资产和公开信息会先汇总在这里，帮助你判断这个成员在社区里的参与状态。</template>
+      </UiPageHeader>
 
       <div class="profile-body">
         <div class="profile-avatar-wrapper">
@@ -213,6 +210,7 @@ import UiButton from '../components/ui/UiButton.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiRoleBadge from '../components/ui/UiRoleBadge.vue'
 import ReportModal from '../components/modals/ReportModal.vue'
 import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
@@ -456,8 +454,6 @@ async function toggleBlock() {
   max-width: 980px;
 }
 
-.profile-eyebrow,
-.profile-cover-kicker,
 .profile-info-kicker-label {
   font-size: 11px;
   font-weight: 800;
@@ -474,47 +470,14 @@ async function toggleBlock() {
   box-shadow: var(--shadow-md);
 }
 
-.profile-cover {
-  position: relative;
-  min-height: 240px;
-  padding: 24px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
-  background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 26%, transparent 74%), transparent 42%),
-    linear-gradient(135deg, color-mix(in srgb, var(--accent) 18%, var(--surface) 82%), color-mix(in srgb, var(--accent) 8%, var(--bg) 92%));
-  border-bottom: 1px solid var(--border);
-}
-
-.profile-cover-sheet {
-  max-width: 360px;
-  display: grid;
-  gap: 10px;
-  padding: 20px;
-  border-radius: 24px;
-  background: color-mix(in srgb, var(--surface) 88%, white 12%);
-  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent 30%);
-  box-shadow: var(--shadow-sm);
-}
-
-.profile-cover-title {
-  font-family: var(--font-sans);
-  font-size: clamp(28px, 3vw, 40px);
-  line-height: 1.08;
-  color: var(--text-1);
-}
-
-.profile-cover-subtitle {
-  color: var(--text-2);
-  font-size: 14px;
-  line-height: 1.75;
-}
-
 .profile-body {
   position: relative;
-  margin-top: -56px;
+  margin-top: 18px;
   padding-bottom: 24px;
+}
+
+.profile-card :deep(.page-header) {
+  padding: 24px 24px 0;
 }
 
 .profile-avatar-wrapper {
@@ -842,12 +805,7 @@ async function toggleBlock() {
 
 @media (max-width: 768px) {
   .profile-body {
-    margin-top: -48px;
-  }
-
-  .profile-cover {
-    min-height: 220px;
-    padding: 16px;
+    margin-top: 12px;
   }
 
   .profile-avatar-wrapper {

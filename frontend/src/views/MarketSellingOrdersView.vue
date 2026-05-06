@@ -2,13 +2,10 @@
   <div class="page market-page">
     <UiBreadcrumb />
 
-    <section class="market-hero market-hero--compact">
-      <div>
-        <span class="market-kicker">我的出售订单</span>
-        <h1>卖家关注的是交付和争议</h1>
-        <p>卖家列表聚焦待交付和争议中的订单，不再只给静态说明。</p>
-      </div>
-    </section>
+    <UiPageHeader>
+      <template #title>我的出售订单</template>
+      <template #subtitle>卖家关注的是交付和争议。卖家列表聚焦待交付和争议中的订单，不再只给静态说明。</template>
+    </UiPageHeader>
 
     <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
     <div v-else-if="loading" class="muted">正在加载出售订单…</div>
@@ -50,6 +47,7 @@
 import { computed, onMounted, ref } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { listSellingMarketOrders } from '../api/services/marketService'
 import { buildMarketState } from './marketState'
 

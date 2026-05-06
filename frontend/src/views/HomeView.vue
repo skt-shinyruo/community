@@ -1,27 +1,35 @@
 <template>
-  <div class="page">
+  <div class="page dev-page">
+    <UiState
+      variant="development"
+      title="开发检查台"
+      description="这个页面只用于本地联调和 trace 检查，不属于正常产品导航。"
+      :trace-id="app.traceId || ''"
+    >
+      <template #actions>
+        <UiButton variant="secondary" @click="refreshAll" :disabled="loading">{{ loading ? '刷新中…' : '刷新检查项' }}</UiButton>
+        <RouterLink to="/posts" class="btn secondary">返回讨论</RouterLink>
+      </template>
+    </UiState>
+
     <UiCard>
       <UiPageHeader>
-        <template #title>联调</template>
-        <template #subtitle>开发与调试入口 · {{ greeting }}</template>
-        <template #actions>
-          <UiButton variant="secondary" @click="refreshAll" :disabled="loading">{{ loading ? '刷新中…' : '刷新数据' }}</UiButton>
-        </template>
+        <template #title>本地联调数据</template>
+        <template #subtitle>{{ greeting }}。这里展示账号相关读数和调试入口，所有状态仅用于开发环境核对。</template>
       </UiPageHeader>
 
-      <div class="dashboard-grid">
-        <!-- Left Column -->
+      <div class="dev-grid">
         <div class="main-column">
           <div class="row stat-row">
-            <div class="stat-card">
+            <div class="dev-stat-card">
               <div class="stat-value">{{ unreadCount }}</div>
               <div class="stat-label">未读通知</div>
             </div>
-            <div class="stat-card">
+            <div class="dev-stat-card">
               <div class="stat-value">{{ followingCount }}</div>
               <div class="stat-label">关注</div>
             </div>
-            <div class="stat-card">
+            <div class="dev-stat-card">
               <div class="stat-value">{{ followerCount }}</div>
               <div class="stat-label">粉丝</div>
             </div>
@@ -29,7 +37,8 @@
 
           <UiCard>
             <UiPageHeader>
-              <template #title>快捷入口</template>
+              <template #title>开发路径</template>
+              <template #subtitle>用于快速跳转到常见联调页面，不作为正式导航。</template>
             </UiPageHeader>
             <div class="row action-row">
               <RouterLink to="/posts" class="btn secondary">浏览帖子</RouterLink>
@@ -39,22 +48,20 @@
           </UiCard>
         </div>
 
-        <!-- Right Column -->
         <div class="side-column">
           <UiCard>
-            <div class="side-title">系统状态</div>
+            <div class="side-title">调试状态</div>
             <div class="status-item">
-              <div class="status-dot green"></div>
-              <div>运行正常</div>
+              <div class="status-dot" :class="{ green: auth.authed }"></div>
+              <div>{{ auth.authed ? '已登录，可读取账号数据' : '未登录，仅显示静态入口' }}</div>
             </div>
-            <div class="muted trace-id">Trace ID: {{ app.traceId || 'N/A' }}</div>
+            <div class="muted trace-id">Trace ID: {{ app.traceId || '暂无' }}</div>
           </UiCard>
 
           <UiCard>
             <div class="side-title">开发工具</div>
             <div class="stack tools-stack">
-              <RouterLink to="/dev" class="btn secondary sm">组件库</RouterLink>
-              <UiButton variant="secondary" class="sm" @click="refreshAll">刷新数据</UiButton>
+              <UiButton variant="secondary" class="sm" @click="refreshAll">刷新检查项</UiButton>
             </div>
           </UiCard>
         </div>
@@ -71,6 +78,7 @@ import http from '../api/http'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
+import UiState from '../components/ui/UiState.vue'
 
 const auth = useAuthStore()
 const app = useAppStore()
@@ -94,48 +102,51 @@ async function loadCounts() {
   try {
     const unreadResp = await http.get('/api/notices/unread-count')
     unreadCount.value = unreadResp?.data?.data ?? 0
-    
-    // Attempt to load my follow stats if possible, or just skip if expensive
-    // Using the endpoints from previous HomeView
+
     if (auth.userId) {
-       const [followingResp, followerResp] = await Promise.all([
-         http.get(`/api/follows/${auth.userId}/followees/count`),
-         http.get(`/api/follows/${auth.userId}/followers/count`)
-       ])
-       followingCount.value = followingResp?.data?.data ?? 0
-       followerCount.value = followerResp?.data?.data ?? 0
+      const [followingResp, followerResp] = await Promise.all([
+        http.get(`/api/follows/${auth.userId}/followees/count`),
+        http.get(`/api/follows/${auth.userId}/followers/count`)
+      ])
+      followingCount.value = followingResp?.data?.data ?? 0
+      followerCount.value = followerResp?.data?.data ?? 0
     }
   } catch (e) {
-     console.error('Failed to load dashboard stats', e)
-     if (typeof window !== 'undefined' && window.$toast) {
-       window.$toast({ type: 'error', text: '加载联调数据失败' })
-     }
-  }
-  finally {
+    console.error('Failed to load dev stats', e)
+    if (typeof window !== 'undefined' && window.$toast) {
+      window.$toast({ type: 'error', text: '加载开发检查项失败' })
+    }
+  } finally {
     loading.value = false
   }
 }
 
 async function refreshAll() {
-   await loadCounts()
-   // 轻提示：避免用户误以为按钮无响应
-   if (typeof window !== 'undefined' && window.$toast) {
-     window.$toast({ type: 'success', text: '已刷新' })
-   }
+  await loadCounts()
+  if (typeof window !== 'undefined' && window.$toast) {
+    window.$toast({ type: 'success', text: '已刷新开发检查项' })
+  }
 }
 
 onMounted(loadCounts)
 </script>
 
 <style scoped>
-.dashboard-grid {
+.dev-page {
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+.dev-grid {
   margin-top: var(--space-4);
   display: grid;
   grid-template-columns: 1fr 280px;
   gap: var(--space-6);
 }
 @media (max-width: 800px) {
-  .dashboard-grid { grid-template-columns: 1fr; }
+  .dev-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .side-column {
@@ -153,19 +164,28 @@ onMounted(loadCounts)
   margin-top: var(--space-2);
 }
 
-.stat-card {
-   flex: 1;
-   background: var(--surface);
-   border-radius: var(--radius-md);
-   padding: var(--card-padding);
-   box-shadow: var(--shadow-sm);
-   border: 1px solid var(--border);
-   display: flex;
-   flex-direction: column;
-   align-items: center;
+.dev-stat-card {
+  flex: 1;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: var(--card-padding);
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
-.stat-value { font-size: 24px; font-weight: 800; color: var(--accent); }
-.stat-label { font-size: 13px; color: var(--text-2); font-weight: 600; }
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.stat-label {
+  font-size: 13px;
+  color: var(--text-2);
+  font-weight: 600;
+}
 
 .stat-row {
   gap: var(--space-4);
@@ -179,15 +199,30 @@ onMounted(loadCounts)
   flex-wrap: wrap;
 }
 
-.side-title { font-weight: 800; margin-bottom: var(--space-3); font-size: 13px; color: var(--text-2); letter-spacing: 0.2px; }
+.side-title {
+  font-weight: 800;
+  margin-bottom: var(--space-3);
+  font-size: 13px;
+  color: var(--text-2);
+}
 
 .status-item {
-   display: flex;
-   align-items: center;
-   gap: var(--space-2);
-   font-size: 14px;
-   font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 14px;
+  font-weight: 500;
 }
-.status-dot { width: 8px; height: 8px; border-radius: 50%; }
-.status-dot.green { background: var(--success); box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 18%, transparent); }
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+
+.status-dot.green {
+  background: var(--success);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 18%, transparent);
+}
 </style>

@@ -2,80 +2,79 @@
   <div class="page market-page">
     <UiBreadcrumb />
 
-    <section class="market-hero market-hero--compact">
-      <div>
-        <span class="market-kicker">收货地址</span>
-        <h1>实物订单下单前，先把地址簿整理好</h1>
-        <p>地址簿是可变资料，订单使用的是地址快照，所以这里管理的是未来下单的默认收货信息。</p>
-      </div>
-    </section>
-
     <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
     <div v-else-if="loading" class="muted">正在加载地址簿…</div>
 
-    <UiCard v-else class="market-panel">
+    <template v-else>
       <UiPageHeader>
-        <template #title>新增地址</template>
-        <template #subtitle>第一版只保留最小地址字段，满足实物市场下单闭环。</template>
+        <template #title>收货地址</template>
+        <template #subtitle>实物订单下单前，先把地址簿整理好。地址簿是可变资料，订单使用的是地址快照，所以这里管理的是未来下单的默认收货信息。</template>
       </UiPageHeader>
 
-      <div class="market-form-grid market-form-grid--wide">
-        <label class="market-field">
-          <span>收货人</span>
-          <UiInput v-model="form.receiverName" />
-        </label>
-        <label class="market-field">
-          <span>手机号</span>
-          <UiInput v-model="form.receiverPhone" />
-        </label>
-        <label class="market-field">
-          <span>省份</span>
-          <UiInput v-model="form.province" />
-        </label>
-        <label class="market-field">
-          <span>城市</span>
-          <UiInput v-model="form.city" />
-        </label>
-        <label class="market-field">
-          <span>区县</span>
-          <UiInput v-model="form.district" />
-        </label>
-        <label class="market-field">
-          <span>详细地址</span>
-          <UiInput v-model="form.detailAddress" />
-        </label>
-        <label class="market-field">
-          <span>邮编</span>
-          <UiInput v-model="form.postalCode" />
-        </label>
-      </div>
+      <UiCard class="market-panel">
+        <UiPageHeader>
+          <template #title>新增地址</template>
+          <template #subtitle>第一版只保留最小地址字段，满足实物市场下单闭环。</template>
+        </UiPageHeader>
 
-      <div class="market-inline-actions">
-        <UiButton :disabled="submitting" @click="submitCreate">
-          {{ submitting ? '保存中…' : '新增地址' }}
-        </UiButton>
-        <span class="muted">{{ message }}</span>
-      </div>
+        <div class="market-form-grid market-form-grid--wide">
+          <label class="market-field">
+            <span>收货人</span>
+            <UiInput v-model="form.receiverName" />
+          </label>
+          <label class="market-field">
+            <span>手机号</span>
+            <UiInput v-model="form.receiverPhone" />
+          </label>
+          <label class="market-field">
+            <span>省份</span>
+            <UiInput v-model="form.province" />
+          </label>
+          <label class="market-field">
+            <span>城市</span>
+            <UiInput v-model="form.city" />
+          </label>
+          <label class="market-field">
+            <span>区县</span>
+            <UiInput v-model="form.district" />
+          </label>
+          <label class="market-field">
+            <span>详细地址</span>
+            <UiInput v-model="form.detailAddress" />
+          </label>
+          <label class="market-field">
+            <span>邮编</span>
+            <UiInput v-model="form.postalCode" />
+          </label>
+        </div>
 
-      <UiEmpty v-if="state.addresses.length === 0">
-        暂无收货地址
-        <template #description>创建第一条地址后，实物商品详情页就可以直接选择它下单。</template>
-      </UiEmpty>
+        <div class="market-inline-actions">
+          <UiButton :disabled="submitting" @click="submitCreate">
+            {{ submitting ? '保存中…' : '新增地址' }}
+          </UiButton>
+          <span class="muted">{{ message }}</span>
+        </div>
 
-      <div v-else class="market-admin-list">
-        <article v-for="item in state.addresses" :key="item.addressId" class="market-admin-row">
-          <div>
-            <strong>{{ item.receiverName }}</strong>
-            <p>{{ item.receiverPhone }} · {{ item.addressLine }}</p>
-            <p v-if="item.defaultLabel">{{ item.defaultLabel }}</p>
-          </div>
-          <div class="market-inline-actions">
-            <UiButton variant="secondary" :disabled="submitting" @click="submitUpdate(item)">更新</UiButton>
-            <UiButton :disabled="submitting" @click="submitDelete(item.addressId)">删除</UiButton>
-          </div>
-        </article>
-      </div>
-    </UiCard>
+        <UiEmpty v-if="state.addresses.length === 0">
+          暂无收货地址
+          <template #description>创建第一条地址后，实物商品详情页就可以直接选择它下单。</template>
+        </UiEmpty>
+
+        <div v-else class="market-admin-list">
+          <article v-for="item in state.addresses" :key="item.addressId" class="market-admin-row">
+            <div>
+              <strong>{{ item.receiverName }}</strong>
+              <p>{{ item.receiverPhone }} · {{ item.addressLine }}</p>
+              <p v-if="item.defaultLabel">{{ item.defaultLabel }}</p>
+            </div>
+            <div class="market-inline-actions">
+              <UiButton variant="secondary" :disabled="submitting" @click="submitUpdate(item)">更新</UiButton>
+              <UiButton :disabled="submitting" @click="submitDelete(item.addressId)">删除</UiButton>
+            </div>
+          </article>
+        </div>
+      </UiCard>
+    </template>
   </div>
 </template>
 

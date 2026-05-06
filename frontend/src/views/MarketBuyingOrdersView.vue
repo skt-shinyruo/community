@@ -2,13 +2,10 @@
   <div class="page market-page">
     <UiBreadcrumb />
 
-    <section class="market-hero market-hero--compact">
-      <div>
-        <span class="market-kicker">我的购买</span>
-        <h1>托管、交付、确认、申诉一屏看清</h1>
-        <p>这里只展示当前账号的买单，优先把请求号、状态和金额看清。</p>
-      </div>
-    </section>
+    <UiPageHeader>
+      <template #title>我的购买</template>
+      <template #subtitle>托管、交付、确认、申诉一屏看清。这里只展示当前账号的买单，优先把请求号、状态和金额看清。</template>
+    </UiPageHeader>
 
     <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
     <div v-else-if="loading" class="muted">正在加载购买订单…</div>
@@ -50,6 +47,7 @@
 import { computed, onMounted, ref } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { listBuyingMarketOrders } from '../api/services/marketService'
 import { buildMarketState } from './marketState'
 

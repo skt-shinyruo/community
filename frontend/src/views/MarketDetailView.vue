@@ -6,18 +6,16 @@
     <div v-else-if="loading" class="muted">正在加载商品详情…</div>
 
     <div v-else class="market-detail-shell">
-      <section class="market-hero market-hero--detail">
-        <div>
-          <span class="market-kicker">{{ detail.goodsTypeLabel || '商品详情' }}</span>
-          <h1>{{ detail.title || '市场商品详情' }}</h1>
-          <p>{{ detail.description || '查看价格、库存和履约方式。' }}</p>
-        </div>
-        <div class="market-price-box">
-          <strong>{{ detail.unitPriceText }}</strong>
-          <span>{{ detail.statusLabel }}</span>
-          <span>{{ detail.stockText }}</span>
-        </div>
-      </section>
+      <UiPageHeader>
+        <template #title>{{ detail.title || '市场商品详情' }}</template>
+        <template #subtitle>{{ detail.description || '查看价格、库存和履约方式。' }}</template>
+      </UiPageHeader>
+
+      <div class="market-price-box">
+        <strong>{{ detail.unitPriceText }}</strong>
+        <span>{{ detail.statusLabel }}</span>
+        <span>{{ detail.stockText }}</span>
+      </div>
 
       <section class="market-split">
         <UiCard class="market-panel">

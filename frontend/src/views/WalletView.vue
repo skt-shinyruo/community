@@ -2,23 +2,30 @@
   <div class="page wallet-page">
     <UiBreadcrumb />
 
-    <section class="wallet-hero">
-      <div class="wallet-hero-main">
+    <UiPageHeader>
+      <template #title>钱包</template>
+      <template #subtitle>{{ state.hero.statusText }}</template>
+      <template #actions>
+        <UiButton variant="secondary" :disabled="loading || submittingKey !== ''" @click="reload">
+          {{ loading ? '刷新中…' : '刷新' }}
+        </UiButton>
+      </template>
+    </UiPageHeader>
+
+    <div class="wallet-summary-strip">
+      <div class="wallet-summary-main">
         <span class="wallet-label">积分余额</span>
         <strong>{{ state.hero.balance }}</strong>
-        <p>{{ state.hero.statusText }}</p>
+        <p>当前余额是可立即使用的站内积分。</p>
       </div>
-      <div class="wallet-hero-side">
-        <div class="wallet-hero-metric">
+      <div class="wallet-summary-side">
+        <div class="wallet-summary-metric">
           <span class="wallet-label">最近动作</span>
           <strong>{{ state.feed.length }}</strong>
           <p>当前会话发起的充值、提现与转账会先显示在这里。</p>
         </div>
-        <UiButton variant="secondary" :disabled="loading || submittingKey !== ''" @click="reload">
-          {{ loading ? '刷新中…' : '刷新' }}
-        </UiButton>
       </div>
-    </section>
+    </div>
 
     <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
     <div v-else-if="loading && !ready" class="muted wallet-state">正在加载钱包…</div>
@@ -268,14 +275,14 @@ onMounted(reload)
   gap: var(--space-5);
 }
 
-.wallet-hero {
+.wallet-summary-strip {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
   gap: 16px;
 }
 
-.wallet-hero-main,
-.wallet-hero-side,
+.wallet-summary-main,
+.wallet-summary-side,
 .wallet-action-card,
 .wallet-feed-item,
 .wallet-panel {
@@ -283,8 +290,8 @@ onMounted(reload)
   gap: 12px;
 }
 
-.wallet-hero-main,
-.wallet-hero-side {
+.wallet-summary-main,
+.wallet-summary-side {
   padding: 22px 24px;
   border-radius: 24px;
   border: 1px solid color-mix(in srgb, var(--border) 82%, var(--accent) 18%);
@@ -293,14 +300,14 @@ onMounted(reload)
   box-shadow: var(--shadow-sm);
 }
 
-.wallet-hero-main strong,
-.wallet-hero-side strong {
+.wallet-summary-main strong,
+.wallet-summary-side strong {
   font-size: clamp(2rem, 4vw, 3rem);
   line-height: 1;
 }
 
-.wallet-hero-main p,
-.wallet-hero-side p,
+.wallet-summary-main p,
+.wallet-summary-side p,
 .wallet-action-card p {
   margin: 0;
   color: var(--text-2);
@@ -380,7 +387,7 @@ onMounted(reload)
 }
 
 @media (max-width: 960px) {
-  .wallet-hero,
+  .wallet-summary-strip,
   .wallet-layout,
   .wallet-action-grid {
     grid-template-columns: 1fr;

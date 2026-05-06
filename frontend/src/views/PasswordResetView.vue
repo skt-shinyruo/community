@@ -60,14 +60,16 @@
         <RouterLink class="btn ghost" to="/posts">返回社区</RouterLink>
       </div>
 
-      <UiCard v-if="debugResetLink" flat>
-        <div class="reset-debug-block">
-          <div class="reset-debug-title">本地 / 测试重置链接</div>
-          <div class="muted reset-debug-link">{{ debugResetLink }}</div>
+      <UiState
+        v-if="debugResetLink"
+        variant="development"
+        title="本地 / 测试重置链接"
+        :description="debugResetLink"
+      >
+        <template #actions>
           <UiButton variant="secondary" @click="openResetLink">打开重置页</UiButton>
-          <div class="muted reset-debug-note">说明：生产环境应通过邮件发送（此链接通常不回传）。</div>
-        </div>
-      </UiCard>
+        </template>
+      </UiState>
     </div>
   </UiCard>
 </template>
@@ -80,6 +82,7 @@ import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiButton from '../components/ui/UiButton.vue'
+import UiState from '../components/ui/UiState.vue'
 
 const emit = defineEmits(['trace'])
 const route = useRoute()
@@ -217,11 +220,6 @@ onMounted(refreshCaptcha)
 .reset-form,
 .reset-stack,
 .reset-field,
-.reset-debug-block {
-  display: grid;
-  gap: 10px;
-}
-
 .reset-form {
   margin-top: 12px;
 }
@@ -262,12 +260,4 @@ onMounted(refreshCaptcha)
   justify-content: space-between;
 }
 
-.reset-debug-title {
-  font-weight: 800;
-}
-
-.reset-debug-link {
-  word-break: break-all;
-  font-size: 12px;
-}
 </style>

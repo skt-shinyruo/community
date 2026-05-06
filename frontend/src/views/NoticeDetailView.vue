@@ -229,8 +229,6 @@ onMounted(load)
   gap: var(--space-5);
 }
 
-.notice-detail-hero-label,
-.notice-detail-eyebrow,
 .notice-card-eyebrow {
   font-size: 11px;
   letter-spacing: 0.16em;

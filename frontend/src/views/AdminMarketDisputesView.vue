@@ -2,13 +2,10 @@
   <div class="page market-page">
     <UiBreadcrumb />
 
-    <section class="market-hero market-hero--compact">
-      <div>
-        <span class="market-kicker">争议裁定</span>
-        <h1>管理员只处理最终裁定，不处理普通卖家动作</h1>
-        <p>这里专门承接卖家拒绝后的争议收口，不再混进钱包后台或旧奖励后台。</p>
-      </div>
-    </section>
+    <UiPageHeader>
+      <template #title>争议裁定</template>
+      <template #subtitle>管理员只处理最终裁定，不处理普通卖家动作。这里专门承接卖家拒绝后的争议收口，不再混进钱包后台或旧奖励后台。</template>
+    </UiPageHeader>
 
     <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
     <div v-else-if="loading" class="muted">正在加载争议…</div>
@@ -37,6 +34,7 @@ import { computed, onMounted, ref } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { adminResolveMarketDispute, listAdminMarketDisputes } from '../api/services/marketService'
 import { buildMarketState } from './marketState'
 

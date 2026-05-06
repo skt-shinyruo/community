@@ -11,6 +11,7 @@
     </UiCard>
 
     <UiEmpty v-if="!auth.isAdminOrModerator" type="error" class="analytics-state">无权限访问</UiEmpty>
+    <UiEmpty v-else-if="error" type="error" class="analytics-state">{{ error }}</UiEmpty>
 
     <div v-else class="analytics-layout">
       <UiCard class="analytics-filter-card">
@@ -84,6 +85,7 @@ const start = ref(today)
 const end = ref(today)
 
 const loading = ref(false)
+const error = ref('')
 const uResult = ref('-')
 const dResult = ref('-')
 
@@ -92,6 +94,7 @@ const dauResult = computed(() => dResult.value)
 
 async function query() {
   if (!auth.isAdminOrModerator) return
+  error.value = ''
   loading.value = true
   try {
     const [uvResp, dauResp] = await Promise.all([uv({ start: start.value, end: end.value }), dau({ start: start.value, end: end.value })])
@@ -99,6 +102,7 @@ async function query() {
     dResult.value = dauResp?.data ?? 0
     emit('trace', uvResp?.traceId || dauResp?.traceId || '')
   } catch (e) {
+    error.value = e?.message || '加载统计失败'
     uResult.value = '—'
     dResult.value = '—'
   } finally {

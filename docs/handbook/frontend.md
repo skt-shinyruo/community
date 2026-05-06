@@ -189,6 +189,8 @@ connect(accessToken)
 
 `frontend/src/components/ui/UiState.vue` 是 empty / loading / error / forbidden / unavailable / pending / development-only 的共享状态块，`UiEmpty.vue` 只是兼容包装层。`UiToolbar.vue` 是页面工具栏基础件，使用 leading / filters / actions 三个 slot 表达常见工作区操作结构。
 
+`/dev` 只保留给本地联调和 trace 检查，不应进入正常导航；如果页面需要展示调试辅助信息，应使用 `UiState` 的 `development` variant 显式标记，而不是把它伪装成普通业务内容。
+
 这些约定由 `frontend/src/styles/productTokens.test.js` 和 `frontend/src/views/viewComplexity.test.js` 约束，新增全局样式时不要绕过这些 guardrail。
 
 ## 用户可见一致性语义

@@ -1,57 +1,68 @@
 <template>
   <div class="page search-page">
+    <UiPageHeader>
+      <template #title>搜索</template>
+      <template #subtitle>输入关键词、分类和标签后查看结果。索引为最终一致，发帖或编辑后结果可能延迟数秒到数十秒；顶栏快捷键 {{ isMac ? '⌘' : 'Ctrl' }} K 可直接进入搜索。</template>
+    </UiPageHeader>
+
     <section class="search-workbench">
-      <div class="search-searchbar">
-        <UiInput
-          v-model.trim="keyword"
-          name="search-keyword"
-          placeholder="输入关键词…"
-          autocomplete="off"
-          @keydown.enter="onSearch"
-        />
-        <UiButton @click="onSearch" :disabled="loading" class="search-submit-btn">
-          {{ loading ? '搜索中…' : '搜索' }}
-        </UiButton>
-      </div>
+      <UiToolbar>
+        <template #leading>
+          <div class="search-searchbar">
+            <UiInput
+              v-model.trim="keyword"
+              name="search-keyword"
+              placeholder="输入关键词…"
+              autocomplete="off"
+              @keydown.enter="onSearch"
+            />
+            <UiButton @click="onSearch" :disabled="loading" class="search-submit-btn">
+              {{ loading ? '搜索中…' : '搜索' }}
+            </UiButton>
+          </div>
+        </template>
 
-      <div class="search-filters">
-        <UiSelect
-          name="search-category-filter"
-          class="search-select"
-          :disabled="loading"
-          :model-value="String(categoryId || '')"
-          aria-label="分类筛选"
-          :options="categoryOptions"
-          placeholder="全部分类"
-          @update:modelValue="replaceQuery({ categoryId: $event || '' })"
-        />
-
-        <div class="search-tag">
-          <UiAutosuggestInput
-            v-model.trim="tagDraft"
-            name="search-tag-filter"
-            placeholder="标签（可选）"
-            autocomplete="off"
+        <template #filters>
+          <UiSelect
+            name="search-category-filter"
+            class="search-select"
             :disabled="loading"
-            :suggestions="tagSuggestNames"
-            :commit-on-enter="false"
-            :commit-on-blur="true"
-            @keydown.enter="onSearch"
-            @commit="commitTag"
+            :model-value="String(categoryId || '')"
+            aria-label="分类筛选"
+            :options="categoryOptions"
+            placeholder="全部分类"
+            @update:modelValue="replaceQuery({ categoryId: $event || '' })"
           />
-        </div>
 
-        <UiButton variant="ghost" @click="clearFilters" :disabled="loading">清空筛选</UiButton>
-        <UiButton
-          v-if="auth.isAdmin"
-          variant="ghost"
-          class="search-reindex-btn"
-          @click="openReindexConfirm"
-          :disabled="loading"
-        >
-          {{ loading ? '处理中…' : '重建索引' }}
-        </UiButton>
-      </div>
+          <div class="search-tag">
+            <UiAutosuggestInput
+              v-model.trim="tagDraft"
+              name="search-tag-filter"
+              placeholder="标签（可选）"
+              autocomplete="off"
+              :disabled="loading"
+              :suggestions="tagSuggestNames"
+              :commit-on-enter="false"
+              :commit-on-blur="true"
+              @keydown.enter="onSearch"
+              @commit="commitTag"
+            />
+          </div>
+        </template>
+
+        <template #actions>
+          <UiButton variant="ghost" @click="clearFilters" :disabled="loading">清空筛选</UiButton>
+          <UiButton
+            v-if="auth.isAdmin"
+            variant="ghost"
+            class="search-reindex-btn"
+            @click="openReindexConfirm"
+            :disabled="loading"
+          >
+            {{ loading ? '处理中…' : '重建索引' }}
+          </UiButton>
+        </template>
+      </UiToolbar>
 
       <div class="search-toolbar-note">
         <div class="search-active-summary">
@@ -64,9 +75,7 @@
           <template v-else>尚未添加限定词，正在浏览全部讨论范围。</template>
         </div>
 
-        <div class="muted search-help">
-          顶栏快捷键 {{ isMac ? '⌘' : 'Ctrl' }} K 可直接进入搜索。索引为最终一致，发帖或编辑后结果可能延迟数秒到数十秒。
-        </div>
+        <div class="muted search-help">索引为最终一致，发帖或编辑后结果可能延迟数秒到数十秒。</div>
       </div>
     </section>
 
@@ -205,15 +214,17 @@
 	import { formatTimeAgo } from '../utils/time'
 	import { normalizeOpaqueId } from '../utils/opaqueId'
 	import UiAvatar from '../components/ui/UiAvatar.vue'
-	import { emOnlyHtml } from '../utils/highlight'
-	import { useTaxonomyStore } from '../stores/taxonomy'
-	import { applySearchHydration, applySearchSummaries, collectSearchHydrationIds, describeSearchActivity } from './searchResultSurface'
-	import { createLatestRequestTracker } from '../utils/latestRequest'
-		import UiAutosuggestInput from '../components/ui/UiAutosuggestInput.vue'
-		import UiInput from '../components/ui/UiInput.vue'
-	import UiButton from '../components/ui/UiButton.vue'
-	import UiEmpty from '../components/ui/UiEmpty.vue'
-	import UiSelect from '../components/ui/UiSelect.vue'
+import { emOnlyHtml } from '../utils/highlight'
+import { useTaxonomyStore } from '../stores/taxonomy'
+import { applySearchHydration, applySearchSummaries, collectSearchHydrationIds, describeSearchActivity } from './searchResultSurface'
+import { createLatestRequestTracker } from '../utils/latestRequest'
+import UiAutosuggestInput from '../components/ui/UiAutosuggestInput.vue'
+import UiInput from '../components/ui/UiInput.vue'
+import UiButton from '../components/ui/UiButton.vue'
+import UiEmpty from '../components/ui/UiEmpty.vue'
+import UiSelect from '../components/ui/UiSelect.vue'
+import UiPageHeader from '../components/ui/UiPageHeader.vue'
+import UiToolbar from '../components/ui/UiToolbar.vue'
 
 const emit = defineEmits(['trace'])
 const auth = useAuthStore()

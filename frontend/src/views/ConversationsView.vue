@@ -75,15 +75,16 @@ const error = ref('')
 const items = ref([])
 
 function formatTimeShort(ts) {
-   if (!ts) return ''
-   const d = new Date(ts)
-   const now = new Date()
-   const isToday = d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-   
-   if (isToday) {
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-   }
-   return d.toLocaleDateString()
+  if (!ts) return ''
+  const d = new Date(ts)
+  const now = new Date()
+  const isToday =
+    d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+
+  if (isToday) {
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
+  return d.toLocaleDateString()
 }
 
 async function load() {
@@ -107,15 +108,6 @@ onMounted(load)
   max-width: 960px;
   margin: 0 auto;
   gap: var(--space-5);
-}
-
-.conversations-hero-label,
-.conversations-eyebrow {
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-3);
-  font-weight: 700;
 }
 
 .conversations-banner {

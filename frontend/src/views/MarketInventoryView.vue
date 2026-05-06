@@ -5,62 +5,62 @@
     <UiEmpty v-if="error" type="error">{{ error }}</UiEmpty>
     <div v-else-if="loading" class="muted">正在加载库存…</div>
 
-    <UiCard v-else class="market-panel">
+    <template v-else>
       <UiPageHeader>
         <template #title>库存管理</template>
-        <template #subtitle>预存库存商品在这里维护卡密或兑换码，并及时失效不应继续出售的内容。</template>
+        <template #subtitle>预存库存商品在这里维护卡密或兑换码，并及时失效不应继续出售的内容。商品 ID：{{ route.params.listingId }}</template>
       </UiPageHeader>
 
-      <p class="market-note">商品 ID：{{ route.params.listingId }}</p>
+      <UiCard class="market-panel">
+        <div class="market-form-grid market-form-grid--wide">
+          <label class="market-field">
+            <span>内容类型</span>
+            <select v-model="payloadType" class="market-select">
+              <option value="CODE">兑换码</option>
+              <option value="TEXT">文本</option>
+              <option value="LINK">链接</option>
+            </select>
+          </label>
+          <label class="market-field">
+            <span>追加库存</span>
+            <textarea
+              v-model="inventoryText"
+              class="market-textarea"
+              placeholder="每行一条库存内容，例如一行一个兑换码"
+            />
+          </label>
+        </div>
 
-      <div class="market-form-grid market-form-grid--wide">
-        <label class="market-field">
-          <span>内容类型</span>
-          <select v-model="payloadType" class="market-select">
-            <option value="CODE">兑换码</option>
-            <option value="TEXT">文本</option>
-            <option value="LINK">链接</option>
-          </select>
-        </label>
-        <label class="market-field">
-          <span>追加库存</span>
-          <textarea
-            v-model="inventoryText"
-            class="market-textarea"
-            placeholder="每行一条库存内容，例如一行一个兑换码"
-          />
-        </label>
-      </div>
-
-      <div class="market-inline-actions">
-        <UiButton :disabled="submitting" @click="submitInventory">
-          {{ submitting ? '提交中…' : '追加库存' }}
-        </UiButton>
-        <span class="muted">{{ message }}</span>
-      </div>
-
-      <UiEmpty v-if="inventoryItems.length === 0">
-        暂无库存
-        <template #description>提交新的卡密或兑换码后，这里会显示库存状态和失效动作。</template>
-      </UiEmpty>
-
-      <div v-else class="market-order-list">
-        <article v-for="item in inventoryItems" :key="item.inventoryUnitId" class="market-order-row">
-          <div>
-            <strong>{{ item.payloadContent }}</strong>
-            <p>{{ item.payloadType }} · {{ item.status }}</p>
-          </div>
-          <UiButton
-            v-if="item.status === 'AVAILABLE'"
-            variant="secondary"
-            :disabled="submitting"
-            @click="invalidateItem(item.inventoryUnitId)"
-          >
-            失效
+        <div class="market-inline-actions">
+          <UiButton :disabled="submitting" @click="submitInventory">
+            {{ submitting ? '提交中…' : '追加库存' }}
           </UiButton>
-        </article>
-      </div>
-    </UiCard>
+          <span class="muted">{{ message }}</span>
+        </div>
+
+        <UiEmpty v-if="inventoryItems.length === 0">
+          暂无库存
+          <template #description>提交新的卡密或兑换码后，这里会显示库存状态和失效动作。</template>
+        </UiEmpty>
+
+        <div v-else class="market-order-list">
+          <article v-for="item in inventoryItems" :key="item.inventoryUnitId" class="market-order-row">
+            <div>
+              <strong>{{ item.payloadContent }}</strong>
+              <p>{{ item.payloadType }} · {{ item.status }}</p>
+            </div>
+            <UiButton
+              v-if="item.status === 'AVAILABLE'"
+              variant="secondary"
+              :disabled="submitting"
+              @click="invalidateItem(item.inventoryUnitId)"
+            >
+              失效
+            </UiButton>
+          </article>
+        </div>
+      </UiCard>
+    </template>
   </div>
 </template>
 

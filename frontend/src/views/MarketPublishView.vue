@@ -2,13 +2,10 @@
   <div class="page market-page">
     <UiBreadcrumb />
 
-    <section class="market-hero market-hero--compact">
-      <div>
-        <span class="market-kicker">卖家发布</span>
-        <h1>先决定商品类型，再填履约字段</h1>
-        <p>虚拟商品继续区分自动交付和手工交付；实物商品只保留最小必填的库存与描述。</p>
-      </div>
-    </section>
+    <UiPageHeader>
+      <template #title>发布商品</template>
+      <template #subtitle>先决定商品类型，再填履约字段。虚拟商品继续区分自动交付和手工交付；实物商品只保留最小必填的库存与描述。</template>
+    </UiPageHeader>
 
     <UiCard class="market-panel">
       <UiPageHeader>

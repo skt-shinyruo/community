@@ -102,12 +102,12 @@
         <RouterLink to="/posts" class="muted">返回社区</RouterLink>
       </div>
 
-      <div class="auth-debug-block">
-        <template v-if="flow.debugEmailCode">
-          <div class="auth-debug-title">开发/测试验证码</div>
-          <div class="muted auth-debug-link">{{ flow.debugEmailCode }}</div>
-        </template>
-      </div>
+      <UiState
+        v-if="flow.debugEmailCode"
+        variant="development"
+        title="开发 / 测试验证码"
+        :description="flow.debugEmailCode"
+      />
     </div>
   </UiCard>
 </template>
@@ -123,6 +123,7 @@ import UiCard from '../components/ui/UiCard.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
+import UiState from '../components/ui/UiState.vue'
 
 const emit = defineEmits(['trace'])
 const route = useRoute()
@@ -393,18 +394,4 @@ onMounted(refreshCaptcha)
   font-weight: 800;
 }
 
-.auth-debug-block {
-  display: grid;
-  gap: 10px;
-}
-
-.auth-debug-title {
-  font-weight: 800;
-  font-size: 13px;
-}
-
-.auth-debug-link {
-  word-break: break-all;
-  font-size: 12px;
-}
 </style>

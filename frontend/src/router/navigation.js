@@ -104,11 +104,11 @@ export const POSTS_ORDER_OPTIONS = Object.freeze([
   { key: POSTS_ORDER.HOT, label: '热门' }
 ])
 
-// 导航 SSOT：侧边抽屉承载主导航，移动端底栏只承载快速入口。
+// 导航 SSOT：侧边抽屉承载产品工作区，移动端底栏只承载高频入口。
 const NAV_DEFS = Object.freeze([
   {
-    key: 'explore',
-    title: '探索',
+    key: 'community',
+    title: '社区',
     items: [
       {
         key: 'posts',
@@ -125,25 +125,50 @@ const NAV_DEFS = Object.freeze([
         activeNames: ['search']
       },
       {
+        key: 'bookmarks',
+        label: '收藏',
+        icon: 'bookmark',
+        requiresAuth: true,
+        to: () => ({ name: 'bookmarks' }),
+        activeNames: ['bookmarks']
+      },
+      {
+        key: 'profile',
+        label: '我的主页',
+        icon: 'user',
+        requiresAuth: true,
+        requiresUserId: true,
+        to: (ctx) => ({ name: 'userProfile', params: { userId: String(ctx?.userId || '') } }),
+        activeNames: ['userProfile', 'followees', 'followers']
+      }
+    ]
+  },
+  {
+    key: 'trading',
+    title: '交易',
+    items: [
+      {
         key: 'market',
         label: '市场',
         icon: 'sparkle',
         to: () => ({ name: 'market' }),
         activeNames: ['market', 'marketDetail']
-      }
-    ]
-  },
-  {
-    key: 'me',
-    title: '我的',
-    items: [
+      },
       {
-        key: 'wallet',
-        label: '积分钱包',
-        icon: 'sparkle',
+        key: 'marketPublish',
+        label: '发布商品',
+        icon: 'posts',
         requiresAuth: true,
-        to: () => ({ name: 'wallet' }),
-        activeNames: ['wallet']
+        to: () => ({ name: 'marketPublish' }),
+        activeNames: ['marketPublish']
+      },
+      {
+        key: 'marketMyListings',
+        label: '我的出售',
+        icon: 'analytics',
+        requiresAuth: true,
+        to: () => ({ name: 'marketMyListings' }),
+        activeNames: ['marketMyListings', 'marketInventory']
       },
       {
         key: 'marketBuying',
@@ -155,11 +180,11 @@ const NAV_DEFS = Object.freeze([
       },
       {
         key: 'marketSelling',
-        label: '我的出售',
+        label: '出售订单',
         icon: 'analytics',
         requiresAuth: true,
         to: () => ({ name: 'marketSellingOrders' }),
-        activeNames: ['marketSellingOrders', 'marketPublish', 'marketMyListings', 'marketInventory']
+        activeNames: ['marketSellingOrders', 'marketOrderDetail']
       },
       {
         key: 'marketAddresses',
@@ -168,14 +193,20 @@ const NAV_DEFS = Object.freeze([
         requiresAuth: true,
         to: () => ({ name: 'marketAddresses' }),
         activeNames: ['marketAddresses']
-      },
+      }
+    ]
+  },
+  {
+    key: 'personal',
+    title: '个人',
+    items: [
       {
-        key: 'bookmarks',
-        label: '收藏',
-        icon: 'bookmark',
+        key: 'wallet',
+        label: '积分钱包',
+        icon: 'sparkle',
         requiresAuth: true,
-        to: () => ({ name: 'bookmarks' }),
-        activeNames: ['bookmarks']
+        to: () => ({ name: 'wallet' }),
+        activeNames: ['wallet']
       },
       {
         key: 'notices',
@@ -192,15 +223,6 @@ const NAV_DEFS = Object.freeze([
         requiresAuth: true,
         to: () => ({ name: 'messages' }),
         activeNames: ['messages', 'messageDetail']
-      },
-      {
-        key: 'profile',
-        label: '我的主页',
-        icon: 'user',
-        requiresAuth: true,
-        requiresUserId: true,
-        to: (ctx) => ({ name: 'userProfile', params: { userId: String(ctx?.userId || '') } }),
-        activeNames: ['userProfile', 'followees', 'followers']
       },
       {
         key: 'settings',
@@ -235,6 +257,15 @@ const NAV_DEFS = Object.freeze([
         activeNames: ['analytics']
       },
       {
+        key: 'userManagement',
+        label: '用户管理',
+        icon: 'user',
+        requiresAuth: true,
+        roles: ['ROLE_ADMIN'],
+        to: () => ({ name: 'userManagement' }),
+        activeNames: ['userManagement']
+      },
+      {
         key: 'walletAdmin',
         label: '钱包后台',
         icon: 'analytics',
@@ -251,11 +282,20 @@ const NAV_DEFS = Object.freeze([
         roles: ['ROLE_ADMIN'],
         to: () => ({ name: 'adminMarketDisputes' }),
         activeNames: ['adminMarketDisputes']
+      },
+      {
+        key: 'opsConsole',
+        label: '运维控制台',
+        icon: 'settings',
+        requiresAuth: true,
+        roles: ['ROLE_ADMIN'],
+        to: () => ({ name: 'opsConsole' }),
+        activeNames: ['opsConsole']
       }
     ]
   },
   {
-    key: 'auth',
+    key: 'account',
     title: '账户',
     items: [
       {
@@ -314,9 +354,10 @@ function collectActiveNames(items) {
 
 export function getMobileNavigation(ctx = {}) {
   const groups = getSidebarNavigation(ctx)
-  const meGroup = groups.find((group) => group?.key === 'me') || null
-  const meGroupDef = findNavGroupDef('me')
-  const authGroupDef = findNavGroupDef('auth')
+  const communityGroupDef = findNavGroupDef('community')
+  const personalGroupDef = findNavGroupDef('personal')
+  const adminGroupDef = findNavGroupDef('admin')
+  const accountGroupDef = findNavGroupDef('account')
   const posts = findNavItem(groups, 'posts') || {
     key: 'posts',
     label: '帖子',
@@ -331,38 +372,33 @@ export function getMobileNavigation(ctx = {}) {
     to: { name: 'search' },
     activeNames: ['search']
   }
-  const wallet = findNavItem(groups, 'wallet') || {
-    key: 'wallet',
-    label: '积分钱包',
+  const market = findNavItem(groups, 'market') || {
+    key: 'market',
+    label: '市场',
     icon: 'sparkle',
-    to: { name: 'wallet' },
-    activeNames: ['wallet']
+    to: { name: 'market' },
+    activeNames: ['market', 'marketDetail']
   }
   const profile = findNavItem(groups, 'profile')
   const login = findNavItem(groups, 'login')
-  const firstMeItem = Array.isArray(meGroup?.items) ? meGroup.items[0] || null : null
+  const personalGroup = groups.find((group) => group?.key === 'personal') || null
+  const firstPersonalItem = Array.isArray(personalGroup?.items) ? personalGroup.items[0] || null : null
   const meActiveNames = collectActiveNames([
-    ...(((meGroupDef && meGroupDef.items) || []).filter((item) => item?.key !== 'wallet')),
-    ...((authGroupDef && authGroupDef.items) || [])
+    ...(((communityGroupDef && communityGroupDef.items) || []).filter((item) => item?.key === 'profile')),
+    ...((personalGroupDef && personalGroupDef.items) || []),
+    ...((accountGroupDef && accountGroupDef.items) || []),
+    ...(((adminGroupDef && adminGroupDef.items) || []).filter((item) => item?.key === 'userManagement'))
   ])
-  const moreActiveNames = collectActiveNames([wallet])
 
   const me = {
     key: 'me',
     label: '我',
     icon: 'user',
-    to: profile?.to || firstMeItem?.to || login?.to || { name: 'login' },
+    to: profile?.to || firstPersonalItem?.to || login?.to || { name: 'login' },
     activeNames: meActiveNames
   }
-  const more = {
-    key: 'more',
-    label: '钱包',
-    icon: 'more',
-    to: wallet.to || { name: 'wallet' },
-    activeNames: moreActiveNames
-  }
 
-  return [posts, search, me, more]
+  return [posts, search, market, me]
 }
 
 export function getBreadcrumbItems(route) {

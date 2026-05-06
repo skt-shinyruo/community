@@ -39,32 +39,51 @@
       </template>
 
       <template v-else>
-        <div class="verify-block">
-          <div class="verify-title">输入邮箱验证码</div>
-          <div class="muted">
-            验证码已发送至 {{ flow.maskedEmail || '你的邮箱' }}，输入后将直接登录。
+        <section class="verify-main">
+          <div class="verify-block">
+            <div class="verify-title">输入邮箱验证码</div>
+            <div class="muted">
+              验证码已发送至 {{ flow.maskedEmail || '你的邮箱' }}，输入后即可完成注册并登录。
+            </div>
           </div>
-        </div>
 
-        <div class="auth-field">
-          <div class="field-label">邮箱验证码</div>
-          <UiInput v-model.trim="form.emailCode" placeholder="请输入邮箱验证码" autocomplete="one-time-code" />
-        </div>
-
-        <div class="auth-field">
-          <div class="field-label">重发图形验证码</div>
-          <div class="row captcha-row">
-            <UiInput v-model.trim="form.captcha" placeholder="重新发送前请输入图形验证码" autocomplete="off" class="captcha-input" />
-            <img
-              v-if="captchaSrc"
-              :src="captchaSrc"
-              alt="验证码"
-              title="点击刷新验证码"
-              class="captcha-img"
-              @click="refreshCaptcha"
-            />
+          <div class="auth-field">
+            <div class="field-label">邮箱验证码</div>
+            <UiInput v-model.trim="form.emailCode" placeholder="请输入邮箱验证码" autocomplete="one-time-code" />
           </div>
-        </div>
+
+          <UiButton @click="onVerifyCode" :disabled="loading" class="auth-submit-btn">
+            {{ loading ? '验证中…' : '验证并登录' }}
+          </UiButton>
+        </section>
+
+        <section class="verify-resend">
+          <div class="verify-resend-head">
+            <div class="verify-section-title">重新发送验证码</div>
+            <div class="muted">
+              如果没收到邮件，先完成下面的图形验证码，再点击重新发送。
+            </div>
+          </div>
+
+          <div class="auth-field">
+            <div class="field-label">图形验证码（重发用）</div>
+            <div class="row captcha-row">
+              <UiInput v-model.trim="form.captcha" placeholder="请输入重发所需的图形验证码" autocomplete="off" class="captcha-input" />
+              <img
+                v-if="captchaSrc"
+                :src="captchaSrc"
+                alt="验证码"
+                title="点击刷新验证码"
+                class="captcha-img"
+                @click="refreshCaptcha"
+              />
+            </div>
+          </div>
+
+          <UiButton variant="secondary" @click="onResendCode" :disabled="loading">
+            {{ loading ? '发送中…' : '重新发送验证码' }}
+          </UiButton>
+        </section>
       </template>
 
       <div v-if="error" class="error">{{ error }}</div>
@@ -74,17 +93,6 @@
         <UiButton @click="onRegister" :disabled="loading" class="auth-submit-btn">
           {{ loading ? '注册中…' : '注册' }}
         </UiButton>
-      </template>
-
-      <template v-else>
-        <div class="verify-actions">
-          <UiButton @click="onVerifyCode" :disabled="loading" class="auth-submit-btn">
-            {{ loading ? '验证中…' : '验证并登录' }}
-          </UiButton>
-          <UiButton variant="secondary" @click="onResendCode" :disabled="loading">
-            {{ loading ? '发送中…' : '重新发送验证码' }}
-          </UiButton>
-        </div>
       </template>
 
       <div class="row auth-links">
@@ -306,6 +314,11 @@ onMounted(refreshCaptcha)
   gap: 14px;
 }
 
+.verify-main {
+  display: grid;
+  gap: 12px;
+}
+
 .auth-field {
   display: grid;
   gap: 8px;
@@ -358,19 +371,26 @@ onMounted(refreshCaptcha)
 .verify-block {
   display: grid;
   gap: 8px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--surface) 88%, var(--bg) 12%);
 }
 
 .verify-title {
   font-weight: 800;
 }
 
-.verify-actions {
+.verify-resend {
   display: grid;
   gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.verify-resend-head {
+  display: grid;
+  gap: 8px;
+}
+
+.verify-section-title {
+  font-weight: 800;
 }
 
 .auth-debug-block {

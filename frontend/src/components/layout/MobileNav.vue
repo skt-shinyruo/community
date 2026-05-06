@@ -1,4 +1,4 @@
-<!-- MobileNav：移动端主导航（固定 Posts / Search / Me / More）。 -->
+<!-- MobileNav：移动端主导航（固定 Posts / Search / Market / Me）。 -->
 <template>
   <nav class="mobile-nav" aria-label="移动端主导航">
     <RouterLink
@@ -59,6 +59,18 @@
         >
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
           <circle cx="12" cy="7" r="4" />
+        </svg>
+
+        <svg
+          v-else-if="item.icon === 'sparkle' || item.key === 'market'"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M12 2l2.2 6.8H21l-5.6 4.1 2.1 7-5.5-4-5.5 4 2.1-7L3 8.8h6.8z" />
         </svg>
 
         <svg

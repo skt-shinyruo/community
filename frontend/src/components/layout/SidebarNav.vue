@@ -247,7 +247,7 @@
   </div>
 
   <!-- Mobile Overlay -->
-  <div class="sidebar-overlay" :class="{ open: !ui.sidebarCollapsed }" @click="ui.setSidebarCollapsed(true)"></div>
+  <div class="sidebar-overlay" :class="{ open: ui.mobileSidebarOpen }" @click="ui.closeMobileSidebar"></div>
 </template>
 
 <script setup>
@@ -283,6 +283,6 @@ function isMobileViewport() {
 
 function onNavClick() {
   if (!isMobileViewport()) return
-  ui.setSidebarCollapsed(true)
+  ui.closeMobileSidebar()
 }
 </script>

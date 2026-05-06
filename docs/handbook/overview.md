@@ -15,7 +15,7 @@
   - `im-realtime`：WebSocket 接入、在线连接、Kafka command 生产、在线推送。
   - `im-core`：消息持久化、历史查询、未读状态、房间和成员权威状态。
 - `backend/community-common/*`：共享错误协议、trace、JWT、安全、HTTP 幂等、outbox、Web 基础设施。
-- `deploy/`：single / cluster 两套本地拓扑和可选 observability overlay。
+- `deploy/`：single / cluster 两套本地拓扑和默认启用的 observability overlay。
 
 默认本地浏览器入口：
 

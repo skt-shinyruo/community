@@ -11,7 +11,7 @@
 - `backend/community-app`：主业务 owner，是按包边界治理的 package-scoped monolith。
 - `backend/community-im`：IM 聚合模块，包含 `im-common`、`im-core`、`im-realtime`。
 - `backend/community-common/*`：共享 Web、安全、幂等、outbox、错误协议、trace 等横切能力。
-- `deploy/`：本地 single / cluster 拓扑和可选 observability overlay。
+- `deploy/`：本地 single / cluster 拓扑和默认启用的 observability overlay。
 
 默认对外业务入口为 `community-gateway`，本地通过 NGINX / gateway 暴露在 `12880`。对外 API 前缀稳定为 `/api/**`，静态文件前缀稳定为 `/files/**`，IM WebSocket 前缀稳定为 `/ws/im`；session bootstrap 由 `community-im-gateway` 负责，返回稳定的 `/ws/im`，worker 选择和内部桥接对客户端不可见。
 
@@ -207,7 +207,8 @@ owner domain event
 - `single`：单机开发拓扑。
 - `cluster`：本地多副本 / 集群演练拓扑。
 - `--scope infra`：只启动基础设施，便于 IDE 启动业务服务。
-- `--observability`：叠加 Elasticsearch localhost 入口、Kibana、EDOT collector。
+- `--observability`：显式启用 Elasticsearch localhost 入口、Kibana、EDOT collector（默认已启用）。
+- `--no-observability`：关闭 observability overlay。
 
 运行命令和端口见 [local-development.md](local-development.md)，观测和排障见 [operations.md](operations.md)。
 

@@ -17,7 +17,7 @@
 - 查看状态：`./deploy/deployment.sh ps --topology single`
 - 查看日志：`./deploy/deployment.sh logs --topology cluster community-gateway-1`
 - 渲染配置：`./deploy/deployment.sh config --topology single --env-file deploy/.env.single.example`
-- 追加观测层：`./deploy/deployment.sh up --topology cluster --observability`
+- 关闭观测层：`./deploy/deployment.sh up --topology cluster --no-observability`
 
 默认 compose project name：
 
@@ -60,7 +60,7 @@
 - `nginx/nginx.cluster.conf`
   拓扑专属 ingress upstream
 - `compose.observability.yml`
-  可选 observability overlay
+  默认启用的 observability overlay
 
 ## 快速开始
 
@@ -117,21 +117,34 @@
 ## 停止与清理
 
 - 停止：`./deploy/deployment.sh down --topology single`
-- 完全重置：`./deploy/deployment.sh down --topology cluster -v`
+- 完全重置：`./deploy/deployment.sh down --topology cluster -- -v`
 
-如果你启动时叠加了 `--observability`，停止时也请带上相同参数组合。
+`-v` 是传给 `docker compose down` 的参数，要放在 `--` 后面。默认项目名是 `community-single` / `community-cluster`，对应的 MySQL 数据卷名分别是 `community-single_mysql_primary_data` / `community-cluster_mysql_primary_data`。
+
+如果你启动时带了 `--no-observability`，停止时也请带上相同参数组合。
 
 ## 观测层
 
-两套拓扑都能追加 observability：
+两套拓扑默认都会启用 observability：
 
 - `./deploy/deployment.sh up --topology single --observability`
 - `./deploy/deployment.sh up --topology cluster --observability`
 
-带 `--observability` 时，后端服务默认开启 OTel tracing。普通启动不启用 OTel。需要关闭观测 overlay 下的 tracing 时，在命令前显式设置：
+普通启动会加载 `deploy/compose.observability.yml`，并默认开启后端 OTel tracing：
+
+- `./deploy/deployment.sh up --topology single`
+- `./deploy/deployment.sh up --topology cluster`
+
+`--observability` 保留为显式启用/兼容写法。需要关闭整个观测 overlay 时使用：
 
 ```bash
-OTEL_ENABLED=false ./deploy/deployment.sh up --topology single --observability
+./deploy/deployment.sh up --topology single --no-observability
+```
+
+如需保留观测 overlay 但临时关闭 tracing，在命令前显式设置：
+
+```bash
+OTEL_ENABLED=false ./deploy/deployment.sh up --topology single
 ```
 
 默认端口：

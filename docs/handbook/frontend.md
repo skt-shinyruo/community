@@ -43,7 +43,8 @@ protected route
 
 `frontend/src/router/navigation.js` 是导航 SSOT，包含：
 
-- 侧边栏 / 移动端导航项。
+- Community / Trading / Personal / Admin / Account 工作区导航分组。
+- 侧边栏、移动端底栏和 shell search 的 route 级可见性。
 - 角色、登录态、用户 id 的前端可见性判断。
 - posts 列表的 `order`、`type`、`categoryId`、`tag`、`subscribed` query 规范化和构造。
 
@@ -52,6 +53,10 @@ protected route
 1. `router/index.js` 注册 route 和权限 `meta`。
 2. `router/navigation.js` 决定是否进入导航。
 3. 对应 `*.test.js` 覆盖 route / nav / auth guard 行为。
+
+## 产品壳层和移动导航
+
+`frontend/src/components/layout/AppShell.vue` 负责桌面 workspace shell，`SidebarNav.vue` 渲染工作区分组，`Topbar.vue` 渲染页面标题、账户控制和 route-aware shell search，`MobileNav.vue` 只承载高频移动入口。移动端 sidebar drawer 状态与桌面 collapsed 偏好分离，避免 sidebar 和 bottom nav 同时作为持久导航出现。
 
 ## 会话恢复
 
@@ -167,7 +172,7 @@ connect(accessToken)
 | --- | --- | --- |
 | Auth | `frontend/src/stores/auth.js` | access token、`me`、authorities、session hint 写入 / 清理。 |
 | App | `frontend/src/stores/app.js` | 当前 trace id 等应用级状态。 |
-| UI | `frontend/src/stores/ui.js` | theme、density、sidebar localStorage 偏好。 |
+| UI | `frontend/src/stores/ui.js` | theme、density、桌面 sidebar collapsed 偏好、移动 sidebar drawer 临时状态。 |
 | Taxonomy | `frontend/src/stores/taxonomy.js` | 分类和热门标签轻缓存。 |
 | Post Meta Cache | `frontend/src/stores/postMetaCache.js` | 用户摘要、点赞数、点赞状态 TTL 缓存。 |
 | Social Prefs | `frontend/src/stores/socialPrefs.js` | 拉黑和订阅分类读侧状态。 |
@@ -177,6 +182,14 @@ connect(accessToken)
 - 用户摘要缓存 60 秒。
 - 点赞计数 / 状态缓存 30 秒。
 - 点赞状态与登录态相关，auth 变化后应清理。
+
+## 产品 UI 基础件
+
+`frontend/src/styles/variables.css`、`components.css` 和 `layout.css` 提供克制的产品默认样式。通用 `.card` 默认不带装饰性 hover lift 或大阴影；需要对象卡片强调时显式使用 `.object-card`。
+
+`frontend/src/components/ui/UiState.vue` 是 empty / loading / error / forbidden / unavailable / pending / development-only 的共享状态块，`UiEmpty.vue` 只是兼容包装层。`UiToolbar.vue` 是页面工具栏基础件，使用 leading / filters / actions 三个 slot 表达常见工作区操作结构。
+
+这些约定由 `frontend/src/styles/productTokens.test.js` 和 `frontend/src/views/viewComplexity.test.js` 约束，新增全局样式时不要绕过这些 guardrail。
 
 ## 用户可见一致性语义
 

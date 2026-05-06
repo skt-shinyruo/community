@@ -16,19 +16,20 @@ Commands:
 Options:
   --topology <single|cluster>  Choose topology (default: cluster)
   --scope <full|infra>         Choose compose scope (default: full)
-  --observability     Add deploy/compose.observability.yml
+  --observability     Enable deploy/compose.observability.yml (default)
+  --no-observability  Disable deploy/compose.observability.yml
   --env-file <path>   Override env file path (default: deploy/.env.single or deploy/.env.cluster)
   -p, --project-name  Override compose project name (default: community-single or community-cluster)
   -h, --help          Show this help
 
 Examples:
   ./deploy/deployment.sh up
+  ./deploy/deployment.sh up --no-observability
   ./deploy/deployment.sh up --topology single
   ./deploy/deployment.sh up --topology single --scope infra
-  ./deploy/deployment.sh up --observability
   ./deploy/deployment.sh up --topology cluster -p community-cluster-smoke
-  ./deploy/deployment.sh logs --observability community-app-1
-  ./deploy/deployment.sh down --observability
+  ./deploy/deployment.sh logs --no-observability community-app-1
+  ./deploy/deployment.sh down --no-observability
   ./deploy/deployment.sh config --topology single
 EOF
 }
@@ -135,7 +136,7 @@ fi
 COMMAND="$1"
 shift
 
-ELASTIC=0
+OBSERVABILITY=1
 TOPOLOGY="cluster"
 SCOPE="full"
 ENV_FILE=""
@@ -153,7 +154,10 @@ while [ "$#" -gt 0 ]; do
       exit 1
       ;;
     --observability)
-      ELASTIC=1
+      OBSERVABILITY=1
+      ;;
+    --no-observability)
+      OBSERVABILITY=0
       ;;
     --topology)
       if [ "$#" -lt 2 ]; then
@@ -268,12 +272,16 @@ fi
 COMPOSE_FILES=(deploy/compose.yml)
 append_topology_files
 
-if [ "${ELASTIC}" -eq 1 ]; then
+if [ "${OBSERVABILITY}" -eq 1 ]; then
   COMPOSE_FILES+=(deploy/compose.observability.yml)
 fi
 
-if [ "${ELASTIC}" -eq 1 ] && [ -z "${OTEL_ENABLED+x}" ]; then
+if [ "${OBSERVABILITY}" -eq 1 ] && [ -z "${OTEL_ENABLED+x}" ]; then
   export OTEL_ENABLED=true
+fi
+
+if [ "${OBSERVABILITY}" -eq 0 ]; then
+  export OTEL_ENABLED=false
 fi
 
 COMPOSE_CMD=(docker compose --env-file "${ENV_FILE}" -p "${PROJECT_NAME}")

@@ -19,6 +19,7 @@ services:
     - --default-time-zone=+00:00
     volumes:
     - mysql_primary_data:/var/lib/mysql
+    - ./mysql/conf/mysql-client.cnf:/etc/mysql/conf.d/mysql-client.cnf:ro
     - ./mysql/primary-init/001_create_databases.sh:/docker-entrypoint-initdb.d/001_create_databases.sh:ro
     - ./mysql/community/010_schema_shared.sql:/docker-entrypoint-initdb.d/010_schema_shared.sql:ro
     - ./mysql/community/011_schema_demo_metadata.sql:/docker-entrypoint-initdb.d/011_schema_demo_metadata.sql:ro

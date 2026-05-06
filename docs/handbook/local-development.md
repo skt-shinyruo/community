@@ -7,7 +7,7 @@
 统一使用：
 
 ```bash
-./deploy/deployment.sh <command> [--topology single|cluster] [--scope full|infra] [--observability]
+./deploy/deployment.sh <command> [--topology single|cluster] [--scope full|infra] [--no-observability]
 ```
 
 常用命令：
@@ -25,6 +25,7 @@
 
 - `--topology cluster`
 - `--scope full`
+- observability overlay 默认启用，使用 `--no-observability` 关闭
 - project name：`community-single` 或 `community-cluster`
 
 ## 环境文件
@@ -114,17 +115,23 @@ cp deploy/.env.cluster.example deploy/.env.cluster
 
 ## Observability Overlay
 
-single / cluster 都可以叠加 observability：
+single / cluster 默认都会启用 observability：
 
 ```bash
-./deploy/deployment.sh up --topology single --observability
-./deploy/deployment.sh up --topology cluster --observability
+./deploy/deployment.sh up --topology single
+./deploy/deployment.sh up --topology cluster
 ```
 
-带 `--observability` 时，后端服务默认开启 OTel tracing。普通启动不启用 OTel。需要关闭观测 overlay 下的 tracing 时，在命令前显式设置：
+`--observability` 保留为显式启用/兼容写法。需要关闭整个观测 overlay 时使用：
 
 ```bash
-OTEL_ENABLED=false ./deploy/deployment.sh up --topology single --observability
+./deploy/deployment.sh up --topology single --no-observability
+```
+
+如需保留观测 overlay 但临时关闭 tracing，在命令前显式设置：
+
+```bash
+OTEL_ENABLED=false ./deploy/deployment.sh up --topology single
 ```
 
 该 overlay 提供：
@@ -199,7 +206,7 @@ git diff --check -- docs/handbook
 - `deploy/compose.runtime.services.single.yml` / `deploy/compose.runtime.services.cluster.yml`：业务 runtime。
 - `deploy/compose.runtime.frontend-nginx.single.yml` / `deploy/compose.runtime.frontend-nginx.cluster.yml`：前端与入口。
 - `deploy/compose.runtime.mock-data-studio.single.yml` / `deploy/compose.runtime.mock-data-studio.cluster.yml`：Mock Data Studio wiring。
-- `deploy/compose.observability.yml`：可选观测层。
+- `deploy/compose.observability.yml`：默认启用的观测层。
 
 ## 停止与重置
 
@@ -213,11 +220,13 @@ git diff --check -- docs/handbook
 删除数据卷：
 
 ```bash
-./deploy/deployment.sh down --topology single -v
-./deploy/deployment.sh down --topology cluster -v
+./deploy/deployment.sh down --topology single -- -v
+./deploy/deployment.sh down --topology cluster -- -v
 ```
 
-如果启动时带了 `--observability`，停止时也带上同一组选项。
+如果启动时带了 `--no-observability`，停止时也带上同一组选项。
+`-v` 是透传给 `docker compose down` 的参数，要放在 `--` 后面。
+默认项目名为 `community-single` / `community-cluster`，对应的数据卷分别是 `community-single_mysql_primary_data` / `community-cluster_mysql_primary_data`。
 
 Kafka 长时间 `health: starting` 且刚从旧拓扑切换时，优先执行带 `-v` 的 down 后重启。
 

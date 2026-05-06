@@ -13,9 +13,11 @@ deploy/compose.observability.yml
 启动：
 
 ```bash
-./deploy/deployment.sh up --topology single --observability
-./deploy/deployment.sh up --topology cluster --observability
+./deploy/deployment.sh up --topology single
+./deploy/deployment.sh up --topology cluster
 ```
+
+observability 默认启用；如需关闭整个 overlay，追加 `--no-observability`。
 
 默认端口：
 
@@ -35,9 +37,10 @@ backend structured JSON file appender
 traces / metrics：
 
 - 继续通过 OTLP -> EDOT collector -> Elastic。
-- 普通启动默认 `OTEL_ENABLED=false`。
-- 使用 `--observability` 时，`deployment.sh` 默认设置 `OTEL_ENABLED=true`，后端服务会加载 OTel Java agent。
-- 如需在 observability overlay 下临时关闭 tracing，使用 `OTEL_ENABLED=false ./deploy/deployment.sh up --topology single --observability`。
+- 普通启动默认加载 observability overlay，并由 `deployment.sh` 设置 `OTEL_ENABLED=true`，后端服务会加载 OTel Java agent。
+- `--observability` 保留为显式启用/兼容写法。
+- 如需关闭整个 overlay，使用 `./deploy/deployment.sh up --topology single --no-observability`。
+- 如需保留 observability overlay 但临时关闭 tracing，使用 `OTEL_ENABLED=false ./deploy/deployment.sh up --topology single`。
 
 Kibana saved objects：
 
@@ -236,15 +239,16 @@ curl -fsS "http://localhost:18848/nacos/v1/ns/instance/list?serviceName=im-realt
 如果是旧拓扑残留数据，执行：
 
 ```bash
-./deploy/deployment.sh down --topology cluster -v
+./deploy/deployment.sh down --topology cluster -- -v
 ./deploy/deployment.sh up --topology cluster
 ```
+`-v` 要放在 `--` 后面，才会被透传给 `docker compose down`。默认项目名是 `community-cluster`，所以 MySQL 数据卷名是 `community-cluster_mysql_primary_data`。
 
 ### Kibana 没有日志
 
 检查：
 
-- 启动命令是否带 `--observability`。
+- 启动命令是否没有带 `--no-observability`。
 - backend 是否写入 shared `observability_logs` volume。
 - EDOT collector 是否正常运行。
 - Kibana saved objects 是否已导入。

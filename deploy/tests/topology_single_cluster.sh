@@ -27,10 +27,12 @@ trap 'rm -f "${single_infra}" "${single_full}" "${cluster_infra}" "${cluster_ful
 grep -F 'name: community-single' "${single_infra}"
 grep -E '^  mysql:$' "${single_infra}"
 grep -E '^  community-gateway:$' "${single_full}"
+grep -E 'KAFKA_TOPIC_REPLICATION_FACTOR: "?1"?' "${single_infra}"
 
 grep -F 'name: community-cluster' "${cluster_infra}"
 grep -E '^  mysql-primary:$' "${cluster_infra}"
 grep -E '^  community-gateway-1:$' "${cluster_full}"
+grep -E 'KAFKA_TOPIC_REPLICATION_FACTOR: "?3"?' "${cluster_infra}"
 
 if ./deploy/deployment.sh config --topology dev --scope infra --env-file deploy/.env.single.example >/dev/null 2>"${dev_err}"; then
   echo "expected old topology dev to fail" >&2

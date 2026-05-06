@@ -6,7 +6,7 @@
         class="topbar-menu-btn"
         aria-label="折叠或展开侧边栏"
         title="折叠/展开侧边栏"
-        @click="ui.toggleSidebar"
+        @click="onMenuClick"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
       </UiIconButton>
@@ -81,6 +81,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useUiStore } from '../../stores/ui'
 import http from '../../api/http'
+import { routeSupportsShellSearch } from '../../router/navigation'
 import TopbarSearchBox from '../scene/TopbarSearchBox.vue'
 import UiAvatar from '../ui/UiAvatar.vue'
 import UiButton from '../ui/UiButton.vue'
@@ -117,7 +118,9 @@ const title = computed(() => {
 const subtitle = computed(() => resolveMetaText(route.meta?.subtitle))
 
 const modeEyebrow = computed(() => (props.mode === 'admin' ? 'Operations Desk' : 'Discussion Workspace'))
-const showShellSearch = computed(() => props.mode === 'public' && desktopSearchVisible.value)
+const showShellSearch = computed(
+  () => props.mode !== 'admin' && desktopSearchVisible.value && routeSupportsShellSearch(route.name)
+)
 
 async function onLogout() {
   try {
@@ -152,6 +155,14 @@ function toggleDensity() {
 function toggleTheme() {
   ui.toggleTheme()
   overflowOpen.value = false
+}
+
+function onMenuClick() {
+  if (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 768px)')?.matches) {
+    ui.toggleMobileSidebar()
+    return
+  }
+  ui.toggleSidebar()
 }
 
 function syncDesktopSearchVisible() {

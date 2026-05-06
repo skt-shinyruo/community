@@ -1,7 +1,13 @@
 <!-- AppShell：桌面优先两栏工作区骨架（Sidebar + Main）。 -->
 <template>
   <div class="app-shell" :class="shellClass">
-    <aside class="app-sidebar" :class="{ 'mobile-open': !ui.sidebarCollapsed }">
+    <aside
+      class="app-sidebar"
+      :class="{
+        'is-collapsed': ui.sidebarCollapsed,
+        'is-mobile-open': ui.mobileSidebarOpen
+      }"
+    >
       <SidebarNav :mode="props.mode" />
     </aside>
 

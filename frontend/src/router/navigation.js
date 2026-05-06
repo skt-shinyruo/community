@@ -104,6 +104,16 @@ export const POSTS_ORDER_OPTIONS = Object.freeze([
   { key: POSTS_ORDER.HOT, label: '热门' }
 ])
 
+const SHELL_SEARCH_ROUTE_NAMES = Object.freeze(['posts', 'search', 'market'])
+
+export function getShellSearchRouteNames() {
+  return [...SHELL_SEARCH_ROUTE_NAMES]
+}
+
+export function routeSupportsShellSearch(routeName) {
+  return SHELL_SEARCH_ROUTE_NAMES.includes(String(routeName || ''))
+}
+
 // 导航 SSOT：侧边抽屉承载产品工作区，移动端底栏只承载高频入口。
 const NAV_DEFS = Object.freeze([
   {

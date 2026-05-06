@@ -17,10 +17,7 @@
 }
 
 .app-shell--public {
-  background:
-    radial-gradient(circle at top right, color-mix(in srgb, var(--editorial-accent) 14%, transparent), transparent 28%),
-    linear-gradient(90deg, var(--public-sidebar-bg) 0, var(--public-sidebar-bg) min(var(--sidebar-width), 22vw), transparent min(var(--sidebar-width), 22vw)),
-    linear-gradient(180deg, var(--editorial-paper) 0%, var(--editorial-paper-2) 100%);
+  background: var(--bg);
 }
 
 .app-shell--admin {
@@ -39,11 +36,9 @@
 }
 
 .app-shell--public .app-sidebar {
-  border-right-color: var(--public-sidebar-border);
-  background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.05), transparent 32%),
-    linear-gradient(180deg, var(--public-sidebar-surface) 0%, var(--public-sidebar-bg) 100%);
-  color: var(--public-sidebar-text);
+  border-right-color: var(--border);
+  background: color-mix(in srgb, var(--surface) 96%, var(--bg) 4%);
+  color: var(--text-1);
 }
 
 .app-shell--admin .app-sidebar {
@@ -108,8 +103,8 @@
 }
 
 .app-shell--public .topbar-title-eyebrow {
-  color: var(--editorial-accent);
-  letter-spacing: 0.18em;
+  color: var(--text-3);
+  letter-spacing: 0.08em;
 }
 
 .topbar-title-main-row {
@@ -134,7 +129,7 @@
   font-family: var(--font-sans);
   font-size: clamp(20px, 2vw, 28px);
   letter-spacing: -0.01em;
-  color: var(--editorial-ink);
+  color: var(--text-1);
 }
 
 .topbar-mode-badge {
@@ -160,7 +155,7 @@
 }
 
 .app-shell--public .topbar-title-sub {
-  color: color-mix(in srgb, var(--editorial-ink) 52%, transparent);
+  color: var(--text-3);
   max-width: 64ch;
 }
 
@@ -196,9 +191,9 @@
 .app-shell--public .topbar-search-input {
   height: 44px;
   border-radius: 999px;
-  border-color: color-mix(in srgb, var(--editorial-rule-strong) 38%, var(--editorial-rule) 62%);
-  background: rgba(255, 255, 255, 0.95);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76), 0 8px 20px rgba(0, 0, 0, 0.06);
+  border-color: var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .topbar-actions {
@@ -778,37 +773,43 @@ html[data-theme='dark'] .app-shell--public .nav-item.is-active .nav-icon {
 @media (max-width: 768px) {
   .app-shell,
   .app-shell.sidebar-collapsed {
+    display: block;
     grid-template-columns: 1fr;
   }
 
   .app-sidebar {
     position: fixed;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: min(var(--sidebar-width), 88vw);
-    z-index: 100;
+    inset: 0 auto 0 0;
+    width: min(82vw, var(--sidebar-width));
+    max-width: 320px;
+    z-index: 120;
     transform: translateX(-100%);
-    transition: transform 0.22s ease;
+    transition: transform 0.2s ease;
     box-shadow: var(--shadow-lg);
+    background: var(--surface);
   }
 
-  .app-sidebar.mobile-open {
+  .app-sidebar.is-mobile-open {
     transform: translateX(0);
+  }
+
+  .app-sidebar.is-collapsed {
+    width: min(82vw, var(--sidebar-width));
   }
 
   .sidebar-overlay {
     display: block;
     position: fixed;
     inset: 0;
-    z-index: 99;
-    background: rgba(15, 23, 42, 0.38);
+    z-index: 110;
+    background: rgba(15, 23, 42, 0.36);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.22s ease;
+    transition: opacity 0.2s ease;
   }
 
   .sidebar-overlay.open {
+    display: block;
     opacity: 1;
     pointer-events: auto;
   }
@@ -823,10 +824,7 @@ html[data-theme='dark'] .app-shell--public .nav-item.is-active .nav-icon {
 
   .app-content {
     padding: var(--space-4);
-  }
-
-  .app-shell--public .app-content {
-    padding-bottom: calc(var(--space-4) + 92px);
+    padding-bottom: calc(var(--space-4) + 92px + env(safe-area-inset-bottom, 0px));
   }
 
   .topbar-title-eyebrow,

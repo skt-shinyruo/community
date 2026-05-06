@@ -151,6 +151,19 @@ function resetPersistedFlow(message) {
   error.value = message
 }
 
+function backendErrorCode(e) {
+  return Number(e?.response?.data?.code ?? e?.code ?? 0)
+}
+
+function backendErrorMessage(e) {
+  return e?.response?.data?.message || e?.message || ''
+}
+
+function isCaptchaRejected(e) {
+  const code = backendErrorCode(e)
+  return code === 10005 || code === 10006
+}
+
 async function refreshCaptcha() {
   try {
     const { data, traceId } = await issueCaptcha()
@@ -190,8 +203,8 @@ async function onRegister() {
     form.captcha = ''
     await refreshCaptcha()
   } catch (e) {
-    error.value = e?.message || '注册失败'
-    if (e?.code === 10006 || e?.code === 10005) {
+    error.value = backendErrorMessage(e) || '注册失败'
+    if (isCaptchaRejected(e)) {
       await refreshCaptcha()
     }
   } finally {
@@ -235,7 +248,7 @@ async function onResendCode() {
       return
     }
     error.value = resolved.message || '重发失败'
-    if (e?.code === 10005 || e?.code === 10006) {
+    if (isCaptchaRejected(e)) {
       await refreshCaptcha()
     }
   } finally {

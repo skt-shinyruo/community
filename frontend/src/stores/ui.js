@@ -20,7 +20,8 @@ export const useUiStore = defineStore('ui', {
   state: () => ({
     theme: 'light', // light | dark
     density: 'compact', // comfortable | compact
-    sidebarCollapsed: false
+    sidebarCollapsed: false,
+    mobileSidebarOpen: false
   }),
   actions: {
     init() {
@@ -33,11 +34,12 @@ export const useUiStore = defineStore('ui', {
       const theme = clampEnum(parsed?.theme, ['light', 'dark'], prefersDark ? 'dark' : 'light')
       // 技术社区默认更偏紧凑（PC 主场景信息密度更高）；老用户以 localStorage 为准不受影响。
       const density = clampEnum(parsed?.density, ['comfortable', 'compact'], 'compact')
-      const sidebarCollapsed = typeof parsed?.sidebarCollapsed === 'boolean' ? parsed.sidebarCollapsed : window.innerWidth < 980
+      const sidebarCollapsed = typeof parsed?.sidebarCollapsed === 'boolean' ? parsed.sidebarCollapsed : false
 
       this.theme = theme
       this.density = density
       this.sidebarCollapsed = sidebarCollapsed
+      this.mobileSidebarOpen = false
 
       this.applyToDocument()
       this.persist()
@@ -89,6 +91,18 @@ export const useUiStore = defineStore('ui', {
     setSidebarCollapsed(v) {
       this.sidebarCollapsed = !!v
       this.persist()
+    },
+
+    openMobileSidebar() {
+      this.mobileSidebarOpen = true
+    },
+
+    closeMobileSidebar() {
+      this.mobileSidebarOpen = false
+    },
+
+    toggleMobileSidebar() {
+      this.mobileSidebarOpen = !this.mobileSidebarOpen
     }
   }
 })

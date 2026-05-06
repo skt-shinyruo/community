@@ -282,9 +282,7 @@
 }
 
 .app-shell--public .app-content {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.76) 0, rgba(255, 255, 255, 0) 180px),
-    linear-gradient(180deg, var(--editorial-paper) 0%, var(--editorial-paper-2) 100%);
+  background: var(--bg);
 }
 
 .app-shell--admin .app-content {
@@ -300,15 +298,14 @@
 }
 
 .app-shell--public .page {
-  gap: 28px;
+  gap: var(--space-6);
 }
 
 .app-shell--public .card {
-  border-radius: 30px;
-  border-color: color-mix(in srgb, var(--editorial-rule) 82%, #fff 18%);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), color-mix(in srgb, var(--editorial-paper-2) 86%, #fff 14%));
-  box-shadow: var(--editorial-shadow);
+  border-radius: var(--radius-md);
+  border-color: var(--border);
+  background: var(--surface);
+  box-shadow: none;
 }
 
 .app-shell--public .card.flat {
@@ -318,14 +315,14 @@
 
 .app-shell--public .page-title {
   font-family: var(--font-sans);
-  font-size: clamp(32px, 4vw, 48px);
-  letter-spacing: -0.025em;
-  color: var(--editorial-ink);
+  font-size: var(--text-2xl);
+  letter-spacing: 0;
+  color: var(--text-1);
 }
 
 .app-shell--public .page-subtitle {
   max-width: 62ch;
-  color: color-mix(in srgb, var(--editorial-ink) 54%, transparent);
+  color: var(--text-3);
 }
 
 .app-shell--public .btn {
@@ -358,9 +355,9 @@
 }
 
 .app-shell--public .chip.active {
-  background: color-mix(in srgb, var(--editorial-accent) 10%, var(--surface) 90%);
-  border-color: color-mix(in srgb, var(--editorial-accent) 38%, var(--editorial-rule) 62%);
-  color: var(--editorial-accent);
+  background: var(--accent-weak);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border) 70%);
+  color: var(--accent);
 }
 
 .page.reading {

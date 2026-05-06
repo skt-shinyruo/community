@@ -9,7 +9,7 @@
 import { computed } from 'vue'
 
 const props = defineProps({
-  variant: { type: String, default: 'default' } // default | accent | danger | success | warning
+  variant: { type: String, default: 'default' } // default | accent | danger | success | warning | pending | unread
 })
 
 const variantClass = computed(() => {

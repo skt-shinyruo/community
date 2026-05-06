@@ -4,15 +4,24 @@
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   padding: var(--card-padding);
-  box-shadow: var(--shadow-sm);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  box-shadow: none;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .card:hover {
-  box-shadow: var(--shadow-md);
   border-color: var(--border-strong);
+}
+
+.object-card {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.object-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 .card.flat {
@@ -173,7 +182,7 @@
   height: var(--control-height);
   padding: 0 var(--control-padding-x);
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-weight: 700;
   font-size: var(--text-sm);
@@ -184,7 +193,7 @@
   justify-content: center;
   gap: var(--space-2);
   user-select: none;
-  transition: all 0.15s ease-out;
+  transition: background-color 0.15s ease-out, border-color 0.15s ease-out, color 0.15s ease-out, box-shadow 0.15s ease-out;
   box-shadow: var(--shadow-sm);
 }
 
@@ -196,7 +205,7 @@
 
 .btn:hover {
   background: var(--accent-hover);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn:active {
@@ -627,6 +636,18 @@
   background: color-mix(in srgb, var(--warning) 14%, transparent 86%);
   border-color: color-mix(in srgb, var(--warning) 25%, var(--border) 75%);
   color: var(--warning);
+}
+
+.badge-pending {
+  color: var(--pending);
+  background: var(--pending-weak);
+  border-color: color-mix(in srgb, var(--pending) 30%, var(--border) 70%);
+}
+
+.badge-unread {
+  color: var(--unread);
+  background: var(--unread-weak);
+  border-color: color-mix(in srgb, var(--unread) 30%, var(--border) 70%);
 }
 
 .tag {

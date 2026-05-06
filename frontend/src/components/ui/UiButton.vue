@@ -25,11 +25,14 @@ const props = defineProps({
 
 defineEmits(['click'])
 
+const VARIANT_CLASS_MAP = Object.freeze({
+  secondary: 'secondary',
+  ghost: 'ghost',
+  danger: 'danger',
+  dangerSecondary: 'danger secondary'
+})
+
 const variantClass = computed(() => {
-  if (props.variant === 'secondary') return 'secondary'
-  if (props.variant === 'ghost') return 'ghost'
-  if (props.variant === 'danger') return 'danger'
-  if (props.variant === 'dangerSecondary') return 'danger secondary'
-  return ''
+  return VARIANT_CLASS_MAP[props.variant] || ''
 })
 </script>

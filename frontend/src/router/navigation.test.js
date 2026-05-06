@@ -45,36 +45,54 @@ describe('router/navigation', () => {
     expect(canAccessNavItem({ roles: ['ROLE_ADMIN'] }, { authed: true, roles: ['ROLE_ADMIN'] })).toBe(true)
   })
 
-  it('getSidebarNavigation should expose the approved desktop explore and me groups', () => {
+  it('getSidebarNavigation should group routes by product workspaces', () => {
     const anon = getSidebarNavigation({ authed: false })
-    const anonGroupKeys = anon.map((g) => g.key)
-    expect(anonGroupKeys).toEqual(['explore', 'auth'])
-
-    const explore = anon.find((g) => g.key === 'explore')
-    expect(explore?.items.map((it) => it.key)).toEqual(['posts', 'search', 'market'])
-
-    const authItem = anon.flatMap((g) => g.items).find((it) => it.key === 'login')
-    expect(authItem?.activeNames || []).not.toContain('activation')
+    expect(anon.map((g) => g.key)).toEqual(['community', 'trading', 'account'])
+    expect(anon.find((g) => g.key === 'community')?.items.map((it) => it.key)).toEqual(['posts', 'search'])
+    expect(anon.find((g) => g.key === 'trading')?.items.map((it) => it.key)).toEqual(['market'])
+    expect(anon.find((g) => g.key === 'account')?.items.map((it) => it.key)).toEqual(['login'])
+    expect(anon.flatMap((g) => g.items).find((it) => it.key === 'login')?.activeNames || []).not.toContain('activation')
 
     const authed = getSidebarNavigation({ authed: true, userId: 12, roles: ['ROLE_USER'] })
-    const authedGroupKeys = authed.map((g) => g.key)
-    expect(authedGroupKeys).toEqual(['explore', 'me'])
-
-    const me = authed.find((g) => g.key === 'me')
-    expect(me?.items.map((it) => it.key)).toEqual([
-      'wallet',
+    expect(authed.map((g) => g.key)).toEqual(['community', 'trading', 'personal'])
+    expect(authed.find((g) => g.key === 'community')?.items.map((it) => it.key)).toEqual([
+      'posts',
+      'search',
+      'bookmarks',
+      'profile'
+    ])
+    expect(authed.find((g) => g.key === 'trading')?.items.map((it) => it.key)).toEqual([
+      'market',
+      'marketPublish',
+      'marketMyListings',
       'marketBuying',
       'marketSelling',
-      'marketAddresses',
-      'bookmarks',
+      'marketAddresses'
+    ])
+    expect(authed.find((g) => g.key === 'personal')?.items.map((it) => it.key)).toEqual([
+      'wallet',
       'notices',
       'messages',
-      'profile',
       'settings'
     ])
 
-    const profile = me?.items.find((it) => it.key === 'profile')
+    const profile = authed.flatMap((g) => g.items).find((it) => it.key === 'profile')
     expect(profile?.to).toEqual({ name: 'userProfile', params: { userId: '12' } })
+  })
+
+  it('getSidebarNavigation should expose admin workspace by role', () => {
+    const moderator = getSidebarNavigation({ authed: true, userId: 8, roles: ['ROLE_MODERATOR'] })
+    expect(moderator.find((g) => g.key === 'admin')?.items.map((it) => it.key)).toEqual(['moderation', 'analytics'])
+
+    const admin = getSidebarNavigation({ authed: true, userId: 8, roles: ['ROLE_ADMIN'] })
+    expect(admin.find((g) => g.key === 'admin')?.items.map((it) => it.key)).toEqual([
+      'moderation',
+      'analytics',
+      'userManagement',
+      'walletAdmin',
+      'adminMarketDisputes',
+      'opsConsole'
+    ])
   })
 
   it('isNavItemActive should keep parent items active across route families', () => {
@@ -82,66 +100,44 @@ describe('router/navigation', () => {
     const allItems = nav.flatMap((g) => g.items)
 
     const posts = allItems.find((it) => it.key === 'posts')
+    const market = allItems.find((it) => it.key === 'market')
+    const marketMyListings = allItems.find((it) => it.key === 'marketMyListings')
+    const marketBuying = allItems.find((it) => it.key === 'marketBuying')
+    const marketSelling = allItems.find((it) => it.key === 'marketSelling')
     const wallet = allItems.find((it) => it.key === 'wallet')
     const notices = allItems.find((it) => it.key === 'notices')
     const messages = allItems.find((it) => it.key === 'messages')
     const profile = allItems.find((it) => it.key === 'profile')
 
+    expect(isNavItemActive({ name: 'postDetail' }, posts)).toBe(true)
     expect(isNavItemActive({ name: 'posts', query: {} }, posts)).toBe(true)
     expect(isNavItemActive({ name: 'posts', query: { type: 'top' } }, posts)).toBe(true)
     expect(isNavItemActive({ name: 'posts', query: { subscribed: '1' } }, posts)).toBe(true)
-    expect(isNavItemActive({ name: 'postDetail', query: { type: 'top' } }, posts)).toBe(true)
     expect(isNavItemActive({ name: 'wallet' }, wallet)).toBe(true)
+    expect(isNavItemActive({ name: 'marketDetail' }, market)).toBe(true)
+    expect(isNavItemActive({ name: 'marketPublish' }, market)).toBe(false)
+    expect(isNavItemActive({ name: 'marketInventory' }, market)).toBe(false)
+    expect(isNavItemActive({ name: 'marketOrderDetail' }, market)).toBe(false)
+    expect(isNavItemActive({ name: 'marketInventory' }, marketMyListings)).toBe(true)
+    expect(isNavItemActive({ name: 'marketOrderDetail' }, marketBuying)).toBe(true)
+    expect(isNavItemActive({ name: 'marketOrderDetail' }, marketSelling)).toBe(true)
     expect(isNavItemActive({ name: 'noticeDetail' }, notices)).toBe(true)
     expect(isNavItemActive({ name: 'messageDetail' }, messages)).toBe(true)
     expect(isNavItemActive({ name: 'followees' }, profile)).toBe(true)
     expect(isNavItemActive({ name: 'followers' }, profile)).toBe(true)
   })
 
-  it('getMobileNavigation should keep wallet visible while removing growth and leaderboard shortcuts', () => {
+  it('getMobileNavigation should return the high-frequency bottom entries', () => {
     const anon = getMobileNavigation({ authed: false })
-    expect(anon.map((it) => it.key)).toEqual(['posts', 'search', 'me', 'more'])
+    expect(anon.map((it) => it.key)).toEqual(['posts', 'search', 'market', 'me'])
+    expect(anon.find((it) => it.key === 'me')?.to).toEqual({ name: 'login' })
 
-    const anonMe = anon.find((it) => it.key === 'me')
-    const anonMore = anon.find((it) => it.key === 'more')
-    expect(anonMe?.to).toEqual({ name: 'login' })
-    expect(anonMore?.to).toEqual({ name: 'wallet' })
-    expect(isNavItemActive({ name: 'login' }, anonMe)).toBe(true)
-    expect(isNavItemActive({ name: 'register' }, anonMe)).toBe(true)
-    expect(isNavItemActive({ name: 'wallet' }, anonMore)).toBe(true)
-    expect(isNavItemActive({ name: 'messageDetail' }, anonMe)).toBe(true)
-    expect(isNavItemActive({ name: 'followers' }, anonMe)).toBe(true)
-    expect(isNavItemActive({ name: 'leaderboard' }, anonMe)).toBe(false)
-    expect(isNavItemActive({ name: 'leaderboard' }, anonMore)).toBe(false)
+    const authed = getMobileNavigation({ authed: true, userId: 8, roles: ['ROLE_USER'] })
+    expect(authed.map((it) => it.key)).toEqual(['posts', 'search', 'market', 'me'])
+    expect(authed.find((it) => it.key === 'me')?.to).toEqual({ name: 'userProfile', params: { userId: '8' } })
 
-    const authed = getMobileNavigation({ authed: true, userId: 8 })
-    expect(authed.map((it) => it.key)).toEqual(['posts', 'search', 'me', 'more'])
-    expect(authed.map((it) => it.key)).not.toEqual(['posts', 'search', 'growth', 'messages', 'profile'])
-
-    const authedMe = authed.find((it) => it.key === 'me')
-    const authedMore = authed.find((it) => it.key === 'more')
-    expect(authedMe?.to).toEqual({ name: 'userProfile', params: { userId: '8' } })
-    expect(authedMore?.to).toEqual({ name: 'wallet' })
-    expect(isNavItemActive({ name: 'wallet' }, authedMore)).toBe(true)
-    expect(isNavItemActive({ name: 'messageDetail' }, authedMe)).toBe(true)
-    expect(isNavItemActive({ name: 'followers' }, authedMe)).toBe(true)
-    expect(isNavItemActive({ name: 'leaderboard' }, authedMe)).toBe(false)
-    expect(isNavItemActive({ name: 'messages' }, authedMore)).toBe(false)
-
-    const authedWithoutUserId = getMobileNavigation({ authed: true, userId: 0 })
-    expect(authedWithoutUserId.map((it) => it.key)).toEqual(['posts', 'search', 'me', 'more'])
-
-    const pendingHydrationMe = authedWithoutUserId.find((it) => it.key === 'me')
-    expect(pendingHydrationMe?.to).toEqual({ name: 'wallet' })
-    expect(pendingHydrationMe?.to).not.toEqual({ name: 'login' })
-  })
-
-  it('should expose unified market admin and market entry navigation', () => {
-    const authed = getSidebarNavigation({ authed: true, userId: 8, roles: ['ROLE_ADMIN'] })
-    const explore = authed.find((g) => g.key === 'explore')
-    const admin = authed.find((g) => g.key === 'admin')
-
-    expect(explore?.items.some((item) => item.key === 'market')).toBe(true)
-    expect(admin?.items.some((item) => item.key === 'adminMarketDisputes')).toBe(true)
+    const authedWithoutUserId = getMobileNavigation({ authed: true, userId: 0, roles: ['ROLE_USER'] })
+    expect(authedWithoutUserId.map((it) => it.key)).toEqual(['posts', 'search', 'market', 'me'])
+    expect(authedWithoutUserId.find((it) => it.key === 'me')?.to).toEqual({ name: 'wallet' })
   })
 })

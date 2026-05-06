@@ -408,13 +408,11 @@ html[data-density='compact'] .topic-list {
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(220px, 0.7fr);
   gap: 20px;
-  padding: 24px 26px;
-  border-radius: 24px;
-  background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 18%, transparent) 0, transparent 42%),
-    linear-gradient(135deg, color-mix(in srgb, var(--surface) 76%, #fff 24%) 0%, var(--surface) 100%);
-  border: 1px solid color-mix(in srgb, var(--accent) 12%, var(--border) 88%);
-  box-shadow: var(--shadow-sm);
+  padding: 18px 20px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: none;
 }
 
 .market-hero--compact,
@@ -424,9 +422,9 @@ html[data-density='compact'] .topic-list {
 
 .market-hero h1 {
   margin: 6px 0 10px;
-  font-size: clamp(28px, 4vw, 42px);
-  line-height: 1.04;
-  letter-spacing: -0.03em;
+  font-size: var(--text-2xl);
+  line-height: var(--line-tight);
+  letter-spacing: 0;
 }
 
 .market-hero p,
@@ -440,13 +438,12 @@ html[data-density='compact'] .topic-list {
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface) 88%);
-  color: color-mix(in srgb, var(--accent) 82%, var(--text-1) 18%);
+  border-radius: var(--radius-md);
+  background: var(--accent-weak);
+  color: var(--accent);
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
 }
 
 .market-hero-actions,
@@ -476,7 +473,7 @@ html[data-density='compact'] .topic-list {
 
 .market-list-shell,
 .market-panel {
-  border-radius: 22px;
+  border-radius: var(--radius-md);
 }
 
 .market-section-head {
@@ -508,19 +505,18 @@ html[data-density='compact'] .topic-list {
   align-items: center;
   padding: 16px 18px;
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   text-decoration: none;
   color: inherit;
-  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  transition: background-color 160ms ease, border-color 160ms ease;
 }
 
 .market-row:hover,
 .market-order-row:hover,
 .market-admin-row:hover {
-  transform: translateY(-2px);
-  border-color: color-mix(in srgb, var(--accent) 28%, var(--border) 72%);
-  box-shadow: var(--shadow-sm);
+  background: color-mix(in srgb, var(--surface) 88%, var(--surface-2) 12%);
+  border-color: var(--border-strong);
 }
 
 .market-row-main strong,

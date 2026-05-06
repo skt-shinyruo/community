@@ -67,10 +67,9 @@
 }
 
 .app-topbar--public {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(245, 245, 245, 0.88));
-  border-bottom-color: var(--editorial-rule);
-  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.7), 0 10px 24px rgba(0, 0, 0, 0.05);
+  background: var(--topbar-bg);
+  border-bottom-color: var(--border);
+  box-shadow: none;
 }
 
 .app-topbar--admin {
@@ -123,13 +122,6 @@
   font-size: clamp(18px, 2vw, 22px);
   color: var(--text-1);
   line-height: 1.2;
-}
-
-.app-shell--public .topbar-title-main {
-  font-family: var(--font-sans);
-  font-size: clamp(20px, 2vw, 28px);
-  letter-spacing: -0.01em;
-  color: var(--text-1);
 }
 
 .topbar-mode-badge {
@@ -221,11 +213,6 @@
   gap: 4px;
 }
 
-.app-shell--public .topbar-overflow-menu {
-  border-color: var(--editorial-rule);
-  background: rgba(255, 255, 255, 0.96);
-}
-
 .topbar-overflow-item {
   width: 100%;
   min-height: 34px;
@@ -281,10 +268,6 @@
   padding: var(--content-padding-y) var(--content-padding-x);
 }
 
-.app-shell--public .app-content {
-  background: var(--bg);
-}
-
 .app-shell--admin .app-content {
   background: transparent;
 }
@@ -295,69 +278,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
-}
-
-.app-shell--public .page {
-  gap: var(--space-6);
-}
-
-.app-shell--public .card {
-  border-radius: var(--radius-md);
-  border-color: var(--border);
-  background: var(--surface);
-  box-shadow: none;
-}
-
-.app-shell--public .card.flat {
-  background: transparent;
-  box-shadow: none;
-}
-
-.app-shell--public .page-title {
-  font-family: var(--font-sans);
-  font-size: var(--text-2xl);
-  letter-spacing: 0;
-  color: var(--text-1);
-}
-
-.app-shell--public .page-subtitle {
-  max-width: 62ch;
-  color: var(--text-3);
-}
-
-.app-shell--public .btn {
-  border-radius: 16px;
-  min-height: 42px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 82%, var(--surface) 18%), var(--accent));
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
-}
-
-.app-shell--public .btn.secondary {
-  background: rgba(255, 255, 255, 0.92);
-  border-color: var(--editorial-rule);
-  color: var(--editorial-ink);
-  box-shadow: 0 12px 22px rgba(0, 0, 0, 0.08);
-}
-
-.app-shell--public .btn.ghost {
-  background: transparent;
-  border-color: rgba(0, 0, 0, 0.12);
-  color: var(--text-2);
-  box-shadow: none;
-}
-
-.app-shell--public .chip {
-  height: 34px;
-  border-radius: 14px;
-  border-color: var(--editorial-rule);
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.05);
-}
-
-.app-shell--public .chip.active {
-  background: var(--accent-weak);
-  border-color: color-mix(in srgb, var(--accent) 30%, var(--border) 70%);
-  color: var(--accent);
 }
 
 .page.reading {
@@ -379,10 +299,6 @@
   gap: 12px;
   padding: 14px var(--space-4);
   border-bottom: 1px solid var(--border);
-}
-
-.app-shell--public .sidebar-header {
-  border-bottom-color: var(--public-sidebar-border);
 }
 
 .sidebar-brand {
@@ -408,13 +324,6 @@
   font-size: 14px;
 }
 
-.app-shell--public .sidebar-brand-mark {
-  background: linear-gradient(180deg, #ffffff, var(--surface-3));
-  color: var(--public-sidebar-bg);
-  border: none;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
-}
-
 .sidebar-brand-copy {
   min-width: 0;
   display: grid;
@@ -427,20 +336,10 @@
   white-space: nowrap;
 }
 
-.app-shell--public .sidebar-brand-text {
-  color: var(--public-sidebar-text);
-  font-family: var(--font-display);
-  font-size: 20px;
-}
-
 .sidebar-brand-sub {
   font-size: 12px;
   color: var(--text-3);
   white-space: nowrap;
-}
-
-.app-shell--public .sidebar-brand-sub {
-  color: var(--public-sidebar-muted);
 }
 
 .sidebar-scroll {
@@ -466,10 +365,6 @@
   font-weight: 700;
 }
 
-.app-shell--public .nav-group-title {
-  color: color-mix(in srgb, var(--public-sidebar-muted) 84%, #fff 16%);
-}
-
 .nav-item {
   display: flex;
   align-items: center;
@@ -490,24 +385,6 @@
   color: var(--text-1);
 }
 
-.app-shell--public .nav-item {
-  border: 1px solid transparent;
-  color: var(--public-sidebar-muted);
-}
-
-.app-shell--public .nav-item:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.06);
-  color: var(--public-sidebar-text);
-}
-
-.app-shell--public .nav-item.is-active {
-  background: linear-gradient(180deg, var(--public-sidebar-active), color-mix(in srgb, var(--public-sidebar-active) 88%, var(--surface-3) 12%));
-  border-color: rgba(255, 255, 255, 0.12);
-  color: var(--public-sidebar-active-text);
-  box-shadow: 0 16px 28px rgba(0, 0, 0, 0.24);
-}
-
 .nav-icon {
   width: 24px;
   height: 24px;
@@ -519,22 +396,10 @@
   border: 1px solid var(--border);
 }
 
-.app-shell--public .nav-icon {
-  background: var(--public-sidebar-surface-2);
-  border-color: rgba(255, 255, 255, 0.06);
-  color: var(--public-sidebar-text);
-}
-
 .nav-item.is-active .nav-icon {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 24%, var(--border) 76%);
   background: color-mix(in srgb, var(--accent) 8%, var(--surface) 92%);
-}
-
-.app-shell--public .nav-item.is-active .nav-icon {
-  color: var(--editorial-accent);
-  border-color: rgba(44, 29, 22, 0.12);
-  background: color-mix(in srgb, var(--public-sidebar-active) 86%, transparent);
 }
 
 .nav-text {
@@ -547,22 +412,12 @@
   display: flex;
 }
 
-.app-shell--public .sidebar-footer {
-  border-top-color: var(--public-sidebar-border);
-}
-
 .sidebar-user-link {
   display: inline-flex;
   align-items: center;
   gap: 10px;
   text-decoration: none;
   color: inherit;
-}
-
-.app-shell--public .sidebar-user-link {
-  padding: 12px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.04);
 }
 
 .sidebar-user-link:hover {
@@ -586,16 +441,8 @@
   line-height: 1.2;
 }
 
-.app-shell--public .sidebar-user-name {
-  color: var(--public-sidebar-text);
-}
-
 .sidebar-user-meta {
   font-size: 12px;
-}
-
-.app-shell--public .sidebar-user-meta {
-  color: var(--public-sidebar-muted);
 }
 
 .sidebar-collapsed .sidebar-brand-copy,
@@ -615,62 +462,7 @@
   min-height: 100vh;
   display: grid;
   grid-template-rows: auto 1fr;
-  background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--editorial-accent) 12%, transparent), transparent 34%),
-    linear-gradient(180deg, color-mix(in srgb, var(--surface) 30%, var(--bg) 70%), var(--bg));
-}
-
-html[data-theme='dark'] .app-shell--public {
-  background:
-    radial-gradient(circle at top right, rgba(255, 255, 255, 0.06), transparent 26%),
-    linear-gradient(90deg, var(--public-sidebar-bg) 0, var(--public-sidebar-bg) min(var(--sidebar-width), 22vw), transparent min(var(--sidebar-width), 22vw)),
-    linear-gradient(180deg, #050505 0%, #080808 100%);
-}
-
-html[data-theme='dark'] .app-shell--public .app-topbar--public {
-  background: linear-gradient(180deg, rgba(10, 10, 10, 0.94), rgba(10, 10, 10, 0.82));
-  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.04), 0 10px 24px rgba(0, 0, 0, 0.22);
-}
-
-html[data-theme='dark'] .app-shell--public .topbar-search-input {
-  background: #111111;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 8px 20px rgba(0, 0, 0, 0.2);
-}
-
-html[data-theme='dark'] .app-shell--public .app-content {
-  background:
-    linear-gradient(180deg, rgba(10, 10, 10, 0.78) 0, rgba(10, 10, 10, 0) 180px),
-    linear-gradient(180deg, #0b0b0b 0%, #070707 100%);
-}
-
-html[data-theme='dark'] .app-shell--public .card {
-  border-color: #2f2f2f;
-  background: linear-gradient(180deg, #161616, #101010);
-  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.24);
-}
-
-html[data-theme='dark'] .app-shell--public .btn.secondary,
-html[data-theme='dark'] .app-shell--public .chip {
-  background: #141414;
-  border-color: #2f2f2f;
-  box-shadow: none;
-}
-
-html[data-theme='dark'] .app-shell--public .chip.active {
-  background: #f2f2f2;
-  color: #050505;
-  border-color: #f2f2f2;
-}
-
-html[data-theme='dark'] .app-shell--public .nav-item.is-active {
-  background: #f4f4f4;
-  color: #050505;
-}
-
-html[data-theme='dark'] .app-shell--public .nav-item.is-active .nav-icon {
-  background: #ffffff;
-  color: #050505;
-  border-color: rgba(0, 0, 0, 0.12);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 30%, var(--bg) 70%), var(--bg));
 }
 
 .auth-topbar {

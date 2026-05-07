@@ -144,6 +144,61 @@ describe('UserProfileView route contract', () => {
     expect(wrapper.text()).not.toContain('NaN')
   })
 
+  it('renders a compact identity header with bounded long profile text', async () => {
+    const longUsername = '1654388696@qq.com'
+    http.get.mockImplementation((url) => {
+      if (url === `/api/users/${userId}`) {
+        return Promise.resolve(
+          okResult({
+            id: userId,
+            username: longUsername,
+            showUserLevel: true,
+            userLevel: 1,
+            signInDaysInWindow: 0,
+            socialDegraded: false
+          })
+        )
+      }
+      if (url === `/api/users/${userId}/recent-posts`) return Promise.resolve(okResult([]))
+      if (url === `/api/users/${userId}/recent-comments`) return Promise.resolve(okResult([]))
+      return Promise.resolve(okResult({}))
+    })
+
+    const wrapper = mount(UserProfileView, {
+      props: {
+        userId
+      },
+      global: {
+        stubs: {
+          RouterLink: {
+            template: '<a><slot /></a>'
+          },
+          UiBreadcrumb: true,
+          ReportModal: true
+        }
+      }
+    })
+
+    await flushPromises()
+    await flushPromises()
+
+    expect(wrapper.find('.profile-cover-sheet').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Member Snapshot')
+
+    const name = wrapper.find('.profile-name')
+    expect(name.text()).toBe(longUsername)
+    expect(name.attributes('title')).toBe(longUsername)
+    expect(name.classes()).toContain('profile-text-wrap')
+
+    const meta = wrapper.find('.profile-id-value')
+    expect(meta.text()).toContain(userId)
+    expect(meta.attributes('title')).toBe(userId)
+    expect(meta.classes()).toContain('profile-text-wrap')
+
+    expect(wrapper.text()).toContain('暂无公开动态')
+    expect(wrapper.findAll('.profile-signal-card')).toHaveLength(0)
+  })
+
   it('routes private messages to the canonical conversation id from current and profile UUIDs', async () => {
     const profileUserId = '00000000-0000-0000-0000-000000000000'
     const me = '80000000-0000-0000-0000-000000000000'

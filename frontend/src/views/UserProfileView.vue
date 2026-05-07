@@ -11,14 +11,32 @@
     </UiCard>
 
     <UiCard v-else class="profile-card">
-      <UiPageHeader>
-        <template #title>{{ profile?.username || `成员 ${profile?.id}` }}</template>
-        <template #subtitle>关注关系、钱包资产和公开信息会先汇总在这里，帮助你判断这个成员在社区里的参与状态。</template>
-      </UiPageHeader>
-
-      <div class="profile-body">
+      <div class="profile-header">
         <div class="profile-avatar-wrapper">
-          <UiAvatar :src="profile?.headerUrl || ''" :name="profile?.username || ''" :size="120" />
+          <UiAvatar :src="profile?.headerUrl || ''" :name="profileName" :title="profileName" :size="88" />
+        </div>
+
+        <div class="profile-info">
+          <div class="profile-info-kicker">
+            <span class="profile-info-kicker-label">公开身份</span>
+            <span class="profile-info-kicker-meta">
+              用户 ID
+              <span class="profile-id-value profile-text-wrap" :title="userId">{{ userId }}</span>
+            </span>
+          </div>
+          <div class="profile-name-row">
+            <h1 class="profile-name profile-text-wrap" :title="profileName">{{ profileName }}</h1>
+            <UiRoleBadge :user="profile" size="md" />
+            <span v-if="showUserLevel" class="profile-chip" title="用户等级（基于签到）">用户等级 LV {{ Number(profile?.userLevel ?? 0) }}</span>
+            <span v-if="showUserLevel" class="profile-chip" title="最近签到天数">最近签到 {{ Number(profile?.signInDaysInWindow ?? 0) }} 天</span>
+            <span class="profile-chip" title="钱包资产">{{ walletAsset.chipText }}</span>
+          </div>
+          <div class="profile-meta muted">加入 {{ joinedYear || '—' }} · {{ followStatusText }}</div>
+          <div class="profile-cta-row">
+            <RouterLink class="btn secondary" :to="{ name: 'wallet' }">查看钱包</RouterLink>
+            <RouterLink class="btn ghost" :to="{ name: 'followees', params: { userId } }">查看关注</RouterLink>
+            <RouterLink class="btn ghost" :to="{ name: 'followers', params: { userId } }">查看粉丝</RouterLink>
+          </div>
         </div>
 
         <div class="profile-actions">
@@ -59,27 +77,9 @@
             <RouterLink class="btn secondary" to="/settings">编辑资料</RouterLink>
           </template>
         </div>
+      </div>
 
-        <div class="profile-info">
-          <div class="profile-info-kicker">
-            <span class="profile-info-kicker-label">公开身份</span>
-            <span class="profile-info-kicker-meta">用户 ID · {{ userId }}</span>
-          </div>
-          <div class="profile-name-row">
-            <h1 class="profile-name">{{ profile?.username || `成员 ${profile?.id}` }}</h1>
-            <UiRoleBadge :user="profile" size="md" />
-            <span v-if="showUserLevel" class="profile-chip" title="用户等级（基于签到）">用户等级 LV {{ Number(profile?.userLevel ?? 0) }}</span>
-            <span v-if="showUserLevel" class="profile-chip" title="最近签到天数">最近签到 {{ Number(profile?.signInDaysInWindow ?? 0) }} 天</span>
-            <span class="profile-chip" title="钱包资产">{{ walletAsset.chipText }}</span>
-          </div>
-          <div class="profile-meta muted">用户 ID：{{ userId }} · 加入 {{ joinedYear || '—' }}</div>
-          <div class="profile-cta-row">
-            <RouterLink class="btn secondary" :to="{ name: 'wallet' }">查看钱包</RouterLink>
-            <RouterLink class="btn ghost" :to="{ name: 'followees', params: { userId } }">查看关注</RouterLink>
-            <RouterLink class="btn ghost" :to="{ name: 'followers', params: { userId } }">查看粉丝</RouterLink>
-          </div>
-        </div>
-
+      <div class="profile-body">
         <div class="profile-stats-bar">
           <div class="profile-stat">
             <span class="profile-stat-val">{{ socialDegraded ? '—' : (profile?.likeCount || 0) }}</span>
@@ -108,9 +108,9 @@
             </div>
             <div class="profile-summary-grid">
               <div class="profile-summary-card">
-                <div class="profile-summary-label">当前身份</div>
-                <div class="profile-summary-value">{{ profile?.username || `成员 ${profile?.id}` }}</div>
-                <div class="profile-summary-text">这是其他人进入你主页时看到的公开身份信息。</div>
+                <div class="profile-summary-label">加入时间</div>
+                <div class="profile-summary-value">{{ joinedYear || '—' }}</div>
+                <div class="profile-summary-text">公开资料只展示可确认的成员年份和基础关系状态。</div>
               </div>
               <div class="profile-summary-card">
                 <div class="profile-summary-label">钱包资产</div>
@@ -162,12 +162,9 @@
                 </div>
               </RouterLink>
             </div>
-            <div class="profile-signal-grid">
-              <article v-for="signal in communitySignals" :key="signal.key" class="profile-signal-card">
-                <div class="profile-signal-label">{{ signal.label }}</div>
-                <div class="profile-signal-value">{{ signal.value }}</div>
-                <div class="profile-signal-text">{{ signal.text }}</div>
-              </article>
+            <div v-else class="profile-empty-activity">
+              <div class="profile-empty-title">暂无公开动态</div>
+              <div class="profile-empty-text">这个成员近期没有公开帖子或评论，先显示当前可用的关系与钱包状态。</div>
             </div>
             <div class="profile-next-steps">
               <RouterLink
@@ -210,11 +207,10 @@ import UiButton from '../components/ui/UiButton.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiEmpty from '../components/ui/UiEmpty.vue'
-import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiRoleBadge from '../components/ui/UiRoleBadge.vue'
 import ReportModal from '../components/modals/ReportModal.vue'
 import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
-import { buildCommunityNextSteps, buildCommunitySignals, buildProfileWalletAsset, describeFollowStatusText } from './userProfileSurface'
+import { buildCommunityNextSteps, buildProfileWalletAsset, describeFollowStatusText } from './userProfileSurface'
 import { buildCanonicalConversationId } from './conversationDetailState'
 import { buildProfileTimeline, collectTimelineUserIds } from './userProfileTimeline'
 
@@ -254,6 +250,7 @@ const joinedYear = computed(() => {
   const y = d.getFullYear()
   return Number.isFinite(y) ? String(y) : ''
 })
+const profileName = computed(() => profile.value?.username || `成员 ${profile.value?.id || userId.value || ''}`)
 const isSelfProfile = computed(() => sameOpaqueId(meUserId.value, userId.value))
 const privateMessageTo = computed(() => {
   const conversationId = buildCanonicalConversationId(meUserId.value, userId.value)
@@ -269,18 +266,6 @@ const walletAsset = computed(() =>
 )
 const followStatusText = computed(() =>
   describeFollowStatusText({
-    followStatus: followStatus.value,
-    followStatusState: followStatusState.value,
-    authed: authed.value,
-    isSelf: isSelfProfile.value
-  })
-)
-
-const communitySignals = computed(() =>
-  buildCommunitySignals({
-    profile: profile.value,
-    joinedYear: joinedYear.value,
-    socialDegraded: socialDegraded.value,
     followStatus: followStatus.value,
     followStatusState: followStatusState.value,
     authed: authed.value,
@@ -454,10 +439,11 @@ async function toggleBlock() {
   max-width: 980px;
 }
 
+.profile-eyebrow,
 .profile-info-kicker-label {
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-3);
 }
@@ -465,36 +451,40 @@ async function toggleBlock() {
 .profile-card {
   padding: 0;
   overflow: hidden;
-  border-radius: 28px;
+  border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.profile-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 20px;
+  padding: 24px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 96%, var(--bg) 4%);
 }
 
 .profile-body {
   position: relative;
-  margin-top: 18px;
   padding-bottom: 24px;
 }
 
-.profile-card :deep(.page-header) {
-  padding: 24px 24px 0;
-}
-
 .profile-avatar-wrapper {
-  padding-left: 24px;
+  min-width: 0;
 }
 
 .profile-avatar-wrapper :deep(.avatar) {
-  border: 4px solid var(--surface);
+  border: 1px solid var(--border);
   background: var(--surface);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-sm);
 }
 
 .profile-actions {
   display: flex;
   justify-content: flex-end;
-  padding: 16px 24px 0 0;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -507,24 +497,22 @@ async function toggleBlock() {
 }
 
 .profile-info {
-  margin-top: 20px;
-  padding: 0 24px;
+  min-width: 0;
 }
 
 .profile-info-kicker {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .profile-info-kicker-meta {
+  min-width: 0;
   font-size: 12px;
   color: var(--text-3);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
 }
 
 .profile-name-row {
@@ -532,14 +520,17 @@ async function toggleBlock() {
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .profile-name {
   margin: 0;
   font-family: var(--font-sans);
-  font-size: clamp(32px, 3vw, 42px);
+  font-size: 32px;
   font-weight: 800;
-  line-height: 1.05;
+  line-height: 1.12;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .profile-chip {
@@ -552,6 +543,16 @@ async function toggleBlock() {
   color: var(--text-1);
   font-size: 12px;
   font-weight: 700;
+}
+
+.profile-text-wrap {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.profile-id-value {
+  display: inline;
+  color: var(--text-2);
 }
 
 .profile-meta {
@@ -578,9 +579,9 @@ async function toggleBlock() {
 .profile-stat {
   padding: 18px 16px;
   text-align: left;
-  border-radius: 18px;
+  border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, var(--bg) 6%), var(--surface));
+  background: var(--surface);
 }
 
 .profile-stat-val {
@@ -654,19 +655,12 @@ async function toggleBlock() {
 
 .profile-summary-card {
   border: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
-  border-radius: 20px;
+  border-radius: 8px;
   padding: 18px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, var(--bg) 6%), var(--surface)),
-    repeating-linear-gradient(
-      180deg,
-      transparent,
-      transparent 26px,
-      color-mix(in srgb, var(--border) 11%, transparent 89%) 26px,
-      color-mix(in srgb, var(--border) 11%, transparent 89%) 27px
-    );
+  background: var(--surface);
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 
 .profile-summary-label {
@@ -675,23 +669,19 @@ async function toggleBlock() {
 }
 
 .profile-summary-value {
-  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
-  font-size: 28px;
+  font-family: var(--font-sans);
+  font-size: 26px;
   font-weight: 800;
   color: var(--text-1);
   line-height: 1.2;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .profile-summary-text {
   font-size: 13px;
   line-height: 1.65;
   color: var(--text-2);
-}
-
-.profile-signal-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
 }
 
 .profile-post-feed {
@@ -703,9 +693,9 @@ async function toggleBlock() {
   display: grid;
   gap: 10px;
   padding: 18px;
-  border-radius: 20px;
+  border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, var(--bg) 6%), var(--surface));
+  background: var(--surface);
   color: inherit;
   text-decoration: none;
 }
@@ -744,6 +734,8 @@ async function toggleBlock() {
   font-size: 13px;
   font-weight: 700;
   color: var(--text-1);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .profile-post-title {
@@ -758,6 +750,8 @@ async function toggleBlock() {
   font-size: 14px;
   line-height: 1.7;
   color: var(--text-2);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .profile-post-meta {
@@ -766,59 +760,50 @@ async function toggleBlock() {
   letter-spacing: 0.04em;
 }
 
-.profile-signal-card {
-  display: grid;
-  gap: 10px;
-  padding: 18px;
-  border-radius: 20px;
-  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent 24%);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, var(--bg) 6%), var(--surface));
-}
-
-.profile-signal-label {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-
-.profile-signal-value {
-  font-family: var(--font-sans);
-  font-size: clamp(22px, 2.2vw, 28px);
-  font-weight: 800;
-  line-height: 1.1;
-  color: var(--text-1);
-}
-
-.profile-signal-text {
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--text-2);
-}
-
 .profile-next-steps {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
 }
 
+.profile-empty-activity {
+  display: grid;
+  gap: 6px;
+  padding: 16px 18px;
+  border: 1px dashed color-mix(in srgb, var(--border) 84%, transparent 16%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 94%, var(--bg) 6%);
+}
+
+.profile-empty-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-1);
+}
+
+.profile-empty-text {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-2);
+}
+
 @media (max-width: 768px) {
-  .profile-body {
-    margin-top: 12px;
+  .profile-header {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 16px;
   }
 
   .profile-avatar-wrapper {
-    padding-left: 16px;
+    padding-left: 0;
   }
 
   .profile-actions {
-    padding: 12px 16px 0 16px;
     justify-content: flex-start;
   }
 
-  .profile-info {
-    padding: 0 16px;
+  .profile-name {
+    font-size: 28px;
   }
 
   .profile-stats-bar {
@@ -838,8 +823,7 @@ async function toggleBlock() {
     grid-template-columns: 1fr;
   }
 
-  .profile-post-feed,
-  .profile-signal-grid {
+  .profile-post-feed {
     grid-template-columns: 1fr;
   }
 }

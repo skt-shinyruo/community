@@ -1,4 +1,4 @@
-# Community OSS Domain Design
+# Community OSS Service Design
 
 Date: 2026-05-07
 
@@ -8,18 +8,18 @@ Accepted for planning.
 
 ## Context
 
-Current repository state only has a narrow file-storage implementation inside `user` for avatar and `/files/**` access. It already supports local filesystem and an S3-compatible remote backend, but the logic is still user-specific:
+Current repository state only has a narrow file-storage implementation inside `community-app` `user` domain for avatar and `/files/**` access. It already supports local filesystem and an S3-compatible remote backend, but the logic is still user-specific and runs inside the main business deployable:
 
 - storage policy lives under `user.avatar.*`
 - file access is implemented by `user.controller.FilesController`
 - upload orchestration is implemented by `user.application.UserAvatarApplicationService`
 - provider selection is implemented in `user.infrastructure.avatar`
 
-That shape is not suitable for a full platform object-storage layer. The system needs one owner for all object-like content, with consistent upload, download, permissions, signed URLs, lifecycle, and cleanup semantics.
+That shape is not suitable for a full platform object-storage layer. OSS should be an independent backend service with its own runtime, data schema, storage backend, API surface, permissions, signed URLs, lifecycle, and cleanup semantics.
 
 ## Problem Statement
 
-Files are now a cross-cutting platform capability, not a user-only concern.
+Files are now a cross-cutting platform capability, not a user-only concern and not an implementation detail of `community-app`.
 
 The platform needs to support:
 
@@ -33,25 +33,28 @@ The platform needs to support:
 - upload and download policies by usage
 - reuse across `user`, `content`, `market`, `wallet`, `ops`, and future `im` attachments
 
-The current per-domain file logic would fragment those rules, duplicate storage policy, and make lifecycle management impossible to reason about.
+The current per-domain file logic would fragment those rules, duplicate storage policy, couple binary I/O to the main business deployable, and make lifecycle management impossible to reason about.
 
 ## Goals
 
-- Create one owner domain for all OSS-style objects inside `backend/community-app`.
+- Create an independent `backend/community-oss` service for all OSS-style objects.
 - Support upload, download, signed URL issuance, permission checks, and lifecycle management.
 - Keep all storage provider details behind infrastructure adapters.
-- Make `user`, `content`, `market`, `wallet`, and `ops` consumers of OSS instead of owners of storage behavior.
-- Preserve the existing `/files/**` public file entry while moving ownership to the new OSS domain.
+- Make `community-app`, `community-im`, and future services consumers of OSS instead of owners of storage behavior.
+- Preserve the existing `/files/**` public file entry while routing it to `community-oss`.
+- Route OSS browser APIs through `community-gateway` under `/api/oss/**`.
+- Keep `community-app` business domains isolated from OSS persistence and storage provider details.
 - Support both self-hosted object storage and local filesystem dev/test backends.
-- Keep strict DDD tactical layering and existing architecture guardrails intact.
+- Keep strict DDD tactical layering inside `community-app`; for `community-oss`, use the same controller/application/domain/infrastructure separation even though it is a separate deployable.
 
 ## Non-Goals
 
-- Do not split OSS into a separate microservice.
 - Do not introduce a new frontend UX just for OSS.
 - Do not hardcode business meaning into the storage layer.
 - Do not deduplicate blobs globally unless a later implementation decides it is worth the added complexity.
 - Do not use `app/query`, `app/command`, or `*UseCase` packages.
+- Do not let `community-app` or other services read or write OSS tables directly.
+- Do not make MinIO itself the product API; MinIO is an infrastructure backend behind `community-oss`.
 
 ## Eligible Content Classes
 
@@ -71,18 +74,29 @@ The rule is simple: if the content is a file, has lifecycle, needs access contro
 
 ## Architecture
 
-OSS is a new owner domain inside `community-app`, not a separate deployable.
+OSS is a separate Spring Boot deployable in the backend Maven multi-module tree.
 
 ```text
-Controller / Listener / Handler / Bridge / Enqueuer / Job
-  -> OssApplicationService
-      -> Oss domain model / service / repository / event
-      -> foreign owner-domain api.query / api.action / api.model when other domains need OSS synchronously
-      -> contracts.event when other domains need OSS asynchronously
-          -> Infrastructure implementation
+Browser / Client
+  -> community-gateway
+      -> community-oss
+
+community-app / community-im / future services
+  -> community-oss HTTP client / internal API
+      -> community-oss ApplicationService
+          -> community-oss domain model / service / repository / event
+          -> community-oss infrastructure storage adapter
+              -> MinIO / S3-compatible backend / local filesystem
 ```
 
-The new domain package should be:
+The new backend module should be:
+
+```text
+backend/community-oss
+  src/main/java/com/nowcoder/community/oss
+```
+
+The service package should be:
 
 ```text
 com.nowcoder.community.oss
@@ -90,6 +104,7 @@ com.nowcoder.community.oss
   application
     command
     result
+    port
   domain
     model
     service
@@ -102,21 +117,30 @@ com.nowcoder.community.oss
     storage
     event
     job
+    security
   api
-    query
-    action
     model
   contracts
     event
 ```
 
+`community-oss` publishes HTTP APIs and, if useful for Java callers, a small client/contract module:
+
+```text
+backend/community-oss-client
+  src/main/java/com/nowcoder/community/oss/client
+```
+
+The client module must contain DTOs and typed clients only. It must not expose `community-oss` domain, repository, persistence, mapper, or storage classes.
+
 Recommended storage backend shape:
 
 - production: MinIO or another S3-compatible object store
 - development and tests: local filesystem backend
-- the application must not depend on one concrete backend
+- the application layer must not depend on one concrete backend
+- `community-app` and `community-im` must not depend on one concrete OSS backend
 
-## Domain Boundaries
+## Service Boundaries
 
 OSS owns:
 
@@ -130,14 +154,19 @@ OSS owns:
 - signed URL generation
 - cleanup scheduling
 - cache headers and download disposition policy
+- its own database schema
+- its own storage credentials and bucket mapping
 
 OSS does not own:
 
 - what a business object means in `user`, `content`, `market`, `wallet`, or `ops`
 - post visibility, market order state, wallet state, or moderation state
 - which domain wants to store a file reference
+- direct mutation of consumer-domain business tables
 
 The consumer domain owns the business reason to create, retain, or delete a file. OSS owns the file object itself.
+
+Consumer services must interact with OSS through HTTP/internal service APIs from their application layer or infrastructure clients. They must not share OSS database tables or object-store credentials.
 
 ## Object Model
 
@@ -149,6 +178,7 @@ Suggested fields:
 
 - `object_id`
 - `usage`
+- `owner_service`
 - `owner_domain`
 - `owner_type`
 - `owner_id`
@@ -203,6 +233,7 @@ Suggested fields:
 - `object_id`
 - `version_id`
 - `upload_mode`
+- `owner_service`
 - `owner_domain`
 - `owner_type`
 - `owner_id`
@@ -242,6 +273,7 @@ Suggested fields:
 - `reference_id`
 - `object_id`
 - `version_id` nullable
+- `subject_service`
 - `subject_domain`
 - `subject_type`
 - `subject_id`
@@ -326,7 +358,7 @@ The owning domain chooses visibility at object creation time. OSS enforces it.
 
 ## Application Services
 
-Recommended application services:
+Recommended application services inside `community-oss`:
 
 - `ObjectUploadApplicationService`
 - `ObjectQueryApplicationService`
@@ -335,7 +367,7 @@ Recommended application services:
 - `ObjectReferenceApplicationService`
 - `ObjectLifecycleApplicationService`
 
-These services own transaction boundaries, permission checks, upload orchestration, reference binding, signed URL issuance, and lifecycle state changes.
+These services own transaction boundaries, permission checks, upload orchestration, reference binding, signed URL issuance, and lifecycle state changes for the OSS service.
 
 ### Command / result examples
 
@@ -362,9 +394,11 @@ Results:
 
 ## API Surface
 
-### Synchronous API
+### Service API
 
-`oss.api.query` should answer read or decision questions:
+`community-oss` should expose stable HTTP APIs for browser-facing and service-to-service use. A Java client module may wrap those HTTP APIs for `community-app`, `community-im`, and future Java services.
+
+Query-style APIs should answer read or decision questions:
 
 - resolve object metadata
 - resolve current public URL
@@ -373,7 +407,7 @@ Results:
 - check delete access
 - inspect current lifecycle state
 
-`oss.api.action` should handle state transitions:
+Action-style APIs should handle state transitions:
 
 - prepare upload session
 - complete upload
@@ -383,11 +417,11 @@ Results:
 - trigger variant creation
 - trigger lifecycle transition
 
-`oss.api.model` should carry OSS-specific contract models only. It must not reuse `contracts.event`.
+The service contract models must be separate from async event contracts. They must not expose domain models, persistence data objects, or storage-provider objects.
 
 ### HTTP routes
 
-Planned browser-facing or public-facing routes:
+Planned gateway-facing routes:
 
 - `POST /api/oss/objects/upload-sessions`
 - `POST /api/oss/objects/{objectId}/complete`
@@ -398,7 +432,7 @@ Planned browser-facing or public-facing routes:
 - `DELETE /api/oss/objects/{objectId}`
 - `GET /files/**`
 
-`GET /files/**` remains the stable public download route. It should be owned by OSS, not `user`.
+`GET /files/**` remains the stable public download route. Gateway should route it to `community-oss`, not `community-app`.
 
 Canonical public paths should be version-addressed:
 
@@ -408,11 +442,15 @@ Canonical public paths should be version-addressed:
 
 The route resolver should use `objectId` and `versionId` as the authority. `fileName` is for readability and `Content-Disposition`; it must not be trusted as the lookup key. Legacy paths such as `/files/avatar/{userId}/{uuid}` should resolve through `oss_object_alias`.
 
+### Internal routes
+
+Internal service-to-service routes may live under `/internal/oss/**` when they should not be callable by browsers. They should require internal-scope JWT or equivalent service credentials and should be used for batch reference binding, migration, lifecycle control, and trusted status checks.
+
 ## Upload Flow
 
 Recommended default flow is staged upload with finalization:
 
-1. caller application service asks OSS for an upload session
+1. caller application service or browser asks `community-oss` for an upload session through gateway or internal API
 2. OSS validates usage policy, file size, mime type, and ownership context
 3. OSS returns either a presigned direct-upload URL or a proxy upload token, depending on backend capability and policy
 4. caller uploads content
@@ -423,13 +461,15 @@ Recommended default flow is staged upload with finalization:
 
 This flow works for both direct browser uploads and server-side proxy uploads.
 
+For business-owned uploads, the owner service should authorize the business action before asking OSS to prepare the session. OSS should validate the technical policy and the service identity, then record the declared owner context.
+
 ## Download and Signed URL Flow
 
 Download should support three access modes:
 
 1. `PUBLIC` objects: anonymous `GET /files/**`
 2. `SIGNED` objects: anonymous `GET /files/**` with a valid signed token
-3. `OWNER` / `DOMAIN` / `ROLE` / `INTERNAL` objects: authenticated access decided by OSS and, when needed, by the owning domain through `oss.api.*`
+3. `OWNER` / `DOMAIN` / `ROLE` / `INTERNAL` objects: authenticated access decided by OSS from stored grants, service identity, JWT claims, or a signed URL previously issued after owner-service authorization
 
 Signed URL generation should return:
 
@@ -450,17 +490,20 @@ The downloaded response should preserve:
 
 For version-addressed public assets, the cache policy can be long-lived and immutable. For private assets, the cache policy should be short-lived or `no-store`.
 
+OSS should not synchronously call back into `community-app` on every file download. For private business objects, the owner service should either request a signed URL after authorizing the current actor or pre-register explicit grants in OSS.
+
 ## Permission Model
 
 Permissions are a combination of visibility and grants.
 
 Rules:
 
-- the owner domain decides the initial visibility
+- the owner service decides the initial visibility
 - OSS enforces the visibility on every download or signed URL request
 - object references do not automatically imply public visibility
 - a delete request is allowed only when lifecycle policy and grants permit it
 - a locked or retained object cannot be physically purged until hold conditions clear
+- internal service calls require service identity, not only end-user JWT identity
 
 Recommended principal types for grants:
 
@@ -509,7 +552,7 @@ This keeps lifecycle and permission logic uniform:
 
 ## Storage Backends
 
-The infrastructure layer should hide storage implementation details behind a single adapter interface.
+The `community-oss` infrastructure layer should hide storage implementation details behind a single adapter interface.
 
 Required backend capabilities:
 
@@ -527,7 +570,7 @@ Planned backend implementations:
 - `LocalFilesystemObjectStore` for dev and tests
 - `S3CompatibleObjectStore` for MinIO or any S3-compatible deployment
 
-The application layer must not know which backend is active.
+The `community-oss` application layer must not know which backend is active. Other backend services must not receive MinIO credentials, bucket names, or provider-specific keys.
 
 ## Bucket Strategy
 
@@ -539,11 +582,22 @@ Recommended classes:
 - private
 - temporary
 
-The infrastructure adapter may map those classes to one physical bucket or multiple buckets depending on deployment needs.
+The `community-oss` infrastructure adapter may map those classes to one physical bucket or multiple buckets depending on deployment needs.
 
 The domain model should only know the logical class and policy; it should not hardcode provider-specific bucket naming.
 
 ## Consumer Integration
+
+All consumer integration should follow this rule:
+
+```text
+consumer controller / listener / handler
+  -> consumer ApplicationService
+      -> consumer domain rules
+      -> community-oss client / HTTP API
+```
+
+Controllers, listeners, jobs, and domain models in consumer services must not call OSS directly.
 
 ### `user`
 
@@ -551,9 +605,9 @@ User avatars and profile images should move to OSS.
 
 Target shape:
 
-- `UserAvatarApplicationService` becomes an OSS consumer
+- `UserAvatarApplicationService` authorizes avatar changes and calls the OSS client from the application layer
 - user keeps avatar business rules and profile updates
-- user stores an OSS object reference, not a storage provider implementation
+- user stores an OSS object reference or public URL projection, not a storage provider implementation
 - `user.headerUrl` can remain a derived read field during transition, but the canonical reference should be the OSS object ID
 
 ### `content`
@@ -591,9 +645,13 @@ Ops should use OSS for:
 - investigation attachments
 - maintenance artifacts
 
+### Future `im`
+
+IM should use OSS for file-like message attachments while keeping message state in `im-core`. IM services should store object references in message records and request signed URLs when rendering attachment payloads.
+
 ## Events
 
-OSS should publish lifecycle events through `contracts.event` and the existing outbox pattern when downstream consumers need asynchronous knowledge.
+OSS should publish lifecycle events through its own `contracts.event` package and a reliable outbox in the OSS service database when downstream consumers need asynchronous knowledge.
 
 Likely event types:
 
@@ -605,7 +663,7 @@ Likely event types:
 - `ObjectExpired`
 - `ObjectAliasCreated`
 
-Consumers can use these events for cache invalidation, read-model cleanup, or audit trails.
+Consumers can use these events for cache invalidation, read-model cleanup, or audit trails. Cross-service event delivery should use the repository's established reliable delivery pattern, but the outbox rows belong to `community-oss`, not `community-app`.
 
 ## Migration
 
@@ -613,32 +671,38 @@ The existing avatar chain must be treated as a migration surface, not the final 
 
 Migration order:
 
-1. introduce OSS domain, schema, and storage adapter
-2. move `GET /files/**` ownership to OSS
-3. move avatar upload and download flows from `user` to OSS
-4. backfill legacy avatar objects and aliases
-5. migrate content image workflows
-6. migrate market media and evidence
-7. migrate wallet and ops export files
-8. delete the old user-local storage provider classes after the last consumer is moved
+1. introduce `backend/community-oss`, its database schema, storage adapter, and service security
+2. add gateway routes for `/api/oss/**` and `/files/**` to `community-oss`
+3. introduce a `community-oss` client for `community-app`
+4. move avatar upload and download flows from `user` to `community-oss`
+5. backfill legacy avatar objects and aliases
+6. migrate content image workflows
+7. migrate market media and evidence
+8. migrate wallet and ops export files
+9. delete the old user-local storage provider classes after the last consumer is moved
 
 Legacy compatibility requirements:
 
 - existing public file URLs should keep working through alias resolution
 - old avatar paths should redirect or resolve to canonical OSS objects
 - consumer domains should not see storage backend details
+- `community-app` should eventually stop mounting the legacy user file volume
 
 ## Deployment
 
-The physical object store should be deployable alongside the existing stack.
+`community-oss` and the physical object store should be deployable alongside the existing stack.
 
 Expected deploy changes:
 
-- add MinIO or another S3-compatible service to the local topology
+- add `community-oss` as a backend Maven module and Docker-buildable service
+- add MinIO or another S3-compatible infrastructure service to the local topology
 - add bucket bootstrap or initialization logic
 - add persistent volume mounts for object storage
+- add a separate OSS schema/database initialization path
+- add Nacos discovery registration for `community-oss`
+- change `community-gateway` routing so `/api/oss/**` and `/files/**` target `community-oss`
 - add OSS environment variables to `deploy/.env.single.example` and `deploy/.env.cluster.example`
-- keep gateway routing for `/files/**`
+- add service-to-service auth configuration for `community-app` and future consumers
 
 The deployment model should remain self-hosted friendly and not require a cloud-only provider.
 
@@ -651,24 +715,28 @@ Required tests:
 - controller tests for `/files/**` and the OSS HTTP routes
 - storage adapter tests for local filesystem and S3-compatible backends
 - migration tests for legacy avatar aliases
-- ArchUnit tests for new `oss` package boundaries
+- client contract tests between `community-app` and `community-oss`
+- gateway route tests for `/api/oss/**` and `/files/**`
+- deploy smoke tests for `community-oss` health and MinIO connectivity
+- ArchUnit tests for `community-app` changes that ensure consumer controllers/listeners/jobs only enter same-domain application services before calling OSS clients
 
-The architecture guardrails must be updated to include `oss` in the documented domain lists and package checks.
+The architecture guardrails must be updated for any new `community-app` client packages and for the removal of user-owned `/files/**`. `oss` should not be added as a `community-app` business domain because it is a separate deployable.
 
 ## Documentation Updates
 
 The spec implementation should also update:
 
+- `backend/README.md`
 - `docs/handbook/architecture.md`
 - `docs/handbook/system-design.md`
 - `docs/handbook/data-and-storage.md`
 - `docs/handbook/business-logic/README.md`
 - a new `docs/handbook/business-logic/oss.md`
 
-These docs must describe OSS as the owner domain for file-like content and clarify the migration away from user-local storage logic.
+These docs must describe `community-oss` as the owner service for file-like content and clarify the migration away from user-local storage logic.
 
 ## Final Shape
 
-The final design is a single owner domain inside `community-app` that manages all file-like content as versioned OSS objects with explicit usage policies, access grants, lifecycle rules, alias compatibility, and pluggable storage backends.
+The final design is an independent `community-oss` service that manages all file-like content as versioned OSS objects with explicit usage policies, access grants, lifecycle rules, alias compatibility, and pluggable storage backends.
 
-That gives the platform one consistent object model instead of multiple domain-specific storage hacks.
+That gives the platform one consistent object service instead of multiple domain-specific storage implementations inside unrelated business services.

@@ -6,7 +6,7 @@
 
 当前系统优先保证这些性质：
 
-- 对外入口稳定：浏览器默认经 `community-gateway`，业务 API 保持 `/api/**`，文件保持 `/files/**`，IM WebSocket 前缀保持 `/ws/im`；`/api/im/sessions` 由 `community-im-gateway` 返回稳定的 `/ws/im`，worker 选择和内部桥接对客户端透明。
+- 对外入口稳定：浏览器默认经 `community-gateway`，业务 API 保持 `/api/**`，文件保持 `/files/**` 并路由到 `community-oss`，IM WebSocket 前缀保持 `/ws/im`；`/api/im/sessions` 由 `community-im-gateway` 返回稳定的 `/ws/im`，worker 选择和内部桥接对客户端透明。
 - owner 清晰：主业务由 `community-app` 按包 owner 治理，IM 消息权威状态由 `community-im` 承担。
 - 同步协作显式：跨域同步调用只走 owner-domain `api.query` / `api.action` / `api.model`。
 - 异步协作显式：跨域事件只走 owner-domain `contracts.event`。
@@ -187,6 +187,16 @@ IM 独立于 `community-app`，并拆成统一外部入口下的三层：
 - 群聊用 `clientMsgId` 做 `(roomId, fromUserId, clientMsgId)` 幂等。
 - 群聊在线推送是 state-only update，不直接把完整消息当唯一交付方式。
 - `im-realtime` 通过 internal scope JWT 从 `im-core` 和 `community-app` 拉取 membership / policy snapshot。
+
+## OSS 文件服务
+
+`community-oss` 是对象存储和文件下载的 owner：
+
+- 浏览器同步 API 走 `/api/oss/**`。
+- 公共文件下载走 `/files/**`，路由固定到 `community-oss`。
+- `community-app`、`community-im` 和后续业务服务通过 `community-oss-client` 消费 OSS，不直接碰存储后端。
+- OSS 只依赖 `ObjectStore` 抽象，dev 可以用 local filesystem 或单节点 Garage，prod 应使用至少 3 节点 Garage 并开启副本和监控。
+- 未来切换 Ceph RGW 只替换对象存储 adapter 和配置，不改业务 API。
 
 ## Search 设计
 

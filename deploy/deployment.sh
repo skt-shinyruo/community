@@ -85,6 +85,7 @@ append_topology_files() {
         deploy/compose.infra.redis.single.yml
         deploy/compose.infra.kafka.single.yml
         deploy/compose.infra.elasticsearch.single.yml
+        deploy/compose.infra.garage.single.yml
         deploy/compose.infra.nacos.single.yml
         deploy/compose.infra.xxl-job.single.yml
         deploy/compose.infra.mailhog.yml
@@ -104,6 +105,7 @@ append_topology_files() {
         deploy/compose.infra.redis.cluster.yml
         deploy/compose.infra.kafka.cluster.yml
         deploy/compose.infra.elasticsearch.cluster.yml
+        deploy/compose.infra.garage.cluster.yml
         deploy/compose.infra.nacos.cluster.yml
         deploy/compose.infra.xxl-job.cluster.yml
         deploy/compose.infra.mailhog.yml

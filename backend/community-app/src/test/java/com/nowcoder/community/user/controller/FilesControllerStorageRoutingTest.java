@@ -1,70 +1,49 @@
 package com.nowcoder.community.user.controller;
 
-import com.nowcoder.community.user.application.AvatarUploadContent;
-import com.nowcoder.community.user.application.result.AvatarUploadTokenResult;
-import com.nowcoder.community.user.config.AvatarStorageProperties;
+import com.nowcoder.community.oss.client.CommunityOssClient;
+import com.nowcoder.community.oss.client.model.OssPublicFileResponse;
 import com.nowcoder.community.user.application.UserFileApplicationService;
-import com.nowcoder.community.user.infrastructure.avatar.AvatarService;
-import com.nowcoder.community.user.infrastructure.avatar.AvatarStorageProvider;
-import com.nowcoder.community.user.infrastructure.avatar.AvatarStorageRouter;
-import com.nowcoder.community.user.infrastructure.avatar.StoredAvatar;
-import com.nowcoder.community.user.infrastructure.avatar.UserAvatarStorageAdapter;
+import com.nowcoder.community.user.infrastructure.oss.OssAvatarProperties;
+import com.nowcoder.community.user.infrastructure.oss.OssAvatarStorageAdapter;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class FilesControllerStorageRoutingTest {
 
     @Test
-    void shouldServeAvatarFilesViaCurrentProviderWhenStorageIsNotLocal() throws Exception {
+    void shouldServeAvatarFilesThroughOssClient() throws Exception {
         UUID userId = uuid(1);
-        AvatarStorageProperties props = new AvatarStorageProperties();
-        props.setStorage("r2");
-
-        AvatarStorageProvider stub = new AvatarStorageProvider() {
-            @Override
-            public String provider() {
-                return "r2";
-            }
-
-            @Override
-            public AvatarUploadTokenResult createUploadToken(UUID userId, String fileName) {
-                return null;
-            }
-
-            @Override
-            public void upload(UUID userId, String fileName, AvatarUploadContent content) {
-                throw new UnsupportedOperationException("upload not needed");
-            }
-
-            @Override
-            public String buildAvatarUrl(String fileName) {
-                return "http://example.invalid/" + fileName;
-            }
-
-            @Override
-            public StoredAvatar loadOrNull(String key) {
-                return new StoredAvatar(new ByteArrayResource("ok".getBytes(StandardCharsets.UTF_8)), MediaType.TEXT_PLAIN);
-            }
-        };
-
-        AvatarStorageRouter router = new AvatarStorageRouter(props, List.of(stub));
-        UserAvatarStorageAdapter adapter = new UserAvatarStorageAdapter(mock(AvatarService.class), router);
+        String fileKey = "avatar/" + userId + "/0123456789abcdef0123456789abcdef";
+        CommunityOssClient ossClient = mock(CommunityOssClient.class);
+        when(ossClient.loadPublicFile(fileKey)).thenReturn(new OssPublicFileResponse(
+                "ok".getBytes(StandardCharsets.UTF_8),
+                "text/plain",
+                2,
+                "",
+                "public, max-age=31536000, immutable",
+                "avatar.png"
+        ));
+        OssAvatarStorageAdapter adapter = new OssAvatarStorageAdapter(
+                ossClient,
+                mock(StringRedisTemplate.class),
+                new OssAvatarProperties("http://localhost:12880")
+        );
         FilesController controller = new FilesController(new UserFileApplicationService(adapter));
 
         HttpServletRequest req = mock(HttpServletRequest.class);
-        when(req.getRequestURI()).thenReturn("/files/avatar/" + userId + "/0123456789abcdef0123456789abcdef");
+        when(req.getRequestURI()).thenReturn("/files/" + fileKey);
 
         ResponseEntity<Resource> resp = controller.get(req);
 
@@ -74,6 +53,7 @@ class FilesControllerStorageRoutingTest {
         assertThat(resp.getBody()).isNotNull();
         assertThat(resp.getBody().getInputStream().readAllBytes()).isEqualTo("ok".getBytes(StandardCharsets.UTF_8));
         assertThat(resp.getHeaders().getFirst("X-Content-Type-Options")).isEqualTo("nosniff");
+        verify(ossClient).loadPublicFile(fileKey);
     }
 
     private static UUID uuid(long suffix) {

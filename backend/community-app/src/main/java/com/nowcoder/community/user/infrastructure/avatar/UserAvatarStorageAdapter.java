@@ -6,14 +6,11 @@ import com.nowcoder.community.user.application.port.AvatarStoragePort;
 import com.nowcoder.community.user.application.result.AvatarFileResult;
 import com.nowcoder.community.user.application.result.AvatarUploadTokenResult;
 import org.springframework.core.io.Resource;
-import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
-
-@Component
 public class UserAvatarStorageAdapter implements AvatarStoragePort {
 
     private final AvatarService avatarService;

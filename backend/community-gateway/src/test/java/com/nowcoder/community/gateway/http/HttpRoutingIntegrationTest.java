@@ -36,27 +36,33 @@ class HttpRoutingIntegrationTest {
 
     private static final BlockingQueue<RequestCapture> BOOTSTRAP_CAPTURES = new LinkedBlockingQueue<>();
     private static final BlockingQueue<RequestCapture> IM_CAPTURES = new LinkedBlockingQueue<>();
+    private static final BlockingQueue<RequestCapture> OSS_CAPTURES = new LinkedBlockingQueue<>();
     private static final String TRACEPARENT_HEADER = "traceparent";
 
     private static volatile DisposableServer bootstrapServer;
     private static volatile DisposableServer imServer;
+    private static volatile DisposableServer ossServer;
 
     @Autowired
     private WebTestClient webTestClient;
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
-        registry.add("gateway.http.routes[0].id", () -> "bootstrap-api");
-        registry.add("gateway.http.routes[0].path-prefix", () -> "/api");
-        registry.add("gateway.http.routes[0].service-id", () -> "community-app");
+        registry.add("gateway.http.routes[0].id", () -> "oss-api");
+        registry.add("gateway.http.routes[0].path-prefix", () -> "/api/oss");
+        registry.add("gateway.http.routes[0].service-id", () -> "community-oss");
         registry.add("gateway.http.routes[1].id", () -> "im-core");
         registry.add("gateway.http.routes[1].path-prefix", () -> "/api/im");
         registry.add("gateway.http.routes[1].service-id", () -> "im-core");
-        registry.add("gateway.http.routes[2].id", () -> "bootstrap-files");
-        registry.add("gateway.http.routes[2].path-prefix", () -> "/files");
+        registry.add("gateway.http.routes[2].id", () -> "bootstrap-api");
+        registry.add("gateway.http.routes[2].path-prefix", () -> "/api");
         registry.add("gateway.http.routes[2].service-id", () -> "community-app");
+        registry.add("gateway.http.routes[3].id", () -> "oss-files");
+        registry.add("gateway.http.routes[3].path-prefix", () -> "/files");
+        registry.add("gateway.http.routes[3].service-id", () -> "community-oss");
         registry.add("spring.cloud.discovery.client.simple.instances.community-app[0].uri", HttpRoutingIntegrationTest::bootstrapBaseUrl);
         registry.add("spring.cloud.discovery.client.simple.instances.im-core[0].uri", HttpRoutingIntegrationTest::imBaseUrl);
+        registry.add("spring.cloud.discovery.client.simple.instances.community-oss[0].uri", HttpRoutingIntegrationTest::ossBaseUrl);
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
         registry.add("gateway.cors.allowed-origins[0]", () -> "http://localhost:12881");
         registry.add("gateway.cors.allowed-origins[1]", () -> "http://127.0.0.1:12881");
@@ -71,6 +77,10 @@ class HttpRoutingIntegrationTest {
         if (imServer != null) {
             imServer.disposeNow();
             imServer = null;
+        }
+        if (ossServer != null) {
+            ossServer.disposeNow();
+            ossServer = null;
         }
     }
 
@@ -101,17 +111,38 @@ class HttpRoutingIntegrationTest {
     }
 
     @Test
-    void shouldProxyFilesRequestsToBootstrapServiceAndPreservePathAndQuery() throws Exception {
+    void shouldProxyOssApiRequestsToOssServiceAndPreferItOverBootstrapApiRoute() throws Exception {
         BOOTSTRAP_CAPTURES.clear();
+        OSS_CAPTURES.clear();
+
+        webTestClient.post()
+                .uri("/api/oss/objects/upload-sessions")
+                .bodyValue("{\"usage\":\"USER_AVATAR\"}")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.upstream").isEqualTo("community-oss");
+
+        RequestCapture capture = OSS_CAPTURES.poll(5, TimeUnit.SECONDS);
+        assertThat(capture).isNotNull();
+        assertThat(capture.method()).isEqualTo("POST");
+        assertThat(capture.path()).isEqualTo("/api/oss/objects/upload-sessions");
+        assertThat(capture.body()).isEqualTo("{\"usage\":\"USER_AVATAR\"}");
+        assertThat(BOOTSTRAP_CAPTURES).isEmpty();
+    }
+
+    @Test
+    void shouldProxyFilesRequestsToOssServiceAndPreservePathAndQuery() throws Exception {
+        OSS_CAPTURES.clear();
 
         webTestClient.get()
                 .uri("/files/avatars/9.png?variant=thumb")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$.upstream").isEqualTo("bootstrap");
+                .jsonPath("$.upstream").isEqualTo("community-oss");
 
-        RequestCapture capture = BOOTSTRAP_CAPTURES.poll(5, TimeUnit.SECONDS);
+        RequestCapture capture = OSS_CAPTURES.poll(5, TimeUnit.SECONDS);
         assertThat(capture).isNotNull();
         assertThat(capture.path()).isEqualTo("/files/avatars/9.png");
         assertThat(capture.query()).isEqualTo("variant=thumb");
@@ -242,6 +273,13 @@ class HttpRoutingIntegrationTest {
             imServer = startServer("im-core", IM_CAPTURES);
         }
         return "http://127.0.0.1:" + imServer.port();
+    }
+
+    private static synchronized String ossBaseUrl() {
+        if (ossServer == null) {
+            ossServer = startServer("community-oss", OSS_CAPTURES);
+        }
+        return "http://127.0.0.1:" + ossServer.port();
     }
 
     private static DisposableServer startServer(String upstreamName, BlockingQueue<RequestCapture> captures) {

@@ -155,6 +155,12 @@ user:
     files-base-dir: ${USER_FILES_BASE_DIR:/tmp/community-files}
     public-base-url: ${USER_PUBLIC_BASE_URL:}
 
+oss:
+  client:
+    base-url: ${OSS_CLIENT_BASE_URL:http://community-oss:18090}
+  avatar:
+    public-base-url: ${OSS_AVATAR_PUBLIC_BASE_URL:${GATEWAY_PUBLIC_BASE_URL:http://localhost:12880}}
+
 message:
   idempotency:
     cleanup-enabled: true

@@ -58,6 +58,16 @@ Registration migration note：
 | `user.infrastructure.event.LocalUserEventPublisher` | user 本地事件发布 | [User 用户业务逻辑](business-logic/user.md) | Partial |
 | `user.infrastructure.event.LocalUserPolicyEventPublisher` | user policy 事件发布 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 
+## OSS
+
+| Core class | Role | Handbook section | Coverage |
+| --- | --- | --- | --- |
+| `oss.application.ObjectUploadApplicationService` | OSS upload session / complete / metadata | [OSS 对象存储业务逻辑](business-logic/oss.md) | Covered |
+| `oss.application.ObjectQueryApplicationService` | metadata lookup and public file resolve | [OSS 对象存储业务逻辑](business-logic/oss.md) | Covered |
+| `oss.application.ObjectAccessApplicationService` | signed URL issuance | [OSS 对象存储业务逻辑](business-logic/oss.md) | Covered |
+| `oss.controller.OssObjectController` | `/api/oss/**` HTTP binding | [OSS 对象存储业务逻辑](business-logic/oss.md) | IndexOnly |
+| `oss.controller.PublicFileController` | `/files/**` public file binding | [OSS 对象存储业务逻辑](business-logic/oss.md) | IndexOnly |
+
 ## Content
 
 | Core class | Role | Handbook section | Coverage |

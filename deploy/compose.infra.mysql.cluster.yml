@@ -11,6 +11,9 @@ services:
     - IM_MYSQL_DATABASE=${IM_MYSQL_DATABASE:-im_core}
     - IM_MYSQL_USER=${IM_MYSQL_USER:-im_core}
     - IM_MYSQL_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
+    - OSS_MYSQL_DATABASE=${OSS_MYSQL_DATABASE:-community_oss}
+    - OSS_MYSQL_USER=${OSS_MYSQL_USER:-community_oss}
+    - OSS_MYSQL_PASSWORD=${OSS_MYSQL_PASSWORD:-communityosspass}
     - MOCK_DATA_STUDIO_DB_USER=${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}
     - MOCK_DATA_STUDIO_DB_PASSWORD=${MOCK_DATA_STUDIO_DB_PASSWORD:-mockdatastudiopass}
     command:
@@ -35,6 +38,7 @@ services:
     - ./mysql/community/070_schema_im_core.sql:/docker-entrypoint-initdb.d/070_schema_im_core.sql:ro
     - ./mysql/community/080_schema_search.sql:/docker-entrypoint-initdb.d/080_schema_search.sql:ro
     - ./mysql/community/090_seed_identity.sql:/docker-entrypoint-initdb.d/090_seed_identity.sql:ro
+    - ./mysql/community_oss/010_schema.sql:/docker-entrypoint-initdb.d/100_schema_community_oss.sql:ro
     - ./mysql/conf/primary.cnf:/etc/mysql/conf.d/primary.cnf:ro
     healthcheck:
       test:

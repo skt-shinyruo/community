@@ -9,11 +9,13 @@
 - `frontend/`：Vue3 SPA。
 - `backend/community-gateway`：统一入口层，负责 HTTP / WebSocket 路由、CORS、trace 和边缘策略。
 - `backend/community-app`：主业务 owner，是按包边界治理的 package-scoped monolith。
+- `backend/community-oss`：独立 OSS deployable，负责对象元数据、版本、签名和公有文件访问。
+- `backend/community-oss-client`：给业务服务调用 OSS 的 typed client。
 - `backend/community-im`：IM 聚合模块，包含 `im-common`、`im-core`、`im-realtime`。
 - `backend/community-common/*`：共享 Web、安全、幂等、outbox、错误协议、trace 等横切能力。
 - `deploy/`：本地 single / cluster 拓扑和默认启用的 observability overlay。
 
-默认对外业务入口为 `community-gateway`，本地通过 NGINX / gateway 暴露在 `12880`。对外 API 前缀稳定为 `/api/**`，静态文件前缀稳定为 `/files/**`，IM WebSocket 前缀稳定为 `/ws/im`；session bootstrap 由 `community-im-gateway` 负责，返回稳定的 `/ws/im`，worker 选择和内部桥接对客户端不可见。
+默认对外业务入口为 `community-gateway`，本地通过 NGINX / gateway 暴露在 `12880`。对外 API 前缀稳定为 `/api/**`，静态文件前缀稳定为 `/files/**`，其中 `/files/**` 由 `community-oss` 承担对象读取与 alias 解析；IM WebSocket 前缀稳定为 `/ws/im`；session bootstrap 由 `community-im-gateway` 负责，返回稳定的 `/ws/im`，worker 选择和内部桥接对客户端不可见。
 
 ```mermaid
 flowchart TD
@@ -21,14 +23,17 @@ flowchart TD
     FE --> GW[community-gateway]
     Browser --> GW
     GW --> APP[community-app]
+    GW --> OSS[community-oss]
     GW --> IMCORE[im-core]
     GW --> IMRT[im-realtime]
     GW --> NACOS[Nacos]
     APP --> NACOS
+    APP -. community-oss-client .-> OSS
     IMCORE --> NACOS
     IMRT --> NACOS
 
     APP --> MySQL[(MySQL community)]
+    OSS --> OSSDB[(MySQL community_oss)]
     IMCORE --> IMMySQL[(MySQL im_core)]
     APP --> Redis[(Redis)]
     APP --> ES[(Elasticsearch)]
@@ -41,7 +46,8 @@ flowchart TD
 | 能力 | 对外入口 | SSOT / owner | 授权位置 |
 | --- | --- | --- | --- |
 | 认证与会话 | `/api/auth/**` | `auth` + user session 存储 | `community-app` |
-| 用户资料与头像 | `/api/users/**`, `/files/**` | `user` | `community-app` |
+| 用户资料与头像 | `/api/users/**` | `user` | `community-app` |
+| OSS 对象存储 | `/api/oss/**`, `/files/**` | `oss` | `community-oss` |
 | 内容 | `/api/posts/**`, `/api/bookmarks`, `/api/categories/**`, `/api/tags/**` | `content` | `community-app` |
 | 举报与治理 | `/api/reports/**`, `/api/moderation/**` | `content` + `user` | `community-app` |
 | 社交 | `/api/likes/**`, `/api/follows/**`, `/api/blocks/**` | `social` | `community-app` |

@@ -1,10 +1,10 @@
 # User 用户业务逻辑
 
-用户域拥有用户账号事实、资料事实、凭据事实、角色事实、处罚状态和头像。auth、content、social、growth、IM 等域都围绕 user owner 的同步 API 或事件协作。
+用户域拥有用户账号事实、资料事实、凭据事实、角色事实、处罚状态和头像业务规则；头像对象本身由 `community-oss` 承担。auth、content、social、growth、IM 等域都围绕 user owner 的同步 API 或事件协作。
 
 ## Owner / SSOT
 
-- `user` owns `user` 表中的账号、邮箱、密码 hash、头像、角色、状态、积分/score、禁言和封禁时间。
+- `user` owns `user` 表中的账号、邮箱、密码 hash、头像业务投影、角色、状态、积分/score、禁言和封禁时间；头像对象本身在 `community-oss`。
 - `user` owns DB refresh session 存储事实，但 refresh token 策略由 auth 域编排。
 - 用户最近帖子/评论不是 user 主事实，来自 content owner 查询聚合。
 - IM 的本地 policy projection 不是用户处罚主事实；user owner 通过 snapshot 和事件向 IM 投影。
@@ -20,7 +20,7 @@ HTTP：
 - `GET /api/users/{userId}/avatar/upload-token`
 - `POST /api/users/{userId}/avatar/upload`
 - `PUT /api/users/{userId}/avatar`
-- `GET /files/**`
+- `GET /files/**`（由 `community-oss` 提供公共文件读取）
 - `GET /api/users/admin/search`
 - `POST /api/users/admin/role`
 
@@ -52,11 +52,11 @@ HTTP：
 
 ## 头像流程
 
-头像是三段式：
+头像是三段式，但对象存储已迁移到 OSS client boundary：
 
-1. `createUploadToken(actorUserId, userId)`：只能本人操作，生成上传 token 或文件 key。
-2. `upload(actorUserId, userId, fileName, content)`：只能本人上传，校验文件名、MIME、大小，写入存储。
-3. `updateAvatar(actorUserId, userId, fileName)`：只能本人确认，消费上传 ticket，把头像 URL 写回 `user.header_url`。
+1. `createUploadToken(actorUserId, userId)`：只能本人操作，生成上传 token 和服务端 file key，并向 OSS prepare upload。
+2. `upload(actorUserId, userId, fileName, content)`：只能本人上传，校验文件名、MIME、大小，通过 OSS client 完成代理上传。
+3. `updateAvatar(actorUserId, userId, fileName)`：只能本人确认，消费上传 ticket，把 canonical OSS public URL 写回 `user.header_url`。
 
 规则：
 
@@ -65,8 +65,9 @@ HTTP：
 - confirm 阶段一次性消费 ticket。
 - `fileName` 必须符合头像路径规则。
 - 上传失败不能更新头像。
+- `UserFileApplicationService` 只做文件路径校验和 OSS client 适配，不再依赖本地 provider 作为事实来源。
 
-文件读取由 `UserFileApplicationService.loadAvatarOrNull(...)` 和 `FilesController` 承接。
+文件读取由 `UserFileApplicationService.loadAvatarOrNull(...)` 和 `FilesController` 承接，实际 blob 读取由 `community-oss` 完成。
 
 ## 凭据与密码
 
@@ -168,3 +169,4 @@ refresh token 明文不归 user 域存储。
 - `user.application.RefreshTokenSessionApplicationService`
 - `user.domain.service.*`
 - `user.infrastructure.api.*`
+- `user.infrastructure.oss.*`

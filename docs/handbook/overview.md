@@ -11,6 +11,8 @@
 - `frontend/`：Vue3 SPA。
 - `backend/community-gateway`：统一 HTTP / WebSocket 入口，浏览器默认先到这里。
 - `backend/community-app`：主业务 owner，形态是按包治理边界的 package-scoped monolith。
+- `backend/community-oss`：对象存储服务，拥有 OSS metadata、版本、alias、签名 URL 和 `/files/**` 下载。
+- `backend/community-oss-client`：业务服务调用 OSS 的 typed client。
 - `backend/community-im`：独立 IM 子系统，包含：
   - `im-realtime`：WebSocket 接入、在线连接、Kafka command 生产、在线推送。
   - `im-core`：消息持久化、历史查询、未读状态、房间和成员权威状态。
@@ -34,7 +36,8 @@
 ```text
 Browser / Client
   -> community-gateway
-      -> community-app      (/api/**, /files/**, /api/ops/**)
+      -> community-app      (/api/**, /api/ops/**)
+      -> community-oss      (/api/oss/**, /files/**)
       -> im-core            (/api/im/** history / read state)
       -> community-im-gateway (/api/im/sessions, /ws/im)
 ```

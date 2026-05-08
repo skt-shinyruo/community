@@ -54,7 +54,7 @@ The current per-domain file logic would fragment those rules, duplicate storage 
 - Do not deduplicate blobs globally unless a later implementation decides it is worth the added complexity.
 - Do not use `app/query`, `app/command`, or `*UseCase` packages.
 - Do not let `community-app` or other services read or write OSS tables directly.
-- Do not make MinIO itself the product API; MinIO is an infrastructure backend behind `community-oss`.
+- Do not make Garage or any other S3-compatible backend itself the product API; storage backends are infrastructure behind `community-oss`.
 
 ## Eligible Content Classes
 
@@ -86,7 +86,7 @@ community-app / community-im / future services
       -> community-oss ApplicationService
           -> community-oss domain model / service / repository / event
           -> community-oss infrastructure storage adapter
-              -> MinIO / S3-compatible backend / local filesystem
+              -> Garage (S3-compatible API, first deployment) / Ceph RGW / local filesystem
 ```
 
 The new backend module should be:
@@ -135,8 +135,8 @@ The client module must contain DTOs and typed clients only. It must not expose `
 
 Recommended storage backend shape:
 
-- production: MinIO or another S3-compatible object store
-- development and tests: local filesystem backend
+- production: at least three Garage nodes with replicas, health checks, logs, and Prometheus monitoring
+- development and tests: Garage single-node or local filesystem backend
 - the application layer must not depend on one concrete backend
 - `community-app` and `community-im` must not depend on one concrete OSS backend
 
@@ -568,9 +568,9 @@ Required backend capabilities:
 Planned backend implementations:
 
 - `LocalFilesystemObjectStore` for dev and tests
-- `S3CompatibleObjectStore` for MinIO or any S3-compatible deployment
+- `S3CompatibleObjectStore` for Garage or any S3-compatible deployment
 
-The `community-oss` application layer must not know which backend is active. Other backend services must not receive MinIO credentials, bucket names, or provider-specific keys.
+The `community-oss` application layer must not know which backend is active. Other backend services must not receive Garage credentials, bucket names, or provider-specific keys. A later Ceph RGW migration should replace only the `ObjectStore` adapter/configuration, not the business API.
 
 ## Bucket Strategy
 
@@ -695,7 +695,7 @@ Legacy compatibility requirements:
 Expected deploy changes:
 
 - add `community-oss` as a backend Maven module and Docker-buildable service
-- add MinIO or another S3-compatible infrastructure service to the local topology
+- add Garage to the local topology as the OSS blob store
 - add bucket bootstrap or initialization logic
 - add persistent volume mounts for object storage
 - add a separate OSS schema/database initialization path
@@ -717,7 +717,7 @@ Required tests:
 - migration tests for legacy avatar aliases
 - client contract tests between `community-app` and `community-oss`
 - gateway route tests for `/api/oss/**` and `/files/**`
-- deploy smoke tests for `community-oss` health and MinIO connectivity
+- deploy smoke tests for `community-oss` health and Garage connectivity
 - ArchUnit tests for `community-app` changes that ensure consumer controllers/listeners/jobs only enter same-domain application services before calling OSS clients
 
 The architecture guardrails must be updated for any new `community-app` client packages and for the removal of user-owned `/files/**`. `oss` should not be added as a `community-app` business domain because it is a separate deployable.

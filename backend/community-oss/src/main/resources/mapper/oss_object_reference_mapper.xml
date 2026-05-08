@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nowcoder.community.oss.infrastructure.persistence.mapper.OssObjectReferenceMapper">
+    <sql id="fields">
+        reference_id, object_id, version_id, subject_service, subject_domain, subject_type, subject_id,
+        reference_role, status, retain_until, created_at, released_at
+    </sql>
+    <insert id="upsert" parameterType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssObjectReferenceDataObject">
+        insert into oss_object_reference (<include refid="fields"/>)
+        values (#{referenceId,jdbcType=BINARY}, #{objectId,jdbcType=BINARY}, #{versionId,jdbcType=BINARY},
+        #{subjectService}, #{subjectDomain}, #{subjectType}, #{subjectId}, #{referenceRole}, #{status},
+        #{retainUntil}, #{createdAt}, #{releasedAt})
+        on duplicate key update
+        status = values(status),
+        retain_until = values(retain_until),
+        released_at = values(released_at)
+    </insert>
+    <select id="selectById" resultType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssObjectReferenceDataObject">
+        select <include refid="fields"/>
+        from oss_object_reference
+        where reference_id = #{referenceId,jdbcType=BINARY}
+    </select>
+    <select id="selectByObjectId" resultType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssObjectReferenceDataObject">
+        select <include refid="fields"/>
+        from oss_object_reference
+        where object_id = #{objectId,jdbcType=BINARY}
+    </select>
+</mapper>

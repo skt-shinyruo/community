@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nowcoder.community.oss.infrastructure.persistence.mapper.OssObjectMapper">
+    <sql id="fields">
+        object_id, usage, owner_service, owner_domain, owner_type, owner_id, visibility, status,
+        current_version_id, latest_file_name, latest_content_type, latest_content_length,
+        latest_checksum_sha256, created_by, created_at, updated_at
+    </sql>
+    <insert id="upsert" parameterType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssObjectDataObject">
+        insert into oss_object (<include refid="fields"/>)
+        values (#{objectId,jdbcType=BINARY}, #{usage}, #{ownerService}, #{ownerDomain}, #{ownerType}, #{ownerId},
+        #{visibility}, #{status}, #{currentVersionId,jdbcType=BINARY}, #{latestFileName}, #{latestContentType},
+        #{latestContentLength}, #{latestChecksumSha256}, #{createdBy}, #{createdAt}, #{updatedAt})
+        on duplicate key update
+        usage = values(usage),
+        owner_service = values(owner_service),
+        owner_domain = values(owner_domain),
+        owner_type = values(owner_type),
+        owner_id = values(owner_id),
+        visibility = values(visibility),
+        status = values(status),
+        current_version_id = values(current_version_id),
+        latest_file_name = values(latest_file_name),
+        latest_content_type = values(latest_content_type),
+        latest_content_length = values(latest_content_length),
+        latest_checksum_sha256 = values(latest_checksum_sha256),
+        updated_at = values(updated_at)
+    </insert>
+    <select id="selectById" resultType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssObjectDataObject">
+        select <include refid="fields"/>
+        from oss_object
+        where object_id = #{objectId,jdbcType=BINARY}
+    </select>
+</mapper>

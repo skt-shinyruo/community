@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nowcoder.community.oss.infrastructure.persistence.mapper.OssAccessGrantMapper">
+    <sql id="fields">
+        grant_id, object_id, version_id, principal_type, principal_value, permission,
+        expires_at, created_by, created_at, revoked_at
+    </sql>
+    <insert id="upsert" parameterType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssAccessGrantDataObject">
+        insert into oss_access_grant (<include refid="fields"/>)
+        values (#{grantId,jdbcType=BINARY}, #{objectId,jdbcType=BINARY}, #{versionId,jdbcType=BINARY},
+        #{principalType}, #{principalValue}, #{permission}, #{expiresAt}, #{createdBy}, #{createdAt}, #{revokedAt})
+        on duplicate key update
+        principal_type = values(principal_type),
+        principal_value = values(principal_value),
+        permission = values(permission),
+        expires_at = values(expires_at),
+        revoked_at = values(revoked_at)
+    </insert>
+    <select id="selectById" resultType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssAccessGrantDataObject">
+        select <include refid="fields"/>
+        from oss_access_grant
+        where grant_id = #{grantId,jdbcType=BINARY}
+    </select>
+    <select id="selectByObjectId" resultType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssAccessGrantDataObject">
+        select <include refid="fields"/>
+        from oss_access_grant
+        where object_id = #{objectId,jdbcType=BINARY}
+    </select>
+</mapper>

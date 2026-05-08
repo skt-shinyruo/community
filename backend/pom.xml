@@ -47,6 +47,8 @@
         <module>community-gateway</module>
         <module>community-im-gateway</module>
         <module>community-app</module>
+        <module>community-oss</module>
+        <module>community-oss-client</module>
     </modules>
 
     <build>

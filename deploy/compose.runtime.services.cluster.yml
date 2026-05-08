@@ -10,6 +10,17 @@ x-community-app-base: &community-app-base
   - user_files:/data/files
   - observability_logs:/var/log/community
 
+x-community-oss-base: &community-oss-base
+  build:
+    context: ../backend
+    dockerfile: ../deploy/Dockerfile.backend-service
+    args:
+      MODULE: community-oss
+      OTEL_JAVA_AGENT_VERSION: ${OTEL_JAVA_AGENT_VERSION:-2.23.0}
+  mem_limit: ${COMMUNITY_OSS_MEM_LIMIT:-512m}
+  volumes:
+  - observability_logs:/var/log/community
+
 
 
 x-community-gateway-base: &community-gateway-base
@@ -278,6 +289,104 @@ services:
         condition: service_completed_successfully
       es-init:
         condition: service_completed_successfully
+  community-oss-1:
+    <<: *community-oss-base
+    environment:
+    - SERVER_PORT=18090
+    - OTEL_ENABLED=${OTEL_ENABLED:-false}
+    - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://observability-gateway-edot-collector:4318}
+    - OTEL_EXPORTER_OTLP_PROTOCOL=${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+    - OTEL_SERVICE_NAME=community-oss
+    - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-compose
+    - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+    - JAVA_OPTS=${COMMUNITY_OSS_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=55.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}
+    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+    - COMMUNITY_LOGGING_DIR=/var/log/community
+    - COMMUNITY_LOGGING_FILE_NAME=community-oss-1.json.log
+    - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+    - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - METRICS_BASIC_AUTH_USERNAME=${METRICS_BASIC_AUTH_USERNAME:-prometheus}
+    - METRICS_BASIC_AUTH_PASSWORD=${METRICS_BASIC_AUTH_PASSWORD:-}
+    - OSS_DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${OSS_MYSQL_DATABASE:-community_oss}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - OSS_DB_USERNAME=${OSS_MYSQL_USER:-community_oss}
+    - OSS_DB_PASSWORD=${OSS_MYSQL_PASSWORD:-communityosspass}
+    - OSS_OBJECT_STORE_MODE=${OSS_OBJECT_STORE_MODE:-garage}
+    - OSS_OBJECT_STORE_ENDPOINT=${OSS_OBJECT_STORE_ENDPOINT:-http://garage:3900}
+    - OSS_OBJECT_STORE_ACCESS_KEY=${GARAGE_DEFAULT_ACCESS_KEY:-communityosskey}
+    - OSS_OBJECT_STORE_SECRET_KEY=${GARAGE_DEFAULT_SECRET_KEY:-communityosssecret}
+    - OSS_OBJECT_STORE_BUCKET=${GARAGE_DEFAULT_BUCKET:-community-oss}
+    - OSS_OBJECT_STORE_PATH_STYLE=true
+    - OSS_PUBLIC_BASE_URL=${GATEWAY_PUBLIC_BASE_URL:-http://localhost:12880}
+    depends_on:
+      nacos-db-bootstrap:
+        condition: service_completed_successfully
+      nacos-1:
+        condition: service_started
+      mysql-primary:
+        condition: service_healthy
+      garage-1:
+        condition: service_started
+      garage-2:
+        condition: service_started
+      garage-3:
+        condition: service_started
+    networks:
+      default:
+        aliases:
+        - community-oss
+  community-oss-2:
+    <<: *community-oss-base
+    environment:
+    - SERVER_PORT=18090
+    - OTEL_SERVICE_NAME=community-oss
+    - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+    - JAVA_OPTS=${COMMUNITY_OSS_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=55.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}
+    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+    - COMMUNITY_LOGGING_DIR=/var/log/community
+    - COMMUNITY_LOGGING_FILE_NAME=community-oss-2.json.log
+    - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+    - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - OSS_DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${OSS_MYSQL_DATABASE:-community_oss}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - OSS_DB_USERNAME=${OSS_MYSQL_USER:-community_oss}
+    - OSS_DB_PASSWORD=${OSS_MYSQL_PASSWORD:-communityosspass}
+    - OSS_OBJECT_STORE_MODE=${OSS_OBJECT_STORE_MODE:-garage}
+    - OSS_OBJECT_STORE_ENDPOINT=${OSS_OBJECT_STORE_ENDPOINT:-http://garage:3900}
+    - OSS_OBJECT_STORE_ACCESS_KEY=${GARAGE_DEFAULT_ACCESS_KEY:-communityosskey}
+    - OSS_OBJECT_STORE_SECRET_KEY=${GARAGE_DEFAULT_SECRET_KEY:-communityosssecret}
+    - OSS_OBJECT_STORE_BUCKET=${GARAGE_DEFAULT_BUCKET:-community-oss}
+    - OSS_OBJECT_STORE_PATH_STYLE=true
+    - OSS_PUBLIC_BASE_URL=${GATEWAY_PUBLIC_BASE_URL:-http://localhost:12880}
+    depends_on:
+      community-oss-1:
+        condition: service_started
+  community-oss-3:
+    <<: *community-oss-base
+    environment:
+    - SERVER_PORT=18090
+    - OTEL_SERVICE_NAME=community-oss
+    - SERVICE_VERSION=${SERVICE_VERSION:-local-compose}
+    - JAVA_OPTS=${COMMUNITY_OSS_JAVA_OPTS:--XX:+UseG1GC -XX:+UseStringDeduplication -XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=55.0 -XX:MaxMetaspaceSize=192m -XX:+ExitOnOutOfMemoryError}
+    - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev},volume-log-export
+    - COMMUNITY_LOGGING_DIR=/var/log/community
+    - COMMUNITY_LOGGING_FILE_NAME=community-oss-3.json.log
+    - JWT_HMAC_SECRET=${JWT_HMAC_SECRET}
+    - NACOS_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=${NACOS_SERVER_ADDR:-nacos-1:8848,nacos-2:8848,nacos-3:8848}
+    - OSS_DB_URL=jdbc:mysql://${DB_PRIMARY_HOST:-mysql-primary}:3306/${OSS_MYSQL_DATABASE:-community_oss}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    - OSS_DB_USERNAME=${OSS_MYSQL_USER:-community_oss}
+    - OSS_DB_PASSWORD=${OSS_MYSQL_PASSWORD:-communityosspass}
+    - OSS_OBJECT_STORE_MODE=${OSS_OBJECT_STORE_MODE:-garage}
+    - OSS_OBJECT_STORE_ENDPOINT=${OSS_OBJECT_STORE_ENDPOINT:-http://garage:3900}
+    - OSS_OBJECT_STORE_ACCESS_KEY=${GARAGE_DEFAULT_ACCESS_KEY:-communityosskey}
+    - OSS_OBJECT_STORE_SECRET_KEY=${GARAGE_DEFAULT_SECRET_KEY:-communityosssecret}
+    - OSS_OBJECT_STORE_BUCKET=${GARAGE_DEFAULT_BUCKET:-community-oss}
+    - OSS_OBJECT_STORE_PATH_STYLE=true
+    - OSS_PUBLIC_BASE_URL=${GATEWAY_PUBLIC_BASE_URL:-http://localhost:12880}
+    depends_on:
+      community-oss-1:
+        condition: service_started
   community-gateway-1:
     <<: *community-gateway-base
     environment:

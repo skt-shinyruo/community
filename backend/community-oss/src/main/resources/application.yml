@@ -1,0 +1,41 @@
+server:
+  port: ${SERVER_PORT:18090}
+
+spring:
+  application:
+    name: community-oss
+  datasource:
+    url: ${OSS_DB_URL:jdbc:mysql://mysql:3306/community_oss?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${OSS_DB_USERNAME:community_oss}
+    password: ${OSS_DB_PASSWORD:communityosspass}
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR:${NACOS_SERVER_ADDR:localhost:8848}}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+mybatis:
+  mapper-locations: classpath*:mapper/*.xml
+  type-handlers-package: com.nowcoder.community.oss.infrastructure.persistence.typehandler
+  configuration:
+    map-underscore-to-camel-case: true
+
+community:
+  logging:
+    service-version: ${SERVICE_VERSION:@project.version@}
+
+oss:
+  object-store:
+    mode: ${OSS_OBJECT_STORE_MODE:garage}
+    endpoint: ${OSS_OBJECT_STORE_ENDPOINT:http://garage:3900}
+    access-key: ${OSS_OBJECT_STORE_ACCESS_KEY:}
+    secret-key: ${OSS_OBJECT_STORE_SECRET_KEY:}
+    bucket: ${OSS_OBJECT_STORE_BUCKET:community-oss}
+    path-style: ${OSS_OBJECT_STORE_PATH_STYLE:true}
+    local-root: ${OSS_OBJECT_STORE_LOCAL_ROOT:/tmp/community-oss}
+  public-base-url: ${OSS_PUBLIC_BASE_URL:http://localhost:12880}

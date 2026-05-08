@@ -17,6 +17,7 @@
 | --- | --- | --- |
 | 认证 | [auth.md](auth.md) | 登录、注册、验证码、密码重置、refresh token、会话清理。 |
 | 用户 | [user.md](user.md) | 用户资料、头像、凭据、角色、处罚状态、积分、refresh session。 |
+| OSS | [oss.md](oss.md) | 对象元数据、版本、alias、签名 URL、生命周期和 Garage / S3-compatible 后端。 |
 | 内容 | [content.md](content.md) | 帖子、评论、分类、标签、收藏、订阅、举报、审核、内容事件。 |
 | 社交 | [social.md](social.md) | 点赞、关注、拉黑、社交事件、互动限制、IM policy 联动。 |
 | 成长 | [growth.md](growth.md) | 任务模板、任务进度、事件去重、奖励、用户等级。 |

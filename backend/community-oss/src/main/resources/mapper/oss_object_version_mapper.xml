@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nowcoder.community.oss.infrastructure.persistence.mapper.OssObjectVersionMapper">
+    <sql id="fields">
+        version_id, object_id, version_no, storage_backend, storage_bucket, storage_key, status,
+        file_name, content_type, content_length, checksum_sha256, etag, cache_control,
+        content_disposition, source_object_id, variant_type, created_at, activated_at, expired_at, purged_at
+    </sql>
+    <insert id="upsert" parameterType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssObjectVersionDataObject">
+        insert into oss_object_version (<include refid="fields"/>)
+        values (#{versionId,jdbcType=BINARY}, #{objectId,jdbcType=BINARY}, #{versionNo}, #{storageBackend},
+        #{storageBucket}, #{storageKey}, #{status}, #{fileName}, #{contentType}, #{contentLength},
+        #{checksumSha256}, #{etag}, #{cacheControl}, #{contentDisposition}, #{sourceObjectId,jdbcType=BINARY},
+        #{variantType}, #{createdAt}, #{activatedAt}, #{expiredAt}, #{purgedAt})
+        on duplicate key update
+        status = values(status),
+        storage_bucket = values(storage_bucket),
+        storage_key = values(storage_key),
+        etag = values(etag),
+        cache_control = values(cache_control),
+        content_disposition = values(content_disposition),
+        activated_at = values(activated_at),
+        expired_at = values(expired_at),
+        purged_at = values(purged_at)
+    </insert>
+    <select id="selectById" resultType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssObjectVersionDataObject">
+        select <include refid="fields"/>
+        from oss_object_version
+        where version_id = #{versionId,jdbcType=BINARY}
+    </select>
+</mapper>

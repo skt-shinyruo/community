@@ -140,13 +140,14 @@ Key code：
 
 Owner / SSOT：
 
-- user 域拥有用户基础资料、头像和用户摘要。
+- user 域拥有用户基础资料、头像业务和用户摘要；头像对象与公共下载事实由 OSS owner 承担。
 - 资料聚合会回源内容域读取最近帖子 / 评论等只读视图。
 
 Entry：
 
 - `/api/users/**`
 - `/files/**`
+- `/api/oss/**`
 - 头像 token / upload / confirm 相关接口以 `UserController` 为准。
 
 Main path：
@@ -156,11 +157,11 @@ Main path：
 3. 批量用户摘要用于内容、通知、社交等展示。
 4. 当前聚合字段和行为由测试锁定。
 5. 头像上传三段式：
-   - 签发上传 token。
-   - 客户端上传文件。
-   - 确认并写回头像 URL。
-6. 文件访问通过 `/files/**` 暴露。
-7. 本地 provider 支持本地存储；R2 provider 支持对象存储直传。
+   - 签发上传 token，并通过 `community-oss-client` prepare upload。
+   - 客户端上传文件，经 `community-app` 代理到 OSS。
+   - 确认并写回 canonical OSS public URL。
+6. 文件访问通过 `/files/**` 暴露，但实际 blob 读取由 `community-oss` 完成。
+7. OSS 首版以 Garage 为主后端，dev 可用 local filesystem 或 Garage single-node；legacy 本地/R2 provider 仅作为迁移残留。
 
 Failure / security：
 
@@ -169,6 +170,7 @@ Failure / security：
 - `fileName` 必须为 `avatar/{userId}/...`。
 - MIME 白名单和 2 MiB 大小限制。
 - 上传失败不能兜底更新头像。
+- 旧 `/files/avatar/{userId}/{uuid}` 通过 OSS alias 兼容。
 
 Key code：
 

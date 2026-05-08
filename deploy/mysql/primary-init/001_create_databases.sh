@@ -16,6 +16,10 @@ IM_MYSQL_DATABASE="${IM_MYSQL_DATABASE:-im_core}"
 IM_MYSQL_USER="${IM_MYSQL_USER:-im_core}"
 IM_MYSQL_PASSWORD="${IM_MYSQL_PASSWORD:-imcorepass}"
 
+OSS_MYSQL_DATABASE="${OSS_MYSQL_DATABASE:-community_oss}"
+OSS_MYSQL_USER="${OSS_MYSQL_USER:-community_oss}"
+OSS_MYSQL_PASSWORD="${OSS_MYSQL_PASSWORD:-communityosspass}"
+
 if [[ -z "${MYSQL_ROOT_PASSWORD}" ]]; then
   echo "[mysql-primary-init] missing env: MYSQL_ROOT_PASSWORD" >&2
   exit 1
@@ -37,6 +41,9 @@ MOCK_DATA_STUDIO_DB_PASSWORD_ESCAPED="$(sql_escape "${MOCK_DATA_STUDIO_DB_PASSWO
 IM_MYSQL_DATABASE_ESCAPED="$(sql_escape "${IM_MYSQL_DATABASE}")"
 IM_MYSQL_USER_ESCAPED="$(sql_escape "${IM_MYSQL_USER}")"
 IM_MYSQL_PASSWORD_ESCAPED="$(sql_escape "${IM_MYSQL_PASSWORD}")"
+OSS_MYSQL_DATABASE_ESCAPED="$(sql_escape "${OSS_MYSQL_DATABASE}")"
+OSS_MYSQL_USER_ESCAPED="$(sql_escape "${OSS_MYSQL_USER}")"
+OSS_MYSQL_PASSWORD_ESCAPED="$(sql_escape "${OSS_MYSQL_PASSWORD}")"
 
 mysql --default-character-set=utf8mb4 -uroot -p"${MYSQL_ROOT_PASSWORD}" <<SQL
 create database if not exists \`${MYSQL_DATABASE_ESCAPED}\`
@@ -56,6 +63,14 @@ create database if not exists \`${IM_MYSQL_DATABASE_ESCAPED}\`
 create user if not exists '${IM_MYSQL_USER_ESCAPED}'@'%' identified by '${IM_MYSQL_PASSWORD_ESCAPED}';
 grant select, insert, update, delete on \`${IM_MYSQL_DATABASE_ESCAPED}\`.* to '${IM_MYSQL_USER_ESCAPED}'@'%';
 grant select, insert, update, delete on \`${IM_MYSQL_DATABASE_ESCAPED}\`.* to '${MOCK_DATA_STUDIO_DB_USER_ESCAPED}'@'%';
+
+create database if not exists \`${OSS_MYSQL_DATABASE_ESCAPED}\`
+  default character set utf8mb4
+  default collate utf8mb4_unicode_ci;
+
+create user if not exists '${OSS_MYSQL_USER_ESCAPED}'@'%' identified by '${OSS_MYSQL_PASSWORD_ESCAPED}';
+grant select, insert, update, delete on \`${OSS_MYSQL_DATABASE_ESCAPED}\`.* to '${OSS_MYSQL_USER_ESCAPED}'@'%';
+grant select, insert, update, delete on \`${OSS_MYSQL_DATABASE_ESCAPED}\`.* to '${MOCK_DATA_STUDIO_DB_USER_ESCAPED}'@'%';
 
 flush privileges;
 SQL

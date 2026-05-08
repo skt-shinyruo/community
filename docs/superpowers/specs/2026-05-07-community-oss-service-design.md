@@ -452,10 +452,10 @@ Internal service-to-service routes may live under `/internal/oss/**` when they s
 
 Recommended default flow is staged upload with finalization:
 
-1. caller application service or browser asks `community-oss` for an upload session through gateway or internal API
+1. caller application service asks `community-oss` for an upload session through internal API, or a browser asks its owner-domain API for a browser-facing upload session
 2. OSS validates usage policy, file size, mime type, and ownership context
-3. OSS returns either a presigned direct-upload URL or a proxy upload token, depending on backend capability and policy
-4. caller uploads content
+3. the owner-domain API returns only generic upload instructions to browsers: `uploadId`, opaque file key, URL, method, form fields, headers, constraints, and expiry
+4. caller uploads content by executing those instructions without reading storage provider, bucket, object-store mode, or physical path details
 5. caller finalizes the upload
 6. OSS validates checksum, content length, and storage presence
 7. OSS promotes the version to `ACTIVE`
@@ -464,6 +464,8 @@ Recommended default flow is staged upload with finalization:
 This flow works for both direct browser uploads and server-side proxy uploads.
 
 For business-owned uploads, the owner service should authorize the business action before asking OSS to prepare the session. OSS should validate the technical policy and the service identity, then record the declared owner context.
+
+For user avatars, the browser-facing owner route is `POST /api/users/{userId}/avatar/upload-sessions`. `community-app` creates a user-owned upload ticket, prepares the OSS session through `community-oss-client`, and returns provider-free upload instructions. The frontend confirms with `PUT /api/users/{userId}/avatar` and `{ "fileKey": "..." }`; `fileKey` is an opaque handle to the frontend.
 
 ## Download and Signed URL Flow
 

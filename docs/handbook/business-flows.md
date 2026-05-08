@@ -148,7 +148,7 @@ Entry：
 - `/api/users/**`
 - `/files/**`
 - `/api/oss/**`
-- 头像 token / upload / confirm 相关接口以 `UserController` 为准。
+- 头像 upload session / upload / confirm 相关接口以 `UserController` 为准。
 
 Main path：
 
@@ -157,17 +157,18 @@ Main path：
 3. 批量用户摘要用于内容、通知、社交等展示。
 4. 当前聚合字段和行为由测试锁定。
 5. 头像上传三段式：
-   - 签发上传 token，并通过 `community-oss-client` prepare upload。
-   - 客户端上传文件，经 `community-app` 代理到 OSS。
-   - 确认并写回 canonical OSS public URL。
-6. 文件访问通过 `/files/**` 暴露，gateway 直接路由到 `community-oss`。
-7. OSS 首版以 Garage 为主后端，dev 可用 `community-oss` 的 local filesystem backend 或 Garage single-node。
+   - 前端请求 `POST /api/users/{userId}/avatar/upload-sessions`，user application 校验本人操作，并通过 `community-oss-client` prepare upload。
+   - 响应只包含通用上传会话：`uploadId`、opaque `fileKey`、上传 URL / method / form fields、约束和过期时间；前端不读取 storage provider、bucket 或物理路径。
+   - 客户端按上传会话提交文件，经 `community-app` 代理到 OSS。
+   - 前端使用 `{ "fileKey": "..." }` 确认头像，user 写回 canonical OSS public URL。
+6. 文件访问通过 `/files/**` 暴露，但实际 blob 读取由 `community-oss` 完成。
+7. OSS 首版以 Garage 为主后端，dev 可用 `community-oss` 的 local filesystem backend 或 Garage single-node；legacy 本地/R2 provider 已从 `community-app` 退休。
 
 Failure / security：
 
-- 上传 ticket 绑定 `fileName -> userId`，Redis TTL。
+- 上传 ticket 绑定 `fileKey -> userId`，Redis TTL。
 - confirm 时一次性消费 ticket。
-- `fileName` 必须为 `avatar/{userId}/...`。
+- `fileKey` 对前端是不透明标识，后端当前要求其内部形态为 `avatar/{userId}/...`。
 - MIME 白名单和 2 MiB 大小限制。
 - 上传失败不能兜底更新头像。
 - 旧 `/files/avatar/{userId}/{uuid}` 通过 OSS alias 兼容。

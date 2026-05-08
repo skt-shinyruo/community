@@ -17,7 +17,7 @@ HTTP：
 - `GET /api/users/{userId}/recent-posts`
 - `GET /api/users/{userId}/recent-comments`
 - `POST /api/users/batch-summary`
-- `GET /api/users/{userId}/avatar/upload-token`
+- `POST /api/users/{userId}/avatar/upload-sessions`
 - `POST /api/users/{userId}/avatar/upload`
 - `PUT /api/users/{userId}/avatar`
 - `GET /files/**`（由 `community-oss` 提供公共文件读取）
@@ -52,19 +52,21 @@ HTTP：
 
 ## 头像流程
 
-头像是三段式，但对象存储已迁移到 OSS client boundary：
+头像是三段式 upload session 流程，对象存储已迁移到 OSS client boundary：
 
-1. `createUploadToken(actorUserId, userId)`：只能本人操作，生成上传 token 和服务端 file key，并向 OSS prepare upload。
-2. `upload(actorUserId, userId, fileName, content)`：只能本人上传，校验文件名、MIME、大小，通过 OSS client 完成代理上传。
-3. `updateAvatar(actorUserId, userId, fileName)`：只能本人确认，消费上传 ticket，把 canonical OSS public URL 写回 `user.header_url`。
+1. `createUploadToken(actorUserId, userId)`：只能本人操作，生成 upload session 和服务端 opaque `fileKey`，并向 OSS prepare upload。
+2. `upload(actorUserId, userId, fileKey, content)`：只能本人上传，校验 file key、MIME、大小，通过 OSS client 完成代理上传。
+3. `updateAvatar(actorUserId, userId, fileKey)`：只能本人确认，消费上传 ticket，把 canonical OSS public URL 写回 `user.header_url`。
 
 规则：
 
 - 非本人操作返回 forbidden。
-- ticket 绑定 `userId + fileName`。
+- ticket 绑定 `userId + fileKey`。
 - confirm 阶段一次性消费 ticket。
-- `fileName` 必须符合头像路径规则。
+- `fileKey` 对前端是不透明标识；后端当前要求其内部形态符合头像路径规则。
 - 上传失败不能更新头像。
+- 前端只执行 upload session 返回的 URL、method、fields、headers 和约束，不读取 storage provider、bucket 或物理路径。
+- 旧 `UserFileApplicationService` 和本地/R2 avatar storage provider 已退休，community-app 不再拥有公开文件读取入口。
 
 文件读取不再由 `community-app` user 域承接；gateway 将 `/files/**` 路由到 `community-oss`，由 OSS owner 完成 alias 解析和 blob 读取。
 

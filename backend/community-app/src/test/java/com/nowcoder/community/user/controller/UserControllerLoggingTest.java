@@ -21,6 +21,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -53,31 +54,35 @@ class UserControllerLoggingTest {
         String fileName = "avatar/" + userId + "/0123456789abcdef0123456789abcdef";
         when(avatarStoragePort.createUploadToken(userId))
                 .thenReturn(new AvatarUploadTokenResult(
-                        "oss",
-                        "secret-upload-token",
+                        "secret-upload-session",
                         fileName,
-                        null,
                         "/api/users/" + userId + "/avatar/upload",
                         "POST",
+                        "file",
+                        "fileKey",
                         2_097_152L,
-                        "image/png;image/jpeg"
+                        "image/png;image/jpeg",
+                        Instant.parse("2026-05-08T12:00:00Z")
                 ));
 
-        Result<AvatarUploadTokenResponse> result = controller.uploadToken(authentication(userId), userId);
+        Result<AvatarUploadTokenResponse> result = controller.createAvatarUploadSession(authentication(userId), userId);
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).isNotNull();
-        assertThat(result.getData().getProvider()).isEqualTo("oss");
-        assertThat(result.getData().getFileName()).isEqualTo(fileName);
+        assertThat(result.getData().getUploadId()).isEqualTo("secret-upload-session");
+        assertThat(result.getData().getFileKey()).isEqualTo(fileName);
+        assertThat(result.getData().getUpload()).isNotNull();
+        assertThat(result.getData().getUpload().getUrl()).isEqualTo("/api/users/" + userId + "/avatar/upload");
         assertThat(output.getAll())
                 .contains("community.category=security")
-                .contains("community.action=avatar_upload_token")
+                .contains("community.action=avatar_upload_session")
                 .contains("community.outcome=success")
                 .contains("user.id=" + userId)
                 .contains("community.target_type=user")
                 .contains("community.target_id=" + userId)
-                .contains("community.avatar_provider=oss")
-                .doesNotContain("secret-upload-token");
+                .contains("community.avatar_file_key=" + fileName)
+                .doesNotContain("community.avatar_provider")
+                .doesNotContain("secret-upload-session");
     }
 
     @Test
@@ -108,7 +113,7 @@ class UserControllerLoggingTest {
                 .contains("user.id=" + userId)
                 .contains("community.target_type=user")
                 .contains("community.target_id=" + userId)
-                .contains("community.avatar_file_name=" + fileName)
+                .contains("community.avatar_file_key=" + fileName)
                 .contains("community.file_content_type=image/png")
                 .contains("community.file_size_bytes=16")
                 .doesNotContain("fake-image-bytes");
@@ -119,7 +124,7 @@ class UserControllerLoggingTest {
         UUID userId = uuid(42);
         String fileName = "avatar/" + userId + "/0123456789abcdef0123456789abcdef";
         UpdateAvatarRequest request = new UpdateAvatarRequest();
-        request.setFileName(fileName);
+        request.setFileKey(fileName);
         when(avatarStoragePort.buildAvatarUrl(fileName)).thenReturn("https://cdn.example.com/" + fileName);
 
         Result<Void> result = controller.updateAvatar(authentication(userId), userId, request);
@@ -134,7 +139,7 @@ class UserControllerLoggingTest {
                 .contains("user.id=" + userId)
                 .contains("community.target_type=user")
                 .contains("community.target_id=" + userId)
-                .contains("community.avatar_file_name=" + fileName)
+                .contains("community.avatar_file_key=" + fileName)
                 .doesNotContain("https://cdn.example.com/" + fileName);
     }
 

@@ -1,97 +1,122 @@
 package com.nowcoder.community.user.controller.dto;
 
+import java.util.List;
+import java.util.Map;
+
 public class AvatarUploadTokenResponse {
 
-    /**
-     * 存储策略：oss（面向前端的可用性提示）。
-     */
-    private String provider;
+    private String uploadId;
+    private String fileKey;
+    private UploadInstruction upload;
+    private Constraints constraints;
+    private String expiresAt;
 
-    private String uploadToken;
-    private String fileName;
-    private String bucketUrl;
-
-    /**
-     * OSS 代理上传地址（通常为 /api/users/{id}/avatar/upload）。
-     */
-    private String uploadUrl;
-
-    /**
-     * 上传方法（默认 POST）。
-     */
-    private String uploadMethod;
-
-    /**
-     * 上传大小限制（字节）。
-     */
-    private long maxBytes;
-
-    /**
-     * 允许的 MIME 列表（以 ; 分隔）。
-     */
-    private String mimeLimit;
-
-    public String getProvider() {
-        return provider;
+    public String getUploadId() {
+        return uploadId;
     }
 
-    public void setProvider(String provider) {
-        this.provider = provider;
+    public void setUploadId(String uploadId) {
+        this.uploadId = uploadId;
     }
 
-    public String getUploadToken() {
-        return uploadToken;
+    public String getFileKey() {
+        return fileKey;
     }
 
-    public void setUploadToken(String uploadToken) {
-        this.uploadToken = uploadToken;
+    public void setFileKey(String fileKey) {
+        this.fileKey = fileKey;
     }
 
-    public String getFileName() {
-        return fileName;
+    public UploadInstruction getUpload() {
+        return upload;
     }
 
-    public void setFileName(String fileName) {
-        this.fileName = fileName;
+    public void setUpload(UploadInstruction upload) {
+        this.upload = upload;
     }
 
-    public String getBucketUrl() {
-        return bucketUrl;
+    public Constraints getConstraints() {
+        return constraints;
     }
 
-    public void setBucketUrl(String bucketUrl) {
-        this.bucketUrl = bucketUrl;
+    public void setConstraints(Constraints constraints) {
+        this.constraints = constraints;
     }
 
-    public String getUploadUrl() {
-        return uploadUrl;
+    public String getExpiresAt() {
+        return expiresAt;
     }
 
-    public void setUploadUrl(String uploadUrl) {
-        this.uploadUrl = uploadUrl;
+    public void setExpiresAt(String expiresAt) {
+        this.expiresAt = expiresAt;
     }
 
-    public String getUploadMethod() {
-        return uploadMethod;
+    public static class UploadInstruction {
+        private String url;
+        private String method;
+        private String fileField;
+        private Map<String, String> fields = Map.of();
+        private Map<String, String> headers = Map.of();
+
+        public String getUrl() {
+            return url;
+        }
+
+        public void setUrl(String url) {
+            this.url = url;
+        }
+
+        public String getMethod() {
+            return method;
+        }
+
+        public void setMethod(String method) {
+            this.method = method;
+        }
+
+        public String getFileField() {
+            return fileField;
+        }
+
+        public void setFileField(String fileField) {
+            this.fileField = fileField;
+        }
+
+        public Map<String, String> getFields() {
+            return fields;
+        }
+
+        public void setFields(Map<String, String> fields) {
+            this.fields = fields == null ? Map.of() : Map.copyOf(fields);
+        }
+
+        public Map<String, String> getHeaders() {
+            return headers;
+        }
+
+        public void setHeaders(Map<String, String> headers) {
+            this.headers = headers == null ? Map.of() : Map.copyOf(headers);
+        }
     }
 
-    public void setUploadMethod(String uploadMethod) {
-        this.uploadMethod = uploadMethod;
-    }
+    public static class Constraints {
+        private long maxBytes;
+        private List<String> mimeTypes = List.of();
 
-    public long getMaxBytes() {
-        return maxBytes;
-    }
+        public long getMaxBytes() {
+            return maxBytes;
+        }
 
-    public void setMaxBytes(long maxBytes) {
-        this.maxBytes = maxBytes;
-    }
+        public void setMaxBytes(long maxBytes) {
+            this.maxBytes = maxBytes;
+        }
 
-    public String getMimeLimit() {
-        return mimeLimit;
-    }
+        public List<String> getMimeTypes() {
+            return mimeTypes;
+        }
 
-    public void setMimeLimit(String mimeLimit) {
-        this.mimeLimit = mimeLimit;
+        public void setMimeTypes(List<String> mimeTypes) {
+            this.mimeTypes = mimeTypes == null ? List.of() : List.copyOf(mimeTypes);
+        }
     }
 }

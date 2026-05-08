@@ -5,14 +5,13 @@ import jakarta.validation.constraints.NotBlank;
 public class UpdateAvatarRequest {
 
     @NotBlank
-    private String fileName;
+    private String fileKey;
 
-    public String getFileName() {
-        return fileName;
+    public String getFileKey() {
+        return fileKey;
     }
 
-    public void setFileName(String fileName) {
-        this.fileName = fileName;
+    public void setFileKey(String fileKey) {
+        this.fileKey = fileKey;
     }
 }
-

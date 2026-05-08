@@ -1,13 +1,16 @@
 package com.nowcoder.community.user.application.result;
 
+import java.time.Instant;
+
 public record AvatarUploadTokenResult(
-        String provider,
-        String uploadToken,
-        String fileName,
-        String bucketUrl,
+        String uploadId,
+        String fileKey,
         String uploadUrl,
         String uploadMethod,
+        String fileField,
+        String fileKeyField,
         long maxBytes,
-        String mimeLimit
+        String mimeLimit,
+        Instant expiresAt
 ) {
 }

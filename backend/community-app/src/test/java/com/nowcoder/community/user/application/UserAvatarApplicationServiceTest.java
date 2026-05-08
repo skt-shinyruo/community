@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
@@ -49,21 +50,22 @@ class UserAvatarApplicationServiceTest {
     void createUploadTokenShouldDelegateToAvatarStoragePort() {
         UserAvatarApplicationService service = new UserAvatarApplicationService(avatarStoragePort, userRepository);
         UUID userId = uuid(7);
-        AvatarUploadTokenResult token = new AvatarUploadTokenResult(
-                "oss",
-                "upload-token",
+        AvatarUploadTokenResult session = new AvatarUploadTokenResult(
+                "upload-session-id",
                 "avatar/" + userId + "/0123456789abcdef0123456789abcdef",
-                "https://bucket.example/avatar",
                 "/api/users/" + userId + "/avatar/upload",
                 "POST",
+                "file",
+                "fileKey",
                 2_097_152L,
-                "image/png;image/jpeg"
+                "image/png;image/jpeg",
+                Instant.parse("2026-05-08T12:00:00Z")
         );
-        when(avatarStoragePort.createUploadToken(userId)).thenReturn(token);
+        when(avatarStoragePort.createUploadToken(userId)).thenReturn(session);
 
         AvatarUploadTokenResult result = service.createUploadToken(userId, userId);
 
-        assertThat(result).isEqualTo(token);
+        assertThat(result).isEqualTo(session);
         verify(avatarStoragePort).createUploadToken(userId);
         verifyNoInteractions(userRepository);
     }

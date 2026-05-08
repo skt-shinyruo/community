@@ -45,6 +45,28 @@ function okResult(data, traceId = 'trace-ok') {
 }
 
 describe('SettingsView', () => {
+  function uploadSession(overrides = {}) {
+    return {
+      uploadId: 'session-1',
+      fileKey: 'avatar-upload-key',
+      upload: {
+        url: '/api/users/7/avatar/upload',
+        method: 'POST',
+        fileField: 'file',
+        fields: { fileKey: 'avatar-upload-key' },
+        headers: {},
+        ...(overrides.upload || {})
+      },
+      constraints: {
+        maxBytes: 256000,
+        mimeTypes: ['image/png', 'image/jpeg'],
+        ...(overrides.constraints || {})
+      },
+      expiresAt: '2026-05-08T12:00:00Z',
+      ...overrides
+    }
+  }
+
   function mountView() {
     const pinia = createPinia()
     setActivePinia(pinia)
@@ -76,17 +98,15 @@ describe('SettingsView', () => {
     http.post.mockReset()
     http.put.mockReset()
 
-    http.get.mockResolvedValue(
-      okResult({
-        provider: 'oss',
-        fileName: 'avatar-upload.png',
-        uploadUrl: '/api/users/7/avatar/upload',
-        uploadMethod: 'POST',
-        maxBytes: 256000,
-        mimeLimit: 'image/*'
-      }, 'trace-token')
-    )
-    http.post.mockResolvedValue(okResult({}, 'trace-upload'))
+    http.post.mockImplementation((url) => {
+      if (url === '/api/users/7/avatar/upload-sessions') {
+        return Promise.resolve(okResult(uploadSession(), 'trace-session'))
+      }
+      if (url === '/api/users/7/avatar/upload') {
+        return Promise.resolve(okResult({}, 'trace-upload'))
+      }
+      return Promise.resolve(okResult({}, 'trace-post'))
+    })
     http.put.mockResolvedValue(okResult({}, 'trace-update'))
   })
 
@@ -102,8 +122,9 @@ describe('SettingsView', () => {
 
     expect(uploadButton.get('button').attributes('disabled')).toBeDefined()
     expect(fileInput.exists()).toBe(true)
-    expect(wrapper.text()).toContain('OSS 服务')
-    expect(wrapper.text()).toContain('图片会通过后端代理上传到 OSS 服务')
+    expect(wrapper.text()).not.toContain('OSS 服务')
+    expect(wrapper.text()).not.toContain('Cloudflare R2')
+    expect(wrapper.text()).not.toContain('本地文件')
 
     await fileInput.vm.$emit('update:modelValue', file)
     await nextTick()
@@ -126,10 +147,35 @@ describe('SettingsView', () => {
     await findUiButton(wrapper, '上传并保存').trigger('click')
     await flushPromises()
 
-    expect(http.post).toHaveBeenCalledTimes(1)
-    expect(http.post).toHaveBeenCalledWith('/api/users/7/avatar/upload', expect.any(FormData))
-    const form = http.post.mock.calls[0][1]
+    expect(http.post).toHaveBeenCalledWith('/api/users/7/avatar/upload-sessions')
+    expect(http.post).toHaveBeenCalledWith('/api/users/7/avatar/upload', expect.any(FormData), {
+      headers: {}
+    })
+    const form = http.post.mock.calls.find(([url]) => url === '/api/users/7/avatar/upload')[1]
     expect(form.get('file')).toBe(file)
-    expect(form.get('fileName')).toBe('avatar-upload.png')
+    expect(form.get('fileKey')).toBe('avatar-upload-key')
+    expect(http.put).toHaveBeenCalledWith('/api/users/7/avatar', { fileKey: 'avatar-upload-key' })
+  })
+
+  it('ignores storage provider fields returned by old servers', async () => {
+    http.post.mockResolvedValueOnce(okResult(uploadSession({
+      provider: 'unrecognized-provider'
+    }), 'trace-session'))
+    http.post.mockResolvedValueOnce(okResult({}, 'trace-upload'))
+
+    const wrapper = mountView()
+    await findUiButton(wrapper, '获取上传参数').trigger('click')
+    await flushPromises()
+
+    const file = new File(['avatar'], 'picked-avatar.png', { type: 'image/png' })
+    await wrapper.getComponent(UiFileInput).vm.$emit('update:modelValue', file)
+    await nextTick()
+    await findUiButton(wrapper, '上传并保存').trigger('click')
+    await flushPromises()
+
+    expect(http.post).toHaveBeenCalledWith('/api/users/7/avatar/upload', expect.any(FormData), {
+      headers: {}
+    })
+    expect(wrapper.text()).not.toContain('未知存储策略')
   })
 })

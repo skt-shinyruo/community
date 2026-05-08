@@ -14,6 +14,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Instant;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -37,14 +38,15 @@ public class LocalAvatarStorageProvider implements AvatarStorageProvider {
     @Override
     public AvatarUploadTokenResult createUploadToken(UUID userId, String fileName) {
         return new AvatarUploadTokenResult(
-                provider(),
-                null,
+                "",
                 fileName,
-                null,
                 "/api/users/" + userId + "/avatar/upload",
                 "POST",
+                "file",
+                "fileKey",
                 0,
-                null
+                null,
+                Instant.now().plusSeconds(600)
         );
     }
 

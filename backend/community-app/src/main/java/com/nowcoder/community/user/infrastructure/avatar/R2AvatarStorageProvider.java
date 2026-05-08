@@ -20,6 +20,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
@@ -53,14 +54,15 @@ public class R2AvatarStorageProvider implements AvatarStorageProvider {
     @Override
     public AvatarUploadTokenResult createUploadToken(UUID userId, String fileName) {
         return new AvatarUploadTokenResult(
-                provider(),
-                null,
+                "",
                 fileName,
-                null,
                 "/api/users/" + userId + "/avatar/upload",
                 "POST",
+                "file",
+                "fileKey",
                 0,
-                null
+                null,
+                Instant.now().plusSeconds(600)
         );
     }
 

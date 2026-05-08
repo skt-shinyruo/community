@@ -58,16 +58,21 @@ class OssAvatarStorageAdapterTest {
         );
 
         AvatarUploadTokenResult token = adapter.createUploadToken(userId);
-        adapter.upload(userId, token.fileName(), new AvatarUploadContent(
+        adapter.upload(userId, token.fileKey(), new AvatarUploadContent(
                 () -> new ByteArrayInputStream("avatar".getBytes()),
                 "image/png",
                 6,
                 false
         ));
 
-        assertThat(token.provider()).isEqualTo("oss");
-        assertThat(token.fileName()).startsWith("avatar/" + userId + "/");
-        assertThat(adapter.buildAvatarUrl(token.fileName())).isEqualTo(
+        assertThat(token.uploadId()).isEqualTo(sessionId.toString());
+        assertThat(token.fileKey()).startsWith("avatar/" + userId + "/");
+        assertThat(token.uploadUrl()).isEqualTo("/api/users/" + userId + "/avatar/upload");
+        assertThat(token.uploadMethod()).isEqualTo("POST");
+        assertThat(token.fileField()).isEqualTo("file");
+        assertThat(token.fileKeyField()).isEqualTo("fileKey");
+        assertThat(token.expiresAt()).isEqualTo(Instant.parse("2026-05-07T00:15:00Z"));
+        assertThat(adapter.buildAvatarUrl(token.fileKey())).isEqualTo(
                 "http://localhost:12880/files/" + objectId + "/" + versionId + "/avatar.png"
         );
         verify(ossClient).prepareUpload(any(OssUploadSessionRequest.class));

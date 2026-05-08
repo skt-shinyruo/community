@@ -27,16 +27,16 @@ public class UserAvatarApplicationService {
         return avatarStoragePort.createUploadToken(userId);
     }
 
-    public void upload(UUID actorUserId, UUID userId, String fileName, AvatarUploadContent content) {
+    public void upload(UUID actorUserId, UUID userId, String fileKey, AvatarUploadContent content) {
         requireSelf(actorUserId, userId);
-        avatarStoragePort.upload(userId, fileName, content);
+        avatarStoragePort.upload(userId, fileKey, content);
     }
 
     @Transactional
-    public void updateAvatar(UUID actorUserId, UUID userId, String fileName) {
+    public void updateAvatar(UUID actorUserId, UUID userId, String fileKey) {
         requireSelf(actorUserId, userId);
-        avatarStoragePort.assertAndConsumeUploadTicket(userId, fileName);
-        String headerUrl = avatarStoragePort.buildAvatarUrl(fileName);
+        avatarStoragePort.assertAndConsumeUploadTicket(userId, fileKey);
+        String headerUrl = avatarStoragePort.buildAvatarUrl(fileKey);
         userRepository.updateHeaderUrl(userId, headerUrl);
     }
 

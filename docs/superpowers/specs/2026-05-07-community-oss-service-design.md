@@ -54,7 +54,7 @@ The current per-domain file logic would fragment those rules, duplicate storage 
 - Do not deduplicate blobs globally unless a later implementation decides it is worth the added complexity.
 - Do not use `app/query`, `app/command`, or `*UseCase` packages.
 - Do not let `community-app` or other services read or write OSS tables directly.
-- Do not make Garage or any other S3-compatible backend itself the product API; storage backends are infrastructure behind `community-oss`.
+- Do not make Garage, Ceph RGW, or any object-store backend itself the product API; `community-oss` is the product API and storage backends are infrastructure.
 
 ## Eligible Content Classes
 
@@ -85,7 +85,7 @@ community-app / community-im / future services
   -> community-oss HTTP client / internal API
       -> community-oss ApplicationService
           -> community-oss domain model / service / repository / event
-          -> community-oss infrastructure storage adapter
+          -> community-oss infrastructure ObjectStore adapter
               -> Garage (S3-compatible API, first deployment) / Ceph RGW / local filesystem
 ```
 
@@ -135,10 +135,12 @@ The client module must contain DTOs and typed clients only. It must not expose `
 
 Recommended storage backend shape:
 
-- production: at least three Garage nodes with replicas, health checks, logs, and Prometheus monitoring
-- development and tests: Garage single-node or local filesystem backend
+- production: Garage cluster, exposed only through S3-compatible API, with at least 3 nodes, replicas, health checks, logs, and Prometheus monitoring
+- development: Garage single-node or local filesystem backend
+- tests: local filesystem backend
 - the application layer must not depend on one concrete backend
 - `community-app` and `community-im` must not depend on one concrete OSS backend
+- if a future deployment switches from Garage to Ceph RGW, only the `ObjectStore` adapter and configuration should change; business APIs stay stable
 
 ## Service Boundaries
 
@@ -552,7 +554,7 @@ This keeps lifecycle and permission logic uniform:
 
 ## Storage Backends
 
-The `community-oss` infrastructure layer should hide storage implementation details behind a single adapter interface.
+The `community-oss` infrastructure layer should hide storage implementation details behind a single `ObjectStore` adapter interface.
 
 Required backend capabilities:
 
@@ -568,9 +570,11 @@ Required backend capabilities:
 Planned backend implementations:
 
 - `LocalFilesystemObjectStore` for dev and tests
-- `S3CompatibleObjectStore` for Garage or any S3-compatible deployment
+- `S3CompatibleObjectStore` for Garage and any future S3-compatible deployment such as Ceph RGW
 
-The `community-oss` application layer must not know which backend is active. Other backend services must not receive Garage credentials, bucket names, or provider-specific keys. A later Ceph RGW migration should replace only the `ObjectStore` adapter/configuration, not the business API.
+The `community-oss` application layer must not know which backend is active. Other backend services must not receive object-store credentials, bucket names, or provider-specific keys.
+
+Garage is the first deployment target. It is the durable blob layer only; `community-oss` owns permissions, versioning, lifecycle, and reference relationships.
 
 ## Bucket Strategy
 
@@ -692,19 +696,29 @@ Legacy compatibility requirements:
 
 `community-oss` and the physical object store should be deployable alongside the existing stack.
 
+### Garage-first storage topology
+
+`community-oss` should talk only to the S3-compatible `ObjectStore` adapter. Garage is the first production-grade storage backend, but it is not part of the OSS business API.
+
+- single-node development can use Garage single-node or the local filesystem backend
+- production should run at least 3 Garage nodes with replication enabled
+- production should also enable monitoring for node health, replication health, and disk usage
+- if the storage backend changes later to Ceph RGW, only the `ObjectStore` adapter and configuration should change
+- OSS permissions, versioning, lifecycle, and reference semantics stay inside `community-oss`
+
 Expected deploy changes:
 
 - add `community-oss` as a backend Maven module and Docker-buildable service
 - add Garage to the local topology as the OSS blob store
 - add bucket bootstrap or initialization logic
-- add persistent volume mounts for object storage
+- add persistent volume mounts for Garage data and metadata
 - add a separate OSS schema/database initialization path
 - add Nacos discovery registration for `community-oss`
 - change `community-gateway` routing so `/api/oss/**` and `/files/**` target `community-oss`
 - add OSS environment variables to `deploy/.env.single.example` and `deploy/.env.cluster.example`
 - add service-to-service auth configuration for `community-app` and future consumers
 
-The deployment model should remain self-hosted friendly and not require a cloud-only provider.
+The deployment model should remain self-hosted friendly and not require a cloud-only provider. Garage is the first deployment choice, but the OSS service contract must stay S3-compatible so future storage swaps do not change client-facing APIs.
 
 ## Testing
 

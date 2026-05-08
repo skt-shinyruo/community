@@ -4,16 +4,16 @@ Date: 2026-05-07
 
 ## Status
 
-Accepted for planning.
+Implemented. The current runtime owner for OSS-style objects is `community-oss`; `community-app` consumes it through `community-oss-client`.
 
 ## Context
 
-Current repository state only has a narrow file-storage implementation inside `community-app` `user` domain for avatar and `/files/**` access. It already supports local filesystem and an S3-compatible remote backend, but the logic is still user-specific and runs inside the main business deployable:
+The repository previously had a narrow file-storage implementation inside the `community-app` `user` domain for avatar and `/files/**` access. The implemented shape now routes OSS-style access through the dedicated `community-oss` deployable:
 
-- storage policy lives under `user.avatar.*`
-- file access is implemented by `user.controller.FilesController`
-- upload orchestration is implemented by `user.application.UserAvatarApplicationService`
-- provider selection is implemented in `user.infrastructure.avatar`
+- `community-app` keeps user avatar authorization and projection updates in `UserAvatarApplicationService`.
+- `user.infrastructure.oss.OssAvatarStorageAdapter` calls `community-oss-client`.
+- `/files/**` is implemented by `community-oss` and routed through `community-gateway`.
+- storage provider selection is isolated behind `community-oss` `ObjectStore` adapters.
 
 That shape is not suitable for a full platform object-storage layer. OSS should be an independent backend service with its own runtime, data schema, storage backend, API surface, permissions, signed URLs, lifecycle, and cleanup semantics.
 

@@ -60,10 +60,10 @@ public class RedisFollowRepository implements FollowRepository {
             local entityId = ARGV[1]
             local userId = ARGV[2]
 
-            local r1 = redis.call('ZREM', followeeKey, entityId)
-            local r2 = redis.call('ZREM', followerKey, userId)
+            local removedFollowee = redis.call('ZREM', followeeKey, entityId)
+            local removedFollower = redis.call('ZREM', followerKey, userId)
 
-            if (r1 and r1 > 0) or (r2 and r2 > 0) then
+            if (removedFollowee and removedFollowee > 0) or (removedFollower and removedFollower > 0) then
               return 1
             end
             return 0

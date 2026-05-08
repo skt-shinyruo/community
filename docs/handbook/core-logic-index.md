@@ -45,7 +45,6 @@ Registration migration note：
 | `user.application.UserReadApplicationService` | 用户摘要、批量读取、跨域 user 查询 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.UserProfileApplicationService` | 用户资料聚合、最近内容读取 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.UserAvatarApplicationService` | 头像上传 token / confirm | [User 用户业务逻辑](business-logic/user.md) | Covered |
-| `user.application.UserFileApplicationService` | `/files/**` 文件读取 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.UserModerationApplicationService` | 禁言 / 封禁状态和 policy event | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.AdminUserApplicationService` | 管理员用户搜索和角色修改 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.UserPointsApplicationService` | 用户积分视图 / wallet 协作兼容面 | [User 用户业务逻辑](business-logic/user.md) | Partial |

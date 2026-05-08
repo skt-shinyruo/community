@@ -303,80 +303,40 @@ git commit -m "feat: expose oss api and client contracts"
 
 ## Task 4: Migrate The Existing User File Flow
 
-**Files:**
+**Current implemented shape:**
 
-- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/application/UserAvatarApplicationService.java`
-- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/application/UserFileApplicationService.java`
-- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/controller/UserController.java`
-- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/controller/FilesController.java`
-- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/config/AvatarStorageProperties.java`
-- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/config/R2ClientConfig.java`
-- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/config/R2Properties.java`
-- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/infrastructure/avatar/**`
-- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/security/UserSecurityRules.java`
-- Modify: `backend/community-app/src/main/java/com/nowcoder/community/user/controller/dto/AvatarUploadTokenResponse.java`
-- Modify: `backend/community-app/src/main/resources/application.yml`
-- Modify: `backend/community-app/pom.xml`
-- Modify: `backend/community-app/src/test/java/com/nowcoder/community/user/application/UserAvatarApplicationServiceTest.java`
-- Modify: `backend/community-app/src/test/java/com/nowcoder/community/user/application/UserFileApplicationServiceTest.java`
-- Modify: `backend/community-app/src/test/java/com/nowcoder/community/user/controller/FilesControllerStorageRoutingTest.java`
-- Modify: `backend/community-app/src/test/java/com/nowcoder/community/user/controller/UserControllerLoggingTest.java`
-- Create: `backend/community-app/src/main/java/com/nowcoder/community/user/infrastructure/oss/**`
+- `UserController` keeps HTTP binding for avatar upload token, upload, and update.
+- `UserAvatarApplicationService` owns authorization and header URL projection updates.
+- `user.infrastructure.oss.OssAvatarStorageAdapter` implements `AvatarStoragePort` through `community-oss-client`.
+- `/files/**` is owned by `community-oss` and routed by `community-gateway`.
+- `OssAvatarStorageMigrationRetirementTest` guards against reintroducing retired `community-app` avatar storage classes and environment settings.
 
-- [ ] **Step 1: Write the failing avatar migration tests**
-
-Add tests that prove `community-app` now uses the OSS client boundary instead of direct storage-provider classes:
-
-```java
-@Test
-void createUploadTokenShouldDelegateToOssClientAndUpdateHeaderUrlProjection() {
-    // arrange, act, assert
-}
-```
-
-```java
-@Test
-void filesControllerShouldResolveThroughOssClientInsteadOfTheLegacyAvatarRouter() {
-    // arrange, act, assert
-}
-```
-
-- [ ] **Step 2: Run the user file tests and verify they fail**
+- [ ] **Step 1: Verify the avatar flow uses the OSS client boundary**
 
 Run:
 
 ```bash
 cd backend
-mvn -q -pl :community-app -Dtest='UserAvatarApplicationServiceTest,UserFileApplicationServiceTest,FilesControllerStorageRoutingTest,UserControllerLoggingTest' test
-```
-
-Expected: FAIL because the OSS client adapter is not wired in yet.
-
-- [ ] **Step 3: Replace the legacy storage-port path with the OSS client**
-
-Move the avatar/file logic onto the OSS client:
-
-- `UserAvatarApplicationService` becomes an OSS-backed use-case orchestrator.
-- `UserFileApplicationService` becomes a thin OSS lookup validator.
-- `UserController` keeps HTTP binding only.
-- `FilesController` keeps public `/files/**` binding only.
-- legacy `user.infrastructure.avatar` classes are removed once the new path is stable.
-
-- [ ] **Step 4: Re-run the user file tests and verify they pass**
-
-Run:
-
-```bash
-cd backend
-mvn -q -pl :community-app -Dtest='UserAvatarApplicationServiceTest,UserFileApplicationServiceTest,FilesControllerStorageRoutingTest,UserControllerLoggingTest' test
+mvn -q -pl :community-app -Dtest='UserAvatarApplicationServiceTest,OssAvatarStorageMigrationRetirementTest,UserControllerLoggingTest' test
 ```
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the migration**
+- [ ] **Step 2: Verify frontend avatar upload accepts the OSS provider**
+
+Run:
 
 ```bash
-git add backend/community-app
+cd frontend
+npm test -- SettingsView.test.js
+```
+
+Expected: PASS.
+
+- [ ] **Step 3: Commit the migration**
+
+```bash
+git add backend/community-app frontend/src/views/SettingsView.vue frontend/src/views/SettingsView.test.js
 git commit -m "feat: migrate user avatar flow to oss"
 ```
 

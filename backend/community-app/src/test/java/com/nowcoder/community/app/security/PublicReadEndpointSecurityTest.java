@@ -9,8 +9,8 @@ import com.nowcoder.community.content.application.CommentReadApplicationService;
 import com.nowcoder.community.content.application.PostReadApplicationService;
 import com.nowcoder.community.user.application.UserProfileApplicationService;
 import com.nowcoder.community.user.application.UserReadApplicationService;
+import com.nowcoder.community.user.application.port.AvatarStoragePort;
 import com.nowcoder.community.user.application.result.UserProfilePageResult;
-import com.nowcoder.community.user.infrastructure.avatar.AvatarService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -73,7 +73,7 @@ class PublicReadEndpointSecurityTest {
     private UserProfileApplicationService userProfileApplicationService;
 
     @MockBean
-    private AvatarService avatarService;
+    private AvatarStoragePort avatarStoragePort;
 
     @Test
     void unauthenticatedBatchPostSummaryShouldBeAllowed() throws Exception {

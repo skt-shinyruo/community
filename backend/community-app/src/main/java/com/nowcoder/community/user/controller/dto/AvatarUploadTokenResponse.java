@@ -3,7 +3,7 @@ package com.nowcoder.community.user.controller.dto;
 public class AvatarUploadTokenResponse {
 
     /**
-     * 存储策略：local/r2（面向前端的可用性提示）。
+     * 存储策略：oss（面向前端的可用性提示）。
      */
     private String provider;
 
@@ -12,12 +12,12 @@ public class AvatarUploadTokenResponse {
     private String bucketUrl;
 
     /**
-     * local provider：服务端接收 multipart 的上传地址（通常为 /api/users/{id}/avatar/upload）。
+     * OSS 代理上传地址（通常为 /api/users/{id}/avatar/upload）。
      */
     private String uploadUrl;
 
     /**
-     * local provider：上传方法（默认 POST）。
+     * 上传方法（默认 POST）。
      */
     private String uploadMethod;
 

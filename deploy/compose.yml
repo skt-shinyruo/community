@@ -10,7 +10,6 @@ volumes:
   redis_4_data: {}
   redis_5_data: {}
   redis_6_data: {}
-  user_files: {}
   garage_data: {}
   garage_1_data: {}
   garage_2_data: {}

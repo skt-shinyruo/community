@@ -65,9 +65,8 @@ HTTP：
 - confirm 阶段一次性消费 ticket。
 - `fileName` 必须符合头像路径规则。
 - 上传失败不能更新头像。
-- `UserFileApplicationService` 只做文件路径校验和 OSS client 适配，不再依赖本地 provider 作为事实来源。
 
-文件读取由 `UserFileApplicationService.loadAvatarOrNull(...)` 和 `FilesController` 承接，实际 blob 读取由 `community-oss` 完成。
+文件读取不再由 `community-app` user 域承接；gateway 将 `/files/**` 路由到 `community-oss`，由 OSS owner 完成 alias 解析和 blob 读取。
 
 ## 凭据与密码
 
@@ -156,11 +155,9 @@ refresh token 明文不归 user 域存储。
 
 - `user.controller.UserController`
 - `user.controller.AdminUserController`
-- `user.controller.FilesController`
 - `user.application.UserReadApplicationService`
 - `user.application.UserProfileApplicationService`
 - `user.application.UserAvatarApplicationService`
-- `user.application.UserFileApplicationService`
 - `user.application.UserCredentialApplicationService`
 - `user.application.UserRegistrationApplicationService`
 - `user.application.UserModerationApplicationService`

@@ -149,12 +149,6 @@ social:
   events:
     publisher: local
 
-user:
-  avatar:
-    storage: ${USER_AVATAR_STORAGE:local}
-    files-base-dir: ${USER_FILES_BASE_DIR:/tmp/community-files}
-    public-base-url: ${USER_PUBLIC_BASE_URL:}
-
 oss:
   client:
     base-url: ${OSS_CLIENT_BASE_URL:http://community-oss:18090}
@@ -204,11 +198,3 @@ analytics:
       - /actuator/**
       - /internal/**
       - /files/**
-
-r2:
-  endpoint: ${R2_ENDPOINT:}
-  access-key: ${R2_ACCESS_KEY:}
-  secret-key: ${R2_SECRET_KEY:}
-  bucket-name: ${R2_BUCKET_NAME:}
-  region: ${R2_REGION:auto}
-  path-style: ${R2_PATH_STYLE:true}

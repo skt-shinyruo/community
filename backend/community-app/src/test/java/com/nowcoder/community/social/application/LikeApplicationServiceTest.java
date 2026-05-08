@@ -82,9 +82,9 @@ class LikeApplicationServiceTest {
         assertThat(publisher.snapshot()).hasSize(1);
         assertThat(publisher.snapshot().get(0)).isInstanceOf(LikeChangedDomainEvent.class);
 
-        LikeResult r2 = service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true));
-        assertThat(r2.liked()).isTrue();
-        assertThat(r2.likeCount()).isEqualTo(1);
+        LikeResult repeatedLike = service.setLike(new SetLikeCommand(uuid(1), POST, uuid(100), true));
+        assertThat(repeatedLike.liked()).isTrue();
+        assertThat(repeatedLike.likeCount()).isEqualTo(1);
         assertThat(service.userLikeCount(uuid(2))).isEqualTo(1);
         assertThat(publisher.snapshot()).hasSize(1);
 

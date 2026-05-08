@@ -1,6 +1,6 @@
 # OSS 对象存储业务逻辑
 
-`community-oss` 是独立 deployable，拥有所有文件类对象的技术事实：对象元数据、版本、alias、访问授权、引用关系、生命周期和底层 blob 位置。业务域只保存自己的业务事实或展示投影，不直接访问 OSS 表、Garage、R2、Ceph RGW 或任何对象存储凭证。
+`community-oss` 是独立 deployable，拥有所有文件类对象的技术事实：对象元数据、版本、alias、访问授权、引用关系、生命周期和底层 blob 位置。业务域只保存自己的业务事实或展示投影，不直接访问 OSS 表、Garage、Ceph RGW、local filesystem 或任何对象存储凭证。
 
 ## Owner / SSOT
 

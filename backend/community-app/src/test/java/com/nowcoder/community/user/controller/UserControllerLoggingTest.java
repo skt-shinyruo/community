@@ -53,7 +53,7 @@ class UserControllerLoggingTest {
         String fileName = "avatar/" + userId + "/0123456789abcdef0123456789abcdef";
         when(avatarStoragePort.createUploadToken(userId))
                 .thenReturn(new AvatarUploadTokenResult(
-                        "r2",
+                        "oss",
                         "secret-upload-token",
                         fileName,
                         null,
@@ -67,7 +67,7 @@ class UserControllerLoggingTest {
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).isNotNull();
-        assertThat(result.getData().getProvider()).isEqualTo("r2");
+        assertThat(result.getData().getProvider()).isEqualTo("oss");
         assertThat(result.getData().getFileName()).isEqualTo(fileName);
         assertThat(output.getAll())
                 .contains("community.category=security")
@@ -76,7 +76,7 @@ class UserControllerLoggingTest {
                 .contains("user.id=" + userId)
                 .contains("community.target_type=user")
                 .contains("community.target_id=" + userId)
-                .contains("community.avatar_provider=r2")
+                .contains("community.avatar_provider=oss")
                 .doesNotContain("secret-upload-token");
     }
 

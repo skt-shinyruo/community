@@ -50,7 +50,7 @@ class UserAvatarApplicationServiceTest {
         UserAvatarApplicationService service = new UserAvatarApplicationService(avatarStoragePort, userRepository);
         UUID userId = uuid(7);
         AvatarUploadTokenResult token = new AvatarUploadTokenResult(
-                "r2",
+                "oss",
                 "upload-token",
                 "avatar/" + userId + "/0123456789abcdef0123456789abcdef",
                 "https://bucket.example/avatar",

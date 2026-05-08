@@ -78,9 +78,9 @@ describe('SettingsView', () => {
 
     http.get.mockResolvedValue(
       okResult({
-        provider: 'local',
+        provider: 'oss',
         fileName: 'avatar-upload.png',
-        uploadUrl: '/api/upload/avatar',
+        uploadUrl: '/api/users/7/avatar/upload',
         uploadMethod: 'POST',
         maxBytes: 256000,
         mimeLimit: 'image/*'
@@ -102,6 +102,8 @@ describe('SettingsView', () => {
 
     expect(uploadButton.get('button').attributes('disabled')).toBeDefined()
     expect(fileInput.exists()).toBe(true)
+    expect(wrapper.text()).toContain('OSS 服务')
+    expect(wrapper.text()).toContain('图片会通过后端代理上传到 OSS 服务')
 
     await fileInput.vm.$emit('update:modelValue', file)
     await nextTick()
@@ -125,7 +127,7 @@ describe('SettingsView', () => {
     await flushPromises()
 
     expect(http.post).toHaveBeenCalledTimes(1)
-    expect(http.post).toHaveBeenCalledWith('/api/upload/avatar', expect.any(FormData))
+    expect(http.post).toHaveBeenCalledWith('/api/users/7/avatar/upload', expect.any(FormData))
     const form = http.post.mock.calls[0][1]
     expect(form.get('file')).toBe(file)
     expect(form.get('fileName')).toBe('avatar-upload.png')

@@ -50,8 +50,7 @@
           <div class="settings-upload-meta">
             <div class="settings-upload-meta-item">
               <span class="settings-upload-label">存储位置</span>
-              <strong v-if="token.provider === 'local'">本地文件</strong>
-              <strong v-else-if="token.provider === 'r2'">Cloudflare R2</strong>
+              <strong v-if="token.provider === 'oss'">OSS 服务</strong>
               <strong v-else>等待获取上传参数</strong>
             </div>
             <div class="settings-upload-meta-item">
@@ -66,8 +65,7 @@
 
           <div v-if="token.fileName" class="upload-area">
             <div class="settings-upload-note">
-              <span v-if="token.provider === 'local'">图片会先上传到后端并落盘存储。</span>
-              <span v-else-if="token.provider === 'r2'">图片会先上传到后端，再转存到 Cloudflare R2。</span>
+              <span v-if="token.provider === 'oss'">图片会通过后端代理上传到 OSS 服务。</span>
               <span v-else>当前存储策略未知，请联系管理员确认。</span>
             </div>
 
@@ -201,7 +199,7 @@ async function uploadAndUpdate() {
   loading.value = true
   try {
     const provider = String(token.provider || '').trim()
-    if (provider === 'local' || provider === 'r2') {
+    if (provider === 'oss') {
       if (!token.uploadUrl) {
         throw new Error('uploadUrl 缺失，请重新获取上传参数')
       }

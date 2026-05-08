@@ -160,8 +160,8 @@ Main path：
    - 签发上传 token，并通过 `community-oss-client` prepare upload。
    - 客户端上传文件，经 `community-app` 代理到 OSS。
    - 确认并写回 canonical OSS public URL。
-6. 文件访问通过 `/files/**` 暴露，但实际 blob 读取由 `community-oss` 完成。
-7. OSS 首版以 Garage 为主后端，dev 可用 local filesystem 或 Garage single-node；legacy 本地/R2 provider 仅作为迁移残留。
+6. 文件访问通过 `/files/**` 暴露，gateway 直接路由到 `community-oss`。
+7. OSS 首版以 Garage 为主后端，dev 可用 `community-oss` 的 local filesystem backend 或 Garage single-node。
 
 Failure / security：
 

@@ -24,7 +24,7 @@ public class CommunitySecurityConfig {
             List<ApiSecurityRules> securityRules
     ) throws Exception {
         return http
-                .securityMatcher("/api/**", "/files/**", "/internal/**")
+                .securityMatcher("/api/**", "/internal/**")
                 .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

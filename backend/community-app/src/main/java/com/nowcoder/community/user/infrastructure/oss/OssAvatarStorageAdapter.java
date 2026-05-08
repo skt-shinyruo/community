@@ -4,28 +4,22 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.oss.client.CommunityOssClient;
 import com.nowcoder.community.oss.client.model.OssCompleteUploadRequest;
 import com.nowcoder.community.oss.client.model.OssMetadataResponse;
-import com.nowcoder.community.oss.client.model.OssPublicFileResponse;
 import com.nowcoder.community.oss.client.model.OssUploadSessionRequest;
 import com.nowcoder.community.oss.client.model.OssUploadSessionResponse;
 import com.nowcoder.community.user.application.AvatarUploadContent;
 import com.nowcoder.community.user.application.port.AvatarStoragePort;
-import com.nowcoder.community.user.application.result.AvatarFileResult;
 import com.nowcoder.community.user.application.result.AvatarUploadTokenResult;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import java.io.ByteArrayInputStream;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.List;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
-import static com.nowcoder.community.user.infrastructure.avatar.AvatarConstraints.ALLOWED_MIME_TYPES;
-import static com.nowcoder.community.user.infrastructure.avatar.AvatarConstraints.KEY_PREFIX;
-import static com.nowcoder.community.user.infrastructure.avatar.AvatarConstraints.MAX_AVATAR_BYTES;
-import static com.nowcoder.community.user.infrastructure.avatar.AvatarConstraints.MIME_LIMIT;
 
 @Component
 public class OssAvatarStorageAdapter implements AvatarStoragePort {
@@ -34,6 +28,15 @@ public class OssAvatarStorageAdapter implements AvatarStoragePort {
     private static final String SESSION_KEY_PREFIX = "user:avatar:oss-session:";
     private static final String PUBLIC_URL_KEY_PREFIX = "user:avatar:oss-public-url:";
     private static final long UPLOAD_TICKET_TTL_SECONDS = 600;
+    private static final String KEY_PREFIX = "avatar/";
+    private static final long MAX_AVATAR_BYTES = 2L * 1024 * 1024;
+    private static final String MIME_LIMIT = "image/jpeg;image/png;image/webp;image/gif";
+    private static final List<String> ALLOWED_MIME_TYPES = List.of(
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "image/gif"
+    );
 
     private final CommunityOssClient ossClient;
     private final StringRedisTemplate redisTemplate;
@@ -149,22 +152,6 @@ public class OssAvatarStorageAdapter implements AvatarStoragePort {
             return cached.trim();
         }
         return publicBaseUrl() + "/files/" + fileName.trim();
-    }
-
-    @Override
-    public AvatarFileResult loadAvatarOrNull(String fileKey) {
-        if (!StringUtils.hasText(fileKey)) {
-            return null;
-        }
-        OssPublicFileResponse response = ossClient.loadPublicFile(fileKey.trim());
-        if (response == null) {
-            return null;
-        }
-        return new AvatarFileResult(
-                new ByteArrayInputStream(response.content()),
-                response.contentType(),
-                response.contentLength()
-        );
     }
 
     private void bindUploadTicket(UUID userId, String fileName) {

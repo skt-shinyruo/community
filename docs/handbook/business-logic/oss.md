@@ -30,7 +30,7 @@ Gateway：
 1. 消费方先完成自己的业务授权。
 2. 消费方通过 `community-oss-client` 请求 OSS prepare upload。
 3. OSS 记录对象、版本和上传会话，声明 owner context、visibility、alias 和期望 content metadata。
-4. OSS 返回 proxy upload token 或直接上传能力。
+4. OSS 返回上传会话能力；面向浏览器时，owner domain 只暴露通用上传指令，不暴露 storage provider、bucket 或对象存储凭证。
 
 代理上传：
 

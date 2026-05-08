@@ -39,14 +39,15 @@ public class AvatarService {
         }
         bindUploadTicket(userId, fileName);
         return new AvatarUploadTokenResult(
-                result.provider(),
-                result.uploadToken(),
+                result.uploadId(),
                 fileName,
-                result.bucketUrl(),
                 result.uploadUrl(),
                 result.uploadMethod(),
+                result.fileField(),
+                result.fileKeyField(),
                 AvatarConstraints.MAX_AVATAR_BYTES,
-                AvatarConstraints.MIME_LIMIT
+                AvatarConstraints.MIME_LIMIT,
+                result.expiresAt()
         );
     }
 

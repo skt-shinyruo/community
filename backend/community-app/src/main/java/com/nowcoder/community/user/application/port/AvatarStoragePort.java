@@ -10,11 +10,11 @@ public interface AvatarStoragePort {
 
     AvatarUploadTokenResult createUploadToken(UUID userId);
 
-    void upload(UUID userId, String fileName, AvatarUploadContent content);
+    void upload(UUID userId, String fileKey, AvatarUploadContent content);
 
-    void assertAndConsumeUploadTicket(UUID userId, String fileName);
+    void assertAndConsumeUploadTicket(UUID userId, String fileKey);
 
-    String buildAvatarUrl(String fileName);
+    String buildAvatarUrl(String fileKey);
 
     AvatarFileResult loadAvatarOrNull(String fileKey);
 }

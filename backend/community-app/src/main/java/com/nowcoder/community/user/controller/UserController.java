@@ -34,7 +34,9 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
@@ -107,27 +109,26 @@ public class UserController {
                 .toList());
     }
 
-    @GetMapping("/{userId}/avatar/upload-token")
-    public Result<AvatarUploadTokenResponse> uploadToken(Authentication authentication, @PathVariable UUID userId) {
+    @PostMapping("/{userId}/avatar/upload-sessions")
+    public Result<AvatarUploadTokenResponse> createAvatarUploadSession(Authentication authentication, @PathVariable UUID userId) {
         UUID currentUserId = CurrentUser.requireUserUuid(authentication);
         AvatarUploadTokenResponse response = toAvatarUploadTokenResponse(userAvatarApplicationService.createUploadToken(currentUserId, userId));
         SecurityEventLogger.info(
                 log,
-                "avatar_upload_token",
+                "avatar_upload_session",
                 "success",
                 "user.id", userId,
                 "community.target_type", "user",
                 "community.target_id", userId,
-                "community.avatar_provider", response == null ? null : response.getProvider(),
-                "community.avatar_file_name", response == null ? null : response.getFileName()
+                "community.avatar_file_key", response == null ? null : response.getFileKey()
         );
         return Result.ok(response);
     }
 
     @PostMapping(value = "/{userId}/avatar/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Result<Void> uploadAvatar(Authentication authentication, @PathVariable UUID userId, @RequestParam("file") MultipartFile file, @RequestParam("fileName") String fileName) {
+    public Result<Void> uploadAvatar(Authentication authentication, @PathVariable UUID userId, @RequestParam("file") MultipartFile file, @RequestParam("fileKey") String fileKey) {
         UUID currentUserId = CurrentUser.requireUserUuid(authentication);
-        userAvatarApplicationService.upload(currentUserId, userId, fileName, toAvatarUploadContent(file));
+        userAvatarApplicationService.upload(currentUserId, userId, fileKey, toAvatarUploadContent(file));
         SecurityEventLogger.info(
                 log,
                 "avatar_upload",
@@ -135,7 +136,7 @@ public class UserController {
                 "user.id", userId,
                 "community.target_type", "user",
                 "community.target_id", userId,
-                "community.avatar_file_name", fileName,
+                "community.avatar_file_key", fileKey,
                 "community.file_content_type", file == null ? null : file.getContentType(),
                 "community.file_size_bytes", file == null ? null : file.getSize()
         );
@@ -145,7 +146,7 @@ public class UserController {
     @PutMapping("/{userId}/avatar")
     public Result<Void> updateAvatar(Authentication authentication, @PathVariable UUID userId, @Valid @RequestBody UpdateAvatarRequest request) {
         UUID currentUserId = CurrentUser.requireUserUuid(authentication);
-        userAvatarApplicationService.updateAvatar(currentUserId, userId, request.getFileName());
+        userAvatarApplicationService.updateAvatar(currentUserId, userId, request.getFileKey());
         SecurityEventLogger.info(
                 log,
                 "avatar_update",
@@ -153,7 +154,7 @@ public class UserController {
                 "user.id", userId,
                 "community.target_type", "user",
                 "community.target_id", userId,
-                "community.avatar_file_name", request.getFileName()
+                "community.avatar_file_key", request.getFileKey()
         );
         return Result.ok();
     }
@@ -163,15 +164,33 @@ public class UserController {
             return null;
         }
         AvatarUploadTokenResponse response = new AvatarUploadTokenResponse();
-        response.setProvider(token.provider());
-        response.setUploadToken(token.uploadToken());
-        response.setFileName(token.fileName());
-        response.setBucketUrl(token.bucketUrl());
-        response.setUploadUrl(token.uploadUrl());
-        response.setUploadMethod(token.uploadMethod());
-        response.setMaxBytes(token.maxBytes());
-        response.setMimeLimit(token.mimeLimit());
+        response.setUploadId(token.uploadId());
+        response.setFileKey(token.fileKey());
+
+        AvatarUploadTokenResponse.UploadInstruction upload = new AvatarUploadTokenResponse.UploadInstruction();
+        upload.setUrl(token.uploadUrl());
+        upload.setMethod(token.uploadMethod());
+        upload.setFileField(token.fileField());
+        upload.setFields(Map.of(token.fileKeyField(), token.fileKey()));
+        upload.setHeaders(Map.of());
+        response.setUpload(upload);
+
+        AvatarUploadTokenResponse.Constraints constraints = new AvatarUploadTokenResponse.Constraints();
+        constraints.setMaxBytes(token.maxBytes());
+        constraints.setMimeTypes(parseMimeTypes(token.mimeLimit()));
+        response.setConstraints(constraints);
+        response.setExpiresAt(token.expiresAt() == null ? "" : token.expiresAt().toString());
         return response;
+    }
+
+    private static List<String> parseMimeTypes(String mimeLimit) {
+        if (mimeLimit == null || mimeLimit.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(mimeLimit.split(";"))
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .toList();
     }
 
     private static AvatarUploadContent toAvatarUploadContent(MultipartFile file) {

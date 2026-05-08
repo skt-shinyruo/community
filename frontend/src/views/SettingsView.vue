@@ -27,8 +27,8 @@
             </div>
             <div class="settings-summary-card">
               <div class="settings-summary-label">上传状态</div>
-              <div class="settings-summary-value">{{ token.fileName ? '已获取上传参数' : '尚未开始' }}</div>
-              <div class="settings-summary-text">先获取上传参数，再选择本地图片并提交保存。</div>
+              <div class="settings-summary-value">{{ uploadSession.fileKey ? '已获取上传参数' : '尚未开始' }}</div>
+              <div class="settings-summary-text">先获取上传参数，再选择图片并提交保存。</div>
             </div>
           </div>
         </div>
@@ -49,14 +49,12 @@
         <div class="settings-upload-card">
           <div class="settings-upload-meta">
             <div class="settings-upload-meta-item">
-              <span class="settings-upload-label">存储位置</span>
-              <strong v-if="token.provider === 'local'">本地文件</strong>
-              <strong v-else-if="token.provider === 'r2'">Cloudflare R2</strong>
-              <strong v-else>等待获取上传参数</strong>
+              <span class="settings-upload-label">上传会话</span>
+              <strong>{{ uploadSession.fileKey ? '已获取' : '等待获取上传参数' }}</strong>
             </div>
             <div class="settings-upload-meta-item">
               <span class="settings-upload-label">大小限制</span>
-              <strong>{{ token.maxBytes ? `${Math.round(token.maxBytes / 1024)}KB` : '获取后显示' }}</strong>
+              <strong>{{ uploadSession.constraints.maxBytes ? `${Math.round(uploadSession.constraints.maxBytes / 1024)}KB` : '获取后显示' }}</strong>
             </div>
             <div class="settings-upload-meta-item">
               <span class="settings-upload-label">预览状态</span>
@@ -64,11 +62,9 @@
             </div>
           </div>
 
-          <div v-if="token.fileName" class="upload-area">
+          <div v-if="uploadSession.fileKey" class="upload-area">
             <div class="settings-upload-note">
-              <span v-if="token.provider === 'local'">图片会先上传到后端并落盘存储。</span>
-              <span v-else-if="token.provider === 'r2'">图片会先上传到后端，再转存到 Cloudflare R2。</span>
-              <span v-else>当前存储策略未知，请联系管理员确认。</span>
+              <span>图片会按后端签发的上传会话提交，保存后同步到公开资料。</span>
             </div>
 
             <div class="settings-upload-actions">
@@ -115,11 +111,12 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { me as apiMe } from '../api/services/authService'
 import http from '../api/http'
 import { unwrapResultBody } from '../api/result'
+import { executeUploadSession, normalizeUploadSession } from '../api/uploadSession'
 import UiCard from '../components/ui/UiCard.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -131,30 +128,32 @@ const auth = useAuthStore()
 const loading = ref(false)
 const error = ref('')
 const successMsg = ref('')
-const token = reactive({
-  provider: '',
-  fileName: '',
-  uploadUrl: '',
-  uploadMethod: '',
-  maxBytes: 0,
-  mimeLimit: ''
-})
+const uploadSession = reactive(normalizeUploadSession())
 
 const pickedFile = ref(null)
+const selectedPreviewUrl = ref('')
 
 const currentAvatarUrl = computed(() => String(auth?.me?.headerUrl || '').trim())
 
-const previewUrl = computed(() => {
-  const fileName = String(token.fileName || '').trim()
-  if (!fileName) return ''
-
-  const base = String(http?.defaults?.baseURL || '').trim()
-  // edge/同源模式：baseURL 为空，直接使用相对路径。
-  if (!base) return `/files/${encodeURIComponent(fileName)}`
-  return `${base.replace(/\/$/, '')}/files/${encodeURIComponent(fileName)}`
-})
+const previewUrl = computed(() => selectedPreviewUrl.value)
 
 const displayAvatarUrl = computed(() => previewUrl.value || currentAvatarUrl.value)
+
+watch(pickedFile, (file, _previousFile, onCleanup) => {
+  if (selectedPreviewUrl.value && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+    URL.revokeObjectURL(selectedPreviewUrl.value)
+  }
+  selectedPreviewUrl.value = ''
+  if (!file || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return
+
+  const objectUrl = URL.createObjectURL(file)
+  selectedPreviewUrl.value = objectUrl
+  onCleanup(() => {
+    if (typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+      URL.revokeObjectURL(objectUrl)
+    }
+  })
+})
 
 async function loadToken() {
   error.value = ''
@@ -162,15 +161,10 @@ async function loadToken() {
   if (!auth.userId) return
   loading.value = true
   try {
-    const resp = await http.get(`/api/users/${auth.userId}/avatar/upload-token`)
-    const { data, traceId } = unwrapResultBody(resp.data, 'Get Token')
+    const resp = await http.post(`/api/users/${auth.userId}/avatar/upload-sessions`)
+    const { data, traceId } = unwrapResultBody(resp.data, 'Create Avatar Upload Session')
     emit('trace', traceId || '')
-    token.provider = data?.provider || ''
-    token.fileName = data?.fileName || ''
-    token.uploadUrl = data?.uploadUrl || ''
-    token.uploadMethod = data?.uploadMethod || ''
-    token.maxBytes = data?.maxBytes || 0
-    token.mimeLimit = data?.mimeLimit || ''
+    Object.assign(uploadSession, normalizeUploadSession(data || {}))
   } catch (e) {
     error.value = e?.message || '获取上传参数失败'
   } finally {
@@ -178,17 +172,8 @@ async function loadToken() {
   }
 }
 
-async function uploadToBackend({ file, fileName, uploadUrl }) {
-  const form = new FormData()
-  form.append('file', file)
-  form.append('fileName', fileName)
-  const resp = await http.post(uploadUrl, form)
-  const { traceId } = unwrapResultBody(resp.data, 'Upload Avatar')
-  emit('trace', traceId || '')
-}
-
-async function updateAvatar(fileName) {
-  const resp = await http.put(`/api/users/${auth.userId}/avatar`, { fileName })
+async function updateAvatar(fileKey) {
+  const resp = await http.put(`/api/users/${auth.userId}/avatar`, { fileKey })
   const { traceId } = unwrapResultBody(resp.data, 'Update Avatar')
   emit('trace', traceId || '')
 }
@@ -196,21 +181,19 @@ async function updateAvatar(fileName) {
 async function uploadAndUpdate() {
   error.value = ''
   successMsg.value = ''
-  if (!pickedFile.value || !token.fileName) return
+  if (!pickedFile.value || !uploadSession.fileKey) return
 
   loading.value = true
   try {
-    const provider = String(token.provider || '').trim()
-    if (provider === 'local' || provider === 'r2') {
-      if (!token.uploadUrl) {
-        throw new Error('uploadUrl 缺失，请重新获取上传参数')
-      }
-      await uploadToBackend({ file: pickedFile.value, fileName: token.fileName, uploadUrl: token.uploadUrl })
-    } else {
-      throw new Error('未知存储策略，请联系管理员')
-    }
+    const { traceId } = await executeUploadSession({
+      http,
+      session: uploadSession,
+      file: pickedFile.value,
+      operation: 'Upload Avatar'
+    })
+    emit('trace', traceId || '')
 
-    await updateAvatar(token.fileName)
+    await updateAvatar(uploadSession.fileKey)
     try {
       const { data, traceId } = await apiMe()
       emit('trace', traceId || '')

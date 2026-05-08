@@ -55,7 +55,7 @@ public class OssAvatarStorageAdapter implements AvatarStoragePort {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
 
-        String fileName = generateFileName(userId);
+        String fileKey = generateFileName(userId);
         OssUploadSessionResponse response = ossClient.prepareUpload(new OssUploadSessionRequest(
                 "USER_AVATAR",
                 "community-app",
@@ -67,39 +67,40 @@ public class OssAvatarStorageAdapter implements AvatarStoragePort {
                 "application/octet-stream",
                 0,
                 "",
-                fileName,
+                fileKey,
                 userId.toString()
         ));
         if (response == null) {
             throw new BusinessException(INTERNAL_ERROR, "签发上传参数失败");
         }
 
-        bindUploadTicket(userId, fileName);
-        bindUploadSession(fileName, response);
+        bindUploadTicket(userId, fileKey);
+        bindUploadSession(fileKey, response);
         return new AvatarUploadTokenResult(
-                "oss",
                 response.sessionId() == null ? "" : response.sessionId().toString(),
-                fileName,
-                publicBaseUrl() + "/files",
+                fileKey,
                 "/api/users/" + userId + "/avatar/upload",
                 "POST",
+                "file",
+                "fileKey",
                 MAX_AVATAR_BYTES,
-                MIME_LIMIT
+                MIME_LIMIT,
+                response.expiresAt()
         );
     }
 
     @Override
-    public void upload(UUID userId, String fileName, AvatarUploadContent content) {
+    public void upload(UUID userId, String fileKey, AvatarUploadContent content) {
         if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
-        if (!isSafeFileName(fileName)) {
-            throw new BusinessException(INVALID_ARGUMENT, "fileName 非法");
+        if (!isSafeFileName(fileKey)) {
+            throw new BusinessException(INVALID_ARGUMENT, "fileKey 非法");
         }
         validateContent(content);
-        requireUploadOwner(userId, fileName, false);
+        requireUploadOwner(userId, fileKey, false);
 
-        UploadSessionReference sessionReference = requireUploadSession(fileName);
+        UploadSessionReference sessionReference = requireUploadSession(fileKey);
         OssMetadataResponse metadata;
         try {
             metadata = ossClient.completeProxyUpload(new OssCompleteUploadRequest(
@@ -119,36 +120,36 @@ public class OssAvatarStorageAdapter implements AvatarStoragePort {
         if (metadata == null) {
             throw new BusinessException(INTERNAL_ERROR, "上传头像失败");
         }
-        cachePublicUrl(fileName, metadata.publicUrl());
+        cachePublicUrl(fileKey, metadata.publicUrl());
     }
 
     @Override
-    public void assertAndConsumeUploadTicket(UUID userId, String fileName) {
+    public void assertAndConsumeUploadTicket(UUID userId, String fileKey) {
         if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
-        if (!isSafeFileName(fileName)) {
-            throw new BusinessException(INVALID_ARGUMENT, "fileName 非法");
+        if (!isSafeFileName(fileKey)) {
+            throw new BusinessException(INVALID_ARGUMENT, "fileKey 非法");
         }
         if (redisTemplate == null) {
             throw new BusinessException(FORBIDDEN, "上传校验不可用");
         }
-        String owner = redisTemplate.opsForValue().getAndDelete(ownerKey(fileName));
+        String owner = redisTemplate.opsForValue().getAndDelete(ownerKey(fileKey));
         if (!StringUtils.hasText(owner) || !owner.trim().equals(userId.toString())) {
             throw new BusinessException(FORBIDDEN, "上传凭证已失效或不匹配");
         }
     }
 
     @Override
-    public String buildAvatarUrl(String fileName) {
-        if (!isSafeFileName(fileName)) {
-            throw new BusinessException(INVALID_ARGUMENT, "fileName 非法");
+    public String buildAvatarUrl(String fileKey) {
+        if (!isSafeFileName(fileKey)) {
+            throw new BusinessException(INVALID_ARGUMENT, "fileKey 非法");
         }
-        String cached = redisTemplate == null ? null : redisTemplate.opsForValue().get(publicUrlKey(fileName));
+        String cached = redisTemplate == null ? null : redisTemplate.opsForValue().get(publicUrlKey(fileKey));
         if (StringUtils.hasText(cached)) {
             return cached.trim();
         }
-        return publicBaseUrl() + "/files/" + fileName.trim();
+        return publicBaseUrl() + "/files/" + fileKey.trim();
     }
 
     @Override

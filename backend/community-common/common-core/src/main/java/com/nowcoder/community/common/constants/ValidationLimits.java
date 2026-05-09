@@ -22,6 +22,11 @@ public final class ValidationLimits {
     // 内容相关
     public static final int POST_TITLE_MAX = 128;
     public static final int POST_CONTENT_MAX = 10_000;
+    public static final int POST_CONTENT_BLOCKS_MAX = 80;
+    public static final int POST_BLOCK_TEXT_MAX = 10_000;
+    public static final int POST_BLOCK_CAPTION_MAX = 512;
+    public static final int POST_BLOCK_DISPLAY_NAME_MAX = 255;
+    public static final int POST_BLOCK_LANGUAGE_MAX = 64;
     public static final int TAG_MAX = 32;
     public static final int TAGS_MAX = 8;
     public static final int COMMENT_CONTENT_MAX = 2_000;

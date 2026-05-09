@@ -705,6 +705,11 @@ delete from outbox_event;
 delete from post_content_block;
 delete from post_media_asset;
 delete from discuss_post;
+delete from drive_share_access;
+delete from drive_share;
+delete from drive_upload;
+delete from drive_entry;
+delete from drive_space;
 delete from user;
 
 merge into user (id, username, password, salt, email, type, status, header_url, create_time, score)

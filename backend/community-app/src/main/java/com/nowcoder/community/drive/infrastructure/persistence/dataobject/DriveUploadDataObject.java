@@ -20,7 +20,9 @@ public class DriveUploadDataObject {
     private DriveUploadStatus status;
     private UUID createdBy;
     private Instant createdAt;
+    private Instant updatedAt;
     private Instant expiresAt;
+    private Instant completedAt;
     private UUID completedEntryId;
 
     public static DriveUploadDataObject fromDomain(DriveUpload upload) {
@@ -37,7 +39,9 @@ public class DriveUploadDataObject {
         dataObject.setStatus(upload.status());
         dataObject.setCreatedBy(upload.createdBy());
         dataObject.setCreatedAt(upload.createdAt());
+        dataObject.setUpdatedAt(upload.updatedAt());
         dataObject.setExpiresAt(upload.expiresAt());
+        dataObject.setCompletedAt(upload.completedAt());
         dataObject.setCompletedEntryId(upload.completedEntryId());
         return dataObject;
     }
@@ -57,9 +61,9 @@ public class DriveUploadDataObject {
                 status,
                 completedEntryId,
                 createdAt,
-                createdAt,
+                updatedAt,
                 expiresAt,
-                null
+                completedAt
         );
     }
 
@@ -159,12 +163,28 @@ public class DriveUploadDataObject {
         this.createdAt = createdAt;
     }
 
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Instant updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
     public Instant getExpiresAt() {
         return expiresAt;
     }
 
     public void setExpiresAt(Instant expiresAt) {
         this.expiresAt = expiresAt;
+    }
+
+    public Instant getCompletedAt() {
+        return completedAt;
+    }
+
+    public void setCompletedAt(Instant completedAt) {
+        this.completedAt = completedAt;
     }
 
     public UUID getCompletedEntryId() {

@@ -31,8 +31,6 @@ public interface DriveEntryMapper {
 
     List<DriveEntryDataObject> selectDescendants(@Param("spaceId") UUID spaceId, @Param("folderId") UUID folderId);
 
-    List<DriveEntryDataObject> selectChildrenForTree(@Param("spaceId") UUID spaceId, @Param("parentId") UUID parentId);
-
     int insert(DriveEntryDataObject entry);
 
     int update(DriveEntryDataObject entry);

@@ -7,7 +7,7 @@
 
     <sql id="fields">
         upload_id, space_id, parent_id, name, size_bytes, mime_type, object_id, version_id,
-        oss_session_id, status, created_by, created_at, expires_at, completed_entry_id
+        oss_session_id, status, created_by, created_at, updated_at, expires_at, completed_at, completed_entry_id
     </sql>
 
     <select id="selectById" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveUploadDataObject">
@@ -19,7 +19,7 @@
     <insert id="insert" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveUploadDataObject">
         insert into drive_upload(
             upload_id, space_id, parent_id, name, size_bytes, mime_type, object_id, version_id,
-            oss_session_id, status, created_by, created_at, expires_at, completed_entry_id
+            oss_session_id, status, created_by, created_at, updated_at, expires_at, completed_at, completed_entry_id
         )
         values(
             #{uploadId, jdbcType=BINARY},
@@ -34,27 +34,21 @@
             #{status},
             #{createdBy, jdbcType=BINARY},
             #{createdAt},
+            #{updatedAt},
             #{expiresAt},
+            #{completedAt},
             #{completedEntryId, jdbcType=BINARY}
         )
     </insert>
 
     <update id="update" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveUploadDataObject">
         update drive_upload
-        set space_id = #{spaceId, jdbcType=BINARY},
-            parent_id = #{parentId, jdbcType=BINARY},
-            name = #{name},
-            size_bytes = #{sizeBytes},
-            mime_type = #{mimeType},
-            object_id = #{objectId, jdbcType=BINARY},
-            version_id = #{versionId, jdbcType=BINARY},
-            oss_session_id = #{ossSessionId, jdbcType=BINARY},
-            status = #{status},
-            created_by = #{createdBy, jdbcType=BINARY},
-            created_at = #{createdAt},
-            expires_at = #{expiresAt},
+        set status = #{status},
+            updated_at = #{updatedAt},
+            completed_at = #{completedAt},
             completed_entry_id = #{completedEntryId, jdbcType=BINARY}
         where upload_id = #{uploadId, jdbcType=BINARY}
+          and space_id = #{spaceId, jdbcType=BINARY}
     </update>
 
 </mapper>

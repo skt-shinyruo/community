@@ -651,7 +651,9 @@ create table if not exists drive_upload (
   status varchar(16) not null,
   created_by binary(16) not null,
   created_at timestamp default current_timestamp,
+  updated_at timestamp default current_timestamp,
   expires_at timestamp not null,
+  completed_at timestamp,
   completed_entry_id binary(16)
 );
 

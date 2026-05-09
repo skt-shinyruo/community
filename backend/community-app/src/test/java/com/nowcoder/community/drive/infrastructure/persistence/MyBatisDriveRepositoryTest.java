@@ -46,6 +46,7 @@ class MyBatisDriveRepositoryTest {
     private static final UUID NESTED_ID = uuid(6);
     private static final UUID UPLOAD_ID = uuid(7);
     private static final UUID SHARE_ID = uuid(8);
+    private static final UUID ROOT_FILE_ID = uuid(9);
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -96,11 +97,13 @@ class MyBatisDriveRepositoryTest {
         DriveEntry folder = DriveEntry.folder(FOLDER_ID, SPACE_ID, ROOT_ID, "Projects", NOW.plusSeconds(1));
         DriveEntry file = DriveEntry.file(FILE_ID, SPACE_ID, FOLDER_ID, "Plan.txt", uuid(20), uuid(21), 42L, "text/plain", NOW.plusSeconds(2));
         DriveEntry nested = DriveEntry.file(NESTED_ID, SPACE_ID, FILE_ID, "Nested.txt", uuid(22), uuid(23), 10L, "text/plain", NOW.plusSeconds(3));
+        DriveEntry rootFile = DriveEntry.file(ROOT_FILE_ID, SPACE_ID, ROOT_ID, "A.txt", uuid(24), uuid(25), 4L, "text/plain", NOW.plusSeconds(6));
 
         entryRepository.save(root);
         entryRepository.save(folder);
         entryRepository.save(file);
         entryRepository.save(nested);
+        entryRepository.save(rootFile);
         DriveEntry renamed = file.rename("Roadmap.txt", NOW.plusSeconds(4));
         entryRepository.save(renamed);
         DriveEntry trashed = nested.trash(NOW.plusSeconds(5), NOW.plusSeconds(86400));
@@ -108,10 +111,13 @@ class MyBatisDriveRepositoryTest {
 
         assertThat(entryRepository.findById(SPACE_ID, FILE_ID)).contains(renamed);
         assertThat(entryRepository.findActiveChildByName(SPACE_ID, FOLDER_ID, "Roadmap.txt")).contains(renamed);
+        assertThat(entryRepository.listActiveChildren(SPACE_ID, ROOT_ID))
+                .extracting(DriveEntry::entryId)
+                .containsExactly(FOLDER_ID, ROOT_FILE_ID);
         assertThat(entryRepository.listActiveChildren(SPACE_ID, FOLDER_ID)).containsExactly(renamed);
         assertThat(entryRepository.searchActive(SPACE_ID, "road", 10)).containsExactly(renamed);
         assertThat(entryRepository.listTrash(SPACE_ID)).containsExactly(trashed);
-        assertThat(entryRepository.listDescendantIds(SPACE_ID, ROOT_ID)).containsExactly(FOLDER_ID, FILE_ID, NESTED_ID);
+        assertThat(entryRepository.listDescendantIds(SPACE_ID, ROOT_ID)).containsExactly(FOLDER_ID, FILE_ID, NESTED_ID, ROOT_FILE_ID);
 
         String activeName = jdbcTemplate.queryForObject(
                 "select active_name from drive_entry where entry_id = ?",
@@ -157,6 +163,8 @@ class MyBatisDriveRepositoryTest {
                 DriveUpload::status,
                 DriveUpload::completedEntryId
         ).containsExactly(UPLOAD_ID, SPACE_ID, ROOT_ID, "upload.bin", DriveUploadStatus.COMPLETED, FILE_ID);
+        assertThat(persisted.updatedAt()).isEqualTo(NOW.plusSeconds(20));
+        assertThat(persisted.completedAt()).isEqualTo(NOW.plusSeconds(20));
     }
 
     @Test
@@ -182,6 +190,7 @@ class MyBatisDriveRepositoryTest {
                 DriveShare::shareToken,
                 DriveShare::status
         ).containsExactly(SHARE_ID, FILE_ID, "share-token", DriveShareStatus.REVOKED);
+        assertThat(persisted.revokedAt()).isEqualTo(NOW.plusSeconds(30));
         assertThat(shareRepository.findByToken("share-token").map(DriveShare::status)).contains(DriveShareStatus.REVOKED);
         assertThat(shareRepository.findActiveByEntryId(FILE_ID)).isEmpty();
     }

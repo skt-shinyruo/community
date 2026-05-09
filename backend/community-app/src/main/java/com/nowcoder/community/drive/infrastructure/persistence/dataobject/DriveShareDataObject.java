@@ -16,6 +16,7 @@ public class DriveShareDataObject {
     private DriveShareStatus status;
     private UUID createdBy;
     private Instant createdAt;
+    private Instant updatedAt;
 
     public static DriveShareDataObject fromDomain(DriveShare share) {
         DriveShareDataObject dataObject = new DriveShareDataObject();
@@ -27,10 +28,12 @@ public class DriveShareDataObject {
         dataObject.setStatus(share.status());
         dataObject.setCreatedBy(share.createdBy());
         dataObject.setCreatedAt(share.createdAt());
+        dataObject.setUpdatedAt(share.revokedAt() == null ? share.createdAt() : share.revokedAt());
         return dataObject;
     }
 
     public DriveShare toDomain() {
+        Instant revokedAt = status == DriveShareStatus.REVOKED ? updatedAt : null;
         return new DriveShare(
                 shareId,
                 entryId,
@@ -40,7 +43,7 @@ public class DriveShareDataObject {
                 createdBy,
                 status,
                 createdAt,
-                null
+                revokedAt
         );
     }
 
@@ -106,5 +109,13 @@ public class DriveShareDataObject {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Instant updatedAt) {
+        this.updatedAt = updatedAt;
     }
 }

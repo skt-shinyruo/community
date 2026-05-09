@@ -4,7 +4,9 @@ import com.nowcoder.community.drive.application.command.DriveUploadContent;
 import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
 import com.nowcoder.community.oss.client.CommunityOssClient;
 import com.nowcoder.community.oss.client.model.OssCompleteUploadRequest;
+import com.nowcoder.community.oss.client.model.OssLifecycleResponse;
 import com.nowcoder.community.oss.client.model.OssMetadataResponse;
+import com.nowcoder.community.oss.client.model.OssSignedUrlResponse;
 import com.nowcoder.community.oss.client.model.OssUploadSessionRequest;
 import com.nowcoder.community.oss.client.model.OssUploadSessionResponse;
 import org.junit.jupiter.api.Test;
@@ -79,5 +81,38 @@ class OssDriveObjectStorageAdapterTest {
         assertThat(stored.publicUrl()).contains("/files/");
         verify(client).prepareUpload(any(OssUploadSessionRequest.class));
         verify(client).completeProxyUpload(any(OssCompleteUploadRequest.class));
+    }
+
+    @Test
+    void adapterShouldMapSignedDownloadAndDeleteCalls() {
+        CommunityOssClient client = mock(CommunityOssClient.class);
+        UUID objectId = uuid(2);
+        UUID versionId = uuid(3);
+        Instant expiresAt = Instant.parse("2026-05-09T00:10:00Z");
+        when(client.createSignedDownloadUrl(objectId, 600L)).thenReturn(new OssSignedUrlResponse(
+                "https://cdn.example.test/download",
+                "GET",
+                expiresAt,
+                "private, max-age=600"
+        ));
+        when(client.deleteObject(objectId, "7")).thenReturn(new OssLifecycleResponse(
+                objectId,
+                versionId,
+                "DELETED",
+                false,
+                true,
+                "deleted",
+                expiresAt
+        ));
+
+        OssDriveObjectStorageAdapter adapter = new OssDriveObjectStorageAdapter(client);
+
+        DriveObjectStoragePort.SignedDownloadUrl signed = adapter.createDownloadUrl(objectId, 600L);
+        adapter.deleteObject(objectId, "7");
+
+        assertThat(signed.url()).isEqualTo("https://cdn.example.test/download");
+        assertThat(signed.expiresAt()).isEqualTo(expiresAt);
+        verify(client).createSignedDownloadUrl(objectId, 600L);
+        verify(client).deleteObject(objectId, "7");
     }
 }

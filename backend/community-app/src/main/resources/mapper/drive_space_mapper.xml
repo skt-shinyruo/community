@@ -35,10 +35,8 @@
 
     <update id="update" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveSpaceDataObject">
         update drive_space
-        set user_id = #{userId, jdbcType=BINARY},
-            quota_bytes = #{quotaBytes},
+        set quota_bytes = #{quotaBytes},
             used_bytes = #{usedBytes},
-            created_at = #{createdAt},
             updated_at = #{updatedAt}
         where space_id = #{spaceId, jdbcType=BINARY}
     </update>

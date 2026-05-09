@@ -40,7 +40,7 @@
             (parent_id is null and #{parentId, jdbcType=BINARY} is null)
             or parent_id = #{parentId, jdbcType=BINARY}
           )
-        order by type asc, name asc, entry_id asc
+        order by case when type = 'FOLDER' then 0 else 1 end, name asc, entry_id asc
     </select>
 
     <select id="selectTrash" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveEntryDataObject">
@@ -64,34 +64,37 @@
     <select id="selectDescendants" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveEntryDataObject">
         with recursive descendants(
             entry_id, space_id, parent_id, parent_key, active_name, type, name, object_id, version_id,
-            size_bytes, mime_type, status, trashed_at, delete_after, created_at, updated_at, tree_order
+            size_bytes, mime_type, status, trashed_at, delete_after, created_at, updated_at
         ) as (
-            select <include refid="fields"/>, cast(concat(name, '/', entry_id) as varchar(4096)) as tree_order
+            select cast(entry_id as binary(16)) as entry_id,
+                   cast(space_id as binary(16)) as space_id,
+                   cast(parent_id as binary(16)) as parent_id,
+                   parent_key, active_name, type, name,
+                   cast(object_id as binary(16)) as object_id,
+                   cast(version_id as binary(16)) as version_id,
+                   size_bytes, mime_type, status, trashed_at, delete_after, created_at, updated_at
             from drive_entry
-            where space_id = #{spaceId, jdbcType=BINARY}
-              and parent_id = #{folderId, jdbcType=BINARY}
+            where space_id = cast(#{spaceId, jdbcType=BINARY} as binary(16))
+              and parent_id = cast(#{folderId, jdbcType=BINARY} as binary(16))
             union all
-            select child.entry_id, child.space_id, child.parent_id, child.parent_key, child.active_name,
-                   child.type, child.name, child.object_id, child.version_id, child.size_bytes,
+            select cast(child.entry_id as binary(16)) as entry_id,
+                   cast(child.space_id as binary(16)) as space_id,
+                   cast(child.parent_id as binary(16)) as parent_id,
+                   child.parent_key, child.active_name,
+                   child.type, child.name,
+                   cast(child.object_id as binary(16)) as object_id,
+                   cast(child.version_id as binary(16)) as version_id,
+                   child.size_bytes,
                    child.mime_type, child.status, child.trashed_at, child.delete_after,
-                   child.created_at, child.updated_at,
-                   concat(descendants.tree_order, '/', child.name, '/', child.entry_id)
+                   child.created_at, child.updated_at
             from drive_entry child
-            join descendants on child.parent_id = descendants.entry_id
-            where child.space_id = #{spaceId, jdbcType=BINARY}
+            join descendants on child.parent_id = cast(descendants.entry_id as binary(16))
+            where child.space_id = cast(#{spaceId, jdbcType=BINARY} as binary(16))
         )
         select entry_id, space_id, parent_id, parent_key, active_name, type, name, object_id, version_id,
                size_bytes, mime_type, status, trashed_at, delete_after, created_at, updated_at
         from descendants
-        order by tree_order
-    </select>
-
-    <select id="selectChildrenForTree" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveEntryDataObject">
-        select <include refid="fields"/>
-        from drive_entry
-        where space_id = #{spaceId, jdbcType=BINARY}
-          and parent_id = #{parentId, jdbcType=BINARY}
-        order by name asc, entry_id asc
+        order by created_at asc, entry_id asc
     </select>
 
     <insert id="insert" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveEntryDataObject">
@@ -121,8 +124,7 @@
 
     <update id="update" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveEntryDataObject">
         update drive_entry
-        set space_id = #{spaceId, jdbcType=BINARY},
-            parent_id = #{parentId, jdbcType=BINARY},
+        set parent_id = #{parentId, jdbcType=BINARY},
             parent_key = #{parentKey},
             active_name = #{activeName},
             type = #{type},
@@ -134,9 +136,9 @@
             status = #{status},
             trashed_at = #{trashedAt},
             delete_after = #{deleteAfter},
-            created_at = #{createdAt},
             updated_at = #{updatedAt}
         where entry_id = #{entryId, jdbcType=BINARY}
+          and space_id = #{spaceId, jdbcType=BINARY}
     </update>
 
 </mapper>

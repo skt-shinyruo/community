@@ -8,6 +8,7 @@ import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
 import com.nowcoder.community.drive.application.result.DriveUploadSessionResult;
 import com.nowcoder.community.drive.domain.model.DriveEntry;
+import com.nowcoder.community.drive.domain.model.DriveEntryStatus;
 import com.nowcoder.community.drive.domain.model.DriveSpace;
 import com.nowcoder.community.drive.domain.model.DriveUpload;
 import com.nowcoder.community.drive.domain.repository.DriveEntryRepository;
@@ -111,6 +112,96 @@ class DriveUploadApplicationServiceTest {
         assertThat(storage.prepared).isEmpty();
     }
 
+    @Test
+    void prepareUploadShouldRejectTrashedParentBeforeCallingOss() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        FakeStoragePort storage = new FakeStoragePort();
+        DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
+        UUID userId = uuid(7);
+        DriveSpace space = DriveSpace.createDefault(uuid(80), userId, NOW);
+        DriveEntry trashedParent = DriveEntry.folder(uuid(81), space.spaceId(), null, "old", NOW)
+                .trash(NOW.plusSeconds(1), NOW.plusSeconds(86_400));
+        spaces.save(space);
+        entries.save(trashedParent);
+
+        assertThatThrownBy(() -> service.prepareUpload(new PrepareDriveUploadCommand(
+                userId,
+                trashedParent.entryId(),
+                "report.pdf",
+                "application/pdf",
+                1_024L,
+                ""
+        ))).isInstanceOf(BusinessException.class)
+                .hasMessage("目标文件夹不存在");
+        assertThat(storage.prepared).isEmpty();
+    }
+
+    @Test
+    void completeUploadShouldRejectContentLengthMismatchBeforeCallingOss() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        FakeStoragePort storage = new FakeStoragePort();
+        DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
+        UUID userId = uuid(7);
+        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "report.pdf", "application/pdf", 1_024L, ""));
+
+        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+                userId,
+                UUID.fromString(session.uploadId()),
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 512L, "")
+        ))).isInstanceOf(BusinessException.class)
+                .hasMessage("上传文件大小不匹配");
+        assertThat(storage.completed).isEmpty();
+    }
+
+    @Test
+    void completeUploadShouldRejectDuplicateCreatedAfterPrepareBeforeCallingOss() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        FakeStoragePort storage = new FakeStoragePort();
+        DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
+        UUID userId = uuid(7);
+        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "report.pdf", "application/pdf", 1_024L, ""));
+        DriveSpace space = spaces.findByUserId(userId).orElseThrow();
+        entries.save(DriveEntry.file(uuid(82), space.spaceId(), null, "report.pdf", uuid(83), uuid(84), 10L, "application/pdf", NOW.plusSeconds(1)));
+
+        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+                userId,
+                UUID.fromString(session.uploadId()),
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L, "")
+        ))).isInstanceOf(BusinessException.class)
+                .hasMessage("同名文件或文件夹已存在");
+        assertThat(storage.completed).isEmpty();
+    }
+
+    @Test
+    void completeUploadShouldRejectParentTrashedAfterPrepareBeforeCallingOss() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        FakeStoragePort storage = new FakeStoragePort();
+        DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
+        UUID userId = uuid(7);
+        DriveSpace space = DriveSpace.createDefault(uuid(90), userId, NOW);
+        DriveEntry parent = DriveEntry.folder(uuid(91), space.spaceId(), null, "work", NOW);
+        spaces.save(space);
+        entries.save(parent);
+        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(userId, parent.entryId(), "report.pdf", "application/pdf", 1_024L, ""));
+        entries.save(parent.trash(NOW.plusSeconds(1), NOW.plusSeconds(86_400)));
+
+        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+                userId,
+                UUID.fromString(session.uploadId()),
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L, "")
+        ))).isInstanceOf(BusinessException.class)
+                .hasMessage("目标文件夹不存在");
+        assertThat(storage.completed).isEmpty();
+    }
+
     private static DriveUploadApplicationService service(
             DriveSpaceRepository spaces,
             DriveEntryRepository entries,
@@ -156,6 +247,7 @@ class DriveUploadApplicationServiceTest {
                     .filter(entry -> entry.spaceId().equals(spaceId))
                     .filter(entry -> parentId == null ? entry.parentId() == null : parentId.equals(entry.parentId()))
                     .filter(entry -> entry.name().equals(name))
+                    .filter(entry -> entry.status() == DriveEntryStatus.ACTIVE)
                     .findFirst();
         }
 

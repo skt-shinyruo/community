@@ -48,7 +48,9 @@ create table if not exists drive_upload (
   status varchar(16) not null,
   created_by binary(16) not null,
   created_at timestamp not null default current_timestamp,
+  updated_at timestamp not null default current_timestamp,
   expires_at timestamp not null,
+  completed_at timestamp null default null,
   completed_entry_id binary(16) null,
   key idx_drive_upload_space_status (space_id, status, expires_at),
   key idx_drive_upload_object (object_id, version_id)

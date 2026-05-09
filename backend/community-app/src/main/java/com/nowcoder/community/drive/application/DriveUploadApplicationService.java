@@ -8,6 +8,7 @@ import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
 import com.nowcoder.community.drive.application.result.DriveUploadSessionResult;
 import com.nowcoder.community.drive.domain.model.DriveEntry;
+import com.nowcoder.community.drive.domain.model.DriveEntryStatus;
 import com.nowcoder.community.drive.domain.model.DriveSpace;
 import com.nowcoder.community.drive.domain.model.DriveUpload;
 import com.nowcoder.community.drive.domain.repository.DriveEntryRepository;
@@ -50,15 +51,6 @@ public class DriveUploadApplicationService {
     private final DriveEntryDomainService entryDomainService = new DriveEntryDomainService();
 
     @Autowired
-    public DriveUploadApplicationService(
-            DriveSpaceRepository spaceRepository,
-            DriveEntryRepository entryRepository,
-            DriveUploadRepository uploadRepository,
-            DriveObjectStoragePort objectStoragePort
-    ) {
-        this(spaceRepository, entryRepository, uploadRepository, objectStoragePort, Clock.systemUTC());
-    }
-
     public DriveUploadApplicationService(
             DriveSpaceRepository spaceRepository,
             DriveEntryRepository entryRepository,
@@ -161,6 +153,12 @@ public class DriveUploadApplicationService {
         }
 
         DriveUploadContent content = command.content();
+        long actualContentLength = requireContentLength(content.contentLength());
+        if (actualContentLength != upload.sizeBytes()) {
+            throw new BusinessException(INVALID_ARGUMENT, "上传文件大小不匹配");
+        }
+        validateParent(upload.parentId(), upload.spaceId());
+        rejectDuplicate(upload.spaceId(), upload.parentId(), upload.name());
         try {
             objectStoragePort.completeUpload(new DriveObjectStoragePort.CompleteObject(
                     upload.ossSessionId(),
@@ -168,7 +166,7 @@ public class DriveUploadApplicationService {
                     upload.versionId(),
                     upload.name(),
                     normalizeContentType(content.contentType()),
-                    content.contentLength(),
+                    actualContentLength,
                     normalize(content.checksumSha256()),
                     content
             ));
@@ -202,7 +200,7 @@ public class DriveUploadApplicationService {
         }
         DriveEntry parent = entryRepository.findById(spaceId, parentId)
                 .orElseThrow(() -> new BusinessException(DriveErrorCode.DRIVE_PARENT_NOT_FOUND, "目标文件夹不存在"));
-        if (!parent.folder()) {
+        if (!parent.folder() || parent.status() != DriveEntryStatus.ACTIVE) {
             throw new BusinessException(DriveErrorCode.DRIVE_PARENT_NOT_FOUND, "目标文件夹不存在");
         }
     }

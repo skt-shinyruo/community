@@ -6,7 +6,6 @@ import com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveE
 import com.nowcoder.community.drive.infrastructure.persistence.mapper.DriveEntryMapper;
 import org.springframework.stereotype.Repository;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -48,9 +47,9 @@ public class MyBatisDriveEntryRepository implements DriveEntryRepository {
 
     @Override
     public List<UUID> listDescendantIds(UUID spaceId, UUID folderId) {
-        List<UUID> descendantIds = new ArrayList<>();
-        collectDescendantIds(spaceId, folderId, descendantIds);
-        return descendantIds;
+        return mapper.selectDescendants(spaceId, folderId).stream()
+                .map(DriveEntryDataObject::getEntryId)
+                .toList();
     }
 
     @Override
@@ -66,16 +65,5 @@ public class MyBatisDriveEntryRepository implements DriveEntryRepository {
             return List.of();
         }
         return dataObjects.stream().map(DriveEntryDataObject::toDomain).toList();
-    }
-
-    private void collectDescendantIds(UUID spaceId, UUID parentId, List<UUID> descendantIds) {
-        List<DriveEntryDataObject> children = mapper.selectChildrenForTree(spaceId, parentId);
-        if (children == null || children.isEmpty()) {
-            return;
-        }
-        for (DriveEntryDataObject child : children) {
-            descendantIds.add(child.getEntryId());
-            collectDescendantIds(spaceId, child.getEntryId(), descendantIds);
-        }
     }
 }

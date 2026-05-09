@@ -6,7 +6,7 @@
 <mapper namespace="com.nowcoder.community.drive.infrastructure.persistence.mapper.DriveShareMapper">
 
     <sql id="fields">
-        share_id, entry_id, share_token, password_hash, expires_at, status, created_by, created_at
+        share_id, entry_id, share_token, password_hash, expires_at, status, created_by, created_at, updated_at
     </sql>
 
     <select id="selectById" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveShareDataObject">
@@ -31,7 +31,7 @@
     </select>
 
     <insert id="insert" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveShareDataObject">
-        insert into drive_share(share_id, entry_id, share_token, password_hash, expires_at, status, created_by, created_at)
+        insert into drive_share(share_id, entry_id, share_token, password_hash, expires_at, status, created_by, created_at, updated_at)
         values(
             #{shareId, jdbcType=BINARY},
             #{entryId, jdbcType=BINARY},
@@ -40,21 +40,17 @@
             #{expiresAt},
             #{status},
             #{createdBy, jdbcType=BINARY},
-            #{createdAt}
+            #{createdAt},
+            #{updatedAt}
         )
     </insert>
 
     <update id="update" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveShareDataObject">
         update drive_share
-        set entry_id = #{entryId, jdbcType=BINARY},
-            share_token = #{shareToken},
-            password_hash = #{passwordHash},
-            expires_at = #{expiresAt},
-            status = #{status},
-            created_by = #{createdBy, jdbcType=BINARY},
-            created_at = #{createdAt},
-            updated_at = current_timestamp
+        set status = #{status},
+            updated_at = #{updatedAt}
         where share_id = #{shareId, jdbcType=BINARY}
+          and entry_id = #{entryId, jdbcType=BINARY}
     </update>
 
 </mapper>

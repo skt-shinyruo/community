@@ -41,46 +41,28 @@ describe('api/services/postService', () => {
     expect(resp.data).toEqual([])
   })
 
-  it('createPost and updatePost should preserve UUID category ids in payloads', async () => {
+  it('createPost and updatePost should send block payloads without legacy content', async () => {
     const postId = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
     const categoryId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+    const blocks = [{ type: 'paragraph', text: 'world' }]
     mock = new MockAdapter(http)
     const seen = []
     mock.onPost('/api/posts').reply((config) => {
       seen.push(JSON.parse(config.data))
-      return [200, {
-        code: 0,
-        message: '',
-        data: { postId },
-        traceId: 'trace-create-post'
-      }]
+      return [200, { code: 0, message: '', data: { postId }, traceId: 'trace-create-post' }]
     })
     mock.onPut(`/api/posts/${postId}`).reply((config) => {
       seen.push(JSON.parse(config.data))
-      return [200, {
-        code: 0,
-        message: '',
-        data: null,
-        traceId: 'trace-update-post'
-      }]
+      return [200, { code: 0, message: '', data: null, traceId: 'trace-update-post' }]
     })
 
-    const created = await createPost({
-      title: 'hello',
-      content: 'world',
-      categoryId
-    })
-    const updated = await updatePost(postId, {
-      title: 'hello',
-      content: 'world',
-      categoryId
-    })
+    await createPost({ title: 'hello', blocks, categoryId })
+    await updatePost(postId, { title: 'hello', blocks, categoryId })
 
-    expect(created.traceId).toBe('trace-create-post')
-    expect(updated.traceId).toBe('trace-update-post')
     expect(seen).toEqual([
-      { title: 'hello', content: 'world', categoryId },
-      { title: 'hello', content: 'world', categoryId }
+      { title: 'hello', blocks, categoryId },
+      { title: 'hello', blocks, categoryId }
     ])
+    expect(seen[0]).not.toHaveProperty('content')
   })
 })

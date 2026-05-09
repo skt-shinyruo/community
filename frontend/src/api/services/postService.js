@@ -17,8 +17,8 @@ export async function listPosts({ order = 'latest', page = 0, size = 10, categor
   return { data: Array.isArray(data) ? data : [], traceId }
 }
 
-export async function createPost({ title, content, categoryId, tags } = {}) {
-  const payload = { title, content }
+export async function createPost({ title, blocks, categoryId, tags } = {}) {
+  const payload = { title, blocks: normalizeBlocks(blocks) }
   {
     const cid = normalizeOpaqueId(categoryId)
     if (cid) payload.categoryId = cid
@@ -42,9 +42,9 @@ export async function getPostDetail(postId) {
   return { data, traceId }
 }
 
-export async function updatePost(postId, { title, content, categoryId, tags } = {}) {
+export async function updatePost(postId, { title, blocks, categoryId, tags } = {}) {
   const pid = requireOpaqueId(postId, 'postId')
-  const payload = { title, content }
+  const payload = { title, blocks: normalizeBlocks(blocks) }
   {
     const cid = normalizeOpaqueId(categoryId)
     if (cid) payload.categoryId = cid
@@ -89,6 +89,23 @@ function pickCommentFields(raw) {
     updateTime: r.updateTime,
     editCount: Number(r.editCount || 0)
   }
+}
+
+function normalizeBlocks(blocks) {
+  return (Array.isArray(blocks) ? blocks : []).map((b) => {
+    const raw = b || {}
+    const block = {
+      type: String(raw.type || '').trim(),
+      text: raw.text == null ? '' : String(raw.text)
+    }
+    const assetId = normalizeOpaqueId(raw.assetId)
+    if (assetId) block.assetId = assetId
+    if (raw.language != null) block.language = String(raw.language)
+    if (raw.caption != null) block.caption = String(raw.caption)
+    if (raw.displayName != null) block.displayName = String(raw.displayName)
+    if (raw.metadata && typeof raw.metadata === 'object') block.metadata = raw.metadata
+    return block
+  })
 }
 
 export async function addComment(postId, { content, entityType, entityId, targetId }) {

@@ -94,9 +94,10 @@ function pickCommentFields(raw) {
 function normalizeBlocks(blocks) {
   return (Array.isArray(blocks) ? blocks : []).map((b) => {
     const raw = b || {}
-    const block = {
-      type: String(raw.type || '').trim(),
-      text: raw.text == null ? '' : String(raw.text)
+    const type = String(raw.type || '').trim()
+    const block = { type }
+    if (type === 'paragraph' || type === 'code' || raw.text != null) {
+      block.text = raw.text == null ? '' : String(raw.text)
     }
     const assetId = normalizeOpaqueId(raw.assetId)
     if (assetId) block.assetId = assetId

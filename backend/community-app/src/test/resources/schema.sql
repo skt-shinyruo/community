@@ -605,6 +605,84 @@ create index if not exists idx_outbox_status_next on outbox_event(status, next_r
 create index if not exists idx_outbox_status_updated on outbox_event(status, updated_at, id);
 create index if not exists idx_outbox_status_created on outbox_event(status, created_at, id);
 
+create table if not exists drive_space (
+  space_id binary(16) primary key,
+  user_id binary(16) not null,
+  quota_bytes bigint not null default 10737418240,
+  used_bytes bigint not null default 0,
+  created_at timestamp default current_timestamp,
+  updated_at timestamp default current_timestamp,
+  constraint uk_drive_space_user unique (user_id)
+);
+
+create table if not exists drive_entry (
+  entry_id binary(16) primary key,
+  space_id binary(16) not null,
+  parent_id binary(16),
+  parent_key varchar(32) not null default '',
+  active_name varchar(255),
+  type varchar(16) not null,
+  name varchar(255) not null,
+  object_id binary(16),
+  version_id binary(16),
+  size_bytes bigint not null default 0,
+  mime_type varchar(128) not null default '',
+  status varchar(16) not null,
+  trashed_at timestamp,
+  delete_after timestamp,
+  created_at timestamp default current_timestamp,
+  updated_at timestamp default current_timestamp,
+  constraint uk_drive_entry_active_name unique (space_id, parent_key, active_name)
+);
+
+create index if not exists idx_drive_entry_parent_status on drive_entry(space_id, parent_id, status, name);
+create index if not exists idx_drive_entry_trash on drive_entry(space_id, status, trashed_at);
+
+create table if not exists drive_upload (
+  upload_id binary(16) primary key,
+  space_id binary(16) not null,
+  parent_id binary(16),
+  name varchar(255) not null,
+  size_bytes bigint not null,
+  mime_type varchar(128) not null,
+  object_id binary(16) not null,
+  version_id binary(16) not null,
+  oss_session_id binary(16) not null,
+  status varchar(16) not null,
+  created_by binary(16) not null,
+  created_at timestamp default current_timestamp,
+  expires_at timestamp not null,
+  completed_entry_id binary(16)
+);
+
+create index if not exists idx_drive_upload_space_status on drive_upload(space_id, status, expires_at);
+
+create table if not exists drive_share (
+  share_id binary(16) primary key,
+  entry_id binary(16) not null,
+  share_token varchar(96) not null,
+  password_hash varchar(255) not null,
+  expires_at timestamp not null,
+  status varchar(16) not null,
+  created_by binary(16) not null,
+  created_at timestamp default current_timestamp,
+  updated_at timestamp default current_timestamp,
+  constraint uk_drive_share_token unique (share_token)
+);
+
+create index if not exists idx_drive_share_entry_status on drive_share(entry_id, status);
+create index if not exists idx_drive_share_expiry on drive_share(status, expires_at);
+
+create table if not exists drive_share_access (
+  access_id binary(16) primary key,
+  share_id binary(16) not null,
+  visitor_fingerprint varchar(128) not null default '',
+  success boolean not null default false,
+  accessed_at timestamp default current_timestamp
+);
+
+create index if not exists idx_drive_share_access_share_time on drive_share_access(share_id, accessed_at);
+
 delete from user_score_log;
 delete from reward_ledger;
 delete from reward_grant_record;

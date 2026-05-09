@@ -6,8 +6,12 @@ import java.util.UUID;
 public record CreatePostCommand(
         UUID userId,
         String title,
-        String content,
         UUID categoryId,
-        List<String> tags
+        List<String> tags,
+        List<PostContentBlockCommand> blocks
 ) {
+    public CreatePostCommand {
+        tags = tags == null ? List.of() : List.copyOf(tags);
+        blocks = blocks == null ? List.of() : List.copyOf(blocks);
+    }
 }

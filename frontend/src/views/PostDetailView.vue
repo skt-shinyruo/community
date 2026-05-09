@@ -103,7 +103,7 @@
           <div class="divider"></div>
 
           <div class="post-article-body">
-            <UiMarkdown :content="post.content" />
+            <PostBlockRenderer :blocks="post.blocks" />
           </div>
 
           <PostDetailActions
@@ -353,6 +353,7 @@
       :loading="actionLoading"
       :initial-title="editInitialTitle"
       :initial-content="editInitialContent"
+      :initial-blocks="editInitialBlocks"
       @close="closeEdit"
       @submit="submitEdit"
     />
@@ -376,6 +377,7 @@ import UiTextarea from '../components/ui/UiTextarea.vue'
 import UiModalConfirm from '../components/ui/UiModalConfirm.vue'
 import ReportModal from '../components/modals/ReportModal.vue'
 import EditContentModal from '../components/modals/EditContentModal.vue'
+import PostBlockRenderer from '../components/posts/PostBlockRenderer.vue'
 import PostDetailActions from './post-detail/PostDetailActions.vue'
 import PostDetailComments from './post-detail/PostDetailComments.vue'
 import { usePostDetailLoader } from './post-detail/usePostDetailLoader'
@@ -436,6 +438,7 @@ const {
   editMode,
   editInitialTitle,
   editInitialContent,
+  editInitialBlocks,
   closeEdit,
   openEditPost,
   openEditComment,

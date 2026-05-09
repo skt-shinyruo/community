@@ -3,18 +3,17 @@ package com.nowcoder.community.content.application;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.domain.repository.BookmarkRepository;
 import com.nowcoder.community.content.domain.repository.CommentContentRepository;
+import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
+import com.nowcoder.community.content.domain.repository.PostMediaAssetRepository;
 import com.nowcoder.community.content.domain.repository.SubscriptionRepository;
 import com.nowcoder.community.content.domain.repository.TagContentRepository;
-import com.nowcoder.community.content.application.PostDetailAssembler;
-import com.nowcoder.community.content.application.PostSummaryAssembler;
-import com.nowcoder.community.content.application.RecentUserCommentAssembler;
 import com.nowcoder.community.content.application.result.PostDetailResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.application.result.RecentUserCommentResult;
 import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.domain.model.DiscussPost;
-import com.nowcoder.community.content.application.LikeQueryPort;
+import com.nowcoder.community.content.domain.model.PostContentBlock;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -32,6 +31,9 @@ public class PostReadApplicationService {
     private final TagContentRepository tagContentPort;
     private final BookmarkRepository bookmarkContentPort;
     private final SubscriptionRepository subscriptionContentPort;
+    private final PostContentBlockRepository postContentBlockRepository;
+    private final PostMediaAssetRepository postMediaAssetRepository;
+    private final PostContentBlockTextProjector postContentBlockTextProjector;
     private final PostSummaryAssembler postSummaryAssembler;
     private final PostDetailAssembler postDetailAssembler;
     private final RecentUserCommentAssembler recentUserCommentAssembler;
@@ -43,6 +45,9 @@ public class PostReadApplicationService {
             TagContentRepository tagContentPort,
             BookmarkRepository bookmarkContentPort,
             SubscriptionRepository subscriptionContentPort,
+            PostContentBlockRepository postContentBlockRepository,
+            PostMediaAssetRepository postMediaAssetRepository,
+            PostContentBlockTextProjector postContentBlockTextProjector,
             PostSummaryAssembler postSummaryAssembler,
             PostDetailAssembler postDetailAssembler,
             RecentUserCommentAssembler recentUserCommentAssembler
@@ -53,6 +58,9 @@ public class PostReadApplicationService {
         this.tagContentPort = tagContentPort;
         this.bookmarkContentPort = bookmarkContentPort;
         this.subscriptionContentPort = subscriptionContentPort;
+        this.postContentBlockRepository = postContentBlockRepository;
+        this.postMediaAssetRepository = postMediaAssetRepository;
+        this.postContentBlockTextProjector = postContentBlockTextProjector;
         this.postSummaryAssembler = postSummaryAssembler;
         this.postDetailAssembler = postDetailAssembler;
         this.recentUserCommentAssembler = recentUserCommentAssembler;
@@ -89,11 +97,17 @@ public class PostReadApplicationService {
 
     public PostDetailResult getPostDetail(UUID currentUserId, UUID postId) {
         DiscussPost post = postContentPort.getById(postId);
+        List<PostContentBlock> blocks = postContentBlockRepository.listByPostId(postId);
         List<String> tags = tagContentPort.getTagsByPostIds(List.of(postId)).getOrDefault(postId, List.of());
         long likeCount = likeQueryService.countPostLikes(postId);
         boolean liked = likeQueryService.hasLikedPost(currentUserId, postId);
         boolean bookmarked = currentUserId != null && bookmarkContentPort.hasBookmarked(currentUserId, postId);
-        return postDetailAssembler.assemble(post, tags, likeCount, liked, bookmarked);
+        List<UUID> assetIds = blocks.stream()
+                .map(PostContentBlock::mediaAssetId)
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
+        return postDetailAssembler.assemble(post, blocks, postMediaAssetRepository.listByIds(assetIds), tags, likeCount, liked, bookmarked);
     }
 
     public List<RecentUserCommentResult> listRecentCommentsByUser(UUID userId, Integer page, Integer size) {
@@ -116,8 +130,14 @@ public class PostReadApplicationService {
         List<UUID> postIds = posts.stream().map(DiscussPost::getId).toList();
         Map<UUID, Comment> lastActivities = commentContentPort.getLatestPostActivitiesByPostIds(postIds);
         Map<UUID, List<String>> tagsByPostId = tagContentPort.getTagsByPostIds(postIds);
+        Map<UUID, List<PostContentBlock>> blocksByPostId = postContentBlockRepository.listByPostIds(postIds);
         return posts.stream()
-                .map(post -> postSummaryAssembler.assemble(post, lastActivities.get(post.getId()), tagsByPostId.get(post.getId())))
+                .map(post -> postSummaryAssembler.assemble(
+                        post,
+                        lastActivities.get(post.getId()),
+                        tagsByPostId.get(post.getId()),
+                        postContentBlockTextProjector.preview(blocksByPostId.get(post.getId()), 240)
+                ))
                 .toList();
     }
 

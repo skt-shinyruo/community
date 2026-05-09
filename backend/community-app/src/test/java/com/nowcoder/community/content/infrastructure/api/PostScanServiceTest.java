@@ -2,6 +2,9 @@ package com.nowcoder.community.content.infrastructure.api;
 
 import com.nowcoder.community.content.api.model.PostScanView;
 import com.nowcoder.community.content.api.query.PostScanQueryApi;
+import com.nowcoder.community.content.application.PostContentBlockTextProjector;
+import com.nowcoder.community.content.domain.model.PostContentBlock;
+import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
 import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import com.nowcoder.community.content.config.ContentRenderProperties;
 import com.nowcoder.community.content.domain.model.DiscussPost;
@@ -23,6 +26,7 @@ class PostScanServiceTest {
     @Test
     void scanPostsShouldBuildProjectionViewsAndCursor() {
         DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
+        PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
         TagContentRepository tagService = mock(TagContentRepository.class);
         ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
         UUID postId = uuid(10);
@@ -34,15 +38,24 @@ class PostScanServiceTest {
         post.setUserId(userId);
         post.setCategoryId(categoryId);
         post.setTitle("&lt;title&gt;");
-        post.setContent("&lt;content&gt;");
         post.setType(0);
         post.setStatus(0);
         post.setScore(1.5);
 
         when(discussPostMapper.selectDiscussPostsAfterId(null, 5)).thenReturn(List.of(post));
         when(tagService.getTagsByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of("java")));
+        when(blockRepository.listByPostIds(List.of(postId))).thenReturn(Map.of(
+                postId,
+                List.of(new PostContentBlock(uuid(51), postId, 0, "paragraph", "&lt;content&gt;", null, "", "", "", null))
+        ));
 
-        PostScanQueryApi service = new PostScanService(discussPostMapper, tagService, textCodec);
+        PostScanQueryApi service = new PostScanService(
+                discussPostMapper,
+                blockRepository,
+                tagService,
+                new PostContentBlockTextProjector(),
+                textCodec
+        );
 
         PostScanView response = service.scanPosts(null, 5);
 
@@ -58,6 +71,7 @@ class PostScanServiceTest {
     @Test
     void getPostProjectionAllowDeletedShouldReturnProjectionView() {
         DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
+        PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
         TagContentRepository tagService = mock(TagContentRepository.class);
         ContentTextCodec textCodec = new ContentTextCodec(new ContentRenderProperties());
         UUID postId = uuid(11);
@@ -69,15 +83,23 @@ class PostScanServiceTest {
         post.setUserId(userId);
         post.setCategoryId(categoryId);
         post.setTitle("&lt;arch&gt;");
-        post.setContent("&lt;boundary&gt;");
         post.setType(1);
         post.setStatus(2);
         post.setScore(2.5);
 
         when(discussPostMapper.selectDiscussPostById(postId)).thenReturn(post);
         when(tagService.getTagsByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of("search")));
+        when(blockRepository.listByPostId(postId)).thenReturn(List.of(
+                new PostContentBlock(uuid(52), postId, 0, "paragraph", "&lt;boundary&gt;", null, "", "", "", null)
+        ));
 
-        PostScanQueryApi service = new PostScanService(discussPostMapper, tagService, textCodec);
+        PostScanQueryApi service = new PostScanService(
+                discussPostMapper,
+                blockRepository,
+                tagService,
+                new PostContentBlockTextProjector(),
+                textCodec
+        );
 
         PostScanView.PostProjectionView projection = service.getPostProjectionAllowDeleted(postId);
 

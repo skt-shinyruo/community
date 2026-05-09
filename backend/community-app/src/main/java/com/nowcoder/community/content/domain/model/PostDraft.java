@@ -9,7 +9,4 @@ public record PostDraft(
         UUID categoryId,
         Date createTime
 ) {
-    public PostDraft(UUID userId, String title, String content, UUID categoryId, Date createTime) {
-        this(userId, title, categoryId, createTime);
-    }
 }

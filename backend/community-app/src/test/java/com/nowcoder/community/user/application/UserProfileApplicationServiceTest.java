@@ -119,6 +119,7 @@ class UserProfileApplicationServiceTest {
                         postId,
                         userId,
                         "first post",
+                        "post preview",
                         1,
                         0,
                         createTime,

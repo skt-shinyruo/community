@@ -16,11 +16,14 @@ public class PostPublishingDomainService {
     private static final long EDIT_WINDOW_MILLIS = 24L * 3600 * 1000;
     private static final int STATUS_DELETED = 2;
 
-    public PostDraft createDraft(UUID userId, String title, String content, UUID categoryId) {
+    public PostDraft createDraft(UUID userId, String title, UUID categoryId) {
         if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
-        return new PostDraft(userId, title, content, categoryId, new Date());
+        if (title == null || title.isBlank()) {
+            throw new BusinessException(INVALID_ARGUMENT, "标题不能为空");
+        }
+        return new PostDraft(userId, title, categoryId, new Date());
     }
 
     public void assertEditableByAuthor(PostSnapshot post, UUID actorUserId, Date now) {

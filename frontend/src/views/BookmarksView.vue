@@ -52,8 +52,8 @@
 
           <h2 class="bookmark-title">{{ p.title }}</h2>
 
-          <p v-if="p.content" class="bookmark-snippet">
-            {{ p.content.slice(0, 140) }}{{ (p.content?.length || 0) > 140 ? '…' : '' }}
+          <p v-if="p.preview" class="bookmark-snippet">
+            {{ p.preview.slice(0, 140) }}{{ (p.preview?.length || 0) > 140 ? '…' : '' }}
           </p>
 
           <div class="bookmark-footer">

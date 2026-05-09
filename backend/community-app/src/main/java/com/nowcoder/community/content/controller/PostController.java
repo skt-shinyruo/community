@@ -1,5 +1,7 @@
 package com.nowcoder.community.content.controller;
 
+import com.nowcoder.community.content.application.command.CreatePostCommand;
+import com.nowcoder.community.content.application.command.PostContentBlockCommand;
 import com.nowcoder.community.content.application.PostPublishingApplicationService;
 import com.nowcoder.community.content.application.result.CommentResult;
 import com.nowcoder.community.content.application.result.PostCreateResult;
@@ -11,6 +13,7 @@ import com.nowcoder.community.content.controller.dto.CreateCommentRequest;
 import com.nowcoder.community.content.controller.dto.CreatePostRequest;
 import com.nowcoder.community.content.controller.dto.CreatePostResponse;
 import com.nowcoder.community.content.controller.dto.PostDetailResponse;
+import com.nowcoder.community.content.controller.dto.PostContentBlockRequest;
 import com.nowcoder.community.content.controller.dto.PostSummaryResponse;
 import com.nowcoder.community.content.controller.dto.UpdateCommentRequest;
 import com.nowcoder.community.content.controller.dto.UpdatePostRequest;
@@ -84,12 +87,14 @@ public class PostController {
     ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
         PostCreateResult createResult = postPublishingApplicationService.create(
-                userId,
                 idempotencyKey,
-                request.getTitle(),
-                request.getContent(),
-                request.getCategoryId(),
-                request.getTags()
+                new CreatePostCommand(
+                        userId,
+                        request.getTitle(),
+                        request.getCategoryId(),
+                        request.getTags(),
+                        toBlockCommands(request.getBlocks())
+                )
         );
         return Result.ok(CreatePostResponse.from(createResult));
     }
@@ -140,7 +145,14 @@ public class PostController {
     @PutMapping("/{postId}")
     public Result<Void> updatePost(Authentication authentication, @PathVariable UUID postId, @Valid @RequestBody UpdatePostRequest request) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        postPublishingApplicationService.updatePost(userId, postId, request.getTitle(), request.getContent(), request.getCategoryId(), request.getTags());
+        postPublishingApplicationService.updatePost(
+                userId,
+                postId,
+                request.getTitle(),
+                request.getCategoryId(),
+                request.getTags(),
+                toBlockCommands(request.getBlocks())
+        );
         return Result.ok();
     }
 
@@ -207,5 +219,22 @@ public class PostController {
             return List.of();
         }
         return views.stream().map(CommentResponse::from).toList();
+    }
+
+    private static List<PostContentBlockCommand> toBlockCommands(List<PostContentBlockRequest> blocks) {
+        if (blocks == null || blocks.isEmpty()) {
+            return List.of();
+        }
+        return blocks.stream()
+                .map(block -> new PostContentBlockCommand(
+                        block.getType(),
+                        block.getText(),
+                        block.getAssetId(),
+                        block.getLanguage(),
+                        block.getCaption(),
+                        block.getDisplayName(),
+                        block.getMetadata()
+                ))
+                .toList();
     }
 }

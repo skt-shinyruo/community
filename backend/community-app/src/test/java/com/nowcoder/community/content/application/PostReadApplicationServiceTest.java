@@ -6,7 +6,9 @@ import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.application.result.RecentUserCommentResult;
 import com.nowcoder.community.content.domain.repository.BookmarkRepository;
 import com.nowcoder.community.content.domain.repository.CommentContentRepository;
+import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
+import com.nowcoder.community.content.domain.repository.PostMediaAssetRepository;
 import com.nowcoder.community.content.domain.repository.SubscriptionRepository;
 import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import com.nowcoder.community.content.application.PostDetailAssembler;
@@ -15,6 +17,7 @@ import com.nowcoder.community.content.application.RecentUserCommentAssembler;
 import com.nowcoder.community.content.config.ContentRenderProperties;
 import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.domain.model.DiscussPost;
+import com.nowcoder.community.content.domain.model.PostContentBlock;
 import com.nowcoder.community.content.exception.ContentErrorCode;
 import com.nowcoder.community.content.application.LikeQueryPort;
 import com.nowcoder.community.content.application.ContentTextCodec;
@@ -40,6 +43,8 @@ class PostReadApplicationServiceTest {
         TagContentRepository tagService = mock(TagContentRepository.class);
         BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
+        PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
+        PostMediaAssetRepository mediaAssetRepository = mock(PostMediaAssetRepository.class);
         UUID postId = uuid(10);
         UUID authorUserId = uuid(2);
         UUID lastReplyUserId = uuid(3);
@@ -48,7 +53,6 @@ class PostReadApplicationServiceTest {
         post.setId(postId);
         post.setUserId(authorUserId);
         post.setTitle("&lt;title&gt;");
-        post.setContent("&lt;content&gt;");
         post.setCommentCount(3);
 
         Comment lastActivity = new Comment();
@@ -59,17 +63,17 @@ class PostReadApplicationServiceTest {
         when(postService.listPosts(0, 10, PostContentRepository.ORDER_LATEST, null, null)).thenReturn(List.of(post));
         when(commentService.getLatestPostActivitiesByPostIds(List.of(postId))).thenReturn(Map.of(postId, lastActivity));
         when(tagService.getTagsByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of("java")));
+        when(blockRepository.listByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of(paragraphBlock(postId, "&lt;content&gt;"))));
 
-        PostReadApplicationService service = new PostReadApplicationService(
+        PostReadApplicationService service = service(
                 postService,
                 commentService,
                 likeQueryService,
                 tagService,
                 bookmarkService,
                 subscriptionService,
-                new PostSummaryAssembler(textCodec()),
-                new PostDetailAssembler(textCodec()),
-                new RecentUserCommentAssembler(textCodec())
+                blockRepository,
+                mediaAssetRepository
         );
 
         List<PostSummaryResult> views = service.listPosts(null, "latest", null, null, false, 0, 10);
@@ -77,6 +81,7 @@ class PostReadApplicationServiceTest {
         assertThat(views).hasSize(1);
         assertThat(views.get(0).id()).isEqualTo(postId);
         assertThat(views.get(0).title()).isEqualTo("<title>");
+        assertThat(views.get(0).preview()).isEqualTo("<content>");
         assertThat(views.get(0).tags()).containsExactly("java");
         assertThat(views.get(0).lastActivityTime()).isEqualTo(lastActivity.getCreateTime());
         assertThat(views.get(0).lastReplyPreview()).isEqualTo("<latest reply>");
@@ -90,6 +95,8 @@ class PostReadApplicationServiceTest {
         TagContentRepository tagService = mock(TagContentRepository.class);
         BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
+        PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
+        PostMediaAssetRepository mediaAssetRepository = mock(PostMediaAssetRepository.class);
         UUID currentUserId = uuid(7);
         UUID postId = uuid(10);
         UUID authorUserId = uuid(8);
@@ -99,7 +106,6 @@ class PostReadApplicationServiceTest {
         post.setId(postId);
         post.setUserId(authorUserId);
         post.setTitle("&lt;title&gt;");
-        post.setContent("&lt;body&gt;");
         post.setType(1);
         post.setStatus(0);
         post.setCreateTime(new Date(1_000));
@@ -110,28 +116,31 @@ class PostReadApplicationServiceTest {
         post.setCategoryId(categoryId);
 
         when(postService.getById(postId)).thenReturn(post);
+        when(blockRepository.listByPostId(postId)).thenReturn(List.of(paragraphBlock(postId, "&lt;body&gt;")));
         when(tagService.getTagsByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of("java", "spring")));
         when(likeQueryService.countPostLikes(postId)).thenReturn(9L);
         when(likeQueryService.hasLikedPost(currentUserId, postId)).thenReturn(true);
         when(bookmarkService.hasBookmarked(currentUserId, postId)).thenReturn(true);
 
-        PostReadApplicationService service = new PostReadApplicationService(
+        PostReadApplicationService service = service(
                 postService,
                 commentService,
                 likeQueryService,
                 tagService,
                 bookmarkService,
                 subscriptionService,
-                new PostSummaryAssembler(textCodec()),
-                new PostDetailAssembler(textCodec()),
-                new RecentUserCommentAssembler(textCodec())
+                blockRepository,
+                mediaAssetRepository
         );
 
         PostDetailResult detail = service.getPostDetail(currentUserId, postId);
 
         assertThat(detail.id()).isEqualTo(postId);
         assertThat(detail.title()).isEqualTo("<title>");
-        assertThat(detail.content()).isEqualTo("<body>");
+        assertThat(detail.blocks()).singleElement().satisfies(block -> {
+            assertThat(block.type()).isEqualTo("paragraph");
+            assertThat(block.text()).isEqualTo("<body>");
+        });
         assertThat(detail.tags()).containsExactly("java", "spring");
         assertThat(detail.likeCount()).isEqualTo(9L);
         assertThat(detail.liked()).isTrue();
@@ -146,6 +155,8 @@ class PostReadApplicationServiceTest {
         TagContentRepository tagService = mock(TagContentRepository.class);
         BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
+        PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
+        PostMediaAssetRepository mediaAssetRepository = mock(PostMediaAssetRepository.class);
         UUID userId = uuid(7);
         UUID firstPostId = uuid(21);
         UUID secondPostId = uuid(22);
@@ -172,16 +183,15 @@ class PostReadApplicationServiceTest {
         when(commentService.getLatestPostActivitiesByPostIds(List.of(firstPostId, secondPostId))).thenReturn(Map.of(firstPostId, lastActivity));
         when(tagService.getTagsByPostIds(List.of(firstPostId, secondPostId))).thenReturn(Map.of(firstPostId, List.of("java"), secondPostId, List.of("spring")));
 
-        PostReadApplicationService service = new PostReadApplicationService(
+        PostReadApplicationService service = service(
                 postService,
                 commentService,
                 likeQueryService,
                 tagService,
                 bookmarkService,
                 subscriptionService,
-                new PostSummaryAssembler(textCodec()),
-                new PostDetailAssembler(textCodec()),
-                new RecentUserCommentAssembler(textCodec())
+                blockRepository,
+                mediaAssetRepository
         );
 
         List<PostSummaryResult> items = service.listPostsByUser(userId, 0, 3);
@@ -203,6 +213,8 @@ class PostReadApplicationServiceTest {
         TagContentRepository tagService = mock(TagContentRepository.class);
         BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
+        PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
+        PostMediaAssetRepository mediaAssetRepository = mock(PostMediaAssetRepository.class);
         UUID userId = uuid(7);
         UUID directCommentId = uuid(31);
         UUID replyCommentId = uuid(32);
@@ -244,16 +256,15 @@ class PostReadApplicationServiceTest {
         when(postService.getById(firstPostId)).thenReturn(firstPost);
         when(postService.getById(secondPostId)).thenReturn(secondPost);
 
-        PostReadApplicationService service = new PostReadApplicationService(
+        PostReadApplicationService service = service(
                 postService,
                 commentService,
                 likeQueryService,
                 tagService,
                 bookmarkService,
                 subscriptionService,
-                new PostSummaryAssembler(textCodec()),
-                new PostDetailAssembler(textCodec()),
-                new RecentUserCommentAssembler(textCodec())
+                blockRepository,
+                mediaAssetRepository
         );
 
         List<RecentUserCommentResult> items = service.listRecentCommentsByUser(userId, 0, 3);
@@ -274,6 +285,8 @@ class PostReadApplicationServiceTest {
         TagContentRepository tagService = mock(TagContentRepository.class);
         BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
+        PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
+        PostMediaAssetRepository mediaAssetRepository = mock(PostMediaAssetRepository.class);
         UUID userId = uuid(7);
         UUID brokenReplyId = uuid(41);
         UUID directCommentId = uuid(42);
@@ -304,16 +317,15 @@ class PostReadApplicationServiceTest {
         when(commentService.getById(missingParentCommentId)).thenThrow(new BusinessException(ContentErrorCode.COMMENT_NOT_FOUND));
         when(postService.getById(postId)).thenReturn(firstPost);
 
-        PostReadApplicationService service = new PostReadApplicationService(
+        PostReadApplicationService service = service(
                 postService,
                 commentService,
                 likeQueryService,
                 tagService,
                 bookmarkService,
                 subscriptionService,
-                new PostSummaryAssembler(textCodec()),
-                new PostDetailAssembler(textCodec()),
-                new RecentUserCommentAssembler(textCodec())
+                blockRepository,
+                mediaAssetRepository
         );
 
         List<RecentUserCommentResult> items = service.listRecentCommentsByUser(userId, 0, 3);
@@ -331,6 +343,8 @@ class PostReadApplicationServiceTest {
         TagContentRepository tagService = mock(TagContentRepository.class);
         BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
+        PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
+        PostMediaAssetRepository mediaAssetRepository = mock(PostMediaAssetRepository.class);
         UUID firstPostId = uuid(12);
         UUID secondPostId = uuid(9);
         UUID firstAuthorId = uuid(2);
@@ -359,16 +373,15 @@ class PostReadApplicationServiceTest {
         when(commentService.getLatestPostActivitiesByPostIds(requestedPostIds)).thenReturn(Map.of(firstPostId, lastActivity));
         when(tagService.getTagsByPostIds(requestedPostIds)).thenReturn(Map.of(firstPostId, List.of("java"), secondPostId, List.of("spring")));
 
-        PostReadApplicationService service = new PostReadApplicationService(
+        PostReadApplicationService service = service(
                 postService,
                 commentService,
                 likeQueryService,
                 tagService,
                 bookmarkService,
                 subscriptionService,
-                new PostSummaryAssembler(textCodec()),
-                new PostDetailAssembler(textCodec()),
-                new RecentUserCommentAssembler(textCodec())
+                blockRepository,
+                mediaAssetRepository
         );
 
         List<PostSummaryResult> items = service.listPostsByIds(requestedPostIds);
@@ -382,5 +395,35 @@ class PostReadApplicationServiceTest {
 
     private static ContentTextCodec textCodec() {
         return new ContentTextCodec(new ContentRenderProperties());
+    }
+
+    private static PostReadApplicationService service(
+            PostContentRepository postService,
+            CommentContentRepository commentService,
+            LikeQueryPort likeQueryService,
+            TagContentRepository tagService,
+            BookmarkRepository bookmarkService,
+            SubscriptionRepository subscriptionService,
+            PostContentBlockRepository blockRepository,
+            PostMediaAssetRepository mediaAssetRepository
+    ) {
+        return new PostReadApplicationService(
+                postService,
+                commentService,
+                likeQueryService,
+                tagService,
+                bookmarkService,
+                subscriptionService,
+                blockRepository,
+                mediaAssetRepository,
+                new PostContentBlockTextProjector(),
+                new PostSummaryAssembler(textCodec()),
+                new PostDetailAssembler(textCodec()),
+                new RecentUserCommentAssembler(textCodec())
+        );
+    }
+
+    private static PostContentBlock paragraphBlock(UUID postId, String text) {
+        return new PostContentBlock(uuid(501), postId, 0, "paragraph", text, null, "", "", "", null);
     }
 }

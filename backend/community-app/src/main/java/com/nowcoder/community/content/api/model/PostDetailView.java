@@ -8,7 +8,7 @@ public record PostDetailView(
         UUID id,
         UUID userId,
         String title,
-        String content,
+        List<PostContentBlockView> blocks,
         int type,
         int status,
         Date createTime,
@@ -22,4 +22,7 @@ public record PostDetailView(
         boolean liked,
         boolean bookmarked
 ) {
+    public PostDetailView {
+        blocks = blocks == null ? List.of() : List.copyOf(blocks);
+    }
 }

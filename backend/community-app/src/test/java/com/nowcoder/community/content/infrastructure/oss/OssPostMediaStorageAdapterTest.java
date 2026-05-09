@@ -2,7 +2,7 @@ package com.nowcoder.community.content.infrastructure.oss;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.application.PostMediaUploadContent;
-import com.nowcoder.community.content.application.port.PostMediaStoragePort;
+import com.nowcoder.community.content.application.PostMediaStoragePort;
 import com.nowcoder.community.content.application.result.PostMediaUploadSessionResult;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import com.nowcoder.community.content.domain.model.PostMediaAssetLifecycle;

@@ -13,6 +13,7 @@ import com.nowcoder.community.content.controller.dto.CommentResponse;
 import com.nowcoder.community.content.controller.dto.CreateCommentRequest;
 import com.nowcoder.community.content.controller.dto.CreatePostRequest;
 import com.nowcoder.community.content.controller.dto.CreatePostResponse;
+import com.nowcoder.community.content.controller.dto.PostContentBlockRequest;
 import com.nowcoder.community.content.controller.dto.PostDetailResponse;
 import com.nowcoder.community.content.controller.dto.PostSummaryResponse;
 import com.nowcoder.community.content.controller.dto.UpdateCommentRequest;
@@ -20,6 +21,7 @@ import com.nowcoder.community.content.controller.dto.UpdatePostRequest;
 import com.nowcoder.community.content.application.CommentApplicationService;
 import com.nowcoder.community.content.application.CommentReadApplicationService;
 import com.nowcoder.community.content.application.PostReadApplicationService;
+import com.nowcoder.community.content.application.result.PostContentBlockResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,6 +39,8 @@ import java.util.UUID;
 import static com.nowcoder.community.common.idempotency.IdempotencyGuard.HEADER_IDEMPOTENCY_KEY;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -79,17 +83,31 @@ class PostControllerUnitTest {
         PostCreateResult createResult = new PostCreateResult(postId);
         CreatePostRequest request = new CreatePostRequest();
         request.setTitle("title");
-        request.setContent("content");
+        request.setBlocks(List.of(paragraphBlock("content")));
         request.setCategoryId(categoryId);
         request.setTags(List.of("java"));
-        when(postPublishingApplicationService.create(userId, "idem-1", "title", "content", categoryId, List.of("java")))
+        when(postPublishingApplicationService.create(eq("idem-1"), argThat(command ->
+                userId.equals(command.userId())
+                        && "title".equals(command.title())
+                        && categoryId.equals(command.categoryId())
+                        && command.tags().equals(List.of("java"))
+                        && command.blocks().size() == 1
+                        && "content".equals(command.blocks().get(0).text())
+        )))
                 .thenReturn(createResult);
 
         Result<CreatePostResponse> result = controller.create(authentication(userId), "idem-1", request);
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData().getPostId()).isEqualTo(postId);
-        verify(postPublishingApplicationService).create(userId, "idem-1", "title", "content", categoryId, List.of("java"));
+        verify(postPublishingApplicationService).create(eq("idem-1"), argThat(command ->
+                userId.equals(command.userId())
+                        && "title".equals(command.title())
+                        && categoryId.equals(command.categoryId())
+                        && command.tags().equals(List.of("java"))
+                        && command.blocks().size() == 1
+                        && "content".equals(command.blocks().get(0).text())
+        ));
     }
 
     @Test
@@ -130,7 +148,7 @@ class PostControllerUnitTest {
                 postId,
                 actorUserId,
                 "detail",
-                "body",
+                List.of(new PostContentBlockResult(uuid(31), 0, "paragraph", "body", null, "", "", "", null, null)),
                 0,
                 0,
                 new Date(),
@@ -155,6 +173,10 @@ class PostControllerUnitTest {
 
         assertThat(detailResult.getData().getId()).isEqualTo(postId);
         assertThat(detailResult.getData().getTitle()).isEqualTo("detail");
+        assertThat(detailResult.getData().getBlocks()).singleElement().satisfies(block -> {
+            assertThat(block.getType()).isEqualTo("paragraph");
+            assertThat(block.getText()).isEqualTo("body");
+        });
         assertThat(commentsResult.getData()).singleElement().satisfies(response -> {
             assertThat(response.getId()).isEqualTo(commentId);
             assertThat(response.getContent()).isEqualTo("comment");
@@ -182,7 +204,7 @@ class PostControllerUnitTest {
         createCommentRequest.setContent("reply");
         UpdatePostRequest updatePostRequest = new UpdatePostRequest();
         updatePostRequest.setTitle("updated");
-        updatePostRequest.setContent("body");
+        updatePostRequest.setBlocks(List.of(paragraphBlock("body")));
         updatePostRequest.setCategoryId(categoryId);
         updatePostRequest.setTags(List.of("spring"));
         UpdateCommentRequest updateCommentRequest = new UpdateCommentRequest();
@@ -206,7 +228,14 @@ class PostControllerUnitTest {
         assertThat(wonderfulResult.getCode()).isEqualTo(0);
         assertThat(deleteResult.getCode()).isEqualTo(0);
         verify(commentApplicationService).create(userId, "idem-2", postId, 1, postId, createCommentRequest.getTargetId(), "reply");
-        verify(postPublishingApplicationService).updatePost(userId, postId, "updated", "body", categoryId, List.of("spring"));
+        verify(postPublishingApplicationService).updatePost(
+                eq(userId),
+                eq(postId),
+                eq("updated"),
+                eq(categoryId),
+                eq(List.of("spring")),
+                argThat(blocks -> blocks.size() == 1 && "body".equals(blocks.get(0).text()))
+        );
         verify(postPublishingApplicationService).deleteByAuthor(userId, postId);
         verify(commentApplicationService).updateComment(userId, postId, commentId, "edited");
         verify(postModerationApplicationService).top(userId, postId);
@@ -219,6 +248,7 @@ class PostControllerUnitTest {
                 postId,
                 userId,
                 title,
+                "preview " + title,
                 0,
                 0,
                 createTime,
@@ -231,6 +261,13 @@ class PostControllerUnitTest {
                 createTime,
                 null
         );
+    }
+
+    private static PostContentBlockRequest paragraphBlock(String text) {
+        PostContentBlockRequest block = new PostContentBlockRequest();
+        block.setType("paragraph");
+        block.setText(text);
+        return block;
     }
 
     private static Authentication authentication(UUID userId) {

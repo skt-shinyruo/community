@@ -11,7 +11,7 @@ public class PostDetailResponse {
     private UUID id;
     private UUID userId;
     private String title;
-    private String content;
+    private List<PostContentBlockResponse> blocks;
     private int type;
     private int status;
     private Date createTime;
@@ -35,7 +35,7 @@ public class PostDetailResponse {
         response.setId(view.id());
         response.setUserId(view.userId());
         response.setTitle(view.title());
-        response.setContent(view.content());
+        response.setBlocks(view.blocks().stream().map(PostContentBlockResponse::from).toList());
         response.setType(view.type());
         response.setStatus(view.status());
         response.setCreateTime(view.createTime());
@@ -75,12 +75,12 @@ public class PostDetailResponse {
         this.title = title;
     }
 
-    public String getContent() {
-        return content;
+    public List<PostContentBlockResponse> getBlocks() {
+        return blocks;
     }
 
-    public void setContent(String content) {
-        this.content = content;
+    public void setBlocks(List<PostContentBlockResponse> blocks) {
+        this.blocks = blocks;
     }
 
     public int getType() {

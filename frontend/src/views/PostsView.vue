@@ -206,8 +206,8 @@
 
             <h2 class="discussion-card-title">{{ p.title }}</h2>
 
-            <div class="discussion-card-snippet" v-if="p.content">
-              {{ p.content?.slice(0, 140) }}{{ (p.content?.length || 0) > 140 ? '...' : '' }}
+            <div class="discussion-card-snippet" v-if="p.preview">
+              {{ p.preview?.slice(0, 140) }}{{ (p.preview?.length || 0) > 140 ? '...' : '' }}
             </div>
 
             <div class="discussion-card-meta">

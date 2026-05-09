@@ -54,11 +54,14 @@ HTTP：
 1. `listPosts(...)` 根据 `order` 选择最新或热门排序。
 2. 可按 `categoryId` 和 `tag` 筛选。
 3. `subscribed=true` 时必须登录，先读取用户订阅分类，再查订阅流。
-4. 读出帖子后批量加载最新评论活动和标签。
+4. 读出帖子后批量加载最新评论活动、标签和正文 blocks。
 5. 摘要装配不把点赞状态放在 content 主事实里。
-6. `getPostDetail(...)` 读取帖子详情、标签、点赞数、当前用户点赞状态、收藏状态。
-7. `listPostsByUser(...)` 用于用户主页最近帖子。
-8. `listPostsByIds(...)` 用于批量摘要。
+6. 摘要 `preview` 从 blocks 投影生成，不读取旧正文内容字段。
+7. `getPostDetail(...)` 读取帖子详情、正文 blocks、媒体资源、标签、点赞数、当前用户点赞状态、收藏状态。
+8. 帖子详情返回 `blocks`，正文由 `paragraph`、`code`、`image`、`video`、`file` 组成。
+9. 媒体 block 会带出可展示的媒体视图；视频允许以处理中状态展示。
+10. `listPostsByUser(...)` 用于用户主页最近帖子。
+11. `listPostsByIds(...)` 用于批量摘要。
 
 匿名用户可读公开帖子，但订阅流和收藏状态需要当前用户。
 
@@ -70,17 +73,21 @@ HTTP：
 2. application 使用 `IdempotencyGuard.executeRequired("content:create_post", userId, key, ...)` 包裹真实写操作。
 3. `ModerationGuard.assertCanSpeak(userId)` 同步回源 user owner 判断是否可发言。
 4. 校验分类存在。
-5. 标题和内容做文本清洗、HTML 转义和敏感词处理。
-6. `PostPublishingDomainService.createDraft(...)` 生成帖子草稿。
-7. `PostRepository.create(...)` 写入帖子。
-8. `PostTagRepository.bindTagsToPost(...)` 绑定标签。
-9. 同步触发 `UserPointsAwardActionApi.awardPostPublished(...)`。
-10. 同步触发 `GrowthTaskProgressActionApi.triggerPostPublished(...)`。
-11. 发布 `PostPublishedDomainEvent`。
-12. 安排帖子热度分刷新。
-13. 写业务事件日志。
+5. 校验并规范化正文 blocks，标题、段落、代码、说明文本做 HTML 转义和敏感词处理。
+6. `PostPublishingDomainService.createDraft(...)` 只生成帖子元信息草稿。
+7. `PostRepository.create(...)` 写入帖子元信息。
+8. 校验媒体资源归属、类型和上传状态，并把被 blocks 引用的媒体资源绑定到帖子。
+9. `PostContentBlockRepository.replaceBlocks(...)` 写入有序正文 blocks。
+10. `PostTagRepository.bindTagsToPost(...)` 绑定标签。
+11. 同步触发 `UserPointsAwardActionApi.awardPostPublished(...)`。
+12. 同步触发 `GrowthTaskProgressActionApi.triggerPostPublished(...)`。
+13. 发布 `PostPublishedDomainEvent`。
+14. 安排帖子热度分刷新。
+15. 写业务事件日志。
 
 幂等语义按 operation + userId + key 去重；当前发帖没有请求指纹，因此同 key 重放会返回首次结果。
+
+帖子写接口不接收旧 `content` 字符串。项目尚未部署，没有历史帖子数据，当前实现不保留旧正文兼容路径。
 
 ## 改帖和删帖
 
@@ -90,10 +97,14 @@ HTTP：
 2. 校验分类存在。
 3. 读取帖子快照。
 4. `PostPublishingDomainService.assertEditableByAuthor(...)` 校验作者和状态。
-5. 更新标题、内容、分类和 `update_time`。
-6. 替换标签。
-7. 发布 `PostUpdatedDomainEvent`。
-8. 安排分数刷新。
+5. 校验并清洗新的正文 blocks。
+6. 绑定新增媒体资源。
+7. 更新标题、分类和 `update_time`。
+8. 替换正文 blocks。
+9. 释放已从正文移除的媒体资源引用。
+10. 替换标签。
+11. 发布 `PostUpdatedDomainEvent`。
+12. 安排分数刷新。
 
 作者删除：
 
@@ -206,7 +217,7 @@ contract events：
 
 下游：
 
-- search outbox 根据帖子事件回源 content 当前状态，决定 upsert 或 delete ES 文档。
+- search outbox 根据帖子事件回源 content 当前状态，决定 upsert 或 delete ES 文档；搜索正文从 blocks 投影生成。
 - notice listener after-commit best-effort 生成站内通知。
 - growth/task 和 user points 在发帖/评论主用例内同步调用。
 - social cleanup 在内容删除后清理点赞关系。

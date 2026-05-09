@@ -47,6 +47,7 @@ class BookmarkControllerTest {
                 postId,
                 userId,
                 "decoded title",
+                "post preview",
                 0,
                 0,
                 createTime,
@@ -67,6 +68,7 @@ class BookmarkControllerTest {
         assertThat(result.getData()).singleElement().satisfies(response -> {
             assertThat(response.getId()).isEqualTo(postId);
             assertThat(response.getTitle()).isEqualTo("decoded title");
+            assertThat(response.getPreview()).isEqualTo("post preview");
             assertThat(response.getTags()).containsExactly("spring");
             assertThat(response.getLastReplyPreview()).isEqualTo("latest reply");
         });

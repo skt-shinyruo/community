@@ -1,11 +1,14 @@
 package com.nowcoder.community.content.infrastructure.api;
 
+import com.nowcoder.community.content.api.model.PostContentBlockView;
 import com.nowcoder.community.content.api.model.PostDetailView;
 import com.nowcoder.community.content.api.model.PostSummaryView;
 import com.nowcoder.community.content.api.model.RecentUserCommentView;
 import com.nowcoder.community.content.api.query.PostReadQueryApi;
 import com.nowcoder.community.content.application.PostReadApplicationService;
+import com.nowcoder.community.content.application.result.PostContentBlockResult;
 import com.nowcoder.community.content.application.result.PostDetailResult;
+import com.nowcoder.community.content.application.result.PostMediaViewResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.application.result.RecentUserCommentResult;
 import org.springframework.stereotype.Component;
@@ -63,6 +66,7 @@ public class PostReadQueryApiAdapter implements PostReadQueryApi {
                 result.id(),
                 result.userId(),
                 result.title(),
+                result.preview(),
                 result.type(),
                 result.status(),
                 result.createTime(),
@@ -85,7 +89,7 @@ public class PostReadQueryApiAdapter implements PostReadQueryApi {
                 result.id(),
                 result.userId(),
                 result.title(),
-                result.content(),
+                toPostContentBlockViews(result.blocks()),
                 result.type(),
                 result.status(),
                 result.createTime(),
@@ -98,6 +102,59 @@ public class PostReadQueryApiAdapter implements PostReadQueryApi {
                 result.likeCount(),
                 result.liked(),
                 result.bookmarked()
+        );
+    }
+
+    private static List<PostContentBlockView> toPostContentBlockViews(List<PostContentBlockResult> blocks) {
+        if (blocks == null || blocks.isEmpty()) {
+            return List.of();
+        }
+        return blocks.stream()
+                .map(PostReadQueryApiAdapter::toPostContentBlockView)
+                .toList();
+    }
+
+    private static PostContentBlockView toPostContentBlockView(PostContentBlockResult result) {
+        if (result == null) {
+            return null;
+        }
+        return new PostContentBlockView(
+                result.id(),
+                result.index(),
+                result.type(),
+                result.text(),
+                result.assetId(),
+                result.language(),
+                result.caption(),
+                result.displayName(),
+                result.metadata(),
+                toPostMediaView(result.media())
+        );
+    }
+
+    private static PostContentBlockView.PostMediaView toPostMediaView(PostMediaViewResult result) {
+        if (result == null) {
+            return null;
+        }
+        return new PostContentBlockView.PostMediaView(
+                result.assetId(),
+                result.mediaKind(),
+                result.lifecycle(),
+                result.videoState(),
+                result.fileName(),
+                result.contentType(),
+                result.contentLength(),
+                result.url(),
+                result.downloadUrl(),
+                result.posterUrl(),
+                result.sources().stream()
+                        .map(source -> new PostContentBlockView.PostMediaView.VideoSource(
+                                source.url(),
+                                source.contentType(),
+                                source.width(),
+                                source.height()
+                        ))
+                        .toList()
         );
     }
 

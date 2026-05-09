@@ -352,6 +352,7 @@ export function usePostDetailLoader(emit) {
   const editMode = ref('post') // post | comment
   const editInitialTitle = ref('')
   const editInitialContent = ref('')
+  const editInitialBlocks = ref([])
   const editCommentId = ref('')
 
   function closeEdit() {
@@ -359,6 +360,7 @@ export function usePostDetailLoader(emit) {
     editMode.value = 'post'
     editInitialTitle.value = ''
     editInitialContent.value = ''
+    editInitialBlocks.value = []
     editCommentId.value = ''
   }
 
@@ -366,7 +368,8 @@ export function usePostDetailLoader(emit) {
     if (!post.value || !canEditPost.value) return
     editMode.value = 'post'
     editInitialTitle.value = String(post.value.title || '')
-    editInitialContent.value = String(post.value.content || '')
+    editInitialContent.value = ''
+    editInitialBlocks.value = Array.isArray(post.value.blocks) ? post.value.blocks : []
     editCommentId.value = ''
     editOpen.value = true
   }
@@ -378,6 +381,7 @@ export function usePostDetailLoader(emit) {
     editMode.value = 'comment'
     editInitialTitle.value = ''
     editInitialContent.value = String(c?.content || '')
+    editInitialBlocks.value = []
     editCommentId.value = cid
     editOpen.value = true
   }
@@ -389,7 +393,7 @@ export function usePostDetailLoader(emit) {
       if (editMode.value === 'post') {
         const r = await apiUpdatePost(post.value.id, {
           title: String(payload?.title || '').trim(),
-          content: String(payload?.content || '').trim(),
+          blocks: Array.isArray(payload?.blocks) ? payload.blocks : [],
           categoryId: post.value.categoryId,
           tags: Array.isArray(post.value.tags) ? post.value.tags : []
         })
@@ -859,6 +863,7 @@ export function usePostDetailLoader(emit) {
       editMode,
       editInitialTitle,
       editInitialContent,
+      editInitialBlocks,
       closeEdit,
       openEditPost,
       openEditComment,

@@ -1,6 +1,5 @@
-package com.nowcoder.community.content.application.port;
+package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.content.application.PostMediaUploadContent;
 import com.nowcoder.community.content.application.result.PostMediaUploadSessionResult;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
 

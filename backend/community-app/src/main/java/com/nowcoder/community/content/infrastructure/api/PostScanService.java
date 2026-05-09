@@ -2,8 +2,11 @@ package com.nowcoder.community.content.infrastructure.api;
 
 import com.nowcoder.community.content.api.model.PostScanView;
 import com.nowcoder.community.content.api.query.PostScanQueryApi;
+import com.nowcoder.community.content.application.PostContentBlockTextProjector;
 import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import com.nowcoder.community.content.domain.model.DiscussPost;
+import com.nowcoder.community.content.domain.model.PostContentBlock;
+import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.DiscussPostMapper;
 import com.nowcoder.community.content.application.ContentTextCodec;
 import org.springframework.stereotype.Service;
@@ -16,12 +19,22 @@ import java.util.UUID;
 public class PostScanService implements PostScanQueryApi {
 
     private final DiscussPostMapper discussPostMapper;
+    private final PostContentBlockRepository postContentBlockRepository;
     private final TagContentRepository tagContentPort;
+    private final PostContentBlockTextProjector postContentBlockTextProjector;
     private final ContentTextCodec textCodec;
 
-    public PostScanService(DiscussPostMapper discussPostMapper, TagContentRepository tagContentPort, ContentTextCodec textCodec) {
+    public PostScanService(
+            DiscussPostMapper discussPostMapper,
+            PostContentBlockRepository postContentBlockRepository,
+            TagContentRepository tagContentPort,
+            PostContentBlockTextProjector postContentBlockTextProjector,
+            ContentTextCodec textCodec
+    ) {
         this.discussPostMapper = discussPostMapper;
+        this.postContentBlockRepository = postContentBlockRepository;
         this.tagContentPort = tagContentPort;
+        this.postContentBlockTextProjector = postContentBlockTextProjector;
         this.textCodec = textCodec;
     }
 
@@ -37,9 +50,15 @@ public class PostScanService implements PostScanQueryApi {
         List<UUID> postIds = posts.stream().map(DiscussPost::getId).toList();
         Map<UUID, List<String>> tagsByPostId = tagContentPort.getTagsByPostIds(postIds);
         Map<UUID, List<String>> safeTagsByPostId = tagsByPostId == null ? Map.of() : tagsByPostId;
+        Map<UUID, List<PostContentBlock>> blocksByPostId = postContentBlockRepository.listByPostIds(postIds);
+        Map<UUID, List<PostContentBlock>> safeBlocksByPostId = blocksByPostId == null ? Map.of() : blocksByPostId;
 
         List<PostScanView.PostProjectionView> items = posts.stream()
-                .map(post -> toPostProjectionView(post, safeTagsByPostId.getOrDefault(post.getId(), List.of())))
+                .map(post -> toPostProjectionView(
+                        post,
+                        safeTagsByPostId.getOrDefault(post.getId(), List.of()),
+                        safeBlocksByPostId.getOrDefault(post.getId(), List.of())
+                ))
                 .toList();
 
         UUID nextAfterId = afterId;
@@ -67,17 +86,18 @@ public class PostScanService implements PostScanQueryApi {
 
         Map<UUID, List<String>> tagsByPostId = tagContentPort.getTagsByPostIds(List.of(postId));
         List<String> tags = tagsByPostId == null ? List.of() : tagsByPostId.getOrDefault(postId, List.of());
-        return toPostProjectionView(post, tags);
+        List<PostContentBlock> blocks = postContentBlockRepository.listByPostId(postId);
+        return toPostProjectionView(post, tags, blocks);
     }
 
-    private PostScanView.PostProjectionView toPostProjectionView(DiscussPost post, List<String> tags) {
+    private PostScanView.PostProjectionView toPostProjectionView(DiscussPost post, List<String> tags, List<PostContentBlock> blocks) {
         return new PostScanView.PostProjectionView(
                 post.getId(),
                 post.getUserId(),
                 post.getCategoryId(),
                 tags,
                 textCodec.decodeOnRead(post.getTitle()),
-                textCodec.decodeOnRead(post.getContent()),
+                textCodec.decodeOnRead(postContentBlockTextProjector.fullText(blocks)),
                 post.getType(),
                 post.getStatus(),
                 post.getCreateTime() == null ? null : post.getCreateTime().toInstant(),

@@ -19,7 +19,7 @@ public class PostSummaryAssembler {
         this.textCodec = textCodec;
     }
 
-    public PostSummaryResult assemble(DiscussPost post, Comment lastActivity, List<String> tags) {
+    public PostSummaryResult assemble(DiscussPost post, Comment lastActivity, List<String> tags, String preview) {
         List<String> safeTags = tags == null ? List.of() : List.copyOf(tags);
         UUID lastReplyUserId = null;
         Date lastReplyTime = null;
@@ -39,6 +39,7 @@ public class PostSummaryAssembler {
                 post.getId(),
                 post.getUserId(),
                 textCodec.decodeOnRead(post.getTitle()),
+                textCodec.decodeOnRead(preview),
                 post.getType(),
                 post.getStatus(),
                 post.getCreateTime(),

@@ -1,17 +1,26 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.constants.EntityTypes;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import com.nowcoder.community.content.application.command.CreatePostCommand;
-import com.nowcoder.community.content.application.ContentSanitizer;
+import com.nowcoder.community.content.application.command.PostContentBlockCommand;
 import com.nowcoder.community.content.application.result.PostCreateResult;
 import com.nowcoder.community.content.domain.event.PostDomainEventPublisher;
 import com.nowcoder.community.content.domain.model.PostDraft;
+import com.nowcoder.community.content.domain.model.PostContentBlock;
+import com.nowcoder.community.content.domain.model.PostMediaAsset;
+import com.nowcoder.community.content.domain.model.PostMediaAssetLifecycle;
+import com.nowcoder.community.content.domain.model.PostMediaKind;
 import com.nowcoder.community.content.domain.model.PostSnapshot;
+import com.nowcoder.community.content.domain.model.PostVideoState;
 import com.nowcoder.community.content.domain.repository.CategoryRepository;
+import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
+import com.nowcoder.community.content.domain.repository.PostMediaAssetRepository;
 import com.nowcoder.community.content.domain.repository.PostRepository;
 import com.nowcoder.community.content.domain.repository.PostTagRepository;
+import com.nowcoder.community.content.domain.service.PostContentBlockPolicy;
 import com.nowcoder.community.content.domain.service.PostPublishingDomainService;
 import com.nowcoder.community.growth.api.action.GrowthTaskProgressActionApi;
 import com.nowcoder.community.social.api.action.SocialLikeCleanupActionApi;
@@ -20,8 +29,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
 public class PostPublishingApplicationService {
@@ -34,7 +53,11 @@ public class PostPublishingApplicationService {
     private final PostBusinessEventLogger postBusinessEventLogger;
     private final UserModerationGuard moderationGuard;
     private final PostPublishingDomainService domainService;
+    private final PostContentBlockPolicy blockPolicy;
     private final PostRepository postRepository;
+    private final PostContentBlockRepository postContentBlockRepository;
+    private final PostMediaAssetRepository postMediaAssetRepository;
+    private final PostMediaStoragePort postMediaStoragePort;
     private final CategoryRepository categoryRepository;
     private final PostTagRepository postTagRepository;
     private final PostDomainEventPublisher domainEventPublisher;
@@ -50,7 +73,11 @@ public class PostPublishingApplicationService {
             PostBusinessEventLogger postBusinessEventLogger,
             UserModerationGuard moderationGuard,
             PostPublishingDomainService domainService,
+            PostContentBlockPolicy blockPolicy,
             PostRepository postRepository,
+            PostContentBlockRepository postContentBlockRepository,
+            PostMediaAssetRepository postMediaAssetRepository,
+            PostMediaStoragePort postMediaStoragePort,
             CategoryRepository categoryRepository,
             PostTagRepository postTagRepository,
             PostDomainEventPublisher domainEventPublisher,
@@ -65,7 +92,11 @@ public class PostPublishingApplicationService {
         this.postBusinessEventLogger = postBusinessEventLogger;
         this.moderationGuard = moderationGuard;
         this.domainService = domainService;
+        this.blockPolicy = blockPolicy;
         this.postRepository = postRepository;
+        this.postContentBlockRepository = postContentBlockRepository;
+        this.postMediaAssetRepository = postMediaAssetRepository;
+        this.postMediaStoragePort = postMediaStoragePort;
         this.categoryRepository = categoryRepository;
         this.postTagRepository = postTagRepository;
         this.domainEventPublisher = domainEventPublisher;
@@ -73,11 +104,6 @@ public class PostPublishingApplicationService {
         this.socialLikeCleanupActionApi = socialLikeCleanupActionApi;
         this.pointsAwardService = pointsAwardService;
         this.taskProgressTriggerService = taskProgressTriggerService;
-    }
-
-    @Transactional
-    public PostCreateResult create(UUID userId, String idempotencyKey, String title, String content, UUID categoryId, List<String> tags) {
-        return create(idempotencyKey, new CreatePostCommand(userId, title, content, categoryId, tags));
     }
 
     @Transactional
@@ -89,8 +115,11 @@ public class PostPublishingApplicationService {
         return idempotencyGuard.executeRequired(CREATE_POST_IDEMPOTENCY_SCOPE, userId, idempotencyKey, PostCreateResult.class, () -> {
             moderationGuard.assertCanSpeak(userId);
             categoryRepository.assertExists(command.categoryId());
-            PostDraft draft = domainService.createDraft(userId, sanitize(command.title()), sanitize(command.content()), command.categoryId());
+            List<PostContentBlockCommand> blocks = sanitizeBlocks(blockPolicy.validateAndNormalize(command.blocks()));
+            PostDraft draft = domainService.createDraft(userId, sanitize(command.title()), command.categoryId());
             UUID postId = postRepository.create(draft);
+            bindMediaAssets(userId, postId, blocks, new Date());
+            postContentBlockRepository.replaceBlocks(postId, toDomainBlocks(postId, blocks));
             postTagRepository.bindTagsToPost(postId, command.tags());
             pointsAwardService.awardPostPublished(postId, userId);
             taskProgressTriggerService.triggerPostPublished(postId, userId, draft.createTime().toInstant());
@@ -102,13 +131,18 @@ public class PostPublishingApplicationService {
     }
 
     @Transactional
-    public void updatePost(UUID userId, UUID postId, String title, String content, UUID categoryId, List<String> tags) {
+    public void updatePost(UUID userId, UUID postId, String title, UUID categoryId, List<String> tags, List<PostContentBlockCommand> blocks) {
         moderationGuard.assertCanSpeak(userId);
         categoryRepository.assertExists(categoryId);
         PostSnapshot post = postRepository.getRequiredSnapshot(postId);
         Date now = new Date();
         domainService.assertEditableByAuthor(post, userId, now);
-        postRepository.updateContent(postId, sanitize(title), sanitize(content), categoryId, now);
+        List<PostContentBlockCommand> normalizedBlocks = sanitizeBlocks(blockPolicy.validateAndNormalize(blocks));
+        List<UUID> keepAssetIds = mediaAssetIds(normalizedBlocks);
+        bindMediaAssets(userId, postId, normalizedBlocks, now);
+        postRepository.updatePostMeta(postId, sanitize(title), categoryId, now);
+        postContentBlockRepository.replaceBlocks(postId, toDomainBlocks(postId, normalizedBlocks));
+        releaseRemovedMediaAssets(userId, postId, keepAssetIds, now);
         postTagRepository.replaceTagsForPost(postId, tags);
         domainEventPublisher.postUpdated(postId);
         postWriteSideEffectScheduler.schedulePostScoreRefresh(postId);
@@ -131,6 +165,113 @@ public class PostPublishingApplicationService {
 
     private String sanitize(String value) {
         String trimmed = value == null ? "" : value.trim();
-        return sensitiveFilter.filter(textCodec.escapeOnWrite(trimmed));
+        String filtered = sensitiveFilter.filter(textCodec.escapeOnWrite(trimmed));
+        return filtered == null ? "" : filtered;
+    }
+
+    private List<PostContentBlockCommand> sanitizeBlocks(List<PostContentBlockCommand> blocks) {
+        return blocks.stream()
+                .map(block -> new PostContentBlockCommand(
+                        block.type(),
+                        sanitize(block.text()),
+                        block.assetId(),
+                        block.language(),
+                        sanitize(block.caption()),
+                        block.displayName(),
+                        block.metadata()
+                ))
+                .toList();
+    }
+
+    private List<PostContentBlock> toDomainBlocks(UUID postId, List<PostContentBlockCommand> blocks) {
+        return IntStream.range(0, blocks.size())
+                .mapToObj(index -> {
+                    PostContentBlockCommand block = blocks.get(index);
+                    return new PostContentBlock(
+                        null,
+                        postId,
+                        index,
+                        block.type(),
+                        block.text(),
+                        block.assetId(),
+                        block.language(),
+                        block.caption(),
+                        block.displayName(),
+                        block.metadata()
+                    );
+                })
+                .toList();
+    }
+
+    private void bindMediaAssets(UUID userId, UUID postId, List<PostContentBlockCommand> blocks, Date now) {
+        List<UUID> assetIds = mediaAssetIds(blocks);
+        if (assetIds.isEmpty()) {
+            return;
+        }
+        Map<UUID, PostMediaAsset> assetsById = postMediaAssetRepository.listByIds(assetIds).stream()
+                .collect(Collectors.toMap(PostMediaAsset::id, Function.identity(), (left, right) -> left));
+        Set<UUID> newlyBoundAssetIds = new HashSet<>();
+        for (PostContentBlockCommand block : blocks) {
+            if (block.assetId() == null) {
+                continue;
+            }
+            if (!newlyBoundAssetIds.add(block.assetId())) {
+                throw new BusinessException(INVALID_ARGUMENT, "媒体资源不能重复使用");
+            }
+            PostMediaAsset asset = assetsById.get(block.assetId());
+            validateMediaAsset(userId, postId, block, asset);
+            if (asset.lifecycle() == PostMediaAssetLifecycle.BOUND) {
+                continue;
+            }
+            UUID referenceId = postMediaStoragePort.bindReference(asset, postId, userId);
+            postMediaAssetRepository.bindToPost(
+                    asset.id(),
+                    postId,
+                    referenceId,
+                    "video".equals(block.type()) ? PostVideoState.PENDING_TRANSCODE : PostVideoState.NONE,
+                    now
+            );
+        }
+    }
+
+    private void releaseRemovedMediaAssets(UUID userId, UUID postId, List<UUID> keepAssetIds, Date now) {
+        Set<UUID> keepAssetIdSet = Set.copyOf(keepAssetIds);
+        postMediaAssetRepository.listByPostId(postId).stream()
+                .filter(asset -> asset.lifecycle() == PostMediaAssetLifecycle.BOUND)
+                .filter(asset -> !keepAssetIdSet.contains(asset.id()))
+                .forEach(asset -> postMediaStoragePort.releaseReference(asset, userId));
+        postMediaAssetRepository.releaseRemovedFromPost(postId, keepAssetIds, now);
+    }
+
+    private void validateMediaAsset(UUID userId, UUID postId, PostContentBlockCommand block, PostMediaAsset asset) {
+        if (asset == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "媒体资源不存在");
+        }
+        if (!userId.equals(asset.ownerUserId())) {
+            throw new BusinessException(FORBIDDEN, "只能使用自己的媒体资源");
+        }
+        if (asset.lifecycle() != PostMediaAssetLifecycle.UPLOADED && asset.lifecycle() != PostMediaAssetLifecycle.BOUND) {
+            throw new BusinessException(INVALID_ARGUMENT, "媒体资源尚未上传完成");
+        }
+        if (asset.postId() != null && !asset.postId().equals(postId)) {
+            throw new BusinessException(INVALID_ARGUMENT, "媒体资源已被其他帖子使用");
+        }
+        PostMediaKind expectedKind = switch (block.type().toLowerCase(Locale.ROOT)) {
+            case "image" -> PostMediaKind.IMAGE;
+            case "video" -> PostMediaKind.VIDEO;
+            case "file" -> PostMediaKind.FILE;
+            default -> null;
+        };
+        if (expectedKind != null && asset.mediaKind() != expectedKind) {
+            throw new BusinessException(INVALID_ARGUMENT, "媒体类型与内容块不匹配");
+        }
+    }
+
+    private List<UUID> mediaAssetIds(List<PostContentBlockCommand> blocks) {
+        return blocks.stream()
+                .map(PostContentBlockCommand::assetId)
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
     }
 }

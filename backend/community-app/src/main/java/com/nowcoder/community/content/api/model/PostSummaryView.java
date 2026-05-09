@@ -8,6 +8,7 @@ public record PostSummaryView(
         UUID id,
         UUID userId,
         String title,
+        String preview,
         int type,
         int status,
         Date createTime,
@@ -20,4 +21,7 @@ public record PostSummaryView(
         Date lastActivityTime,
         String lastReplyPreview
 ) {
+    public PostSummaryView {
+        preview = preview == null ? "" : preview;
+    }
 }

@@ -8,7 +8,7 @@ public record PostDetailResult(
         UUID id,
         UUID userId,
         String title,
-        String content,
+        List<PostContentBlockResult> blocks,
         int type,
         int status,
         Date createTime,
@@ -22,4 +22,7 @@ public record PostDetailResult(
         boolean liked,
         boolean bookmarked
 ) {
+    public PostDetailResult {
+        blocks = blocks == null ? List.of() : List.copyOf(blocks);
+    }
 }

@@ -3,8 +3,10 @@ package com.nowcoder.community.content.application;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.domain.model.DiscussPost;
+import com.nowcoder.community.content.domain.model.PostContentBlock;
 import com.nowcoder.community.content.domain.repository.BookmarkRepository;
 import com.nowcoder.community.content.domain.repository.CommentContentRepository;
+import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
 import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import org.junit.jupiter.api.Test;
 
@@ -26,11 +28,14 @@ class BookmarkApplicationServiceTest {
         BookmarkRepository bookmarkRepository = mock(BookmarkRepository.class);
         CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
         TagContentRepository tagContentRepository = mock(TagContentRepository.class);
+        PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
         PostSummaryAssembler postSummaryAssembler = mock(PostSummaryAssembler.class);
         BookmarkApplicationService service = new BookmarkApplicationService(
                 bookmarkRepository,
                 commentContentRepository,
                 tagContentRepository,
+                blockRepository,
+                new PostContentBlockTextProjector(),
                 postSummaryAssembler
         );
         UUID userId = uuid(7);
@@ -54,6 +59,7 @@ class BookmarkApplicationServiceTest {
                 postId,
                 userId,
                 "decoded title",
+                "post preview",
                 0,
                 0,
                 createTime,
@@ -69,7 +75,11 @@ class BookmarkApplicationServiceTest {
         when(bookmarkRepository.listBookmarkedPosts(userId, 0, 10)).thenReturn(List.of(post));
         when(commentContentRepository.getLatestPostActivitiesByPostIds(List.of(postId))).thenReturn(Map.of(postId, lastActivity));
         when(tagContentRepository.getTagsByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of("spring")));
-        when(postSummaryAssembler.assemble(post, lastActivity, List.of("spring"))).thenReturn(view);
+        when(blockRepository.listByPostIds(List.of(postId))).thenReturn(Map.of(
+                postId,
+                List.of(new PostContentBlock(uuid(101), postId, 0, "paragraph", "post preview", null, "", "", "", null))
+        ));
+        when(postSummaryAssembler.assemble(post, lastActivity, List.of("spring"), "post preview")).thenReturn(view);
 
         List<PostSummaryResult> result = service.listBookmarkedPostSummaries(userId, 0, 10);
 
@@ -82,6 +92,6 @@ class BookmarkApplicationServiceTest {
             assertThat(summary.lastActivityTime()).isEqualTo(lastActivityTime);
         });
         verify(bookmarkRepository).listBookmarkedPosts(userId, 0, 10);
-        verify(postSummaryAssembler).assemble(post, lastActivity, List.of("spring"));
+        verify(postSummaryAssembler).assemble(post, lastActivity, List.of("spring"), "post preview");
     }
 }

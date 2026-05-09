@@ -1,6 +1,8 @@
 package com.nowcoder.community.content.controller.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import com.nowcoder.community.common.constants.ValidationLimits;
 
@@ -13,9 +15,10 @@ public class CreatePostRequest {
     @Size(max = ValidationLimits.POST_TITLE_MAX)
     private String title;
 
-    @NotBlank
-    @Size(max = ValidationLimits.POST_CONTENT_MAX)
-    private String content;
+    @Valid
+    @NotEmpty
+    @Size(max = ValidationLimits.POST_CONTENT_BLOCKS_MAX)
+    private List<PostContentBlockRequest> blocks;
 
     // 可选：分类（Discourse-like taxonomy）。
     private UUID categoryId;
@@ -32,12 +35,12 @@ public class CreatePostRequest {
         this.title = title;
     }
 
-    public String getContent() {
-        return content;
+    public List<PostContentBlockRequest> getBlocks() {
+        return blocks;
     }
 
-    public void setContent(String content) {
-        this.content = content;
+    public void setBlocks(List<PostContentBlockRequest> blocks) {
+        this.blocks = blocks;
     }
 
     public UUID getCategoryId() {

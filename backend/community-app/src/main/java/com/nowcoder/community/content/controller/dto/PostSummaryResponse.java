@@ -11,6 +11,7 @@ public class PostSummaryResponse {
     private UUID id;
     private UUID userId;
     private String title;
+    private String preview;
     private int type;
     private int status;
     private Date createTime;
@@ -35,6 +36,7 @@ public class PostSummaryResponse {
         response.setId(view.id());
         response.setUserId(view.userId());
         response.setTitle(view.title());
+        response.setPreview(view.preview());
         response.setType(view.type());
         response.setStatus(view.status());
         response.setCreateTime(view.createTime());
@@ -71,6 +73,14 @@ public class PostSummaryResponse {
 
     public void setTitle(String title) {
         this.title = title;
+    }
+
+    public String getPreview() {
+        return preview;
+    }
+
+    public void setPreview(String preview) {
+        this.preview = preview;
     }
 
     public int getType() {

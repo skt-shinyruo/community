@@ -52,19 +52,6 @@ public class DiscussPost {
         this.title = title;
     }
 
-    /**
-     * Compatibility shim until block-based read/write flows replace legacy post body callers.
-     */
-    @Deprecated(forRemoval = true)
-    public String getContent() {
-        return "";
-    }
-
-    @Deprecated(forRemoval = true)
-    public void setContent(String content) {
-        // No-op: post body content is stored as blocks, not on discuss_post.
-    }
-
     public int getType() {
         return type;
     }

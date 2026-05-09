@@ -132,3 +132,17 @@ create table if not exists oss_object_alias (
   key idx_oss_alias_object (object_id, version_id),
   key idx_oss_alias_status_expiry (status, expires_at)
 );
+
+insert into oss_usage_policy (
+  usage, default_visibility, max_bytes, allowed_mime_types, requires_checksum, requires_scan,
+  versioning_enabled, download_ttl_seconds, upload_ttl_seconds, public_cache_control,
+  private_cache_control, retention_days, delete_grace_days
+) values (
+  'DRIVE_FILE', 'PRIVATE', 10737418240, '', 0, 0,
+  1, 300, 900, '', 'no-store', 0, 7
+) on duplicate key update
+  default_visibility = values(default_visibility),
+  max_bytes = values(max_bytes),
+  download_ttl_seconds = values(download_ttl_seconds),
+  upload_ttl_seconds = values(upload_ttl_seconds),
+  private_cache_control = values(private_cache_control);

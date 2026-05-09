@@ -22,6 +22,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ObjectAccessApplicationServiceTest {
 
@@ -66,6 +67,41 @@ class ObjectAccessApplicationServiceTest {
         assertThat(objectStore.capturedBucket).isEqualTo("community-oss");
         assertThat(objectStore.capturedKey).isEqualTo("objects/1/2/avatar.png");
         assertThat(objectStore.capturedTtl).isEqualTo(Duration.ofSeconds(86_400));
+    }
+
+    @Test
+    void createSignedDownloadUrlShouldRejectVersionFromDifferentObject() {
+        UUID objectId = uuid(1);
+        UUID otherObjectId = uuid(3);
+        UUID versionId = uuid(2);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        objectRepository.save(OssObject.stage(
+                objectId,
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "avatar",
+                "7",
+                OssVisibility.SIGNED,
+                "7",
+                NOW
+        ).activate(activeVersion(objectId, versionId), NOW.plusSeconds(1)));
+        versionRepository.save(activeVersion(otherObjectId, versionId));
+        ObjectAccessApplicationService service = new ObjectAccessApplicationService(
+                objectRepository,
+                versionRepository,
+                objectStore
+        );
+
+        assertThatThrownBy(() -> service.createSignedDownloadUrl(new CreateSignedUrlCommand(
+                objectId,
+                versionId,
+                300,
+                "7"
+        ))).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("object version does not belong to object");
     }
 
     private static OssObjectVersion activeVersion(UUID objectId, UUID versionId) {

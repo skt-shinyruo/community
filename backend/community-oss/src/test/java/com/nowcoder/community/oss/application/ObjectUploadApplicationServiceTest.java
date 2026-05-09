@@ -11,10 +11,13 @@ import com.nowcoder.community.oss.domain.model.OssObjectStatus;
 import com.nowcoder.community.oss.domain.model.OssObjectVersion;
 import com.nowcoder.community.oss.domain.model.OssUploadSession;
 import com.nowcoder.community.oss.domain.model.OssUploadSessionStatus;
+import com.nowcoder.community.oss.domain.model.OssUsagePolicy;
+import com.nowcoder.community.oss.domain.model.OssVisibility;
 import com.nowcoder.community.oss.domain.repository.OssObjectAliasRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
 import com.nowcoder.community.oss.domain.repository.OssUploadSessionRepository;
+import com.nowcoder.community.oss.domain.repository.OssUsagePolicyRepository;
 import com.nowcoder.community.oss.infrastructure.storage.ObjectStore;
 import com.nowcoder.community.oss.infrastructure.storage.ObjectStoreObject;
 import com.nowcoder.community.oss.infrastructure.storage.PresignedObjectUrl;
@@ -31,9 +34,11 @@ import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ObjectUploadApplicationServiceTest {
 
@@ -103,6 +108,170 @@ class ObjectUploadApplicationServiceTest {
                 .isEqualTo(prepared.objectId());
     }
 
+    @Test
+    void prepareUploadShouldApplyUsagePolicyDefaultsAndUploadTtl() {
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeUploadSessionRepository uploadSessionRepository = new FakeUploadSessionRepository();
+        FakeUsagePolicyRepository policyRepository = new FakeUsagePolicyRepository();
+        policyRepository.save(new OssUsagePolicy(
+                "USER_AVATAR",
+                OssVisibility.SIGNED,
+                5,
+                Set.of("image/png"),
+                true,
+                false,
+                true,
+                120,
+                60,
+                "",
+                "",
+                0,
+                0
+        ));
+        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+                objectRepository,
+                versionRepository,
+                uploadSessionRepository,
+                new FakeAliasRepository(),
+                policyRepository,
+                new CapturingObjectStore(),
+                "community-oss",
+                "http://localhost:12880",
+                CLOCK
+        );
+
+        ObjectUploadSessionResult prepared = service.prepareUpload(new PrepareObjectUploadCommand(
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "avatar",
+                "7",
+                "",
+                "avatar.png",
+                "image/png",
+                5,
+                "sha256-avatar",
+                "",
+                "7"
+        ));
+
+        assertThat(objectRepository.findById(prepared.objectId()).orElseThrow().visibility())
+                .isEqualTo(OssVisibility.SIGNED);
+        assertThat(uploadSessionRepository.findById(prepared.sessionId()).orElseThrow().expiresAt())
+                .isEqualTo(CLOCK.instant().plusSeconds(60));
+    }
+
+    @Test
+    void prepareUploadShouldRejectContentThatViolatesUsagePolicy() {
+        FakeUsagePolicyRepository policyRepository = new FakeUsagePolicyRepository();
+        policyRepository.save(new OssUsagePolicy(
+                "USER_AVATAR",
+                OssVisibility.PUBLIC,
+                5,
+                Set.of("image/png"),
+                false,
+                false,
+                true,
+                120,
+                60,
+                "",
+                "",
+                0,
+                0
+        ));
+        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+                new FakeObjectRepository(),
+                new FakeObjectVersionRepository(),
+                new FakeUploadSessionRepository(),
+                new FakeAliasRepository(),
+                policyRepository,
+                new CapturingObjectStore(),
+                "community-oss",
+                "http://localhost:12880",
+                CLOCK
+        );
+
+        assertThatThrownBy(() -> service.prepareUpload(new PrepareObjectUploadCommand(
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "avatar",
+                "7",
+                "PUBLIC",
+                "avatar.png",
+                "image/png",
+                6,
+                "",
+                "",
+                "7"
+        ))).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("upload exceeds usage policy maxBytes");
+    }
+
+    @Test
+    void completeUploadShouldRejectActualContentThatViolatesUsagePolicy() {
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeUploadSessionRepository uploadSessionRepository = new FakeUploadSessionRepository();
+        FakeUsagePolicyRepository policyRepository = new FakeUsagePolicyRepository();
+        policyRepository.save(new OssUsagePolicy(
+                "USER_AVATAR",
+                OssVisibility.PUBLIC,
+                5,
+                Set.of("image/png"),
+                false,
+                false,
+                true,
+                120,
+                60,
+                "",
+                "",
+                0,
+                0
+        ));
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+                objectRepository,
+                versionRepository,
+                uploadSessionRepository,
+                new FakeAliasRepository(),
+                policyRepository,
+                objectStore,
+                "community-oss",
+                "http://localhost:12880",
+                CLOCK
+        );
+        ObjectUploadSessionResult prepared = service.prepareUpload(new PrepareObjectUploadCommand(
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "avatar",
+                "7",
+                "PUBLIC",
+                "avatar.png",
+                "image/png",
+                0,
+                "",
+                "",
+                "7"
+        ));
+
+        assertThatThrownBy(() -> service.completeUpload(new CompleteObjectUploadCommand(
+                prepared.sessionId(),
+                prepared.objectId(),
+                prepared.versionId(),
+                new ObjectUploadContent(
+                        () -> new ByteArrayInputStream("avatar".getBytes(StandardCharsets.UTF_8)),
+                        "image/png",
+                        6,
+                        ""
+                )
+        ))).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("upload exceeds usage policy maxBytes");
+        assertThat(objectStore.capturedKey).isNull();
+    }
+
     private static UUID uuid(long suffix) {
         return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
     }
@@ -160,6 +329,20 @@ class ObjectUploadApplicationServiceTest {
         @Override
         public Optional<OssObjectAlias> findByAliasKey(String aliasKey) {
             return Optional.ofNullable(rows.get(aliasKey));
+        }
+    }
+
+    private static final class FakeUsagePolicyRepository implements OssUsagePolicyRepository {
+        private final Map<String, OssUsagePolicy> rows = new HashMap<>();
+
+        @Override
+        public void save(OssUsagePolicy policy) {
+            rows.put(policy.usage(), policy);
+        }
+
+        @Override
+        public Optional<OssUsagePolicy> findByUsage(String usage) {
+            return Optional.ofNullable(rows.get(usage));
         }
     }
 

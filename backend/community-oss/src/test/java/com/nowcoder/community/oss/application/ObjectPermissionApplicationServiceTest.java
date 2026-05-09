@@ -9,6 +9,7 @@ import com.nowcoder.community.oss.domain.model.OssObjectVersion;
 import com.nowcoder.community.oss.domain.model.OssVisibility;
 import com.nowcoder.community.oss.domain.repository.OssAccessGrantRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
+import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -21,6 +22,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ObjectPermissionApplicationServiceTest {
 
@@ -55,8 +57,11 @@ class ObjectPermissionApplicationServiceTest {
                 "7",
                 CLOCK.instant()
         ).activate(version, CLOCK.instant()));
+        FakeVersionRepository versionRepository = new FakeVersionRepository();
+        versionRepository.save(version);
         ObjectPermissionApplicationService service = new ObjectPermissionApplicationService(
                 objectRepository,
+                versionRepository,
                 grantRepository,
                 CLOCK
         );
@@ -81,6 +86,60 @@ class ObjectPermissionApplicationServiceTest {
         assertThat(grantRepository.findByObjectId(objectId)).hasSize(1);
         assertThat(revoked.active()).isFalse();
         assertThat(revoked.revokedAt()).isEqualTo(CLOCK.instant());
+    }
+
+    @Test
+    void grantAccessShouldRejectVersionFromDifferentObject() {
+        UUID objectId = uuid(1);
+        UUID otherObjectId = uuid(3);
+        UUID versionId = uuid(2);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeVersionRepository versionRepository = new FakeVersionRepository();
+        FakeGrantRepository grantRepository = new FakeGrantRepository();
+        objectRepository.save(OssObject.stage(
+                objectId,
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "avatar",
+                "7",
+                OssVisibility.PUBLIC,
+                "7",
+                CLOCK.instant()
+        ).activate(activeVersion(objectId, versionId), CLOCK.instant()));
+        versionRepository.save(activeVersion(otherObjectId, versionId));
+        ObjectPermissionApplicationService service = new ObjectPermissionApplicationService(
+                objectRepository,
+                versionRepository,
+                grantRepository,
+                CLOCK
+        );
+
+        assertThatThrownBy(() -> service.grantAccess(new GrantObjectAccessCommand(
+                objectId,
+                versionId,
+                "USER",
+                "7",
+                "READ",
+                CLOCK.instant().plusSeconds(300),
+                "7"
+        ))).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("object version does not belong to object");
+    }
+
+    private static OssObjectVersion activeVersion(UUID objectId, UUID versionId) {
+        return OssObjectVersion.staged(
+                versionId,
+                objectId,
+                "S3_COMPATIBLE",
+                "community-oss",
+                "objects/1/2/avatar.png",
+                "avatar.png",
+                "image/png",
+                6,
+                "sha256-avatar",
+                CLOCK.instant()
+        ).activate("etag-1", CLOCK.instant());
     }
 
     private static UUID uuid(long suffix) {
@@ -117,6 +176,20 @@ class ObjectPermissionApplicationServiceTest {
         @Override
         public List<OssAccessGrant> findByObjectId(UUID objectId) {
             return rows.values().stream().filter(grant -> objectId.equals(grant.objectId())).toList();
+        }
+    }
+
+    private static final class FakeVersionRepository implements OssObjectVersionRepository {
+        private final Map<UUID, OssObjectVersion> rows = new HashMap<>();
+
+        @Override
+        public void save(OssObjectVersion version) {
+            rows.put(version.versionId(), version);
+        }
+
+        @Override
+        public Optional<OssObjectVersion> findById(UUID versionId) {
+            return Optional.ofNullable(rows.get(versionId));
         }
     }
 }

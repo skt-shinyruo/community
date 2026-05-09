@@ -27,4 +27,9 @@ public record OssObjectAlias(
     public static OssObjectAlias active(String aliasKey, UUID objectId, UUID versionId, Instant now) {
         return new OssObjectAlias(aliasKey, objectId, versionId, "ACTIVE", null, now);
     }
+
+    public boolean activeAt(Instant now) {
+        Objects.requireNonNull(now, "now");
+        return "ACTIVE".equals(status) && (expiresAt == null || expiresAt.isAfter(now));
+    }
 }

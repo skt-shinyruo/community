@@ -9,11 +9,13 @@ import com.nowcoder.community.oss.domain.model.OssObject;
 import com.nowcoder.community.oss.domain.model.OssObjectAlias;
 import com.nowcoder.community.oss.domain.model.OssObjectVersion;
 import com.nowcoder.community.oss.domain.model.OssUploadSession;
+import com.nowcoder.community.oss.domain.model.OssUsagePolicy;
 import com.nowcoder.community.oss.domain.model.OssVisibility;
 import com.nowcoder.community.oss.domain.repository.OssObjectAliasRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
 import com.nowcoder.community.oss.domain.repository.OssUploadSessionRepository;
+import com.nowcoder.community.oss.domain.repository.OssUsagePolicyRepository;
 import com.nowcoder.community.oss.infrastructure.config.OssProperties;
 import com.nowcoder.community.oss.infrastructure.storage.ObjectStore;
 import com.nowcoder.community.oss.infrastructure.storage.ObjectStoreObject;
@@ -38,6 +40,7 @@ public class ObjectUploadApplicationService {
     private final OssObjectVersionRepository versionRepository;
     private final OssUploadSessionRepository uploadSessionRepository;
     private final OssObjectAliasRepository aliasRepository;
+    private final OssUsagePolicyRepository policyRepository;
     private final ObjectStore objectStore;
     private final String storageBucket;
     private final String publicBaseUrl;
@@ -49,6 +52,7 @@ public class ObjectUploadApplicationService {
             OssObjectVersionRepository versionRepository,
             OssUploadSessionRepository uploadSessionRepository,
             OssObjectAliasRepository aliasRepository,
+            OssUsagePolicyRepository policyRepository,
             ObjectStore objectStore,
             OssProperties properties,
             Clock clock
@@ -58,6 +62,7 @@ public class ObjectUploadApplicationService {
                 versionRepository,
                 uploadSessionRepository,
                 aliasRepository,
+                policyRepository,
                 objectStore,
                 properties.objectStore().bucket(),
                 properties.publicBaseUrl(),
@@ -75,10 +80,35 @@ public class ObjectUploadApplicationService {
             String publicBaseUrl,
             Clock clock
     ) {
+        this(
+                objectRepository,
+                versionRepository,
+                uploadSessionRepository,
+                aliasRepository,
+                null,
+                objectStore,
+                storageBucket,
+                publicBaseUrl,
+                clock
+        );
+    }
+
+    public ObjectUploadApplicationService(
+            OssObjectRepository objectRepository,
+            OssObjectVersionRepository versionRepository,
+            OssUploadSessionRepository uploadSessionRepository,
+            OssObjectAliasRepository aliasRepository,
+            OssUsagePolicyRepository policyRepository,
+            ObjectStore objectStore,
+            String storageBucket,
+            String publicBaseUrl,
+            Clock clock
+    ) {
         this.objectRepository = objectRepository;
         this.versionRepository = versionRepository;
         this.uploadSessionRepository = uploadSessionRepository;
         this.aliasRepository = aliasRepository;
+        this.policyRepository = policyRepository;
         this.objectStore = objectStore;
         this.storageBucket = requireText(storageBucket, "storageBucket");
         this.publicBaseUrl = normalizeBaseUrl(publicBaseUrl);
@@ -88,6 +118,12 @@ public class ObjectUploadApplicationService {
     @Transactional
     public ObjectUploadSessionResult prepareUpload(PrepareObjectUploadCommand command) {
         requirePrepareCommand(command);
+        Optional<OssUsagePolicy> policy = usagePolicy(command.usage());
+        policy.ifPresent(value -> value.validateUpload(
+                command.contentType(),
+                command.contentLength(),
+                command.checksumSha256()
+        ));
         Instant now = clock.instant();
         UUID objectId = UUID.randomUUID();
         UUID versionId = UUID.randomUUID();
@@ -102,7 +138,7 @@ public class ObjectUploadApplicationService {
                 command.ownerDomain(),
                 command.ownerType(),
                 command.ownerId(),
-                parseVisibility(command.visibility()),
+                resolveVisibility(command.visibility(), policy),
                 command.actorId(),
                 now
         );
@@ -134,7 +170,7 @@ public class ObjectUploadApplicationService {
                 command.aliasKey(),
                 command.actorId(),
                 now,
-                now.plus(DEFAULT_SESSION_TTL)
+                now.plus(uploadTtl(policy))
         );
 
         objectRepository.save(object);
@@ -170,6 +206,14 @@ public class ObjectUploadApplicationService {
                 .orElseThrow(() -> new IllegalArgumentException("object version not found"));
         ObjectUploadContent content = command.content();
         validateContent(session, content);
+        if (!object.objectId().equals(version.objectId())) {
+            throw new IllegalArgumentException("object version does not belong to object");
+        }
+        usagePolicy(object.usage()).ifPresent(policy -> policy.validateUpload(
+                content.contentType(),
+                content.contentLength(),
+                content.checksumSha256()
+        ));
 
         try (InputStream in = content.openStream()) {
             objectStore.put(version.storageBucket(), version.storageKey(), in, content.contentLength(), content.contentType());
@@ -240,8 +284,30 @@ public class ObjectUploadApplicationService {
         requireText(command.ownerDomain(), "ownerDomain");
         requireText(command.ownerType(), "ownerType");
         requireText(command.ownerId(), "ownerId");
-        requireText(command.visibility(), "visibility");
         requireText(command.fileName(), "fileName");
+    }
+
+    private Optional<OssUsagePolicy> usagePolicy(String usage) {
+        if (policyRepository == null) {
+            return Optional.empty();
+        }
+        Optional<OssUsagePolicy> policy = policyRepository.findByUsage(usage);
+        return policy == null ? Optional.empty() : policy;
+    }
+
+    private Duration uploadTtl(Optional<OssUsagePolicy> policy) {
+        return policy
+                .map(value -> Duration.ofSeconds(value.uploadTtlSeconds()))
+                .orElse(DEFAULT_SESSION_TTL);
+    }
+
+    private OssVisibility resolveVisibility(String requestedVisibility, Optional<OssUsagePolicy> policy) {
+        if (requestedVisibility != null && !requestedVisibility.isBlank()) {
+            return parseVisibility(requestedVisibility);
+        }
+        return policy
+                .map(OssUsagePolicy::defaultVisibility)
+                .orElseGet(() -> parseVisibility(requestedVisibility));
     }
 
     private OssVisibility parseVisibility(String value) {

@@ -80,6 +80,118 @@ class ObjectQueryApplicationServiceTest {
         assertThat(objectStore.capturedKey).isEqualTo("objects/1/2/avatar.png");
     }
 
+    @Test
+    void resolvePublicFileShouldRejectNonPublicCanonicalPath() {
+        UUID objectId = uuid(1);
+        UUID versionId = uuid(2);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        objectRepository.save(OssObject.stage(
+                objectId,
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "avatar",
+                "7",
+                OssVisibility.SIGNED,
+                "7",
+                NOW
+        ).activate(version, NOW.plusSeconds(1)));
+        versionRepository.save(version);
+        ObjectQueryApplicationService service = new ObjectQueryApplicationService(
+                objectRepository,
+                versionRepository,
+                new FakeAliasRepository(),
+                objectStore,
+                properties("http://localhost:12880/")
+        );
+
+        ObjectDownloadResult download = service.resolvePublicFile(objectId + "/" + versionId + "/avatar.png");
+
+        assertThat(download).isNull();
+        assertThat(objectStore.capturedKey).isNull();
+    }
+
+    @Test
+    void resolvePublicFileShouldRejectUnavailableCanonicalObject() {
+        UUID objectId = uuid(1);
+        UUID versionId = uuid(2);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        OssObject object = OssObject.stage(
+                objectId,
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "avatar",
+                "7",
+                OssVisibility.PUBLIC,
+                "7",
+                NOW
+        ).activate(version, NOW.plusSeconds(1)).deletePending(NOW.plusSeconds(2));
+        objectRepository.save(object);
+        versionRepository.save(version);
+        ObjectQueryApplicationService service = new ObjectQueryApplicationService(
+                objectRepository,
+                versionRepository,
+                new FakeAliasRepository(),
+                objectStore,
+                properties("http://localhost:12880/")
+        );
+
+        ObjectDownloadResult download = service.resolvePublicFile(objectId + "/" + versionId + "/avatar.png");
+
+        assertThat(download).isNull();
+        assertThat(objectStore.capturedKey).isNull();
+    }
+
+    @Test
+    void resolvePublicFileShouldRejectExpiredAlias() {
+        UUID objectId = uuid(1);
+        UUID versionId = uuid(2);
+        FakeObjectRepository objectRepository = new FakeObjectRepository();
+        FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
+        FakeAliasRepository aliasRepository = new FakeAliasRepository();
+        CapturingObjectStore objectStore = new CapturingObjectStore();
+        OssObjectVersion version = activeVersion(objectId, versionId);
+        objectRepository.save(OssObject.stage(
+                objectId,
+                "USER_AVATAR",
+                "community-app",
+                "user",
+                "avatar",
+                "7",
+                OssVisibility.PUBLIC,
+                "7",
+                NOW
+        ).activate(version, NOW.plusSeconds(1)));
+        versionRepository.save(version);
+        aliasRepository.save(new OssObjectAlias(
+                "avatar/7/0123456789abcdef0123456789abcdef",
+                objectId,
+                versionId,
+                "ACTIVE",
+                NOW.minusSeconds(1),
+                NOW
+        ));
+        ObjectQueryApplicationService service = new ObjectQueryApplicationService(
+                objectRepository,
+                versionRepository,
+                aliasRepository,
+                objectStore,
+                properties("http://localhost:12880/")
+        );
+
+        ObjectDownloadResult download = service.resolvePublicFile("avatar/7/0123456789abcdef0123456789abcdef");
+
+        assertThat(download).isNull();
+        assertThat(objectStore.capturedKey).isNull();
+    }
+
     private static OssObjectVersion activeVersion(UUID objectId, UUID versionId) {
         return OssObjectVersion.staged(
                 versionId,

@@ -105,7 +105,7 @@ public class LocalFilesystemObjectStore implements ObjectStore {
     @Override
     public PresignedObjectUrl presignDownload(String bucket, String key, Duration ttl) {
         return new PresignedObjectUrl(
-                publicBaseUrl + "/files/" + key,
+                publicBaseUrl + "/files/" + canonicalPublicPath(key),
                 "GET",
                 Instant.now().plus(normalizeTtl(ttl)),
                 Map.of()
@@ -167,6 +167,15 @@ public class LocalFilesystemObjectStore implements ObjectStore {
         String normalized = value.trim();
         if (normalized.startsWith("/") || normalized.contains("\\") || normalized.contains("..") || normalized.contains("\u0000")) {
             throw new IllegalArgumentException("key is invalid");
+        }
+        return normalized;
+    }
+
+    private String canonicalPublicPath(String key) {
+        String normalized = normalizeObjectKey(key);
+        String prefix = "objects/";
+        if (normalized.startsWith(prefix)) {
+            return normalized.substring(prefix.length());
         }
         return normalized;
     }

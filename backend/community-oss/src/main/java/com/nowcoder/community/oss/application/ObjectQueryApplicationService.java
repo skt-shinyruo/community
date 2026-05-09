@@ -3,8 +3,11 @@ package com.nowcoder.community.oss.application;
 import com.nowcoder.community.oss.application.result.ObjectDownloadResult;
 import com.nowcoder.community.oss.application.result.ObjectMetadataResult;
 import com.nowcoder.community.oss.domain.model.OssObject;
+import com.nowcoder.community.oss.domain.model.OssObjectStatus;
 import com.nowcoder.community.oss.domain.model.OssObjectAlias;
 import com.nowcoder.community.oss.domain.model.OssObjectVersion;
+import com.nowcoder.community.oss.domain.model.OssObjectVersionStatus;
+import com.nowcoder.community.oss.domain.model.OssVisibility;
 import com.nowcoder.community.oss.domain.repository.OssObjectAliasRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
@@ -12,9 +15,12 @@ import com.nowcoder.community.oss.infrastructure.config.OssProperties;
 import com.nowcoder.community.oss.infrastructure.storage.ObjectStore;
 import com.nowcoder.community.oss.infrastructure.storage.ObjectStoreObject;
 import com.nowcoder.community.oss.infrastructure.storage.StoredObject;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -26,6 +32,24 @@ public class ObjectQueryApplicationService {
     private final OssObjectAliasRepository aliasRepository;
     private final ObjectStore objectStore;
     private final String publicBaseUrl;
+    private final Clock clock;
+
+    @Autowired
+    public ObjectQueryApplicationService(
+            OssObjectRepository objectRepository,
+            OssObjectVersionRepository versionRepository,
+            OssObjectAliasRepository aliasRepository,
+            ObjectStore objectStore,
+            OssProperties properties,
+            Clock clock
+    ) {
+        this.objectRepository = objectRepository;
+        this.versionRepository = versionRepository;
+        this.aliasRepository = aliasRepository;
+        this.objectStore = objectStore;
+        this.publicBaseUrl = normalizeBaseUrl(properties.publicBaseUrl());
+        this.clock = clock == null ? Clock.systemUTC() : clock;
+    }
 
     public ObjectQueryApplicationService(
             OssObjectRepository objectRepository,
@@ -34,11 +58,7 @@ public class ObjectQueryApplicationService {
             ObjectStore objectStore,
             OssProperties properties
     ) {
-        this.objectRepository = objectRepository;
-        this.versionRepository = versionRepository;
-        this.aliasRepository = aliasRepository;
-        this.objectStore = objectStore;
-        this.publicBaseUrl = normalizeBaseUrl(properties.publicBaseUrl());
+        this(objectRepository, versionRepository, aliasRepository, objectStore, properties, Clock.systemUTC());
     }
 
     public ObjectMetadataResult getMetadata(UUID objectId) {
@@ -80,7 +100,7 @@ public class ObjectQueryApplicationService {
                 UUID versionId = UUID.fromString(parts[1]);
                 OssObject object = objectRepository.findById(objectId).orElse(null);
                 OssObjectVersion version = versionRepository.findById(versionId).orElse(null);
-                return object == null || version == null ? null : new ResolvedVersion(object, version);
+                return availablePublicVersion(object, version) ? new ResolvedVersion(object, version) : null;
             } catch (IllegalArgumentException ignored) {
                 // Legacy aliases are not UUID-addressed.
             }
@@ -89,17 +109,25 @@ public class ObjectQueryApplicationService {
         if (alias.isEmpty()) {
             return null;
         }
-        OssObject object = objectRepository.findById(alias.get().objectId()).orElse(null);
-        OssObjectVersion version = versionRepository.findById(alias.get().versionId()).orElse(null);
-        if (object == null || version == null) {
+        Instant now = clock.instant();
+        if (!alias.get().activeAt(now)) {
             return null;
         }
-        if (object.status() == com.nowcoder.community.oss.domain.model.OssObjectStatus.DELETE_PENDING
-                || object.status() == com.nowcoder.community.oss.domain.model.OssObjectStatus.PURGED
-                || version.status() == com.nowcoder.community.oss.domain.model.OssObjectVersionStatus.PURGED) {
+        OssObject object = objectRepository.findById(alias.get().objectId()).orElse(null);
+        OssObjectVersion version = versionRepository.findById(alias.get().versionId()).orElse(null);
+        if (!availablePublicVersion(object, version)) {
             return null;
         }
         return new ResolvedVersion(object, version);
+    }
+
+    private boolean availablePublicVersion(OssObject object, OssObjectVersion version) {
+        return object != null
+                && version != null
+                && object.objectId().equals(version.objectId())
+                && object.visibility() == OssVisibility.PUBLIC
+                && object.status() == OssObjectStatus.ACTIVE
+                && version.status() == OssObjectVersionStatus.ACTIVE;
     }
 
     private ObjectMetadataResult toMetadataResult(OssObject object, OssObjectVersion version) {

@@ -5,8 +5,11 @@ import com.nowcoder.community.oss.application.command.ReleaseObjectReferenceComm
 import com.nowcoder.community.oss.application.result.ObjectReferenceResult;
 import com.nowcoder.community.oss.domain.model.OssObject;
 import com.nowcoder.community.oss.domain.model.OssObjectReference;
+import com.nowcoder.community.oss.domain.model.OssObjectVersion;
+import com.nowcoder.community.oss.domain.model.OssObjectVersionStatus;
 import com.nowcoder.community.oss.domain.repository.OssObjectReferenceRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
+import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,15 +21,18 @@ import java.util.UUID;
 public class ObjectReferenceApplicationService {
 
     private final OssObjectRepository objectRepository;
+    private final OssObjectVersionRepository versionRepository;
     private final OssObjectReferenceRepository referenceRepository;
     private final Clock clock;
 
     public ObjectReferenceApplicationService(
             OssObjectRepository objectRepository,
+            OssObjectVersionRepository versionRepository,
             OssObjectReferenceRepository referenceRepository,
             Clock clock
     ) {
         this.objectRepository = objectRepository;
+        this.versionRepository = versionRepository;
         this.referenceRepository = referenceRepository;
         this.clock = clock == null ? Clock.systemUTC() : clock;
     }
@@ -37,6 +43,8 @@ public class ObjectReferenceApplicationService {
         OssObject object = requireObject(command.objectId());
         Instant now = clock.instant();
         UUID versionId = command.versionId() == null ? object.currentVersionId() : command.versionId();
+        requireVersionBelongsToObject(object, versionId);
+        ensureVersionActive(versionId);
         OssObjectReference reference = OssObjectReference.active(
                 UUID.randomUUID(),
                 object.objectId(),
@@ -83,6 +91,28 @@ public class ObjectReferenceApplicationService {
     private OssObject requireObject(UUID objectId) {
         return objectRepository.findById(objectId)
                 .orElseThrow(() -> new IllegalArgumentException("object not found"));
+    }
+
+    private void requireVersionBelongsToObject(OssObject object, UUID versionId) {
+        if (versionId == null) {
+            return;
+        }
+        OssObjectVersion version = versionRepository.findById(versionId)
+                .orElseThrow(() -> new IllegalArgumentException("object version not found"));
+        if (!object.objectId().equals(version.objectId())) {
+            throw new IllegalArgumentException("object version does not belong to object");
+        }
+    }
+
+    private void ensureVersionActive(UUID versionId) {
+        if (versionId == null) {
+            return;
+        }
+        OssObjectVersion version = versionRepository.findById(versionId)
+                .orElseThrow(() -> new IllegalArgumentException("object version not found"));
+        if (version.status() != OssObjectVersionStatus.ACTIVE) {
+            throw new IllegalStateException("object version is not available for reference");
+        }
     }
 
     private ObjectReferenceResult toResult(OssObjectReference reference) {

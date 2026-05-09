@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.drive.infrastructure.persistence.mapper.DriveSpaceMapper">
+
+    <sql id="fields">
+        space_id, user_id, quota_bytes, used_bytes, created_at, updated_at
+    </sql>
+
+    <select id="selectByUserId" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveSpaceDataObject">
+        select <include refid="fields"/>
+        from drive_space
+        where user_id = #{userId, jdbcType=BINARY}
+    </select>
+
+    <select id="selectById" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveSpaceDataObject">
+        select <include refid="fields"/>
+        from drive_space
+        where space_id = #{spaceId, jdbcType=BINARY}
+    </select>
+
+    <insert id="insert" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveSpaceDataObject">
+        insert into drive_space(space_id, user_id, quota_bytes, used_bytes, created_at, updated_at)
+        values(
+            #{spaceId, jdbcType=BINARY},
+            #{userId, jdbcType=BINARY},
+            #{quotaBytes},
+            #{usedBytes},
+            #{createdAt},
+            #{updatedAt}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveSpaceDataObject">
+        update drive_space
+        set user_id = #{userId, jdbcType=BINARY},
+            quota_bytes = #{quotaBytes},
+            used_bytes = #{usedBytes},
+            created_at = #{createdAt},
+            updated_at = #{updatedAt}
+        where space_id = #{spaceId, jdbcType=BINARY}
+    </update>
+
+</mapper>

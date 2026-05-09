@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.drive.infrastructure.persistence.mapper.DriveUploadMapper">
+
+    <sql id="fields">
+        upload_id, space_id, parent_id, name, size_bytes, mime_type, object_id, version_id,
+        oss_session_id, status, created_by, created_at, expires_at, completed_entry_id
+    </sql>
+
+    <select id="selectById" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveUploadDataObject">
+        select <include refid="fields"/>
+        from drive_upload
+        where upload_id = #{uploadId, jdbcType=BINARY}
+    </select>
+
+    <insert id="insert" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveUploadDataObject">
+        insert into drive_upload(
+            upload_id, space_id, parent_id, name, size_bytes, mime_type, object_id, version_id,
+            oss_session_id, status, created_by, created_at, expires_at, completed_entry_id
+        )
+        values(
+            #{uploadId, jdbcType=BINARY},
+            #{spaceId, jdbcType=BINARY},
+            #{parentId, jdbcType=BINARY},
+            #{name},
+            #{sizeBytes},
+            #{mimeType},
+            #{objectId, jdbcType=BINARY},
+            #{versionId, jdbcType=BINARY},
+            #{ossSessionId, jdbcType=BINARY},
+            #{status},
+            #{createdBy, jdbcType=BINARY},
+            #{createdAt},
+            #{expiresAt},
+            #{completedEntryId, jdbcType=BINARY}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveUploadDataObject">
+        update drive_upload
+        set space_id = #{spaceId, jdbcType=BINARY},
+            parent_id = #{parentId, jdbcType=BINARY},
+            name = #{name},
+            size_bytes = #{sizeBytes},
+            mime_type = #{mimeType},
+            object_id = #{objectId, jdbcType=BINARY},
+            version_id = #{versionId, jdbcType=BINARY},
+            oss_session_id = #{ossSessionId, jdbcType=BINARY},
+            status = #{status},
+            created_by = #{createdBy, jdbcType=BINARY},
+            created_at = #{createdAt},
+            expires_at = #{expiresAt},
+            completed_entry_id = #{completedEntryId, jdbcType=BINARY}
+        where upload_id = #{uploadId, jdbcType=BINARY}
+    </update>
+
+</mapper>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.drive.infrastructure.persistence.mapper.DriveShareAccessMapper">
+
+    <insert id="insert" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveShareAccessDataObject">
+        insert into drive_share_access(access_id, share_id, visitor_fingerprint, success, accessed_at)
+        values(
+            #{accessId, jdbcType=BINARY},
+            #{shareId, jdbcType=BINARY},
+            #{visitorFingerprint},
+            #{success},
+            #{accessedAt}
+        )
+    </insert>
+
+</mapper>

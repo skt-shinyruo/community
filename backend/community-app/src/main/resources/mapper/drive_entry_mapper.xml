@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nowcoder.community.drive.infrastructure.persistence.mapper.DriveEntryMapper">
+
+    <sql id="fields">
+        entry_id, space_id, parent_id, parent_key, active_name, type, name, object_id, version_id,
+        size_bytes, mime_type, status, trashed_at, delete_after, created_at, updated_at
+    </sql>
+
+    <select id="selectById" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveEntryDataObject">
+        select <include refid="fields"/>
+        from drive_entry
+        where space_id = #{spaceId, jdbcType=BINARY}
+          and entry_id = #{entryId, jdbcType=BINARY}
+    </select>
+
+    <select id="selectActiveChildByName" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveEntryDataObject">
+        select <include refid="fields"/>
+        from drive_entry
+        where space_id = #{spaceId, jdbcType=BINARY}
+          and parent_key = #{parentKey}
+          and active_name = #{name}
+          and status = 'ACTIVE'
+          and (
+            (parent_id is null and #{parentId, jdbcType=BINARY} is null)
+            or parent_id = #{parentId, jdbcType=BINARY}
+          )
+    </select>
+
+    <select id="selectActiveChildren" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveEntryDataObject">
+        select <include refid="fields"/>
+        from drive_entry
+        where space_id = #{spaceId, jdbcType=BINARY}
+          and parent_key = #{parentKey}
+          and status = 'ACTIVE'
+          and (
+            (parent_id is null and #{parentId, jdbcType=BINARY} is null)
+            or parent_id = #{parentId, jdbcType=BINARY}
+          )
+        order by type asc, name asc, entry_id asc
+    </select>
+
+    <select id="selectTrash" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveEntryDataObject">
+        select <include refid="fields"/>
+        from drive_entry
+        where space_id = #{spaceId, jdbcType=BINARY}
+          and status = 'TRASHED'
+        order by trashed_at desc, entry_id desc
+    </select>
+
+    <select id="searchActive" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveEntryDataObject">
+        select <include refid="fields"/>
+        from drive_entry
+        where space_id = #{spaceId, jdbcType=BINARY}
+          and status = 'ACTIVE'
+          and lower(name) like concat('%', lower(#{keyword}), '%')
+        order by name asc, entry_id asc
+        limit #{limit}
+    </select>
+
+    <select id="selectDescendants" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveEntryDataObject">
+        with recursive descendants(
+            entry_id, space_id, parent_id, parent_key, active_name, type, name, object_id, version_id,
+            size_bytes, mime_type, status, trashed_at, delete_after, created_at, updated_at, tree_order
+        ) as (
+            select <include refid="fields"/>, cast(concat(name, '/', entry_id) as varchar(4096)) as tree_order
+            from drive_entry
+            where space_id = #{spaceId, jdbcType=BINARY}
+              and parent_id = #{folderId, jdbcType=BINARY}
+            union all
+            select child.entry_id, child.space_id, child.parent_id, child.parent_key, child.active_name,
+                   child.type, child.name, child.object_id, child.version_id, child.size_bytes,
+                   child.mime_type, child.status, child.trashed_at, child.delete_after,
+                   child.created_at, child.updated_at,
+                   concat(descendants.tree_order, '/', child.name, '/', child.entry_id)
+            from drive_entry child
+            join descendants on child.parent_id = descendants.entry_id
+            where child.space_id = #{spaceId, jdbcType=BINARY}
+        )
+        select entry_id, space_id, parent_id, parent_key, active_name, type, name, object_id, version_id,
+               size_bytes, mime_type, status, trashed_at, delete_after, created_at, updated_at
+        from descendants
+        order by tree_order
+    </select>
+
+    <select id="selectChildrenForTree" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveEntryDataObject">
+        select <include refid="fields"/>
+        from drive_entry
+        where space_id = #{spaceId, jdbcType=BINARY}
+          and parent_id = #{parentId, jdbcType=BINARY}
+        order by name asc, entry_id asc
+    </select>
+
+    <insert id="insert" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveEntryDataObject">
+        insert into drive_entry(
+            entry_id, space_id, parent_id, parent_key, active_name, type, name, object_id, version_id,
+            size_bytes, mime_type, status, trashed_at, delete_after, created_at, updated_at
+        )
+        values(
+            #{entryId, jdbcType=BINARY},
+            #{spaceId, jdbcType=BINARY},
+            #{parentId, jdbcType=BINARY},
+            #{parentKey},
+            #{activeName},
+            #{type},
+            #{name},
+            #{objectId, jdbcType=BINARY},
+            #{versionId, jdbcType=BINARY},
+            #{sizeBytes},
+            #{mimeType},
+            #{status},
+            #{trashedAt},
+            #{deleteAfter},
+            #{createdAt},
+            #{updatedAt}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveEntryDataObject">
+        update drive_entry
+        set space_id = #{spaceId, jdbcType=BINARY},
+            parent_id = #{parentId, jdbcType=BINARY},
+            parent_key = #{parentKey},
+            active_name = #{activeName},
+            type = #{type},
+            name = #{name},
+            object_id = #{objectId, jdbcType=BINARY},
+            version_id = #{versionId, jdbcType=BINARY},
+            size_bytes = #{sizeBytes},
+            mime_type = #{mimeType},
+            status = #{status},
+            trashed_at = #{trashedAt},
+            delete_after = #{deleteAfter},
+            created_at = #{createdAt},
+            updated_at = #{updatedAt}
+        where entry_id = #{entryId, jdbcType=BINARY}
+    </update>
+
+</mapper>

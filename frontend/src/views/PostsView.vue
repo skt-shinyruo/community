@@ -63,7 +63,7 @@
           <UiIconButton
             class="posts-composer-close"
             aria-label="关闭发帖编辑器"
-            @click="isPublishFocused = false"
+            @click="closeComposer"
           >
             ×
           </UiIconButton>
@@ -338,6 +338,7 @@ const {
   composerTagSuggestNames,
   creating,
   createError,
+  closeComposer,
   seenBaselineAt,
   toMs,
   activityTime,

@@ -201,6 +201,21 @@ export function usePostsFeed(emit) {
     newTagDraft.value = result.draft
   }
 
+  function resetComposerDraft() {
+    createError.value = ''
+    newTitle.value = ''
+    newBlocks.value = [{ type: 'paragraph', text: '' }]
+    newCategoryId.value = ''
+    newTagDraft.value = ''
+    newTags.value = []
+    newTagError.value = ''
+  }
+
+  function closeComposer() {
+    resetComposerDraft()
+    isPublishFocused.value = false
+  }
+
   function onTagDraftKeydown(e) {
     const key = String(e?.key || '')
     if (key === ',' || key === '，') {
@@ -240,6 +255,7 @@ export function usePostsFeed(emit) {
 
       if (state === 'uploading' || state === 'pending') return '媒体仍在上传，请等待上传完成后再发布'
       if (state === 'failed') return '媒体上传失败，请重试或移除后再发布'
+      if (state === 'completed' && !hasAsset) return '媒体上传失败，请重试或移除后再发布'
       if (!hasAsset && hasLocalMediaSelection(block)) return '媒体仍在上传，请等待上传完成后再发布'
     }
     return ''
@@ -589,12 +605,7 @@ export function usePostsFeed(emit) {
         onAction: hasPostId ? () => router.push({ name: 'postDetail', params: { postId: String(createdPostId) } }) : null
       })
       
-      newTitle.value = ''
-      newBlocks.value = [{ type: 'paragraph', text: '' }]
-      newCategoryId.value = ''
-      newTagDraft.value = ''
-      newTags.value = []
-      newTagError.value = ''
+      resetComposerDraft()
       isPublishFocused.value = false 
       await reload()
     } catch (e) {
@@ -684,6 +695,7 @@ export function usePostsFeed(emit) {
     composerTagSuggestNames,
     creating,
     createError,
+    closeComposer,
     seenBaselineAt,
     toMs,
     activityTime,

@@ -64,6 +64,32 @@ describe('PostBlockEditor', () => {
     })
   })
 
+  it('keeps media blocks failed when upload session has no asset id', async () => {
+    preparePostMediaUpload.mockResolvedValue({
+      data: {
+        uploadId: 'upload-1',
+        upload: { url: '/upload', method: 'POST', fileField: 'file', fields: {}, headers: {} },
+        constraints: { maxBytes: 10, mimeTypes: ['image/png'] }
+      }
+    })
+    const wrapper = mount(PostBlockEditor, {
+      props: { modelValue: [{ type: 'image', assetId: '', caption: '', uploadState: 'idle' }] }
+    })
+    const file = new File(['image'], 'demo.png', { type: 'image/png' })
+
+    await wrapper.getComponent(UiFileInput).vm.$emit('update:modelValue', file)
+    await flushPromises()
+
+    const emitted = wrapper.emitted('update:modelValue').at(-1)[0]
+    expect(emitted).toHaveLength(1)
+    expect(emitted[0]).toMatchObject({
+      type: 'image',
+      uploadState: 'failed',
+      assetId: ''
+    })
+    expect(wrapper.text()).toContain('上传失败')
+  })
+
   it('removes text and code blocks with contextual controls', async () => {
     const wrapper = mount(PostBlockEditor, {
       props: {

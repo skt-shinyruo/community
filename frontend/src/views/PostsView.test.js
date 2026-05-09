@@ -176,6 +176,37 @@ describe('PostsView', () => {
     expect(wrapper.get('.posts-composer-submit-error').text()).toContain(message)
   })
 
+  it('resets blocked media draft state when the composer is closed and reopened', async () => {
+    const wrapper = mountView()
+    await openComposer(wrapper)
+    await wrapper.get('input[name="post-title"]').setValue('hello')
+    await wrapper.getComponent(PostBlockEditor).vm.$emit('update:modelValue', [
+      { type: 'paragraph', text: 'body', clientId: 'local-text' },
+      { type: 'image', assetId: '', caption: 'caption', uploadState: 'uploading', clientId: 'local-image' }
+    ])
+    await nextTick()
+
+    await wrapper.get('.posts-composer-close').trigger('click')
+    await nextTick()
+    await wrapper.get('.posts-feed-compose-strip').trigger('click')
+    await nextTick()
+
+    expect(wrapper.get('input[name="post-title"]').element.value).toBe('')
+    expect(wrapper.find('.posts-composer-submit-error').text()).toBe('')
+    expect(wrapper.getComponent(PostBlockEditor).props('modelValue')).toEqual([{ type: 'paragraph', text: '' }])
+
+    await wrapper.get('input[name="post-title"]').setValue('clean')
+    await wrapper.get('[data-test="block-text-0"]').setValue('body')
+    await wrapper.get('.posts-composer-submit').trigger('click')
+    await flushPromises()
+
+    expect(createPost).toHaveBeenCalledTimes(1)
+    expect(createPost).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'clean',
+      blocks: [expect.objectContaining({ type: 'paragraph', text: 'body' })]
+    }))
+  })
+
   it('strips client-only block fields from create payload', async () => {
     const wrapper = mountView()
     await openComposer(wrapper)

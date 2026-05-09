@@ -121,9 +121,13 @@ async function uploadFile(file) {
 
   try {
     const session = await preparePostMediaUpload({ file, mediaKind: mediaKind.value })
+    const assetId = String(session?.data?.assetId || '').trim()
+    if (!assetId) {
+      throw new Error('missing asset id')
+    }
     await uploadPostMediaFile({ session: session?.data, file })
     updateBlock({
-      assetId: String(session?.data?.assetId || ''),
+      assetId,
       uploadState: 'completed',
       ...(isFile.value && !props.block?.displayName ? { displayName: file.name || '' } : {})
     })

@@ -145,39 +145,39 @@
   min-height: 220px;
 }
 
-.posts-composer-block-editor :deep(.post-block-editor-toolbar) {
+.posts-composer-block-editor .post-block-editor-toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.posts-composer-block-editor :deep(.post-block) {
+.posts-composer-block-editor .post-block {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px;
   background: var(--surface);
 }
 
-.posts-composer-block-editor :deep(.post-block-editor-textarea) {
+.posts-composer-block-editor .post-block-editor-textarea {
   resize: vertical;
 }
 
-.posts-composer-block-editor :deep(.post-block-editor-language) {
+.posts-composer-block-editor .post-block-editor-language {
   margin-top: 10px;
 }
 
-.posts-composer-block-editor :deep(.post-media-upload-block) {
+.posts-composer-block-editor .post-media-upload-block {
   display: grid;
   gap: 10px;
 }
 
-.posts-composer-block-editor :deep(.post-media-upload-status) {
+.posts-composer-block-editor .post-media-upload-status {
   color: var(--text-2);
   font-size: 12px;
   font-weight: 700;
 }
 
-.posts-composer-block-editor :deep(.post-media-upload-actions) {
+.posts-composer-block-editor .post-media-upload-actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -202,7 +202,7 @@
   width: 100%;
 }
 
-.posts-composer-category-select :deep(.ui-select-trigger) {
+.posts-composer-category-select .ui-select-trigger {
   width: 100%;
 }
 
@@ -315,11 +315,11 @@
   color: var(--text-2);
 }
 
-.posts-empty-inline :deep(.empty-state) {
+.posts-empty-inline .empty-state {
   padding: 8px 0 2px;
 }
 
-.posts-empty-inline :deep(.empty-card) {
+.posts-empty-inline .empty-card {
   width: 100%;
   border-style: solid;
   border-color: color-mix(in srgb, var(--border) 74%, transparent 26%);

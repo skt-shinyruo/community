@@ -43,6 +43,7 @@ vi.mock('../api/services/taxonomyService', () => ({
 
 import PostsView from './PostsView.vue'
 import UiAutosuggestInput from '../components/ui/UiAutosuggestInput.vue'
+import PostBlockEditor from '../components/posts/PostBlockEditor.vue'
 import { createPost, listPosts } from '../api/services/postService'
 
 describe('PostsView', () => {
@@ -151,6 +152,62 @@ describe('PostsView', () => {
     expect(createPost).toHaveBeenCalledWith(expect.objectContaining({
       title: 'hello',
       blocks: [expect.objectContaining({ type: 'paragraph', text: 'body' })]
+    }))
+  })
+
+  it.each([
+    ['pending', '媒体仍在上传，请等待上传完成后再发布'],
+    ['uploading', '媒体仍在上传，请等待上传完成后再发布'],
+    ['failed', '媒体上传失败，请重试或移除后再发布']
+  ])('blocks publish while a media block is %s', async (uploadState, message) => {
+    const wrapper = mountView()
+    await openComposer(wrapper)
+    await wrapper.get('input[name="post-title"]').setValue('hello')
+    await wrapper.getComponent(PostBlockEditor).vm.$emit('update:modelValue', [
+      { type: 'paragraph', text: 'body', clientId: 'local-text' },
+      { type: 'image', assetId: '', caption: 'caption', uploadState, clientId: 'local-image' }
+    ])
+    await nextTick()
+
+    await wrapper.get('.posts-composer-submit').trigger('click')
+    await flushPromises()
+
+    expect(createPost).not.toHaveBeenCalled()
+    expect(wrapper.get('.posts-composer-submit-error').text()).toContain(message)
+  })
+
+  it('strips client-only block fields from create payload', async () => {
+    const wrapper = mountView()
+    await openComposer(wrapper)
+    await wrapper.get('input[name="post-title"]').setValue('hello')
+    await wrapper.getComponent(PostBlockEditor).vm.$emit('update:modelValue', [
+      {
+        type: 'image',
+        assetId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
+        caption: 'caption',
+        uploadState: 'completed',
+        clientId: 'local-image',
+        selectedFile: new File(['image'], 'demo.png', { type: 'image/png' }),
+        previewUrl: 'blob:http://localhost/demo',
+        uploadError: 'old error',
+        error: 'old error'
+      }
+    ])
+    await nextTick()
+
+    await wrapper.get('.posts-composer-submit').trigger('click')
+    await flushPromises()
+
+    expect(createPost).toHaveBeenCalledTimes(1)
+    expect(createPost).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'hello',
+      blocks: [
+        {
+          type: 'image',
+          assetId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
+          caption: 'caption'
+        }
+      ]
     }))
   })
 })

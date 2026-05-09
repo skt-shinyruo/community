@@ -214,22 +214,54 @@ export function usePostsFeed(emit) {
     newTags.value = (Array.isArray(newTags.value) ? newTags.value : []).filter((x) => String(x || '').toLowerCase() !== key)
   }
 
+  function isMediaBlock(block) {
+    return ['image', 'video', 'file'].includes(String(block?.type || '').toLowerCase())
+  }
+
+  function hasLocalMediaSelection(block) {
+    return !!(
+      block?.selectedFile ||
+      block?.file ||
+      block?.previewUrl ||
+      block?.localPreviewUrl ||
+      block?.uploadId ||
+      block?.uploadError ||
+      block?.error
+    )
+  }
+
+  function validateMediaBlocks() {
+    const blocks = Array.isArray(newBlocks.value) ? newBlocks.value : []
+    for (const block of blocks) {
+      if (!isMediaBlock(block)) continue
+
+      const state = String(block?.uploadState || '').toLowerCase()
+      const hasAsset = !!normalizeOpaqueId(block?.assetId)
+
+      if (state === 'uploading' || state === 'pending') return '媒体仍在上传，请等待上传完成后再发布'
+      if (state === 'failed') return '媒体上传失败，请重试或移除后再发布'
+      if (!hasAsset && hasLocalMediaSelection(block)) return '媒体仍在上传，请等待上传完成后再发布'
+    }
+    return ''
+  }
+
   function publishableBlocks() {
     return (Array.isArray(newBlocks.value) ? newBlocks.value : [])
-      .map((b) => ({ ...b }))
       .filter((b) => {
-        if (['paragraph', 'code'].includes(b.type)) return String(b.text || '').trim()
-        if (['image', 'video', 'file'].includes(b.type)) return normalizeOpaqueId(b.assetId)
+        const type = String(b?.type || '').toLowerCase()
+        if (['paragraph', 'code'].includes(type)) return String(b?.text || '').trim()
+        if (['image', 'video', 'file'].includes(type)) return normalizeOpaqueId(b?.assetId)
         return false
       })
       .map((b) => {
-        const clean = { type: b.type }
-        if (b.text != null) clean.text = String(b.text)
-        if (b.assetId) clean.assetId = normalizeOpaqueId(b.assetId)
-        if (b.language) clean.language = String(b.language)
-        if (b.caption) clean.caption = String(b.caption)
-        if (b.displayName) clean.displayName = String(b.displayName)
-        if (b.metadata) clean.metadata = b.metadata
+        const type = String(b?.type || '').toLowerCase()
+        const clean = { type }
+        if (b?.text != null && (type === 'paragraph' || type === 'code')) clean.text = String(b.text)
+        if (isMediaBlock(b)) clean.assetId = normalizeOpaqueId(b.assetId)
+        if (type === 'code' && b?.language) clean.language = String(b.language)
+        if ((type === 'image' || type === 'video') && b?.caption) clean.caption = String(b.caption)
+        if (type === 'file' && b?.displayName) clean.displayName = String(b.displayName)
+        if (b?.metadata && typeof b.metadata === 'object') clean.metadata = b.metadata
         return clean
       })
   }
@@ -523,6 +555,11 @@ export function usePostsFeed(emit) {
     commitNewTags()
     if (newTagError.value) {
       createError.value = newTagError.value
+      return
+    }
+    const mediaError = validateMediaBlocks()
+    if (mediaError) {
+      createError.value = mediaError
       return
     }
     const blocks = publishableBlocks()

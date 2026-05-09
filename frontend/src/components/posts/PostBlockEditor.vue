@@ -1,6 +1,6 @@
 <template>
   <div class="post-block-editor">
-    <div v-for="(block, index) in blocks" :key="block.key || index" class="post-block">
+    <div v-for="(block, index) in blocks" :key="block.clientId" class="post-block">
       <template v-if="isTextBlock(block)">
         <UiTextarea
           :model-value="block.text"
@@ -19,6 +19,16 @@
           class="post-block-editor-language"
           @update:modelValue="updateBlock(index, { language: $event })"
         />
+        <div class="post-block-editor-actions">
+          <UiButton
+            variant="ghost"
+            :disabled="disabled"
+            :aria-label="removeLabel(block, index)"
+            @click="removeBlock(index)"
+          >
+            移除
+          </UiButton>
+        </div>
       </template>
 
       <PostMediaUploadBlock
@@ -65,22 +75,45 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue'])
 
+let nextClientId = 1
+
 const blocks = ref(normalizeBlocks(props.modelValue))
 
+function createClientId() {
+  const random = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${nextClientId++}`
+  return `post-block-${random}`
+}
+
 function defaultBlock(type) {
-  if (type === 'code') return { type: 'code', text: '', language: '' }
-  if (type === 'image') return { type: 'image', assetId: '', caption: '', uploadState: 'idle' }
-  if (type === 'video') return { type: 'video', assetId: '', caption: '', uploadState: 'idle' }
-  if (type === 'file') return { type: 'file', assetId: '', displayName: '', uploadState: 'idle' }
-  return { type: 'paragraph', text: '' }
+  if (type === 'code') return { clientId: createClientId(), type: 'code', text: '', language: '' }
+  if (type === 'image') return { clientId: createClientId(), type: 'image', assetId: '', caption: '', uploadState: 'idle' }
+  if (type === 'video') return { clientId: createClientId(), type: 'video', assetId: '', caption: '', uploadState: 'idle' }
+  if (type === 'file') return { clientId: createClientId(), type: 'file', assetId: '', displayName: '', uploadState: 'idle' }
+  return { clientId: createClientId(), type: 'paragraph', text: '' }
+}
+
+function clientFields(source) {
+  return {
+    clientId: String(source.clientId || createClientId())
+  }
 }
 
 function normalizeBlock(block) {
   const source = block && typeof block === 'object' ? block : {}
   const type = String(source.type || 'paragraph').toLowerCase()
-  if (type === 'code') return { type: 'code', text: String(source.text || ''), language: String(source.language || '') }
+  if (type === 'code') {
+    return {
+      ...clientFields(source),
+      type: 'code',
+      text: String(source.text || ''),
+      language: String(source.language || '')
+    }
+  }
   if (type === 'image') {
     return {
+      ...clientFields(source),
       type: 'image',
       assetId: String(source.assetId || ''),
       caption: String(source.caption || ''),
@@ -89,6 +122,7 @@ function normalizeBlock(block) {
   }
   if (type === 'video') {
     return {
+      ...clientFields(source),
       type: 'video',
       assetId: String(source.assetId || ''),
       caption: String(source.caption || ''),
@@ -97,13 +131,14 @@ function normalizeBlock(block) {
   }
   if (type === 'file') {
     return {
+      ...clientFields(source),
       type: 'file',
       assetId: String(source.assetId || ''),
       displayName: String(source.displayName || ''),
       uploadState: String(source.uploadState || 'idle')
     }
   }
-  return { type: 'paragraph', text: String(source.text || '') }
+  return { ...clientFields(source), type: 'paragraph', text: String(source.text || '') }
 }
 
 function normalizeBlocks(value) {
@@ -118,6 +153,18 @@ function emitBlocks(nextBlocks) {
 
 function isTextBlock(block) {
   return block?.type === 'paragraph' || block?.type === 'code'
+}
+
+function blockTypeLabel(block) {
+  if (block?.type === 'code') return '代码'
+  if (block?.type === 'image') return '图片'
+  if (block?.type === 'video') return '视频'
+  if (block?.type === 'file') return '文件'
+  return '段落'
+}
+
+function removeLabel(block, index) {
+  return `移除${blockTypeLabel(block)}块 ${index + 1}`
 }
 
 function updateBlock(index, patch) {

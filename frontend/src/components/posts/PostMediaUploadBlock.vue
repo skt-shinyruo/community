@@ -36,7 +36,9 @@
       <UiButton v-if="isFailed" variant="secondary" :disabled="disabled || isUploading || !selectedFile" @click="retryUpload">
         重试
       </UiButton>
-      <UiButton variant="ghost" :disabled="disabled || isUploading" @click="$emit('remove')">移除</UiButton>
+      <UiButton variant="ghost" :disabled="disabled || isUploading" :aria-label="removeLabel" @click="$emit('remove')">
+        移除
+      </UiButton>
     </div>
   </div>
 </template>
@@ -77,9 +79,15 @@ const mediaKind = computed(() => {
 })
 const statusText = computed(() => {
   if (props.block?.uploadState === 'uploading') return '上传中'
-  if (props.block?.uploadState === 'done') return '上传完成'
+  if (props.block?.uploadState === 'completed') return '上传完成'
   if (props.block?.uploadState === 'failed') return '上传失败'
   return '等待选择文件'
+})
+const removeLabel = computed(() => `移除${blockTypeLabel.value}块 ${props.index + 1}`)
+const blockTypeLabel = computed(() => {
+  if (mediaType.value === 'image') return '图片'
+  if (mediaType.value === 'video') return '视频'
+  return '文件'
 })
 
 function updateBlock(patch) {
@@ -116,7 +124,7 @@ async function uploadFile(file) {
     await uploadPostMediaFile({ session: session?.data, file })
     updateBlock({
       assetId: String(session?.data?.assetId || ''),
-      uploadState: 'done',
+      uploadState: 'completed',
       ...(isFile.value && !props.block?.displayName ? { displayName: file.name || '' } : {})
     })
   } catch {

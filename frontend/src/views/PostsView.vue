@@ -369,4 +369,4 @@ const {
 } = usePostsFeed(emit)
 </script>
 
-<style scoped src="./posts/PostsView.css"></style>
+<style src="./posts/PostsView.css"></style>

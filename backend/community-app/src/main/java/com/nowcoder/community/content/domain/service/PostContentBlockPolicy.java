@@ -7,6 +7,7 @@ import com.nowcoder.community.content.domain.model.PostContentBlockCommandSpec;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
@@ -28,6 +29,7 @@ public class PostContentBlockPolicy {
         if (raw == null) {
             throw new BusinessException(INVALID_ARGUMENT, "内容块非法");
         }
+        rejectNullMetadataValues(raw.metadata());
         String type = safe(raw.type()).toLowerCase(Locale.ROOT);
         return switch (type) {
             case "paragraph", "code" -> normalizeTextBlock(type, raw);
@@ -54,6 +56,17 @@ public class PostContentBlockPolicy {
         String caption = limit(safe(raw.caption()), ValidationLimits.POST_BLOCK_CAPTION_MAX, "说明文字过长");
         String displayName = limit(safe(raw.displayName()), ValidationLimits.POST_BLOCK_DISPLAY_NAME_MAX, "文件名过长");
         return raw.normalized(type, "", raw.assetId(), "", caption, displayName, raw.metadata());
+    }
+
+    private static void rejectNullMetadataValues(Map<String, Object> metadata) {
+        if (metadata == null) {
+            return;
+        }
+        for (Object value : metadata.values()) {
+            if (value == null) {
+                throw new BusinessException(INVALID_ARGUMENT, "元数据值不能为空");
+            }
+        }
     }
 
     private static String safe(String value) {

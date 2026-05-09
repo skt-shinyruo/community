@@ -2,6 +2,8 @@ package com.nowcoder.community.content.application.command;
 
 import com.nowcoder.community.content.domain.model.PostContentBlockCommandSpec;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -16,7 +18,13 @@ public record PostContentBlockCommand(
 ) implements PostContentBlockCommandSpec<PostContentBlockCommand> {
 
     public PostContentBlockCommand {
-        metadata = metadata == null ? Map.of() : Map.copyOf(metadata);
+        metadata = copyMetadata(metadata);
+    }
+
+    private static Map<String, Object> copyMetadata(Map<String, Object> metadata) {
+        return metadata == null
+                ? Map.of()
+                : Collections.unmodifiableMap(new LinkedHashMap<>(metadata));
     }
 
     @Override

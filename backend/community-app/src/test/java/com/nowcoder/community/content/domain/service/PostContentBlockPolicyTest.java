@@ -1,13 +1,17 @@
 package com.nowcoder.community.content.domain.service;
 
+import com.nowcoder.community.common.constants.ValidationLimits;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.application.command.PostContentBlockCommand;
 import com.nowcoder.community.content.application.result.PostContentBlockResult;
+import com.nowcoder.community.content.domain.model.PostContentBlock;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -50,7 +54,7 @@ class PostContentBlockPolicyTest {
                 new PostContentBlockCommand("paragraph", "hello", null, null, "", "", null),
                 new PostContentBlockCommand("image", "", uuid(21), null, "chart", "", null)
         );
-        Collection<PostContentBlockCommand> collectionBlocks = blocks;
+        Collection<PostContentBlockCommand> collectionBlocks = new LinkedHashSet<>(blocks);
 
         List<PostContentBlockCommand> listNormalized = policy.validateAndNormalize(blocks);
         List<PostContentBlockCommand> collectionNormalized = policy.validateAndNormalize(collectionBlocks);
@@ -92,7 +96,7 @@ class PostContentBlockPolicyTest {
 
     @Test
     void validateShouldRejectTooManyBlocks() {
-        List<PostContentBlockCommand> blocks = IntStream.range(0, 81)
+        List<PostContentBlockCommand> blocks = IntStream.range(0, ValidationLimits.POST_CONTENT_BLOCKS_MAX + 1)
                 .mapToObj(index -> new PostContentBlockCommand(
                         "paragraph",
                         "block " + index,
@@ -107,6 +111,74 @@ class PostContentBlockPolicyTest {
         assertThatThrownBy(() -> policy.validateAndNormalize(blocks))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("内容块数量过多");
+    }
+
+    @Test
+    void validateShouldRejectTextBlockOverMaxLength() {
+        assertThatThrownBy(() -> policy.validateAndNormalize(List.of(
+                new PostContentBlockCommand(
+                        "paragraph",
+                        "x".repeat(ValidationLimits.POST_BLOCK_TEXT_MAX + 1),
+                        null,
+                        null,
+                        "",
+                        "",
+                        null
+                )
+        )))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("文本块过长");
+    }
+
+    @Test
+    void validateShouldRejectCodeLanguageOverMaxLength() {
+        assertThatThrownBy(() -> policy.validateAndNormalize(List.of(
+                new PostContentBlockCommand(
+                        "code",
+                        "System.out.println(1);",
+                        null,
+                        "x".repeat(ValidationLimits.POST_BLOCK_LANGUAGE_MAX + 1),
+                        "",
+                        "",
+                        null
+                )
+        )))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("代码语言过长");
+    }
+
+    @Test
+    void validateShouldRejectMediaCaptionOverMaxLength() {
+        assertThatThrownBy(() -> policy.validateAndNormalize(List.of(
+                new PostContentBlockCommand(
+                        "image",
+                        "",
+                        uuid(32),
+                        null,
+                        "x".repeat(ValidationLimits.POST_BLOCK_CAPTION_MAX + 1),
+                        "",
+                        null
+                )
+        )))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("说明文字过长");
+    }
+
+    @Test
+    void validateShouldRejectMediaDisplayNameOverMaxLength() {
+        assertThatThrownBy(() -> policy.validateAndNormalize(List.of(
+                new PostContentBlockCommand(
+                        "file",
+                        "",
+                        uuid(33),
+                        null,
+                        "",
+                        "x".repeat(ValidationLimits.POST_BLOCK_DISPLAY_NAME_MAX + 1),
+                        null
+                )
+        )))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("文件名过长");
     }
 
     @Test
@@ -137,6 +209,19 @@ class PostContentBlockPolicyTest {
     }
 
     @Test
+    void validateShouldRejectNullMetadataValuesWithBusinessException() {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("width", 640);
+        metadata.put("height", null);
+
+        assertThatThrownBy(() -> policy.validateAndNormalize(List.of(
+                new PostContentBlockCommand("image", "", uuid(34), null, "", "", metadata)
+        )))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("元数据值不能为空");
+    }
+
+    @Test
     void commandShouldDefensivelyCopyMetadata() {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("width", 640);
@@ -156,6 +241,30 @@ class PostContentBlockPolicyTest {
         assertThat(command.metadata())
                 .containsEntry("width", 640)
                 .doesNotContainKey("height");
+        assertThatThrownBy(() -> command.metadata().put("mutated", true))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void commandShouldPreserveNullMetadataValuesBeforePolicyValidation() {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("width", 640);
+        metadata.put("height", null);
+
+        PostContentBlockCommand command = new PostContentBlockCommand(
+                "image",
+                "",
+                uuid(42),
+                null,
+                "",
+                "",
+                metadata
+        );
+        metadata.put("height", 720);
+
+        assertThat(command.metadata())
+                .containsEntry("width", 640)
+                .containsEntry("height", null);
         assertThatThrownBy(() -> command.metadata().put("mutated", true))
                 .isInstanceOf(UnsupportedOperationException.class);
     }
@@ -184,6 +293,60 @@ class PostContentBlockPolicyTest {
                 .containsEntry("duration", 12)
                 .doesNotContainKey("mutated");
         assertThatThrownBy(() -> result.metadata().put("mutatedAgain", true))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void resultShouldPreserveNullMetadataValues() {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("duration", 12);
+        metadata.put("poster", null);
+
+        PostContentBlockResult result = new PostContentBlockResult(
+                uuid(53),
+                0,
+                "video",
+                "",
+                uuid(54),
+                "",
+                "",
+                "",
+                metadata,
+                null
+        );
+        metadata.put("poster", "changed");
+
+        assertThat(result.metadata())
+                .containsEntry("duration", 12)
+                .containsEntry("poster", null);
+        assertThatThrownBy(() -> result.metadata().put("mutated", true))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void domainBlockShouldPreserveNullMetadataValues() {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("name", "diagram.png");
+        metadata.put("alt", null);
+
+        PostContentBlock block = new PostContentBlock(
+                uuid(61),
+                uuid(62),
+                0,
+                "image",
+                "",
+                uuid(63),
+                "",
+                "",
+                "",
+                metadata
+        );
+        metadata.put("alt", "changed");
+
+        assertThat(block.metadata())
+                .containsEntry("name", "diagram.png")
+                .containsEntry("alt", null);
+        assertThatThrownBy(() -> block.metadata().put("mutated", true))
                 .isInstanceOf(UnsupportedOperationException.class);
     }
 }

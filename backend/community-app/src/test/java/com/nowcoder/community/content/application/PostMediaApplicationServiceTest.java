@@ -1,6 +1,7 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.content.application.command.PreparePostMediaUploadCommand;
 import com.nowcoder.community.content.application.port.PostMediaStoragePort;
 import com.nowcoder.community.content.application.result.PostMediaUploadSessionResult;
@@ -25,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -35,36 +37,41 @@ class PostMediaApplicationServiceTest {
 
     private PostMediaAssetRepository assetRepository;
     private PostMediaStoragePort storagePort;
+    private UuidV7Generator idGenerator;
     private PostMediaApplicationService service;
 
     @BeforeEach
     void setUp() {
         assetRepository = mock(PostMediaAssetRepository.class);
         storagePort = mock(PostMediaStoragePort.class);
-        service = new PostMediaApplicationService(assetRepository, storagePort);
+        idGenerator = mock(UuidV7Generator.class);
+        service = new PostMediaApplicationService(assetRepository, storagePort, idGenerator);
     }
 
     @Test
     void prepareUploadShouldCreateDraftAssetAndReturnUploadSession() {
         UUID userId = uuid(7);
-        UUID assetId = uuid(8);
         UUID objectId = uuid(9);
         UUID versionId = uuid(10);
         UUID sessionId = uuid(11);
-        when(assetRepository.createDraft(any())).thenReturn(assetId);
-        when(storagePort.prepareUpload(any(), any())).thenReturn(new PostMediaUploadSessionResult(
-                assetId,
-                sessionId.toString(),
-                "/api/posts/media/" + assetId + "/upload",
-                "POST",
-                "file",
-                "uploadId",
-                100 * 1024 * 1024L,
-                "image/png;image/jpeg;image/webp;image/gif;video/mp4;video/webm;application/pdf;application/zip",
-                Instant.parse("2026-05-09T00:10:00Z"),
-                objectId,
-                versionId
-        ));
+        UUID assetId = uuid(12);
+        when(idGenerator.next()).thenReturn(assetId);
+        when(storagePort.prepareUpload(any(), any())).thenAnswer(invocation -> {
+            PostMediaAsset draft = invocation.getArgument(0);
+            return new PostMediaUploadSessionResult(
+                    draft.id(),
+                    sessionId.toString(),
+                    "/api/posts/media/" + draft.id() + "/upload",
+                    "POST",
+                    "file",
+                    "uploadId",
+                    100 * 1024 * 1024L,
+                    "image/png;image/jpeg;image/webp;image/gif;video/mp4;video/webm;application/pdf;application/zip",
+                    Instant.parse("2026-05-09T00:10:00Z"),
+                    objectId,
+                    versionId
+            );
+        });
 
         PostMediaUploadSessionResult result = service.prepareUpload(new PreparePostMediaUploadCommand(
                 userId,
@@ -76,30 +83,36 @@ class PostMediaApplicationServiceTest {
         ));
 
         assertThat(result.assetId()).isEqualTo(assetId);
-        assertThat(result.uploadUrl()).isEqualTo("/api/posts/media/" + assetId + "/upload");
-        var draftCaptor = forClass(PostMediaAsset.class);
+        assertThat(result.uploadUrl()).isEqualTo("/api/posts/media/" + result.assetId() + "/upload");
+        var storageDraftCaptor = forClass(PostMediaAsset.class);
+        var persistedDraftCaptor = forClass(PostMediaAsset.class);
         InOrder inOrder = inOrder(assetRepository, storagePort);
-        inOrder.verify(assetRepository).createDraft(draftCaptor.capture());
-        inOrder.verify(storagePort).prepareUpload(draftCaptor.capture(), org.mockito.ArgumentMatchers.eq("sha256"));
-        PostMediaAsset insertedDraft = draftCaptor.getAllValues().get(0);
-        PostMediaAsset storageDraft = draftCaptor.getAllValues().get(1);
-        assertThat(insertedDraft.id()).isNull();
-        assertThat(insertedDraft.ownerUserId()).isEqualTo(userId);
-        assertThat(insertedDraft.fileName()).isEqualTo("demo.mp4");
-        assertThat(insertedDraft.contentType()).isEqualTo("video/mp4");
-        assertThat(insertedDraft.contentLength()).isEqualTo(1234);
-        assertThat(insertedDraft.mediaKind()).isEqualTo(PostMediaKind.VIDEO);
-        assertThat(insertedDraft.lifecycle()).isEqualTo(PostMediaAssetLifecycle.DRAFT);
-        assertThat(insertedDraft.videoState()).isEqualTo(PostVideoState.NONE);
+        inOrder.verify(storagePort).prepareUpload(storageDraftCaptor.capture(), eq("sha256"));
+        inOrder.verify(assetRepository).createDraft(persistedDraftCaptor.capture());
+        PostMediaAsset storageDraft = storageDraftCaptor.getValue();
+        PostMediaAsset persistedDraft = persistedDraftCaptor.getValue();
         assertThat(storageDraft.id()).isEqualTo(assetId);
+        assertThat(storageDraft.ownerUserId()).isEqualTo(userId);
+        assertThat(storageDraft.fileName()).isEqualTo("demo.mp4");
+        assertThat(storageDraft.contentType()).isEqualTo("video/mp4");
+        assertThat(storageDraft.contentLength()).isEqualTo(1234);
+        assertThat(storageDraft.mediaKind()).isEqualTo(PostMediaKind.VIDEO);
+        assertThat(storageDraft.lifecycle()).isEqualTo(PostMediaAssetLifecycle.DRAFT);
+        assertThat(storageDraft.videoState()).isEqualTo(PostVideoState.NONE);
+        assertThat(storageDraft.ossObjectId()).isNull();
+        assertThat(storageDraft.ossVersionId()).isNull();
+        assertThat(storageDraft.uploadSessionId()).isNull();
+        assertThat(persistedDraft.id()).isEqualTo(result.assetId());
+        assertThat(persistedDraft.ossObjectId()).isEqualTo(result.ossObjectId());
+        assertThat(persistedDraft.ossVersionId()).isEqualTo(result.ossVersionId());
+        assertThat(persistedDraft.uploadSessionId()).isEqualTo(sessionId);
     }
 
     @Test
     void prepareUploadShouldInferImageKindFromContentType() {
         UUID userId = uuid(7);
-        UUID assetId = uuid(8);
-        when(assetRepository.createDraft(any())).thenReturn(assetId);
-        when(storagePort.prepareUpload(any(), any())).thenReturn(session(assetId));
+        when(idGenerator.next()).thenReturn(uuid(8));
+        when(storagePort.prepareUpload(any(), any())).thenAnswer(invocation -> session(invocation.getArgument(0, PostMediaAsset.class).id()));
 
         service.prepareUpload(new PreparePostMediaUploadCommand(userId, "cover.png", "image/png", 10, "", ""));
 

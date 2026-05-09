@@ -2,6 +2,11 @@ package com.nowcoder.community.content.infrastructure.persistence.mapper;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
+import com.nowcoder.community.content.domain.model.PostMediaAsset;
+import com.nowcoder.community.content.domain.model.PostMediaAssetLifecycle;
+import com.nowcoder.community.content.domain.model.PostMediaKind;
+import com.nowcoder.community.content.domain.model.PostVideoState;
+import com.nowcoder.community.content.domain.repository.PostMediaAssetRepository;
 import com.nowcoder.community.content.infrastructure.persistence.dataobject.PostMediaAssetDataObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,6 +38,9 @@ class PostMediaAssetMapperPersistenceTest {
 
     @Autowired
     PostMediaAssetMapper mapper;
+
+    @Autowired
+    PostMediaAssetRepository repository;
 
     @MockBean
     ClientIpResolver clientIpResolver;
@@ -80,5 +88,39 @@ class PostMediaAssetMapperPersistenceTest {
         assertThat(saved.getOssReferenceId()).isEqualTo(REFERENCE_ID);
         assertThat(saved.getVideoState()).isEqualTo("PENDING_TRANSCODE");
         assertThat(saved.getPublicUrl()).isEqualTo("http://localhost/files/demo.mp4");
+    }
+
+    @Test
+    void repositoryCreateDraftShouldPersistPreparedUploadSessionContext() {
+        UUID uploadSessionId = UUID.fromString("00000000-0000-7000-8000-000000000707");
+        PostMediaAsset asset = new PostMediaAsset(
+                ASSET_ID,
+                OWNER_ID,
+                null,
+                OBJECT_ID,
+                VERSION_ID,
+                null,
+                uploadSessionId,
+                "demo.mp4",
+                "video/mp4",
+                1234L,
+                PostMediaKind.VIDEO,
+                PostMediaAssetLifecycle.DRAFT,
+                PostVideoState.NONE,
+                "",
+                "",
+                Timestamp.from(Instant.parse("2026-05-09T00:00:00Z")),
+                null
+        );
+
+        UUID createdId = repository.createDraft(asset);
+        PostMediaAsset saved = repository.getRequired(ASSET_ID);
+
+        assertThat(createdId).isEqualTo(ASSET_ID);
+        assertThat(saved.id()).isEqualTo(ASSET_ID);
+        assertThat(saved.ossObjectId()).isEqualTo(OBJECT_ID);
+        assertThat(saved.ossVersionId()).isEqualTo(VERSION_ID);
+        assertThat(saved.uploadSessionId()).isEqualTo(uploadSessionId);
+        assertThat(saved.lifecycle()).isEqualTo(PostMediaAssetLifecycle.DRAFT);
     }
 }

@@ -1,6 +1,7 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.content.application.command.PreparePostMediaUploadCommand;
 import com.nowcoder.community.content.application.port.PostMediaStoragePort;
 import com.nowcoder.community.content.application.result.PostMediaUploadSessionResult;
@@ -9,6 +10,7 @@ import com.nowcoder.community.content.domain.model.PostMediaAssetLifecycle;
 import com.nowcoder.community.content.domain.model.PostMediaKind;
 import com.nowcoder.community.content.domain.model.PostVideoState;
 import com.nowcoder.community.content.domain.repository.PostMediaAssetRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +22,7 @@ import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
 
 @Service
 public class PostMediaApplicationService {
@@ -36,10 +39,19 @@ public class PostMediaApplicationService {
 
     private final PostMediaAssetRepository assetRepository;
     private final PostMediaStoragePort storagePort;
+    private final UuidV7Generator idGenerator;
 
+    @Autowired
     public PostMediaApplicationService(PostMediaAssetRepository assetRepository, PostMediaStoragePort storagePort) {
+        this(assetRepository, storagePort, new UuidV7Generator());
+    }
+
+    PostMediaApplicationService(PostMediaAssetRepository assetRepository,
+                                PostMediaStoragePort storagePort,
+                                UuidV7Generator idGenerator) {
         this.assetRepository = assetRepository;
         this.storagePort = storagePort;
+        this.idGenerator = idGenerator;
     }
 
     @Transactional
@@ -52,9 +64,10 @@ public class PostMediaApplicationService {
         PostMediaKind mediaKind = inferKind(command.mediaKind(), contentType);
         validateContentLength(command.contentLength(), mediaKind);
 
+        UUID assetId = idGenerator.next();
         Date now = new Date();
         PostMediaAsset draft = new PostMediaAsset(
-                null,
+                assetId,
                 command.actorUserId(),
                 null,
                 null,
@@ -72,9 +85,9 @@ public class PostMediaApplicationService {
                 now,
                 null
         );
-        UUID assetId = assetRepository.createDraft(draft);
-        PostMediaAsset assignedDraft = draftWithAssignedId(draft, assetId);
-        return storagePort.prepareUpload(assignedDraft, normalizeChecksum(command.checksumSha256()));
+        PostMediaUploadSessionResult session = storagePort.prepareUpload(draft, normalizeChecksum(command.checksumSha256()));
+        assetRepository.createDraft(draftWithPreparedUploadSession(draft, session));
+        return session;
     }
 
     @Transactional
@@ -98,16 +111,21 @@ public class PostMediaApplicationService {
         assetRepository.markUploaded(assetId, uploaded.versionId(), uploaded.publicUrl(), new Date());
     }
 
-    private static PostMediaAsset draftWithAssignedId(PostMediaAsset draft, UUID assetId) {
-        UUID id = draft.id() == null ? assetId : draft.id();
+    private static PostMediaAsset draftWithPreparedUploadSession(PostMediaAsset draft, PostMediaUploadSessionResult session) {
+        if (session == null
+                || !Objects.equals(draft.id(), session.assetId())
+                || session.ossObjectId() == null
+                || session.ossVersionId() == null) {
+            throw new BusinessException(INTERNAL_ERROR, "签发媒体上传参数失败");
+        }
         return new PostMediaAsset(
-                id,
+                draft.id(),
                 draft.ownerUserId(),
                 draft.postId(),
-                draft.ossObjectId(),
-                draft.ossVersionId(),
+                session.ossObjectId(),
+                session.ossVersionId(),
                 draft.ossReferenceId(),
-                draft.uploadSessionId(),
+                parseUploadSessionId(session.uploadId()),
                 draft.fileName(),
                 draft.contentType(),
                 draft.contentLength(),
@@ -119,6 +137,14 @@ public class PostMediaApplicationService {
                 draft.createTime(),
                 draft.updateTime()
         );
+    }
+
+    private static UUID parseUploadSessionId(String uploadId) {
+        try {
+            return UUID.fromString(uploadId);
+        } catch (RuntimeException e) {
+            throw new BusinessException(INTERNAL_ERROR, "签发媒体上传参数失败", e);
+        }
     }
 
     private static String normalizeFileName(String fileName) {

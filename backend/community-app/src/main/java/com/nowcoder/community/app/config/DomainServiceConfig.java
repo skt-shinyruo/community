@@ -10,6 +10,7 @@ import com.nowcoder.community.auth.domain.service.RefreshTokenDomainService;
 import com.nowcoder.community.auth.domain.service.RegistrationDomainService;
 import com.nowcoder.community.content.domain.service.CommentDomainService;
 import com.nowcoder.community.content.domain.service.ModerationDecisionDomainService;
+import com.nowcoder.community.content.domain.service.PostContentBlockPolicy;
 import com.nowcoder.community.content.domain.service.PostModerationDomainService;
 import com.nowcoder.community.content.domain.service.PostPublishingDomainService;
 import com.nowcoder.community.search.domain.service.PostSearchDomainService;
@@ -87,6 +88,11 @@ public class DomainServiceConfig {
     @Bean
     PostPublishingDomainService postPublishingDomainService() {
         return new PostPublishingDomainService();
+    }
+
+    @Bean
+    PostContentBlockPolicy postContentBlockPolicy() {
+        return new PostContentBlockPolicy();
     }
 
     @Bean

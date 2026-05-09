@@ -15,4 +15,7 @@ public record PostContentBlockResult(
         Map<String, Object> metadata,
         PostMediaViewResult media
 ) {
+    public PostContentBlockResult {
+        metadata = metadata == null ? Map.of() : Map.copyOf(metadata);
+    }
 }

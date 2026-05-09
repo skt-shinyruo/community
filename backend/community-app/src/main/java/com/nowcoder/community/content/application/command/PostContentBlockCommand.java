@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.application.command;
 
-import com.nowcoder.community.content.domain.service.PostContentBlockPolicy.ContentBlockCommand;
+import com.nowcoder.community.content.domain.model.PostContentBlockCommandSpec;
 
 import java.util.Map;
 import java.util.UUID;
@@ -13,7 +13,11 @@ public record PostContentBlockCommand(
         String caption,
         String displayName,
         Map<String, Object> metadata
-) implements ContentBlockCommand<PostContentBlockCommand> {
+) implements PostContentBlockCommandSpec<PostContentBlockCommand> {
+
+    public PostContentBlockCommand {
+        metadata = metadata == null ? Map.of() : Map.copyOf(metadata);
+    }
 
     @Override
     public PostContentBlockCommand normalized(

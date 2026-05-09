@@ -38,7 +38,6 @@ public class MyBatisPostRepository implements PostRepository {
         post.setUserId(draft.userId());
         post.setCategoryId(draft.categoryId());
         post.setTitle(draft.title());
-        post.setContent(draft.content());
         post.setType(0);
         post.setStatus(0);
         post.setCreateTime(draft.createTime());
@@ -58,8 +57,8 @@ public class MyBatisPostRepository implements PostRepository {
     }
 
     @Override
-    public void updateContent(UUID postId, String title, String content, UUID categoryId, Date updateTime) {
-        discussPostMapper.updatePostContent(postId, title, content, categoryId, updateTime);
+    public void updatePostMeta(UUID postId, String title, UUID categoryId, Date updateTime) {
+        discussPostMapper.updatePostMeta(postId, title, categoryId, updateTime);
     }
 
     @Override

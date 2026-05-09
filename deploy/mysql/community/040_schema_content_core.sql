@@ -9,7 +9,6 @@ create table if not exists discuss_post (
   user_id binary(16),
   category_id binary(16) default null,
   title varchar(255),
-  content text,
   type int default 0,
   status int default 0,
   create_time timestamp null default current_timestamp,
@@ -20,6 +19,47 @@ create table if not exists discuss_post (
   deleted_time timestamp null default null,
   comment_count int default 0,
   score double default 0
+);
+
+create table if not exists post_media_asset (
+  id binary(16) primary key,
+  owner_user_id binary(16) not null,
+  post_id binary(16) default null,
+  oss_object_id binary(16) not null,
+  oss_version_id binary(16) default null,
+  oss_reference_id binary(16) default null,
+  upload_session_id binary(16) default null,
+  file_name varchar(255) not null,
+  content_type varchar(128) not null,
+  content_length bigint not null,
+  media_kind varchar(32) not null,
+  lifecycle varchar(32) not null,
+  video_state varchar(32) not null default 'NONE',
+  public_url varchar(1024) default '',
+  failure_reason varchar(512) default '',
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default null,
+  key idx_post_media_asset_owner_lifecycle (owner_user_id, lifecycle),
+  key idx_post_media_asset_post (post_id),
+  key idx_post_media_asset_video_state (video_state)
+);
+
+create table if not exists post_content_block (
+  id binary(16) primary key,
+  post_id binary(16) not null,
+  block_index int not null,
+  block_type varchar(32) not null,
+  text_content text null,
+  language varchar(64) default '',
+  media_asset_id binary(16) default null,
+  caption varchar(512) default '',
+  display_name varchar(255) default '',
+  metadata_json text default null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default null,
+  unique key uk_post_block_index (post_id, block_index),
+  key idx_post_content_block_post (post_id),
+  key idx_post_content_block_media (media_asset_id)
 );
 
 create table if not exists comment (

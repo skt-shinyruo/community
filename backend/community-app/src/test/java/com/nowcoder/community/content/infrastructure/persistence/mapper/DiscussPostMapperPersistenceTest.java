@@ -41,6 +41,8 @@ class DiscussPostMapperPersistenceTest {
 
     @BeforeEach
     void setUp() {
+        jdbcTemplate.update("delete from post_content_block");
+        jdbcTemplate.update("delete from post_media_asset");
         jdbcTemplate.update("delete from post_tag");
         jdbcTemplate.update("delete from post_bookmark");
         jdbcTemplate.update("delete from discuss_post");
@@ -63,7 +65,6 @@ class DiscussPostMapperPersistenceTest {
         post.setUserId(USER_ID);
         post.setCategoryId(CATEGORY_ID);
         post.setTitle("UUIDv7");
-        post.setContent("binary uuid");
         post.setType(0);
         post.setStatus(0);
         post.setCreateTime(new Date());

@@ -175,8 +175,8 @@ public class MyBatisPostContentRepository implements PostContentRepository {
     }
 
     @Override
-    public void updatePostContent(UUID postId, String title, String content, UUID categoryId, Date updateTime) {
-        discussPostMapper.updatePostContent(postId, title, content, categoryId, updateTime);
+    public void updatePostMeta(UUID postId, String title, UUID categoryId, Date updateTime) {
+        discussPostMapper.updatePostMeta(postId, title, categoryId, updateTime);
     }
 
     @Override

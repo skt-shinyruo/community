@@ -399,7 +399,6 @@ create table if not exists discuss_post (
   user_id binary(16),
   category_id binary(16),
   title varchar(255),
-  content text,
   type int,
   status int,
   create_time timestamp,
@@ -411,6 +410,49 @@ create table if not exists discuss_post (
   comment_count int,
   score double
 );
+
+create table if not exists post_media_asset (
+  id binary(16) primary key,
+  owner_user_id binary(16) not null,
+  post_id binary(16) default null,
+  oss_object_id binary(16) not null,
+  oss_version_id binary(16) default null,
+  oss_reference_id binary(16) default null,
+  upload_session_id binary(16) default null,
+  file_name varchar(255) not null,
+  content_type varchar(128) not null,
+  content_length bigint not null,
+  media_kind varchar(32) not null,
+  lifecycle varchar(32) not null,
+  video_state varchar(32) not null default 'NONE',
+  public_url varchar(1024) default '',
+  failure_reason varchar(512) default '',
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default null
+);
+
+create index if not exists idx_post_media_asset_owner_lifecycle on post_media_asset(owner_user_id, lifecycle);
+create index if not exists idx_post_media_asset_post on post_media_asset(post_id);
+create index if not exists idx_post_media_asset_video_state on post_media_asset(video_state);
+
+create table if not exists post_content_block (
+  id binary(16) primary key,
+  post_id binary(16) not null,
+  block_index int not null,
+  block_type varchar(32) not null,
+  text_content text null,
+  language varchar(64) default '',
+  media_asset_id binary(16) default null,
+  caption varchar(512) default '',
+  display_name varchar(255) default '',
+  metadata_json text default null,
+  create_time timestamp null default current_timestamp,
+  update_time timestamp null default null,
+  unique key uk_post_block_index (post_id, block_index)
+);
+
+create index if not exists idx_post_content_block_post on post_content_block(post_id);
+create index if not exists idx_post_content_block_media on post_content_block(media_asset_id);
 
 create table if not exists post_bookmark (
   user_id binary(16) not null,
@@ -582,6 +624,8 @@ delete from social_block;
 delete from message;
 delete from http_idempotency;
 delete from outbox_event;
+delete from post_content_block;
+delete from post_media_asset;
 delete from discuss_post;
 delete from user;
 
@@ -595,13 +639,12 @@ key(id) values
   (X'00000000000070008000000000000001', '技术', '技术讨论', 10, CURRENT_TIMESTAMP()),
   (X'00000000000070008000000000000002', '兴趣', '兴趣分享', 20, CURRENT_TIMESTAMP());
 
-insert into discuss_post(id, user_id, category_id, title, content, type, status, create_time, update_time, edit_count, comment_count, score)
+insert into discuss_post(id, user_id, category_id, title, type, status, create_time, update_time, edit_count, comment_count, score)
 values (
   X'00000000000070008000000000000064',
   X'00000000000070008000000000000001',
   X'00000000000070008000000000000001',
   'hello world',
-  'hello content',
   0,
   0,
   CURRENT_TIMESTAMP(),

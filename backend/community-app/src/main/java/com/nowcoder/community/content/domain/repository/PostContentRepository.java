@@ -45,7 +45,7 @@ public interface PostContentRepository {
 
     void updateScore(UUID postId, double score);
 
-    void updatePostContent(UUID postId, String title, String content, UUID categoryId, Date updateTime);
+    void updatePostMeta(UUID postId, String title, UUID categoryId, Date updateTime);
 
     void updateModerationDeleteMeta(UUID postId, int status, UUID deletedBy, String deletedReason, Date deletedTime);
 }

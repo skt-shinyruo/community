@@ -12,7 +12,11 @@ public interface PostRepository {
 
     PostSnapshot getRequiredSnapshot(UUID postId);
 
-    void updateContent(UUID postId, String title, String content, UUID categoryId, Date updateTime);
+    void updatePostMeta(UUID postId, String title, UUID categoryId, Date updateTime);
+
+    default void updateContent(UUID postId, String title, String content, UUID categoryId, Date updateTime) {
+        updatePostMeta(postId, title, categoryId, updateTime);
+    }
 
     boolean markDeletedByAuthor(UUID postId, UUID authorUserId, Date deletedTime);
 

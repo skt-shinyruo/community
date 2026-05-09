@@ -47,10 +47,9 @@ public interface DiscussPostMapper {
 
     int updateScore(UUID id, double score);
 
-    int updatePostContent(
+    int updatePostMeta(
             @Param("id") UUID id,
             @Param("title") String title,
-            @Param("content") String content,
             @Param("categoryId") UUID categoryId,
             @Param("updateTime") java.util.Date updateTime
     );

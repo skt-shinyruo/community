@@ -9,7 +9,6 @@ public class DiscussPost {
     private UUID userId;
     private UUID categoryId;
     private String title;
-    private String content;
     private int type;
     private int status;
     private Date createTime;
@@ -53,12 +52,17 @@ public class DiscussPost {
         this.title = title;
     }
 
+    /**
+     * Compatibility shim until block-based read/write flows replace legacy post body callers.
+     */
+    @Deprecated(forRemoval = true)
     public String getContent() {
-        return content;
+        return "";
     }
 
+    @Deprecated(forRemoval = true)
     public void setContent(String content) {
-        this.content = content;
+        // No-op: post body content is stored as blocks, not on discuss_post.
     }
 
     public int getType() {

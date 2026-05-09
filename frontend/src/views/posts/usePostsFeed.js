@@ -156,7 +156,7 @@ export function usePostsFeed(emit) {
   // Publish interaction
   const isPublishFocused = ref(false)
   const newTitle = ref('')
-  const newContent = ref('')
+  const newBlocks = ref([{ type: 'paragraph', text: '' }])
   const newCategoryId = ref('')
   const newTagDraft = ref('')
   const newTags = ref([])
@@ -212,6 +212,26 @@ export function usePostsFeed(emit) {
   function removeNewTag(t) {
     const key = String(t || '').toLowerCase()
     newTags.value = (Array.isArray(newTags.value) ? newTags.value : []).filter((x) => String(x || '').toLowerCase() !== key)
+  }
+
+  function publishableBlocks() {
+    return (Array.isArray(newBlocks.value) ? newBlocks.value : [])
+      .map((b) => ({ ...b }))
+      .filter((b) => {
+        if (['paragraph', 'code'].includes(b.type)) return String(b.text || '').trim()
+        if (['image', 'video', 'file'].includes(b.type)) return normalizeOpaqueId(b.assetId)
+        return false
+      })
+      .map((b) => {
+        const clean = { type: b.type }
+        if (b.text != null) clean.text = String(b.text)
+        if (b.assetId) clean.assetId = normalizeOpaqueId(b.assetId)
+        if (b.language) clean.language = String(b.language)
+        if (b.caption) clean.caption = String(b.caption)
+        if (b.displayName) clean.displayName = String(b.displayName)
+        if (b.metadata) clean.metadata = b.metadata
+        return clean
+      })
   }
 
   let suggestTimer = 0
@@ -505,7 +525,8 @@ export function usePostsFeed(emit) {
       createError.value = newTagError.value
       return
     }
-    if (!newTitle.value || !newContent.value) {
+    const blocks = publishableBlocks()
+    if (!newTitle.value || blocks.length === 0) {
       createError.value = '请填写完整内容'
       return
     }
@@ -514,7 +535,7 @@ export function usePostsFeed(emit) {
       const cid = normalizeOpaqueId(newCategoryId.value)
       const resp = await apiCreatePost({
         title: newTitle.value,
-        content: newContent.value,
+        blocks,
         categoryId: cid || undefined,
         tags: newTags.value
       })
@@ -532,7 +553,7 @@ export function usePostsFeed(emit) {
       })
       
       newTitle.value = ''
-      newContent.value = ''
+      newBlocks.value = [{ type: 'paragraph', text: '' }]
       newCategoryId.value = ''
       newTagDraft.value = ''
       newTags.value = []
@@ -617,7 +638,7 @@ export function usePostsFeed(emit) {
     error,
     isPublishFocused,
     newTitle,
-    newContent,
+    newBlocks,
     newCategoryId,
     newTagDraft,
     newTags,

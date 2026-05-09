@@ -69,7 +69,11 @@
           </UiIconButton>
         </div>
         <UiInput v-model.trim="newTitle" name="post-title" placeholder="标题" autocomplete="off" class="posts-composer-input" />
-        <UiTextarea v-model.trim="newContent" name="post-content" placeholder="正文内容..." :rows="6" class="posts-composer-textarea" />
+        <PostBlockEditor
+          v-model="newBlocks"
+          class="posts-composer-block-editor"
+          :disabled="creating"
+        />
 
         <div class="posts-composer-meta">
           <div class="posts-composer-field posts-composer-field--category">
@@ -283,11 +287,11 @@ import UiButton from '../components/ui/UiButton.vue'
 import UiIconButton from '../components/ui/UiIconButton.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiSelect from '../components/ui/UiSelect.vue'
-import UiTextarea from '../components/ui/UiTextarea.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiBadge from '../components/ui/UiBadge.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import FeedToolbar from '../components/posts/FeedToolbar.vue'
+import PostBlockEditor from '../components/posts/PostBlockEditor.vue'
 import { usePostsFeed } from './posts/usePostsFeed'
 
 const emit = defineEmits(['trace'])
@@ -325,7 +329,7 @@ const {
   error,
   isPublishFocused,
   newTitle,
-  newContent,
+  newBlocks,
   newCategoryId,
   newTagDraft,
   newTags,

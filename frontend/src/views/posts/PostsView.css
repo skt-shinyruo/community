@@ -139,8 +139,49 @@
   font-size: 16px;
 }
 
-.posts-composer-textarea {
-  resize: none;
+.posts-composer-block-editor {
+  display: grid;
+  gap: 12px;
+  min-height: 220px;
+}
+
+.posts-composer-block-editor :deep(.post-block-editor-toolbar) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.posts-composer-block-editor :deep(.post-block) {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--surface);
+}
+
+.posts-composer-block-editor :deep(.post-block-editor-textarea) {
+  resize: vertical;
+}
+
+.posts-composer-block-editor :deep(.post-block-editor-language) {
+  margin-top: 10px;
+}
+
+.posts-composer-block-editor :deep(.post-media-upload-block) {
+  display: grid;
+  gap: 10px;
+}
+
+.posts-composer-block-editor :deep(.post-media-upload-status) {
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.posts-composer-block-editor :deep(.post-media-upload-actions) {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .posts-composer-meta {

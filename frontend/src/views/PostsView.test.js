@@ -43,7 +43,7 @@ vi.mock('../api/services/taxonomyService', () => ({
 
 import PostsView from './PostsView.vue'
 import UiAutosuggestInput from '../components/ui/UiAutosuggestInput.vue'
-import { listPosts } from '../api/services/postService'
+import { createPost, listPosts } from '../api/services/postService'
 
 describe('PostsView', () => {
   function mountView() {
@@ -93,6 +93,8 @@ describe('PostsView', () => {
     routerState.push.mockClear()
     listPosts.mockClear()
     listPosts.mockResolvedValue({ data: [], traceId: 'trace-posts' })
+    createPost.mockClear()
+    createPost.mockResolvedValue({ data: { postId: 1 }, traceId: 'trace-create-post' })
     window.localStorage.clear()
   })
 
@@ -136,5 +138,19 @@ describe('PostsView', () => {
 
     expect(preventDefault).toHaveBeenCalledTimes(1)
     expect(wrapper.findAll('.tag').map((node) => node.text())).toContain('#Spring')
+  })
+
+  it('publishes block payload from composer', async () => {
+    const wrapper = mountView()
+    await openComposer(wrapper)
+    await wrapper.get('input[name="post-title"]').setValue('hello')
+    await wrapper.get('[data-test="block-text-0"]').setValue('body')
+    await wrapper.get('.posts-composer-submit').trigger('click')
+    await flushPromises()
+
+    expect(createPost).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'hello',
+      blocks: [expect.objectContaining({ type: 'paragraph', text: 'body' })]
+    }))
   })
 })

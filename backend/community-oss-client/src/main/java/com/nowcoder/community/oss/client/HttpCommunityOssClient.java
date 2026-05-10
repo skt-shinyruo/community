@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 public class HttpCommunityOssClient implements CommunityOssClient {
 
@@ -41,10 +42,17 @@ public class HttpCommunityOssClient implements CommunityOssClient {
     private final RestClient restClient;
 
     public HttpCommunityOssClient(String baseUrl) {
+        this(baseUrl, null);
+    }
+
+    public HttpCommunityOssClient(String baseUrl, Supplier<String> fallbackBearerAuthorizationSupplier) {
         this(RestClient.builder()
                 .baseUrl(baseUrl == null || baseUrl.isBlank() ? "http://community-oss:18090" : baseUrl.trim())
                 .requestInterceptor((request, body, execution) -> {
                     String authorization = currentBearerAuthorization();
+                    if (authorization.isBlank() && fallbackBearerAuthorizationSupplier != null) {
+                        authorization = normalizeBearerAuthorization(fallbackBearerAuthorizationSupplier.get());
+                    }
                     if (!authorization.isBlank() && !request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
                         request.getHeaders().set(HttpHeaders.AUTHORIZATION, authorization);
                     }
@@ -203,6 +211,13 @@ public class HttpCommunityOssClient implements CommunityOssClient {
             return "";
         }
         String authorization = servletAttributes.getRequest().getHeader(HttpHeaders.AUTHORIZATION);
+        if (authorization == null || !authorization.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())) {
+            return "";
+        }
+        return authorization;
+    }
+
+    private static String normalizeBearerAuthorization(String authorization) {
         if (authorization == null || !authorization.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())) {
             return "";
         }

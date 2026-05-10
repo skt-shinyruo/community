@@ -1,5 +1,6 @@
 package com.nowcoder.community.oss.client;
 
+import com.nowcoder.community.oss.client.model.OssMetadataResponse;
 import com.nowcoder.community.oss.client.model.OssUploadSessionRequest;
 import com.nowcoder.community.oss.client.model.OssUploadSessionResponse;
 import com.sun.net.httpserver.HttpServer;
@@ -13,6 +14,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -60,6 +62,38 @@ class HttpCommunityOssClientTest {
     }
 
     @Test
+    void stringConstructorUsesFallbackBearerWhenCurrentRequestHasNoBearer() throws Exception {
+        AtomicReference<String> authorization = new AtomicReference<>();
+        CountDownLatch requestReceived = new CountDownLatch(1);
+        HttpServer server = startUploadSessionServer(authorization, requestReceived, directUploadSessionResponse());
+        try {
+            HttpCommunityOssClient client = new HttpCommunityOssClient(
+                    "http://127.0.0.1:" + server.getAddress().getPort(),
+                    () -> "Bearer internal-token"
+            );
+            client.prepareUpload(new OssUploadSessionRequest(
+                    "DRIVE_FILE",
+                    "community-app",
+                    "drive",
+                    "drive-upload",
+                    "7",
+                    "PRIVATE",
+                    "note.txt",
+                    "text/plain",
+                    2,
+                    "",
+                    "",
+                    "7"
+            ));
+
+            assertThat(requestReceived.await(2, TimeUnit.SECONDS)).isTrue();
+            assertThat(authorization.get()).isEqualTo("Bearer internal-token");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void prepareUploadShouldReadUnifiedResultWrapperResponses() throws Exception {
         AtomicReference<String> authorization = new AtomicReference<>();
         CountDownLatch requestReceived = new CountDownLatch(1);
@@ -91,6 +125,30 @@ class HttpCommunityOssClientTest {
         }
     }
 
+    @Test
+    void getMetadataShouldIgnoreAdditiveFieldsFromOssService() throws Exception {
+        AtomicReference<String> authorization = new AtomicReference<>();
+        CountDownLatch requestReceived = new CountDownLatch(1);
+        UUID objectId = UUID.fromString("00000000-0000-7000-8000-000000000001");
+        HttpServer server = startMetadataServer(authorization, requestReceived, wrappedMetadataResponseWithOwnerFields(), objectId);
+        try {
+            HttpCommunityOssClient client = new HttpCommunityOssClient("http://127.0.0.1:" + server.getAddress().getPort());
+
+            OssMetadataResponse response = client.getMetadata(objectId);
+
+            assertThat(requestReceived.await(2, TimeUnit.SECONDS)).isTrue();
+            assertThat(response.objectId()).isEqualTo(objectId);
+            assertThat(response.currentVersionId().toString()).isEqualTo("00000000-0000-7000-8000-000000000002");
+            assertThat(response.usage()).isEqualTo("DRIVE_FILE");
+            assertThat(response.status()).isEqualTo("ACTIVE");
+            assertThat(response.contentType()).isEqualTo("text/plain");
+            assertThat(response.contentLength()).isEqualTo(12);
+            assertThat(response.publicUrl()).isNull();
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static HttpServer startUploadSessionServer(
             AtomicReference<String> authorization,
             CountDownLatch requestReceived,
@@ -100,6 +158,26 @@ class HttpCommunityOssClientTest {
         server.createContext("/api/oss/objects/upload-sessions", exchange -> {
             authorization.set(exchange.getRequestHeaders().getFirst(HttpHeaders.AUTHORIZATION));
             exchange.getRequestBody().readAllBytes();
+            byte[] body = responseJson.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set(HttpHeaders.CONTENT_TYPE, "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+            requestReceived.countDown();
+        });
+        server.start();
+        return server;
+    }
+
+    private static HttpServer startMetadataServer(
+            AtomicReference<String> authorization,
+            CountDownLatch requestReceived,
+            String responseJson,
+            UUID objectId
+    ) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/oss/objects/" + objectId, exchange -> {
+            authorization.set(exchange.getRequestHeaders().getFirst(HttpHeaders.AUTHORIZATION));
             byte[] body = responseJson.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set(HttpHeaders.CONTENT_TYPE, "application/json");
             exchange.sendResponseHeaders(200, body.length);
@@ -135,5 +213,33 @@ class HttpCommunityOssClientTest {
                       "timestamp": 1778396128900
                     }
                     """.formatted(directUploadSessionResponse());
+    }
+
+    private static String wrappedMetadataResponseWithOwnerFields() {
+        return """
+                    {
+                      "code": 0,
+                      "message": "OK",
+                      "httpStatus": 200,
+                      "data": {
+                        "objectId": "00000000-0000-7000-8000-000000000001",
+                        "currentVersionId": "00000000-0000-7000-8000-000000000002",
+                        "usage": "DRIVE_FILE",
+                        "ownerService": "community-app",
+                        "ownerDomain": "drive",
+                        "ownerType": "drive-upload",
+                        "ownerId": "7",
+                        "visibility": "PRIVATE",
+                        "status": "ACTIVE",
+                        "fileName": "note.txt",
+                        "contentType": "text/plain",
+                        "contentLength": 12,
+                        "checksumSha256": "",
+                        "publicUrl": null
+                      },
+                      "traceId": "trace-1",
+                      "timestamp": 1778396128900
+                    }
+                    """;
     }
 }

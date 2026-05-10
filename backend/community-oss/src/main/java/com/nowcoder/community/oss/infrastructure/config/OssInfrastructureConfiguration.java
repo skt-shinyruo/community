@@ -40,7 +40,7 @@ public class OssInfrastructureConfiguration {
 
     private S3Client s3Client(OssProperties.ObjectStoreProperties store) {
         return S3Client.builder()
-                .region(Region.US_EAST_1)
+                .region(region(store))
                 .endpointOverride(URI.create(store.endpoint()))
                 .credentialsProvider(credentials(store))
                 .serviceConfiguration(S3Configuration.builder()
@@ -52,13 +52,21 @@ public class OssInfrastructureConfiguration {
 
     private S3Presigner s3Presigner(OssProperties.ObjectStoreProperties store) {
         return S3Presigner.builder()
-                .region(Region.US_EAST_1)
+                .region(region(store))
                 .endpointOverride(URI.create(store.endpoint()))
                 .credentialsProvider(credentials(store))
                 .serviceConfiguration(S3Configuration.builder()
                         .pathStyleAccessEnabled(store.pathStyle())
                         .build())
                 .build();
+    }
+
+    private Region region(OssProperties.ObjectStoreProperties store) {
+        String region = store.region();
+        if (region == null || region.isBlank()) {
+            return Region.of("garage");
+        }
+        return Region.of(region.trim());
     }
 
     private StaticCredentialsProvider credentials(OssProperties.ObjectStoreProperties store) {

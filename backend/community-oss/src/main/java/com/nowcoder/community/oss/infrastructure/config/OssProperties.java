@@ -31,6 +31,7 @@ public class OssProperties {
         private String accessKey = "";
         private String secretKey = "";
         private String bucket = "community-oss";
+        private String region = "garage";
         private boolean pathStyle = true;
         private String localRoot = "/tmp/community-oss";
 
@@ -72,6 +73,14 @@ public class OssProperties {
 
         public void setBucket(String bucket) {
             this.bucket = bucket;
+        }
+
+        public String region() {
+            return region;
+        }
+
+        public void setRegion(String region) {
+            this.region = region;
         }
 
         public boolean pathStyle() {

@@ -119,7 +119,9 @@
 - 停止：`./deploy/deployment.sh down --topology single`
 - 完全重置：`./deploy/deployment.sh down --topology cluster -- -v`
 
-`-v` 是传给 `docker compose down` 的参数，要放在 `--` 后面。默认项目名是 `community-single` / `community-cluster`，对应的 MySQL 数据卷名分别是 `community-single_mysql_primary_data` / `community-cluster_mysql_primary_data`。
+`-v` 是传给 `docker compose down` 的参数，要放在 `--` 后面。默认 project name 是 `community-single` / `community-cluster`，默认 volume namespace 是 `community_single` / `community_cluster`，对应的 MySQL 数据卷名分别是 `community_single_mysql_primary_data` / `community_cluster_mysql_primary_data`。
+
+如需给 volume 使用独立前缀，可在命令前设置 `COMMUNITY_VOLUME_NAMESPACE`，例如 `COMMUNITY_VOLUME_NAMESPACE=community_smoke ./deploy/deployment.sh up --topology single`。
 
 如果你启动时带了 `--no-observability`，停止时也请带上相同参数组合。
 

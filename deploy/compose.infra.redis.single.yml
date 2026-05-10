@@ -11,7 +11,7 @@ services:
     - --bind
     - 0.0.0.0
     volumes:
-    - redis_1_data:/data
+    - redis_node_1_data:/data
     healthcheck:
       test:
       - CMD

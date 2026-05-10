@@ -11,7 +11,7 @@ services:
     - GARAGE_REPLICATION_FACTOR=1
     - RUST_LOG=${GARAGE_RUST_LOG:-garage=info}
     volumes:
-    - garage_data:/var/lib/garage
+    - garage_node_1_data:/var/lib/garage
     - ./garage/garage.single.toml:/etc/garage.toml:ro
     ports:
     - "${GARAGE_S3_HOST_PORT:-13900}:3900"

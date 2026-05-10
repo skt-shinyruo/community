@@ -11,7 +11,7 @@ services:
     - GARAGE_REPLICATION_FACTOR=3
     - RUST_LOG=${GARAGE_RUST_LOG:-garage=info}
     volumes:
-    - garage_1_data:/var/lib/garage
+    - garage_node_1_data:/var/lib/garage
     - ./garage/garage.cluster-1.toml:/etc/garage.toml:ro
     ports:
     - "${GARAGE_S3_HOST_PORT:-13900}:3900"
@@ -34,7 +34,7 @@ services:
     - GARAGE_REPLICATION_FACTOR=3
     - RUST_LOG=${GARAGE_RUST_LOG:-garage=info}
     volumes:
-    - garage_2_data:/var/lib/garage
+    - garage_node_2_data:/var/lib/garage
     - ./garage/garage.cluster-2.toml:/etc/garage.toml:ro
     networks:
       default:
@@ -53,7 +53,7 @@ services:
     - GARAGE_REPLICATION_FACTOR=3
     - RUST_LOG=${GARAGE_RUST_LOG:-garage=info}
     volumes:
-    - garage_3_data:/var/lib/garage
+    - garage_node_3_data:/var/lib/garage
     - ./garage/garage.cluster-3.toml:/etc/garage.toml:ro
     networks:
       default:

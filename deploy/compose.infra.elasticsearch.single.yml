@@ -14,7 +14,7 @@ services:
         soft: -1
         hard: -1
     volumes:
-    - es_1_data:/usr/share/elasticsearch/data
+    - elasticsearch_node_1_data:/usr/share/elasticsearch/data
     networks:
       default:
         aliases:

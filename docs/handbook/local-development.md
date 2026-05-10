@@ -226,7 +226,8 @@ git diff --check -- docs/handbook
 
 如果启动时带了 `--no-observability`，停止时也带上同一组选项。
 `-v` 是透传给 `docker compose down` 的参数，要放在 `--` 后面。
-默认项目名为 `community-single` / `community-cluster`，对应的数据卷分别是 `community-single_mysql_primary_data` / `community-cluster_mysql_primary_data`。
+默认 project name 为 `community-single` / `community-cluster`，默认 volume namespace 为 `community_single` / `community_cluster`，对应的数据卷分别是 `community_single_mysql_primary_data` / `community_cluster_mysql_primary_data`。
+如需给 volume 使用独立前缀，可在命令前设置 `COMMUNITY_VOLUME_NAMESPACE`。
 
 Kafka 长时间 `health: starting` 且刚从旧拓扑切换时，优先执行带 `-v` 的 down 后重启。
 

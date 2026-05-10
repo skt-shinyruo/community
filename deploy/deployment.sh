@@ -20,6 +20,7 @@ Options:
   --no-observability  Disable deploy/compose.observability.yml
   --env-file <path>   Override env file path (default: deploy/.env.single or deploy/.env.cluster)
   -p, --project-name  Override compose project name (default: community-single or community-cluster)
+  COMMUNITY_VOLUME_NAMESPACE overrides the Docker volume name prefix (default: community_single or community_cluster)
   -h, --help          Show this help
 
 Examples:
@@ -70,6 +71,17 @@ resolve_default_project_name() {
   case "${TOPOLOGY}" in
     single) printf 'community-single\n' ;;
     cluster) printf 'community-cluster\n' ;;
+    *)
+      echo "[deployment.sh] unsupported topology: ${TOPOLOGY}" >&2
+      exit 1
+      ;;
+  esac
+}
+
+resolve_default_volume_namespace() {
+  case "${TOPOLOGY}" in
+    single) printf 'community_single\n' ;;
+    cluster) printf 'community_cluster\n' ;;
     *)
       echo "[deployment.sh] unsupported topology: ${TOPOLOGY}" >&2
       exit 1
@@ -269,6 +281,10 @@ fi
 
 if [ -z "${PROJECT_NAME}" ]; then
   PROJECT_NAME="$(resolve_default_project_name)"
+fi
+
+if [ -z "${COMMUNITY_VOLUME_NAMESPACE+x}" ]; then
+  export COMMUNITY_VOLUME_NAMESPACE="$(resolve_default_volume_namespace)"
 fi
 
 COMPOSE_FILES=(deploy/compose.yml)

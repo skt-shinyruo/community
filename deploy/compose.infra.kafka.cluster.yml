@@ -31,7 +31,7 @@ services:
     - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
     - KAFKA_HEAP_OPTS=${KAFKA_HEAP_OPTS:--Xms384M -Xmx384M}
     volumes:
-    - kafka_1_data:/var/lib/kafka/data
+    - kafka_node_1_data:/var/lib/kafka/data
   kafka-2:
     image: confluentinc/cp-kafka:7.6.1
     mem_limit: ${KAFKA_MEM_LIMIT:-768m}
@@ -64,7 +64,7 @@ services:
     - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
     - KAFKA_HEAP_OPTS=${KAFKA_HEAP_OPTS:--Xms384M -Xmx384M}
     volumes:
-    - kafka_2_data:/var/lib/kafka/data
+    - kafka_node_2_data:/var/lib/kafka/data
   kafka-3:
     image: confluentinc/cp-kafka:7.6.1
     mem_limit: ${KAFKA_MEM_LIMIT:-768m}
@@ -97,7 +97,7 @@ services:
     - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
     - KAFKA_HEAP_OPTS=${KAFKA_HEAP_OPTS:--Xms384M -Xmx384M}
     volumes:
-    - kafka_3_data:/var/lib/kafka/data
+    - kafka_node_3_data:/var/lib/kafka/data
   kafka-init:
     image: confluentinc/cp-kafka:7.6.1
     mem_limit: ${KAFKA_INIT_MEM_LIMIT:-384m}

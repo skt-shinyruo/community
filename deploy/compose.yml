@@ -1,23 +1,41 @@
 name: community
 
 volumes:
-  mysql_primary_data: {}
-  mysql_replica_1_data: {}
-  mysql_replica_2_data: {}
-  redis_1_data: {}
-  redis_2_data: {}
-  redis_3_data: {}
-  redis_4_data: {}
-  redis_5_data: {}
-  redis_6_data: {}
-  garage_data: {}
-  garage_1_data: {}
-  garage_2_data: {}
-  garage_3_data: {}
-  kafka_1_data: {}
-  kafka_2_data: {}
-  kafka_3_data: {}
-  es_1_data: {}
-  es_2_data: {}
-  es_3_data: {}
-  observability_logs: {}
+  mysql_primary_data:
+    name: ${COMMUNITY_VOLUME_NAMESPACE}_mysql_primary_data
+  mysql_replica_1_data:
+    name: ${COMMUNITY_VOLUME_NAMESPACE}_mysql_replica_1_data
+  mysql_replica_2_data:
+    name: ${COMMUNITY_VOLUME_NAMESPACE}_mysql_replica_2_data
+  redis_node_1_data:
+    name: ${COMMUNITY_VOLUME_NAMESPACE}_redis_node_1_data
+  redis_node_2_data:
+    name: ${COMMUNITY_VOLUME_NAMESPACE}_redis_node_2_data
+  redis_node_3_data:
+    name: ${COMMUNITY_VOLUME_NAMESPACE}_redis_node_3_data
+  redis_node_4_data:
+    name: ${COMMUNITY_VOLUME_NAMESPACE}_redis_node_4_data
+  redis_node_5_data:
+    name: ${COMMUNITY_VOLUME_NAMESPACE}_redis_node_5_data
+  redis_node_6_data:
+    name: ${COMMUNITY_VOLUME_NAMESPACE}_redis_node_6_data
+  garage_node_1_data:
+    name: ${COMMUNITY_VOLUME_NAMESPACE}_garage_node_1_data
+  garage_node_2_data:
+    name: ${COMMUNITY_VOLUME_NAMESPACE}_garage_node_2_data
+  garage_node_3_data:
+    name: ${COMMUNITY_VOLUME_NAMESPACE}_garage_node_3_data
+  kafka_node_1_data:
+    name: ${COMMUNITY_VOLUME_NAMESPACE}_kafka_node_1_data
+  kafka_node_2_data:
+    name: ${COMMUNITY_VOLUME_NAMESPACE}_kafka_node_2_data
+  kafka_node_3_data:
+    name: ${COMMUNITY_VOLUME_NAMESPACE}_kafka_node_3_data
+  elasticsearch_node_1_data:
+    name: ${COMMUNITY_VOLUME_NAMESPACE}_elasticsearch_node_1_data
+  elasticsearch_node_2_data:
+    name: ${COMMUNITY_VOLUME_NAMESPACE}_elasticsearch_node_2_data
+  elasticsearch_node_3_data:
+    name: ${COMMUNITY_VOLUME_NAMESPACE}_elasticsearch_node_3_data
+  observability_logs:
+    name: ${COMMUNITY_VOLUME_NAMESPACE}_observability_logs

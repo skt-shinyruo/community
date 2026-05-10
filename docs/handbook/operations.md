@@ -28,7 +28,7 @@ observability 默认启用；如需关闭整个 overlay，追加 `--no-observabi
 
 ```text
 backend structured JSON file appender
-  -> shared observability_logs volume
+  -> shared observability volume
   -> EDOT collector filelog receiver
   -> Elasticsearch
   -> Kibana
@@ -242,14 +242,14 @@ curl -fsS "http://localhost:18848/nacos/v1/ns/instance/list?serviceName=im-realt
 ./deploy/deployment.sh down --topology cluster -- -v
 ./deploy/deployment.sh up --topology cluster
 ```
-`-v` 要放在 `--` 后面，才会被透传给 `docker compose down`。默认项目名是 `community-cluster`，所以 MySQL 数据卷名是 `community-cluster_mysql_primary_data`。
+`-v` 要放在 `--` 后面，才会被透传给 `docker compose down`。默认 cluster volume namespace 是 `community_cluster`，所以 MySQL 数据卷名是 `community_cluster_mysql_primary_data`。
 
 ### Kibana 没有日志
 
 检查：
 
 - 启动命令是否没有带 `--no-observability`。
-- backend 是否写入 shared `observability_logs` volume。
+- backend 是否写入 shared `community_cluster_observability_logs` / `community_single_observability_logs` volume。
 - EDOT collector 是否正常运行。
 - Kibana saved objects 是否已导入。
 - 日志查询时间范围是否覆盖当前时间。

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Community Playwright Regression"
+  short_description: "Verify community UI end to end"
+  default_prompt: "Use $community-playwright-regression to verify the community app UI with the route, role, API, and evidence matrix."

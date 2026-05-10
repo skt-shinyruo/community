@@ -43,6 +43,8 @@
 | `ModerationView.vue` | content 举报和审核、user 处罚联动。 |
 | `AnalyticsView.vue` | analytics UV/DAU 查询。 |
 | `WalletView.vue` | wallet 余额、充值、提现、转账。 |
+| `DriveView.vue` | drive 网盘空间、目录、文件、上传、下载、回收站、分享管理。 |
+| `DriveShareView.vue` | drive 公开分享访问、提取码校验、短时下载入口。 |
 | `WalletAdminView.vue` | wallet 管理员冻结和冲正。 |
 | `MarketListView.vue`, `MarketDetailView.vue` | market 商品列表和详情。 |
 | `MarketPublishView.vue`, `MarketMyListingsView.vue` | market 卖家商品管理。 |

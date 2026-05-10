@@ -55,14 +55,12 @@ Gateway：
 
 单机开发可以使用 local filesystem 或 Garage single-node。生产拓扑至少 3 节点 Garage，开启副本、健康检查、日志和 Prometheus 监控。以后换 Ceph RGW 时，只替换 `ObjectStore` adapter 和配置，`/api/oss/**`、`/files/**` 与 consumer client contract 不变。
 
-## Current Consumer
+## Current Consumers
 
-当前 live consumer 是 user avatar：
+当前 live consumers 包括：
 
-1. `UserAvatarApplicationService` 做本人权限检查。
-2. `OssAvatarStorageAdapter` 通过 `community-oss-client` prepare / complete。
-3. user 仍保存 `headerUrl` 展示投影。
-4. canonical 对象事实在 OSS，旧 `avatar/{userId}/{uuid}` 作为 alias 保持可读。
+1. `user` avatar：`UserAvatarApplicationService` 做本人权限检查，`OssAvatarStorageAdapter` 通过 `community-oss-client` prepare / complete，user 仍保存 `headerUrl` 展示投影，canonical 对象事实在 OSS，旧 `avatar/{userId}/{uuid}` 作为 alias 保持可读。
+2. `drive` cloud drive：目录、配额、回收站和分享由 drive 负责，文件对象、版本、签名下载和生命周期由 OSS 负责。
 
 ## Key Code
 

@@ -194,7 +194,7 @@ IM 独立于 `community-app`，并拆成统一外部入口下的三层：
 
 - 浏览器同步 API 走 `/api/oss/**`。
 - 公共文件下载走 `/files/**`，路由固定到 `community-oss`。
-- `community-app`、`community-im` 和后续业务服务通过 `community-oss-client` 消费 OSS，不直接碰存储后端。
+- `community-app`、`community-im`、`drive` 和后续业务服务通过 `community-oss-client` 消费 OSS，不直接碰存储后端。
 - OSS 只依赖 `ObjectStore` 抽象，dev 可以用 local filesystem 或单节点 Garage，prod 应使用至少 3 节点 Garage 并开启副本和监控。
 - 未来切换 Ceph RGW 只替换对象存储 adapter 和配置，不改业务 API。
 

@@ -91,6 +91,8 @@ com.nowcoder.community.<domain>
 
 允许有少量域特定 adapter 包，但职责必须能映射回上面的层次。例如 owner API adapter 可以位于 `infrastructure.api`，Spring event / outbox adapter 可以位于 `infrastructure.event`。
 
+`drive` follows the same DDD tactical layering guardrails: controllers call same-domain application services, application services depend on drive domain contracts and application ports, and OSS collaboration is hidden behind drive infrastructure adapters.
+
 ## 非 business 代码边界
 
 - `frontend/` 不承载后端 owner 规则。前端可以做交互校验、表单规范化、pending 状态展示和 refresh retry，但不能把浏览器字段当作 owner 事实来源。

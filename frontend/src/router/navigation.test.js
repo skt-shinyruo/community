@@ -76,6 +76,7 @@ describe('router/navigation', () => {
     ])
     expect(authed.find((g) => g.key === 'personal')?.items.map((it) => it.key)).toEqual([
       'wallet',
+      'drive',
       'notices',
       'messages',
       'settings'
@@ -98,6 +99,11 @@ describe('router/navigation', () => {
       'adminMarketDisputes',
       'opsConsole'
     ])
+  })
+
+  it('getSidebarNavigation should expose drive under personal workspace for authenticated users', () => {
+    const authed = getSidebarNavigation({ authed: true, userId: '8', roles: ['ROLE_USER'] })
+    expect(authed.find((g) => g.key === 'personal')?.items.map((it) => it.key)).toContain('drive')
   })
 
   it('isNavItemActive should keep parent items active across route families', () => {

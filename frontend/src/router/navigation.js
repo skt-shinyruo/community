@@ -219,6 +219,14 @@ const NAV_DEFS = Object.freeze([
         activeNames: ['wallet']
       },
       {
+        key: 'drive',
+        label: '网盘',
+        icon: 'folder',
+        requiresAuth: true,
+        to: () => ({ name: 'drive' }),
+        activeNames: ['drive']
+      },
+      {
         key: 'notices',
         label: '通知',
         icon: 'bell',

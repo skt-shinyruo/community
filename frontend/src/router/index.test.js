@@ -121,6 +121,23 @@ describe('router/index', () => {
     expect(routeNames).not.toContain('leaderboard')
   })
 
+  it('should register authenticated drive route and public share route', async () => {
+    vi.doMock('./authGuard', () => ({
+      authGuard: () => true
+    }))
+
+    stubRouterGlobals()
+
+    const { default: router } = await import('./index')
+    const drive = router.getRoutes().find((r) => r.name === 'drive')
+    const share = router.getRoutes().find((r) => r.name === 'driveShare')
+
+    expect(drive?.path).toBe('/drive')
+    expect(drive?.meta?.requiresAuth).toBe(true)
+    expect(share?.path).toBe('/drive/s/:shareToken')
+    expect(share?.meta?.requiresAuth).toBeFalsy()
+  })
+
   it('should lazy-load non-trivial route views to keep them out of the entry bundle', async () => {
     vi.doMock('./authGuard', () => ({
       authGuard: () => true

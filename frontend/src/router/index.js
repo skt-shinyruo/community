@@ -20,6 +20,8 @@ const MarketSellingOrdersView = () => import('../views/MarketSellingOrdersView.v
 const MarketOrderDetailView = () => import('../views/MarketOrderDetailView.vue')
 const MarketAddressesView = () => import('../views/MarketAddressesView.vue')
 const WalletView = () => import('../views/WalletView.vue')
+const DriveView = () => import('../views/DriveView.vue')
+const DriveShareView = () => import('../views/DriveShareView.vue')
 const ConversationsView = () => import('../views/ConversationsView.vue')
 const ConversationDetailView = () => import('../views/ConversationDetailView.vue')
 const NoticesView = () => import('../views/NoticesView.vue')
@@ -145,6 +147,19 @@ const router = createRouter({
       name: 'marketAddresses',
       component: MarketAddressesView,
       meta: { title: '收货地址', subtitle: '管理实物商品订单使用的收货地址。', navGroup: 'me', requiresAuth: true }
+    },
+    {
+      path: '/drive',
+      name: 'drive',
+      component: DriveView,
+      meta: { title: '网盘', subtitle: '管理私有文件、分享链接和回收站。', navGroup: 'me', requiresAuth: true }
+    },
+    {
+      path: '/drive/s/:shareToken',
+      name: 'driveShare',
+      component: DriveShareView,
+      props: true,
+      meta: { title: '网盘分享', subtitle: '输入提取码后访问分享文件。', navGroup: 'public' }
     },
     {
       path: '/admin/wallet',

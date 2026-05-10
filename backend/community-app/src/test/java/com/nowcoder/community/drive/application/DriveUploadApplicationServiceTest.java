@@ -15,6 +15,8 @@ import com.nowcoder.community.drive.domain.repository.DriveEntryRepository;
 import com.nowcoder.community.drive.domain.repository.DriveSpaceRepository;
 import com.nowcoder.community.drive.domain.repository.DriveUploadRepository;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.io.ByteArrayInputStream;
 import java.time.Clock;
@@ -30,6 +32,11 @@ import java.util.UUID;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class DriveUploadApplicationServiceTest {
 
@@ -62,6 +69,32 @@ class DriveUploadApplicationServiceTest {
         assertThat(result.upload().fileField()).isEqualTo("file");
         assertThat(result.upload().fields()).containsEntry("fileKey", result.fileKey());
         assertThat(result.constraints().maxBytes()).isEqualTo(10_737_418_240L);
+    }
+
+    @Test
+    void prepareUploadShouldRecoverFromDuplicateKeyDuringBootstrap() {
+        DriveSpaceRepository spaces = mock(DriveSpaceRepository.class);
+        DriveEntryRepository entries = mock(DriveEntryRepository.class);
+        DriveUploadRepository uploads = mock(DriveUploadRepository.class);
+        DriveObjectStoragePort storage = mock(DriveObjectStoragePort.class);
+        UUID userId = uuid(7);
+        UUID existingSpaceId = uuid(90);
+        DriveSpace existingSpace = DriveSpace.createDefault(existingSpaceId, userId, NOW);
+
+        when(spaces.findByUserId(userId))
+                .thenReturn(Optional.empty(), Optional.of(existingSpace));
+        doThrow(new DuplicateKeyException("duplicate drive_space user")).when(spaces).save(any(DriveSpace.class));
+        when(entries.findActiveChildByName(any(), any(), any())).thenReturn(Optional.empty());
+        when(storage.prepareUpload(any()))
+                .thenReturn(new DriveObjectStoragePort.PreparedObject(uuid(101), uuid(102), uuid(103), NOW.plusSeconds(900)));
+
+        DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
+        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "report.pdf", "application/pdf", 1_024L, ""));
+
+        assertThat(session.uploadId()).isNotBlank();
+        ArgumentCaptor<DriveUpload> uploadCaptor = ArgumentCaptor.forClass(DriveUpload.class);
+        verify(uploads).save(uploadCaptor.capture());
+        assertThat(uploadCaptor.getValue().spaceId()).isEqualTo(existingSpaceId);
     }
 
     @Test

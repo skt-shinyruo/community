@@ -630,6 +630,7 @@ create table if not exists drive_entry (
   status varchar(16) not null,
   trashed_at timestamp,
   delete_after timestamp,
+  trash_root_id binary(16),
   created_at timestamp default current_timestamp,
   updated_at timestamp default current_timestamp,
   constraint uk_drive_entry_active_name unique (space_id, parent_key, active_name)

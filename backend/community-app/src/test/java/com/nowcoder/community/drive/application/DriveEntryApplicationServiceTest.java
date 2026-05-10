@@ -4,18 +4,35 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.drive.application.command.CreateDriveFolderCommand;
 import com.nowcoder.community.drive.application.command.MoveDriveEntryCommand;
 import com.nowcoder.community.drive.application.command.RenameDriveEntryCommand;
+import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
 import com.nowcoder.community.drive.application.result.DriveDownloadUrlResult;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
 import com.nowcoder.community.drive.application.result.DriveSpaceResult;
+import com.nowcoder.community.drive.domain.model.DriveEntry;
+import com.nowcoder.community.drive.domain.model.DriveSpace;
+import com.nowcoder.community.drive.domain.repository.DriveEntryRepository;
+import com.nowcoder.community.drive.domain.repository.DriveSpaceRepository;
 import com.nowcoder.community.drive.domain.model.DriveEntryStatus;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DuplicateKeyException;
+import org.mockito.ArgumentCaptor;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class DriveEntryApplicationServiceTest {
 
@@ -34,6 +51,32 @@ class DriveEntryApplicationServiceTest {
         assertThatThrownBy(() -> service.createFolder(new CreateDriveFolderCommand(userId, null, "Docs")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("同名文件或文件夹已存在");
+    }
+
+    @Test
+    void createFolderShouldRecoverFromDuplicateKeyDuringBootstrap() {
+        DriveSpaceRepository spaceRepository = mock(DriveSpaceRepository.class);
+        DriveEntryRepository entryRepository = mock(DriveEntryRepository.class);
+        DriveObjectStoragePort storagePort = mock(DriveObjectStoragePort.class);
+        Instant now = Instant.parse("2026-05-09T00:00:00Z");
+        Clock clock = Clock.fixed(now, ZoneOffset.UTC);
+        UUID userId = uuid(7);
+        UUID existingSpaceId = uuid(8);
+        DriveSpace existingSpace = DriveSpace.createDefault(existingSpaceId, userId, now);
+
+        when(spaceRepository.findByUserId(userId))
+                .thenReturn(Optional.empty(), Optional.of(existingSpace));
+        doThrow(new DuplicateKeyException("duplicate drive_space user")).when(spaceRepository).save(any(DriveSpace.class));
+        when(entryRepository.findActiveChildByName(any(), any(), any())).thenReturn(Optional.empty());
+
+        DriveEntryApplicationService service = new DriveEntryApplicationService(spaceRepository, entryRepository, storagePort, clock);
+        DriveEntryResult result = service.createFolder(new CreateDriveFolderCommand(userId, null, "Docs"));
+
+        assertThat(result.name()).isEqualTo("Docs");
+        verify(spaceRepository, times(2)).findByUserId(userId);
+        ArgumentCaptor<DriveEntry> entryCaptor = ArgumentCaptor.forClass(DriveEntry.class);
+        verify(entryRepository).save(entryCaptor.capture());
+        assertThat(entryCaptor.getValue().spaceId()).isEqualTo(existingSpaceId);
     }
 
     @Test

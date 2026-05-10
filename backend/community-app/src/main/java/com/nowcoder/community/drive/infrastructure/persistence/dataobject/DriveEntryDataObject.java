@@ -23,6 +23,7 @@ public class DriveEntryDataObject {
     private DriveEntryStatus status;
     private Instant trashedAt;
     private Instant deleteAfter;
+    private UUID trashRootId;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -42,6 +43,7 @@ public class DriveEntryDataObject {
         dataObject.setStatus(entry.status());
         dataObject.setTrashedAt(entry.trashedAt());
         dataObject.setDeleteAfter(entry.deleteAfter());
+        dataObject.setTrashRootId(entry.trashRootId());
         dataObject.setCreatedAt(entry.createdAt());
         dataObject.setUpdatedAt(entry.updatedAt());
         return dataObject;
@@ -61,6 +63,7 @@ public class DriveEntryDataObject {
                 emptyToNull(mimeType),
                 trashedAt,
                 deleteAfter,
+                trashRootId,
                 createdAt,
                 updatedAt
         );
@@ -184,6 +187,14 @@ public class DriveEntryDataObject {
 
     public void setDeleteAfter(Instant deleteAfter) {
         this.deleteAfter = deleteAfter;
+    }
+
+    public UUID getTrashRootId() {
+        return trashRootId;
+    }
+
+    public void setTrashRootId(UUID trashRootId) {
+        this.trashRootId = trashRootId;
     }
 
     public Instant getCreatedAt() {

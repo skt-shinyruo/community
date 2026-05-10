@@ -18,6 +18,7 @@ public record DriveEntry(
         String mimeType,
         Instant trashedAt,
         Instant deleteAfter,
+        UUID trashRootId,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -37,6 +38,7 @@ public record DriveEntry(
                 null,
                 null,
                 0L,
+                null,
                 null,
                 null,
                 null,
@@ -65,6 +67,7 @@ public record DriveEntry(
                 versionId,
                 sizeBytes,
                 mimeType,
+                null,
                 null,
                 null,
                 now,
@@ -96,6 +99,7 @@ public record DriveEntry(
                 mimeType,
                 trashedAt,
                 deleteAfter,
+                trashRootId,
                 createdAt,
                 now
         );
@@ -120,12 +124,18 @@ public record DriveEntry(
                 mimeType,
                 trashedAt,
                 deleteAfter,
+                trashRootId,
                 createdAt,
                 now
         );
     }
 
     public DriveEntry trash(Instant trashedAt, Instant deleteAfter) {
+        return trash(entryId, trashedAt, deleteAfter);
+    }
+
+    public DriveEntry trash(UUID trashRootId, Instant trashedAt, Instant deleteAfter) {
+        requireId(trashRootId, "trashRootId");
         requireNow(trashedAt);
         if (deleteAfter == null) {
             throw new IllegalArgumentException("deleteAfter must not be null");
@@ -146,6 +156,7 @@ public record DriveEntry(
                 mimeType,
                 trashedAt,
                 deleteAfter,
+                trashRootId,
                 createdAt,
                 trashedAt
         );
@@ -167,6 +178,7 @@ public record DriveEntry(
                 versionId,
                 sizeBytes,
                 mimeType,
+                null,
                 null,
                 null,
                 createdAt,
@@ -192,6 +204,7 @@ public record DriveEntry(
                 mimeType,
                 trashedAt,
                 deleteAfter,
+                trashRootId,
                 createdAt,
                 now
         );

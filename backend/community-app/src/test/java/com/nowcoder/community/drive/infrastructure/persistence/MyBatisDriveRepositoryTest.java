@@ -131,6 +131,7 @@ class MyBatisDriveRepositoryTest {
         );
         assertThat(activeName).isEqualTo("Roadmap.txt");
         assertThat(trashedActiveName).isNull();
+        assertThat(entryRepository.findById(SPACE_ID, NESTED_ID).orElseThrow().trashRootId()).isEqualTo(NESTED_ID);
     }
 
     @Test

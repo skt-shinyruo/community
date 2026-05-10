@@ -1,10 +1,14 @@
 package com.nowcoder.community.drive.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.drive.application.command.CreateDriveFolderCommand;
 import com.nowcoder.community.drive.application.command.CreateDriveShareCommand;
 import com.nowcoder.community.drive.application.command.VerifyDriveShareCommand;
 import com.nowcoder.community.drive.application.result.DriveDownloadUrlResult;
+import com.nowcoder.community.drive.application.result.DriveEntryResult;
 import com.nowcoder.community.drive.application.result.DriveShareResult;
+import com.nowcoder.community.drive.domain.model.DriveEntry;
+import com.nowcoder.community.drive.domain.model.DriveEntryStatus;
 import com.nowcoder.community.drive.infrastructure.security.BCryptDrivePasswordHasher;
 import com.nowcoder.community.drive.infrastructure.security.HmacDriveShareTicketCodec;
 import org.junit.jupiter.api.Test;
@@ -65,6 +69,56 @@ class DriveShareApplicationServiceTest {
         assertThat(fixture.shareAccesses().records()).extracting(TestDriveFixture.AccessRecord::success)
                 .containsExactly(false, true);
         assertThat(fixture.ticketCodec().issued()).hasSize(1);
+    }
+
+    @Test
+    void verifyShareShouldRecordFailureWhenSharedEntryIsNoLongerActive() {
+        TestDriveFixture fixture = TestDriveFixture.create();
+        DriveShareApplicationService service = fixture.shareService();
+        DriveTrashApplicationService trashService = fixture.trashService();
+        UUID userId = uuid(7);
+        UUID entryId = fixture.createFile(userId, "a.txt", 8);
+        DriveShareResult share = service.createShare(new CreateDriveShareCommand(
+                userId,
+                entryId,
+                "1234",
+                Instant.parse("2026-05-10T00:00:00Z")
+        ));
+
+        trashService.trash(userId, entryId);
+
+        assertThatThrownBy(() -> service.verifyShare(new VerifyDriveShareCommand(share.shareToken(), "1234", "ip:1")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("分享链接不可用");
+        assertThat(fixture.shareAccesses().records()).hasSize(1);
+        assertThat(fixture.shareAccesses().records()).extracting(TestDriveFixture.AccessRecord::success)
+                .containsExactly(false);
+    }
+
+    @Test
+    void folderShareShouldIssueDownloadUrlForDescendantFileAfterVerification() {
+        TestDriveFixture fixture = TestDriveFixture.create();
+        DriveShareApplicationService service = fixture.shareService();
+        DriveEntryApplicationService entryService = fixture.entryService();
+        UUID userId = uuid(7);
+        DriveEntryResult folder = entryService.createFolder(new CreateDriveFolderCommand(userId, null, "Folder"));
+        UUID nestedFileId = fixture.createFile(userId, folder.entryId(), "child.txt", 8);
+        UUID otherFileId = fixture.createFile(userId, null, "outside.txt", 8);
+        DriveShareResult share = service.createShare(new CreateDriveShareCommand(
+                userId,
+                folder.entryId(),
+                "1234",
+                Instant.parse("2026-05-10T00:00:00Z")
+        ));
+
+        DriveShareResult verified = service.verifyShare(new VerifyDriveShareCommand(share.shareToken(), "1234", "ip:1"));
+        DriveDownloadUrlResult download = service.createShareDownloadUrl(share.shareToken(), verified.ticket(), nestedFileId);
+
+        assertThat(download.url()).contains("https://cdn.example.test/");
+        assertThat(fixture.storage().downloadObjectIds).containsExactly(fixture.entry(nestedFileId).objectId());
+        assertThatThrownBy(() -> service.createShareDownloadUrl(share.shareToken(), verified.ticket(), otherFileId))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("分享链接不可用");
     }
 
     @Test

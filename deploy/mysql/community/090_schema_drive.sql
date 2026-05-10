@@ -26,6 +26,7 @@ create table if not exists drive_entry (
   status varchar(16) not null,
   trashed_at timestamp null default null,
   delete_after timestamp null default null,
+  trash_root_id binary(16) null,
   created_at timestamp not null default current_timestamp,
   updated_at timestamp not null default current_timestamp,
   unique key uk_drive_entry_active_name (space_id, parent_key, active_name),

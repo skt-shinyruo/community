@@ -9,8 +9,13 @@ import com.nowcoder.community.drive.domain.model.DriveSpace;
 import com.nowcoder.community.drive.domain.repository.DriveEntryRepository;
 import com.nowcoder.community.drive.domain.repository.DriveSpaceRepository;
 import com.nowcoder.community.drive.exception.DriveErrorCode;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -18,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
@@ -29,22 +35,41 @@ public class DriveTrashApplicationService {
     private final DriveEntryRepository entryRepository;
     private final DriveObjectStoragePort objectStoragePort;
     private final Clock clock;
+    private final TransactionTemplate deleteTransactionTemplate;
 
+    @Autowired
     public DriveTrashApplicationService(
             DriveSpaceRepository spaceRepository,
             DriveEntryRepository entryRepository,
             DriveObjectStoragePort objectStoragePort,
-            Clock clock
+            Clock clock,
+            PlatformTransactionManager transactionManager
     ) {
         this.spaceRepository = spaceRepository;
         this.entryRepository = entryRepository;
         this.objectStoragePort = objectStoragePort;
         this.clock = clock == null ? Clock.systemUTC() : clock;
+        if (transactionManager == null) {
+            this.deleteTransactionTemplate = null;
+        } else {
+            TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+            transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            this.deleteTransactionTemplate = transactionTemplate;
+        }
+    }
+
+    DriveTrashApplicationService(
+            DriveSpaceRepository spaceRepository,
+            DriveEntryRepository entryRepository,
+            DriveObjectStoragePort objectStoragePort,
+            Clock clock
+    ) {
+        this(spaceRepository, entryRepository, objectStoragePort, clock, null);
     }
 
     @Transactional
     public DriveEntryResult trash(UUID actorUserId, UUID entryId) {
-        DriveSpace space = loadSpace(actorUserId);
+        DriveSpace space = loadOrCreateSpace(actorUserId);
         DriveEntry entry = loadEntry(space.spaceId(), entryId);
         if (entry.status() != DriveEntryStatus.ACTIVE) {
             throw new BusinessException(DriveErrorCode.DRIVE_ENTRY_NOT_FOUND, "网盘条目不存在");
@@ -54,7 +79,7 @@ public class DriveTrashApplicationService {
         List<DriveEntry> entries = entryWithDescendants(space.spaceId(), entry);
         entries.forEach(item -> {
             if (item.status() == DriveEntryStatus.ACTIVE) {
-                entryRepository.save(item.trash(now, deleteAfter));
+                entryRepository.save(item.trash(entry.entryId(), now, deleteAfter));
             }
         });
         return DriveEntryApplicationService.toEntryResult(loadEntry(space.spaceId(), entryId));
@@ -62,7 +87,7 @@ public class DriveTrashApplicationService {
 
     @Transactional
     public DriveEntryResult restore(UUID actorUserId, UUID entryId, UUID targetParentId) {
-        DriveSpace space = loadSpace(actorUserId);
+        DriveSpace space = loadOrCreateSpace(actorUserId);
         DriveEntry entry = loadEntry(space.spaceId(), entryId);
         if (entry.status() != DriveEntryStatus.TRASHED) {
             throw new BusinessException(DriveErrorCode.DRIVE_ENTRY_TRASHED, "回收站条目不可执行该操作");
@@ -75,42 +100,43 @@ public class DriveTrashApplicationService {
         entryRepository.listDescendantIds(space.spaceId(), entry.entryId()).stream()
                 .map(descendantId -> loadEntry(space.spaceId(), descendantId))
                 .filter(descendant -> descendant.status() == DriveEntryStatus.TRASHED)
+                .filter(descendant -> entry.entryId().equals(descendant.trashRootId()))
                 .map(descendant -> descendant.restore(descendant.parentId(), now))
                 .forEach(entryRepository::save);
         return DriveEntryApplicationService.toEntryResult(restored);
     }
 
-    @Transactional
     public void deletePermanently(UUID actorUserId, UUID entryId) {
-        DriveSpace space = loadSpace(actorUserId);
+        DriveSpace space = loadOrCreateSpace(actorUserId);
         DriveEntry entry = loadEntry(space.spaceId(), entryId);
-        if (entry.status() == DriveEntryStatus.DELETED) {
-            return;
-        }
-        if (entry.status() != DriveEntryStatus.TRASHED) {
+        if (entry.status() == DriveEntryStatus.ACTIVE) {
             throw new BusinessException(DriveErrorCode.DRIVE_ENTRY_TRASHED, "回收站条目不可执行该操作");
         }
         List<DriveEntry> entries = entryWithDescendants(space.spaceId(), entry);
-        long releasedBytes = entries.stream()
-                .filter(DriveEntry::file)
-                .mapToLong(DriveEntry::sizeBytes)
-                .sum();
-        Instant now = clock.instant();
-        entries.forEach(item -> entryRepository.save(item.delete(now)));
-        if (releasedBytes > 0) {
-            DriveSpace latest = spaceRepository.findById(space.spaceId()).orElse(space);
-            spaceRepository.save(latest.release(releasedBytes, now));
+        if (entry.status() == DriveEntryStatus.TRASHED) {
+            List<DriveEntry> deleteTargets = entries.stream()
+                    .filter(item -> item.status() != DriveEntryStatus.DELETED)
+                    .toList();
+            long releasedBytes = deleteTargets.stream()
+                    .filter(DriveEntry::file)
+                    .mapToLong(DriveEntry::sizeBytes)
+                    .sum();
+            Instant now = clock.instant();
+            persistDeletion(space.spaceId(), deleteTargets, releasedBytes, now);
+            deleteObjects(deleteTargets, actorUserId);
+            return;
         }
-        entries.stream()
+        Instant retryWatermark = entry.updatedAt();
+        List<DriveEntry> retryTargets = entries.stream()
                 .filter(DriveEntry::file)
-                .map(DriveEntry::objectId)
-                .distinct()
-                .forEach(objectId -> objectStoragePort.deleteObject(objectId, actorUserId.toString()));
+                .filter(item -> item.status() == DriveEntryStatus.DELETED)
+                .filter(item -> retryWatermark != null && !item.updatedAt().isBefore(retryWatermark))
+                .toList();
+        deleteObjects(retryTargets, actorUserId);
     }
 
-    @Transactional(readOnly = true)
     public List<DriveEntryResult> listTrash(UUID actorUserId) {
-        DriveSpace space = loadSpace(actorUserId);
+        DriveSpace space = loadOrCreateSpace(actorUserId);
         return entryRepository.listTrash(space.spaceId()).stream()
                 .map(DriveEntryApplicationService::toEntryResult)
                 .toList();
@@ -125,10 +151,22 @@ public class DriveTrashApplicationService {
         return entries;
     }
 
-    private DriveSpace loadSpace(UUID actorUserId) {
+    private DriveSpace loadOrCreateSpace(UUID actorUserId) {
         UUID userId = requireUser(actorUserId);
+        Instant now = clock.instant();
         return spaceRepository.findByUserId(userId)
-                .orElseThrow(() -> new BusinessException(DriveErrorCode.DRIVE_SPACE_NOT_FOUND, "网盘空间不存在"));
+                .orElseGet(() -> createDefaultSpace(userId, now));
+    }
+
+    private DriveSpace createDefaultSpace(UUID userId, Instant now) {
+        DriveSpace space = DriveSpace.createDefault(UUID.randomUUID(), userId, now);
+        try {
+            spaceRepository.save(space);
+            return space;
+        } catch (DuplicateKeyException e) {
+            return spaceRepository.findByUserId(userId)
+                    .orElseThrow(() -> new BusinessException(INTERNAL_ERROR, "网盘空间创建失败", e));
+        }
     }
 
     private DriveEntry loadEntry(UUID spaceId, UUID entryId) {
@@ -156,6 +194,36 @@ public class DriveTrashApplicationService {
                 .ifPresent(entry -> {
                     throw new BusinessException(DriveErrorCode.DRIVE_DUPLICATE_NAME, "同名文件或文件夹已存在");
                 });
+    }
+
+    private void persistDeletion(UUID spaceId, List<DriveEntry> targets, long releasedBytes, Instant now) {
+        Runnable deleteAction = () -> {
+            targets.forEach(item -> entryRepository.save(item.delete(now)));
+            if (releasedBytes > 0) {
+                DriveSpace latest = spaceRepository.findById(spaceId)
+                        .orElseThrow(() -> new BusinessException(INTERNAL_ERROR, "网盘空间不存在"));
+                spaceRepository.save(latest.release(releasedBytes, now));
+            }
+        };
+        if (deleteTransactionTemplate == null) {
+            deleteAction.run();
+            return;
+        }
+        deleteTransactionTemplate.executeWithoutResult(status -> deleteAction.run());
+    }
+
+    private void deleteObjects(List<DriveEntry> targets, UUID actorUserId) {
+        try {
+            targets.stream()
+                    .filter(DriveEntry::file)
+                    .map(DriveEntry::objectId)
+                    .distinct()
+                    .forEach(objectId -> objectStoragePort.deleteObject(objectId, actorUserId.toString()));
+        } catch (BusinessException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new BusinessException(DriveErrorCode.DRIVE_STORAGE_UNAVAILABLE, "网盘存储服务不可用", e);
+        }
     }
 
     private static UUID requireUser(UUID actorUserId) {

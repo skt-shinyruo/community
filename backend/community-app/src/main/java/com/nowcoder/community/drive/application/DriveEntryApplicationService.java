@@ -14,6 +14,7 @@ import com.nowcoder.community.drive.domain.repository.DriveEntryRepository;
 import com.nowcoder.community.drive.domain.repository.DriveSpaceRepository;
 import com.nowcoder.community.drive.domain.service.DriveEntryDomainService;
 import com.nowcoder.community.drive.exception.DriveErrorCode;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
@@ -133,21 +135,22 @@ public class DriveEntryApplicationService {
         UUID userId = requireUser(actorUserId);
         Instant now = clock.instant();
         return spaceRepository.findByUserId(userId)
-                .orElseGet(() -> {
-                    DriveSpace space = DriveSpace.createDefault(UUID.randomUUID(), userId, now);
-                    spaceRepository.save(space);
-                    return space;
-                });
+                .orElseGet(() -> createDefaultSpace(userId, now));
     }
 
     private DriveSpace loadSpace(UUID actorUserId) {
-        UUID userId = requireUser(actorUserId);
-        return spaceRepository.findByUserId(userId)
-                .orElseGet(() -> {
-                    DriveSpace space = DriveSpace.createDefault(UUID.randomUUID(), userId, clock.instant());
-                    spaceRepository.save(space);
-                    return space;
-                });
+        return loadOrCreateSpace(actorUserId);
+    }
+
+    private DriveSpace createDefaultSpace(UUID userId, Instant now) {
+        DriveSpace space = DriveSpace.createDefault(UUID.randomUUID(), userId, now);
+        try {
+            spaceRepository.save(space);
+            return space;
+        } catch (DuplicateKeyException e) {
+            return spaceRepository.findByUserId(userId)
+                    .orElseThrow(() -> new BusinessException(INTERNAL_ERROR, "网盘空间创建失败", e));
+        }
     }
 
     private DriveEntry loadActiveEntry(UUID spaceId, UUID entryId) {

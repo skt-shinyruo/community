@@ -121,15 +121,22 @@ public class DriveShareApplicationService {
         DriveShare share = shareRepository.findByToken(command.shareToken())
                 .orElseThrow(() -> new BusinessException(DriveErrorCode.DRIVE_SHARE_INVALID, "分享链接不可用"));
         Instant now = clock.instant();
-        boolean success = share.activeAt(now) && passwordHasher.matches(command.password(), share.passwordHash());
-        shareAccessRepository.record(UUID.randomUUID(), share.shareId(), command.visitorFingerprint(), success, now);
-        if (!success) {
-            if (!share.activeAt(now)) {
-                throw new BusinessException(DriveErrorCode.DRIVE_SHARE_INVALID, "分享链接不可用");
-            }
+        if (!share.activeAt(now)) {
+            recordAccess(share, command.visitorFingerprint(), false, now);
+            throw new BusinessException(DriveErrorCode.DRIVE_SHARE_INVALID, "分享链接不可用");
+        }
+        if (!passwordHasher.matches(command.password(), share.passwordHash())) {
+            recordAccess(share, command.visitorFingerprint(), false, now);
             throw new BusinessException(DriveErrorCode.DRIVE_SHARE_PASSWORD_INVALID, "提取码错误");
         }
-        DriveEntry entry = loadActiveEntryForShare(share);
+        DriveEntry entry;
+        try {
+            entry = loadActiveEntryForShare(share);
+        } catch (BusinessException e) {
+            recordAccess(share, command.visitorFingerprint(), false, now);
+            throw e;
+        }
+        recordAccess(share, command.visitorFingerprint(), true, now);
         Instant ticketExpiresAt = now.plusSeconds(TICKET_TTL_SECONDS);
         String ticket = ticketCodec.issue(share.shareToken(), ticketExpiresAt);
         return toShareResult(share, entry, ticket, ticketExpiresAt);
@@ -138,13 +145,12 @@ public class DriveShareApplicationService {
     @Transactional(readOnly = true)
     public DriveDownloadUrlResult createShareDownloadUrl(String shareToken, String ticket, UUID entryId) {
         DriveShare share = loadActiveShare(shareToken);
-        if (entryId == null || !entryId.equals(share.entryId())) {
-            throw new BusinessException(DriveErrorCode.DRIVE_SHARE_INVALID, "分享链接不可用");
-        }
         if (!ticketCodec.valid(share.shareToken(), ticket, clock.instant())) {
             throw new BusinessException(DriveErrorCode.DRIVE_SHARE_INVALID, "分享链接不可用");
         }
-        DriveEntry entry = loadActiveEntryForShare(share);
+        DriveSpace space = loadSpaceForShare(share);
+        DriveEntry shareEntry = loadActiveEntry(space.spaceId(), share.entryId());
+        DriveEntry entry = loadShareDownloadTarget(space.spaceId(), shareEntry, entryId);
         if (!entry.file()) {
             throw new BusinessException(DriveErrorCode.DRIVE_SHARE_INVALID, "分享链接不可用");
         }
@@ -165,11 +171,8 @@ public class DriveShareApplicationService {
     }
 
     private DriveEntry loadActiveEntryForShare(DriveShare share) {
-        DriveSpace space = spaceRepository.findByUserId(share.createdBy())
-                .orElseThrow(() -> new BusinessException(DriveErrorCode.DRIVE_SHARE_INVALID, "分享链接不可用"));
-        return entryRepository.findById(space.spaceId(), share.entryId())
-                .filter(entry -> entry.status() == DriveEntryStatus.ACTIVE)
-                .orElseThrow(() -> new BusinessException(DriveErrorCode.DRIVE_SHARE_INVALID, "分享链接不可用"));
+        DriveSpace space = loadSpaceForShare(share);
+        return loadActiveEntry(space.spaceId(), share.entryId());
     }
 
     private DriveEntry loadActiveFileOrFolder(UUID spaceId, UUID entryId) {
@@ -181,6 +184,41 @@ public class DriveShareApplicationService {
     private DriveSpace loadSpace(UUID actorUserId) {
         return spaceRepository.findByUserId(actorUserId)
                 .orElseThrow(() -> new BusinessException(DriveErrorCode.DRIVE_SPACE_NOT_FOUND, "网盘空间不存在"));
+    }
+
+    private DriveSpace loadSpaceForShare(DriveShare share) {
+        return spaceRepository.findByUserId(share.createdBy())
+                .orElseThrow(() -> new BusinessException(DriveErrorCode.DRIVE_SHARE_INVALID, "分享链接不可用"));
+    }
+
+    private DriveEntry loadActiveEntry(UUID spaceId, UUID entryId) {
+        return entryRepository.findById(spaceId, entryId)
+                .filter(entry -> entry.status() == DriveEntryStatus.ACTIVE)
+                .orElseThrow(() -> new BusinessException(DriveErrorCode.DRIVE_SHARE_INVALID, "分享链接不可用"));
+    }
+
+    private DriveEntry loadShareDownloadTarget(UUID spaceId, DriveEntry shareEntry, UUID entryId) {
+        if (entryId == null) {
+            throw new BusinessException(DriveErrorCode.DRIVE_SHARE_INVALID, "分享链接不可用");
+        }
+        if (shareEntry.file()) {
+            if (!shareEntry.entryId().equals(entryId)) {
+                throw new BusinessException(DriveErrorCode.DRIVE_SHARE_INVALID, "分享链接不可用");
+            }
+            return shareEntry;
+        }
+        DriveEntry target = loadActiveEntry(spaceId, entryId);
+        if (!target.file()) {
+            throw new BusinessException(DriveErrorCode.DRIVE_SHARE_INVALID, "分享链接不可用");
+        }
+        if (!entryRepository.listDescendantIds(spaceId, shareEntry.entryId()).contains(entryId)) {
+            throw new BusinessException(DriveErrorCode.DRIVE_SHARE_INVALID, "分享链接不可用");
+        }
+        return target;
+    }
+
+    private void recordAccess(DriveShare share, String visitorFingerprint, boolean success, Instant now) {
+        shareAccessRepository.record(UUID.randomUUID(), share.shareId(), visitorFingerprint, success, now);
     }
 
     private String nextToken() {

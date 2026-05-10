@@ -34,6 +34,16 @@ class DriveTrashApplicationServiceTest {
     }
 
     @Test
+    void listTrashShouldCreateDefaultSpaceForFirstAccess() {
+        TestDriveFixture fixture = TestDriveFixture.create();
+        DriveTrashApplicationService trashService = fixture.trashService();
+        UUID userId = uuid(7);
+
+        assertThat(trashService.listTrash(userId)).isEmpty();
+        assertThat(fixture.space(userId).quotaBytes()).isEqualTo(10_737_418_240L);
+    }
+
+    @Test
     void trashAndPermanentDeleteShouldApplyRecursively() {
         TestDriveFixture fixture = TestDriveFixture.create();
         DriveEntryApplicationService entryService = fixture.entryService();
@@ -80,6 +90,41 @@ class DriveTrashApplicationServiceTest {
         assertThat(fixture.entry(folder.entryId()).status()).isEqualTo(DriveEntryStatus.ACTIVE);
         assertThat(fixture.entry(childFolder.entryId()).status()).isEqualTo(DriveEntryStatus.ACTIVE);
         assertThat(fixture.entry(childFileId).status()).isEqualTo(DriveEntryStatus.ACTIVE);
+    }
+
+    @Test
+    void restoreShouldNotReanimateDescendantsTrashedBeforeParent() {
+        TestDriveFixture fixture = TestDriveFixture.create();
+        DriveEntryApplicationService entryService = fixture.entryService();
+        DriveTrashApplicationService trashService = fixture.trashService();
+        UUID userId = uuid(7);
+        DriveEntryResult folder = entryService.createFolder(new CreateDriveFolderCommand(userId, null, "Folder"));
+        UUID childFileId = fixture.createFile(userId, folder.entryId(), "child.txt", 12);
+
+        trashService.trash(userId, childFileId);
+        trashService.trash(userId, folder.entryId());
+        trashService.restore(userId, folder.entryId(), null);
+
+        assertThat(fixture.entry(folder.entryId()).status()).isEqualTo(DriveEntryStatus.ACTIVE);
+        assertThat(fixture.entry(childFileId).status()).isEqualTo(DriveEntryStatus.TRASHED);
+    }
+
+    @Test
+    void deletePermanentlyShouldNotDoubleDeleteAlreadyDeletedDescendants() {
+        TestDriveFixture fixture = TestDriveFixture.create();
+        DriveEntryApplicationService entryService = fixture.entryService();
+        DriveTrashApplicationService trashService = fixture.trashService();
+        UUID userId = uuid(7);
+        DriveEntryResult folder = entryService.createFolder(new CreateDriveFolderCommand(userId, null, "Folder"));
+        UUID childFileId = fixture.createFile(userId, folder.entryId(), "child.txt", 8);
+
+        trashService.trash(userId, childFileId);
+        trashService.deletePermanently(userId, childFileId);
+        trashService.trash(userId, folder.entryId());
+        trashService.deletePermanently(userId, folder.entryId());
+
+        assertThat(fixture.entry(childFileId).status()).isEqualTo(DriveEntryStatus.DELETED);
+        assertThat(fixture.storage().deletedObjects).hasSize(1);
     }
 
     @Test

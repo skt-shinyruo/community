@@ -16,6 +16,7 @@ import com.nowcoder.community.drive.domain.repository.DriveSpaceRepository;
 import com.nowcoder.community.drive.domain.repository.DriveUploadRepository;
 import com.nowcoder.community.drive.domain.service.DriveEntryDomainService;
 import com.nowcoder.community.drive.exception.DriveErrorCode;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -92,8 +93,7 @@ public class DriveUploadApplicationService {
         requirePrepareCommand(command);
         UUID actorUserId = requireUser(command.actorUserId());
         Instant now = clock.instant();
-        DriveSpace space = spaceRepository.findByUserId(actorUserId)
-                .orElseGet(() -> DriveSpace.createDefault(UUID.randomUUID(), actorUserId, now));
+        DriveSpace space = loadOrCreateSpace(actorUserId, now);
         validateParent(command.parentId(), space.spaceId());
         String name = normalizeName(command.fileName());
         rejectDuplicate(space.spaceId(), command.parentId(), name);
@@ -139,9 +139,25 @@ public class DriveUploadApplicationService {
                 now,
                 prepared.expiresAt()
         );
-        spaceRepository.save(space);
         uploadRepository.save(upload);
         return toUploadSession(upload, space);
+    }
+
+    private DriveSpace loadOrCreateSpace(UUID actorUserId, Instant now) {
+        UUID userId = requireUser(actorUserId);
+        return spaceRepository.findByUserId(userId)
+                .orElseGet(() -> createDefaultSpace(userId, now));
+    }
+
+    private DriveSpace createDefaultSpace(UUID userId, Instant now) {
+        DriveSpace space = DriveSpace.createDefault(UUID.randomUUID(), userId, now);
+        try {
+            spaceRepository.save(space);
+            return space;
+        } catch (DuplicateKeyException e) {
+            return spaceRepository.findByUserId(userId)
+                    .orElseThrow(() -> new BusinessException(INTERNAL_ERROR, "网盘空间创建失败", e));
+        }
     }
 
     @Transactional

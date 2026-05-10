@@ -124,6 +124,19 @@ class ControllerBoundaryArchTest {
                     ));
 
     @ArchTest
+    static final ArchRule drive_controllers_should_only_depend_on_drive_application_boundary =
+            noClasses()
+                    .that().resideInAnyPackage("..drive.controller..")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "..drive.domain..",
+                            "..drive.infrastructure..",
+                            "..drive.api..",
+                            "..drive.contracts..",
+                            "..oss.client.."
+                    )
+                    .because("drive controllers must enter through same-domain application services only");
+
+    @ArchTest
     static final ArchRule production_code_must_not_use_legacy_app_query_package =
             noClasses()
                     .should().resideInAnyPackage("..app.query..");

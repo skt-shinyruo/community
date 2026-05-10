@@ -10,10 +10,12 @@ import com.tngtech.archunit.lang.ArchCondition;
 import com.tngtech.archunit.lang.ArchRule;
 import com.tngtech.archunit.lang.ConditionEvents;
 import com.tngtech.archunit.lang.SimpleConditionEvent;
+import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Set;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noMethods;
@@ -23,6 +25,11 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noMethods;
         importOptions = ImportOption.DoNotIncludeTests.class
 )
 class DddLayeringArchTest {
+
+    @Test
+    void coreDomainInventoryShouldCoverDrive() {
+        assertThat(ArchitectureRulesSupport.CORE_DOMAINS).contains("drive");
+    }
 
     @ArchTest
     static final ArchRule domain_must_not_depend_on_outer_layers =

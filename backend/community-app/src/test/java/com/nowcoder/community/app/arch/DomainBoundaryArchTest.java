@@ -72,7 +72,8 @@ class DomainBoundaryArchTest {
                         "analytics",
                         "growth",
                         "market",
-                        "wallet"
+                        "wallet",
+                        "drive"
                 );
     }
 
@@ -91,6 +92,7 @@ class DomainBoundaryArchTest {
                         "growth",
                         "market",
                         "wallet",
+                        "drive",
                         "ops",
                         "im"
                 );

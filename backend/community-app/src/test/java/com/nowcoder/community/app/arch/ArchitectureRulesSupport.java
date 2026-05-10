@@ -24,7 +24,8 @@ final class ArchitectureRulesSupport {
             "analytics",
             "growth",
             "market",
-            "wallet"
+            "wallet",
+            "drive"
     );
 
     static final Set<String> ADAPTER_DOMAINS = Set.of(

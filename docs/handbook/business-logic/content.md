@@ -39,6 +39,8 @@ HTTP：
 - `GET /api/moderation/reports`
 - `POST /api/moderation/actions`
 - `GET /api/moderation/actions`
+- `POST /api/posts/media/upload-sessions`
+- `POST /api/posts/media/{assetId}/upload`
 
 事件/内部：
 
@@ -88,6 +90,41 @@ HTTP：
 幂等语义按 operation + userId + key 去重；当前发帖没有请求指纹，因此同 key 重放会返回首次结果。
 
 帖子写接口不接收旧 `content` 字符串。项目尚未部署，没有历史帖子数据，当前实现不保留旧正文兼容路径。
+
+## 帖子媒体上传
+
+`PostMediaApplicationService` 负责帖子正文 block 引用的图片、视频和附件上传会话。
+
+Prepare upload：
+
+1. controller 从登录态解析 actor。
+2. `prepareUpload(...)` 校验文件名、content type、媒体类型和文件大小。
+3. 文件名 trim 后不能为空，不能超过 255，不能包含 `..`、`/`、`\` 或 null 字符。
+4. 支持的 MIME：`image/png`、`image/jpeg`、`image/webp`、`image/gif`、`video/mp4`、`video/webm`、`application/pdf`、`application/zip`。
+5. 如果请求显式传 `mediaKind`，必须与 content type 推断出的 `IMAGE`、`VIDEO` 或 `FILE` 一致。
+6. 大小限制：图片 10MiB，视频 100MiB，文件 50MiB。
+7. application 创建 `PostMediaAsset` draft，生命周期为 `DRAFT`，视频状态初始为 `NONE`。
+8. 通过 `PostMediaStoragePort.prepareUpload(...)` 创建 OSS 上传会话。
+9. OSS 返回的 assetId、objectId、versionId 和 uploadId 必须可回填到 draft，否则视为内部签发失败。
+10. draft 持久化后返回上传指令。
+
+Complete upload：
+
+1. `POST /api/posts/media/{assetId}/upload` 传 `uploadId` 和 multipart `file`。
+2. application 校验 actor、assetId、uploadId 和文件内容。
+3. 只能完成自己的媒体资源。
+4. asset 必须仍处于 `DRAFT`；已经绑定到帖子或处于其他 lifecycle 时拒绝。
+5. 通过 `PostMediaStoragePort.completeUpload(...)` 完成 OSS 上传。
+6. OSS complete 必须返回 versionId。
+7. content 把 asset 标记为 uploaded，并保存 public URL。
+
+绑定到帖子：
+
+1. 发帖 / 改帖时，`PostPublishingApplicationService` 从正文 blocks 收集 media asset id。
+2. 每个媒体资源必须属于当前用户、已上传、类型与 block 类型一致。
+3. 新引用通过 `PostMediaStoragePort.bindReference(...)` 绑定到 postId。
+4. 改帖时不再引用的媒体通过 `releaseReference(...)` 释放 OSS reference。
+5. 帖子详情读取 blocks 时，把媒体 asset 投影为展示视图；视频允许展示处理中状态。
 
 ## 改帖和删帖
 
@@ -159,6 +196,9 @@ HTTP：
 分类：
 
 - `CategoryApplicationService.listCategories()` 返回分类列表。
+- application 只做 domain model 到 `CategoryResult` 的转换。
+- 返回字段包括 id、name、description、position 和 postCount。
+- 分类排序、过滤和计数口径由 `CategoryContentRepository` 实现决定；controller 不直接访问 repository。
 - 发帖和改帖必须校验分类存在。
 - 分类是内容组织主事实，不由用户域持有。
 
@@ -166,6 +206,8 @@ HTTP：
 
 - `TagApplicationService.listHotTags(limit)` 返回热门标签。
 - `suggestTags(q, limit)` 按输入建议标签。
+- application 只做 `HotTag` 到 `HotTagResult(name, useCount)` 的转换。
+- limit、关键词规范化和结果排序由 `TagContentRepository` 承担。
 - 发帖绑定标签，改帖替换标签。
 
 收藏：
@@ -222,18 +264,32 @@ contract events：
 - growth/task 和 user points 在发帖/评论主用例内同步调用。
 - social cleanup 在内容删除后清理点赞关系。
 
+帖子分数和社交派生刷新：
+
+- `PostScoreUpdateApplicationService.updateScore(postId, score)` 要求 postId 非空。
+- 分数更新和 `PostUpdated` domain event 发布处于同一事务，避免分数写入和后续投影出现裂缝。
+- `SocialInteractionProjectionListener` 在 social contract event 提交后监听，属于 best-effort 本地 listener。
+- listener 只把事件交给 `SocialInteractionProjectionApplicationService`，不直接碰 repository 或 foreign API。
+- `SocialInteractionProjectionApplicationService` 只处理 `LIKE_CREATED` / `LIKE_REMOVED` 且 payload 为 `LikePayload` 的事件。
+- 只有 `entityType=POST` 时才会提取 postId；优先用 payload.postId，缺失时回退到 payload.entityId。
+- 提取到 postId 后写入 `PostScoreQueue`，由帖子分数刷新任务后续重算。
+- 队列写入失败只记录 warn，不回滚 social 主事务，也不阻断点赞/取消点赞。
+
 ## 失败和一致性
 
 - 发帖和评论是 HTTP 幂等写。
+- 媒体上传 prepare / complete 当前不走 HTTP Idempotency-Key；重复 complete 受 asset lifecycle 约束。
 - 通知投影失败不回滚内容写入。
 - 搜索投影通过 outbox 重试，ES 不是内容主事实。
 - 点赞清理是提交后副作用，失败不回滚已提交删除。
 - 用户处罚和拉黑关系需要同步回源 owner 判断。
 - 删除/下线都是软删除和事件扩散，不物理删除主事实行。
+- 媒体 OSS prepare / complete / reference 失败会阻断对应媒体或发帖/改帖动作，避免帖子引用不可用对象。
 
 ## 关键代码
 
 - `content.controller.PostController`
+- `content.controller.PostMediaController`
 - `content.controller.CategoryController`
 - `content.controller.TagController`
 - `content.controller.BookmarkController`
@@ -241,6 +297,7 @@ contract events：
 - `content.controller.ReportController`
 - `content.controller.ModerationController`
 - `content.application.PostPublishingApplicationService`
+- `content.application.PostMediaApplicationService`
 - `content.application.PostReadApplicationService`
 - `content.application.CommentApplicationService`
 - `content.application.CommentReadApplicationService`

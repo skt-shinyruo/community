@@ -407,9 +407,21 @@ Main path：
 3. 新增 block 关系时，同步移除 blocker -> blocked 和 blocked -> blocker 两个方向的 follow 关系。
 4. block 关系变化发布领域事件。
 5. `ImPolicyOutboxEnqueuer` 在 `BEFORE_COMMIT` 写入 IM policy outbox。
-6. `ImPolicyKafkaOutboxHandler` 发布到 IM policy Kafka topic。
-7. `im-realtime` 消费事件，刷新本地 policy projection。
-8. `im-realtime` 发送私信前用本地 projection 判断拉黑、处罚、目标用户状态。
+6. outbox payload topic 是 `projection.im.policy`，payload kind 为 `BLOCK`。
+7. `ImPolicyKafkaOutboxHandler` 把 outbox payload 转成 Kafka `UserBlockRelationChanged`。
+8. Kafka topic 是 `im.event.user-block-relation-changed`，key 是 blocker userId。
+9. `im-realtime` 消费事件，刷新本地 policy projection。
+10. `im-realtime` 发送私信前用本地 projection 判断拉黑、处罚、目标用户状态。
+
+Main path: user punishment：
+
+1. `UserModerationApplicationService` 更新用户禁言 / 封禁 / 存在状态。
+2. user owner 发布 `USER_POLICY_CHANGED` contract event。
+3. `ImPolicyOutboxEnqueuer` 在 `BEFORE_COMMIT` 写入 `projection.im.policy` outbox，payload kind 为 `USER_POLICY`。
+4. `ImPolicyKafkaOutboxHandler` 转成 Kafka `UserMessagingPolicyChanged`。
+5. Kafka topic 是 `im.event.user-messaging-policy-changed`，key 是 userId。
+6. `im-realtime` 消费事件，刷新本地 policy projection。
+7. `im-realtime` 发送私信前用本地 projection 判断拉黑、处罚、目标用户状态。
 
 Snapshot：
 

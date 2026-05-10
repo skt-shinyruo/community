@@ -40,6 +40,13 @@ HTTP：
 - 批量按 ID 查询摘要，并保持输入顺序。
 - 校验用户是否存在。
 
+读取参数规则由 `UserReadDomainService` 收敛：
+
+- `assertValidUserId(...)` 要求 userId 非空。
+- `normalizeUsername(...)` trim 后要求非空。
+- `normalizeEmail(...)` trim 后要求非空。
+- `levelForScore(...)` 按非负 score 每 100 分升一级，最低等级为 1。
+
 `UserProfileApplicationService` 负责用户主页聚合：
 
 1. 读取用户基础资料。
@@ -132,12 +139,26 @@ HTTP：
 
 `UserPointsApplicationService` 当前承担积分命令翻译：
 
-- 发帖积分命令。
-- 评论积分命令。
-- 点赞创建/移除积分命令。
-- 将积分投影转为 wallet / reward 侧可执行的动作。
+- 发帖：`commandForPostPublished(postId, userId)` 生成 `+10`，sourceEventId 为 `post-published:<postId>`。
+- 评论：`commandForCommentCreated(commentId, userId)` 生成 `+2`，sourceEventId 为 `comment-created:<commentId>`。
+- 点赞创建：`commandForLikeCreated(sourceEventId, actorUserId, entityUserId)` 给被点赞内容 owner 生成 `+1`。
+- 点赞移除：`commandForLikeRemoved(...)` 给被点赞内容 owner 生成 `-1`。
+- 点赞类命令要求 sourceEventId 非空、entityUserId 非空，且 actorUserId 不能等于 entityUserId；自己给自己点赞不产生积分命令。
+- `project(...)` 对 null、userId 为空、delta 为 0、sourceEventId/type 为空的命令直接跳过。
+- 有效命令会调用 `WalletRewardActionApi.applyDelta(...)`，requestId 为 `wallet-reward:<sourceEventId>`，由 wallet owner 承担幂等和余额事实。
 
 用户积分展示字段与 wallet 在线余额不是同一事实。当前奖励和余额以 wallet owner 为资金事实。
+
+## 用户事件发布
+
+`LocalUserEventPublisher` 是 user owner 的本地 contract event adapter：
+
+1. application 只依赖 `UserEventPublisher` port。
+2. 发布 policy change 时，adapter 包装为 `UserContractEvent`。
+3. eventId 当前使用随机 UUID 字符串。
+4. type 固定为 `USER_POLICY_CHANGED`。
+5. payload 是 `UserPolicyChangedPayload`。
+6. Spring `ApplicationEventPublisher` 负责本地事务事件分发；IM policy outbox enqueuer 在 `BEFORE_COMMIT` 监听该 contract event。
 
 ## Refresh Session
 

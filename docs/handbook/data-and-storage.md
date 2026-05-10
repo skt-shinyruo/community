@@ -50,6 +50,8 @@ schema：
 | `transfer_order` | 钱包转账订单，按 `from_user_id + request_id` 幂等 |
 | `wallet_admin_action` | 钱包管理员冻结、冲正等操作记录 |
 | `oss_object` / `oss_object_version` / `oss_upload_session` / `oss_usage_policy` / `oss_object_alias` / `oss_object_reference` / `oss_access_grant` | OSS 对象、版本、会话、策略、别名、引用和授权事实 |
+| `post_media_asset` | 帖子媒体资源 draft/uploaded/bound 状态和 OSS object/version/reference 投影 |
+| `post_content_block` | 帖子正文 block，承载 paragraph/code/media block 顺序 |
 | `market_listing` | 市场商品 listing |
 | `market_inventory_unit` | 市场预加载库存单元 |
 | `market_order` | 市场订单，保存价格、标题、地址等下单快照 |
@@ -58,6 +60,11 @@ schema：
 | `market_address` | 市场收货地址簿 |
 | `market_delivery` | 虚拟商品交付记录 |
 | `market_shipment` | 实物商品发货记录 |
+| `drive_space` | 用户网盘空间 quota、used 和更新时间 |
+| `drive_entry` | 网盘目录树条目，文件 / 文件夹及 ACTIVE/TRASHED/DELETED 状态 |
+| `drive_upload` | 网盘上传会话和 OSS object/version/session 映射 |
+| `drive_share` | 网盘分享 token、提取码 hash、过期时间和状态 |
+| `drive_share_access` | 分享提取码校验访问日志 |
 | `outbox_event` | DB outbox 可靠投递表 |
 | `demo_batch` | Mock Data Studio 批次元数据 |
 | `demo_job` | Mock Data Studio 批次内作业状态 |

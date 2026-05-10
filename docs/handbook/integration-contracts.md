@@ -97,7 +97,7 @@ Outbox topic 是内部可靠投递键，不是对外业务 API。
 当前主要 topic：
 
 - `projection.search.post`
-- IM policy projection 相关 topic，名称以代码常量为准。
+- `projection.im.policy`
 
 约束：
 
@@ -107,6 +107,15 @@ Outbox topic 是内部可靠投递键，不是对外业务 API。
 - `DEAD` 需要人工排查口径。
 
 Search 的 `projection.search.post` 只用事件触发投影，handler 会回源 content owner 当前状态，再决定 upsert/delete ES。
+
+IM policy 的 `projection.im.policy` 是 `community-app` 内部 outbox topic：
+
+- `ImPolicyOutboxEnqueuer` 监听 social `BLOCK_RELATION_CHANGED` 和 user `USER_POLICY_CHANGED` contract event。
+- payload `kind=BLOCK` 会转成 Kafka `UserBlockRelationChanged`。
+- payload `kind=USER_POLICY` 会转成 Kafka `UserMessagingPolicyChanged`。
+- outbox event key 是 primary user id；event id 形如 `im-policy:<kind>:<uuid>`。
+- payload 缺少必要时间字段或 JSON 反序列化失败时，handler 抛错交给 outbox 重试 / DEAD。
+- 不能把 `projection.im.policy` 当成外部 contract；跨服务稳定 contract 是下面的 IM Kafka event。
 
 ## IM Kafka Contract
 

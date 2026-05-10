@@ -16,6 +16,9 @@ HTTP：
 - `POST /api/oss/objects/{objectId}/complete`
 - `GET /api/oss/objects/{objectId}`
 - `GET /api/oss/objects/{objectId}/signed-url`
+- `POST /api/oss/objects/{objectId}/grants`
+- `DELETE /api/oss/objects/{objectId}/grants/{grantId}`
+- `DELETE /api/oss/objects/{objectId}`
 - `POST /internal/oss/objects/{objectId}/references`
 - `DELETE /internal/oss/objects/{objectId}/references/{referenceId}`
 - `GET /files/**`
@@ -48,6 +51,32 @@ Gateway：
 - UUID 形式的 `/files/{objectId}/{versionId}/{fileName}` 以 `objectId + versionId` 为 authority。
 - 旧路径如 `/files/avatar/{userId}/{uuid}` 通过 alias 解析到 canonical version。
 
+引用关系：
+
+1. consumer owner 在自己的业务授权和主事实写入路径内决定是否需要绑定 OSS reference。
+2. `ObjectReferenceApplicationService.bindReference(...)` 校验 object 存在。
+3. 如果命令没有指定 versionId，则默认绑定 object 的 current version。
+4. 指定 versionId 时必须属于该 object，并且版本状态必须是 `ACTIVE`。
+5. reference 记录 subject service/domain/type/id、referenceRole、创建时间和可选 retainUntil。
+6. `releaseReference(...)` 校验 reference 属于该 object 后把 reference 标记 released。
+
+访问授权：
+
+1. `ObjectPermissionApplicationService.grantAccess(...)` 校验 object、principalType、principalValue 和 permission。
+2. 未指定 versionId 时默认授权 current version；指定 versionId 时必须属于该 object 且版本为 `ACTIVE`。
+3. grant 记录 principal、permission、expiresAt、actor 和创建时间。
+4. `revokeAccess(...)` 校验 grant 属于 object 后标记 revoked。
+5. grant / revoke 是 OSS 技术授权事实；业务是否允许授权仍由 consumer owner 先判断。
+
+生命周期删除：
+
+1. `ObjectLifecycleApplicationService.deleteObject(...)` 校验 object 存在。
+2. 已 `PURGED` 的 object 直接返回 already purged。
+3. 如果 object 仍有 active reference 或 active grant，只把 object 标记为 `DELETE_PENDING`。
+4. 没有 active reference/grant 时，删除 current version 对应的 ObjectStore blob。
+5. blob 删除后把 version 标记 purged，再把 object 标记 `PURGED`。
+6. 目前删除只处理 current version；旧版本生命周期需要以后按版本清理能力扩展。
+
 ## Storage Backends
 
 `community-oss` 只依赖 `ObjectStore` port：
@@ -73,6 +102,9 @@ Gateway：
 - `oss.application.ObjectUploadApplicationService`
 - `oss.application.ObjectQueryApplicationService`
 - `oss.application.ObjectAccessApplicationService`
+- `oss.application.ObjectReferenceApplicationService`
+- `oss.application.ObjectPermissionApplicationService`
+- `oss.application.ObjectLifecycleApplicationService`
 - `oss.domain.model.*`
 - `oss.infrastructure.storage.ObjectStore`
 - `oss.infrastructure.storage.LocalFilesystemObjectStore`

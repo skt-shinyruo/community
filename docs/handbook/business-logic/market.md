@@ -90,6 +90,20 @@
 - 更新地址。
 - 删除地址。
 
+规则：
+
+- 所有地址操作都要求 userId 非空。
+- 创建和更新要求 receiverName、receiverPhone、province、city、district、detailAddress 非空。
+- 所有文本字段写入前 trim。
+- postalCode 可空；非空时 trim。
+- 地址状态写入为 `ACTIVE`。
+- 创建地址使用 UUIDv7 addressId。
+- 创建或更新时如果 `defaultAddress=true`，会先清除该用户已有默认地址，再保存当前地址为默认。
+- 查询只返回 repository 中该用户地址列表。
+- 更新和删除前都必须通过 `requireOwnedAddress(...)` 校验地址存在、状态 active 且属于当前用户。
+- 地址不存在或不是 active 返回 NOT_FOUND；地址不属于当前用户返回参数错误。
+- 删除是 soft delete，不物理删除历史地址行。
+
 地址是买家下实物订单时的输入。订单创建时保存地址快照，后续用户修改地址不会影响已创建订单。
 
 ## 查询

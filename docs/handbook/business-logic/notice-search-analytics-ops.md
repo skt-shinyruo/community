@@ -79,6 +79,16 @@ HTTP：
 5. keyword 为空时可退化为 match-all。
 6. 命中结果带关键词高亮。
 
+关键词高亮由 `KeywordHighlightSupport` 处理：
+
+- text 或 keyword 为空时直接返回原 text。
+- keyword 按空白拆 token。
+- token trim 后转小写去重，并保留首次出现顺序。
+- 最多取 6 个 token，每个 token 最长 32 字符。
+- 使用 regex quote 后构造大小写不敏感匹配，避免用户输入被当作正则。
+- 命中内容用 `<em>...</em>` 包裹。
+- replacement 使用 `Matcher.quoteReplacement`，避免命中文本里的 `$` / `\` 破坏替换。
+
 ### 投影流程
 
 1. content 发布帖子事件。
@@ -103,6 +113,14 @@ HTTP：
 8. 清理超出保留数量的旧索引。
 
 reindex 失败不影响旧 alias 继续服务。
+
+Admin / ops reindex 聚合：
+
+- `SearchAdminApplicationService.reindex()` 是 search admin 入口。
+- 它调用 `SearchReindexApplicationService.reindex(new ReindexPostsCommand())`。
+- 如果结果 `skipped=true`，说明已有 reindex 正在运行；application 会调用 `ReindexJobApplicationService.conflict(jobId)` 记录/表达冲突。
+- 无论是否 skipped，返回 search reindex result 给 ops / admin 调用方。
+- HTTP 运维入口仍通过 ops owner action 调用 search owner，不让 ops controller 直接碰 search application。
 
 ## Analytics 分析
 
@@ -187,9 +205,11 @@ Search：
 - `search.application.SearchApplicationService`
 - `search.application.SearchPostProjectionApplicationService`
 - `search.application.SearchReindexApplicationService`
+- `search.application.SearchAdminApplicationService`
 - `search.application.ReindexJobApplicationService`
 - `search.domain.service.PostSearchDomainService`
 - `search.domain.service.SearchReindexDomainService`
+- `search.domain.service.KeywordHighlightSupport`
 - `search.infrastructure.event.PostOutboxEnqueuer`
 - `search.infrastructure.event.PostOutboxHandler`
 - `search.infrastructure.job.SearchReindexHandler`

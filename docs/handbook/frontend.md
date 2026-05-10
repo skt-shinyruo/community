@@ -160,6 +160,7 @@ connect(accessToken)
 | `conversationDetailState.js` | 私信 conversation id 解析、Java UUID 排序兼容、消息映射、去重和排序。 |
 | `marketState.js` | 商品、订单、争议、地址的状态标签和展示文本。 |
 | `walletState.js` | 钱包状态文案、交易类型标签、金额展示和 feed key 生成。 |
+| `driveState.js` | 网盘 quota 展示、breadcrumb、entry capability、分享表单校验和选择收敛。 |
 | `registerFlowState.js` | 注册后邮箱验证码步骤的持久化、恢复和错误处理。 |
 | `userProfileSurface.js` / `userProfileTimeline.js` | 用户主页摘要、时间线展示状态。 |
 | `searchResultSurface.js` | 搜索结果展示状态。 |
@@ -206,6 +207,7 @@ connect(accessToken)
 | Market 确认 / 取消 / 争议 | 资金放款 / 退款由 `market_wallet_action` processor / recovery 推进，`ESCROW_CANCEL_PENDING`、`RELEASE_PENDING`、`REFUND_PENDING`、`DISPUTE_RELEASE_PENDING`、`DISPUTE_REFUND_PENDING` 都应展示为处理中。 |
 | Wallet | 钱包 ledger 是资金 owner；市场页面不要自行推断余额变化。 |
 | Like / Follow | 前端可乐观更新局部状态，但最终计数以 owner API 读侧返回为准。 |
+| Drive | 上传先创建服务端 upload session，再按 upload instruction 提交 multipart；分享下载必须先用提取码换短时 ticket。彻底删除后 OSS blob 清理失败时，后端可通过重复 delete 重试，前端不要把本地条目恢复为 active。 |
 
 ## 测试
 

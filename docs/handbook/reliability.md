@@ -278,7 +278,8 @@ worker 不保证 exactly-once，handler 必须自己保证幂等。
 当前做法：
 
 - 搜索投影 handler 不信任事件中的旧快照，而是回源 content owner 当前状态，再 upsert/delete ES。这样乱序事件不会让已删除帖子复活。
-- IM policy projection 按用户处罚或拉黑关系覆盖本地 policy 状态，重复投递不会产生累计副作用。
+- IM policy projection 先写 `projection.im.policy` outbox，再由 handler 发布 Kafka 增量事件。`USER_POLICY` 使用 userId 覆盖用户消息权限；`BLOCK` 使用 blocker / blocked 覆盖拉黑关系，重复投递不会产生累计副作用。
+- IM policy handler 对坏 JSON、缺少必需时间字段或 Kafka 发布失败会抛异常，交给 outbox retry / DEAD；缺少 userId 或 block 双方 id 的 payload 当前会被跳过。
 
 新增 handler 要回答：
 

@@ -106,17 +106,45 @@ logout：
 
 验证码由 `CaptchaApplicationService` 管理：
 
-- `issue(...)` 生成 captchaId、图片 base64 和 TTL。
-- `verify(...)` 大小写不敏感。
-- 校验成功后消费验证码。
-- 校验失败次数超过限制后验证码失效。
+发放：
+
+1. `issue(...)` 生成无短横线 UUID 作为 captchaId。
+2. code 默认从 `23456789ABCDEFGHJKLMNPQRSTUVWXYZ` 生成 4 位随机码；如果配置了 fixedCode，则使用固定码。
+3. TTL 使用 `captcha.ttlSeconds`，最小 1 秒。
+4. captchaId/code 先写 `CaptchaRepository`，写入失败返回 `SERVICE_UNAVAILABLE`。
+5. 图片为 120x40 PNG，白底、深色文字，并加 6 条噪声线。
+6. 返回 `captchaId`、PNG base64 和 TTL。
+
+校验：
+
+1. 空 captchaId 或空 code 直接返回 `false`。
+2. `CaptchaDomainService.normalizeCode(...)` 只做 trim；大小写兼容由具体 repository 负责。
+3. repository `verifyAndConsume(...)` 返回 `MATCHED` 时校验成功，并消费验证码。
+4. `NOT_FOUND` 直接失败。
+5. 其他失败会增加失败计数；失败计数 TTL 与验证码 TTL 一致。
+6. 失败次数达到 `captcha.maxFailures` 后删除验证码，要求重新获取。
+7. repository 读写异常返回验证码服务不可用。
+
+`CaptchaDomainService.requireCaptcha(...)` 是同步规则：captchaId 或 code 缺失时抛 `CAPTCHA_REQUIRED`。当前登录主路径先在 application 层判断缺参，再调用验证码校验。
 
 登录风控按 IP 和用户名分别计数：
 
-- 失败次数达到低阈值后要求验证码。
-- 失败次数达到高阈值后拒绝登录。
-- 登录成功后清理当前用户名/IP 的失败计数。
-- 风控存储异常按 fail-closed 处理，避免绕过保护。
+- `LoginRateLimitDomainService.keyOf(...)` 把 username trim 后转小写，IP 只 trim。
+- Redis key 前缀为 `auth:login:fail:ip:` 和 `auth:login:fail:user:`。
+- `isCaptchaRequired(...)` 分别读取 IP 和用户名计数；阈值 `<=0` 表示只要有该维度 key 就要求验证码。
+- `assertNotBlocked(...)` 在登录前按 `maxFailuresPerIp` / `maxFailuresPerUser` 判断是否封锁。
+- `recordFailure(...)` 对 IP 和用户名分别 increment，TTL 是 `windowSeconds`；达到上限会抛 `TOO_MANY_REQUESTS`。
+- `reset(...)` 在登录成功后删除当前 username/IP 的失败计数；reset 存储异常只记录日志，不影响登录成功。
+- 风控存储异常按 fail-closed 处理：判断是否需要验证码时返回 true；封锁/失败计数异常返回 `SERVICE_UNAVAILABLE`。
+- Micrometer 指标名为 `auth_login_rate_limit_total`，tag 包含 `outcome` 和规范化后的 `ip_source`。
+
+基础凭据规则：
+
+- `AuthDomainService.requireCredentials(...)` 要求 username 和 password 非空，否则统一抛 `INVALID_CREDENTIALS`，避免暴露是用户名还是密码缺失。
+- `PasswordResetDomainService.requireResetRequestEmail(...)` 要求密码重置请求必须有 email。
+- `PasswordResetDomainService.requireConfirmFields(...)` 要求 resetToken 和 newPassword 同时存在。
+- `RegistrationDomainService.requireRegisterFields(...)` 要求注册 username、password、email 非空。
+- `RegistrationDomainService.maskEmail(...)` 用于注册验证码响应：非法邮箱原样返回；单字符 local 部分显示 `*`；两字符 local 保留首字符；更长 local 保留首尾，中间变 `***`。
 
 ## 密码重置
 

@@ -16,6 +16,8 @@ HTTP：
 - `POST /api/oss/objects/{objectId}/complete`
 - `GET /api/oss/objects/{objectId}`
 - `GET /api/oss/objects/{objectId}/signed-url`
+- `POST /internal/oss/objects/{objectId}/references`
+- `DELETE /internal/oss/objects/{objectId}/references/{referenceId}`
 - `GET /files/**`
 
 Gateway：
@@ -60,7 +62,8 @@ Gateway：
 当前 live consumers 包括：
 
 1. `user` avatar：`UserAvatarApplicationService` 做本人权限检查，`OssAvatarStorageAdapter` 通过 `community-oss-client` prepare / complete，user 仍保存 `headerUrl` 展示投影，canonical 对象事实在 OSS，旧 `avatar/{userId}/{uuid}` 作为 alias 保持可读。
-2. `drive` cloud drive：目录、配额、回收站和分享由 drive 负责，文件对象、版本、签名下载和生命周期由 OSS 负责。
+2. `content` post media：帖子媒体业务引用由 content 负责，文件对象、版本和 public file URL 由 OSS 负责。
+3. `drive` cloud drive：目录、配额、回收站和分享由 drive 负责，文件对象、版本、签名下载和生命周期由 OSS 负责。
 
 ## Key Code
 

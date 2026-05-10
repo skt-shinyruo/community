@@ -17,6 +17,12 @@ trap 'rm -f "${single_infra}" "${single_full}" "${cluster_infra}" "${cluster_ful
 
 grep -E '^  garage:$' "${single_infra}"
 grep -F 'dxflrs/garage:v2.2.0' "${single_infra}"
+if grep -F -- '--single-node' "${single_infra}"; then
+  echo "single garage compose must use the supported v2.2 server command" >&2
+  exit 1
+fi
+grep -F 'GARAGE_DEFAULT_ACCESS_KEY: GK000000000000000000000001' "${single_infra}"
+grep -F 'OSS_OBJECT_STORE_ACCESS_KEY: GK000000000000000000000001' "${single_full}"
 grep -E 'GARAGE_REPLICATION_FACTOR: "?1"?' "${single_infra}"
 grep -E '^  community-oss:$' "${single_full}"
 grep -F 'OSS_OBJECT_STORE_ENDPOINT: http://garage:3900' "${single_full}"
@@ -25,6 +31,8 @@ grep -F 'OSS_DB_URL: jdbc:mysql://mysql:3306/community_oss' "${single_full}"
 grep -E '^  garage-1:$' "${cluster_infra}"
 grep -E '^  garage-2:$' "${cluster_infra}"
 grep -E '^  garage-3:$' "${cluster_infra}"
+grep -F 'GARAGE_DEFAULT_ACCESS_KEY: GK000000000000000000000001' "${cluster_infra}"
+grep -F 'OSS_OBJECT_STORE_ACCESS_KEY: GK000000000000000000000001' "${cluster_full}"
 grep -E 'GARAGE_REPLICATION_FACTOR: "?3"?' "${cluster_infra}"
 grep -E '^  community-oss-1:$' "${cluster_full}"
 grep -E '^  community-oss-2:$' "${cluster_full}"

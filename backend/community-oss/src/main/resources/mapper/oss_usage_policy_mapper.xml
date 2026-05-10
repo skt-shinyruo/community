@@ -2,7 +2,7 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.nowcoder.community.oss.infrastructure.persistence.mapper.OssUsagePolicyMapper">
     <sql id="fields">
-        usage, default_visibility, max_bytes, allowed_mime_types, requires_checksum, requires_scan,
+        `usage`, default_visibility, max_bytes, allowed_mime_types, requires_checksum, requires_scan,
         versioning_enabled, download_ttl_seconds, upload_ttl_seconds, public_cache_control,
         private_cache_control, retention_days, delete_grace_days
     </sql>
@@ -28,6 +28,6 @@
     <select id="selectByUsage" resultType="com.nowcoder.community.oss.infrastructure.persistence.dataobject.OssUsagePolicyDataObject">
         select <include refid="fields"/>
         from oss_usage_policy
-        where usage = #{usage}
+        where `usage` = #{usage}
     </select>
 </mapper>

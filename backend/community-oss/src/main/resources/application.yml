@@ -29,6 +29,12 @@ community:
   logging:
     service-version: ${SERVICE_VERSION:@project.version@}
 
+security:
+  jwt:
+    # Required (>= 32 bytes). Set JWT_HMAC_SECRET via env/secret store.
+    hmac-secret: ${JWT_HMAC_SECRET:}
+    issuer: ${JWT_ISSUER:community-auth}
+
 oss:
   object-store:
     mode: ${OSS_OBJECT_STORE_MODE:garage}

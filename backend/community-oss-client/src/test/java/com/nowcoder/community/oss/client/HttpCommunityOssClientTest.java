@@ -1,0 +1,139 @@
+package com.nowcoder.community.oss.client;
+
+import com.nowcoder.community.oss.client.model.OssUploadSessionRequest;
+import com.nowcoder.community.oss.client.model.OssUploadSessionResponse;
+import com.sun.net.httpserver.HttpServer;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class HttpCommunityOssClientTest {
+
+    @AfterEach
+    void resetRequestContext() {
+        RequestContextHolder.resetRequestAttributes();
+    }
+
+    @Test
+    void stringConstructorForwardsCurrentBearerTokenToOssApiCalls() throws Exception {
+        AtomicReference<String> authorization = new AtomicReference<>();
+        CountDownLatch requestReceived = new CountDownLatch(1);
+        HttpServer server = startUploadSessionServer(authorization, requestReceived, directUploadSessionResponse());
+        try {
+            MockHttpServletRequest request = new MockHttpServletRequest();
+            request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer token-a");
+            RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+            HttpCommunityOssClient client = new HttpCommunityOssClient("http://127.0.0.1:" + server.getAddress().getPort());
+            client.prepareUpload(new OssUploadSessionRequest(
+                    "DRIVE_FILE",
+                    "community-app",
+                    "drive",
+                    "drive-upload",
+                    "7",
+                    "PRIVATE",
+                    "note.txt",
+                    "text/plain",
+                    2,
+                    "",
+                    "",
+                    "7"
+            ));
+
+            assertThat(requestReceived.await(2, TimeUnit.SECONDS)).isTrue();
+            assertThat(authorization.get()).isEqualTo("Bearer token-a");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void prepareUploadShouldReadUnifiedResultWrapperResponses() throws Exception {
+        AtomicReference<String> authorization = new AtomicReference<>();
+        CountDownLatch requestReceived = new CountDownLatch(1);
+        HttpServer server = startUploadSessionServer(authorization, requestReceived, wrappedUploadSessionResponse());
+        try {
+            HttpCommunityOssClient client = new HttpCommunityOssClient("http://127.0.0.1:" + server.getAddress().getPort());
+
+            OssUploadSessionResponse response = client.prepareUpload(new OssUploadSessionRequest(
+                    "DRIVE_FILE",
+                    "community-app",
+                    "drive",
+                    "drive-upload",
+                    "7",
+                    "PRIVATE",
+                    "note.txt",
+                    "text/plain",
+                    2,
+                    "",
+                    "",
+                    "7"
+            ));
+
+            assertThat(requestReceived.await(2, TimeUnit.SECONDS)).isTrue();
+            assertThat(response.sessionId().toString()).isEqualTo("00000000-0000-7000-8000-000000000003");
+            assertThat(response.objectId().toString()).isEqualTo("00000000-0000-7000-8000-000000000001");
+            assertThat(response.versionId().toString()).isEqualTo("00000000-0000-7000-8000-000000000002");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    private static HttpServer startUploadSessionServer(
+            AtomicReference<String> authorization,
+            CountDownLatch requestReceived,
+            String responseJson
+    ) throws IOException {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/oss/objects/upload-sessions", exchange -> {
+            authorization.set(exchange.getRequestHeaders().getFirst(HttpHeaders.AUTHORIZATION));
+            exchange.getRequestBody().readAllBytes();
+            byte[] body = responseJson.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set(HttpHeaders.CONTENT_TYPE, "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+            requestReceived.countDown();
+        });
+        server.start();
+        return server;
+    }
+
+    private static String directUploadSessionResponse() {
+        return """
+                    {
+                      "sessionId": "00000000-0000-7000-8000-000000000003",
+                      "objectId": "00000000-0000-7000-8000-000000000001",
+                      "versionId": "00000000-0000-7000-8000-000000000002",
+                      "uploadMode": "PROXY",
+                      "uploadUrl": "/api/oss/objects/00000000-0000-7000-8000-000000000001/complete",
+                      "expiresAt": "2026-05-07T00:15:00Z"
+                    }
+                    """;
+    }
+
+    private static String wrappedUploadSessionResponse() {
+        return """
+                    {
+                      "code": 0,
+                      "message": "OK",
+                      "httpStatus": 200,
+                      "data": %s,
+                      "traceId": "trace-1",
+                      "timestamp": 1778396128900
+                    }
+                    """.formatted(directUploadSessionResponse());
+    }
+}

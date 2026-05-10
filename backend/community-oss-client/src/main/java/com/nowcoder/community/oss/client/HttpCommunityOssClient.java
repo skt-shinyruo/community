@@ -1,5 +1,9 @@
 package com.nowcoder.community.oss.client;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.nowcoder.community.oss.client.model.OssMetadataResponse;
 import com.nowcoder.community.oss.client.model.OssCompleteUploadRequest;
 import com.nowcoder.community.oss.client.model.OssAccessDecisionResponse;
@@ -11,9 +15,13 @@ import com.nowcoder.community.oss.client.model.OssPublicFileResponse;
 import com.nowcoder.community.oss.client.model.OssReferenceResponse;
 import com.nowcoder.community.oss.client.model.OssUploadSessionRequest;
 import com.nowcoder.community.oss.client.model.OssUploadSessionResponse;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -26,11 +34,22 @@ import java.util.UUID;
 
 public class HttpCommunityOssClient implements CommunityOssClient {
 
+    private static final ObjectMapper OBJECT_MAPPER = JsonMapper.builder()
+            .findAndAddModules()
+            .build();
+
     private final RestClient restClient;
 
     public HttpCommunityOssClient(String baseUrl) {
         this(RestClient.builder()
                 .baseUrl(baseUrl == null || baseUrl.isBlank() ? "http://community-oss:18090" : baseUrl.trim())
+                .requestInterceptor((request, body, execution) -> {
+                    String authorization = currentBearerAuthorization();
+                    if (!authorization.isBlank() && !request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
+                        request.getHeaders().set(HttpHeaders.AUTHORIZATION, authorization);
+                    }
+                    return execution.execute(request, body);
+                })
                 .build());
     }
 
@@ -40,11 +59,11 @@ public class HttpCommunityOssClient implements CommunityOssClient {
 
     @Override
     public OssUploadSessionResponse prepareUpload(OssUploadSessionRequest request) {
-        return restClient.post()
+        return readBody(restClient.post()
                 .uri("/api/oss/objects/upload-sessions")
                 .body(request)
                 .retrieve()
-                .body(OssUploadSessionResponse.class);
+                .body(String.class), OssUploadSessionResponse.class);
     }
 
     @Override
@@ -54,7 +73,7 @@ public class HttpCommunityOssClient implements CommunityOssClient {
         partHeaders.setContentType(MediaType.parseMediaType(request.contentType()));
         partHeaders.setContentDispositionFormData("file", request.fileName());
         body.add("file", new org.springframework.http.HttpEntity<>(new UploadInputStreamResource(request), partHeaders));
-        return restClient.post()
+        return readBody(restClient.post()
                 .uri(builder -> builder
                         .path("/api/oss/objects/{objectId}/complete")
                         .queryParam("sessionId", request.sessionId())
@@ -63,15 +82,15 @@ public class HttpCommunityOssClient implements CommunityOssClient {
                         .build(request.objectId()))
                 .body(body)
                 .retrieve()
-                .body(OssMetadataResponse.class);
+                .body(String.class), OssMetadataResponse.class);
     }
 
     @Override
     public OssMetadataResponse getMetadata(UUID objectId) {
-        return restClient.get()
+        return readBody(restClient.get()
                 .uri("/api/oss/objects/{objectId}", objectId)
                 .retrieve()
-                .body(OssMetadataResponse.class);
+                .body(String.class), OssMetadataResponse.class);
     }
 
     @Override
@@ -102,64 +121,92 @@ public class HttpCommunityOssClient implements CommunityOssClient {
 
     @Override
     public OssSignedUrlResponse createSignedDownloadUrl(UUID objectId, long ttlSeconds) {
-        return restClient.get()
+        return readBody(restClient.get()
                 .uri(builder -> builder
                         .path("/api/oss/objects/{objectId}/signed-url")
                         .queryParam("ttlSeconds", ttlSeconds)
                         .build(objectId))
                 .retrieve()
-                .body(OssSignedUrlResponse.class);
+                .body(String.class), OssSignedUrlResponse.class);
     }
 
     @Override
     public OssAccessDecisionResponse grantObjectAccess(UUID objectId, OssGrantObjectAccessRequest request) {
-        return restClient.post()
+        return readBody(restClient.post()
                 .uri("/api/oss/objects/{objectId}/grants", objectId)
                 .body(request)
                 .retrieve()
-                .body(OssAccessDecisionResponse.class);
+                .body(String.class), OssAccessDecisionResponse.class);
     }
 
     @Override
     public OssAccessDecisionResponse revokeObjectAccess(UUID objectId, UUID grantId, String actorId) {
-        return restClient.delete()
+        return readBody(restClient.delete()
                 .uri(builder -> builder
                         .path("/api/oss/objects/{objectId}/grants/{grantId}")
                         .queryParam("actorId", actorId == null ? "" : actorId)
                         .build(objectId, grantId))
                 .retrieve()
-                .body(OssAccessDecisionResponse.class);
+                .body(String.class), OssAccessDecisionResponse.class);
     }
 
     @Override
     public OssReferenceResponse bindObjectReference(UUID objectId, OssBindReferenceRequest request) {
-        return restClient.post()
+        return readBody(restClient.post()
                 .uri("/internal/oss/objects/{objectId}/references", objectId)
                 .body(request)
                 .retrieve()
-                .body(OssReferenceResponse.class);
+                .body(String.class), OssReferenceResponse.class);
     }
 
     @Override
     public OssReferenceResponse releaseObjectReference(UUID objectId, UUID referenceId, String actorId) {
-        return restClient.delete()
+        return readBody(restClient.delete()
                 .uri(builder -> builder
                         .path("/internal/oss/objects/{objectId}/references/{referenceId}")
                         .queryParam("actorId", actorId == null ? "" : actorId)
                         .build(objectId, referenceId))
                 .retrieve()
-                .body(OssReferenceResponse.class);
+                .body(String.class), OssReferenceResponse.class);
     }
 
     @Override
     public OssLifecycleResponse deleteObject(UUID objectId, String actorId) {
-        return restClient.delete()
+        return readBody(restClient.delete()
                 .uri(builder -> builder
                         .path("/api/oss/objects/{objectId}")
                         .queryParam("actorId", actorId == null ? "" : actorId)
                         .build(objectId))
                 .retrieve()
-                .body(OssLifecycleResponse.class);
+                .body(String.class), OssLifecycleResponse.class);
+    }
+
+    private static <T> T readBody(String responseBody, Class<T> responseType) {
+        if (responseBody == null || responseBody.isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(responseBody);
+            JsonNode payload = root.has("code") && root.has("data") ? root.get("data") : root;
+            if (payload == null || payload.isNull()) {
+                return null;
+            }
+            return OBJECT_MAPPER.treeToValue(payload, responseType);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("failed to parse OSS response", e);
+        }
+    }
+
+    private static String currentBearerAuthorization() {
+        RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+        if (!(attributes instanceof ServletRequestAttributes servletAttributes)) {
+            return "";
+        }
+        String authorization = servletAttributes.getRequest().getHeader(HttpHeaders.AUTHORIZATION);
+        if (authorization == null || !authorization.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())) {
+            return "";
+        }
+        return authorization;
     }
 
     private static final class UploadInputStreamResource extends InputStreamResource {

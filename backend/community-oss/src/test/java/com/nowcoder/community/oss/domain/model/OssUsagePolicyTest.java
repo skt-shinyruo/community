@@ -44,4 +44,25 @@ class OssUsagePolicyTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("checksum");
     }
+
+    @Test
+    void usagePolicyShouldAllowPrivateDriveDefaults() {
+        OssUsagePolicy policy = new OssUsagePolicy(
+                "DRIVE_FILE",
+                OssVisibility.PRIVATE,
+                10737418240L,
+                Set.of(),
+                false,
+                false,
+                true,
+                300,
+                900,
+                "",
+                "no-store",
+                0,
+                7
+        );
+
+        assertThat(policy.defaultVisibility()).isEqualTo(OssVisibility.PRIVATE);
+    }
 }

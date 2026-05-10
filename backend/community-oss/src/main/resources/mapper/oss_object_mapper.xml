@@ -2,7 +2,7 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.nowcoder.community.oss.infrastructure.persistence.mapper.OssObjectMapper">
     <sql id="fields">
-        object_id, usage, owner_service, owner_domain, owner_type, owner_id, visibility, status,
+        object_id, `usage`, owner_service, owner_domain, owner_type, owner_id, visibility, status,
         current_version_id, latest_file_name, latest_content_type, latest_content_length,
         latest_checksum_sha256, created_by, created_at, updated_at
     </sql>
@@ -12,7 +12,7 @@
         #{visibility}, #{status}, #{currentVersionId,jdbcType=BINARY}, #{latestFileName}, #{latestContentType},
         #{latestContentLength}, #{latestChecksumSha256}, #{createdBy}, #{createdAt}, #{updatedAt})
         on duplicate key update
-        usage = values(usage),
+        `usage` = values(`usage`),
         owner_service = values(owner_service),
         owner_domain = values(owner_domain),
         owner_type = values(owner_type),

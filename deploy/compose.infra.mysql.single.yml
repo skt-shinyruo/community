@@ -37,6 +37,7 @@ services:
     - ./mysql/community/060_schema_message.sql:/docker-entrypoint-initdb.d/060_schema_message.sql:ro
     - ./mysql/community/070_schema_im_core.sql:/docker-entrypoint-initdb.d/070_schema_im_core.sql:ro
     - ./mysql/community/080_schema_search.sql:/docker-entrypoint-initdb.d/080_schema_search.sql:ro
+    - ./mysql/community/090_schema_drive.sql:/docker-entrypoint-initdb.d/090_schema_drive.sql:ro
     - ./mysql/community/090_seed_identity.sql:/docker-entrypoint-initdb.d/090_seed_identity.sql:ro
     - ./mysql/community_oss/010_schema.sql:/docker-entrypoint-initdb.d/100_schema_community_oss.sql:ro
     healthcheck:

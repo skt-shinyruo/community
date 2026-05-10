@@ -2,7 +2,7 @@ use community_oss;
 
 create table if not exists oss_object (
   object_id binary(16) primary key,
-  usage varchar(64) not null,
+  `usage` varchar(64) not null,
   owner_service varchar(64) not null,
   owner_domain varchar(64) not null,
   owner_type varchar(64) not null,
@@ -107,7 +107,7 @@ create table if not exists oss_object_reference (
 );
 
 create table if not exists oss_usage_policy (
-  usage varchar(64) primary key,
+  `usage` varchar(64) primary key,
   default_visibility varchar(32) not null,
   max_bytes bigint not null,
   allowed_mime_types varchar(1024) not null default '',
@@ -134,7 +134,7 @@ create table if not exists oss_object_alias (
 );
 
 insert into oss_usage_policy (
-  usage, default_visibility, max_bytes, allowed_mime_types, requires_checksum, requires_scan,
+  `usage`, default_visibility, max_bytes, allowed_mime_types, requires_checksum, requires_scan,
   versioning_enabled, download_ttl_seconds, upload_ttl_seconds, public_cache_control,
   private_cache_control, retention_days, delete_grace_days
 ) values (

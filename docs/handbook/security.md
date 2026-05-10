@@ -14,6 +14,7 @@
 
 - `community-app`
 - `community-gateway`
+- `community-oss`
 - `im-core`
 - `im-realtime`
 
@@ -114,6 +115,12 @@ OriginGuard 位于 `community-app`：
 - `/api/wallet/admin/**`：ADMIN。
 - `/api/ops/**`：ADMIN-only。
 - `/internal/im/realtime/projections/**`：需要 `SCOPE_im.realtime.internal`。
+
+`community-oss` 作为独立资源服务器保护对象管理面：
+
+- `/api/oss/**`：需登录，调用方通过 `community-oss-client` 转发当前 bearer token。
+- `/internal/oss/**`：需登录，用于对象引用绑定/释放等服务内协作入口。
+- `GET /files/**`：匿名开放，只返回 OSS 判定可公开读取的文件内容。
 
 路径级授权只是第一层。业务内仍要做资源级校验，例如用户只能修改自己的资料、钱包只能操作自己的账户、管理员不能误降权自己等。
 

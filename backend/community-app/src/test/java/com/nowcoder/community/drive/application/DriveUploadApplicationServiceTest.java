@@ -93,6 +93,38 @@ class DriveUploadApplicationServiceTest {
     }
 
     @Test
+    void completeUploadShouldFailSecondConcurrentReservationWithoutOverwritingQuota() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        FakeStoragePort storage = new FakeStoragePort();
+        DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
+        UUID userId = uuid(7);
+        DriveSpace space = DriveSpace.createDefault(uuid(50), userId, NOW);
+        spaces.save(space);
+        spaces.captureSnapshot(space.spaceId());
+        long uploadSize = 6_000_000_000L;
+        DriveUploadSessionResult firstSession = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "first.bin", "application/octet-stream", uploadSize, ""));
+        DriveUploadSessionResult secondSession = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "second.bin", "application/octet-stream", uploadSize, ""));
+
+        DriveEntryResult first = service.completeUpload(new CompleteDriveUploadCommand(
+                userId,
+                UUID.fromString(firstSession.uploadId()),
+                new DriveUploadContent(() -> new ByteArrayInputStream("first".getBytes()), "application/octet-stream", uploadSize, "")
+        ));
+
+        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+                userId,
+                UUID.fromString(secondSession.uploadId()),
+                new DriveUploadContent(() -> new ByteArrayInputStream("second".getBytes()), "application/octet-stream", uploadSize, "")
+        ))).isInstanceOf(BusinessException.class)
+                .hasMessage("网盘容量不足");
+        assertThat(first.name()).isEqualTo("first.bin");
+        assertThat(spaces.findByUserId(userId).orElseThrow().usedBytes()).isEqualTo(uploadSize);
+        assertThat(storage.completed).hasSize(1);
+    }
+
+    @Test
     void prepareUploadShouldRejectQuotaExceededBeforeCallingOss() {
         InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
         InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
@@ -158,6 +190,26 @@ class DriveUploadApplicationServiceTest {
     }
 
     @Test
+    void completeUploadShouldPersistExpiredStatusEvenWhenItThrows() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        FakeStoragePort storage = new FakeStoragePort();
+        DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
+        UUID userId = uuid(7);
+        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "report.pdf", "application/pdf", 1_024L, ""));
+        uploads.forceExpire(UUID.fromString(session.uploadId()), NOW.plusSeconds(901));
+
+        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+                userId,
+                UUID.fromString(session.uploadId()),
+                new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L, "")
+        ))).isInstanceOf(BusinessException.class)
+                .hasMessage("上传会话不可用");
+        assertThat(uploads.findById(UUID.fromString(session.uploadId())).orElseThrow().status().name()).isEqualTo("EXPIRED");
+    }
+
+    @Test
     void completeUploadShouldRejectDuplicateCreatedAfterPrepareBeforeCallingOss() {
         InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
         InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
@@ -212,23 +264,38 @@ class DriveUploadApplicationServiceTest {
     }
 
     private static final class InMemoryDriveSpaceRepository implements DriveSpaceRepository {
-        private final Map<UUID, DriveSpace> rows = new LinkedHashMap<>();
+        private final Map<UUID, DriveSpace> stored = new LinkedHashMap<>();
+        private final Map<UUID, DriveSpace> snapshots = new LinkedHashMap<>();
 
         @Override
         public Optional<DriveSpace> findByUserId(UUID userId) {
-            return rows.values().stream()
+            return stored.values().stream()
                     .filter(space -> space.userId().equals(userId))
                     .findFirst();
         }
 
         @Override
         public Optional<DriveSpace> findById(UUID spaceId) {
-            return Optional.ofNullable(rows.get(spaceId));
+            return Optional.ofNullable(snapshots.getOrDefault(spaceId, stored.get(spaceId)));
         }
 
         @Override
         public void save(DriveSpace space) {
-            rows.put(space.spaceId(), space);
+            stored.put(space.spaceId(), space);
+        }
+
+        @Override
+        public boolean reserve(UUID spaceId, long bytes, Instant now) {
+            DriveSpace space = stored.get(spaceId);
+            if (space == null || bytes < 0 || space.usedBytes() + bytes > space.quotaBytes()) {
+                return false;
+            }
+            stored.put(spaceId, space.reserve(bytes, now));
+            return true;
+        }
+
+        void captureSnapshot(UUID spaceId) {
+            snapshots.put(spaceId, stored.get(spaceId));
         }
     }
 
@@ -288,6 +355,11 @@ class DriveUploadApplicationServiceTest {
         @Override
         public void save(DriveUpload upload) {
             rows.put(upload.uploadId(), upload);
+        }
+
+        void forceExpire(UUID uploadId, Instant now) {
+            DriveUpload upload = rows.get(uploadId);
+            rows.put(uploadId, upload.complete(UUID.randomUUID(), now));
         }
     }
 

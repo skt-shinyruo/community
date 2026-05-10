@@ -19,6 +19,9 @@ import com.nowcoder.community.drive.exception.DriveErrorCode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -48,6 +51,7 @@ public class DriveUploadApplicationService {
     private final DriveUploadRepository uploadRepository;
     private final DriveObjectStoragePort objectStoragePort;
     private final Clock clock;
+    private final TransactionTemplate expiredUploadTransactionTemplate;
     private final DriveEntryDomainService entryDomainService = new DriveEntryDomainService();
 
     @Autowired
@@ -56,13 +60,31 @@ public class DriveUploadApplicationService {
             DriveEntryRepository entryRepository,
             DriveUploadRepository uploadRepository,
             DriveObjectStoragePort objectStoragePort,
-            Clock clock
+            Clock clock,
+            PlatformTransactionManager transactionManager
     ) {
         this.spaceRepository = spaceRepository;
         this.entryRepository = entryRepository;
         this.uploadRepository = uploadRepository;
         this.objectStoragePort = objectStoragePort;
         this.clock = clock == null ? Clock.systemUTC() : clock;
+        if (transactionManager == null) {
+            this.expiredUploadTransactionTemplate = null;
+        } else {
+            TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+            transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+            this.expiredUploadTransactionTemplate = transactionTemplate;
+        }
+    }
+
+    DriveUploadApplicationService(
+            DriveSpaceRepository spaceRepository,
+            DriveEntryRepository entryRepository,
+            DriveUploadRepository uploadRepository,
+            DriveObjectStoragePort objectStoragePort,
+            Clock clock
+    ) {
+        this(spaceRepository, entryRepository, uploadRepository, objectStoragePort, clock, null);
     }
 
     @Transactional
@@ -145,11 +167,8 @@ public class DriveUploadApplicationService {
 
         Instant now = clock.instant();
         if (upload.expiredAt(now)) {
-            uploadRepository.save(upload.complete(UUID.randomUUID(), now));
+            persistExpiredUpload(upload.complete(UUID.randomUUID(), now));
             throw new BusinessException(DriveErrorCode.DRIVE_UPLOAD_INVALID, "上传会话不可用");
-        }
-        if (upload.sizeBytes() > space.remainingBytes()) {
-            throw new BusinessException(DriveErrorCode.DRIVE_QUOTA_EXCEEDED, "网盘容量不足");
         }
 
         DriveUploadContent content = command.content();
@@ -159,6 +178,12 @@ public class DriveUploadApplicationService {
         }
         validateParent(upload.parentId(), upload.spaceId());
         rejectDuplicate(upload.spaceId(), upload.parentId(), upload.name());
+        if (upload.sizeBytes() > space.remainingBytes()) {
+            throw new BusinessException(DriveErrorCode.DRIVE_QUOTA_EXCEEDED, "网盘容量不足");
+        }
+        if (!spaceRepository.reserve(space.spaceId(), upload.sizeBytes(), now)) {
+            throw new BusinessException(DriveErrorCode.DRIVE_QUOTA_EXCEEDED, "网盘容量不足");
+        }
         try {
             objectStoragePort.completeUpload(new DriveObjectStoragePort.CompleteObject(
                     upload.ossSessionId(),
@@ -186,12 +211,18 @@ public class DriveUploadApplicationService {
                 upload.mimeType(),
                 now
         );
-        DriveSpace reserved = space.reserve(upload.sizeBytes(), now);
         DriveUpload completed = upload.complete(entryId, now);
         entryRepository.save(entry);
-        spaceRepository.save(reserved);
         uploadRepository.save(completed);
         return toEntryResult(entry);
+    }
+
+    private void persistExpiredUpload(DriveUpload expired) {
+        if (expiredUploadTransactionTemplate == null) {
+            uploadRepository.save(expired);
+            return;
+        }
+        expiredUploadTransactionTemplate.executeWithoutResult(status -> uploadRepository.save(expired));
     }
 
     private void validateParent(UUID parentId, UUID spaceId) {

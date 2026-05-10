@@ -6,6 +6,7 @@ import com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveS
 import com.nowcoder.community.drive.infrastructure.persistence.mapper.DriveSpaceMapper;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -26,6 +27,11 @@ public class MyBatisDriveSpaceRepository implements DriveSpaceRepository {
     @Override
     public Optional<DriveSpace> findById(UUID spaceId) {
         return Optional.ofNullable(mapper.selectById(spaceId)).map(DriveSpaceDataObject::toDomain);
+    }
+
+    @Override
+    public boolean reserve(UUID spaceId, long bytes, Instant updatedAt) {
+        return mapper.reserve(spaceId, bytes, updatedAt) == 1;
     }
 
     @Override

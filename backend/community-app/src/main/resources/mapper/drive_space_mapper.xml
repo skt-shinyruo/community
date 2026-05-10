@@ -33,6 +33,14 @@
         )
     </insert>
 
+    <update id="reserve">
+        update drive_space
+        set used_bytes = used_bytes + #{bytes},
+            updated_at = #{updatedAt}
+        where space_id = #{spaceId, jdbcType=BINARY}
+          and used_bytes + #{bytes} &lt;= quota_bytes
+    </update>
+
     <update id="update" parameterType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveSpaceDataObject">
         update drive_space
         set quota_bytes = #{quotaBytes},

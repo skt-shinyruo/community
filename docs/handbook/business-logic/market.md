@@ -53,6 +53,16 @@
 - `MarketWalletActionRecoveryHandler`
 - `MarketOrderAutoConfirmHandler`
 
+## 数据流
+
+市场域的数据流的核心是“订单状态”和“资金 saga”分离：
+
+1. 下单：`MarketOrderApplicationService` 先校验 listing、库存、地址和总额，再创建订单并把状态置为 `ESCROW_PENDING`。如果是有限库存或预加载虚拟库存，库存会先被锁定或扣减。
+2. 托管：市场本地只写 `market_wallet_action(ESCROW, PENDING)` 作为 durable command，不直接碰 wallet 账本。`request_id` 由订单和动作派生，保证重复 enqueue 语义一致。
+3. processor：`MarketWalletActionProcessorHandler` 轮询 due action，claim 后在 market 事务外调用 `WalletMarketActionApi`。wallet 成功后返回 `wallet_txn_id`，market 再把订单推进到 `ESCROWED`、`RELEASE_PENDING`、`REFUND_PENDING` 或完成态。
+4. 确认 / 取消 / 争议：卖家交付、买家确认、买家取消和管理员裁决都只是改变 market 侧状态并追加 release/refund action；真正放款或退款仍由 wallet owner 完成。
+5. 恢复：`MarketWalletActionRecoveryHandler` 负责恢复过期 lease、补齐漏写 command、把已有 `wallet_txn_id` 重新应用到 saga 状态，避免钱包和订单长期分叉。
+
 ## 商品和库存
 
 `MarketListingApplicationService`：

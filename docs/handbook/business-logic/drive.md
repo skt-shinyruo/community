@@ -39,7 +39,17 @@ Front-end：
 - `DriveView.vue`
 - `DriveShareView.vue`
 
-## Main Path
+## 数据流
+
+网盘的数据流围绕“空间 quota、条目树和 OSS 对象”展开：
+
+1. 空间：用户进入网盘时先读 `drive_space`。空间不存在则创建默认配额，后续上传、删除和恢复都通过 space 的 used/quota 变化收敛。
+2. 上传：`DriveUploadApplicationService.prepareUpload(...)` 先校验父目录、文件名、大小和剩余空间，再通过 OSS prepare upload 创建对象会话。`completeUpload(...)` 成功后把 OSS object/version 绑定到 `drive_upload`，再落成新的 file entry。
+3. 目录树：`DriveEntryApplicationService` 负责 create folder、rename、move 和 search。所有条目状态都围绕 `ACTIVE/TRASHED/DELETED` 转换，不直接修改 OSS blob。
+4. 回收站：`DriveTrashApplicationService` 先把条目标记为 trashed，恢复时按 trashRootId 恢复整棵子树，彻底删除时先收敛数据库和 quota，再调用 OSS 清理 blob。
+5. 分享：`DriveShareApplicationService` 创建分享 token 和提取码 hash，校验成功后发放短时 ticket，再由 OSS 签发 download URL。访问日志写 `drive_share_access`，分享是否可下载以 drive 的条目和 share 状态为准。
+
+## 详细链路
 
 空间：
 

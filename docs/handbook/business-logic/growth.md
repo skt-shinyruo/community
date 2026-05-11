@@ -30,6 +30,16 @@
 
 当前没有公开 growth controller。
 
+## 数据流
+
+成长域当前不是面向浏览器的独立业务面，而是被内容和社交事件驱动：
+
+1. 事件入口：content/social 通过 `GrowthTaskProgressActionApi` 把发帖、评论、点赞创建等业务事件转成 growth command，进入 `TaskProgressApplicationService`。
+2. 去重：application 按 `sourceEventId` 先写 `user_task_event_log`。唯一约束冲突表示同一源事件已经处理，直接跳过，避免重复推进任务。
+3. 进度推进：按事件类型查询 active `TaskTemplate`，计算 `periodKey`，确保并锁定 `user_task_progress`，再由 domain service capped 增加进度并判断是否达到目标。
+4. 奖励：达到目标后，如果模板需要手动领取，状态变 `CLAIMABLE`；如果自动发奖，生成稳定 reward grant id 并调用 `WalletRewardActionApi`，由 wallet owner 完成总账入账和幂等。
+5. 等级：等级不是 user 表字段；查询时 `UserLevelApplicationService` 读取规则配置和任务完成统计，实时计算 level。
+
 ## 任务进度模型
 
 核心概念：

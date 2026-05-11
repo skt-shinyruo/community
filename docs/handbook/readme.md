@@ -23,7 +23,7 @@
 ### 改业务或查实现链路
 
 1. [business-flows.md](business-flows.md)：按业务域整理的实现链路总览。
-2. [business-logic/README.md](business-logic/README.md)：按业务域拆分的详细业务逻辑文档集，覆盖 owner、入口、状态、失败、幂等、跨域协作和关键代码。
+2. [business-logic/README.md](business-logic/README.md)：按业务域拆分的详细业务逻辑文档集，每篇都展开 owner、入口、数据流、状态、失败、幂等、跨域协作和关键代码。
 3. [auth-login-session-flow.md](auth-login-session-flow.md)：登录、refresh token 续期、logout 和 JWT 鉴权代码链路。
 4. [core-logic-index.md](core-logic-index.md)：核心类到 handbook 章节的覆盖矩阵。
 5. [integration-contracts.md](integration-contracts.md)：跨域同步 API、异步事件契约、IM Kafka contract、HTTP 写接口契约。

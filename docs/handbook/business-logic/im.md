@@ -46,6 +46,16 @@ Kafka command/event：
 - `UserMessagingPolicyChanged`
 - `UserBlockRelationChanged`
 
+## 数据流
+
+IM 的数据流分成 session、command、persisted event 和本地投影四层：
+
+1. Session：浏览器先向 gateway 申请 session，拿到 ticket 和稳定 `wsUrl`，再通过 gateway 桥接到 realtime worker。这个阶段只建立连接能力，不写消息事实。
+2. 私信 / 群聊 command：realtime 先用本地 policy / membership projection 做快速判定，再把合法发送转成 Kafka command。command 只是意图，最终事实仍在 im-core。
+3. 持久化：im-core 按 conversationId 或 roomId + clientMsgId 做幂等，分配 seq，写消息和会话状态，然后发布 persisted / rejected event。
+4. 在线推送：realtime 消费 persisted event，把消息或房间更新推给在线连接；离线或丢包的客户端必须回 HTTP history 补拉。
+5. policy projection：user moderation 和 social block 变化通过主站 outbox / snapshot 更新 realtime 本地缓存，缓存只用于发送前快速判定，不是权威事实。
+
 ## Session bootstrap
 
 `ImSessionApiController.openSession(...)`：

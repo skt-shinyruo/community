@@ -42,6 +42,16 @@
 - content/social/IM 查询拉黑关系。
 - IM snapshot 扫描 block relations。
 
+## 数据流
+
+社交域的数据流由关系写入和下游事件两部分组成：
+
+1. 点赞：`LikeApplicationService` 先解析 actor、entityType 和 entityId，再通过 content owner 回源内容实体，服务端计算目标用户、帖子归属和事件字段。写入或删除点赞关系后，同步触发 user points / growth task，并发布 `LikeChangedDomainEvent` 转成 social contract event。
+2. 关注：`FollowApplicationService` 校验目标实体和拉黑关系后写 `social_follow`。重复关注是幂等 no-op；新增关注发布 follow created event，notice 可生成关注通知。
+3. 拉黑：`BlockApplicationService` 写 `social_block` 后同步清理双向 follow，再发布 `BlockRelationChangedDomainEvent`。IM policy outbox 在事务内写 `projection.im.policy`，outbox handler 转成 Kafka 事件供 realtime 更新本地 projection。
+4. 查询：列表、计数和状态查询都从 social owner 的关系事实读取；content、IM 或其他域需要关系判断时通过 social owner API，不直接读表。
+5. 补偿：部分 repository 声明需要显式补偿时，application 在事务回滚或事件发布失败路径注册反向动作，避免关系状态与下游副作用长时间不一致。
+
 ## 点赞
 
 `LikeApplicationService.setLike(...)` 处理点赞状态变更：

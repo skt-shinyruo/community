@@ -30,6 +30,17 @@ HTTP：
 - content/social/growth 调 user 做摘要查询、积分或处罚判断。
 - IM snapshot 拉取用户 policy。
 
+## 数据流
+
+用户域的数据流围绕“用户事实被谁读写”展开：
+
+1. 资料读取：HTTP 或跨域 query 进入 `UserReadApplicationService` / `UserProfileApplicationService`，先读取 `user` 主事实，再按页面需要回源 content 获取最近帖子/评论，或组合 social、growth 等读模型。最近内容不是 user 表冗余字段。
+2. 头像更新：`UserAvatarApplicationService` 校验 actor 只能改本人头像，先通过 OSS prepare upload 获得 opaque `fileKey`，上传完成后消费 ticket，把 canonical OSS public URL 写回 `user.header_url`。blob、version 和 alias 仍由 `community-oss` owning。
+3. 凭据协作：auth 登录通过 `UserCredentialQueryApi.authenticate(...)` 查询并校验密码；密码重置通过 `UserCredentialActionApi` 更新 BCrypt hash，并通过 refresh session application 撤销该用户会话。
+4. 注册用户创建：auth 只保存 draft；验证码通过后调用 user owner 创建 active 用户。user 写入 `user` 行后发布 user policy changed，驱动 IM policy projection 识别用户存在性。
+5. 处罚和角色：管理员或治理动作进入 user application，更新 `muteUntil`、`banUntil` 或 `type`。处罚变化发布 policy event，IM outbox/Kafka 最终刷新 realtime 本地 projection；角色变化要等 access token 重新签发后才体现在前端权限里。
+6. 积分投影：content/social/growth 不直接改余额事实；user 只做积分语义转换，最终奖励或撤销进入 wallet owner。
+
 ## 用户资料和摘要
 
 `UserReadApplicationService` 提供基础用户读取能力：

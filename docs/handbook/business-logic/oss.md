@@ -28,7 +28,17 @@ Gateway：
 - `/api/oss/**` 路由到 `community-oss`。
 - `/files/**` 路由到 `community-oss`，旧头像路径通过 `oss_object_alias` 兼容。
 
-## Main Path
+## 数据流
+
+OSS 的数据流只负责对象技术事实，业务授权仍由消费方 owner 决定：
+
+1. 上传：消费方先完成自己的业务授权，再通过 `community-oss-client` 请求 prepare upload。OSS 保存对象、版本、上传会话和 owner context，返回通用上传能力而不是存储凭证。
+2. 完成上传：消费方把浏览器上传结果回传给 OSS complete。OSS 检查 blob 是否存在，激活 version，更新 object current version，并在需要时写 alias。
+3. 下载：`PUBLIC` 对象可匿名走 `/files/**`。canonical URL 以 objectId + versionId 为 authority，旧路径通过 alias 解析到 canonical version。
+4. 引用和授权：业务 owner 在自己的主事实写入路径内先判断是否允许，再通过 OSS reference / grant API 绑定引用或发放临时访问权。OSS 只记录技术授权事实。
+5. 删除：对象删除先看 active reference 和 grant；如果还存在 active 依赖，只能进入 delete pending。没有 active 依赖时才删除 blob、purge version，并把对象标记为 purged。
+
+## 详细链路
 
 上传会话：
 

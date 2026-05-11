@@ -2,6 +2,15 @@
 
 本文覆盖四类支撑业务：站内通知读模型、搜索索引读模型、统计采集与查询、运维入口。这些域大多不是主事实 owner，而是从主业务事件派生读模型或提供后台操作。
 
+## 数据流
+
+本文中的四类支撑域都以“上游事实 -> 派生读模型 / 运维动作”的方式工作：
+
+1. Notice：content / social / moderation 发布 contract event，`NoticeProjectionListener` 在事务提交后接收事件，`NoticeProjectionApplicationService` 计算收件人、topic 和内容快照，再写 notice 表。读取通知列表、未读数和摘要时只读 notice 自己的读模型。
+2. Search：content 主事实变化先进入 search outbox，再由 outbox worker 把 `PostOutboxHandler` 触发起来，handler 回源 content owner 当前状态后决定 ES upsert 还是 delete。重建索引时使用 single-flight 和 alias 原子切换，旧 alias 始终可读。
+3. Analytics：请求完成后由 `AnalyticsRequestCaptureFilter` 采集，classifier 决定是否记录 UV / DAU，`AnalyticsIngestApplicationService` 写 Redis；登录成功也可通过 action API 计入 DAU。
+4. Ops：运维入口本身不持有业务事实，只把重建、清理和补偿 job 分发到 owner domain 的 application service。job / handler 只能调用 owner API，不能直连仓储。
+
 ## Notice 通知
 
 ### Owner / SSOT

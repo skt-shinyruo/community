@@ -49,6 +49,16 @@ HTTP：
 - notice projection listener 订阅 content/social/moderation contract event。
 - social interaction projection listener 在内容删除后清理社交关系。
 
+## 数据流
+
+内容域是社区主写路径的事件源，核心数据流如下：
+
+1. 读帖：controller 进入 `PostReadApplicationService`，content 先读帖子主事实、正文 blocks、媒体资源、标签和评论活动，再按 viewer 组合点赞、收藏等外部状态。帖子摘要和详情都以 content repository 为主，不从 search 或 notice 反查。
+2. 发帖：`PostPublishingApplicationService.create(...)` 用 `IdempotencyGuard` 包住写操作，先回源 user 判断能否发言，再写帖子元信息、正文 blocks、媒体绑定和 tag 关系。提交前同步触发 user points 与 growth task，提交后通过 domain event 驱动 search outbox、notice projection 和 score refresh。
+3. 媒体：帖子媒体先在 content 保存 draft asset，再通过 OSS upload session 完成 blob 上传。发帖或改帖时只允许绑定当前用户已上传且类型匹配的 asset，旧引用会释放 OSS reference。
+4. 评论：`CommentApplicationService` 校验帖子、目标评论、作者发言资格和拉黑关系后写 `comment`，同步更新帖子评论数并触发积分、成长任务和评论事件。
+5. 删除和治理：作者删除、治理删除和帖子下线都改变 content 主事实，再发布事件让 search 删除或更新 ES 文档，让 notice 生成治理通知，并在提交后调用 social owner 清理失效实体上的点赞关系。
+
 ## 帖子读取
 
 `PostReadApplicationService` 负责帖子读模型装配：

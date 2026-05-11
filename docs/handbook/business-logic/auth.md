@@ -41,6 +41,17 @@ HTTP 入口位于 `AuthController`：
 - `LoginRateLimitApplicationService`：登录失败计数、验证码触发和封锁。
 - `RefreshTokenApplicationService`：refresh token 签发、旋转、撤销、family 处理、cookie 规格。
 
+## 数据流
+
+认证域的数据流分成四条主线：
+
+1. 注册：`AuthController` 接收请求后进入 `RegistrationApplicationService`，auth 先校验验证码、请求字段和邮件配置，再通过 `UserRegistrationActionApi.prepareRegistrationUser(...)` 让 user owner 准备用户名、邮箱、密码 hash 和默认头像。auth 只保存 registration draft 和验证码；验证码通过后再调用 `createVerifiedRegistrationUser(...)` 插入 active 用户，并复用登录签发链路返回 access token 和 refresh cookie。
+2. 登录：`LoginApplicationService.login(...)` 先经过登录风控和 captcha 判断，再用 `UserCredentialQueryApi.authenticate(...)` 回源 user owner 校验凭据。认证成功后签发 access token，写 refresh session，并异步/同步触发安全日志和 analytics 登录采集。
+3. refresh / logout：浏览器只把 refresh token 放在 HttpOnly cookie 中。refresh 时 auth 消费旧 token、旋转新 token，并通过 user owner 的 refresh session 能力更新 DB 状态；logout 撤销当前 token 或 family，并由 controller 写 clear cookie。
+4. 密码重置：auth 校验邮箱、captcha 和 reset token，user owner 校验新密码策略并更新 BCrypt hash；成功后撤销该用户 refresh sessions，避免旧会话继续刷新。
+
+auth 不直接写 user 表或 refresh session 表；这些状态变化都通过 user owner API 进入 user application。
+
 ## 注册流程
 
 当前注册采用 Verify-First 流程，核心目标是高并发下避免先创建大量未激活用户行。

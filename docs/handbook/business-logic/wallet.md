@@ -25,6 +25,16 @@ owner API：
 - `WalletRewardActionApi`：growth/user reward issue/revoke。
 - `WalletAccountQueryApi`：账户和余额查询。
 
+## 数据流
+
+钱包域的数据流全部收敛到总账和账户两个层面：
+
+1. 充值 / 提现 / 转账：HTTP 写入口先做 `Idempotency-Key` 归一化，再进入对应的 application service。每个业务先按 `userId + requestId` 查找或创建订单，再调用 `WalletLedgerApplicationService.post(...)` 写双分录总账，最后更新订单状态。
+2. 余额事实：`wallet_account` 不是随意读写的缓存，而是由总账分录和条件更新共同维护。所有借贷动作都要先锁定账户，再按 transaction 指纹保证幂等。
+3. 市场协作：market 只通过 `WalletMarketActionApi` 提交 escrow / release / refund，不直接写余额。钱包返回 `wallet_txn_id` 后，market 再推进自己的 saga 状态。
+4. 奖励协作：growth 或 user points 发放奖励时只传稳定 requestId，钱包以 requestId 作为总账幂等键，重复发放或撤销不会重复记账。
+5. 管理动作：冻结、冲正和管理员调整都写新的总账交易和审计记录，不直接修改旧交易或旧分录。
+
 ## 账户模型
 
 `WalletAccountApplicationService` 管理账户：

@@ -25,6 +25,16 @@
 - `frontend/src/auth/sessionHint.js`
 - `frontend/src/router/authGuard.js`
 
+## 数据流
+
+前端面映射的核心是“页面动作 -> API service -> 后端 owner domain -> 页面状态”：
+
+1. 登录 / 注册 / 密码重置页面走 auth service，成功后前端保存 access token 到内存，refresh token 由浏览器 cookie 自动携带。
+2. 内容类页面的发帖、评论、收藏、举报和审核动作都走 content service，页面状态要区分主事实和 outbox / notice / search 等最终一致结果。
+3. 社交、钱包、市场、网盘和 IM 页面分别对应各自 service；前端只负责收集 request、展示状态和按 result 更新视图，不自己推导业务事实。
+4. 发帖、钱包和市场下单等高风险写操作都要带 `Idempotency-Key`，重试时依赖前端的 key cache 或浏览器重发机制避免重复业务事实。
+5. IM 页面把 `sendAccepted` 视为 command 已接收，不视为消息落库；搜索和通知页面也要接受短暂的最终一致延迟。
+
 ## 路由到业务域
 
 | 路由/页面 | 业务域 |

@@ -2,6 +2,8 @@
 
 本目录是 `community` 当前业务逻辑的详细说明层。它补充 [../business-flows.md](../business-flows.md) 的总览，不替代架构、安全、可靠性、存储和接口契约文档。
 
+如果你想按 owner domain 逐个定位实现，直接读下方的单域文档。每篇域文档都按 owner、入口、数据流、状态、失败、一致性和关键代码展开。
+
 阅读顺序建议：
 
 1. 先看 [../overview.md](../overview.md) 理解 deployable 和请求主线。
@@ -35,6 +37,7 @@
 - **Owner / SSOT**：哪个域拥有主事实。
 - **Entry**：HTTP、internal endpoint、事件、job、WebSocket frame 或前端入口。
 - **Main path**：正常读写链路。
+- **Data flow**：请求、状态、持久化、事件、投影和补偿如何串起来。
 - **State**：重要状态、状态迁移和 pending 语义。
 - **Idempotency / consistency**：幂等、重试、outbox、best-effort、补偿、回源。
 - **Failure**：业务失败、权限失败、下游失败时如何表现。

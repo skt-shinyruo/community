@@ -1,17 +1,30 @@
-# 业务逻辑详解文档集
+# 核心业务手册
 
-本目录是 `community` 当前业务逻辑的详细说明层。它补充 [../business-flows.md](../business-flows.md) 的总览，不替代架构、安全、可靠性、存储和接口契约文档。
+本目录解释 `community` 的核心业务：哪些领域拥有主事实、用户动作如何穿过多个领域、异步投影为什么会最终一致。目标读者是第一次接触项目的开发、测试、运维和评审同学。
 
-如果你想按 owner domain 逐个定位实现，直接读下方的单域文档。每篇域文档都按 owner、入口、数据流、状态、失败、一致性和关键代码展开。
+这里不替代 [../architecture.md](../architecture.md)、[../system-design.md](../system-design.md)、[../business-flows.md](../business-flows.md) 和 [../core-logic-index.md](../core-logic-index.md)。如果你要理解业务，先读本目录；如果你要改代码，再回到架构规则和核心代码索引。
 
-阅读顺序建议：
+## 推荐阅读路线
 
-1. 先看 [../overview.md](../overview.md) 理解 deployable 和请求主线。
-2. 再看 [../business-flows.md](../business-flows.md) 建立业务域总览。
-3. 需要深入某个域时，打开本目录对应文档。
-4. 查代码入口时，用 [../core-logic-index.md](../core-logic-index.md) 反查核心类。
+1. 先读 [glossary.md](glossary.md)，把 owner、SSOT、ApplicationService、outbox、projection 等术语对齐。
+2. 再读 [domain-map.md](domain-map.md)，知道每个业务领域负责什么、不负责什么。
+3. 然后读 [cross-domain-collaboration.md](cross-domain-collaboration.md)，理解同步 API 和异步事件的协作方式。
+4. 接着按用户动作读 [workflows/README.md](workflows/README.md) 下的端到端流程。
+5. 需要深入某个领域时，再打开下面的单域详解文档。
+6. 从页面反查业务时，读 [frontend-surfaces.md](frontend-surfaces.md)。
+7. 遇到疑惑时，先看 [faq.md](faq.md)。
 
-## 文档地图
+## 新人入口文档
+
+| 文档 | 适合回答的问题 |
+| --- | --- |
+| [glossary.md](glossary.md) | 这些业务、架构和一致性术语到底是什么意思？ |
+| [domain-map.md](domain-map.md) | 系统有哪些核心业务域？每个域的边界在哪里？ |
+| [cross-domain-collaboration.md](cross-domain-collaboration.md) | 一个业务需要多个域参与时，应该同步调用还是发事件？ |
+| [workflows/README.md](workflows/README.md) | 注册、发帖、评论、点赞、交易、网盘和 IM 这些完整链路怎么走？ |
+| [faq.md](faq.md) | 为什么这个项目这样拆域、这样做最终一致和投影？ |
+
+## 单域详解
 
 当前 active 业务域以 `backend/community-app` 的 `auth`、`user`、`content`、`social`、`notice`、`search`、`analytics`、`growth`、`market`、`wallet`、`drive`、`ops`、`im` 包，以及 `backend/community-im/*` 的 IM 模块为准。架构守卫中仍出现的 `message` 名称是历史/兼容口径：主站 `community.message` 表现在承载站内通知语义，IM 私信/群聊主事实已经迁到 `community-im`，因此不再单独写一篇 `message` 业务域文档。
 
@@ -32,7 +45,7 @@
 
 ## 统一阅读口径
 
-每篇文档都按当前代码真实行为说明：
+单域文档按当前代码真实行为说明：
 
 - **Owner / SSOT**：哪个域拥有主事实。
 - **Entry**：HTTP、internal endpoint、事件、job、WebSocket frame 或前端入口。

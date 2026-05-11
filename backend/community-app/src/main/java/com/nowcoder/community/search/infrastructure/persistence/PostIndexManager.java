@@ -5,6 +5,7 @@ import com.nowcoder.community.search.domain.repository.PostSearchIndexRepository
 import com.nowcoder.community.search.infrastructure.persistence.dataobject.EsPostDocument;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.data.elasticsearch.ResourceNotFoundException;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.IndexInformation;
 import org.springframework.data.elasticsearch.core.index.AliasAction;
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Component
@@ -28,6 +30,15 @@ import java.util.Set;
 public class PostIndexManager implements PostSearchIndexRepository {
 
     private static final DateTimeFormatter VERSION_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    private static final Set<String> REQUIRED_SEARCH_FIELDS = Set.of(
+            "postId",
+            "title",
+            "content",
+            "categoryId",
+            "tags",
+            "score",
+            "createTime"
+    );
 
     private final ElasticsearchOperations operations;
     private final String indexPrefix;
@@ -45,11 +56,8 @@ public class PostIndexManager implements PostSearchIndexRepository {
 
     @Override
     public void ensureAliasReady() {
-        if (operations.indexOps(EsPostDocument.class).exists()) {
-            return;
-        }
-        if (operations.indexOps(IndexCoordinates.of(EsPostDocument.LEGACY_INDEX)).exists()) {
-            addAliasToIndex(EsPostDocument.LEGACY_INDEX, true);
+        var aliasOps = operations.indexOps(EsPostDocument.class);
+        if (aliasOps.exists() && hasRequiredSearchMapping(aliasOps.getMapping())) {
             return;
         }
         String indexName = createNewIndex();
@@ -118,20 +126,14 @@ public class PostIndexManager implements PostSearchIndexRepository {
         }
     }
 
-    private void addAliasToIndex(String indexName, boolean writeIndex) {
-        AliasActionParameters params = AliasActionParameters.builder()
-                .withIndices(indexName)
-                .withAliases(EsPostDocument.INDEX_ALIAS)
-                .withIsWriteIndex(writeIndex)
-                .build();
-        AliasActions actions = new AliasActions(new AliasAction.Add(params));
-        operations.indexOps(IndexCoordinates.of(indexName)).alias(actions);
-    }
-
     private Set<String> resolveAliasIndices() {
-        return operations.indexOps(EsPostDocument.class)
-                .getAliases(EsPostDocument.INDEX_ALIAS)
-                .keySet();
+        try {
+            return operations.indexOps(EsPostDocument.class)
+                    .getAliases(EsPostDocument.INDEX_ALIAS)
+                    .keySet();
+        } catch (ResourceNotFoundException ignored) {
+            return Set.of();
+        }
     }
 
     private List<String> listManagedIndices() {
@@ -151,5 +153,22 @@ public class PostIndexManager implements PostSearchIndexRepository {
             indexOps.create();
             indexOps.putMapping(operations.indexOps(EsPostDocument.class).createMapping());
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private boolean hasRequiredSearchMapping(Map<String, Object> mapping) {
+        if (mapping == null || mapping.isEmpty()) {
+            return false;
+        }
+        Object properties = mapping.get("properties");
+        if (!(properties instanceof Map<?, ?> propertiesMap)) {
+            return false;
+        }
+        for (String field : REQUIRED_SEARCH_FIELDS) {
+            if (!propertiesMap.containsKey(field)) {
+                return false;
+            }
+        }
+        return true;
     }
 }

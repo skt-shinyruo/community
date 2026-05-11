@@ -98,6 +98,15 @@ for (const fileName of clientFiles) {
   }
 }
 
+const skillSupportFiles = [
+  'create-run-report.mjs'
+]
+for (const fileName of skillSupportFiles) {
+  if (!containsToken(matrix, fileName)) {
+    fail(`missing skill support file in matrix: ${fileName}`)
+  }
+}
+
 const frontendCodeFiles = listFilesRecursive('frontend/src', (relative) =>
   (relative.endsWith('.js') || relative.endsWith('.vue')) &&
   !relative.endsWith('.test.js') &&
@@ -193,6 +202,9 @@ const requiredTerms = [
   'HomeView.vue',
   'SettingsView.vue',
   'Topbar.vue',
+  'target/community-playwright-regression/reports/<runId>.md',
+  'target/community-playwright-regression/artifacts/<runId>/',
+  'create-run-report.mjs',
   'renderRuntimeConfig.mjs',
   'POST /api/auth/refresh',
   'POST /api/market/orders/{orderId}/deliver',
@@ -223,6 +235,7 @@ console.log(
     `${routeAliases.length} aliases`,
     `${serviceFiles.length} services`,
     `${clientFiles.length} client infrastructure files`,
+    `${skillSupportFiles.length} skill support files`,
     `${directHttpFiles.length} direct HTTP/WebSocket files`,
     `${navKeys.length} navigation keys`,
     `${backendEndpointFamilies.length} backend endpoint families`,

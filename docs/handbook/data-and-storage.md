@@ -193,12 +193,11 @@ owner-domain async contracts：
 
 | 角色 | 名称 |
 | --- | --- |
-| legacy index | `community_posts` |
 | stable alias | `community_posts_alias` |
 | managed index prefix | `community_posts_v` |
 | versioned index | `community_posts_vYYYYMMDDHHmmss[_n]` |
 
-本地 compose 的 `es-init` 首次会创建 legacy `community_posts`。运行时 `PostIndexManager` 会优先把 alias 初始化到 legacy index，后续 reindex 再切换到版本化索引。
+本地 compose 的 `es-init` 只等待 ES ready，不创建业务索引。运行时 `PostIndexManager` 负责创建带 mapping 的版本化索引，并将 `community_posts_alias` 指向该索引。搜索读写只通过 alias 访问；全量 reindex 会创建新的版本化索引并原子切换 alias。
 
 ES 文档 `EsPostDocument` 字段：
 

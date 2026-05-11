@@ -26,12 +26,20 @@ trap 'rm -f "${single_infra}" "${single_full}" "${cluster_infra}" "${cluster_ful
 
 grep -F 'name: community-single' "${single_infra}"
 grep -E '^  mysql:$' "${single_infra}"
+grep -E '^  nacos:$' "${single_infra}"
+grep -A40 -E '^  nacos:$' "${single_infra}" | grep -F 'healthcheck:'
 grep -E '^  community-gateway:$' "${single_full}"
+grep -A4 -E '^      nacos:$' "${single_full}" | grep -F 'condition: service_healthy'
+grep -A4 -E '^      community-gateway:$' "${single_full}" | grep -F 'condition: service_healthy'
 grep -E 'KAFKA_TOPIC_REPLICATION_FACTOR: "?1"?' "${single_infra}"
 
 grep -F 'name: community-cluster' "${cluster_infra}"
 grep -E '^  mysql-primary:$' "${cluster_infra}"
+grep -E '^  nacos-1:$' "${cluster_infra}"
+grep -A40 -E '^  nacos-1:$' "${cluster_infra}" | grep -F 'healthcheck:'
 grep -E '^  community-gateway-1:$' "${cluster_full}"
+grep -A4 -E '^      nacos-1:$' "${cluster_full}" | grep -F 'condition: service_healthy'
+grep -A4 -E '^      community-gateway-1:$' "${cluster_full}" | grep -F 'condition: service_healthy'
 grep -E 'KAFKA_TOPIC_REPLICATION_FACTOR: "?3"?' "${cluster_infra}"
 
 if ./deploy/deployment.sh config --topology dev --scope infra --env-file deploy/.env.single.example >/dev/null 2>"${dev_err}"; then

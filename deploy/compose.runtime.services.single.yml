@@ -118,7 +118,7 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos:
-        condition: service_started
+        condition: service_healthy
       mock-data-studio-db-bootstrap:
         condition: service_completed_successfully
       mysql:
@@ -168,7 +168,7 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos:
-        condition: service_started
+        condition: service_healthy
       mysql:
         condition: service_healthy
       garage:
@@ -206,17 +206,17 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos:
-        condition: service_started
+        condition: service_healthy
       community-app:
-        condition: service_started
+        condition: service_healthy
       community-oss:
-        condition: service_started
+        condition: service_healthy
       community-im-gateway:
-        condition: service_started
+        condition: service_healthy
       im-core:
-        condition: service_started
+        condition: service_healthy
       im-realtime:
-        condition: service_started
+        condition: service_healthy
     networks:
       default:
         aliases:
@@ -246,9 +246,9 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos:
-        condition: service_started
+        condition: service_healthy
       im-realtime:
-        condition: service_started
+        condition: service_healthy
     networks:
       default:
         aliases:
@@ -281,7 +281,7 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos:
-        condition: service_started
+        condition: service_healthy
       mysql:
         condition: service_healthy
       kafka-init:
@@ -323,11 +323,11 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos:
-        condition: service_started
+        condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
       im-core:
-        condition: service_started
+        condition: service_healthy
     networks:
       default:
         aliases:

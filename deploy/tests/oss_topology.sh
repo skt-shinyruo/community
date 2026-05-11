@@ -21,11 +21,20 @@ if grep -F -- '--single-node' "${single_infra}"; then
   echo "single garage compose must use the supported v2.2 server command" >&2
   exit 1
 fi
+grep -F 'garage-init:' "${single_infra}"
+grep -F '/garage layout assign' "${single_infra}"
+grep -F '/garage layout apply' "${single_infra}"
+grep -F '/garage bucket create' "${single_infra}"
+if grep -F 'CMD-SHELL' "${single_infra}" | grep -F 'garage' >/dev/null 2>&1; then
+  echo "single garage healthcheck must not require a shell inside the distroless image" >&2
+  exit 1
+fi
 grep -F 'GARAGE_DEFAULT_ACCESS_KEY: GK000000000000000000000001' "${single_infra}"
 grep -F 'OSS_OBJECT_STORE_ACCESS_KEY: GK000000000000000000000001' "${single_full}"
 grep -F 'OSS_OBJECT_STORE_REGION: garage' "${single_full}"
 grep -E 'GARAGE_REPLICATION_FACTOR: "?1"?' "${single_infra}"
 grep -E '^  community-oss:$' "${single_full}"
+grep -A4 -E '^      garage-init:$' "${single_full}" | grep -F 'condition: service_completed_successfully'
 grep -F 'OSS_OBJECT_STORE_ENDPOINT: http://garage:3900' "${single_full}"
 grep -F 'OSS_DB_URL: jdbc:mysql://mysql:3306/community_oss' "${single_full}"
 

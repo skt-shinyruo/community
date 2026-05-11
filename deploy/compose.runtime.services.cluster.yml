@@ -126,7 +126,7 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos-1:
-        condition: service_started
+        condition: service_healthy
       mock-data-studio-db-bootstrap:
         condition: service_completed_successfully
       mysql-primary:
@@ -193,7 +193,7 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos-1:
-        condition: service_started
+        condition: service_healthy
       mock-data-studio-db-bootstrap:
         condition: service_completed_successfully
       mysql-primary:
@@ -256,7 +256,7 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos-1:
-        condition: service_started
+        condition: service_healthy
       mock-data-studio-db-bootstrap:
         condition: service_completed_successfully
       mysql-primary:
@@ -301,7 +301,7 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos-1:
-        condition: service_started
+        condition: service_healthy
       mysql-primary:
         condition: service_healthy
       garage-1:
@@ -340,7 +340,7 @@ services:
     - OSS_PUBLIC_BASE_URL=${GATEWAY_PUBLIC_BASE_URL:-http://localhost:12880}
     depends_on:
       community-oss-1:
-        condition: service_started
+        condition: service_healthy
   community-oss-3:
     <<: *community-oss-base
     environment:
@@ -367,7 +367,7 @@ services:
     - OSS_PUBLIC_BASE_URL=${GATEWAY_PUBLIC_BASE_URL:-http://localhost:12880}
     depends_on:
       community-oss-1:
-        condition: service_started
+        condition: service_healthy
   community-gateway-1:
     <<: *community-gateway-base
     environment:
@@ -396,19 +396,19 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos-1:
-        condition: service_started
+        condition: service_healthy
       community-app-1:
-        condition: service_started
+        condition: service_healthy
       community-im-gateway-1:
-        condition: service_started
+        condition: service_healthy
       community-im-gateway-2:
-        condition: service_started
+        condition: service_healthy
       community-im-gateway-3:
-        condition: service_started
+        condition: service_healthy
       im-core-1:
-        condition: service_started
+        condition: service_healthy
       im-realtime-1:
-        condition: service_started
+        condition: service_healthy
     networks:
       default:
         aliases:
@@ -441,19 +441,19 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos-1:
-        condition: service_started
+        condition: service_healthy
       community-app-1:
-        condition: service_started
+        condition: service_healthy
       community-im-gateway-1:
-        condition: service_started
+        condition: service_healthy
       community-im-gateway-2:
-        condition: service_started
+        condition: service_healthy
       community-im-gateway-3:
-        condition: service_started
+        condition: service_healthy
       im-core-1:
-        condition: service_started
+        condition: service_healthy
       im-realtime-1:
-        condition: service_started
+        condition: service_healthy
   community-gateway-3:
     <<: *community-gateway-base
     environment:
@@ -482,19 +482,19 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos-1:
-        condition: service_started
+        condition: service_healthy
       community-app-1:
-        condition: service_started
+        condition: service_healthy
       community-im-gateway-1:
-        condition: service_started
+        condition: service_healthy
       community-im-gateway-2:
-        condition: service_started
+        condition: service_healthy
       community-im-gateway-3:
-        condition: service_started
+        condition: service_healthy
       im-core-1:
-        condition: service_started
+        condition: service_healthy
       im-realtime-1:
-        condition: service_started
+        condition: service_healthy
   community-im-gateway-1:
     <<: *community-im-gateway-base
     environment:
@@ -519,9 +519,9 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos-1:
-        condition: service_started
+        condition: service_healthy
       im-realtime-1:
-        condition: service_started
+        condition: service_healthy
     networks:
       default:
         aliases:
@@ -550,9 +550,9 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos-1:
-        condition: service_started
+        condition: service_healthy
       im-realtime-1:
-        condition: service_started
+        condition: service_healthy
     networks:
       default:
         aliases:
@@ -581,9 +581,9 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos-1:
-        condition: service_started
+        condition: service_healthy
       im-realtime-1:
-        condition: service_started
+        condition: service_healthy
     networks:
       default:
         aliases:
@@ -615,7 +615,7 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos-1:
-        condition: service_started
+        condition: service_healthy
       mysql-primary:
         condition: service_healthy
       kafka-init:
@@ -651,7 +651,7 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos-1:
-        condition: service_started
+        condition: service_healthy
       mysql-primary:
         condition: service_healthy
       kafka-init:
@@ -683,7 +683,7 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos-1:
-        condition: service_started
+        condition: service_healthy
       mysql-primary:
         condition: service_healthy
       kafka-init:
@@ -720,11 +720,11 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos-1:
-        condition: service_started
+        condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
       im-core-1:
-        condition: service_started
+        condition: service_healthy
     networks:
       default:
         aliases:
@@ -761,11 +761,11 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos-1:
-        condition: service_started
+        condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
       im-core-1:
-        condition: service_started
+        condition: service_healthy
   im-realtime-3:
     <<: *im-realtime-base
     environment:
@@ -798,8 +798,8 @@ services:
       nacos-db-bootstrap:
         condition: service_completed_successfully
       nacos-1:
-        condition: service_started
+        condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
       im-core-1:
-        condition: service_started
+        condition: service_healthy

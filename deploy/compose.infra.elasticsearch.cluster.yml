@@ -64,5 +64,5 @@ services:
         condition: service_started
       elasticsearch-3:
         condition: service_started
-    command: "sh -c ' set -e; echo \"[es-init] waiting for elasticsearch cluster...\"; until curl -fsS \"http://elasticsearch:9200/_cluster/health?wait_for_status=yellow&timeout=120s\" >/dev/null 2>&1; do sleep 2; done; code=$$(curl -s -o /dev/null -w \"%{http_code}\" http://elasticsearch:9200/community_posts); if [ \"$$code\" = \"404\" ]; then\n  echo \"[es-init] creating index community_posts...\";\n  curl -fsS -X PUT http://elasticsearch:9200/community_posts -H \"Content-Type: application/json\" -d \"{\\\"settings\\\":{\\\"number_of_shards\\\":1,\\\"number_of_replicas\\\":1}}\";\nelse\n  echo \"[es-init] index community_posts already exists (code=$$code)\";\nfi; echo \"[es-init] done.\" '\n"
+    command: "sh -c ' set -e; echo \"[es-init] waiting for elasticsearch cluster...\"; until curl -fsS \"http://elasticsearch:9200/_cluster/health?wait_for_status=yellow&timeout=120s\" >/dev/null 2>&1; do sleep 2; done; echo \"[es-init] done.\" '\n"
     restart: 'no'

@@ -17,7 +17,7 @@ services:
     mem_limit: ${NGINX_MEM_LIMIT:-128m}
     depends_on:
       community-gateway:
-        condition: service_started
+        condition: service_healthy
       xxl-job-admin:
         condition: service_started
     volumes:

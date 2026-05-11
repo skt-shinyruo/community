@@ -12,10 +12,10 @@ import java.util.List;
 public class EsPostDocument {
 
     public static final String INDEX_ALIAS = "community_posts_alias";
-    public static final String LEGACY_INDEX = "community_posts";
     public static final String INDEX_PREFIX = "community_posts_v";
 
     @Id
+    @Field(type = FieldType.Keyword)
     private String postId;
 
     @Field(type = FieldType.Keyword)
@@ -25,14 +25,20 @@ public class EsPostDocument {
 
     @Field(type = FieldType.Keyword)
     private List<String> tags;
+    @Field(type = FieldType.Text)
     private String title;
+    @Field(type = FieldType.Text)
     private String content;
+    @Field(type = FieldType.Integer)
     private Integer type;
+    @Field(type = FieldType.Integer)
     private Integer status;
     /**
      * 存储为 epoch millis，避免 Spring Data Elasticsearch 对 Instant 的读写转换不一致导致查询报错。
      */
+    @Field(type = FieldType.Long)
     private Long createTime;
+    @Field(type = FieldType.Double)
     private Double score;
 
     public String getPostId() {

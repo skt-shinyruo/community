@@ -13,6 +13,7 @@ This file is the project-specific source of truth for full browser regression of
 - Always browse with `http://localhost:12881`, not `127.0.0.1`, to avoid CORS, cookie, and runtime-config origin mismatches.
 - Runtime endpoint resolution must be verified from `frontend/scripts/renderRuntimeConfig.mjs`, `frontend/src/config/endpointResolution.js`, and `frontend/src/config/runtimeConfig.js`: generated `dist/app-config.js`, `apiBaseUrl`, `imHttpBaseUrl`, the IM WebSocket bootstrap URL, and `/files/**` links must stay on the expected local gateway origin.
 - Use run-specific data prefixes such as `pw-YYYYMMDDHHMMSS`.
+- Every run must create and update a persistent Markdown report at `target/community-playwright-regression/reports/<runId>.md`. Use `target/community-playwright-regression/artifacts/<runId>/` for screenshots, traces, console/network excerpts, and downloaded evidence.
 - Use Playwright page actions for privileged workflows. Do not extract bearer tokens from storage or call privileged APIs directly to bypass the UI.
 - A full run must use both desktop and one narrow mobile viewport. A targeted run may skip mobile only when the changed area is not layout-sensitive and the report says so.
 - Prefer condition-based waits on visible UI state or network completion. Do not use fixed sleeps as the main readiness signal.
@@ -21,6 +22,7 @@ This file is the project-specific source of truth for full browser regression of
 
 Run this before browser execution and record the result in the final report.
 
+- [ ] Create the report with `node .agents/skills/community-playwright-regression/scripts/create-run-report.mjs --mode full` or `--mode targeted --scope "<changed area>"`; record the printed report and artifact paths.
 - [ ] Run `node .agents/skills/community-playwright-regression/scripts/check-matrix-freshness.mjs` from repository root.
 - [ ] Compare all route paths in `frontend/src/router/index.js` with the route inventory below. Any new route must be added to this matrix or marked `NO_UI` with a reason before the run can pass.
 - [ ] Compare non-test files in `frontend/src/api/services` with the API/service coverage map. Any new service must have visible UI coverage, component/API coverage, or an explicit `NO_UI` reason.
@@ -610,26 +612,34 @@ Each controller below must stay aligned with either direct browser evidence, ind
 
 ## Final report template
 
-Use this shape in the final answer after executing the skill:
+Use this shape in `target/community-playwright-regression/reports/<runId>.md` after executing the skill. The final answer must include the report path and a short summary. Generated reports must use Simplified Chinese for section titles, labels, notes, and evidence summaries.
 
 ```text
-Deployment:
-- command:
-- health:
-- base URL:
-- mode:
-- route/service freshness:
-- runtime endpoint resolution:
-- supporting services:
+报告:
+- 路径:
+- 证据目录:
+- 运行 ID:
+- 开始时间:
+- 完成时间:
+- 状态:
 
-Accounts:
-- regular:
-- second user:
-- admin:
-- moderator:
-- ownership paths:
+部署:
+- 命令:
+- 健康检查:
+- 基础地址:
+- 模式:
+- 路由 / 服务新鲜度:
+- 运行时端点解析:
+- 支持服务:
 
-Feature results:
+账号:
+- 普通用户:
+- 第二用户:
+- 管理员:
+- 版主:
+- 归属路径:
+
+功能结果:
 - Auth:
 - Client infra/session/idempotency:
 - Direct HTTP surfaces:
@@ -649,25 +659,25 @@ Feature results:
 - Preview/system:
 - Accessibility/screenshots:
 
-Failures:
-- route/action:
-- request:
-- status:
-- role:
-- expected:
-- actual:
+失败项:
+- 路由 / 操作:
+- 请求:
+- 状态:
+- 角色:
+- 期望:
+- 实际:
 - console:
 - screenshot:
-- diagnosis:
+- 诊断:
 
-Skipped or NO_UI:
-- item:
-- reason:
-- owner test layer:
+跳过 / NO_UI:
+- 项目:
+- 原因:
+- 归属测试层:
 
-Artifacts:
-- screenshots:
-- test data prefix:
-- cleanup status:
-- supporting Vitest/API tests:
+证据:
+- 截图:
+- 测试数据前缀:
+- 清理状态:
+- 支持的 Vitest / API 测试:
 ```

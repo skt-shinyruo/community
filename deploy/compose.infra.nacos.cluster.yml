@@ -49,6 +49,14 @@ services:
     - JVM_MMS=${NACOS_JVM_MMS:-256m}
     ports:
     - 127.0.0.1:${NACOS_HOST_PORT:-18848}:8848
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - "curl -fsS http://127.0.0.1:8848/nacos/actuator/health >/dev/null && bash -c ': >/dev/tcp/127.0.0.1/9848'"
+      interval: 5s
+      timeout: 3s
+      retries: 60
+      start_period: 20s
   nacos-2:
     <<: *nacos-common
     hostname: nacos-2
@@ -70,6 +78,14 @@ services:
     - JVM_XMN=${NACOS_JVM_XMN:-256m}
     - JVM_MS=${NACOS_JVM_MS:-128m}
     - JVM_MMS=${NACOS_JVM_MMS:-256m}
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - "curl -fsS http://127.0.0.1:8848/nacos/actuator/health >/dev/null && bash -c ': >/dev/tcp/127.0.0.1/9848'"
+      interval: 5s
+      timeout: 3s
+      retries: 60
+      start_period: 20s
   nacos-3:
     <<: *nacos-common
     hostname: nacos-3
@@ -91,3 +107,11 @@ services:
     - JVM_XMN=${NACOS_JVM_XMN:-256m}
     - JVM_MS=${NACOS_JVM_MS:-128m}
     - JVM_MMS=${NACOS_JVM_MMS:-256m}
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - "curl -fsS http://127.0.0.1:8848/nacos/actuator/health >/dev/null && bash -c ': >/dev/tcp/127.0.0.1/9848'"
+      interval: 5s
+      timeout: 3s
+      retries: 60
+      start_period: 20s

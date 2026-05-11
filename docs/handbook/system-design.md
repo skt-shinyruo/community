@@ -12,7 +12,7 @@
 - 异步协作显式：跨域事件只走 owner-domain `contracts.event`。
 - 主写路径优先正确：请求线程内完成主事实写入、领域规则、必要同步协作和事务提交。
 - 下游投影按语义选择：可靠 outbox、best-effort listener、同步 owner API 或实时回源，不强行统一。
-- 失败可观察：重复提交、投影失败、reindex、scheduler、DLQ / DEAD 状态都要有日志或指标入口。
+- 失败可观察：重复提交、投影失败、scheduler、DLQ / DEAD 状态都要有日志或指标入口。
 
 ## 同步请求模型
 
@@ -78,7 +78,6 @@ caller ApplicationService
 - social 点赞/关注解析内容 owner：`content.api.query`。
 - content 发帖/评论同步推进 growth task 和 wallet / points 相关 owner action。
 - market 下单/退款/放款先写 `market_wallet_action` durable command，再由 market processor 调用 `wallet.api.action`。
-- ops search reindex 通过 `search.api.action` 进入 search owner。
 - user / social 为 IM policy snapshot 暴露同步查询面。
 
 原则：
@@ -117,7 +116,7 @@ caller ApplicationService
 | market fund action | `market_wallet_action` saga command -> wallet owner API | 市场事务先提交资金命令，后台 processor 调钱包并推进订单/争议状态 |
 | analytics | filter / application 写 Redis | 采集口径以当前配置和代码入口为准 |
 
-因此“HTTP 成功”不等于“所有投影完成”。业务读模型若可能延迟，应提供重扫、reindex、补偿或明确 best-effort 语义。
+因此“HTTP 成功”不等于“所有投影完成”。业务读模型若可能延迟，应提供补偿或明确 best-effort 语义。
 
 ## Outbox 设计
 
@@ -205,17 +204,14 @@ IM 独立于 `community-app`，并拆成统一外部入口下的三层：
 - 查询入口：`GET /api/search/posts`。
 - 投影入口：content 事件 -> search outbox -> `PostOutboxHandler` -> search application。
 - `PostOutboxHandler` 只负责 outbox payload 适配；search application 回源 content owner 当前状态，再 upsert/delete ES，避免乱序事件把已删除内容复活。
-- reindex 入口：`POST /api/ops/search/reindex` 或 XXL `searchReindex`。
-- reindex 使用 Redis-backed single-flight，长任务带心跳续期。
-- ES 使用固定 alias `community_posts_alias`，真实索引使用 `community_posts_vYYYYMMDDHHmmss[_n]`，切换 alias 是原子操作。
+- ES 使用固定 alias `community_posts_alias`，运行时由 `PostIndexManager` 负责 alias 初始化和版本化索引准备。
 
 ## Scheduler / Ops 设计
 
 当前后台任务分为：
 
 - 本地 `@Scheduled`：例如 outbox worker、帖子热度刷新等需要应用内持续执行的任务。
-- XXL-Job：例如 `pendingRegistrationUserCleanup`、`searchReindex`、`marketOrderAutoConfirm`、`marketWalletActionProcessor`、`marketWalletActionRecovery` 这类可由控制面触发的离散任务。
-- `/api/ops/**`：管理员运维入口，例如手动触发 search reindex。
+- XXL-Job：例如 `pendingRegistrationUserCleanup`、`marketOrderAutoConfirm`、`marketWalletActionProcessor`、`marketWalletActionRecovery` 这类可由控制面触发的离散任务。
 
 调度入口不直接拼业务规则，仍然回到 owner `ApplicationService` 或 owner action API。
 
@@ -245,4 +241,4 @@ IM 独立于 `community-app`，并拆成统一外部入口下的三层：
 - 新跨域异步协作先设计 owner `contracts.event`，再决定 local listener、outbox 或 Kafka。
 - 新可靠投影默认要求 handler 幂等、可重试、可观测。
 - 新高风险 HTTP 写接口要评估是否接入 `Idempotency-Key`。
-- 新运维入口统一走 `/api/ops/**` 或 scheduler / XXL owner action，不新增裸 `/internal/**` 管理面。
+- 新运维入口统一走 scheduler / XXL owner action 或独立 owner admin API，不新增裸 `/internal/**` 管理面。

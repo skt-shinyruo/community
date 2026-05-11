@@ -118,8 +118,8 @@ xxl:
   job:
     enabled: false
     admin:
-      # Prefer the stable ingress URL; keep XXL_JOB_ADMIN_ADDRESSES as a compatibility fallback.
-      addresses: ${XXL_JOB_ADMIN_INGRESS_URL:${XXL_JOB_ADMIN_ADDRESSES:}}
+      # Prefer explicit admin addresses; keep XXL_JOB_ADMIN_INGRESS_URL as a compatibility fallback.
+      addresses: ${XXL_JOB_ADMIN_ADDRESSES:${XXL_JOB_ADMIN_INGRESS_URL:}}
       accessToken: ${XXL_JOB_ACCESS_TOKEN:}
     executor:
       appname: ${XXL_JOB_EXECUTOR_APPNAME:}
@@ -167,17 +167,12 @@ message:
 
 search:
   storage: es
-  reindex:
-    lock-ttl: 30m
   idempotency:
     cleanup-enabled: true
     retention-days: 7
     cleanup-interval-ms: 21600000
   index:
     prefix: community_posts_v
-    keep-history: 2
-  post-scan:
-    page-size: 500
 
 analytics:
   max-days-range: 31
@@ -194,7 +189,6 @@ analytics:
     exclude-paths:
       - /api/analytics/**
       - /api/auth/**
-      - /api/ops/**
       - /actuator/**
       - /internal/**
       - /files/**

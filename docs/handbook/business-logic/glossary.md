@@ -37,7 +37,6 @@
 | Outbox | 事务内写出待投递事件，再由 worker 可靠投递。 | search post projection、IM policy projection。 |
 | Projection | 为查询、推送或快速判定维护的派生视图。它不是 SSOT。 | notice 表、ES 索引、IM policy 本地缓存。 |
 | Best-effort | 主事务提交后尽力执行的副作用，失败不回滚主事实。 | 通知投影失败只记录日志。 |
-| Reindex | 从 owner 回源重建搜索索引。 | `/api/ops/search/reindex`。 |
 | Saga command | 跨领域长流程中的状态化命令，不等于最终业务完成。 | market wallet action 的 escrow/release/refund。 |
 | Pending state | 主流程已经接单，但下游动作仍在进行的中间状态。 | 订单等待资金动作完成。 |
 

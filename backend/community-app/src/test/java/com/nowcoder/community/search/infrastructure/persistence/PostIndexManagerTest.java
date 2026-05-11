@@ -52,7 +52,7 @@ class PostIndexManagerTest {
                 "postId", "title", "content", "categoryId", "tags", "score", "createTime"
         ));
 
-        new PostIndexManager(operations, "community_posts_v", 2).ensureAliasReady();
+        new PostIndexManager(operations, "community_posts_v").ensureAliasReady();
 
         verify(operations).indexOps(EsPostDocument.class);
         verify(aliasOps).exists();
@@ -80,7 +80,7 @@ class PostIndexManagerTest {
         when(targetOps.exists()).thenReturn(false);
         when(aliasOps.createMapping()).thenReturn(expectedMapping);
 
-        new PostIndexManager(operations, "community_posts_v", 2).ensureAliasReady();
+        new PostIndexManager(operations, "community_posts_v").ensureAliasReady();
 
         verify(targetOps).create();
         verify(targetOps).putMapping(expectedMapping);
@@ -109,7 +109,7 @@ class PostIndexManagerTest {
         when(aliasOps.createMapping()).thenReturn(expectedMapping);
         when(aliasOps.getAliases(EsPostDocument.INDEX_ALIAS)).thenThrow(new ResourceNotFoundException("alias missing"));
 
-        new PostIndexManager(operations, "community_posts_v", 2).ensureAliasReady();
+        new PostIndexManager(operations, "community_posts_v").ensureAliasReady();
 
         verify(legacyOps, never()).alias(any(AliasActions.class));
         verify(targetOps).create();

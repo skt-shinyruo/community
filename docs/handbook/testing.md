@@ -87,7 +87,7 @@ mvn test -pl :community-app -Dtest='*ArchTest'
 | --- | --- |
 | HTTP 幂等 | `common-idempotency/src/test/java/.../IdempotencyGuardFingerprintTest.java`、`IdempotencyGuardStoreFailureTest.java`、`backend/community-app/src/test/java/.../IdempotencyGuardSerializationFailureTest.java` |
 | Outbox | `backend/community-app/src/test/java/com/nowcoder/community/infra/outbox/OutboxWorkerRetryTest.java`、`JdbcOutboxEventStoreTest.java`、`OutboxWorkerSchedulerTest.java` |
-| Search projection / reindex | `SearchPostProjectionApplicationServiceTest.java`、`PostOutboxHandlerTest.java`、`SearchReindexApplicationServiceTest.java`、`SearchReindexHandlerTest.java` |
+| Search projection | `SearchPostProjectionApplicationServiceTest.java`、`PostOutboxHandlerTest.java` |
 | Market wallet saga | `MarketWalletAction*Test.java`、`MarketOrderAutoConfirmHandlerTest.java` |
 | IM command / event | `community-im/im-core/src/test/java/...`、`community-im/im-realtime/src/test/java/...` |
 | Gateway WS / HTTP edge | `community-gateway/src/test/java/.../HttpRoutingIntegrationTest.java`、`WsTransparentProxyIntegrationTest.java` |

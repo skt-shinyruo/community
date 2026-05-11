@@ -28,9 +28,9 @@ Browser / Client
 | drive | 用户私有网盘空间、目录树、回收站、分享链接、提取码和访问记录。 | 文件对象、版本、签名 URL 和 blob 生命周期。 | [drive.md](drive.md) |
 | OSS | 对象、版本、alias、上传会话、reference、grant、底层 blob 位置和生命周期。 | 使用方的业务授权和展示投影。 | [oss.md](oss.md) |
 | notice | 站内通知读模型、未读数、通知摘要。 | 点赞、评论、关注、治理等上游主事实。 | [notice-search-analytics-ops.md](notice-search-analytics-ops.md) |
-| search | Elasticsearch 索引、查询语义、reindex job 和 alias 切换。 | 帖子和评论主事实。 | [notice-search-analytics-ops.md](notice-search-analytics-ops.md) |
+| search | Elasticsearch 索引、查询语义和 alias 管理。 | 帖子和评论主事实。 | [notice-search-analytics-ops.md](notice-search-analytics-ops.md) |
 | analytics | UV/DAU 等访问采集和 Redis 统计读模型。 | 用户、内容、会话主事实。 | [notice-search-analytics-ops.md](notice-search-analytics-ops.md) |
-| ops | 管理型重建、清理、补偿入口的分发。 | 任何业务事实本身。 | [notice-search-analytics-ops.md](notice-search-analytics-ops.md) |
+| ops | 管理型清理和补偿入口的分发。 | 任何业务事实本身。 | [notice-search-analytics-ops.md](notice-search-analytics-ops.md) |
 | IM | session bootstrap、WebSocket 连接、私信/群聊消息、成员、未读和在线推送。 | 主站用户处罚和拉黑主事实。 | [im.md](im.md) |
 
 ## 核心边界
@@ -60,5 +60,5 @@ Browser / Client
 | 商品、订单、纠纷 | market | wallet、user |
 | 网盘和文件分享 | drive | OSS |
 | 文件上传下载底座 | OSS | user、content、drive |
-| 搜索结果不一致 | search | content、ops |
+| 搜索结果不一致 | search | content、outbox |
 | IM 发送失败或未读异常 | IM | user、social、community-app projection |

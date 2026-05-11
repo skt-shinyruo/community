@@ -11,7 +11,7 @@
 | worker 崩溃 | outbox lease recovery | 回收卡住的 `PROCESSING` |
 | handler 暂时失败 | retry + backoff | 自动重试 |
 | handler 持续失败 | `DEAD` | 停止自动重试，留给人工处理 |
-| reindex 多入口触发 | Redis single-flight | 集群内同一时间只执行一个 |
+| 长任务多入口触发 | Redis single-flight | 集群内同一时间只执行一个 |
 | 长任务锁过期 | heartbeat renew | 防止长任务中途丢锁 |
 | 市场到钱包资金动作 | `market_wallet_action` saga command | 钱包落账脱离 market 事务，可重试、可恢复、可排查 |
 | 清理/补偿任务 | 幂等任务设计 | 重跑不会产生错误副作用 |
@@ -290,17 +290,13 @@ worker 不保证 exactly-once，handler 必须自己保证幂等。
 
 ## Single-flight
 
-Single-flight 用于集群内保护长任务或高风险任务，典型是 search reindex。
+Single-flight 用于集群内保护长任务或高风险任务，例如批量补偿、清理和手工恢复任务。
 
-Search reindex 模型：
-
-- Redis key：`sf:task:search:reindex`。
-- 配置：`search.reindex.lock-ttl = 30m`。
 - 执行前获取分布式执行权。
 - 长任务启动 heartbeat 续期。
 - 任务完成后释放锁。
 
-没有 single-flight 时，HTTP 手工触发和 XXL 触发可能并发重建整个索引。
+没有 single-flight 时，同类任务可能在多个入口并发执行。
 
 ## Market Wallet Action Saga
 

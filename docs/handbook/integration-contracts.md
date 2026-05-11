@@ -47,7 +47,6 @@ caller ApplicationService
 - content / social 推进成长任务：`growth.api.action.*`。
 - content / social 发放积分或奖励：wallet / growth owner action。
 - market 资金托管、放款、退款：由 market wallet action processor 调用 `wallet.api.action.WalletMarketActionApi`。
-- ops 触发 search reindex：`search.api.action.SearchReindexActionApi`。
 
 Market wallet action API 语义：
 

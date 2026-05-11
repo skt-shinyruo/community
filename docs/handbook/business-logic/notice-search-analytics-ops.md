@@ -1,6 +1,6 @@
-# Notice / Search / Analytics / Ops 业务逻辑
+# Notice / Search / Analytics 业务逻辑
 
-本文覆盖四类支撑业务：站内通知读模型、搜索索引读模型、统计采集与查询、运维入口。这些域大多不是主事实 owner，而是从主业务事件派生读模型或提供后台操作。
+本文覆盖三类支撑业务：站内通知读模型、搜索索引读模型、统计采集与查询。这些域大多不是主事实 owner，而是从主业务事件派生读模型。
 
 ## 数据流
 
@@ -9,7 +9,6 @@
 1. Notice：content / social / moderation 发布 contract event，`NoticeProjectionListener` 在事务提交后接收事件，`NoticeProjectionApplicationService` 计算收件人、topic 和内容快照，再写 notice 表。读取通知列表、未读数和摘要时只读 notice 自己的读模型。
 2. Search：content 主事实变化先进入 search outbox，再由 outbox worker 把 `PostOutboxHandler` 触发起来，handler 回源 content owner 当前状态后决定 ES upsert 还是 delete。重建索引时使用 single-flight 和 alias 原子切换，旧 alias 始终可读。
 3. Analytics：请求完成后由 `AnalyticsRequestCaptureFilter` 采集，classifier 决定是否记录 UV / DAU，`AnalyticsIngestApplicationService` 写 Redis；登录成功也可通过 action API 计入 DAU。
-4. Ops：运维入口本身不持有业务事实，只把重建、清理和补偿 job 分发到 owner domain 的 application service。job / handler 只能调用 owner API，不能直连仓储。
 
 ## Notice 通知
 
@@ -62,7 +61,7 @@ HTTP：
 ### Owner / SSOT
 
 - content owns 帖子事实。
-- search owns Elasticsearch 索引、查询语义、reindex job 和索引 alias。
+- search owns Elasticsearch 索引、查询语义和索引 alias。
 - ES 是最终一致读模型，不是帖子事实。
 
 ### 入口
@@ -70,11 +69,9 @@ HTTP：
 HTTP：
 
 - `GET /api/search/posts`
-- `POST /api/ops/search/reindex`
 
 后台：
 
-- `SearchReindexHandler` XXL job。
 - content post event -> search outbox -> `PostOutboxHandler`。
 
 ### 查询流程
@@ -108,29 +105,6 @@ HTTP：
 6. `PostSearchDomainService.shouldIndex(...)` 判断是否应索引。
 7. 应索引则 upsert ES；不应索引则 delete ES。
 
-### Reindex
-
-`SearchReindexApplicationService.reindex(...)`：
-
-1. 获取 single-flight 执行权。
-2. 生成新索引名。
-3. 创建索引并应用 mapping。
-4. 启动 heartbeat/续期。
-5. 游标分页扫描 content 当前权威快照。
-6. 批量写入新索引。
-7. 原子切换 alias。
-8. 清理超出保留数量的旧索引。
-
-reindex 失败不影响旧 alias 继续服务。
-
-Admin / ops reindex 聚合：
-
-- `SearchAdminApplicationService.reindex()` 是 search admin 入口。
-- 它调用 `SearchReindexApplicationService.reindex(new ReindexPostsCommand())`。
-- 如果结果 `skipped=true`，说明已有 reindex 正在运行；application 会调用 `ReindexJobApplicationService.conflict(jobId)` 记录/表达冲突。
-- 无论是否 skipped，返回 search reindex result 给 ops / admin 调用方。
-- HTTP 运维入口仍通过 ops owner action 调用 search owner，不让 ops controller 直接碰 search application。
-
 ## Analytics 分析
 
 ### Owner / SSOT
@@ -156,7 +130,7 @@ HTTP：
 `AnalyticsRequestClassifier` 判断是否采集：
 
 - analytics.ingest 开关未开启时直接跳过。
-- 默认排除 `/api/analytics/**`、`/api/auth/**`、`/api/ops/**`、`/actuator/**`、`/internal/**`、`/files/**`。
+  - 默认排除 `/api/analytics/**`、`/api/auth/**`、`/actuator/**`、`/internal/**`、`/files/**`。
 - `OPTIONS` 不采集。
 - HTTP 5xx 不采集。
 - 只采集配置允许的路径、方法和状态。
@@ -180,23 +154,6 @@ HTTP：
 - 采集异常只记录日志，不改变业务 HTTP 响应。
 - Redis 写失败不回滚业务。
 
-## Ops 运维
-
-当前 ops 域是适配入口，不 owns 搜索事实。
-
-入口：
-
-- `POST /api/ops/search/reindex`
-
-流程：
-
-1. `OpsController.reindex(...)` 处理 HTTP。
-2. 调 `OpsApplicationService.reindexSearch(...)`。
-3. ops application 通过 `SearchReindexActionApi` 调 search owner。
-4. 返回 search reindex 结果。
-
-ops controller 不直接访问 search application 或 infrastructure。
-
 ## 关键代码
 
 Notice：
@@ -213,15 +170,11 @@ Search：
 - `search.controller.SearchController`
 - `search.application.SearchApplicationService`
 - `search.application.SearchPostProjectionApplicationService`
-- `search.application.SearchReindexApplicationService`
-- `search.application.SearchAdminApplicationService`
-- `search.application.ReindexJobApplicationService`
 - `search.domain.service.PostSearchDomainService`
-- `search.domain.service.SearchReindexDomainService`
 - `search.domain.service.KeywordHighlightSupport`
 - `search.infrastructure.event.PostOutboxEnqueuer`
 - `search.infrastructure.event.PostOutboxHandler`
-- `search.infrastructure.job.SearchReindexHandler`
+- `search.infrastructure.persistence.PostIndexManager`
 
 Analytics：
 
@@ -232,9 +185,3 @@ Analytics：
 - `analytics.domain.service.AnalyticsIngestDomainService`
 - `analytics.infrastructure.web.AnalyticsRequestCaptureFilter`
 - `analytics.infrastructure.web.AnalyticsRequestClassifier`
-
-Ops：
-
-- `ops.controller.OpsController`
-- `ops.application.OpsApplicationService`
-- `search.api.action.SearchReindexActionApi`

@@ -16,7 +16,7 @@
 ### 本地启动和联调
 
 1. [local-development.md](local-development.md)：single / cluster 启动、端口、dev-only 账号、Mock Data Studio。
-2. [operations.md](operations.md)：observability、Kibana、压测、reindex、scheduler、outbox worker 排障。
+2. [operations.md](operations.md)：observability、Kibana、压测、scheduler、outbox worker 排障。
 3. [security.md](security.md)：JWT、refresh cookie、CORS / OriginGuard、授权矩阵、internal token。
 4. [testing.md](testing.md)：后端、前端、架构守卫、可靠性和工具测试的运行策略。
 
@@ -102,7 +102,7 @@
 | `business-logic/notice-projection-read-flow.md` | [business-flows.md](business-flows.md#notice-projection-and-read-model) |
 | `business-logic/ops-scheduler-compensation-flow.md` | [operations.md](operations.md)、[reliability.md](reliability.md)、[business-flows.md](business-flows.md#ops-scheduler-and-compensation) |
 | `business-logic/report-moderation-flow.md` | [business-flows.md](business-flows.md#report-and-moderation) |
-| `business-logic/search-projection-reindex-flow.md` | [business-flows.md](business-flows.md#search-projection-and-reindex)、[operations.md](operations.md) |
+| `business-logic/search-projection-flow.md` | [business-flows.md](business-flows.md#search-projection) |
 | `business-logic/security-authz-boundary-flow.md` | [security.md](security.md) |
 | `business-logic/shared-outbox-delivery-guarantee-flow.md` | [reliability.md](reliability.md) |
 | `business-logic/social-block-im-governance-flow.md` | [business-flows.md](business-flows.md#social-block-and-im-governance) |

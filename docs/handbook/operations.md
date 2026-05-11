@@ -1,6 +1,6 @@
 # 运行与排障
 
-本文档覆盖本地 observability、Kibana、IM 压测、XXL-Job、search reindex、outbox worker、scheduler 和常见故障检查。本地启动命令见 [local-development.md](local-development.md)，可靠性机制见 [reliability.md](reliability.md)。
+本文档覆盖本地 observability、Kibana、IM 压测、XXL-Job、outbox worker、scheduler 和常见故障检查。本地启动命令见 [local-development.md](local-development.md)，可靠性机制见 [reliability.md](reliability.md)。
 
 ## Observability
 
@@ -58,7 +58,7 @@ deploy/observability/kibana/README.md
 - `trace.id` / `traceparent`：串联一次请求或异步链路。
 - `service.name`：定位 `community-app`、`community-gateway`、`im-core`、`im-realtime`。
 - `community.category`：区分 auth、content、search、outbox、scheduler、im 等类别。
-- `community.action`：定位具体动作，例如 reindex、pollOnce、persistPrivateMessage。
+- `community.action`：定位具体动作，例如 pollOnce、persistPrivateMessage。
 - `community.outcome`：区分 success、failed、skipped、retry、dead。
 
 链路排障时：
@@ -97,41 +97,6 @@ tools/im-load/
 
 注意：`tools/im-load` 当前仍是旧 `auth` 首帧协议的压测 harness，直接连接传入的 `--wsUrl`，不能代表当前浏览器客户端的 `/api/im/sessions` ticket bootstrap 行为。使用前先看 `tools/im-load/README.md` 的兼容性说明；如需压测当前生产语义，应先升级工具或另写 session-bootstrap 压测脚本。
 
-## Search Reindex
-
-搜索重建索引可通过两条入口触发：
-
-- HTTP：`POST /api/ops/search/reindex`，ADMIN-only。
-- XXL-Job：`searchReindex`。
-
-执行模型：
-
-```text
-OpsController / XXL handler
-  -> ops / search action API
-  -> SearchReindexApplicationService
-  -> SingleFlightTaskGuard
-  -> PostIndexManager
-  -> scan content owner
-  -> bulk write new ES index
-  -> atomic alias switch
-```
-
-关键点：
-
-- 使用 Redis-backed single-flight，避免集群内多个 reindex 并发。
-- 长任务启动后台心跳续期，避免 lock TTL 过期。
-- ES alias `community_posts_alias` 是业务读写入口。
-- 真实索引是 `community_posts_vYYYYMMDDHHmmss[_n]`。
-- 默认保留最近 2 个历史索引，便于人工回滚 alias。
-- 重建失败不影响旧 alias 继续服务。
-
-常见排查：
-
-- reindex 一直无法开始：查 `sf:task:search:reindex` single-flight lock。
-- ES 写入失败：查 search application 日志和 ES 健康。
-- 搜索结果缺失：先查 outbox worker 是否在消费 `projection.search.post`，再视情况触发 reindex。
-
 ## Outbox Worker
 
 Outbox worker 是共享可靠投递底座，当前主要承担：
@@ -168,7 +133,7 @@ Outbox worker 是共享可靠投递底座，当前主要承担：
 后台任务分两类：
 
 - 本地 `@Scheduled`：应用内持续型任务，例如 outbox worker、帖子热度刷新。
-- XXL-Job：控制面触发的离散任务，例如 `pendingRegistrationUserCleanup`、`searchReindex`、`marketOrderAutoConfirm`、`marketWalletActionProcessor`、`marketWalletActionRecovery`。
+- XXL-Job：控制面触发的离散任务，例如 `pendingRegistrationUserCleanup`、`marketOrderAutoConfirm`、`marketWalletActionProcessor`、`marketWalletActionRecovery`。
 
 约束：
 
@@ -262,7 +227,6 @@ curl -fsS "http://localhost:18848/nacos/v1/ns/instance/list?serviceName=im-realt
 - `community.outbox_event` 是否有 `projection.search.post`。
 - `PostOutboxHandler` 是否报错。
 - ES alias `community_posts_alias` 指向哪个真实索引。
-- 必要时触发 `POST /api/ops/search/reindex`。
 
 ### 市场订单资金状态卡住
 

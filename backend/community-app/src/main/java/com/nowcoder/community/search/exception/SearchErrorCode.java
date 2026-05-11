@@ -3,14 +3,13 @@ package com.nowcoder.community.search.exception;
 import com.nowcoder.community.common.exception.ErrorCode;
 
 /**
- * search 域错误码（搜索/索引/reindex 等）。
+ * search 域错误码（搜索/索引等）。
  *
  * <p>约定：HTTP status 表达“错误类别”，Result.code 表达“业务细分”。</p>
  */
 public enum SearchErrorCode implements ErrorCode {
 
     INDEX_UNAVAILABLE(15001, "搜索索引不可用", 503),
-    REINDEX_RUNNING(15002, "重建索引任务正在运行", 409),
     INTERNAL_ERROR(15003, "搜索服务异常", 500);
 
     private final int code;

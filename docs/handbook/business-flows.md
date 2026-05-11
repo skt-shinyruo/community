@@ -586,19 +586,17 @@ Key code：
 - `im-core` room controller / room message service / membership service。
 - `InternalRealtimeProjectionController`
 
-## Search Projection And Reindex
+## Search Projection
 
 Owner / SSOT：
 
 - content owns 帖子主事实。
-- search owns搜索查询、ES repository、索引别名和 reindex。
+- search owns搜索查询、ES repository 和索引别名。
 - ES 是最终一致读模型。
 
 Entry：
 
 - `GET /api/search/posts`
-- `POST /api/ops/search/reindex`
-- XXL Job：`searchReindex`
 - content event -> search outbox。
 
 Search query：
@@ -620,30 +618,16 @@ Projection：
 5. handler 回源 content owner 当前帖子状态。
 6. 当前状态应索引则 upsert ES；已删除 / 不应索引则 delete ES。
 
-Reindex：
-
-1. 通过 HTTP ops 或 XXL 触发。
-2. `SearchReindexApplicationService` 获取 single-flight 执行权。
-3. 生成 `community_posts_vYYYYMMDDHHmmss[_n]`。
-4. 创建新索引并应用 mapping。
-5. 启动 heartbeat 续期。
-6. 游标分页扫描 content 权威快照。
-7. 批量写入新索引。
-8. 原子切换 alias `community_posts_alias`。
-9. 清理超过保留数量的旧索引。
-
 Failure：
 
 - ES 故障不阻断发帖、评论、社交等主业务写入。
 - 搜索查询会受 ES 故障影响。
 - outbox 会重试投影失败。
-- reindex 失败不影响旧 alias 继续服务。
 
 Key code：
 
 - `search.controller.SearchController`
 - `search.application.SearchApplicationService`
-- `search.application.SearchReindexApplicationService`
 - `search.domain.service.PostSearchDomainService`
 - `search.infrastructure.persistence.ElasticsearchPostSearchRepository`
 - `search.infrastructure.event.PostOutboxEnqueuer`
@@ -1003,23 +987,21 @@ Key code：
 - `wallet.infrastructure.persistence.*`
 - `wallet.api.action.*`
 
-## Ops Scheduler And Compensation
+## Scheduler And Compensation
 
 Owner / SSOT：
 
-- ops 域提供对外运维平面。
-- 具体业务动作仍由 owner domain 执行，例如 search reindex、auth cleanup、outbox worker。
+- 调度和补偿任务由各 owner 域的 job / handler 承载。
+- 具体业务动作仍由 owner domain 执行，例如 auth cleanup、outbox worker。
 
 Entry：
 
-- `/api/ops/**`
 - XXL Job handlers。
 - 本地 `@Scheduled`。
 
 Current tasks：
 
 - `pendingRegistrationUserCleanup`
-- `searchReindex`
 - `OutboxWorkerScheduler`
 - 帖子热度刷新 / score refresh
 - `marketOrderAutoConfirm`
@@ -1032,7 +1014,6 @@ Task details：
 - `PendingRegistrationUserCleanupHandler` 是 XXL `pendingRegistrationUserCleanup`，按 `auth.registration.pending-user.ttl-seconds` 计算最小 60 秒 TTL，循环清理直到本轮没有更多过期用户。
 - `RefreshTokenCleanupJob` 是本地 `@Scheduled` 清理，受 `auth.refresh.cleanup.interval-ms` 和 `auth.refresh.cleanup.enabled` 控制，调用 refresh token application 删除过期 session。
 - `PostScoreRefresher` 是本地 `@Scheduled`，受 `content.score.refresh.enabled`、`content.score.refresh.delay-ms` 和 `content.score.refresh.batch-size` 控制，batch size 被限制在 1 到 2000。
-- `SearchReindexHandler` 是 XXL `searchReindex`，直接进入 `SearchReindexApplicationService`；被 single-flight 判定为 skipped 时仍按 XXL success 记录 skipped reason。
 - `MarketOrderAutoConfirmHandler` 是 XXL `marketOrderAutoConfirm`，进入 market owner 自动确认 due orders，只写 release command。
 - `MarketWalletActionProcessorHandler` 是 XXL `marketWalletActionProcessor`，每轮处理最多 50 条 due market wallet action。
 - `MarketWalletActionRecoveryHandler` 是 XXL `marketWalletActionRecovery`，每轮 reconcile 最多 100 条，恢复过期 lease、补齐命令和应用已有 wallet 结果。
@@ -1042,7 +1023,6 @@ Rules：
 
 - scheduler / job 不直接拼业务规则。
 - 本地 listener / job 只能进入同域 `ApplicationService`。
-- 跨域 job 调用 owner `api.action`。
 - 需要单实例执行的任务使用 single-flight。
 - 清理和补偿任务必须可重跑。
 
@@ -1072,16 +1052,11 @@ Failure：
 
 Key code：
 
-- `ops.controller.OpsController`
-- `ops.application.OpsApplicationService`
 - `auth.infrastructure.job.RefreshTokenCleanupJob`
 - `auth.infrastructure.job.PendingRegistrationUserCleanupJob`
 - `user.infrastructure.job.PendingRegistrationUserCleanupHandler`
 - `content.infrastructure.job.PostScoreRefresher`
-- `search.infrastructure.job.SearchReindexHandler`
 - `market.infrastructure.job.MarketOrderAutoConfirmHandler`
 - `market.infrastructure.job.MarketWalletActionProcessorHandler`
 - `market.infrastructure.job.MarketWalletActionRecoveryHandler`
-- `search.application.ReindexJobApplicationService`
-- `search.application.SearchReindexApplicationService`
 - `common-outbox` 的 `OutboxWorker` / `OutboxWorkerScheduler`

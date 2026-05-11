@@ -132,7 +132,7 @@ Registration migration note：
 | `content.domain.event.PostDomainEventPublisher` | post domain event 发布端口 | [Content 内容业务逻辑](business-logic/content.md#内容事件和投影) | Covered |
 | `content.domain.event.CommentDomainEventPublisher` | comment domain event 发布端口 | [Content 内容业务逻辑](business-logic/content.md#内容事件和投影) | Covered |
 | `content.infrastructure.api.ContentEntityQueryService` | content owner entity resolve API 实现 | [集成契约](integration-contracts.md#同步-owner-api) | Covered |
-| `content.infrastructure.api.PostScanService` | search reindex 回源扫描 API 实现 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
+| `content.infrastructure.api.PostScanService` | search 投影扫描 API 实现 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `content.infrastructure.text.SensitiveFilter` | sensitive word trie sanitizer and fail-fast dictionary loading | [Content 内容业务逻辑](business-logic/content.md#发帖) | Covered |
 | `content.infrastructure.event.LocalContentEventPublisher` | content contract event 本地发布实现 | [Content 内容业务逻辑](business-logic/content.md#内容事件和投影) | Covered |
 | `content.infrastructure.event.SpringPostDomainEventPublisher` | post domain event Spring 发布实现 | [Content 内容业务逻辑](business-logic/content.md#内容事件和投影) | Covered |
@@ -168,20 +168,14 @@ Registration migration note：
 | `notice.domain.service.NoticeProjectionDomainService` | 通知投影规则 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `notice.infrastructure.event.NoticeProjectionListener` | 本地 after-commit best-effort 通知投影 listener | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 
-## Search And Ops
+## Search
 
 | Core class | Role | Handbook section | Coverage |
 | --- | --- | --- | --- |
 | `search.controller.SearchController` | search HTTP binding | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | IndexOnly |
-| `ops.controller.OpsController` | ops HTTP binding | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | IndexOnly |
 | `search.application.SearchApplicationService` | 搜索查询 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `search.application.SearchPostProjectionApplicationService` | outbox 触发后回源 content 并 upsert/delete ES | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
-| `search.application.SearchReindexApplicationService` | reindex single-flight、mapping、alias 切换 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
-| `search.application.ReindexJobApplicationService` | XXL reindex job 到 search owner action | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
-| `search.application.SearchAdminApplicationService` | admin / ops search 管理入口 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
-| `ops.application.OpsApplicationService` | `/api/ops/**` 运维入口，当前转发 search reindex owner action | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `search.domain.service.PostSearchDomainService` | 搜索 query 规则 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
-| `search.domain.service.SearchReindexDomainService` | reindex 命名和执行规则 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `search.domain.service.KeywordHighlightSupport` | 搜索关键词高亮 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `search.infrastructure.event.PostOutboxEnqueuer` | content event 到 search outbox | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `search.infrastructure.event.PostOutboxHandler` | search outbox handler，回源 content 后 upsert/delete ES | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
@@ -364,7 +358,6 @@ Registration migration note：
 | Core class | Role | Handbook section | Coverage |
 | --- | --- | --- | --- |
 | `content.infrastructure.job.PostScoreRefresher` | 帖子热度刷新本地 job | [Content 内容业务逻辑](business-logic/content.md) | Covered |
-| `search.infrastructure.job.SearchReindexHandler` | XXL `searchReindex` | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `market.infrastructure.job.MarketOrderAutoConfirmHandler` | XXL `marketOrderAutoConfirm` | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.infrastructure.job.MarketWalletActionProcessorHandler` | XXL `marketWalletActionProcessor` | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `market.infrastructure.job.MarketWalletActionRecoveryHandler` | XXL `marketWalletActionRecovery` | [Market 市场业务逻辑](business-logic/market.md) | Covered |

@@ -52,14 +52,13 @@ flowchart TD
 | 举报与治理 | `/api/reports/**`, `/api/moderation/**` | `content` + `user` | `community-app` |
 | 社交 | `/api/likes/**`, `/api/follows/**`, `/api/blocks/**` | `social` | `community-app` |
 | 通知 | `/api/notices/**` | `notice`，复用 `community.message` 承载站内通知 | `community-app` |
-| 搜索 | `/api/search/**`, `/api/ops/search/reindex` | `search` + ES alias/index | `community-app` |
+| 搜索 | `/api/search/**` | `search` + ES alias/index | `community-app` |
 | analytics | `/api/analytics/**` | `analytics` + Redis | `community-app` |
 | growth | 当前无独立前台 HTTP 面 | `growth` 任务/等级底座 | owner API / event |
 | market | `/api/market/**`, `/api/admin/market/**` | `market` | `community-app` |
 | wallet | `/api/wallet/**`, `/api/wallet/admin/**` | `wallet` | `community-app` |
 | IM 私信/群聊 | `/api/im/sessions`, `/ws/im`, `/api/im/**` | `community-im-gateway` + `im-realtime` + `im-core` | IM 服务各自配置 |
 | IM policy snapshot | `/internal/im/realtime/projections/**` | `user` / `social` SSOT，`community-app` 暴露 snapshot | internal scope JWT |
-| ops | `/api/ops/**` | 触发 owner action，例如 search reindex | ADMIN-only |
 
 ## community-app 强制包形态
 
@@ -191,12 +190,11 @@ owner domain event
 - `content`：帖子、评论、回复、收藏、分类订阅、标签、举报和内容治理动作。
 - `social`：点赞、关注、拉黑。
 - `notice`：站内通知投影、列表、未读、摘要、已读。
-- `search`：帖子搜索、搜索投影、ES alias/index、reindex。
+- `search`：帖子搜索、搜索投影、ES alias/index。
 - `analytics`：UV / DAU / 请求采集与查询。
 - `growth`：任务模板、任务进度、等级规则、奖励发放协作。
 - `market`：listing、库存、订单、交付/发货、争议和自动确认。
 - `wallet`：钱包账户、充值、提现、转账、冻结、总账双分录、冲正。
-- `ops`：运维平面，触发 reindex 等 owner action。
 - `im.projection`：主站提供给 IM realtime 的用户处罚/拉黑 policy snapshot。
 
 ## 共享基础设施

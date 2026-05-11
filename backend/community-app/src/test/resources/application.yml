@@ -100,7 +100,6 @@ analytics:
     exclude-paths:
       - /api/analytics/**
       - /api/auth/**
-      - /api/ops/**
       - /actuator/**
       - /internal/**
       - /files/**

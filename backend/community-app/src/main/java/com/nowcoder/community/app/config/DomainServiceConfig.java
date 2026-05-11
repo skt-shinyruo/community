@@ -14,7 +14,6 @@ import com.nowcoder.community.content.domain.service.PostContentBlockPolicy;
 import com.nowcoder.community.content.domain.service.PostModerationDomainService;
 import com.nowcoder.community.content.domain.service.PostPublishingDomainService;
 import com.nowcoder.community.search.domain.service.PostSearchDomainService;
-import com.nowcoder.community.search.domain.service.SearchReindexDomainService;
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.FollowDomainService;
 import com.nowcoder.community.social.domain.service.LikeDomainService;
@@ -98,11 +97,6 @@ public class DomainServiceConfig {
     @Bean
     PostSearchDomainService postSearchDomainService() {
         return new PostSearchDomainService();
-    }
-
-    @Bean
-    SearchReindexDomainService searchReindexDomainService() {
-        return new SearchReindexDomainService();
     }
 
     @Bean

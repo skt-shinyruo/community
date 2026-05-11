@@ -329,8 +329,7 @@ auto-fill scene 当前支持：
 - `tech-community-hot-start`
 - `moderation-pressure`
 - `im-busy`
-- `reward-ops-busy`
 
-`tech-community-hot-start` 会补充社区、治理、growth / reward、IM 样例数据。新增行记录在 `demo_entity_ref`，批次支持按依赖顺序删除；批次详情页展示 target / actual / failure summary。
+`tech-community-hot-start` 会补充社区、治理、growth task progress、IM 样例数据。新增行记录在 `demo_entity_ref`，批次支持按依赖顺序删除；批次详情页展示 target / actual / failure summary。
 
 这些开关只影响本地控制面，不改变 prod fail-closed 安全约束。

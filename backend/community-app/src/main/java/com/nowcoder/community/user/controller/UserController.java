@@ -1,17 +1,17 @@
 package com.nowcoder.community.user.controller;
 
-import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.logging.SecurityEventLogger;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
-import com.nowcoder.community.user.application.AvatarUploadContent;
 import com.nowcoder.community.user.application.UserAvatarApplicationService;
 import com.nowcoder.community.user.application.UserProfileApplicationService;
 import com.nowcoder.community.user.application.UserReadApplicationService;
-import com.nowcoder.community.user.application.result.AvatarUploadTokenResult;
+import com.nowcoder.community.user.application.command.CreateAvatarUploadSessionCommand;
+import com.nowcoder.community.user.application.result.AvatarUploadSessionResult;
 import com.nowcoder.community.user.application.result.UserProfilePageResult;
 import com.nowcoder.community.user.application.result.UserSummaryResult;
-import com.nowcoder.community.user.controller.dto.AvatarUploadTokenResponse;
+import com.nowcoder.community.user.controller.dto.AvatarUploadSessionRequest;
+import com.nowcoder.community.user.controller.dto.AvatarUploadSessionResponse;
 import com.nowcoder.community.user.controller.dto.BatchUserSummaryRequest;
 import com.nowcoder.community.user.controller.dto.UpdateAvatarRequest;
 import com.nowcoder.community.user.controller.dto.UserProfilePostSummaryResponse;
@@ -22,7 +22,6 @@ import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
-import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -31,15 +30,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
-
-import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
 
 @RestController
 @RequestMapping("/api/users")
@@ -109,9 +102,17 @@ public class UserController {
     }
 
     @PostMapping("/{userId}/avatar/upload-sessions")
-    public Result<AvatarUploadTokenResponse> createAvatarUploadSession(Authentication authentication, @PathVariable UUID userId) {
+    public Result<AvatarUploadSessionResponse> createAvatarUploadSession(
+            Authentication authentication,
+            @PathVariable UUID userId,
+            @Valid @RequestBody AvatarUploadSessionRequest request
+    ) {
         UUID currentUserId = CurrentUser.requireUserUuid(authentication);
-        AvatarUploadTokenResponse response = toAvatarUploadTokenResponse(userAvatarApplicationService.createUploadToken(currentUserId, userId));
+        AvatarUploadSessionResponse response = toAvatarUploadSessionResponse(userAvatarApplicationService.createUploadSession(
+                currentUserId,
+                userId,
+                toCreateAvatarUploadSessionCommand(request)
+        ));
         SecurityEventLogger.info(
                 log,
                 "avatar_upload_session",
@@ -119,33 +120,15 @@ public class UserController {
                 "user.id", userId,
                 "community.target_type", "user",
                 "community.target_id", userId,
-                "community.avatar_file_key", response == null ? null : response.getFileKey()
+                "community.avatar_object_id", response == null ? null : response.getObjectId()
         );
         return Result.ok(response);
-    }
-
-    @PostMapping(value = "/{userId}/avatar/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public Result<Void> uploadAvatar(Authentication authentication, @PathVariable UUID userId, @RequestParam("file") MultipartFile file, @RequestParam("fileKey") String fileKey) {
-        UUID currentUserId = CurrentUser.requireUserUuid(authentication);
-        userAvatarApplicationService.upload(currentUserId, userId, fileKey, toAvatarUploadContent(file));
-        SecurityEventLogger.info(
-                log,
-                "avatar_upload",
-                "success",
-                "user.id", userId,
-                "community.target_type", "user",
-                "community.target_id", userId,
-                "community.avatar_file_key", fileKey,
-                "community.file_content_type", file == null ? null : file.getContentType(),
-                "community.file_size_bytes", file == null ? null : file.getSize()
-        );
-        return Result.ok();
     }
 
     @PutMapping("/{userId}/avatar")
     public Result<Void> updateAvatar(Authentication authentication, @PathVariable UUID userId, @Valid @RequestBody UpdateAvatarRequest request) {
         UUID currentUserId = CurrentUser.requireUserUuid(authentication);
-        userAvatarApplicationService.updateAvatar(currentUserId, userId, request.getFileKey());
+        userAvatarApplicationService.updateAvatar(currentUserId, userId, request.getObjectId());
         SecurityEventLogger.info(
                 log,
                 "avatar_update",
@@ -153,61 +136,43 @@ public class UserController {
                 "user.id", userId,
                 "community.target_type", "user",
                 "community.target_id", userId,
-                "community.avatar_file_key", request.getFileKey()
+                "community.avatar_object_id", request.getObjectId()
         );
         return Result.ok();
     }
 
-    private static AvatarUploadTokenResponse toAvatarUploadTokenResponse(AvatarUploadTokenResult token) {
-        if (token == null) {
+    private static CreateAvatarUploadSessionCommand toCreateAvatarUploadSessionCommand(AvatarUploadSessionRequest request) {
+        return new CreateAvatarUploadSessionCommand(
+                request == null ? "" : request.getFileName(),
+                request == null ? "" : request.getContentType(),
+                request == null ? 0 : request.getContentLength(),
+                request == null ? "" : request.getChecksumSha256()
+        );
+    }
+
+    private static AvatarUploadSessionResponse toAvatarUploadSessionResponse(AvatarUploadSessionResult session) {
+        if (session == null) {
             return null;
         }
-        AvatarUploadTokenResponse response = new AvatarUploadTokenResponse();
-        response.setUploadId(token.uploadId());
-        response.setFileKey(token.fileKey());
+        AvatarUploadSessionResponse response = new AvatarUploadSessionResponse();
+        response.setUploadId(session.uploadId());
+        response.setObjectId(session.objectId() == null ? "" : session.objectId().toString());
+        response.setVersionId(session.versionId() == null ? "" : session.versionId().toString());
 
-        AvatarUploadTokenResponse.UploadInstruction upload = new AvatarUploadTokenResponse.UploadInstruction();
-        upload.setUrl(token.uploadUrl());
-        upload.setMethod(token.uploadMethod());
-        upload.setFileField(token.fileField());
-        upload.setFields(Map.of(token.fileKeyField(), token.fileKey()));
-        upload.setHeaders(Map.of());
+        AvatarUploadSessionResponse.UploadInstruction upload = new AvatarUploadSessionResponse.UploadInstruction();
+        upload.setUrl(session.uploadUrl());
+        upload.setMethod(session.uploadMethod());
+        upload.setFileField(session.fileField());
+        upload.setFields(session.fields());
+        upload.setHeaders(session.headers());
         response.setUpload(upload);
 
-        AvatarUploadTokenResponse.Constraints constraints = new AvatarUploadTokenResponse.Constraints();
-        constraints.setMaxBytes(token.maxBytes());
-        constraints.setMimeTypes(parseMimeTypes(token.mimeLimit()));
+        AvatarUploadSessionResponse.Constraints constraints = new AvatarUploadSessionResponse.Constraints();
+        constraints.setMaxBytes(session.maxBytes());
+        constraints.setMimeTypes(session.mimeTypes());
         response.setConstraints(constraints);
-        response.setExpiresAt(token.expiresAt() == null ? "" : token.expiresAt().toString());
+        response.setExpiresAt(session.expiresAt() == null ? "" : session.expiresAt().toString());
         return response;
-    }
-
-    private static List<String> parseMimeTypes(String mimeLimit) {
-        if (mimeLimit == null || mimeLimit.isBlank()) {
-            return List.of();
-        }
-        return Arrays.stream(mimeLimit.split(";"))
-                .map(String::trim)
-                .filter(value -> !value.isEmpty())
-                .toList();
-    }
-
-    private static AvatarUploadContent toAvatarUploadContent(MultipartFile file) {
-        return new AvatarUploadContent(
-                () -> {
-                    if (file == null) {
-                        return java.io.InputStream.nullInputStream();
-                    }
-                    try {
-                        return file.getInputStream();
-                    } catch (IOException e) {
-                        throw new BusinessException(INTERNAL_ERROR, "读取头像失败", e);
-                    }
-                },
-                file == null ? "" : file.getContentType(),
-                file == null ? 0 : file.getSize(),
-                file == null || file.isEmpty()
-        );
     }
 
     private static UserSummaryResponse toUserSummaryResponse(UserSummaryResult user) {

@@ -49,9 +49,16 @@ class CommunityOssClientContractTest {
                 objectId,
                 versionId,
                 "USER_AVATAR",
+                "community-app",
+                "user",
+                "avatar",
+                "7",
+                "PUBLIC",
                 "ACTIVE",
+                "avatar.png",
                 "image/png",
                 6,
+                "sha256-avatar",
                 "http://localhost:12880/files/" + objectId + "/" + versionId + "/avatar.png"
         );
         OssSignedUrlResponse signedUrl = new OssSignedUrlResponse(

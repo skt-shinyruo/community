@@ -39,10 +39,6 @@ class TaskProgressApplicationServiceTest {
     void setUp() {
         jdbcTemplate.update("delete from user_task_event_log");
         jdbcTemplate.update("delete from user_task_progress");
-        jdbcTemplate.update("delete from reward_ledger");
-        jdbcTemplate.update("delete from reward_grant_record");
-        jdbcTemplate.update("delete from reward_account");
-        jdbcTemplate.update("delete from user_score_log");
         jdbcTemplate.update("delete from wallet_entry");
         jdbcTemplate.update("delete from wallet_txn");
         jdbcTemplate.update("delete from wallet_account");
@@ -108,8 +104,6 @@ class TaskProgressApplicationServiceTest {
         service.processEvent(USER_ID, "CommentCreated", "comment-evt-3", LocalDate.of(2026, 3, 18));
 
         assertThat(walletTxnCountFor("task:" + USER_ID + ":WEEKLY_COMMENTER:2026-W12")).isEqualTo(1);
-        assertThat(countRows("reward_ledger")).isZero();
-        assertThat(countRows("user_score_log")).isZero();
         assertThat(countRows("wallet_entry")).isEqualTo(2);
     }
 

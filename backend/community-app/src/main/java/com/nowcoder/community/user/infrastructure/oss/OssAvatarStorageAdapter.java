@@ -2,20 +2,19 @@ package com.nowcoder.community.user.infrastructure.oss;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.oss.client.CommunityOssClient;
-import com.nowcoder.community.oss.client.model.OssCompleteUploadRequest;
 import com.nowcoder.community.oss.client.model.OssMetadataResponse;
 import com.nowcoder.community.oss.client.model.OssUploadSessionRequest;
 import com.nowcoder.community.oss.client.model.OssUploadSessionResponse;
-import com.nowcoder.community.user.application.AvatarUploadContent;
+import com.nowcoder.community.user.application.command.CreateAvatarUploadSessionCommand;
 import com.nowcoder.community.user.application.port.AvatarStoragePort;
-import com.nowcoder.community.user.application.result.AvatarUploadTokenResult;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import com.nowcoder.community.user.application.result.AvatarUploadSessionResult;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import java.util.UUID;
-import java.util.concurrent.TimeUnit;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
@@ -24,13 +23,15 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 @Component
 public class OssAvatarStorageAdapter implements AvatarStoragePort {
 
-    private static final String OWNER_KEY_PREFIX = "user:avatar:oss-owner:";
-    private static final String SESSION_KEY_PREFIX = "user:avatar:oss-session:";
-    private static final String PUBLIC_URL_KEY_PREFIX = "user:avatar:oss-public-url:";
-    private static final long UPLOAD_TICKET_TTL_SECONDS = 600;
-    private static final String KEY_PREFIX = "avatar/";
+    private static final String USAGE = "USER_AVATAR";
+    private static final String OWNER_SERVICE = "community-app";
+    private static final String OWNER_DOMAIN = "user";
+    private static final String OWNER_TYPE = "avatar";
+    private static final String VISIBILITY_PUBLIC = "PUBLIC";
+    private static final String STATUS_ACTIVE = "ACTIVE";
+    private static final String UPLOAD_METHOD = "POST";
+    private static final String FILE_FIELD = "file";
     private static final long MAX_AVATAR_BYTES = 2L * 1024 * 1024;
-    private static final String MIME_LIMIT = "image/jpeg;image/png;image/webp;image/gif";
     private static final List<String> ALLOWED_MIME_TYPES = List.of(
             "image/jpeg",
             "image/png",
@@ -39,221 +40,119 @@ public class OssAvatarStorageAdapter implements AvatarStoragePort {
     );
 
     private final CommunityOssClient ossClient;
-    private final StringRedisTemplate redisTemplate;
-    private final OssAvatarProperties properties;
 
-    public OssAvatarStorageAdapter(
-            CommunityOssClient ossClient,
-            StringRedisTemplate redisTemplate,
-            OssAvatarProperties properties
-    ) {
+    public OssAvatarStorageAdapter(CommunityOssClient ossClient) {
         this.ossClient = ossClient;
-        this.redisTemplate = redisTemplate;
-        this.properties = properties;
     }
 
     @Override
-    public AvatarUploadTokenResult createUploadToken(UUID userId) {
+    public AvatarUploadSessionResult createUploadSession(UUID userId, CreateAvatarUploadSessionCommand command) {
         if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
+        validateCommand(command);
 
-        String fileKey = generateFileName(userId);
         OssUploadSessionResponse response = ossClient.prepareUpload(new OssUploadSessionRequest(
-                "USER_AVATAR",
-                "community-app",
-                "user",
-                "avatar",
+                USAGE,
+                OWNER_SERVICE,
+                OWNER_DOMAIN,
+                OWNER_TYPE,
                 userId.toString(),
-                "PUBLIC",
-                "avatar.png",
-                "application/octet-stream",
-                0,
-                "",
+                VISIBILITY_PUBLIC,
+                safeFileName(command.fileName()),
+                command.contentType(),
+                command.contentLength(),
+                command.checksumSha256(),
                 userId.toString()
         ));
-        if (response == null) {
-            throw new BusinessException(INTERNAL_ERROR, "签发上传参数失败");
+        if (response == null || response.sessionId() == null || response.objectId() == null || response.versionId() == null) {
+            throw new BusinessException(INTERNAL_ERROR, "签发头像上传会话失败");
+        }
+        if (!"PROXY".equalsIgnoreCase(response.uploadMode())) {
+            throw new BusinessException(INTERNAL_ERROR, "不支持的头像上传模式");
         }
 
-        bindUploadTicket(userId, fileKey);
-        bindUploadSession(fileKey, response);
-        return new AvatarUploadTokenResult(
-                response.sessionId() == null ? "" : response.sessionId().toString(),
-                fileKey,
-                "/api/users/" + userId + "/avatar/upload",
-                "POST",
-                "file",
-                "fileKey",
+        Map<String, String> fields = new LinkedHashMap<>();
+        fields.put("sessionId", response.sessionId().toString());
+        fields.put("versionId", response.versionId().toString());
+        if (StringUtils.hasText(command.checksumSha256())) {
+            fields.put("checksumSha256", command.checksumSha256());
+        }
+
+        return new AvatarUploadSessionResult(
+                response.sessionId().toString(),
+                response.objectId(),
+                response.versionId(),
+                response.uploadUrl(),
+                UPLOAD_METHOD,
+                FILE_FIELD,
+                fields,
+                Map.of(),
                 MAX_AVATAR_BYTES,
-                MIME_LIMIT,
+                ALLOWED_MIME_TYPES,
                 response.expiresAt()
         );
     }
 
     @Override
-    public void upload(UUID userId, String fileKey, AvatarUploadContent content) {
+    public String resolvePublicAvatarUrl(UUID userId, UUID objectId) {
         if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
-        if (!isSafeFileName(fileKey)) {
-            throw new BusinessException(INVALID_ARGUMENT, "fileKey 非法");
-        }
-        validateContent(content);
-        requireUploadOwner(userId, fileKey, false);
-
-        UploadSessionReference sessionReference = requireUploadSession(fileKey);
-        OssMetadataResponse metadata;
-        try {
-            metadata = ossClient.completeProxyUpload(new OssCompleteUploadRequest(
-                    sessionReference.sessionId(),
-                    sessionReference.objectId(),
-                    sessionReference.versionId(),
-                    content::openStream,
-                    "avatar.png",
-                    content.contentType(),
-                    content.size(),
-                    ""
-            ));
-        } catch (RuntimeException e) {
-            throw new BusinessException(INTERNAL_ERROR, "上传头像失败", e);
+        if (objectId == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "objectId 非法");
         }
 
+        OssMetadataResponse metadata = ossClient.getMetadata(objectId);
         if (metadata == null) {
-            throw new BusinessException(INTERNAL_ERROR, "上传头像失败");
+            throw new BusinessException(FORBIDDEN, "头像对象不存在或不可用");
         }
+        requireOwnedAvatar(userId, metadata);
         if (!StringUtils.hasText(metadata.publicUrl())) {
-            throw new BusinessException(INTERNAL_ERROR, "上传头像失败");
+            throw new BusinessException(INTERNAL_ERROR, "头像公共地址不可用");
         }
-        cachePublicUrl(fileKey, metadata.publicUrl());
+        return metadata.publicUrl().trim();
     }
 
-    @Override
-    public void assertAndConsumeUploadTicket(UUID userId, String fileKey) {
-        if (userId == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
+    private static void validateCommand(CreateAvatarUploadSessionCommand command) {
+        if (command == null) {
+            throw new BusinessException(INVALID_ARGUMENT, "上传会话参数非法");
         }
-        if (!isSafeFileName(fileKey)) {
-            throw new BusinessException(INVALID_ARGUMENT, "fileKey 非法");
+        if (!StringUtils.hasText(command.fileName())) {
+            throw new BusinessException(INVALID_ARGUMENT, "文件名不能为空");
         }
-        if (redisTemplate == null) {
-            throw new BusinessException(FORBIDDEN, "上传校验不可用");
+        if (!ALLOWED_MIME_TYPES.contains(command.contentType())) {
+            throw new BusinessException(INVALID_ARGUMENT, "不支持的图片格式（mime=" + command.contentType() + "）");
         }
-        String owner = redisTemplate.opsForValue().getAndDelete(ownerKey(fileKey));
-        if (!StringUtils.hasText(owner) || !owner.trim().equals(userId.toString())) {
-            throw new BusinessException(FORBIDDEN, "上传凭证已失效或不匹配");
-        }
-    }
-
-    @Override
-    public String buildAvatarUrl(String fileKey) {
-        if (!isSafeFileName(fileKey)) {
-            throw new BusinessException(INVALID_ARGUMENT, "fileKey 非法");
-        }
-        String cached = redisTemplate == null ? null : redisTemplate.opsForValue().get(publicUrlKey(fileKey));
-        if (StringUtils.hasText(cached)) {
-            return cached.trim();
-        }
-        throw new BusinessException(INTERNAL_ERROR, "头像公共地址不可用");
-    }
-
-    private void bindUploadTicket(UUID userId, String fileName) {
-        if (redisTemplate == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "Redis 未配置，无法签发上传凭证");
-        }
-        redisTemplate.opsForValue().set(ownerKey(fileName), userId.toString(), UPLOAD_TICKET_TTL_SECONDS, TimeUnit.SECONDS);
-    }
-
-    private void bindUploadSession(String fileName, OssUploadSessionResponse response) {
-        if (redisTemplate == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "Redis 未配置，无法签发上传凭证");
-        }
-        redisTemplate.opsForValue().set(sessionKey(fileName), encodeSession(response), UPLOAD_TICKET_TTL_SECONDS, TimeUnit.SECONDS);
-    }
-
-    private void cachePublicUrl(String fileName, String publicUrl) {
-        if (redisTemplate == null) {
-            return;
-        }
-        redisTemplate.opsForValue().set(publicUrlKey(fileName), publicUrl.trim(), UPLOAD_TICKET_TTL_SECONDS, TimeUnit.SECONDS);
-    }
-
-    private void requireUploadOwner(UUID userId, String fileName, boolean consume) {
-        if (redisTemplate == null) {
-            throw new BusinessException(FORBIDDEN, "上传校验不可用");
-        }
-        String owner = consume
-                ? redisTemplate.opsForValue().getAndDelete(ownerKey(fileName))
-                : redisTemplate.opsForValue().get(ownerKey(fileName));
-        if (!StringUtils.hasText(owner) || !owner.trim().equals(userId.toString())) {
-            throw new BusinessException(FORBIDDEN, "上传凭证已失效或不匹配");
-        }
-    }
-
-    private UploadSessionReference requireUploadSession(String fileName) {
-        if (redisTemplate == null) {
-            throw new BusinessException(FORBIDDEN, "上传校验不可用");
-        }
-        String encoded = redisTemplate.opsForValue().get(sessionKey(fileName));
-        if (!StringUtils.hasText(encoded)) {
-            throw new BusinessException(FORBIDDEN, "上传凭证已失效或不匹配");
-        }
-        String[] parts = encoded.trim().split("\\|", -1);
-        if (parts.length != 3) {
-            throw new BusinessException(INVALID_ARGUMENT, "上传凭证格式非法");
-        }
-        return new UploadSessionReference(
-                UUID.fromString(parts[0]),
-                UUID.fromString(parts[1]),
-                UUID.fromString(parts[2])
-        );
-    }
-
-    private String encodeSession(OssUploadSessionResponse response) {
-        return response.sessionId() + "|" + response.objectId() + "|" + response.versionId();
-    }
-
-    private String ownerKey(String fileName) {
-        return OWNER_KEY_PREFIX + fileName.trim();
-    }
-
-    private String sessionKey(String fileName) {
-        return SESSION_KEY_PREFIX + fileName.trim();
-    }
-
-    private String publicUrlKey(String fileName) {
-        return PUBLIC_URL_KEY_PREFIX + fileName.trim();
-    }
-
-    private String generateFileName(UUID userId) {
-        return KEY_PREFIX + userId + "/" + UUID.randomUUID().toString().replace("-", "");
-    }
-
-    private boolean isSafeFileName(String fileName) {
-        if (!StringUtils.hasText(fileName)) {
-            return false;
-        }
-        String normalized = fileName.trim();
-        return normalized.startsWith(KEY_PREFIX)
-                && normalized.length() <= 200
-                && !normalized.contains("..")
-                && !normalized.contains("\\")
-                && !normalized.contains("\u0000");
-    }
-
-    private void validateContent(AvatarUploadContent content) {
-        if (content == null || content.empty()) {
+        if (command.contentLength() <= 0) {
             throw new BusinessException(INVALID_ARGUMENT, "文件不能为空");
         }
-        if (content.size() > MAX_AVATAR_BYTES) {
+        if (command.contentLength() > MAX_AVATAR_BYTES) {
             throw new BusinessException(INVALID_ARGUMENT, "头像文件过大（maxBytes=" + MAX_AVATAR_BYTES + "）");
-        }
-        String contentType = content.contentType();
-        if (!ALLOWED_MIME_TYPES.contains(contentType)) {
-            throw new BusinessException(INVALID_ARGUMENT, "不支持的图片格式（mime=" + contentType + "）");
         }
     }
 
-    private record UploadSessionReference(UUID sessionId, UUID objectId, UUID versionId) {
+    private static String safeFileName(String fileName) {
+        String normalized = fileName == null ? "" : fileName.trim();
+        int slash = Math.max(normalized.lastIndexOf('/'), normalized.lastIndexOf('\\'));
+        if (slash >= 0) {
+            normalized = normalized.substring(slash + 1);
+        }
+        if (!StringUtils.hasText(normalized) || normalized.contains("\u0000") || normalized.length() > 120) {
+            throw new BusinessException(INVALID_ARGUMENT, "文件名非法");
+        }
+        return normalized;
+    }
+
+    private static void requireOwnedAvatar(UUID userId, OssMetadataResponse metadata) {
+        if (!USAGE.equals(metadata.usage())
+                || !OWNER_SERVICE.equals(metadata.ownerService())
+                || !OWNER_DOMAIN.equals(metadata.ownerDomain())
+                || !OWNER_TYPE.equals(metadata.ownerType())
+                || !userId.toString().equals(metadata.ownerId())
+                || !VISIBILITY_PUBLIC.equals(metadata.visibility())
+                || !STATUS_ACTIVE.equals(metadata.status())) {
+            throw new BusinessException(FORBIDDEN, "头像对象不存在或不可用");
+        }
     }
 }

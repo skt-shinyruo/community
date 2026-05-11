@@ -120,10 +120,10 @@ test('loadConfig rejects invalid auto-fill default counts', () => {
   )
 })
 
-test('loadConfig enables AI config and allows OPENAI_API_KEY fallback', () => {
+test('loadConfig enables AI config from mock-data-studio scoped OpenAI key', () => {
   const config = loadConfig({
     MOCK_DATA_STUDIO_AI_ENABLED: 'true',
-    OPENAI_API_KEY: 'test-key',
+    MOCK_DATA_STUDIO_OPENAI_API_KEY: 'test-key',
     MOCK_DATA_STUDIO_OPENAI_MODEL: 'gpt-4.1-mini',
     MOCK_DATA_STUDIO_OPENAI_TIMEOUT_MS: '9000',
     MOCK_DATA_STUDIO_AI_MAX_ITEMS_PER_JOB: '12',
@@ -139,6 +139,20 @@ test('loadConfig enables AI config and allows OPENAI_API_KEY fallback', () => {
   assert.equal(config.ai.maxItemsPerJob, 12)
   assert.equal(config.ai.ready, true)
   assert.deepEqual(config.ai.missingConfig, [])
+})
+
+test('loadConfig does not read unscoped OpenAI key fallback', () => {
+  const config = loadConfig({
+    MOCK_DATA_STUDIO_AI_ENABLED: 'true',
+    OPENAI_API_KEY: 'test-key',
+    MOCK_DATA_STUDIO_DB_URL: 'mysql://mysql:3306/community',
+    MOCK_DATA_STUDIO_DB_USER: 'community',
+    MOCK_DATA_STUDIO_DB_PASSWORD: 'communitypass'
+  })
+
+  assert.equal(config.ai.apiKey, null)
+  assert.equal(config.ai.ready, false)
+  assert.deepEqual(config.ai.missingConfig, ['apiKey'])
 })
 
 test('loadConfig keeps AI optional and marks missing config when enabled without api key', () => {
@@ -178,7 +192,22 @@ test('loadConfig rejects invalid AI timeout/max-items values', () => {
   )
 })
 
-test('loadConfig parses reindex auth secret from JWT_HMAC_SECRET fallback', () => {
+test('loadConfig parses reindex auth secret from mock-data-studio scoped env only', () => {
+  const config = loadConfig({
+    MOCK_DATA_STUDIO_REINDEX_JWT_HMAC_SECRET: 'dev-jwt-hmac-secret-please-change-me-123456',
+    MOCK_DATA_STUDIO_DB_URL: 'mysql://mysql:3306/community',
+    MOCK_DATA_STUDIO_DB_USER: 'community',
+    MOCK_DATA_STUDIO_DB_PASSWORD: 'communitypass'
+  })
+
+  assert.deepEqual(config.reindexAuth, {
+    jwtHmacSecret: 'dev-jwt-hmac-secret-please-change-me-123456',
+    jwtIssuer: 'community-auth',
+    jwtTtlSeconds: 120
+  })
+})
+
+test('loadConfig does not read unscoped JWT_HMAC_SECRET fallback', () => {
   const config = loadConfig({
     JWT_HMAC_SECRET: 'dev-jwt-hmac-secret-please-change-me-123456',
     MOCK_DATA_STUDIO_DB_URL: 'mysql://mysql:3306/community',
@@ -187,7 +216,7 @@ test('loadConfig parses reindex auth secret from JWT_HMAC_SECRET fallback', () =
   })
 
   assert.deepEqual(config.reindexAuth, {
-    jwtHmacSecret: 'dev-jwt-hmac-secret-please-change-me-123456',
+    jwtHmacSecret: null,
     jwtIssuer: 'community-auth',
     jwtTtlSeconds: 120
   })

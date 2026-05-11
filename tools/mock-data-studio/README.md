@@ -15,22 +15,14 @@
 - startup auto-fill deficit planning（默认批次目标/缺口计算）
 - `write-community`：直接写入 Phase 1 + Phase 2 社区样例：
   - `user` / `discuss_post` / `comment` / `social_follow` / `social_like`
-  - `message`（私信 + notice）
   - `report` / `moderation_action`
-  - `growth_check_in` / `user_task_progress`
-  - `reward_account` / `reward_ledger` / `reward_grant_record`
-  - `reward_item` / `reward_order`
+  - `user_task_progress`
 - `write-im`：直接写入 `im_core.im_room` / `im_room_member` / `im_room_message` / `im_conversation` / `im_private_message`
 - 可复现的 seedable 内容生成（用户、帖子、两层评论树、关注/点赞关系）
 - 生成结果写入 `demo_entity_ref`，为后续 batch delete / reindex hook 提供实体引用
 - content-like 生成结果触发 search reindex completion hook
 - 环境变量解析与启动日志
 - `docker compose` 接线（端口仅绑定到宿主机 `127.0.0.1`）
-
-兼容性说明：
-- `growth_check_in`、`reward_account`、`reward_ledger`、`reward_grant_record`、`reward_item`、`reward_order` 是本地 demo / 历史数据面。当前主站在线 growth / wallet / market 语义以 `docs/handbook/business-flows.md`、`docs/handbook/reliability.md` 和 `docs/handbook/data-and-storage.md` 为准。
-- `message` 表写入用于本地旧社区私信 / notice 样例；当前 IM 主路径由 `im_core` schema、IM HTTP API、Kafka command/event 和 WebSocket session bootstrap 承载。
-- `mock-data-studio` 允许直接写表是为了快速构造本地数据，不代表生产写路径。生产和浏览器联调应优先通过 owner HTTP / owner API。
 
 ## 本地运行
 
@@ -137,11 +129,11 @@ curl -X DELETE http://127.0.0.1:12890/api/batches/1
 - `MOCK_DATA_DEFAULT_POSTS`：默认 `800`
 - `MOCK_DATA_DEFAULT_COMMENTS`：默认 `2500`
 - `MOCK_DATA_STUDIO_AI_ENABLED`：默认 `false`；仅在手动 `manual-generate` 且勾选 AI 增强时生效
-- `MOCK_DATA_STUDIO_OPENAI_API_KEY`：OpenAI key；为空时回退 `OPENAI_API_KEY`
+- `MOCK_DATA_STUDIO_OPENAI_API_KEY`：OpenAI key；不读取未加 `MOCK_DATA_STUDIO_` 前缀的全局变量
 - `MOCK_DATA_STUDIO_OPENAI_MODEL`：默认 `gpt-4.1-mini`
 - `MOCK_DATA_STUDIO_OPENAI_TIMEOUT_MS`：默认 `8000`
 - `MOCK_DATA_STUDIO_AI_MAX_ITEMS_PER_JOB`：默认 `20`；超出预算的文本保持规则生成结果
-- `MOCK_DATA_STUDIO_REINDEX_JWT_HMAC_SECRET`：可选；为空时回退 `JWT_HMAC_SECRET`
+- `MOCK_DATA_STUDIO_REINDEX_JWT_HMAC_SECRET`：可选；不读取未加 `MOCK_DATA_STUDIO_` 前缀的全局变量
 - `MOCK_DATA_STUDIO_REINDEX_JWT_ISSUER`：默认 `community-auth`
 - `MOCK_DATA_STUDIO_REINDEX_JWT_TTL_SECONDS`：默认 `120`
 
@@ -150,21 +142,18 @@ curl -X DELETE http://127.0.0.1:12890/api/batches/1
 - content-like 结果会在作业结束时调用 `POST /api/ops/search/reindex`
 - `community-app` 的 `/api/ops/**` 要求 `ROLE_ADMIN`
 - `mock-data-studio` 会在本地 dev 中生成一个短时 `ROLE_ADMIN` JWT 来触发该操作
-- 默认优先使用 `MOCK_DATA_STUDIO_REINDEX_JWT_HMAC_SECRET`，未设置时回退 `JWT_HMAC_SECRET`
+- 仅使用 `MOCK_DATA_STUDIO_REINDEX_JWT_HMAC_SECRET`；未设置时跳过带签名的 reindex hook
 
 ## 写入说明
 
 写入逻辑服务于本地 demo seed 和可删除批次，不重新定义业务 owner。当前业务事实请以 handbook 为准。
 
-- `write-community` 会先补齐社区 Phase 1，再根据当前 batch plan 追加社区 / moderation / growth / reward Phase 2 样例。
+- `write-community` 会先补齐社区 Phase 1，再根据当前 batch plan 追加 moderation / growth task progress 样例。
 - 评论语义与线上契约保持一致：
   - 直接评论：`comment.entity_type = 1`，`comment.entity_id = postId`
   - 回复评论：`comment.entity_type = 2`，`comment.entity_id = parentCommentId`
 - 关注仅写 `USER` 目标：`social_follow.entity_type = 3`
 - 点赞仅写帖子/评论：`social_like.entity_type in (1, 2)`
-- `message` 表会拆成两个 demo entity type：
-  - `messages`：普通私信（`conversation_id = minUserId_maxUserId`）
-  - `notices`：系统通知（`from_id = 0`，`conversation_id in comment/like/follow/moderation`）
 - Phase 2 IM 写入不额外生成 read-state；当前 UI / API 在 read-state 缺失时会按 `0` 处理，因此仍能展示非空房间、会话和未读摘要。
 - 可见聚合字段会同步维护：
   - `discuss_post.comment_count`

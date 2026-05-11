@@ -59,8 +59,6 @@ class AdminWalletApplicationServiceTest {
 
     @BeforeEach
     void setUp() {
-        jdbcTemplate.update("delete from reward_ledger");
-        jdbcTemplate.update("delete from reward_account");
         jdbcTemplate.update("delete from wallet_admin_action");
         jdbcTemplate.update("delete from wallet_entry");
         jdbcTemplate.update("delete from wallet_txn");

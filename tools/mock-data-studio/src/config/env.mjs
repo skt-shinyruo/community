@@ -118,7 +118,7 @@ export function loadConfig(env = process.env) {
     DEFAULT_IM_CORE_BASE_URL
   )
   const aiEnabled = parseBoolean(env.MOCK_DATA_STUDIO_AI_ENABLED, false, 'MOCK_DATA_STUDIO_AI_ENABLED')
-  const aiApiKey = parseOptionalString(env.MOCK_DATA_STUDIO_OPENAI_API_KEY, parseOptionalString(env.OPENAI_API_KEY, null))
+  const aiApiKey = parseOptionalString(env.MOCK_DATA_STUDIO_OPENAI_API_KEY, null)
   const aiMissingConfig = []
 
   if (aiEnabled && !hasConfiguredValue(aiApiKey)) {
@@ -150,10 +150,7 @@ export function loadConfig(env = process.env) {
       imCoreBaseUrl
     },
     reindexAuth: {
-      jwtHmacSecret: parseOptionalString(
-        env.MOCK_DATA_STUDIO_REINDEX_JWT_HMAC_SECRET,
-        parseOptionalString(env.JWT_HMAC_SECRET, null)
-      ),
+      jwtHmacSecret: parseOptionalString(env.MOCK_DATA_STUDIO_REINDEX_JWT_HMAC_SECRET, null),
       jwtIssuer: parseOptionalString(env.MOCK_DATA_STUDIO_REINDEX_JWT_ISSUER, DEFAULT_REINDEX_JWT_ISSUER),
       jwtTtlSeconds: parsePositiveInteger(
         env.MOCK_DATA_STUDIO_REINDEX_JWT_TTL_SECONDS,

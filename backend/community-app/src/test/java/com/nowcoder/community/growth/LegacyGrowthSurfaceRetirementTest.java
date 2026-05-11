@@ -86,5 +86,9 @@ class LegacyGrowthSurfaceRetirementTest {
         assertThat(schema).doesNotContain("admin_reward_adjustment");
         assertThat(schema).doesNotContain("admin_reward_order_action");
         assertThat(schema).doesNotContain("growth_check_in");
+        assertThat(schema).doesNotContain("user_score_log");
+        assertThat(schema).doesNotContain("reward_account");
+        assertThat(schema).doesNotContain("reward_ledger");
+        assertThat(schema).doesNotContain("reward_grant_record");
     }
 }

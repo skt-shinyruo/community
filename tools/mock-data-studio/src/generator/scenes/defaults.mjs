@@ -1,4 +1,4 @@
-export const autoFillPhaseNames = ['community', 'im', 'growth', 'moderation', 'reward']
+export const autoFillPhaseNames = ['community', 'im', 'growth', 'moderation']
 export const defaultAutoFillSceneKey = 'tech-community-hot-start'
 
 function normalizeCount(value) {
@@ -44,18 +44,6 @@ function buildHotStartPhase2Targets(sceneKey, normalizedDefaults) {
 
   return [
     createTarget({
-      entityType: 'messages',
-      targetCount: Math.max(Math.round(normalizedDefaults.users * 1.2), 120),
-      sceneKey,
-      phase: 'community'
-    }),
-    createTarget({
-      entityType: 'notices',
-      targetCount: Math.max(Math.round(normalizedDefaults.users * 0.6), 60),
-      sceneKey,
-      phase: 'community'
-    }),
-    createTarget({
       entityType: 'im_rooms',
       targetCount: imRoomCount,
       sceneKey,
@@ -86,32 +74,8 @@ function buildHotStartPhase2Targets(sceneKey, normalizedDefaults) {
       phase: 'im'
     }),
     createTarget({
-      entityType: 'growth_check_ins',
-      targetCount: capAtFeasibleMaximum(Math.max(normalizedDefaults.users, 100), normalizedDefaults.users * 28),
-      sceneKey,
-      phase: 'growth'
-    }),
-    createTarget({
       entityType: 'user_task_progress',
       targetCount: capAtFeasibleMaximum(Math.max(normalizedDefaults.users * 2, 200), buildTaskProgressCapacity(normalizedDefaults.users)),
-      sceneKey,
-      phase: 'growth'
-    }),
-    createTarget({
-      entityType: 'reward_accounts',
-      targetCount: capAtFeasibleMaximum(Math.max(Math.round(normalizedDefaults.users * 0.6), 60), normalizedDefaults.users),
-      sceneKey,
-      phase: 'growth'
-    }),
-    createTarget({
-      entityType: 'reward_ledgers',
-      targetCount: Math.max(Math.round(normalizedDefaults.posts * 0.15), 120),
-      sceneKey,
-      phase: 'growth'
-    }),
-    createTarget({
-      entityType: 'reward_grant_records',
-      targetCount: Math.max(Math.round(normalizedDefaults.users * 0.66), 66),
       sceneKey,
       phase: 'growth'
     }),
@@ -126,18 +90,6 @@ function buildHotStartPhase2Targets(sceneKey, normalizedDefaults) {
       targetCount: Math.max(Math.round(normalizedDefaults.posts / 40), 20),
       sceneKey,
       phase: 'moderation'
-    }),
-    createTarget({
-      entityType: 'reward_items',
-      targetCount: 6,
-      sceneKey,
-      phase: 'reward'
-    }),
-    createTarget({
-      entityType: 'reward_orders',
-      targetCount: Math.max(Math.round(normalizedDefaults.users * 0.3), 30),
-      sceneKey,
-      phase: 'reward'
     })
   ]
 }
@@ -199,12 +151,6 @@ export function buildScenePresets({ defaults } = {}) {
           phase: 'community'
         }),
         createTarget({
-          entityType: 'notices',
-          targetCount: Math.max(Math.round(normalizedDefaults.users * 0.8), 80),
-          sceneKey: 'moderation-pressure',
-          phase: 'community'
-        }),
-        createTarget({
           entityType: 'reports',
           targetCount: Math.max(Math.round(normalizedDefaults.posts / 4), 120),
           sceneKey: 'moderation-pressure',
@@ -215,12 +161,6 @@ export function buildScenePresets({ defaults } = {}) {
           targetCount: Math.max(Math.round(normalizedDefaults.posts / 8), 60),
           sceneKey: 'moderation-pressure',
           phase: 'moderation'
-        }),
-        createTarget({
-          entityType: 'messages',
-          targetCount: Math.max(Math.round(normalizedDefaults.users * 1.5), 150),
-          sceneKey: 'moderation-pressure',
-          phase: 'community'
         })
       ]
     },
@@ -262,47 +202,6 @@ export function buildScenePresets({ defaults } = {}) {
           targetCount: Math.max(Math.round(normalizedDefaults.comments * 0.5), 900),
           sceneKey: 'im-busy',
           phase: 'im'
-        })
-      ]
-    },
-    'reward-ops-busy': {
-      sceneKey: 'reward-ops-busy',
-      targets: [
-        createTarget({
-          entityType: 'users',
-          targetCount: normalizedDefaults.users,
-          sceneKey: 'reward-ops-busy',
-          phase: 'community'
-        }),
-        createTarget({
-          entityType: 'growth_check_ins',
-          targetCount: capAtFeasibleMaximum(Math.max(normalizedDefaults.users, 120), normalizedDefaults.users * 28),
-          sceneKey: 'reward-ops-busy',
-          phase: 'growth'
-        }),
-        createTarget({
-          entityType: 'reward_ledgers',
-          targetCount: Math.max(normalizedDefaults.posts, 600),
-          sceneKey: 'reward-ops-busy',
-          phase: 'growth'
-        }),
-        createTarget({
-          entityType: 'reward_grant_records',
-          targetCount: Math.max(Math.round(normalizedDefaults.posts / 6), 120),
-          sceneKey: 'reward-ops-busy',
-          phase: 'growth'
-        }),
-        createTarget({
-          entityType: 'reward_items',
-          targetCount: 8,
-          sceneKey: 'reward-ops-busy',
-          phase: 'reward'
-        }),
-        createTarget({
-          entityType: 'reward_orders',
-          targetCount: Math.max(Math.round(normalizedDefaults.posts / 8), 75),
-          sceneKey: 'reward-ops-busy',
-          phase: 'reward'
         })
       ]
     }

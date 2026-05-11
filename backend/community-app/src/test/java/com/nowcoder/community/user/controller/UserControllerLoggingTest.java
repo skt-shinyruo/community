@@ -1,31 +1,31 @@
 package com.nowcoder.community.user.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.user.application.AvatarUploadContent;
 import com.nowcoder.community.user.application.UserAvatarApplicationService;
 import com.nowcoder.community.user.application.UserProfileApplicationService;
 import com.nowcoder.community.user.application.UserReadApplicationService;
+import com.nowcoder.community.user.application.command.CreateAvatarUploadSessionCommand;
 import com.nowcoder.community.user.application.port.AvatarStoragePort;
-import com.nowcoder.community.user.application.result.AvatarUploadTokenResult;
-import com.nowcoder.community.user.domain.repository.UserRepository;
-import com.nowcoder.community.user.controller.dto.AvatarUploadTokenResponse;
+import com.nowcoder.community.user.application.result.AvatarUploadSessionResult;
+import com.nowcoder.community.user.controller.dto.AvatarUploadSessionRequest;
+import com.nowcoder.community.user.controller.dto.AvatarUploadSessionResponse;
 import com.nowcoder.community.user.controller.dto.UpdateAvatarRequest;
+import com.nowcoder.community.user.domain.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
-import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -49,30 +49,39 @@ class UserControllerLoggingTest {
     }
 
     @Test
-    void uploadTokenShouldLogSecurityEventWithoutUploadTokenMaterial(CapturedOutput output) {
+    void uploadSessionShouldLogSecurityEventWithoutSessionSecret(CapturedOutput output) {
         UUID userId = uuid(42);
-        String fileName = "avatar/" + userId + "/0123456789abcdef0123456789abcdef";
-        when(avatarStoragePort.createUploadToken(userId))
-                .thenReturn(new AvatarUploadTokenResult(
+        UUID objectId = uuid(50);
+        UUID versionId = uuid(51);
+        CreateAvatarUploadSessionCommand command = new CreateAvatarUploadSessionCommand("avatar.png", "image/png", 16, "");
+        when(avatarStoragePort.createUploadSession(userId, command))
+                .thenReturn(new AvatarUploadSessionResult(
                         "secret-upload-session",
-                        fileName,
-                        "/api/users/" + userId + "/avatar/upload",
+                        objectId,
+                        versionId,
+                        "/api/oss/objects/" + objectId + "/complete",
                         "POST",
                         "file",
-                        "fileKey",
+                        Map.of("sessionId", "secret-upload-session", "versionId", versionId.toString()),
+                        Map.of(),
                         2_097_152L,
-                        "image/png;image/jpeg",
+                        List.of("image/png", "image/jpeg"),
                         Instant.parse("2026-05-08T12:00:00Z")
                 ));
+        AvatarUploadSessionRequest request = new AvatarUploadSessionRequest();
+        request.setFileName("avatar.png");
+        request.setContentType("image/png");
+        request.setContentLength(16);
 
-        Result<AvatarUploadTokenResponse> result = controller.createAvatarUploadSession(authentication(userId), userId);
+        Result<AvatarUploadSessionResponse> result = controller.createAvatarUploadSession(authentication(userId), userId, request);
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).isNotNull();
         assertThat(result.getData().getUploadId()).isEqualTo("secret-upload-session");
-        assertThat(result.getData().getFileKey()).isEqualTo(fileName);
+        assertThat(result.getData().getObjectId()).isEqualTo(objectId.toString());
+        assertThat(result.getData().getVersionId()).isEqualTo(versionId.toString());
         assertThat(result.getData().getUpload()).isNotNull();
-        assertThat(result.getData().getUpload().getUrl()).isEqualTo("/api/users/" + userId + "/avatar/upload");
+        assertThat(result.getData().getUpload().getUrl()).isEqualTo("/api/oss/objects/" + objectId + "/complete");
         assertThat(output.getAll())
                 .contains("community.category=security")
                 .contains("community.action=avatar_upload_session")
@@ -80,58 +89,25 @@ class UserControllerLoggingTest {
                 .contains("user.id=" + userId)
                 .contains("community.target_type=user")
                 .contains("community.target_id=" + userId)
-                .contains("community.avatar_file_key=" + fileName)
+                .contains("community.avatar_object_id=" + objectId)
                 .doesNotContain("community.avatar_provider")
                 .doesNotContain("secret-upload-session");
     }
 
     @Test
-    void uploadAvatarShouldLogSecurityEventWithoutFileContent(CapturedOutput output) throws Exception {
-        UUID userId = uuid(42);
-        String fileName = "avatar/" + userId + "/0123456789abcdef0123456789abcdef";
-        MockMultipartFile file = new MockMultipartFile(
-                "file",
-                "avatar.png",
-                "image/png",
-                "fake-image-bytes".getBytes()
-        );
-
-        Result<Void> result = controller.uploadAvatar(authentication(userId), userId, file, fileName);
-
-        assertThat(result.getCode()).isEqualTo(0);
-        ArgumentCaptor<AvatarUploadContent> contentCaptor = ArgumentCaptor.forClass(AvatarUploadContent.class);
-        verify(avatarStoragePort).upload(eq(userId), eq(fileName), contentCaptor.capture());
-        AvatarUploadContent content = contentCaptor.getValue();
-        assertThat(content.contentType()).isEqualTo("image/png");
-        assertThat(content.size()).isEqualTo(16);
-        assertThat(content.empty()).isFalse();
-        assertThat(content.openStream().readAllBytes()).isEqualTo("fake-image-bytes".getBytes());
-        assertThat(output.getAll())
-                .contains("community.category=security")
-                .contains("community.action=avatar_upload")
-                .contains("community.outcome=success")
-                .contains("user.id=" + userId)
-                .contains("community.target_type=user")
-                .contains("community.target_id=" + userId)
-                .contains("community.avatar_file_key=" + fileName)
-                .contains("community.file_content_type=image/png")
-                .contains("community.file_size_bytes=16")
-                .doesNotContain("fake-image-bytes");
-    }
-
-    @Test
     void updateAvatarShouldLogSecurityEventWithoutAvatarUrl(CapturedOutput output) {
         UUID userId = uuid(42);
-        String fileName = "avatar/" + userId + "/0123456789abcdef0123456789abcdef";
+        UUID objectId = uuid(50);
         UpdateAvatarRequest request = new UpdateAvatarRequest();
-        request.setFileKey(fileName);
-        when(avatarStoragePort.buildAvatarUrl(fileName)).thenReturn("https://cdn.example.com/" + fileName);
+        request.setObjectId(objectId);
+        when(avatarStoragePort.resolvePublicAvatarUrl(userId, objectId))
+                .thenReturn("https://cdn.example.com/files/" + objectId + "/avatar.png");
 
         Result<Void> result = controller.updateAvatar(authentication(userId), userId, request);
 
         assertThat(result.getCode()).isEqualTo(0);
-        verify(avatarStoragePort).assertAndConsumeUploadTicket(userId, fileName);
-        verify(userRepository).updateHeaderUrl(userId, "https://cdn.example.com/" + fileName);
+        verify(avatarStoragePort).resolvePublicAvatarUrl(userId, objectId);
+        verify(userRepository).updateHeaderUrl(userId, "https://cdn.example.com/files/" + objectId + "/avatar.png");
         assertThat(output.getAll())
                 .contains("community.category=security")
                 .contains("community.action=avatar_update")
@@ -139,8 +115,8 @@ class UserControllerLoggingTest {
                 .contains("user.id=" + userId)
                 .contains("community.target_type=user")
                 .contains("community.target_id=" + userId)
-                .contains("community.avatar_file_key=" + fileName)
-                .doesNotContain("https://cdn.example.com/" + fileName);
+                .contains("community.avatar_object_id=" + objectId)
+                .doesNotContain("https://cdn.example.com/files/" + objectId + "/avatar.png");
     }
 
     private Authentication authentication(UUID userId) {

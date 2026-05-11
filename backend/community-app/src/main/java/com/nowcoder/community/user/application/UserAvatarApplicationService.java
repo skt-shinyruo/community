@@ -1,8 +1,9 @@
 package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.application.command.CreateAvatarUploadSessionCommand;
 import com.nowcoder.community.user.application.port.AvatarStoragePort;
-import com.nowcoder.community.user.application.result.AvatarUploadTokenResult;
+import com.nowcoder.community.user.application.result.AvatarUploadSessionResult;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,21 +23,15 @@ public class UserAvatarApplicationService {
         this.userRepository = userRepository;
     }
 
-    public AvatarUploadTokenResult createUploadToken(UUID actorUserId, UUID userId) {
+    public AvatarUploadSessionResult createUploadSession(UUID actorUserId, UUID userId, CreateAvatarUploadSessionCommand command) {
         requireSelf(actorUserId, userId);
-        return avatarStoragePort.createUploadToken(userId);
-    }
-
-    public void upload(UUID actorUserId, UUID userId, String fileKey, AvatarUploadContent content) {
-        requireSelf(actorUserId, userId);
-        avatarStoragePort.upload(userId, fileKey, content);
+        return avatarStoragePort.createUploadSession(userId, command);
     }
 
     @Transactional
-    public void updateAvatar(UUID actorUserId, UUID userId, String fileKey) {
+    public void updateAvatar(UUID actorUserId, UUID userId, UUID objectId) {
         requireSelf(actorUserId, userId);
-        avatarStoragePort.assertAndConsumeUploadTicket(userId, fileKey);
-        String headerUrl = avatarStoragePort.buildAvatarUrl(fileKey);
+        String headerUrl = avatarStoragePort.resolvePublicAvatarUrl(userId, objectId);
         userRepository.updateHeaderUrl(userId, headerUrl);
     }
 

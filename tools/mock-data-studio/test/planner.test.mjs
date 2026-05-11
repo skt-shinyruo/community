@@ -103,17 +103,9 @@ test('planner computes default batch deficits as target minus existing refs', as
       users: 20,
       posts: 200,
       comments: 400,
-      messages: 10,
-      notices: 5,
       reports: 8,
       moderation_actions: 3,
-      growth_check_ins: 12,
       user_task_progress: 6,
-      reward_accounts: 10,
-      reward_ledgers: 9,
-      reward_grant_records: 4,
-      reward_items: 1,
-      reward_orders: 2,
       im_rooms: 2,
       im_room_members: 6,
       im_room_messages: 15,
@@ -130,34 +122,24 @@ test('planner computes default batch deficits as target minus existing refs', as
     users: 80,
     posts: 600,
     comments: 2100,
-    messages: 110,
-    notices: 55,
     im_rooms: 8,
     im_room_members: 24,
     im_room_messages: 105,
     im_conversations: 46,
     im_private_messages: 162,
-    growth_check_ins: 88,
     user_task_progress: 194,
-    reward_accounts: 50,
-    reward_ledgers: 111,
-    reward_grant_records: 62,
     reports: 32,
-    moderation_actions: 17,
-    reward_items: 5,
-    reward_orders: 28
+    moderation_actions: 17
   })
   assert.equal(plan.needsWork, true)
   assert.deepEqual(
     plan.phases.map((phase) => phase.name),
-    ['community', 'im', 'growth', 'moderation', 'reward']
+    ['community', 'im', 'growth', 'moderation']
   )
   assert.deepEqual(plan.phases[0].deficits, {
     users: 80,
     posts: 600,
-    comments: 2100,
-    messages: 110,
-    notices: 55
+    comments: 2100
   })
   assert.deepEqual(targetRepository.store.replaceCalls[0].targets, [
     {
@@ -182,24 +164,6 @@ test('planner computes default batch deficits as target minus existing refs', as
       entityType: 'comments',
       targetKey: 'tech-community-hot-start.comments',
       targetCount: 2500,
-      payloadJson: {
-        phase: 'community',
-        sceneKey: 'tech-community-hot-start'
-      }
-    },
-    {
-      entityType: 'messages',
-      targetKey: 'tech-community-hot-start.messages',
-      targetCount: 120,
-      payloadJson: {
-        phase: 'community',
-        sceneKey: 'tech-community-hot-start'
-      }
-    },
-    {
-      entityType: 'notices',
-      targetKey: 'tech-community-hot-start.notices',
-      targetCount: 60,
       payloadJson: {
         phase: 'community',
         sceneKey: 'tech-community-hot-start'
@@ -251,45 +215,9 @@ test('planner computes default batch deficits as target minus existing refs', as
       }
     },
     {
-      entityType: 'growth_check_ins',
-      targetKey: 'tech-community-hot-start.growth_check_ins',
-      targetCount: 100,
-      payloadJson: {
-        phase: 'growth',
-        sceneKey: 'tech-community-hot-start'
-      }
-    },
-    {
       entityType: 'user_task_progress',
       targetKey: 'tech-community-hot-start.user_task_progress',
       targetCount: 200,
-      payloadJson: {
-        phase: 'growth',
-        sceneKey: 'tech-community-hot-start'
-      }
-    },
-    {
-      entityType: 'reward_accounts',
-      targetKey: 'tech-community-hot-start.reward_accounts',
-      targetCount: 60,
-      payloadJson: {
-        phase: 'growth',
-        sceneKey: 'tech-community-hot-start'
-      }
-    },
-    {
-      entityType: 'reward_ledgers',
-      targetKey: 'tech-community-hot-start.reward_ledgers',
-      targetCount: 120,
-      payloadJson: {
-        phase: 'growth',
-        sceneKey: 'tech-community-hot-start'
-      }
-    },
-    {
-      entityType: 'reward_grant_records',
-      targetKey: 'tech-community-hot-start.reward_grant_records',
-      targetCount: 66,
       payloadJson: {
         phase: 'growth',
         sceneKey: 'tech-community-hot-start'
@@ -310,24 +238,6 @@ test('planner computes default batch deficits as target minus existing refs', as
       targetCount: 20,
       payloadJson: {
         phase: 'moderation',
-        sceneKey: 'tech-community-hot-start'
-      }
-    },
-    {
-      entityType: 'reward_items',
-      targetKey: 'tech-community-hot-start.reward_items',
-      targetCount: 6,
-      payloadJson: {
-        phase: 'reward',
-        sceneKey: 'tech-community-hot-start'
-      }
-    },
-    {
-      entityType: 'reward_orders',
-      targetKey: 'tech-community-hot-start.reward_orders',
-      targetCount: 30,
-      payloadJson: {
-        phase: 'reward',
         sceneKey: 'tech-community-hot-start'
       }
     }
@@ -380,8 +290,7 @@ test('planner becomes a no-op when existing counts already satisfy all targets',
       ['community', 0],
       ['im', 0],
       ['growth', 0],
-      ['moderation', 0],
-      ['reward', 0]
+      ['moderation', 0]
     ]
   )
   assert.equal(targetRepository.store.replaceCalls.length, 0)

@@ -22,8 +22,7 @@ public final class WalletAccountDomainService {
             "PLATFORM_REWARD_EXPENSE",
             "WITHDRAW_PENDING",
             "ORDER_ESCROW",
-            "RISK_FROZEN",
-            "MIGRATION_HOLD"
+            "RISK_FROZEN"
     );
 
     public void requireActive(String status) {
@@ -42,7 +41,7 @@ public final class WalletAccountDomainService {
 
     public String normalDirectionOf(String accountType) {
         return switch (accountType) {
-            case "PLATFORM_CASH", "PLATFORM_REWARD_EXPENSE", "MIGRATION_HOLD" -> DIRECTION_DEBIT;
+            case "PLATFORM_CASH", "PLATFORM_REWARD_EXPENSE" -> DIRECTION_DEBIT;
             case ACCOUNT_TYPE_USER_WALLET, "WITHDRAW_PENDING", "ORDER_ESCROW", "RISK_FROZEN" -> DIRECTION_CREDIT;
             default -> throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "unsupported accountType=" + accountType);
         };

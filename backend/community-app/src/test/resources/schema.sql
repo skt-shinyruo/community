@@ -15,39 +15,6 @@ create table if not exists user (
   constraint uk_user_email unique (email)
 );
 
-create table if not exists user_score_log (
-  id binary(16) primary key,
-  user_id binary(16) not null,
-  event_id varchar(64) not null,
-  event_type varchar(64) not null,
-  delta int not null,
-  create_time timestamp default current_timestamp,
-  constraint uk_event_id unique (event_id)
-);
-
-create table if not exists reward_account (
-  user_id binary(16) not null primary key,
-  available_balance int not null default 0,
-  frozen_balance int not null default 0,
-  version int not null default 0,
-  update_time timestamp default current_timestamp
-);
-
-create table if not exists reward_ledger (
-  id binary(16) primary key,
-  user_id binary(16) not null,
-  event_id varchar(64) not null,
-  event_type varchar(64) not null,
-  delta int not null,
-  balance_after int not null,
-  frozen_balance_after int not null default 0,
-  biz_key varchar(128),
-  source_module varchar(64),
-  remark varchar(255),
-  create_time timestamp default current_timestamp,
-  constraint uk_reward_ledger_event_id unique (event_id)
-);
-
 create table if not exists wallet_account (
   account_id binary(16) primary key,
   owner_type varchar(32) not null,
@@ -305,20 +272,6 @@ create table if not exists market_shipment (
   create_time timestamp null default current_timestamp,
   update_time timestamp null default current_timestamp on update current_timestamp,
   constraint uk_market_shipment_order unique (order_id)
-);
-
-create table if not exists reward_grant_record (
-  id binary(16) primary key,
-  grant_id varchar(191) not null,
-  user_id binary(16) not null,
-  grant_type varchar(64) not null,
-  source_event_id varchar(64) not null,
-  source_event_type varchar(64) not null,
-  growth_delta int not null default 0,
-  reward_delta int not null default 0,
-  status varchar(32) not null,
-  create_time timestamp default current_timestamp,
-  constraint uk_reward_grant_id unique (grant_id)
 );
 
 create table if not exists user_level_rule_config (
@@ -686,10 +639,6 @@ create table if not exists drive_share_access (
 
 create index if not exists idx_drive_share_access_share_time on drive_share_access(share_id, accessed_at);
 
-delete from user_score_log;
-delete from reward_ledger;
-delete from reward_grant_record;
-delete from reward_account;
 delete from user_task_progress;
 delete from user_consumed_event;
 delete from auth_refresh_token_family_revocation;

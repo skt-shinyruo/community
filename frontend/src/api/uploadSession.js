@@ -5,6 +5,8 @@ export function normalizeUploadSession(raw = {}) {
   const constraints = raw.constraints || {}
   return {
     uploadId: String(raw.uploadId || ''),
+    objectId: String(raw.objectId || ''),
+    versionId: String(raw.versionId || ''),
     fileKey: String(raw.fileKey || ''),
     upload: {
       url: String(upload.url || ''),

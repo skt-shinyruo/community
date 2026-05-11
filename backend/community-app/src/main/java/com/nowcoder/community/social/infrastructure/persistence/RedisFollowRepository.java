@@ -35,13 +35,7 @@ public class RedisFollowRepository implements FollowRepository {
               return 0
             end
 
-            -- 修复历史/异常窗口导致的“双写不一致”：只补齐缺失的一侧，不重复返回 created=true。
-            if followeeScore and not followerScore then
-              redis.call('ZADD', followerKey, followeeScore, userId)
-              return 0
-            end
-            if not followeeScore and followerScore then
-              redis.call('ZADD', followeeKey, followerScore, entityId)
+            if followeeScore or followerScore then
               return 0
             end
 

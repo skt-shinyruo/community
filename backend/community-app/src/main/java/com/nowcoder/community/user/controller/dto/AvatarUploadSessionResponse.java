@@ -3,10 +3,11 @@ package com.nowcoder.community.user.controller.dto;
 import java.util.List;
 import java.util.Map;
 
-public class AvatarUploadTokenResponse {
+public class AvatarUploadSessionResponse {
 
     private String uploadId;
-    private String fileKey;
+    private String objectId;
+    private String versionId;
     private UploadInstruction upload;
     private Constraints constraints;
     private String expiresAt;
@@ -19,12 +20,20 @@ public class AvatarUploadTokenResponse {
         this.uploadId = uploadId;
     }
 
-    public String getFileKey() {
-        return fileKey;
+    public String getObjectId() {
+        return objectId;
     }
 
-    public void setFileKey(String fileKey) {
-        this.fileKey = fileKey;
+    public void setObjectId(String objectId) {
+        this.objectId = objectId;
+    }
+
+    public String getVersionId() {
+        return versionId;
+    }
+
+    public void setVersionId(String versionId) {
+        this.versionId = versionId;
     }
 
     public UploadInstruction getUpload() {

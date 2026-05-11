@@ -27,7 +27,6 @@ services:
     - ./mysql/community/010_schema_shared.sql:/docker-entrypoint-initdb.d/010_schema_shared.sql:ro
     - ./mysql/community/011_schema_demo_metadata.sql:/docker-entrypoint-initdb.d/011_schema_demo_metadata.sql:ro
     - ./mysql/community/020_schema_identity.sql:/docker-entrypoint-initdb.d/020_schema_identity.sql:ro
-    - ./mysql/community/030_schema_growth_reward.sql:/docker-entrypoint-initdb.d/030_schema_growth_reward.sql:ro
     - ./mysql/community/031_schema_growth_wallet.sql:/docker-entrypoint-initdb.d/031_schema_growth_wallet.sql:ro
     - ./mysql/community/032_schema_growth_market.sql:/docker-entrypoint-initdb.d/032_schema_growth_market.sql:ro
     - ./mysql/community/033_schema_growth_task.sql:/docker-entrypoint-initdb.d/033_schema_growth_task.sql:ro

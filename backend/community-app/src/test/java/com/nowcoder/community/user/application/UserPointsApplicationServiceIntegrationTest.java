@@ -40,10 +40,6 @@ class UserPointsApplicationServiceIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        jdbcTemplate.update("delete from reward_ledger");
-        jdbcTemplate.update("delete from reward_grant_record");
-        jdbcTemplate.update("delete from reward_account");
-        jdbcTemplate.update("delete from user_score_log");
         jdbcTemplate.update("delete from wallet_entry");
         jdbcTemplate.update("delete from wallet_txn");
         jdbcTemplate.update("delete from wallet_account");
@@ -75,7 +71,6 @@ class UserPointsApplicationServiceIntegrationTest {
 
         assertThat(currentScore(USER_ID)).isEqualTo(before);
         assertThat(walletAccountService.balanceOfUser(USER_ID)).isEqualTo(10);
-        assertThat(countRows("user_score_log")).isZero();
         assertThat(countRows("wallet_txn")).isEqualTo(1);
         assertThat(countRows("wallet_entry")).isEqualTo(2);
     }

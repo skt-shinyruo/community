@@ -25,15 +25,9 @@ class FakeCommunityDb {
       nextUserId: 2,
       nextPostId: 2,
       nextCommentId: 2,
-      nextMessageId: 1,
       nextReportId: 1,
       nextModerationActionId: 1,
-      nextGrowthCheckInId: 1,
       nextUserTaskProgressId: 1,
-      nextRewardLedgerId: 1,
-      nextRewardGrantRecordId: 1,
-      nextRewardItemId: 1,
-      nextRewardOrderId: 1,
       imRooms: [],
       imRoomMembers: [],
       imRoomMessages: [],
@@ -75,16 +69,9 @@ class FakeCommunityDb {
       ],
       follows: [],
       likes: [],
-      messages: [],
       reports: [],
       moderationActions: [],
-      growthCheckIns: [],
       userTaskProgress: [],
-      rewardAccounts: [],
-      rewardLedgers: [],
-      rewardGrantRecords: [],
-      rewardItems: [],
-      rewardOrders: [],
       ...structuredClone(overrides)
     }
   }
@@ -140,30 +127,11 @@ class FakeCommunityDb {
       }))
     }
 
-    if (normalized.includes(' from reward_account ')) {
-      return this.state.rewardAccounts.map((account) => ({
-        user_id: account.user_id
-      }))
-    }
-
-    if (normalized.includes(' from growth_check_in ')) {
-      return this.state.growthCheckIns.map((entry) => ({
-        user_id: entry.user_id,
-        biz_date: entry.biz_date
-      }))
-    }
-
     if (normalized.includes(' from user_task_progress ')) {
       return this.state.userTaskProgress.map((entry) => ({
         user_id: entry.user_id,
         task_code: entry.task_code,
         period_key: entry.period_key
-      }))
-    }
-
-    if (normalized.includes(' from reward_item ')) {
-      return this.state.rewardItems.map((item) => ({
-        id: item.id
       }))
     }
 
@@ -201,10 +169,6 @@ class FakeCommunityDb {
       return this.#insertLikes(params)
     }
 
-    if (normalized.startsWith('insert into message ')) {
-      return this.#insertMessages(params)
-    }
-
     if (normalized.startsWith('insert into report ')) {
       return this.#insertReports(params)
     }
@@ -213,32 +177,8 @@ class FakeCommunityDb {
       return this.#insertModerationActions(params)
     }
 
-    if (normalized.startsWith('insert into growth_check_in ')) {
-      return this.#insertGrowthCheckIns(params)
-    }
-
-    if (normalized.startsWith('insert into reward_account ')) {
-      return this.#insertRewardAccounts(params)
-    }
-
-    if (normalized.startsWith('insert into reward_ledger ')) {
-      return this.#insertRewardLedgers(params)
-    }
-
-    if (normalized.startsWith('insert into reward_grant_record ')) {
-      return this.#insertRewardGrantRecords(params)
-    }
-
     if (normalized.startsWith('insert into user_task_progress ')) {
       return this.#insertUserTaskProgress(params)
-    }
-
-    if (normalized.startsWith('insert into reward_item ')) {
-      return this.#insertRewardItems(params)
-    }
-
-    if (normalized.startsWith('insert into reward_order ')) {
-      return this.#insertRewardOrders(params)
     }
 
     if (normalized.startsWith('insert into im_core.im_room ')) {
@@ -428,29 +368,6 @@ class FakeCommunityDb {
     }
   }
 
-  #insertMessages(params) {
-    const columnCount = 6
-    const firstInsertId = this.state.nextMessageId
-
-    for (let index = 0; index < params.length; index += columnCount) {
-      const [fromId, toId, conversationId, content, status, createTime] = params.slice(index, index + columnCount)
-      this.state.messages.push({
-        id: this.state.nextMessageId++,
-        from_id: fromId,
-        to_id: toId,
-        conversation_id: conversationId,
-        content,
-        status,
-        create_time: createTime
-      })
-    }
-
-    return {
-      affectedRows: params.length / columnCount,
-      insertId: firstInsertId
-    }
-  }
-
   #insertReports(params) {
     const columnCount = 7
     const firstInsertId = this.state.nextReportId
@@ -498,112 +415,6 @@ class FakeCommunityDb {
     }
   }
 
-  #insertGrowthCheckIns(params) {
-    const columnCount = 4
-    const firstInsertId = this.state.nextGrowthCheckInId
-
-    for (let index = 0; index < params.length; index += columnCount) {
-      const [userId, bizDate, streakCount, createTime] = params.slice(index, index + columnCount)
-      this.state.growthCheckIns.push({
-        id: this.state.nextGrowthCheckInId++,
-        user_id: userId,
-        biz_date: bizDate,
-        streak_count: streakCount,
-        create_time: createTime
-      })
-    }
-
-    return {
-      affectedRows: params.length / columnCount,
-      insertId: firstInsertId
-    }
-  }
-
-  #insertRewardAccounts(params) {
-    const columnCount = 5
-
-    for (let index = 0; index < params.length; index += columnCount) {
-      const [userId, availableBalance, frozenBalance, version, updateTime] = params.slice(index, index + columnCount)
-      this.state.rewardAccounts.push({
-        user_id: userId,
-        available_balance: availableBalance,
-        frozen_balance: frozenBalance,
-        version,
-        update_time: updateTime
-      })
-    }
-
-    return {
-      affectedRows: params.length / columnCount,
-      insertId: 0
-    }
-  }
-
-  #insertRewardLedgers(params) {
-    const columnCount = 10
-    const firstInsertId = this.state.nextRewardLedgerId
-
-    for (let index = 0; index < params.length; index += columnCount) {
-      const [
-        userId,
-        eventId,
-        eventType,
-        delta,
-        balanceAfter,
-        frozenBalanceAfter,
-        bizKey,
-        sourceModule,
-        remark,
-        createTime
-      ] = params.slice(index, index + columnCount)
-      this.state.rewardLedgers.push({
-        id: this.state.nextRewardLedgerId++,
-        user_id: userId,
-        event_id: eventId,
-        event_type: eventType,
-        delta,
-        balance_after: balanceAfter,
-        frozen_balance_after: frozenBalanceAfter,
-        biz_key: bizKey,
-        source_module: sourceModule,
-        remark,
-        create_time: createTime
-      })
-    }
-
-    return {
-      affectedRows: params.length / columnCount,
-      insertId: firstInsertId
-    }
-  }
-
-  #insertRewardGrantRecords(params) {
-    const columnCount = 9
-    const firstInsertId = this.state.nextRewardGrantRecordId
-
-    for (let index = 0; index < params.length; index += columnCount) {
-      const [grantId, userId, grantType, sourceEventId, sourceEventType, growthDelta, rewardDelta, status, createTime] =
-        params.slice(index, index + columnCount)
-      this.state.rewardGrantRecords.push({
-        id: this.state.nextRewardGrantRecordId++,
-        grant_id: grantId,
-        user_id: userId,
-        grant_type: grantType,
-        source_event_id: sourceEventId,
-        source_event_type: sourceEventType,
-        growth_delta: growthDelta,
-        reward_delta: rewardDelta,
-        status,
-        create_time: createTime
-      })
-    }
-
-    return {
-      affectedRows: params.length / columnCount,
-      insertId: firstInsertId
-    }
-  }
-
   #insertUserTaskProgress(params) {
     const columnCount = 11
     const firstInsertId = this.state.nextUserTaskProgressId
@@ -634,71 +445,6 @@ class FakeCommunityDb {
         claimed_at: claimedAt,
         reward_grant_id: rewardGrantId,
         last_source_event_id: lastSourceEventId,
-        update_time: updateTime
-      })
-    }
-
-    return {
-      affectedRows: params.length / columnCount,
-      insertId: firstInsertId
-    }
-  }
-
-  #insertRewardItems(params) {
-    const columnCount = 9
-    const firstInsertId = this.state.nextRewardItemId
-
-    for (let index = 0; index < params.length; index += columnCount) {
-      const [itemName, itemDesc, costBalance, stock, perUserLimit, fulfillmentMode, status, createTime, updateTime] =
-        params.slice(index, index + columnCount)
-      this.state.rewardItems.push({
-        id: this.state.nextRewardItemId++,
-        item_name: itemName,
-        item_desc: itemDesc,
-        cost_balance: costBalance,
-        stock,
-        per_user_limit: perUserLimit,
-        fulfillment_mode: fulfillmentMode,
-        status,
-        create_time: createTime,
-        update_time: updateTime
-      })
-    }
-
-    return {
-      affectedRows: params.length / columnCount,
-      insertId: firstInsertId
-    }
-  }
-
-  #insertRewardOrders(params) {
-    const columnCount = 10
-    const firstInsertId = this.state.nextRewardOrderId
-
-    for (let index = 0; index < params.length; index += columnCount) {
-      const [
-        redeemRequestId,
-        userId,
-        itemId,
-        status,
-        costBalanceSnapshot,
-        fulfillmentModeSnapshot,
-        itemNameSnapshot,
-        itemDescSnapshot,
-        createTime,
-        updateTime
-      ] = params.slice(index, index + columnCount)
-      this.state.rewardOrders.push({
-        id: this.state.nextRewardOrderId++,
-        redeem_request_id: redeemRequestId,
-        user_id: userId,
-        item_id: itemId,
-        status,
-        cost_balance_snapshot: costBalanceSnapshot,
-        fulfillment_mode_snapshot: fulfillmentModeSnapshot,
-        item_name_snapshot: itemNameSnapshot,
-        item_desc_snapshot: itemDescSnapshot,
-        create_time: createTime,
         update_time: updateTime
       })
     }
@@ -868,8 +614,6 @@ function createPhase2Plan(overrides = {}) {
     users: 0,
     posts: 0,
     comments: 0,
-    messages: 4,
-    notices: 3,
     ...overrides.communityDeficits
   }
   const moderationDeficits = {
@@ -878,17 +622,8 @@ function createPhase2Plan(overrides = {}) {
     ...overrides.moderationDeficits
   }
   const growthDeficits = {
-    growth_check_ins: 3,
     user_task_progress: 4,
-    reward_accounts: 2,
-    reward_ledgers: 5,
-    reward_grant_records: 4,
     ...overrides.growthDeficits
-  }
-  const rewardDeficits = {
-    reward_items: 2,
-    reward_orders: 3,
-    ...overrides.rewardDeficits
   }
 
   return {
@@ -897,8 +632,7 @@ function createPhase2Plan(overrides = {}) {
     deficits: {
       ...communityDeficits,
       ...moderationDeficits,
-      ...growthDeficits,
-      ...rewardDeficits
+      ...growthDeficits
     },
     phases: [
       {
@@ -915,11 +649,6 @@ function createPhase2Plan(overrides = {}) {
         name: 'moderation',
         deficits: moderationDeficits,
         needsWork: Object.values(moderationDeficits).some((count) => count > 0)
-      },
-      {
-        name: 'reward',
-        deficits: rewardDeficits,
-        needsWork: Object.values(rewardDeficits).some((count) => count > 0)
       }
     ],
     ...overrides
@@ -982,17 +711,9 @@ test('community writer records refs for each inserted row set and keeps visible 
     comments: 5,
     socialFollows: result.insertedCounts.socialFollows,
     socialLikes: result.insertedCounts.socialLikes,
-    messages: 0,
-    notices: 0,
     reports: 0,
     moderationActions: 0,
-    growthCheckIns: 0,
-    userTaskProgress: 0,
-    rewardAccounts: 0,
-    rewardLedgers: 0,
-    rewardGrantRecords: 0,
-    rewardItems: 0,
-    rewardOrders: 0
+    userTaskProgress: 0
   })
   assert.ok(result.insertedCounts.socialFollows > 0)
   assert.ok(result.insertedCounts.socialLikes > 0)
@@ -1204,7 +925,7 @@ test('community writer top-up avoids user identity and social graph collisions o
   )
 })
 
-test('community writer generates requested phase 2 message, moderation, growth, and reward samples with entity refs', async () => {
+test('community writer generates requested current phase 2 moderation and growth samples with entity refs', async () => {
   const db = new FakeCommunityDb({
     nextUserId: 6,
     nextPostId: 4,
@@ -1249,32 +970,16 @@ test('community writer generates requested phase 2 message, moderation, growth, 
     comments: 0,
     socialFollows: 0,
     socialLikes: 0,
-    messages: 4,
-    notices: 3,
     reports: 2,
     moderationActions: 2,
-    growthCheckIns: 3,
-    userTaskProgress: 4,
-    rewardAccounts: 2,
-    rewardLedgers: 5,
-    rewardGrantRecords: 4,
-    rewardItems: 2,
-    rewardOrders: 3
+    userTaskProgress: 4
   })
 
   const recordedRefs = await entityRefRepository.listByBatchId(42)
   assert.deepEqual(countByEntityType(recordedRefs), {
-    messages: 4,
-    notices: 3,
     reports: 2,
     moderation_actions: 2,
-    growth_check_ins: 3,
-    user_task_progress: 4,
-    reward_accounts: 2,
-    reward_ledgers: 5,
-    reward_grant_records: 4,
-    reward_items: 2,
-    reward_orders: 3
+    user_task_progress: 4
   })
 })
 
@@ -1331,16 +1036,9 @@ test('im writer generates coherent room and private message refs for requested c
 
 class FakeDeleteDb {
   constructor({
-    messages = [],
     reports = [],
     moderationActions = [],
-    growthCheckIns = [],
     userTaskProgress = [],
-    rewardAccounts = [],
-    rewardLedgers = [],
-    rewardGrantRecords = [],
-    rewardItems = [],
-    rewardOrders = [],
     imRooms = [],
     imRoomMembers = [],
     imRoomMessages = [],
@@ -1357,16 +1055,9 @@ class FakeDeleteDb {
     demoEntityRef = []
   } = {}) {
     this.state = {
-      messages: structuredClone(messages),
       reports: structuredClone(reports),
       moderationActions: structuredClone(moderationActions),
-      growthCheckIns: structuredClone(growthCheckIns),
       userTaskProgress: structuredClone(userTaskProgress),
-      rewardAccounts: structuredClone(rewardAccounts),
-      rewardLedgers: structuredClone(rewardLedgers),
-      rewardGrantRecords: structuredClone(rewardGrantRecords),
-      rewardItems: structuredClone(rewardItems),
-      rewardOrders: structuredClone(rewardOrders),
       imRooms: structuredClone(imRooms),
       imRoomMembers: structuredClone(imRoomMembers),
       imRoomMessages: structuredClone(imRoomMessages),
@@ -1438,12 +1129,6 @@ class FakeDeleteDb {
     const normalized = normalizeSql(sql)
     this.#recordSnapshot(normalized)
 
-    if (normalized.startsWith('delete from message where id = ?')) {
-      const before = this.state.messages.length
-      this.state.messages = this.state.messages.filter((row) => row.id !== params[0])
-      return { affectedRows: before - this.state.messages.length }
-    }
-
     if (normalized.startsWith('delete from moderation_action where id = ?')) {
       const before = this.state.moderationActions.length
       this.state.moderationActions = this.state.moderationActions.filter((row) => row.id !== params[0])
@@ -1456,46 +1141,10 @@ class FakeDeleteDb {
       return { affectedRows: before - this.state.reports.length }
     }
 
-    if (normalized.startsWith('delete from reward_order where id = ?')) {
-      const before = this.state.rewardOrders.length
-      this.state.rewardOrders = this.state.rewardOrders.filter((row) => row.id !== params[0])
-      return { affectedRows: before - this.state.rewardOrders.length }
-    }
-
-    if (normalized.startsWith('delete from reward_item where id = ?')) {
-      const before = this.state.rewardItems.length
-      this.state.rewardItems = this.state.rewardItems.filter((row) => row.id !== params[0])
-      return { affectedRows: before - this.state.rewardItems.length }
-    }
-
-    if (normalized.startsWith('delete from reward_grant_record where id = ?')) {
-      const before = this.state.rewardGrantRecords.length
-      this.state.rewardGrantRecords = this.state.rewardGrantRecords.filter((row) => row.id !== params[0])
-      return { affectedRows: before - this.state.rewardGrantRecords.length }
-    }
-
-    if (normalized.startsWith('delete from reward_ledger where id = ?')) {
-      const before = this.state.rewardLedgers.length
-      this.state.rewardLedgers = this.state.rewardLedgers.filter((row) => row.id !== params[0])
-      return { affectedRows: before - this.state.rewardLedgers.length }
-    }
-
     if (normalized.startsWith('delete from user_task_progress where id = ?')) {
       const before = this.state.userTaskProgress.length
       this.state.userTaskProgress = this.state.userTaskProgress.filter((row) => row.id !== params[0])
       return { affectedRows: before - this.state.userTaskProgress.length }
-    }
-
-    if (normalized.startsWith('delete from growth_check_in where id = ?')) {
-      const before = this.state.growthCheckIns.length
-      this.state.growthCheckIns = this.state.growthCheckIns.filter((row) => row.id !== params[0])
-      return { affectedRows: before - this.state.growthCheckIns.length }
-    }
-
-    if (normalized.startsWith('delete from reward_account where user_id = ?')) {
-      const before = this.state.rewardAccounts.length
-      this.state.rewardAccounts = this.state.rewardAccounts.filter((row) => row.user_id !== params[0])
-      return { affectedRows: before - this.state.rewardAccounts.length }
     }
 
     if (normalized.startsWith('delete from im_core.im_private_message where conversation_id = ? and seq = ?')) {
@@ -1612,17 +1261,9 @@ class FakeDeleteDb {
     this.operationLog.push({
       sql,
       businessCounts: {
-        notices: this.state.messages.filter((message) => Number(message.from_id) === 0).length,
-        messages: this.state.messages.filter((message) => Number(message.from_id) !== 0).length,
         reports: this.state.reports.length,
         moderationActions: this.state.moderationActions.length,
-        growthCheckIns: this.state.growthCheckIns.length,
         userTaskProgress: this.state.userTaskProgress.length,
-        rewardAccounts: this.state.rewardAccounts.length,
-        rewardLedgers: this.state.rewardLedgers.length,
-        rewardGrantRecords: this.state.rewardGrantRecords.length,
-        rewardItems: this.state.rewardItems.length,
-        rewardOrders: this.state.rewardOrders.length,
         imPrivateMessages: this.state.imPrivateMessages.length,
         imConversations: this.state.imConversations.length,
         imRoomMessages: this.state.imRoomMessages.length,
@@ -1757,19 +1398,9 @@ function createSurvivingPostDeleteHarness({ jobStatus = 'succeeded' } = {}) {
 function createPhase2DeleteHarness() {
   const batchId = metadataId(99)
   const db = new FakeDeleteDb({
-    messages: [
-      { id: 11, from_id: 2, to_id: 3, conversation_id: '2_3', status: 0 },
-      { id: 12, from_id: 0, to_id: 4, conversation_id: 'moderation', status: 0 }
-    ],
     reports: [{ id: 21, reporter_id: 2, target_type: 1, target_id: 2001, status: 0 }],
     moderationActions: [{ id: 31, report_id: 21, actor_id: 9001, action: 'WARN' }],
-    growthCheckIns: [{ id: 41, user_id: 2, biz_date: '2026-03-25', streak_count: 3 }],
     userTaskProgress: [{ id: 51, user_id: 2, task_code: 'DAILY_CHECK_IN', period_key: '2026-03-25' }],
-    rewardAccounts: [{ user_id: 2, available_balance: 12, frozen_balance: 0 }],
-    rewardLedgers: [{ id: 61, user_id: 2, event_id: 'reward-ledger:1', delta: 3 }],
-    rewardGrantRecords: [{ id: 71, grant_id: 'grant:1', user_id: 2 }],
-    rewardItems: [{ id: 81, item_name: 'Reward Item 1' }],
-    rewardOrders: [{ id: 91, user_id: 2, item_id: 81, status: 'PENDING' }],
     imRooms: [{ room_id: 101, name: 'Demo Room 1', last_seq: 2 }],
     imRoomMembers: [
       { room_id: 101, user_id: 2, role: 1 },
@@ -1785,17 +1416,9 @@ function createPhase2DeleteHarness() {
     demoJob: [{ id: metadataId(1501), batch_id: batchId, status: 'succeeded' }],
     demoBatchTarget: [{ id: metadataId(1601), batch_id: batchId }],
     demoEntityRef: [
-      { id: metadataId(1701), batch_id: batchId, entity_type: 'messages', entity_key: '11' },
-      { id: metadataId(1702), batch_id: batchId, entity_type: 'notices', entity_key: '12' },
       { id: metadataId(1703), batch_id: batchId, entity_type: 'reports', entity_key: '21' },
       { id: metadataId(1704), batch_id: batchId, entity_type: 'moderation_actions', entity_key: '31' },
-      { id: metadataId(1705), batch_id: batchId, entity_type: 'growth_check_ins', entity_key: '41' },
       { id: metadataId(1706), batch_id: batchId, entity_type: 'user_task_progress', entity_key: '51' },
-      { id: metadataId(1707), batch_id: batchId, entity_type: 'reward_accounts', entity_key: '2' },
-      { id: metadataId(1708), batch_id: batchId, entity_type: 'reward_ledgers', entity_key: '61' },
-      { id: metadataId(1709), batch_id: batchId, entity_type: 'reward_grant_records', entity_key: '71' },
-      { id: metadataId(1710), batch_id: batchId, entity_type: 'reward_items', entity_key: '81' },
-      { id: metadataId(1711), batch_id: batchId, entity_type: 'reward_orders', entity_key: '91' },
       { id: metadataId(1712), batch_id: batchId, entity_type: 'im_private_messages', entity_key: '2_4:1' },
       { id: metadataId(1713), batch_id: batchId, entity_type: 'im_conversations', entity_key: '2_4' },
       { id: metadataId(1714), batch_id: batchId, entity_type: 'im_room_messages', entity_key: '101:1' },
@@ -1822,17 +1445,9 @@ function createPhase2DeleteHarness() {
       async listByBatchId(id) {
         return id === batchId
           ? [
-              { entityType: 'messages', entityKey: '11' },
-              { entityType: 'notices', entityKey: '12' },
               { entityType: 'reports', entityKey: '21' },
               { entityType: 'moderation_actions', entityKey: '31' },
-              { entityType: 'growth_check_ins', entityKey: '41' },
               { entityType: 'user_task_progress', entityKey: '51' },
-              { entityType: 'reward_accounts', entityKey: '2' },
-              { entityType: 'reward_ledgers', entityKey: '61' },
-              { entityType: 'reward_grant_records', entityKey: '71' },
-              { entityType: 'reward_items', entityKey: '81' },
-              { entityType: 'reward_orders', entityKey: '91' },
               { entityType: 'im_private_messages', entityKey: '2_4:1' },
               { entityType: 'im_conversations', entityKey: '2_4' },
               { entityType: 'im_room_messages', entityKey: '101:1' },
@@ -1878,17 +1493,9 @@ test('delete batch removes dependent business rows before parents and metadata',
     batchId,
     deleted: {
       business: {
-        notices: 0,
-        messages: 0,
         reports: 0,
         moderationActions: 0,
-        growthCheckIns: 0,
         userTaskProgress: 0,
-        rewardAccounts: 0,
-        rewardLedgers: 0,
-        rewardGrantRecords: 0,
-        rewardItems: 0,
-        rewardOrders: 0,
         imPrivateMessages: 0,
         imConversations: 0,
         imRoomMessages: 0,
@@ -1920,17 +1527,9 @@ test('delete batch keeps metadata rows until all business rows are gone', async 
   )
 
   assert.deepEqual(metadataDeleteSnapshot.businessCounts, {
-    notices: 0,
-    messages: 0,
     reports: 0,
     moderationActions: 0,
-    growthCheckIns: 0,
     userTaskProgress: 0,
-    rewardAccounts: 0,
-    rewardLedgers: 0,
-    rewardGrantRecords: 0,
-    rewardItems: 0,
-    rewardOrders: 0,
     imPrivateMessages: 0,
     imConversations: 0,
     imRoomMessages: 0,
@@ -1992,23 +1591,15 @@ test('delete batch recomputes comment_count for surviving existing posts', async
   )
 })
 
-test('delete batch reports phase 2 moderation, growth, reward, and im counts in deleted summaries', async () => {
+test('delete batch reports current phase 2 moderation, growth, and im counts in deleted summaries', async () => {
   const { service, batchId } = createPhase2DeleteHarness()
 
   const result = await service.deleteBatch(batchId)
 
   assert.deepEqual(result.deleted.business, {
-    notices: 1,
-    messages: 1,
     reports: 1,
     moderationActions: 1,
-    growthCheckIns: 1,
     userTaskProgress: 1,
-    rewardAccounts: 1,
-    rewardLedgers: 1,
-    rewardGrantRecords: 1,
-    rewardItems: 1,
-    rewardOrders: 1,
     imPrivateMessages: 1,
     imConversations: 1,
     imRoomMessages: 2,

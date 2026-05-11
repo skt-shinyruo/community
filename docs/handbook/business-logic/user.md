@@ -18,7 +18,6 @@ HTTP：
 - `GET /api/users/{userId}/recent-comments`
 - `POST /api/users/batch-summary`
 - `POST /api/users/{userId}/avatar/upload-sessions`
-- `POST /api/users/{userId}/avatar/upload`
 - `PUT /api/users/{userId}/avatar`
 - `GET /files/**`（由 `community-oss` 提供公共文件读取）
 - `GET /api/users/admin/search`
@@ -35,7 +34,7 @@ HTTP：
 用户域的数据流围绕“用户事实被谁读写”展开：
 
 1. 资料读取：HTTP 或跨域 query 进入 `UserReadApplicationService` / `UserProfileApplicationService`，先读取 `user` 主事实，再按页面需要回源 content 获取最近帖子/评论，或组合 social、growth 等读模型。最近内容不是 user 表冗余字段。
-2. 头像更新：`UserAvatarApplicationService` 校验 actor 只能改本人头像，先通过 OSS prepare upload 获得 opaque `fileKey`，上传完成后消费 ticket，把 canonical OSS public URL 写回 `user.header_url`。blob 和 version 由 `community-oss` owning。
+2. 头像更新：`UserAvatarApplicationService` 校验 actor 只能改本人头像，先通过 OSS prepare upload 获得 `objectId/versionId` 和上传指令，前端直传 OSS 后以 `objectId` 确认；user 回源 OSS metadata 校验对象归属，把 canonical OSS public URL 写回 `user.header_url`。blob 和 version 由 `community-oss` owning。
 3. 凭据协作：auth 登录通过 `UserCredentialQueryApi.authenticate(...)` 查询并校验密码；密码重置通过 `UserCredentialActionApi` 更新 BCrypt hash，并通过 refresh session application 撤销该用户会话。
 4. 注册用户创建：auth 只保存 draft；验证码通过后调用 user owner 创建 active 用户。user 写入 `user` 行后发布 user policy changed，驱动 IM policy projection 识别用户存在性。
 5. 处罚和角色：管理员或治理动作进入 user application，更新 `muteUntil`、`banUntil` 或 `type`。处罚变化发布 policy event，IM outbox/Kafka 最终刷新 realtime 本地 projection；角色变化要等 access token 重新签发后才体现在前端权限里。
@@ -70,18 +69,17 @@ HTTP：
 
 ## 头像流程
 
-头像是三段式 upload session 流程，对象存储已迁移到 OSS client boundary：
+头像是 upload session + confirm 流程，对象存储由 OSS owner 承担：
 
-1. `createUploadToken(actorUserId, userId)`：只能本人操作，生成 upload session 和服务端 opaque `fileKey`，并向 OSS prepare upload。
-2. `upload(actorUserId, userId, fileKey, content)`：只能本人上传，校验 file key、MIME、大小，通过 OSS client 完成代理上传。
-3. `updateAvatar(actorUserId, userId, fileKey)`：只能本人确认，消费上传 ticket，把 canonical OSS public URL 写回 `user.header_url`。
+1. `createUploadSession(actorUserId, userId, command)`：只能本人操作，校验文件名、MIME 和大小，并向 OSS prepare upload。
+2. 前端按返回的 URL、method、fields、headers 直接提交到 OSS 上传入口。
+3. `updateAvatar(actorUserId, userId, objectId)`：只能本人确认，回源 OSS metadata 校验 `usage/owner/visibility/status` 后，把 canonical OSS public URL 写回 `user.header_url`。
 
 规则：
 
 - 非本人操作返回 forbidden。
-- ticket 绑定 `userId + fileKey`。
-- confirm 阶段一次性消费 ticket。
-- `fileKey` 对前端是不透明标识；后端当前要求其内部形态符合头像路径规则。
+- confirm 阶段不接受 URL 或路径，只接受 `objectId`。
+- OSS metadata 必须属于 `community-app/user/avatar/{userId}`，且为 `PUBLIC/ACTIVE`。
 - 上传失败不能更新头像。
 - 前端只执行 upload session 返回的 URL、method、fields、headers 和约束，不读取 storage provider、bucket 或物理路径。
 - 旧 `UserFileApplicationService` 和本地/R2 avatar storage provider 已退休，community-app 不再拥有公开文件读取入口。

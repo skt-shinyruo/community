@@ -43,9 +43,16 @@ class OssDriveObjectStorageAdapterTest {
                 objectId,
                 versionId,
                 "DRIVE_FILE",
+                "community-app",
+                "drive",
+                "drive-upload",
+                uuid(7).toString(),
+                "PRIVATE",
                 "ACTIVE",
+                "report.pdf",
                 "application/pdf",
                 4,
+                "",
                 "http://localhost:12880/files/" + objectId + "/" + versionId + "/report.pdf"
         ));
 

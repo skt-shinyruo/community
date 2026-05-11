@@ -200,11 +200,11 @@ gateway 路径级限流：
 
 ## 头像上传安全
 
-头像上传是 user 域写链路，采用 token / ticket / confirm 三段式：
+头像上传是 user 域写链路，采用 OSS upload session / confirm：
 
-1. 签发上传 token。
-2. 客户端上传文件。
-3. 确认并写回头像 URL。
+1. 签发 OSS upload session。
+2. 客户端按返回指令直接上传文件。
+3. 使用 `objectId` 确认，user 回源 OSS metadata 校验对象归属并写回头像 URL。
 
 风险点：
 
@@ -215,14 +215,11 @@ gateway 路径级限流：
 
 约定：
 
-- 签发 token 时绑定 `fileName -> userId`，Redis TTL。
-- 更新头像时一次性消费 ticket，防重放、防越权。
-- `fileName` 必须为 `avatar/{userId}/...` 前缀。
-- Redis 中必须存在对应 ticket 且归属当前用户。
-- ticket 使用后删除。
+- 创建 upload session 时记录 OSS owner：`community-app/user/avatar/{userId}`。
+- 更新头像时只接受 `objectId`，不接受 URL、路径或客户端拼接的 public file key。
+- 更新头像前必须校验 OSS metadata 的 `usage/owner/visibility/status` 与当前用户匹配。
 - 最大体积 2 MiB。
 - MIME 白名单：`image/jpeg,image/png,image/webp,image/gif`。
-- 对象存储 token 使用 `insertOnly=1`，避免覆盖已有对象。
 - 上传失败必须视为失败，不允许 demo 兜底“上传失败仍更新头像”。
 
 ## Dev-only 安全边界

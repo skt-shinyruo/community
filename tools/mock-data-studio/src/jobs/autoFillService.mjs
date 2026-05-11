@@ -11,17 +11,9 @@ function emptyCommunityInsertedCounts() {
     comments: 0,
     socialFollows: 0,
     socialLikes: 0,
-    messages: 0,
-    notices: 0,
     reports: 0,
     moderationActions: 0,
-    growthCheckIns: 0,
-    userTaskProgress: 0,
-    rewardAccounts: 0,
-    rewardLedgers: 0,
-    rewardGrantRecords: 0,
-    rewardItems: 0,
-    rewardOrders: 0
+    userTaskProgress: 0
   }
 }
 
@@ -232,7 +224,7 @@ export function createAutoFillJobPhases({ autoFillService } = {}) {
     {
       name: 'write-community',
       run: async ({ context, runOptions }) => {
-        const shouldRunCommunityWriter = ['community', 'growth', 'moderation', 'reward'].some((phaseName) =>
+        const shouldRunCommunityWriter = ['community', 'growth', 'moderation'].some((phaseName) =>
           context.autoFillPlan?.phases?.some((phase) => phase.name === phaseName && phase.needsWork)
         )
 

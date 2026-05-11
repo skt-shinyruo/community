@@ -148,7 +148,7 @@ Entry：
 - `/api/users/**`
 - `/files/**`
 - `/api/oss/**`
-- 头像 upload session / upload / confirm 相关接口以 `UserController` 为准。
+- 头像 upload session / confirm 相关接口以 `UserController` 为准。
 
 Main path：
 
@@ -158,17 +158,15 @@ Main path：
 4. 当前聚合字段和行为由测试锁定。
 5. 头像上传三段式：
    - 前端请求 `POST /api/users/{userId}/avatar/upload-sessions`，user application 校验本人操作，并通过 `community-oss-client` prepare upload。
-   - 响应只包含通用上传会话：`uploadId`、opaque `fileKey`、上传 URL / method / form fields、约束和过期时间；前端不读取 storage provider、bucket 或物理路径。
-   - 客户端按上传会话提交文件，经 `community-app` 代理到 OSS。
-   - 前端使用 `{ "fileKey": "..." }` 确认头像，user 写回 canonical OSS public URL。
+   - 响应只包含通用上传会话：`uploadId`、`objectId`、`versionId`、上传 URL / method / form fields、约束和过期时间；前端不读取 storage provider、bucket 或物理路径。
+   - 客户端按上传会话直接提交到 OSS 上传入口。
+   - 前端使用 `{ "objectId": "..." }` 确认头像，user 回源 OSS metadata 校验对象归属后写回 canonical OSS public URL。
 6. 文件访问通过 `/files/**` 暴露，但实际 blob 读取由 `community-oss` 完成。
 7. OSS 首版以 Garage 为主后端，dev 可用 `community-oss` 的 local filesystem backend 或 Garage single-node；`community-app` 不再保留本地/R2 文件 provider。
 
 Failure / security：
 
-- 上传 ticket 绑定 `fileKey -> userId`，Redis TTL。
-- confirm 时一次性消费 ticket。
-- `fileKey` 对前端是不透明标识，后端当前要求其内部形态为 `avatar/{userId}/...`。
+- confirm 时必须校验 OSS 对象 `usage/owner/visibility/status` 和当前 user 匹配。
 - MIME 白名单和 2 MiB 大小限制。
 - 上传失败不能兜底更新头像。
 - 文件公开地址只使用 OSS canonical URL：`/files/{objectId}/{versionId}/{fileName}`。
@@ -373,9 +371,8 @@ Payload semantics：
 Consistency：
 
 - 点赞 / 关注主业务写入在当前事务域内。
-- 积分 / 任务进度是同步 owner API，不再通过旧 points / task-progress outbox adapter。
+- 积分 / 任务进度通过同步 owner API 处理。
 - notice 是 best-effort after-commit。
-- `events.outbox.enabled` 不会启用旧 notice / points / task-progress social outbox adapter。
 
 Key code：
 
@@ -459,7 +456,7 @@ Read path：
 - 通知列表。
 - 未读数。
 - 摘要。
-- 批量已读，`ids` 是通知 UUID 列表，不能使用旧 numeric message id。
+- 批量已读，`ids` 是通知 UUID 列表。
 
 Projection path：
 
@@ -708,15 +705,6 @@ Owner / SSOT：
 - 内容 / 社交 / growth 事件驱动的任务投影
 - 基于签到任务完成数的等级计算
 
-当前明确不存在：
-
-- 对外签到 controller。
-- 签到事实表。
-- 任务中心 controller / service / DTO。
-- 手动领取奖励接口。
-- growth 专属 security rules。
-- 奖励商城、排行榜等旧 growth 面。
-
 Task progress path：
 
 1. 内容或社交事件进入 growth。
@@ -730,8 +718,7 @@ Task progress path：
 
 Reward / wallet：
 
-- 当前积分投影不再依赖 `reward_grant_record` 作为在线幂等面。
-- 奖励/积分最终通过钱包侧 requestId 去重和总账规则承担幂等。
+- 奖励/积分通过钱包侧 requestId 去重和总账规则承担幂等。
 - 积分投影先翻译成统一命令，再进入 wallet owner。
 
 Level：
@@ -743,7 +730,6 @@ Level：
 Failure：
 
 - 幂等不靠 listener 自身，而靠 source event log、任务进度状态和 wallet requestId。
-- 旧签到 / 任务中心名称在历史计划或设计稿里可能存在，但当前代码表面已退休。
 
 Key code：
 
@@ -948,7 +934,6 @@ Market / reward integration：
 
 - market 托管、放款、退款由 market wallet action processor 调用 wallet market action API。
 - growth / reward 积分或奖励写入 wallet，由钱包 requestId 去重。
-- wallet 是在线余额事实 owner；历史 reward account / ledger 表不再作为在线余额运行面。
 - 冻结钱包不能发起用户主动转账、提现或市场购买。
 - 冻结钱包仍可接收系统必须完成的入账或补偿动作，例如退款、放款、奖励和管理员调整。
 

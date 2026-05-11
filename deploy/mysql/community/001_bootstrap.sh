@@ -9,7 +9,6 @@ SCHEMA_FILES=(
   010_schema_shared.sql
   011_schema_demo_metadata.sql
   020_schema_identity.sql
-  030_schema_growth_reward.sql
   031_schema_growth_wallet.sql
   032_schema_growth_market.sql
   033_schema_growth_task.sql

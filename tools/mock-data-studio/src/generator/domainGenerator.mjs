@@ -4,14 +4,10 @@ const REPORT_TARGET_TYPE_POST = 1
 const REPORT_TARGET_TYPE_COMMENT = 2
 const REPORT_TARGET_TYPE_USER = 3
 
-const NOTICE_TOPICS = ['comment', 'like', 'follow', 'moderation']
 const REPORT_REASONS = ['spam', 'abuse', 'spoiler', 'off_topic']
 const MODERATION_ACTIONS = ['WARN', 'HIDE', 'DELETE', 'MUTE']
 const TASK_CODES = ['DAILY_CHECK_IN', 'DAILY_POST', 'WEEKLY_COMMENTER', 'LIFETIME_RECEIVE_LIKE']
 const TASK_STATUS_SEQUENCE = ['IN_PROGRESS', 'CLAIMABLE', 'CLAIMED']
-const REWARD_ITEM_MODES = ['AUTO', 'MANUAL']
-const REWARD_ITEM_STATUSES = ['ACTIVE', 'ACTIVE', 'INACTIVE']
-const REWARD_ORDER_STATUSES = ['PENDING', 'FULFILLED', 'REFUNDED']
 const DAILY_PERIOD_KEYS = Array.from({ length: 28 }, (_unused, index) => `2026-03-${String(index + 1).padStart(2, '0')}`)
 const WEEKLY_PERIOD_KEYS = Array.from({ length: 4 }, (_unused, index) => `2026-W${String(index + 10).padStart(2, '0')}`)
 
@@ -59,17 +55,9 @@ function readPhaseDeficit(plan, phaseName, entityType) {
 
 function buildDomainDeficits(plan) {
   return {
-    messages: readPhaseDeficit(plan, 'community', 'messages'),
-    notices: readPhaseDeficit(plan, 'community', 'notices'),
     reports: readPhaseDeficit(plan, 'moderation', 'reports'),
     moderationActions: readPhaseDeficit(plan, 'moderation', 'moderation_actions'),
-    growthCheckIns: readPhaseDeficit(plan, 'growth', 'growth_check_ins'),
-    userTaskProgress: readPhaseDeficit(plan, 'growth', 'user_task_progress'),
-    rewardAccounts: readPhaseDeficit(plan, 'growth', 'reward_accounts'),
-    rewardLedgers: readPhaseDeficit(plan, 'growth', 'reward_ledgers'),
-    rewardGrantRecords: readPhaseDeficit(plan, 'growth', 'reward_grant_records'),
-    rewardItems: readPhaseDeficit(plan, 'reward', 'reward_items'),
-    rewardOrders: readPhaseDeficit(plan, 'reward', 'reward_orders')
+    userTaskProgress: readPhaseDeficit(plan, 'growth', 'user_task_progress')
   }
 }
 
@@ -101,23 +89,10 @@ function normalizeDomainExisting(existing = {}) {
     batchReports: (existing.batchReports ?? existing.reports ?? []).map((report) => ({
       id: normalizeId(report.id)
     })),
-    growthCheckIns: (existing.growthCheckIns ?? []).map((entry) => ({
-      userId: normalizeId(entry.userId ?? entry.user_id),
-      bizDate: String(entry.bizDate ?? entry.biz_date ?? '').trim()
-    })),
     userTaskProgress: (existing.userTaskProgress ?? []).map((progress) => ({
       userId: normalizeId(progress.userId ?? progress.user_id),
       taskCode: String(progress.taskCode ?? progress.task_code ?? '').trim(),
       periodKey: String(progress.periodKey ?? progress.period_key ?? '').trim()
-    })),
-    rewardAccounts: (existing.rewardAccounts ?? []).map((account) => ({
-      userId: normalizeId(account.userId ?? account.user_id)
-    })),
-    rewardItems: (existing.rewardItems ?? []).map((item) => ({
-      id: normalizeId(item.id)
-    })),
-    batchRewardItems: (existing.batchRewardItems ?? existing.rewardItems ?? []).map((item) => ({
-      id: normalizeId(item.id)
     }))
   }
 }
@@ -145,26 +120,8 @@ function conversationIdForUsers(userA, userB) {
   return `${left}_${right}`
 }
 
-function describePrivateMessage(index) {
-  return `第 ${index + 1} 条社区私信样例，方便演示会话预览与已读状态。`
-}
-
-function describeNotice(topic, index) {
-  return JSON.stringify({
-    topic,
-    actorUserId: (index % 7) + 1,
-    entityType: topic === 'follow' ? 'user' : 'post',
-    entityId: index + 1,
-    summary: `mock-data-studio ${topic} notice ${index + 1}`
-  })
-}
-
 function describeReport(index) {
   return `治理样例 ${index + 1}：该内容需要版主进一步确认。`
-}
-
-function describeRewardItem(index) {
-  return `演示兑换商品 ${index + 1}`
 }
 
 function countPositive(deficits) {
@@ -173,18 +130,6 @@ function countPositive(deficits) {
 
 function selectDistinctUsers(random, users, count) {
   return shuffleCopy(random, users).slice(0, Math.min(count, users.length))
-}
-
-function rewardPeriodKey(taskCode, batchId, index) {
-  if (taskCode === 'DAILY_CHECK_IN' || taskCode === 'DAILY_POST') {
-    return `2026-03-${String(((batchId ?? 1) + index) % 28 + 1).padStart(2, '0')}`
-  }
-
-  if (taskCode === 'WEEKLY_COMMENTER') {
-    return `2026-W${String((index % 4) + 10).padStart(2, '0')}`
-  }
-
-  return 'LIFETIME'
 }
 
 function taskTargetValue(taskCode) {
@@ -197,10 +142,6 @@ function taskTargetValue(taskCode) {
   }
 
   return 3
-}
-
-function buildGrowthCheckInKey(entry) {
-  return `${entry.userId}:${entry.bizDate}`
 }
 
 function buildUserTaskProgressKey(entry) {
@@ -234,17 +175,9 @@ export function generateDomainPhaseDataset({ plan, existing = {}, seed } = {}) {
   if (countPositive(deficits) === 0) {
     return {
       seed: resolvedSeed,
-      messages: [],
-      notices: [],
       reports: [],
       moderationActions: [],
-      growthCheckIns: [],
-      userTaskProgress: [],
-      rewardAccounts: [],
-      rewardLedgers: [],
-      rewardGrantRecords: [],
-      rewardItems: [],
-      rewardOrders: []
+      userTaskProgress: []
     }
   }
 
@@ -262,33 +195,6 @@ export function generateDomainPhaseDataset({ plan, existing = {}, seed } = {}) {
       (report) => `${report.reporterId}:${report.targetType}:${report.targetId}`
     )
   )
-
-  const messages = Array.from({ length: deficits.messages }, (_, index) => {
-    const fromUserId = rotate(shuffledUserIds, index)
-    const toUserId = rotate(shuffledUserIds, index + 1)
-    const resolvedToUserId =
-      fromUserId === toUserId && shuffledUserIds.length > 1 ? rotate(shuffledUserIds, index + 2) : toUserId
-
-    return {
-      fromUserId,
-      toUserId: resolvedToUserId,
-      conversationId: conversationIdForUsers(fromUserId, resolvedToUserId),
-      content: describePrivateMessage(index),
-      status: index % 4 === 0 ? 1 : 0
-    }
-  })
-
-  const notices = Array.from({ length: deficits.notices }, (_, index) => {
-    const topic = rotate(NOTICE_TOPICS, index)
-
-    return {
-      fromUserId: 0,
-      toUserId: rotate(shuffledUserIds, index),
-      conversationId: topic,
-      content: describeNotice(topic, index),
-      status: index % 3 === 0 ? 1 : 0
-    }
-  })
 
   const reports = []
   if (deficits.reports > 0) {
@@ -335,83 +241,6 @@ export function generateDomainPhaseDataset({ plan, existing = {}, seed } = {}) {
     durationSeconds: rotate([0, 3600, 21600, 86400], index)
   }))
 
-  const seenGrowthCheckInKeys = new Set(
-    normalizedExisting.growthCheckIns.map((entry) => buildGrowthCheckInKey(entry))
-  )
-  const growthCheckInCandidates = shuffleCopy(
-    random,
-    shuffledUserIds.flatMap((userId) =>
-      DAILY_PERIOD_KEYS.map((bizDate, index) => ({
-        userId,
-        bizDate,
-        streakCount: (index % 7) + 1
-      }))
-    )
-  )
-  const growthCheckIns = growthCheckInCandidates
-    .filter((entry) => {
-      const key = buildGrowthCheckInKey(entry)
-      if (seenGrowthCheckInKeys.has(key)) {
-        return false
-      }
-
-      seenGrowthCheckInKeys.add(key)
-      return true
-    })
-    .slice(0, deficits.growthCheckIns)
-
-  const rewardAccountUsers = selectDistinctUsers(
-    random,
-    normalizedExisting.users.filter(
-      (user) => !normalizedExisting.rewardAccounts.some((account) => account.userId === user.id)
-    ),
-    deficits.rewardAccounts
-  ).map((user) => user.id)
-
-  const rewardLedgerBalanceByUser = new Map(rewardAccountUsers.map((userId) => [userId, 0]))
-  const rewardLedgers = Array.from({ length: deficits.rewardLedgers }, (_, index) => {
-    const userId = rewardAccountUsers.length > 0 ? rotate(rewardAccountUsers, index) : rotate(shuffledUserIds, index)
-    const delta = 2 + (index % 5)
-    const balanceAfter = (rewardLedgerBalanceByUser.get(userId) ?? 0) + delta
-
-    rewardLedgerBalanceByUser.set(userId, balanceAfter)
-
-    return {
-      userId,
-      eventId: `reward-ledger:${plan?.batchId ?? 'batch'}:${index + 1}`,
-      eventType: index % 2 === 0 ? 'RewardGranted' : 'DailyCheckIn',
-      delta,
-      balanceAfter,
-      frozenBalanceAfter: 0,
-      bizKey: `reward-biz:${plan?.batchId ?? 'batch'}:${index + 1}`,
-      sourceModule: 'mock-data-studio',
-      remark: `奖励流水样例 ${index + 1}`
-    }
-  })
-
-  const rewardGrantRecords = Array.from({ length: deficits.rewardGrantRecords }, (_, index) => {
-    const userId = rewardAccountUsers.length > 0 ? rotate(rewardAccountUsers, index) : rotate(shuffledUserIds, index)
-    const sourceLedger = rewardLedgers.length === 0 ? null : rotate(rewardLedgers, index)
-
-    return {
-      grantId: `grant:${plan?.batchId ?? 'batch'}:${index + 1}`,
-      userId,
-      grantType: rotate(['CHECK_IN', 'TASK', 'ADMIN_ADJUSTMENT'], index),
-      sourceEventId: sourceLedger?.eventId ?? `grant-source:${plan?.batchId ?? 'batch'}:${index + 1}`,
-      sourceEventType: sourceLedger?.eventType ?? 'TaskCompleted',
-      growthDelta: 1 + (index % 4),
-      rewardDelta: 2 + (index % 3),
-      status: 'SUCCEEDED'
-    }
-  })
-
-  const rewardAccounts = rewardAccountUsers.map((userId) => ({
-    userId,
-    availableBalance: rewardLedgerBalanceByUser.get(userId) ?? 0,
-    frozenBalance: 0,
-    version: rewardLedgers.filter((ledger) => ledger.userId === userId).length
-  }))
-
   const seenUserTaskProgressKeys = new Set(
     normalizedExisting.userTaskProgress.map((entry) => buildUserTaskProgressKey(entry))
   )
@@ -443,8 +272,6 @@ export function generateDomainPhaseDataset({ plan, existing = {}, seed } = {}) {
       const targetValue = taskTargetValue(entry.taskCode)
       const reachedAt = status === 'IN_PROGRESS' ? null : `2026-03-${String((index % 28) + 1).padStart(2, '0')}T08:00:00.000Z`
       const claimedAt = status === 'CLAIMED' ? `2026-03-${String((index % 28) + 1).padStart(2, '0')}T09:00:00.000Z` : null
-      const rewardGrant = status === 'CLAIMED' && rewardGrantRecords.length > 0 ? rotate(rewardGrantRecords, index) : null
-
       return {
         userId: entry.userId,
         taskCode: entry.taskCode,
@@ -454,57 +281,16 @@ export function generateDomainPhaseDataset({ plan, existing = {}, seed } = {}) {
         status,
         reachedAt,
         claimedAt,
-        rewardGrantId: rewardGrant?.grantId ?? null,
+        rewardGrantId: null,
         lastSourceEventId: `task-source:${plan?.batchId ?? 'batch'}:${index + 1}`
       }
     })
 
-  const rewardItems = Array.from({ length: deficits.rewardItems }, (_, index) => ({
-    itemName: describeRewardItem(index),
-    itemDesc: `批次 ${plan?.batchId ?? 'batch'} 的演示奖励商品 ${index + 1}`,
-    costBalance: 6 + index * 2,
-    stock: 10 + index * 5,
-    perUserLimit: index % 2 === 0 ? 1 : 2,
-    fulfillmentMode: rotate(REWARD_ITEM_MODES, index),
-    status: rotate(REWARD_ITEM_STATUSES, index)
-  }))
-
-  const rewardItemRefs = [
-    ...normalizedExisting.batchRewardItems.map((item) => createRef('existing', item.id)),
-    ...rewardItems.map((_item, index) => createRef('generated', index))
-  ]
-  const rewardOrders =
-    rewardItemRefs.length === 0
-      ? []
-      : Array.from({ length: deficits.rewardOrders }, (_, index) => {
-          const itemRef = rotate(rewardItemRefs, index)
-          const generatedItem = itemRef?.kind === 'generated' ? rewardItems[itemRef.id] : null
-
-          return {
-            redeemRequestId: `redeem:${plan?.batchId ?? 'batch'}:${index + 1}`,
-            userId: rewardAccountUsers.length > 0 ? rotate(rewardAccountUsers, index) : rotate(shuffledUserIds, index),
-            itemRef,
-            status: rotate(REWARD_ORDER_STATUSES, index),
-            costBalanceSnapshot: generatedItem?.costBalance ?? 10 + index,
-            fulfillmentModeSnapshot: generatedItem?.fulfillmentMode ?? 'MANUAL',
-            itemNameSnapshot: generatedItem?.itemName ?? `既有商品 ${index + 1}`,
-            itemDescSnapshot: generatedItem?.itemDesc ?? `历史奖励商品 ${index + 1}`
-          }
-        })
-
   return {
     seed: resolvedSeed,
-    messages,
-    notices,
     reports,
     moderationActions,
-    growthCheckIns,
-    userTaskProgress,
-    rewardAccounts,
-    rewardLedgers,
-    rewardGrantRecords,
-    rewardItems,
-    rewardOrders
+    userTaskProgress
   }
 }
 

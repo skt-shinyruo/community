@@ -27,17 +27,9 @@ function buildEmptyInsertedCounts() {
     comments: 0,
     socialFollows: 0,
     socialLikes: 0,
-    messages: 0,
-    notices: 0,
     reports: 0,
     moderationActions: 0,
-    growthCheckIns: 0,
-    userTaskProgress: 0,
-    rewardAccounts: 0,
-    rewardLedgers: 0,
-    rewardGrantRecords: 0,
-    rewardItems: 0,
-    rewardOrders: 0
+    userTaskProgress: 0
   }
 }
 
@@ -162,18 +154,10 @@ async function loadExistingDomainState(runDb, { batchRefs = [] } = {}) {
       .filter((ref) => ref.entityType === 'reports' && /^\d+$/u.test(String(ref.entityKey ?? '')))
       .map((ref) => Number.parseInt(String(ref.entityKey), 10))
   )
-  const batchRewardItemIds = new Set(
-    batchRefs
-      .filter((ref) => ref.entityType === 'reward_items' && /^\d+$/u.test(String(ref.entityKey ?? '')))
-      .map((ref) => Number.parseInt(String(ref.entityKey), 10))
-  )
 
-  const [reports, rewardAccounts, growthCheckIns, userTaskProgress, rewardItems] = await Promise.all([
+  const [reports, userTaskProgress] = await Promise.all([
     runDb.query(`select id, reporter_id, target_type, target_id from report order by id asc`),
-    runDb.query(`select user_id from reward_account order by user_id asc`),
-    runDb.query(`select user_id, biz_date from growth_check_in order by user_id asc, biz_date asc`),
-    runDb.query(`select user_id, task_code, period_key from user_task_progress order by user_id asc, task_code asc, period_key asc`),
-    runDb.query(`select id from reward_item order by id asc`)
+    runDb.query(`select user_id, task_code, period_key from user_task_progress order by user_id asc, task_code asc, period_key asc`)
   ])
 
   return {
@@ -188,25 +172,10 @@ async function loadExistingDomainState(runDb, { batchRefs = [] } = {}) {
       .map((report) => ({
         id: Number(report.id)
       })),
-    growthCheckIns: growthCheckIns.map((entry) => ({
-      userId: Number(entry.user_id),
-      bizDate: String(entry.biz_date)
-    })),
     userTaskProgress: userTaskProgress.map((entry) => ({
       userId: Number(entry.user_id),
       taskCode: entry.task_code,
       periodKey: entry.period_key
-    })),
-    rewardAccounts: rewardAccounts.map((account) => ({
-      userId: Number(account.user_id)
-    })),
-    batchRewardItems: rewardItems
-      .filter((item) => batchRewardItemIds.has(Number(item.id)))
-      .map((item) => ({
-        id: Number(item.id)
-      })),
-    rewardItems: rewardItems.map((item) => ({
-      id: Number(item.id)
     }))
   }
 }
@@ -254,7 +223,7 @@ export function createCommunityWriter({
       const deficits = buildCommunityDeficits(plan)
       const insertedCounts = buildEmptyInsertedCounts()
 
-      const nonImPhaseNeedsWork = ['community', 'growth', 'moderation', 'reward'].some((phaseName) =>
+      const nonImPhaseNeedsWork = ['community', 'growth', 'moderation'].some((phaseName) =>
         plan?.phases?.some((phase) => phase.name === phaseName && phase.needsWork)
       )
 
@@ -546,72 +515,12 @@ export function createCommunityWriter({
             ],
             reports: existingDomain.reports,
             batchReports: existingDomain.batchReports,
-            growthCheckIns: existingDomain.growthCheckIns,
-            userTaskProgress: existingDomain.userTaskProgress,
-            rewardAccounts: existingDomain.rewardAccounts,
-            rewardItems: existingDomain.rewardItems,
-            batchRewardItems: existingDomain.batchRewardItems
+            userTaskProgress: existingDomain.userTaskProgress
           }
         })
 
-        await applyTextEnhancement(domainDataset.messages, 'content', 'message-content')
-        await applyTextEnhancement(domainDataset.notices, 'content', 'notice-content')
         await applyTextEnhancement(domainDataset.reports, 'detail', 'report-detail')
         await applyTextEnhancement(domainDataset.moderationActions, 'reason', 'moderation-reason')
-        await applyTextEnhancement(domainDataset.rewardItems, 'itemName', 'reward-item-name')
-        await applyTextEnhancement(domainDataset.rewardItems, 'itemDesc', 'reward-item-desc')
-
-        const messageRows = domainDataset.messages.map((message) => {
-          const timestamp = nextTimestamp()
-          return [
-            message.fromUserId,
-            message.toUserId,
-            message.conversationId,
-            message.content,
-            message.status,
-            timestamp.mysql
-          ]
-        })
-        const insertedMessageIds =
-          messageRows.length === 0
-            ? []
-            : expandInsertedIds(
-                await runDb.execute(
-                  formatBulkInsert('message', ['from_id', 'to_id', 'conversation_id', 'content', 'status', 'create_time'], messageRows.length),
-                  toInsertParams(messageRows)
-                ),
-                messageRows.length
-              )
-        for (const insertedMessageId of insertedMessageIds) {
-          generatedRefs.push(createGeneratedRef('messages', insertedMessageId, nextTimestamp().iso))
-        }
-        insertedCounts.messages = insertedMessageIds.length
-
-        const noticeRows = domainDataset.notices.map((notice) => {
-          const timestamp = nextTimestamp()
-          return [
-            notice.fromUserId,
-            notice.toUserId,
-            notice.conversationId,
-            notice.content,
-            notice.status,
-            timestamp.mysql
-          ]
-        })
-        const insertedNoticeIds =
-          noticeRows.length === 0
-            ? []
-            : expandInsertedIds(
-                await runDb.execute(
-                  formatBulkInsert('message', ['from_id', 'to_id', 'conversation_id', 'content', 'status', 'create_time'], noticeRows.length),
-                  toInsertParams(noticeRows)
-                ),
-                noticeRows.length
-              )
-        for (const insertedNoticeId of insertedNoticeIds) {
-          generatedRefs.push(createGeneratedRef('notices', insertedNoticeId, nextTimestamp().iso))
-        }
-        insertedCounts.notices = insertedNoticeIds.length
 
         const reportRows = domainDataset.reports.map((report) => {
           const timestamp = nextTimestamp()
@@ -662,138 +571,6 @@ export function createCommunityWriter({
         }
         insertedCounts.moderationActions = insertedModerationActionIds.length
 
-        const growthCheckInRows = domainDataset.growthCheckIns.map((entry) => {
-          const timestamp = nextTimestamp()
-          return [entry.userId, entry.bizDate, entry.streakCount, timestamp.mysql]
-        })
-        const insertedGrowthCheckInIds =
-          growthCheckInRows.length === 0
-            ? []
-            : expandInsertedIds(
-                await runDb.execute(
-                  formatBulkInsert('growth_check_in', ['user_id', 'biz_date', 'streak_count', 'create_time'], growthCheckInRows.length),
-                  toInsertParams(growthCheckInRows)
-                ),
-                growthCheckInRows.length
-              )
-        for (const insertedGrowthCheckInId of insertedGrowthCheckInIds) {
-          generatedRefs.push(createGeneratedRef('growth_check_ins', insertedGrowthCheckInId, nextTimestamp().iso))
-        }
-        insertedCounts.growthCheckIns = insertedGrowthCheckInIds.length
-
-        const rewardAccountRows = domainDataset.rewardAccounts.map((account) => {
-          const timestamp = nextTimestamp()
-          return [
-            account.userId,
-            account.availableBalance,
-            account.frozenBalance,
-            account.version,
-            timestamp.mysql
-          ]
-        })
-        if (rewardAccountRows.length > 0) {
-          await runDb.execute(
-            formatBulkInsert(
-              'reward_account',
-              ['user_id', 'available_balance', 'frozen_balance', 'version', 'update_time'],
-              rewardAccountRows.length
-            ),
-            toInsertParams(rewardAccountRows)
-          )
-        }
-        rewardAccountRows.forEach(([userId]) => {
-          generatedRefs.push(createGeneratedRef('reward_accounts', userId, nextTimestamp().iso))
-        })
-        insertedCounts.rewardAccounts = rewardAccountRows.length
-
-        const rewardLedgerRows = domainDataset.rewardLedgers.map((ledger) => {
-          const timestamp = nextTimestamp()
-          return [
-            ledger.userId,
-            ledger.eventId,
-            ledger.eventType,
-            ledger.delta,
-            ledger.balanceAfter,
-            ledger.frozenBalanceAfter,
-            ledger.bizKey,
-            ledger.sourceModule,
-            ledger.remark,
-            timestamp.mysql
-          ]
-        })
-        const insertedRewardLedgerIds =
-          rewardLedgerRows.length === 0
-            ? []
-            : expandInsertedIds(
-                await runDb.execute(
-                  formatBulkInsert(
-                    'reward_ledger',
-                    [
-                      'user_id',
-                      'event_id',
-                      'event_type',
-                      'delta',
-                      'balance_after',
-                      'frozen_balance_after',
-                      'biz_key',
-                      'source_module',
-                      'remark',
-                      'create_time'
-                    ],
-                    rewardLedgerRows.length
-                  ),
-                  toInsertParams(rewardLedgerRows)
-                ),
-                rewardLedgerRows.length
-              )
-        for (const insertedRewardLedgerId of insertedRewardLedgerIds) {
-          generatedRefs.push(createGeneratedRef('reward_ledgers', insertedRewardLedgerId, nextTimestamp().iso))
-        }
-        insertedCounts.rewardLedgers = insertedRewardLedgerIds.length
-
-        const rewardGrantRecordRows = domainDataset.rewardGrantRecords.map((grant) => {
-          const timestamp = nextTimestamp()
-          return [
-            grant.grantId,
-            grant.userId,
-            grant.grantType,
-            grant.sourceEventId,
-            grant.sourceEventType,
-            grant.growthDelta,
-            grant.rewardDelta,
-            grant.status,
-            timestamp.mysql
-          ]
-        })
-        const insertedRewardGrantRecordIds =
-          rewardGrantRecordRows.length === 0
-            ? []
-            : expandInsertedIds(
-                await runDb.execute(
-                  formatBulkInsert(
-                    'reward_grant_record',
-                    [
-                      'grant_id',
-                      'user_id',
-                      'grant_type',
-                      'source_event_id',
-                      'source_event_type',
-                      'growth_delta',
-                      'reward_delta',
-                      'status',
-                      'create_time'
-                    ],
-                    rewardGrantRecordRows.length
-                  ),
-                  toInsertParams(rewardGrantRecordRows)
-                ),
-                rewardGrantRecordRows.length
-              )
-        for (const insertedRewardGrantRecordId of insertedRewardGrantRecordIds) {
-          generatedRefs.push(createGeneratedRef('reward_grant_records', insertedRewardGrantRecordId, nextTimestamp().iso))
-        }
-        insertedCounts.rewardGrantRecords = insertedRewardGrantRecordIds.length
-
         const taskProgressRows = domainDataset.userTaskProgress.map((progress) => {
           const timestamp = nextTimestamp()
           return [
@@ -840,94 +617,6 @@ export function createCommunityWriter({
           generatedRefs.push(createGeneratedRef('user_task_progress', insertedTaskProgressId, nextTimestamp().iso))
         }
         insertedCounts.userTaskProgress = insertedTaskProgressIds.length
-
-        const rewardItemRows = domainDataset.rewardItems.map((item) => {
-          const timestamp = nextTimestamp()
-          return [
-            item.itemName,
-            item.itemDesc,
-            item.costBalance,
-            item.stock,
-            item.perUserLimit,
-            item.fulfillmentMode,
-            item.status,
-            timestamp.mysql,
-            timestamp.mysql
-          ]
-        })
-        const insertedRewardItemIds =
-          rewardItemRows.length === 0
-            ? []
-            : expandInsertedIds(
-                await runDb.execute(
-                  formatBulkInsert(
-                    'reward_item',
-                    [
-                      'item_name',
-                      'item_desc',
-                      'cost_balance',
-                      'stock',
-                      'per_user_limit',
-                      'fulfillment_mode',
-                      'status',
-                      'create_time',
-                      'update_time'
-                    ],
-                    rewardItemRows.length
-                  ),
-                  toInsertParams(rewardItemRows)
-                ),
-                rewardItemRows.length
-              )
-        for (const insertedRewardItemId of insertedRewardItemIds) {
-          generatedRefs.push(createGeneratedRef('reward_items', insertedRewardItemId, nextTimestamp().iso))
-        }
-        insertedCounts.rewardItems = insertedRewardItemIds.length
-
-        const rewardOrderRows = domainDataset.rewardOrders.map((order) => {
-          const timestamp = nextTimestamp()
-          return [
-            order.redeemRequestId,
-            order.userId,
-            resolveId(order.itemRef, insertedRewardItemIds),
-            order.status,
-            order.costBalanceSnapshot,
-            order.fulfillmentModeSnapshot,
-            order.itemNameSnapshot,
-            order.itemDescSnapshot,
-            timestamp.mysql,
-            timestamp.mysql
-          ]
-        })
-        const insertedRewardOrderIds =
-          rewardOrderRows.length === 0
-            ? []
-            : expandInsertedIds(
-                await runDb.execute(
-                  formatBulkInsert(
-                    'reward_order',
-                    [
-                      'redeem_request_id',
-                      'user_id',
-                      'item_id',
-                      'status',
-                      'cost_balance_snapshot',
-                      'fulfillment_mode_snapshot',
-                      'item_name_snapshot',
-                      'item_desc_snapshot',
-                      'create_time',
-                      'update_time'
-                    ],
-                    rewardOrderRows.length
-                  ),
-                  toInsertParams(rewardOrderRows)
-                ),
-                rewardOrderRows.length
-              )
-        for (const insertedRewardOrderId of insertedRewardOrderIds) {
-          generatedRefs.push(createGeneratedRef('reward_orders', insertedRewardOrderId, nextTimestamp().iso))
-        }
-        insertedCounts.rewardOrders = insertedRewardOrderIds.length
 
         await appendEntityRefs({
           db,

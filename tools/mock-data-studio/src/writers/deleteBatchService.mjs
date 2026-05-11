@@ -85,20 +85,6 @@ function parseConversationSeqKey(entityKey, entityType) {
 
 const COMMUNITY_DELETE_ORDER = [
   {
-    entityType: 'notices',
-    countKey: 'notices',
-    deleteRef: async (db, ref) => {
-      return db.execute(`delete from message where id = ?`, [parseScalarId(ref.entityKey, ref.entityType)])
-    }
-  },
-  {
-    entityType: 'messages',
-    countKey: 'messages',
-    deleteRef: async (db, ref) => {
-      return db.execute(`delete from message where id = ?`, [parseScalarId(ref.entityKey, ref.entityType)])
-    }
-  },
-  {
     entityType: 'moderation_actions',
     countKey: 'moderationActions',
     deleteRef: async (db, ref) => {
@@ -113,52 +99,10 @@ const COMMUNITY_DELETE_ORDER = [
     }
   },
   {
-    entityType: 'reward_orders',
-    countKey: 'rewardOrders',
-    deleteRef: async (db, ref) => {
-      return db.execute(`delete from reward_order where id = ?`, [parseScalarId(ref.entityKey, ref.entityType)])
-    }
-  },
-  {
-    entityType: 'reward_items',
-    countKey: 'rewardItems',
-    deleteRef: async (db, ref) => {
-      return db.execute(`delete from reward_item where id = ?`, [parseScalarId(ref.entityKey, ref.entityType)])
-    }
-  },
-  {
-    entityType: 'reward_grant_records',
-    countKey: 'rewardGrantRecords',
-    deleteRef: async (db, ref) => {
-      return db.execute(`delete from reward_grant_record where id = ?`, [parseScalarId(ref.entityKey, ref.entityType)])
-    }
-  },
-  {
-    entityType: 'reward_ledgers',
-    countKey: 'rewardLedgers',
-    deleteRef: async (db, ref) => {
-      return db.execute(`delete from reward_ledger where id = ?`, [parseScalarId(ref.entityKey, ref.entityType)])
-    }
-  },
-  {
     entityType: 'user_task_progress',
     countKey: 'userTaskProgress',
     deleteRef: async (db, ref) => {
       return db.execute(`delete from user_task_progress where id = ?`, [parseScalarId(ref.entityKey, ref.entityType)])
-    }
-  },
-  {
-    entityType: 'growth_check_ins',
-    countKey: 'growthCheckIns',
-    deleteRef: async (db, ref) => {
-      return db.execute(`delete from growth_check_in where id = ?`, [parseScalarId(ref.entityKey, ref.entityType)])
-    }
-  },
-  {
-    entityType: 'reward_accounts',
-    countKey: 'rewardAccounts',
-    deleteRef: async (db, ref) => {
-      return db.execute(`delete from reward_account where user_id = ?`, [parseScalarId(ref.entityKey, ref.entityType)])
     }
   },
   {
@@ -273,17 +217,9 @@ function orderRefsForDeletion(refs) {
 function createEmptyDeletedCounts() {
   return {
     business: {
-      notices: 0,
-      messages: 0,
       reports: 0,
       moderationActions: 0,
-      growthCheckIns: 0,
       userTaskProgress: 0,
-      rewardAccounts: 0,
-      rewardLedgers: 0,
-      rewardGrantRecords: 0,
-      rewardItems: 0,
-      rewardOrders: 0,
       imPrivateMessages: 0,
       imConversations: 0,
       imRoomMessages: 0,

@@ -45,7 +45,7 @@
 | `user.application.UserCredentialApplicationService` | 密码校验、密码策略和密码更新 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.UserReadApplicationService` | 用户摘要、批量读取、跨域 user 查询 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.UserProfileApplicationService` | 用户资料聚合、最近内容读取 | [User 用户业务逻辑](business-logic/user.md) | Covered |
-| `user.application.UserAvatarApplicationService` | 头像上传 token / confirm | [User 用户业务逻辑](business-logic/user.md) | Covered |
+| `user.application.UserAvatarApplicationService` | 头像 upload session / confirm | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.UserModerationApplicationService` | 禁言 / 封禁状态和 policy event | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.AdminUserApplicationService` | 管理员用户搜索和角色修改 | [User 用户业务逻辑](business-logic/user.md) | Covered |
 | `user.application.UserPointsApplicationService` | 用户积分视图 / wallet 奖励协作入口 | [User 用户业务逻辑](business-logic/user.md) | Covered |

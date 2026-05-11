@@ -48,12 +48,16 @@ describe('SettingsView', () => {
   function uploadSession(overrides = {}) {
     return {
       uploadId: 'session-1',
-      fileKey: 'avatar-upload-key',
+      objectId: '00000000-0000-7000-8000-000000000050',
+      versionId: '00000000-0000-7000-8000-000000000051',
       upload: {
-        url: '/api/users/7/avatar/upload',
+        url: '/api/oss/objects/00000000-0000-7000-8000-000000000050/complete',
         method: 'POST',
         fileField: 'file',
-        fields: { fileKey: 'avatar-upload-key' },
+        fields: {
+          sessionId: 'session-1',
+          versionId: '00000000-0000-7000-8000-000000000051'
+        },
         headers: {},
         ...(overrides.upload || {})
       },
@@ -102,8 +106,8 @@ describe('SettingsView', () => {
       if (url === '/api/users/7/avatar/upload-sessions') {
         return Promise.resolve(okResult(uploadSession(), 'trace-session'))
       }
-      if (url === '/api/users/7/avatar/upload') {
-        return Promise.resolve(okResult({}, 'trace-upload'))
+      if (url === '/api/oss/objects/00000000-0000-7000-8000-000000000050/complete') {
+        return Promise.resolve(okResult({ objectId: '00000000-0000-7000-8000-000000000050' }, 'trace-upload'))
       }
       return Promise.resolve(okResult({}, 'trace-post'))
     })
@@ -112,9 +116,6 @@ describe('SettingsView', () => {
 
   it('uses the shared file input and keeps upload disabled until a file is selected', async () => {
     const wrapper = mountView()
-
-    await findUiButton(wrapper, '获取上传参数').trigger('click')
-    await flushPromises()
 
     const uploadButton = findUiButton(wrapper, '上传并保存')
     const fileInput = wrapper.getComponent(UiFileInput)
@@ -136,9 +137,6 @@ describe('SettingsView', () => {
   it('passes the selected File through the existing upload flow', async () => {
     const wrapper = mountView()
 
-    await findUiButton(wrapper, '获取上传参数').trigger('click')
-    await flushPromises()
-
     const file = new File(['avatar'], 'picked-avatar.png', { type: 'image/png' })
     const fileInput = wrapper.getComponent(UiFileInput)
 
@@ -147,14 +145,20 @@ describe('SettingsView', () => {
     await findUiButton(wrapper, '上传并保存').trigger('click')
     await flushPromises()
 
-    expect(http.post).toHaveBeenCalledWith('/api/users/7/avatar/upload-sessions')
-    expect(http.post).toHaveBeenCalledWith('/api/users/7/avatar/upload', expect.any(FormData), {
+    expect(http.post).toHaveBeenCalledWith('/api/users/7/avatar/upload-sessions', {
+      fileName: 'picked-avatar.png',
+      contentType: 'image/png',
+      contentLength: 6,
+      checksumSha256: ''
+    })
+    expect(http.post).toHaveBeenCalledWith('/api/oss/objects/00000000-0000-7000-8000-000000000050/complete', expect.any(FormData), {
       headers: {}
     })
-    const form = http.post.mock.calls.find(([url]) => url === '/api/users/7/avatar/upload')[1]
+    const form = http.post.mock.calls.find(([url]) => url === '/api/oss/objects/00000000-0000-7000-8000-000000000050/complete')[1]
     expect(form.get('file')).toBe(file)
-    expect(form.get('fileKey')).toBe('avatar-upload-key')
-    expect(http.put).toHaveBeenCalledWith('/api/users/7/avatar', { fileKey: 'avatar-upload-key' })
+    expect(form.get('sessionId')).toBe('session-1')
+    expect(form.get('versionId')).toBe('00000000-0000-7000-8000-000000000051')
+    expect(http.put).toHaveBeenCalledWith('/api/users/7/avatar', { objectId: '00000000-0000-7000-8000-000000000050' })
   })
 
 })

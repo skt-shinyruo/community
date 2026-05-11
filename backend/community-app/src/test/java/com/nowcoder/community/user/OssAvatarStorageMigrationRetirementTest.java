@@ -38,14 +38,14 @@ class OssAvatarStorageMigrationRetirementTest {
         String yaml = Files.readString(MODULE_ROOT.resolve("src/main/resources/application.yml"));
 
         assertThat(yaml).doesNotContain(
-                "user.avatar"
+                "user.avatar",
+                "oss.avatar",
+                "OSS_AVATAR_PUBLIC_BASE_URL"
         );
         assertThat(yaml).contains(
                 "oss:",
                 "client:",
-                "base-url: ${OSS_CLIENT_BASE_URL:http://community-oss:18090}",
-                "avatar:",
-                "public-base-url: ${OSS_AVATAR_PUBLIC_BASE_URL:${GATEWAY_PUBLIC_BASE_URL:http://localhost:12880}}"
+                "base-url: ${OSS_CLIENT_BASE_URL:http://community-oss:18090}"
         );
     }
 

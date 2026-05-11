@@ -612,7 +612,7 @@ test('batch detail returns target, actual, and failure summaries', async () => {
   })
 })
 
-test('batch detail summaries include phase 2 moderation, growth, reward, and im entity types', async () => {
+test('batch detail summaries include current phase 2 moderation, growth, and im entity types', async () => {
   const batch = createBatch(52, {
     batchKey: 'manual-seed-52',
     status: 'succeeded'
@@ -625,10 +625,8 @@ test('batch detail summaries include phase 2 moderation, growth, reward, and im 
       [
         batch.id,
         [
-          { entityType: 'messages', targetCount: 4 },
           { entityType: 'reports', targetCount: 2 },
-          { entityType: 'reward_orders', targetCount: 3 },
-          { entityType: 'growth_check_ins', targetCount: 5 },
+          { entityType: 'user_task_progress', targetCount: 5 },
           { entityType: 'im_private_messages', targetCount: 6 }
         ]
       ]
@@ -637,15 +635,10 @@ test('batch detail summaries include phase 2 moderation, growth, reward, and im 
       [
         batch.id,
         [
-          { entityType: 'messages' },
-          { entityType: 'messages' },
-          { entityType: 'messages' },
           { entityType: 'reports' },
-          { entityType: 'reward_orders' },
-          { entityType: 'reward_orders' },
-          { entityType: 'growth_check_ins' },
-          { entityType: 'growth_check_ins' },
-          { entityType: 'growth_check_ins' },
+          { entityType: 'user_task_progress' },
+          { entityType: 'user_task_progress' },
+          { entityType: 'user_task_progress' },
           { entityType: 'im_private_messages' },
           { entityType: 'im_private_messages' },
           { entityType: 'im_private_messages' },
@@ -659,30 +652,24 @@ test('batch detail summaries include phase 2 moderation, growth, reward, and im 
 
   assert.equal(response.status, 200)
   assert.deepEqual(response.body.targetSummary, {
-    totalCount: 20,
+    totalCount: 13,
     byEntityType: {
-      messages: 4,
       reports: 2,
-      reward_orders: 3,
-      growth_check_ins: 5,
+      user_task_progress: 5,
       im_private_messages: 6
     }
   })
   assert.deepEqual(response.body.actualSummary, {
-    totalCount: 13,
+    totalCount: 8,
     byEntityType: {
-      messages: 3,
       reports: 1,
-      reward_orders: 2,
-      growth_check_ins: 3,
+      user_task_progress: 3,
       im_private_messages: 4
     }
   })
   assert.deepEqual(response.body.failureSummary.byEntityType, {
-    messages: 1,
     reports: 1,
-    reward_orders: 1,
-    growth_check_ins: 2,
+    user_task_progress: 2,
     im_private_messages: 2
   })
 })

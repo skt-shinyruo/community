@@ -24,7 +24,6 @@
 | 前端路由 / session / HTTP / store / 页面状态 | 定向 Vitest 文件 | `cd frontend && npm test` |
 | 前端构建相关 | `cd frontend && npm run build` | `cd frontend && npm test && npm run build` |
 | tools/mock-data-studio | 定向 `npm --prefix tools/mock-data-studio test -- <files>` | 全量 mock-data-studio 测试 |
-| tools/im-load | 参数 / README 校验 | 当前不作为 IM 业务压测工具；真实 session bootstrap 压测需另行实现 |
 
 ## 后端测试
 
@@ -160,22 +159,6 @@ npm --prefix tools/mock-data-studio test -- \
 - job single-flight。
 - batch repository / delete 顺序。
 - community API 或 domain generator 的字段语义。
-
-## IM 压测工具验证
-
-`tools/im-load` 不是当前业务测试套件。修改参数解析、JWT 生成或连接行为后，只验证工具自身参数和连接处理：
-
-```bash
-cd tools/im-load
-npm install
-node src/index.mjs connect-only \
-  --wsUrl ws://im-edge.example/ws/im \
-  --connections 2 \
-  --startUserId 1 \
-  --durationSec 10
-```
-
-注意：`tools/im-load` 不覆盖当前浏览器客户端的 `/api/im/sessions` ticket bootstrap。真实容量压测当前 IM 语义前，应使用支持 session-bootstrap 的脚本。
 
 ## 文档验证
 

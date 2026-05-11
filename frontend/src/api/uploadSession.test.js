@@ -5,12 +5,13 @@ describe('uploadSession', () => {
   it('normalizes a backend upload session without provider fields', () => {
     const session = normalizeUploadSession({
       uploadId: 'session-1',
-      fileKey: 'avatar/user/key',
+      objectId: 'object-1',
+      versionId: 'version-1',
       upload: {
-        url: '/api/users/7/avatar/upload',
+        url: '/api/oss/objects/object-1/complete',
         method: 'POST',
         fileField: 'file',
-        fields: { fileKey: 'avatar/user/key' },
+        fields: { sessionId: 'session-1', versionId: 'version-1' },
         headers: {}
       },
       constraints: {
@@ -21,11 +22,12 @@ describe('uploadSession', () => {
     })
 
     expect(session.uploadId).toBe('session-1')
-    expect(session.fileKey).toBe('avatar/user/key')
-    expect(session.upload.url).toBe('/api/users/7/avatar/upload')
+    expect(session.objectId).toBe('object-1')
+    expect(session.versionId).toBe('version-1')
+    expect(session.upload.url).toBe('/api/oss/objects/object-1/complete')
     expect(session.upload.method).toBe('POST')
     expect(session.upload.fileField).toBe('file')
-    expect(session.upload.fields).toEqual({ fileKey: 'avatar/user/key' })
+    expect(session.upload.fields).toEqual({ sessionId: 'session-1', versionId: 'version-1' })
     expect(session.constraints.mimeTypes).toEqual(['image/png'])
   })
 
@@ -34,10 +36,10 @@ describe('uploadSession', () => {
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' })
     const session = normalizeUploadSession({
       upload: {
-        url: '/api/users/7/avatar/upload',
+        url: '/api/oss/objects/object-1/complete',
         method: 'POST',
         fileField: 'file',
-        fields: { fileKey: 'avatar/key' },
+        fields: { sessionId: 'session-1', versionId: 'version-1' },
         headers: { 'X-Test': '1' }
       }
     })
@@ -45,11 +47,12 @@ describe('uploadSession', () => {
     const result = await executeUploadSession({ http, session, file })
 
     expect(result.traceId).toBe('trace-upload')
-    expect(http.post).toHaveBeenCalledWith('/api/users/7/avatar/upload', expect.any(FormData), {
+    expect(http.post).toHaveBeenCalledWith('/api/oss/objects/object-1/complete', expect.any(FormData), {
       headers: { 'X-Test': '1' }
     })
     const form = http.post.mock.calls[0][1]
-    expect(form.get('fileKey')).toBe('avatar/key')
+    expect(form.get('sessionId')).toBe('session-1')
+    expect(form.get('versionId')).toBe('version-1')
     expect(form.get('file')).toBe(file)
   })
 
@@ -58,7 +61,7 @@ describe('uploadSession', () => {
     const file = new File(['avatar'], 'avatar.png', { type: 'image/png' })
     const session = normalizeUploadSession({
       upload: {
-        url: '/api/users/7/avatar/upload',
+        url: '/api/oss/objects/object-1/complete',
         method: 'PUT',
         fileField: 'file',
         fields: {}

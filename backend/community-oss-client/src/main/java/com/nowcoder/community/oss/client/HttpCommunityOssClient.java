@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.function.Supplier;
 
 public class HttpCommunityOssClient implements CommunityOssClient {
 
@@ -42,17 +41,10 @@ public class HttpCommunityOssClient implements CommunityOssClient {
     private final RestClient restClient;
 
     public HttpCommunityOssClient(String baseUrl) {
-        this(baseUrl, null);
-    }
-
-    public HttpCommunityOssClient(String baseUrl, Supplier<String> fallbackBearerAuthorizationSupplier) {
         this(RestClient.builder()
                 .baseUrl(baseUrl == null || baseUrl.isBlank() ? "http://community-oss:18090" : baseUrl.trim())
                 .requestInterceptor((request, body, execution) -> {
                     String authorization = currentBearerAuthorization();
-                    if (authorization.isBlank() && fallbackBearerAuthorizationSupplier != null) {
-                        authorization = normalizeBearerAuthorization(fallbackBearerAuthorizationSupplier.get());
-                    }
                     if (!authorization.isBlank() && !request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
                         request.getHeaders().set(HttpHeaders.AUTHORIZATION, authorization);
                     }
@@ -195,7 +187,14 @@ public class HttpCommunityOssClient implements CommunityOssClient {
         }
         try {
             JsonNode root = OBJECT_MAPPER.readTree(responseBody);
-            JsonNode payload = root.has("code") && root.has("data") ? root.get("data") : root;
+            if (!root.has("code") || !root.has("data")) {
+                throw new IllegalStateException("OSS response is not a Result envelope");
+            }
+            if (root.get("code").asInt(-1) != 0) {
+                String message = root.has("message") ? root.get("message").asText("OSS request failed") : "OSS request failed";
+                throw new IllegalStateException(message);
+            }
+            JsonNode payload = root.get("data");
             if (payload == null || payload.isNull()) {
                 return null;
             }
@@ -211,13 +210,6 @@ public class HttpCommunityOssClient implements CommunityOssClient {
             return "";
         }
         String authorization = servletAttributes.getRequest().getHeader(HttpHeaders.AUTHORIZATION);
-        if (authorization == null || !authorization.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())) {
-            return "";
-        }
-        return authorization;
-    }
-
-    private static String normalizeBearerAuthorization(String authorization) {
         if (authorization == null || !authorization.regionMatches(true, 0, "Bearer ", 0, "Bearer ".length())) {
             return "";
         }

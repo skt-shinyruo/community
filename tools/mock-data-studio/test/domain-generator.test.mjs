@@ -10,8 +10,7 @@ function createPlan({
   communityDeficits = {},
   imDeficits = {},
   growthDeficits = {},
-  moderationDeficits = {},
-  rewardDeficits = {}
+  moderationDeficits = {}
 } = {}) {
   return {
     batchId,
@@ -19,11 +18,7 @@ function createPlan({
     phases: [
       {
         name: 'community',
-        deficits: {
-          messages: 0,
-          notices: 0,
-          ...communityDeficits
-        }
+        deficits: communityDeficits
       },
       {
         name: 'im',
@@ -39,11 +34,7 @@ function createPlan({
       {
         name: 'growth',
         deficits: {
-          growth_check_ins: 0,
           user_task_progress: 0,
-          reward_accounts: 0,
-          reward_ledgers: 0,
-          reward_grant_records: 0,
           ...growthDeficits
         }
       },
@@ -53,14 +44,6 @@ function createPlan({
           reports: 0,
           moderation_actions: 0,
           ...moderationDeficits
-        }
-      },
-      {
-        name: 'reward',
-        deficits: {
-          reward_items: 0,
-          reward_orders: 0,
-          ...rewardDeficits
         }
       }
     ]
@@ -105,14 +88,10 @@ test('generateDomainPhaseDataset avoids cross-batch refs and global uniqueness c
   const dataset = generateDomainPhaseDataset({
     plan: createPlan({
       growthDeficits: {
-        growth_check_ins: 6,
         user_task_progress: 8
       },
       moderationDeficits: {
         moderation_actions: 2
-      },
-      rewardDeficits: {
-        reward_orders: 3
       }
     }),
     existing: {
@@ -121,32 +100,15 @@ test('generateDomainPhaseDataset avoids cross-batch refs and global uniqueness c
       comments: [{ id: 21, postId: 11, userId: 1 }],
       reports: [{ id: 301, reporterId: 1, targetType: 1, targetId: 11 }],
       batchReports: [],
-      growthCheckIns: [
-        { userId: 1, bizDate: '2026-03-01' },
-        { userId: 2, bizDate: '2026-03-02' }
-      ],
       userTaskProgress: [
         { userId: 1, taskCode: 'DAILY_CHECK_IN', periodKey: '2026-03-01' },
         { userId: 2, taskCode: 'WEEKLY_COMMENTER', periodKey: '2026-W10' }
-      ],
-      rewardAccounts: [],
-      rewardItems: [{ id: 901 }],
-      batchRewardItems: []
+      ]
     },
     seed: 'domain-integrity'
   })
 
   assert.ok(dataset.moderationActions.every((action) => action.reportRef == null))
-  assert.equal(dataset.rewardOrders.length, 0)
-
-  const growthKeys = new Set()
-  for (const entry of dataset.growthCheckIns) {
-    const key = `${entry.userId}:${entry.bizDate}`
-    assert.equal(growthKeys.has(key), false)
-    assert.notEqual(key, '1:2026-03-01')
-    assert.notEqual(key, '2:2026-03-02')
-    growthKeys.add(key)
-  }
 
   const taskKeys = new Set()
   for (const entry of dataset.userTaskProgress) {
@@ -173,15 +135,8 @@ test('buildScenePresets caps small-user phase-2 targets to feasible limits', () 
   const imBusyTargets = Object.fromEntries(
     presets['im-busy'].targets.map((target) => [target.entityType, target.targetCount])
   )
-  const rewardBusyTargets = Object.fromEntries(
-    presets['reward-ops-busy'].targets.map((target) => [target.entityType, target.targetCount])
-  )
-
   assert.equal(hotStartTargets.im_conversations, 1)
-  assert.equal(hotStartTargets.reward_accounts, 2)
-  assert.equal(hotStartTargets.growth_check_ins, 56)
   assert.equal(hotStartTargets.user_task_progress, 122)
   assert.equal(imBusyTargets.im_conversations, 1)
   assert.equal(imBusyTargets.im_room_members, 32)
-  assert.equal(rewardBusyTargets.growth_check_ins, 56)
 })

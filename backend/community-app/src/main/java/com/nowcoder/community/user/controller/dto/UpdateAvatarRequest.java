@@ -1,17 +1,19 @@
 package com.nowcoder.community.user.controller.dto;
 
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
+import java.util.UUID;
 
 public class UpdateAvatarRequest {
 
-    @NotBlank
-    private String fileKey;
+    @NotNull
+    private UUID objectId;
 
-    public String getFileKey() {
-        return fileKey;
+    public UUID getObjectId() {
+        return objectId;
     }
 
-    public void setFileKey(String fileKey) {
-        this.fileKey = fileKey;
+    public void setObjectId(UUID objectId) {
+        this.objectId = objectId;
     }
 }

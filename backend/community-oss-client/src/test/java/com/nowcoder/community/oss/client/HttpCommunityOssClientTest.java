@@ -32,7 +32,7 @@ class HttpCommunityOssClientTest {
     void stringConstructorForwardsCurrentBearerTokenToOssApiCalls() throws Exception {
         AtomicReference<String> authorization = new AtomicReference<>();
         CountDownLatch requestReceived = new CountDownLatch(1);
-        HttpServer server = startUploadSessionServer(authorization, requestReceived, directUploadSessionResponse());
+        HttpServer server = startUploadSessionServer(authorization, requestReceived, wrappedUploadSessionResponse());
         try {
             MockHttpServletRequest request = new MockHttpServletRequest();
             request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer token-a");
@@ -55,37 +55,6 @@ class HttpCommunityOssClientTest {
 
             assertThat(requestReceived.await(2, TimeUnit.SECONDS)).isTrue();
             assertThat(authorization.get()).isEqualTo("Bearer token-a");
-        } finally {
-            server.stop(0);
-        }
-    }
-
-    @Test
-    void stringConstructorUsesFallbackBearerWhenCurrentRequestHasNoBearer() throws Exception {
-        AtomicReference<String> authorization = new AtomicReference<>();
-        CountDownLatch requestReceived = new CountDownLatch(1);
-        HttpServer server = startUploadSessionServer(authorization, requestReceived, directUploadSessionResponse());
-        try {
-            HttpCommunityOssClient client = new HttpCommunityOssClient(
-                    "http://127.0.0.1:" + server.getAddress().getPort(),
-                    () -> "Bearer internal-token"
-            );
-            client.prepareUpload(new OssUploadSessionRequest(
-                    "DRIVE_FILE",
-                    "community-app",
-                    "drive",
-                    "drive-upload",
-                    "7",
-                    "PRIVATE",
-                    "note.txt",
-                    "text/plain",
-                    2,
-                    "",
-                    "7"
-            ));
-
-            assertThat(requestReceived.await(2, TimeUnit.SECONDS)).isTrue();
-            assertThat(authorization.get()).isEqualTo("Bearer internal-token");
         } finally {
             server.stop(0);
         }
@@ -123,7 +92,7 @@ class HttpCommunityOssClientTest {
     }
 
     @Test
-    void getMetadataShouldIgnoreAdditiveFieldsFromOssService() throws Exception {
+    void getMetadataShouldReadOwnerFieldsFromOssService() throws Exception {
         AtomicReference<String> authorization = new AtomicReference<>();
         CountDownLatch requestReceived = new CountDownLatch(1);
         UUID objectId = UUID.fromString("00000000-0000-7000-8000-000000000001");
@@ -137,9 +106,16 @@ class HttpCommunityOssClientTest {
             assertThat(response.objectId()).isEqualTo(objectId);
             assertThat(response.currentVersionId().toString()).isEqualTo("00000000-0000-7000-8000-000000000002");
             assertThat(response.usage()).isEqualTo("DRIVE_FILE");
+            assertThat(response.ownerService()).isEqualTo("community-app");
+            assertThat(response.ownerDomain()).isEqualTo("drive");
+            assertThat(response.ownerType()).isEqualTo("drive-upload");
+            assertThat(response.ownerId()).isEqualTo("7");
+            assertThat(response.visibility()).isEqualTo("PRIVATE");
             assertThat(response.status()).isEqualTo("ACTIVE");
+            assertThat(response.fileName()).isEqualTo("note.txt");
             assertThat(response.contentType()).isEqualTo("text/plain");
             assertThat(response.contentLength()).isEqualTo(12);
+            assertThat(response.checksumSha256()).isEmpty();
             assertThat(response.publicUrl()).isNull();
         } finally {
             server.stop(0);

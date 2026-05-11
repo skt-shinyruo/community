@@ -32,4 +32,14 @@ class WalletAccountDomainServiceTest {
         assertThat(service.deltaOf("CREDIT", "CREDIT", 100)).isEqualTo(100);
         assertThat(service.deltaOf("CREDIT", "DEBIT", 100)).isEqualTo(-100);
     }
+
+    @Test
+    void migrationHoldShouldStayUnsupported() {
+        assertThatThrownBy(() -> service.validateSystemAccountType("MIGRATION_HOLD"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.INVALID_REQUEST));
+        assertThatThrownBy(() -> service.normalDirectionOf("MIGRATION_HOLD"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.INVALID_REQUEST));
+    }
 }

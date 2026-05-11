@@ -84,9 +84,16 @@ class OssPostMediaStorageAdapterTest {
                 objectId,
                 versionId,
                 "CONTENT_POST_MEDIA",
+                "community-app",
+                "content",
+                "post-media-draft",
+                uuid(1).toString(),
+                "PUBLIC",
                 "ACTIVE",
+                "demo.mp4",
                 "video/mp4",
                 5,
+                "checksum",
                 "https://cdn.example.com/demo.mp4"
         ));
         OssPostMediaStorageAdapter adapter = new OssPostMediaStorageAdapter(ossClient);

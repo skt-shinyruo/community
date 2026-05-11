@@ -1,8 +1,9 @@
 package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.application.command.CreateAvatarUploadSessionCommand;
 import com.nowcoder.community.user.application.port.AvatarStoragePort;
-import com.nowcoder.community.user.application.result.AvatarUploadTokenResult;
+import com.nowcoder.community.user.application.result.AvatarUploadSessionResult;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -10,9 +11,9 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.io.ByteArrayInputStream;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
@@ -33,12 +34,12 @@ class UserAvatarApplicationServiceTest {
     private UserRepository userRepository;
 
     @Test
-    void createUploadTokenShouldRejectNonSelfActor() {
+    void createUploadSessionShouldRejectNonSelfActor() {
         UserAvatarApplicationService service = new UserAvatarApplicationService(avatarStoragePort, userRepository);
         UUID actorUserId = uuid(1);
         UUID targetUserId = uuid(2);
 
-        Throwable thrown = catchThrowable(() -> service.createUploadToken(actorUserId, targetUserId));
+        Throwable thrown = catchThrowable(() -> service.createUploadSession(actorUserId, targetUserId, uploadSessionCommand()));
 
         assertThat(thrown).isInstanceOf(BusinessException.class)
                 .hasMessage("只能操作自己的头像");
@@ -47,38 +48,42 @@ class UserAvatarApplicationServiceTest {
     }
 
     @Test
-    void createUploadTokenShouldDelegateToAvatarStoragePort() {
+    void createUploadSessionShouldDelegateToAvatarStoragePort() {
         UserAvatarApplicationService service = new UserAvatarApplicationService(avatarStoragePort, userRepository);
         UUID userId = uuid(7);
-        AvatarUploadTokenResult session = new AvatarUploadTokenResult(
+        UUID objectId = uuid(21);
+        UUID versionId = uuid(22);
+        CreateAvatarUploadSessionCommand command = uploadSessionCommand();
+        AvatarUploadSessionResult session = new AvatarUploadSessionResult(
                 "upload-session-id",
-                "avatar/" + userId + "/0123456789abcdef0123456789abcdef",
-                "/api/users/" + userId + "/avatar/upload",
+                objectId,
+                versionId,
+                "/api/oss/objects/" + objectId + "/complete",
                 "POST",
                 "file",
-                "fileKey",
+                Map.of("sessionId", "upload-session-id", "versionId", versionId.toString()),
+                Map.of(),
                 2_097_152L,
-                "image/png;image/jpeg",
+                List.of("image/png", "image/jpeg"),
                 Instant.parse("2026-05-08T12:00:00Z")
         );
-        when(avatarStoragePort.createUploadToken(userId)).thenReturn(session);
+        when(avatarStoragePort.createUploadSession(userId, command)).thenReturn(session);
 
-        AvatarUploadTokenResult result = service.createUploadToken(userId, userId);
+        AvatarUploadSessionResult result = service.createUploadSession(userId, userId, command);
 
         assertThat(result).isEqualTo(session);
-        verify(avatarStoragePort).createUploadToken(userId);
+        verify(avatarStoragePort).createUploadSession(userId, command);
         verifyNoInteractions(userRepository);
     }
 
     @Test
-    void uploadShouldRejectNonSelfActor() {
+    void updateAvatarShouldRejectNonSelfActor() {
         UserAvatarApplicationService service = new UserAvatarApplicationService(avatarStoragePort, userRepository);
         UUID actorUserId = uuid(1);
         UUID targetUserId = uuid(2);
-        String fileName = "avatar/" + targetUserId + "/0123456789abcdef0123456789abcdef";
-        AvatarUploadContent content = uploadContent();
+        UUID objectId = uuid(30);
 
-        Throwable thrown = catchThrowable(() -> service.upload(actorUserId, targetUserId, fileName, content));
+        Throwable thrown = catchThrowable(() -> service.updateAvatar(actorUserId, targetUserId, objectId));
 
         assertThat(thrown).isInstanceOf(BusinessException.class)
                 .hasMessage("只能操作自己的头像");
@@ -87,41 +92,22 @@ class UserAvatarApplicationServiceTest {
     }
 
     @Test
-    void uploadShouldDelegateToAvatarStoragePort() {
+    void updateAvatarShouldResolveObjectUrlAndUpdateUserHeaderUrl() {
         UserAvatarApplicationService service = new UserAvatarApplicationService(avatarStoragePort, userRepository);
         UUID userId = uuid(7);
-        String fileName = "avatar/" + userId + "/0123456789abcdef0123456789abcdef";
-        AvatarUploadContent content = uploadContent();
+        UUID objectId = uuid(30);
+        String headerUrl = "https://cdn.example.com/files/" + objectId + "/avatar.png";
+        when(avatarStoragePort.resolvePublicAvatarUrl(userId, objectId)).thenReturn(headerUrl);
 
-        service.upload(userId, userId, fileName, content);
-
-        verify(avatarStoragePort).upload(userId, fileName, content);
-        verifyNoInteractions(userRepository);
-    }
-
-    @Test
-    void updateAvatarShouldConsumeTicketBuildUrlAndUpdateUserHeaderUrl() {
-        UserAvatarApplicationService service = new UserAvatarApplicationService(avatarStoragePort, userRepository);
-        UUID userId = uuid(7);
-        String fileName = "avatar/" + userId + "/0123456789abcdef0123456789abcdef";
-        String headerUrl = "https://cdn.example.com/files/" + fileName;
-        when(avatarStoragePort.buildAvatarUrl(fileName)).thenReturn(headerUrl);
-
-        service.updateAvatar(userId, userId, fileName);
+        service.updateAvatar(userId, userId, objectId);
 
         InOrder inOrder = inOrder(avatarStoragePort, userRepository);
-        inOrder.verify(avatarStoragePort).assertAndConsumeUploadTicket(userId, fileName);
-        inOrder.verify(avatarStoragePort).buildAvatarUrl(fileName);
+        inOrder.verify(avatarStoragePort).resolvePublicAvatarUrl(userId, objectId);
         inOrder.verify(userRepository).updateHeaderUrl(userId, headerUrl);
     }
 
-    private static AvatarUploadContent uploadContent() {
-        return new AvatarUploadContent(
-                () -> new ByteArrayInputStream("avatar".getBytes(StandardCharsets.UTF_8)),
-                "image/png",
-                6,
-                false
-        );
+    private static CreateAvatarUploadSessionCommand uploadSessionCommand() {
+        return new CreateAvatarUploadSessionCommand("avatar.png", "image/png", 6, "sha256-avatar");
     }
 
     private static UUID uuid(long suffix) {

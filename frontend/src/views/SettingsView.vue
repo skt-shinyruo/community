@@ -27,8 +27,8 @@
             </div>
             <div class="settings-summary-card">
               <div class="settings-summary-label">上传状态</div>
-              <div class="settings-summary-value">{{ uploadSession.fileKey ? '已获取上传参数' : '尚未开始' }}</div>
-              <div class="settings-summary-text">先获取上传参数，再选择图片并提交保存。</div>
+              <div class="settings-summary-value">{{ uploadSession.objectId ? '已获取上传参数' : '尚未开始' }}</div>
+              <div class="settings-summary-text">选择图片后创建上传会话并提交保存。</div>
             </div>
           </div>
         </div>
@@ -39,18 +39,15 @@
           <div>
             <div class="settings-eyebrow">Workflow</div>
             <h2>头像上传</h2>
-            <p>沿用现有上传流程，只调整布局和信息层级，让步骤更容易理解。</p>
+            <p>选择图片后直接使用 OSS 上传会话保存头像。</p>
           </div>
-          <UiButton variant="secondary" @click="loadToken" :disabled="loading">
-            {{ loading ? '获取中…' : '获取上传参数' }}
-          </UiButton>
         </div>
 
         <div class="settings-upload-card">
           <div class="settings-upload-meta">
             <div class="settings-upload-meta-item">
               <span class="settings-upload-label">上传会话</span>
-              <strong>{{ uploadSession.fileKey ? '已获取' : '等待获取上传参数' }}</strong>
+              <strong>{{ uploadSession.objectId ? '已获取' : '等待创建' }}</strong>
             </div>
             <div class="settings-upload-meta-item">
               <span class="settings-upload-label">大小限制</span>
@@ -62,9 +59,9 @@
             </div>
           </div>
 
-          <div v-if="uploadSession.fileKey" class="upload-area">
+          <div class="upload-area">
             <div class="settings-upload-note">
-              <span>图片会按后端签发的上传会话提交，保存后同步到公开资料。</span>
+              <span>图片会按 OSS 上传会话提交，保存后同步到公开资料。</span>
             </div>
 
             <div class="settings-upload-actions">
@@ -81,10 +78,6 @@
                 {{ loading ? '上传中…' : '上传并保存' }}
               </UiButton>
             </div>
-          </div>
-
-          <div v-else class="settings-upload-empty muted">
-            先获取上传参数，再选择要替换的新头像文件。
           </div>
 
           <div v-if="error" class="error">{{ error }}</div>
@@ -144,6 +137,7 @@ watch(pickedFile, (file, _previousFile, onCleanup) => {
     URL.revokeObjectURL(selectedPreviewUrl.value)
   }
   selectedPreviewUrl.value = ''
+  Object.assign(uploadSession, normalizeUploadSession())
   if (!file || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return
 
   const objectUrl = URL.createObjectURL(file)
@@ -155,25 +149,24 @@ watch(pickedFile, (file, _previousFile, onCleanup) => {
   })
 })
 
-async function loadToken() {
+async function createUploadSession(file) {
   error.value = ''
   successMsg.value = ''
   if (!auth.userId) return
-  loading.value = true
-  try {
-    const resp = await http.post(`/api/users/${auth.userId}/avatar/upload-sessions`)
-    const { data, traceId } = unwrapResultBody(resp.data, 'Create Avatar Upload Session')
-    emit('trace', traceId || '')
-    Object.assign(uploadSession, normalizeUploadSession(data || {}))
-  } catch (e) {
-    error.value = e?.message || '获取上传参数失败'
-  } finally {
-    loading.value = false
-  }
+  const resp = await http.post(`/api/users/${auth.userId}/avatar/upload-sessions`, {
+    fileName: file?.name || 'avatar',
+    contentType: file?.type || 'application/octet-stream',
+    contentLength: file?.size || 0,
+    checksumSha256: ''
+  })
+  const { data, traceId } = unwrapResultBody(resp.data, 'Create Avatar Upload Session')
+  emit('trace', traceId || '')
+  Object.assign(uploadSession, normalizeUploadSession(data || {}))
+  return uploadSession
 }
 
-async function updateAvatar(fileKey) {
-  const resp = await http.put(`/api/users/${auth.userId}/avatar`, { fileKey })
+async function updateAvatar(objectId) {
+  const resp = await http.put(`/api/users/${auth.userId}/avatar`, { objectId })
   const { traceId } = unwrapResultBody(resp.data, 'Update Avatar')
   emit('trace', traceId || '')
 }
@@ -181,19 +174,24 @@ async function updateAvatar(fileKey) {
 async function uploadAndUpdate() {
   error.value = ''
   successMsg.value = ''
-  if (!pickedFile.value || !uploadSession.fileKey) return
+  if (!pickedFile.value) return
 
   loading.value = true
   try {
-    const { traceId } = await executeUploadSession({
+    const session = await createUploadSession(pickedFile.value)
+    const { data, traceId } = await executeUploadSession({
       http,
-      session: uploadSession,
+      session,
       file: pickedFile.value,
       operation: 'Upload Avatar'
     })
     emit('trace', traceId || '')
 
-    await updateAvatar(uploadSession.fileKey)
+    const objectId = String(data?.objectId || session.objectId || '').trim()
+    if (!objectId) {
+      throw new Error('头像对象缺失，请重新上传')
+    }
+    await updateAvatar(objectId)
     try {
       const { data, traceId } = await apiMe()
       emit('trace', traceId || '')
